@@ -32,8 +32,7 @@ template <uint32 start, uint32 end>
 /// @return the value at `data` reinterpreted as a big-endian integer of type `T`
 template <std::integral T>
 [[nodiscard]] FORCE_INLINE T ReadBE(const void *data) {
-    T value = 0;
-    std::memcpy(&value, data, sizeof(T));
+    T value = *static_cast<const T *>(data);
     if constexpr (std::endian::native == std::endian::little) {
         value = bit::byte_swap(value);
     }
@@ -49,7 +48,7 @@ FORCE_INLINE void WriteBE(void *data, T value) {
     if constexpr (std::endian::native == std::endian::little) {
         value = bit::byte_swap(value);
     }
-    std::memcpy(data, &value, sizeof(T));
+    *static_cast<T *>(data) = value;
 }
 
 /// @brief Reads a little-endian integer from the given pointer.
@@ -58,8 +57,7 @@ FORCE_INLINE void WriteBE(void *data, T value) {
 /// @return the value at `data` reinterpreted as a little-endian integer of type `T`
 template <std::integral T>
 [[nodiscard]] FORCE_INLINE T ReadLE(const void *data) {
-    T value = 0;
-    std::memcpy(&value, data, sizeof(T));
+    T value = *static_cast<const T *>(data);
     if constexpr (std::endian::native == std::endian::big) {
         value = bit::byte_swap(value);
     }
@@ -75,7 +73,7 @@ FORCE_INLINE void WriteLE(void *data, T value) {
     if constexpr (std::endian::native == std::endian::big) {
         value = bit::byte_swap(value);
     }
-    std::memcpy(data, &value, sizeof(T));
+    *static_cast<T *>(data) = value;
 }
 
 /// @brief Reads a native-endian integer from the given pointer.
@@ -84,8 +82,7 @@ FORCE_INLINE void WriteLE(void *data, T value) {
 /// @return the value at `data` reinterpreted as a native-endian integer of type `T`
 template <std::integral T>
 [[nodiscard]] FORCE_INLINE T ReadNE(const void *data) {
-    T value = 0;
-    std::memcpy(&value, data, sizeof(T));
+    const T value = *static_cast<const T *>(data);
     return value;
 }
 
@@ -95,7 +92,7 @@ template <std::integral T>
 /// @param[in] value the value to write at `data` in native-endian order
 template <std::integral T>
 FORCE_INLINE void WriteNE(void *data, T value) {
-    std::memcpy(data, &value, sizeof(T));
+    *static_cast<T *>(data) = value;
 }
 
 /// @brief Converts a decimal string into an integer.
