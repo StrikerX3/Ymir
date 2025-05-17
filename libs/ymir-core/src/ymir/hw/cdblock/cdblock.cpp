@@ -1218,12 +1218,15 @@ void CDBlock::ReadSector() {
 }
 
 uint16 CDBlock::DoReadTransfer() {
-    const uint16 value = m_xferBuffer[m_xferBufferPos++];
+    uint16 value = {};
 
     switch (m_xferType) {
     case TransferType::GetSector: [[fallthrough]];
-    case TransferType::GetThenDeleteSector:
-        if (m_xferBufferPos >= m_getSectorLength / sizeof(uint16)) {
+    case TransferType::GetThenDeleteSector: {
+        value = m_xferBuffer[m_xferBufferPos++];
+
+        // Read in the next sector if needed
+        if (m_xferBufferPos >= (m_getSectorLength / sizeof(uint16))) {
             if (m_xferType == TransferType::GetThenDeleteSector) {
                 // Delete sector once fully read
                 m_partitionManager.RemoveTail(m_xferPartition, m_xferSectorPos);
@@ -1238,11 +1241,21 @@ uint16 CDBlock::DoReadTransfer() {
             }
         }
         break;
-
-    case TransferType::TOC: break;
-    case TransferType::FileInfo: break;
-    case TransferType::Subcode: break;
-
+    }
+    case TransferType::TOC: [[fallthrough]];
+    case TransferType::FileInfo: [[fallthrough]];
+    case TransferType::Subcode: {
+        // TODO: TOC/FileInfo/Subcode data generally only ever need one sector of data to transfer
+        // but what happens if it is ever more than one sector?
+        if (m_xferBufferPos < (m_getSectorLength / sizeof(uint16))) {
+            value = m_xferBuffer[m_xferBufferPos++];
+        } else {
+            // Out-of-bounds reads, return 'safe' default-data.
+            // TODO: `0xFFFFFFFF...` is used to indicate an unused TOC track, but what about fileinfo and Subcodes?
+            value = 0xFFFF;
+        }
+        break;
+    }
     default: m_xferExtraCount++; return 0; // write-only or no active transfer, or unimplemented read transfer
     }
 
