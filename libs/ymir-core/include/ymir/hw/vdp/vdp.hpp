@@ -859,7 +859,16 @@ private:
     };
 
     // Layer state indices
-    enum LayerIndex { LYR_Sprite, LYR_RBG0, LYR_NBG0_RBG1, LYR_NBG1_EXBG, LYR_NBG2, LYR_NBG3, LYR_Back, LYR_LineColor };
+    enum LayerIndex : uint8 {
+        LYR_Sprite,
+        LYR_RBG0,
+        LYR_NBG0_RBG1,
+        LYR_NBG1_EXBG,
+        LYR_NBG2,
+        LYR_NBG3,
+        LYR_Back,
+        LYR_LineColor,
+    };
 
     // Common layer states
     //     RBG0+RBG1   RBG0        no RBGs
