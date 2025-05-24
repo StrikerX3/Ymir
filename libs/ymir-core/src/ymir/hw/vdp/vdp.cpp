@@ -3154,12 +3154,12 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
         }();
 
         const SpriteParams &params = regs2.spriteParams;
-        auto &pixel = layerState.pixels[xx];
         auto &attr = spriteLayerState.attrs[xx];
 
         util::ScopeGuard sgDoublePixel{[&] {
             if (doubleResH) {
-                layerState.pixels[xx + 1] = pixel;
+                auto pixel = layerState.pixels.GetPixel(xx);
+                layerState.pixels.SetPixel(xx + 1, pixel);
                 spriteLayerState.attrs[xx + 1] = attr;
             }
         }};
@@ -3168,9 +3168,10 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
             const uint16 spriteDataValue = util::ReadBE<uint16>(&spriteFB[(spriteFBOffset * sizeof(uint16)) & 0x3FFFE]);
             if (bit::test<15>(spriteDataValue)) {
                 // RGB data
-                pixel.color = ConvertRGB555to888(Color555{spriteDataValue});
-                pixel.transparent = false;
-                pixel.priority = params.priorities[0];
+                layerState.pixels.color[xx] = ConvertRGB555to888(Color555{spriteDataValue});
+                layerState.pixels.transparent[xx] = false;
+                layerState.pixels.priority[xx] = params.priorities[0];
+
                 attr.colorCalcRatio = params.colorCalcRatios[0];
                 attr.shadowOrWindow = false;
                 attr.normalShadow = false;
@@ -3181,9 +3182,10 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
         // Palette data
         const SpriteData spriteData = VDP2FetchSpriteData(spriteFBOffset);
         const uint32 colorIndex = params.colorDataOffset + spriteData.colorData;
-        pixel.color = VDP2FetchCRAMColor<colorMode>(0, colorIndex);
-        pixel.transparent = spriteData.colorData == 0;
-        pixel.priority = params.priorities[spriteData.priority];
+        layerState.pixels.color[xx] = VDP2FetchCRAMColor<colorMode>(0, colorIndex);
+        layerState.pixels.transparent[xx] = spriteData.colorData == 0;
+        layerState.pixels.priority[xx] = params.priorities[spriteData.priority];
+
         attr.colorCalcRatio = params.colorCalcRatios[spriteData.colorCalcRatio];
         attr.shadowOrWindow = spriteData.shadowOrWindow;
         attr.normalShadow = spriteData.normalShadow;
@@ -3350,7 +3352,47 @@ static const auto kColorOffsetLUT = [] {
     return arr;
 }();
 
-void VDP::VDP2ComposeLine(uint32 y) {
+// SWAR-based method of testing if an array of uint8 values are all zeroes or not
+FORCE_INLINE bool AllZeroU8(std::span<const uint8> Values) {
+
+#if defined(__clang__) || defined(__GNUC__)
+    // 16 at a time
+    for (; Values.size() >= sizeof(__int128); Values = Values.subspan(sizeof(__int128))) {
+        const __int128 &Vec16 = *reinterpret_cast<const __int128 *>(Values.data());
+
+        if (Vec16 != __int128(0)) {
+            return false;
+        }
+    }
+#endif
+
+    // 8 at a time
+    for (; Values.size() >= sizeof(uint64); Values = Values.subspan(sizeof(uint64))) {
+        const uint64 &Vec8 = *reinterpret_cast<const uint64 *>(Values.data());
+
+        if (Vec8 != 0ull) {
+            return false;
+        }
+    }
+
+    // 4 at a time
+    for (; Values.size() >= sizeof(uint32); Values = Values.subspan(sizeof(uint32))) {
+        const uint32 &Vec4 = *reinterpret_cast<const uint32 *>(Values.data());
+
+        if (Vec4 != 0u) {
+            return false;
+        }
+    }
+
+    for (const uint8 &Value : Values) {
+        if (Value != 0u) {
+            return false;
+        }
+    }
+    return true;
+}
+
+FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
     const VDP2Regs &regs = VDP2GetRegs();
     const auto &colorCalcParams = regs.colorCalcParams;
 
@@ -3379,13 +3421,23 @@ void VDP::VDP2ComposeLine(uint32 y) {
             continue;
         }
 
+        if (state.pixels.transparent.all()) {
+            // All pixels are transparent
+            continue;
+        }
+
+        if (AllZeroU8(std::span{state.pixels.priority}.first(m_HRes))) {
+            // All priorities are zero
+            continue;
+        }
+
         for (uint32 x = 0; x < m_HRes; x++) {
 
-            const Pixel &pixel = state.pixels[x];
-            if (pixel.transparent) {
+            if (state.pixels.transparent[x]) {
                 continue;
             }
-            if (pixel.priority == 0) {
+            const uint8 &priority = state.pixels.priority[x];
+            if (priority == 0) {
                 continue;
             }
             if (layer == LYR_Sprite) {
@@ -3402,14 +3454,14 @@ void VDP::VDP2ComposeLine(uint32 y) {
             std::array<LayerIndex, 3> &layers = scanline_layers[x];
             std::array<uint8, 3> &layerPrios = scanline_layerPrios[x];
             for (int i = 0; i < 3; i++) {
-                if (pixel.priority > layerPrios[i] || (pixel.priority == layerPrios[i] && layer < layers[i])) {
+                if (priority > layerPrios[i] || (priority == layerPrios[i] && layer < layers[i])) {
                     // Push layers back
                     for (int j = 2; j > i; j--) {
                         layers[j] = layers[j - 1];
                         layerPrios[j] = layerPrios[j - 1];
                     }
                     layers[i] = static_cast<LayerIndex>(layer);
-                    layerPrios[i] = pixel.priority;
+                    layerPrios[i] = priority;
                     break;
                 }
             }
@@ -3428,8 +3480,7 @@ void VDP::VDP2ComposeLine(uint32 y) {
                 return m_lineBackLayerState.backColor;
             } else {
                 const LayerState &state = m_layerStates[layer];
-                const Pixel &pixel = state.pixels[x];
-                return pixel.color;
+                return state.pixels.color[x];
             }
         };
 
@@ -3449,14 +3500,15 @@ void VDP::VDP2ComposeLine(uint32 y) {
                     return false;
                 }
 
-                const Pixel &pixel = m_layerStates[LYR_Sprite].pixels[x];
+                const uint8 &pixelPriority = m_layerStates[LYR_Sprite].pixels.priority[x];
+                const bool pixelMsb = m_layerStates[LYR_Sprite].pixels.color[x].msb;
 
                 using enum SpriteColorCalculationCondition;
                 switch (spriteParams.colorCalcCond) {
-                case PriorityLessThanOrEqual: return pixel.priority <= spriteParams.colorCalcValue;
-                case PriorityEqual: return pixel.priority == spriteParams.colorCalcValue;
-                case PriorityGreaterThanOrEqual: return pixel.priority >= spriteParams.colorCalcValue;
-                case MsbEqualsOne: return pixel.color.msb == 1;
+                case PriorityLessThanOrEqual: return pixelPriority <= spriteParams.colorCalcValue;
+                case PriorityEqual: return pixelPriority == spriteParams.colorCalcValue;
+                case PriorityGreaterThanOrEqual: return pixelPriority >= spriteParams.colorCalcValue;
+                case MsbEqualsOne: return pixelMsb == 1;
                 default: util::unreachable();
                 }
             } else if (layer == LYR_Back) {
@@ -3475,7 +3527,7 @@ void VDP::VDP2ComposeLine(uint32 y) {
             if (scanline_layers[x][0] == LYR_Back || scanline_layers[x][0] == LYR_Sprite) {
                 return true;
             }
-            return m_layerStates[scanline_layers[x][0]].pixels[x].specialColorCalc;
+            return m_layerStates[scanline_layers[x][0]].pixels.specialColorCalc[x];
         };
         layer0ColorCalcEnabled[x] = isTopLayerColorCalcEnabled();
         layer1ColorCalcEnabled[x] = isColorCalcEnabled(scanline_layers[x][1]);
@@ -3713,7 +3765,7 @@ NO_INLINE void VDP::VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, L
             }
             if (currMosaicCounterX > 0) {
                 // Simply copy over the data from the previous pixel
-                layerState.pixels[x] = layerState.pixels[x - 1];
+                layerState.pixels.SetPixel(x, layerState.pixels.GetPixel(x - 1));
 
                 // Increment horizontal coordinate
                 fracScrollX += bgState.scrollIncH;
@@ -3728,7 +3780,7 @@ NO_INLINE void VDP::VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, L
 
         if (windowState[x]) {
             // Make pixel transparent if inside active window area
-            layerState.pixels[x].transparent = true;
+            layerState.pixels.transparent[x] = true;
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
@@ -3736,8 +3788,9 @@ NO_INLINE void VDP::VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, L
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel
-            layerState.pixels[x] = VDP2FetchScrollBGPixel<false, charMode, fourCellChar, colorFormat, colorMode>(
-                bgParams, bgParams.pageBaseAddresses, bgParams.pageShiftH, bgParams.pageShiftV, scrollCoord);
+            layerState.pixels.SetPixel(
+                x, VDP2FetchScrollBGPixel<false, charMode, fourCellChar, colorFormat, colorMode>(
+                       bgParams, bgParams.pageBaseAddresses, bgParams.pageShiftH, bgParams.pageShiftV, scrollCoord));
         }
 
         // Increment horizontal coordinate
@@ -3780,7 +3833,7 @@ NO_INLINE void VDP::VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, L
             }
             if (currMosaicCounterX > 0) {
                 // Simply copy over the data from the previous pixel
-                layerState.pixels[x] = layerState.pixels[x - 1];
+                layerState.pixels.SetPixel(x, layerState.pixels.GetPixel(x - 1));
 
                 // Increment horizontal coordinate
                 fracScrollX += bgState.scrollIncH;
@@ -3795,7 +3848,7 @@ NO_INLINE void VDP::VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, L
 
         if (windowState[x]) {
             // Make pixel transparent if inside active window area
-            layerState.pixels[x].transparent = true;
+            layerState.pixels.transparent[x] = true;
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
@@ -3803,8 +3856,8 @@ NO_INLINE void VDP::VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, L
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel
-            layerState.pixels[x] =
-                VDP2FetchBitmapPixel<colorFormat, colorMode>(bgParams, bgParams.bitmapBaseAddress, scrollCoord);
+            layerState.pixels.SetPixel(
+                x, VDP2FetchBitmapPixel<colorFormat, colorMode>(bgParams, bgParams.bitmapBaseAddress, scrollCoord));
         }
 
         // Increment horizontal coordinate
@@ -3823,10 +3876,10 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
 
     for (uint32 x = 0; x < maxX; x++) {
         const uint32 xx = x << xShift;
-        auto &pixel = layerState.pixels[xx];
         util::ScopeGuard sgDoublePixel{[&] {
             if (doubleResH) {
-                layerState.pixels[xx + 1] = pixel;
+                const Pixel pixel = layerState.pixels.GetPixel(xx);
+                layerState.pixels.SetPixel(xx + 1, pixel);
             }
         }};
 
@@ -3837,7 +3890,7 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
 
         // Handle transparent pixels in coefficient table
         if (rotParams.coeffTableEnable && rotParamState.transparent[x]) {
-            pixel.transparent = true;
+            layerState.pixels.transparent[xx] = true;
             continue;
         }
 
@@ -3857,11 +3910,12 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
 
         if (windowState[x]) {
             // Make pixel transparent if inside a window
-            pixel.transparent = true;
+            layerState.pixels.transparent[x] = true;
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
-            pixel = VDP2FetchScrollBGPixel<true, charMode, fourCellChar, colorFormat, colorMode>(
-                bgParams, rotParamState.pageBaseAddresses, rotParams.pageShiftH, rotParams.pageShiftV, scrollCoord);
+            layerState.pixels.SetPixel(x, VDP2FetchScrollBGPixel<true, charMode, fourCellChar, colorFormat, colorMode>(
+                                              bgParams, rotParamState.pageBaseAddresses, rotParams.pageShiftH,
+                                              rotParams.pageShiftV, scrollCoord));
         } else if (rotParams.screenOverProcess == ScreenOverProcess::RepeatChar) {
             // Out of bounds - repeat character
             const uint16 charData = rotParams.screenOverPatternName;
@@ -3902,10 +3956,10 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
             const uint32 dotX = bit::extract<0, 2>(scrollX);
             const uint32 dotY = bit::extract<0, 2>(scrollY);
             const CoordU32 dotCoord{dotX, dotY};
-            pixel = VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, ch, dotCoord, 0);
+            layerState.pixels.SetPixel(x, VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, ch, dotCoord, 0));
         } else {
             // Out of bounds - transparent
-            pixel.transparent = true;
+            layerState.pixels.transparent[x] = true;
         }
     }
 }
@@ -3921,10 +3975,10 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
 
     for (uint32 x = 0; x < maxX; x++) {
         const uint32 xx = x << xShift;
-        auto &pixel = layerState.pixels[xx];
         util::ScopeGuard sgDoublePixel{[&] {
             if (doubleResH) {
-                layerState.pixels[xx + 1] = pixel;
+                const Pixel pixel = layerState.pixels.GetPixel(xx);
+                layerState.pixels.SetPixel(xx + 1, pixel);
             }
         }};
         const RotParamSelector rotParamSelector = selRotParam ? VDP2SelectRotationParameter(x, y) : RotParamA;
@@ -3934,7 +3988,7 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
 
         // Handle transparent pixels in coefficient table
         if (rotParams.coeffTableEnable && rotParamState.transparent[x]) {
-            pixel.transparent = true;
+            layerState.pixels.transparent[xx] = true;
             continue;
         }
 
@@ -3953,13 +4007,14 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
 
         if (windowState[x]) {
             // Make pixel transparent if inside a window
-            pixel.transparent = true;
+            layerState.pixels.transparent[xx] = true;
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
-            pixel = VDP2FetchBitmapPixel<colorFormat, colorMode>(bgParams, rotParams.bitmapBaseAddress, scrollCoord);
+            layerState.pixels.SetPixel(xx + 1, VDP2FetchBitmapPixel<colorFormat, colorMode>(
+                                                   bgParams, rotParams.bitmapBaseAddress, scrollCoord));
         } else {
             // Out of bounds and no repeat
-            pixel.transparent = true;
+            layerState.pixels.transparent[xx] = true;
         }
     }
 }
