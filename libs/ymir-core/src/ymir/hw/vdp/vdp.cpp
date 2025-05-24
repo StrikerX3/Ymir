@@ -3436,6 +3436,21 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
         layer2Pixels[x] = getLayerColor(scanline_layers[x][2]);
     }
 
+    // Apply Extended color calc to layer 1
+    if (useExtendedColorCalc) {
+        for (uint32 x = 0; x < m_HRes; ++x) {
+            Color888 &pixel = layer1Pixels[x];
+            // TODO: honor color RAM mode + palette/RGB format restrictions
+            // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
+
+            // HACK: assuming color RAM mode 0 for now (aka no restrictions)
+            const Color888 &l2Color = layer2Pixels[x];
+            pixel.r = (pixel.r + l2Color.r) / 2;
+            pixel.g = (pixel.g + l2Color.g) / 2;
+            pixel.b = (pixel.b + l2Color.b) / 2;
+        }
+    }
+
     // Gather line-color data
     alignas(16) std::bitset<kMaxResH> layer0LineColorEnabled = {};
     alignas(16) std::array<Color888, kMaxResH> layer0LineColors = {};
@@ -3466,6 +3481,31 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
 
         layer0LineColorEnabled[x] = isLineColorEnabled(scanline_layers[x][0]);
         layer0LineColors[x] = getLineColor(scanline_layers[x][0]);
+    }
+
+    // Blend line color screen if top layer uses it
+    if (layer0LineColorEnabled.any()) {
+        if (useExtendedColorCalc) {
+            // Average color
+            // TODO: _mm_avg_epu8(pavgb)
+            for (uint32 x = 0; x < m_HRes; ++x) {
+                Color888 &pixel = layer1Pixels[x];
+                const Color888 &lineColor = layer0LineColors[x];
+                pixel.r = (lineColor.r + pixel.r) / 2;
+                pixel.g = (lineColor.g + pixel.g) / 2;
+                pixel.b = (lineColor.b + pixel.b) / 2;
+            }
+        } else {
+            // Alpha composite
+            for (uint32 x = 0; x < m_HRes; ++x) {
+                Color888 &pixel = layer1Pixels[x];
+                const Color888 &lineColor = layer0LineColors[x];
+                const uint8 ratio = regs.lineScreenParams.colorCalcRatio;
+                pixel.r = lineColor.r + ((int)pixel.r - (int)lineColor.r) * ratio / 32;
+                pixel.g = lineColor.g + ((int)pixel.g - (int)lineColor.g) * ratio / 32;
+                pixel.b = lineColor.b + ((int)pixel.b - (int)lineColor.b) * ratio / 32;
+            }
+        }
     }
 
     // Gather shadow data
@@ -3553,56 +3593,40 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
 
     const std::span<Color888> framebufferOutput(reinterpret_cast<Color888 *>(&m_framebuffer[y * m_HRes]), m_HRes);
 
+    // Blend layer 0 and layer 1
     if (layer0ColorCalcEnabled.any()) {
-        for (uint32 x = 0; Color888 & outputColor : framebufferOutput) {
-            // Calculate color
-            if (layer0ColorCalcEnabled[x]) {
+        if (colorCalcParams.useAdditiveBlend) {
+            // Saturated add
+            // TODO: _mm_adds_epi8(paddsb)
+            for (uint32 x = 0; Color888 & outputColor : framebufferOutput) {
                 const Color888 &topColor = layer0Pixels[x];
-                Color888 btmColor = layer1Pixels[x];
+                const Color888 &btmColor = layer1Pixels[x];
 
-                if (useExtendedColorCalc) {
-                    // TODO: honor color RAM mode + palette/RGB format restrictions
-                    // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
-
-                    // HACK: assuming color RAM mode 0 for now (aka no restrictions)
-                    if (layer1ColorCalcEnabled[x]) {
-                        const Color888 &l2Color = layer2Pixels[x];
-                        btmColor.r = (btmColor.r + l2Color.r) / 2;
-                        btmColor.g = (btmColor.g + l2Color.g) / 2;
-                        btmColor.b = (btmColor.b + l2Color.b) / 2;
-                    }
-                }
-
-                // Insert and blend line color screen if top layer uses it
-                if (layer0LineColorEnabled[x]) {
-                    const Color888 &lineColor = layer0LineColors[x];
-                    if (useExtendedColorCalc) {
-                        btmColor.r = (lineColor.r + btmColor.r) / 2;
-                        btmColor.g = (lineColor.g + btmColor.g) / 2;
-                        btmColor.b = (lineColor.b + btmColor.b) / 2;
-                    } else {
-                        const uint8 ratio = regs.lineScreenParams.colorCalcRatio;
-                        btmColor.r = lineColor.r + ((int)btmColor.r - (int)lineColor.r) * ratio / 32;
-                        btmColor.g = lineColor.g + ((int)btmColor.g - (int)lineColor.g) * ratio / 32;
-                        btmColor.b = lineColor.b + ((int)btmColor.b - (int)lineColor.b) * ratio / 32;
-                    }
-                }
-
-                // Blend top and blended bottom layers
-                if (colorCalcParams.useAdditiveBlend) {
+                if (layer0ColorCalcEnabled[x]) {
                     outputColor.r = std::min<uint32>(topColor.r + btmColor.r, 255u);
                     outputColor.g = std::min<uint32>(topColor.g + btmColor.g, 255u);
                     outputColor.b = std::min<uint32>(topColor.b + btmColor.b, 255u);
                 } else {
+                    outputColor = topColor;
+                }
+                ++x;
+            }
+        } else {
+            // Alpha composite
+            for (uint32 x = 0; Color888 & outputColor : framebufferOutput) {
+                const Color888 &topColor = layer0Pixels[x];
+                const Color888 &btmColor = layer1Pixels[x];
+
+                if (layer0ColorCalcEnabled[x]) {
                     const uint8 &ratio = scanline_ratio[x];
                     outputColor.r = btmColor.r + ((int)topColor.r - (int)btmColor.r) * ratio / 32;
                     outputColor.g = btmColor.g + ((int)topColor.g - (int)btmColor.g) * ratio / 32;
                     outputColor.b = btmColor.b + ((int)topColor.b - (int)btmColor.b) * ratio / 32;
+                } else {
+                    outputColor = topColor;
                 }
-            } else {
-                outputColor = layer0Pixels[x];
+                ++x;
             }
-            ++x;
         }
     } else {
         std::copy_n(layer0Pixels.cbegin(), framebufferOutput.size(), framebufferOutput.begin());
