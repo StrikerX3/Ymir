@@ -58,6 +58,12 @@ union Color888 {
 };
 static_assert(sizeof(Color888) == sizeof(uint32));
 
+// Gets the truncated-average between two RGB888 pixels
+// Averages the unused "alpha" channel as well
+FORCE_INLINE Color888 AverageRGB888(Color888 lhs, Color888 rhs) {
+    return Color888{.u32 = (((lhs.u32 ^ rhs.u32) & 0xfefefefeL) >> 1) + (lhs.u32 & rhs.u32)};
+}
+
 FORCE_INLINE Color888 ConvertRGB555to888(Color555 color) {
     return Color888{
         .r = static_cast<uint32>(color.r) << 3u,

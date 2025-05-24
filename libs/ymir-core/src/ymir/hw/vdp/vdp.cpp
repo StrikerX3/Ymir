@@ -3350,7 +3350,7 @@ static const auto kColorOffsetLUT = [] {
     return arr;
 }();
 
-FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
+void VDP::VDP2ComposeLine(uint32 y) {
     const VDP2Regs &regs = VDP2GetRegs();
     const auto &colorCalcParams = regs.colorCalcParams;
 
@@ -3491,11 +3491,10 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
 
                 // HACK: assuming color RAM mode 0 for now (aka no restrictions)
                 const Color888 &l2Color = layer2Pixels[x];
-                // TODO: _mm_avg_epu8(pavgb)
+                // TODO: x64 - _mm_avg_epu8(pavgb)
+                // TODO: a64 - vhaddq_u8(uhadd.u8)
                 Color888 &pixel = layer1Pixels[x];
-                pixel.r = (pixel.r + l2Color.r) / 2;
-                pixel.g = (pixel.g + l2Color.g) / 2;
-                pixel.b = (pixel.b + l2Color.b) / 2;
+                pixel = AverageRGB888(pixel, l2Color);
             }
         }
     }
@@ -3536,13 +3535,12 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
     if (layer0LineColorEnabled.any()) {
         if (useExtendedColorCalc) {
             // Average color
-            // TODO: _mm_avg_epu8(pavgb)
+            // TODO: x64 - _mm_avg_epu8(pavgb)
+            // TODO: a64 - vhaddq_u8(uhadd.u8)
             for (uint32 x = 0; x < m_HRes; ++x) {
                 const Color888 &lineColor = layer0LineColors[x];
                 Color888 &pixel = layer1Pixels[x];
-                pixel.r = (lineColor.r + pixel.r) / 2;
-                pixel.g = (lineColor.g + pixel.g) / 2;
-                pixel.b = (lineColor.b + pixel.b) / 2;
+                pixel = AverageRGB888(pixel, lineColor);
             }
         } else {
             // Alpha composite
