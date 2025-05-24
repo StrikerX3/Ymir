@@ -721,10 +721,32 @@ private:
 
     // Common pixel data: color, transparency, priority and special color calculation flag.
     struct Pixel {
-        Color888 color = {.u32 = 0};
-        bool transparent = true;
-        uint8 priority = 0;
-        bool specialColorCalc = false;
+        Color888 color;
+        uint8 priority;
+        bool transparent;
+        bool specialColorCalc;
+    };
+
+    struct Pixels {
+        alignas(16) std::array<Color888, kMaxResH> color;
+        alignas(16) std::array<uint8, kMaxResH> priority;
+        alignas(16) std::bitset<kMaxResH> transparent;
+        alignas(16) std::bitset<kMaxResH> specialColorCalc;
+
+        FORCE_INLINE Pixel GetPixel(size_t index) const {
+            return Pixel{
+                .color = color[index],
+                .priority = priority[index],
+                .transparent = transparent[index],
+                .specialColorCalc = specialColorCalc[index],
+            };
+        }
+        FORCE_INLINE void SetPixel(size_t index, Pixel pixel) {
+            color[index] = pixel.color;
+            priority[index] = pixel.priority;
+            transparent[index] = pixel.transparent;
+            specialColorCalc[index] = pixel.specialColorCalc;
+        }
     };
 
     // Layer state, containing the pixel output for the current scanline.
@@ -735,11 +757,14 @@ private:
         }
 
         void Reset() {
-            pixels.fill({});
+            pixels.color.fill({});
+            pixels.priority.fill({});
+            pixels.transparent.reset();
+            pixels.specialColorCalc.reset();
             enabled = false;
         }
 
-        alignas(16) std::array<Pixel, kMaxResH> pixels;
+        alignas(16) Pixels pixels;
 
         bool enabled; // Enabled by BGON and other factors
 
@@ -863,7 +888,16 @@ private:
     };
 
     // Layer state indices
-    enum LayerIndex { LYR_Sprite, LYR_RBG0, LYR_NBG0_RBG1, LYR_NBG1_EXBG, LYR_NBG2, LYR_NBG3, LYR_Back, LYR_LineColor };
+    enum LayerIndex : uint8 {
+        LYR_Sprite,
+        LYR_RBG0,
+        LYR_NBG0_RBG1,
+        LYR_NBG1_EXBG,
+        LYR_NBG2,
+        LYR_NBG3,
+        LYR_Back,
+        LYR_LineColor,
+    };
 
     // Common layer states
     //     RBG0+RBG1   RBG0        no RBGs

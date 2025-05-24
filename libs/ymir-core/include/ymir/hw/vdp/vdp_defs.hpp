@@ -44,6 +44,7 @@ union Color555 {
         uint16 msb : 1; // CC in CRAM, transparency in cells when using RGB format
     };
 };
+static_assert(sizeof(Color555) == sizeof(uint16));
 
 union Color888 {
     uint32 u32;
@@ -55,6 +56,13 @@ union Color888 {
         uint32 msb : 1; // CC in CRAM, transparency in cells when using RGB format
     };
 };
+static_assert(sizeof(Color888) == sizeof(uint32));
+
+// Gets the truncated-average between two RGB888 pixels
+// Averages the unused "alpha" channel as well
+FORCE_INLINE Color888 AverageRGB888(Color888 lhs, Color888 rhs) {
+    return Color888{.u32 = (((lhs.u32 ^ rhs.u32) & 0xFEFEFEFE) >> 1u) + (lhs.u32 & rhs.u32)};
+}
 
 FORCE_INLINE Color888 ConvertRGB555to888(Color555 color) {
     return Color888{
