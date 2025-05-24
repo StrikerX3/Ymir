@@ -3365,11 +3365,13 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
     }
 
     // Determine layer orders
+    static constexpr std::array<LayerIndex, 3> kLayersInit{LYR_Back, LYR_Back, LYR_Back};
     alignas(16) std::array<std::array<LayerIndex, 3>, kMaxResH> scanline_layers;
-    scanline_layers.fill({LYR_Back, LYR_Back, LYR_Back});
+    std::fill_n(scanline_layers.begin(), m_HRes, kLayersInit);
 
+    static constexpr std::array<uint8, 3> kLayerPriosInit{0, 0, 0};
     alignas(16) std::array<std::array<uint8, 3>, kMaxResH> scanline_layerPrios;
-    scanline_layerPrios.fill({0, 0, 0});
+    std::fill_n(scanline_layerPrios.begin(), m_HRes, kLayerPriosInit);
 
     for (uint32 x = 0; x < m_HRes; x++) {
         std::array<LayerIndex, 3> &layers = scanline_layers[x];
