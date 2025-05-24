@@ -3439,12 +3439,13 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
     // Apply Extended color calc to layer 1
     if (useExtendedColorCalc) {
         for (uint32 x = 0; x < m_HRes; ++x) {
-            Color888 &pixel = layer1Pixels[x];
             // TODO: honor color RAM mode + palette/RGB format restrictions
             // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
 
             // HACK: assuming color RAM mode 0 for now (aka no restrictions)
             const Color888 &l2Color = layer2Pixels[x];
+            // TODO: _mm_avg_epu8(pavgb)
+            Color888 &pixel = layer1Pixels[x];
             pixel.r = (pixel.r + l2Color.r) / 2;
             pixel.g = (pixel.g + l2Color.g) / 2;
             pixel.b = (pixel.b + l2Color.b) / 2;
@@ -3483,14 +3484,14 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
         layer0LineColors[x] = getLineColor(scanline_layers[x][0]);
     }
 
-    // Blend line color screen if top layer uses it
+    // Blend line color if top layer uses it
     if (layer0LineColorEnabled.any()) {
         if (useExtendedColorCalc) {
             // Average color
             // TODO: _mm_avg_epu8(pavgb)
             for (uint32 x = 0; x < m_HRes; ++x) {
-                Color888 &pixel = layer1Pixels[x];
                 const Color888 &lineColor = layer0LineColors[x];
+                Color888 &pixel = layer1Pixels[x];
                 pixel.r = (lineColor.r + pixel.r) / 2;
                 pixel.g = (lineColor.g + pixel.g) / 2;
                 pixel.b = (lineColor.b + pixel.b) / 2;
@@ -3498,9 +3499,9 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
         } else {
             // Alpha composite
             for (uint32 x = 0; x < m_HRes; ++x) {
-                Color888 &pixel = layer1Pixels[x];
                 const Color888 &lineColor = layer0LineColors[x];
                 const uint8 ratio = regs.lineScreenParams.colorCalcRatio;
+                Color888 &pixel = layer1Pixels[x];
                 pixel.r = lineColor.r + ((int)pixel.r - (int)lineColor.r) * ratio / 32;
                 pixel.g = lineColor.g + ((int)pixel.g - (int)lineColor.g) * ratio / 32;
                 pixel.b = lineColor.b + ((int)pixel.b - (int)lineColor.b) * ratio / 32;
@@ -3636,9 +3637,11 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
     if (layer0ShadowEnabled.any()) {
         for (uint32 x = 0; Color888 & outputColor : framebufferOutput) {
             if (layer0ShadowEnabled[x]) {
-                outputColor.r >>= 1u;
-                outputColor.g >>= 1u;
-                outputColor.b >>= 1u;
+                // outputColor.r >>= 1u;
+                // outputColor.g >>= 1u;
+                // outputColor.b >>= 1u;
+                outputColor.u32 >>= 1;
+                outputColor.u32 &= 0x7F'7F'7F'7F;
             }
             ++x;
         }
