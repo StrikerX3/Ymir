@@ -3438,19 +3438,65 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
         layer2Pixels[x] = getLayerColor(scanline_layers[x][2]);
     }
 
-    // Apply Extended color calc to layer 1
-    if (useExtendedColorCalc) {
-        for (uint32 x = 0; x < m_HRes; ++x) {
-            // TODO: honor color RAM mode + palette/RGB format restrictions
-            // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
+    // Gether layer color calc data
+    alignas(16) std::bitset<kMaxResH> layer0ColorCalcEnabled = {};
+    alignas(16) std::bitset<kMaxResH> layer1ColorCalcEnabled = {};
+    for (uint32 x = 0; x < m_HRes; x++) {
+        const auto isColorCalcEnabled = [&](LayerIndex layer) {
+            if (layer == LYR_Sprite) {
+                const SpriteParams &spriteParams = regs.spriteParams;
+                if (!spriteParams.colorCalcEnable) {
+                    return false;
+                }
 
-            // HACK: assuming color RAM mode 0 for now (aka no restrictions)
-            const Color888 &l2Color = layer2Pixels[x];
-            // TODO: _mm_avg_epu8(pavgb)
-            Color888 &pixel = layer1Pixels[x];
-            pixel.r = (pixel.r + l2Color.r) / 2;
-            pixel.g = (pixel.g + l2Color.g) / 2;
-            pixel.b = (pixel.b + l2Color.b) / 2;
+                const Pixel &pixel = m_layerStates[LYR_Sprite].pixels[x];
+
+                using enum SpriteColorCalculationCondition;
+                switch (spriteParams.colorCalcCond) {
+                case PriorityLessThanOrEqual: return pixel.priority <= spriteParams.colorCalcValue;
+                case PriorityEqual: return pixel.priority == spriteParams.colorCalcValue;
+                case PriorityGreaterThanOrEqual: return pixel.priority >= spriteParams.colorCalcValue;
+                case MsbEqualsOne: return pixel.color.msb == 1;
+                default: util::unreachable();
+                }
+            } else if (layer == LYR_Back) {
+                return regs.backScreenParams.colorCalcEnable;
+            } else {
+                return regs.bgParams[layer - LYR_RBG0].colorCalcEnable;
+            }
+        };
+        const auto isTopLayerColorCalcEnabled = [&]() -> bool {
+            if (!isColorCalcEnabled(scanline_layers[x][0])) {
+                return false;
+            }
+            if (m_colorCalcWindow[x]) {
+                return false;
+            }
+            if (scanline_layers[x][0] == LYR_Back || scanline_layers[x][0] == LYR_Sprite) {
+                return true;
+            }
+            return m_layerStates[scanline_layers[x][0]].pixels[x].specialColorCalc;
+        };
+        layer0ColorCalcEnabled[x] = isTopLayerColorCalcEnabled();
+        layer1ColorCalcEnabled[x] = isColorCalcEnabled(scanline_layers[x][1]);
+    }
+
+    // Apply Extended color calc to layer 1
+    if (useExtendedColorCalc && layer0ColorCalcEnabled.any()) {
+        for (uint32 x = 0; x < m_HRes; ++x) {
+            if (layer1ColorCalcEnabled[x]) {
+
+                // TODO: honor color RAM mode + palette/RGB format restrictions
+                // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
+
+                // HACK: assuming color RAM mode 0 for now (aka no restrictions)
+                const Color888 &l2Color = layer2Pixels[x];
+                // TODO: _mm_avg_epu8(pavgb)
+                Color888 &pixel = layer1Pixels[x];
+                pixel.r = (pixel.r + l2Color.r) / 2;
+                pixel.g = (pixel.g + l2Color.g) / 2;
+                pixel.b = (pixel.b + l2Color.b) / 2;
+            }
         }
     }
 
@@ -3527,49 +3573,6 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
         const bool isMSBShadow = !regs.spriteParams.spriteWindowEnable && m_spriteLayerState.attrs[x].shadowOrWindow;
 
         layer0ShadowEnabled[x] = isShadowEnabled(scanline_layers[x][0]) || isNormalShadow || isMSBShadow;
-    }
-
-    // Gether layer color calc data
-    alignas(16) std::bitset<kMaxResH> layer0ColorCalcEnabled = {};
-    alignas(16) std::bitset<kMaxResH> layer1ColorCalcEnabled = {};
-    for (uint32 x = 0; x < m_HRes; x++) {
-        const auto isColorCalcEnabled = [&](LayerIndex layer) {
-            if (layer == LYR_Sprite) {
-                const SpriteParams &spriteParams = regs.spriteParams;
-                if (!spriteParams.colorCalcEnable) {
-                    return false;
-                }
-
-                const Pixel &pixel = m_layerStates[LYR_Sprite].pixels[x];
-
-                using enum SpriteColorCalculationCondition;
-                switch (spriteParams.colorCalcCond) {
-                case PriorityLessThanOrEqual: return pixel.priority <= spriteParams.colorCalcValue;
-                case PriorityEqual: return pixel.priority == spriteParams.colorCalcValue;
-                case PriorityGreaterThanOrEqual: return pixel.priority >= spriteParams.colorCalcValue;
-                case MsbEqualsOne: return pixel.color.msb == 1;
-                default: util::unreachable();
-                }
-            } else if (layer == LYR_Back) {
-                return regs.backScreenParams.colorCalcEnable;
-            } else {
-                return regs.bgParams[layer - LYR_RBG0].colorCalcEnable;
-            }
-        };
-        const auto isTopLayerColorCalcEnabled = [&]() -> bool {
-            if (!isColorCalcEnabled(scanline_layers[x][0])) {
-                return false;
-            }
-            if (m_colorCalcWindow[x]) {
-                return false;
-            }
-            if (scanline_layers[x][0] == LYR_Back || scanline_layers[x][0] == LYR_Sprite) {
-                return true;
-            }
-            return m_layerStates[scanline_layers[x][0]].pixels[x].specialColorCalc;
-        };
-        layer0ColorCalcEnabled[x] = isTopLayerColorCalcEnabled();
-        layer1ColorCalcEnabled[x] = isColorCalcEnabled(scanline_layers[x][1]);
     }
 
     // Gather extended color ratio info
