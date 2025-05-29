@@ -419,6 +419,10 @@ private:
     uint32 m_delaySlotTarget;
     bool m_delaySlot;
 
+    // [1] fetch
+    // [0] decode
+    std::array<uint16, 2> m_fetchQueue;
+
     CBAcknowledgeExternalInterrupt m_cbAcknowledgeExternalInterrupt;
 
     // -------------------------------------------------------------------------
@@ -468,6 +472,9 @@ private:
 
     template <mem_primitive T, bool poke, bool debug, bool enableCache>
     void MemWrite(uint32 address, T value);
+
+    template <bool enableCache>
+    void FillPipeline();
 
     template <bool enableCache>
     uint16 FetchInstruction(uint32 address);
@@ -796,9 +803,9 @@ private:
     void TSTI(const DecodedArgs &args);            // tst     imm, R0
     TPL_TRAITS void TSTM(const DecodedArgs &args); // tst.b   imm, @(R0,GBR)
 
-    uint64 BF(const DecodedArgs &args);             // bf    disp
+    TPL_TRAITS uint64 BF(const DecodedArgs &args);  // bf    disp
     uint64 BFS(const DecodedArgs &args);            // bf/s  disp
-    uint64 BT(const DecodedArgs &args);             // bt    disp
+    TPL_TRAITS uint64 BT(const DecodedArgs &args);  // bt    disp
     uint64 BTS(const DecodedArgs &args);            // bt/s  disp
     void BRA(const DecodedArgs &args);              // bra   disp
     void BRAF(const DecodedArgs &args);             // braf  Rm

@@ -9,6 +9,7 @@ namespace ymir::state {
 // Version history:
 // v5:
 // - New fields
+//   - fetchQueue = 0x0009, 0x0009
 //   - FRT::FTCSR_mask = 0x00
 
 struct SH2State {
@@ -27,6 +28,8 @@ struct SH2State {
 
     uint32 delaySlotTarget;
     bool delaySlot;
+
+    std::array<uint16, 2> fetchQueue;
 
     struct BSC {
         uint16 BCR1;

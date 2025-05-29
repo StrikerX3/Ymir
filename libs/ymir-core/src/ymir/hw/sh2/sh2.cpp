@@ -228,8 +228,10 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     GBR = 0;
     VBR = 0x00000000;
 
+    // NOTE: Cache is disabled on reset
     PC = MemReadLong<false>(0x00000000);
     R[15] = MemReadLong<false>(0x00000004);
+    FillPipeline<false>();
 
     // On-chip registers
     BCR1.u15 = 0x03F0;
@@ -372,6 +374,7 @@ void SH2::SaveState(state::SH2State &state) const {
     state.VBR = VBR;
     state.delaySlotTarget = m_delaySlotTarget;
     state.delaySlot = m_delaySlot;
+    state.fetchQueue = m_fetchQueue;
 
     state.bsc.BCR1 = BCR1.u16;
     state.bsc.BCR2 = BCR2.u16;
@@ -407,6 +410,7 @@ void SH2::LoadState(const state::SH2State &state) {
     VBR = state.VBR;
     m_delaySlotTarget = state.delaySlotTarget;
     m_delaySlot = state.delaySlot;
+    m_fetchQueue = state.fetchQueue;
 
     BCR1.u15 = state.bsc.BCR1; // Do not change the MASTER bit
     BCR2.u16 = state.bsc.BCR2;
@@ -652,8 +656,18 @@ void SH2::MemWrite(uint32 address, T value) {
 }
 
 template <bool enableCache>
+FLATTEN FORCE_INLINE void SH2::FillPipeline() {
+    m_fetchQueue[0] = MemRead<uint16, true, false, enableCache>(PC + 0);
+    m_fetchQueue[1] = MemRead<uint16, true, false, enableCache>(PC + 2);
+    PC += 4;
+}
+
+template <bool enableCache>
 FLATTEN FORCE_INLINE uint16 SH2::FetchInstruction(uint32 address) {
-    return MemRead<uint16, true, false, enableCache>(address);
+    const uint16 opcode = m_fetchQueue[0];
+    m_fetchQueue[0] = m_fetchQueue[1];
+    m_fetchQueue[1] = MemRead<uint16, true, false, enableCache>(address);
+    return opcode;
 }
 
 template <bool enableCache>
@@ -1576,8 +1590,9 @@ FORCE_INLINE void SH2::EnterException(uint8 vectorNumber) {
     R[15] -= 4;
     MemWriteLong<debug, enableCache>(R[15], SR.u32);
     R[15] -= 4;
-    MemWriteLong<debug, enableCache>(R[15], PC);
+    MemWriteLong<debug, enableCache>(R[15], PC - 4);
     PC = MemReadLong<enableCache>(VBR + (static_cast<uint32>(vectorNumber) << 2u));
+    FillPipeline<enableCache>();
 }
 
 // -----------------------------------------------------------------------------
@@ -1610,6 +1625,7 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     auto jumpToDelaySlot = [&] {
         PC = m_delaySlotTarget;
         m_delaySlot = false;
+        FillPipeline<enableCache>();
     };
 
     const uint16 instr = FetchInstruction<enableCache>(PC);
@@ -1758,9 +1774,9 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::TST_I: TSTI(args), PC += 2; return 1;
     case OpcodeType::TST_M: TSTM<debug, enableCache>(args), PC += 2; return 3;
 
-    case OpcodeType::BF: return BF(args);
+    case OpcodeType::BF: return BF<debug, enableCache>(args);
     case OpcodeType::BFS: return BFS(args);
-    case OpcodeType::BT: return BT(args);
+    case OpcodeType::BT: return BT<debug, enableCache>(args);
     case OpcodeType::BTS: return BTS(args);
     case OpcodeType::BRA: BRA(args); return 2;
     case OpcodeType::BRAF: BRAF(args); return 2;
@@ -2169,7 +2185,7 @@ FORCE_INLINE void SH2::MOVLI(const DecodedArgs &args) {
 
 // mova @(disp,PC), R0
 FORCE_INLINE void SH2::MOVA(const DecodedArgs &args) {
-    const uint32 address = (PC & ~3) + args.dispImm;
+    const uint32 address = (PC & ~3u) + args.dispImm;
     R[0] = address;
 }
 
@@ -2780,9 +2796,11 @@ FORCE_INLINE void SH2::TSTM(const DecodedArgs &args) {
 }
 
 // bf <label>
+template <bool debug, bool enableCache>
 FORCE_INLINE uint64 SH2::BF(const DecodedArgs &args) {
     if (!SR.T) {
         PC += args.dispImm;
+        FillPipeline<enableCache>();
         return 3;
     } else {
         PC += 2;
@@ -2800,9 +2818,11 @@ FORCE_INLINE uint64 SH2::BFS(const DecodedArgs &args) {
 }
 
 // bt <label>
+template <bool debug, bool enableCache>
 FORCE_INLINE uint64 SH2::BT(const DecodedArgs &args) {
     if (SR.T) {
         PC += args.dispImm;
+        FillPipeline<enableCache>();
         return 3;
     } else {
         PC += 2;
@@ -2827,21 +2847,21 @@ FORCE_INLINE void SH2::BRA(const DecodedArgs &args) {
 
 // braf Rm
 FORCE_INLINE void SH2::BRAF(const DecodedArgs &args) {
-    SetupDelaySlot(PC + R[args.rm] + 4);
+    SetupDelaySlot(PC + R[args.rm]);
     PC += 2;
 }
 
 // bsr <label>
 FORCE_INLINE void SH2::BSR(const DecodedArgs &args) {
-    PR = PC + 4;
+    PR = PC;
     SetupDelaySlot(PC + args.dispImm);
     PC += 2;
 }
 
 // bsrf Rm
 FORCE_INLINE void SH2::BSRF(const DecodedArgs &args) {
-    PR = PC + 4;
-    SetupDelaySlot(PC + R[args.rm] + 4);
+    PR = PC;
+    SetupDelaySlot(PC + R[args.rm]);
     PC += 2;
 }
 
@@ -2853,7 +2873,7 @@ FORCE_INLINE void SH2::JMP(const DecodedArgs &args) {
 
 // jsr @Rm
 FORCE_INLINE void SH2::JSR(const DecodedArgs &args) {
-    PR = PC + 4;
+    PR = PC;
     SetupDelaySlot(R[args.rm]);
     PC += 2;
 }
@@ -2864,8 +2884,9 @@ FORCE_INLINE void SH2::TRAPA(const DecodedArgs &args) {
     R[15] -= 4;
     MemWriteLong<debug, enableCache>(R[15], SR.u32);
     R[15] -= 4;
-    MemWriteLong<debug, enableCache>(R[15], PC + 2);
+    MemWriteLong<debug, enableCache>(R[15], PC - 2);
     PC = MemReadLong<enableCache>(VBR + args.dispImm);
+    FillPipeline<enableCache>();
 }
 
 template <bool debug, bool enableCache>
