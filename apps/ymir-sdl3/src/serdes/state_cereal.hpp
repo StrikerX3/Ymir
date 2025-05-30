@@ -38,10 +38,12 @@ void serialize(Archive &ar, SystemState &s) {
 template <class Archive>
 void serialize(Archive &ar, SH2State &s, const uint32 version) {
     ar(s.R, s.PC, s.PR, s.MACL, s.MACH, s.SR, s.GBR, s.VBR);
-    ar(s.delaySlot, s.delaySlotTarget);
+    ar(s.delaySlot);
     if (version >= 5) {
         ar(s.fetchQueue);
     } else {
+        uint32 delaySlotTarget{};
+        ar(delaySlotTarget);
         s.fetchQueue[0] = 0x0009;
         s.fetchQueue[1] = 0x0009;
     }

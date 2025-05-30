@@ -189,7 +189,6 @@ public:
         // Execution state
 
         bool IsInDelaySlot() const;
-        uint32 DelaySlotTarget() const;
 
         // ---------------------------------------------------------------------
         // On-chip peripheral registers
@@ -416,7 +415,6 @@ private:
     uint32 GBR;
     uint32 VBR;
 
-    uint32 m_delaySlotTarget;
     bool m_delaySlot;
 
     // [1] fetch
@@ -648,8 +646,6 @@ private:
 
     // -------------------------------------------------------------------------
     // Helper functions
-
-    void SetupDelaySlot(uint32 targetAddress);
 
     template <bool debug, bool enableCache>
     void EnterException(uint8 vectorNumber);

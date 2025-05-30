@@ -11,6 +11,8 @@ namespace ymir::state {
 // - New fields
 //   - fetchQueue = 0x0009, 0x0009
 //   - FRT::FTCSR_mask = 0x00
+// - Removed fields
+//   - uint32 delaySlotTarget
 
 struct SH2State {
     alignas(16) std::array<uint32, 16> R;
@@ -26,7 +28,6 @@ struct SH2State {
     uint32 GBR;
     uint32 VBR;
 
-    uint32 delaySlotTarget;
     bool delaySlot;
 
     std::array<uint16, 2> fetchQueue;

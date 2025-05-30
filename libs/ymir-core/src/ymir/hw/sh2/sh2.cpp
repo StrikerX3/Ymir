@@ -255,7 +255,6 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     FRT.Reset();
     INTC.Reset();
 
-    m_delaySlotTarget = 0;
     m_delaySlot = false;
 
     m_cache.Reset();
@@ -372,7 +371,6 @@ void SH2::SaveState(state::SH2State &state) const {
     state.SR = SR.u32;
     state.GBR = GBR;
     state.VBR = VBR;
-    state.delaySlotTarget = m_delaySlotTarget;
     state.delaySlot = m_delaySlot;
     state.fetchQueue = m_fetchQueue;
 
@@ -408,7 +406,6 @@ void SH2::LoadState(const state::SH2State &state) {
     SR.u32 = state.SR;
     GBR = state.GBR;
     VBR = state.VBR;
-    m_delaySlotTarget = state.delaySlotTarget;
     m_delaySlot = state.delaySlot;
     m_fetchQueue = state.fetchQueue;
 
@@ -1579,11 +1576,6 @@ void SH2::RecalcInterrupts() {
 // -------------------------------------------------------------------------
 // Helper functions
 
-FORCE_INLINE void SH2::SetupDelaySlot(uint32 targetAddress) {
-    m_delaySlot = true;
-    m_delaySlotTarget = targetAddress;
-}
-
 template <bool debug, bool enableCache>
 FORCE_INLINE void SH2::EnterException(uint8 vectorNumber) {
     TraceException<debug>(m_tracer, vectorNumber, PC, SR.u32);
@@ -1623,9 +1615,9 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     // TODO: emulate or approximate fetch - decode - execute - memory access - writeback pipeline
 
     auto jumpToDelaySlot = [&] {
-        PC = m_delaySlotTarget;
         m_delaySlot = false;
-        FillPipeline<enableCache>();
+        FetchInstruction<enableCache>(PC + 2);
+        PC += 4;
     };
 
     const uint16 instr = FetchInstruction<enableCache>(PC);
@@ -2811,9 +2803,11 @@ FORCE_INLINE uint64 SH2::BF(const DecodedArgs &args) {
 // bf/s <label>
 FORCE_INLINE uint64 SH2::BFS(const DecodedArgs &args) {
     if (!SR.T) {
-        SetupDelaySlot(PC + args.dispImm);
+        PC += args.dispImm;
+        m_delaySlot = true;
+    } else {
+        PC += 2;
     }
-    PC += 2;
     return !SR.T ? 2 : 1;
 }
 
@@ -2833,49 +2827,51 @@ FORCE_INLINE uint64 SH2::BT(const DecodedArgs &args) {
 // bt/s <label>
 FORCE_INLINE uint64 SH2::BTS(const DecodedArgs &args) {
     if (SR.T) {
-        SetupDelaySlot(PC + args.dispImm);
+        PC += args.dispImm;
+        m_delaySlot = true;
+    } else {
+        PC += 2;
     }
-    PC += 2;
     return SR.T ? 2 : 1;
 }
 
 // bra <label>
 FORCE_INLINE void SH2::BRA(const DecodedArgs &args) {
-    SetupDelaySlot(PC + args.dispImm);
-    PC += 2;
+    PC += args.dispImm;
+    m_delaySlot = true;
 }
 
 // braf Rm
 FORCE_INLINE void SH2::BRAF(const DecodedArgs &args) {
-    SetupDelaySlot(PC + R[args.rm]);
-    PC += 2;
+    PC += R[args.rm];
+    m_delaySlot = true;
 }
 
 // bsr <label>
 FORCE_INLINE void SH2::BSR(const DecodedArgs &args) {
     PR = PC;
-    SetupDelaySlot(PC + args.dispImm);
-    PC += 2;
+    PC += args.dispImm;
+    m_delaySlot = true;
 }
 
 // bsrf Rm
 FORCE_INLINE void SH2::BSRF(const DecodedArgs &args) {
     PR = PC;
-    SetupDelaySlot(PC + R[args.rm]);
-    PC += 2;
+    PC += R[args.rm];
+    m_delaySlot = true;
 }
 
 // jmp @Rm
 FORCE_INLINE void SH2::JMP(const DecodedArgs &args) {
-    SetupDelaySlot(R[args.rm]);
-    PC += 2;
+    PC = R[args.rm];
+    m_delaySlot = true;
 }
 
 // jsr @Rm
 FORCE_INLINE void SH2::JSR(const DecodedArgs &args) {
     PR = PC;
-    SetupDelaySlot(R[args.rm]);
-    PC += 2;
+    PC = R[args.rm];
+    m_delaySlot = true;
 }
 
 // trapa #imm
@@ -2892,19 +2888,18 @@ FORCE_INLINE void SH2::TRAPA(const DecodedArgs &args) {
 template <bool debug, bool enableCache>
 FORCE_INLINE void SH2::RTE() {
     // rte
-    SetupDelaySlot(MemReadLong<enableCache>(R[15]));
-    PC += 2;
+    PC = MemReadLong<enableCache>(R[15]);
+    m_delaySlot = true;
     R[15] += 4;
     SR.u32 = MemReadLong<enableCache>(R[15]) & 0x000003F3;
     R[15] += 4;
-    devlog::trace<grp::exec>(m_logPrefix, "Returning from interrupt handler, PC {:08X} -> {:08X}", PC,
-                             m_delaySlotTarget);
+    devlog::trace<grp::exec>(m_logPrefix, "Returning from interrupt handler, PC -> {:08X}", PC);
 }
 
 // rts
 FORCE_INLINE void SH2::RTS() {
-    SetupDelaySlot(PR);
-    PC += 2;
+    PC = PR;
+    m_delaySlot = true;
 }
 
 // -----------------------------------------------------------------------------
@@ -3027,10 +3022,6 @@ void SH2::Probe::MemPokeLong(uint32 address, uint32 value, bool bypassCache) {
 
 bool SH2::Probe::IsInDelaySlot() const {
     return m_sh2.m_delaySlot;
-}
-
-uint32 SH2::Probe::DelaySlotTarget() const {
-    return m_sh2.m_delaySlotTarget;
 }
 
 void SH2::Probe::ExecuteDiv32() {
