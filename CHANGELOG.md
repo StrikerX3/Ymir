@@ -5,36 +5,37 @@
 ### New features and improvements
 
 - App: Changed background color around screen to black on windowed mode.
+- CD Block: Implement Put Sector command, used by After Burner II. (#78)
 - Core: Performance improvements, especially for ARM builds. (@Wunkolo)
-- VDP: Rewrite VDP2 frame composition code to use SIMD on x86 and ARM for improved performance. (@Wunkolo)
+- Debug: Simple CD Block commmand tracer window.
 - Input: Implemented 3D Control Pad. (#28)
 - Media: Preliminary support for CHD files. (#48)
 - Media: Support multi-indexed audio tracks (BIN/CUE only). (#58)
-- CD Block: Implement Put Sector command, used by After Burner II. (#78)
+- SH-2: Simulate fetch and decode pipeline stages for improved accuracy.
 - SMPC: Set SF=0 on unimplemented commands so that games can move forward.
-- Debug: Simple CD Block commmand tracer window.
+- VDP: Rewrite VDP2 frame composition code to use SIMD on x86 and ARM for improved performance. (@Wunkolo)
 
 ### Fixes
 
-- App: Customized profile paths are now created at the specified location instead of the default. (#119, #126; @lvsweat)
 - App: Automatically adjust scaling when system-wide DPI is changed. (@Wunkolo)
-- CD Block: Fix audio track sector sizes. Fixes some CD audio track playback glitches with certain images (particularly MDF/MDS).
-- CD Block: Free last buffer from partition when ending a Get Then Delete Sector transfer when the last sector isn't fully read. Fixes some game boot issues.
-- CD Block: Fix Delete Sector end position when sector count is FFFF. Fixes some game boot issues.
+- App: Customized profile paths are now created at the specified location instead of the default. (#119, #126; @lvsweat)
 - CD Block: Don't clear the file system when opening the tray.
+- CD Block: Fix audio track sector sizes. Fixes some CD audio track playback glitches with certain images (particularly MDF/MDS).
+- CD Block: Fix Delete Sector end position when sector count is FFFF. Fixes some game boot issues.
 - CD Block: Fix directory indexing. Fixes one of Assault Suit Leynos 2 crashes on startup. (#127)
+- CD Block: Free last buffer from partition when ending a Get Then Delete Sector transfer when the last sector isn't fully read. Fixes some game boot issues.
 - IPL: Automatically load IPL ROM when switching disc images. (#128)
-- VDP2: Fix bitmap base address for RBGs. Fixes several graphics glitches on menus and in-game in Need for Speed.
-- VDP2: Don't increment vertical mosaic counter if mosaic is disabled. Fixes text boxes and character portraits in Grandia. (#91)
-- VDP2: Fix line screen scroll in double-density interlace mode. Fixes stretched videos in Grandia. (#91)
-- VDP2: Allow 8-bit reads and writes to VDP2 registers.
-- VDP1/2: Fix handling of 16-bit sprite data from VDP1 when VDP2 uses 8-bit sprite types. Fixes sprites in I Love Mickey Mouse/Donald Duck.
-- SH-2: Fix PC offsets for exceptions, interrupts, TRAPA and RTE. Fixes some game boot issues.
-- SH-2: FRT fixes and accuracy improvements (thanks to @celeriyacon). Fixes freezes in Daytona USA. (#7)
 - M68K: Soft reset CPU when executing the `RESET` instruction. Fixes OutRun getting stuck on its own SEGA logo.
 - SCSP: Don't mirror sound RAM on 5A8'0000-5AF'FFFF. Fixes After Burner II audio and M68K crashes.
 - SCU: Rework interrupt handling. Fixes Rayman inputs. (#59)
+- SH-2: Fix PC offsets for exceptions, interrupts, TRAPA and RTE. Fixes some game boot issues.
+- SH-2: FRT fixes and accuracy improvements (thanks to @celeriyacon). Fixes freezes in Daytona USA. (#7)
 - SMPC: Various INTBACK handling adjustments. Partially fixes Assault Suit Leynos 2 no-boot issues.
+- VDP1/2: Fix handling of 16-bit sprite data from VDP1 when VDP2 uses 8-bit sprite types. Fixes sprites in I Love Mickey Mouse/Donald Duck.
+- VDP2: Allow 8-bit reads and writes to VDP2 registers.
+- VDP2: Don't increment vertical mosaic counter if mosaic is disabled. Fixes text boxes and character portraits in Grandia. (#91)
+- VDP2: Fix bitmap base address for RBGs. Fixes several graphics glitches on menus and in-game in Need for Speed.
+- VDP2: Fix line screen scroll in double-density interlace mode. Fixes stretched videos in Grandia. (#91)
 - ymdasm: Fix file length when using a non-zero initial offset with the default length.
 
 
