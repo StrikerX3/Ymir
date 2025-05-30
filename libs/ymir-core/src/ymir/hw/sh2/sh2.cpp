@@ -1663,9 +1663,9 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::MOVW_SG: MOVWSG<debug, enableCache>(args), PC += 2; return 1;
     case OpcodeType::MOVL_SG: MOVLSG<debug, enableCache>(args), PC += 2; return 1;
     case OpcodeType::MOV_I: MOVI(args), PC += 2; return 1;
-    case OpcodeType::MOVW_I: MOVWI<debug, enableCache>(args), PC += 2; return 1;
-    case OpcodeType::MOVL_I: MOVLI<debug, enableCache>(args), PC += 2; return 1;
-    case OpcodeType::MOVA: MOVA(args), PC += 2; return 1;
+    case OpcodeType::MOVW_I: MOVWI<debug, enableCache, false>(args), PC += 2; return 1;
+    case OpcodeType::MOVL_I: MOVLI<debug, enableCache, false>(args), PC += 2; return 1;
+    case OpcodeType::MOVA: MOVA<false>(args), PC += 2; return 1;
     case OpcodeType::MOVT: MOVT(args), PC += 2; return 1;
     case OpcodeType::CLRT: CLRT(), PC += 2; return 1;
     case OpcodeType::SETT: SETT(), PC += 2; return 1;
@@ -1819,9 +1819,9 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::Delay_MOVW_SG: MOVWSG<debug, enableCache>(args), jumpToDelaySlot(); return 1;
     case OpcodeType::Delay_MOVL_SG: MOVLSG<debug, enableCache>(args), jumpToDelaySlot(); return 1;
     case OpcodeType::Delay_MOV_I: MOVI(args), jumpToDelaySlot(); return 1;
-    case OpcodeType::Delay_MOVW_I: MOVWI<debug, enableCache>(args), jumpToDelaySlot(); return 1;
-    case OpcodeType::Delay_MOVL_I: MOVLI<debug, enableCache>(args), jumpToDelaySlot(); return 1;
-    case OpcodeType::Delay_MOVA: MOVA(args), jumpToDelaySlot(); return 1;
+    case OpcodeType::Delay_MOVW_I: MOVWI<debug, enableCache, true>(args), jumpToDelaySlot(); return 1;
+    case OpcodeType::Delay_MOVL_I: MOVLI<debug, enableCache, true>(args), jumpToDelaySlot(); return 1;
+    case OpcodeType::Delay_MOVA: MOVA<true>(args), jumpToDelaySlot(); return 1;
     case OpcodeType::Delay_MOVT: MOVT(args), jumpToDelaySlot(); return 1;
     case OpcodeType::Delay_CLRT: CLRT(), jumpToDelaySlot(); return 1;
     case OpcodeType::Delay_SETT: SETT(), jumpToDelaySlot(); return 1;
@@ -2162,22 +2162,23 @@ FORCE_INLINE void SH2::MOVI(const DecodedArgs &args) {
 }
 
 // mov.w @(disp,PC), Rn
-template <bool debug, bool enableCache>
+template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE void SH2::MOVWI(const DecodedArgs &args) {
-    const uint32 address = PC + args.dispImm;
+    const uint32 address = PC + args.dispImm + (delaySlot ? 2u : 0u);
     R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
 }
 
 // mov.l @(disp,PC), Rn
-template <bool debug, bool enableCache>
+template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE void SH2::MOVLI(const DecodedArgs &args) {
-    const uint32 address = (PC & ~3u) + args.dispImm;
+    const uint32 address = ((PC + (delaySlot ? 2u : 0u)) & ~3u) + args.dispImm;
     R[args.rn] = MemReadLong<enableCache>(address);
 }
 
 // mova @(disp,PC), R0
+template <bool delaySlot>
 FORCE_INLINE void SH2::MOVA(const DecodedArgs &args) {
-    const uint32 address = (PC & ~3u) + args.dispImm;
+    const uint32 address = ((PC + (delaySlot ? 2u : 0u)) & ~3u) + args.dispImm;
     R[0] = address;
 }
 

@@ -659,49 +659,51 @@ private:
     uint64 InterpretNext();
 
 #define TPL_TRAITS template <bool debug, bool enableCache>
+#define TPL_TRAITS_DS template <bool debug, bool enableCache, bool delaySlot>
+#define TPL_DS template <bool delaySlot>
 
     void NOP(); // nop
 
     void SLEEP(); // sleep
 
-    void MOV(const DecodedArgs &args);               // mov   Rm, Rn
-    TPL_TRAITS void MOVBL(const DecodedArgs &args);  // mov.b @Rm, Rn
-    TPL_TRAITS void MOVWL(const DecodedArgs &args);  // mov.w @Rm, Rn
-    TPL_TRAITS void MOVLL(const DecodedArgs &args);  // mov.l @Rm, Rn
-    TPL_TRAITS void MOVBL0(const DecodedArgs &args); // mov.b @(R0,Rm), Rn
-    TPL_TRAITS void MOVWL0(const DecodedArgs &args); // mov.w @(R0,Rm), Rn
-    TPL_TRAITS void MOVLL0(const DecodedArgs &args); // mov.l @(R0,Rm), Rn
-    TPL_TRAITS void MOVBL4(const DecodedArgs &args); // mov.b @(disp,Rm), R0
-    TPL_TRAITS void MOVWL4(const DecodedArgs &args); // mov.w @(disp,Rm), R0
-    TPL_TRAITS void MOVLL4(const DecodedArgs &args); // mov.l @(disp,Rm), Rn
-    TPL_TRAITS void MOVBLG(const DecodedArgs &args); // mov.b @(disp,GBR), R0
-    TPL_TRAITS void MOVWLG(const DecodedArgs &args); // mov.w @(disp,GBR), R0
-    TPL_TRAITS void MOVLLG(const DecodedArgs &args); // mov.l @(disp,GBR), R0
-    TPL_TRAITS void MOVBM(const DecodedArgs &args);  // mov.b Rm, @-Rn
-    TPL_TRAITS void MOVWM(const DecodedArgs &args);  // mov.w Rm, @-Rn
-    TPL_TRAITS void MOVLM(const DecodedArgs &args);  // mov.l Rm, @-Rn
-    TPL_TRAITS void MOVBP(const DecodedArgs &args);  // mov.b @Rm+, Rn
-    TPL_TRAITS void MOVWP(const DecodedArgs &args);  // mov.w @Rm+, Rn
-    TPL_TRAITS void MOVLP(const DecodedArgs &args);  // mov.l @Rm+, Rn
-    TPL_TRAITS void MOVBS(const DecodedArgs &args);  // mov.b Rm, @Rn
-    TPL_TRAITS void MOVWS(const DecodedArgs &args);  // mov.w Rm, @Rn
-    TPL_TRAITS void MOVLS(const DecodedArgs &args);  // mov.l Rm, @Rn
-    TPL_TRAITS void MOVBS0(const DecodedArgs &args); // mov.b Rm, @(R0,Rn)
-    TPL_TRAITS void MOVWS0(const DecodedArgs &args); // mov.w Rm, @(R0,Rn)
-    TPL_TRAITS void MOVLS0(const DecodedArgs &args); // mov.l Rm, @(R0,Rn)
-    TPL_TRAITS void MOVBS4(const DecodedArgs &args); // mov.b R0, @(disp,Rn)
-    TPL_TRAITS void MOVWS4(const DecodedArgs &args); // mov.w R0, @(disp,Rn)
-    TPL_TRAITS void MOVLS4(const DecodedArgs &args); // mov.l Rm, @(disp,Rn)
-    TPL_TRAITS void MOVBSG(const DecodedArgs &args); // mov.b R0, @(disp,GBR)
-    TPL_TRAITS void MOVWSG(const DecodedArgs &args); // mov.w R0, @(disp,GBR)
-    TPL_TRAITS void MOVLSG(const DecodedArgs &args); // mov.l R0, @(disp,GBR)
-    void MOVI(const DecodedArgs &args);              // mov   #imm, Rn
-    TPL_TRAITS void MOVWI(const DecodedArgs &args);  // mov.w @(disp,PC), Rn
-    TPL_TRAITS void MOVLI(const DecodedArgs &args);  // mov.l @(disp,PC), Rn
-    void MOVA(const DecodedArgs &args);              // mova  @(disp,PC), R0
-    void MOVT(const DecodedArgs &args);              // movt  Rn
-    void CLRT();                                     // clrt
-    void SETT();                                     // sett
+    void MOV(const DecodedArgs &args);                 // mov   Rm, Rn
+    TPL_TRAITS void MOVBL(const DecodedArgs &args);    // mov.b @Rm, Rn
+    TPL_TRAITS void MOVWL(const DecodedArgs &args);    // mov.w @Rm, Rn
+    TPL_TRAITS void MOVLL(const DecodedArgs &args);    // mov.l @Rm, Rn
+    TPL_TRAITS void MOVBL0(const DecodedArgs &args);   // mov.b @(R0,Rm), Rn
+    TPL_TRAITS void MOVWL0(const DecodedArgs &args);   // mov.w @(R0,Rm), Rn
+    TPL_TRAITS void MOVLL0(const DecodedArgs &args);   // mov.l @(R0,Rm), Rn
+    TPL_TRAITS void MOVBL4(const DecodedArgs &args);   // mov.b @(disp,Rm), R0
+    TPL_TRAITS void MOVWL4(const DecodedArgs &args);   // mov.w @(disp,Rm), R0
+    TPL_TRAITS void MOVLL4(const DecodedArgs &args);   // mov.l @(disp,Rm), Rn
+    TPL_TRAITS void MOVBLG(const DecodedArgs &args);   // mov.b @(disp,GBR), R0
+    TPL_TRAITS void MOVWLG(const DecodedArgs &args);   // mov.w @(disp,GBR), R0
+    TPL_TRAITS void MOVLLG(const DecodedArgs &args);   // mov.l @(disp,GBR), R0
+    TPL_TRAITS void MOVBM(const DecodedArgs &args);    // mov.b Rm, @-Rn
+    TPL_TRAITS void MOVWM(const DecodedArgs &args);    // mov.w Rm, @-Rn
+    TPL_TRAITS void MOVLM(const DecodedArgs &args);    // mov.l Rm, @-Rn
+    TPL_TRAITS void MOVBP(const DecodedArgs &args);    // mov.b @Rm+, Rn
+    TPL_TRAITS void MOVWP(const DecodedArgs &args);    // mov.w @Rm+, Rn
+    TPL_TRAITS void MOVLP(const DecodedArgs &args);    // mov.l @Rm+, Rn
+    TPL_TRAITS void MOVBS(const DecodedArgs &args);    // mov.b Rm, @Rn
+    TPL_TRAITS void MOVWS(const DecodedArgs &args);    // mov.w Rm, @Rn
+    TPL_TRAITS void MOVLS(const DecodedArgs &args);    // mov.l Rm, @Rn
+    TPL_TRAITS void MOVBS0(const DecodedArgs &args);   // mov.b Rm, @(R0,Rn)
+    TPL_TRAITS void MOVWS0(const DecodedArgs &args);   // mov.w Rm, @(R0,Rn)
+    TPL_TRAITS void MOVLS0(const DecodedArgs &args);   // mov.l Rm, @(R0,Rn)
+    TPL_TRAITS void MOVBS4(const DecodedArgs &args);   // mov.b R0, @(disp,Rn)
+    TPL_TRAITS void MOVWS4(const DecodedArgs &args);   // mov.w R0, @(disp,Rn)
+    TPL_TRAITS void MOVLS4(const DecodedArgs &args);   // mov.l Rm, @(disp,Rn)
+    TPL_TRAITS void MOVBSG(const DecodedArgs &args);   // mov.b R0, @(disp,GBR)
+    TPL_TRAITS void MOVWSG(const DecodedArgs &args);   // mov.w R0, @(disp,GBR)
+    TPL_TRAITS void MOVLSG(const DecodedArgs &args);   // mov.l R0, @(disp,GBR)
+    void MOVI(const DecodedArgs &args);                // mov   #imm, Rn
+    TPL_TRAITS_DS void MOVWI(const DecodedArgs &args); // mov.w @(disp,PC), Rn
+    TPL_TRAITS_DS void MOVLI(const DecodedArgs &args); // mov.l @(disp,PC), Rn
+    TPL_DS void MOVA(const DecodedArgs &args);         // mova  @(disp,PC), R0
+    void MOVT(const DecodedArgs &args);                // movt  Rn
+    void CLRT();                                       // clrt
+    void SETT();                                       // sett
 
     void EXTSB(const DecodedArgs &args); // exts.b Rm, Rn
     void EXTSW(const DecodedArgs &args); // exts.w Rm, Rn
@@ -815,6 +817,8 @@ private:
     void RTS();            // rts
 
 #undef TPL_TRAITS
+#undef TPL_TRAITS_DS
+#undef TPL_DS
 
 public:
     // -------------------------------------------------------------------------
