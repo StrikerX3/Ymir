@@ -148,7 +148,7 @@ struct DivisionUnit {
             // The division unit uses 3 cycles to set up flags, leaving 3 cycles for calculations
             DVDNTH = dividend >> 29;
             if (DVCR.OVFIE) {
-                DVDNTL = DVDNT = (dividend << 3) | ((dividend >> 31) & 7);
+                DVDNTL = DVDNT = (dividend << 3) | ((~dividend >> 31) & 7);
             } else {
                 // DVDNT/DVDNTL is saturated if the interrupt signal is disabled
                 DVDNTL = DVDNT = dividend < 0 ? kMinValue : kMaxValue;
@@ -176,24 +176,28 @@ struct DivisionUnit {
 
         if (dividend == -0x80000000ll && divisor == -1) {
             DVDNTH = DVDNTUH = 0;
-            DVDNTL = DVDNTUL = -0x80000000l;
+            DVDNTL = DVDNTUL = 0x80000000;
             return;
         }
 
         if (!overflow) {
-            const sint64 quotient = dividend / divisor;
-            const sint32 remainder = dividend % divisor;
-
-            if (quotient <= kMinValue32 || quotient > kMaxValue32) [[unlikely]] {
-                // Overflow cases
-                overflow = true;
-            } else if (dividend == kMinValue64 && divisor == -1) [[unlikely]] {
-                // Handle extreme case
+            if (dividend == kMinValue64 && divisor == -1) [[unlikely]] {
                 overflow = true;
             } else {
-                // TODO: schedule event to run this after 39 cycles
-                DVDNTL = DVDNT = quotient;
-                DVDNTH = remainder;
+                const sint64 quotient = dividend / divisor;
+                const sint32 remainder = dividend % divisor;
+
+                if (quotient <= kMinValue32 || quotient > kMaxValue32) [[unlikely]] {
+                    // Overflow cases
+                    overflow = true;
+                } else if (dividend == kMinValue64 && divisor == -1) [[unlikely]] {
+                    // Handle extreme case
+                    overflow = true;
+                } else {
+                    // TODO: schedule event to run this after 39 cycles
+                    DVDNTL = DVDNT = quotient;
+                    DVDNTH = remainder;
+                }
             }
         }
 
