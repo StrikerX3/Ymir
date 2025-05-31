@@ -3800,6 +3800,117 @@ FORCE_INLINE void Color888SatAddMasked(const std::span<Color888> dest, const std
     }
 }
 
+FORCE_INLINE void Color888AverageMasked(const std::span<Color888> dest, const std::span<const bool, kMaxResH> mask,
+                                        const std::span<const Color888, kMaxResH> topColors,
+                                        const std::span<const Color888, kMaxResH> btmColors) {
+    size_t i = 0;
+
+#if defined(_M_X64) || defined(__x86_64__)
+    #if defined(__AVX2__)
+    // Eight pixels at a time
+    for (; (i + 8) < dest.size(); i += 8) {
+        // Load eight mask bytes into 32-bit lanes of 000... or 111...
+        __m256i mask_x8 = _mm256_cvtepu8_epi32(_mm_loadu_si64(mask.data() + i));
+        mask_x8 = _mm256_sub_epi32(_mm256_setzero_si256(), mask_x8);
+
+        const __m256i topColor_x8 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&topColors[i]));
+        const __m256i btmColor_x8 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&btmColors[i]));
+
+        const __m256i topColor16lo = _mm256_unpacklo_epi8(topColor_x8, _mm256_setzero_si256());
+        const __m256i btmColor16lo = _mm256_unpacklo_epi8(btmColor_x8, _mm256_setzero_si256());
+
+        const __m256i topColor16hi = _mm256_unpackhi_epi8(topColor_x8, _mm256_setzero_si256());
+        const __m256i btmColor16hi = _mm256_unpackhi_epi8(btmColor_x8, _mm256_setzero_si256());
+
+        __m256i average16lo = _mm256_add_epi16(topColor16lo, btmColor16lo);
+        __m256i average16hi = _mm256_add_epi16(topColor16hi, btmColor16hi);
+
+        average16lo = _mm256_srli_epi16(average16lo, 1);
+        average16hi = _mm256_srli_epi16(average16hi, 1);
+
+        // Pack back into 8-bit values, be sure to truncate to avoid saturation
+        const __m256i average_x8 = _mm256_packus_epi16(_mm256_and_si256(average16lo, _mm256_set1_epi16(0xFF)),
+                                                       _mm256_and_si256(average16hi, _mm256_set1_epi16(0xFF)));
+
+        // Blend with mask
+        const __m256i dstColor_x8 = _mm256_blendv_epi8(topColor_x8, average_x8, mask_x8);
+
+        // Write
+        _mm256_storeu_si256(reinterpret_cast<__m256i *>(&dest[i]), dstColor_x8);
+    }
+    #endif
+
+    #if defined(__SSE2__)
+    // Four pixels at a time
+    for (; (i + 4) < dest.size(); i += 4) {
+        // Load four mask values and expand each byte into 32-bit 000... or 111...
+        __m128i mask_x4 = _mm_loadu_si32(mask.data() + i);
+        mask_x4 = _mm_unpacklo_epi8(mask_x4, _mm_setzero_si128());
+        mask_x4 = _mm_unpacklo_epi16(mask_x4, _mm_setzero_si128());
+        mask_x4 = _mm_sub_epi32(_mm_setzero_si128(), mask_x4);
+
+        const __m128i topColor_x4 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(&topColors[i]));
+        const __m128i btmColor_x4 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(&btmColors[i]));
+
+        // Use 16-bit arithmetic
+        const __m128i topColor16lo = _mm_unpacklo_epi8(topColor_x4, _mm_setzero_si128());
+        const __m128i btmColor16lo = _mm_unpacklo_epi8(btmColor_x4, _mm_setzero_si128());
+
+        const __m128i topColor16hi = _mm_unpackhi_epi8(topColor_x4, _mm_setzero_si128());
+        const __m128i btmColor16hi = _mm_unpackhi_epi8(btmColor_x4, _mm_setzero_si128());
+
+        __m128i average16lo = _mm_add_epi16(topColor16lo, btmColor16lo);
+        __m128i average16hi = _mm_add_epi16(topColor16hi, btmColor16hi);
+
+        average16lo = _mm_srli_epi16(average16lo, 1);
+        average16hi = _mm_srli_epi16(average16hi, 1);
+
+        // Pack back into 8-bit values, be sure to truncate to avoid saturation
+        const __m128i average_x4 = _mm_packus_epi16(_mm_and_si128(average16lo, _mm_set1_epi16(0xFF)),
+                                                    _mm_and_si128(average16hi, _mm_set1_epi16(0xFF)));
+
+        // Blend with mask
+        const __m128i dstColor_x4 =
+            _mm_or_si128(_mm_and_si128(mask_x4, average_x4), _mm_andnot_ps(mask_x4, topColor_x4));
+
+        // Write
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(&dest[i]), dstColor_x4);
+    }
+    #endif
+#elif defined(_M_ARM64) || defined(__aarch64__)
+    // Four pixels at a time
+    for (; (i + 4) < dest.size(); i += 4) {
+        // Load four mask values and expand each byte into 32-bit 000... or 111...
+        uint32x4_t mask_x4 = vld1q_lane_u32(reinterpret_cast<const uint32 *>(mask.data() + i), vdupq_n_u32(0), 0);
+        mask_x4 = vmovl_u16(vget_low_u16(vmovl_u8(vget_low_u8(mask_x4))));
+        mask_x4 = vnegq_s32(mask_x4);
+
+        const uint32x4_t topColor_x4 = vld1q_u32(reinterpret_cast<const uint32 *>(&topColors[i]));
+        const uint32x4_t btmColor_x4 = vld1q_u32(reinterpret_cast<const uint32 *>(&btmColors[i]));
+
+        // Halving average
+        const uint32x4_t average_x4 = vhaddq_u8(topColor_x4, btmColor_x4);
+
+        // Blend with mask
+        const uint32x4_t dstColor_x4 = vbslq_u32(mask_x4, average_x4, topColor_x4);
+
+        // Write
+        vst1q_u32(reinterpret_cast<uint32 *>(&dest[i]), dstColor_x4);
+    }
+#endif
+
+    for (; i < dest.size(); i++) {
+        const Color888 &topColor = topColors[i];
+        const Color888 &btmColor = btmColors[i];
+        Color888 &dstColor = dest[i];
+        if (mask[i]) {
+            dstColor = AverageRGB888(topColor, btmColor);
+        } else {
+            dstColor = topColor;
+        }
+    }
+}
+
 FORCE_INLINE void Color888CompositeRatioPerPixelMasked(const std::span<Color888> dest, const std::span<const bool> mask,
                                                        const std::span<const Color888, kMaxResH> topColors,
                                                        const std::span<const Color888, kMaxResH> btmColors,
@@ -4258,29 +4369,15 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y) {
                 }
             }
 
-            for (uint32 x = 0; x < m_HRes; ++x) {
-                if (layer1ColorCalcEnabled[x]) {
-                    // TODO: honor color RAM mode + palette/RGB format restrictions
-                    // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
+            // TODO: honor color RAM mode + palette/RGB format restrictions
+            // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
+            // HACK: assuming color RAM mode 0 for now (aka no restrictions)
+            Color888AverageMasked(std::span{layer1Pixels}.first(m_HRes), layer1ColorCalcEnabled, layer1Pixels,
+                                  layer2Pixels);
 
-                    // HACK: assuming color RAM mode 0 for now (aka no restrictions)
-                    // TODO: x64 - _mm_avg_epu8(pavgb)
-                    // TODO: a64 - vhaddq_u8(uhadd.u8)
-                    const Color888 &l2Color = layer2Pixels[x];
-                    Color888 &l1Color = layer1Pixels[x];
-                    l1Color = AverageRGB888(l1Color, l2Color);
-                }
-
-                // Blend line color if top layer uses it
-                if (layer0LineColorEnabled[x]) {
-                    // Average color
-                    // TODO: x64 - _mm_avg_epu8(pavgb)
-                    // TODO: a64 - vhaddq_u8(uhadd.u8)
-                    const Color888 &lineColor = layer0LineColors[x];
-                    Color888 &l1Color = layer1Pixels[x];
-                    l1Color = AverageRGB888(l1Color, lineColor);
-                }
-            }
+            // Blend line color if top layer uses it
+            Color888AverageMasked(std::span{layer1Pixels}.first(m_HRes), layer0ColorCalcEnabled, layer1Pixels,
+                                  layer0LineColors);
         } else {
             // Alpha composite
             Color888CompositeRatioMasked(std::span{layer1Pixels}.first(m_HRes), layer0LineColorEnabled, layer1Pixels,
