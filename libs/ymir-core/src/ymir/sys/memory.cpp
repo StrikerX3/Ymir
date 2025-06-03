@@ -21,6 +21,11 @@ void SystemMemory::MapMemory(Bus &bus) {
     m_internalBackupRAM.MapMemory(bus, 0x018'0000, 0x01F'FFFF);
     bus.MapArray(0x020'0000, 0x02F'FFFF, WRAMLow, true);
     bus.MapArray(0x600'0000, 0x7FF'FFFF, WRAMHigh, true);
+    
+    bus.SetAccessCycles(0x000'0000, 0x00F'FFFF, 8, 8);
+    bus.SetAccessCycles(0x018'0000, 0x01F'FFFF, 8, 8);
+    bus.SetAccessCycles(0x020'0000, 0x02F'FFFF, 7, 7);
+    bus.SetAccessCycles(0x600'0000, 0x7FF'FFFF, 7, 2);
 }
 
 void SystemMemory::LoadIPL(std::span<uint8, kIPLSize> ipl) {
