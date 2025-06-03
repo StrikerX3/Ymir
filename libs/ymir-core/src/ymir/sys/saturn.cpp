@@ -83,6 +83,8 @@ Saturn::Saturn()
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
 
+    mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 4, 4);
+
     mem.MapMemory(mainBus);
     masterSH2.MapMemory(mainBus);
     slaveSH2.MapMemory(mainBus);
