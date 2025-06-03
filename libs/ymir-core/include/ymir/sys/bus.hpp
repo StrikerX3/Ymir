@@ -262,8 +262,37 @@ public:
         }
     }
 
+    // -----------------------------------------------------------------------------------------------------------------
+    // Timing
+
+    /// @brief Configures the access cycle timings for the specified memory region.
+    /// @param[in] start the lower bound of the address range to map the handlers into
+    /// @param[in] end the upper bound of the address range to map the handlers into
+    /// @param[in] readCycles the number of cycles taken to perform a read from this region
+    /// @param[in] writeCycles the number of cycles taken to perform a write to this region
+    void SetAccessCycles(uint32 start, uint32 end, uint64 readCycles, uint64 writeCycles) {
+        const uint32 startIndex = start >> kPageGranularityBits;
+        const uint32 endIndex = end >> kPageGranularityBits;
+        for (uint32 i = startIndex; i <= endIndex; i++) {
+            m_pages[i].readCycles = std::max(readCycles, 1ull);
+            m_pages[i].writeCycles = std::max(writeCycles, 1ull);
+        }
+    }
+
+    /// @brief Retrieves the number of cycles needed to access the given address.
+    /// @tparam write whether to query read (`false`) or write (`true`) cycles
+    /// @param[in] address the address to check
+    /// @return the number of cycles (waitstates) to access the address
+    template <bool write>
+    FLATTEN FORCE_INLINE uint64 GetAccessCycles(uint32 address) const {
+        address &= kAddressMask;
+
+        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+        return write ? entry.writeCycles : entry.readCycles;
+    }
+
 private:
-    struct alignas(64) MemoryPage {
+    struct alignas(128) MemoryPage {
         // Fast path for simple arrays
 
         uint8 *array = nullptr;
@@ -288,10 +317,13 @@ private:
         FnWrite8 poke8 = [](uint32, uint8, void *) {};
         FnWrite16 poke16 = [](uint32, uint16, void *) {};
         FnWrite32 poke32 = [](uint32, uint32, void *) {};
+
+        uint64 readCycles = 1;
+        uint64 writeCycles = 1;
     };
     static_assert(bit::is_power_of_two(sizeof(MemoryPage))); // in order to avoid a multiplication when indexing pages
 
-    alignas(64) std::array<MemoryPage, kPageCount> m_pages;
+    std::array<MemoryPage, kPageCount> m_pages;
 
     template <bool normal, bool sideEffectFree, bus_handler_fn... THandlers>
         requires util::unique_types<THandlers...>
