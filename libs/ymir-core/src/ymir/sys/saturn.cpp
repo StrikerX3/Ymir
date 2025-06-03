@@ -130,6 +130,8 @@ Saturn::Saturn()
     masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
     slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
 
+    mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 4, 4);
+
     mem.MapMemory(mainBus);
     masterSH2.MapMemory(mainBus);
     slaveSH2.MapMemory(mainBus);

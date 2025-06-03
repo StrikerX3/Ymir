@@ -137,6 +137,8 @@ void SMPC::MapMemory(sys::SH2Bus &bus) {
             cast(ctx).Write<true>(((address & 0x7F) | 1) + 0, value >> 16u);
             cast(ctx).Write<true>(((address & 0x7F) | 1) + 2, value >> 0u);
         });
+
+    bus.SetAccessCycles(0x010'0000, 0x017'FFFF, 2, 2);
 }
 
 FLATTEN void SMPC::UpdateClockRatios(const sys::ClockRatios &clockRatios) {

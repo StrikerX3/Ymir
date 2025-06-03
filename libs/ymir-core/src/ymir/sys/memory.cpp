@@ -28,6 +28,11 @@ void SystemMemory::MapMemory(SH2Bus &bus) {
     bus.MapBoth(
         0x030'0000, 0x03F'FFFF, nullptr, [](uint32, void *) -> uint8 { return 0xFF; },
         [](uint32, void *) -> uint16 { return 0xFFFF; }, [](uint32, void *) -> uint32 { return 0xFFFFFFFF; });
+
+    bus.SetAccessCycles(0x000'0000, 0x00F'FFFF, 8, 8);
+    bus.SetAccessCycles(0x018'0000, 0x01F'FFFF, 8, 8);
+    bus.SetAccessCycles(0x020'0000, 0x02F'FFFF, 7, 7);
+    bus.SetAccessCycles(0x600'0000, 0x7FF'FFFF, 7, 2);
 }
 
 void SystemMemory::LoadIPL(std::span<uint8, kIPLSize> ipl) {

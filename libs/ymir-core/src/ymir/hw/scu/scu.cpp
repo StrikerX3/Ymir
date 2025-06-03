@@ -138,6 +138,10 @@ void SCU::MapMemory(sys::SH2Bus &bus) {
         [](uint32 address, uint32 value, void *ctx) { cast(ctx).WriteRegLong<true>(address & 0xFF, value); });
 
     // TODO: 0x5FF'0000..0x5FF'FFFF - Unknown registers
+
+    bus.SetAccessCycles(0x200'0000, 0x4FF'FFFF, 4, 4); // TODO: access cycles are variable
+    bus.SetAccessCycles(0x500'0000, 0x57F'FFFF, 16, 16);
+    bus.SetAccessCycles(0x5FE'0000, 0x5FE'FFFF, 7, 4);
 }
 
 template <bool debug>
