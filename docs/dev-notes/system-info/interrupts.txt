@@ -139,3 +139,19 @@ vec ofs name
 3D  F4  (reserved)
 3E  F8  (reserved)
 3F  FC  (reserved)
+
+
+SCSP interrupts
+---------------
+#  name
+0  External INT0N line
+1  External INT1N line
+2  External INT2N line
+3  MIDI input non-empty
+4  DMA transfer end
+5  CPU manual interrupt request
+6  Timer A
+7  Timer B
+8  Timer C
+9  MIDI output empty
+A  Sample tick
