@@ -203,10 +203,10 @@ FORCE_INLINE bool MC68EC000::CheckInterrupt() {
         if (vector == ExceptionVector::AutoVectorRequest) {
             vector = static_cast<ExceptionVector>(static_cast<uint32>(ExceptionVector::BaseAutovector) + level);
         }
-        devlog::debug<grp::exec>("Entering interrupt handler for vector {:X}, level {:X}, PC {:X}",
+        devlog::trace<grp::exec>("Entering interrupt handler for vector {:X}, level {:X}, PC {:X}",
                                  static_cast<uint32>(vector), level, PC);
         HandleInterrupt(vector, level);
-        devlog::debug<grp::exec>("Interrupt handler PC: {:X}", PC);
+        devlog::trace<grp::exec>("Interrupt handler PC: {:X}", PC);
         return true;
     }
     return false;
@@ -3563,7 +3563,7 @@ FORCE_INLINE uint64 MC68EC000::Instr_RTE(uint16 instr) {
         FullPrefetch();
         SP += 4;
         SetSSP(SP);
-        devlog::debug<grp::exec>("Returning from interrupt handler, PC = {:X}", PC);
+        devlog::trace<grp::exec>("Returning from interrupt handler, PC = {:X}", PC);
         return 20;
     }
     return 34;
