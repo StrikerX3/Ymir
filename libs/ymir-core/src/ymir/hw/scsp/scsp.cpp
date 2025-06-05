@@ -388,8 +388,8 @@ void SCSP::SetInterrupt(uint16 intr, bool level) {
 
 void SCSP::UpdateM68KInterrupts() {
     const uint16 baseMask = m_m68kPendingInterrupts & m_m68kEnabledInterrupts;
-    uint8 mask = baseMask | (bit::extract<8, 9>(baseMask) ? 0x80 : 0x00);
-    // NOTE: interrupts 7-9 share the same level
+    uint8 mask = baseMask | ((baseMask & ~0xFF) ? 0x80 : 0x00);
+    // NOTE: interrupts 7-10 share the same level
 
     // Check all active interrupts in parallel and select maximum level among them.
     //
