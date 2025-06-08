@@ -46,6 +46,8 @@ struct VDPState {
         HPhase = HorizontalPhase::Active;
         VPhase = VerticalPhase::Active;
         VCounter = 0;
+
+        UpdateResolution<false>();
     }
 
     // -------------------------------------------------------------------------
@@ -444,6 +446,8 @@ struct VDPState {
         }
 
         VCounter = state.VCounter;
+
+        UpdateResolution<true>();
     }
 
     // -------------------------------------------------------------------------
@@ -544,6 +548,96 @@ struct VDPState {
     // TODO: store latched H/V counters
 
     uint16 VCounter;
+
+    // Display resolution (derived from TVMODE)
+    uint32 HRes; // Horizontal display resolution
+    uint32 VRes; // Vertical display resolution
+
+    // Display timings
+    std::array<uint32, 6> HTimings;
+    std::array<uint32, 5> VTimings;
+
+    // Updates the display resolution and timings based on TVMODE if it is dirty
+    template <bool verbose>
+    void UpdateResolution() {
+        if (!regs2.TVMDDirty) {
+            return;
+        }
+
+        regs2.TVMDDirty = false;
+
+        // Horizontal/vertical resolution tables
+        // NTSC uses the first two vRes entries, PAL uses the full table, and exclusive monitors use 480 lines
+        static constexpr uint32 hRes[] = {320, 352, 640, 704};
+        static constexpr uint32 vRes[] = {224, 240, 256, 256};
+
+        // TODO: exclusive monitor: even hRes entries are valid for 31 KHz monitors, odd are for Hi-Vision
+        HRes = hRes[regs2.TVMD.HRESOn];
+        VRes = vRes[regs2.TVMD.VRESOn & (regs2.TVSTAT.PAL ? 3 : 1)];
+        if (regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity) {
+            // Double-density interlace doubles the vertical resolution
+            VRes *= 2;
+        }
+
+        // Timing tables
+
+        // Horizontal phase timings (cycles until):
+        //   RBd = Right Border
+        //   HSy = Horizontal Sync
+        //   VBC = VBlank Clear
+        //   LBd = Left Border
+        //   LDt = Last Dot
+        //   ADp = Active Display
+        // NOTE: these timings specify the HCNT to advance to the specified phase
+        static constexpr std::array<std::array<uint32, 6>, 4> hTimings{{
+            // RBd, HSy, VBC, LBd, LDt, ADp
+            {320, 27, 27, 26, 26, 1}, // {320, 347, 374, 400, 426, 427},
+            {352, 23, 28, 29, 22, 1}, // {352, 375, 403, 432, 454, 455},
+            {640, 54, 54, 52, 52, 2}, // {640, 694, 748, 800, 852, 854},
+            {704, 46, 56, 58, 44, 2}, // {704, 750, 806, 864, 908, 910},
+        }};
+        HTimings = hTimings[regs2.TVMD.HRESOn & 3]; // TODO: check exclusive monitor timings
+
+        // Vertical phase timings (to reach):
+        //   BBd = Bottom Border
+        //   BSy = Blanking and Vertical Sync
+        //   TBd = Top Border
+        //   LLn = Last Line
+        //   ADp = Active Display
+        // NOTE: these timings indicate the VCNT at which the specified phase begins
+        static constexpr std::array<std::array<std::array<uint32, 5>, 4>, 2> vTimings{{
+            // NTSC
+            {{
+                // BBd, BSy, TBd, LLn, ADp
+                {224, 232, 255, 262, 263},
+                {240, 240, 255, 262, 263},
+                {224, 232, 255, 262, 263},
+                {240, 240, 255, 262, 263},
+            }},
+            // PAL
+            {{
+                // BBd, BSy, TBd, LLn, ADp
+                {224, 256, 281, 312, 313},
+                {240, 264, 289, 312, 313},
+                {256, 272, 297, 312, 313},
+                {256, 272, 297, 312, 313},
+            }},
+        }};
+        VTimings = vTimings[regs2.TVSTAT.PAL][regs2.TVMD.VRESOn];
+
+        // Adjust for dot clock
+        const uint32 dotClockMult = (regs2.TVMD.HRESOn & 2) ? 2 : 4;
+        for (auto &timing : HTimings) {
+            timing *= dotClockMult;
+        }
+
+        if constexpr (verbose) {
+            LogResolution(dotClockMult);
+        }
+    }
+
+private:
+    void LogResolution(uint32 dotClockMult);
 };
 
 } // namespace ymir::vdp

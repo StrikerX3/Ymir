@@ -1848,7 +1848,7 @@ void App::RunEmulator() {
 
                     if (ImGui::BeginMenu("VDP")) {
                         auto &vdp = m_context.saturn.VDP;
-                        auto layerMenuItem = [&](const char *name, vdp::VDP::Layer layer) {
+                        auto layerMenuItem = [&](const char *name, vdp::Layer layer) {
                             const bool enabled = vdp.IsLayerEnabled(layer);
                             if (ImGui::MenuItem(name, nullptr, enabled)) {
                                 vdp.SetLayerEnabled(layer, !enabled);
@@ -1857,12 +1857,12 @@ void App::RunEmulator() {
 
                         ImGui::MenuItem("Layers", nullptr, &m_vdpWindowSet.vdp2Layers.Open);
                         ImGui::Indent();
-                        layerMenuItem("Sprite", vdp::VDP::Layer::Sprite);
-                        layerMenuItem("RBG0", vdp::VDP::Layer::RBG0);
-                        layerMenuItem("NBG0/RBG1", vdp::VDP::Layer::NBG0_RBG1);
-                        layerMenuItem("NBG1/EXBG", vdp::VDP::Layer::NBG1_EXBG);
-                        layerMenuItem("NBG2", vdp::VDP::Layer::NBG2);
-                        layerMenuItem("NBG3", vdp::VDP::Layer::NBG3);
+                        layerMenuItem("Sprite", vdp::Layer::Sprite);
+                        layerMenuItem("RBG0", vdp::Layer::RBG0);
+                        layerMenuItem("NBG0/RBG1", vdp::Layer::NBG0_RBG1);
+                        layerMenuItem("NBG1/EXBG", vdp::Layer::NBG1_EXBG);
+                        layerMenuItem("NBG2", vdp::Layer::NBG2);
+                        layerMenuItem("NBG3", vdp::Layer::NBG3);
                         ImGui::Unindent();
                         ImGui::EndMenu();
                     }
