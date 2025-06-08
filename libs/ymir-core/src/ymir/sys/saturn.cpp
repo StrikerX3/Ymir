@@ -95,7 +95,7 @@ Saturn::Saturn()
 
     m_systemFeatures.enableDebugTracing = false;
     m_systemFeatures.emulateSH2Cache = false;
-    UpdateRunFrameFn();
+    UpdateFunctionPointers();
 
     configuration.system.preferredRegionOrder.Observe(
         [&](const std::vector<core::config::sys::Region> &regions) { UpdatePreferredRegionOrder(regions); });
@@ -246,7 +246,7 @@ void Saturn::EnableDebugTracing(bool enable) {
         DetachAllTracers();
     }
     m_systemFeatures.enableDebugTracing = enable;
-    UpdateRunFrameFn();
+    UpdateFunctionPointers();
 }
 
 void Saturn::SaveState(state::State &state) const {
@@ -312,19 +312,39 @@ bool Saturn::LoadState(const state::State &state) {
     return true;
 }
 
+// Run scenarios:
+// [x] Run a full frame -- RunFrameImpl()
+// [x] Run until next event -- Run()
+// [ ] Run for a number of cycles
+// [ ] Run until a breakpoint, watchpoint or a similar desired event is triggered
+// [x] Single-step master SH-2
+// [ ] Single-step slave SH-2 (if enabled)
+// [ ] Single-step M68K (if enabled)
+// [ ] Single-step SCU DSP (if running)
+// [ ] Single-step SCSP DSP
+// [ ] Run until slave SH-2 is enabled (or a frame is completed)
+// [ ] Run until M68K is enabled (or a frame is completed)
+// [ ] Run until SCU DSP starts (or a frame is completed)
+// Note:
+// - Step out/return can be implemented in terms of single-stepping and instruction tracing events
+
 template <bool debug, bool enableSH2Cache>
 void Saturn::RunFrameImpl() {
     // Use the last line phase as reference to give some leeway if we overshoot the target cycles
     while (VDP.InLastLinePhase()) {
-        Run<debug, enableSH2Cache>();
+        if (!Run<debug, enableSH2Cache>()) {
+            return;
+        }
     }
     while (!VDP.InLastLinePhase()) {
-        Run<debug, enableSH2Cache>();
+        if (!Run<debug, enableSH2Cache>()) {
+            return;
+        }
     }
 }
 
 template <bool debug, bool enableSH2Cache>
-void Saturn::Run() {
+bool Saturn::Run() {
     static constexpr uint64 kSH2SyncMaxStep = 32;
 
     const uint64 cycles = static_config::max_timing_granularity ? 1 : std::max<sint64>(m_scheduler.RemainingCount(), 0);
@@ -361,14 +381,45 @@ void Saturn::Run() {
     }*/
 
     m_scheduler.Advance(execCycles);
+
+    return true;
 }
 
-void Saturn::UpdateRunFrameFn() {
+template <bool debug, bool enableSH2Cache>
+void Saturn::StepMasterSH2Impl() {
+    const uint64 masterCycles = masterSH2.Step<debug, enableSH2Cache>();
+    if (slaveSH2Enabled) {
+        const uint64 slaveCycles = slaveSH2.Advance<debug, enableSH2Cache>(masterCycles, m_ssh2SpilloverCycles);
+        m_ssh2SpilloverCycles = slaveCycles - masterCycles;
+    }
+    SCU.Advance<debug>(masterCycles);
+    VDP.Advance<debug>(masterCycles);
+
+    // SCSP+M68K and CD block are ticked by the scheduler
+
+    // TODO: advance SMPC
+    /*m_smpcCycles += masterCycles * 2464;
+    const uint64 smpcCycleCount = m_smpcCycles / 17640;
+    if (smpcCycleCount > 0) {
+        m_smpcCycles -= smpcCycleCount * 17640;
+        SMPC.Advance<debug>(smpcCycleCount);
+    }*/
+
+    m_scheduler.Advance(masterCycles);
+}
+
+void Saturn::UpdateFunctionPointers() {
     m_runFrameFn = m_systemFeatures.enableDebugTracing
                        ? (m_systemFeatures.emulateSH2Cache ? &Saturn::RunFrameImpl<true, true>
                                                            : &Saturn::RunFrameImpl<true, false>)
                        : (m_systemFeatures.emulateSH2Cache ? &Saturn::RunFrameImpl<false, true>
                                                            : &Saturn::RunFrameImpl<false, false>);
+
+    m_stepMSH2Fn = m_systemFeatures.enableDebugTracing
+                       ? (m_systemFeatures.emulateSH2Cache ? &Saturn::StepMasterSH2Impl<true, true>
+                                                           : &Saturn::StepMasterSH2Impl<true, false>)
+                       : (m_systemFeatures.emulateSH2Cache ? &Saturn::StepMasterSH2Impl<false, true>
+                                                           : &Saturn::StepMasterSH2Impl<false, false>);
 }
 
 void Saturn::UpdatePreferredRegionOrder(std::span<const core::config::sys::Region> regions) {
@@ -402,7 +453,7 @@ void Saturn::UpdateSH2CacheEmulation(bool enabled) {
         slaveSH2.PurgeCache();
     }
     m_systemFeatures.emulateSH2Cache = enabled;
-    UpdateRunFrameFn();
+    UpdateFunctionPointers();
 }
 
 void Saturn::UpdateVideoStandard(core::config::sys::VideoStandard videoStandard) {

@@ -3388,6 +3388,7 @@ void App::EmulatorThread() {
 
             if (doRunFrame) [[likely]] {
                 m_context.saturn.RunFrame();
+                // m_context.saturn.StepMasterSH2();
             }
 
             if (rewindEnabled && !m_context.rewinding) {

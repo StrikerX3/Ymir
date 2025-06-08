@@ -191,6 +191,15 @@ struct Saturn {
         (this->*m_runFrameFn)();
     }
 
+    /// @brief Runs a single master SH-2 instruction using the current settings.
+    ///
+    /// The implementation of the function depends on the following parameters:
+    /// - **Debug tracing**: configured with `EnableDebugTracing(bool)`
+    /// - **SH-2 cache emulation**: configured with `EnableSH2CacheEmulation(bool)`
+    void StepMasterSH2() {
+        (this->*m_stepMSH2Fn)();
+    }
+
     /// @brief Detaches all debug tracers from all components.
     void DetachAllTracers() {
         masterSH2.UseTracer(nullptr);
@@ -221,29 +230,44 @@ struct Saturn {
     [[nodiscard]] bool LoadState(const state::State &state);
 
 private:
-    /// @brief Runs the emulator until the end of the current frame
+    /// @brief Runs the emulator until the end of the current frame.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
     template <bool debug, bool enableSH2Cache>
     void RunFrameImpl();
 
-    /// @brief Runs the emulator until the next scheduled event
+    /// @brief Runs the emulator until the next scheduled event.
+    /// @tparam debug whether to use debug tracing
+    /// @tparam enableSH2Cache whether to emulate SH-2 caches
+    /// @return true if execution should continue, false to suspend
+    template <bool debug, bool enableSH2Cache>
+    bool Run();
+
+    /// @brief Runs a single master SH-2 instruction.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
     template <bool debug, bool enableSH2Cache>
-    void Run();
+    void StepMasterSH2Impl();
 
     /// @brief The type of the `RunFrameImpl()` implementation to use from `RunFrame()`.
     using RunFrameFn = void (Saturn::*)();
 
-    /// @brief The current `RunFrameImpl()` implementation in used.
+    /// @brief The current `RunFrameImpl()` implementation in use.
     ///
     /// Depends on debug tracing and SH-2 cache emulation settings.
     RunFrameFn m_runFrameFn;
 
-    /// @brief Updates the pointer to the `RunFrameFn()` based on the current debug tracing and SH-2 cache emulation
+    /// @brief The type of the `Step*SH2Impl()` implementation to use from `Step*SH2()`.
+    using StepSH2Fn = void (Saturn::*)();
+
+    /// @brief The current `StepMasterSH2Impl()` implementation in use.
+    ///
+    /// Depends on debug tracing and SH-2 cache emulation settings.
+    RunFrameFn m_stepMSH2Fn;
+
+    /// @brief Updates pointers to the execution functions based on the current debug tracing and SH-2 cache emulation
     /// settings.
-    void UpdateRunFrameFn();
+    void UpdateFunctionPointers();
 
     // -------------------------------------------------------------------------
     // Cycle counting
