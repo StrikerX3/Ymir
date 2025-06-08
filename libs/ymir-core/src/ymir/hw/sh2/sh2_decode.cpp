@@ -42,20 +42,14 @@ DecodeTable::DecodeTable() {
 
         // .... .... dddd dddd -> uint16
         // .... .... iiii iiii -> uint16
-        auto decodeUDispImm8 = [&](uint16 shift, uint16 add) {
-            args.dispImm = (bit::extract<0, 7>(instr) << shift) + add;
-        };
+        auto decodeUDispImm8 = [&](uint16 shift) { args.dispImm = (bit::extract<0, 7>(instr) << shift); };
 
         // .... .... dddd dddd -> sint16
         // .... .... iiii iiii -> sint16
-        auto decodeSDispImm8 = [&](sint16 shift, sint16 add) {
-            args.dispImm = (bit::extract_signed<0, 7>(instr) << shift) + add;
-        };
+        auto decodeSDispImm8 = [&](sint16 shift) { args.dispImm = (bit::extract_signed<0, 7>(instr) << shift); };
 
         // .... dddd dddd dddd -> sint16
-        auto decodeSDisp12 = [&](sint16 shift, sint16 add) {
-            args.dispImm = (bit::extract_signed<0, 11>(instr) << shift) + add;
-        };
+        auto decodeSDisp12 = [&](sint16 shift) { args.dispImm = (bit::extract_signed<0, 11>(instr) << shift); };
 
         // ---------------------------------------
 
@@ -80,21 +74,21 @@ DecodeTable::DecodeTable() {
         auto decodeNMD = [&](uint16 shift) { decodeRN8(), decodeRM4(), decodeUDisp4(shift); };
 
         // d format: xxxx xxxx dddd dddd
-        auto decodeD_U = [&](uint16 shift, uint16 add) { decodeUDispImm8(shift, add); };
-        auto decodeD_S = [&](sint16 shift, sint16 add) { decodeSDispImm8(shift, add); };
+        auto decodeD_U = [&](uint16 shift) { decodeUDispImm8(shift); };
+        auto decodeD_S = [&](sint16 shift) { decodeSDispImm8(shift); };
 
         // d12 format: xxxx dddd dddd dddd
-        auto decodeD12 = [&](sint16 shift, sint16 add) { decodeSDisp12(shift, add); };
+        auto decodeD12 = [&](sint16 shift) { decodeSDisp12(shift); };
 
         // nd8 format: xxxx nnnn dddd dddd
-        auto decodeND8 = [&](uint16 shift, uint16 add) { decodeRN8(), decodeUDispImm8(shift, add); };
+        auto decodeND8 = [&](uint16 shift) { decodeRN8(), decodeUDispImm8(shift); };
 
         // i format: xxxx xxxx iiii iiii
-        auto decodeI_U = [&](uint16 shift, uint16 add) { decodeUDispImm8(shift, add); };
-        auto decodeI_S = [&](sint16 shift, sint16 add) { decodeSDispImm8(shift, add); };
+        auto decodeI_U = [&](uint16 shift) { decodeUDispImm8(shift); };
+        auto decodeI_S = [&](sint16 shift) { decodeSDispImm8(shift); };
 
         // ni format: xxxx nnnn iiii iiii
-        auto decodeNI = [&](sint16 shift, sint16 add) { decodeRN8(), decodeSDispImm8(shift, add); };
+        auto decodeNI = [&](sint16 shift) { decodeRN8(), decodeSDispImm8(shift); };
 
         // ---------------------------------------
 
@@ -251,7 +245,7 @@ DecodeTable::DecodeTable() {
             case 0xF: setOpcode(OpcodeType::EXTSW), decodeNM(); break;
             }
             break;
-        case 0x7: setOpcode(OpcodeType::ADD_I), decodeNI(0, 0); break;
+        case 0x7: setOpcode(OpcodeType::ADD_I), decodeNI(0); break;
         case 0x8:
             switch ((instr >> 8u) & 0xF) {
             case 0x0: setOpcode(OpcodeType::MOVB_S4), decodeND4(0u); break;
@@ -260,41 +254,41 @@ DecodeTable::DecodeTable() {
             case 0x4: setOpcode(OpcodeType::MOVB_L4), decodeMD(0u); break;
             case 0x5: setOpcode(OpcodeType::MOVW_L4), decodeMD(1u); break;
 
-            case 0x8: setOpcode(OpcodeType::CMP_EQ_I), decodeI_S(0, 0); break;
-            case 0x9: setNonDelayOpcode(OpcodeType::BT), decodeD_S(1, 4); break;
+            case 0x8: setOpcode(OpcodeType::CMP_EQ_I), decodeI_S(0); break;
+            case 0x9: setNonDelayOpcode(OpcodeType::BT), decodeD_S(1); break;
 
-            case 0xB: setNonDelayOpcode(OpcodeType::BF), decodeD_S(1, 4); break;
+            case 0xB: setNonDelayOpcode(OpcodeType::BF), decodeD_S(1); break;
 
-            case 0xD: setNonDelayOpcode(OpcodeType::BTS), decodeD_S(1, 4); break;
+            case 0xD: setNonDelayOpcode(OpcodeType::BTS), decodeD_S(1); break;
 
-            case 0xF: setNonDelayOpcode(OpcodeType::BFS), decodeD_S(1, 4); break;
+            case 0xF: setNonDelayOpcode(OpcodeType::BFS), decodeD_S(1); break;
             }
             break;
-        case 0x9: setOpcode(OpcodeType::MOVW_I), decodeND8(1u, 4u); break;
-        case 0xA: setNonDelayOpcode(OpcodeType::BRA), decodeD12(1, 4); break;
-        case 0xB: setNonDelayOpcode(OpcodeType::BSR), decodeD12(1, 4); break;
+        case 0x9: setOpcode(OpcodeType::MOVW_I), decodeND8(1u); break;
+        case 0xA: setNonDelayOpcode(OpcodeType::BRA), decodeD12(1); break;
+        case 0xB: setNonDelayOpcode(OpcodeType::BSR), decodeD12(1); break;
         case 0xC:
             switch ((instr >> 8u) & 0xF) {
-            case 0x0: setOpcode(OpcodeType::MOVB_SG), decodeD_U(0u, 0u); break;
-            case 0x1: setOpcode(OpcodeType::MOVW_SG), decodeD_U(1u, 0u); break;
-            case 0x2: setOpcode(OpcodeType::MOVL_SG), decodeD_U(2u, 0u); break;
-            case 0x3: setNonDelayOpcode(OpcodeType::TRAPA), decodeI_U(2u, 0u); break;
-            case 0x4: setOpcode(OpcodeType::MOVB_LG), decodeD_U(0u, 0u); break;
-            case 0x5: setOpcode(OpcodeType::MOVW_LG), decodeD_U(1u, 0u); break;
-            case 0x6: setOpcode(OpcodeType::MOVL_LG), decodeD_U(2u, 0u); break;
-            case 0x7: setOpcode(OpcodeType::MOVA), decodeD_U(2u, 4u); break;
-            case 0x8: setOpcode(OpcodeType::TST_I), decodeI_U(0u, 0u); break;
-            case 0x9: setOpcode(OpcodeType::AND_I), decodeI_U(0u, 0u); break;
-            case 0xA: setOpcode(OpcodeType::XOR_I), decodeI_U(0u, 0u); break;
-            case 0xB: setOpcode(OpcodeType::OR_I), decodeI_U(0u, 0u); break;
-            case 0xC: setOpcode(OpcodeType::TST_M), decodeI_U(0u, 0u); break;
-            case 0xD: setOpcode(OpcodeType::AND_M), decodeI_U(0u, 0u); break;
-            case 0xE: setOpcode(OpcodeType::XOR_M), decodeI_U(0u, 0u); break;
-            case 0xF: setOpcode(OpcodeType::OR_M), decodeI_U(0u, 0u); break;
+            case 0x0: setOpcode(OpcodeType::MOVB_SG), decodeD_U(0u); break;
+            case 0x1: setOpcode(OpcodeType::MOVW_SG), decodeD_U(1u); break;
+            case 0x2: setOpcode(OpcodeType::MOVL_SG), decodeD_U(2u); break;
+            case 0x3: setNonDelayOpcode(OpcodeType::TRAPA), decodeI_U(2u); break;
+            case 0x4: setOpcode(OpcodeType::MOVB_LG), decodeD_U(0u); break;
+            case 0x5: setOpcode(OpcodeType::MOVW_LG), decodeD_U(1u); break;
+            case 0x6: setOpcode(OpcodeType::MOVL_LG), decodeD_U(2u); break;
+            case 0x7: setOpcode(OpcodeType::MOVA), decodeD_U(2u); break;
+            case 0x8: setOpcode(OpcodeType::TST_I), decodeI_U(0u); break;
+            case 0x9: setOpcode(OpcodeType::AND_I), decodeI_U(0u); break;
+            case 0xA: setOpcode(OpcodeType::XOR_I), decodeI_U(0u); break;
+            case 0xB: setOpcode(OpcodeType::OR_I), decodeI_U(0u); break;
+            case 0xC: setOpcode(OpcodeType::TST_M), decodeI_U(0u); break;
+            case 0xD: setOpcode(OpcodeType::AND_M), decodeI_U(0u); break;
+            case 0xE: setOpcode(OpcodeType::XOR_M), decodeI_U(0u); break;
+            case 0xF: setOpcode(OpcodeType::OR_M), decodeI_U(0u); break;
             }
             break;
-        case 0xD: setOpcode(OpcodeType::MOVL_I), decodeND8(2u, 4u); break;
-        case 0xE: setOpcode(OpcodeType::MOV_I), decodeNI(0, 0); break;
+        case 0xD: setOpcode(OpcodeType::MOVL_I), decodeND8(2u); break;
+        case 0xE: setOpcode(OpcodeType::MOV_I), decodeNI(0); break;
         }
     }
 }

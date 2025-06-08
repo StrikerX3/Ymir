@@ -198,7 +198,6 @@ public:
         // Execution state
 
         bool IsInDelaySlot() const;
-        uint32 DelaySlotTarget() const;
 
         // ---------------------------------------------------------------------
         // On-chip peripheral registers
@@ -415,8 +414,11 @@ private:
     uint32 GBR;
     uint32 VBR;
 
-    uint32 m_delaySlotTarget;
     bool m_delaySlot;
+
+    // [1] fetch
+    // [0] decode
+    std::array<uint16, 2> m_fetchQueue;
 
     CBAcknowledgeExternalInterrupt m_cbAcknowledgeExternalInterrupt;
 
@@ -478,6 +480,9 @@ private:
 
     template <mem_primitive T, bool poke, bool debug, bool enableCache>
     void MemWrite(uint32 address, T value);
+
+    template <bool enableCache>
+    void FillPipeline();
 
     template <bool enableCache>
     uint16 FetchInstruction(uint32 address);
@@ -658,9 +663,7 @@ private:
     // -------------------------------------------------------------------------
     // Helper functions
 
-    void SetupDelaySlot(uint32 targetAddress);
-
-    template <bool delaySlot>
+    template <bool delaySlot, bool enableCache>
     void AdvancePC();
 
     template <bool debug, bool enableCache>
@@ -676,7 +679,7 @@ private:
 
 #define TPL_TRAITS template <bool debug, bool enableCache>
 #define TPL_TRAITS_DS template <bool debug, bool enableCache, bool delaySlot>
-#define TPL_DS template <bool delaySlot>
+#define TPL_DS template <bool delaySlot, bool enableCache>
 
     TPL_DS uint64 NOP(); // nop
 
@@ -817,9 +820,9 @@ private:
     TPL_DS uint64 TSTI(const DecodedArgs &args);        // tst     imm, R0
     TPL_TRAITS_DS uint64 TSTM(const DecodedArgs &args); // tst.b   imm, @(R0,GBR)
 
-    uint64 BF(const DecodedArgs &args);               // bf    disp
+    TPL_TRAITS uint64 BF(const DecodedArgs &args);    // bf    disp
     uint64 BFS(const DecodedArgs &args);              // bf/s  disp
-    uint64 BT(const DecodedArgs &args);               // bt    disp
+    TPL_TRAITS uint64 BT(const DecodedArgs &args);    // bt    disp
     uint64 BTS(const DecodedArgs &args);              // bt/s  disp
     uint64 BRA(const DecodedArgs &args);              // bra   disp
     uint64 BRAF(const DecodedArgs &args);             // braf  Rm

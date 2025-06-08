@@ -40,8 +40,23 @@ void serialize(Archive &ar, SystemState &s) {
 
 template <class Archive>
 void serialize(Archive &ar, SH2State &s, const uint32 version) {
+    // Version history:
+    // v6:
+    // - New fields
+    //   - fetchQueue = 0x0009, 0x0009
+    // - Removed fields
+    //   - delaySlotTarget
+
     ar(s.R, s.PC, s.PR, s.MACL, s.MACH, s.SR, s.GBR, s.VBR);
-    ar(s.delaySlot, s.delaySlotTarget);
+    ar(s.delaySlot);
+    if (version >= 6) {
+        ar(s.fetchQueue);
+    } else {
+        uint32 delaySlotTarget{};
+        ar(delaySlotTarget);
+        s.fetchQueue[0] = 0x0009;
+        s.fetchQueue[1] = 0x0009;
+    }
     ar(s.bsc, s.dmac);
     serialize(ar, s.wdt, version);
     serialize(ar, s.divu, version);

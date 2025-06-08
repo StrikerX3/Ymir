@@ -20,8 +20,9 @@ struct SH2State {
     uint32 GBR;
     uint32 VBR;
 
-    uint32 delaySlotTarget;
     bool delaySlot;
+
+    std::array<uint16, 2> fetchQueue;
 
     struct BSC {
         uint16 BCR1;
