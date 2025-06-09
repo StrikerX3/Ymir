@@ -1,17 +1,21 @@
 #pragma once
 
 #include "vdp2_layers_window.hpp"
+#include "vdp_frame_capture_window.hpp"
 
 namespace app::ui {
 
 struct VDPWindowSet {
     VDPWindowSet(SharedContext &context)
-        : vdp2Layers(context) {}
+        : vdpFrameCap(context)
+        , vdp2Layers(context) {}
 
     void DisplayAll() {
+        vdpFrameCap.Display();
         vdp2Layers.Display();
     }
 
+    VDPFrameCaptureWindow vdpFrameCap;
     VDP2LayersWindow vdp2Layers;
 };
 

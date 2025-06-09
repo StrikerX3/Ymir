@@ -1855,6 +1855,7 @@ void App::RunEmulator() {
                             }
                         };
 
+                        ImGui::MenuItem("Frame capture", nullptr, &m_vdpWindowSet.vdpFrameCap.Open);
                         ImGui::MenuItem("Layers", nullptr, &m_vdpWindowSet.vdp2Layers.Open);
                         ImGui::Indent();
                         layerMenuItem("Sprite", vdp::Layer::Sprite);

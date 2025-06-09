@@ -207,6 +207,8 @@ add_executable(ymir-sdl3
     src/app/ui/windows/debug/sh2_window_base.cpp
     src/app/ui/windows/debug/sh2_window_base.hpp
     src/app/ui/windows/debug/sh2_window_set.hpp
+    src/app/ui/windows/debug/vdp_frame_capture_window.cpp
+    src/app/ui/windows/debug/vdp_frame_capture_window.hpp
     src/app/ui/windows/debug/vdp_window_base.cpp
     src/app/ui/windows/debug/vdp_window_base.hpp
     src/app/ui/windows/debug/vdp_window_set.hpp
