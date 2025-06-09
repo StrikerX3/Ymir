@@ -59,6 +59,7 @@ EmuEvent SetDebugTrace(bool enable) {
             ctx.saturn.masterSH2.UseTracer(&ctx.tracers.masterSH2);
             ctx.saturn.slaveSH2.UseTracer(&ctx.tracers.slaveSH2);
             ctx.saturn.SCU.UseTracer(&ctx.tracers.SCU);
+            ctx.saturn.VDP.UseTracer(&ctx.tracers.VDP);
             ctx.saturn.CDBlock.UseTracer(&ctx.tracers.CDBlock);
         }
         devlog::info<grp::base>("Debug tracing {}", (enable ? "enabled" : "disabled"));

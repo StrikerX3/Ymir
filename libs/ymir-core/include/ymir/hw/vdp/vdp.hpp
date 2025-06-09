@@ -20,6 +20,8 @@
 
 #include <ymir/hw/hw_defs.hpp>
 
+#include <ymir/debug/vdp_tracer_base.hpp>
+
 #include <array>
 #include <iosfwd>
 
@@ -197,6 +199,12 @@ public:
     // -------------------------------------------------------------------------
     // Debugger
 
+    // Attaches the specified tracer to this component.
+    // Pass nullptr to disable tracing.
+    void UseTracer(debug::IVDPTracer *tracer) {
+        m_tracer = tracer;
+    }
+
     class Probe {
     public:
         Probe(VDP &vdp);
@@ -218,6 +226,7 @@ public:
 
 private:
     Probe m_probe{*this};
+    debug::IVDPTracer *m_tracer = nullptr;
 };
 
 } // namespace ymir::vdp

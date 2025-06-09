@@ -25,6 +25,8 @@ add_executable(ymir-sdl3
     src/app/debug/scu_tracer.hpp
     src/app/debug/sh2_tracer.cpp
     src/app/debug/sh2_tracer.hpp
+    src/app/debug/vdp_tracer.cpp
+    src/app/debug/vdp_tracer.hpp
     
     src/app/events/emu_debug_event_factory.cpp
     src/app/events/emu_debug_event_factory.hpp

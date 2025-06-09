@@ -13,6 +13,7 @@
 #include <app/debug/cdblock_tracer.hpp>
 #include <app/debug/scu_tracer.hpp>
 #include <app/debug/sh2_tracer.hpp>
+#include <app/debug/vdp_tracer.hpp>
 
 #include <app/events/emu_event.hpp>
 #include <app/events/gui_event.hpp>
@@ -173,6 +174,7 @@ struct SharedContext {
         SH2Tracer masterSH2;
         SH2Tracer slaveSH2;
         SCUTracer SCU;
+        VDPTracer VDP;
         CDBlockTracer CDBlock;
     } tracers;
 

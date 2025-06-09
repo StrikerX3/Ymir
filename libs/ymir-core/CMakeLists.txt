@@ -17,6 +17,7 @@ add_library(ymir-core
     include/ymir/debug/cdblock_tracer_base.hpp
     include/ymir/debug/scu_tracer_base.hpp
     include/ymir/debug/sh2_tracer_base.hpp
+    include/ymir/debug/vdp_tracer_base.hpp
 
     include/ymir/hw/hw_defs.hpp
 

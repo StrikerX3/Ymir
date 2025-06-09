@@ -42,6 +42,21 @@ namespace grp {
 
 } // namespace grp
 
+// -----------------------------------------------------------------------------
+// Debugger
+
+template <bool debug>
+FORCE_INLINE static void TraceBeginFrame(debug::IVDPTracer *tracer, const VDPState &state) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->BeginFrame(state);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Implementation
+
 VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
     : m_scheduler(scheduler) {
 
@@ -504,6 +519,8 @@ void VDP::BeginHPhaseActiveDisplay() {
         if (m_state.VCounter == 0) {
             devlog::trace<grp::base>("Begin VDP2 frame, VDP1 framebuffer {}", m_state.displayFB);
             m_renderer.BeginFrame();
+            // TODO: debug flag
+            TraceBeginFrame<true>(m_tracer, m_state);
         } else if (m_state.VCounter == 210) { // ~1ms before VBlank IN
             m_cbTriggerOptimizedINTBACKRead();
         }
