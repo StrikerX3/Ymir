@@ -463,12 +463,13 @@ void App::RunEmulator() {
     SDL_SetNumberProperty(rendererProps, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER,
                           m_context.settings.video.fullScreen ? SDL_RENDERER_VSYNC_ADAPTIVE : 1);
 
-    auto renderer = SDL_CreateRendererWithProperties(rendererProps);
-    if (renderer == nullptr) {
+    m_context.renderer = SDL_CreateRendererWithProperties(rendererProps);
+    if (m_context.renderer == nullptr) {
         devlog::error<grp::base>("Unable to create renderer: {}", SDL_GetError());
         return;
     }
-    ScopeGuard sgDestroyRenderer{[&] { SDL_DestroyRenderer(renderer); }};
+    ScopeGuard sgDestroyRenderer{[&] { SDL_DestroyRenderer(m_context.renderer); }};
+    SDL_Renderer *renderer = m_context.renderer;
 
     m_context.settings.video.fullScreen.Observe([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));

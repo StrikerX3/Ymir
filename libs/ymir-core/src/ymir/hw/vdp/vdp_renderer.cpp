@@ -125,6 +125,36 @@ void VDPRenderer::EnqueueEvent(RenderEvent &&event) {
     }
 }
 
+void VDPRenderer::EnableThreadedVDP(bool enable) {
+    if (m_threadedRendering == enable) {
+        return;
+    }
+
+    devlog::debug<grp::vdp2>("{} threaded VDP rendering", (enable ? "Enabling" : "Disabling"));
+
+    m_threadedRendering = enable;
+    if (enable) {
+        EnqueueEvent(RenderEvent::UpdateEffectiveRenderingFlags());
+        EnqueueEvent(RenderEvent::PostLoadStateSync());
+        m_renderThread = std::thread{[&] { RenderThread(); }};
+        m_postLoadSyncSignal.Wait(true);
+    } else {
+        EnqueueEvent(RenderEvent::Shutdown());
+        if (m_renderThread.joinable()) {
+            m_renderThread.join();
+        }
+    }
+}
+
+void VDPRenderer::IncludeVDP1RenderInVDPThread(bool enable) {
+    if (m_threadedRendering) {
+        m_renderVDP1OnVDP2Thread = enable;
+        EnqueueEvent(RenderEvent::UpdateEffectiveRenderingFlags());
+        EnqueueEvent(RenderEvent::VDP1StateSync());
+        m_postLoadSyncSignal.Wait(true);
+    }
+}
+
 void VDPRenderer::SetLayerEnabled(Layer layer, bool enabled) {
     m_layerStates[static_cast<size_t>(layer)].rendered = enabled;
     VDP2UpdateEnabledBGs();
@@ -132,104 +162,6 @@ void VDPRenderer::SetLayerEnabled(Layer layer, bool enabled) {
 
 bool VDPRenderer::IsLayerEnabled(Layer layer) const {
     return m_layerStates[static_cast<size_t>(layer)].rendered;
-}
-
-FORCE_INLINE void VDPRenderer::SaveStatePrologue() {
-    EnqueueEvent(RenderEvent::PreSaveStateSync());
-    m_preSaveSyncSignal.Wait(true);
-}
-
-void VDPRenderer::SaveState(state::VDPState &state) const {
-    if (m_threadedRendering) {
-        // Requires mutation to the event queue
-        const_cast<VDPRenderer *>(this)->SaveStatePrologue();
-    }
-
-    state.renderer.vdp1State.sysClipH = m_VDP1RenderContext.sysClipH;
-    state.renderer.vdp1State.sysClipV = m_VDP1RenderContext.sysClipV;
-    state.renderer.vdp1State.userClipX0 = m_VDP1RenderContext.userClipX0;
-    state.renderer.vdp1State.userClipY0 = m_VDP1RenderContext.userClipY0;
-    state.renderer.vdp1State.userClipX1 = m_VDP1RenderContext.userClipX1;
-    state.renderer.vdp1State.userClipY1 = m_VDP1RenderContext.userClipY1;
-    state.renderer.vdp1State.localCoordX = m_VDP1RenderContext.localCoordX;
-    state.renderer.vdp1State.localCoordY = m_VDP1RenderContext.localCoordY;
-    state.renderer.vdp1State.rendering = m_VDP1RenderContext.rendering;
-    state.renderer.vdp1State.erase = m_VDP1RenderContext.erase;
-    state.renderer.vdp1State.cycleCount = m_VDP1RenderContext.cycleCount;
-
-    for (size_t i = 0; i < 4; i++) {
-        state.renderer.normBGLayerStates[i].fracScrollX = m_normBGLayerStates[i].fracScrollX;
-        state.renderer.normBGLayerStates[i].fracScrollY = m_normBGLayerStates[i].fracScrollY;
-        state.renderer.normBGLayerStates[i].scrollIncH = m_normBGLayerStates[i].scrollIncH;
-        state.renderer.normBGLayerStates[i].lineScrollTableAddress = m_normBGLayerStates[i].lineScrollTableAddress;
-        state.renderer.normBGLayerStates[i].vertCellScrollOffset = m_normBGLayerStates[i].vertCellScrollOffset;
-        state.renderer.normBGLayerStates[i].mosaicCounterY = m_normBGLayerStates[i].mosaicCounterY;
-    }
-
-    for (size_t i = 0; i < 2; i++) {
-        state.renderer.rotParamStates[i].pageBaseAddresses = m_rotParamStates[i].pageBaseAddresses;
-        state.renderer.rotParamStates[i].scrX = m_rotParamStates[i].scrX;
-        state.renderer.rotParamStates[i].scrY = m_rotParamStates[i].scrY;
-        state.renderer.rotParamStates[i].KA = m_rotParamStates[i].KA;
-    }
-
-    state.renderer.lineBackLayerState.lineColor = m_lineBackLayerState.lineColor.u32;
-    state.renderer.lineBackLayerState.backColor = m_lineBackLayerState.backColor.u32;
-    state.renderer.vertCellScrollInc = m_vertCellScrollInc;
-
-    state.renderer.displayFB = m_localState.displayFB; // TODO: might not be necessary
-    state.renderer.vdp1Done = m_vdp1Done;
-}
-
-bool VDPRenderer::ValidateState(const state::VDPState &state) const {
-    return true;
-}
-
-void VDPRenderer::LoadState(const state::VDPState &state) {
-    for (uint32 address = 0; address < kVDP2CRAMSize; address += 2) {
-        VDP2UpdateCRAMCache<uint16>(address);
-    }
-    VDP2UpdateEnabledBGs();
-
-    if (m_threadedRendering) {
-        EnqueueEvent(RenderEvent::PostLoadStateSync());
-        m_postLoadSyncSignal.Wait(true);
-    }
-
-    m_VDP1RenderContext.sysClipH = state.renderer.vdp1State.sysClipH;
-    m_VDP1RenderContext.sysClipV = state.renderer.vdp1State.sysClipV;
-    m_VDP1RenderContext.userClipX0 = state.renderer.vdp1State.userClipX0;
-    m_VDP1RenderContext.userClipY0 = state.renderer.vdp1State.userClipY0;
-    m_VDP1RenderContext.userClipX1 = state.renderer.vdp1State.userClipX1;
-    m_VDP1RenderContext.userClipY1 = state.renderer.vdp1State.userClipY1;
-    m_VDP1RenderContext.localCoordX = state.renderer.vdp1State.localCoordX;
-    m_VDP1RenderContext.localCoordY = state.renderer.vdp1State.localCoordY;
-    m_VDP1RenderContext.rendering = state.renderer.vdp1State.rendering;
-    m_VDP1RenderContext.erase = state.renderer.vdp1State.erase;
-    m_VDP1RenderContext.cycleCount = state.renderer.vdp1State.cycleCount;
-
-    for (size_t i = 0; i < 4; i++) {
-        m_normBGLayerStates[i].fracScrollX = state.renderer.normBGLayerStates[i].fracScrollX;
-        m_normBGLayerStates[i].fracScrollY = state.renderer.normBGLayerStates[i].fracScrollY;
-        m_normBGLayerStates[i].scrollIncH = state.renderer.normBGLayerStates[i].scrollIncH;
-        m_normBGLayerStates[i].lineScrollTableAddress = state.renderer.normBGLayerStates[i].lineScrollTableAddress;
-        m_normBGLayerStates[i].mosaicCounterY = state.renderer.normBGLayerStates[i].mosaicCounterY;
-    }
-
-    for (size_t i = 0; i < 2; i++) {
-        m_rotParamStates[i].pageBaseAddresses = state.renderer.rotParamStates[i].pageBaseAddresses;
-        m_rotParamStates[i].scrX = state.renderer.rotParamStates[i].scrX;
-        m_rotParamStates[i].scrY = state.renderer.rotParamStates[i].scrY;
-        m_rotParamStates[i].KA = state.renderer.rotParamStates[i].KA;
-    }
-
-    m_lineBackLayerState.lineColor.u32 = state.renderer.lineBackLayerState.lineColor;
-    m_lineBackLayerState.backColor.u32 = state.renderer.lineBackLayerState.backColor;
-
-    m_localState.displayFB = state.renderer.displayFB;
-    m_vdp1Done = state.renderer.vdp1Done;
-
-    m_localState.UpdateResolution<true>();
 }
 
 // -----------------------------------------------------------------------------
@@ -342,6 +274,119 @@ void VDPRenderer::ProcessEvenOddFieldSwitch() {
     if (m_threadedRendering) {
         EnqueueEvent(RenderEvent::OddField(m_mainState.regs2.TVSTAT.ODD));
     }
+}
+
+// -----------------------------------------------------------------------------
+// Memory dumps
+
+void VDPRenderer::DumpVDP1AltFramebuffers(std::ostream &out) const {
+    const uint8 dispFB = m_mainState.displayFB;
+    const uint8 drawFB = dispFB ^ 1;
+    if (m_deinterlaceRender) {
+        out.write((const char *)m_altSpriteFB[drawFB].data(), m_altSpriteFB[drawFB].size());
+        out.write((const char *)m_altSpriteFB[dispFB].data(), m_altSpriteFB[dispFB].size());
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Save states
+
+FORCE_INLINE void VDPRenderer::SaveStatePrologue() {
+    EnqueueEvent(RenderEvent::PreSaveStateSync());
+    m_preSaveSyncSignal.Wait(true);
+}
+
+void VDPRenderer::SaveState(state::VDPState &state) const {
+    if (m_threadedRendering) {
+        // Requires mutation to the event queue
+        const_cast<VDPRenderer *>(this)->SaveStatePrologue();
+    }
+
+    state.renderer.vdp1State.sysClipH = m_VDP1RenderContext.sysClipH;
+    state.renderer.vdp1State.sysClipV = m_VDP1RenderContext.sysClipV;
+    state.renderer.vdp1State.userClipX0 = m_VDP1RenderContext.userClipX0;
+    state.renderer.vdp1State.userClipY0 = m_VDP1RenderContext.userClipY0;
+    state.renderer.vdp1State.userClipX1 = m_VDP1RenderContext.userClipX1;
+    state.renderer.vdp1State.userClipY1 = m_VDP1RenderContext.userClipY1;
+    state.renderer.vdp1State.localCoordX = m_VDP1RenderContext.localCoordX;
+    state.renderer.vdp1State.localCoordY = m_VDP1RenderContext.localCoordY;
+    state.renderer.vdp1State.rendering = m_VDP1RenderContext.rendering;
+    state.renderer.vdp1State.erase = m_VDP1RenderContext.erase;
+    state.renderer.vdp1State.cycleCount = m_VDP1RenderContext.cycleCount;
+
+    for (size_t i = 0; i < 4; i++) {
+        state.renderer.normBGLayerStates[i].fracScrollX = m_normBGLayerStates[i].fracScrollX;
+        state.renderer.normBGLayerStates[i].fracScrollY = m_normBGLayerStates[i].fracScrollY;
+        state.renderer.normBGLayerStates[i].scrollIncH = m_normBGLayerStates[i].scrollIncH;
+        state.renderer.normBGLayerStates[i].lineScrollTableAddress = m_normBGLayerStates[i].lineScrollTableAddress;
+        state.renderer.normBGLayerStates[i].vertCellScrollOffset = m_normBGLayerStates[i].vertCellScrollOffset;
+        state.renderer.normBGLayerStates[i].mosaicCounterY = m_normBGLayerStates[i].mosaicCounterY;
+    }
+
+    for (size_t i = 0; i < 2; i++) {
+        state.renderer.rotParamStates[i].pageBaseAddresses = m_rotParamStates[i].pageBaseAddresses;
+        state.renderer.rotParamStates[i].scrX = m_rotParamStates[i].scrX;
+        state.renderer.rotParamStates[i].scrY = m_rotParamStates[i].scrY;
+        state.renderer.rotParamStates[i].KA = m_rotParamStates[i].KA;
+    }
+
+    state.renderer.lineBackLayerState.lineColor = m_lineBackLayerState.lineColor.u32;
+    state.renderer.lineBackLayerState.backColor = m_lineBackLayerState.backColor.u32;
+    state.renderer.vertCellScrollInc = m_vertCellScrollInc;
+
+    state.renderer.displayFB = m_localState.displayFB; // TODO: might not be necessary
+    state.renderer.vdp1Done = m_vdp1Done;
+}
+
+bool VDPRenderer::ValidateState(const state::VDPState &state) const {
+    return true;
+}
+
+void VDPRenderer::LoadState(const state::VDPState &state) {
+    for (uint32 address = 0; address < kVDP2CRAMSize; address += 2) {
+        VDP2UpdateCRAMCache<uint16>(address);
+    }
+    VDP2UpdateEnabledBGs();
+
+    if (m_threadedRendering) {
+        EnqueueEvent(RenderEvent::PostLoadStateSync());
+        m_postLoadSyncSignal.Wait(true);
+    }
+
+    m_VDP1RenderContext.sysClipH = state.renderer.vdp1State.sysClipH;
+    m_VDP1RenderContext.sysClipV = state.renderer.vdp1State.sysClipV;
+    m_VDP1RenderContext.userClipX0 = state.renderer.vdp1State.userClipX0;
+    m_VDP1RenderContext.userClipY0 = state.renderer.vdp1State.userClipY0;
+    m_VDP1RenderContext.userClipX1 = state.renderer.vdp1State.userClipX1;
+    m_VDP1RenderContext.userClipY1 = state.renderer.vdp1State.userClipY1;
+    m_VDP1RenderContext.localCoordX = state.renderer.vdp1State.localCoordX;
+    m_VDP1RenderContext.localCoordY = state.renderer.vdp1State.localCoordY;
+    m_VDP1RenderContext.rendering = state.renderer.vdp1State.rendering;
+    m_VDP1RenderContext.erase = state.renderer.vdp1State.erase;
+    m_VDP1RenderContext.cycleCount = state.renderer.vdp1State.cycleCount;
+
+    for (size_t i = 0; i < 4; i++) {
+        m_normBGLayerStates[i].fracScrollX = state.renderer.normBGLayerStates[i].fracScrollX;
+        m_normBGLayerStates[i].fracScrollY = state.renderer.normBGLayerStates[i].fracScrollY;
+        m_normBGLayerStates[i].scrollIncH = state.renderer.normBGLayerStates[i].scrollIncH;
+        m_normBGLayerStates[i].lineScrollTableAddress = state.renderer.normBGLayerStates[i].lineScrollTableAddress;
+        m_normBGLayerStates[i].mosaicCounterY = state.renderer.normBGLayerStates[i].mosaicCounterY;
+    }
+
+    for (size_t i = 0; i < 2; i++) {
+        m_rotParamStates[i].pageBaseAddresses = state.renderer.rotParamStates[i].pageBaseAddresses;
+        m_rotParamStates[i].scrX = state.renderer.rotParamStates[i].scrX;
+        m_rotParamStates[i].scrY = state.renderer.rotParamStates[i].scrY;
+        m_rotParamStates[i].KA = state.renderer.rotParamStates[i].KA;
+    }
+
+    m_lineBackLayerState.lineColor.u32 = state.renderer.lineBackLayerState.lineColor;
+    m_lineBackLayerState.backColor.u32 = state.renderer.lineBackLayerState.backColor;
+
+    m_localState.displayFB = state.renderer.displayFB;
+    m_vdp1Done = state.renderer.vdp1Done;
+
+    m_localState.UpdateResolution<true>();
 }
 
 // -----------------------------------------------------------------------------
@@ -4406,36 +4451,6 @@ FORCE_INLINE uint32 VDPRenderer::VDP2GetY(uint32 y) const {
 // -----------------------------------------------------------------------------
 // Threading
 
-void VDPRenderer::EnableThreadedVDP(bool enable) {
-    if (m_threadedRendering == enable) {
-        return;
-    }
-
-    devlog::debug<grp::vdp2>("{} threaded VDP rendering", (enable ? "Enabling" : "Disabling"));
-
-    m_threadedRendering = enable;
-    if (enable) {
-        EnqueueEvent(RenderEvent::UpdateEffectiveRenderingFlags());
-        EnqueueEvent(RenderEvent::PostLoadStateSync());
-        m_renderThread = std::thread{[&] { RenderThread(); }};
-        m_postLoadSyncSignal.Wait(true);
-    } else {
-        EnqueueEvent(RenderEvent::Shutdown());
-        if (m_renderThread.joinable()) {
-            m_renderThread.join();
-        }
-    }
-}
-
-void VDPRenderer::IncludeVDP1RenderInVDPThread(bool enable) {
-    if (m_threadedRendering) {
-        m_renderVDP1OnVDP2Thread = enable;
-        EnqueueEvent(RenderEvent::UpdateEffectiveRenderingFlags());
-        EnqueueEvent(RenderEvent::VDP1StateSync());
-        m_postLoadSyncSignal.Wait(true);
-    }
-}
-
 void VDPRenderer::UpdateEffectiveRenderingFlags() {
     m_effectiveRenderVDP1InVDP2Thread = m_threadedRendering && m_renderVDP1OnVDP2Thread;
 }
@@ -4629,18 +4644,6 @@ FORCE_INLINE T VDPRenderer::VDP2ReadRendererCRAM(uint32 address) {
 
 FORCE_INLINE Color888 VDPRenderer::VDP2ReadRendererColor5to8(uint32 address) {
     return m_CRAMCache[(address / sizeof(uint16)) & 0x7FF];
-}
-
-// -----------------------------------------------------------------------------
-// Memory dumps
-
-void VDPRenderer::DumpVDP1AltFramebuffers(std::ostream &out) const {
-    const uint8 dispFB = m_mainState.displayFB;
-    const uint8 drawFB = dispFB ^ 1;
-    if (m_deinterlaceRender) {
-        out.write((const char *)m_altSpriteFB[drawFB].data(), m_altSpriteFB[drawFB].size());
-        out.write((const char *)m_altSpriteFB[dispFB].data(), m_altSpriteFB[dispFB].size());
-    }
 }
 
 } // namespace ymir::vdp

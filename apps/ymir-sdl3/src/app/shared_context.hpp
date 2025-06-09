@@ -35,6 +35,7 @@ struct SharedContext {
     ymir::Saturn saturn;
 
     float displayScale = 1.0f;
+    SDL_Renderer *renderer = nullptr;
 
     input::InputContext inputContext;
 

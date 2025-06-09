@@ -18,11 +18,6 @@
 namespace ymir::vdp {
 
 // -----------------------------------------------------------------------------
-// Forward declarations
-
-class VDP;
-
-// -----------------------------------------------------------------------------
 // Enums
 
 // Layers
@@ -244,6 +239,9 @@ public:
         m_cbVDP1FrameComplete = callback;
     }
 
+    void EnableThreadedVDP(bool enable);
+    void IncludeVDP1RenderInVDPThread(bool enable);
+
     // -------------------------------------------------------------------------
     // Memory accessors
 
@@ -328,6 +326,37 @@ public:
     bool IsLayerEnabled(Layer layer) const;
 
     // -------------------------------------------------------------------------
+    // Rendering control
+
+    // Note: these functions are called from the emulator thread and must use the main state regardless of threading.
+
+    // Initializes renderer state for a new frame.
+    void BeginFrame();
+
+    // Finalizes renderer state for the current frame.
+    void EndFrame();
+
+    // Begins processing VDP1 commands.
+    void BeginVDP1();
+
+    // Processes the given scanline.
+    void ProcessLine(uint32 y);
+
+    // Processes events that occur during the first H-Blank of V-Blank.
+    void ProcessVBlankHBlank();
+
+    // Processes events that occur during the V-Blank OUT.
+    void ProcessVBlankOUT();
+
+    // Processes the even/odd field switch event.
+    void ProcessEvenOddFieldSwitch();
+
+    // -------------------------------------------------------------------------
+    // Memory dumps
+
+    void DumpVDP1AltFramebuffers(std::ostream &out) const;
+
+    // -------------------------------------------------------------------------
     // Save states
 
 private:
@@ -339,8 +368,6 @@ public:
     void LoadState(const state::VDPState &state);
 
 private:
-    friend class VDP;
-
     VDPState &m_mainState;
 
     // Cached CRAM colors converted from RGB555 to RGB888.
@@ -366,32 +393,6 @@ private:
 
     // Invoked when the renderer finishes drawing a frame.
     CBFrameComplete m_cbFrameComplete;
-
-    // -------------------------------------------------------------------------
-    // Rendering control
-
-    // Note: these functions are called from the emulator thread and must use the main state regardless of threading.
-
-    // Initializes renderer state for a new frame.
-    void BeginFrame();
-
-    // Finalizes renderer state for the current frame.
-    void EndFrame();
-
-    // Begins processing VDP1 commands.
-    void BeginVDP1();
-
-    // Processes the given scanline.
-    void ProcessLine(uint32 y);
-
-    // Processes events that occur during the first H-Blank of V-Blank.
-    void ProcessVBlankHBlank();
-
-    // Processes events that occur during the V-Blank OUT.
-    void ProcessVBlankOUT();
-
-    // Processes the even/odd field switch event.
-    void ProcessEvenOddFieldSwitch();
 
     // -------------------------------------------------------------------------
     // Configuration
@@ -1166,9 +1167,6 @@ private:
     // HACK to safely signal and invoke callbacks when VDP1 rendering is finished
     bool m_vdp1Done;
 
-    void EnableThreadedVDP(bool enable);
-    void IncludeVDP1RenderInVDPThread(bool enable);
-
     void RenderThread();
 
     template <mem_primitive T>
@@ -1181,11 +1179,6 @@ private:
     T VDP2ReadRendererCRAM(uint32 address);
 
     Color888 VDP2ReadRendererColor5to8(uint32 address);
-
-    // -------------------------------------------------------------------------
-    // Memory dumps
-
-    void DumpVDP1AltFramebuffers(std::ostream &out) const;
 };
 
 } // namespace ymir::vdp

@@ -7,9 +7,9 @@
 namespace app {
 
 struct VDPTracer final : ymir::debug::IVDPTracer {
-    ymir::vdp::VDPState GetLatestStateCopy() const {
+    void CopyLatestState(ymir::vdp::VDPState &out) const {
         std::unique_lock lock{m_mtxState};
-        return m_latestState;
+        out = m_latestState;
     }
 
 private:

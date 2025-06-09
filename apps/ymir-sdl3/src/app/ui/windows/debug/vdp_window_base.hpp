@@ -2,7 +2,7 @@
 
 #include <app/ui/window_base.hpp>
 
-// #include <app/debug/vdp_tracer.hpp>
+#include <app/debug/vdp_tracer.hpp>
 
 namespace app::ui {
 
@@ -13,7 +13,7 @@ public:
 
 protected:
     ymir::vdp::VDP &m_vdp;
-    // VDPTracer &m_tracer;
+    VDPTracer &m_tracer;
 };
 
 } // namespace app::ui
