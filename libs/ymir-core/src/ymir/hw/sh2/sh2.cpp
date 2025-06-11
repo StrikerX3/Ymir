@@ -740,15 +740,19 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
     const uint32 partition = (address >> 29u) & 0b111;
     switch (partition) {
     case 0b000: // cache
-        if constexpr (enableCache) {
-            // TODO: check for cache hit/miss, compute timings for cache miss (4x uint32 fetches)
-            return 1;
+        if constexpr (enableCache && !write) {
+            // Check for cache hit
+            CacheEntry &entry = m_cache.GetEntry(address);
+            uint32 way = entry.FindWay(address);
+
+            if (IsValidCacheWay(way)) {
+                return 1;
+            }
         }
         [[fallthrough]];
     case 0b001: [[fallthrough]];
     case 0b101: // cache-through
-        // FIXME: halving access times so that the CPU isn't too heavily slowed down
-        return m_bus.GetAccessCycles<write>(address) >> 1;
+        return m_bus.GetAccessCycles<write>(address);
     case 0b010: return 1;        // associative purge
     case 0b011: return 1;        // cache address array
     case 0b100: [[fallthrough]]; // cache data array
