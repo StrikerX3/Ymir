@@ -122,6 +122,8 @@ void CDBlock::Reset(bool hard) {
     m_putSectorLength = 2048;
 
     m_processingCommand = false;
+
+    m_netlinkSCR = 0x00;
 }
 
 void CDBlock::MapMemory(sys::Bus &bus) {
@@ -510,6 +512,15 @@ void CDBlock::OnCommandExecEvent(core::EventContext &eventContext, void *userCon
 
 template <mem_primitive T>
 T CDBlock::ReadReg(uint32 address) {
+    if constexpr (std::is_same_v<T, uint8>) {
+        if (address == 0x5895019) {
+            return 0x30;
+        }
+        if (address == 0x589501D) {
+            return m_netlinkSCR;
+        }
+    }
+
     address &= 0x3F;
 
     switch (address) {
@@ -530,6 +541,16 @@ T CDBlock::ReadReg(uint32 address) {
 
 template <mem_primitive T>
 void CDBlock::WriteReg(uint32 address, T value) {
+    if constexpr (std::is_same_v<T, uint8>) {
+        if (address == 0x589501D) {
+            m_netlinkSCR = value;
+            return;
+        }
+        if (address == 0x582503D) {
+            return;
+        }
+    }
+
     address &= 0x3F;
 
     devlog::trace<grp::regs>("{}-bit register write to {:02X} = {:X}", sizeof(T) * 8, address, value);
