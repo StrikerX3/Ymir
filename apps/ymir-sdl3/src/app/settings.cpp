@@ -560,6 +560,8 @@ void Settings::ResetToDefaults() {
 
     audio.volume = 0.8;
     audio.mute = false;
+    audio.midiInputPort = Settings::Audio::MidiPort { .portNumber = -1, .isVirtual = false };
+    audio.midiOutputPort = Settings::Audio::MidiPort { .portNumber = -1, .isVirtual = false };
 
     cartridge.type = Settings::Cartridge::Type::None;
     cartridge.backupRAM.imagePath = "";
@@ -794,10 +796,20 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
     }
 
     if (auto tblAudio = data["Audio"]) {
+        auto inputPort = audio.midiInputPort.Get();
+        auto outputPort = audio.midiOutputPort.Get();
+
         Parse(tblAudio, "Volume", audio.volume);
         Parse(tblAudio, "Mute", audio.mute);
+        Parse(tblAudio, "MidiInputPort", inputPort.portNumber);
+        Parse(tblAudio, "MidiOutputPort", outputPort.portNumber);
+        Parse(tblAudio, "VirtualMidiInput", inputPort.isVirtual);
+        Parse(tblAudio, "VirtualMidiOutput", outputPort.isVirtual);
         Parse(tblAudio, "InterpolationMode", emuConfig.audio.interpolation);
         Parse(tblAudio, "ThreadedSCSP", emuConfig.audio.threadedSCSP);
+
+        audio.midiInputPort = inputPort;
+        audio.midiOutputPort = outputPort;
     }
 
     if (auto tblCart = data["Cartridge"]) {
@@ -1050,6 +1062,10 @@ SettingsSaveResult Settings::Save() {
         {"Audio", toml::table{{
             {"Volume", audio.volume.Get()},
             {"Mute", audio.mute.Get()},
+            {"MidiInputPort", audio.midiInputPort.Get().portNumber},
+            {"MidiOutputPort", audio.midiOutputPort.Get().portNumber},
+            {"VirtualMidiInput", audio.midiInputPort.Get().isVirtual},
+            {"VirtualMidiOutput", audio.midiOutputPort.Get().isVirtual},
             {"InterpolationMode", ToTOML(emuConfig.audio.interpolation)},
             {"ThreadedSCSP", emuConfig.audio.threadedSCSP.Get()},
         }}},

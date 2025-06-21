@@ -23,6 +23,8 @@
 
 #include <blockingconcurrentqueue.h>
 
+#include <RtMidi.h>
+
 #include <deque>
 #include <filesystem>
 #include <memory>
@@ -146,6 +148,11 @@ struct SharedContext {
 
     RewindBuffer rewindBuffer;
     bool rewinding = false;
+
+    struct Midi {
+        std::unique_ptr<RtMidiIn> midiInput;
+        std::unique_ptr<RtMidiOut> midiOutput;
+    } midi;
 
     // Certain GUI interactions require synchronization with the emulator thread, especially when dealing with
     // dynamically allocated objects:
@@ -305,6 +312,72 @@ struct SharedContext {
         } else {
             return profile.GetPath(ProfilePath::PersistentState) / "bup-int.bin";
         }
+    }
+
+    std::string GetMidiVirtualInputPortName() {
+        return "Ymir Virtual MIDI Input";
+    }
+
+    std::string GetMidiVirtualOutputPortName() {
+        return "Ymir Virtual MIDI Output";
+    }
+
+    std::string GetMidiInputPortName() {
+        std::string portName;
+        if (settings.audio.midiInputPort.Get().portNumber == -1) {
+            portName = "None";
+        } else if (settings.audio.midiInputPort.Get().isVirtual) {
+            portName = GetMidiVirtualInputPortName();
+        } else if (settings.audio.midiInputPort.Get().portNumber >= midi.midiInput->getPortCount()) {
+            portName = "(Unavailable)";
+        } else {
+            portName = midi.midiInput->getPortName(settings.audio.midiInputPort.Get().portNumber);
+        }
+
+        return portName;
+    }
+
+    std::string GetMidiOutputPortName() {
+        std::string portName;
+        if (settings.audio.midiOutputPort.Get().portNumber == -1) {
+            portName = "None";
+        } else if (settings.audio.midiOutputPort.Get().isVirtual) {
+            portName = GetMidiVirtualOutputPortName();
+        } else if (settings.audio.midiOutputPort.Get().portNumber >= midi.midiOutput->getPortCount()) {
+            portName = "(Unavailable)";
+        } else {
+            portName = midi.midiOutput->getPortName(settings.audio.midiOutputPort.Get().portNumber);
+        }
+
+        return portName;
+    }
+
+    int FindInputPortByName(std::string name) {
+        unsigned int portCount = midi.midiInput->getPortCount();
+        for (unsigned int i = 0; i < portCount; i++) {
+            if (midi.midiInput->getPortName(i) == name) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    int FindOutputPortByName(std::string name) {
+        unsigned int portCount = midi.midiOutput->getPortCount();
+        for (unsigned int i = 0; i < portCount; i++) {
+            if (midi.midiOutput->getPortName(i) == name) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    SharedContext() {
+        midi.midiInput = std::unique_ptr<RtMidiIn>(new RtMidiIn(RtMidi::Api::UNSPECIFIED, "Ymir MIDI input client"));
+        midi.midiOutput = std::unique_ptr<RtMidiOut>(new RtMidiOut(RtMidi::Api::UNSPECIFIED, "Ymir MIDI output client"));
+        midi.midiInput->ignoreTypes(false, false, false);
     }
 };
 

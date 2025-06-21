@@ -1,6 +1,7 @@
 #pragma once
 
 #include "scsp_defs.hpp"
+#include "scsp_midi_defs.hpp"
 #include "scsp_dsp.hpp"
 #include "scsp_slot.hpp"
 #include "scsp_timer.hpp"
@@ -98,6 +99,10 @@ namespace grp {
         static constexpr std::string_view name = "SCSP-DMA";
     };
 
+    struct midi : public base {
+        static constexpr std::string_view name = "SCSP-MIDI";
+    };
+
 } // namespace grp
 
 class SCSP {
@@ -105,6 +110,10 @@ public:
     SCSP(core::Scheduler &scheduler, core::Configuration::Audio &config);
 
     void Reset(bool hard);
+
+    void SetSendMidiOutputCallback(CBSendMidiOutputMessage callback) {
+        m_cbSendMidiOutputMessage = callback;
+    }
 
     void SetSampleCallback(CBOutputSample callback) {
         m_cbOutputSample = callback;
@@ -120,6 +129,9 @@ public:
 
     // Feeds CDDA data into the buffer and returns how many thirds of the buffer are used
     uint32 ReceiveCDDA(std::span<uint8, 2352> data);
+	
+	// push scheduled message onto MIDI input queue
+	void ReceiveMidiInput(MidiMessage &msg);
 
     void DumpWRAM(std::ostream &out) const;
 
@@ -143,6 +155,16 @@ public:
     void LoadState(const state::SCSPState &state);
 
 private:
+    struct QueuedMidiMessage {
+        uint64 scheduleTime;
+        std::vector<uint8> payload;
+
+        QueuedMidiMessage(uint64 scheduleTime, std::vector<uint8> &&payload)
+            : scheduleTime(scheduleTime)
+            , payload(std::move(payload)) {
+        }
+    };
+
     alignas(16) std::array<uint8, m68k::kM68KWRAMSize> m_WRAM;
 
     alignas(16) std::array<uint8, 2352 * 15> m_cddaBuffer;
@@ -163,6 +185,21 @@ private:
 
     CBOutputSample m_cbOutputSample;
     CBTriggerSoundRequestInterrupt m_cbTriggerSoundRequestInterrupt;
+    CBSendMidiOutputMessage m_cbSendMidiOutputMessage;
+
+    std::queue<QueuedMidiMessage> m_midiInputQueue;
+    uint64 m_nextMidiTime;
+
+    std::array<uint8, kMidiBufferSize> m_midiInputBuffer;
+    uint32 m_midiInputReadPos;
+    uint32 m_midiInputWritePos;
+    bool m_midiInputOverflow;
+
+    std::array<uint8, kMidiBufferSize> m_midiOutputBuffer;
+    uint32 m_midiOutputSize;
+    int m_expectedOutputPacketSize;
+
+    void ProcessMidiInputQueue();
 
     // -------------------------------------------------------------------------
     // Threading
@@ -641,21 +678,13 @@ private:
 
     // --- MIDI Register ---
 
+    void FlushMidiOutput(bool endPacket);
+
     template <bool lowerByte, bool upperByte, bool peek>
-    uint16 ReadMIDIIn() const {
-        if constexpr (!peek) {
-            devlog::trace<grp::regs>("Read from MIDI IN is unimplemented");
-        }
-        return 0;
-    }
+    uint16 ReadMIDIIn();
 
     template <bool lowerByte, bool upperByte, bool poke>
-    void WriteMIDIOut(uint16 value) {
-        if constexpr (lowerByte && !poke) {
-            devlog::trace<grp::regs>("Write to MIDI OUT is unimplemented - {:02X}", value);
-            // TODO: write bit::extract<0, 7>(value) to MIDI out buffer
-        }
-    }
+    void WriteMIDIOut(uint16 value);
 
     // --- Timer Register ---
 

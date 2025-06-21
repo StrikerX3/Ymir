@@ -60,6 +60,84 @@ void AudioSettingsView::Display() {
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.large.bold);
+    ImGui::SeparatorText("MIDI");
+    ImGui::PopFont();
+
+    bool supportsVirtual = false;
+    auto api = m_context.midi.midiInput->getCurrentApi();
+    if (api == RtMidi::Api::MACOSX_CORE || api == RtMidi::Api::LINUX_ALSA || api == RtMidi::Api::UNIX_JACK) {
+        supportsVirtual = true;
+    }
+
+    // INPUT PORTS
+
+    const std::string inputPortName = m_context.GetMidiInputPortName();
+    const std::string inputLabel = fmt::format("Input port {}", m_context.midi.midiInput->isPortOpen() ? "(open)" : "");
+
+    auto inputPort = m_context.settings.audio.midiInputPort.Get();
+
+    if (ImGui::BeginCombo(inputLabel.c_str(), inputPortName.c_str())) {
+        if (MakeDirty(ImGui::Selectable("None", inputPort.portNumber == -1))) {
+            m_context.settings.audio.midiInputPort = app::Settings::Audio::MidiPort { .portNumber = -1, .isVirtual = false };
+        }
+
+        int portCount = m_context.midi.midiInput->getPortCount();
+        for (int i = 0; i < portCount; i++) {
+            std::string portName = m_context.midi.midiInput->getPortName(i);
+            bool selected = inputPort.portNumber == i && !inputPort.isVirtual;
+            if (MakeDirty(ImGui::Selectable(portName.c_str(), selected))) {
+                m_context.settings.audio.midiInputPort = app::Settings::Audio::MidiPort { .portNumber = i, .isVirtual = false };
+            }
+        }
+
+        // if the backend supports virtual MIDI ports, show a virtual port also
+        if (supportsVirtual) {
+            const std::string portName = m_context.GetMidiVirtualInputPortName();
+            bool selected = inputPort.portNumber == 0 && inputPort.isVirtual;
+            if (MakeDirty(ImGui::Selectable(portName.c_str(), selected))) {
+                m_context.settings.audio.midiInputPort = app::Settings::Audio::MidiPort { .portNumber = 0, .isVirtual = true };
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    // OUTPUT PORTS
+
+    const std::string outputPortName = m_context.GetMidiOutputPortName();
+    const std::string outputLabel = fmt::format("Output port {}", m_context.midi.midiOutput->isPortOpen() ? "(open)" : "");
+
+    auto outputPort = m_context.settings.audio.midiOutputPort.Get();
+
+    if (ImGui::BeginCombo(outputLabel.c_str(), outputPortName.c_str())) {
+        if (MakeDirty(ImGui::Selectable("None", outputPort.portNumber == -1))) {
+            m_context.settings.audio.midiOutputPort = app::Settings::Audio::MidiPort { .portNumber = -1, .isVirtual = false };
+        }
+
+        int portCount = m_context.midi.midiOutput->getPortCount();
+        for (int i = 0; i < portCount; i++) {
+            std::string portName = m_context.midi.midiOutput->getPortName(i);
+            bool selected = outputPort.portNumber == i && !outputPort.isVirtual;
+            if (MakeDirty(ImGui::Selectable(portName.c_str(), selected))) {
+                m_context.settings.audio.midiOutputPort = app::Settings::Audio::MidiPort { .portNumber = i, .isVirtual = false };
+            }
+        }
+
+        // if the backend supports virtual MIDI ports, show a virtual port also
+        if (supportsVirtual) {
+            const std::string portName = m_context.GetMidiVirtualOutputPortName();
+            bool selected = outputPort.portNumber == 0 && outputPort.isVirtual;
+            if (MakeDirty(ImGui::Selectable(portName.c_str(), selected))) {
+                m_context.settings.audio.midiOutputPort = app::Settings::Audio::MidiPort { .portNumber = 0, .isVirtual = true };
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.large.bold);
     ImGui::SeparatorText("Performance");
     ImGui::PopFont();
 

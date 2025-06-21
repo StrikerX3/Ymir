@@ -118,6 +118,8 @@
 
 #include <fmt/std.h>
 
+#include <RtMidi.h>
+
 #include <mutex>
 #include <numbers>
 #include <span>
@@ -177,6 +179,62 @@ int App::Run(const CommandLineOptions &options) {
         inputSettings.gamepad.lsDeadzone.Observe(inputContext.GamepadLSDeadzone);
         inputSettings.gamepad.rsDeadzone.Observe(inputContext.GamepadRSDeadzone);
         inputSettings.gamepad.analogToDigitalSensitivity.Observe(inputContext.GamepadAnalogToDigitalSens);
+    }
+
+    {
+        m_context.settings.audio.midiInputPort.Observe(
+            [&](app::Settings::Audio::MidiPort value) {
+                m_context.midi.midiInput->closePort();
+
+                if (value.portNumber != -1) {
+                    if (value.isVirtual) {
+                        try {
+                            m_context.midi.midiInput->openVirtualPort(m_context.GetMidiVirtualInputPortName());
+                            devlog::debug<grp::base>("Opened virtual MIDI input port");
+                        }
+                        catch (RtMidiError &error) {
+                            devlog::error<grp::base>("Failed opening virtual MIDI input port: {}", error.getMessage());
+                        }
+                    }
+                    else {
+                        try {
+                            m_context.midi.midiInput->openPort(value.portNumber);
+                            devlog::debug<grp::base>("Opened MIDI input port {}", m_context.midi.midiInput->getPortName(value.portNumber));
+                        }
+                        catch (RtMidiError &error) {
+                            devlog::error<grp::base>("Failed opening MIDI input port {}: {}", value.portNumber, error.getMessage());
+                        };
+                    }
+                }
+            }
+        );
+        
+        m_context.settings.audio.midiOutputPort.Observe(
+            [&](app::Settings::Audio::MidiPort value) {
+                m_context.midi.midiOutput->closePort();
+
+                if (value.portNumber != -1) {
+                    if (value.isVirtual) {
+                        try {
+                            m_context.midi.midiOutput->openVirtualPort(m_context.GetMidiVirtualOutputPortName());
+                            devlog::debug<grp::base>("Opened virtual MIDI output port");
+                        }
+                        catch (RtMidiError &error) {
+                            devlog::error<grp::base>("Failed opening virtual MIDI output port: {}", error.getMessage());
+                        }
+                    }
+                    else {
+                        try {
+                            m_context.midi.midiOutput->openPort(value.portNumber);
+                            devlog::debug<grp::base>("Opened MIDI output port {}", m_context.midi.midiOutput->getPortName(value.portNumber));
+                        }
+                        catch (RtMidiError &error) {
+                            devlog::error<grp::base>("Failed opening MIDI output port {}: {}", value.portNumber, error.getMessage());
+                        };
+                    }
+                }
+            }
+        );
     }
 
     m_context.settings.video.deinterlace.Observe(
@@ -678,6 +736,23 @@ void App::RunEmulator() {
     m_context.saturn.SCSP.SetSampleCallback({&m_audioSystem, [](sint16 left, sint16 right, void *ctx) {
                                                  static_cast<AudioSystem *>(ctx)->ReceiveSample(left, right);
                                              }});
+
+    m_context.saturn.SCSP.SetSendMidiOutputCallback({&m_context.midi.midiOutput, [](std::span<uint8> payload, void *ctx) {
+        try {
+            static_cast<RtMidiOut*>(ctx)->sendMessage(payload.data(), payload.size());
+        }
+        catch (RtMidiError &error) {
+            devlog::error<grp::base>("Failed to send MIDI output message: {}", error.getMessage());
+        }
+    }});
+
+    // ---------------------------------
+    // MIDI setup
+
+    m_context.midi.midiInput->setCallback(OnMidiInputReceived, this);
+
+    const std::string midi_api = m_context.midi.midiInput->getApiName(m_context.midi.midiInput->getCurrentApi());
+    devlog::info<grp::base>("Using MIDI backend: {}", midi_api);
 
     // ---------------------------------
     // File dialogs
@@ -2322,6 +2397,11 @@ void App::EmulatorThread() {
 
             case RunFunction: std::get<std::function<void(SharedContext &)>>(evt.value)(m_context); break;
 
+            case ReceiveMidiInput: {
+                m_context.saturn.SCSP.ReceiveMidiInput(std::get<ymir::scsp::MidiMessage>(evt.value));
+                break;
+            }
+
             case SetThreadPriority: util::BoostCurrentThreadPriority(std::get<bool>(evt.value)); break;
 
             case Shutdown: return;
@@ -3346,6 +3426,11 @@ void App::OpenGenericModal(std::string title, std::function<void()> fnContents) 
     m_openGenericModal = true;
     m_genericModalTitle = title;
     m_genericModalContents = fnContents;
+}
+
+void App::OnMidiInputReceived(double delta, std::vector<unsigned char>* msg, void* userData) {
+    App *app = static_cast<App *>(userData);
+    app->m_context.EnqueueEvent(events::emu::ReceiveMidiInput(delta, std::move(*msg)));
 }
 
 } // namespace app

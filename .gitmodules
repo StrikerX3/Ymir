@@ -38,3 +38,6 @@
 [submodule "vendor/libchdr"]
 	path = vendor/libchdr
 	url = https://github.com/rtissera/libchdr.git
+[submodule "vendor/rtmidi"]
+	path = vendor/rtmidi
+	url = https://github.com/thestk/rtmidi.git

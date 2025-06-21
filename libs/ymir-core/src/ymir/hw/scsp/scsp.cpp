@@ -30,6 +30,16 @@ SCSP::SCSP(core::Scheduler &scheduler, core::Configuration::Audio &config)
 void SCSP::Reset(bool hard) {
     m_WRAM.fill(0);
 
+    m_midiInputBuffer.fill(0);
+    m_midiInputReadPos = 0;
+    m_midiInputWritePos = 0;
+    m_midiInputOverflow = false;
+
+    m_midiOutputSize = 0;
+    m_expectedOutputPacketSize = 0;
+
+    m_nextMidiTime = 0;
+
     m_cddaBuffer.fill(0);
     m_cddaReadPos = 0;
     m_cddaWritePos = 0;
@@ -154,6 +164,138 @@ uint32 SCSP::ReceiveCDDA(std::span<uint8, 2352> data) {
         m_cddaReady = true;
     }
     return len * 3 / m_cddaBuffer.size();
+}
+
+void SCSP::ReceiveMidiInput(MidiMessage &msg) {
+    // if we reset, and this is the first message received, ignore delta time & play now
+    if (m_nextMidiTime != 0) {
+        m_nextMidiTime += (uint64)(msg.deltaTime * kAudioFreq);
+    }
+
+    // if scheduled time falls behind real time, compensate
+    if (m_nextMidiTime < m_sampleCounter) {
+        devlog::debug<grp::midi>("Scheduled time fell behind real time");
+        m_nextMidiTime = m_sampleCounter + kMidiAheadTime;
+    }
+
+    // if scheduled time is too far ahead of real time, compensate
+    if (m_nextMidiTime >= m_sampleCounter + kMaxMidiScheduleTime) {
+        devlog::debug<grp::midi>("Scheduled time ahead of real time");
+        m_nextMidiTime = m_sampleCounter + kMidiAheadTime;
+    }
+
+    devlog::trace<grp::midi>("Received midi payload, scheduled for {} (bytes: {})", m_nextMidiTime, msg.payload.size());
+
+    m_midiInputQueue.push(QueuedMidiMessage(m_nextMidiTime, std::move(msg.payload)));
+}
+
+void SCSP::FlushMidiOutput(bool endPacket) {
+    m_cbSendMidiOutputMessage(std::span<uint8>(m_midiOutputBuffer).subspan(0, m_midiOutputSize));
+    m_midiOutputSize = 0;
+    if (endPacket) {
+        m_expectedOutputPacketSize = 0;
+    }
+}
+
+template <bool lowerByte, bool upperByte, bool peek>
+uint16 SCSP::ReadMIDIIn() {
+    uint8 mibuf = m_midiInputBuffer[m_midiInputReadPos];
+    bool mienp = m_midiInputReadPos == m_midiInputWritePos;
+    bool mifull = ((m_midiInputWritePos + 1) % m_midiInputBuffer.size()) == m_midiInputReadPos;
+    bool miovf = m_midiInputOverflow;
+
+    uint16 value = 0;
+    bit::deposit_into<0, 7>(value, mibuf);
+    bit::deposit_into<8>(value, mienp);
+    bit::deposit_into<9>(value, mifull);
+    bit::deposit_into<10>(value, miovf);
+    bit::deposit_into<11>(value, true); // output always empty for now
+
+    if constexpr (!peek && lowerByte) {
+        // advance read position
+        if (!mienp) {
+            m_midiInputReadPos = (m_midiInputReadPos + 1) % m_midiInputBuffer.size();
+        } else {
+            devlog::error<grp::midi>("Invalid read from empty MIDI buffer");
+        }
+    }
+
+    return value;
+}
+
+template <bool lowerByte, bool upperByte, bool poke>
+void SCSP::WriteMIDIOut(uint16 value) {
+    if constexpr (lowerByte && !poke) {
+        // basically we need to try and gather individual bytes into a single packet of MIDI data
+        // most MIDI messages only have one or two bytes of data
+        // however, if it's a sysex, it can be an arbitrary size and is terminated by 0xF7
+
+        uint8 byte = bit::extract<0, 7>(value);
+        m_midiOutputBuffer[m_midiOutputSize++] = byte;
+
+        if (m_expectedOutputPacketSize == -1) {
+            // currently building a SysEx message (note that these can actually be broken up into multiple packets afaik)
+            // flush if either we hit a terminator byte *or* buffer hits maximum size
+            if (byte == 0xF7 || m_midiOutputSize == kMidiBufferSize) {
+                FlushMidiOutput(byte == 0xF7);
+            }
+        }
+        else if (m_midiOutputBuffer.size() == m_expectedOutputPacketSize) {
+            // finished building normal midi packet
+            FlushMidiOutput(true);
+        }
+        else if (m_midiOutputSize == 1) {
+            // starting new midi packet, check status byte to see what kind of packet we're building
+            if ((byte >> 4) == 0b1000) {
+                // note off
+                m_expectedOutputPacketSize = 3;
+            }
+            else if ((byte >> 4) == 0b1001) {
+                // note on
+                m_expectedOutputPacketSize = 3;
+            }
+            else if ((byte >> 4) == 0b1010) {
+                // key pressure (aftertouch)
+                m_expectedOutputPacketSize = 3;
+            }
+            else if ((byte >> 4) == 0b1011) {
+                // control change
+                m_expectedOutputPacketSize = 3;
+            }
+            else if ((byte >> 4) == 0b1100) {
+                // program change
+                m_expectedOutputPacketSize = 2;
+            }
+            else if ((byte >> 4) == 0b1101) {
+                // channel pressure (aftertouch)
+                m_expectedOutputPacketSize = 2;
+            }
+            else if ((byte >> 4) == 0b1110) {
+                // pitch bend change
+                m_expectedOutputPacketSize = 3;
+            }
+            else if (byte == 0xF0) {
+                // sysex, arbitrary size (terminated by 0xF7)
+                m_expectedOutputPacketSize = -1;
+            }
+            else if (byte == 0xF1) {
+                // MIDI time code quarter frame
+                m_expectedOutputPacketSize = 2;
+            }
+            else if (byte == 0xF2) {
+                // song position pointer
+                m_expectedOutputPacketSize = 3;
+            }
+            else if (byte == 0xF3) {
+                // song select
+                m_expectedOutputPacketSize = 2;
+            }
+            else {
+                // everything else is one-byte, so just send as is
+                FlushMidiOutput(true);
+            }
+        }
+    }
 }
 
 void SCSP::DumpWRAM(std::ostream &out) const {
@@ -383,6 +525,7 @@ void SCSP::SetInterrupt(uint16 intr, bool level) {
     const uint16 prev = m_scuPendingInterrupts;
     m_scuPendingInterrupts &= ~(1 << intr);
     m_scuPendingInterrupts |= level << intr;
+
     if ((prev ^ m_scuPendingInterrupts) & m_scuEnabledInterrupts & (1 << intr)) {
         UpdateSCUInterrupts();
     }
@@ -493,6 +636,7 @@ void SCSP::ExecuteDMA() {
 
 FORCE_INLINE void SCSP::Tick() {
     RunM68K();
+    ProcessMidiInputQueue();
     GenerateSample();
     UpdateTimers();
     UpdateM68KInterrupts();
@@ -856,6 +1000,36 @@ FORCE_INLINE void SCSP::SlotProcessStep7(Slot &slot) {
 
 ExceptionVector SCSP::AcknowledgeInterrupt(uint8 level) {
     return ExceptionVector::AutoVectorRequest;
+}
+
+void SCSP::ProcessMidiInputQueue() {
+    // TODO: I believe MIDI stuff is *supposed* to trigger interrupts...
+    // however there are no commercial games relying on this behavior, so it should be fine for now.
+
+    while (m_midiInputQueue.size() > 0) {
+        auto &msg = m_midiInputQueue.front();
+        if (msg.scheduleTime <= m_sampleCounter) {
+            // TODO: is there any way to clear overflow beyond a reset?
+            if (!m_midiInputOverflow) {
+                devlog::trace<grp::midi>("Adding MIDI message to buffer at {} (bytes: {})", m_sampleCounter, msg.payload.size());
+
+                for (auto data : msg.payload) {
+                    m_midiInputBuffer[m_midiInputWritePos] = data;
+                    m_midiInputWritePos = (m_midiInputWritePos + 1) % m_midiInputBuffer.size();
+
+                    if (m_midiInputWritePos == m_midiInputReadPos) {
+                        m_midiInputOverflow = true;
+                        devlog::error<grp::midi>("MIDI buffer overflowed");
+                        break;
+                    }
+                }
+            }
+
+            m_midiInputQueue.pop();
+        } else {
+            break;
+        }
+    }
 }
 
 } // namespace ymir::scsp

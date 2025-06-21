@@ -1,5 +1,7 @@
 #pragma once
 
+#include <RtMidi.h>
+
 #include "settings_view_base.hpp"
 
 namespace app::ui {

@@ -246,6 +246,7 @@ target_link_libraries(ymir-sdl3 PRIVATE
     cereal::cereal
     lz4::lz4
     stb::stb
+    rtmidi
 )
 target_compile_features(ymir-sdl3 PUBLIC cxx_std_20)
 

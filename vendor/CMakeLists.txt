@@ -89,6 +89,11 @@ add_subdirectory(stb)
 message(STATUS "==> libchdr")
 add_subdirectory(libchdr)
 
+# rtmidi - https://github.com/thestk/rtmidi.git
+message(STATUS "==> rtmidi")
+set(RTMIDI_BUILD_STATIC_LIBS ON)
+add_subdirectory(rtmidi)
+
 # --------------------------------------------------------------------------------------------------
 # Test dependencies
 

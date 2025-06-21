@@ -120,6 +120,8 @@ private:
     void InvokeFileDialog(SDL_FileDialogType type, const char *title, void *filters, int numFilters, bool allowMany,
                           const char *location, void *userdata, SDL_DialogFileCallback callback) const;
 
+    static void OnMidiInputReceived(double delta, std::vector<unsigned char> *msg, void *userData);
+
     // -----------------------------------------------------------------------------------------------------------------
     // Windows
 
