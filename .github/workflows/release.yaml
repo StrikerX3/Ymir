@@ -29,8 +29,8 @@ jobs:
     steps:
       - name: Download and install LLVM
         run: |
-          Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.0.0/LLVM-19.0.0-win64.exe" -OutFile "LLVM-19.0.0-win64.exe"
-          Start-Process -Wait -FilePath ".\LLVM-19.0.0-win64.exe" -ArgumentList "/S"
+          Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.0/LLVM-19.1.0-win64.exe" -OutFile "LLVM-19.1.0-win64.exe"
+          Start-Process -Wait -FilePath ".\LLVM-19.1.0-win64.exe" -ArgumentList "/S"
           
       - name: Add to PATH
         run: |
