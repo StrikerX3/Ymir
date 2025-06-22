@@ -8,7 +8,16 @@ jobs:
   build-windows:
     name: windows-${{ matrix.c_compiler }}-${{ matrix.architecture.name }}
     runs-on: windows-latest
-
+    steps:
+    - name: Download and install LLVM
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.0.0/LLVM-19.0.0-win64.exe" -OutFile "LLVM-19.0.0-win64.exe"
+        Start-Process -Wait -FilePath ".\LLVM-19.0.0-win64.exe" -ArgumentList "/S"
+    - name: Add to PATH
+      run: |
+        echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Verify installation
+      run: clang --version
     strategy:
       fail-fast: false
 
