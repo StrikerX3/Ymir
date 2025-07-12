@@ -361,62 +361,7 @@ void App::RunEmulator() {
     auto embedfs = cmrc::Ymir_sdl3_rc::get_filesystem();
 
     // Screen parameters
-    struct ScreenParams {
-        ScreenParams()
-            : framebuffer(vdp::kMaxResH * vdp::kMaxResV) {
-            SetResolution(320, 224);
-            prevWidth = width;
-            prevHeight = height;
-            prevScaleX = scaleX;
-            prevScaleY = scaleY;
-        }
-
-        SDL_Window *window = nullptr;
-
-        uint32 width;
-        uint32 height;
-        uint32 scaleX;
-        uint32 scaleY;
-        uint32 fbScale = 1;
-
-        // Hacky garbage to help automatically resize window on resolution changes
-        bool resolutionChanged = false;
-        uint32 prevWidth;
-        uint32 prevHeight;
-        uint32 prevScaleX;
-        uint32 prevScaleY;
-
-        void SetResolution(uint32 width, uint32 height) {
-            const bool doubleResH = width >= 640;
-            const bool doubleResV = height >= 400;
-
-            this->prevWidth = this->width;
-            this->prevHeight = this->height;
-            this->prevScaleX = this->scaleX;
-            this->prevScaleY = this->scaleY;
-
-            this->width = width;
-            this->height = height;
-            this->scaleX = doubleResV && !doubleResH ? 2 : 1;
-            this->scaleY = doubleResH && !doubleResV ? 2 : 1;
-            this->resolutionChanged = true;
-        }
-
-        std::vector<uint32> framebuffer; // staging buffer
-        std::mutex mtxFramebuffer;
-        bool updated = false;
-        bool reduceLatency = false; // false = more performance; true = update frames more often
-
-        // Video sync
-        bool videoSync = false;
-        util::Event frameReadyEvent{false};   // emulator has written a new frame to the staging buffer
-        util::Event frameRequestEvent{false}; // GUI ready for the next frame
-        clk::time_point nextFrameTarget{};    // target time for next frame
-        clk::duration frameInterval{};        // interval between frames
-
-        uint64 frames = 0;
-        uint64 vdp1Frames = 0;
-    } screen;
+    auto &screen = m_context.screen;
 
     screen.videoSync = m_context.settings.video.fullScreen;
 
@@ -700,12 +645,13 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup framebuffer and render callbacks
 
-    m_context.saturn.VDP.SetRenderCallback({&screen, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
-                                                auto &screen = *static_cast<ScreenParams *>(ctx);
+    m_context.saturn.VDP.SetRenderCallback({&m_context, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
+                                                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                                                auto &screen = sharedCtx.screen;
                                                 if (width != screen.width || height != screen.height) {
                                                     screen.SetResolution(width, height);
                                                 }
-                                                ++screen.frames;
+                                                ++screen.VDP2Frames;
 
                                                 if (screen.videoSync) {
                                                     screen.frameRequestEvent.Wait(true);
@@ -718,11 +664,26 @@ void App::RunEmulator() {
                                                         screen.frameReadyEvent.Set();
                                                     }
                                                 }
+
+                                                // Limit emulation speed if requested and not using video sync.
+                                                // When video sync is enabled, frame pacing is done by the GUI thread.
+                                                if (sharedCtx.emuSpeed.limitSpeed && !screen.videoSync &&
+                                                    sharedCtx.emuSpeed.GetCurrentSpeedFactor() != 1.0) {
+                                                    // Sleep until 1ms before the next frame presentation time, then
+                                                    // spin wait for the deadline
+                                                    /*auto now = clk::now();
+                                                    if (now < screen.nextFrameTarget - 1ms) {
+                                                        std::this_thread::sleep_until(screen.nextFrameTarget - 1ms);
+                                                    }
+                                                    while (clk::now() < screen.nextFrameTarget) {
+                                                    }*/
+                                                }
                                             }});
 
-    m_context.saturn.VDP.SetVDP1Callback({&screen, [](void *ctx) {
-                                              auto &screen = *static_cast<ScreenParams *>(ctx);
-                                              ++screen.vdp1Frames;
+    m_context.saturn.VDP.SetVDP1Callback({&m_context, [](void *ctx) {
+                                              auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                                              auto &screen = sharedCtx.screen;
+                                              ++screen.VDP1Frames;
                                           }});
 
     // ---------------------------------
@@ -968,21 +929,6 @@ void App::RunEmulator() {
 
     // Emulation
     {
-        auto &generalSettings = m_context.settings.general;
-
-        auto getEmuSpeed = [&]() -> util::Observable<double> & {
-            return generalSettings.useAltSpeed.Get() ? generalSettings.altSpeedFactor : generalSettings.mainSpeedFactor;
-        };
-
-        auto increaseSpeed = [&](double step) {
-            auto &speed = getEmuSpeed();
-            speed = std::min(util::RoundToMultiple(speed + step, 0.1), 5.0);
-        };
-        auto decreaseSpeed = [&](double step) {
-            auto &speed = getEmuSpeed();
-            speed = std::max(util::RoundToMultiple(speed - step, 0.1), 0.1);
-        };
-
         inputContext.SetButtonHandler(actions::emu::TurboSpeed,
                                       [&](void *, const input::InputElement &, bool actuated) {
                                           m_context.emuSpeed.limitSpeed = !actuated;
@@ -993,28 +939,40 @@ void App::RunEmulator() {
             m_audioSystem.SetSync(m_context.emuSpeed.ShouldSyncToAudio());
         });
         inputContext.SetTriggerHandler(actions::emu::ToggleAlternateSpeed, [&](void *, const input::InputElement &) {
-            m_context.settings.general.useAltSpeed = !m_context.settings.general.useAltSpeed;
+            auto &settings = m_context.settings.general;
+            settings.useAltSpeed = !settings.useAltSpeed;
+            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            m_context.settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("Using {} emulation speed: {:.0f}%",
-                                                 (generalSettings.useAltSpeed.Get() ? "alternate" : "primary"),
-                                                 getEmuSpeed().Get() * 100.0));
+                                                 (settings.useAltSpeed.Get() ? "alternate" : "primary"),
+                                                 speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::IncreaseSpeed, [&](void *, const input::InputElement &) {
-            increaseSpeed(0.1);
+            auto &settings = m_context.settings.general;
+            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            speed = std::min(util::RoundToMultiple(speed + 0.1, 0.1), 5.0);
+            m_context.settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed increased to {:.0f}%",
-                                                 (generalSettings.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 getEmuSpeed().Get() * 100.0));
+                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::DecreaseSpeed, [&](void *, const input::InputElement &) {
-            decreaseSpeed(0.1);
+            auto &settings = m_context.settings.general;
+            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            speed = std::max(util::RoundToMultiple(speed - 0.1, 0.1), 0.1);
+            m_context.settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed decreased to {:.0f}%",
-                                                 (generalSettings.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 getEmuSpeed().Get() * 100.0));
+                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::ResetSpeed, [&](void *, const input::InputElement &) {
-            getEmuSpeed() = generalSettings.useAltSpeed.Get() ? 0.5 : 1.0;
+            auto &settings = m_context.settings.general;
+            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            speed = settings.useAltSpeed.Get() ? 0.5 : 1.0;
+            m_context.settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed reset to {:.0f}%",
-                                                 (generalSettings.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 getEmuSpeed().Get() * 100.0));
+                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 speed.Get() * 100.0));
         });
 
         inputContext.SetTriggerHandler(actions::emu::PauseResume, [&](void *, const input::InputElement &) {
@@ -1290,10 +1248,10 @@ void App::RunEmulator() {
     while (true) {
         bool fitWindowToScreenNow = false;
 
-        // Wait for frame update from emulator core if in full screen mode and not paused or fast-forwarding
+        // Use video sync if in full screen mode and not paused or fast-forwarding
         const bool fullScreen = m_context.settings.video.fullScreen;
-        screen.videoSync = fullScreen && !paused && m_audioSystem.IsSync();
-        if (fullScreen && !paused && m_audioSystem.IsSync()) {
+        screen.videoSync = fullScreen && !paused && m_context.emuSpeed.limitSpeed;
+        if (screen.videoSync) {
             // Deliver frame early if audio buffer is emptying (video sync is slowing down emulation too much).
             // Attempt to maintain the audio buffer between 30% and 70%.
             // Smoothly adjust frame interval up or down if audio buffer exceeds either threshold.
@@ -1321,9 +1279,16 @@ void App::RunEmulator() {
                 avgFrameDelay *= 1.0 - frameIntervalAdjustWeight;
             }
 
+            // TODO: don't let GUI go below 48 fps; duplicate frames if needed
+            static constexpr auto kMaxGUIFrameInterval =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(1s / 48.0);
+
+            const auto frameInterval = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                screen.frameInterval / m_context.emuSpeed.GetCurrentSpeedFactor());
+
             // Adjust frame presentation time
             screen.nextFrameTarget -= std::chrono::duration_cast<std::chrono::nanoseconds>(
-                screen.frameInterval * avgFrameDelay * frameIntervalAdjustFactor);
+                frameInterval * avgFrameDelay * frameIntervalAdjustFactor);
 
             // Sleep until 1ms before the next frame presentation time, then spin wait for the deadline
             auto now = clk::now();
@@ -1335,12 +1300,12 @@ void App::RunEmulator() {
 
             // Update next frame target
             now = clk::now();
-            if (now > screen.nextFrameTarget + screen.frameInterval) {
+            if (now > screen.nextFrameTarget + frameInterval) {
                 // The frame was presented too late; set next frame target time relative to now
-                screen.nextFrameTarget = now + screen.frameInterval;
+                screen.nextFrameTarget = now + frameInterval;
             } else {
                 // The frame was presented on time; increment by the interval
-                screen.nextFrameTarget += screen.frameInterval;
+                screen.nextFrameTarget += frameInterval;
             }
         }
         screen.frameRequestEvent.Set();
@@ -1631,38 +1596,54 @@ void App::RunEmulator() {
 
         // Calculate performance and update title bar
         auto now = clk::now();
-        if (now - t >= 1s) {
-            const media::Disc &disc = m_context.saturn.CDBlock.GetDisc();
-            const media::SaturnHeader &header = disc.header;
-            std::string productNumber = "";
-            std::string gameTitle{};
-            if (disc.sessions.empty()) {
-                gameTitle = "No disc inserted";
-            } else {
-                if (!header.productNumber.empty()) {
-                    productNumber = fmt::format("[{}] ", header.productNumber);
-                }
-
-                if (header.gameTitle.empty()) {
-                    gameTitle = "Unnamed game";
+        {
+            std::string fullGameTitle;
+            {
+                std::unique_lock lock{m_context.locks.disc};
+                const media::Disc &disc = m_context.saturn.CDBlock.GetDisc();
+                const media::SaturnHeader &header = disc.header;
+                std::string productNumber = "";
+                std::string gameTitle{};
+                if (disc.sessions.empty()) {
+                    gameTitle = "No disc inserted";
                 } else {
-                    gameTitle = header.gameTitle;
+                    if (!header.productNumber.empty()) {
+                        productNumber = fmt::format("[{}] ", header.productNumber);
+                    }
+
+                    if (header.gameTitle.empty()) {
+                        gameTitle = "Unnamed game";
+                    } else {
+                        gameTitle = header.gameTitle;
+                    }
                 }
+                fullGameTitle = fmt::format("{}{}", productNumber, gameTitle);
             }
-            std::string fullGameTitle = fmt::format("{}{}", productNumber, gameTitle);
+            std::string speed = paused ? "paused"
+                                : m_context.emuSpeed.limitSpeed
+                                    ? fmt::format("{:.0f}%{}", m_context.emuSpeed.GetCurrentSpeedFactor() * 100.0,
+                                                  m_context.emuSpeed.altSpeed ? " (alt)" : "")
+                                    : "unlimited";
 
             std::string title{};
             if (paused) {
-                title = fmt::format("Ymir " Ymir_FULL_VERSION " - {} | VDP2: paused | VDP1: paused | GUI: {:.0f} fps",
-                                    fullGameTitle, io.Framerate);
+                title = fmt::format("Ymir " Ymir_FULL_VERSION
+                                    " - {} | Speed: {} | VDP2: paused | VDP1: paused | GUI: {:.0f} fps",
+                                    fullGameTitle, speed, io.Framerate);
             } else {
-                title = fmt::format("Ymir " Ymir_FULL_VERSION " - {} | VDP2: {} fps | VDP1: {} fps | GUI: {:.0f} fps",
-                                    fullGameTitle, screen.frames, screen.vdp1Frames, io.Framerate);
+                title = fmt::format("Ymir " Ymir_FULL_VERSION
+                                    " - {} | Speed: {} | VDP2: {} fps | VDP1: {} fps | GUI: {:.0f} fps",
+                                    fullGameTitle, speed, screen.lastVDP2Frames, screen.lastVDP1Frames, io.Framerate);
             }
             SDL_SetWindowTitle(screen.window, title.c_str());
-            screen.frames = 0;
-            screen.vdp1Frames = 0;
-            t = now;
+
+            if (now - t >= 1s) {
+                screen.lastVDP2Frames = screen.VDP2Frames;
+                screen.lastVDP1Frames = screen.VDP1Frames;
+                screen.VDP2Frames = 0;
+                screen.VDP1Frames = 0;
+                t = now;
+            }
         }
 
         const bool prevForceAspectRatio = m_context.settings.video.forceAspectRatio;

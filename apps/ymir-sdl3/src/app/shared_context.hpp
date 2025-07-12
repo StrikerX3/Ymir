@@ -18,6 +18,8 @@
 #include <app/events/emu_event.hpp>
 #include <app/events/gui_event.hpp>
 
+#include <ymir/util/event.hpp>
+
 #include <imgui.h>
 
 #include <SDL3/SDL_render.h>
@@ -27,10 +29,12 @@
 #include <RtMidi.h>
 
 #include <array>
+#include <chrono>
 #include <deque>
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 using MidiPortType = app::Settings::Audio::MidiPort::Type;
 
@@ -57,6 +61,66 @@ struct SharedContext {
     ymir::Saturn saturn;
 
     float displayScale = 1.0f;
+
+    struct Screen {
+        Screen()
+            : framebuffer(ymir::vdp::kMaxResH * ymir::vdp::kMaxResV) {
+            SetResolution(320, 224);
+            prevWidth = width;
+            prevHeight = height;
+            prevScaleX = scaleX;
+            prevScaleY = scaleY;
+        }
+
+        SDL_Window *window = nullptr;
+
+        uint32 width;
+        uint32 height;
+        uint32 scaleX;
+        uint32 scaleY;
+        uint32 fbScale = 1;
+
+        // Hacky garbage to help automatically resize window on resolution changes
+        bool resolutionChanged = false;
+        uint32 prevWidth;
+        uint32 prevHeight;
+        uint32 prevScaleX;
+        uint32 prevScaleY;
+
+        void SetResolution(uint32 width, uint32 height) {
+            const bool doubleResH = width >= 640;
+            const bool doubleResV = height >= 400;
+
+            this->prevWidth = this->width;
+            this->prevHeight = this->height;
+            this->prevScaleX = this->scaleX;
+            this->prevScaleY = this->scaleY;
+
+            this->width = width;
+            this->height = height;
+            this->scaleX = doubleResV && !doubleResH ? 2 : 1;
+            this->scaleY = doubleResH && !doubleResV ? 2 : 1;
+            this->resolutionChanged = true;
+        }
+
+        std::vector<uint32> framebuffer; // staging buffer
+        std::mutex mtxFramebuffer;
+        bool updated = false;
+        bool reduceLatency = false; // false = more performance; true = update frames more often
+
+        // Video sync
+        bool videoSync = false;
+        util::Event frameReadyEvent{false};   // emulator has written a new frame to the staging buffer
+        util::Event frameRequestEvent{false}; // GUI ready for the next frame
+        std::chrono::steady_clock::time_point nextFrameTarget{}; // target time for next frame
+        std::chrono::steady_clock::duration frameInterval{};     // interval between frames
+
+        uint64 VDP2Frames = 0;
+        uint64 VDP1Frames = 0;
+
+        uint64 lastVDP2Frames = 0;
+        uint64 lastVDP1Frames = 0;
+    } screen;
 
     struct EmuSpeed {
         // Primary and alternate speed factors
