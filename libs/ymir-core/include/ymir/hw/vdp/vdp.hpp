@@ -1054,6 +1054,16 @@ private:
     // Current display framebuffer.
     std::array<uint32, kMaxResH * kMaxResV> m_framebuffer;
 
+    // Current frame counter.
+    // A frame is rendered when this counter is zero. The counter is reset to the frame skip amount when it is
+    // decremented past zero.
+    // This should not be included in the save state.
+    uint32 m_frameCounter = 0;
+
+    // Frame skip amount.
+    // This is configured externally and should not be included in the save state.
+    uint32 m_frameSkip = 0;
+
     // Retrieves the current set of VDP1 registers.
     VDP1Regs &VDP1GetRegs();
 

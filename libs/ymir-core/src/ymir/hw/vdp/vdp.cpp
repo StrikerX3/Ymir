@@ -559,8 +559,8 @@ void VDP::EnableThreadedVDP(bool enable) {
     devlog::debug<grp::vdp2_render>("{} threaded VDP rendering", (enable ? "Enabling" : "Disabling"));
 
     m_threadedVDPRendering = enable;
+    m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::UpdateEffectiveRenderingFlags());
     if (enable) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::UpdateEffectiveRenderingFlags());
         m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::PostLoadStateSync());
         m_VDPRenderThread = std::thread{[&] { VDPRenderThread(); }};
         m_VDPDeinterlaceRenderThread = std::thread{[&] { VDPDeinterlaceRenderThread(); }};
@@ -914,29 +914,37 @@ void VDP::BeginHPhaseActiveDisplay() {
         if (m_state.regs2.VCNT == 0) {
             devlog::trace<grp::base>("Begin VDP2 frame, VDP1 framebuffer {}", m_state.displayFB);
 
+            if (m_frameCounter == 0) {
+                m_frameCounter = m_frameSkip;
+            } else {
+                --m_frameCounter;
+            }
+
             m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2BeginFrame());
         } else if (m_state.regs2.VCNT == 210) { // ~1ms before VBlank IN
             m_cbTriggerOptimizedINTBACKRead();
         }
 
-        if (m_threadedVDPRendering) {
-            if (m_effectiveRenderVDP1InVDP2Thread && m_VDPRenderContext.vdp1Done) {
-                m_state.regs1.currFrameEnded = true;
-                m_cbTriggerSpriteDrawEnd();
-                m_cbVDP1FrameComplete();
-                m_VDPRenderContext.vdp1Done = false;
-            }
+        if (m_effectiveRenderVDP1InVDP2Thread && m_VDPRenderContext.vdp1Done) {
+            m_state.regs1.currFrameEnded = true;
+            m_cbTriggerSpriteDrawEnd();
+            m_cbVDP1FrameComplete();
+            m_VDPRenderContext.vdp1Done = false;
+        }
 
-            m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2DrawLine(m_state.regs2.VCNT));
-        } else {
-            const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
-            const uint32 y = m_state.regs2.VCNT;
-            VDP2PrepareLine(y);
-            (this->*m_fnVDP2DrawLine)(y, false);
-            if (m_deinterlaceRender && interlaced) {
-                (this->*m_fnVDP2DrawLine)(y, true);
+        if (m_frameCounter == 0) {
+            if (m_threadedVDPRendering) {
+                m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2DrawLine(m_state.regs2.VCNT));
+            } else {
+                const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
+                const uint32 y = m_state.regs2.VCNT;
+                VDP2PrepareLine(y);
+                (this->*m_fnVDP2DrawLine)(y, false);
+                if (m_deinterlaceRender && interlaced) {
+                    (this->*m_fnVDP2DrawLine)(y, true);
+                }
+                VDP2FinishLine(y);
             }
-            VDP2FinishLine(y);
         }
     }
 }
@@ -1145,8 +1153,8 @@ void VDP::VDPRenderThread() {
             case EvtType::VDP2DrawLine: //
             {
                 const bool deinterlaceRender = m_deinterlaceRender;
-                const bool threadedDeinterlacer = m_threadedDeinterlacer;
                 const bool interlaced = rctx.vdp2.regs.TVMD.IsInterlaced();
+                const bool threadedDeinterlacer = m_threadedDeinterlacer;
                 VDP2PrepareLine(event.drawLine.vcnt);
                 if (deinterlaceRender && interlaced && threadedDeinterlacer) {
                     rctx.deinterlaceY = event.drawLine.vcnt;
