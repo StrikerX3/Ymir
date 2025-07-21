@@ -1,0 +1,50 @@
+name: Release from tag
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  parse-version:
+    runs-on: ubuntu-latest
+    outputs:
+      build-version: ${{ steps.version.outputs.build }}
+      prerelease-version: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Parse semver string
+        id: version 
+        uses: booxmedialtd/ws-action-parse-semver@v1
+        with:
+          input_string: '${{ github.ref_name }}'
+          version_extractor_regex: '^v(.*)$'
+
+  build-all:
+    uses: StrikerX3/Ymir/.github/workflows/build.yaml@main
+    needs: [parse-version]
+    with:
+      dev-build: false
+      build-version: ${{ needs.parse-version.outputs.build-version }}
+      prerelease-version: ${{ needs.parse-version.outputs.prerelease-version }}
+
+  release:
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    needs: [build-all]
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Ymir artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ymir
+          pattern: ymir-*
+          merge-multiple: true
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            ymir/*

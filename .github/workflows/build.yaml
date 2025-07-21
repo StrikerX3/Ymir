@@ -1,8 +1,19 @@
-name: Release
+name: Build
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_call:
+    inputs:
+      dev-build:
+        required: true
+        type: boolean
+      build-version:
+        required: false
+        default: ''
+        type: string
+      prerelease-version:
+        required: false
+        default: ''
+        type: string
 
 jobs:
   build-windows:
@@ -27,13 +38,6 @@ jobs:
             cpp_compiler: clang
 
     steps:
-      - name: Parse semver string
-        id: version 
-        uses: booxmedialtd/ws-action-parse-semver@v1
-        with:
-          input_string: '${{ github.ref_name }}'
-          version_extractor_regex: '^v(.*)$'
-
       # Set up MASM for lzma
       - uses: glslang/setup-masm@v1
   
@@ -45,7 +49,11 @@ jobs:
         id: strings
         shell: bash
         run: |
-          export BUILD_VERSION=${GITHUB_REF_NAME//+/_}
+          if [ ${{ inputs.dev-build }} ]; then
+            export BUILD_VERSION=$( sed -nr "s/project\(Ymir\s+VERSION\s+(\S+)\)/\1/p" CMakeLists.txt)-dev-${GITHUB_SHA::8}
+          else
+            export BUILD_VERSION=${GITHUB_REF_NAME//+/_}
+          fi
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
           echo "ymir-artifact-name=ymir-windows-${{ matrix.architecture.name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -69,9 +77,9 @@ jobs:
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
           -DYmir_EXTRA_INLINING=ON
-          -DYmir_VERSION_PRERELEASE=${{ steps.version.outputs.prerelease }}
-          -DYmir_VERSION_BUILD=${{ steps.version.outputs.build }}
-          -DYmir_DEV_BUILD=OFF
+          -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
+          -DYmir_VERSION_BUILD=${{ inputs.build-version }}
+          -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
           -S ${{ github.workspace }}
           -G Ninja
 
@@ -139,13 +147,6 @@ jobs:
             cpp_compiler: clang++
 
     steps:
-      - name: Parse semver string
-        id: version 
-        uses: booxmedialtd/ws-action-parse-semver@v1
-        with:
-          input_string: '${{ github.ref_name }}'
-          version_extractor_regex: '^v(.*)$'
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -154,7 +155,11 @@ jobs:
         id: strings
         shell: bash
         run: |
-          export BUILD_VERSION=${GITHUB_REF_NAME//+/_}
+          if [ ${{ inputs.dev-build }} ]; then
+            export BUILD_VERSION=$( sed -nr "s/project\(Ymir\s+VERSION\s+(\S+)\)/\1/p" CMakeLists.txt)-dev-${GITHUB_SHA::8}
+          else
+            export BUILD_VERSION=${GITHUB_REF_NAME//+/_}
+          fi
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
           echo "ymir-artifact-name=ymir-linux-${{ matrix.architecture.name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -186,9 +191,9 @@ jobs:
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
           -DYmir_EXTRA_INLINING=ON
-          -DYmir_VERSION_PRERELEASE=${{ steps.version.outputs.prerelease }}
-          -DYmir_VERSION_BUILD=${{ steps.version.outputs.build }}
-          -DYmir_DEV_BUILD=OFF
+          -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
+          -DYmir_VERSION_BUILD=${{ inputs.build-version }}
+          -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
           -S ${{ github.workspace }}
           -G Ninja
 
@@ -245,13 +250,6 @@ jobs:
             isa_name: "x86_64"
 
     steps:
-      - name: Parse semver string
-        id: version 
-        uses: booxmedialtd/ws-action-parse-semver@v1
-        with:
-          input_string: '${{ github.ref_name }}'
-          version_extractor_regex: '^v(.*)$'
-
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -260,7 +258,11 @@ jobs:
         id: strings
         shell: bash
         run: |
-          export BUILD_VERSION=${GITHUB_REF_NAME//+/_}
+          if [ ${{ inputs.dev-build }} ]; then
+            export BUILD_VERSION=$( sed -nr "s/project\(Ymir\s+VERSION\s+(\S+)\)/\1/p" CMakeLists.txt)-dev-${GITHUB_SHA::8}
+          else
+            export BUILD_VERSION=${GITHUB_REF_NAME//+/_}
+          fi
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
           echo "ymir-artifact-name=ymir-macos-${{ matrix.arch.isa_name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -276,9 +278,9 @@ jobs:
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
           -DYmir_EXTRA_INLINING=ON
-          -DYmir_VERSION_PRERELEASE=${{ steps.version.outputs.prerelease }}
-          -DYmir_VERSION_BUILD=${{ steps.version.outputs.build }}
-          -DYmir_DEV_BUILD=OFF
+          -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
+          -DYmir_VERSION_BUILD=${{ inputs.build-version }}
+          -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
           -S ${{ github.workspace }}
           -G Ninja
 
@@ -320,26 +322,3 @@ jobs:
         with:
           name: ${{ steps.strings.outputs.ymir-artifact-name }}
           path: ${{ steps.strings.outputs.ymir-artifact-name }}.zip
-
-  release:
-    runs-on: ubuntu-latest
-    if: github.ref_type == 'tag'
-    needs: [build-windows, build-linux, build-macos]
-
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download Ymir artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ymir
-          pattern: ymir-*
-          merge-multiple: true
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          files: |
-            ymir/*

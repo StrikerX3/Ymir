@@ -1,0 +1,69 @@
+name: Rolling release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+    - docs/**
+    - '**.md'
+
+concurrency:
+  group: ymir-rolling-releases
+  cancel-in-progress: true
+
+jobs:
+  commit-sha:
+    runs-on: ubuntu-latest
+    outputs:
+      build-version: ${{ steps.get-sha.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get short commit SHA
+        id: get-sha
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+  build-all:
+    uses: StrikerX3/Ymir/.github/workflows/build.yaml@main
+    needs: [commit-sha]
+    with:
+      dev-build: true
+      build-version: ${{ needs.commit-sha.outputs.build-version }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-all]
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Ymir artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ymir
+          pattern: ymir-*
+          merge-multiple: true
+
+      - uses: actions/checkout@v2
+      - name: Create/update latest tag
+        run: |
+          git tag -f latest
+          git push origin -f latest
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Latest rolling release
+          draft: false
+          prerelease: true
+          generate_release_notes: true
+          make_latest: false
+          tag_name: latest
+          body: |
+            This is a rolling release built from the latest commit. Before you use these builds, **make sure to backup your data, especially the save states!**
+
+            Save states are constantly evolving and are only guaranteed to be compatible on final (numbered) releases.
+            The file format may be changed without notice, so be careful when using save states from rolling releases.
+          files: |
+            ymir/*
+          
