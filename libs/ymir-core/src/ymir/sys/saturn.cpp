@@ -319,15 +319,18 @@ bool Saturn::LoadState(const state::State &state) {
 // [x] Run a full frame -- RunFrameImpl()
 // [x] Run until next event -- Run()
 // [ ] Run for a number of cycles
-// [ ] Run until a breakpoint, watchpoint or a similar desired event is triggered
-// [x] Single-step master SH-2
-// [x] Single-step slave SH-2 (if enabled)
+// [ ] Run until an event from a selection of events is triggered (or a frame is completed, whichever happens first)
+//     [ ] On any schedulable event or a subset of them
+//     [ ] A breakpoint or watchpoint is triggered
+//     [ ] Slave SH-2 is enabled
+//     [ ] M68K is enabled
+//     [ ] SCU DSP starts running
+//     [ ] If any debug tracers ask to suspend emulation (when supported)
+// [x] Single-step master SH-2 -- StepMasterSH2()
+// [x] Single-step slave SH-2 (if enabled) -- StepSlaveSH2()
 // [ ] Single-step M68K (if enabled)
 // [ ] Single-step SCU DSP (if running)
 // [ ] Single-step SCSP DSP
-// [ ] Run until slave SH-2 is enabled (or a frame is completed)
-// [ ] Run until M68K is enabled (or a frame is completed)
-// [ ] Run until SCU DSP starts (or a frame is completed)
 // Note:
 // - Step out/return can be implemented in terms of single-stepping and instruction tracing events
 
