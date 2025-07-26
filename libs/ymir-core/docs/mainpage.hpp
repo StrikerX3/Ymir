@@ -254,6 +254,9 @@ emulator is running in a multithreaded context:
 - Certain writes (especially to nontrivial registers or internal state) will cause race conditions and potentially
   crash the emulator if not properly synchronized.
 
+The debugger also provides a debug break signal that can be raised from just about anywhere in the core, and a callback
+that can be used by frontends to respond to those signals. Use `ymir::Saturn::SetDebugBreakRaisedCallback` to register
+the callback. The callback function is called from the emulator thread.
 
 
 @subsection thread_safety Thread safety

@@ -365,6 +365,11 @@ bool Saturn::Run() {
             execCycles = masterSH2.Advance<debug, enableSH2Cache>(targetCycles, execCycles);
             slaveCycles = slaveSH2.Advance<debug, enableSH2Cache>(execCycles, slaveCycles);
             SCU.Advance<debug>(execCycles - prevExecCycles);
+            if constexpr (debug) {
+                if (m_debugBreak) {
+                    break;
+                }
+            }
         } while (execCycles < cycles);
         m_ssh2SpilloverCycles = slaveCycles - execCycles;
     } else {
@@ -373,6 +378,11 @@ bool Saturn::Run() {
             const uint64 targetCycles = std::min(execCycles + kSH2SyncMaxStep, cycles);
             execCycles = masterSH2.Advance<debug, enableSH2Cache>(targetCycles, execCycles);
             SCU.Advance<debug>(execCycles - prevExecCycles);
+            if constexpr (debug) {
+                if (m_debugBreak) {
+                    break;
+                }
+            }
         } while (execCycles < cycles);
     }
     VDP.Advance<debug>(execCycles);
@@ -388,6 +398,13 @@ bool Saturn::Run() {
     }*/
 
     m_scheduler.Advance(execCycles);
+
+    if constexpr (debug) {
+        if (m_debugBreak) {
+            m_debugBreak = false;
+            return false;
+        }
+    }
 
     return true;
 }
@@ -511,6 +528,11 @@ void Saturn::UpdateSH2CacheEmulation(bool enabled) {
 void Saturn::UpdateVideoStandard(core::config::sys::VideoStandard videoStandard) {
     m_system.videoStandard = videoStandard;
     m_system.UpdateClockRatios();
+}
+
+void Saturn::SignalDebugBreak() {
+    m_debugBreak = true;
+    m_cbDebugBreakRaised();
 }
 
 // -----------------------------------------------------------------------------

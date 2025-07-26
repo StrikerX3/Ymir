@@ -1571,6 +1571,23 @@ void App::RunEmulator() {
     RebindInputs();
 
     // ---------------------------------
+    // Debugger
+
+    m_context.saturn.SetDebugBreakRaisedCallback({&m_context, [](void *ctx) {
+                                                      auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                                                      sharedCtx.paused = true;
+                                                      sharedCtx.EnqueueEvent(events::emu::SetPaused(true));
+                                                      // TODO: handle specific types of debug break infos
+                                                      // - open debugger window
+                                                      // - include extra information (e.g. for a watchpoint, what
+                                                      // component/operation did the access -- it could be an SH2
+                                                      // instruction, an SH2 DMAC transfer, an SCU DMA transfer, an SCU
+                                                      // DSP DMA transfer, etc.)
+                                                      // - display appropriate message instead of this generic message
+                                                      sharedCtx.DisplayMessage("Paused due to a debug break event");
+                                                  }});
+
+    // ---------------------------------
     // Main emulator loop
 
     m_context.saturn.Reset(true);
@@ -3163,6 +3180,8 @@ void App::RunEmulator() {
                 auto *drawList = ImGui::GetForegroundDrawList();
                 float messageX = viewport->WorkPos.x + style.FramePadding.x + style.ItemSpacing.x;
                 float messageY = viewport->WorkPos.y + style.FramePadding.y + style.ItemSpacing.y;
+
+                std::unique_lock lock{m_context.locks.messages};
                 for (size_t i = 0; i < m_context.messages.Count(); ++i) {
                     const Message *message = m_context.messages.Get(i);
                     assert(message != nullptr);

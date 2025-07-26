@@ -358,6 +358,7 @@ struct SharedContext {
     // - Save states
     // - ROM manager
     // - Backup memories
+    // - Messages
     // These locks must be held by the emulator thread whenever the object instances are to be replaced or modified.
     // The GUI must hold these locks when accessing these objects to ensure the emulator thread doesn't destroy them.
     mutable struct Locks {
@@ -367,6 +368,7 @@ struct SharedContext {
         std::array<std::mutex, 10> saveStates;
         std::mutex romManager;
         std::mutex backupRAM;
+        std::mutex messages;
     } locks;
 
     struct State {
@@ -452,6 +454,7 @@ struct SharedContext {
     // Convenience methods
 
     void DisplayMessage(std::string message) {
+        std::unique_lock lock{locks.messages};
         devlog::info<grp::base>("{}", message);
         messages.Add(message);
     }
