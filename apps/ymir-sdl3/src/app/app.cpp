@@ -957,7 +957,8 @@ void App::RunEmulator() {
 
     auto &inputContext = m_context.inputContext;
 
-    bool paused = m_options.startPaused; // TODO: this should be updated by the emulator thread via events
+    bool &paused = m_context.paused;
+    paused = m_options.startPaused;
     bool pausedByLostFocus = false;
     if (paused) {
         m_context.EnqueueEvent(events::emu::SetPaused(paused));
@@ -1230,11 +1231,9 @@ void App::RunEmulator() {
         });
 
         inputContext.SetTriggerHandler(actions::dbg::StepMSH2, [&](void *, const input::InputElement &) {
-            paused = true;
             m_context.EnqueueEvent(events::emu::StepMSH2());
         });
         inputContext.SetTriggerHandler(actions::dbg::StepSSH2, [&](void *, const input::InputElement &) {
-            paused = true;
             m_context.EnqueueEvent(events::emu::StepSSH2());
         });
     }
@@ -3311,11 +3310,19 @@ void App::EmulatorThread() {
             case StepMSH2:
                 stepAction = StepAction::StepMSH2;
                 paused = false;
+                if (!m_context.paused) {
+                    m_context.paused = true;
+                    m_context.DisplayMessage("Paused due to single-stepping master SH-2");
+                }
                 m_audioSystem.SetSilent(true);
                 break;
             case StepSSH2:
                 stepAction = StepAction::StepSSH2;
                 paused = false;
+                if (!m_context.paused) {
+                    m_context.paused = true;
+                    m_context.DisplayMessage("Paused due to single-stepping slave SH-2");
+                }
                 m_audioSystem.SetSilent(true);
                 break;
 

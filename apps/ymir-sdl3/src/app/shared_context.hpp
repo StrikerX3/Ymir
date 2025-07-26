@@ -152,6 +152,8 @@ struct SharedContext {
         }
     } emuSpeed;
 
+    bool paused = false;
+
     input::InputContext inputContext;
 
     struct Input2D {
