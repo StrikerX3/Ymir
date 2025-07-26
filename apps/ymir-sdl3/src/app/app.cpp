@@ -3429,14 +3429,20 @@ void App::EmulatorThread() {
                 }
                 break;
             }
-            case StepAction::StepMSH2:
-                m_context.saturn.StepMasterSH2();
+            case StepAction::StepMSH2: //
+            {
+                const uint64 cycles = m_context.saturn.StepMasterSH2();
+                devlog::debug<grp::base>("SH2-M stepped for {} cycles", cycles);
                 paused = true;
                 break;
-            case StepAction::StepSSH2:
-                m_context.saturn.StepSlaveSH2();
+            }
+            case StepAction::StepSSH2: //
+            {
+                const uint64 cycles = m_context.saturn.StepSlaveSH2();
+                devlog::debug<grp::base>("SH2-S stepped for {} cycles", cycles);
                 paused = true;
                 break;
+            }
             }
         }
     }

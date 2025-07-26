@@ -196,17 +196,18 @@ struct Saturn {
     /// The implementation of the function depends on the following parameters:
     /// - **Debug tracing**: configured with `EnableDebugTracing(bool)`
     /// - **SH-2 cache emulation**: configured with `EnableSH2CacheEmulation(bool)`
-    void StepMasterSH2() {
-        (this->*m_stepMSH2Fn)();
+    /// @return the number of cycles executed
+    uint64 StepMasterSH2() {
+        return (this->*m_stepMSH2Fn)();
     }
 
-    /// @brief Runs a single salve SH-2 instruction using the current settings.
+    /// @brief Runs a single slave SH-2 instruction using the current settings if it is enabled.
     ///
     /// The implementation of the function depends on the following parameters:
     /// - **Debug tracing**: configured with `EnableDebugTracing(bool)`
     /// - **SH-2 cache emulation**: configured with `EnableSH2CacheEmulation(bool)`
-    /// @return `true` if the state was loaded successfully
-    bool StepSlaveSH2() {
+    /// @return the number of cycles executed, zero if the slave SH-2 is disabled
+    uint64 StepSlaveSH2() {
         return (this->*m_stepSSH2Fn)();
     }
 
@@ -256,15 +257,16 @@ private:
     /// @brief Runs a single master SH-2 instruction.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
+    /// @return the number of cycles executed
     template <bool debug, bool enableSH2Cache>
-    void StepMasterSH2Impl();
+    uint64 StepMasterSH2Impl();
 
     /// @brief Runs a single slave SH-2 instruction if the CPU is enabled.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
-    /// @return `true` if the CPU was stepped, `false` if it is disabled
+    /// @return the number of cycles executed, zero if the slave SH-2 is disabled
     template <bool debug, bool enableSH2Cache>
-    bool StepSlaveSH2Impl();
+    uint64 StepSlaveSH2Impl();
 
     /// @brief The type of the `RunFrameImpl()` implementation to use from `RunFrame()`.
     using RunFrameFn = void (Saturn::*)();
@@ -275,20 +277,17 @@ private:
     RunFrameFn m_runFrameFn;
 
     /// @brief The type of the `StepMasterSH2Impl()` implementation to use from `StepMasterSH2()`.
-    using StepMSH2Fn = void (Saturn::*)();
+    using StepSH2Fn = uint64 (Saturn::*)();
 
     /// @brief The current `StepMasterSH2Impl()` implementation in use.
     ///
     /// Depends on debug tracing and SH-2 cache emulation settings.
-    StepMSH2Fn m_stepMSH2Fn;
+    StepSH2Fn m_stepMSH2Fn;
 
-    /// @brief The type of the `StepSalveSH2Impl()` implementation to use from `StepSalveSH2()`.
-    using StepSSH2Fn = bool (Saturn::*)();
-
-    /// @brief The current `StepSalveSH2Impl()` implementation in use.
+    /// @brief The current `StepSlaveSH2Impl()` implementation in use.
     ///
     /// Depends on debug tracing and SH-2 cache emulation settings.
-    StepSSH2Fn m_stepSSH2Fn;
+    StepSH2Fn m_stepSSH2Fn;
 
     /// @brief Updates pointers to the execution functions based on the current debug tracing and SH-2 cache emulation
     /// settings.

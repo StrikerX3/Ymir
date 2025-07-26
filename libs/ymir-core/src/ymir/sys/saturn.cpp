@@ -390,7 +390,7 @@ bool Saturn::Run() {
 }
 
 template <bool debug, bool enableSH2Cache>
-void Saturn::StepMasterSH2Impl() {
+uint64 Saturn::StepMasterSH2Impl() {
     uint64 masterCycles = masterSH2.Step<debug, enableSH2Cache>();
     if (masterCycles >= m_msh2SpilloverCycles) {
         masterCycles -= m_msh2SpilloverCycles;
@@ -416,12 +416,13 @@ void Saturn::StepMasterSH2Impl() {
     } else {
         m_msh2SpilloverCycles -= masterCycles;
     }
+    return masterCycles;
 }
 
 template <bool debug, bool enableSH2Cache>
-bool Saturn::StepSlaveSH2Impl() {
+uint64 Saturn::StepSlaveSH2Impl() {
     if (!slaveSH2Enabled) {
-        return false;
+        return 0;
     }
 
     uint64 slaveCycles = slaveSH2.Step<debug, enableSH2Cache>();
@@ -447,7 +448,7 @@ bool Saturn::StepSlaveSH2Impl() {
     } else {
         m_ssh2SpilloverCycles -= slaveCycles;
     }
-    return true;
+    return slaveCycles;
 }
 
 void Saturn::UpdateFunctionPointers() {
