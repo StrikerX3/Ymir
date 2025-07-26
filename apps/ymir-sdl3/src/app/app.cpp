@@ -3262,12 +3262,16 @@ void App::EmulatorThread() {
     util::SetCurrentThreadName("Emulator thread");
     util::BoostCurrentThreadPriority(m_context.settings.general.boostEmuThreadPriority);
 
+    enum class StepAction { RunFrame, StepMSH2, StepSSH2 };
+
     std::array<EmuEvent, 64> evts{};
 
     bool paused = false;
     bool frameStep = false;
 
     while (true) {
+        StepAction stepAction = StepAction::RunFrame;
+
         // Process all pending events
         const size_t evtCount = paused ? m_context.eventQueues.emulator.wait_dequeue_bulk(evts.begin(), evts.size())
                                        : m_context.eventQueues.emulator.try_dequeue_bulk(evts.begin(), evts.size());
@@ -3368,41 +3372,53 @@ void App::EmulatorThread() {
 
         // Emulate one frame
         if (!paused) {
-            // Synchronize with GUI thread
-            if (m_context.emuSpeed.limitSpeed && m_context.screen.videoSync) {
-                m_emuProcessEvent.Wait();
-                m_emuProcessEvent.Reset();
-            }
+            switch (stepAction) {
+            case StepAction::RunFrame: //
+            {
+                // Synchronize with GUI thread
+                if (m_context.emuSpeed.limitSpeed && m_context.screen.videoSync) {
+                    m_emuProcessEvent.Wait();
+                    m_emuProcessEvent.Reset();
+                }
 
-            const bool rewindEnabled = m_context.rewindBuffer.IsRunning();
-            bool doRunFrame = true;
-            if (rewindEnabled && m_context.rewinding) {
-                if (m_context.rewindBuffer.PopState()) {
-                    if (!m_context.saturn.LoadState(m_context.rewindBuffer.NextState)) {
+                const bool rewindEnabled = m_context.rewindBuffer.IsRunning();
+                bool doRunFrame = true;
+                if (rewindEnabled && m_context.rewinding) {
+                    if (m_context.rewindBuffer.PopState()) {
+                        if (!m_context.saturn.LoadState(m_context.rewindBuffer.NextState)) {
+                            doRunFrame = false;
+                        }
+                    } else {
                         doRunFrame = false;
                     }
-                } else {
-                    doRunFrame = false;
                 }
-            }
 
-            if (doRunFrame) [[likely]] {
-                m_context.saturn.RunFrame();
-                /*if (!m_context.saturn.StepSlaveSH2()) {
-                    m_context.saturn.StepMasterSH2();
-                }*/
-            }
+                if (doRunFrame) [[likely]] {
+                    m_context.saturn.RunFrame();
+                }
 
-            if (rewindEnabled && !m_context.rewinding) {
-                m_context.saturn.SaveState(m_context.rewindBuffer.NextState);
-                m_context.rewindBuffer.ProcessState();
+                if (rewindEnabled && !m_context.rewinding) {
+                    m_context.saturn.SaveState(m_context.rewindBuffer.NextState);
+                    m_context.rewindBuffer.ProcessState();
+                }
+
+                if (frameStep) {
+                    frameStep = false;
+                    paused = true;
+                    m_context.rewinding = false;
+                    m_audioSystem.SetSilent(true);
+                }
+                break;
             }
-        }
-        if (frameStep) {
-            frameStep = false;
-            paused = true;
-            m_context.rewinding = false;
-            m_audioSystem.SetSilent(true);
+            case StepAction::StepMSH2:
+                m_context.saturn.StepMasterSH2();
+                paused = true;
+                break;
+            case StepAction::StepSSH2:
+                m_context.saturn.StepSlaveSH2();
+                paused = true;
+                break;
+            }
         }
     }
 }
