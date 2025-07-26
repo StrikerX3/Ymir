@@ -18,6 +18,7 @@
 
 #include <ymir/hw/hw_defs.hpp>
 
+#include <ymir/debug/debug_internal_callbacks.hpp>
 #include <ymir/hw/scu/scu_internal_callbacks.hpp>
 #include <ymir/hw/sh2/sh2_internal_callbacks.hpp>
 
@@ -35,6 +36,7 @@
 
 #include <array>
 #include <iosfwd>
+#include <set>
 
 namespace ymir::sh2 {
 
@@ -48,6 +50,10 @@ public:
 
     void MapCallbacks(CBAcknowledgeExternalInterrupt callback) {
         m_cbAcknowledgeExternalInterrupt = callback;
+    }
+
+    void MapDebugBreakCallback(debug::CBRaiseDebugBreak callback) {
+        m_cbRaiseDebugBreak = callback;
     }
 
     void MapMemory(sys::Bus &bus);
@@ -101,6 +107,46 @@ public:
     // Pass nullptr to disable tracing.
     void UseTracer(debug::ISH2Tracer *tracer) {
         m_tracer = tracer;
+    }
+
+    // Adds the specified address to the set of breakpoints.
+    // The address is force-aligned to word boundaries.
+    // Returns `true` if the breakpoint was added, `false` if it already exists.
+    bool AddBreakpoint(uint32 address) {
+        return m_breakpoints.insert(address & ~1u).second;
+    }
+
+    // Removes the specified address from the set of breakpoints.
+    // The address is force-aligned to word boundaries.
+    // Returns `true` if the breakpoint was removed, `false` if it did not exist.
+    bool RemoveBreakpoint(uint32 address) {
+        return m_breakpoints.erase(address & ~1u);
+    }
+
+    // Clears all breakpoints.
+    void ClearBreakpoints() {
+        m_breakpoints.clear();
+    }
+
+    // Retrieves all breakpoints set in this SH-2.
+    const std::set<uint32> &GetBreakpoints() const {
+        return m_breakpoints;
+    }
+
+    // Replaces all breakpoints with those of the provided set.
+    // All addresses of the specified set are force-aligned to word boundaries.
+    void ReplaceBreakpoints(const std::set<uint32> &breakpoints) {
+        // Manage breakpoints manually to sanitize addresses
+        m_breakpoints.clear();
+        for (auto address : breakpoints) {
+            m_breakpoints.insert(address & ~1u);
+        }
+    }
+
+    // Determines if the specified address has a breakpoint set.
+    // The address is force-aligned to word boundaries.
+    bool IsBreakpointSet(uint32 address) const {
+        return m_breakpoints.contains(address & ~1u);
     }
 
     class Probe {
@@ -419,6 +465,7 @@ private:
     bool m_delaySlot;
 
     CBAcknowledgeExternalInterrupt m_cbAcknowledgeExternalInterrupt;
+    debug::CBRaiseDebugBreak m_cbRaiseDebugBreak;
 
     // -------------------------------------------------------------------------
     // Cycle counting
@@ -654,6 +701,8 @@ private:
 
     Probe m_probe{*this};
     debug::ISH2Tracer *m_tracer = nullptr;
+
+    std::set<uint32> m_breakpoints;
 
     const std::string_view m_logPrefix;
 

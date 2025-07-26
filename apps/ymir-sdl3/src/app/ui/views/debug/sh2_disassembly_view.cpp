@@ -40,6 +40,11 @@ void SH2DisassemblyView::Display() {
             const sh2::DisassembledInstruction &prevDisasm = sh2::Disassemble(prevOpcode);
             const sh2::DisassembledInstruction &disasm = sh2::Disassemble(opcode);
 
+            const bool isBreakpointSet = [&] {
+                std::unique_lock lock{m_context.locks.breakpoints};
+                return m_sh2.IsBreakpointSet(address);
+            }();
+
             auto memRead = [&](uint32 address) -> uint32 {
                 switch (disasm.opSize) {
                 case sh2::OperandSize::Byte: return probe.MemPeekByte(address, false);
@@ -82,6 +87,7 @@ void SH2DisassemblyView::Display() {
             auto drawHighlight = [&] {
                 ImVec4 color{};
                 bool filled = true;
+
                 /*if (address == m_cursor.address) {
                     color = m_colors.disasm.cursorBgColor;
                     if (!childWindowFocused) {
@@ -92,9 +98,9 @@ void SH2DisassemblyView::Display() {
                     color = m_colors.disasm.pcBgColor;
                 } else if (address == pr) {
                     color = m_colors.disasm.prBgColor;
-                } /*else if (probe.IsBreakpointSet(address)) {
+                } else if (isBreakpointSet) {
                     color = m_colors.disasm.bkptBgColor;
-                } else if (probe.IsWatchpointSet(address)) {
+                } /*else if (probe.IsWatchpointSet(address)) {
                     color = m_colors.disasm.wtptBgColor;
                 }*/
                 else if (m_settings.altLineColors && (m_settings.altLineAddresses ? (address & 2) : (i & 1))) {
@@ -147,7 +153,7 @@ void SH2DisassemblyView::Display() {
                     drawList->AddConcavePolyFilled(points, std::size(points),
                                                    ImGui::ColorConvertFloat4ToU32(m_colors.disasm.prIconColor));
                 }
-                /*if (probe.IsBreakpointSet(address)) {
+                if (isBreakpointSet) {
                     const ImVec2 center{pos.x + lineHeight * 1.5f, pos.y + lineHeight * 0.5f};
                     const ImU32 color = ImGui::ColorConvertFloat4ToU32(m_colors.disasm.bkptIconColor);
                     if (m_context.saturn.IsDebugTracingEnabled()) {
@@ -155,7 +161,7 @@ void SH2DisassemblyView::Display() {
                     } else {
                         drawList->AddCircle(center, lineHeight * 0.25f, color, 0, 2.0f);
                     }
-                }*/
+                }
                 /*if (probe.IsWatchpointSet(address)) {
                     const ImVec2 center{pos.x + lineHeight * 0.5f, pos.y + lineHeight * 0.5f};
                     const ImVec2 p1{center.x, center.y - lineHeight * 0.25f};

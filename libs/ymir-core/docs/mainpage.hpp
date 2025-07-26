@@ -259,6 +259,7 @@ that can be used by frontends to respond to those signals. Use `ymir::Saturn::Se
 the callback. The callback function is called from the emulator thread.
 
 
+
 @subsection thread_safety Thread safety
 
 The emulator core is *not* thread-safe and *will never be*. Make sure to provide your own synchronization mechanisms if

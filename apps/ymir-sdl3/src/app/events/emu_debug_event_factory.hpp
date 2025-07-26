@@ -13,6 +13,11 @@ EmuEvent ExecuteSH2Division(bool master, bool div64);
 EmuEvent WriteMainMemory(uint32 address, uint8 value, bool enableSideEffects);
 EmuEvent WriteSH2Memory(uint32 address, uint8 value, bool enableSideEffects, bool master, bool bypassCache);
 
+EmuEvent AddSH2Breakpoint(bool master, uint32 address);
+EmuEvent RemoveSH2Breakpoint(bool master, uint32 address);
+EmuEvent ReplaceSH2Breakpoints(bool master, const std::set<uint32> &addresses);
+EmuEvent ClearSH2Breakpoints(bool master);
+
 EmuEvent SetLayerEnabled(ymir::vdp::Layer layer, bool enabled);
 
 } // namespace app::events::emu::debug

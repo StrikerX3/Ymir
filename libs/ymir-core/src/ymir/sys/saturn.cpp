@@ -3,6 +3,7 @@
 #include <ymir/util/dev_log.hpp>
 
 #include <bit>
+#include <cassert>
 
 namespace ymir {
 
@@ -83,6 +84,9 @@ Saturn::Saturn()
     m_system.AddClockSpeedChangeCallback(SCSP.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
+
+    masterSH2.MapDebugBreakCallback(CbRaiseDebugBreak);
+    slaveSH2.MapDebugBreakCallback(CbRaiseDebugBreak);
 
     mem.MapMemory(mainBus);
     masterSH2.MapMemory(mainBus);
@@ -531,6 +535,9 @@ void Saturn::UpdateVideoStandard(core::config::sys::VideoStandard videoStandard)
 }
 
 void Saturn::SignalDebugBreak() {
+    // Debug break signals should only be raised while debug tracing is enabled
+    assert(m_systemFeatures.enableDebugTracing);
+
     m_debugBreak = true;
     m_cbDebugBreakRaised();
 }

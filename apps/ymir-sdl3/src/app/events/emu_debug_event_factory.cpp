@@ -42,6 +42,38 @@ EmuEvent WriteSH2Memory(uint32 address, uint8 value, bool enableSideEffects, boo
     }
 }
 
+EmuEvent AddSH2Breakpoint(bool master, uint32 address) {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &sh2 = master ? ctx.saturn.masterSH2 : ctx.saturn.slaveSH2;
+        std::unique_lock lock{ctx.locks.breakpoints};
+        /* TODO: const bool added = */ sh2.AddBreakpoint(address);
+    });
+}
+
+EmuEvent RemoveSH2Breakpoint(bool master, uint32 address) {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &sh2 = master ? ctx.saturn.masterSH2 : ctx.saturn.slaveSH2;
+        std::unique_lock lock{ctx.locks.breakpoints};
+        /* TODO: const bool removed = */ sh2.RemoveBreakpoint(address);
+    });
+}
+
+EmuEvent ReplaceSH2Breakpoints(bool master, const std::set<uint32> &addresses) {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &sh2 = master ? ctx.saturn.masterSH2 : ctx.saturn.slaveSH2;
+        std::unique_lock lock{ctx.locks.breakpoints};
+        sh2.ReplaceBreakpoints(addresses);
+    });
+}
+
+EmuEvent ClearSH2Breakpoints(bool master) {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &sh2 = master ? ctx.saturn.masterSH2 : ctx.saturn.slaveSH2;
+        std::unique_lock lock{ctx.locks.breakpoints};
+        sh2.ClearBreakpoints();
+    });
+}
+
 EmuEvent SetLayerEnabled(ymir::vdp::Layer layer, bool enabled) {
     return RunFunction([=](SharedContext &ctx) {
         auto &vdp = ctx.saturn.VDP;

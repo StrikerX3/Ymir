@@ -312,6 +312,14 @@ FLATTEN uint64 SH2::Advance(uint64 cycles, uint64 spilloverCycles) {
         util::dev_assert((PC >> 29u) == 0b000 || (PC >> 29u) == 0b001 || (PC >> 29u) == 0b100 || (PC >> 29u) == 0b101 ||
                          (PC >> 29u) == 0b110);
 
+        // Check for breakpoints in debug tracing mode
+        if constexpr (debug) {
+            if (m_breakpoints.contains(PC)) {
+                m_cbRaiseDebugBreak();
+                break;
+            }
+        }
+
         if constexpr (devlog::debug_enabled<grp::exec_dump>) {
             // Dump stack trace on SYS_EXECDMP
             if ((PC & 0x7FFFFFF) == config::sysExecDumpAddress) {
