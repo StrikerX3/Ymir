@@ -1228,6 +1228,15 @@ void App::RunEmulator() {
         inputContext.SetTriggerHandler(actions::dbg::DumpMemory, [&](void *, const input::InputElement &) {
             m_context.EnqueueEvent(events::emu::DumpMemory());
         });
+
+        inputContext.SetTriggerHandler(actions::dbg::StepMSH2, [&](void *, const input::InputElement &) {
+            paused = true;
+            m_context.EnqueueEvent(events::emu::StepMSH2());
+        });
+        inputContext.SetTriggerHandler(actions::dbg::StepSSH2, [&](void *, const input::InputElement &) {
+            paused = true;
+            m_context.EnqueueEvent(events::emu::StepSSH2());
+        });
     }
 
     // Saturn Control Pad
@@ -3298,6 +3307,16 @@ void App::EmulatorThread() {
                 paused = false;
                 m_context.rewinding = true;
                 m_audioSystem.SetSilent(false);
+                break;
+            case StepMSH2:
+                stepAction = StepAction::StepMSH2;
+                paused = false;
+                m_audioSystem.SetSilent(true);
+                break;
+            case StepSSH2:
+                stepAction = StepAction::StepSSH2;
+                paused = false;
+                m_audioSystem.SetSilent(true);
                 break;
 
             case OpenCloseTray:

@@ -502,6 +502,9 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.toggleDebugTrace);
     mapInput(m_actionInputs, hotkeys.dumpMemory);
 
+    mapInput(m_actionInputs, hotkeys.stepMSH2);
+    mapInput(m_actionInputs, hotkeys.stepSSH2);
+
     mapInput(m_actionInputs, hotkeys.saveStates.quickLoad);
     mapInput(m_actionInputs, hotkeys.saveStates.quickSave);
 
@@ -872,6 +875,9 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblHotkeys, "ToggleDebugTrace", hotkeys.toggleDebugTrace);
         Parse(tblHotkeys, "DumpMemory", hotkeys.dumpMemory);
 
+        Parse(tblHotkeys, "StepMSH2", hotkeys.stepMSH2);
+        Parse(tblHotkeys, "StepSSH2", hotkeys.stepSSH2);
+
         if (auto tblSaveStates = tblHotkeys["SaveStates"]) {
             Parse(tblSaveStates, "QuickLoadState", hotkeys.saveStates.quickLoad);
             Parse(tblSaveStates, "QuickSaveState", hotkeys.saveStates.quickSave);
@@ -1220,6 +1226,9 @@ SettingsSaveResult Settings::Save() {
 
             {"ToggleDebugTrace", ToTOML(hotkeys.toggleDebugTrace)},
             {"DumpMemory", ToTOML(hotkeys.dumpMemory)},
+
+            {"StepMSH2", ToTOML(hotkeys.stepMSH2)},
+            {"StepSSH2", ToTOML(hotkeys.stepSSH2)},
 
             {"SaveStates", toml::table{{
                 {"QuickLoadState", ToTOML(hotkeys.saveStates.quickLoad)},
@@ -1747,6 +1756,9 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
 
     rebindCtx.Rebind(hotkeys.toggleDebugTrace, {KeyCombo{Mod::None, Key::F11}});
     rebindCtx.Rebind(hotkeys.dumpMemory, {KeyCombo{Mod::Control, Key::F11}});
+
+    rebindCtx.Rebind(hotkeys.stepMSH2, {KeyCombo{Key::F6}});
+    rebindCtx.Rebind(hotkeys.stepSSH2, {KeyCombo{Key::F7}});
 
     rebindCtx.Rebind(hotkeys.saveStates.quickLoad, {KeyCombo{Mod::None, Key::F3}});
     rebindCtx.Rebind(hotkeys.saveStates.quickSave, {KeyCombo{Mod::None, Key::F2}});

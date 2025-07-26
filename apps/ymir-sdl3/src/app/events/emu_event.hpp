@@ -22,6 +22,8 @@ struct EmuEvent {
         SetPaused,
         ForwardFrameStep,
         ReverseFrameStep,
+        StepMSH2,
+        StepSSH2,
 
         OpenCloseTray,
         LoadDisc,

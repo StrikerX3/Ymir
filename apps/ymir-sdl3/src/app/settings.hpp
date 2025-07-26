@@ -209,6 +209,9 @@ public:
         input::InputBind toggleDebugTrace{actions::dbg::ToggleDebugTrace};
         input::InputBind dumpMemory{actions::dbg::DumpMemory};
 
+        input::InputBind stepMSH2{actions::dbg::StepMSH2};
+        input::InputBind stepSSH2{actions::dbg::StepSSH2};
+
         struct SaveStates {
             input::InputBind quickLoad{actions::save_states::QuickLoadState};
             input::InputBind quickSave{actions::save_states::QuickSaveState};

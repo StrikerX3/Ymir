@@ -84,6 +84,8 @@ void HotkeysSettingsView::Display() {
 
         drawRow(hotkeys.toggleDebugTrace);
         drawRow(hotkeys.dumpMemory);
+        drawRow(hotkeys.stepMSH2);
+        drawRow(hotkeys.stepSSH2);
 
         drawRow(hotkeys.saveStates.quickLoad);
         drawRow(hotkeys.saveStates.quickSave);

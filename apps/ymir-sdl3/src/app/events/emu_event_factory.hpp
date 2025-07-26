@@ -39,6 +39,14 @@ inline EmuEvent ReverseFrameStep() {
     return {.type = EmuEvent::Type::ReverseFrameStep};
 }
 
+inline EmuEvent StepMSH2() {
+    return {.type = EmuEvent::Type::StepMSH2};
+}
+
+inline EmuEvent StepSSH2() {
+    return {.type = EmuEvent::Type::StepSSH2};
+}
+
 inline EmuEvent OpenCloseTray() {
     return {.type = EmuEvent::Type::OpenCloseTray};
 }

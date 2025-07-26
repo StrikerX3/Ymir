@@ -170,6 +170,9 @@ namespace dbg {
     inline constexpr auto ToggleDebugTrace = input::Action::Trigger(0xE03000, "Debugger", "Toggle tracing");
     inline constexpr auto DumpMemory = input::Action::Trigger(0xE03001, "Debugger", "Dump all memory");
 
+    inline constexpr auto StepMSH2 = input::Action::RepeatableTrigger(0xE03100, "Debugger", "Step master SH-2");
+    inline constexpr auto StepSSH2 = input::Action::RepeatableTrigger(0xE03101, "Debugger", "Step slave SH-2");
+
 } // namespace dbg
 
 namespace control_pad {
