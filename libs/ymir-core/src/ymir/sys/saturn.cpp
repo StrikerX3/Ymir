@@ -117,6 +117,7 @@ void Saturn::Reset(bool hard) {
     masterSH2.Reset(hard);
     slaveSH2.Reset(hard);
     slaveSH2Enabled = false;
+    m_msh2SpilloverCycles = 0;
     m_ssh2SpilloverCycles = 0;
 
     SCU.Reset(hard);
@@ -254,6 +255,7 @@ void Saturn::SaveState(state::State &state) const {
     m_system.SaveState(state.system);
     mem.SaveState(state.system);
     state.system.slaveSH2Enabled = slaveSH2Enabled;
+    state.msh2SpilloverCycles = m_msh2SpilloverCycles;
     state.ssh2SpilloverCycles = m_ssh2SpilloverCycles;
     masterSH2.SaveState(state.msh2);
     slaveSH2.SaveState(state.ssh2);
@@ -300,6 +302,7 @@ bool Saturn::LoadState(const state::State &state) {
     m_system.LoadState(state.system);
     mem.LoadState(state.system);
     slaveSH2Enabled = state.system.slaveSH2Enabled;
+    m_msh2SpilloverCycles = state.msh2SpilloverCycles;
     m_ssh2SpilloverCycles = state.ssh2SpilloverCycles;
     masterSH2.LoadState(state.msh2);
     slaveSH2.LoadState(state.ssh2);
@@ -318,7 +321,7 @@ bool Saturn::LoadState(const state::State &state) {
 // [ ] Run for a number of cycles
 // [ ] Run until a breakpoint, watchpoint or a similar desired event is triggered
 // [x] Single-step master SH-2
-// [ ] Single-step slave SH-2 (if enabled)
+// [x] Single-step slave SH-2 (if enabled)
 // [ ] Single-step M68K (if enabled)
 // [ ] Single-step SCU DSP (if running)
 // [ ] Single-step SCSP DSP
@@ -349,7 +352,8 @@ bool Saturn::Run() {
 
     const uint64 cycles = static_config::max_timing_granularity ? 1 : std::max<sint64>(m_scheduler.RemainingCount(), 0);
 
-    uint64 execCycles = 0;
+    uint64 execCycles = m_msh2SpilloverCycles;
+    m_msh2SpilloverCycles = 0;
     if (slaveSH2Enabled) {
         uint64 slaveCycles = m_ssh2SpilloverCycles;
         do {
@@ -387,25 +391,63 @@ bool Saturn::Run() {
 
 template <bool debug, bool enableSH2Cache>
 void Saturn::StepMasterSH2Impl() {
-    const uint64 masterCycles = masterSH2.Step<debug, enableSH2Cache>();
-    if (slaveSH2Enabled) {
-        const uint64 slaveCycles = slaveSH2.Advance<debug, enableSH2Cache>(masterCycles, m_ssh2SpilloverCycles);
-        m_ssh2SpilloverCycles = slaveCycles - masterCycles;
+    uint64 masterCycles = masterSH2.Step<debug, enableSH2Cache>();
+    if (masterCycles >= m_msh2SpilloverCycles) {
+        masterCycles -= m_msh2SpilloverCycles;
+        m_msh2SpilloverCycles = 0;
+        if (slaveSH2Enabled) {
+            const uint64 slaveCycles = slaveSH2.Advance<debug, enableSH2Cache>(masterCycles, m_ssh2SpilloverCycles);
+            m_ssh2SpilloverCycles = slaveCycles - masterCycles;
+        }
+        SCU.Advance<debug>(masterCycles);
+        VDP.Advance<debug>(masterCycles);
+
+        // SCSP+M68K and CD block are ticked by the scheduler
+
+        // TODO: advance SMPC
+        /*m_smpcCycles += masterCycles * 2464;
+        const uint64 smpcCycleCount = m_smpcCycles / 17640;
+        if (smpcCycleCount > 0) {
+            m_smpcCycles -= smpcCycleCount * 17640;
+            SMPC.Advance<debug>(smpcCycleCount);
+        }*/
+
+        m_scheduler.Advance(masterCycles);
+    } else {
+        m_msh2SpilloverCycles -= masterCycles;
     }
-    SCU.Advance<debug>(masterCycles);
-    VDP.Advance<debug>(masterCycles);
+}
 
-    // SCSP+M68K and CD block are ticked by the scheduler
+template <bool debug, bool enableSH2Cache>
+bool Saturn::StepSlaveSH2Impl() {
+    if (!slaveSH2Enabled) {
+        return false;
+    }
 
-    // TODO: advance SMPC
-    /*m_smpcCycles += masterCycles * 2464;
-    const uint64 smpcCycleCount = m_smpcCycles / 17640;
-    if (smpcCycleCount > 0) {
-        m_smpcCycles -= smpcCycleCount * 17640;
-        SMPC.Advance<debug>(smpcCycleCount);
-    }*/
+    uint64 slaveCycles = slaveSH2.Step<debug, enableSH2Cache>();
+    if (slaveCycles >= m_ssh2SpilloverCycles) {
+        slaveCycles -= m_ssh2SpilloverCycles;
+        m_ssh2SpilloverCycles = 0;
+        const uint64 masterCycles = masterSH2.Advance<debug, enableSH2Cache>(slaveCycles, m_msh2SpilloverCycles);
+        m_msh2SpilloverCycles = masterCycles - slaveCycles;
+        SCU.Advance<debug>(slaveCycles);
+        VDP.Advance<debug>(slaveCycles);
 
-    m_scheduler.Advance(masterCycles);
+        // SCSP+M68K and CD block are ticked by the scheduler
+
+        // TODO: advance SMPC
+        /*m_smpcCycles += slaveCycles * 2464;
+        const uint64 smpcCycleCount = m_smpcCycles / 17640;
+        if (smpcCycleCount > 0) {
+            m_smpcCycles -= smpcCycleCount * 17640;
+            SMPC.Advance<debug>(smpcCycleCount);
+        }*/
+
+        m_scheduler.Advance(slaveCycles);
+    } else {
+        m_ssh2SpilloverCycles -= slaveCycles;
+    }
+    return true;
 }
 
 void Saturn::UpdateFunctionPointers() {
@@ -420,6 +462,12 @@ void Saturn::UpdateFunctionPointers() {
                                                            : &Saturn::StepMasterSH2Impl<true, false>)
                        : (m_systemFeatures.emulateSH2Cache ? &Saturn::StepMasterSH2Impl<false, true>
                                                            : &Saturn::StepMasterSH2Impl<false, false>);
+
+    m_stepSSH2Fn = m_systemFeatures.enableDebugTracing
+                       ? (m_systemFeatures.emulateSH2Cache ? &Saturn::StepSlaveSH2Impl<true, true>
+                                                           : &Saturn::StepSlaveSH2Impl<true, false>)
+                       : (m_systemFeatures.emulateSH2Cache ? &Saturn::StepSlaveSH2Impl<false, true>
+                                                           : &Saturn::StepSlaveSH2Impl<false, false>);
 }
 
 void Saturn::UpdatePreferredRegionOrder(std::span<const core::config::sys::Region> regions) {

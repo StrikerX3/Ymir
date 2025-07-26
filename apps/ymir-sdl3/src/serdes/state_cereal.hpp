@@ -976,6 +976,9 @@ void serialize(Archive &ar, CDBlockState::FilesystemState &s, const uint32 versi
 
 template <class Archive>
 void serialize(Archive &ar, State &s, const uint32 version) {
+    // v8:
+    // - New fields:
+    //   - uint64 msh2SpilloverCycles = 0
     // v5:
     // - New fields:
     //   - uint64 ssh2SpilloverCycles = 0
@@ -996,6 +999,11 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     serialize(ar, s.scsp, version);
     serialize(ar, s.cdblock, version);
 
+    if (version >= 8) {
+        ar(s.msh2SpilloverCycles);
+    } else {
+        s.msh2SpilloverCycles = 0;
+    }
     if (version >= 5) {
         ar(s.ssh2SpilloverCycles);
     } else {

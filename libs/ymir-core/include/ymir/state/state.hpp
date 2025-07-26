@@ -22,6 +22,7 @@ struct State {
     SCSPState scsp;
     CDBlockState cdblock;
 
+    uint64 msh2SpilloverCycles;
     uint64 ssh2SpilloverCycles;
 };
 

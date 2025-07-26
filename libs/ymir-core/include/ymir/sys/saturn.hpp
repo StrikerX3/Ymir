@@ -200,6 +200,16 @@ struct Saturn {
         (this->*m_stepMSH2Fn)();
     }
 
+    /// @brief Runs a single salve SH-2 instruction using the current settings.
+    ///
+    /// The implementation of the function depends on the following parameters:
+    /// - **Debug tracing**: configured with `EnableDebugTracing(bool)`
+    /// - **SH-2 cache emulation**: configured with `EnableSH2CacheEmulation(bool)`
+    /// @return `true` if the state was loaded successfully
+    bool StepSlaveSH2() {
+        return (this->*m_stepSSH2Fn)();
+    }
+
     /// @brief Detaches all debug tracers from all components.
     void DetachAllTracers() {
         masterSH2.UseTracer(nullptr);
@@ -249,6 +259,13 @@ private:
     template <bool debug, bool enableSH2Cache>
     void StepMasterSH2Impl();
 
+    /// @brief Runs a single slave SH-2 instruction if the CPU is enabled.
+    /// @tparam debug whether to use debug tracing
+    /// @tparam enableSH2Cache whether to emulate SH-2 caches
+    /// @return `true` if the CPU was stepped, `false` if it is disabled
+    template <bool debug, bool enableSH2Cache>
+    bool StepSlaveSH2Impl();
+
     /// @brief The type of the `RunFrameImpl()` implementation to use from `RunFrame()`.
     using RunFrameFn = void (Saturn::*)();
 
@@ -257,13 +274,21 @@ private:
     /// Depends on debug tracing and SH-2 cache emulation settings.
     RunFrameFn m_runFrameFn;
 
-    /// @brief The type of the `Step*SH2Impl()` implementation to use from `Step*SH2()`.
-    using StepSH2Fn = void (Saturn::*)();
+    /// @brief The type of the `StepMasterSH2Impl()` implementation to use from `StepMasterSH2()`.
+    using StepMSH2Fn = void (Saturn::*)();
 
     /// @brief The current `StepMasterSH2Impl()` implementation in use.
     ///
     /// Depends on debug tracing and SH-2 cache emulation settings.
-    RunFrameFn m_stepMSH2Fn;
+    StepMSH2Fn m_stepMSH2Fn;
+
+    /// @brief The type of the `StepSalveSH2Impl()` implementation to use from `StepSalveSH2()`.
+    using StepSSH2Fn = bool (Saturn::*)();
+
+    /// @brief The current `StepSalveSH2Impl()` implementation in use.
+    ///
+    /// Depends on debug tracing and SH-2 cache emulation settings.
+    StepSSH2Fn m_stepSSH2Fn;
 
     /// @brief Updates pointers to the execution functions based on the current debug tracing and SH-2 cache emulation
     /// settings.
@@ -325,6 +350,7 @@ private:
     // -------------------------------------------------------------------------
     // Internal state
 
+    uint64 m_msh2SpilloverCycles; ///< Master SH-2 execution cycles spilled over between executions
     uint64 m_ssh2SpilloverCycles; ///< Slave SH-2 execution cycles spilled over between executions
 
     // -------------------------------------------------------------------------
