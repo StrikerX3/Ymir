@@ -2,6 +2,7 @@
 
 #include "sh2_window_base.hpp"
 
+#include <app/ui/views/debug/sh2_debug_toolbar_view.hpp>
 #include <app/ui/views/debug/sh2_disassembly_view.hpp>
 #include <app/ui/views/debug/sh2_registers_view.hpp>
 
@@ -16,6 +17,7 @@ protected:
     void DrawContents() override;
 
 private:
+    SH2DebugToolbarView m_toolbarView;
     SH2RegistersView m_regsView;
     SH2DisassemblyView m_disasmView;
 };

@@ -1,13 +1,12 @@
 #include "sh2_debugger_window.hpp"
 
-#include <app/events/emu_event_factory.hpp>
-
 using namespace ymir;
 
 namespace app::ui {
 
 SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master)
     : SH2WindowBase(context, master)
+    , m_toolbarView(context, m_sh2)
     , m_regsView(context, m_sh2)
     , m_disasmView(context, m_sh2) {
 
@@ -27,25 +26,8 @@ void SH2DebuggerWindow::DrawContents() {
 
         ImGui::TableNextRow();
         if (ImGui::TableNextColumn()) {
-            // TODO: move this block to a toolbar view
-            {
-                const bool master = m_sh2.IsMaster();
-                const bool enabled = master || m_context.saturn.slaveSH2Enabled;
-
-                if (!master) {
-                    ImGui::Checkbox("Enabled", &m_context.saturn.slaveSH2Enabled);
-                    ImGui::SameLine();
-                }
-                if (!enabled) {
-                    ImGui::BeginDisabled();
-                }
-                if (ImGui::Button("Step")) {
-                    m_context.EnqueueEvent(master ? events::emu::StepMSH2() : events::emu::StepSSH2());
-                }
-                if (!enabled) {
-                    ImGui::EndDisabled();
-                }
-            }
+            m_toolbarView.Display();
+            ImGui::Separator();
             // ImGui::SeparatorText("Disassembly");
             m_disasmView.Display();
         }
