@@ -52,11 +52,11 @@ public:
         m_cbAcknowledgeExternalInterrupt = callback;
     }
 
+    void MapMemory(sys::Bus &bus);
+
     void UseDebugBreakManager(debug::DebugBreakManager *mgr) {
         m_debugBreakMgr = mgr;
     }
-
-    void MapMemory(sys::Bus &bus);
 
     void DumpCacheData(std::ostream &out) const;
     void DumpCacheAddressTag(std::ostream &out) const;
@@ -109,6 +109,16 @@ public:
         m_tracer = tracer;
     }
 
+    // Suspends (disabled) the CPU in debug mode.
+    void SetCPUSuspended(bool suspend) {
+        m_debugSuspend = suspend;
+    }
+
+    // Determines if the CPU is suspended in debug mode.
+    bool IsCPUSuspended() const {
+        return m_debugSuspend;
+    }
+
     // Adds the specified address to the set of breakpoints.
     // The address is force-aligned to word boundaries.
     // Returns `true` if the breakpoint was added, `false` if it already exists.
@@ -141,7 +151,7 @@ public:
     }
 
     // Retrieves all breakpoints set in this SH-2.
-    const std::set<uint32> &GetBreakpoints() const {
+    [[nodiscard]] const std::set<uint32> &GetBreakpoints() const {
         return m_breakpoints;
     }
 
@@ -157,18 +167,164 @@ public:
 
     // Determines if the specified address has a breakpoint set.
     // The address is force-aligned to word boundaries.
-    bool IsBreakpointSet(uint32 address) const {
+    [[nodiscard]] FORCE_INLINE bool IsBreakpointSet(uint32 address) const {
         return m_breakpoints.contains(address & ~1u);
     }
 
-    // Suspends (disabled) the CPU in debug mode.
-    void SetCPUSuspended(bool suspend) {
-        m_debugSuspend = suspend;
+    // Adds the specified address to the set of read watchpoints of size `sizeof(T)`.
+    // The address is force-aligned to T-sized boundaries.
+    // Returns `true` if the watchpoint was added, `false` if it already exists.
+    template <mem_primitive T>
+    bool AddReadWatchpoint(uint32 address) {
+        return GetReadWatchpoints<T>().insert(address & ~(sizeof(T) - 1u)).second;
     }
 
-    // Determines if the CPU is suspended in debug mode.
-    bool IsCPUSuspended() const {
-        return m_debugSuspend;
+    // Removes the specified address from the set of read watchpoints of size `sizeof(T)`.
+    // The address is force-aligned to T-sized boundaries.
+    // Returns `true` if the watchpoint was removed, `false` if it did not exist.
+    template <mem_primitive T>
+    bool RemoveReadWatchpoint(uint32 address) {
+        return GetReadWatchpoints<T>().erase(address & ~(sizeof(T) - 1u));
+    }
+
+    // Toggles the read watchpoint of size `sizeof(T)` at the specified address.
+    // The address is force-aligned to T-sized boundaries.
+    // Returns `true` if the watchpoint was added, `false` if it was removed.
+    template <mem_primitive T>
+    bool ToggleReadWatchpoint(uint32 address) {
+        address &= ~(sizeof(T) - 1u);
+        auto &watchpoints = GetReadWatchpoints<T>();
+        const bool result = watchpoints.insert(address).second;
+        if (!result) {
+            watchpoints.erase(address);
+        }
+        return result;
+    }
+
+    // Clears all read watchpoints of size `sizeof(T)`.
+    template <mem_primitive T>
+    void ClearReadWatchpoints() {
+        GetReadWatchpoints<T>().clear();
+    }
+
+    // Clears all read watchpoints of all sizes.
+    void ClearAllReadWatchpoints() {
+        m_watchpointsRead8.clear();
+        m_watchpointsRead16.clear();
+        m_watchpointsRead32.clear();
+    }
+
+    // Retrieves all read watchpoints of size `sizeof(T)` set in this SH-2.
+    template <mem_primitive T>
+    [[nodiscard]] FORCE_INLINE const std::set<uint32> &GetReadWatchpoints() const {
+        if constexpr (std::is_same_v<T, uint8>) {
+            return m_watchpointsRead8;
+        } else if constexpr (std::is_same_v<T, uint16>) {
+            return m_watchpointsRead16;
+        } else if constexpr (std::is_same_v<T, uint32>) {
+            return m_watchpointsRead32;
+        }
+        util::unreachable();
+    }
+
+    // Replaces all read watchpoints of size `sizeof(T)` with those of the provided set.
+    // All addresses of the specified set are force-aligned to T-sized boundaries.
+    template <mem_primitive T>
+    void ReplaceReadWatchpoints(const std::set<uint32> &watchpoints) {
+        // Manage watchpoints manually to sanitize addresses
+        auto &thisWatchpoints = GetReadWatchpoints<T>();
+        thisWatchpoints.clear();
+        for (auto address : watchpoints) {
+            thisWatchpoints.insert(address & ~(sizeof(T) - 1u));
+        }
+    }
+
+    // Determines if the specified address has a read watchpoint of size `sizeof(T)` set.
+    // The address is force-aligned to T-sized boundaries.
+    template <mem_primitive T>
+    [[nodiscard]] FORCE_INLINE bool IsReadWatchpointSet(uint32 address) const {
+        return GetReadWatchpoints<T>().contains(address & ~(sizeof(T) - 1u));
+    }
+
+    // Adds the specified address to the set of write watchpoints of size `sizeof(T)`.
+    // The address is force-aligned to T-sized boundaries.
+    // Returns `true` if the watchpoint was added, `false` if it already exists.
+    template <mem_primitive T>
+    bool AddWriteWatchpoint(uint32 address) {
+        return GetWriteWatchpoints<T>().insert(address & ~(sizeof(T) - 1u)).second;
+    }
+
+    // Removes the specified address from the set of write watchpoints of size `sizeof(T)`.
+    // The address is force-aligned to T-sized boundaries.
+    // Returns `true` if the watchpoint was removed, `false` if it did not exist.
+    template <mem_primitive T>
+    bool RemoveWriteWatchpoint(uint32 address) {
+        return GetWriteWatchpoints<T>().erase(address & ~(sizeof(T) - 1u));
+    }
+
+    // Toggles the write watchpoint of size `sizeof(T)` at the specified address.
+    // The address is force-aligned to T-sized boundaries.
+    // Returns `true` if the watchpoint was added, `false` if it was removed.
+    template <mem_primitive T>
+    bool ToggleWriteWatchpoint(uint32 address) {
+        address &= ~(sizeof(T) - 1u);
+        auto &watchpoints = GetWriteWatchpoints<T>();
+        const bool result = watchpoints.insert(address).second;
+        if (!result) {
+            watchpoints.erase(address);
+        }
+        return result;
+    }
+
+    // Clears all write watchpoints of size `sizeof(T)`.
+    template <mem_primitive T>
+    void ClearWriteWatchpoints() {
+        GetWriteWatchpoints<T>().clear();
+    }
+
+    // Clears all write watchpoints of all sizes.
+    void ClearAllWriteWatchpoints() {
+        m_watchpointsWrite8.clear();
+        m_watchpointsWrite16.clear();
+        m_watchpointsWrite32.clear();
+    }
+
+    // Retrieves all write watchpoints of size `sizeof(T)` set in this SH-2.
+    template <mem_primitive T>
+    [[nodiscard]] FORCE_INLINE const std::set<uint32> &GetWriteWatchpoints() const {
+        if constexpr (std::is_same_v<T, uint8>) {
+            return m_watchpointsWrite8;
+        } else if constexpr (std::is_same_v<T, uint16>) {
+            return m_watchpointsWrite16;
+        } else if constexpr (std::is_same_v<T, uint32>) {
+            return m_watchpointsWrite32;
+        }
+        util::unreachable();
+    }
+
+    // Replaces all write watchpoints of size `sizeof(T)` with those of the provided set.
+    // All addresses of the specified set are force-aligned to T-sized boundaries.
+    template <mem_primitive T>
+    void ReplaceWriteWatchpoints(const std::set<uint32> &watchpoints) {
+        // Manage watchpoints manually to sanitize addresses
+        auto &thisWatchpoints = GetWriteWatchpoints<T>();
+        thisWatchpoints.clear();
+        for (auto address : watchpoints) {
+            thisWatchpoints.insert(address & ~(sizeof(T) - 1u));
+        }
+    }
+
+    // Determines if the specified address has a write watchpoint of size `sizeof(T)` set.
+    // The address is force-aligned to T-sized boundaries.
+    template <mem_primitive T>
+    [[nodiscard]] FORCE_INLINE bool IsWriteWatchpointSet(uint32 address) const {
+        return GetWriteWatchpoints<T>().contains(address & ~(sizeof(T) - 1u));
+    }
+
+    // Clears all read and write watchpoints.
+    void ClearWatchpoints() {
+        ClearAllReadWatchpoints();
+        ClearAllWriteWatchpoints();
     }
 
     class Probe {
@@ -542,20 +698,20 @@ private:
     //    110   Data array read/write area      Cache data acessed directly (4 KiB, mirrored)
     //    111   I/O area (on-chip registers)    Cache bypassed
 
-    template <mem_primitive T, bool instrFetch, bool peek, bool enableCache>
+    template <mem_primitive T, bool instrFetch, bool peek, bool debug, bool enableCache>
     T MemRead(uint32 address);
 
     template <mem_primitive T, bool poke, bool debug, bool enableCache>
     void MemWrite(uint32 address, T value);
 
-    template <bool enableCache>
+    template <bool debug, bool enableCache>
     uint16 FetchInstruction(uint32 address);
 
-    template <bool enableCache>
+    template <bool debug, bool enableCache>
     uint8 MemReadByte(uint32 address);
-    template <bool enableCache>
+    template <bool debug, bool enableCache>
     uint16 MemReadWord(uint32 address);
-    template <bool enableCache>
+    template <bool debug, bool enableCache>
     uint32 MemReadLong(uint32 address);
 
     template <bool debug, bool enableCache>
@@ -724,7 +880,39 @@ private:
     Probe m_probe{*this};
     debug::ISH2Tracer *m_tracer = nullptr;
 
-    std::set<uint32> m_breakpoints;
+    std::set<uint32> m_breakpoints; // word-aligned
+
+    std::set<uint32> m_watchpointsRead8;   // byte-aligned
+    std::set<uint32> m_watchpointsRead16;  // word-aligned
+    std::set<uint32> m_watchpointsRead32;  // longword-aligned
+    std::set<uint32> m_watchpointsWrite8;  // byte-aligned
+    std::set<uint32> m_watchpointsWrite16; // word-aligned
+    std::set<uint32> m_watchpointsWrite32; // longword-aligned
+
+    template <mem_primitive T>
+    [[nodiscard]] FORCE_INLINE std::set<uint32> &GetReadWatchpoints() {
+        if constexpr (std::is_same_v<T, uint8>) {
+            return m_watchpointsRead8;
+        } else if constexpr (std::is_same_v<T, uint16>) {
+            return m_watchpointsRead16;
+        } else if constexpr (std::is_same_v<T, uint32>) {
+            return m_watchpointsRead32;
+        }
+        util::unreachable();
+    }
+
+    template <mem_primitive T>
+    [[nodiscard]] FORCE_INLINE std::set<uint32> &GetWriteWatchpoints() {
+        if constexpr (std::is_same_v<T, uint8>) {
+            return m_watchpointsWrite8;
+        } else if constexpr (std::is_same_v<T, uint16>) {
+            return m_watchpointsWrite16;
+        } else if constexpr (std::is_same_v<T, uint32>) {
+            return m_watchpointsWrite32;
+        }
+        util::unreachable();
+    }
+
     bool m_debugSuspend = false; // Disables CPU while in debug mode
 
     const std::string_view m_logPrefix;

@@ -1586,6 +1586,14 @@ void App::RunEmulator() {
                                                       info.details.sh2Breakpoint.pc));
                  sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Breakpoint.master));
                  break;
+             case SH2Watchpoint: //
+                 sharedCtx.DisplayMessage(
+                     fmt::format("{}SH2 {}-bit {} watchpoint on {:08X} hit at {:08X}",
+                                 (info.details.sh2Watchpoint.master ? 'M' : 'S'), info.details.sh2Watchpoint.size * 8u,
+                                 (info.details.sh2Watchpoint.write ? "write" : "read"),
+                                 info.details.sh2Watchpoint.address, info.details.sh2Watchpoint.pc));
+                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Breakpoint.master));
+                 break;
              default: sharedCtx.DisplayMessage("Paused due to a debug break event"); break;
              }
          }});

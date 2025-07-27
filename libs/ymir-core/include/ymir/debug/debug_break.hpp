@@ -34,6 +34,10 @@ struct DebugBreakInfo {
         /// @brief An SH-2 CPU hit a breakpoint.
         /// The `DebugBreakInfo::details::sh2Breakpoint` field has details about this event.
         SH2Breakpoint,
+
+        /// @brief An SH-2 CPU hit a watchpoint.
+        /// The `DebugBreakInfo::details::sh2Watchpoint` field has details about this event.
+        SH2Watchpoint,
     } event;
 
     /// @brief Details about the event.
@@ -43,15 +47,38 @@ struct DebugBreakInfo {
             bool master; ///< Triggered from the MSH2 (`true`) or SSH2 (`false`)
             uint32 pc;   ///< PC address of the breakpoint
         } sh2Breakpoint;
+
+        /// @brief Details about the `Event::SH2Watchpoint` event.
+        struct SH2Watchpoint {
+            bool master;    ///< Triggered from the MSH2 (`true`) or SSH2 (`false`)
+            bool write;     ///< Whether this was a write (`true`) or read (`false`) watchpoint event
+            uint8 size;     ///< The size of the watchpoint
+            uint32 address; ///< Memory address of the watchpoint
+            uint32 pc;      ///< PC address where the watchpoint was hit
+        } sh2Watchpoint;
     } details;
 
     /// @brief Constructs a `DebugBreakInfo` for an SH-2 breakpoint hit.
     /// @param[in] master whether the event was triggered from the MSH2 (`true`) or SSH2 (`false`) CPU
     /// @param[in] pc the PC address of the breakpoint
-    /// @return a `DebugBreakInfo` struct with the `Event::SH2Breakpoint` event
+    /// @return a `DebugBreakInfo` struct with the specified `Event::SH2Breakpoint` event
     static DebugBreakInfo SH2Breakpoint(bool master, uint32 pc) {
         return DebugBreakInfo{.event = Event::SH2Breakpoint,
                               .details = {.sh2Breakpoint = {.master = master, .pc = pc}}};
+    }
+
+    /// @brief Constructs a `DebugBreakInfo` for an SH-2 watchpoint hit.
+    /// @param[in] master whether the event was triggered from the MSH2 (`true`) or SSH2 (`false`) CPU
+    /// @param[in] write whether this was a write (`true`) or read (`false`) watchpoint event
+    /// @param[in] size the size of the watchpoint
+    /// @param[in] address memory address of the watchpoint
+    /// @param[in] pc the PC address where the watchpoint was hit
+    /// @return a `DebugBreakInfo` struct with the specified `Event::SH2Watchpoint` event
+    static DebugBreakInfo SH2Watchpoint(bool master, bool write, uint8 size, uint32 address, uint32 pc) {
+        return DebugBreakInfo{
+            .event = Event::SH2Watchpoint,
+            .details = {
+                .sh2Watchpoint = {.master = master, .write = write, .size = size, .address = address, .pc = pc}}};
     }
 };
 

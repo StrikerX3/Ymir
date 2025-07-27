@@ -230,8 +230,8 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     GBR = 0;
     VBR = 0x00000000;
 
-    PC = MemReadLong<false>(0x00000000);
-    R[15] = MemReadLong<false>(0x00000004);
+    PC = MemReadLong<false, false>(0x00000000);
+    R[15] = MemReadLong<false, false>(0x00000004);
 
     // On-chip registers
     BCR1.u15 = 0x03F0;
@@ -323,7 +323,7 @@ FLATTEN uint64 SH2::Advance(uint64 cycles, uint64 spilloverCycles) {
         // Check for breakpoints in debug tracing mode
         if constexpr (debug) {
             if (m_debugBreakMgr) {
-                if (m_breakpoints.contains(PC)) {
+                if (IsBreakpointSet(PC)) {
                     m_debugBreakMgr->SignalDebugBreak(debug::DebugBreakInfo::SH2Breakpoint(IsMaster(), PC));
                     break;
                 }
@@ -455,7 +455,7 @@ void SH2::LoadState(const state::SH2State &state) {
 // -----------------------------------------------------------------------------
 // Memory accessors
 
-template <mem_primitive T, bool instrFetch, bool peek, bool enableCache>
+template <mem_primitive T, bool instrFetch, bool peek, bool debug, bool enableCache>
 T SH2::MemRead(uint32 address) {
     static constexpr uint32 kAddressMask = ~(static_cast<uint32>(sizeof(T)) - 1u);
 
@@ -467,6 +467,15 @@ T SH2::MemRead(uint32 address) {
             // - might have to store data in a class member instead of returning
         }
         address &= kAddressMask;
+    }
+
+    if constexpr (debug && !instrFetch) {
+        if (m_debugBreakMgr) {
+            if (IsReadWatchpointSet<T>(address)) {
+                m_debugBreakMgr->SignalDebugBreak(
+                    debug::DebugBreakInfo::SH2Watchpoint(IsMaster(), false, sizeof(T), address, PC));
+            }
+        }
     }
 
     switch (partition) {
@@ -593,6 +602,15 @@ void SH2::MemWrite(uint32 address, T value) {
         address &= kAddressMask;
     }
 
+    if constexpr (debug) {
+        if (m_debugBreakMgr) {
+            if (IsWriteWatchpointSet<T>(address)) {
+                m_debugBreakMgr->SignalDebugBreak(
+                    debug::DebugBreakInfo::SH2Watchpoint(IsMaster(), true, sizeof(T), address, PC));
+            }
+        }
+    }
+
     switch (partition) {
     case 0b000: // cache
         if constexpr (enableCache) {
@@ -680,24 +698,24 @@ void SH2::MemWrite(uint32 address, T value) {
     }
 }
 
-template <bool enableCache>
+template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE uint16 SH2::FetchInstruction(uint32 address) {
-    return MemRead<uint16, true, false, enableCache>(address);
+    return MemRead<uint16, true, false, debug, enableCache>(address);
 }
 
-template <bool enableCache>
+template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE uint8 SH2::MemReadByte(uint32 address) {
-    return MemRead<uint8, false, false, enableCache>(address);
+    return MemRead<uint8, false, false, debug, enableCache>(address);
 }
 
-template <bool enableCache>
+template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE uint16 SH2::MemReadWord(uint32 address) {
-    return MemRead<uint16, false, false, enableCache>(address);
+    return MemRead<uint16, false, false, debug, enableCache>(address);
 }
 
-template <bool enableCache>
+template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE uint32 SH2::MemReadLong(uint32 address) {
-    return MemRead<uint32, false, false, enableCache>(address);
+    return MemRead<uint32, false, false, debug, enableCache>(address);
 }
 
 template <bool debug, bool enableCache>
@@ -717,22 +735,22 @@ FLATTEN FORCE_INLINE void SH2::MemWriteLong(uint32 address, uint32 value) {
 
 template <bool enableCache>
 FLATTEN_EX FORCE_INLINE_EX uint16 SH2::PeekInstruction(uint32 address) {
-    return MemRead<uint16, true, true, enableCache>(address);
+    return MemRead<uint16, true, true, false, enableCache>(address);
 }
 
 template <bool enableCache>
 FLATTEN_EX FORCE_INLINE_EX uint8 SH2::MemPeekByte(uint32 address) {
-    return MemRead<uint8, false, true, enableCache>(address);
+    return MemRead<uint8, false, true, false, enableCache>(address);
 }
 
 template <bool enableCache>
 FLATTEN_EX FORCE_INLINE_EX uint16 SH2::MemPeekWord(uint32 address) {
-    return MemRead<uint16, false, true, enableCache>(address);
+    return MemRead<uint16, false, true, false, enableCache>(address);
 }
 
 template <bool enableCache>
 FLATTEN_EX FORCE_INLINE_EX uint32 SH2::MemPeekLong(uint32 address) {
-    return MemRead<uint32, false, true, enableCache>(address);
+    return MemRead<uint32, false, true, false, enableCache>(address);
 }
 
 template <bool enableCache>
@@ -1504,7 +1522,7 @@ void SH2::RunDMAC(uint32 channel) {
         // Perform one unit of transfer
         switch (ch.xferSize) {
         case DMATransferSize::Byte: {
-            const uint8 value = MemReadByte<enableCache>(ch.srcAddress);
+            const uint8 value = MemReadByte<debug, enableCache>(ch.srcAddress);
             devlog::trace<grp::dma_xfer>(m_logPrefix, "DMAC{} 8-bit transfer from {:08X} to {:08X} -> {:X}", channel,
                                          ch.srcAddress, ch.dstAddress, value);
             MemWriteByte<debug, enableCache>(ch.dstAddress, value);
@@ -1512,7 +1530,7 @@ void SH2::RunDMAC(uint32 channel) {
             break;
         }
         case DMATransferSize::Word: {
-            const uint16 value = MemReadWord<enableCache>(ch.srcAddress);
+            const uint16 value = MemReadWord<debug, enableCache>(ch.srcAddress);
             devlog::trace<grp::dma_xfer>(m_logPrefix, "DMAC{} 16-bit transfer from {:08X} to {:08X} -> {:X}", channel,
                                          ch.srcAddress, ch.dstAddress, value);
             MemWriteWord<debug, enableCache>(ch.dstAddress, value);
@@ -1520,7 +1538,7 @@ void SH2::RunDMAC(uint32 channel) {
             break;
         }
         case DMATransferSize::Longword: {
-            const uint32 value = MemReadLong<enableCache>(ch.srcAddress);
+            const uint32 value = MemReadLong<debug, enableCache>(ch.srcAddress);
             devlog::trace<grp::dma_xfer>(m_logPrefix, "DMAC{} 32-bit transfer from {:08X} to {:08X} -> {:X}", channel,
                                          ch.srcAddress, ch.dstAddress, value);
             MemWriteLong<debug, enableCache>(ch.dstAddress, value);
@@ -1529,7 +1547,7 @@ void SH2::RunDMAC(uint32 channel) {
         }
         case DMATransferSize::QuadLongword:
             for (int i = 0; i < 4; i++) {
-                const uint32 value = MemReadLong<enableCache>(ch.srcAddress + i * sizeof(uint32));
+                const uint32 value = MemReadLong<debug, enableCache>(ch.srcAddress + i * sizeof(uint32));
                 devlog::trace<grp::dma_xfer>(m_logPrefix, "DMAC{} 16-byte transfer {:d} from {:08X} to {:08X} -> {:X}",
                                              channel, i, ch.srcAddress, ch.dstAddress, value);
                 MemWriteLong<debug, enableCache>(ch.dstAddress + i * sizeof(uint32), value);
@@ -1776,7 +1794,7 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
     TraceException<debug>(m_tracer, vectorNumber, PC, SR.u32);
     MemWriteLong<debug, enableCache>(address1, SR.u32);
     MemWriteLong<debug, enableCache>(address2, PC);
-    PC = MemReadLong<enableCache>(address3);
+    PC = MemReadLong<debug, enableCache>(address3);
     R[15] -= 8;
     return AccessCycles<enableCache>(address1) + AccessCycles<enableCache>(address2) +
            AccessCycles<enableCache>(address3) + 5;
@@ -1815,7 +1833,7 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
 
     // TODO: emulate or approximate fetch - decode - execute - memory access - writeback pipeline
 
-    const uint16 instr = FetchInstruction<enableCache>(PC);
+    const uint16 instr = FetchInstruction<debug, enableCache>(PC);
     TraceExecuteInstruction<debug>(m_tracer, PC, instr, m_delaySlot);
 
     const OpcodeType opcode = DecodeTable::s_instance.opcodes[m_delaySlot][instr];
@@ -2171,7 +2189,7 @@ FORCE_INLINE uint64 SH2::MOV(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
+    R[args.rn] = bit::sign_extend<8>(MemReadByte<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2180,7 +2198,7 @@ FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[args.rn] = bit::sign_extend<16>(MemReadWord<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2189,7 +2207,7 @@ FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = MemReadLong<enableCache>(address);
+    R[args.rn] = MemReadLong<debug, enableCache>(address);
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2198,7 +2216,7 @@ FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    R[args.rn] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
+    R[args.rn] = bit::sign_extend<8>(MemReadByte<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2207,7 +2225,7 @@ FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[args.rn] = bit::sign_extend<16>(MemReadWord<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2216,7 +2234,7 @@ FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    R[args.rn] = MemReadLong<enableCache>(address);
+    R[args.rn] = MemReadLong<debug, enableCache>(address);
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2225,7 +2243,7 @@ FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    R[0] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
+    R[0] = bit::sign_extend<8>(MemReadByte<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2234,7 +2252,7 @@ FORCE_INLINE uint64 SH2::MOVBL4(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    R[0] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[0] = bit::sign_extend<16>(MemReadWord<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2243,7 +2261,7 @@ FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    R[args.rn] = MemReadLong<enableCache>(address);
+    R[args.rn] = MemReadLong<debug, enableCache>(address);
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2252,7 +2270,7 @@ FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    R[0] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
+    R[0] = bit::sign_extend<8>(MemReadByte<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2261,7 +2279,7 @@ FORCE_INLINE uint64 SH2::MOVBLG(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    R[0] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[0] = bit::sign_extend<16>(MemReadWord<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2270,7 +2288,7 @@ FORCE_INLINE uint64 SH2::MOVWLG(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    R[0] = MemReadLong<enableCache>(address);
+    R[0] = MemReadLong<debug, enableCache>(address);
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2309,7 +2327,7 @@ FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
+    R[args.rn] = bit::sign_extend<8>(MemReadByte<debug, enableCache>(address));
     if (args.rn != args.rm) {
         R[args.rm] += 1;
     }
@@ -2321,7 +2339,7 @@ FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[args.rn] = bit::sign_extend<16>(MemReadWord<debug, enableCache>(address));
     if (args.rn != args.rm) {
         R[args.rm] += 2;
     }
@@ -2333,7 +2351,7 @@ FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = MemReadLong<enableCache>(address);
+    R[args.rn] = MemReadLong<debug, enableCache>(address);
     if (args.rn != args.rm) {
         R[args.rm] += 4;
     }
@@ -2462,7 +2480,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = pc + args.dispImm;
-    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[args.rn] = bit::sign_extend<16>(MemReadWord<debug, enableCache>(address));
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2472,7 +2490,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = (pc & ~3u) + args.dispImm;
-    R[args.rn] = MemReadLong<enableCache>(address);
+    R[args.rn] = MemReadLong<debug, enableCache>(address);
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
 }
@@ -2671,7 +2689,7 @@ FORCE_INLINE uint64 SH2::STSPR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    GBR = MemReadLong<enableCache>(address);
+    GBR = MemReadLong<debug, enableCache>(address);
     R[args.rm] += 4;
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address) + 2;
@@ -2681,7 +2699,7 @@ FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    SR.u32 = MemReadLong<enableCache>(address) & 0x000003F3;
+    SR.u32 = MemReadLong<debug, enableCache>(address) & 0x000003F3;
     m_intrPending = !delaySlot && INTC.pending.level > SR.ILevel;
     R[args.rm] += 4;
     AdvancePC<delaySlot>();
@@ -2692,7 +2710,7 @@ FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    VBR = MemReadLong<enableCache>(address);
+    VBR = MemReadLong<debug, enableCache>(address);
     R[args.rm] += 4;
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address) + 2;
@@ -2702,7 +2720,7 @@ FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    MAC.H = MemReadLong<enableCache>(address);
+    MAC.H = MemReadLong<debug, enableCache>(address);
     R[args.rm] += 4;
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
@@ -2712,7 +2730,7 @@ FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    MAC.L = MemReadLong<enableCache>(address);
+    MAC.L = MemReadLong<debug, enableCache>(address);
     R[args.rm] += 4;
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
@@ -2722,7 +2740,7 @@ FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    PR = MemReadLong<enableCache>(address);
+    PR = MemReadLong<debug, enableCache>(address);
     R[args.rm] += 4;
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address);
@@ -2851,7 +2869,7 @@ FORCE_INLINE uint64 SH2::ANDI(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ANDM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    uint8 tmp = MemReadByte<enableCache>(address);
+    uint8 tmp = MemReadByte<debug, enableCache>(address);
     tmp &= args.dispImm;
     MemWriteByte<debug, enableCache>(address, tmp);
     AdvancePC<delaySlot>();
@@ -2904,7 +2922,7 @@ FORCE_INLINE uint64 SH2::ORI(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ORM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    uint8 tmp = MemReadByte<enableCache>(address);
+    uint8 tmp = MemReadByte<debug, enableCache>(address);
     tmp |= args.dispImm;
     MemWriteByte<debug, enableCache>(address, tmp);
     AdvancePC<delaySlot>();
@@ -3089,7 +3107,7 @@ FORCE_INLINE uint64 SH2::XORI(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::XORM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    uint8 tmp = MemReadByte<enableCache>(address);
+    uint8 tmp = MemReadByte<debug, enableCache>(address);
     tmp ^= args.dispImm;
     MemWriteByte<debug, enableCache>(address, tmp);
     AdvancePC<delaySlot>();
@@ -3117,10 +3135,10 @@ FORCE_INLINE uint64 SH2::CLRMAC() {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
     const uint32 address1 = R[args.rm];
-    const sint32 op1 = static_cast<sint16>(MemReadWord<enableCache>(address1));
+    const sint32 op1 = static_cast<sint16>(MemReadWord<debug, enableCache>(address1));
     R[args.rm] += 2;
     const uint32 address2 = R[args.rn];
-    const sint32 op2 = static_cast<sint16>(MemReadWord<enableCache>(address2));
+    const sint32 op2 = static_cast<sint16>(MemReadWord<debug, enableCache>(address2));
     R[args.rn] += 2;
 
     const sint32 mul = op1 * op2;
@@ -3145,10 +3163,10 @@ FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MACL(const DecodedArgs &args) {
     const uint32 address1 = R[args.rm];
-    const sint64 op1 = static_cast<sint64>(static_cast<sint32>(MemReadLong<enableCache>(address1)));
+    const sint64 op1 = static_cast<sint64>(static_cast<sint32>(MemReadLong<debug, enableCache>(address1)));
     R[args.rm] += 4;
     const uint32 address2 = R[args.rn];
-    const sint64 op2 = static_cast<sint64>(static_cast<sint32>(MemReadLong<enableCache>(address2)));
+    const sint64 op2 = static_cast<sint64>(static_cast<sint32>(MemReadLong<debug, enableCache>(address2)));
     R[args.rn] += 4;
 
     const sint64 mul = op1 * op2;
@@ -3344,7 +3362,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TAS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     // TODO: enable bus lock on this read
-    const uint8 tmp = MemReadByte<false>(address);
+    const uint8 tmp = MemReadByte<debug, false>(address);
     SR.T = tmp == 0;
     // TODO: disable bus lock on this write
     MemWriteByte<debug, enableCache>(address, tmp | 0x80);
@@ -3373,7 +3391,7 @@ FORCE_INLINE uint64 SH2::TSTI(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TSTM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint8 tmp = MemReadByte<enableCache>(address);
+    const uint8 tmp = MemReadByte<debug, enableCache>(address);
     SR.T = (tmp & args.dispImm) == 0;
     AdvancePC<delaySlot>();
     return AccessCycles<enableCache>(address) + 2;
@@ -3472,7 +3490,7 @@ FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
     const uint32 address3 = VBR + args.dispImm;
     MemWriteLong<debug, enableCache>(address1, SR.u32);
     MemWriteLong<debug, enableCache>(address2, PC + 2);
-    PC = MemReadLong<enableCache>(address3);
+    PC = MemReadLong<debug, enableCache>(address3);
     R[15] -= 8;
     return AccessCycles<enableCache>(address1) + AccessCycles<enableCache>(address2) +
            AccessCycles<enableCache>(address3) + 5;
@@ -3483,8 +3501,8 @@ FORCE_INLINE uint64 SH2::RTE() {
     const uint32 address1 = R[15];
     const uint32 address2 = R[15] + 4;
     // rte
-    SetupDelaySlot(MemReadLong<enableCache>(address1));
-    SR.u32 = MemReadLong<enableCache>(address2) & 0x000003F3;
+    SetupDelaySlot(MemReadLong<debug, enableCache>(address1));
+    SR.u32 = MemReadLong<debug, enableCache>(address2) & 0x000003F3;
     PC += 2;
     R[15] += 8;
     devlog::trace<grp::exec>(m_logPrefix, "Returning from interrupt handler, PC {:08X} -> {:08X}", PC,
@@ -3507,33 +3525,33 @@ SH2::Probe::Probe(SH2 &sh2)
 
 uint16 SH2::Probe::FetchInstruction(uint32 address, bool bypassCache) const {
     if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
-        return m_sh2.FetchInstruction<true>(address);
+        return m_sh2.FetchInstruction<false, true>(address);
     } else {
-        return m_sh2.FetchInstruction<false>(address);
+        return m_sh2.FetchInstruction<false, false>(address);
     }
 }
 
 uint8 SH2::Probe::MemReadByte(uint32 address, bool bypassCache) const {
     if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
-        return m_sh2.MemReadByte<true>(address);
+        return m_sh2.MemReadByte<false, true>(address);
     } else {
-        return m_sh2.MemReadByte<false>(address);
+        return m_sh2.MemReadByte<false, false>(address);
     }
 }
 
 uint16 SH2::Probe::MemReadWord(uint32 address, bool bypassCache) const {
     if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
-        return m_sh2.MemReadWord<true>(address);
+        return m_sh2.MemReadWord<false, true>(address);
     } else {
-        return m_sh2.MemReadWord<false>(address);
+        return m_sh2.MemReadWord<false, false>(address);
     }
 }
 
 uint32 SH2::Probe::MemReadLong(uint32 address, bool bypassCache) const {
     if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
-        return m_sh2.MemReadLong<true>(address);
+        return m_sh2.MemReadLong<false, true>(address);
     } else {
-        return m_sh2.MemReadLong<false>(address);
+        return m_sh2.MemReadLong<false, false>(address);
     }
 }
 
