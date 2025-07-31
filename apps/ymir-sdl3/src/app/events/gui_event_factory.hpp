@@ -67,6 +67,10 @@ inline GUIEvent SetProcessPriority(bool boost) {
     return {.type = GUIEvent::Type::SetProcessPriority, .value = boost};
 }
 
+inline GUIEvent SwitchGraphicsBackend(gfx::Backend backend) {
+    return {.type = GUIEvent::Type::SwitchGraphicsBackend, .value = backend};
+}
+
 inline GUIEvent FitWindowToScreen() {
     return {.type = GUIEvent::Type::FitWindowToScreen};
 }

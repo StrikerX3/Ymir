@@ -2,6 +2,7 @@
 
 #include <app/input/input_action.hpp>
 #include <app/input/input_events.hpp>
+#include <app/services/graphics/types.hpp>
 #include <app/ui/defs/settings_defs.hpp>
 
 #include <filesystem>
@@ -63,7 +64,8 @@ struct GUIEvent {
         OpenSH2BreakpointsWindow, // Opens an SH-2 breakpoints window; uses bool (true=MSH2, false=SSH2)
         OpenSH2WatchpointsWindow, // Opens an SH-2 watchpoints window; uses bool (true=MSH2, false=SSH2)
 
-        SetProcessPriority,
+        SetProcessPriority,    // Uses bool
+        SwitchGraphicsBackend, // Uses gfx::Backend
 
         FitWindowToScreen,
         ApplyFullscreenMode,
@@ -92,7 +94,7 @@ struct GUIEvent {
 
     Type type;
     std::variant<std::monostate, bool, uint32, std::string, std::filesystem::path, PeripheralBindsParams,
-                 FileDialogParams, FolderDialogParams, ui::SettingsTab>
+                 FileDialogParams, FolderDialogParams, ui::SettingsTab, gfx::Backend>
         value;
 };
 

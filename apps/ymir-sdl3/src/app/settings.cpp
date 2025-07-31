@@ -189,6 +189,35 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::GUI:
     }
 }
 
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, gfx::Backend &value) {
+    value = gfx::Backend::Default;
+    if (auto opt = node.value<std::string>()) {
+        if (*opt == "Default"s) {
+            value = gfx::Backend::Default;
+        } else if (*opt == "Default"s) {
+            value = gfx::Backend::Default;
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+        } else if (*opt == "Direct3D11"s) {
+            value = gfx::Backend::Direct3D11;
+        } else if (*opt == "Direct3D12"s) {
+            value = gfx::Backend::Direct3D12;
+#endif
+#ifdef YMIR_PLATFORM_HAS_METAL
+        } else if (*opt == "Metal"s) {
+            value = gfx::Backend::Metal;
+#endif
+#ifdef YMIR_PLATFORM_HAS_VULKAN
+        } else if (*opt == "Vulkan"s) {
+            value = gfx::Backend::Vulkan;
+#endif
+#ifdef YMIR_PLATFORM_HAS_OPENGL
+        } else if (*opt == "OpenGL"s) {
+            value = gfx::Backend::OpenGL;
+#endif
+        }
+    }
+}
+
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Video::DisplayRotation &value) {
     value = Settings::Video::DisplayRotation::Normal;
     if (auto opt = node.value<std::string>()) {
@@ -425,6 +454,26 @@ FORCE_INLINE static const char *ToTOML(const Settings::GUI::FrameRateOSDPosition
     case Settings::GUI::FrameRateOSDPosition::TopRight: return "TopRight";
     case Settings::GUI::FrameRateOSDPosition::BottomLeft: return "BottomLeft";
     case Settings::GUI::FrameRateOSDPosition::BottomRight: return "BottomRight";
+    }
+}
+
+FORCE_INLINE static const char *ToTOML(const gfx::Backend value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case gfx::Backend::Default: return "Default";
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+    case gfx::Backend::Direct3D11: return "Direct3D11";
+    case gfx::Backend::Direct3D12: return "Direct3D12";
+#endif
+#ifdef YMIR_PLATFORM_HAS_METAL
+    case gfx::Backend::Metal: return "Metal";
+#endif
+#ifdef YMIR_PLATFORM_HAS_VULKAN
+    case gfx::Backend::Vulkan: return "Vulkan";
+#endif
+#if YMIR_PLATFORM_HAS_OPENGL
+    case gfx::Backend::OpenGL: return "OpenGL";
+#endif
     }
 }
 
@@ -987,6 +1036,7 @@ void Settings::ResetToDefaults() {
     input.gamepad.rsDeadzone = 0.15f;
     input.gamepad.analogToDigitalSensitivity = 0.20f;
 
+    video.graphicsBackend = gfx::Backend::Default;
     video.forceIntegerScaling = false;
     video.forceAspectRatio = true;
     video.forcedAspect = 4.0 / 3.0;
@@ -1465,6 +1515,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
     }
 
     if (auto tblVideo = data["Video"]) {
+        Parse(tblVideo, "GraphicsBackend", video.graphicsBackend);
         Parse(tblVideo, "ForceIntegerScaling", video.forceIntegerScaling);
         Parse(tblVideo, "ForceAspectRatio", video.forceAspectRatio);
         Parse(tblVideo, "ForcedAspect", video.forcedAspect);
@@ -1867,6 +1918,7 @@ SettingsSaveResult Settings::Save() {
         }}},
 
         {"Video", toml::table{{
+            {"GraphicsBackend", ToTOML(video.graphicsBackend)},
             {"ForceIntegerScaling", video.forceIntegerScaling},
             {"ForceAspectRatio", video.forceAspectRatio},
             {"ForcedAspect", video.forcedAspect},

@@ -16,6 +16,14 @@ void VideoSettingsView::Display() {
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("General");
+    ImGui::PopFont();
+
+    widgets::settings::video::GraphicsBackendCombo(m_context);
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Display");
     ImGui::PopFont();
 
@@ -103,7 +111,7 @@ void VideoSettingsView::Display() {
                            pixelFormat->bits_per_pixel, desktopMode->refresh_rate);
     };
 
-    if (ImGui::BeginCombo("Display", formatDisplay(m_context.display.id).c_str())) {
+    if (ImGui::BeginCombo("Full screen display", formatDisplay(m_context.display.id).c_str())) {
         auto entry = [&](SDL_DisplayID id) {
             if (MakeDirty(ImGui::Selectable(formatDisplay(id).c_str(), m_context.display.id == id))) {
                 if (m_context.display.id != id) {
@@ -134,6 +142,10 @@ void VideoSettingsView::Display() {
         }
         ImGui::EndCombo();
     }
+    widgets::ExplanationTooltip(
+        "Selects a display to use when switching to full screen mode.\n"
+        "The \"Current display\" option causes Ymir to go full screen on the display where the window is located at.",
+        m_context.displayScale);
 
     if (ImGui::BeginCombo("Full screen resolution",
                           settings.borderlessFullScreen ? "Borderless full screen"
@@ -170,6 +182,10 @@ void VideoSettingsView::Display() {
         }
         ImGui::EndCombo();
     }
+    widgets::ExplanationTooltip("Selects the resolution to use when switching to full screen mode.\n"
+                                "This option is reset when the display is changed or removed, or while using the "
+                                "\"Current display\" mode and moving the window across different displays.",
+                                m_context.displayScale);
 
     ImGui::Separator();
 
@@ -224,8 +240,6 @@ void VideoSettingsView::Display() {
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Performance");
     ImGui::PopFont();
-
-    // TODO: renderer backend options
 
     widgets::settings::video::ThreadedVDP(m_context);
 }

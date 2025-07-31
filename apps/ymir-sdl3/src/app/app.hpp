@@ -4,6 +4,7 @@
 
 #include "shared_context.hpp"
 
+#include "services/graphics/graphics_service.hpp"
 #include "services/savestates/save_state_service.hpp"
 
 #include "ui/windows/about_window.hpp"
@@ -54,6 +55,7 @@ public:
 private:
     CommandLineOptions m_options;
 
+    services::GraphicsService m_graphicsService;
     services::SaveStateService m_saveStateService;
     SharedContext m_context;
     SDL_PropertiesID m_fileDialogProps;

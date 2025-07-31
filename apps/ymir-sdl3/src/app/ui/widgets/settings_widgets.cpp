@@ -3,6 +3,7 @@
 #include "common_widgets.hpp"
 
 #include <app/events/emu_event_factory.hpp>
+#include <app/events/gui_event_factory.hpp>
 
 #include <ymir/db/game_db.hpp>
 
@@ -51,6 +52,32 @@ namespace settings::system {
 } // namespace settings::system
 
 namespace settings::video {
+
+    void GraphicsBackendCombo(SharedContext &ctx) {
+        auto &settings = ctx.settings.video;
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Graphics backend:");
+        widgets::ExplanationTooltip("Select the graphics API used to render the GUI.\n"
+                                    //"Affects availability of additional features such as GPU rendering and shaders.\n"
+                                    "\n"
+                                    "Changes are applied immediately. If the new graphics backend fails to initialize, "
+                                    "this option automatically reverts to the last working backend option.",
+                                    ctx.displayScale);
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("##graphics_backend", gfx::GraphicsBackendName(settings.graphicsBackend),
+                              ImGuiComboFlags_HeightLarge | ImGuiComboFlags_WidthFitPreview)) {
+            auto item = [&](gfx::Backend backend) {
+                if (ctx.settings.MakeDirty(
+                        ImGui::Selectable(gfx::GraphicsBackendName(backend), settings.graphicsBackend == backend))) {
+                    ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend));
+                }
+            };
+            for (gfx::Backend backend : gfx::kGraphicsBackends) {
+                item(backend);
+            }
+            ImGui::EndCombo();
+        }
+    }
 
     void DisplayRotation(SharedContext &ctx, bool newLine) {
         auto &settings = ctx.settings.video;

@@ -21,10 +21,6 @@ add_executable(ymir-sdl3
     src/app/settings_defaults.hpp
     src/app/shared_context.cpp
     src/app/shared_context.hpp
-    src/app/services/savestates/save_state_service.cpp
-    src/app/services/savestates/save_state_service.hpp
-    src/app/services/savestates/types.cpp
-    src/app/services/savestates/types.hpp
     src/app/stb_implementations.cpp
     src/app/toml_implementation.cpp
     src/app/update_checker.cpp
@@ -62,6 +58,14 @@ add_executable(ymir-sdl3
     src/app/input/input_primitives.cpp
     src/app/input/input_primitives.hpp
     src/app/input/input_utils.hpp
+
+    src/app/services/graphics/graphics_service.cpp
+    src/app/services/graphics/graphics_service.hpp
+    src/app/services/graphics/types.hpp
+    src/app/services/savestates/save_state_service.cpp
+    src/app/services/savestates/save_state_service.hpp
+    src/app/services/savestates/types.cpp
+    src/app/services/savestates/types.hpp
 
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp

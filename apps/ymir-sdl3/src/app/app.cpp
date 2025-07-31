@@ -176,6 +176,7 @@ App::App()
     , m_updateWindow(m_context) {
 
     // Register services
+    m_context.serviceLocator.Register(m_graphicsService);
     m_context.serviceLocator.Register(m_saveStateService);
 
     // Preinitialize some memory viewers
@@ -719,28 +720,35 @@ void App::RunEmulator() {
     }};
     util::os::ConfigureWindowDecorations(screen.window);
 
+    m_context.settings.video.fullScreen.Observe([&](bool fullScreen) {
+        devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
+        SDL_SetWindowFullscreen(screen.window, fullScreen);
+        SDL_SyncWindow(screen.window);
+    });
+
     // ---------------------------------
     // Create renderer
 
-    SDL_PropertiesID rendererProps = SDL_CreateProperties();
-    if (rendererProps == 0) {
-        ShowStartupFailure("Failed to create renderer properties: {}", SDL_GetError());
-        return;
-    }
-    ScopeGuard sgDestroyRendererProps{[&] { SDL_DestroyProperties(rendererProps); }};
-
-    // Assume the following calls succeed
     int vsync = 1;
-    SDL_SetPointerProperty(rendererProps, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, screen.window);
-    SDL_SetNumberProperty(rendererProps, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, vsync);
+    {
+        gfx::Backend &graphicsBackend = m_context.settings.video.graphicsBackend;
+        SDL_Renderer *renderer = m_graphicsService.CreateRenderer(graphicsBackend, screen.window, vsync);
+        if (renderer == nullptr) {
+            // If not using the default renderer option, try the default and reset configuration
+            if (graphicsBackend != gfx::Backend::Default) {
+                m_context.DisplayMessage(fmt::format("Could not create {} renderer. Reverting to default API.",
+                                                     gfx::GraphicsBackendName(graphicsBackend)));
+                graphicsBackend = gfx::Backend::Default;
+                m_context.settings.MakeDirty();
 
-    m_context.screen.renderer = SDL_CreateRendererWithProperties(rendererProps);
-    if (m_context.screen.renderer == nullptr) {
-        ShowStartupFailure("Failed to create renderer: {}", SDL_GetError());
-        return;
+                renderer = m_graphicsService.CreateRenderer(gfx::Backend::Default, screen.window, vsync);
+            }
+        }
+        if (renderer == nullptr) {
+            ShowStartupFailure("Failed to create renderer: {}", SDL_GetError());
+            return;
+        }
     }
-    ScopeGuard sgDestroyRenderer{[&] { SDL_DestroyRenderer(m_context.screen.renderer); }};
-    SDL_Renderer *renderer = m_context.screen.renderer;
 
     m_context.settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
@@ -760,24 +768,28 @@ void App::RunEmulator() {
     // interpolation.
 
     // Framebuffer texture
-    auto fbTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_STREAMING, vdp::kMaxResH,
-                                       vdp::kMaxResV);
-    if (fbTexture == nullptr) {
+    const gfx::TextureHandle fbTexture =
+        m_graphicsService.CreateTexture(SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_STREAMING, vdp::kMaxResH,
+                                        vdp::kMaxResV, [&](SDL_Texture *tex, bool recreated) {
+                                            SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+                                            if (recreated) {
+                                                screen.CopyFramebufferToTexture(tex);
+                                            }
+                                        });
+    if (fbTexture == gfx::kInvalidTextureHandle) {
         ShowStartupFailure("Failed to create framebuffer texture: {}", SDL_GetError());
         return;
-    }
-    ScopeGuard sgDestroyFbTexture{[&] { SDL_DestroyTexture(fbTexture); }};
-    SDL_SetTextureScaleMode(fbTexture, SDL_SCALEMODE_NEAREST);
+    };
 
     // Display texture, containing the scaled framebuffer to be displayed on the screen
-    auto dispTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_TARGET,
-                                         vdp::kMaxResH * screen.fbScale, vdp::kMaxResV * screen.fbScale);
-    if (dispTexture == nullptr) {
+    const gfx::TextureHandle dispTexture = m_graphicsService.CreateTexture(
+        SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_TARGET, vdp::kMaxResH * screen.fbScale,
+        vdp::kMaxResV * screen.fbScale,
+        [](SDL_Texture *tex, bool) { SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR); });
+    if (dispTexture == gfx::kInvalidTextureHandle) {
         ShowStartupFailure("Failed to create display texture: {}", SDL_GetError());
         return;
     }
-    ScopeGuard sgDestroyDispTexture{[&] { SDL_DestroyTexture(dispTexture); }};
-    SDL_SetTextureScaleMode(dispTexture, SDL_SCALEMODE_LINEAR);
 
     auto renderDispTexture = [&](double targetWidth, double targetHeight) {
         auto &videoSettings = m_context.settings.video;
@@ -790,12 +802,19 @@ void App::RunEmulator() {
         const double dispScale = std::min(dispScaleX, dispScaleY);
         const uint32 scale = std::max(1.0, ceil(dispScale));
 
+        SDL_Renderer *renderer = m_graphicsService.GetRenderer();
+
+        assert(m_graphicsService.IsTextureHandleValid(dispTexture));
+        assert(m_graphicsService.IsTextureHandleValid(fbTexture));
+        assert(renderer != nullptr);
+
         // Recreate render target texture if scale changed
         if (scale != screen.fbScale) {
             screen.fbScale = scale;
-            SDL_DestroyTexture(dispTexture);
-            dispTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_TARGET,
-                                            vdp::kMaxResH * screen.fbScale, vdp::kMaxResV * screen.fbScale);
+            if (!m_graphicsService.ResizeTexture(dispTexture, vdp::kMaxResH * screen.fbScale,
+                                                 vdp::kMaxResV * screen.fbScale)) {
+                devlog::warn<grp::base>("Failed to resize framebuffer texture: {}", SDL_GetError());
+            }
         }
 
         // Remember previous render target to be restored later
@@ -807,50 +826,54 @@ void App::RunEmulator() {
                           .y = 0.0f,
                           .w = (float)screen.width * screen.fbScale,
                           .h = (float)screen.height * screen.fbScale};
-        SDL_SetRenderTarget(renderer, dispTexture);
-        SDL_RenderTexture(renderer, fbTexture, &srcRect, &dstRect);
+
+        SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
+        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(fbTexture), &srcRect, &dstRect);
 
         // Restore render target
         SDL_SetRenderTarget(renderer, prevRenderTarget);
     };
 
     // Logo texture
+    stbi_uc *ymirLogoImgData;
     {
         // Read PNG from embedded filesystem
         cmrc::file ymirLogoFile = embedfs.open("images/ymir.png");
         int imgW, imgH, chans;
-        stbi_uc *imgData =
+        ymirLogoImgData =
             stbi_load_from_memory((const stbi_uc *)ymirLogoFile.begin(), ymirLogoFile.size(), &imgW, &imgH, &chans, 4);
-        if (imgData == nullptr) {
+        if (ymirLogoImgData == nullptr) {
             ShowStartupFailure("Could not read logo image");
             return;
         }
-        ScopeGuard sgFreeImageData{[&] { stbi_image_free(imgData); }};
+        ScopeGuard sgFreeImageData{[&] { stbi_image_free(ymirLogoImgData); }};
         if (chans != 4) {
             ShowStartupFailure("Unexpected logo image format");
             return;
         }
 
         // Create texture with the logo image
-        m_context.images.ymirLogo.texture =
-            SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, imgW, imgH);
-        if (m_context.images.ymirLogo.texture == nullptr) {
+        m_context.images.ymirLogo.texture = m_graphicsService.CreateTexture(
+            SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, imgW, imgH, [=, this](SDL_Texture *texture, bool) {
+                SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+                SDL_UpdateTexture(texture, nullptr, ymirLogoImgData, imgW * sizeof(uint32));
+            });
+        if (m_context.images.ymirLogo.texture == gfx::kInvalidTextureHandle) {
             ShowStartupFailure("Failed to create logo texture: {}", SDL_GetError());
             return;
         }
-        SDL_SetTextureScaleMode(m_context.images.ymirLogo.texture, SDL_SCALEMODE_LINEAR);
-        SDL_UpdateTexture(m_context.images.ymirLogo.texture, nullptr, imgData, imgW * sizeof(uint32));
 
         m_context.images.ymirLogo.size.x = imgW;
         m_context.images.ymirLogo.size.y = imgH;
+        sgFreeImageData.Cancel();
     }
-    ScopeGuard sgDestroyYmirLogoTexture{[&] { SDL_DestroyTexture(m_context.images.ymirLogo.texture); }};
+    ScopeGuard sgFreeImageData{[&] { stbi_image_free(ymirLogoImgData); }};
 
     // ---------------------------------
     // Setup Dear ImGui Platform/Renderer backends
 
-    ImGui_ImplSDL3_InitForSDLRenderer(screen.window, renderer);
-    ImGui_ImplSDLRenderer3_Init(renderer);
+    ImGui_ImplSDL3_InitForSDLRenderer(screen.window, m_graphicsService.GetRenderer());
+    ImGui_ImplSDLRenderer3_Init(m_graphicsService.GetRenderer());
 
     ImVec4 clearColor = ImVec4(0.0f, 0.0f, 0.0f, 1.00f);
 
@@ -2027,7 +2050,7 @@ void App::RunEmulator() {
                 newVSync = 1;
             }
             if (vsync != newVSync) {
-                if (SDL_SetRenderVSync(renderer, newVSync)) {
+                if (SDL_SetRenderVSync(m_graphicsService.GetRenderer(), newVSync)) {
                     devlog::info<grp::base>("VSync {}", (newVSync == 1 ? "enabled" : "disabled"));
                     vsync = newVSync;
                 } else {
@@ -2366,6 +2389,28 @@ void App::RunEmulator() {
                 break;
             }
             case EvtType::SetProcessPriority: util::BoostCurrentProcessPriority(std::get<bool>(evt.value)); break;
+            case EvtType::SwitchGraphicsBackend: //
+            {
+                auto prevBackend = m_context.settings.video.graphicsBackend;
+                auto backend = std::get<gfx::Backend>(evt.value);
+                ImGui_ImplSDLRenderer3_Shutdown();
+                ImGui_ImplSDL3_Shutdown();
+
+                // TODO: recreate window when switching back from OpenGL to another API
+                if (m_graphicsService.CreateRenderer(backend, screen.window, vsync)) {
+                    m_context.settings.video.graphicsBackend = backend;
+                    m_context.settings.MakeDirty();
+                } else {
+                    m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
+                                                         gfx::GraphicsBackendName(backend), SDL_GetError()));
+                    m_graphicsService.CreateRenderer(prevBackend, screen.window, vsync);
+                }
+
+                SDL_Renderer *renderer = m_graphicsService.GetRenderer();
+                ImGui_ImplSDL3_InitForSDLRenderer(screen.window, renderer);
+                ImGui_ImplSDLRenderer3_Init(renderer);
+                break;
+            }
 
             case EvtType::FitWindowToScreen: fitWindowToScreenNow = true; break;
             case EvtType::ApplyFullscreenMode: ApplyFullscreenMode(); break;
@@ -2476,17 +2521,7 @@ void App::RunEmulator() {
                 std::unique_lock lock{screen.mtxFramebuffer};
                 screen.framebuffers[1] = screen.framebuffers[0];
             }
-            uint32 *pixels = nullptr;
-            int pitch = 0;
-            SDL_Rect area{.x = 0, .y = 0, .w = (int)screen.width, .h = (int)screen.height};
-            if (SDL_LockTexture(fbTexture, &area, (void **)&pixels, &pitch)) {
-                for (uint32 y = 0; y < screen.height; y++) {
-                    std::copy_n(&screen.framebuffers[1][y * screen.width], screen.width,
-                                &pixels[y * pitch / sizeof(uint32)]);
-                }
-                // std::copy_n(framebuffer.begin(), screen.width * screen.height, pixels);
-                SDL_UnlockTexture(fbTexture);
-            }
+            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(fbTexture));
         }
 
         auto now = clk::now();
@@ -3227,20 +3262,21 @@ void App::RunEmulator() {
                     screen.dSizeX = horzDisplay ? avail.x : avail.y;
                     screen.dSizeY = horzDisplay ? avail.y : avail.x;
 
+                    const SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
                     auto *drawList = ImGui::GetWindowDrawList();
                     switch (videoSettings.rotation) {
                     default: [[fallthrough]];
                     case Settings::Video::DisplayRotation::Normal:
-                        drawList->AddImageQuad((ImTextureID)dispTexture, tl, tr, br, bl, uv1, uv2, uv3, uv4);
+                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv1, uv2, uv3, uv4);
                         break;
                     case Settings::Video::DisplayRotation::_90CW:
-                        drawList->AddImageQuad((ImTextureID)dispTexture, tl, tr, br, bl, uv4, uv1, uv2, uv3);
+                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv4, uv1, uv2, uv3);
                         break;
                     case Settings::Video::DisplayRotation::_180:
-                        drawList->AddImageQuad((ImTextureID)dispTexture, tl, tr, br, bl, uv3, uv4, uv1, uv2);
+                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv3, uv4, uv1, uv2);
                         break;
                     case Settings::Video::DisplayRotation::_90CCW:
-                        drawList->AddImageQuad((ImTextureID)dispTexture, tl, tr, br, bl, uv2, uv3, uv4, uv1);
+                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv2, uv3, uv4, uv1);
                         break;
                     }
 
@@ -3519,6 +3555,8 @@ void App::RunEmulator() {
 
         ImGui::Render();
 
+        SDL_Renderer *renderer = m_graphicsService.GetRenderer();
+
         // Clear screen
         const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
         SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
@@ -3659,7 +3697,8 @@ void App::RunEmulator() {
                               .y = floorf(slackY * 0.5f + menuBarHeight),
                               .w = (float)scaledWidth,
                               .h = (float)scaledHeight};
-            SDL_RenderTextureRotated(renderer, dispTexture, &srcRect, &dstRect, rotAngle, nullptr, SDL_FLIP_NONE);
+            SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
+            SDL_RenderTextureRotated(renderer, dispTexturePtr, &srcRect, &dstRect, rotAngle, nullptr, SDL_FLIP_NONE);
 
             screen.scale = scale;
             screen.dCenterX = dstRect.x + dstRect.w * 0.5f;
@@ -4108,7 +4147,8 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
         bool doSelectRom = false;
         bool doOpenSettings = false;
 
-        ImGui::Image((ImTextureID)m_context.images.ymirLogo.texture,
+        SDL_Texture *logoTexture = m_graphicsService.GetSDLTexture(m_context.images.ymirLogo.texture);
+        ImGui::Image((ImTextureID)logoTexture,
                      ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale * 0.7f,
                             m_context.images.ymirLogo.size.y * m_context.displayScale * 0.7f));
 

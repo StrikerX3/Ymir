@@ -2,6 +2,8 @@
 
 #include <ymir/sys/saturn.hpp>
 
+#include <ymir/util/scope_guard.hpp>
+
 namespace app {
 
 SharedContext::SharedContext() {
@@ -93,6 +95,8 @@ SDL_DisplayID SharedContext::GetSelectedDisplay() const {
     }
     return SDL_GetDisplayForWindow(screen.window);
 }
+
+// -----------------------------------------------------------------------------
 
 ymir::sys::SystemMemory &SharedContext::SaturnContainer::GetSystemMemory() {
     return instance->mem;

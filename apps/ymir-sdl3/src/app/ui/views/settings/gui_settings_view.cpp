@@ -96,8 +96,8 @@ void GUISettingsView::Display() {
             "- VDP1 frame rate may vary depending on the game - a half or a third of the VDP2 frame rate are common "
             "ratios. It may be zero or even go higher than {1:.0f} fps.\n"
             "- GUI frame rate indicates how fast the user interface is refreshing. It should match your monitor's "
-            "refresh rate, except in full screen mode where GUI updates are paced to ensure a smooth experience on "
-            "capable machines with variable refresh rate displays.\n"
+            "refresh rate or the VDP2 target frame rate. If video sync is enabled, GUI updates are paced to ensure a "
+            "smooth experience on capable machines with variable refresh rate displays.\n"
             "- Speed indicates the (adjustable) target emulation speed. 100% is realtime speed.",
             (isPAL ? "PAL" : "NTSC"), (isPAL ? ymir::sys::kPALFrameRate : ymir::sys::kNTSCFrameRate))
             .c_str(),

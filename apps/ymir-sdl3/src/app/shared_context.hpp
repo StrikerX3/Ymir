@@ -9,6 +9,8 @@
 #include <app/settings.hpp>
 #include <app/update_checker.hpp>
 
+#include <app/services/graphics/types.hpp>
+
 #include <app/input/input_context.hpp>
 #include <app/input/input_utils.hpp>
 
@@ -251,7 +253,6 @@ struct SharedContext {
         }
 
         SDL_Window *window = nullptr;
-        SDL_Renderer *renderer = nullptr;
 
         uint32 width;
         uint32 height;
@@ -292,6 +293,18 @@ struct SharedContext {
         std::array<std::array<uint32, ymir::vdp::kMaxResH * ymir::vdp::kMaxResV>, 2> framebuffers;
         std::mutex mtxFramebuffer;
         bool updated = false;
+
+        void CopyFramebufferToTexture(SDL_Texture *texture) {
+            uint32 *pixels = nullptr;
+            int pitch = 0;
+            SDL_Rect area{.x = 0, .y = 0, .w = (int)width, .h = (int)height};
+            if (SDL_LockTexture(texture, &area, (void **)&pixels, &pitch)) {
+                for (uint32 y = 0; y < height; y++) {
+                    std::copy_n(&framebuffers[1][y * width], width, &pixels[y * pitch / sizeof(uint32)]);
+                }
+                SDL_UnlockTexture(texture);
+            }
+        }
 
         // Video sync
         bool videoSync = false;
@@ -744,7 +757,7 @@ struct SharedContext {
 
     struct Images {
         struct Image {
-            SDL_Texture *texture = nullptr;
+            gfx::TextureHandle texture = gfx::kInvalidTextureHandle;
             ImVec2 size;
         };
 

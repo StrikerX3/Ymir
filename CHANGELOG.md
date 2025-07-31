@@ -20,6 +20,7 @@ Introduced save state file version 12.
 - System: You can now select a preferred system variant (Saturn, HiSaturn, V-Saturn or Dev Kit) and Ymir will automatically pick a matching IPL ROM. (#637, #725; @Fueziwa)
 - Video: Add option to enable/disable video synchronization in full screen mode.
 - Video: Allow selecting full screen resolution and target display. (#705)
+- Video: Allow switching graphics backends for GUI rendering.
 
 ### Fixes
 

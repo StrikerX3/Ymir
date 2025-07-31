@@ -12,6 +12,8 @@
 #include <app/input/input_context.hpp>
 #include <app/input/input_events.hpp>
 
+#include <app/services/graphics/types.hpp>
+
 #include <app/profile.hpp>
 
 #include <app/actions.hpp>
@@ -445,6 +447,8 @@ struct Settings {
 
     struct Video {
         enum class DisplayRotation { Normal, _90CW, _180, _90CCW };
+
+        gfx::Backend graphicsBackend;
 
         bool forceIntegerScaling;
         bool forceAspectRatio;

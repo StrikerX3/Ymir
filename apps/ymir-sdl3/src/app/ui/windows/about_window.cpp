@@ -5,6 +5,8 @@
 #include <util/std_lib.hpp>
 #include <ymir/util/compiler_info.hpp>
 
+#include <app/services/graphics/graphics_service.hpp>
+
 #include <app/ui/fonts/IconsMaterialSymbols.h>
 
 #include <SDL3/SDL_clipboard.h>
@@ -245,9 +247,10 @@ void AboutWindow::DrawContents() {
 void AboutWindow::DrawAboutTab() {
     ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x);
 
-    ImGui::Image((ImTextureID)m_context.images.ymirLogo.texture,
-                 ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale,
-                        m_context.images.ymirLogo.size.y * m_context.displayScale));
+    auto &graphicsService = m_context.serviceLocator.GetRequired<services::GraphicsService>();
+    SDL_Texture *texture = graphicsService.GetSDLTexture(m_context.images.ymirLogo.texture);
+    ImGui::Image((ImTextureID)texture, ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale,
+                                              m_context.images.ymirLogo.size.y * m_context.displayScale));
 
     ImGui::PushFont(m_context.fonts.display, m_context.fontSizes.display);
     ImGui::TextUnformatted("Ymir");
@@ -296,7 +299,7 @@ void AboutWindow::DrawAboutTab() {
     ImGui::Text("Using NEON instruction set.");
 #endif
 
-    SDL_PropertiesID rendererProps = SDL_GetRendererProperties(m_context.screen.renderer);
+    SDL_PropertiesID rendererProps = SDL_GetRendererProperties(graphicsService.GetRenderer());
     std::string_view rendererName = SDL_GetStringProperty(rendererProps, SDL_PROP_RENDERER_NAME_STRING, "unknown");
     const char *graphicsBackendName = "unknown";
     if (rendererName == "gpu") {
