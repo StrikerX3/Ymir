@@ -43,14 +43,14 @@ enum class OpcodeType : uint8 {
     Move_EA_EA_B,    // move.b <ea_src>, <ea_dst>
     Move_EA_EA_W,    // move.w <ea_src>, <ea_dst>
     Move_EA_EA_L,    // move.l <ea_src>, <ea_dst>
+    MoveA_W,         // movea.w <ea>, An
+    MoveA_L,         // movea.l <ea>, An
     Move_EA_CCR,     // move.w <ea>, CCR
     Move_EA_SR,      // move.w <ea>, SR
     Move_CCR_EA,     // move.w CCR, <ea>
     Move_SR_EA,      // move.w SR, <ea>
     Move_An_USP,     // move An, USP
     Move_USP_An,     // move USP, An
-    MoveA_W,         // movea.w <ea>, An
-    MoveA_L,         // movea.l <ea>, An
     MoveM_EA_Rs_C_W, // movem.w <ea>, <list>  (<ea> uses PC)
     MoveM_EA_Rs_C_L, // movem.l <ea>, <list>  (<ea> uses PC)
     MoveM_EA_Rs_D_W, // movem.w <ea>, <list>  (<ea> does not use PC)

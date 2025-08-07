@@ -232,210 +232,159 @@ private:
     // -------------------------------------------------------------------------
     // Instruction interpreters
 
-    template <mem_primitive T>
-    void Instr_Move_EA_EA(uint16 instr);
-    void Instr_Move_EA_CCR(uint16 instr);
-    void Instr_Move_EA_SR(uint16 instr);
-    void Instr_Move_CCR_EA(uint16 instr);
-    void Instr_Move_SR_EA(uint16 instr);
-    void Instr_Move_An_USP(uint16 instr);
-    void Instr_Move_USP_An(uint16 instr);
-    template <mem_primitive T>
-    void Instr_MoveA(uint16 instr);
-    template <mem_primitive T, bool instrFetch>
-    void Instr_MoveM_EA_Rs(uint16 instr);
-    template <mem_primitive T>
-    void Instr_MoveM_PI_Rs(uint16 instr);
-    template <mem_primitive T>
-    void Instr_MoveM_Rs_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_MoveM_Rs_PD(uint16 instr);
-    template <mem_primitive T>
-    void Instr_MoveP_Ay_Dx(uint16 instr);
-    template <mem_primitive T>
-    void Instr_MoveP_Dx_Ay(uint16 instr);
-    void Instr_MoveQ(uint16 instr);
+#define TPL_MEM template <mem_primitive T>
+#define TPL_MEM_INSTR template <mem_primitive T, bool instrFetch>
 
-    template <mem_primitive T>
-    void Instr_Clr(uint16 instr);
-    void Instr_Exg_An_An(uint16 instr);
-    void Instr_Exg_Dn_An(uint16 instr);
-    void Instr_Exg_Dn_Dn(uint16 instr);
-    void Instr_Ext_W(uint16 instr);
-    void Instr_Ext_L(uint16 instr);
-    void Instr_Swap(uint16 instr);
+    TPL_MEM uint64 Instr_Move_EA_EA(uint16 instr);
+    TPL_MEM uint64 Instr_MoveA(uint16 instr);
+    uint64 Instr_Move_EA_CCR(uint16 instr);
+    uint64 Instr_Move_EA_SR(uint16 instr);
+    uint64 Instr_Move_CCR_EA(uint16 instr);
+    uint64 Instr_Move_SR_EA(uint16 instr);
+    uint64 Instr_Move_An_USP(uint16 instr);
+    uint64 Instr_Move_USP_An(uint16 instr);
+    TPL_MEM_INSTR uint64 Instr_MoveM_EA_Rs(uint16 instr);
+    TPL_MEM uint64 Instr_MoveM_PI_Rs(uint16 instr);
+    TPL_MEM uint64 Instr_MoveM_Rs_EA(uint16 instr);
+    TPL_MEM uint64 Instr_MoveM_Rs_PD(uint16 instr);
+    TPL_MEM uint64 Instr_MoveP_Ay_Dx(uint16 instr);
+    TPL_MEM uint64 Instr_MoveP_Dx_Ay(uint16 instr);
+    uint64 Instr_MoveQ(uint16 instr);
 
-    void Instr_ABCD_M(uint16 instr);
-    void Instr_ABCD_R(uint16 instr);
-    void Instr_NBCD(uint16 instr);
-    void Instr_SBCD_M(uint16 instr);
-    void Instr_SBCD_R(uint16 instr);
+    TPL_MEM uint64 Instr_Clr(uint16 instr);
+    uint64 Instr_Exg_An_An(uint16 instr);
+    uint64 Instr_Exg_Dn_An(uint16 instr);
+    uint64 Instr_Exg_Dn_Dn(uint16 instr);
+    uint64 Instr_Ext_W(uint16 instr);
+    uint64 Instr_Ext_L(uint16 instr);
+    uint64 Instr_Swap(uint16 instr);
 
-    template <mem_primitive T>
-    void Instr_Add_Dn_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Add_EA_Dn(uint16 instr);
-    template <mem_primitive T>
-    void Instr_AddA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_AddI(uint16 instr);
-    template <mem_primitive T>
-    void Instr_AddQ_An(uint16 instr);
-    template <mem_primitive T>
-    void Instr_AddQ_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_AddX_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_AddX_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_And_Dn_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_And_EA_Dn(uint16 instr);
-    template <mem_primitive T>
-    void Instr_AndI_EA(uint16 instr);
-    void Instr_AndI_CCR(uint16 instr);
-    void Instr_AndI_SR(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Eor_Dn_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_EorI_EA(uint16 instr);
-    void Instr_EorI_CCR(uint16 instr);
-    void Instr_EorI_SR(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Neg(uint16 instr);
-    template <mem_primitive T>
-    void Instr_NegX(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Not(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Or_Dn_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Or_EA_Dn(uint16 instr);
-    template <mem_primitive T>
-    void Instr_OrI_EA(uint16 instr);
-    void Instr_OrI_CCR(uint16 instr);
-    void Instr_OrI_SR(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Sub_Dn_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Sub_EA_Dn(uint16 instr);
-    template <mem_primitive T>
-    void Instr_SubA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_SubI(uint16 instr);
-    template <mem_primitive T>
-    void Instr_SubQ_An(uint16 instr);
-    template <mem_primitive T>
-    void Instr_SubQ_EA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_SubX_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_SubX_R(uint16 instr);
+    uint64 Instr_ABCD_M(uint16 instr);
+    uint64 Instr_ABCD_R(uint16 instr);
+    uint64 Instr_NBCD(uint16 instr);
+    uint64 Instr_SBCD_M(uint16 instr);
+    uint64 Instr_SBCD_R(uint16 instr);
 
-    void Instr_DivS(uint16 instr);
-    void Instr_DivU(uint16 instr);
-    void Instr_MulS(uint16 instr);
-    void Instr_MulU(uint16 instr);
+    TPL_MEM uint64 Instr_Add_Dn_EA(uint16 instr);
+    TPL_MEM uint64 Instr_Add_EA_Dn(uint16 instr); // ok except **
+    TPL_MEM uint64 Instr_AddA(uint16 instr);
+    TPL_MEM uint64 Instr_AddI(uint16 instr);
+    TPL_MEM uint64 Instr_AddQ_An(uint16 instr);
+    TPL_MEM uint64 Instr_AddQ_EA(uint16 instr);
+    TPL_MEM uint64 Instr_AddX_M(uint16 instr);
+    TPL_MEM uint64 Instr_AddX_R(uint16 instr);
+    TPL_MEM uint64 Instr_And_Dn_EA(uint16 instr);
+    TPL_MEM uint64 Instr_And_EA_Dn(uint16 instr); // ok except **
+    TPL_MEM uint64 Instr_AndI_EA(uint16 instr);
+    uint64 Instr_AndI_CCR(uint16 instr);
+    uint64 Instr_AndI_SR(uint16 instr);
+    TPL_MEM uint64 Instr_Eor_Dn_EA(uint16 instr);
+    TPL_MEM uint64 Instr_EorI_EA(uint16 instr);
+    uint64 Instr_EorI_CCR(uint16 instr);
+    uint64 Instr_EorI_SR(uint16 instr);
+    TPL_MEM uint64 Instr_Neg(uint16 instr);
+    TPL_MEM uint64 Instr_NegX(uint16 instr);
+    TPL_MEM uint64 Instr_Not(uint16 instr);
+    TPL_MEM uint64 Instr_Or_Dn_EA(uint16 instr);
+    TPL_MEM uint64 Instr_Or_EA_Dn(uint16 instr); // ok except **
+    TPL_MEM uint64 Instr_OrI_EA(uint16 instr);
+    uint64 Instr_OrI_CCR(uint16 instr);
+    uint64 Instr_OrI_SR(uint16 instr);
+    TPL_MEM uint64 Instr_Sub_Dn_EA(uint16 instr);
+    TPL_MEM uint64 Instr_Sub_EA_Dn(uint16 instr); // ok except **
+    TPL_MEM uint64 Instr_SubA(uint16 instr);
+    TPL_MEM uint64 Instr_SubI(uint16 instr);
+    TPL_MEM uint64 Instr_SubQ_An(uint16 instr);
+    TPL_MEM uint64 Instr_SubQ_EA(uint16 instr);
+    TPL_MEM uint64 Instr_SubX_M(uint16 instr);
+    TPL_MEM uint64 Instr_SubX_R(uint16 instr);
 
-    void Instr_BChg_I_Dn(uint16 instr);
-    void Instr_BChg_I_EA(uint16 instr);
-    void Instr_BChg_R_Dn(uint16 instr);
-    void Instr_BChg_R_EA(uint16 instr);
-    void Instr_BClr_I_Dn(uint16 instr);
-    void Instr_BClr_I_EA(uint16 instr);
-    void Instr_BClr_R_Dn(uint16 instr);
-    void Instr_BClr_R_EA(uint16 instr);
-    void Instr_BSet_I_Dn(uint16 instr);
-    void Instr_BSet_I_EA(uint16 instr);
-    void Instr_BSet_R_Dn(uint16 instr);
-    void Instr_BSet_R_EA(uint16 instr);
-    void Instr_BTst_I_Dn(uint16 instr);
-    void Instr_BTst_I_EA(uint16 instr);
-    void Instr_BTst_R_Dn(uint16 instr);
-    void Instr_BTst_R_EA(uint16 instr);
+    uint64 Instr_DivS(uint16 instr);
+    uint64 Instr_DivU(uint16 instr);
+    uint64 Instr_MulS(uint16 instr);
+    uint64 Instr_MulU(uint16 instr);
 
-    template <mem_primitive T>
-    void Instr_ASL_I(uint16 instr);
-    void Instr_ASL_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ASL_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ASR_I(uint16 instr);
-    void Instr_ASR_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ASR_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_LSL_I(uint16 instr);
-    void Instr_LSL_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_LSL_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_LSR_I(uint16 instr);
-    void Instr_LSR_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_LSR_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROL_I(uint16 instr);
-    void Instr_ROL_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROL_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROR_I(uint16 instr);
-    void Instr_ROR_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROR_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROXL_I(uint16 instr);
-    void Instr_ROXL_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROXL_R(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROXR_I(uint16 instr);
-    void Instr_ROXR_M(uint16 instr);
-    template <mem_primitive T>
-    void Instr_ROXR_R(uint16 instr);
+    uint64 Instr_BChg_I_Dn(uint16 instr);
+    uint64 Instr_BChg_I_EA(uint16 instr);
+    uint64 Instr_BChg_R_Dn(uint16 instr);
+    uint64 Instr_BChg_R_EA(uint16 instr);
+    uint64 Instr_BClr_I_Dn(uint16 instr);
+    uint64 Instr_BClr_I_EA(uint16 instr);
+    uint64 Instr_BClr_R_Dn(uint16 instr);
+    uint64 Instr_BClr_R_EA(uint16 instr);
+    uint64 Instr_BSet_I_Dn(uint16 instr);
+    uint64 Instr_BSet_I_EA(uint16 instr);
+    uint64 Instr_BSet_R_Dn(uint16 instr);
+    uint64 Instr_BSet_R_EA(uint16 instr);
+    uint64 Instr_BTst_I_Dn(uint16 instr);
+    uint64 Instr_BTst_I_EA(uint16 instr);
+    uint64 Instr_BTst_R_Dn(uint16 instr);
+    uint64 Instr_BTst_R_EA(uint16 instr);
 
-    template <mem_primitive T>
-    void Instr_Cmp(uint16 instr);
-    template <mem_primitive T>
-    void Instr_CmpA(uint16 instr);
-    template <mem_primitive T>
-    void Instr_CmpI(uint16 instr);
-    template <mem_primitive T>
-    void Instr_CmpM(uint16 instr);
-    void Instr_Scc(uint16 instr);
-    void Instr_TAS(uint16 instr);
-    template <mem_primitive T>
-    void Instr_Tst(uint16 instr);
+    TPL_MEM uint64 Instr_ASL_I(uint16 instr);
+    uint64 Instr_ASL_M(uint16 instr);
+    TPL_MEM uint64 Instr_ASL_R(uint16 instr);
+    TPL_MEM uint64 Instr_ASR_I(uint16 instr);
+    uint64 Instr_ASR_M(uint16 instr);
+    TPL_MEM uint64 Instr_ASR_R(uint16 instr);
+    TPL_MEM uint64 Instr_LSL_I(uint16 instr);
+    uint64 Instr_LSL_M(uint16 instr);
+    TPL_MEM uint64 Instr_LSL_R(uint16 instr);
+    TPL_MEM uint64 Instr_LSR_I(uint16 instr);
+    uint64 Instr_LSR_M(uint16 instr);
+    TPL_MEM uint64 Instr_LSR_R(uint16 instr);
+    TPL_MEM uint64 Instr_ROL_I(uint16 instr);
+    uint64 Instr_ROL_M(uint16 instr);
+    TPL_MEM uint64 Instr_ROL_R(uint16 instr);
+    TPL_MEM uint64 Instr_ROR_I(uint16 instr);
+    uint64 Instr_ROR_M(uint16 instr);
+    TPL_MEM uint64 Instr_ROR_R(uint16 instr);
+    TPL_MEM uint64 Instr_ROXL_I(uint16 instr);
+    uint64 Instr_ROXL_M(uint16 instr);
+    TPL_MEM uint64 Instr_ROXL_R(uint16 instr);
+    TPL_MEM uint64 Instr_ROXR_I(uint16 instr);
+    uint64 Instr_ROXR_M(uint16 instr);
+    TPL_MEM uint64 Instr_ROXR_R(uint16 instr);
 
-    void Instr_LEA(uint16 instr);
-    void Instr_PEA(uint16 instr);
+    TPL_MEM uint64 Instr_Cmp(uint16 instr);
+    TPL_MEM uint64 Instr_CmpA(uint16 instr);
+    TPL_MEM uint64 Instr_CmpI(uint16 instr);
+    TPL_MEM uint64 Instr_CmpM(uint16 instr);
+    uint64 Instr_Scc(uint16 instr);
+    uint64 Instr_TAS(uint16 instr);
+    TPL_MEM uint64 Instr_Tst(uint16 instr);
 
-    void Instr_Link(uint16 instr);
-    void Instr_Unlink(uint16 instr);
+    uint64 Instr_LEA(uint16 instr);
+    uint64 Instr_PEA(uint16 instr);
 
-    void Instr_BRA(uint16 instr);
-    void Instr_BSR(uint16 instr);
-    void Instr_Bcc(uint16 instr);
-    void Instr_DBcc(uint16 instr);
-    void Instr_JSR(uint16 instr);
-    void Instr_Jmp(uint16 instr);
+    uint64 Instr_Link(uint16 instr);
+    uint64 Instr_Unlink(uint16 instr);
 
-    void Instr_RTE(uint16 instr);
-    void Instr_RTR(uint16 instr);
-    void Instr_RTS(uint16 instr);
+    uint64 Instr_BRA(uint16 instr);
+    uint64 Instr_BSR(uint16 instr);
+    uint64 Instr_Bcc(uint16 instr);
+    uint64 Instr_DBcc(uint16 instr);
+    uint64 Instr_JSR(uint16 instr);
+    uint64 Instr_Jmp(uint16 instr);
 
-    void Instr_Chk(uint16 instr);
-    void Instr_Reset(uint16 instr);
-    void Instr_Stop(uint16 instr);
-    void Instr_Trap(uint16 instr);
-    void Instr_TrapV(uint16 instr);
+    uint64 Instr_RTE(uint16 instr);
+    uint64 Instr_RTR(uint16 instr);
+    uint64 Instr_RTS(uint16 instr);
 
-    void Instr_Noop(uint16 instr);
+    uint64 Instr_Chk(uint16 instr);
+    uint64 Instr_Reset(uint16 instr);
+    uint64 Instr_Stop(uint16 instr);
+    uint64 Instr_Trap(uint16 instr);
+    uint64 Instr_TrapV(uint16 instr);
 
-    void Instr_Illegal(uint16 instr);
-    void Instr_Illegal1010(uint16 instr);
-    void Instr_Illegal1111(uint16 instr);
+    uint64 Instr_Noop(uint16 instr);
+
+    uint64 Instr_Illegal(uint16 instr);
+    uint64 Instr_Illegal1010(uint16 instr);
+    uint64 Instr_Illegal1111(uint16 instr);
+
+#undef TPL_MEM
+#undef TPL_MEM_INSTR
 };
 
 } // namespace ymir::m68k
