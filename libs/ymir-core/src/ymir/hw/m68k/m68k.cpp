@@ -622,6 +622,64 @@ FORCE_INLINE uint32 MC68EC000::CalcEffectiveAddress(uint8 M, uint8 Xn) {
     util::unreachable();
 }
 
+static constexpr auto kEffectiveAddressCyclesBW = [] {
+    std::array<std::array<uint64, 8>, 8> arr{};
+    for (uint8 M = 0; M < 8; ++M) {
+        for (uint8 Xn = 0; Xn < 8; ++Xn) {
+            switch (M) {
+            case 0b000: arr[M][Xn] = 0; break;  // Dn
+            case 0b001: arr[M][Xn] = 0; break;  // An
+            case 0b010: arr[M][Xn] = 4; break;  // (An)
+            case 0b011: arr[M][Xn] = 4; break;  // (An)+
+            case 0b100: arr[M][Xn] = 6; break;  // -(An)
+            case 0b101: arr[M][Xn] = 8; break;  // d(An)
+            case 0b110: arr[M][Xn] = 10; break; // d(An,ix)
+            case 0b111:
+                switch (Xn) {
+                case 0b010: arr[M][Xn] = 8; break;  // d(PC)
+                case 0b011: arr[M][Xn] = 10; break; // d(PC,ix)
+                case 0b000: arr[M][Xn] = 8; break;  // xxx.W
+                case 0b001: arr[M][Xn] = 12; break; // xxx.L
+                case 0b100: arr[M][Xn] = 4; break;  // #xxx
+                }
+                break;
+            }
+        }
+    }
+    return arr;
+}();
+
+static constexpr auto kEffectiveAddressCyclesL = [] {
+    std::array<std::array<uint64, 8>, 8> arr{};
+    for (uint8 M = 0; M < 8; ++M) {
+        for (uint8 Xn = 0; Xn < 8; ++Xn) {
+            switch (M) {
+            case 0b000: arr[M][Xn] = 0; break;  // Dn
+            case 0b001: arr[M][Xn] = 0; break;  // An
+            case 0b010: arr[M][Xn] = 8; break;  // (An)
+            case 0b011: arr[M][Xn] = 8; break;  // (An)+
+            case 0b100: arr[M][Xn] = 10; break; // -(An)
+            case 0b101: arr[M][Xn] = 12; break; // d(An)
+            case 0b110: arr[M][Xn] = 14; break; // d(An,ix)
+            case 0b111:
+                switch (Xn) {
+                case 0b010: arr[M][Xn] = 12; break; // d(PC)
+                case 0b011: arr[M][Xn] = 14; break; // d(PC,ix)
+                case 0b000: arr[M][Xn] = 12; break; // xxx.W
+                case 0b001: arr[M][Xn] = 16; break; // xxx.L
+                case 0b100: arr[M][Xn] = 8; break;  // #xxx
+                }
+                break;
+            }
+        }
+    }
+    return arr;
+}();
+
+template <mem_primitive T>
+static constexpr auto kEffectiveAddressCycles =
+    std::is_same_v<T, uint32> ? kEffectiveAddressCyclesL : kEffectiveAddressCyclesBW;
+
 // Determines if the value is negative
 template <std::integral T>
 FORCE_INLINE static bool IsNegative(T value) {
@@ -776,257 +834,257 @@ uint64 MC68EC000::Execute() {
 
     const OpcodeType type = g_decodeTable.opcodeTypes[instr];
     switch (type) {
-    case OpcodeType::Move_EA_EA_B: Instr_Move_EA_EA<uint8>(instr); return 4 / 2;
-    case OpcodeType::Move_EA_EA_W: Instr_Move_EA_EA<uint16>(instr); return 4 / 2;
-    case OpcodeType::Move_EA_EA_L: Instr_Move_EA_EA<uint32>(instr); return 4 / 2;
-    case OpcodeType::Move_EA_CCR: Instr_Move_EA_CCR(instr); return 12 / 2;
-    case OpcodeType::Move_EA_SR: Instr_Move_EA_SR(instr); return 12 / 2;
-    case OpcodeType::Move_CCR_EA: Instr_Move_CCR_EA(instr); return 6 / 2;
-    case OpcodeType::Move_SR_EA: Instr_Move_SR_EA(instr); return 6 / 2;
-    case OpcodeType::Move_An_USP: Instr_Move_An_USP(instr); return 4 / 2;
-    case OpcodeType::Move_USP_An: Instr_Move_USP_An(instr); return 4 / 2;
-    case OpcodeType::MoveA_W: Instr_MoveA<uint16>(instr); return 4 / 2;
-    case OpcodeType::MoveA_L: Instr_MoveA<uint32>(instr); return 4 / 2;
-    case OpcodeType::MoveM_EA_Rs_C_W: Instr_MoveM_EA_Rs<uint16, true>(instr); return 20 / 2;
-    case OpcodeType::MoveM_EA_Rs_C_L: Instr_MoveM_EA_Rs<uint32, true>(instr); return 24 / 2;
-    case OpcodeType::MoveM_EA_Rs_D_W: Instr_MoveM_EA_Rs<uint16, false>(instr); return 16 / 2;
-    case OpcodeType::MoveM_EA_Rs_D_L: Instr_MoveM_EA_Rs<uint32, false>(instr); return 20 / 2;
-    case OpcodeType::MoveM_PI_Rs_W: Instr_MoveM_PI_Rs<uint16>(instr); return 16 / 2;
-    case OpcodeType::MoveM_PI_Rs_L: Instr_MoveM_PI_Rs<uint32>(instr); return 20 / 2;
-    case OpcodeType::MoveM_Rs_EA_W: Instr_MoveM_Rs_EA<uint16>(instr); return 12 / 2;
-    case OpcodeType::MoveM_Rs_EA_L: Instr_MoveM_Rs_EA<uint32>(instr); return 16 / 2;
-    case OpcodeType::MoveM_Rs_PD_W: Instr_MoveM_Rs_PD<uint16>(instr); return 12 / 2;
-    case OpcodeType::MoveM_Rs_PD_L: Instr_MoveM_Rs_PD<uint32>(instr); return 16 / 2;
-    case OpcodeType::MoveP_Ay_Dx_W: Instr_MoveP_Ay_Dx<uint16>(instr); return 20 / 2;
-    case OpcodeType::MoveP_Ay_Dx_L: Instr_MoveP_Ay_Dx<uint32>(instr); return 24 / 2;
-    case OpcodeType::MoveP_Dx_Ay_W: Instr_MoveP_Dx_Ay<uint16>(instr); return 16 / 2;
-    case OpcodeType::MoveP_Dx_Ay_L: Instr_MoveP_Dx_Ay<uint32>(instr); return 20 / 2;
-    case OpcodeType::MoveQ: Instr_MoveQ(instr); return 4 / 2;
+    case OpcodeType::Move_EA_EA_B: return Instr_Move_EA_EA<uint8>(instr);
+    case OpcodeType::Move_EA_EA_W: return Instr_Move_EA_EA<uint16>(instr);
+    case OpcodeType::Move_EA_EA_L: return Instr_Move_EA_EA<uint32>(instr);
+    case OpcodeType::MoveA_W: return Instr_MoveA<uint16>(instr);
+    case OpcodeType::MoveA_L: return Instr_MoveA<uint32>(instr);
+    case OpcodeType::Move_EA_CCR: return Instr_Move_EA_CCR(instr);
+    case OpcodeType::Move_EA_SR: return Instr_Move_EA_SR(instr);
+    case OpcodeType::Move_CCR_EA: return Instr_Move_CCR_EA(instr);
+    case OpcodeType::Move_SR_EA: return Instr_Move_SR_EA(instr);
+    case OpcodeType::Move_An_USP: return Instr_Move_An_USP(instr);
+    case OpcodeType::Move_USP_An: return Instr_Move_USP_An(instr);
+    case OpcodeType::MoveM_EA_Rs_C_W: return Instr_MoveM_EA_Rs<uint16, true>(instr);
+    case OpcodeType::MoveM_EA_Rs_C_L: return Instr_MoveM_EA_Rs<uint32, true>(instr);
+    case OpcodeType::MoveM_EA_Rs_D_W: return Instr_MoveM_EA_Rs<uint16, false>(instr);
+    case OpcodeType::MoveM_EA_Rs_D_L: return Instr_MoveM_EA_Rs<uint32, false>(instr);
+    case OpcodeType::MoveM_PI_Rs_W: return Instr_MoveM_PI_Rs<uint16>(instr);
+    case OpcodeType::MoveM_PI_Rs_L: return Instr_MoveM_PI_Rs<uint32>(instr);
+    case OpcodeType::MoveM_Rs_EA_W: return Instr_MoveM_Rs_EA<uint16>(instr);
+    case OpcodeType::MoveM_Rs_EA_L: return Instr_MoveM_Rs_EA<uint32>(instr);
+    case OpcodeType::MoveM_Rs_PD_W: return Instr_MoveM_Rs_PD<uint16>(instr);
+    case OpcodeType::MoveM_Rs_PD_L: return Instr_MoveM_Rs_PD<uint32>(instr);
+    case OpcodeType::MoveP_Ay_Dx_W: return Instr_MoveP_Ay_Dx<uint16>(instr);
+    case OpcodeType::MoveP_Ay_Dx_L: return Instr_MoveP_Ay_Dx<uint32>(instr);
+    case OpcodeType::MoveP_Dx_Ay_W: return Instr_MoveP_Dx_Ay<uint16>(instr);
+    case OpcodeType::MoveP_Dx_Ay_L: return Instr_MoveP_Dx_Ay<uint32>(instr);
+    case OpcodeType::MoveQ: return Instr_MoveQ(instr);
 
-    case OpcodeType::Clr_B: Instr_Clr<uint8>(instr); return 4 / 2;
-    case OpcodeType::Clr_W: Instr_Clr<uint16>(instr); return 4 / 2;
-    case OpcodeType::Clr_L: Instr_Clr<uint32>(instr); return 6 / 2;
-    case OpcodeType::Exg_An_An: Instr_Exg_An_An(instr); return 6 / 2;
-    case OpcodeType::Exg_Dn_An: Instr_Exg_Dn_An(instr); return 6 / 2;
-    case OpcodeType::Exg_Dn_Dn: Instr_Exg_Dn_Dn(instr); return 6 / 2;
-    case OpcodeType::Ext_W: Instr_Ext_W(instr); return 4 / 2;
-    case OpcodeType::Ext_L: Instr_Ext_L(instr); return 4 / 2;
-    case OpcodeType::Swap: Instr_Swap(instr); return 4 / 2;
+    case OpcodeType::Clr_B: return Instr_Clr<uint8>(instr);
+    case OpcodeType::Clr_W: return Instr_Clr<uint16>(instr);
+    case OpcodeType::Clr_L: return Instr_Clr<uint32>(instr);
+    case OpcodeType::Exg_An_An: return Instr_Exg_An_An(instr);
+    case OpcodeType::Exg_Dn_An: return Instr_Exg_Dn_An(instr);
+    case OpcodeType::Exg_Dn_Dn: return Instr_Exg_Dn_Dn(instr);
+    case OpcodeType::Ext_W: return Instr_Ext_W(instr);
+    case OpcodeType::Ext_L: return Instr_Ext_L(instr);
+    case OpcodeType::Swap: return Instr_Swap(instr);
 
-    case OpcodeType::ABCD_M: Instr_ABCD_M(instr); return 18 / 2;
-    case OpcodeType::ABCD_R: Instr_ABCD_R(instr); return 6 / 2;
-    case OpcodeType::NBCD: Instr_NBCD(instr); return 6 / 2;
-    case OpcodeType::SBCD_M: Instr_SBCD_M(instr); return 18 / 2;
-    case OpcodeType::SBCD_R: Instr_SBCD_R(instr); return 6 / 2;
+    case OpcodeType::ABCD_M: return Instr_ABCD_M(instr);
+    case OpcodeType::ABCD_R: return Instr_ABCD_R(instr);
+    case OpcodeType::NBCD: return Instr_NBCD(instr);
+    case OpcodeType::SBCD_M: return Instr_SBCD_M(instr);
+    case OpcodeType::SBCD_R: return Instr_SBCD_R(instr);
 
-    case OpcodeType::Add_Dn_EA_B: Instr_Add_Dn_EA<uint8>(instr); return 8 / 2;
-    case OpcodeType::Add_Dn_EA_W: Instr_Add_Dn_EA<uint16>(instr); return 8 / 2;
-    case OpcodeType::Add_Dn_EA_L: Instr_Add_Dn_EA<uint32>(instr); return 12 / 2;
-    case OpcodeType::Add_EA_Dn_B: Instr_Add_EA_Dn<uint8>(instr); return 4 / 2;
-    case OpcodeType::Add_EA_Dn_W: Instr_Add_EA_Dn<uint16>(instr); return 4 / 2;
-    case OpcodeType::Add_EA_Dn_L: Instr_Add_EA_Dn<uint32>(instr); return 6 / 2;
-    case OpcodeType::AddA_W: Instr_AddA<uint16>(instr); return 8 / 2;
-    case OpcodeType::AddA_L: Instr_AddA<uint32>(instr); return 6 / 2;
-    case OpcodeType::AddI_B: Instr_AddI<uint8>(instr); return 8 / 2;
-    case OpcodeType::AddI_W: Instr_AddI<uint16>(instr); return 8 / 2;
-    case OpcodeType::AddI_L: Instr_AddI<uint32>(instr); return 16 / 2;
-    case OpcodeType::AddQ_An_W: Instr_AddQ_An<uint16>(instr); return 8 / 2;
-    case OpcodeType::AddQ_An_L: Instr_AddQ_An<uint32>(instr); return 8 / 2;
-    case OpcodeType::AddQ_EA_B: Instr_AddQ_EA<uint8>(instr); return 4 / 2;
-    case OpcodeType::AddQ_EA_W: Instr_AddQ_EA<uint16>(instr); return 4 / 2;
-    case OpcodeType::AddQ_EA_L: Instr_AddQ_EA<uint32>(instr); return 8 / 2;
-    case OpcodeType::AddX_M_B: Instr_AddX_M<uint8>(instr); return 18 / 2;
-    case OpcodeType::AddX_M_W: Instr_AddX_M<uint16>(instr); return 18 / 2;
-    case OpcodeType::AddX_M_L: Instr_AddX_M<uint32>(instr); return 30 / 2;
-    case OpcodeType::AddX_R_B: Instr_AddX_R<uint8>(instr); return 4 / 2;
-    case OpcodeType::AddX_R_W: Instr_AddX_R<uint16>(instr); return 4 / 2;
-    case OpcodeType::AddX_R_L: Instr_AddX_R<uint32>(instr); return 8 / 2;
-    case OpcodeType::And_Dn_EA_B: Instr_And_Dn_EA<uint8>(instr); return 8 / 2;
-    case OpcodeType::And_Dn_EA_W: Instr_And_Dn_EA<uint16>(instr); return 8 / 2;
-    case OpcodeType::And_Dn_EA_L: Instr_And_Dn_EA<uint32>(instr); return 12 / 2;
-    case OpcodeType::And_EA_Dn_B: Instr_And_EA_Dn<uint8>(instr); return 4 / 2;
-    case OpcodeType::And_EA_Dn_W: Instr_And_EA_Dn<uint16>(instr); return 4 / 2;
-    case OpcodeType::And_EA_Dn_L: Instr_And_EA_Dn<uint32>(instr); return 6 / 2;
-    case OpcodeType::AndI_EA_B: Instr_AndI_EA<uint8>(instr); return 12 / 2;
-    case OpcodeType::AndI_EA_W: Instr_AndI_EA<uint16>(instr); return 12 / 2;
-    case OpcodeType::AndI_EA_L: Instr_AndI_EA<uint32>(instr); return 20 / 2;
-    case OpcodeType::AndI_CCR: Instr_AndI_CCR(instr); return 20 / 2;
-    case OpcodeType::AndI_SR: Instr_AndI_SR(instr); return 20 / 2;
-    case OpcodeType::Eor_Dn_EA_B: Instr_Eor_Dn_EA<uint8>(instr); return 8 / 2;
-    case OpcodeType::Eor_Dn_EA_W: Instr_Eor_Dn_EA<uint16>(instr); return 8 / 2;
-    case OpcodeType::Eor_Dn_EA_L: Instr_Eor_Dn_EA<uint32>(instr); return 12 / 2;
-    case OpcodeType::EorI_EA_B: Instr_EorI_EA<uint8>(instr); return 12 / 2;
-    case OpcodeType::EorI_EA_W: Instr_EorI_EA<uint16>(instr); return 12 / 2;
-    case OpcodeType::EorI_EA_L: Instr_EorI_EA<uint32>(instr); return 20 / 2;
-    case OpcodeType::EorI_CCR: Instr_EorI_CCR(instr); return 20 / 2;
-    case OpcodeType::EorI_SR: Instr_EorI_SR(instr); return 20 / 2;
-    case OpcodeType::Neg_B: Instr_Neg<uint8>(instr); return 4 / 2;
-    case OpcodeType::Neg_W: Instr_Neg<uint16>(instr); return 4 / 2;
-    case OpcodeType::Neg_L: Instr_Neg<uint32>(instr); return 6 / 2;
-    case OpcodeType::NegX_B: Instr_NegX<uint8>(instr); return 4 / 2;
-    case OpcodeType::NegX_W: Instr_NegX<uint16>(instr); return 4 / 2;
-    case OpcodeType::NegX_L: Instr_NegX<uint32>(instr); return 6 / 2;
-    case OpcodeType::Not_B: Instr_Not<uint8>(instr); return 4 / 2;
-    case OpcodeType::Not_W: Instr_Not<uint16>(instr); return 4 / 2;
-    case OpcodeType::Not_L: Instr_Not<uint32>(instr); return 6 / 2;
-    case OpcodeType::Or_Dn_EA_B: Instr_Or_Dn_EA<uint8>(instr); return 8 / 2;
-    case OpcodeType::Or_Dn_EA_W: Instr_Or_Dn_EA<uint16>(instr); return 8 / 2;
-    case OpcodeType::Or_Dn_EA_L: Instr_Or_Dn_EA<uint32>(instr); return 12 / 2;
-    case OpcodeType::Or_EA_Dn_B: Instr_Or_EA_Dn<uint8>(instr); return 4 / 2;
-    case OpcodeType::Or_EA_Dn_W: Instr_Or_EA_Dn<uint16>(instr); return 4 / 2;
-    case OpcodeType::Or_EA_Dn_L: Instr_Or_EA_Dn<uint32>(instr); return 6 / 2;
-    case OpcodeType::OrI_EA_B: Instr_OrI_EA<uint8>(instr); return 12 / 2;
-    case OpcodeType::OrI_EA_W: Instr_OrI_EA<uint16>(instr); return 12 / 2;
-    case OpcodeType::OrI_EA_L: Instr_OrI_EA<uint32>(instr); return 20 / 2;
-    case OpcodeType::OrI_CCR: Instr_OrI_CCR(instr); return 20 / 2;
-    case OpcodeType::OrI_SR: Instr_OrI_SR(instr); return 20 / 2;
-    case OpcodeType::Sub_Dn_EA_B: Instr_Sub_Dn_EA<uint8>(instr); return 8 / 2;
-    case OpcodeType::Sub_Dn_EA_W: Instr_Sub_Dn_EA<uint16>(instr); return 8 / 2;
-    case OpcodeType::Sub_Dn_EA_L: Instr_Sub_Dn_EA<uint32>(instr); return 12 / 2;
-    case OpcodeType::Sub_EA_Dn_B: Instr_Sub_EA_Dn<uint8>(instr); return 4 / 2;
-    case OpcodeType::Sub_EA_Dn_W: Instr_Sub_EA_Dn<uint16>(instr); return 4 / 2;
-    case OpcodeType::Sub_EA_Dn_L: Instr_Sub_EA_Dn<uint32>(instr); return 6 / 2;
-    case OpcodeType::SubA_W: Instr_SubA<uint16>(instr); return 8 / 2;
-    case OpcodeType::SubA_L: Instr_SubA<uint32>(instr); return 6 / 2;
-    case OpcodeType::SubI_B: Instr_SubI<uint8>(instr); return 12 / 2;
-    case OpcodeType::SubI_W: Instr_SubI<uint16>(instr); return 12 / 2;
-    case OpcodeType::SubI_L: Instr_SubI<uint32>(instr); return 20 / 2;
-    case OpcodeType::SubQ_An_W: Instr_SubQ_An<uint16>(instr); return 8 / 2;
-    case OpcodeType::SubQ_An_L: Instr_SubQ_An<uint32>(instr); return 8 / 2;
-    case OpcodeType::SubQ_EA_B: Instr_SubQ_EA<uint8>(instr); return 8 / 2;
-    case OpcodeType::SubQ_EA_W: Instr_SubQ_EA<uint16>(instr); return 8 / 2;
-    case OpcodeType::SubQ_EA_L: Instr_SubQ_EA<uint32>(instr); return 12 / 2;
-    case OpcodeType::SubX_M_B: Instr_SubX_M<uint8>(instr); return 18 / 2;
-    case OpcodeType::SubX_M_W: Instr_SubX_M<uint16>(instr); return 18 / 2;
-    case OpcodeType::SubX_M_L: Instr_SubX_M<uint32>(instr); return 30 / 2;
-    case OpcodeType::SubX_R_B: Instr_SubX_R<uint8>(instr); return 4 / 2;
-    case OpcodeType::SubX_R_W: Instr_SubX_R<uint16>(instr); return 4 / 2;
-    case OpcodeType::SubX_R_L: Instr_SubX_R<uint32>(instr); return 8 / 2;
+    case OpcodeType::Add_Dn_EA_B: return Instr_Add_Dn_EA<uint8>(instr);
+    case OpcodeType::Add_Dn_EA_W: return Instr_Add_Dn_EA<uint16>(instr);
+    case OpcodeType::Add_Dn_EA_L: return Instr_Add_Dn_EA<uint32>(instr);
+    case OpcodeType::Add_EA_Dn_B: return Instr_Add_EA_Dn<uint8>(instr);
+    case OpcodeType::Add_EA_Dn_W: return Instr_Add_EA_Dn<uint16>(instr);
+    case OpcodeType::Add_EA_Dn_L: return Instr_Add_EA_Dn<uint32>(instr);
+    case OpcodeType::AddA_W: return Instr_AddA<uint16>(instr);
+    case OpcodeType::AddA_L: return Instr_AddA<uint32>(instr);
+    case OpcodeType::AddI_B: return Instr_AddI<uint8>(instr);
+    case OpcodeType::AddI_W: return Instr_AddI<uint16>(instr);
+    case OpcodeType::AddI_L: return Instr_AddI<uint32>(instr);
+    case OpcodeType::AddQ_An_W: return Instr_AddQ_An<uint16>(instr);
+    case OpcodeType::AddQ_An_L: return Instr_AddQ_An<uint32>(instr);
+    case OpcodeType::AddQ_EA_B: return Instr_AddQ_EA<uint8>(instr);
+    case OpcodeType::AddQ_EA_W: return Instr_AddQ_EA<uint16>(instr);
+    case OpcodeType::AddQ_EA_L: return Instr_AddQ_EA<uint32>(instr);
+    case OpcodeType::AddX_M_B: return Instr_AddX_M<uint8>(instr);
+    case OpcodeType::AddX_M_W: return Instr_AddX_M<uint16>(instr);
+    case OpcodeType::AddX_M_L: return Instr_AddX_M<uint32>(instr);
+    case OpcodeType::AddX_R_B: return Instr_AddX_R<uint8>(instr);
+    case OpcodeType::AddX_R_W: return Instr_AddX_R<uint16>(instr);
+    case OpcodeType::AddX_R_L: return Instr_AddX_R<uint32>(instr);
+    case OpcodeType::And_Dn_EA_B: return Instr_And_Dn_EA<uint8>(instr);
+    case OpcodeType::And_Dn_EA_W: return Instr_And_Dn_EA<uint16>(instr);
+    case OpcodeType::And_Dn_EA_L: return Instr_And_Dn_EA<uint32>(instr);
+    case OpcodeType::And_EA_Dn_B: return Instr_And_EA_Dn<uint8>(instr);
+    case OpcodeType::And_EA_Dn_W: return Instr_And_EA_Dn<uint16>(instr);
+    case OpcodeType::And_EA_Dn_L: return Instr_And_EA_Dn<uint32>(instr);
+    case OpcodeType::AndI_EA_B: return Instr_AndI_EA<uint8>(instr);
+    case OpcodeType::AndI_EA_W: return Instr_AndI_EA<uint16>(instr);
+    case OpcodeType::AndI_EA_L: return Instr_AndI_EA<uint32>(instr);
+    case OpcodeType::AndI_CCR: return Instr_AndI_CCR(instr);
+    case OpcodeType::AndI_SR: return Instr_AndI_SR(instr);
+    case OpcodeType::Eor_Dn_EA_B: return Instr_Eor_Dn_EA<uint8>(instr);
+    case OpcodeType::Eor_Dn_EA_W: return Instr_Eor_Dn_EA<uint16>(instr);
+    case OpcodeType::Eor_Dn_EA_L: return Instr_Eor_Dn_EA<uint32>(instr);
+    case OpcodeType::EorI_EA_B: return Instr_EorI_EA<uint8>(instr);
+    case OpcodeType::EorI_EA_W: return Instr_EorI_EA<uint16>(instr);
+    case OpcodeType::EorI_EA_L: return Instr_EorI_EA<uint32>(instr);
+    case OpcodeType::EorI_CCR: return Instr_EorI_CCR(instr);
+    case OpcodeType::EorI_SR: return Instr_EorI_SR(instr);
+    case OpcodeType::Neg_B: return Instr_Neg<uint8>(instr);
+    case OpcodeType::Neg_W: return Instr_Neg<uint16>(instr);
+    case OpcodeType::Neg_L: return Instr_Neg<uint32>(instr);
+    case OpcodeType::NegX_B: return Instr_NegX<uint8>(instr);
+    case OpcodeType::NegX_W: return Instr_NegX<uint16>(instr);
+    case OpcodeType::NegX_L: return Instr_NegX<uint32>(instr);
+    case OpcodeType::Not_B: return Instr_Not<uint8>(instr);
+    case OpcodeType::Not_W: return Instr_Not<uint16>(instr);
+    case OpcodeType::Not_L: return Instr_Not<uint32>(instr);
+    case OpcodeType::Or_Dn_EA_B: return Instr_Or_Dn_EA<uint8>(instr);
+    case OpcodeType::Or_Dn_EA_W: return Instr_Or_Dn_EA<uint16>(instr);
+    case OpcodeType::Or_Dn_EA_L: return Instr_Or_Dn_EA<uint32>(instr);
+    case OpcodeType::Or_EA_Dn_B: return Instr_Or_EA_Dn<uint8>(instr);
+    case OpcodeType::Or_EA_Dn_W: return Instr_Or_EA_Dn<uint16>(instr);
+    case OpcodeType::Or_EA_Dn_L: return Instr_Or_EA_Dn<uint32>(instr);
+    case OpcodeType::OrI_EA_B: return Instr_OrI_EA<uint8>(instr);
+    case OpcodeType::OrI_EA_W: return Instr_OrI_EA<uint16>(instr);
+    case OpcodeType::OrI_EA_L: return Instr_OrI_EA<uint32>(instr);
+    case OpcodeType::OrI_CCR: return Instr_OrI_CCR(instr);
+    case OpcodeType::OrI_SR: return Instr_OrI_SR(instr);
+    case OpcodeType::Sub_Dn_EA_B: return Instr_Sub_Dn_EA<uint8>(instr);
+    case OpcodeType::Sub_Dn_EA_W: return Instr_Sub_Dn_EA<uint16>(instr);
+    case OpcodeType::Sub_Dn_EA_L: return Instr_Sub_Dn_EA<uint32>(instr);
+    case OpcodeType::Sub_EA_Dn_B: return Instr_Sub_EA_Dn<uint8>(instr);
+    case OpcodeType::Sub_EA_Dn_W: return Instr_Sub_EA_Dn<uint16>(instr);
+    case OpcodeType::Sub_EA_Dn_L: return Instr_Sub_EA_Dn<uint32>(instr);
+    case OpcodeType::SubA_W: return Instr_SubA<uint16>(instr);
+    case OpcodeType::SubA_L: return Instr_SubA<uint32>(instr);
+    case OpcodeType::SubI_B: return Instr_SubI<uint8>(instr);
+    case OpcodeType::SubI_W: return Instr_SubI<uint16>(instr);
+    case OpcodeType::SubI_L: return Instr_SubI<uint32>(instr);
+    case OpcodeType::SubQ_An_W: return Instr_SubQ_An<uint16>(instr);
+    case OpcodeType::SubQ_An_L: return Instr_SubQ_An<uint32>(instr);
+    case OpcodeType::SubQ_EA_B: return Instr_SubQ_EA<uint8>(instr);
+    case OpcodeType::SubQ_EA_W: return Instr_SubQ_EA<uint16>(instr);
+    case OpcodeType::SubQ_EA_L: return Instr_SubQ_EA<uint32>(instr);
+    case OpcodeType::SubX_M_B: return Instr_SubX_M<uint8>(instr);
+    case OpcodeType::SubX_M_W: return Instr_SubX_M<uint16>(instr);
+    case OpcodeType::SubX_M_L: return Instr_SubX_M<uint32>(instr);
+    case OpcodeType::SubX_R_B: return Instr_SubX_R<uint8>(instr);
+    case OpcodeType::SubX_R_W: return Instr_SubX_R<uint16>(instr);
+    case OpcodeType::SubX_R_L: return Instr_SubX_R<uint32>(instr);
 
-    case OpcodeType::DivS: Instr_DivS(instr); return 158 / 2;
-    case OpcodeType::DivU: Instr_DivU(instr); return 140 / 2;
-    case OpcodeType::MulS: Instr_MulS(instr); return 70 / 2;
-    case OpcodeType::MulU: Instr_MulU(instr); return 70 / 2;
+    case OpcodeType::DivS: return Instr_DivS(instr);
+    case OpcodeType::DivU: return Instr_DivU(instr);
+    case OpcodeType::MulS: return Instr_MulS(instr);
+    case OpcodeType::MulU: return Instr_MulU(instr);
 
-    case OpcodeType::BChg_I_Dn: Instr_BChg_I_Dn(instr); return 12 / 2;
-    case OpcodeType::BChg_I_EA: Instr_BChg_I_EA(instr); return 12 / 2;
-    case OpcodeType::BChg_R_Dn: Instr_BChg_R_Dn(instr); return 8 / 2;
-    case OpcodeType::BChg_R_EA: Instr_BChg_R_EA(instr); return 8 / 2;
-    case OpcodeType::BClr_I_Dn: Instr_BClr_I_Dn(instr); return 14 / 2;
-    case OpcodeType::BClr_I_EA: Instr_BClr_I_EA(instr); return 12 / 2;
-    case OpcodeType::BClr_R_Dn: Instr_BClr_R_Dn(instr); return 10 / 2;
-    case OpcodeType::BClr_R_EA: Instr_BClr_R_EA(instr); return 8 / 2;
-    case OpcodeType::BSet_I_Dn: Instr_BSet_I_Dn(instr); return 12 / 2;
-    case OpcodeType::BSet_I_EA: Instr_BSet_I_EA(instr); return 12 / 2;
-    case OpcodeType::BSet_R_Dn: Instr_BSet_R_Dn(instr); return 8 / 2;
-    case OpcodeType::BSet_R_EA: Instr_BSet_R_EA(instr); return 8 / 2;
-    case OpcodeType::BTst_I_Dn: Instr_BTst_I_Dn(instr); return 10 / 2;
-    case OpcodeType::BTst_I_EA: Instr_BTst_I_EA(instr); return 8 / 2;
-    case OpcodeType::BTst_R_Dn: Instr_BTst_R_Dn(instr); return 6 / 2;
-    case OpcodeType::BTst_R_EA: Instr_BTst_R_EA(instr); return 4 / 2;
+    case OpcodeType::BChg_I_Dn: return Instr_BChg_I_Dn(instr);
+    case OpcodeType::BChg_I_EA: return Instr_BChg_I_EA(instr);
+    case OpcodeType::BChg_R_Dn: return Instr_BChg_R_Dn(instr);
+    case OpcodeType::BChg_R_EA: return Instr_BChg_R_EA(instr);
+    case OpcodeType::BClr_I_Dn: return Instr_BClr_I_Dn(instr);
+    case OpcodeType::BClr_I_EA: return Instr_BClr_I_EA(instr);
+    case OpcodeType::BClr_R_Dn: return Instr_BClr_R_Dn(instr);
+    case OpcodeType::BClr_R_EA: return Instr_BClr_R_EA(instr);
+    case OpcodeType::BSet_I_Dn: return Instr_BSet_I_Dn(instr);
+    case OpcodeType::BSet_I_EA: return Instr_BSet_I_EA(instr);
+    case OpcodeType::BSet_R_Dn: return Instr_BSet_R_Dn(instr);
+    case OpcodeType::BSet_R_EA: return Instr_BSet_R_EA(instr);
+    case OpcodeType::BTst_I_Dn: return Instr_BTst_I_Dn(instr);
+    case OpcodeType::BTst_I_EA: return Instr_BTst_I_EA(instr);
+    case OpcodeType::BTst_R_Dn: return Instr_BTst_R_Dn(instr);
+    case OpcodeType::BTst_R_EA: return Instr_BTst_R_EA(instr);
 
-    case OpcodeType::ASL_I_B: Instr_ASL_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::ASL_I_W: Instr_ASL_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::ASL_I_L: Instr_ASL_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::ASL_M: Instr_ASL_M(instr); return 8 / 2;
-    case OpcodeType::ASL_R_B: Instr_ASL_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::ASL_R_W: Instr_ASL_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::ASL_R_L: Instr_ASL_R<uint32>(instr); return 10 / 2;
-    case OpcodeType::ASR_I_B: Instr_ASR_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::ASR_I_W: Instr_ASR_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::ASR_I_L: Instr_ASR_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::ASR_M: Instr_ASR_M(instr); return 8 / 2;
-    case OpcodeType::ASR_R_B: Instr_ASR_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::ASR_R_W: Instr_ASR_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::ASR_R_L: Instr_ASR_R<uint32>(instr); return 10 / 2;
-    case OpcodeType::LSL_I_B: Instr_LSL_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::LSL_I_W: Instr_LSL_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::LSL_I_L: Instr_LSL_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::LSL_M: Instr_LSL_M(instr); return 8 / 2;
-    case OpcodeType::LSL_R_B: Instr_LSL_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::LSL_R_W: Instr_LSL_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::LSL_R_L: Instr_LSL_R<uint32>(instr); return 10 / 2;
-    case OpcodeType::LSR_I_B: Instr_LSR_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::LSR_I_W: Instr_LSR_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::LSR_I_L: Instr_LSR_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::LSR_M: Instr_LSR_M(instr); return 8 / 2;
-    case OpcodeType::LSR_R_B: Instr_LSR_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::LSR_R_W: Instr_LSR_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::LSR_R_L: Instr_LSR_R<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROL_I_B: Instr_ROL_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROL_I_W: Instr_ROL_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROL_I_L: Instr_ROL_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROL_M: Instr_ROL_M(instr); return 8 / 2;
-    case OpcodeType::ROL_R_B: Instr_ROL_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROL_R_W: Instr_ROL_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROL_R_L: Instr_ROL_R<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROR_I_B: Instr_ROR_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROR_I_W: Instr_ROR_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROR_I_L: Instr_ROR_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROR_M: Instr_ROR_M(instr); return 8 / 2;
-    case OpcodeType::ROR_R_B: Instr_ROR_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROR_R_W: Instr_ROR_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROR_R_L: Instr_ROR_R<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROXL_I_B: Instr_ROXL_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROXL_I_W: Instr_ROXL_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROXL_I_L: Instr_ROXL_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROXL_M: Instr_ROXL_M(instr); return 8 / 2;
-    case OpcodeType::ROXL_R_B: Instr_ROXL_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROXL_R_W: Instr_ROXL_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROXL_R_L: Instr_ROXL_R<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROXR_I_B: Instr_ROXR_I<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROXR_I_W: Instr_ROXR_I<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROXR_I_L: Instr_ROXR_I<uint32>(instr); return 10 / 2;
-    case OpcodeType::ROXR_M: Instr_ROXR_M(instr); return 8 / 2;
-    case OpcodeType::ROXR_R_B: Instr_ROXR_R<uint8>(instr); return 8 / 2;
-    case OpcodeType::ROXR_R_W: Instr_ROXR_R<uint16>(instr); return 8 / 2;
-    case OpcodeType::ROXR_R_L: Instr_ROXR_R<uint32>(instr); return 10 / 2;
+    case OpcodeType::ASL_I_B: return Instr_ASL_I<uint8>(instr);
+    case OpcodeType::ASL_I_W: return Instr_ASL_I<uint16>(instr);
+    case OpcodeType::ASL_I_L: return Instr_ASL_I<uint32>(instr);
+    case OpcodeType::ASL_M: return Instr_ASL_M(instr);
+    case OpcodeType::ASL_R_B: return Instr_ASL_R<uint8>(instr);
+    case OpcodeType::ASL_R_W: return Instr_ASL_R<uint16>(instr);
+    case OpcodeType::ASL_R_L: return Instr_ASL_R<uint32>(instr);
+    case OpcodeType::ASR_I_B: return Instr_ASR_I<uint8>(instr);
+    case OpcodeType::ASR_I_W: return Instr_ASR_I<uint16>(instr);
+    case OpcodeType::ASR_I_L: return Instr_ASR_I<uint32>(instr);
+    case OpcodeType::ASR_M: return Instr_ASR_M(instr);
+    case OpcodeType::ASR_R_B: return Instr_ASR_R<uint8>(instr);
+    case OpcodeType::ASR_R_W: return Instr_ASR_R<uint16>(instr);
+    case OpcodeType::ASR_R_L: return Instr_ASR_R<uint32>(instr);
+    case OpcodeType::LSL_I_B: return Instr_LSL_I<uint8>(instr);
+    case OpcodeType::LSL_I_W: return Instr_LSL_I<uint16>(instr);
+    case OpcodeType::LSL_I_L: return Instr_LSL_I<uint32>(instr);
+    case OpcodeType::LSL_M: return Instr_LSL_M(instr);
+    case OpcodeType::LSL_R_B: return Instr_LSL_R<uint8>(instr);
+    case OpcodeType::LSL_R_W: return Instr_LSL_R<uint16>(instr);
+    case OpcodeType::LSL_R_L: return Instr_LSL_R<uint32>(instr);
+    case OpcodeType::LSR_I_B: return Instr_LSR_I<uint8>(instr);
+    case OpcodeType::LSR_I_W: return Instr_LSR_I<uint16>(instr);
+    case OpcodeType::LSR_I_L: return Instr_LSR_I<uint32>(instr);
+    case OpcodeType::LSR_M: return Instr_LSR_M(instr);
+    case OpcodeType::LSR_R_B: return Instr_LSR_R<uint8>(instr);
+    case OpcodeType::LSR_R_W: return Instr_LSR_R<uint16>(instr);
+    case OpcodeType::LSR_R_L: return Instr_LSR_R<uint32>(instr);
+    case OpcodeType::ROL_I_B: return Instr_ROL_I<uint8>(instr);
+    case OpcodeType::ROL_I_W: return Instr_ROL_I<uint16>(instr);
+    case OpcodeType::ROL_I_L: return Instr_ROL_I<uint32>(instr);
+    case OpcodeType::ROL_M: return Instr_ROL_M(instr);
+    case OpcodeType::ROL_R_B: return Instr_ROL_R<uint8>(instr);
+    case OpcodeType::ROL_R_W: return Instr_ROL_R<uint16>(instr);
+    case OpcodeType::ROL_R_L: return Instr_ROL_R<uint32>(instr);
+    case OpcodeType::ROR_I_B: return Instr_ROR_I<uint8>(instr);
+    case OpcodeType::ROR_I_W: return Instr_ROR_I<uint16>(instr);
+    case OpcodeType::ROR_I_L: return Instr_ROR_I<uint32>(instr);
+    case OpcodeType::ROR_M: return Instr_ROR_M(instr);
+    case OpcodeType::ROR_R_B: return Instr_ROR_R<uint8>(instr);
+    case OpcodeType::ROR_R_W: return Instr_ROR_R<uint16>(instr);
+    case OpcodeType::ROR_R_L: return Instr_ROR_R<uint32>(instr);
+    case OpcodeType::ROXL_I_B: return Instr_ROXL_I<uint8>(instr);
+    case OpcodeType::ROXL_I_W: return Instr_ROXL_I<uint16>(instr);
+    case OpcodeType::ROXL_I_L: return Instr_ROXL_I<uint32>(instr);
+    case OpcodeType::ROXL_M: return Instr_ROXL_M(instr);
+    case OpcodeType::ROXL_R_B: return Instr_ROXL_R<uint8>(instr);
+    case OpcodeType::ROXL_R_W: return Instr_ROXL_R<uint16>(instr);
+    case OpcodeType::ROXL_R_L: return Instr_ROXL_R<uint32>(instr);
+    case OpcodeType::ROXR_I_B: return Instr_ROXR_I<uint8>(instr);
+    case OpcodeType::ROXR_I_W: return Instr_ROXR_I<uint16>(instr);
+    case OpcodeType::ROXR_I_L: return Instr_ROXR_I<uint32>(instr);
+    case OpcodeType::ROXR_M: return Instr_ROXR_M(instr);
+    case OpcodeType::ROXR_R_B: return Instr_ROXR_R<uint8>(instr);
+    case OpcodeType::ROXR_R_W: return Instr_ROXR_R<uint16>(instr);
+    case OpcodeType::ROXR_R_L: return Instr_ROXR_R<uint32>(instr);
 
-    case OpcodeType::Cmp_B: Instr_Cmp<uint8>(instr); return 4 / 2;
-    case OpcodeType::Cmp_W: Instr_Cmp<uint16>(instr); return 4 / 2;
-    case OpcodeType::Cmp_L: Instr_Cmp<uint32>(instr); return 6 / 2;
-    case OpcodeType::CmpA_W: Instr_CmpA<uint16>(instr); return 6 / 2;
-    case OpcodeType::CmpA_L: Instr_CmpA<uint32>(instr); return 6 / 2;
-    case OpcodeType::CmpI_B: Instr_CmpI<uint8>(instr); return 8 / 2;
-    case OpcodeType::CmpI_W: Instr_CmpI<uint16>(instr); return 12 / 2;
-    case OpcodeType::CmpI_L: Instr_CmpI<uint32>(instr); return 12 / 2;
-    case OpcodeType::CmpM_B: Instr_CmpM<uint8>(instr); return 12 / 2;
-    case OpcodeType::CmpM_W: Instr_CmpM<uint16>(instr); return 12 / 2;
-    case OpcodeType::CmpM_L: Instr_CmpM<uint32>(instr); return 20 / 2;
-    case OpcodeType::Scc: Instr_Scc(instr); return 4 / 2;
-    case OpcodeType::TAS: Instr_TAS(instr); return 4 / 2;
-    case OpcodeType::Tst_B: Instr_Tst<uint8>(instr); return 4 / 2;
-    case OpcodeType::Tst_W: Instr_Tst<uint16>(instr); return 4 / 2;
-    case OpcodeType::Tst_L: Instr_Tst<uint32>(instr); return 4 / 2;
+    case OpcodeType::Cmp_B: return Instr_Cmp<uint8>(instr);
+    case OpcodeType::Cmp_W: return Instr_Cmp<uint16>(instr);
+    case OpcodeType::Cmp_L: return Instr_Cmp<uint32>(instr);
+    case OpcodeType::CmpA_W: return Instr_CmpA<uint16>(instr);
+    case OpcodeType::CmpA_L: return Instr_CmpA<uint32>(instr);
+    case OpcodeType::CmpI_B: return Instr_CmpI<uint8>(instr);
+    case OpcodeType::CmpI_W: return Instr_CmpI<uint16>(instr);
+    case OpcodeType::CmpI_L: return Instr_CmpI<uint32>(instr);
+    case OpcodeType::CmpM_B: return Instr_CmpM<uint8>(instr);
+    case OpcodeType::CmpM_W: return Instr_CmpM<uint16>(instr);
+    case OpcodeType::CmpM_L: return Instr_CmpM<uint32>(instr);
+    case OpcodeType::Scc: return Instr_Scc(instr);
+    case OpcodeType::TAS: return Instr_TAS(instr);
+    case OpcodeType::Tst_B: return Instr_Tst<uint8>(instr);
+    case OpcodeType::Tst_W: return Instr_Tst<uint16>(instr);
+    case OpcodeType::Tst_L: return Instr_Tst<uint32>(instr);
 
-    case OpcodeType::LEA: Instr_LEA(instr); return 4 / 2;
-    case OpcodeType::PEA: Instr_PEA(instr); return 12 / 2;
+    case OpcodeType::LEA: return Instr_LEA(instr);
+    case OpcodeType::PEA: return Instr_PEA(instr);
 
-    case OpcodeType::Link: Instr_Link(instr); return 16 / 2;
-    case OpcodeType::Unlink: Instr_Unlink(instr); return 12 / 2;
+    case OpcodeType::Link: return Instr_Link(instr);
+    case OpcodeType::Unlink: return Instr_Unlink(instr);
 
-    case OpcodeType::BRA: Instr_BRA(instr); return 10 / 2;
-    case OpcodeType::BSR: Instr_BSR(instr); return 18 / 2;
-    case OpcodeType::Bcc: Instr_Bcc(instr); return 10 / 2;
-    case OpcodeType::DBcc: Instr_DBcc(instr); return 10 / 2;
-    case OpcodeType::JSR: Instr_JSR(instr); return 16 / 2;
-    case OpcodeType::Jmp: Instr_Jmp(instr); return 8 / 2;
+    case OpcodeType::BRA: return Instr_BRA(instr);
+    case OpcodeType::BSR: return Instr_BSR(instr);
+    case OpcodeType::Bcc: return Instr_Bcc(instr);
+    case OpcodeType::DBcc: return Instr_DBcc(instr);
+    case OpcodeType::JSR: return Instr_JSR(instr);
+    case OpcodeType::Jmp: return Instr_Jmp(instr);
 
-    case OpcodeType::RTE: Instr_RTE(instr); return 20 / 2;
-    case OpcodeType::RTR: Instr_RTR(instr); return 20 / 2;
-    case OpcodeType::RTS: Instr_RTS(instr); return 16 / 2;
+    case OpcodeType::RTE: return Instr_RTE(instr);
+    case OpcodeType::RTR: return Instr_RTR(instr);
+    case OpcodeType::RTS: return Instr_RTS(instr);
 
-    case OpcodeType::Chk: Instr_Chk(instr); return 44 / 2;
-    case OpcodeType::Reset: Instr_Reset(instr); return 132 / 2;
-    case OpcodeType::Stop: Instr_Stop(instr); return 4 / 2;
-    case OpcodeType::Trap: Instr_Trap(instr); return 38 / 2;
-    case OpcodeType::TrapV: Instr_TrapV(instr); return 34 / 2;
+    case OpcodeType::Chk: return Instr_Chk(instr);
+    case OpcodeType::Reset: return Instr_Reset(instr);
+    case OpcodeType::Stop: return Instr_Stop(instr);
+    case OpcodeType::Trap: return Instr_Trap(instr);
+    case OpcodeType::TrapV: return Instr_TrapV(instr);
 
-    case OpcodeType::Noop: Instr_Noop(instr); return 4 / 2;
+    case OpcodeType::Noop: return Instr_Noop(instr);
 
-    case OpcodeType::Illegal1010: Instr_Illegal1010(instr); return 34 / 2;
-    case OpcodeType::Illegal1111: Instr_Illegal1111(instr); return 34 / 2;
-    case OpcodeType::Illegal: Instr_Illegal(instr); return 34 / 2;
+    case OpcodeType::Illegal1010: return Instr_Illegal1010(instr);
+    case OpcodeType::Illegal1111: return Instr_Illegal1111(instr);
+    case OpcodeType::Illegal: return Instr_Illegal(instr);
 
     default:
 #ifndef NDEBUG
@@ -1044,7 +1102,7 @@ uint64 MC68EC000::Execute() {
 // Instruction interpreters
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Move_EA_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Move_EA_EA(uint16 instr) {
     const uint32 dstXn = bit::extract<9, 11>(instr);
     const uint32 dstM = bit::extract<6, 8>(instr);
     const uint32 srcXn = bit::extract<0, 2>(instr);
@@ -1054,65 +1112,11 @@ FORCE_INLINE void MC68EC000::Instr_Move_EA_EA(uint16 instr) {
     SR.N = IsNegative(value);
     SR.Z = value == 0;
     SR.V = SR.C = 0;
-}
-
-FORCE_INLINE void MC68EC000::Instr_Move_EA_CCR(uint16 instr) {
-    const uint16 Xn = bit::extract<0, 2>(instr);
-    const uint16 M = bit::extract<3, 5>(instr);
-    const uint16 value = ReadEffectiveAddress<uint16>(M, Xn);
-    SR.xflags = value;
-
-    PC -= 2;
-    FullPrefetch();
-}
-
-FORCE_INLINE void MC68EC000::Instr_Move_EA_SR(uint16 instr) {
-    if (CheckPrivilege()) {
-        const uint16 Xn = bit::extract<0, 2>(instr);
-        const uint16 M = bit::extract<3, 5>(instr);
-        const uint16 value = ReadEffectiveAddress<uint16>(M, Xn);
-        SetSR(value);
-
-        PC -= 2;
-        FullPrefetch();
-    }
-}
-
-FORCE_INLINE void MC68EC000::Instr_Move_CCR_EA(uint16 instr) {
-    const uint16 Xn = bit::extract<0, 2>(instr);
-    const uint16 M = bit::extract<3, 5>(instr);
-    const uint16 value = SR.xflags;
-    WriteEffectiveAddress<uint16>(M, Xn, value);
-
-    PrefetchTransfer();
-}
-
-FORCE_INLINE void MC68EC000::Instr_Move_SR_EA(uint16 instr) {
-    const uint16 Xn = bit::extract<0, 2>(instr);
-    const uint16 M = bit::extract<3, 5>(instr);
-    ModifyEffectiveAddress<uint16>(M, Xn, [&](uint16) { return SR.u16; });
-}
-
-FORCE_INLINE void MC68EC000::Instr_Move_An_USP(uint16 instr) {
-    if (CheckPrivilege()) {
-        const uint16 An = bit::extract<0, 2>(instr);
-        SP_swap = regs.A[An];
-
-        PrefetchTransfer();
-    }
-}
-
-FORCE_INLINE void MC68EC000::Instr_Move_USP_An(uint16 instr) {
-    if (CheckPrivilege()) {
-        const uint16 An = bit::extract<0, 2>(instr);
-        regs.A[An] = SP_swap;
-
-        PrefetchTransfer();
-    }
+    return kEffectiveAddressCycles<T>[srcM][srcXn] + kEffectiveAddressCycles<T>[dstM][dstXn] + 4;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_MoveA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 An = bit::extract<9, 11>(instr);
@@ -1122,10 +1126,75 @@ FORCE_INLINE void MC68EC000::Instr_MoveA(uint16 instr) {
     regs.A[An] = static_cast<ST>(ReadEffectiveAddress<T>(M, Xn));
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + 4;
+}
+
+FORCE_INLINE uint64 MC68EC000::Instr_Move_EA_CCR(uint16 instr) {
+    const uint16 Xn = bit::extract<0, 2>(instr);
+    const uint16 M = bit::extract<3, 5>(instr);
+    const uint16 value = ReadEffectiveAddress<uint16>(M, Xn);
+    SR.xflags = value;
+
+    PC -= 2;
+    FullPrefetch();
+    return M <= 1 ? 12 : kEffectiveAddressCycles<uint16>[M][Xn] + 12;
+}
+
+FORCE_INLINE uint64 MC68EC000::Instr_Move_EA_SR(uint16 instr) {
+    if (CheckPrivilege()) {
+        const uint16 Xn = bit::extract<0, 2>(instr);
+        const uint16 M = bit::extract<3, 5>(instr);
+        const uint16 value = ReadEffectiveAddress<uint16>(M, Xn);
+        SetSR(value);
+
+        PC -= 2;
+        FullPrefetch();
+        return M <= 1 ? 12 : kEffectiveAddressCycles<uint16>[M][Xn] + 12;
+    }
+    return 34;
+}
+
+FORCE_INLINE uint64 MC68EC000::Instr_Move_CCR_EA(uint16 instr) {
+    const uint16 Xn = bit::extract<0, 2>(instr);
+    const uint16 M = bit::extract<3, 5>(instr);
+    const uint16 value = SR.xflags;
+    WriteEffectiveAddress<uint16>(M, Xn, value);
+
+    PrefetchTransfer();
+    return M <= 1 ? 6 : kEffectiveAddressCycles<uint16>[M][Xn] + 8;
+}
+
+FORCE_INLINE uint64 MC68EC000::Instr_Move_SR_EA(uint16 instr) {
+    const uint16 Xn = bit::extract<0, 2>(instr);
+    const uint16 M = bit::extract<3, 5>(instr);
+    ModifyEffectiveAddress<uint16>(M, Xn, [&](uint16) { return SR.u16; });
+    return M <= 1 ? 6 : kEffectiveAddressCycles<uint16>[M][Xn] + 8;
+}
+
+FORCE_INLINE uint64 MC68EC000::Instr_Move_An_USP(uint16 instr) {
+    if (CheckPrivilege()) {
+        const uint16 An = bit::extract<0, 2>(instr);
+        SP_swap = regs.A[An];
+
+        PrefetchTransfer();
+        return 4;
+    }
+    return 34;
+}
+
+FORCE_INLINE uint64 MC68EC000::Instr_Move_USP_An(uint16 instr) {
+    if (CheckPrivilege()) {
+        const uint16 An = bit::extract<0, 2>(instr);
+        regs.A[An] = SP_swap;
+
+        PrefetchTransfer();
+        return 4;
+    }
+    return 34;
 }
 
 template <mem_primitive T, bool instrFetch>
-FORCE_INLINE void MC68EC000::Instr_MoveM_EA_Rs(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveM_EA_Rs(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 regList = PrefetchNext();
@@ -1142,10 +1211,35 @@ FORCE_INLINE void MC68EC000::Instr_MoveM_EA_Rs(uint16 instr) {
     MemRead<T, instrFetch>(address);
 
     PrefetchTransfer();
+
+    static constexpr auto kCycles = [] {
+        std::array<std::array<uint64, 8>, 8> arr{};
+        for (uint8 M = 0; M < 8; ++M) {
+            for (uint8 Xn = 0; Xn < 8; ++Xn) {
+                switch (M) {
+                case 0b010: arr[M][Xn] = 12; break; // (An)
+                case 0b101: arr[M][Xn] = 16; break; // d(An)
+                case 0b110: arr[M][Xn] = 18; break; // d(An,ix)
+                case 0b111:
+                    switch (Xn) {
+                    case 0b010: arr[M][Xn] = 16; break; // d(PC)
+                    case 0b011: arr[M][Xn] = 18; break; // d(PC,ix)
+                    case 0b000: arr[M][Xn] = 16; break; // xxx.W
+                    case 0b001: arr[M][Xn] = 20; break; // xxx.L
+                    }
+                    break;
+                }
+            }
+        }
+        return arr;
+    }();
+
+    static constexpr uint64 kCyclesPerAccess = std::is_same_v<T, uint32> ? 8 : 4;
+    return kCycles[M][Xn] + 4 + std::popcount(regList) * kCyclesPerAccess;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_MoveM_PI_Rs(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveM_PI_Rs(uint16 instr) {
     const uint16 An = bit::extract<0, 2>(instr);
     const uint16 regList = PrefetchNext();
 
@@ -1161,10 +1255,12 @@ FORCE_INLINE void MC68EC000::Instr_MoveM_PI_Rs(uint16 instr) {
     MemRead<uint16, false>(regs.A[An]);
 
     PrefetchTransfer();
+    static constexpr uint64 kCyclesPerAccess = std::is_same_v<T, uint32> ? 8 : 4;
+    return 12 + std::popcount(regList) * kCyclesPerAccess;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_MoveM_Rs_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveM_Rs_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 regList = PrefetchNext();
@@ -1179,10 +1275,33 @@ FORCE_INLINE void MC68EC000::Instr_MoveM_Rs_EA(uint16 instr) {
     }
 
     PrefetchTransfer();
+
+    static constexpr auto kCycles = [] {
+        std::array<std::array<uint64, 8>, 8> arr{};
+        for (uint8 M = 0; M < 8; ++M) {
+            for (uint8 Xn = 0; Xn < 8; ++Xn) {
+                switch (M) {
+                case 0b010: arr[M][Xn] = 8; break;  // (An)
+                case 0b101: arr[M][Xn] = 12; break; // d(An)
+                case 0b110: arr[M][Xn] = 14; break; // d(An,ix)
+                case 0b111:
+                    switch (Xn) {
+                    case 0b000: arr[M][Xn] = 12; break; // xxx.W
+                    case 0b001: arr[M][Xn] = 16; break; // xxx.L
+                    }
+                    break;
+                }
+            }
+        }
+        return arr;
+    }();
+
+    static constexpr uint64 kCyclesPerAccess = std::is_same_v<T, uint32> ? 8 : 4;
+    return kCycles[M][Xn] + std::popcount(regList) * kCyclesPerAccess;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_MoveM_Rs_PD(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveM_Rs_PD(uint16 instr) {
     const uint16 An = bit::extract<0, 2>(instr);
     const uint16 regList = PrefetchNext();
 
@@ -1198,10 +1317,12 @@ FORCE_INLINE void MC68EC000::Instr_MoveM_Rs_PD(uint16 instr) {
     }
 
     PrefetchTransfer();
+    static constexpr uint64 kCyclesPerAccess = std::is_same_v<T, uint32> ? 8 : 4;
+    return 8 + std::popcount(regList) * kCyclesPerAccess;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_MoveP_Ay_Dx(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveP_Ay_Dx(uint16 instr) {
     const uint16 Ay = bit::extract<0, 2>(instr);
     const uint16 Dx = bit::extract<9, 11>(instr);
 
@@ -1217,10 +1338,11 @@ FORCE_INLINE void MC68EC000::Instr_MoveP_Ay_Dx(uint16 instr) {
     bit::deposit_into<0, sizeof(T) * 8 - 1>(regs.D[Dx], finalValue);
 
     PrefetchTransfer();
+    return std::is_same_v<T, uint32> ? 24 : 16;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_MoveP_Dx_Ay(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveP_Dx_Ay(uint16 instr) {
     const uint16 Ay = bit::extract<0, 2>(instr);
     const uint16 Dx = bit::extract<9, 11>(instr);
 
@@ -1234,9 +1356,10 @@ FORCE_INLINE void MC68EC000::Instr_MoveP_Dx_Ay(uint16 instr) {
     }
 
     PrefetchTransfer();
+    return std::is_same_v<T, uint32> ? 24 : 16;
 }
 
-FORCE_INLINE void MC68EC000::Instr_MoveQ(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MoveQ(uint16 instr) {
     const sint32 value = static_cast<sint8>(bit::extract<0, 7>(instr));
     const uint32 Dn = bit::extract<9, 11>(instr);
     regs.D[Dn] = value;
@@ -1245,10 +1368,11 @@ FORCE_INLINE void MC68EC000::Instr_MoveQ(uint16 instr) {
     SR.V = SR.C = 0;
 
     PrefetchTransfer();
+    return 4;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Clr(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Clr(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1257,36 +1381,44 @@ FORCE_INLINE void MC68EC000::Instr_Clr(uint16 instr) {
         SR.N = SR.V = SR.C = 0;
         return 0;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M <= 1 ? 6 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    } else {
+        return M <= 1 ? 4 : kEffectiveAddressCycles<T>[M][Xn] + 8;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_Exg_An_An(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Exg_An_An(uint16 instr) {
     const uint32 Ry = bit::extract<0, 2>(instr);
     const uint32 Rx = bit::extract<9, 11>(instr);
 
     std::swap(regs.A[Rx], regs.A[Ry]);
 
     PrefetchTransfer();
+    return 6;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Exg_Dn_An(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Exg_Dn_An(uint16 instr) {
     const uint32 Ry = bit::extract<0, 2>(instr);
     const uint32 Rx = bit::extract<9, 11>(instr);
 
     std::swap(regs.D[Rx], regs.A[Ry]);
 
     PrefetchTransfer();
+    return 6;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Exg_Dn_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Exg_Dn_Dn(uint16 instr) {
     const uint32 Ry = bit::extract<0, 2>(instr);
     const uint32 Rx = bit::extract<9, 11>(instr);
 
     std::swap(regs.D[Rx], regs.D[Ry]);
 
     PrefetchTransfer();
+    return 6;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Ext_W(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Ext_W(uint16 instr) {
     const uint32 Dn = bit::extract<0, 2>(instr);
 
     const sint8 value = regs.D[Dn];
@@ -1297,9 +1429,10 @@ FORCE_INLINE void MC68EC000::Instr_Ext_W(uint16 instr) {
     SR.C = 0;
 
     PrefetchTransfer();
+    return 4;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Ext_L(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Ext_L(uint16 instr) {
     const uint32 Dn = bit::extract<0, 2>(instr);
 
     const sint16 value = regs.D[Dn];
@@ -1310,9 +1443,10 @@ FORCE_INLINE void MC68EC000::Instr_Ext_L(uint16 instr) {
     SR.C = 0;
 
     PrefetchTransfer();
+    return 4;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Swap(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Swap(uint16 instr) {
     const uint32 Dn = bit::extract<0, 2>(instr);
     const uint32 value = (regs.D[Dn] >> 16u) | (regs.D[Dn] << 16u);
     regs.D[Dn] = value;
@@ -1321,9 +1455,10 @@ FORCE_INLINE void MC68EC000::Instr_Swap(uint16 instr) {
     SR.V = SR.C = 0;
 
     PrefetchTransfer();
+    return 4;
 }
 
-FORCE_INLINE void MC68EC000::Instr_ABCD_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ABCD_M(uint16 instr) {
     const uint16 Ay = bit::extract<0, 2>(instr);
     const uint16 Ax = bit::extract<9, 11>(instr);
 
@@ -1347,9 +1482,10 @@ FORCE_INLINE void MC68EC000::Instr_ABCD_M(uint16 instr) {
     PrefetchTransfer();
 
     MemWrite<uint8>(regs.A[Ax], result);
+    return 18;
 }
 
-FORCE_INLINE void MC68EC000::Instr_ABCD_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ABCD_R(uint16 instr) {
     const uint16 Dy = bit::extract<0, 2>(instr);
     const uint16 Dx = bit::extract<9, 11>(instr);
 
@@ -1371,9 +1507,10 @@ FORCE_INLINE void MC68EC000::Instr_ABCD_R(uint16 instr) {
     bit::deposit_into<0, 7>(regs.D[Dx], result);
 
     PrefetchTransfer();
+    return 6;
 }
 
-FORCE_INLINE void MC68EC000::Instr_NBCD(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_NBCD(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1408,9 +1545,10 @@ FORCE_INLINE void MC68EC000::Instr_NBCD(uint16 instr) {
         bit::deposit_into<0, 7>(op1, result);
         return op1;
     });
+    return M <= 1 ? 6 : kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_SBCD_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SBCD_M(uint16 instr) {
     const uint16 Ay = bit::extract<0, 2>(instr);
     const uint16 Ax = bit::extract<9, 11>(instr);
 
@@ -1434,9 +1572,10 @@ FORCE_INLINE void MC68EC000::Instr_SBCD_M(uint16 instr) {
     PrefetchTransfer();
 
     MemWrite<uint8>(regs.A[Ax], result);
+    return 18;
 }
 
-FORCE_INLINE void MC68EC000::Instr_SBCD_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SBCD_R(uint16 instr) {
     const uint16 Dy = bit::extract<0, 2>(instr);
     const uint16 Dx = bit::extract<9, 11>(instr);
 
@@ -1458,10 +1597,11 @@ FORCE_INLINE void MC68EC000::Instr_SBCD_R(uint16 instr) {
     bit::deposit_into<0, 7>(regs.D[Dx], result);
 
     PrefetchTransfer();
+    return 6;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Add_Dn_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Add_Dn_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1475,10 +1615,11 @@ FORCE_INLINE void MC68EC000::Instr_Add_Dn_EA(uint16 instr) {
         SR.C = SR.X = IsAddCarry(op1, op2, result);
         return result;
     });
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 12 : 8);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Add_EA_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Add_EA_Dn(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1493,10 +1634,11 @@ FORCE_INLINE void MC68EC000::Instr_Add_EA_Dn(uint16 instr) {
     SR.C = SR.X = IsAddCarry(op1, op2, result);
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 6 : 4);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_AddA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AddA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 An = bit::extract<9, 11>(instr);
@@ -1506,10 +1648,11 @@ FORCE_INLINE void MC68EC000::Instr_AddA(uint16 instr) {
     regs.A[An] += static_cast<ST>(ReadEffectiveAddress<T>(M, Xn));
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 6 : 8);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_AddI(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AddI(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1526,10 +1669,15 @@ FORCE_INLINE void MC68EC000::Instr_AddI(uint16 instr) {
 
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 16 : kEffectiveAddressCycles<T>[M][Xn] + 20;
+    } else {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_AddQ_An(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AddQ_An(uint16 instr) {
     const uint16 An = bit::extract<0, 2>(instr);
     const uint16 data = bit::extract<9, 11>(instr);
 
@@ -1539,10 +1687,11 @@ FORCE_INLINE void MC68EC000::Instr_AddQ_An(uint16 instr) {
     regs.A[An] = result;
 
     PrefetchTransfer();
+    return 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_AddQ_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AddQ_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 data = bit::extract<9, 11>(instr);
@@ -1557,10 +1706,15 @@ FORCE_INLINE void MC68EC000::Instr_AddQ_EA(uint16 instr) {
 
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    } else {
+        return M == 0 ? 4 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_AddX_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AddX_M(uint16 instr) {
     const uint16 Ry = bit::extract<0, 2>(instr);
     const uint16 Rx = bit::extract<9, 11>(instr);
 
@@ -1582,10 +1736,11 @@ FORCE_INLINE void MC68EC000::Instr_AddX_M(uint16 instr) {
         PrefetchTransfer();
         MemWrite<T>(regs.A[Rx], result);
     }
+    return std::is_same_v<T, uint32> ? 30 : 18;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_AddX_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AddX_R(uint16 instr) {
     const uint16 Ry = bit::extract<0, 2>(instr);
     const uint16 Rx = bit::extract<9, 11>(instr);
 
@@ -1599,10 +1754,11 @@ FORCE_INLINE void MC68EC000::Instr_AddX_R(uint16 instr) {
     bit::deposit_into<0, sizeof(T) * 8 - 1>(regs.D[Rx], result);
 
     PrefetchTransfer();
+    return std::is_same_v<T, uint32> ? 8 : 4;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_And_Dn_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_And_Dn_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1615,10 +1771,11 @@ FORCE_INLINE void MC68EC000::Instr_And_Dn_EA(uint16 instr) {
         SR.V = SR.C = 0;
         return result;
     });
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 12 : 8);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_And_EA_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_And_EA_Dn(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1632,10 +1789,11 @@ FORCE_INLINE void MC68EC000::Instr_And_EA_Dn(uint16 instr) {
     SR.V = SR.C = 0;
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 6 : 4);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_AndI_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AndI_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1650,18 +1808,24 @@ FORCE_INLINE void MC68EC000::Instr_AndI_EA(uint16 instr) {
         SR.V = SR.C = 0;
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 16 : kEffectiveAddressCycles<T>[M][Xn] + 20;
+    } else {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_AndI_CCR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AndI_CCR(uint16 instr) {
     const uint8 value = PrefetchNext();
     SR.xflags &= value;
 
     PC -= 2;
     PrefetchNext();
     PrefetchTransfer();
+    return 20;
 }
 
-FORCE_INLINE void MC68EC000::Instr_AndI_SR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_AndI_SR(uint16 instr) {
     if (CheckPrivilege()) {
         const uint16 value = PrefetchNext();
         const uint16 newSR = SR.u16 & value;
@@ -1670,11 +1834,13 @@ FORCE_INLINE void MC68EC000::Instr_AndI_SR(uint16 instr) {
 
         PrefetchNext();
         PrefetchTransfer();
+        return 20;
     }
+    return 34;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Eor_Dn_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Eor_Dn_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1687,10 +1853,11 @@ FORCE_INLINE void MC68EC000::Instr_Eor_Dn_EA(uint16 instr) {
         SR.V = SR.C = 0;
         return result;
     });
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 12 : 8);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_EorI_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_EorI_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1705,18 +1872,24 @@ FORCE_INLINE void MC68EC000::Instr_EorI_EA(uint16 instr) {
         SR.V = SR.C = 0;
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 16 : kEffectiveAddressCycles<T>[M][Xn] + 20;
+    } else {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_EorI_CCR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_EorI_CCR(uint16 instr) {
     const uint8 value = PrefetchNext();
     SR.xflags ^= value;
 
     PC -= 2;
     PrefetchNext();
     PrefetchTransfer();
+    return 20;
 }
 
-FORCE_INLINE void MC68EC000::Instr_EorI_SR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_EorI_SR(uint16 instr) {
     if (CheckPrivilege()) {
         const uint16 value = PrefetchNext();
         const uint16 newSR = SR.u16 ^ value;
@@ -1725,11 +1898,13 @@ FORCE_INLINE void MC68EC000::Instr_EorI_SR(uint16 instr) {
 
         PrefetchNext();
         PrefetchTransfer();
+        return 20;
     }
+    return 34;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Neg(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Neg(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1741,10 +1916,15 @@ FORCE_INLINE void MC68EC000::Instr_Neg(uint16 instr) {
         SR.C = SR.X = ~SR.Z;
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M <= 1 ? 6 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    } else {
+        return M <= 1 ? 4 : kEffectiveAddressCycles<T>[M][Xn] + 8;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_NegX(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_NegX(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1756,10 +1936,15 @@ FORCE_INLINE void MC68EC000::Instr_NegX(uint16 instr) {
         SR.X = SR.C = (value | result) >> (sizeof(T) * 8 - 1);
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M <= 1 ? 6 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    } else {
+        return M <= 1 ? 4 : kEffectiveAddressCycles<T>[M][Xn] + 8;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Not(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Not(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1770,10 +1955,15 @@ FORCE_INLINE void MC68EC000::Instr_Not(uint16 instr) {
         SR.V = SR.C = 0;
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M <= 1 ? 6 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    } else {
+        return M <= 1 ? 4 : kEffectiveAddressCycles<T>[M][Xn] + 8;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Or_Dn_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Or_Dn_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1786,10 +1976,11 @@ FORCE_INLINE void MC68EC000::Instr_Or_Dn_EA(uint16 instr) {
         SR.V = SR.C = 0;
         return result;
     });
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 12 : 8);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Or_EA_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Or_EA_Dn(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1803,10 +1994,11 @@ FORCE_INLINE void MC68EC000::Instr_Or_EA_Dn(uint16 instr) {
     SR.V = SR.C = 0;
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 6 : 4);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_OrI_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_OrI_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1821,18 +2013,24 @@ FORCE_INLINE void MC68EC000::Instr_OrI_EA(uint16 instr) {
         SR.V = SR.C = 0;
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 16 : kEffectiveAddressCycles<T>[M][Xn] + 20;
+    } else {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_OrI_CCR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_OrI_CCR(uint16 instr) {
     const uint8 value = PrefetchNext();
     SR.xflags |= value;
 
     PC -= 2;
     PrefetchNext();
     PrefetchTransfer();
+    return 20;
 }
 
-FORCE_INLINE void MC68EC000::Instr_OrI_SR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_OrI_SR(uint16 instr) {
     if (CheckPrivilege()) {
         const uint16 value = PrefetchNext();
         const uint16 newSR = SR.u16 | value;
@@ -1841,11 +2039,13 @@ FORCE_INLINE void MC68EC000::Instr_OrI_SR(uint16 instr) {
 
         PrefetchNext();
         PrefetchTransfer();
+        return 20;
     }
+    return 34;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Sub_Dn_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Sub_Dn_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1859,10 +2059,11 @@ FORCE_INLINE void MC68EC000::Instr_Sub_Dn_EA(uint16 instr) {
         SR.C = SR.X = IsSubCarry(op1, op2, result);
         return result;
     });
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 12 : 8);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Sub_EA_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Sub_EA_Dn(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1877,10 +2078,11 @@ FORCE_INLINE void MC68EC000::Instr_Sub_EA_Dn(uint16 instr) {
     SR.C = SR.X = IsSubCarry(op1, op2, result);
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 6 : 4);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_SubA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SubA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 An = bit::extract<9, 11>(instr);
@@ -1890,10 +2092,11 @@ FORCE_INLINE void MC68EC000::Instr_SubA(uint16 instr) {
     regs.A[An] -= static_cast<ST>(ReadEffectiveAddress<T>(M, Xn));
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 6 : 8);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_SubI(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SubI(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -1910,10 +2113,15 @@ FORCE_INLINE void MC68EC000::Instr_SubI(uint16 instr) {
 
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 16 : kEffectiveAddressCycles<T>[M][Xn] + 20;
+    } else {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_SubQ_An(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SubQ_An(uint16 instr) {
     const uint16 An = bit::extract<0, 2>(instr);
     const uint16 data = bit::extract<9, 11>(instr);
 
@@ -1923,10 +2131,11 @@ FORCE_INLINE void MC68EC000::Instr_SubQ_An(uint16 instr) {
     regs.A[An] = result;
 
     PrefetchTransfer();
+    return 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_SubQ_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SubQ_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 data = bit::extract<9, 11>(instr);
@@ -1941,10 +2150,15 @@ FORCE_INLINE void MC68EC000::Instr_SubQ_EA(uint16 instr) {
 
         return result;
     });
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    } else {
+        return M == 0 ? 4 : kEffectiveAddressCycles<T>[M][Xn] + 8;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_SubX_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SubX_M(uint16 instr) {
     const uint16 Ay = bit::extract<0, 2>(instr);
     const uint16 Ax = bit::extract<9, 11>(instr);
 
@@ -1966,10 +2180,11 @@ FORCE_INLINE void MC68EC000::Instr_SubX_M(uint16 instr) {
         PrefetchTransfer();
         MemWrite<T>(regs.A[Ax], result);
     }
+    return std::is_same_v<T, uint32> ? 30 : 18;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_SubX_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_SubX_R(uint16 instr) {
     const uint16 Dy = bit::extract<0, 2>(instr);
     const uint16 Dx = bit::extract<9, 11>(instr);
 
@@ -1983,9 +2198,10 @@ FORCE_INLINE void MC68EC000::Instr_SubX_R(uint16 instr) {
     bit::deposit_into<0, sizeof(T) * 8 - 1>(regs.D[Dx], result);
 
     PrefetchTransfer();
+    return std::is_same_v<T, uint32> ? 8 : 6;
 }
 
-FORCE_INLINE void MC68EC000::Instr_DivS(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_DivS(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -1999,7 +2215,7 @@ FORCE_INLINE void MC68EC000::Instr_DivS(uint16 instr) {
         SR.Z = 0;
         SR.V = 0;
         SR.C = 0;
-        return;
+        return 42;
     }
 
     SR.Z = 0;
@@ -2026,9 +2242,10 @@ FORCE_INLINE void MC68EC000::Instr_DivS(uint16 instr) {
     }
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<uint16>[M][Xn] + 158;
 }
 
-FORCE_INLINE void MC68EC000::Instr_DivU(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_DivU(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -2042,7 +2259,7 @@ FORCE_INLINE void MC68EC000::Instr_DivU(uint16 instr) {
         SR.Z = 0;
         SR.V = 0;
         SR.C = 0;
-        return;
+        return 42;
     }
 
     SR.Z = 0;
@@ -2061,9 +2278,10 @@ FORCE_INLINE void MC68EC000::Instr_DivU(uint16 instr) {
     }
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<uint16>[M][Xn] + 140;
 }
 
-FORCE_INLINE void MC68EC000::Instr_MulS(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MulS(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -2078,9 +2296,11 @@ FORCE_INLINE void MC68EC000::Instr_MulS(uint16 instr) {
     SR.C = 0;
 
     PrefetchTransfer();
+    const uint32 count = std::popcount<uint16>(op1 ^ (op1 << 1u)); // 10 and 01 patterns in op1 << 1
+    return kEffectiveAddressCycles<uint16>[M][Xn] + 38 + 2ull * count;
 }
 
-FORCE_INLINE void MC68EC000::Instr_MulU(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_MulU(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -2095,9 +2315,10 @@ FORCE_INLINE void MC68EC000::Instr_MulU(uint16 instr) {
     SR.C = 0;
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<uint16>[M][Xn] + 38 + 2ull * std::popcount(op1);
 }
 
-FORCE_INLINE void MC68EC000::Instr_BChg_I_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BChg_I_Dn(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 index = PrefetchNext() & 31;
 
@@ -2107,9 +2328,10 @@ FORCE_INLINE void MC68EC000::Instr_BChg_I_Dn(uint16 instr) {
     regs.D[Dn] ^= bit;
 
     PrefetchTransfer();
+    return 12;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BChg_I_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BChg_I_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 index = PrefetchNext() & 7;
@@ -2119,9 +2341,10 @@ FORCE_INLINE void MC68EC000::Instr_BChg_I_EA(uint16 instr) {
         SR.Z = (value & bit) == 0;
         return value ^ bit;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 12;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BChg_R_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BChg_R_Dn(uint16 instr) {
     const uint16 dstDn = bit::extract<0, 2>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
     const uint16 index = regs.D[srcDn] & 31;
@@ -2132,9 +2355,10 @@ FORCE_INLINE void MC68EC000::Instr_BChg_R_Dn(uint16 instr) {
     regs.D[dstDn] ^= bit;
 
     PrefetchTransfer();
+    return 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BChg_R_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BChg_R_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
@@ -2145,9 +2369,10 @@ FORCE_INLINE void MC68EC000::Instr_BChg_R_EA(uint16 instr) {
         SR.Z = (value & bit) == 0;
         return value ^ bit;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BClr_I_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BClr_I_Dn(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 index = PrefetchNext() & 31;
 
@@ -2157,9 +2382,10 @@ FORCE_INLINE void MC68EC000::Instr_BClr_I_Dn(uint16 instr) {
     regs.D[Dn] &= ~bit;
 
     PrefetchTransfer();
+    return 14;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BClr_I_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BClr_I_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 index = PrefetchNext() & 7;
@@ -2169,9 +2395,10 @@ FORCE_INLINE void MC68EC000::Instr_BClr_I_EA(uint16 instr) {
         SR.Z = (value & bit) == 0;
         return value & ~bit;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 12;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BClr_R_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BClr_R_Dn(uint16 instr) {
     const uint16 dstDn = bit::extract<0, 2>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
     const uint16 index = regs.D[srcDn] & 31;
@@ -2182,9 +2409,10 @@ FORCE_INLINE void MC68EC000::Instr_BClr_R_Dn(uint16 instr) {
     regs.D[dstDn] &= ~bit;
 
     PrefetchTransfer();
+    return 10;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BClr_R_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BClr_R_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
@@ -2195,9 +2423,10 @@ FORCE_INLINE void MC68EC000::Instr_BClr_R_EA(uint16 instr) {
         SR.Z = (value & bit) == 0;
         return value & ~bit;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BSet_I_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BSet_I_Dn(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 index = PrefetchNext() & 31;
 
@@ -2207,9 +2436,10 @@ FORCE_INLINE void MC68EC000::Instr_BSet_I_Dn(uint16 instr) {
     regs.D[Dn] |= bit;
 
     PrefetchTransfer();
+    return 12;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BSet_I_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BSet_I_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 index = PrefetchNext() & 7;
@@ -2219,9 +2449,10 @@ FORCE_INLINE void MC68EC000::Instr_BSet_I_EA(uint16 instr) {
         SR.Z = (value & bit) == 0;
         return value | bit;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 12;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BSet_R_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BSet_R_Dn(uint16 instr) {
     const uint16 dstDn = bit::extract<0, 2>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
     const uint16 index = regs.D[srcDn] & 31;
@@ -2232,9 +2463,10 @@ FORCE_INLINE void MC68EC000::Instr_BSet_R_Dn(uint16 instr) {
     regs.D[dstDn] |= bit;
 
     PrefetchTransfer();
+    return 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BSet_R_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BSet_R_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
@@ -2245,9 +2477,10 @@ FORCE_INLINE void MC68EC000::Instr_BSet_R_EA(uint16 instr) {
         SR.Z = (value & bit) == 0;
         return value | bit;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BTst_I_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BTst_I_Dn(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 index = PrefetchNext() & 31;
 
@@ -2255,9 +2488,10 @@ FORCE_INLINE void MC68EC000::Instr_BTst_I_Dn(uint16 instr) {
     SR.Z = !((value >> index) & 1);
 
     PrefetchTransfer();
+    return 10;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BTst_I_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BTst_I_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 index = PrefetchNext() & 7;
@@ -2266,9 +2500,10 @@ FORCE_INLINE void MC68EC000::Instr_BTst_I_EA(uint16 instr) {
     SR.Z = !((value >> index) & 1);
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BTst_R_Dn(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BTst_R_Dn(uint16 instr) {
     const uint16 dstDn = bit::extract<0, 2>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
     const uint16 index = regs.D[srcDn] & 31;
@@ -2277,9 +2512,10 @@ FORCE_INLINE void MC68EC000::Instr_BTst_R_Dn(uint16 instr) {
     SR.Z = !((value >> index) & 1);
 
     PrefetchTransfer();
+    return 6;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BTst_R_EA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BTst_R_EA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 srcDn = bit::extract<9, 11>(instr);
@@ -2289,17 +2525,18 @@ FORCE_INLINE void MC68EC000::Instr_BTst_R_EA(uint16 instr) {
     SR.Z = !((value >> index) & 1);
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 4;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ASL_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ASL_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
         shift = 8;
     }
 
-    if (sizeof(T) == sizeof(uint8) && shift == 8) {
+    if (std::is_same_v<T, uint8> && shift == 8) {
         const T value = regs.D[Dn];
         const T result = 0;
         const bool carry = value & 1;
@@ -2320,9 +2557,14 @@ FORCE_INLINE void MC68EC000::Instr_ASL_I(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_ASL_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ASL_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2335,10 +2577,11 @@ FORCE_INLINE void MC68EC000::Instr_ASL_M(uint16 instr) {
         SR.C = SR.X = carry;
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ASL_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ASL_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2372,10 +2615,15 @@ FORCE_INLINE void MC68EC000::Instr_ASL_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ASR_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ASR_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
@@ -2384,7 +2632,7 @@ FORCE_INLINE void MC68EC000::Instr_ASR_I(uint16 instr) {
 
     using ST = std::make_signed_t<T>;
 
-    if (sizeof(T) == sizeof(uint8) && shift == 8) {
+    if (std::is_same_v<T, uint8> && shift == 8) {
         const ST value = regs.D[Dn];
         const ST result = value >> 7;
         const bool carry = value >> 7;
@@ -2405,9 +2653,14 @@ FORCE_INLINE void MC68EC000::Instr_ASR_I(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_ASR_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ASR_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2421,10 +2674,11 @@ FORCE_INLINE void MC68EC000::Instr_ASR_M(uint16 instr) {
 
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ASR_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ASR_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2457,17 +2711,22 @@ FORCE_INLINE void MC68EC000::Instr_ASR_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_LSL_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_LSL_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
         shift = 8;
     }
 
-    if (sizeof(T) == sizeof(uint8) && shift == 8) {
+    if (std::is_same_v<T, uint8> && shift == 8) {
         const T value = regs.D[Dn];
         const T result = 0;
         const bool carry = value & 1;
@@ -2489,9 +2748,14 @@ FORCE_INLINE void MC68EC000::Instr_LSL_I(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_LSL_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_LSL_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2505,10 +2769,11 @@ FORCE_INLINE void MC68EC000::Instr_LSL_M(uint16 instr) {
 
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_LSL_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_LSL_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2542,17 +2807,22 @@ FORCE_INLINE void MC68EC000::Instr_LSL_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_LSR_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_LSR_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
         shift = 8;
     }
 
-    if (sizeof(T) == sizeof(uint8) && shift == 8) {
+    if (std::is_same_v<T, uint8> && shift == 8) {
         const T value = regs.D[Dn];
         const T result = 0;
         const bool carry = value >> 7;
@@ -2574,9 +2844,14 @@ FORCE_INLINE void MC68EC000::Instr_LSR_I(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_LSR_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_LSR_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2590,10 +2865,11 @@ FORCE_INLINE void MC68EC000::Instr_LSR_M(uint16 instr) {
 
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_LSR_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_LSR_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2627,10 +2903,15 @@ FORCE_INLINE void MC68EC000::Instr_LSR_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROL_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROL_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
@@ -2647,9 +2928,14 @@ FORCE_INLINE void MC68EC000::Instr_ROL_I(uint16 instr) {
     SR.C = carry;
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_ROL_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROL_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2663,10 +2949,11 @@ FORCE_INLINE void MC68EC000::Instr_ROL_M(uint16 instr) {
 
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROL_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROL_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2687,10 +2974,15 @@ FORCE_INLINE void MC68EC000::Instr_ROL_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROR_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROR_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
@@ -2707,9 +2999,14 @@ FORCE_INLINE void MC68EC000::Instr_ROR_I(uint16 instr) {
     SR.C = carry;
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_ROR_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROR_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2723,10 +3020,11 @@ FORCE_INLINE void MC68EC000::Instr_ROR_M(uint16 instr) {
 
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROR_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROR_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2747,10 +3045,15 @@ FORCE_INLINE void MC68EC000::Instr_ROR_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROXL_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROXL_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
@@ -2766,9 +3069,14 @@ FORCE_INLINE void MC68EC000::Instr_ROXL_I(uint16 instr) {
     SR.C = SR.X = carry;
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_ROXL_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROXL_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2781,10 +3089,11 @@ FORCE_INLINE void MC68EC000::Instr_ROXL_M(uint16 instr) {
 
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROXL_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROXL_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2805,10 +3114,15 @@ FORCE_INLINE void MC68EC000::Instr_ROXL_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROXR_I(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROXR_I(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     uint32 shift = bit::extract<9, 11>(instr);
     if (shift == 0) {
@@ -2824,9 +3138,14 @@ FORCE_INLINE void MC68EC000::Instr_ROXR_I(uint16 instr) {
     SR.C = SR.X = carry;
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_ROXR_M(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROXR_M(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2839,10 +3158,11 @@ FORCE_INLINE void MC68EC000::Instr_ROXR_M(uint16 instr) {
 
         return result;
     });
+    return kEffectiveAddressCycles<uint8>[M][Xn] + 8;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_ROXR_R(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_ROXR_R(uint16 instr) {
     const uint16 Dn = bit::extract<0, 2>(instr);
     const uint16 shiftReg = bit::extract<9, 11>(instr);
     const uint32 shift = regs.D[shiftReg] & 63;
@@ -2863,10 +3183,15 @@ FORCE_INLINE void MC68EC000::Instr_ROXR_R(uint16 instr) {
     }
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return 2ull * shift + 8;
+    } else {
+        return 2ull * shift + 6;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Cmp(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Cmp(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -2880,10 +3205,11 @@ FORCE_INLINE void MC68EC000::Instr_Cmp(uint16 instr) {
     SR.C = IsSubCarry(op1, op2, result);
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + (std::is_same_v<T, uint32> ? 6 : 4);
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_CmpA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_CmpA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 An = bit::extract<9, 11>(instr);
@@ -2897,10 +3223,11 @@ FORCE_INLINE void MC68EC000::Instr_CmpA(uint16 instr) {
     SR.C = IsSubCarry(op1, op2, result);
 
     PrefetchTransfer();
+    return kEffectiveAddressCycles<T>[M][Xn] + 6;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_CmpI(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_CmpI(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2916,10 +3243,15 @@ FORCE_INLINE void MC68EC000::Instr_CmpI(uint16 instr) {
     SR.C = IsSubCarry(op1, op2, result);
 
     PrefetchTransfer();
+    if constexpr (std::is_same_v<T, uint32>) {
+        return M == 0 ? 14 : kEffectiveAddressCycles<T>[M][Xn] + 12;
+    } else {
+        return M == 0 ? 8 : kEffectiveAddressCycles<T>[M][Xn] + 8;
+    }
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_CmpM(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_CmpM(uint16 instr) {
     const uint16 Ay = bit::extract<0, 2>(instr);
     const uint16 Ax = bit::extract<9, 11>(instr);
 
@@ -2934,18 +3266,24 @@ FORCE_INLINE void MC68EC000::Instr_CmpM(uint16 instr) {
     SR.C = IsSubCarry(op1, op2, result);
 
     PrefetchTransfer();
+    return std::is_same_v<T, uint32> ? 20 : 12;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Scc(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Scc(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint32 cond = bit::extract<8, 11>(instr);
 
     const uint8 value = kCondTable[(cond << 4u) | SR.flags] * 0xFF;
     ModifyEffectiveAddress<uint8>(M, Xn, [&](uint8) { return value; });
+    if (value) {
+        return M <= 1 ? 6 : kEffectiveAddressCycles<uint8>[M][Xn] + 8;
+    } else {
+        return M <= 1 ? 4 : kEffectiveAddressCycles<uint8>[M][Xn] + 8;
+    }
 }
 
-FORCE_INLINE void MC68EC000::Instr_TAS(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_TAS(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2958,10 +3296,11 @@ FORCE_INLINE void MC68EC000::Instr_TAS(uint16 instr) {
     });
 
     PrefetchTransfer();
+    return M <= 1 ? 4 : kEffectiveAddressCycles<uint8>[M][Xn] + 10;
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::Instr_Tst(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Tst(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2971,9 +3310,10 @@ FORCE_INLINE void MC68EC000::Instr_Tst(uint16 instr) {
     SR.V = SR.C = 0;
 
     PrefetchTransfer();
+    return M <= 1 ? 4 : kEffectiveAddressCycles<T>[M][Xn] + 4;
 }
 
-FORCE_INLINE void MC68EC000::Instr_LEA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_LEA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 An = bit::extract<9, 11>(instr);
@@ -2981,9 +3321,33 @@ FORCE_INLINE void MC68EC000::Instr_LEA(uint16 instr) {
     regs.A[An] = CalcEffectiveAddress(M, Xn);
 
     PrefetchTransfer();
+
+    static constexpr auto kCycles = [] {
+        std::array<std::array<uint64, 8>, 8> arr{};
+        for (uint8 M = 0; M < 8; ++M) {
+            for (uint8 Xn = 0; Xn < 8; ++Xn) {
+                switch (M) {
+                case 0b010: arr[M][Xn] = 4; break;  // (An)
+                case 0b101: arr[M][Xn] = 8; break;  // d(An)
+                case 0b110: arr[M][Xn] = 12; break; // d(An,ix)
+                case 0b111:
+                    switch (Xn) {
+                    case 0b010: arr[M][Xn] = 8; break;  // d(PC)
+                    case 0b011: arr[M][Xn] = 12; break; // d(PC,ix)
+                    case 0b000: arr[M][Xn] = 8; break;  // xxx.W
+                    case 0b001: arr[M][Xn] = 12; break; // xxx.L
+                    }
+                    break;
+                }
+            }
+        }
+        return arr;
+    }();
+
+    return kCycles[M][Xn];
 }
 
-FORCE_INLINE void MC68EC000::Instr_PEA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_PEA(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -2996,9 +3360,33 @@ FORCE_INLINE void MC68EC000::Instr_PEA(uint16 instr) {
         PrefetchTransfer();
         MemWriteAsc<uint32>(regs.SP, address);
     }
+
+    static constexpr auto kCycles = [] {
+        std::array<std::array<uint64, 8>, 8> arr{};
+        for (uint8 M = 0; M < 8; ++M) {
+            for (uint8 Xn = 0; Xn < 8; ++Xn) {
+                switch (M) {
+                case 0b010: arr[M][Xn] = 12; break; // (An)
+                case 0b101: arr[M][Xn] = 16; break; // d(An)
+                case 0b110: arr[M][Xn] = 20; break; // d(An,ix)
+                case 0b111:
+                    switch (Xn) {
+                    case 0b010: arr[M][Xn] = 16; break; // d(PC)
+                    case 0b011: arr[M][Xn] = 20; break; // d(PC,ix)
+                    case 0b000: arr[M][Xn] = 16; break; // xxx.W
+                    case 0b001: arr[M][Xn] = 20; break; // xxx.L
+                    }
+                    break;
+                }
+            }
+        }
+        return arr;
+    }();
+
+    return kCycles[M][Xn];
 }
 
-FORCE_INLINE void MC68EC000::Instr_Link(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Link(uint16 instr) {
     const uint16 An = bit::extract<0, 2>(instr);
     const sint16 disp = PrefetchNext();
 
@@ -3008,9 +3396,10 @@ FORCE_INLINE void MC68EC000::Instr_Link(uint16 instr) {
     regs.SP += disp;
 
     PrefetchTransfer();
+    return 16;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Unlink(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Unlink(uint16 instr) {
     const uint16 An = bit::extract<0, 2>(instr);
 
     regs.SP = regs.A[An];
@@ -3020,9 +3409,10 @@ FORCE_INLINE void MC68EC000::Instr_Unlink(uint16 instr) {
     }
 
     PrefetchTransfer();
+    return 12;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BRA(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BRA(uint16 instr) {
     const uint32 currPC = PC - 2;
     sint16 disp = static_cast<sint8>(bit::extract<0, 7>(instr));
     if (disp == 0x00) {
@@ -3030,9 +3420,10 @@ FORCE_INLINE void MC68EC000::Instr_BRA(uint16 instr) {
     }
     PC = currPC + disp;
     FullPrefetch();
+    return 10;
 }
 
-FORCE_INLINE void MC68EC000::Instr_BSR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_BSR(uint16 instr) {
     const uint32 currPC = PC - 2;
     sint16 disp = static_cast<sint8>(bit::extract<0, 7>(instr));
     const bool longDisp = disp == 0;
@@ -3046,9 +3437,10 @@ FORCE_INLINE void MC68EC000::Instr_BSR(uint16 instr) {
     MemWrite<uint16>(regs.SP + 2, (PC - 2) >> 0u);
     PC = currPC + disp;
     FullPrefetch();
+    return 18;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Bcc(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Bcc(uint16 instr) {
     const uint32 currPC = PC - 2;
     sint16 disp = static_cast<sint8>(bit::extract<0, 7>(instr));
     const bool longDisp = disp == 0;
@@ -3059,32 +3451,38 @@ FORCE_INLINE void MC68EC000::Instr_Bcc(uint16 instr) {
     if (kCondTable[(cond << 4u) | SR.flags]) {
         PC = currPC + disp;
         FullPrefetch();
-        return;
+        return 10;
     } else if (longDisp) {
         PrefetchNext();
     }
 
     PrefetchTransfer();
+    return longDisp ? 12 : 8;
 }
 
-FORCE_INLINE void MC68EC000::Instr_DBcc(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_DBcc(uint16 instr) {
     const uint32 currPC = PC - 2;
     const uint32 Dn = bit::extract<0, 2>(instr);
     const uint32 cond = bit::extract<8, 11>(instr);
     const sint16 disp = static_cast<sint16>(m_prefetchQueue[0]);
+    uint64 cycles = 12;
 
     if (!kCondTable[(cond << 4u) | SR.flags]) {
         const uint16 value = regs.D[Dn] - 1;
         regs.D[Dn] = (regs.D[Dn] & 0xFFFF0000) | value;
         if (value != 0xFFFFu) {
             PC = currPC + disp;
+            cycles = 10;
+        } else {
+            cycles = 14;
         }
     }
 
     FullPrefetch();
+    return cycles;
 }
 
-FORCE_INLINE void MC68EC000::Instr_JSR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_JSR(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
@@ -3097,18 +3495,66 @@ FORCE_INLINE void MC68EC000::Instr_JSR(uint16 instr) {
     MemWrite<uint16>(regs.SP + 0, currPC >> 16u);
     MemWrite<uint16>(regs.SP + 2, currPC >> 0u);
     PrefetchTransfer();
+
+    static constexpr auto kCycles = [] {
+        std::array<std::array<uint64, 8>, 8> arr{};
+        for (uint8 M = 0; M < 8; ++M) {
+            for (uint8 Xn = 0; Xn < 8; ++Xn) {
+                switch (M) {
+                case 0b010: arr[M][Xn] = 16; break; // (An)
+                case 0b101: arr[M][Xn] = 18; break; // d(An)
+                case 0b110: arr[M][Xn] = 22; break; // d(An,ix)
+                case 0b111:
+                    switch (Xn) {
+                    case 0b010: arr[M][Xn] = 18; break; // d(PC)
+                    case 0b011: arr[M][Xn] = 22; break; // d(PC,ix)
+                    case 0b000: arr[M][Xn] = 18; break; // xxx.W
+                    case 0b001: arr[M][Xn] = 20; break; // xxx.L
+                    }
+                    break;
+                }
+            }
+        }
+        return arr;
+    }();
+
+    return kCycles[M][Xn];
 }
 
-FORCE_INLINE void MC68EC000::Instr_Jmp(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Jmp(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
 
     const uint32 target = CalcEffectiveAddress<false>(M, Xn);
     PC = target;
     FullPrefetch();
+
+    static constexpr auto kCycles = [] {
+        std::array<std::array<uint64, 8>, 8> arr{};
+        for (uint8 M = 0; M < 8; ++M) {
+            for (uint8 Xn = 0; Xn < 8; ++Xn) {
+                switch (M) {
+                case 0b010: arr[M][Xn] = 8; break;  // (An)
+                case 0b101: arr[M][Xn] = 10; break; // d(An)
+                case 0b110: arr[M][Xn] = 14; break; // d(An,ix)
+                case 0b111:
+                    switch (Xn) {
+                    case 0b010: arr[M][Xn] = 10; break; // d(PC)
+                    case 0b011: arr[M][Xn] = 14; break; // d(PC,ix)
+                    case 0b000: arr[M][Xn] = 10; break; // xxx.W
+                    case 0b001: arr[M][Xn] = 12; break; // xxx.L
+                    }
+                    break;
+                }
+            }
+        }
+        return arr;
+    }();
+
+    return kCycles[M][Xn];
 }
 
-FORCE_INLINE void MC68EC000::Instr_RTE(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_RTE(uint16 instr) {
     if (CheckPrivilege()) {
         uint32 SP = regs.SP;
         SetSR(MemRead<uint16, false>(SP));
@@ -3118,24 +3564,28 @@ FORCE_INLINE void MC68EC000::Instr_RTE(uint16 instr) {
         SP += 4;
         SetSSP(SP);
         devlog::trace<grp::exec>("Returning from interrupt handler, PC = {:X}", PC);
+        return 20;
     }
+    return 34;
 }
 
-FORCE_INLINE void MC68EC000::Instr_RTR(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_RTR(uint16 instr) {
     SR.xflags = MemRead<uint16, false>(regs.SP);
     regs.SP += 2;
     PC = MemRead<uint32, false>(regs.SP);
     FullPrefetch();
     regs.SP += 4;
+    return 20;
 }
 
-FORCE_INLINE void MC68EC000::Instr_RTS(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_RTS(uint16 instr) {
     PC = MemRead<uint32, false>(regs.SP);
     FullPrefetch();
     regs.SP += 4;
+    return 16;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Chk(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Chk(uint16 instr) {
     const uint16 Xn = bit::extract<0, 2>(instr);
     const uint16 M = bit::extract<3, 5>(instr);
     const uint16 Dn = bit::extract<9, 11>(instr);
@@ -3149,62 +3599,74 @@ FORCE_INLINE void MC68EC000::Instr_Chk(uint16 instr) {
         SR.N = (value < 0);
         PC -= 2;
         EnterException(ExceptionVector::CHKInstruction);
+        return 44;
     } else {
         SR.N = 0;
         PrefetchTransfer();
+        return kEffectiveAddressCycles<uint16>[M][Xn] + 10;
     }
 }
 
-FORCE_INLINE void MC68EC000::Instr_Reset(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Reset(uint16 instr) {
     if (CheckPrivilege()) {
         // TODO: assert RESET signal, causing all external devices to be reset
         Reset(false);
         // PrefetchTransfer();
+        return 132;
     }
+    return 34;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Stop(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Stop(uint16 instr) {
     if (CheckPrivilege()) {
         SetSR(m_prefetchQueue[0]);
         // TODO: stop CPU; should resume when a trace, interrupt or reset exception occurs
+        return 4;
     }
+    return 34;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Trap(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Trap(uint16 instr) {
     PC -= 2;
     const uint8 vector = bit::extract<0, 3>(instr);
     EnterException(static_cast<ExceptionVector>(0x20 + vector));
+    return 38;
 }
 
-FORCE_INLINE void MC68EC000::Instr_TrapV(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_TrapV(uint16 instr) {
     if (SR.V) {
         PrefetchNext();
         PC -= 4;
         EnterException(ExceptionVector::TRAPVInstruction);
-        return;
+        return 34;
     }
 
     PrefetchTransfer();
+    return 4;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Noop(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Noop(uint16 instr) {
     // TODO: synchronize integer pipeline
 
     PrefetchTransfer();
+    return 4;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Illegal(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Illegal(uint16 instr) {
     EnterException(ExceptionVector::IllegalInstruction);
+    return 34;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Illegal1010(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Illegal1010(uint16 instr) {
     PC -= 4;
     EnterException(ExceptionVector::Line1010Emulator);
+    return 34;
 }
 
-FORCE_INLINE void MC68EC000::Instr_Illegal1111(uint16 instr) {
+FORCE_INLINE uint64 MC68EC000::Instr_Illegal1111(uint16 instr) {
     PC -= 4;
     EnterException(ExceptionVector::Line1111Emulator);
+    return 34;
 }
 
 } // namespace ymir::m68k
