@@ -14,6 +14,14 @@
 
 namespace ymir::sh2 {
 
+namespace static_config {
+
+    // When enabled, bus timings are pulled from the attached Bus to compute instruction cycle timings.
+    // Otherwise, a static number of cycles is used for all memory accesses.
+    static constexpr bool use_bus_timings = true;
+
+} // namespace static_config
+
 // -----------------------------------------------------------------------------
 // Dev log groups
 
@@ -812,22 +820,30 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
     const uint32 partition = (address >> 29u) & 0b111;
     switch (partition) {
     case 0b000: // cache
-        if constexpr (enableCache && !write) {
-            // Check for cache hit
-            CacheEntry &entry = m_cache.GetEntry(address);
-            uint32 way = entry.FindWay(address);
+        if constexpr (static_config::use_bus_timings) {
+            if constexpr (enableCache && !write) {
+                // Check for cache hit
+                CacheEntry &entry = m_cache.GetEntry(address);
+                uint32 way = entry.FindWay(address);
 
-            if (IsValidCacheWay(way)) {
+                if (IsValidCacheWay(way)) {
+                    return 1;
+                }
+            } else if constexpr (!enableCache) {
+                // Simplified model - assume cache hits on all accesses to cached area
                 return 1;
             }
-        } else if constexpr (!enableCache) {
-            // Simplified model - assume cache hits on all accesses to cached area
+        } else {
             return 1;
         }
         [[fallthrough]];
     case 0b001: [[fallthrough]];
     case 0b101: // cache-through
-        return m_bus.GetAccessCycles<write>(address);
+        if constexpr (static_config::use_bus_timings) {
+            return m_bus.GetAccessCycles<write>(address);
+        } else {
+            return 5; // rough hyper-optimistic estimate
+        }
     case 0b010: return 1;        // associative purge
     case 0b011: return 1;        // cache address array
     case 0b100: [[fallthrough]]; // cache data array
