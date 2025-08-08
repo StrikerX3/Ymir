@@ -176,7 +176,7 @@ void SCSP::MapMemory(sys::SH2Bus &bus) {
             cast(ctx).WriteReg<uint16, SCSPAccessType::Debug>(address + 2, value >> 0u);
         });
 
-    bus.SetAccessCycles(0x5A0'0000, 0x5BF'FFFF, 24, 24);
+    bus.SetAccessCycles(0x5A0'0000, 0x5BF'FFFF, 48, 48);
 }
 
 void SCSP::UpdateClockRatios(const sys::ClockRatios &clockRatios) {
