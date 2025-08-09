@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 
 namespace ymir::smpc {
 

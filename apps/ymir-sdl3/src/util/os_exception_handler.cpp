@@ -12,12 +12,14 @@
     #endif
     #include <Windows.h>
 
+    #include <iterator>
     #include <set>
 #elif defined(__linux__)
     #include <signal.h>
 
     #include <bits/types/siginfo_t.h>
 #elif defined(__FreeBSD__)
+    #include <iterator>
     #include <signal.h>
 #elif defined(__APPLE__)
 // TODO: exception handling

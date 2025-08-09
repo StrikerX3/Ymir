@@ -18,6 +18,7 @@
     #include <sys/time.h>
     #include <unistd.h>
 #elif defined(__FreeBSD__)
+    #include <cassert>
     #include <sys/umtx.h>
 #endif
 

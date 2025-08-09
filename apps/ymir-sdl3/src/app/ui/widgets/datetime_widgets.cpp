@@ -5,6 +5,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <array>
 
 namespace app::ui::widgets {
 

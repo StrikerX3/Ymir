@@ -2,6 +2,8 @@
 
 #include <ymir/core/types.hpp>
 
+#include <fmt/format.h>
+
 namespace util {
 
 static constexpr struct {

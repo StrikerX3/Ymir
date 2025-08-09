@@ -2,6 +2,7 @@
 
 #include <ymir/core/types.hpp>
 
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>

@@ -19,6 +19,7 @@
 #include <ymir/util/observable.hpp>
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 #include <toml++/toml.hpp>
 
 #include <chrono>

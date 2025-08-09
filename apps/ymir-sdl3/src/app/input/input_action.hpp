@@ -2,6 +2,9 @@
 
 #include <ymir/core/types.hpp>
 
+#include <compare>
+#include <functional>
+
 namespace app::input {
 
 // Identifies actions within an input context. Apps can use any mapping scheme they wish for actions.

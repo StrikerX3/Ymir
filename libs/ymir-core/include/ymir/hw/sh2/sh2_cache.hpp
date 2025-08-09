@@ -11,6 +11,7 @@
 #include <ymir/util/inline.hpp>
 
 #include <array>
+#include <cassert>
 
 namespace ymir::sh2 {
 

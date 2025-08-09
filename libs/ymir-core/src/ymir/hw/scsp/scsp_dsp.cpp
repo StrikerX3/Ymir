@@ -1,5 +1,7 @@
 #include <ymir/hw/scsp/scsp_dsp.hpp>
 
+#include <ostream>
+
 namespace ymir::scsp {
 
 DSP::DSP(uint8 *ram)

@@ -1,5 +1,7 @@
 #include <ymir/db/game_db.hpp>
 
+#include <unordered_map>
+
 namespace ymir::db {
 
 // Table adapted from Mednafen
@@ -10,7 +12,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfos = {
     {"MK-81088", {.cartridge = Cartridge::ROM_KOF95}},    // King of Fighters '95, The (Europe)
     {"T-3101G",  {.cartridge = Cartridge::ROM_KOF95}},    // King of Fighters '95, The (Japan)
     {"T-13308G", {.cartridge = Cartridge::ROM_Ultraman}}, // Ultraman - Hikari no Kyojin Densetsu (Japan)
-    
+
     {"T-1521G",    {.cartridge = Cartridge::DRAM8Mbit}}, // Astra Superstars (Japan)
     {"T-9904G",    {.cartridge = Cartridge::DRAM8Mbit}}, // Cotton 2 (Japan)
     {"T-1217G",    {.cartridge = Cartridge::DRAM8Mbit}}, // Cyberbots (Japan)
