@@ -300,8 +300,6 @@ void SH2::MapMemory(sys::SH2Bus &bus) {
         },
         [](uint32 address, uint16, void *ctx) { static_cast<SH2 *>(ctx)->TriggerFRTInputCapture(); },
         [](uint32 address, uint32, void *ctx) { static_cast<SH2 *>(ctx)->TriggerFRTInputCapture(); });
-
-    bus.SetAccessCycles(0x100'0000 + addressOffset, 0x17F'FFFF + addressOffset, 8, 8);
 }
 
 void SH2::DumpCacheData(std::ostream &out) const {
@@ -816,7 +814,7 @@ template <mem_primitive T>
 
 template <bool enableCache, bool write>
 FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
-    // TODO: might need to distinguish between different sizes
+    // TODO: distinguish between different sizes
     const uint32 partition = (address >> 29u) & 0b111;
     switch (partition) {
     case 0b000: // cache
@@ -828,6 +826,9 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
 
                 if (IsValidCacheWay(way)) {
                     return 1;
+                } else {
+                    // Cache miss - fill cache line
+                    return m_bus.GetAccessCycles<write>(address) * 4;
                 }
             } else if constexpr (!enableCache) {
                 // Simplified model - assume cache hits on all accesses to cached area

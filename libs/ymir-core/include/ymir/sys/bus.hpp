@@ -307,6 +307,7 @@ public:
     /// @return the number of cycles (waitstates) to access the address
     template <bool write>
     FLATTEN FORCE_INLINE uint64 GetAccessCycles(uint32 address) const {
+        // TODO: different timings for 32-bit reads in some regions
         address &= kAddressMask;
 
         const MemoryPage &entry = m_pages[address >> kPageGranularityBits];

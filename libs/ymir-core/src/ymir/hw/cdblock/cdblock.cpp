@@ -185,8 +185,6 @@ void CDBlock::MapMemory(sys::SH2Bus &bus) {
             [](uint32 address, uint16 value, void *ctx) { cast(ctx).PokeReg<uint16>(address, value); },
             [](uint32 address, uint32 value, void *ctx) { cast(ctx).PokeReg<uint32>(address, value); });
     }
-
-    bus.SetAccessCycles(0x580'0000, 0x58F'FFFF, 8, 8);
 }
 
 void CDBlock::UpdateClockRatios(const sys::ClockRatios &clockRatios) {

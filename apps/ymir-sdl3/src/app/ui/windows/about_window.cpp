@@ -476,7 +476,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ackWithAuthor("M68000 single step tests", "raddad772", "https://github.com/SingleStepTests/m68000");
     ackWithAuthor("Various tests", "celeriyacon", "https://github.com/celeriyacon");
     ImGui::Indent();
-    ImGui::TextUnformatted("cdbtest, misctest, scspadpcm, scsptest, sh2test, scutest and vdp2test");
+    ImGui::TextUnformatted("cdbtest, memtimes, misctest, scspadpcm, scsptest, sh2test, scutest and vdp2test");
     ImGui::Unindent();
 
     // -----------------------------------------------------------------------------

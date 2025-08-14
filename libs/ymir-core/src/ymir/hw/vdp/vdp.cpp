@@ -356,9 +356,6 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
             currValue = (currValue & mask) | (value << shift);
             cast(ctx).VDP2WriteReg(address & ~1, currValue);
         });
-
-    bus.SetAccessCycles(0x5C0'0000, 0x5D7'FFFF, 14, 14); // TODO: include VDP1 drawing contention
-    bus.SetAccessCycles(0x5E0'0000, 0x5FB'FFFF, 20, 20);
 }
 
 template <bool debug>
