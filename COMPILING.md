@@ -13,6 +13,7 @@ Ymir has been successfully compiled with the following toolchains:
 - Clang 19.1.1 on Ubuntu 24.04.2 LTS (`clang-19` / `clang++-19`)
 - GCC 14.2.0 on Ubuntu 24.04.2 LTS (`gcc-14` / `g++-14`)
 - Clang 19.1.7 on FreeBSD 14.3-RELEASE (`clang19` / `clang++19`)
+- Clang 21.1.0 on FreeBSD 14.3-RELEASE (`clang21` / `clang++21`)
 - Apple Clang 17 on macOS 15 Sequoia
 
 The project has been compiled for x86_64 and ARM64 Windows, Linux, FreeBSD and macOS platforms.
@@ -81,7 +82,8 @@ pkg install evdev-proto libX11 libXcursor libXext libXfixes libXi libXrandr libX
 
 The compiler of choice for this platform is Clang. Although a Clang compiler toolchain
 is provided with a base install of FreeBSD, it lacks the required `clang-scan-deps`
-binary. It is required to install a complete LLVM toolchain:
+binary. It is required to install a complete LLVM toolchain (arm64 builds require
+at least version 21 due to a compiler bug in lower versions):
 
 ```sh
 pkg install llvm19

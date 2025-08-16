@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cassert>
 #include <iosfwd>
 
 namespace ymir::scsp {

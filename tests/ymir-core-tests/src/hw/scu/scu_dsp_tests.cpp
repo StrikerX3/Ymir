@@ -2,6 +2,8 @@
 
 #include <ymir/hw/scu/scu_dsp.hpp>
 
+#include <fmt/format.h>
+
 #include <map>
 #include <string_view>
 

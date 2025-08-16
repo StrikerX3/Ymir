@@ -2,6 +2,8 @@
 
 #include "input_utils.hpp"
 
+#include <cassert>
+
 namespace app::input {
 
 InputContext::InputContext() {

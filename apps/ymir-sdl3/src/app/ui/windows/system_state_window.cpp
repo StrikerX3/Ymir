@@ -13,6 +13,8 @@
 
 #include <fmt/std.h>
 
+#include <cinttypes>
+
 using namespace ymir;
 
 namespace app::ui {

@@ -2,6 +2,8 @@
 
 #include <ymir/util/bit_ops.hpp>
 
+#include <tuple>
+
 namespace ymir::sh2 {
 
 DisassemblyTable::DisassemblyTable() {

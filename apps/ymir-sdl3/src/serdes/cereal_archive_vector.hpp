@@ -1,6 +1,8 @@
 #pragma once
 
 #include "cereal/cereal.hpp"
+
+#include <algorithm>
 #include <vector>
 
 namespace cereal {

@@ -13,6 +13,7 @@
 #include <ymir/util/unreachable.hpp>
 
 #include <array>
+#include <cassert>
 
 namespace ymir::vdp {
 

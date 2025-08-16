@@ -4,6 +4,7 @@
 #include <ymir/util/inline.hpp>
 #include <ymir/util/size_ops.hpp>
 
+#include <fstream>
 #include <string_view>
 
 namespace ymir::bup {

@@ -7,6 +7,7 @@
 #include <ymir/core/types.hpp>
 
 #include <array>
+#include <mutex>
 #include <thread>
 #include <vector>
 

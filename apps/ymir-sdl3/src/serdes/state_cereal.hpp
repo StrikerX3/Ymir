@@ -7,6 +7,8 @@
 #include <cereal/types/array.hpp>
 #include <cereal/types/vector.hpp>
 
+#include <algorithm>
+
 namespace ymir::state {
 
 // Current save state format version.

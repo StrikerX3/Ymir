@@ -15,6 +15,8 @@
     #include <pthread.h>
     #include <sys/param.h>
     #include <sys/resource.h>
+    #include <unistd.h>
+    #include <vector>
 #else
     #include <limits.h>
     #include <pthread.h>

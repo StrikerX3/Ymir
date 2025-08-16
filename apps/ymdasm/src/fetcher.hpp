@@ -6,6 +6,7 @@
 
 #include <fmt/format.h>
 
+#include <fstream>
 #include <istream>
 #include <limits>
 #include <memory>

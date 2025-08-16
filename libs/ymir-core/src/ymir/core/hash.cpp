@@ -1,5 +1,6 @@
 #include <ymir/core/hash.hpp>
 
+#include <fmt/xchar.h>
 #include <xxh3.h>
 
 namespace ymir {
