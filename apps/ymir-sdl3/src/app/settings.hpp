@@ -33,6 +33,7 @@
 namespace app {
 
 inline constexpr std::string_view kSettingsFile = "Ymir.toml";
+inline constexpr std::string_view kGameControllerDBFile = "gamecontrollerdb.txt";
 
 struct SettingsLoadResult {
     enum class Type { Success, TOMLParseError, UnsupportedConfigVersion };

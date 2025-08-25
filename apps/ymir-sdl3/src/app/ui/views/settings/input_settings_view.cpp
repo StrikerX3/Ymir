@@ -39,18 +39,32 @@ void InputSettingsView::Display() {
         }
         ImGui::EndTable();
     }
+
+    // -------------------------------------------------------------------------
+
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Gamepads");
     ImGui::PopFont();
+
+    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
 
     if (m_context.gameControllerDBCount == 0) {
         ImGui::TextUnformatted("Game controller database not found or empty");
     } else {
         ImGui::Text("Game controller database: %d controllers", m_context.gameControllerDBCount);
     }
-    ImGui::Text("Database path: %s",
-                fmt::format("{}", m_context.profile.GetPath(ProfilePath::Root) / "gamecontrollerdb.txt").c_str());
-    if (ImGui::Button("Open containing folder##gamecontrollerdb")) {
+    ImGui::TextUnformatted("Database paths:");
+    ImGui::Indent();
+    ImGui::Text("Included with emulator: %s",
+                fmt::format("{}", Profile::GetPortableProfilePath() / kGameControllerDBFile).c_str());
+    ImGui::Text("Your profile: %s",
+                fmt::format("{}", m_context.profile.GetPath(ProfilePath::Root) / kGameControllerDBFile).c_str());
+    ImGui::Unindent();
+    if (ImGui::Button("Open emulator folder##gamecontrollerdb")) {
+        SDL_OpenURL(fmt::format("file:///{}", Profile::GetPortableProfilePath()).c_str());
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Open profile folder##gamecontrollerdb")) {
         SDL_OpenURL(fmt::format("file:///{}", m_context.profile.GetPath(ProfilePath::Root)).c_str());
     }
     ImGui::SameLine();
@@ -317,6 +331,8 @@ void InputSettingsView::Display() {
         drawTrigger("RT", rt, settings.gamepad.analogToDigitalSensitivity);
         ImGui::PopID();
     }
+
+    ImGui::PopTextWrapPos();
 }
 
 } // namespace app::ui
