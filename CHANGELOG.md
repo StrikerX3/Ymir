@@ -43,6 +43,7 @@ Introduced save state file version 9.
 - SH2: Fix byte order of direct cache data accesses. (thanks to @celeriyacon)
 - SH2: Fix MOVA offset when in delay slot. (thanks to @celeriyacon)
 - SH2: Swap memory read order for MAC.W and MAC.L operands. (thanks to @celeriyacon)
+- SMPC: Clear SF when receiving an INTBACK break request. Fixes Phantasy Star Collection hanging on a black screen after SEGA licensing screen.
 - SMPC: Optimized INTBACK flag is inverted. (thanks to @celeriyacon)
 - SMPC, VDP: Trigger optimized INTBACK more consistently closer to 1ms before VBlank IN depending on vertical resolution.
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)

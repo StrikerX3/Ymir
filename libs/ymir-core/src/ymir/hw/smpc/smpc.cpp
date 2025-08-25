@@ -357,6 +357,7 @@ void SMPC::Write(uint32 address, uint8 value) {
                     m_intbackInProgress = false;
                     SR.NPE = 0;
                     SR.PDL = 0;
+                    SF = false;
                 }
             }
         }
