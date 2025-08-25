@@ -22,6 +22,7 @@ namespace grp {
     //
     // base
     //   regs
+    //   intback
 
     struct base {
         static constexpr bool enabled = true;
@@ -31,6 +32,10 @@ namespace grp {
 
     struct regs : public base {
         static constexpr std::string_view name = "SMPC-Regs";
+    };
+
+    struct intback : public base {
+        static constexpr std::string_view name = "SMPC-INTBACK";
     };
 
 } // namespace grp
@@ -342,13 +347,13 @@ void SMPC::Write(uint32 address, uint8 value) {
                 const bool continueFlag = bit::test<7>(IREG[0]);
                 const bool breakFlag = bit::test<6>(IREG[0]);
                 if (continueFlag) {
-                    devlog::trace<grp::base>("INTBACK continue request");
+                    devlog::trace<grp::intback>("INTBACK continue request");
                     SF = true;
                     if (!m_optimize) {
                         m_scheduler.ScheduleFromNow(m_commandEvent, 1000);
                     }
                 } else if (breakFlag) {
-                    devlog::trace<grp::base>("INTBACK break request");
+                    devlog::trace<grp::intback>("INTBACK break request");
                     m_intbackInProgress = false;
                     SR.NPE = 0;
                     SR.PDL = 0;
@@ -720,13 +725,13 @@ void SMPC::RESDISA() {
 }
 
 void SMPC::INTBACK() {
-    devlog::trace<grp::base>("Processing INTBACK {:02X} {:02X} {:02X}", IREG[0], IREG[1], IREG[2]);
+    devlog::trace<grp::intback>("Processing INTBACK {:02X} {:02X} {:02X}", IREG[0], IREG[1], IREG[2]);
 
     if (m_intbackInProgress) {
         WriteINTBACKPeripheralReport();
     } else {
         if (IREG[2] != 0xF0) {
-            devlog::debug<grp::base>("Unexpected INTBACK IREG2: {:02X}", IREG[2]);
+            devlog::debug<grp::intback>("Unexpected INTBACK IREG2: {:02X}", IREG[2]);
             // TODO: does SMPC reject the command in this case?
         }
 
@@ -736,8 +741,8 @@ void SMPC::INTBACK() {
         m_port1mode = bit::extract<4, 5>(IREG[1]);
         m_port2mode = bit::extract<6, 7>(IREG[1]);
 
-        devlog::trace<grp::base>("Init INTBACK: optimize={} status={} periph={} modes={:X} {:X}", m_optimize, getStatus,
-                                 m_getPeripheralData, m_port1mode, m_port2mode);
+        devlog::trace<grp::intback>("Init INTBACK: optimize={} status={} periph={} modes={:X} {:X}", m_optimize,
+                                    getStatus, m_getPeripheralData, m_port1mode, m_port2mode);
 
         m_intbackInProgress = m_getPeripheralData;
 
@@ -758,7 +763,7 @@ void SMPC::TriggerOptimizedINTBACKRead() {
         m_optimize = false;
 
         if (SF && m_intbackInProgress && m_getPeripheralData) {
-            devlog::trace<grp::base>("Optimized INTBACK triggered");
+            devlog::trace<grp::intback>("Optimized INTBACK triggered");
             m_scheduler.ScheduleFromNow(m_commandEvent, 0);
         }
     }
@@ -779,11 +784,11 @@ void SMPC::ReadPeripherals() {
     for (auto b : m_intbackReport) {
         fmt::format_to(out, " {:02X}", b);
     }
-    devlog::debug<grp::base>("{}", fmt::to_string(buf));*/
+    devlog::debug<grp::intback>("{}", fmt::to_string(buf));*/
 }
 
 void SMPC::WriteINTBACKStatusReport() {
-    devlog::trace<grp::base>("INTBACK status report");
+    devlog::trace<grp::intback>("INTBACK status report");
 
     SR.bit7 = 0;                  // fixed 0
     SR.PDL = 1;                   // fixed 1 for status report
@@ -836,7 +841,7 @@ void SMPC::WriteINTBACKStatusReport() {
 
 void SMPC::WriteINTBACKPeripheralReport() {
     const bool firstReport = m_intbackReportOffset == 0;
-    devlog::trace<grp::base>("INTBACK peripheral report - first? {}", firstReport);
+    devlog::trace<grp::intback>("INTBACK peripheral report - first? {}", firstReport);
 
     if (firstReport) {
         ReadPeripherals();
@@ -852,6 +857,7 @@ void SMPC::WriteINTBACKPeripheralReport() {
         m_intbackInProgress = false;
         m_intbackReportOffset = 0;
         m_optimize = false;
+        devlog::trace<grp::intback>("INTBACK peripheral report ended");
     }
 
     SR.bit7 = 1;                  // fixed 1
