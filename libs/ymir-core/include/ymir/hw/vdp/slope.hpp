@@ -333,8 +333,11 @@ struct LineStepper {
             (ys > height && ye > height)) {
             m_x = m_xEnd;
             m_y = m_yEnd;
+            m_step = 0xFFFFFFFFu;
             return 0u;
         }
+
+        // ---------------------------------------------------------------------
 
         // Determine how many pixels to clip from the start
         uint32 xclip;
@@ -359,14 +362,18 @@ struct LineStepper {
         startClip = std::min(startClip, length - 1u);
         m_x += m_xMajInc * startClip;
         m_y += m_yMajInc * startClip;
-        m_accum -= m_num * startClip;
-        while (m_accum <= m_accumTarget) {
-            m_accum += m_den;
-            m_x += m_xMinInc;
-            m_y += m_yMinInc;
+        for (uint32 i = 0; i < startClip; ++i) {
+            m_accum -= m_num;
+            while (m_accum <= m_accumTarget) {
+                m_accum += m_den;
+                m_x += m_xMinInc;
+                m_y += m_yMinInc;
+            }
         }
         length -= startClip;
         m_step += startClip;
+
+        // ---------------------------------------------------------------------
 
         // Determine how many pixels to clip from the end
         if (xinc < 0 && xe < -kPadding) {
@@ -387,18 +394,17 @@ struct LineStepper {
         // Use the longer of the two lengths to step ahead and determine the line's endpoint
         uint32 endClip = std::max(xclip, yclip);
         endClip = std::min(endClip, length - 1u);
-        const uint32 numEndSteps = endClip - startClip + 1;
-        sint32 tempAccum = m_accum - m_num * numEndSteps;
+        endClip = length - endClip;
         m_xEnd = m_x;
         m_yEnd = m_y;
-        /*const sint32 numEndIncs = m_den == 0 ? 0 : (m_den - 1 - tempAccum) / m_den;
-        tempAccum += m_den * numEndIncs;
-        m_xEnd += m_xMinInc * numEndIncs;
-        m_yEnd += m_yMinInc * numEndIncs;*/
-        while (tempAccum <= m_accumTarget) {
-            tempAccum += m_den;
-            m_xEnd += m_xMinInc;
-            m_yEnd += m_yMinInc;
+        sint32 tempAccum = m_accum;
+        for (uint32 i = 0; i < endClip; ++i) {
+            tempAccum -= m_num;
+            while (tempAccum <= m_accumTarget) {
+                tempAccum += m_den;
+                m_xEnd += m_xMinInc;
+                m_yEnd += m_yMinInc;
+            }
         }
 
         return startClip;
