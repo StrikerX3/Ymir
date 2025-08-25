@@ -345,16 +345,8 @@ void SMPC::Write(uint32 address, uint8 value) {
                     devlog::trace<grp::base>("INTBACK continue request");
                     SF = true;
                     if (!m_optimize) {
-                        // TODO: Virtua Racing needs the status report before VBlank OUT and the peripheral report after
-                        // VBlank OUT. Discworld needs both within the VBlank period.
-
-                        // TODO: delay even longer if PAL
-                        // TODO: shorten delay for Discworld
-                        // HACK: delay by a long while to fix Virtua Racing which expects the status report before
-                        // VBlank OUT and the peripheral reports after VBlank OUT
-                        m_scheduler.ScheduleFromNow(m_commandEvent, 100000);
+                        m_scheduler.ScheduleFromNow(m_commandEvent, 1000);
                     }
-                    // INTBACK();
                 } else if (breakFlag) {
                     devlog::trace<grp::base>("INTBACK break request");
                     m_intbackInProgress = false;
@@ -739,7 +731,7 @@ void SMPC::INTBACK() {
         }
 
         const bool getStatus = IREG[0] == 0x01;
-        m_optimize = bit::test<1>(IREG[1]);
+        m_optimize = !bit::test<1>(IREG[1]); // OPE=0 means optimize
         m_getPeripheralData = bit::test<3>(IREG[1]);
         m_port1mode = bit::extract<4, 5>(IREG[1]);
         m_port2mode = bit::extract<6, 7>(IREG[1]);
