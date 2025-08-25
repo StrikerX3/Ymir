@@ -74,7 +74,7 @@ bool AudioSystem::GetAudioStreamFormat(int *sampleRate, SDL_AudioFormat *format,
 void AudioSystem::ReceiveSample(sint16 left, sint16 right) {
     // If we're doing audio sync, wait until the buffer is no longer full.
     // Otherwise, simply overrun the buffer.
-    if (m_sync) {
+    if (m_sync && !m_silent) {
         m_bufferNotFullEvent.Wait();
     }
 
