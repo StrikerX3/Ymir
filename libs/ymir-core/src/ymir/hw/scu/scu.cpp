@@ -157,11 +157,11 @@ void SCU::UpdateHBlank(bool hb, bool vb) {
             if (m_timer0Counter == m_timer0Compare) {
                 TriggerTimer0();
             }
-            ++m_timer0Counter;
-            if (m_timer1Triggered) {
+            if (m_timer1Triggered && (!m_timer1Mode || m_timer0Counter == m_timer0Compare)) {
                 m_timer1Triggered = false;
                 m_scheduler.ScheduleFromNow(m_timer1Event, m_timer1Reload);
             }
+            ++m_timer0Counter;
         }
         TriggerDMATransfer(DMATrigger::HBlankIN);
     }
@@ -1001,7 +1001,7 @@ void SCU::TriggerDMATransfer(DMATrigger trigger) {
 }
 
 FORCE_INLINE void SCU::TickTimer1() {
-    if (m_timerEnable && (!m_timer1Mode || m_timer0Counter == m_timer0Compare)) {
+    if (m_timerEnable) {
         TriggerTimer1();
     }
     m_timer1Triggered = true;
