@@ -1028,6 +1028,7 @@ FORCE_INLINE void VDP::IncrementVCounter() {
         case VerticalPhase::LastLine: BeginVPhaseLastLine(); break;
         }
     }
+    devlog::trace<grp::base>("VCNT = {:3d}  phase = {:d}", m_state.regs2.VCNT, static_cast<uint32>(m_state.VPhase));
 }
 
 // ----
