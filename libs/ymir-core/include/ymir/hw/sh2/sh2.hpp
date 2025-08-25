@@ -597,7 +597,7 @@ private:
     template <mem_primitive T>
     T OpenBusSeqRead(uint32 address);
 
-    template <bool enableCache, bool write>
+    template <bool write, bool enableCache>
     uint64 AccessCycles(uint32 address);
 
     // -------------------------------------------------------------------------
