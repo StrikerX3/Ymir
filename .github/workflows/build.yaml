@@ -39,7 +39,7 @@ jobs:
 
   build-windows:
     name: windows-${{ matrix.c_compiler }}-${{ matrix.architecture.name }}
-    runs-on: windows-2025
+    runs-on: ${{ matrix.architecture.runner }}
     needs: [get-project-version]
 
     strategy:
@@ -53,8 +53,16 @@ jobs:
         architecture:
           - name: "x86_64-SSE2"
             enable_avx2_option: "OFF"
+            runner: windows-latest
+            target: x64
           - name: "x86_64-AVX2"
             enable_avx2_option: "ON"
+            runner: windows-latest
+            target: x64
+          - name: "ARM64"
+            enable_avx2_option: "OFF"
+            runner: windows-11-arm
+            target: arm64         
         include:
           - c_compiler: clang
             cpp_compiler: clang
@@ -79,7 +87,7 @@ jobs:
         if: ${{ matrix.c_compiler == 'cl' }}
         uses: TheMrMilchmann/setup-msvc-dev@v3
         with:
-          arch: x64
+         arch: ${{ matrix.architecture.target }}
 
       - name: Configure CMake
         run: >

@@ -43,42 +43,38 @@ jobs:
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
 
-  # build-windows-a64:
-  #   name: windows-a64
-  #   # runs-on: windows-11-arm
-  #   runs-on: windows-latest
+  build-windows-a64:
+    name: windows-a64
+    runs-on: windows-11-arm
 
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-  #     - name: Set reusable strings
-  #       id: strings
-  #       shell: bash
-  #       run: |
-  #         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-  #     - name: Configure CMake
-  #       run: >
-  #         cmake -B ${{ steps.strings.outputs.build-output-dir }}
-  #         -DCMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang++.exe"
-  #         -DCMAKE_C_COMPILER="C:\Program Files\LLVM\bin\clang.exe"
-  #         -DCMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"
-  #         -DCMAKE_CXX_FLAGS="--target=arm64-pc-windows-gnullvm"
-  #         -DCMAKE_C_FLAGS="--target=arm64-pc-windows-gnullvm"
-  #         -DCMAKE_BUILD_TYPE=Debug
-  #         -DBUILD_SHARED_LIBS=OFF
-  #         -DYmir_ENABLE_DEVLOG=OFF
-  #         -DYmir_ENABLE_IMGUI_DEMO=OFF
-  #         -DYmir_ENABLE_SANDBOX=OFF
-  #         -DYmir_ENABLE_YMDASM=ON
-  #         -DYmir_ENABLE_IPO=OFF
-  #         -S ${{ github.workspace }}
-  #         -G Ninja
+      - name: Configure CMake
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_SHARED_LIBS=OFF
+          -DYmir_ENABLE_DEVLOG=OFF
+          -DYmir_ENABLE_IMGUI_DEMO=OFF
+          -DYmir_ENABLE_SANDBOX=OFF
+          -DYmir_ENABLE_YMDASM=ON
+          -DYmir_ENABLE_IPO=OFF
+          -S ${{ github.workspace }}
+          -G Ninja
 
-  #     - name: Build
-  #       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
 
   build-linux-x64:
     name: linux-x64
