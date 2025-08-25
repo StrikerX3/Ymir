@@ -54,7 +54,7 @@ Both methods work, but opening the directory allows Visual Studio to use Ninja f
 
 To build Ymir on Linux, first you will need to install SDL3's required dependencies. Follow the instructions on [this page](https://wiki.libsdl.org/SDL3/README-linux) to install them.
 
-The compiler of choice for this platform is Clang. GCC is not currently supported as there seems to be a bug which causes it to take an extremely long time to compile `sh2.cpp`.
+The compiler of choice for this platform is Clang. GCC is also supported, but produces slightly slower code.
 
 Use CMake to generate a Makefile or (preferably) a Ninja build script:
 
