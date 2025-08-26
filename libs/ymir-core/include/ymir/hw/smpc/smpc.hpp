@@ -116,6 +116,7 @@ private:
     std::filesystem::path m_persistentDataPath;
 
     static void OnCommandEvent(core::EventContext &eventContext, void *userContext);
+    static void OnINTBACKBreakEvent(core::EventContext &eventContext, void *userContext);
 
     // -------------------------------------------------------------------------
     // Memory accessors
@@ -260,6 +261,7 @@ private:
     bool m_intbackInProgress;           // Whether an INTBACK peripheral report read is in progress
 
     void TriggerOptimizedINTBACKRead();
+    void TriggerVBlankIN();
 
     void ReadPeripherals();
 
@@ -270,6 +272,7 @@ private:
     // Commands
 
     void ProcessCommand();
+    void INTBACKBreak();
 
     void MSHON();
     void SSHON();
@@ -294,6 +297,8 @@ public:
 
     const vdp::CBTriggerEvent CbTriggerOptimizedINTBACKRead =
         util::MakeClassMemberRequiredCallback<&SMPC::TriggerOptimizedINTBACKRead>(this);
+
+    const vdp::CBTriggerEvent CbTriggerVBlankIN = util::MakeClassMemberRequiredCallback<&SMPC::TriggerVBlankIN>(this);
 
     const sys::CBClockSpeedChange CbClockSpeedChange =
         util::MakeClassMemberRequiredCallback<&SMPC::UpdateClockRatios>(this);

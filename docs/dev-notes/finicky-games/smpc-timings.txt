@@ -16,9 +16,7 @@ Games that require INTBACK peripheral reports to be delayed
 ===========================================================
 
 Discworld
-  Requests an INTBACK 01 08 F0 (both reports, no timing optimization) ~12 lines after VBlank IN.
-  Once the INTBACK interrupt is handled (still within VBlank), processes the status report and sends a continue request.
-  Expects both reports to be delivered before VBlank OUT. Fails to respond to input otherwise.
+  Needs INTBACK to timeout at VBlank IN, otherwise doesn't respond to inputs.
 
 Virtua Racing
   Requests an INTBACK 01 08 F0 (both reports, no timing optimization) right at the start of VBlank IN.

@@ -43,8 +43,9 @@ Introduced save state file version 9.
 - SH2: Fix byte order of direct cache data accesses. (thanks to @celeriyacon)
 - SH2: Fix MOVA offset when in delay slot. (thanks to @celeriyacon)
 - SH2: Swap memory read order for MAC.W and MAC.L operands. (thanks to @celeriyacon)
-- SMPC: Clear SF when receiving an INTBACK break request. Fixes Phantasy Star Collection hanging on a black screen after SEGA licensing screen.
+- SMPC: Clear SF (with a delay) when receiving an INTBACK break request. Fixes Phantasy Star Collection hanging on a black screen after SEGA licensing screen.
 - SMPC: Optimized INTBACK flag is inverted. (thanks to @celeriyacon)
+- SMPC: Time out pending INTBACK at VBlank IN if no Continue or Break requests are received until then. Fixes inputs in both Discworld versions. (#245; thanks to @celeriyacon)
 - SMPC, VDP: Trigger optimized INTBACK more consistently closer to 1ms before VBlank IN depending on vertical resolution.
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.

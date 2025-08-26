@@ -45,11 +45,13 @@ public:
     void Reset(bool hard);
 
     void MapCallbacks(CBHBlankStateChange cbHBlankStateChange, CBVBlankStateChange cbVBlankStateChange,
-                      CBTriggerEvent cbSpriteDrawEnd, CBTriggerEvent cbOptimizedINTBACKRead) {
+                      CBTriggerEvent cbSpriteDrawEnd, CBTriggerEvent cbOptimizedINTBACKRead,
+                      CBTriggerEvent cbSMPCVBlankIN) {
         m_cbHBlankStateChange = cbHBlankStateChange;
         m_cbVBlankStateChange = cbVBlankStateChange;
         m_cbTriggerSpriteDrawEnd = cbSpriteDrawEnd;
         m_cbTriggerOptimizedINTBACKRead = cbOptimizedINTBACKRead;
+        m_cbTriggerSMPCVBlankIN = cbSMPCVBlankIN;
     }
 
     void MapMemory(sys::Bus &bus);
@@ -146,6 +148,7 @@ private:
     CBVBlankStateChange m_cbVBlankStateChange;
     CBTriggerEvent m_cbTriggerSpriteDrawEnd;
     CBTriggerEvent m_cbTriggerOptimizedINTBACKRead;
+    CBTriggerEvent m_cbTriggerSMPCVBlankIN;
 
     core::Scheduler &m_scheduler;
     core::EventID m_phaseUpdateEvent;

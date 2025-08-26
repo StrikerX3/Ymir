@@ -230,6 +230,12 @@ void SMPC::OnCommandEvent(core::EventContext &eventContext, void *userContext) {
     smpc.ProcessCommand();
 }
 
+void SMPC::OnINTBACKBreakEvent(core::EventContext &eventContext, void *userContext) {
+    auto &smpc = *static_cast<SMPC *>(userContext);
+    smpc.INTBACKBreak();
+    smpc.m_scheduler.SetEventCallback(smpc.m_commandEvent, userContext, OnCommandEvent);
+}
+
 template <bool peek>
 uint8 SMPC::Read(uint32 address) {
     if constexpr (peek) {
@@ -350,14 +356,15 @@ void SMPC::Write(uint32 address, uint8 value) {
                     devlog::trace<grp::intback>("INTBACK continue request");
                     SF = true;
                     if (!m_optimize) {
+                        // TODO: check this; seems like it should execute after VBlank OUT
                         m_scheduler.ScheduleFromNow(m_commandEvent, 1000);
                     }
                 } else if (breakFlag) {
                     devlog::trace<grp::intback>("INTBACK break request");
-                    m_intbackInProgress = false;
-                    SR.NPE = 0;
-                    SR.PDL = 0;
-                    SF = false;
+
+                    // Delay processing by 25 microseconds
+                    m_scheduler.SetEventCallback(m_commandEvent, this, OnINTBACKBreakEvent);
+                    m_scheduler.ScheduleFromNow(m_commandEvent, 100);
                 }
             }
         }
@@ -606,6 +613,14 @@ void SMPC::ProcessCommand() {
     }
 }
 
+void SMPC::INTBACKBreak() {
+    devlog::trace<grp::intback>("INTBACK cancelled");
+    m_intbackInProgress = false;
+    SR.NPE = 0;
+    SR.PDL = 0;
+    SF = false;
+}
+
 void SMPC::MSHON() {
     devlog::debug<grp::base>("Processing MSHON");
 
@@ -767,6 +782,14 @@ void SMPC::TriggerOptimizedINTBACKRead() {
             devlog::trace<grp::intback>("Optimized INTBACK triggered");
             m_scheduler.ScheduleFromNow(m_commandEvent, 0);
         }
+    }
+}
+
+void SMPC::TriggerVBlankIN() {
+    // Cause pending INTBACK to timeout
+    if (m_intbackInProgress) {
+        devlog::trace<grp::intback>("INTBACK timed out");
+        INTBACKBreak();
     }
 }
 

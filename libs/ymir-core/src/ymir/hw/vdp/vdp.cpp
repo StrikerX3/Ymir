@@ -1177,6 +1177,7 @@ void VDP::BeginVPhaseBottomBorder() {
 
     m_state.regs2.TVSTAT.VBLANK = 1;
     m_cbVBlankStateChange(true);
+    m_cbTriggerSMPCVBlankIN();
 
     // TODO: draw border
 }
