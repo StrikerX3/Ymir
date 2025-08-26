@@ -16,25 +16,45 @@ void VDP2LayerParamsView::Display() {
     auto &probe = m_vdp.GetProbe();
     const auto &regs2 = probe.GetVDP2Regs();
 
-    const float paddingWidth = ImGui::GetStyle().FramePadding.x;
-    ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-    const float hexCharWidth = ImGui::CalcTextSize("F").x;
-    ImGui::PopFont();
-    const float spaceWidth = ImGui::CalcTextSize(" ").x;
-
-    auto checkbox = [](const char *label, bool value, bool sameLine = false) {
-        if (sameLine) {
-            ImGui::SameLine();
-        }
-        ImGui::Checkbox(label, &value);
-    };
-
     auto printYesNo = [&](bool value) {
         if (value) {
             ImGui::TextUnformatted("yes");
         } else {
             ImGui::TextUnformatted("no");
         }
+    };
+
+    struct WindowSetPrinter {
+        WindowSetPrinter(vdp::WindowLogic logic)
+            : m_logic(logic) {}
+
+        void AppendWindow(const char *name, bool enabled, bool inverted) {
+            auto out = std::back_inserter(m_buf);
+            if (!enabled) {
+                return;
+            }
+            if (m_hasAnyWindow) {
+                if (m_logic == vdp::WindowLogic::And) {
+                    fmt::format_to(out, " & ");
+                } else {
+                    fmt::format_to(out, " | ");
+                }
+            }
+            if (inverted) {
+                fmt::format_to(out, "~");
+            }
+            fmt::format_to(out, "{}", name);
+            m_hasAnyWindow = true;
+        }
+
+        std::string ToString() const {
+            return m_hasAnyWindow ? fmt::to_string(m_buf) : "-";
+        }
+
+    private:
+        const vdp::WindowLogic m_logic;
+        bool m_hasAnyWindow = false;
+        fmt::memory_buffer m_buf{};
     };
 
     if (ImGui::BeginTable("layers", 7, ImGuiTableFlags_SizingFixedFit)) {
@@ -483,39 +503,13 @@ void VDP2LayerParamsView::Display() {
         // -------------------------------------------------------------------------------------------------------------
 
         auto printWindowSet = [&]<bool hasSpriteWindow>(const vdp::WindowSet<hasSpriteWindow> &windowSet) {
-            fmt::memory_buffer buf{};
-            auto out = std::back_inserter(buf);
-
-            bool hasAnyWindow = false;
-
-            auto printWindow = [&](uint32 index, const char *name) {
-                if (!windowSet.enabled[index]) {
-                    return;
-                }
-                if (hasAnyWindow) {
-                    if (windowSet.logic == vdp::WindowLogic::And) {
-                        fmt::format_to(out, " & ");
-                    } else {
-                        fmt::format_to(out, " | ");
-                    }
-                }
-                if (windowSet.inverted[index]) {
-                    fmt::format_to(out, "~");
-                }
-                fmt::format_to(out, "{}", name);
-                hasAnyWindow = true;
-            };
-
-            printWindow(0, "W0");
-            printWindow(1, "W1");
+            WindowSetPrinter printer{windowSet.logic};
+            printer.AppendWindow("0", windowSet.enabled[0], windowSet.inverted[0]);
+            printer.AppendWindow("1", windowSet.enabled[1], windowSet.inverted[1]);
             if constexpr (hasSpriteWindow) {
-                printWindow(2, "SW");
+                printer.AppendWindow("S", windowSet.enabled[2], windowSet.inverted[2]);
             }
-            if (hasAnyWindow) {
-                ImGui::Text("%s", fmt::to_string(buf).c_str());
-            } else {
-                ImGui::TextUnformatted("-");
-            }
+            ImGui::Text("%s", printer.ToString().c_str());
         };
 
         ImGui::TableNextRow();
@@ -537,7 +531,122 @@ void VDP2LayerParamsView::Display() {
         ImGui::EndTable();
     }
 
-    // TODO: sprite layer parameters
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Sprite layer");
+    ImGui::PopFont();
+
+    if (ImGui::BeginTable("sprite", 2, ImGuiTableFlags_SizingFixedFit)) {
+        const auto &spriteParams = regs2.spriteParams;
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Format");
+
+        ImGui::TableNextColumn();
+        ImGui::Text("Type %u, ", spriteParams.type);
+        ImGui::SameLine(0, 0);
+        if (spriteParams.mixedFormat) {
+            ImGui::TextUnformatted("Palette/RGB");
+        } else {
+            ImGui::TextUnformatted("Palette only");
+        }
+        if (spriteParams.lineColorScreenEnable) {
+            ImGui::SameLine(0, 0);
+            ImGui::TextUnformatted(", LNCL insertion");
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Color calc.");
+        ImGui::TableNextColumn();
+        if (spriteParams.colorCalcEnable) {
+            switch (spriteParams.colorCalcCond) {
+            case vdp::SpriteColorCalculationCondition::PriorityLessThanOrEqual:
+                ImGui::Text("priority <= %u", spriteParams.colorCalcValue);
+                break;
+            case vdp::SpriteColorCalculationCondition::PriorityEqual:
+                ImGui::Text("priority == %u", spriteParams.colorCalcValue);
+                break;
+            case vdp::SpriteColorCalculationCondition::PriorityGreaterThanOrEqual:
+                ImGui::Text("priority >= %u", spriteParams.colorCalcValue);
+                break;
+            case vdp::SpriteColorCalculationCondition::MsbEqualsOne: ImGui::TextUnformatted("color MSB == 1"); break;
+            }
+            ImGui::SameLine(0, 0);
+            ImGui::Text(
+                ", ratios: %u %u %u %u %u %u %u %u", spriteParams.colorCalcRatios[0], spriteParams.colorCalcRatios[1],
+                spriteParams.colorCalcRatios[2], spriteParams.colorCalcRatios[3], spriteParams.colorCalcRatios[4],
+                spriteParams.colorCalcRatios[5], spriteParams.colorCalcRatios[6], spriteParams.colorCalcRatios[7]);
+        } else {
+            ImGui::TextUnformatted("no");
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Priorities");
+        ImGui::TableNextColumn();
+        for (uint32 i = 0; i < 8; ++i) {
+            if (i > 0) {
+                ImGui::SameLine();
+            }
+            ImGui::Text("%u", spriteParams.priorities[i]);
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Windows");
+        ImGui::TableNextColumn();
+        const auto &windowSet = spriteParams.windowSet;
+        WindowSetPrinter printer{windowSet.logic};
+        printer.AppendWindow("0", windowSet.enabled[0], windowSet.inverted[0]);
+        printer.AppendWindow("1", windowSet.enabled[1], windowSet.inverted[1]);
+        printer.AppendWindow("S", spriteParams.spriteWindowEnabled, spriteParams.spriteWindowInverted);
+        ImGui::Text("%s", printer.ToString().c_str());
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Sprite window");
+        ImGui::TableNextColumn();
+        printYesNo(spriteParams.useSpriteWindow);
+
+        ImGui::EndTable();
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Windows");
+    ImGui::PopFont();
+
+    if (ImGui::BeginTable("windows", 3, ImGuiTableFlags_SizingFixedFit)) {
+        ImGui::TableSetupColumn("");
+        ImGui::TableSetupColumn("Dimensions", ImGuiTableColumnFlags_WidthFixed, 120.0f * m_context.displayScale);
+        ImGui::TableSetupColumn("Line window table");
+        ImGui::TableHeadersRow();
+
+        const auto &windowParams = regs2.windowParams;
+
+        for (uint32 i = 0; i < 2; ++i) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%u", i);
+            ImGui::TableNextColumn();
+            ImGui::Text("%ux%u - %ux%u", windowParams[i].startX, windowParams[i].startY, windowParams[i].endX,
+                        windowParams[i].endY);
+            ImGui::TableNextColumn();
+            ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+            if (windowParams[i].lineWindowTableEnable) {
+                ImGui::Text("%05X", windowParams[i].lineWindowTableAddress);
+            } else {
+                ImGui::TextUnformatted("-");
+            }
+            ImGui::PopFont();
+        }
+
+        ImGui::EndTable();
+    }
 }
 
 } // namespace app::ui
