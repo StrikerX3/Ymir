@@ -60,21 +60,21 @@ struct WindowSet {
         logic = WindowLogic::Or;
     }
 
-    static constexpr uint32 numWindows = hasSpriteWindow ? 3 : 2;
+    static constexpr uint32 kNumWindows = hasSpriteWindow ? 3 : 2;
 
     // Window enable flags for:
     // [0] Window 0
     // [1] Window 1
     // [2] Sprite Window  (if hasSpriteWindow is true)
     // Derived from WCTLA/B/C/D.xxW0E, xxW1E and xxSWE
-    std::array<bool, numWindows> enabled;
+    std::array<bool, kNumWindows> enabled;
 
     // Determines if the active area of the window is inside (false) or outside (true) for:
     // [0] Window 0
     // [1] Window 1
     // [2] Sprite Window  (if hasSpriteWindow is true)
     // Derived from WCTLA/B/C/D.xxW0A, xxW1A and xxSWA
-    std::array<bool, numWindows> inverted;
+    std::array<bool, kNumWindows> inverted;
 
     // Window combination logic mode.
     // Derived from WCTLA/B/C/D.xxLOG

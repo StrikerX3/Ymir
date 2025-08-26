@@ -480,12 +480,64 @@ void VDP2LayerParamsView::Display() {
             }
         }
 
-        // Window parameters.
-        // Derived from WCTLA/B/C/D
-        // WindowSet<true> windowSet;
+        // -------------------------------------------------------------------------------------------------------------
+
+        auto printWindowSet = [&]<bool hasSpriteWindow>(const vdp::WindowSet<hasSpriteWindow> &windowSet) {
+            fmt::memory_buffer buf{};
+            auto out = std::back_inserter(buf);
+
+            bool hasAnyWindow = false;
+
+            auto printWindow = [&](uint32 index, const char *name) {
+                if (!windowSet.enabled[index]) {
+                    return;
+                }
+                if (hasAnyWindow) {
+                    if (windowSet.logic == vdp::WindowLogic::And) {
+                        fmt::format_to(out, " & ");
+                    } else {
+                        fmt::format_to(out, " | ");
+                    }
+                }
+                if (windowSet.inverted[index]) {
+                    fmt::format_to(out, "~");
+                }
+                fmt::format_to(out, "{}", name);
+                hasAnyWindow = true;
+            };
+
+            printWindow(0, "W0");
+            printWindow(1, "W1");
+            if constexpr (hasSpriteWindow) {
+                printWindow(2, "SW");
+            }
+            if (hasAnyWindow) {
+                ImGui::Text("%s", fmt::to_string(buf).c_str());
+            } else {
+                ImGui::TextUnformatted("-");
+            }
+        };
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Windows");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                printWindowSet(regs2.bgParams[i + 1].windowSet);
+            }
+        }
+        for (uint32 i = 0; i < 2; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                printWindowSet(regs2.bgParams[i].windowSet);
+            }
+        }
 
         ImGui::EndTable();
     }
+
+    // TODO: sprite layer parameters
 }
 
 } // namespace app::ui
