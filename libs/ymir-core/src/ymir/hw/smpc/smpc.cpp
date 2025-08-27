@@ -114,8 +114,8 @@ void SMPC::MapMemory(sys::Bus &bus) {
     bus.MapNormal(
         0x010'0000, 0x017'FFFF, this,
         [](uint32 address, void *ctx) -> uint8 { return cast(ctx).Read<false>((address & 0x7F) | 1); },
-        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).Read<false>((address & 0x7F) | 1); },
-        [](uint32 address, void *ctx) -> uint32 { return cast(ctx).Read<false>((address & 0x7F) | 1); },
+        [](uint32 address, void *ctx) -> uint16 { return 0xFF00 | cast(ctx).Read<false>((address & 0x7F) | 1); },
+        [](uint32 address, void *ctx) -> uint32 { return 0xFF00 | cast(ctx).Read<false>((address & 0x7F) | 1); },
         [](uint32 address, uint8 value, void *ctx) { cast(ctx).Write<false>((address & 0x7F) | 1, value); },
         [](uint32 address, uint16 value, void *ctx) { cast(ctx).Write<false>((address & 0x7F) | 1, value); },
         [](uint32 address, uint32 value, void *ctx) { cast(ctx).Write<false>((address & 0x7F) | 1, value); });
@@ -300,8 +300,6 @@ uint8 SMPC::Read(uint32 address) {
     case 0x63: return ReadSF();
     case 0x75: return ReadPDR1();
     case 0x77: return ReadPDR2();
-    case 0x7D: return 0; // IOSEL is write-only
-    case 0x7F: return 0; // EXLE is write-only
     default:
         if constexpr (!peek) {
             devlog::debug<grp::regs>("Unhandled SMPC read from {:02X}", address);
@@ -351,6 +349,8 @@ void SMPC::Write(uint32 address, uint8 value) {
     } else {
         m_busValue = value;
     }
+
+    devlog::trace<grp::regs>("Register write to {:02X} = {:02X}", address, value);
 
     switch (address) {
     case 0x01:
@@ -469,15 +469,15 @@ FORCE_INLINE uint8 SMPC::ReadSR() const {
 }
 
 FORCE_INLINE uint8 SMPC::ReadSF() const {
-    return SF;
+    return SF | (m_busValue & 0xFE);
 }
 
 FORCE_INLINE uint8 SMPC::ReadPDR1() const {
-    return PDR1;
+    return (PDR1 & 0x7F) | (m_busValue & 0x80);
 }
 
 FORCE_INLINE uint8 SMPC::ReadPDR2() const {
-    return PDR2;
+    return (PDR2 & 0x7F) | (m_busValue & 0x80);
 }
 
 FORCE_INLINE uint8 SMPC::ReadDDR1() const {
@@ -779,6 +779,7 @@ void SMPC::INTBACK() {
 
     SF = false; // done processing
 
+    devlog::trace<grp::intback>("Raising SMPC interrupt");
     m_cbSystemManagerInterruptCallback();
 }
 

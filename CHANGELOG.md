@@ -46,6 +46,7 @@ Introduced save state file version 9.
 - SH2: Fix MOVA offset when in delay slot. (thanks to @celeriyacon)
 - SH2: Swap memory read order for MAC.W and MAC.L operands. (thanks to @celeriyacon)
 - SMPC: Clear SF (with a delay) when receiving an INTBACK break request. Fixes Phantasy Star Collection hanging on a black screen after SEGA licensing screen.
+- SMPC: Fix register reads/writes. (thanks to @celeriyacon)
 - SMPC: Optimized INTBACK flag is inverted. (thanks to @celeriyacon)
 - SMPC: Time out pending INTBACK at VBlank IN if no Continue or Break requests are received until then. Fixes inputs in both Discworld versions. (#245; thanks to @celeriyacon)
 - SMPC, VDP: Trigger optimized INTBACK more consistently closer to 1ms before VBlank IN depending on vertical resolution.
