@@ -49,6 +49,7 @@ Introduced save state file version 9.
 - SMPC: Optimized INTBACK flag is inverted. (thanks to @celeriyacon)
 - SMPC: Time out pending INTBACK at VBlank IN if no Continue or Break requests are received until then. Fixes inputs in both Discworld versions. (#245; thanks to @celeriyacon)
 - SMPC, VDP: Trigger optimized INTBACK more consistently closer to 1ms before VBlank IN depending on vertical resolution.
+- System: Reset clock speed when soft resetting the system.
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.
 - VDP2: Fix CRAM address bits shuffling. Fixes unexpected graphics showing up before the intro FMV in Saturn Bomberman. (#434)

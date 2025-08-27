@@ -111,10 +111,10 @@ Saturn::Saturn()
 }
 
 void Saturn::Reset(bool hard) {
-    if (hard) {
-        m_system.clockSpeed = sys::ClockSpeed::_320;
-        m_system.UpdateClockRatios();
+    m_system.clockSpeed = sys::ClockSpeed::_320;
+    m_system.UpdateClockRatios();
 
+    if (hard) {
         m_scheduler.Reset();
     }
 
