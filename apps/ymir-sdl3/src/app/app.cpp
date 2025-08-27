@@ -1769,13 +1769,13 @@ void App::RunEmulator() {
             if (io.WantCaptureKeyboard != imguiWantedKeyboardInput) {
                 imguiWantedKeyboardInput = io.WantCaptureKeyboard;
                 if (io.WantCaptureKeyboard) {
-                    inputContext.ClearAllKeyboardInputs();
+                    inputContext.ResetAllKeyboardInputs();
                 }
             }
             if (io.WantCaptureMouse != imguiWantedMouseInput) {
                 imguiWantedMouseInput = io.WantCaptureMouse;
                 if (io.WantCaptureMouse) {
-                    inputContext.ClearAllMouseInputs();
+                    inputContext.ResetAllMouseInputs();
                 }
             }
 

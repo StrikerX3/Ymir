@@ -89,13 +89,27 @@ public:
     // Processes all updated axes.
     void ProcessAxes();
 
-    // Clears all keyboard inputs.
-    // Can be used for when the application loses focus.
-    void ClearAllKeyboardInputs();
+    // Resets the input of the specified element.
+    void ResetInput(const InputElement &element);
 
-    // Clears all mouse inputs.
-    // Can be used for when the application loses focus.
-    void ClearAllMouseInputs();
+    // Resets all keyboard inputs.
+    // Useful when the application loses focus.
+    void ResetAllKeyboardInputs();
+
+    // Resets all mouse inputs.
+    // Useful when the application loses focus.
+    void ResetAllMouseInputs();
+
+    // Resets all inputs of the specified gamepad.
+    // Useful when the application loses focus.
+    // Automatically invoked when a controller is disconnected.
+    void ResetGamepadInputs(uint32 id);
+
+    // Resets all inputs of all gamepads.
+    void ResetAllGamepadInputs();
+
+    // Resets all inputs.
+    void ResetAllInputs();
 
     // -----------------------------------------------------------------------------------------------------------------
     // Input capture

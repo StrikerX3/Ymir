@@ -133,6 +133,7 @@ void InputContext::ConnectGamepad(uint32 id) {
 }
 
 void InputContext::DisconnectGamepad(uint32 id) {
+    ResetGamepadInputs(id);
     m_connectedGamepads.erase(id);
 }
 
@@ -226,33 +227,115 @@ void InputContext::ProcessAxes() {
     }
 }
 
-void InputContext::ClearAllKeyboardInputs() {
+void InputContext::ResetInput(const InputElement &element) {
+    if (auto action = m_actions.find(element); action != m_actions.end()) {
+        switch (element.type) {
+        case InputElement::Type::None: break;
+        case InputElement::Type::KeyCombo: [[fallthrough]];
+        case InputElement::Type::MouseCombo: [[fallthrough]];
+        case InputElement::Type::GamepadButton:
+            if (auto handler = m_buttonHandlers.find(action->second.action); handler != m_buttonHandlers.end()) {
+                handler->second(action->second.context, element, false);
+            }
+            break;
+        case InputElement::Type::MouseAxis1D: [[fallthrough]];
+        case InputElement::Type::GamepadAxis1D:
+            if (auto handler = m_axis1DHandlers.find(action->second.action); handler != m_axis1DHandlers.end()) {
+                handler->second(action->second.context, element, 0.0f);
+            }
+            break;
+        case InputElement::Type::MouseAxis2D: [[fallthrough]];
+        case InputElement::Type::GamepadAxis2D:
+            if (auto handler = m_axis2DHandlers.find(action->second.action); handler != m_axis2DHandlers.end()) {
+                handler->second(action->second.context, element, 0.0f, 0.0f);
+            }
+            break;
+        }
+    }
+}
+
+void InputContext::ResetAllKeyboardInputs() {
     for (size_t i = 0; i < m_keyStates.size(); ++i) {
         if (m_keyStates[i]) {
             m_keyStates[i] = false;
             const auto key = static_cast<KeyboardKey>(i);
-            ProcessEvent({.element = {KeyCombo{m_currModifiers, key}}, .buttonPressed = false});
+            ResetInput(KeyCombo{m_currModifiers, key});
         }
     }
     if (m_currModifiers != KeyModifier::None) {
         for (size_t i = 0; i < m_mouseButtonStates.size(); ++i) {
             if (m_mouseButtonStates[i]) {
                 const auto button = static_cast<MouseButton>(i);
-                ProcessEvent({.element = {MouseCombo{m_currModifiers, button}}, .buttonPressed = false});
+                ResetInput(MouseCombo{m_currModifiers, button});
             }
         }
     }
     m_currModifiers = KeyModifier::None;
 }
 
-void InputContext::ClearAllMouseInputs() {
+void InputContext::ResetAllMouseInputs() {
     for (size_t i = 0; i < m_mouseButtonStates.size(); ++i) {
         if (m_mouseButtonStates[i]) {
             m_mouseButtonStates[i] = false;
             const auto button = static_cast<MouseButton>(i);
-            ProcessEvent({.element = {MouseCombo{m_currModifiers, button}}, .buttonPressed = false});
+            ResetInput(MouseCombo{m_currModifiers, button});
         }
     }
+}
+
+void InputContext::ResetGamepadInputs(uint32 id) {
+    m_gamepadButtonStates[id].fill(false);
+    for (uint32 i = 0; i < static_cast<uint32>(GamepadButton::_Count); ++i) {
+        const auto button = static_cast<GamepadButton>(i);
+        ResetInput({id, button});
+    }
+
+    auto &axes1D = m_gamepadAxes1D[id];
+    for (uint32 i = 0; i < axes1D.size(); ++i) {
+        auto &axis = axes1D[i];
+        ResetInput({id, static_cast<GamepadAxis1D>(i)});
+    }
+
+    auto &axes2D = m_gamepadAxes2D[id];
+    for (uint32 i = 0; i < axes2D.size(); ++i) {
+        auto &axis = axes2D[i];
+        axis.x = 0.0f;
+        axis.y = 0.0f;
+        ResetInput({id, static_cast<GamepadAxis2D>(i)});
+    }
+}
+
+void InputContext::ResetAllGamepadInputs() {
+    for (auto &[id, buttons] : m_gamepadButtonStates) {
+        m_gamepadButtonStates[id].fill(false);
+        for (uint32 i = 0; i < static_cast<uint32>(GamepadButton::_Count); ++i) {
+            const auto button = static_cast<GamepadButton>(i);
+            ResetInput({id, button});
+        }
+    }
+
+    for (auto &[id, axes] : m_gamepadAxes1D) {
+        for (uint32 i = 0; i < axes.size(); ++i) {
+            auto &axis = axes[i];
+            axis.value = 0.0f;
+            ResetInput({id, static_cast<GamepadAxis1D>(i)});
+        }
+    }
+
+    for (auto &[id, axes] : m_gamepadAxes2D) {
+        for (uint32 i = 0; i < axes.size(); ++i) {
+            auto &axis = axes[i];
+            axis.x = 0.0f;
+            axis.y = 0.0f;
+            ResetInput({id, static_cast<GamepadAxis2D>(i)});
+        }
+    }
+}
+
+void InputContext::ResetAllInputs() {
+    ResetAllKeyboardInputs();
+    ResetAllMouseInputs();
+    ResetAllGamepadInputs();
 }
 
 void InputContext::Capture(CaptureCallback &&callback) {
@@ -435,6 +518,7 @@ std::unordered_set<MappedInputElement> InputContext::UnmapAction(Action action) 
     std::unordered_set<MappedInputElement> mappedElems{};
     if (m_actionsReverse.contains(action)) {
         for (auto &evt : m_actionsReverse.at(action)) {
+            ResetInput(evt.element);
             m_actions.erase(evt.element);
             mappedElems.insert(evt);
         }
@@ -448,6 +532,7 @@ std::unordered_set<MappedInputElement> InputContext::UnmapAction(Action action, 
     if (m_actionsReverse.contains(action)) {
         for (auto &evt : m_actionsReverse.at(action)) {
             if (evt.context == context) {
+                ResetInput(evt.element);
                 m_actions.erase(evt.element);
                 toRemove.insert(evt);
             }
@@ -465,6 +550,7 @@ std::optional<MappedAction> InputContext::UnmapInput(InputElement element) {
     }
 
     const MappedAction action = m_actions.at(element);
+    ResetInput(element);
     m_actions.erase(element);
     if (m_actionsReverse.contains(action.action)) {
         m_actionsReverse.at(action.action).erase({element, action.context});
@@ -473,6 +559,7 @@ std::optional<MappedAction> InputContext::UnmapInput(InputElement element) {
 }
 
 void InputContext::UnmapAllActions() {
+    ResetAllInputs();
     m_actions.clear();
     m_actionsReverse.clear();
 }

@@ -33,6 +33,7 @@ Introduced save state file version 9.
 - CD Block: Use CD Block clock ratios instead of SCSP's for drive state update events.
 - CD Block: Various state transition and playback nuances. (thanks to @celeriyacon)
 - CD Block: Various Put/Get/Delete Sector Data nuances. (thanks to @celeriyacon)
+- Input: Reset inputs when unbinding inputs or disconnecting gamepads.
 - Media: Adjust sectors offsets when reading CHD images with multiple data tracks. Fixes some Last Bronx (USA) CHD images not booting. (#238)
 - Media: Fix handling of Unicode characters when loading or saving the recent game disc list.
 - Media: Honor absolute paths when loading images from CUE sheets. If the absolute path is not found, try loading the file from the same directory as the CUE sheet.
