@@ -241,6 +241,13 @@ void SMPC::OnCommandEvent(core::EventContext &eventContext, void *userContext) {
 void SMPC::OnINTBACKBreakEvent(core::EventContext &eventContext, void *userContext) {
     auto &smpc = *static_cast<SMPC *>(userContext);
     smpc.INTBACKBreak();
+    smpc.m_scheduler.SetEventCallback(smpc.m_commandEvent, userContext, ClearSFEvent);
+    eventContext.Reschedule(750);
+}
+
+void SMPC::ClearSFEvent(core::EventContext &eventContext, void *userContext) {
+    auto &smpc = *static_cast<SMPC *>(userContext);
+    smpc.SF = false;
     smpc.m_scheduler.SetEventCallback(smpc.m_commandEvent, userContext, OnCommandEvent);
 }
 
@@ -626,7 +633,7 @@ void SMPC::INTBACKBreak() {
     m_intbackInProgress = false;
     SR.NPE = 0;
     SR.PDL = 0;
-    SF = false;
+    // SF = false; // delayed
 }
 
 void SMPC::MSHON() {
@@ -801,6 +808,8 @@ void SMPC::TriggerVBlankIN() {
     if (m_intbackInProgress) {
         devlog::trace<grp::intback>("INTBACK timed out");
         INTBACKBreak();
+        m_scheduler.SetEventCallback(m_commandEvent, this, ClearSFEvent);
+        m_scheduler.ScheduleFromNow(m_commandEvent, 550);
     }
 }
 

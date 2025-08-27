@@ -117,6 +117,7 @@ private:
 
     static void OnCommandEvent(core::EventContext &eventContext, void *userContext);
     static void OnINTBACKBreakEvent(core::EventContext &eventContext, void *userContext);
+    static void ClearSFEvent(core::EventContext &eventContext, void *userContext);
 
     // -------------------------------------------------------------------------
     // Memory accessors
