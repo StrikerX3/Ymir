@@ -1019,7 +1019,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                     Parse(tblBinds, "Down", portSettings.arcadeRacer.binds.gearDown);
                     Parse(tblBinds, "WheelLeft", portSettings.arcadeRacer.binds.wheelLeft);
                     Parse(tblBinds, "WheelRight", portSettings.arcadeRacer.binds.wheelRight);
-                    Parse(tblBinds, "AnalogWheel", portSettings.arcadeRacer.binds.wheel);
+                    Parse(tblBinds, "Wheel", portSettings.arcadeRacer.binds.wheel);
                 };
                 auto parseMissionStickBinds = [&](auto &tblBinds) {
                     Parse(tblBinds, "A", portSettings.missionStick.binds.a);
