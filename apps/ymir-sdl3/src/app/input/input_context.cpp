@@ -293,6 +293,7 @@ void InputContext::ResetGamepadInputs(uint32 id) {
     auto &axes1D = m_gamepadAxes1D[id];
     for (uint32 i = 0; i < axes1D.size(); ++i) {
         auto &axis = axes1D[i];
+        axis.value = 0.0f;
         ResetInput({id, static_cast<GamepadAxis1D>(i)});
     }
 
