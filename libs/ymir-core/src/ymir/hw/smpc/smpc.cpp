@@ -777,7 +777,9 @@ void SMPC::INTBACK() {
         }
     }
 
-    SF = false; // done processing
+    if (!m_intbackInProgress) {
+        SF = false; // done processing
+    }
 
     devlog::trace<grp::intback>("Raising SMPC interrupt");
     m_cbSystemManagerInterruptCallback();
