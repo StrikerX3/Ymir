@@ -213,6 +213,14 @@ void SMPC::LoadState(const state::SMPCState &state) {
     WriteIOSEL(state.IOSEL);
     WriteEXLE(state.EXLE);
 
+    m_getPeripheralData = state.intback.getPeripheralData;
+    m_optimize = state.intback.optimize;
+    m_port1mode = state.intback.port1mode;
+    m_port2mode = state.intback.port2mode;
+    m_intbackReport = state.intback.report;
+    m_intbackReportOffset = state.intback.reportOffset;
+    m_intbackInProgress = state.intback.inProgress;
+
     m_busValue = state.busValue;
     m_resetDisable = state.resetDisable;
 
