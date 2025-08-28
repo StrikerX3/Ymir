@@ -260,6 +260,7 @@ private:
     std::vector<uint8> m_intbackReport; // Full peripheral report for both ports
     size_t m_intbackReportOffset;       // Offset into full peripheral report to continue reading
     bool m_intbackInProgress;           // Whether an INTBACK peripheral report read is in progress
+    bool m_intbackEnqueued; // A second INTBACK command was requested while another pending INTBACK is continuing
 
     void TriggerOptimizedINTBACKRead();
     void TriggerVBlankIN();

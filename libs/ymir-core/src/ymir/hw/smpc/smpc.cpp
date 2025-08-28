@@ -35,6 +35,7 @@ namespace grp {
     };
 
     struct intback : public base {
+        static constexpr devlog::Level level = devlog::level::trace;
         static constexpr std::string_view name = "SMPC-INTBACK";
     };
 
@@ -93,6 +94,7 @@ void SMPC::Reset(bool hard) {
     m_intbackReportOffset = 0;
 
     m_intbackInProgress = false;
+    m_intbackEnqueued = false;
 
     m_scheduler.Cancel(m_commandEvent);
 }
@@ -185,6 +187,7 @@ void SMPC::SaveState(state::SMPCState &state) const {
     state.intback.report = m_intbackReport;
     state.intback.reportOffset = m_intbackReportOffset;
     state.intback.inProgress = m_intbackInProgress;
+    state.intback.enqueued = m_intbackEnqueued;
 
     state.busValue = m_busValue;
     state.resetDisable = m_resetDisable;
@@ -220,6 +223,7 @@ void SMPC::LoadState(const state::SMPCState &state) {
     m_intbackReport = state.intback.report;
     m_intbackReportOffset = state.intback.reportOffset;
     m_intbackInProgress = state.intback.inProgress;
+    m_intbackEnqueued = state.intback.enqueued;
 
     m_busValue = state.busValue;
     m_resetDisable = state.resetDisable;
@@ -236,6 +240,30 @@ void SMPC::UpdateResetNMI() {
 void SMPC::OnCommandEvent(core::EventContext &eventContext, void *userContext) {
     auto &smpc = *static_cast<SMPC *>(userContext);
     smpc.ProcessCommand();
+    if (smpc.COMREG == Command::INTBACK) {
+        if (smpc.m_intbackEnqueued && !smpc.SF) {
+            // Process dual-issued INTBACK command
+            smpc.m_intbackEnqueued = false;
+            eventContext.Reschedule(1000);
+            devlog::debug<grp::intback>("Scheduling dual-issued INTBACK command");
+        } else if (smpc.m_intbackInProgress) {
+            // Process continue/break request
+            const bool continueFlag = bit::test<7>(smpc.IREG[0]);
+            const bool breakFlag = bit::test<6>(smpc.IREG[0]);
+            if (continueFlag) {
+                if (!smpc.m_optimize) {
+                    smpc.SF = true;
+                    eventContext.Reschedule(1000);
+                    devlog::debug<grp::intback>("Scheduling INTBACK continue request");
+                }
+            } else if (breakFlag) {
+                // Delay processing by 25 microseconds
+                smpc.m_scheduler.SetEventCallback(smpc.m_commandEvent, userContext, OnINTBACKBreakEvent);
+                eventContext.Reschedule(100);
+                devlog::debug<grp::intback>("Scheduling INTBACK break request");
+            }
+        }
+    }
 }
 
 void SMPC::OnINTBACKBreakEvent(core::EventContext &eventContext, void *userContext) {
@@ -519,6 +547,14 @@ FORCE_INLINE void SMPC::WriteCOMREG(uint8 value) {
     if constexpr (!poke) {
         // Reject if a command is already scheduled
         if (m_scheduler.IsScheduled(m_commandEvent)) {
+            if (static_cast<Command>(value) == Command::INTBACK && COMREG == Command::INTBACK) {
+                // INTBACK command sent while a previous INTBACK command is processing its continue request; enqueue it
+                if (!m_intbackEnqueued) {
+                    m_intbackEnqueued = true;
+                    devlog::debug<grp::regs>("INTBACK dual-issue detected");
+                    return;
+                }
+            }
             devlog::debug<grp::regs>("Attempted to write {:02X} to COMREG while a command is being processed; ignoring",
                                      value);
             return;
@@ -766,7 +802,7 @@ void SMPC::INTBACK() {
             // TODO: does SMPC reject the command in this case?
         }
 
-        const bool getStatus = IREG[0] == 0x01;
+        const bool getStatus = bit::extract<0, 5>(IREG[0]) == 0x01;
         m_optimize = !bit::test<1>(IREG[1]); // OPE=0 means optimize
         m_getPeripheralData = bit::test<3>(IREG[1]);
         m_port1mode = bit::extract<4, 5>(IREG[1]);

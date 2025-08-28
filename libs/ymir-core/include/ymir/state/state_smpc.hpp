@@ -28,6 +28,7 @@ struct SMPCState {
         std::vector<uint8> report;
         size_t reportOffset;
         bool inProgress;
+        bool enqueued;
     } intback;
 
     uint8 busValue;
