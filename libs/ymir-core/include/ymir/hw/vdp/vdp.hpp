@@ -841,16 +841,23 @@ private:
         }
 
         void Reset() {
-            attrs.fill({});
+            colorCalcRatio.fill(0);
+            shadowOrWindow.fill(false);
+            normalShadow.fill(false);
+            window.fill(false);
         }
 
-        struct Attributes {
-            uint8 colorCalcRatio = 0;
-            bool shadowOrWindow = false;
-            bool normalShadow = false;
-        };
+        void CopyAttrs(size_t src, size_t dst) {
+            colorCalcRatio[dst] = colorCalcRatio[src];
+            shadowOrWindow[dst] = shadowOrWindow[src];
+            normalShadow[dst] = normalShadow[src];
+            // window is computed separately
+        }
 
-        alignas(16) std::array<Attributes, kMaxResH> attrs;
+        alignas(16) std::array<uint8, kMaxResH> colorCalcRatio;
+        alignas(16) std::array<bool, kMaxResH> shadowOrWindow;
+        alignas(16) std::array<bool, kMaxResH> normalShadow;
+
         alignas(16) std::array<bool, kMaxResH> window;
     };
 

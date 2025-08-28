@@ -3145,9 +3145,9 @@ FORCE_INLINE void VDP::VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWi
             const bool inverted = windowSet.inverted[2];
             for (uint32 x = 0; x < m_HRes; x++) {
                 if constexpr (logicOR) {
-                    windowState[x] |= m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow != inverted;
+                    windowState[x] |= m_spriteLayerAttrs[altField].shadowOrWindow[x] != inverted;
                 } else {
-                    windowState[x] &= m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow != inverted;
+                    windowState[x] &= m_spriteLayerAttrs[altField].shadowOrWindow[x] != inverted;
                 }
             }
         }
@@ -3698,18 +3698,18 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
                 VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, true>(xx, params, tempFB, spriteFBOffset);
             } else {
                 meshLayerState.pixels.transparent[xx] = true;
-                meshLayerAttrs.attrs[xx].shadowOrWindow = false;
+                meshLayerAttrs.shadowOrWindow[xx] = false;
             }
 
             if (doubleResH) {
                 meshLayerState.pixels.CopyPixel(xx, xx + 1);
-                meshLayerAttrs.attrs[xx + 1] = meshLayerAttrs.attrs[xx];
+                meshLayerAttrs.CopyAttrs(xx, xx + 1);
             }
         }
 
         if (doubleResH) {
             layerState.pixels.CopyPixel(xx, xx + 1);
-            layerAttrs.attrs[xx + 1] = layerAttrs.attrs[xx];
+            layerAttrs.CopyAttrs(xx, xx + 1);
         }
     }
 }
@@ -3729,12 +3729,11 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
 
     auto &layerState = applyMesh ? m_meshLayerState[altField] : m_layerStates[altField][0];
     auto &layerAttrs = applyMesh ? m_meshLayerAttrs[altField] : m_spriteLayerAttrs[altField];
-    auto &attr = layerAttrs.attrs[x];
 
     // NOTE: intentionally using the base sprite layer here as the windows are not computed for the mesh layer
     if (m_spriteLayerAttrs[altField].window[x]) {
         layerState.pixels.transparent[x] = true;
-        attr.shadowOrWindow = false;
+        layerAttrs.shadowOrWindow[x] = false;
         return;
     }
 
@@ -3750,13 +3749,13 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
             if (params.type >= 8) {
                 if (bit::extract<0, 7>(spriteDataValue) == 0) {
                     layerState.pixels.transparent[x] = true;
-                    attr.shadowOrWindow = false;
+                    layerAttrs.shadowOrWindow[x] = false;
                     return;
                 }
             } else if (params.type >= 2) {
                 if (params.useSpriteWindow && bit::extract<0, 14>(spriteDataValue) == 0) {
                     layerState.pixels.transparent[x] = true;
-                    attr.shadowOrWindow = false;
+                    layerAttrs.shadowOrWindow[x] = false;
                     return;
                 }
             }
@@ -3765,9 +3764,9 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
             layerState.pixels.transparent[x] = false;
             layerState.pixels.priority[x] = params.priorities[0];
 
-            attr.colorCalcRatio = params.colorCalcRatios[0];
-            attr.shadowOrWindow = false;
-            attr.normalShadow = false;
+            layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
+            layerAttrs.shadowOrWindow[x] = false;
+            layerAttrs.normalShadow[x] = false;
             return;
         }
     }
@@ -3779,7 +3778,7 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
     if (params.useSpriteWindow && params.spriteWindowEnabled &&
         spriteData.shadowOrWindow != params.spriteWindowInverted) {
         layerState.pixels.transparent[x] = true;
-        attr.shadowOrWindow = true;
+        layerAttrs.shadowOrWindow[x] = true;
         return;
     }
 
@@ -3790,9 +3789,9 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
     layerState.pixels.transparent[x] = spriteData.special == SpriteData::Special::Transparent;
     layerState.pixels.priority[x] = params.priorities[spriteData.priority];
 
-    attr.colorCalcRatio = params.colorCalcRatios[spriteData.colorCalcRatio];
-    attr.shadowOrWindow = spriteData.shadowOrWindow;
-    attr.normalShadow = spriteData.special == SpriteData::Special::Shadow;
+    layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
+    layerAttrs.shadowOrWindow[x] = spriteData.shadowOrWindow;
+    layerAttrs.normalShadow[x] = spriteData.special == SpriteData::Special::Shadow;
 }
 
 template <uint32 bgIndex, bool deinterlace>
@@ -4881,8 +4880,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 continue;
             }
             if (layer == LYR_Sprite) {
-                const auto &attr = m_spriteLayerAttrs[altField].attrs[x];
-                if (attr.normalShadow) {
+                if (m_spriteLayerAttrs[altField].normalShadow[x]) {
                     continue;
                 }
             }
@@ -4924,8 +4922,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 if (priority == 0) {
                     continue;
                 }
-                const auto &attr = m_meshLayerAttrs[altField].attrs[x];
-                if (attr.normalShadow) {
+                if (m_meshLayerAttrs[altField].normalShadow[x]) {
                     continue;
                 }
 
@@ -5119,7 +5116,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
                 const LayerIndex layer = scanline_layers[x][colorCalcParams.useSecondScreenRatio];
                 switch (layer) {
-                case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].attrs[x].colorCalcRatio; break;
+                case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].colorCalcRatio[x]; break;
                 case LYR_Back: scanline_ratio[x] = regs.backScreenParams.colorCalcRatio; break;
                 default: scanline_ratio[x] = regs.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
                 }
@@ -5150,9 +5147,8 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
         }
 
         // Sprite layer doesn't have shadow
-        const bool isNormalShadow = m_spriteLayerAttrs[altField].attrs[x].normalShadow;
-        const bool isMSBShadow =
-            !regs.spriteParams.useSpriteWindow && m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow;
+        const bool isNormalShadow = m_spriteLayerAttrs[altField].normalShadow[x];
+        const bool isMSBShadow = !regs.spriteParams.useSpriteWindow && m_spriteLayerAttrs[altField].shadowOrWindow[x];
         if (!isNormalShadow && !isMSBShadow) {
             layer0ShadowEnabled[x] = false;
             continue;
@@ -5160,7 +5156,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
         const LayerIndex layer = scanline_layers[x][0];
         switch (layer) {
-        case LYR_Sprite: layer0ShadowEnabled[x] = m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow; break;
+        case LYR_Sprite: layer0ShadowEnabled[x] = m_spriteLayerAttrs[altField].shadowOrWindow[x]; break;
         case LYR_Back: layer0ShadowEnabled[x] = regs.backScreenParams.shadowEnable; break;
         default: layer0ShadowEnabled[x] = regs.bgParams[layer - LYR_RBG0].shadowEnable; break;
         }
