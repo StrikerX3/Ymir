@@ -810,6 +810,12 @@ private:
             transparent[index] = pixel.transparent;
             specialColorCalc[index] = pixel.specialColorCalc;
         }
+        FORCE_INLINE void CopyPixel(size_t src, size_t dst) {
+            color[dst] = color[src];
+            priority[dst] = priority[src];
+            transparent[dst] = transparent[src];
+            specialColorCalc[dst] = specialColorCalc[src];
+        }
     };
 
     // Layer state, containing the pixel output for the current scanline.
@@ -828,10 +834,9 @@ private:
         alignas(16) Pixels pixels;
     };
 
-    // Layer state specific to the sprite layer.
-    // Includes additional pixel attributes for each pixel in the scanline.
-    struct SpriteLayerState {
-        SpriteLayerState() {
+    // Attributes specific to the sprite layer for the current scanline.
+    struct SpriteLayerAttributes {
+        SpriteLayerAttributes() {
             Reset();
         }
 
@@ -843,7 +848,6 @@ private:
             uint8 colorCalcRatio = 0;
             bool shadowOrWindow = false;
             bool normalShadow = false;
-            bool transparentMesh = false;
         };
 
         alignas(16) std::array<Attributes, kMaxResH> attrs;
@@ -1050,9 +1054,17 @@ private:
     // [5] -           NBG3        NBG3
     std::array<std::array<LayerState, 6>, 2> m_layerStates;
 
-    // Sprite layer state.
+    // Sprite layer attributes.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
-    std::array<SpriteLayerState, 2> m_spriteLayerState;
+    std::array<SpriteLayerAttributes, 2> m_spriteLayerAttrs;
+
+    // Transparent mesh layer states.
+    // Entry [0] is primary and [1] is alternate field for deinterlacing.
+    std::array<LayerState, 2> m_meshLayerState;
+
+    // Transparent mesh sprite layer attributes.
+    // Entry [0] is primary and [1] is alternate field for deinterlacing.
+    std::array<SpriteLayerAttributes, 2> m_meshLayerAttrs;
 
     // Layer state for NBGs 0-3.
     std::array<NormBGLayerState, 4> m_normBGLayerStates;

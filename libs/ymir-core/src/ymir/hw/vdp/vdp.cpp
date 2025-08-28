@@ -125,8 +125,8 @@ void VDP::Reset(bool hard) {
         state[0].Reset();
         state[1].Reset();
     }
-    m_spriteLayerState[0].Reset();
-    m_spriteLayerState[1].Reset();
+    m_spriteLayerAttrs[0].Reset();
+    m_spriteLayerAttrs[1].Reset();
     for (auto &state : m_normBGLayerStates) {
         state.Reset();
     }
@@ -1804,6 +1804,23 @@ bool VDP::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coo
     return false;
 }
 
+FORCE_INLINE void VDP::VDP1PlotMeshPixel(bool altFB, uint32 offset, uint16 data) {
+    const VDP1Regs &regs1 = VDP1GetRegs();
+    const auto fbIndex = VDP1GetDisplayFBIndex() ^ 1;
+    auto &tempFB = m_VDP1RenderContext.meshFB[altFB][fbIndex];
+
+    m_VDP1RenderContext.meshFBValid[altFB][fbIndex][offset] = true;
+    if (regs1.pixel8Bits) {
+        tempFB[offset] = data;
+    } else {
+        util::WriteBE<uint16>(&tempFB[offset], data);
+    }
+}
+
+FORCE_INLINE void VDP::VDP1ClearMeshPixel(bool altFB, uint32 fbIndex, uint32 offset) {
+    m_VDP1RenderContext.meshFBValid[altFB][fbIndex][offset] = false;
+}
+
 template <bool deinterlace>
 FORCE_INLINE void VDP::VDP1CommitMeshPolygon(CoordS32 topLeft, CoordS32 bottomRight) {
     const VDP1Regs &regs1 = VDP1GetRegs();
@@ -1813,16 +1830,16 @@ FORCE_INLINE void VDP::VDP1CommitMeshPolygon(CoordS32 topLeft, CoordS32 bottomRi
     auto &valid = m_VDP1RenderContext.stagingFBValid;
 
     const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
-    const uint16 doubleV = deinterlace && doubleDensity && !regs1.dblInterlaceEnable;
+    const sint32 doubleV = deinterlace && doubleDensity && !regs1.dblInterlaceEnable;
 
     const sint32 x0 = std::max<sint32>(topLeft.x(), 0);
     const sint32 x1 = std::min<sint32>(bottomRight.x(), m_VDP1RenderContext.sysClipH);
     const sint32 y0 = std::max<sint32>(topLeft.y(), 0);
-    const sint32 y1 = std::min<sint32>(bottomRight.y(), m_VDP1RenderContext.sysClipV << doubleV);
+    const sint32 y1 = std::min<sint32>(bottomRight.y(), (m_VDP1RenderContext.sysClipV << doubleV) | doubleV);
 
     for (sint32 y = y0; y <= y1; ++y) {
         sint32 yy = y;
-        if (doubleDensity && regs1.dblInterlaceEnable) {
+        if ((deinterlace && doubleDensity) || regs1.dblInterlaceEnable) {
             yy >>= 1;
         }
         for (sint32 x = x0; x <= x1; ++x) {
@@ -2224,23 +2241,6 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
             VDP1CommitMeshPolygon<deinterlace>(coordTL, coordBR);
         }
     }
-}
-
-FORCE_INLINE void VDP::VDP1PlotMeshPixel(bool altFB, uint32 offset, uint16 data) {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const auto fbIndex = VDP1GetDisplayFBIndex() ^ 1;
-    auto &tempFB = m_VDP1RenderContext.meshFB[altFB][fbIndex];
-
-    m_VDP1RenderContext.meshFBValid[altFB][fbIndex][offset] = true;
-    if (regs1.pixel8Bits) {
-        tempFB[offset] = data;
-    } else {
-        util::WriteBE<uint16>(&tempFB[offset], data);
-    }
-}
-
-FORCE_INLINE void VDP::VDP1ClearMeshPixel(bool altFB, uint32 fbIndex, uint32 offset) {
-    m_VDP1RenderContext.meshFBValid[altFB][fbIndex][offset] = false;
 }
 
 template <bool deinterlace, bool transparentMeshes>
@@ -3145,9 +3145,9 @@ FORCE_INLINE void VDP::VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWi
             const bool inverted = windowSet.inverted[2];
             for (uint32 x = 0; x < m_HRes; x++) {
                 if constexpr (logicOR) {
-                    windowState[x] |= m_spriteLayerState[altField].attrs[x].shadowOrWindow != inverted;
+                    windowState[x] |= m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow != inverted;
                 } else {
-                    windowState[x] &= m_spriteLayerState[altField].attrs[x].shadowOrWindow != inverted;
+                    windowState[x] &= m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow != inverted;
                 }
             }
         }
@@ -3588,10 +3588,10 @@ void VDP::VDP2DrawLine(uint32 y, bool altField) {
     // Calculate window for sprite layer
     if (altField) {
         VDP2CalcWindow<true>(VDP2GetY<deinterlace>(y) ^ altField, regs2.spriteParams.windowSet, regs2.windowParams,
-                             std::span{m_spriteLayerState[altField].window}.first(m_HRes));
+                             std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
     } else {
         VDP2CalcWindow<false>(VDP2GetY<deinterlace>(y) ^ altField, regs2.spriteParams.windowSet, regs2.windowParams,
-                              std::span{m_spriteLayerState[altField].window}.first(m_HRes));
+                              std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
     }
 
     // Draw sprite layer
@@ -3669,7 +3669,9 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
 
     const SpriteParams &params = regs2.spriteParams;
     auto &layerState = m_layerStates[altField][0];
-    auto &spriteLayerState = m_spriteLayerState[altField];
+    auto &layerAttrs = m_spriteLayerAttrs[altField];
+    auto &meshLayerState = m_meshLayerState[altField];
+    auto &meshLayerAttrs = m_meshLayerAttrs[altField];
 
     for (uint32 x = 0; x < maxX; x++) {
         const uint32 xx = x << xShift;
@@ -3690,16 +3692,24 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
         if constexpr (transparentMeshes) {
             const uint32 offset =
                 params.mixedFormat ? ((spriteFBOffset * sizeof(uint16)) & 0x3FFFE) : spriteFBOffset & 0x3FFFF;
+
             if (m_VDP1RenderContext.meshFBValid[altField][fbIndex][offset]) {
                 const auto &tempFB = m_VDP1RenderContext.meshFB[altField][fbIndex];
                 VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, true>(xx, params, tempFB, spriteFBOffset);
+            } else {
+                meshLayerState.pixels.transparent[xx] = true;
+                meshLayerAttrs.attrs[xx].shadowOrWindow = false;
+            }
+
+            if (doubleResH) {
+                meshLayerState.pixels.CopyPixel(xx, xx + 1);
+                meshLayerAttrs.attrs[xx + 1] = meshLayerAttrs.attrs[xx];
             }
         }
 
         if (doubleResH) {
-            auto pixel = layerState.pixels.GetPixel(xx);
-            layerState.pixels.SetPixel(xx + 1, pixel);
-            spriteLayerState.attrs[xx + 1] = spriteLayerState.attrs[xx];
+            layerState.pixels.CopyPixel(xx, xx + 1);
+            layerAttrs.attrs[xx + 1] = layerAttrs.attrs[xx];
         }
     }
 }
@@ -3717,15 +3727,14 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
     // - Opaque pixels drawn on transparent pixels will become translucent and enable the transparentMesh attribute.
     // Transparent mesh pixels are handled separately from the rest of the rendering pipeline.
 
-    auto &layerState = m_layerStates[altField][0];
-    auto &spriteLayerState = m_spriteLayerState[altField];
-    auto &attr = spriteLayerState.attrs[x];
+    auto &layerState = applyMesh ? m_meshLayerState[altField] : m_layerStates[altField][0];
+    auto &layerAttrs = applyMesh ? m_meshLayerAttrs[altField] : m_spriteLayerAttrs[altField];
+    auto &attr = layerAttrs.attrs[x];
 
-    if (spriteLayerState.window[x]) {
-        if constexpr (!applyMesh) {
-            layerState.pixels.transparent[x] = true;
-            attr.shadowOrWindow = false;
-        }
+    // NOTE: intentionally using the base sprite layer here as the windows are not computed for the mesh layer
+    if (m_spriteLayerAttrs[altField].window[x]) {
+        layerState.pixels.transparent[x] = true;
+        attr.shadowOrWindow = false;
         return;
     }
 
@@ -3740,98 +3749,50 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
             //   window is enabled, and the lower 15 bits are all zero
             if (params.type >= 8) {
                 if (bit::extract<0, 7>(spriteDataValue) == 0) {
-                    if constexpr (!applyMesh) {
-                        layerState.pixels.transparent[x] = true;
-                        attr.shadowOrWindow = false;
-                    }
+                    layerState.pixels.transparent[x] = true;
+                    attr.shadowOrWindow = false;
                     return;
                 }
             } else if (params.type >= 2) {
                 if (params.useSpriteWindow && bit::extract<0, 14>(spriteDataValue) == 0) {
-                    if constexpr (!applyMesh) {
-                        layerState.pixels.transparent[x] = true;
-                        attr.shadowOrWindow = false;
-                    }
+                    layerState.pixels.transparent[x] = true;
+                    attr.shadowOrWindow = false;
                     return;
                 }
             }
 
-            if constexpr (applyMesh) {
-                // If the pixel in the sprite layer is transparent, write the mesh color as is and mark the pixel as
-                // "transparent mesh" to be handled in VDP2ComposeLine, otherwise blend with the existing pixel.
-                const Color888 color = ConvertRGB555to888(Color555{spriteDataValue});
-                Color888 &layerColor = layerState.pixels.color[x];
-                if (layerState.pixels.transparent[x]) {
-                    layerColor = color;
-                    attr.transparentMesh = true;
-                } else {
-                    layerColor.r = (color.r + layerColor.r) >> 1u;
-                    layerColor.g = (color.g + layerColor.g) >> 1u;
-                    layerColor.b = (color.b + layerColor.b) >> 1u;
-                    layerColor.msb = color.msb;
-                }
-            } else {
-                layerState.pixels.color[x] = ConvertRGB555to888(Color555{spriteDataValue});
-            }
+            layerState.pixels.color[x] = ConvertRGB555to888(Color555{spriteDataValue});
             layerState.pixels.transparent[x] = false;
             layerState.pixels.priority[x] = params.priorities[0];
 
             attr.colorCalcRatio = params.colorCalcRatios[0];
             attr.shadowOrWindow = false;
             attr.normalShadow = false;
-            if constexpr (transparentMeshes && !applyMesh) {
-                attr.transparentMesh = false;
-            }
             return;
         }
     }
 
     // Palette data
     const SpriteData spriteData = VDP2FetchSpriteData(spriteFB, spriteFBOffset);
-    if constexpr (applyMesh) {
-        // Ignore transparent pixels when applying the transparent mesh layer
-        if (spriteData.special == SpriteData::Special::Transparent) {
-            return;
-        }
-    }
 
     // Handle sprite window
     if (params.useSpriteWindow && params.spriteWindowEnabled &&
         spriteData.shadowOrWindow != params.spriteWindowInverted) {
-        if constexpr (!applyMesh) {
-            layerState.pixels.transparent[x] = true;
-            attr.shadowOrWindow = true;
-        }
+        layerState.pixels.transparent[x] = true;
+        attr.shadowOrWindow = true;
         return;
     }
 
     const uint32 colorIndex = params.colorDataOffset + spriteData.colorData;
     const Color888 color = VDP2FetchCRAMColor<colorMode>(0, colorIndex);
-    if constexpr (applyMesh) {
-        // If the pixel in the sprite layer is transparent, write the mesh color as is and mark the pixel as
-        // "transparent mesh" to be handled in VDP2ComposeLine, otherwise blend with the existing pixel.
-        Color888 &layerColor = layerState.pixels.color[x];
-        if (layerState.pixels.transparent[x]) {
-            layerColor = color;
-            attr.transparentMesh = true;
-        } else {
-            layerColor.r = (color.r + layerColor.r) >> 1u;
-            layerColor.g = (color.g + layerColor.g) >> 1u;
-            layerColor.b = (color.b + layerColor.b) >> 1u;
-            layerColor.msb = color.msb;
-        }
-        layerState.pixels.transparent[x] = false;
-    } else {
-        layerState.pixels.color[x] = color;
-        layerState.pixels.transparent[x] = spriteData.special == SpriteData::Special::Transparent;
-    }
+
+    layerState.pixels.color[x] = color;
+    layerState.pixels.transparent[x] = spriteData.special == SpriteData::Special::Transparent;
     layerState.pixels.priority[x] = params.priorities[spriteData.priority];
+
     attr.colorCalcRatio = params.colorCalcRatios[spriteData.colorCalcRatio];
     attr.shadowOrWindow = spriteData.shadowOrWindow;
     attr.normalShadow = spriteData.special == SpriteData::Special::Shadow;
-    if constexpr (transparentMeshes && !applyMesh) {
-        attr.transparentMesh = false;
-    }
 }
 
 template <uint32 bgIndex, bool deinterlace>
@@ -4920,7 +4881,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 continue;
             }
             if (layer == LYR_Sprite) {
-                const auto &attr = m_spriteLayerState[altField].attrs[x];
+                const auto &attr = m_spriteLayerAttrs[altField].attrs[x];
                 if (attr.normalShadow) {
                     continue;
                 }
@@ -4934,13 +4895,6 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
             std::array<uint8, 3> &layerPrios = scanline_layerPrios[x];
             for (int i = 0; i < 3; i++) {
                 if (priority > layerPrios[i] || (priority == layerPrios[i] && layer < layers[i])) {
-                    // Ignore sprite mesh layer -- it is blended separately
-                    if constexpr (transparentMeshes) {
-                        if (layer == LYR_Sprite && m_spriteLayerState[altField].attrs[x].transparentMesh) {
-                            break;
-                        }
-                    }
-
                     // Push layers back
                     for (int j = 2; j > i; j--) {
                         layers[j] = layers[j - 1];
@@ -4958,14 +4912,32 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
     alignas(16) std::array<uint8, kMaxResH> scanline_meshLayers;
     if constexpr (transparentMeshes) {
         std::fill_n(scanline_meshLayers.begin(), m_HRes, 0xFF);
-        for (uint32 x = 0; x < m_HRes; x++) {
-            const uint8 priority = m_layerStates[altField][LYR_Sprite].pixels.priority[x];
-            std::array<uint8, 3> &layerPrios = scanline_layerPrios[x];
-            for (int i = 0; i < 3; i++) {
-                // The sprite layer has the highest priority on ties, therefore the priority check can be simplified
-                if (priority >= layerPrios[i] && m_spriteLayerState[altField].attrs[x].transparentMesh) {
-                    scanline_meshLayers[x] = i;
-                    break;
+
+        if (!AllBool(std::span{m_meshLayerState[altField].pixels.transparent}.first(m_HRes)) &&
+            !AllZeroU8(std::span{m_meshLayerState[altField].pixels.priority}.first(m_HRes))) {
+
+            for (uint32 x = 0; x < m_HRes; x++) {
+                if (m_meshLayerState[altField].pixels.transparent[x]) {
+                    continue;
+                }
+                const uint8 priority = m_meshLayerState[altField].pixels.priority[x];
+                if (priority == 0) {
+                    continue;
+                }
+                const auto &attr = m_meshLayerAttrs[altField].attrs[x];
+                if (attr.normalShadow) {
+                    continue;
+                }
+
+                std::array<uint8, 3> &layerPrios = scanline_layerPrios[x];
+                for (int i = 0; i < 3; i++) {
+                    // The sprite layer has the highest priority on ties, so the priority check can be simplified.
+                    // Sprite pixels drawn of top of mesh pixels erase the corresponding pixels from the mesh layer,
+                    // therefore the mesh layer can be considered always on top of the sprite layer.
+                    if (priority >= layerPrios[i]) {
+                        scanline_meshLayers[x] = i;
+                        break;
+                    }
                 }
             }
         }
@@ -5095,9 +5067,10 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
             }
 
             // Blend layer 2 with sprite mesh layer colors
+            // TODO: apply color calculation effects
             if constexpr (transparentMeshes) {
                 Color888AverageMasked(std::span{layer2Pixels}.first(m_HRes), layer2BlendMeshLayer, layer2Pixels,
-                                      m_layerStates[altField][LYR_Sprite].pixels.color);
+                                      m_meshLayerState[altField].pixels.color);
             }
 
             // TODO: honor color RAM mode + palette/RGB format restrictions
@@ -5125,9 +5098,10 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
         }
 
         // Blend layer 1 with sprite mesh layer colors
+        // TODO: apply color calculation effects
         if constexpr (transparentMeshes) {
             Color888AverageMasked(std::span{layer1Pixels}.first(m_HRes), layer1BlendMeshLayer, layer1Pixels,
-                                  m_layerStates[altField][LYR_Sprite].pixels.color);
+                                  m_meshLayerState[altField].pixels.color);
         }
 
         // Blend layer 0 and layer 1
@@ -5145,7 +5119,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
                 const LayerIndex layer = scanline_layers[x][colorCalcParams.useSecondScreenRatio];
                 switch (layer) {
-                case LYR_Sprite: scanline_ratio[x] = m_spriteLayerState[altField].attrs[x].colorCalcRatio; break;
+                case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].attrs[x].colorCalcRatio; break;
                 case LYR_Back: scanline_ratio[x] = regs.backScreenParams.colorCalcRatio; break;
                 default: scanline_ratio[x] = regs.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
                 }
@@ -5160,9 +5134,10 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
     }
 
     // Blend layer 0 with sprite mesh layer colors
+    // TODO: apply color calculation effects
     if constexpr (transparentMeshes) {
         Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput,
-                              m_layerStates[altField][LYR_Sprite].pixels.color);
+                              m_meshLayerState[altField].pixels.color);
     }
 
     // Gather shadow data
@@ -5175,9 +5150,9 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
         }
 
         // Sprite layer doesn't have shadow
-        const bool isNormalShadow = m_spriteLayerState[altField].attrs[x].normalShadow;
+        const bool isNormalShadow = m_spriteLayerAttrs[altField].attrs[x].normalShadow;
         const bool isMSBShadow =
-            !regs.spriteParams.useSpriteWindow && m_spriteLayerState[altField].attrs[x].shadowOrWindow;
+            !regs.spriteParams.useSpriteWindow && m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow;
         if (!isNormalShadow && !isMSBShadow) {
             layer0ShadowEnabled[x] = false;
             continue;
@@ -5185,13 +5160,14 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
         const LayerIndex layer = scanline_layers[x][0];
         switch (layer) {
-        case LYR_Sprite: layer0ShadowEnabled[x] = m_spriteLayerState[altField].attrs[x].shadowOrWindow; break;
+        case LYR_Sprite: layer0ShadowEnabled[x] = m_spriteLayerAttrs[altField].attrs[x].shadowOrWindow; break;
         case LYR_Back: layer0ShadowEnabled[x] = regs.backScreenParams.shadowEnable; break;
         default: layer0ShadowEnabled[x] = regs.bgParams[layer - LYR_RBG0].shadowEnable; break;
         }
     }
 
     // Apply sprite shadow
+    // TODO: apply shadow from mesh layer
     if (AnyBool(std::span{layer0ShadowEnabled}.first(m_HRes))) {
         Color888ShadowMasked(framebufferOutput, layer0ShadowEnabled);
     }
@@ -5218,6 +5194,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
     }
 
     // Opaque alpha
+    uint32 x = 0;
     for (Color888 &outputColor : framebufferOutput) {
         outputColor.u32 |= 0xFF000000;
     }
@@ -5270,7 +5247,7 @@ NO_INLINE void VDP::VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, L
             }
             if (currMosaicCounterX > 0) {
                 // Simply copy over the data from the previous pixel
-                layerState.pixels.SetPixel(x, layerState.pixels.GetPixel(x - 1));
+                layerState.pixels.CopyPixel(x - 1, x);
 
                 // Increment horizontal coordinate
                 fracScrollX += bgState.scrollIncH;
@@ -5377,7 +5354,7 @@ NO_INLINE void VDP::VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, L
             }
             if (currMosaicCounterX > 0) {
                 // Simply copy over the data from the previous pixel
-                layerState.pixels.SetPixel(x, layerState.pixels.GetPixel(x - 1));
+                layerState.pixels.CopyPixel(x - 1, x);
 
                 // Increment horizontal coordinate
                 fracScrollX += bgState.scrollIncH;
@@ -5436,10 +5413,9 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
             }
             if (currMosaicCounterX > 0) {
                 // Simply copy over the data from the previous pixel
-                const Pixel pixel = layerState.pixels.GetPixel(xx - 1);
-                layerState.pixels.SetPixel(xx, pixel);
+                layerState.pixels.CopyPixel(xx - 1, xx);
                 if (doubleResH) {
-                    layerState.pixels.SetPixel(xx + 1, pixel);
+                    layerState.pixels.CopyPixel(xx, xx + 1);
                 }
                 continue;
             }
