@@ -1615,6 +1615,10 @@ void VDP::VDP1BeginFrame() {
     m_state.regs1.currCommandAddress = 0;
     m_state.regs1.currFrameEnded = false;
 
+    // HACK: insert a delay to dodge some timing issues with games that trigger drawing too early
+    // (e.g.: Fighter's History Dynamite)
+    m_VDP1TimingPenaltyCycles += 1000;
+
     m_VDP1RenderContext.rendering = true;
     if (m_effectiveRenderVDP1InVDP2Thread) {
         m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1BeginFrame());
