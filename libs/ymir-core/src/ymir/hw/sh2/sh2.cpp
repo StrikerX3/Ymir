@@ -24,6 +24,7 @@ namespace grp {
     // base
     //   exec
     //     exec_dump
+    //   intr
     //   mem
     //   reg
     //   code_fetch
@@ -48,6 +49,13 @@ namespace grp {
 
     struct exec_dump : public exec {
         static constexpr bool enabled = false;
+    };
+
+    struct intr : public base {
+        // static constexpr bool enabled = true;
+        static constexpr std::string Name(std::string_view prefix) {
+            return std::string(prefix) + "-Interrupt";
+        }
     };
 
     struct mem : public base {
@@ -1825,7 +1833,7 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
         // Service interrupt
         const uint8 vecNum = INTC.GetVector(INTC.pending.source);
         TraceInterrupt<debug>(m_tracer, vecNum, INTC.pending.level, INTC.pending.source, PC);
-        devlog::trace<grp::exec>(m_logPrefix, "Handling interrupt level {:02X}, vector number {:02X}, PC {:08X}",
+        devlog::trace<grp::intr>(m_logPrefix, "Handling interrupt level {:02X}, vector number {:02X}, PC {:08X}",
                                  INTC.pending.level, vecNum, PC);
         const uint64 cycles = EnterException<debug, enableCache>(vecNum);
         SR.ILevel = std::min<uint8>(INTC.pending.level, 0xF);
@@ -3504,6 +3512,7 @@ FORCE_INLINE uint64 SH2::JSR(const DecodedArgs &args) {
 // trapa #imm
 template <bool debug, bool enableCache>
 FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
+    devlog::trace<grp::intr>(m_logPrefix, "Handling TRAPA, vector number {:02X}, PC {:08X}", args.dispImm, PC);
     const uint32 address1 = R[15] - 4;
     const uint32 address2 = R[15] - 8;
     const uint32 address3 = VBR + args.dispImm;
@@ -3524,7 +3533,7 @@ FORCE_INLINE uint64 SH2::RTE() {
     SR.u32 = MemReadLong<enableCache>(address2) & 0x000003F3;
     PC += 2;
     R[15] += 8;
-    devlog::trace<grp::exec>(m_logPrefix, "Returning from interrupt handler, PC {:08X} -> {:08X}", PC,
+    devlog::trace<grp::intr>(m_logPrefix, "Returning from interrupt handler, PC {:08X} -> {:08X}", PC,
                              m_delaySlotTarget);
     return AccessCycles<enableCache>(address1) + AccessCycles<enableCache>(address2) + 2;
 }
