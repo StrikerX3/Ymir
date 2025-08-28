@@ -7,16 +7,6 @@ namespace ymir::peripheral {
 ControlPad::ControlPad(CBPeripheralReport callback)
     : BasePeripheral(PeripheralType::ControlPad, 0x0, callback) {}
 
-void ControlPad::Read(std::span<uint8> out) {
-    assert(out.size() == 2);
-
-    // [0] 7-0 = right, left, down, up, start, A, C, B
-    // [1] 7-3 = R, X, Y, Z, L; 2-0 = fixed 0b111
-    const uint16 btnValue = static_cast<uint16>(m_report.buttons);
-    out[0] = bit::extract<8, 15>(btnValue);
-    out[1] = bit::extract<0, 7>(btnValue); // bottom three bits set to 0b100 by UpdateInputs()
-}
-
 void ControlPad::UpdateInputs() {
     PeripheralReport report{.type = PeripheralType::ControlPad, .report = {.controlPad = {.buttons = Button::Default}}};
     m_cbPeripheralReport(report);
@@ -27,6 +17,16 @@ void ControlPad::UpdateInputs() {
 
 uint8 ControlPad::GetReportLength() const {
     return 2;
+}
+
+void ControlPad::Read(std::span<uint8> out) {
+    assert(out.size() == 2);
+
+    // [0] 7-0 = right, left, down, up, start, A, C, B
+    // [1] 7-3 = R, X, Y, Z, L; 2-0 = fixed 0b111
+    const uint16 btnValue = static_cast<uint16>(m_report.buttons);
+    out[0] = bit::extract<8, 15>(btnValue);
+    out[1] = bit::extract<0, 7>(btnValue);
 }
 
 uint8 ControlPad::WritePDR(uint8 ddr, uint8 value) {
