@@ -598,6 +598,8 @@ FORCE_INLINE void SMPC::WriteEXLE(uint8 value) {
 }
 
 void SMPC::ProcessCommand() {
+    OREG[31] = static_cast<uint8>(COMREG);
+
     switch (COMREG) {
     case Command::MSHON: MSHON(); break;
     case Command::SSHON: SSHON(); break;
@@ -616,7 +618,6 @@ void SMPC::ProcessCommand() {
     default:
         devlog::debug<grp::base>("Unimplemented SMPC command {:02X}", static_cast<uint8>(COMREG));
         SF = false; // done processing
-        OREG[31] = static_cast<uint8>(COMREG);
         break;
     }
 }
@@ -635,8 +636,6 @@ void SMPC::MSHON() {
     // TODO: is this supposed to do something...?
 
     SF = false; // done processing
-
-    OREG[31] = 0x00;
 }
 
 void SMPC::SSHON() {
@@ -646,8 +645,6 @@ void SMPC::SSHON() {
     m_smpcOps.EnableAndResetSlaveSH2();
 
     SF = false; // done processing
-
-    OREG[31] = 0x02;
 }
 
 void SMPC::SSHOFF() {
@@ -657,8 +654,6 @@ void SMPC::SSHOFF() {
     m_smpcOps.DisableSlaveSH2();
 
     SF = false; // done processing
-
-    OREG[31] = 0x03;
 }
 
 void SMPC::SNDON() {
@@ -667,8 +662,6 @@ void SMPC::SNDON() {
     m_smpcOps.EnableAndResetM68K();
 
     SF = false; // done processing
-
-    OREG[31] = 0x06;
 }
 
 void SMPC::SNDOFF() {
@@ -677,8 +670,6 @@ void SMPC::SNDOFF() {
     m_smpcOps.DisableM68K();
 
     SF = false; // done processing
-
-    OREG[31] = 0x07;
 }
 
 void SMPC::SYSRES() {
@@ -687,8 +678,6 @@ void SMPC::SYSRES() {
     m_smpcOps.SoftResetSystem();
 
     SF = false; // done processing
-
-    OREG[31] = 0x0D;
 }
 
 void SMPC::CKCHG352() {
@@ -697,8 +686,6 @@ void SMPC::CKCHG352() {
     ClockChange(sys::ClockSpeed::_352);
 
     SF = false; // done processing
-
-    OREG[31] = 0x0E;
 }
 void SMPC::CKCHG320() {
     devlog::debug<grp::base>("Processing CKCHG320");
@@ -706,8 +693,6 @@ void SMPC::CKCHG320() {
     ClockChange(sys::ClockSpeed::_320);
 
     SF = false; // done processing
-
-    OREG[31] = 0x0F;
 }
 
 void SMPC::NMIREQ() {
@@ -716,8 +701,6 @@ void SMPC::NMIREQ() {
     m_smpcOps.RaiseNMI();
 
     SF = false; // done processing
-
-    OREG[31] = 0x19;
 }
 
 void SMPC::RESENAB() {
@@ -730,8 +713,6 @@ void SMPC::RESENAB() {
     }
 
     SF = false; // done processing
-
-    OREG[31] = 0x19;
 }
 
 void SMPC::RESDISA() {
@@ -744,8 +725,6 @@ void SMPC::RESDISA() {
     }
 
     SF = false; // done processing
-
-    OREG[31] = 0x1A;
 }
 
 void SMPC::INTBACK() {
@@ -868,8 +847,6 @@ void SMPC::WriteINTBACKStatusReport() {
     OREG[13] = SMEM[1]; // SMEM 2 Saved Data
     OREG[14] = SMEM[2]; // SMEM 3 Saved Data
     OREG[15] = SMEM[3]; // SMEM 4 Saved Data
-
-    OREG[31] = 0x10;
 }
 
 void SMPC::WriteINTBACKPeripheralReport() {
@@ -912,8 +889,6 @@ void SMPC::SETSMEM() {
     WritePersistentData();
 
     SF = false; // done processing
-
-    OREG[31] = 0x17;
 }
 
 void SMPC::SETTIME() {
@@ -935,8 +910,6 @@ void SMPC::SETTIME() {
     WritePersistentData();
 
     SF = false; // done processing
-
-    OREG[31] = 0x16;
 }
 
 void SMPC::ClockChange(sys::ClockSpeed clockSpeed) {
