@@ -1540,6 +1540,8 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
     const uint8 fbIndex = VDP1GetDisplayFBIndex();
     auto &fb = m_state.spriteFB[fbIndex];
     auto &altFB = m_altSpriteFB[fbIndex];
+    [[maybe_unused]] auto &meshFB = m_VDP1RenderContext.meshFB[0][fbIndex];
+    [[maybe_unused]] auto &altMeshFB = m_VDP1RenderContext.meshFB[1][fbIndex];
 
     const bool halfResH =
         !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
@@ -1570,12 +1572,11 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
             if (mirror) {
                 util::WriteBE<uint16>(&altFB[address & 0x3FFFE], regs1.eraseWriteValue);
             }
+
             if (m_transparentMeshes) {
-                VDP1ClearMeshPixel(false, fbIndex, (address & 0x3FFFE) | 0);
-                VDP1ClearMeshPixel(false, fbIndex, (address & 0x3FFFE) | 1);
+                util::WriteBE<uint16>(&meshFB[address & 0x3FFFE], regs1.eraseWriteValue);
                 if (mirror) {
-                    VDP1ClearMeshPixel(true, fbIndex, (address & 0x3FFFE) | 0);
-                    VDP1ClearMeshPixel(true, fbIndex, (address & 0x3FFFE) | 1);
+                    util::WriteBE<uint16>(&altMeshFB[address & 0x3FFFE], regs1.eraseWriteValue);
                 }
             }
         }
@@ -1808,73 +1809,6 @@ bool VDP::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coo
     return false;
 }
 
-FORCE_INLINE void VDP::VDP1PlotMeshPixel(bool altFB, uint32 offset, uint16 data) {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const auto fbIndex = VDP1GetDisplayFBIndex() ^ 1;
-    auto &tempFB = m_VDP1RenderContext.meshFB[altFB][fbIndex];
-
-    m_VDP1RenderContext.meshFBValid[altFB][fbIndex][offset] = true;
-    if (regs1.pixel8Bits) {
-        tempFB[offset] = data;
-    } else {
-        util::WriteBE<uint16>(&tempFB[offset], data);
-    }
-}
-
-FORCE_INLINE void VDP::VDP1ClearMeshPixel(bool altFB, uint32 fbIndex, uint32 offset) {
-    m_VDP1RenderContext.meshFBValid[altFB][fbIndex][offset] = false;
-}
-
-template <bool deinterlace>
-FORCE_INLINE void VDP::VDP1CommitMeshPolygon(CoordS32 topLeft, CoordS32 bottomRight) {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-
-    const auto &fb = m_VDP1RenderContext.stagingFB;
-    auto &valid = m_VDP1RenderContext.stagingFBValid;
-
-    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
-    const sint32 doubleV = deinterlace && doubleDensity && !regs1.dblInterlaceEnable;
-
-    const sint32 x0 = std::max<sint32>(topLeft.x(), 0);
-    const sint32 x1 = std::min<sint32>(bottomRight.x(), m_VDP1RenderContext.sysClipH);
-    const sint32 y0 = std::max<sint32>(topLeft.y(), 0);
-    const sint32 y1 = std::min<sint32>(bottomRight.y(), (m_VDP1RenderContext.sysClipV << doubleV) | doubleV);
-
-    for (sint32 y = y0; y <= y1; ++y) {
-        sint32 yy = y;
-        if ((deinterlace && doubleDensity) || regs1.dblInterlaceEnable) {
-            yy >>= 1;
-        }
-        for (sint32 x = x0; x <= x1; ++x) {
-            uint32 fbOffset = yy * regs1.fbSizeH + x;
-            if (regs1.pixel8Bits) {
-                fbOffset &= 0x3FFFF;
-            } else {
-                fbOffset = (fbOffset * sizeof(uint16)) & 0x3FFFE;
-            }
-            if (valid[0][fbOffset]) {
-                valid[0][fbOffset] = false;
-                if (regs1.pixel8Bits) {
-                    VDP1PlotMeshPixel(false, fbOffset, fb[0][fbOffset]);
-                } else {
-                    VDP1PlotMeshPixel(false, fbOffset, util::ReadBE<uint16>(&fb[0][fbOffset]));
-                }
-            }
-            if (deinterlace && doubleDensity) {
-                if (valid[1][fbOffset]) {
-                    valid[1][fbOffset] = false;
-                    if (regs1.pixel8Bits) {
-                        VDP1PlotMeshPixel(true, fbOffset, fb[1][fbOffset]);
-                    } else {
-                        VDP1PlotMeshPixel(true, fbOffset, util::ReadBE<uint16>(&fb[1][fbOffset]));
-                    }
-                }
-            }
-        }
-    }
-}
-
 template <bool deinterlace, bool transparentMeshes>
 FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams) {
     const VDP1Regs &regs1 = VDP1GetRegs();
@@ -1924,13 +1858,11 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
         if (pixelParams.mode.msbOn) {
             drawFB[fbOffset] |= 0x80;
         } else if (transparentMeshes && pixelParams.mode.meshEnable) {
-            m_VDP1RenderContext.stagingFB[altFB][fbOffset] = pixelParams.color;
-            m_VDP1RenderContext.stagingFBValid[altFB][fbOffset] = true;
+            m_VDP1RenderContext.meshFB[altFB][fbIndex][fbOffset] = pixelParams.color;
         } else {
             drawFB[fbOffset] = pixelParams.color;
             if constexpr (transparentMeshes) {
-                m_VDP1RenderContext.stagingFBValid[altFB][fbOffset] = false;
-                VDP1ClearMeshPixel(altFB, fbIndex, fbOffset);
+                m_VDP1RenderContext.meshFB[altFB][fbIndex][fbOffset] = 0;
             }
         }
     } else {
@@ -1986,13 +1918,11 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
             }
 
             if (transparentMeshes && pixelParams.mode.meshEnable) {
-                util::WriteBE<uint16>(&m_VDP1RenderContext.stagingFB[altFB][fbOffset], dstColor.u16);
-                m_VDP1RenderContext.stagingFBValid[altFB][fbOffset] = true;
+                util::WriteBE<uint16>(&m_VDP1RenderContext.meshFB[altFB][fbIndex][fbOffset], dstColor.u16);
             } else {
                 util::WriteBE<uint16>(pixel, dstColor.u16);
                 if constexpr (transparentMeshes) {
-                    m_VDP1RenderContext.stagingFBValid[altFB][fbOffset] = false;
-                    VDP1ClearMeshPixel(altFB, fbIndex, fbOffset);
+                    util::WriteBE<uint16>(&m_VDP1RenderContext.meshFB[altFB][fbIndex][fbOffset], 0);
                 }
             }
         }
@@ -2234,16 +2164,6 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
         }
         lineParams.texVStepper.StepPixel();
         VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams);
-    }
-
-    if constexpr (transparentMeshes) {
-        if (mode.meshEnable) {
-            const CoordS32 coordTL{std::min(std::min(coordA.x(), coordB.x()), std::min(coordC.x(), coordD.x())),
-                                   std::min(std::min(coordA.y(), coordB.y()), std::min(coordC.y(), coordD.y()))};
-            const CoordS32 coordBR{std::max(std::max(coordA.x(), coordB.x()), std::max(coordC.x(), coordD.x())),
-                                   std::max(std::max(coordA.y(), coordB.y()), std::max(coordC.y(), coordD.y()))};
-            VDP1CommitMeshPolygon<deinterlace>(coordTL, coordBR);
-        }
     }
 }
 
@@ -2508,16 +2428,6 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
         }
         VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams);
     }
-
-    if constexpr (transparentMeshes) {
-        if (mode.meshEnable) {
-            const CoordS32 coordTL{std::min(std::min(xa, xb), std::min(xc, xd)),
-                                   std::min(std::min(ya, yb), std::min(yc, yd))};
-            const CoordS32 coordBR{std::max(std::max(xa, xb), std::max(xc, xd)),
-                                   std::max(std::max(ya, yb), std::max(yc, yd))};
-            VDP1CommitMeshPolygon<deinterlace>(coordTL, coordBR);
-        }
-    }
 }
 
 template <bool deinterlace, bool transparentMeshes>
@@ -2589,16 +2499,6 @@ void VDP::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control)
         lineParams.gouraudRight = A;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordD, coordA, lineParams);
-
-    if constexpr (transparentMeshes) {
-        if (mode.meshEnable) {
-            const CoordS32 coordTL{std::min(std::min(xa, xb), std::min(xc, xd)),
-                                   std::min(std::min(ya, yb), std::min(yc, yd))};
-            const CoordS32 coordBR{std::max(std::max(xa, xb), std::max(xc, xd)),
-                                   std::max(std::max(ya, yb), std::max(yc, yd))};
-            VDP1CommitMeshPolygon<deinterlace>(coordTL, coordBR);
-        }
-    }
 }
 
 template <bool deinterlace, bool transparentMeshes>
@@ -2648,14 +2548,6 @@ void VDP::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control) {
     }
 
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams);
-
-    if constexpr (transparentMeshes) {
-        if (mode.meshEnable) {
-            const CoordS32 coordTL{std::min(xa, xb), std::min(ya, yb)};
-            const CoordS32 coordBR{std::max(xa, xb), std::max(ya, yb)};
-            VDP1CommitMeshPolygon<deinterlace>(coordTL, coordBR);
-        }
-    }
 }
 
 void VDP::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
@@ -3677,14 +3569,17 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
     const SpriteParams &params = regs2.spriteParams;
     auto &layerState = m_layerStates[altField][0];
     auto &layerAttrs = m_spriteLayerAttrs[altField];
-    auto &meshLayerState = m_meshLayerState[altField];
-    auto &meshLayerAttrs = m_meshLayerAttrs[altField];
+
+    const uint8 fbIndex = VDP1GetDisplayFBIndex();
+    const auto &spriteFB = doubleDensity && altField ? m_altSpriteFB[fbIndex] : m_state.spriteFB[fbIndex];
+
+    [[maybe_unused]] auto &meshLayerState = m_meshLayerState[altField];
+    [[maybe_unused]] auto &meshLayerAttrs = m_meshLayerAttrs[altField];
+    [[maybe_unused]] const auto &meshFB = m_VDP1RenderContext.meshFB[altField][fbIndex];
 
     for (uint32 x = 0; x < maxX; x++) {
         const uint32 xx = x << xShift;
 
-        const uint8 fbIndex = VDP1GetDisplayFBIndex();
-        const auto &spriteFB = doubleDensity && altField ? m_altSpriteFB[fbIndex] : m_state.spriteFB[fbIndex];
         const uint32 spriteFBOffset = [&] {
             if constexpr (rotate) {
                 const auto &rotParamState = m_rotParamStates[0];
@@ -3696,27 +3591,17 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
         }();
 
         VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, false>(xx, params, spriteFB, spriteFBOffset);
+        if (doubleResH) {
+            layerState.pixels.CopyPixel(xx, xx + 1);
+            layerAttrs.CopyAttrs(xx, xx + 1);
+        }
+
         if constexpr (transparentMeshes) {
-            const uint32 offset =
-                params.mixedFormat ? ((spriteFBOffset * sizeof(uint16)) & 0x3FFFE) : spriteFBOffset & 0x3FFFF;
-
-            if (m_VDP1RenderContext.meshFBValid[altField][fbIndex][offset]) {
-                const auto &tempFB = m_VDP1RenderContext.meshFB[altField][fbIndex];
-                VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, true>(xx, params, tempFB, spriteFBOffset);
-            } else {
-                meshLayerState.pixels.transparent[xx] = true;
-                meshLayerAttrs.shadowOrWindow[xx] = false;
-            }
-
+            VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, true>(xx, params, meshFB, spriteFBOffset);
             if (doubleResH) {
                 meshLayerState.pixels.CopyPixel(xx, xx + 1);
                 meshLayerAttrs.CopyAttrs(xx, xx + 1);
             }
-        }
-
-        if (doubleResH) {
-            layerState.pixels.CopyPixel(xx, xx + 1);
-            layerAttrs.CopyAttrs(xx, xx + 1);
         }
     }
 }

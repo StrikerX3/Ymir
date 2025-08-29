@@ -689,16 +689,6 @@ private:
             erase = false;
 
             cycleCount = 0;
-
-            for (auto &altFB : meshFBValid) {
-                for (auto &drawFB : altFB) {
-                    drawFB.fill(false);
-                }
-            }
-
-            for (auto &altFB : stagingFBValid) {
-                altFB.fill(false);
-            }
         }
 
         // System clipping dimensions
@@ -730,13 +720,6 @@ private:
         // Used when transparent meshes are enabled.
         // Indexing: [altFB][drawFB]
         std::array<std::array<SpriteFB, 2>, 2> meshFB;
-        std::array<std::array<std::array<bool, kVDP1FramebufferRAMSize>, 2>, 2> meshFBValid;
-
-        // Staging buffer for transparent polygons.
-        // Used when transparent meshes are enabled.
-        // Indexing: [altFB]
-        std::array<SpriteFB, 2> stagingFB;
-        std::array<std::array<bool, kVDP1FramebufferRAMSize>, 2> stagingFBValid;
     } m_VDP1RenderContext;
 
     struct VDP1PixelParams {
@@ -1143,11 +1126,6 @@ private:
     TPL_DEINTERLACE bool VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2) const;
     TPL_DEINTERLACE bool VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coord3,
                                                  CoordS32 coord4) const;
-
-    void VDP1PlotMeshPixel(bool altFB, uint32 offset, uint16 data);
-    void VDP1ClearMeshPixel(bool altFB, uint32 fbIndex, uint32 offset);
-
-    TPL_DEINTERLACE void VDP1CommitMeshPolygon(CoordS32 topLeft, CoordS32 bottomRight);
 
     TPL_TRAITS void VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams);
     TPL_LINE_TRAITS void VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams);
