@@ -3043,6 +3043,9 @@ FORCE_INLINE void VDP::VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWi
     // Initialize to all inside if using AND logic or all outside if using OR logic
     std::fill(windowState.begin(), windowState.end(), !logicOR);
 
+    const VDP2Regs &regs2 = VDP2GetRegs();
+    const uint16 doubleV = regs2.TVMD.LSMDn == InterlaceMode::SingleDensity;
+
     // Check normal windows
     for (int i = 0; i < 2; i++) {
         // Skip if disabled
@@ -3070,8 +3073,8 @@ FORCE_INLINE void VDP::VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWi
         // 4    OR  true      fill with inside
 
         const auto sy = static_cast<sint32>(y);
-        const auto startY = static_cast<sint16>(windowParam.startY);
-        const auto endY = static_cast<sint16>(windowParam.endY);
+        const auto startY = static_cast<sint16>(windowParam.startY) << doubleV;
+        const auto endY = static_cast<sint16>(windowParam.endY) << doubleV;
         if (y < startY || y > endY) {
             if (logicOR == inverted) {
                 // Cases 1 and 4
