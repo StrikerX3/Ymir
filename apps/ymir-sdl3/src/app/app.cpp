@@ -940,6 +940,10 @@ void App::RunEmulator() {
         inputContext.SetTriggerHandler(actions::general::TakeScreenshot, [&](void *, const input::InputElement &) {
             m_context.EnqueueEvent(events::gui::TakeScreenshot());
         });
+        inputContext.SetTriggerHandler(actions::general::ExitApp, [&](void *, const input::InputElement &) {
+            SDL_Event quitEvent{.type = SDL_EVENT_QUIT};
+            SDL_PushEvent(&quitEvent);
+        });
     }
 
     // View

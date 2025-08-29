@@ -50,6 +50,7 @@ void HotkeysSettingsView::Display() {
         drawRow(hotkeys.toggleWindowedVideoOutput);
         drawRow(hotkeys.toggleFullScreen);
         drawRow(hotkeys.takeScreenshot);
+        drawRow(hotkeys.exitApp);
 
         drawRow(hotkeys.toggleFrameRateOSD);
         drawRow(hotkeys.nextFrameRateOSDPos);

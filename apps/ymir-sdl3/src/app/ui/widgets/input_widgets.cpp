@@ -20,6 +20,7 @@ void InputCaptureWidget::DrawInputBindButton(input::InputBind &bind, size_t elem
         switch (bind.action.kind) {
         case input::Action::Kind::Trigger: [[fallthrough]];
         case input::Action::Kind::RepeatableTrigger: CaptureTrigger(bind, elementIndex, context); break;
+        case input::Action::Kind::ComboTrigger: CaptureComboTrigger(bind, elementIndex, context); break;
         case input::Action::Kind::Button: CaptureButton(bind, elementIndex, context); break;
         case input::Action::Kind::AbsoluteMonopolarAxis1D: CaptureAxis1D(bind, elementIndex, context, false); break;
         case input::Action::Kind::AbsoluteBipolarAxis1D: CaptureAxis1D(bind, elementIndex, context, true); break;
@@ -46,7 +47,11 @@ void InputCaptureWidget::DrawCapturePopup() {
         case input::Action::Kind::Trigger: [[fallthrough]];
         case input::Action::Kind::RepeatableTrigger: [[fallthrough]];
         case input::Action::Kind::Button:
-            ImGui::TextUnformatted("Press any key, mouse button or gamepad button to map it.\n\n"
+            ImGui::TextUnformatted("Press any key or gamepad button to map it.\n\n"
+                                   "Press Escape or click outside of this popup to cancel.");
+            break;
+        case input::Action::Kind::ComboTrigger:
+            ImGui::TextUnformatted("Press any key combo with at least one modifier (Ctrl, Alt or Shift) to map it.\n\n"
                                    "Press Escape or click outside of this popup to cancel.");
             break;
         case input::Action::Kind::AbsoluteMonopolarAxis1D:
@@ -128,17 +133,31 @@ void InputCaptureWidget::CaptureTrigger(input::InputBind &bind, size_t elementIn
             }
         }
 
-        if (bind.elements[elementIndex] == event.element) {
-            // User bound the same input element as before; do nothing
-            m_closePopup = true;
-            return true;
+        BindInput(bind, elementIndex, context, event);
+        return true;
+    });
+}
+
+void InputCaptureWidget::CaptureComboTrigger(input::InputBind &bind, size_t elementIndex, void *context) {
+    m_kind = input::Action::Kind::ComboTrigger;
+    m_context.inputContext.Capture([=, this, &bind](const input::InputEvent &event) -> bool {
+        // Only accept keyboard combos with at least one modifier pressed (except Super).
+        // Disallow modifier-only key combos.
+        if (event.element.type != input::InputElement::Type::KeyCombo) {
+            return false;
+        }
+        const auto mod = event.element.keyCombo.modifiers & ~input::KeyModifier::Super;
+        if (mod == input::KeyModifier::None) {
+            return false;
+        }
+        if (event.element.keyCombo.key == input::KeyboardKey::None) {
+            return false;
+        }
+        if (!event.buttonPressed) {
+            return false;
         }
 
-        bind.elements[elementIndex] = event.element;
-        MakeDirty();
-        m_unboundActionsWidget.Capture(m_context.settings.UnbindInput(event.element));
-        m_context.EnqueueEvent(events::gui::RebindInputs());
-        m_closePopup = true;
+        BindInput(bind, elementIndex, context, event);
         return true;
     });
 }
@@ -156,17 +175,7 @@ void InputCaptureWidget::CaptureAxis1D(input::InputBind &bind, size_t elementInd
             return false;
         }
 
-        if (bind.elements[elementIndex] == event.element) {
-            // User bound the same input element as before; do nothing
-            m_closePopup = true;
-            return true;
-        }
-
-        bind.elements[elementIndex] = event.element;
-        MakeDirty();
-        m_unboundActionsWidget.Capture(m_context.settings.UnbindInput(event.element));
-        m_context.EnqueueEvent(events::gui::RebindInputs());
-        m_closePopup = true;
+        BindInput(bind, elementIndex, context, event);
         return true;
     });
 }
@@ -185,19 +194,24 @@ void InputCaptureWidget::CaptureAxis2D(input::InputBind &bind, size_t elementInd
             return false;
         }
 
-        if (bind.elements[elementIndex] == event.element) {
-            // User bound the same input element as before; do nothing
-            m_closePopup = true;
-            return true;
-        }
-
-        bind.elements[elementIndex] = event.element;
-        MakeDirty();
-        m_unboundActionsWidget.Capture(m_context.settings.UnbindInput(event.element));
-        m_context.EnqueueEvent(events::gui::RebindInputs());
-        m_closePopup = true;
+        BindInput(bind, elementIndex, context, event);
         return true;
     });
+}
+
+void InputCaptureWidget::BindInput(input::InputBind &bind, size_t elementIndex, void *context,
+                                   const input::InputEvent &event) {
+    if (bind.elements[elementIndex] == event.element) {
+        // User bound the same input element as before; do nothing
+        m_closePopup = true;
+        return;
+    }
+
+    bind.elements[elementIndex] = event.element;
+    MakeDirty();
+    m_unboundActionsWidget.Capture(m_context.settings.UnbindInput(event.element));
+    m_context.EnqueueEvent(events::gui::RebindInputs());
+    m_closePopup = true;
 }
 
 void InputCaptureWidget::MakeDirty() {

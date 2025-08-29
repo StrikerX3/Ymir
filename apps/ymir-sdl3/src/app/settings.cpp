@@ -468,6 +468,7 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.toggleWindowedVideoOutput);
     mapInput(m_actionInputs, hotkeys.toggleFullScreen);
     mapInput(m_actionInputs, hotkeys.takeScreenshot);
+    mapInput(m_actionInputs, hotkeys.exitApp);
 
     mapInput(m_actionInputs, hotkeys.toggleFrameRateOSD);
     mapInput(m_actionInputs, hotkeys.nextFrameRateOSDPos);
@@ -894,6 +895,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblHotkeys, "ToggleWindowedVideoOutput", hotkeys.toggleWindowedVideoOutput);
         Parse(tblHotkeys, "ToggleFullScreen", hotkeys.toggleFullScreen);
         Parse(tblHotkeys, "TakeScreenshot", hotkeys.takeScreenshot);
+        Parse(tblHotkeys, "ExitApp", hotkeys.exitApp);
         Parse(tblHotkeys, "ToggleFrameRateOSD", hotkeys.toggleFrameRateOSD);
         Parse(tblHotkeys, "NextFrameRateOSDPosition", hotkeys.nextFrameRateOSDPos);
         Parse(tblHotkeys, "PreviousFrameRateOSDPosition", hotkeys.prevFrameRateOSDPos);
@@ -1243,6 +1245,7 @@ SettingsSaveResult Settings::Save() {
             {"ToggleWindowedVideoOutput", ToTOML(hotkeys.toggleWindowedVideoOutput)},
             {"ToggleFullScreen", ToTOML(hotkeys.toggleFullScreen)},
             {"TakeScreenshot", ToTOML(hotkeys.takeScreenshot)},
+            {"ExitApp", ToTOML(hotkeys.exitApp)},
             {"ToggleFrameRateOSD", ToTOML(hotkeys.toggleFrameRateOSD)},
             {"NextFrameRateOSDPosition", ToTOML(hotkeys.nextFrameRateOSDPos)},
             {"PreviousFrameRateOSDPosition", ToTOML(hotkeys.prevFrameRateOSDPos)},
@@ -1615,6 +1618,17 @@ void Settings::RebindInputs() {
                             continue;
                         }
                         break;
+                    case input::Action::Kind::ComboTrigger:
+                        if (element.type != input::InputElement::Type::KeyCombo) {
+                            continue;
+                        }
+                        if (element.keyCombo.modifiers == input::KeyModifier::None) {
+                            continue;
+                        }
+                        if (BitmaskEnum(element.keyCombo.modifiers).AnyOf(input::KeyModifier::Super)) {
+                            continue;
+                        }
+                        break;
                     case input::Action::Kind::AbsoluteMonopolarAxis1D:
                         if (!element.IsAxis1D() || !element.IsMonopolarAxis()) {
                             continue;
@@ -1773,6 +1787,7 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
     rebindCtx.Rebind(hotkeys.toggleWindowedVideoOutput, {KeyCombo{Mod::None, Key::F9}});
     rebindCtx.Rebind(hotkeys.toggleFullScreen, {KeyCombo{Mod::Alt, Key::Return}});
     rebindCtx.Rebind(hotkeys.takeScreenshot, {KeyCombo{Key::F12}});
+    rebindCtx.Rebind(hotkeys.exitApp, {}); // Alt+F4 is always recognized, no need to bind it here
 
     rebindCtx.Rebind(hotkeys.toggleFrameRateOSD, {KeyCombo{Mod::Shift, Key::F1}});
     rebindCtx.Rebind(hotkeys.nextFrameRateOSDPos, {KeyCombo{Mod::Control, Key::F1}});

@@ -27,8 +27,11 @@ private:
 
     void CaptureButton(input::InputBind &bind, size_t elementIndex, void *context);
     void CaptureTrigger(input::InputBind &bind, size_t elementIndex, void *context);
+    void CaptureComboTrigger(input::InputBind &bind, size_t elementIndex, void *context);
     void CaptureAxis1D(input::InputBind &bind, size_t elementIndex, void *context, bool bipolar);
     void CaptureAxis2D(input::InputBind &bind, size_t elementIndex, void *context);
+
+    void BindInput(input::InputBind &bind, size_t elementIndex, void *context, const input::InputEvent &event);
 
     void MakeDirty();
     bool MakeDirty(bool value);

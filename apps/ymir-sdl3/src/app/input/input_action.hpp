@@ -16,6 +16,9 @@ struct Action {
         // Invoked when a button is pressed, only once per press.
         Trigger,
 
+        // Invoked when a keyboard combo is pressed
+        ComboTrigger,
+
         // Invoked when a button is pressed, including keyboard key repeats.
         RepeatableTrigger,
 
@@ -64,6 +67,9 @@ struct Action {
 
     static constexpr Action Trigger(uint32 id, const char *group, const char *name) {
         return {id, Kind::Trigger, group, name};
+    }
+    static constexpr Action ComboTrigger(uint32 id, const char *group, const char *name) {
+        return {id, Kind::ComboTrigger, group, name};
     }
     static constexpr Action RepeatableTrigger(uint32 id, const char *group, const char *name) {
         return {id, Kind::RepeatableTrigger, group, name};
