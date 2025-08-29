@@ -141,13 +141,12 @@ void InputCaptureWidget::CaptureTrigger(input::InputBind &bind, size_t elementIn
 void InputCaptureWidget::CaptureComboTrigger(input::InputBind &bind, size_t elementIndex, void *context) {
     m_kind = input::Action::Kind::ComboTrigger;
     m_context.inputContext.Capture([=, this, &bind](const input::InputEvent &event) -> bool {
-        // Only accept keyboard combos with at least one modifier pressed (except Super).
+        // Only accept keyboard combos with at least one modifier pressed.
         // Disallow modifier-only key combos.
         if (event.element.type != input::InputElement::Type::KeyCombo) {
             return false;
         }
-        const auto mod = event.element.keyCombo.modifiers & ~input::KeyModifier::Super;
-        if (mod == input::KeyModifier::None) {
+        if (event.element.keyCombo.modifiers == input::KeyModifier::None) {
             return false;
         }
         if (event.element.keyCombo.key == input::KeyboardKey::None) {

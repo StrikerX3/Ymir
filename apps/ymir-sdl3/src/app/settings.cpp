@@ -1625,9 +1625,6 @@ void Settings::RebindInputs() {
                         if (element.keyCombo.modifiers == input::KeyModifier::None) {
                             continue;
                         }
-                        if (BitmaskEnum(element.keyCombo.modifiers).AnyOf(input::KeyModifier::Super)) {
-                            continue;
-                        }
                         break;
                     case input::Action::Kind::AbsoluteMonopolarAxis1D:
                         if (!element.IsAxis1D() || !element.IsMonopolarAxis()) {
