@@ -289,6 +289,28 @@ struct DecodedArgs {
     sint16 dispImm;
 };
 
+struct DecodedMemAccesses {
+    enum Type : uint8 {
+        None,      // no access
+        AtReg,     // @Rn, @Rn+
+        AtR0Reg,   // @(R0,Rm)
+        AtR0GBR,   // @(R0,GBR)
+        AtDispReg, // @-Rn, @(disp,Rm)
+        AtDispGBR, // @(disp,GBR)
+        AtDispPC,  // @(disp,PC)  [align PC to size; affected by delay slot]
+    };
+
+    struct Access {
+        Type type = Type::None;
+        bool write = false;
+        uint8 size = 0; // 1, 2, 4
+        uint8 reg = 0;
+        sint16 disp = 0;
+    };
+
+    Access first, second;
+};
+
 struct DecodeTable {
 private:
     static constexpr auto alignment = 64;
@@ -303,6 +325,7 @@ public:
     // [1] delay slot instructions
     alignas(alignment) std::array<std::array<OpcodeType, 0x10000>, 2> opcodes;
     alignas(alignment) std::array<DecodedArgs, 0x10000> args;
+    alignas(alignment) std::array<DecodedMemAccesses, 0x10000> mem;
 };
 
 } // namespace ymir::sh2
