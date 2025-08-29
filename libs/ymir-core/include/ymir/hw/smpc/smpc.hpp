@@ -241,11 +241,11 @@ private:
     peripheral::PeripheralPort m_port1;
     peripheral::PeripheralPort m_port2;
 
-    // Parallel I/O SMPC-controlled (false) or SH-2 direct mode (true)
+    // (IOSEL) Parallel I/O SMPC-controlled (false) or SH-2 direct mode (true)
     bool m_pioMode1;
     bool m_pioMode2;
 
-    // External latch enable flags
+    // (EXLE) External latch enable flags
     bool m_extLatchEnable1;
     bool m_extLatchEnable2;
 

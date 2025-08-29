@@ -188,12 +188,16 @@ void SMPC::SaveState(state::SMPCState &state) const {
 
     state.busValue = m_busValue;
     state.resetDisable = m_resetDisable;
+    state.commandEventState = m_scheduler.GetEventCallback(m_commandEvent) == OnCommandEvent ? 0 : 1;
 
     m_rtc.SaveState(state);
 }
 
 bool SMPC::ValidateState(const state::SMPCState &state) const {
     if (!m_rtc.ValidateState(state)) {
+        return false;
+    }
+    if (state.commandEventState != 0 && state.commandEventState != 1) {
         return false;
     }
 
@@ -225,6 +229,12 @@ void SMPC::LoadState(const state::SMPCState &state) {
     m_resetDisable = state.resetDisable;
 
     m_rtc.LoadState(state);
+
+    switch (state.commandEventState) {
+    default: [[fallthrough]]; // should absolutely never happen
+    case 0: m_scheduler.SetEventCallback(m_commandEvent, this, OnCommandEvent); break;
+    case 1: m_scheduler.SetEventCallback(m_commandEvent, this, OnINTBACKBreakEvent); break;
+    }
 }
 
 void SMPC::UpdateResetNMI() {

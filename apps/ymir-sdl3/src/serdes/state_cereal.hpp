@@ -301,12 +301,21 @@ void serialize(Archive &ar, SCUDSPState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SMPCState &s) {
+void serialize(Archive &ar, SMPCState &s, const uint32 version) {
+    // v9:
+    // - New fields
+    //   - commandEventState = 0
+
     ar(s.IREG, s.OREG, s.COMREG, s.SR, s.SF);
     ar(s.PDR1, s.PDR2, s.DDR1, s.DDR2, s.IOSEL, s.EXLE);
     ar(s.intback);
     ar(s.busValue, s.resetDisable);
     ar(s.rtcTimestamp, s.rtcSysClockCount);
+    if (version >= 9) {
+        ar(s.commandEventState);
+    } else {
+        s.commandEventState = 0;
+    }
 }
 
 template <class Archive>
@@ -1134,7 +1143,7 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     serialize(ar, s.msh2, version);
     serialize(ar, s.ssh2, version);
     serialize(ar, s.scu, version);
-    serialize(ar, s.smpc);
+    serialize(ar, s.smpc, version);
     serialize(ar, s.vdp, version);
     serialize(ar, s.scsp, version);
     serialize(ar, s.cdblock, version);

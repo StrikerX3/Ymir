@@ -32,6 +32,7 @@ struct SMPCState {
 
     uint8 busValue;
     bool resetDisable;
+    uint8 commandEventState; // 0 = OnCommandEvent, 1 = OnINTBACKBreakEvent
 
     sint64 rtcTimestamp;
     uint64 rtcSysClockCount;

@@ -192,6 +192,15 @@ public:
         return event.target;
     }
 
+    /// @brief Retrieves the event's callback function pointer.
+    /// @param[in] id the event ID.
+    /// @return the function pointer assigned to the given event
+    [[nodiscard]] FORCE_INLINE EventCallback GetEventCallback(EventID id) {
+        assert(id < kNumScheduledEvents);
+        const Event &event = m_events[id];
+        return event.callback;
+    }
+
     /// @brief Removes the specified event from the schedule.
     /// @param[in] id the event ID
     FORCE_INLINE void Cancel(EventID id) {
