@@ -1,6 +1,7 @@
 #include "app/app.hpp"
 
 #include <util/os_exception_handler.hpp>
+#include <ymir/util/thread_name.hpp>
 
 #include <cxxopts.hpp>
 #include <fmt/format.h>
@@ -8,6 +9,11 @@
 #include <memory>
 
 int main(int argc, char **argv) {
+#if defined(_WIN32)
+    // NOTE: Setting the main thread name on Linux and macOS replaces the process name displayed on tools like `top`.
+    util::SetCurrentThreadName("Main thread");
+#endif
+
     bool showHelp = false;
     bool enableAllExceptions = false;
 

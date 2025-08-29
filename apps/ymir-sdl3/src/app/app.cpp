@@ -441,11 +441,6 @@ int App::Run(const CommandLineOptions &options) {
 }
 
 void App::RunEmulator() {
-#if defined(_WIN32)
-    // NOTE: Setting the main thread name on Linux and macOS replaces the process name displayed on tools like `top`.
-    util::SetCurrentThreadName("Main thread");
-#endif
-
     lsn::CScopedNoSubnormals snsNoSubnormals{};
 
     using namespace std::chrono_literals;
