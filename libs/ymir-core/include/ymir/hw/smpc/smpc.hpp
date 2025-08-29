@@ -202,33 +202,36 @@ private:
 
     uint8 m_busValue;
 
+#define TPL_PEEK template <bool peek>
+
     uint8 ReadIREG(uint8 offset) const; // debug only
     uint8 ReadCOMREG() const;           // debug only
     uint8 ReadOREG(uint8 offset) const;
     uint8 ReadSR() const;
-    uint8 ReadSF() const;
-    uint8 ReadPDR1() const;
-    uint8 ReadPDR2() const;
+    TPL_PEEK uint8 ReadSF() const;
+    TPL_PEEK uint8 ReadPDR1() const;
+    TPL_PEEK uint8 ReadPDR2() const;
     uint8 ReadDDR1() const; // debug only
     uint8 ReadDDR2() const; // debug only
     uint8 ReadIOSEL() const;
     uint8 ReadEXLE() const;
 
+#undef TPL_PEEK
+#define TPL_POKE template <bool poke>
+
     void WriteIREG(uint8 offset, uint8 value);
-    template <bool poke>
-    void WriteCOMREG(uint8 value);
+    TPL_POKE void WriteCOMREG(uint8 value);
     void WriteOREG(uint8 offset, uint8 value); // debug only
     void WriteSR(uint8 value);                 // debug only
-    template <bool poke>
-    void WriteSF(uint8 value);
-    template <bool poke>
-    void WritePDR1(uint8 value);
-    template <bool poke>
-    void WritePDR2(uint8 value);
+    TPL_POKE void WriteSF(uint8 value);
+    TPL_POKE void WritePDR1(uint8 value);
+    TPL_POKE void WritePDR2(uint8 value);
     void WriteDDR1(uint8 value);
     void WriteDDR2(uint8 value);
     void WriteIOSEL(uint8 value);
     void WriteEXLE(uint8 value);
+
+#undef TPL_POKE
 
     // -------------------------------------------------------------------------
     // RTC

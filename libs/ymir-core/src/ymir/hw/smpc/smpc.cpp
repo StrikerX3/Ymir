@@ -170,9 +170,9 @@ void SMPC::SaveState(state::SMPCState &state) const {
     state.OREG = OREG;
     state.COMREG = ReadCOMREG();
     state.SR = ReadSR();
-    state.SF = ReadSF();
-    state.PDR1 = ReadPDR1();
-    state.PDR2 = ReadPDR2();
+    state.SF = ReadSF<true>();
+    state.PDR1 = ReadPDR1<true>();
+    state.PDR2 = ReadPDR2<true>();
     state.DDR1 = ReadDDR1();
     state.DDR2 = ReadDDR2();
     state.IOSEL = ReadIOSEL();
@@ -307,9 +307,9 @@ uint8 SMPC::Read(uint32 address) {
     case 0x5D: return ReadOREG(30);
     case 0x5F: return ReadOREG(31);
     case 0x61: return ReadSR();
-    case 0x63: return ReadSF();
-    case 0x75: return ReadPDR1();
-    case 0x77: return ReadPDR2();
+    case 0x63: return ReadSF<peek>();
+    case 0x75: return ReadPDR1<peek>();
+    case 0x77: return ReadPDR2<peek>();
     default:
         if constexpr (!peek) {
             devlog::debug<grp::regs>("Unhandled SMPC read from {:02X}", address);
@@ -478,16 +478,31 @@ FORCE_INLINE uint8 SMPC::ReadSR() const {
     return SR.u8;
 }
 
+template <bool peek>
 FORCE_INLINE uint8 SMPC::ReadSF() const {
-    return SF | (m_busValue & 0xFE);
+    if constexpr (peek) {
+        return SF;
+    } else {
+        return SF | (m_busValue & 0xFE);
+    }
 }
 
+template <bool peek>
 FORCE_INLINE uint8 SMPC::ReadPDR1() const {
-    return (PDR1 & 0x7F) | (m_busValue & 0x80);
+    if constexpr (peek) {
+        return PDR1;
+    } else {
+        return (PDR1 & 0x7F) | (m_busValue & 0x80);
+    }
 }
 
+template <bool peek>
 FORCE_INLINE uint8 SMPC::ReadPDR2() const {
-    return (PDR2 & 0x7F) | (m_busValue & 0x80);
+    if constexpr (peek) {
+        return PDR2;
+    } else {
+        return (PDR2 & 0x7F) | (m_busValue & 0x80);
+    }
 }
 
 FORCE_INLINE uint8 SMPC::ReadDDR1() const {
