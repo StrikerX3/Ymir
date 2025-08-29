@@ -351,8 +351,13 @@ FLATTEN uint64 SH2::Advance(uint64 cycles, uint64 spilloverCycles) {
         // Check for breakpoints in debug tracing mode
         if constexpr (debug) {
             if (m_debugBreakMgr) {
-                if (m_breakpoints.contains(PC)) {
-                    m_debugBreakMgr->SignalDebugBreak(debug::DebugBreakInfo::SH2Breakpoint(IsMaster(), PC));
+                if (CheckBreakpoint()) {
+                    break;
+                }
+
+                const uint16 instr = MemRead<uint16, true, true, enableCache>(PC);
+                const auto &mem = DecodeTable::s_instance.mem[instr];
+                if (CheckWatchpoints(mem)) {
                     break;
                 }
 
@@ -1788,6 +1793,58 @@ void SH2::RecalcInterrupts() {
         RaiseInterrupt(InterruptSource::FRT_OVI);
         return;
     }
+}
+
+// -------------------------------------------------------------------------
+// Debugger
+
+FORCE_INLINE bool SH2::CheckBreakpoint() {
+    if (m_breakpoints.contains(PC)) {
+        m_debugBreakMgr->SignalDebugBreak(debug::DebugBreakInfo::SH2Breakpoint(IsMaster(), PC));
+        return true;
+    }
+    return false;
+}
+
+FORCE_INLINE bool SH2::CheckWatchpoints(const DecodedMemAccesses &mem) {
+    const bool wtpt1 = CheckWatchpoint(mem.first);
+    const bool wtpt2 = CheckWatchpoint(mem.second);
+    return wtpt1 || wtpt2;
+}
+
+bool SH2::CheckWatchpoint(const DecodedMemAccesses::Access &access) {
+    uint32 address;
+
+    using AccType = DecodedMemAccesses::Type;
+    switch (access.type) {
+    case AccType::None: return false;
+    case AccType::AtReg: address = R[access.reg]; break;
+    case AccType::AtR0Reg: address = R[0] + R[access.reg]; break;
+    case AccType::AtR0GBR: address = R[0] + GBR; break;
+    case AccType::AtDispReg: address = access.disp + R[access.reg]; break;
+    case AccType::AtDispGBR: address = access.disp + GBR; break;
+    case AccType::AtDispPC: address = (PC & ~(access.size - 1)) + access.disp; break;
+    }
+
+    if (!m_watchpoints.contains(address)) {
+        return false;
+    }
+
+    debug::WatchpointFlags flags;
+    switch (access.size) {
+    case 1: flags = access.write ? debug::WatchpointFlags::Write8 : debug::WatchpointFlags::Read8; break;
+    case 2: flags = access.write ? debug::WatchpointFlags::Write16 : debug::WatchpointFlags::Read16; break;
+    case 4: flags = access.write ? debug::WatchpointFlags::Write32 : debug::WatchpointFlags::Read32; break;
+    default: return false; // should never happen
+    }
+
+    if (BitmaskEnum(m_watchpoints.at(address)).AnyOf(flags)) {
+        m_debugBreakMgr->SignalDebugBreak(
+            debug::DebugBreakInfo::SH2Watchpoint(IsMaster(), access.write, access.size, address, PC));
+        return true;
+    }
+
+    return false;
 }
 
 // -------------------------------------------------------------------------

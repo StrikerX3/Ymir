@@ -19,6 +19,7 @@ add_library(ymir-core
     include/ymir/debug/scsp_tracer_base.hpp
     include/ymir/debug/scu_tracer_base.hpp
     include/ymir/debug/sh2_tracer_base.hpp
+    include/ymir/debug/watchpoint_defs.hpp
 
     include/ymir/hw/hw_defs.hpp
 

@@ -25,9 +25,6 @@ struct Saturn;
 
 namespace ymir::debug {
 
-enum class MemoryAccessSize : uint8 { Byte, Half, Word };
-enum class MemoryAccessDirection : uint8 { Read, Write };
-
 /// @brief Describes a debug break event.
 ///
 /// This is a tagged union -- `event` is the tag, and `details` is the union. Each event indicates its valid field.
@@ -53,11 +50,11 @@ struct DebugBreakInfo {
 
         /// @brief Details about the `Event::SH2Watchpoint` event.
         struct SH2Watchpoint {
-            bool master;               ///< Triggered from the MSH2 (`true`) or SSH2 (`false`)
-            MemoryAccessDirection dir; ///< Direction of the memory access
-            MemoryAccessSize size;     ///< Size of the memory access
-            uint32 address;            ///< Address of the memory access
-            uint32 pc;                 ///< PC address where the watchpoint was triggered
+            bool master;    ///< Triggered from the MSH2 (`true`) or SSH2 (`false`)
+            bool write;     ///< Direction of the memory access: write (`true`) or read (`false`)
+            uint8 size;     ///< Size of the memory access in bytes
+            uint32 address; ///< Address of the memory access
+            uint32 pc;      ///< PC address where the watchpoint was triggered
         } sh2Watchpoint;
     } details;
 
@@ -72,16 +69,16 @@ struct DebugBreakInfo {
 
     /// @brief Constructs a `DebugBreakInfo` for an SH-2 watchpoint hit.
     /// @param[in] master whether the event was triggered from the MSH2 (`true`) or SSH2 (`false`) CPU
-    /// @param[in] dir direction of the memory access
-    /// @param[in] size size of the memory access
+    /// @param[in] write direction of the memory access: write (`true`) or read (`false`)
+    /// @param[in] size size of the memory access in bytes
     /// @param[in] address address of the memory access
     /// @param[in] pc the PC address where the watchpoint was triggerd
     /// @return a `DebugBreakInfo` struct with the `Event::SH2Watchpoint` event
-    static DebugBreakInfo SH2Watchpoint(bool master, MemoryAccessDirection dir, MemoryAccessSize size, uint32 address,
-                                        uint32 pc) {
+    static DebugBreakInfo SH2Watchpoint(bool master, bool write, uint8 size, uint32 address, uint32 pc) {
         return DebugBreakInfo{
             .event = Event::SH2Watchpoint,
-            .details = {.sh2Watchpoint = {.master = master, .dir = dir, .size = size, .address = address, .pc = pc}}};
+            .details = {
+                .sh2Watchpoint = {.master = master, .write = write, .size = size, .address = address, .pc = pc}}};
     }
 };
 

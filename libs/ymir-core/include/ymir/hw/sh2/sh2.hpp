@@ -29,6 +29,7 @@
 
 #include <ymir/debug/debug_break.hpp>
 #include <ymir/debug/sh2_tracer_base.hpp>
+#include <ymir/debug/watchpoint_defs.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -36,6 +37,7 @@
 
 #include <array>
 #include <iosfwd>
+#include <map>
 #include <set>
 
 namespace ymir::sh2 {
@@ -159,6 +161,49 @@ public:
     // The address is force-aligned to word boundaries.
     bool IsBreakpointSet(uint32 address) const {
         return m_breakpoints.contains(address & ~1u);
+    }
+
+    // Configures watchpoints for the specified address.
+    // Addresses are force-aligned to size boundaries.
+    void SetWatchpoint(uint32 address, debug::WatchpointFlags flags) {
+        if (flags == debug::WatchpointFlags::None) {
+            m_watchpoints.erase(address);
+        } else {
+            const auto flags8 = flags & (debug::WatchpointFlags::Read8 | debug::WatchpointFlags::Write8);
+            const auto flags16 = flags & (debug::WatchpointFlags::Read16 | debug::WatchpointFlags::Write16);
+            const auto flags32 = flags & (debug::WatchpointFlags::Read32 | debug::WatchpointFlags::Write32);
+            m_watchpoints.emplace(address, flags8);
+            m_watchpoints.emplace(address & ~1u, flags16);
+            m_watchpoints.emplace(address & ~3u, flags32);
+        }
+    }
+
+    // Clears all watchpoints at the specified address.
+    void ClearWatchpointsAt(uint32 address) {
+        m_watchpoints.erase(address);
+    }
+
+    // Retrieves configured watchpoints for the specified address.
+    debug::WatchpointFlags GetWatchpoint(uint32 address) const {
+        if (m_watchpoints.contains(address)) {
+            return m_watchpoints.at(address);
+        }
+        return debug::WatchpointFlags::None;
+    }
+
+    // Retrieves all watchpoints set in this SH-2.
+    const std::map<uint32, debug::WatchpointFlags> &GetWatchpoints() const {
+        return m_watchpoints;
+    }
+
+    // Replaces all watchpoints with those of the provided set.
+    // All addresses of the specified set are force-aligned to word boundaries.
+    void ReplaceWatchpoints(const std::map<uint32, debug::WatchpointFlags> &watchpoints) {
+        // Manage watchpoints manually to sanitize addresses
+        m_watchpoints.clear();
+        for (auto &[address, flags] : watchpoints) {
+            SetWatchpoint(address, flags);
+        }
     }
 
     // Suspends (disabled) the CPU in debug mode.
@@ -737,9 +782,15 @@ private:
     debug::ISH2Tracer *m_tracer = nullptr;
 
     std::set<uint32> m_breakpoints;
+    std::map<uint32, debug::WatchpointFlags> m_watchpoints;
+
     bool m_debugSuspend = false; // Disables CPU while in debug mode
 
-    const std::string_view m_logPrefix;
+    bool CheckBreakpoint();
+    bool CheckWatchpoints(const DecodedMemAccesses &mem);
+    bool CheckWatchpoint(const DecodedMemAccesses::Access &access);
+
+    const std::string_view m_logPrefix; // For devlogs
 
     // -------------------------------------------------------------------------
     // Helper functions
