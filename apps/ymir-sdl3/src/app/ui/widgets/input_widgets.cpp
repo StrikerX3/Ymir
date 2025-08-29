@@ -51,7 +51,7 @@ void InputCaptureWidget::DrawCapturePopup() {
                                    "Press Escape or click outside of this popup to cancel.");
             break;
         case input::Action::Kind::ComboTrigger:
-            ImGui::TextUnformatted("Press any key combo with at least one modifier (Ctrl, Alt or Shift) to map it.\n\n"
+            ImGui::TextUnformatted("Press any key combo with at least one modifier key to map it.\n\n"
                                    "Press Escape or click outside of this popup to cancel.");
             break;
         case input::Action::Kind::AbsoluteMonopolarAxis1D:
