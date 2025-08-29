@@ -398,7 +398,7 @@ struct VDP2Regs {
 
     FORCE_INLINE uint16 ReadTVSTAT() const {
         uint16 value = TVSTAT.u16;
-        if (TVMD.LSMDn == InterlaceMode::DoubleDensity) {
+        if (TVMD.IsInterlaced()) {
             value ^= 0x2; // for some reason ODD is read inverted
         }
         return value;

@@ -85,8 +85,11 @@ namespace settings::video {
             "deinterlaced rendering\" options alongside this to lessen the performance impact.\n"
             "A quad-core CPU or better is recommended to use this option.\n"
             "\n"
-            "Very few games may exhibit graphics artifacts when this option is enabled. The only known case so far is "
-            "True Pinball.",
+            "Very few games may exhibit graphics artifacts when this option is enabled. These are the known cases so "
+            "far:\n"
+            "- True Pinball displays the bottom half of the board interleaved with the top half at the top of the "
+            "screen\n"
+            "- Shienryuu and Pro-Pinball: The Web's graphics jitter",
             ctx.displayScale);
     }
 
