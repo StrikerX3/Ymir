@@ -184,7 +184,7 @@ void SH2WatchpointsView::Display() {
         }
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(flagsSpacing, flagsSpacing));
-        for (size_t i = 0; const auto &[address, flags] : watchpoints) {
+        for (uint32 i = 0; const auto &[address, flags] : watchpoints) {
             const uint32 prevAddress = address;
             uint32 currAddress = address;
             if (drawHex32(i, currAddress)) {
@@ -197,8 +197,16 @@ void SH2WatchpointsView::Display() {
             const BitmaskEnum bmFlags{flags};
 
             auto flag = [&](const char *id, const char *desc, debug::WatchpointFlags flag) {
+                const uint32 size = debug::WatchpointFlagSize(flag);
+                assert(size > 0);
+                const bool unaligned = (currAddress & (size - 1)) != 0;
+
                 bool value = bmFlags.AnyOf(flag);
                 ImGui::SameLine();
+
+                if (unaligned) {
+                    ImGui::BeginDisabled();
+                }
                 if (ImGui::Checkbox(fmt::format("##{}_{}", id, i).c_str(), &value)) {
                     if (value) {
                         m_sh2.AddWatchpoint(currAddress, flag);
@@ -206,7 +214,16 @@ void SH2WatchpointsView::Display() {
                         m_sh2.RemoveWatchpoint(currAddress, flag);
                     }
                 }
-                ImGui::SetItemTooltip("%s", desc);
+                if (unaligned) {
+                    ImGui::EndDisabled();
+                }
+                if (ImGui::BeginItemTooltip()) {
+                    ImGui::TextUnformatted(desc);
+                    if (unaligned) {
+                        ImGui::TextUnformatted("Unaligned address -- watchpoint will not be triggered.");
+                    }
+                    ImGui::EndTooltip();
+                }
             };
 
             flag("r8", "8-bit read", debug::WatchpointFlags::Read8);
