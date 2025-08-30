@@ -20,7 +20,7 @@ Introduced save state file version 9.
 - Debug: Move debug port writes to a callback and remove them from the SCU tracer. Eliminates the need for debug tracing to use Mednafen's debug output method.
 - Debugger: Implemented SH-2 watchpoints. (#22)
 - Input: Add support for loading an external game controller database and include a [community-sourced database](https://github.com/mdqinc/SDL_GameControllerDB) in builds.
-- Input: Added hotkey for exiting the application, requiring a key combo to trigger: at least one of Ctrl, Alt or Shift and one other key (e.g. Ctrl+Shift+Q). (#160)
+- Input: Added hotkey for exiting the application, requiring a key combo to trigger: at least one key modifier (Ctrl, Alt, Shift, Option, etc.) and one other key (e.g. Ctrl+Shift+Q). (#160)
 - Media: Cache CHD hunks for improved performance at the cost of extra RAM usage.
 - SCSP: Basic debugger view for all slot registers and some state.
 - SCSP: Final output oscilloscope view.
