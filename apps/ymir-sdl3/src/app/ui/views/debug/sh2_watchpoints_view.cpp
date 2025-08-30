@@ -194,8 +194,9 @@ void SH2WatchpointsView::Display() {
                 m_context.debuggers.MakeDirty();
             }
 
+            const BitmaskEnum bmFlags{flags};
+
             auto flag = [&](const char *id, const char *desc, debug::WatchpointFlags flag) {
-                const BitmaskEnum bmFlags{flags};
                 bool value = bmFlags.AnyOf(flag);
                 ImGui::SameLine();
                 if (ImGui::Checkbox(fmt::format("##{}_{}", id, i).c_str(), &value)) {
