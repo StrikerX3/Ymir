@@ -4,6 +4,8 @@
 
 #include <app/events/emu_event_factory.hpp>
 
+#include <app/ui/fonts/IconsMaterialSymbols.h>
+
 #include <imgui.h>
 
 using namespace ymir;
@@ -19,12 +21,14 @@ void SH2WatchpointsView::Display() {
     ImGui::PushFont(m_context.fonts.monospace.regular, fontSize);
     const float hexCharWidth = ImGui::CalcTextSize("F").x;
     ImGui::PopFont();
+    const float frameHeight = ImGui::GetFrameHeight();
     const float framePadding = ImGui::GetStyle().FramePadding.x;
-    const float vecFieldWidth = framePadding * 2 + hexCharWidth * 8;
+    const float flagsSpacing = 4.0f * m_context.displayScale;
+    const float hexFieldWidth = hexCharWidth * 8 + framePadding * 2;
 
     auto drawHex32 = [&](auto id, uint32 &value) {
         ImGui::PushFont(m_context.fonts.monospace.regular, fontSize);
-        ImGui::SetNextItemWidth(vecFieldWidth);
+        ImGui::SetNextItemWidth(hexFieldWidth);
         ImGui::InputScalar(fmt::format("##input_{}", id).c_str(), ImGuiDataType_U32, &value, nullptr, nullptr, "%08X",
                            ImGuiInputTextFlags_CharsHexadecimal);
         ImGui::PopFont();
@@ -102,7 +106,6 @@ void SH2WatchpointsView::Display() {
         {
             ImGui::TableNextColumn();
             if (drawHex32("addr", m_address)) {
-                m_address &= ~1u;
                 if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter) ||
                     ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown)) {
 
@@ -120,10 +123,9 @@ void SH2WatchpointsView::Display() {
             ImGui::SameLine();
             if (ImGui::Button("Remove")) {
                 std::unique_lock lock{m_context.locks.watchpoints};
-                m_sh2.ClearWatchpointsAt(m_address);
+                m_sh2.RemoveWatchpoint(m_address, flags);
                 m_context.debuggers.MakeDirty();
             }
-
         }
 
         ImGui::EndTable();
@@ -139,39 +141,91 @@ void SH2WatchpointsView::Display() {
     ImGui::SeparatorText("Active watchpoints");
     ImGui::PopFont();
 
-    // TODO: flags
-    /*std::vector<uint32> watchpoints{};
+    std::map<uint32, debug::WatchpointFlags> watchpoints{};
     {
         std::unique_lock lock{m_context.locks.watchpoints};
-        auto &currWatchpoints = m_sh2.GetWatchpoints();
-        watchpoints.insert(watchpoints.end(), currWatchpoints.begin(), currWatchpoints.end());
+        watchpoints = m_sh2.GetWatchpoints();
     }
 
-    if (ImGui::BeginTable("wtpts", 2, ImGuiTableFlags_SizingFixedFit)) {
-        for (size_t i = 0; i < watchpoints.size(); ++i) {
-            uint32 address = watchpoints[i];
-            ImGui::TableNextRow();
-            if (ImGui::TableNextColumn()) {
-                const uint32 prevAddress = address;
-                if (drawHex32(i, address)) {
-                    std::unique_lock lock{m_context.locks.watchpoints};
-                    const auto flags = m_sh2.GetWatchpoint(prevAddress);
-                    m_sh2.ClearWatchpointsAt(prevAddress);
-                    m_sh2.AddWatchpoint(address, flags);
-                    m_context.debuggers.MakeDirty();
-                }
-            }
-            if (ImGui::TableNextColumn()) {
-                if (ImGui::Button(fmt::format("Remove##{}", i).c_str())) {
-                    std::unique_lock lock{m_context.locks.watchpoints};
-                    m_sh2.ClearWatchpointsAt(address);
-                    m_context.debuggers.MakeDirty();
-                }
-            }
+    if (!watchpoints.empty()) {
+        auto centerTextWithOffset = [&](const char *text, float baseOffset, float width) {
+            const float textWidth = ImGui::CalcTextSize(text).x;
+            ImGui::SameLine(baseOffset + (width - textWidth) * 0.5f);
+            ImGui::TextUnformatted(text);
+        };
+
+        const float flagCheckboxWidth = frameHeight + flagsSpacing;
+        const float baseOffset = hexFieldWidth + flagsSpacing;
+
+        {
+            ImGui::NewLine();
+            float offset = baseOffset;
+            centerTextWithOffset("Read", offset, flagCheckboxWidth * 3);
+            offset += flagCheckboxWidth * 3;
+            centerTextWithOffset("Write", offset, flagCheckboxWidth * 3);
         }
 
-        ImGui::EndTable();
-    }*/
+        {
+            ImGui::NewLine();
+            centerTextWithOffset("Address", 0, hexFieldWidth);
+            float offset = baseOffset;
+            centerTextWithOffset("B", offset, flagCheckboxWidth);
+            offset += flagCheckboxWidth;
+            centerTextWithOffset("W", offset, flagCheckboxWidth);
+            offset += flagCheckboxWidth;
+            centerTextWithOffset("L", offset, flagCheckboxWidth);
+            offset += flagCheckboxWidth;
+            centerTextWithOffset("B", offset, flagCheckboxWidth);
+            offset += flagCheckboxWidth;
+            centerTextWithOffset("W", offset, flagCheckboxWidth);
+            offset += flagCheckboxWidth;
+            centerTextWithOffset("L", offset, flagCheckboxWidth);
+            offset += flagCheckboxWidth;
+        }
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(flagsSpacing, flagsSpacing));
+        for (size_t i = 0; const auto &[address, flags] : watchpoints) {
+            const uint32 prevAddress = address;
+            uint32 currAddress = address;
+            if (drawHex32(i, currAddress)) {
+                std::unique_lock lock{m_context.locks.watchpoints};
+                m_sh2.ClearWatchpointsAt(prevAddress);
+                m_sh2.AddWatchpoint(currAddress, flags);
+                m_context.debuggers.MakeDirty();
+            }
+
+            auto flag = [&](const char *id, const char *desc, debug::WatchpointFlags flag) {
+                const BitmaskEnum bmFlags{flags};
+                bool value = bmFlags.AnyOf(flag);
+                ImGui::SameLine();
+                if (ImGui::Checkbox(fmt::format("##{}_{}", id, i).c_str(), &value)) {
+                    if (value) {
+                        m_sh2.AddWatchpoint(currAddress, flag);
+                    } else {
+                        m_sh2.RemoveWatchpoint(currAddress, flag);
+                    }
+                }
+                ImGui::SetItemTooltip("%s", desc);
+            };
+
+            flag("r8", "8-bit read", debug::WatchpointFlags::Read8);
+            flag("r16", "16-bit read", debug::WatchpointFlags::Read16);
+            flag("r32", "32-bit read", debug::WatchpointFlags::Read32);
+            flag("w8", "8-bit write", debug::WatchpointFlags::Write8);
+            flag("w16", "16-bit write", debug::WatchpointFlags::Write16);
+            flag("w32", "32-bit write", debug::WatchpointFlags::Write32);
+            ImGui::SameLine();
+            if (ImGui::Button(fmt::format(ICON_MS_DELETE "##{}", i).c_str())) {
+                std::unique_lock lock{m_context.locks.watchpoints};
+                m_sh2.ClearWatchpointsAt(address);
+                m_context.debuggers.MakeDirty();
+            }
+            ImGui::SetItemTooltip("Remove");
+
+            ++i;
+        }
+        ImGui::PopStyleVar();
+    }
 
     ImGui::EndGroup();
 }

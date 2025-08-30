@@ -13,8 +13,8 @@ SH2BreakpointsWindow::SH2BreakpointsWindow(SharedContext &context, bool master)
 }
 
 void SH2BreakpointsWindow::PrepareWindow() {
-    ImGui::SetNextWindowSizeConstraints(ImVec2(260 * m_context.displayScale, 250 * m_context.displayScale),
-                                        ImVec2(260 * m_context.displayScale, FLT_MAX));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(250 * m_context.displayScale, 250 * m_context.displayScale),
+                                        ImVec2(250 * m_context.displayScale, FLT_MAX));
 }
 
 void SH2BreakpointsWindow::DrawContents() {

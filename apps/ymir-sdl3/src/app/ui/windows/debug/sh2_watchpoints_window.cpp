@@ -13,8 +13,8 @@ SH2WatchpointsWindow::SH2WatchpointsWindow(SharedContext &context, bool master)
 }
 
 void SH2WatchpointsWindow::PrepareWindow() {
-    ImGui::SetNextWindowSizeConstraints(ImVec2(260 * m_context.displayScale, 300 * m_context.displayScale),
-                                        ImVec2(260 * m_context.displayScale, FLT_MAX));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(285 * m_context.displayScale, 300 * m_context.displayScale),
+                                        ImVec2(285 * m_context.displayScale, FLT_MAX));
 }
 
 void SH2WatchpointsWindow::DrawContents() {
