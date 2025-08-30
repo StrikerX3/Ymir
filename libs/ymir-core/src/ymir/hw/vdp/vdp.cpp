@@ -1574,9 +1574,9 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
             }
 
             if (m_transparentMeshes) {
-                util::WriteBE<uint16>(&meshFB[address & 0x3FFFE], regs1.eraseWriteValue);
+                util::WriteBE<uint16>(&meshFB[address & 0x3FFFE], 0);
                 if (mirror) {
-                    util::WriteBE<uint16>(&altMeshFB[address & 0x3FFFE], regs1.eraseWriteValue);
+                    util::WriteBE<uint16>(&altMeshFB[address & 0x3FFFE], 0);
                 }
             }
         }

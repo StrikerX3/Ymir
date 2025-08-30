@@ -55,6 +55,7 @@ Introduced save state file version 9.
 - SMPC: Time out pending INTBACK at VBlank IN if no Continue or Break requests are received until then. Fixes inputs in both Discworld versions. (#245; thanks to @celeriyacon)
 - SMPC, VDP: Trigger optimized INTBACK more consistently closer to 1ms before VBlank IN depending on vertical resolution.
 - System: Reset clock speed when soft resetting the system.
+- VDP1: Clear transparent mesh layer to 0 instead of the erase write value when erasing framebuffer. Fixes Rayman's level loading screens rendering at half brightness when using the transparent meshes enhancement.
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)
 - VDP1: Delay PTM=1 drawing start to dodge some timing issues with games that trigger drawing too early. Fixes flickering glass shard in Fighter's History Dynamite's intro sequence. (#503)
 - VDP2: Adjust line width for RBG line color insertion. Fixes half of the field not being colored in World League Soccer '98. (#517)
