@@ -30,6 +30,7 @@
 # Visual Studio files
 .vs/
 out/
+enc_temp_folder/
 CMakeSettings.json
 
 # CMake build folders
@@ -44,6 +45,5 @@ cmake-build-*/
 .DS_Store
 
 # Generated mig files on MacOS
-
 apps/ymir-sdl3/src/util/mig/a64
 apps/ymir-sdl3/src/util/mig/x64
