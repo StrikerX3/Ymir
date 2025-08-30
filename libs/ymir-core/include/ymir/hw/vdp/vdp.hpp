@@ -963,18 +963,18 @@ private:
         std::array<std::array<uint32, 16>, 2> pageBaseAddresses;
 
         // Precomputed screen coordinates (with 16 fractional bits).
-        alignas(16) std::array<CoordS32, kMaxResH> screenCoords;
+        alignas(16) std::array<CoordS32, kMaxResH / 2> screenCoords;
 
         // Precomputed sprite coordinates (without fractional bits).
-        alignas(16) std::array<CoordS32, kMaxResH> spriteCoords;
+        alignas(16) std::array<CoordS32, kMaxResH / 2> spriteCoords;
 
         // Precomputed coefficient table line color.
         // Filled in only if the coefficient table is enabled and using line color data.
-        alignas(16) std::array<Color888, kMaxResH> lineColor;
+        alignas(16) std::array<Color888, kMaxResH / 2> lineColor;
 
         // Prefetched coefficient table transparency bits.
         // Filled in only if the coefficient table is enabled.
-        alignas(16) std::array<bool, kMaxResH> transparent;
+        alignas(16) std::array<bool, kMaxResH / 2> transparent;
 
         // Current base screen coordinates, updated every scanline.
         sint32 Xst, Yst;

@@ -57,6 +57,7 @@ Introduced save state file version 9.
 - System: Reset clock speed when soft resetting the system.
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)
 - VDP1: Delay PTM=1 drawing start to dodge some timing issues with games that trigger drawing too early. Fixes flickering glass shard in Fighter's History Dynamite's intro sequence. (#503)
+- VDP2: Adjust line width for RBG line color insertion. Fixes half of the field not being colored in World League Soccer '98. (#517)
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.
 - VDP2: Double vertical window coordinates when the display is in single-density interlaced mode. Fixes the bottom half of the screen missing in Pro-Pinball: The Web. (#371)
 - VDP2: Fix CRAM address bits shuffling. Fixes unexpected graphics showing up before the intro FMV in Saturn Bomberman. (#434)

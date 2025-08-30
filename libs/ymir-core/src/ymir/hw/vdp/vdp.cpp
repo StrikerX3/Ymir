@@ -4912,6 +4912,9 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
         // Extended color calculations (only in normal TV modes)
         const bool useExtendedColorCalc = colorCalcParams.extendedColorCalcEnable && regs.TVMD.HRESOn < 2;
 
+        const bool doubleResH = regs.TVMD.HRESOn & 0b010;
+        const uint32 xShift = doubleResH ? 1 : 0;
+
         // Gather line-color data
         alignas(16) std::array<bool, kMaxResH> layer0LineColorEnabled;
         alignas(16) std::array<Color888, kMaxResH> layer0LineColors;
@@ -4928,7 +4931,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 if (layer == LYR_RBG0 || (layer == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
                     const auto &rotParams = regs.rotParams[layer - LYR_RBG0];
                     if (rotParams.coeffTableEnable && rotParams.coeffUseLineColorData) {
-                        layer0LineColors[x] = m_rotParamStates[layer - LYR_RBG0].lineColor[x];
+                        layer0LineColors[x] = m_rotParamStates[layer - LYR_RBG0].lineColor[x >> xShift];
                     } else {
                         layer0LineColors[x] = m_lineBackLayerState.lineColor;
                     }
