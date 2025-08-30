@@ -130,6 +130,8 @@ add_executable(ymir-sdl3
     src/app/ui/views/debug/sh2_power_view.hpp
     src/app/ui/views/debug/sh2_registers_view.cpp
     src/app/ui/views/debug/sh2_registers_view.hpp
+    src/app/ui/views/debug/sh2_watchpoints_view.cpp
+    src/app/ui/views/debug/sh2_watchpoints_view.hpp
     src/app/ui/views/debug/sh2_wdt_view.cpp
     src/app/ui/views/debug/sh2_wdt_view.hpp
     src/app/ui/views/debug/vdp1_registers_view.cpp
@@ -259,6 +261,8 @@ add_executable(ymir-sdl3
     src/app/ui/windows/debug/sh2_power_window.hpp
     src/app/ui/windows/debug/sh2_timers_window.cpp
     src/app/ui/windows/debug/sh2_timers_window.hpp
+    src/app/ui/windows/debug/sh2_watchpoints_window.cpp
+    src/app/ui/windows/debug/sh2_watchpoints_window.hpp
     src/app/ui/windows/debug/sh2_window_base.cpp
     src/app/ui/windows/debug/sh2_window_base.hpp
     src/app/ui/windows/debug/sh2_window_set.hpp

@@ -89,6 +89,16 @@ void SH2DebugToolbarView::Display() {
         ImGui::EndTooltip();
     }
 
+    ImGui::SameLine();
+
+    if (ImGui::Button(ICON_MS_VISIBILITY)) {
+        m_context.EnqueueEvent(events::gui::OpenSH2WatchpointsWindow(m_sh2.IsMaster()));
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Watchpoints (Ctrl+Shift+F9)");
+        ImGui::EndTooltip();
+    }
+
     if (!master) {
         ImGui::SameLine();
         bool slaveSH2Enabled = m_context.saturn.IsSlaveSH2Enabled();

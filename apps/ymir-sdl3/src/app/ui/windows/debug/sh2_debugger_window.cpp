@@ -127,6 +127,10 @@ void SH2DebuggerWindow::DrawContents() {
         // Open breakpoints
         m_context.EnqueueEvent(events::gui::OpenSH2BreakpointsWindow(m_sh2.IsMaster()));
     }
+    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F9, baseFlags)) {
+        // Open watchpoints
+        m_context.EnqueueEvent(events::gui::OpenSH2WatchpointsWindow(m_sh2.IsMaster()));
+    }
     if (ImGui::Shortcut(ImGuiKey_F11, baseFlags)) {
         // Enable debug tracing
         m_context.EnqueueEvent(events::emu::SetDebugTrace(true));

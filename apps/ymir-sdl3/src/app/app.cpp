@@ -1540,6 +1540,14 @@ void App::RunEmulator() {
                                                       info.details.sh2Breakpoint.pc));
                  sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Breakpoint.master));
                  break;
+             case SH2Watchpoint: //
+                 sharedCtx.DisplayMessage(
+                     fmt::format("{}SH2 {}-bit {} watchpoint on {:08X} hit at {:08X}",
+                                 (info.details.sh2Watchpoint.master ? 'M' : 'S'), info.details.sh2Watchpoint.size * 8,
+                                 (info.details.sh2Watchpoint.write ? "write" : "read"),
+                                 info.details.sh2Watchpoint.address, info.details.sh2Watchpoint.pc));
+                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Watchpoint.master));
+                 break;
              default: sharedCtx.DisplayMessage("Paused due to a debug break event"); break;
              }
          }});
@@ -1995,6 +2003,13 @@ void App::RunEmulator() {
                 auto &windowSet = std::get<bool>(evt.value) ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
                 windowSet.breakpoints.Open = true;
                 windowSet.breakpoints.RequestFocus();
+                break;
+            }
+            case EvtType::OpenSH2WatchpointsWindow: //
+            {
+                auto &windowSet = std::get<bool>(evt.value) ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                windowSet.watchpoints.Open = true;
+                windowSet.watchpoints.RequestFocus();
                 break;
             }
             case EvtType::SetProcessPriority: util::BoostCurrentProcessPriority(std::get<bool>(evt.value)); break;
@@ -2640,6 +2655,7 @@ void App::RunEmulator() {
                             ImGui::Indent();
                             {
                                 ImGui::MenuItem("Breakpoints", nullptr, &set.breakpoints.Open);
+                                ImGui::MenuItem("Watchpoints", nullptr, &set.watchpoints.Open);
                             }
                             ImGui::Unindent();
                             ImGui::MenuItem("Interrupts", nullptr, &set.interrupts.Open);

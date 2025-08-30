@@ -59,6 +59,10 @@ inline GUIEvent OpenSH2BreakpointsWindow(bool master) {
     return {.type = GUIEvent::Type::OpenSH2BreakpointsWindow, .value = master};
 }
 
+inline GUIEvent OpenSH2WatchpointsWindow(bool master) {
+    return {.type = GUIEvent::Type::OpenSH2WatchpointsWindow, .value = master};
+}
+
 inline GUIEvent SetProcessPriority(bool boost) {
     return {.type = GUIEvent::Type::SetProcessPriority, .value = boost};
 }

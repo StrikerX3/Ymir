@@ -11,6 +11,7 @@
 #include "sh2_interrupts_window.hpp"
 #include "sh2_power_window.hpp"
 #include "sh2_timers_window.hpp"
+#include "sh2_watchpoints_window.hpp"
 
 namespace app::ui {
 
@@ -18,6 +19,7 @@ struct SH2WindowSet {
     SH2WindowSet(SharedContext &context, bool master)
         : debugger(context, master)
         , breakpoints(context, master)
+        , watchpoints(context, master)
         , interrupts(context, master)
         , interruptTrace(context, master)
         , exceptionVectors(context, master)
@@ -31,6 +33,7 @@ struct SH2WindowSet {
     void DisplayAll() {
         debugger.Display();
         breakpoints.Display();
+        watchpoints.Display();
         interrupts.Display();
         interruptTrace.Display();
         exceptionVectors.Display();
@@ -44,6 +47,7 @@ struct SH2WindowSet {
 
     SH2DebuggerWindow debugger;
     SH2BreakpointsWindow breakpoints;
+    SH2WatchpointsWindow watchpoints;
     SH2InterruptsWindow interrupts;
     SH2InterruptTraceWindow interruptTrace;
     SH2ExceptionVectorsWindow exceptionVectors;

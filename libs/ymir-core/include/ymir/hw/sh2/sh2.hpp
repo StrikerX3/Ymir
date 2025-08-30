@@ -163,24 +163,35 @@ public:
         return m_breakpoints.contains(address & ~1u);
     }
 
-    // Configures watchpoints for the specified address.
-    // Addresses are force-aligned to size boundaries.
-    void SetWatchpoint(uint32 address, debug::WatchpointFlags flags) {
-        if (flags == debug::WatchpointFlags::None) {
+    // Adds watchpoints to the specified address.
+    // Watchpoints set at misaligned addresses will not trigger.
+    // e.g. longword-sized watchpoint with address & 3 != 0
+    void AddWatchpoint(uint32 address, debug::WatchpointFlags flags) {
+        if (flags != debug::WatchpointFlags::None) {
+            m_watchpoints[address] |= flags;
+        }
+    }
+
+    // Removes watchpoints from the specified address.
+    void RemoveWatchpoint(uint32 address, debug::WatchpointFlags flags) {
+        if (!m_watchpoints.contains(address)) {
+            return;
+        }
+        auto &wtpt = m_watchpoints.at(address);
+        wtpt &= ~flags;
+        if (wtpt == debug::WatchpointFlags::None) {
             m_watchpoints.erase(address);
-        } else {
-            const auto flags8 = flags & (debug::WatchpointFlags::Read8 | debug::WatchpointFlags::Write8);
-            const auto flags16 = flags & (debug::WatchpointFlags::Read16 | debug::WatchpointFlags::Write16);
-            const auto flags32 = flags & (debug::WatchpointFlags::Read32 | debug::WatchpointFlags::Write32);
-            m_watchpoints.emplace(address, flags8);
-            m_watchpoints.emplace(address & ~1u, flags16);
-            m_watchpoints.emplace(address & ~3u, flags32);
         }
     }
 
     // Clears all watchpoints at the specified address.
     void ClearWatchpointsAt(uint32 address) {
         m_watchpoints.erase(address);
+    }
+
+    // Clears all watchpoints.
+    void ClearWatchpoints() {
+        m_watchpoints.clear();
     }
 
     // Retrieves configured watchpoints for the specified address.
@@ -202,7 +213,7 @@ public:
         // Manage watchpoints manually to sanitize addresses
         m_watchpoints.clear();
         for (auto &[address, flags] : watchpoints) {
-            SetWatchpoint(address, flags);
+            AddWatchpoint(address, flags);
         }
     }
 

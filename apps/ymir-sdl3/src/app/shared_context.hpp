@@ -480,6 +480,7 @@ struct SharedContext {
         std::mutex backupRAM;
         std::mutex messages;
         std::mutex breakpoints;
+        std::mutex watchpoints;
     } locks;
 
     struct State {
