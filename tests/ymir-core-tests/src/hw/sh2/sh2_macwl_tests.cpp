@@ -178,8 +178,8 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 MACW/MACL operations are computed
     //   [2] read from @R2
     REQUIRE(memoryAccesses.size() == 3);
     CHECK(memoryAccesses[0] == MemoryAccessInfo{0x4000, instrMACL, false, sizeof(uint16)});
-    CHECK(memoryAccesses[1] == MemoryAccessInfo{0x1000, testData.rm, false, sizeof(uint32)});
-    CHECK(memoryAccesses[2] == MemoryAccessInfo{0x1100, testData.rn, false, sizeof(uint32)});
+    CHECK(memoryAccesses[1] == MemoryAccessInfo{0x1100, testData.rn, false, sizeof(uint32)});
+    CHECK(memoryAccesses[2] == MemoryAccessInfo{0x1000, testData.rm, false, sizeof(uint32)});
 
     ClearCaptures();
 
@@ -200,8 +200,8 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 MACW/MACL operations are computed
     //   [2] read from @R2
     REQUIRE(memoryAccesses.size() == 3);
     CHECK(memoryAccesses[0] == MemoryAccessInfo{0x4002, instrMACW, false, sizeof(uint16)});
-    CHECK(memoryAccesses[1] == MemoryAccessInfo{0x1004, (uint16)testData.rm, false, sizeof(uint16)});
-    CHECK(memoryAccesses[2] == MemoryAccessInfo{0x1104, (uint16)testData.rn, false, sizeof(uint16)});
+    CHECK(memoryAccesses[1] == MemoryAccessInfo{0x1104, (uint16)testData.rn, false, sizeof(uint16)});
+    CHECK(memoryAccesses[2] == MemoryAccessInfo{0x1004, (uint16)testData.rm, false, sizeof(uint16)});
 }
 
 } // namespace sh2_macwl
