@@ -158,6 +158,7 @@ DecodeTable::DecodeTable() {
             mem.first.type = DecodedMemAccesses::Type::AtDispReg;
             mem.first.write = false;
             mem.first.size = size;
+            mem.first.reg = bit::extract<4, 7>(instr);
             mem.first.disp = bit::extract<0, 3>(instr) * size;
         };
 
@@ -165,6 +166,7 @@ DecodeTable::DecodeTable() {
             mem.second.type = DecodedMemAccesses::Type::AtDispReg;
             mem.second.write = true;
             mem.second.size = size;
+            mem.second.reg = bit::extract<8, 11>(instr);
             mem.second.disp = bit::extract<0, 3>(instr) * size;
         };
 
