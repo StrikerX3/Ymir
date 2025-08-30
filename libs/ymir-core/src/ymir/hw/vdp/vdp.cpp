@@ -2855,7 +2855,7 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
 
                 // Compute line colors
                 if (params.coeffUseLineColorData) {
-                    const uint32 cramAddress = bit::deposit<1, 8>(baseLineColorCRAMAddress, coeff.lineColorData);
+                    const uint32 cramAddress = baseLineColorCRAMAddress + (coeff.lineColorData << 1);
                     state.lineColor[x] = VDP2ReadRendererColor5to8(cramAddress);
                 }
 
@@ -4803,7 +4803,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
     if constexpr (transparentMeshes) {
         std::fill_n(scanline_meshLayers.begin(), m_HRes, 0xFF);
 
-        if (!AllBool(std::span{m_meshLayerState[altField].pixels.transparent}.first(m_HRes)) &&
+        if (m_layerEnabled[0] && !AllBool(std::span{m_meshLayerState[altField].pixels.transparent}.first(m_HRes)) &&
             !AllZeroU8(std::span{m_meshLayerState[altField].pixels.priority}.first(m_HRes))) {
 
             for (uint32 x = 0; x < m_HRes; x++) {

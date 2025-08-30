@@ -61,6 +61,7 @@ Introduced save state file version 9.
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.
 - VDP2: Double vertical window coordinates when the display is in single-density interlaced mode. Fixes the bottom half of the screen missing in Pro-Pinball: The Web. (#371)
 - VDP2: Fix CRAM address bits shuffling. Fixes unexpected graphics showing up before the intro FMV in Saturn Bomberman. (#434)
+- VDP2: Fix CRAM address calculation for RBG line colors. Fixes wrong colors for field shading in World League Soccer '98. (#517)
 - VDP2: Fix exclusive monitor timings and resolution sizes, and out-of-bounds reads from lookup tables. (thanks to @celeriyacon)
 - VDP2: Fix interlaced mode timings. (thanks to @celeriyacon)
 - VDP2: Fix palette-based transparent meshes not blending with VDP2 layer (such as in Bulk Slash).
