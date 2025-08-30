@@ -30,26 +30,63 @@ void SH2DebuggerWindow::LoadState(std::filesystem::path path) {
         return ToString(m_context.saturn.GetDiscHash());
     }();
 
-    const auto breakpointsFile =
-        path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
-
-    std::set<uint32> breakpoints{};
-
     {
-        std::ifstream in{breakpointsFile, std::ios::binary};
-        in >> std::hex;
-        while (true) {
-            uint32 address;
-            in >> address;
-            if (!in) {
-                break;
+        std::set<uint32> breakpoints{};
+        {
+            const auto breakpointsFile =
+                path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
+            std::ifstream in{breakpointsFile, std::ios::binary};
+            in >> std::hex;
+            while (true) {
+                uint32 address;
+                in >> address;
+                if (!in) {
+                    break;
+                }
+                breakpoints.insert(address);
             }
-            breakpoints.insert(address);
         }
+
+        std::unique_lock lock{m_context.locks.breakpoints};
+        m_sh2.ReplaceBreakpoints(breakpoints);
     }
 
-    std::unique_lock lock{m_context.locks.breakpoints};
-    m_sh2.ReplaceBreakpoints(breakpoints);
+    {
+        std::map<uint32, debug::WatchpointFlags> watchpoints{};
+        {
+            const auto watchpointsFile =
+                path / fmt::format("{}sh2-watchpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
+            std::ifstream in{watchpointsFile, std::ios::binary};
+            std::string line{};
+            while (std::getline(in, line)) {
+                std::istringstream lineIn{line};
+                uint32 address;
+                lineIn >> std::hex >> address;
+                debug::WatchpointFlags flags = debug::WatchpointFlags::None;
+                std::string item{};
+                while (lineIn) {
+                    lineIn >> item;
+                    if (item == "R8") {
+                        flags |= debug::WatchpointFlags::Read8;
+                    } else if (item == "R16") {
+                        flags |= debug::WatchpointFlags::Read16;
+                    } else if (item == "R32") {
+                        flags |= debug::WatchpointFlags::Read32;
+                    } else if (item == "W8") {
+                        flags |= debug::WatchpointFlags::Write8;
+                    } else if (item == "W16") {
+                        flags |= debug::WatchpointFlags::Write16;
+                    } else if (item == "W32") {
+                        flags |= debug::WatchpointFlags::Write32;
+                    }
+                }
+                watchpoints.emplace(address, flags);
+            }
+        }
+
+        std::unique_lock lock{m_context.locks.watchpoints};
+        m_sh2.ReplaceWatchpoints(watchpoints);
+    }
 }
 
 void SH2DebuggerWindow::SaveState(std::filesystem::path path) {
@@ -60,22 +97,68 @@ void SH2DebuggerWindow::SaveState(std::filesystem::path path) {
         return ToString(m_context.saturn.GetDiscHash());
     }();
 
-    const auto breakpointsFile =
-        path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
-
-    std::set<uint32> breakpoints{};
     {
-        std::unique_lock lock{m_context.locks.breakpoints};
-        breakpoints = m_sh2.GetBreakpoints();
+        std::set<uint32> breakpoints{};
+        {
+            std::unique_lock lock{m_context.locks.breakpoints};
+            breakpoints = m_sh2.GetBreakpoints();
+        }
+
+        const auto breakpointsFile =
+            path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
+
+        if (breakpoints.empty()) {
+            std::filesystem::remove(breakpointsFile);
+        } else {
+            std::ofstream out{breakpointsFile, std::ios::binary};
+            out << std::hex;
+            for (uint32 address : breakpoints) {
+                out << address << "\n";
+            }
+        }
     }
 
-    if (breakpoints.empty()) {
-        std::filesystem::remove(breakpointsFile);
-    } else {
-        std::ofstream out{breakpointsFile, std::ios::binary};
-        out << std::hex;
-        for (uint32 address : breakpoints) {
-            out << address << "\n";
+    {
+        std::map<uint32, debug::WatchpointFlags> watchpoints{};
+        {
+            std::unique_lock lock{m_context.locks.watchpoints};
+            watchpoints = m_sh2.GetWatchpoints();
+        }
+
+        const auto watchpointsFile =
+            path / fmt::format("{}sh2-watchpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
+
+        if (watchpoints.empty()) {
+            std::filesystem::remove(watchpointsFile);
+        } else {
+            std::ofstream out{watchpointsFile, std::ios::binary};
+            out << std::hex;
+            std::string flagsStr{};
+            flagsStr.reserve(6);
+            for (const auto [address, flags] : watchpoints) {
+                flagsStr.clear();
+                out << address;
+                BitmaskEnum bmFlags{flags};
+                if (bmFlags.AnyOf(debug::WatchpointFlags::Read8)) {
+                    out << " R8";
+                }
+                if (bmFlags.AnyOf(debug::WatchpointFlags::Read16)) {
+                    out << " R16";
+                }
+                if (bmFlags.AnyOf(debug::WatchpointFlags::Read32)) {
+                    out << " R32";
+                }
+                if (bmFlags.AnyOf(debug::WatchpointFlags::Write8)) {
+                    out << " W8";
+                }
+                if (bmFlags.AnyOf(debug::WatchpointFlags::Write16)) {
+                    out << " W16";
+                }
+                if (bmFlags.AnyOf(debug::WatchpointFlags::Write32)) {
+                    out << " W32";
+                }
+                out << "\n";
+            }
         }
     }
 }
