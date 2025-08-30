@@ -4195,11 +4195,25 @@ void App::LoadRecommendedCartridge() {
         ScanROMCarts();
         const auto expectedHash =
             info->cartridge == Cart::ROM_KOF95 ? ymir::db::kKOF95ROMInfo.hash : ymir::db::kUltramanROMInfo.hash;
+        bool found = false;
         for (auto &[path, info] : m_context.romManager.GetROMCarts()) {
             if (info.hash == expectedHash) {
                 m_context.EnqueueEvent(events::emu::InsertROMCartridge(path));
+                found = true;
                 break;
             }
+        }
+        if (!found) {
+            OpenGenericModal("Compatible ROM cart not found", [&] {
+                ImGui::TextUnformatted(
+                    "Could not find required ROM cartridge image. This game will not boot properly.\n"
+                    "\n"
+                    "Place the image in the following directory:");
+                auto path = m_context.profile.GetPath(ProfilePath::ROMCartImages);
+                if (ImGui::TextLink(fmt::format("{}", path).c_str())) {
+                    SDL_OpenURL(fmt::format("file:///{}", path).c_str());
+                }
+            });
         }
         break;
     }
