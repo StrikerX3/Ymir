@@ -26,6 +26,7 @@ Introduced save state file version 9.
 - SCSP: Final output oscilloscope view.
 - VDP1: Optimize line plotting by skipping lines that are entirely out of the system clipping area.
 - VDP1: Optimize mesh polygons by limiting updates to system clip area.
+- VDP1: Simplify mesh rendering code for slightly improved performance.
 - VDP2: Basic debugger view for NBG0-3 and RBG0-1 parameters.
 
 ### Fixes
