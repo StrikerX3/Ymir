@@ -2770,36 +2770,37 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
             state.Yst += t.deltaYst;
         }
         if (readKAst) {
-            state.KA = t.KAst;
+            state.KA = params.coeffTableAddressOffset + t.KAst;
             params.readKAst = false;
         } else {
             state.KA += t.dKAst;
         }
 
         // Transformed starting screen coordinates
-        // 16*(16-16) + 16*(16-16) + 16*(16-16) = 32 frac bits
-        // reduce to 16 frac bits
-        const sint64 Xsp = (t.A * (state.Xst - t.Px) + t.B * (state.Yst - t.Py) + t.C * (t.Zst - t.Pz)) >> 16ll;
-        const sint64 Ysp = (t.D * (state.Xst - t.Px) + t.E * (state.Yst - t.Py) + t.F * (t.Zst - t.Pz)) >> 16ll;
+        // 10*(10-10) + 10*(10-10) + 10*(10-10) = 20 frac bits
+        // reduce to 10 frac bits
+        const sint32 Xsp =
+            (t.A * (state.Xst - (t.Px << 10)) + t.B * (state.Yst - (t.Py << 10)) + t.C * (t.Zst - (t.Pz << 10))) >> 10;
+        const sint32 Ysp =
+            (t.D * (state.Xst - (t.Px << 10)) + t.E * (state.Yst - (t.Py << 10)) + t.F * (t.Zst - (t.Pz << 10))) >> 10;
 
         // Transformed view coordinates
-        // 16*(16-16) + 16*(16-16) + 16*(16-16) + 16 + 16 = 32+32+32 + 16+16
-        // reduce 32 to 16 frac bits, result is 16 frac bits
-        /***/ sint64 Xp = ((t.A * (t.Px - t.Cx) + t.B * (t.Py - t.Cy) + t.C * (t.Pz - t.Cz)) >> 16ll) + t.Cx + t.Mx;
-        const sint64 Yp = ((t.D * (t.Px - t.Cx) + t.E * (t.Py - t.Cy) + t.F * (t.Pz - t.Cz)) >> 16ll) + t.Cy + t.My;
+        // 10*(0-0) + 10*(0-0) + 10*(0-0) + 10 + 10 = 10+10+10 + 10+10 = 10 frac bits
+        /***/ sint32 Xp = (t.A * (t.Px - t.Cx) + t.B * (t.Py - t.Cy) + t.C * (t.Pz - t.Cz)) + (t.Cx << 10) + t.Mx;
+        const sint32 Yp = (t.D * (t.Px - t.Cx) + t.E * (t.Py - t.Cy) + t.F * (t.Pz - t.Cz)) + (t.Cy << 10) + t.My;
 
         // Screen coordinate increments per Hcnt
-        // 16*16 + 16*16 = 32 frac bits
-        // reduce to 16 frac bits
-        const sint64 scrXIncH = (t.A * t.deltaX + t.B * t.deltaY) >> 16ll;
-        const sint64 scrYIncH = (t.D * t.deltaX + t.E * t.deltaY) >> 16ll;
+        // 10*10 + 10*10 = 20 + 20 = 20
+        // reduce to 10 frac bits
+        const sint32 scrXIncH = (t.A * t.deltaX + t.B * t.deltaY) >> 10;
+        const sint32 scrYIncH = (t.D * t.deltaX + t.E * t.deltaY) >> 10;
 
         // Scaling factors
         // 16 frac bits
         sint64 kx = t.kx;
         sint64 ky = t.ky;
 
-        // Current screen coordinates (16 frac bits) and coefficient address (10 frac bits)
+        // Current screen coordinates (10 frac bits) and coefficient address (10 frac bits)
         sint32 scrX = Xsp;
         sint32 scrY = Ysp;
         uint32 KA = state.KA;
@@ -2840,7 +2841,7 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
                 case ScaleCoeffXY: kx = ky = coeff.value; break;
                 case ScaleCoeffX: kx = coeff.value; break;
                 case ScaleCoeffY: ky = coeff.value; break;
-                case ViewpointX: Xp = coeff.value; break;
+                case ViewpointX: Xp = coeff.value << 2; break;
                 }
 
                 // Compute line colors
@@ -2859,8 +2860,11 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
             }
 
             // Store screen coordinates
-            state.screenCoords[x].x() = ((kx * scrX) >> 16ll) + Xp;
-            state.screenCoords[x].y() = ((ky * scrY) >> 16ll) + Yp;
+            // (16*10) + 10 = 26 + 10
+            // reduce 26 to 10 frac bits
+            // remove frac bits from result
+            state.screenCoords[x].x() = (((kx * scrX) >> 16) + Xp) >> 10;
+            state.screenCoords[x].y() = (((ky * scrY) >> 16) + Yp) >> 10;
 
             // Increment screen coordinates and coefficient table address by Hcnt
             scrX += scrXIncH;
@@ -5318,12 +5322,9 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
             continue;
         }
 
-        const sint32 fracScrollX = rotParamState.screenCoords[x].x();
-        const sint32 fracScrollY = rotParamState.screenCoords[x].y();
-
-        // Get integer scroll screen coordinates
-        const uint32 scrollX = fracScrollX >> 16u;
-        const uint32 scrollY = fracScrollY >> 16u;
+        // Get scroll screen coordinates
+        const uint32 scrollX = rotParamState.screenCoords[x].x();
+        const uint32 scrollY = rotParamState.screenCoords[x].y();
         const CoordU32 scrollCoord{scrollX, scrollY};
 
         // Determine maximum coordinates and screen over process
@@ -5406,12 +5407,9 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
             continue;
         }
 
-        const sint32 fracScrollX = rotParamState.screenCoords[x].x();
-        const sint32 fracScrollY = rotParamState.screenCoords[x].y();
-
-        // Get integer scroll screen coordinates
-        const uint32 scrollX = fracScrollX >> 16u;
-        const uint32 scrollY = fracScrollY >> 16u;
+        // Get scroll screen coordinates
+        const uint32 scrollX = rotParamState.screenCoords[x].x();
+        const uint32 scrollY = rotParamState.screenCoords[x].y();
         const CoordU32 scrollCoord{scrollX, scrollY};
 
         const bool usingFixed512 = rotParams.screenOverProcess == ScreenOverProcess::Fixed512;
@@ -5537,12 +5535,11 @@ FORCE_INLINE Coefficient VDP::VDP2FetchRotationCoefficient(const RotationParams 
     //
     // TP=transparent bit   SN=coefficient sign bit   IP=coefficient integer part   FP=coefficient fractional part
 
-    const uint32 baseAddress = params.coeffTableAddressOffset;
     const uint32 offset = coeffAddress >> 10u;
 
     if (params.coeffDataSize == 1) {
         // One-word coefficient data
-        const uint32 address = (baseAddress + offset) * sizeof(uint16);
+        const uint32 address = offset * sizeof(uint16);
         const uint16 data = regs.vramControl.colorRAMCoeffTableEnable ? VDP2ReadRendererCRAM<uint16>(address | 0x800)
                                                                       : VDP2ReadRendererVRAM<uint16>(address);
         coeff.value = bit::extract_signed<0, 14>(data);
@@ -5556,7 +5553,7 @@ FORCE_INLINE Coefficient VDP::VDP2FetchRotationCoefficient(const RotationParams 
         }
     } else {
         // Two-word coefficient data
-        const uint32 address = (baseAddress + offset) * sizeof(uint32);
+        const uint32 address = offset * sizeof(uint32);
         const uint32 data = regs.vramControl.colorRAMCoeffTableEnable ? VDP2ReadRendererCRAM<uint32>(address | 0x800)
                                                                       : VDP2ReadRendererVRAM<uint32>(address);
         coeff.value = bit::extract_signed<0, 23>(data);

@@ -979,7 +979,7 @@ private:
         // Current base screen coordinates, updated every scanline.
         sint32 Xst, Yst;
 
-        // Current base coefficient address, updated every scanline.
+        // Current base coefficient address (with 10 fractional bits), updated every scanline.
         uint32 KA;
     };
 

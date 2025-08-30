@@ -526,67 +526,65 @@ struct RotationParams {
 
 struct RotationParamTable {
     void ReadFrom(const uint8 *input) {
-        // Scale all but coefficient table values to 16 fractional bits
+        Xst = bit::extract_signed<6, 28, sint32>(util::ReadBE<uint32>(&input[0x00]));
+        Yst = bit::extract_signed<6, 28, sint32>(util::ReadBE<uint32>(&input[0x04]));
+        Zst = bit::extract_signed<6, 28, sint32>(util::ReadBE<uint32>(&input[0x08]));
 
-        Xst = bit::extract_signed<6, 28, sint64>(util::ReadBE<uint32>(&input[0x00])) << 6ll;
-        Yst = bit::extract_signed<6, 28, sint64>(util::ReadBE<uint32>(&input[0x04])) << 6ll;
-        Zst = bit::extract_signed<6, 28, sint64>(util::ReadBE<uint32>(&input[0x08])) << 6ll;
+        deltaXst = bit::extract_signed<6, 18, sint32>(util::ReadBE<uint32>(&input[0x0C]));
+        deltaYst = bit::extract_signed<6, 18, sint32>(util::ReadBE<uint32>(&input[0x10]));
 
-        deltaXst = bit::extract_signed<6, 18, sint64>(util::ReadBE<uint32>(&input[0x0C])) << 6ll;
-        deltaYst = bit::extract_signed<6, 18, sint64>(util::ReadBE<uint32>(&input[0x10])) << 6ll;
+        deltaX = bit::extract_signed<6, 18, sint32>(util::ReadBE<uint32>(&input[0x14]));
+        deltaY = bit::extract_signed<6, 18, sint32>(util::ReadBE<uint32>(&input[0x18]));
 
-        deltaX = bit::extract_signed<6, 18, sint64>(util::ReadBE<uint32>(&input[0x14])) << 6ll;
-        deltaY = bit::extract_signed<6, 18, sint64>(util::ReadBE<uint32>(&input[0x18])) << 6ll;
+        A = bit::extract_signed<6, 19, sint32>(util::ReadBE<uint32>(&input[0x1C]));
+        B = bit::extract_signed<6, 19, sint32>(util::ReadBE<uint32>(&input[0x20]));
+        C = bit::extract_signed<6, 19, sint32>(util::ReadBE<uint32>(&input[0x24]));
+        D = bit::extract_signed<6, 19, sint32>(util::ReadBE<uint32>(&input[0x28]));
+        E = bit::extract_signed<6, 19, sint32>(util::ReadBE<uint32>(&input[0x2C]));
+        F = bit::extract_signed<6, 19, sint32>(util::ReadBE<uint32>(&input[0x30]));
 
-        A = bit::extract_signed<6, 19, sint64>(util::ReadBE<uint32>(&input[0x1C])) << 6ll;
-        B = bit::extract_signed<6, 19, sint64>(util::ReadBE<uint32>(&input[0x20])) << 6ll;
-        C = bit::extract_signed<6, 19, sint64>(util::ReadBE<uint32>(&input[0x24])) << 6ll;
-        D = bit::extract_signed<6, 19, sint64>(util::ReadBE<uint32>(&input[0x28])) << 6ll;
-        E = bit::extract_signed<6, 19, sint64>(util::ReadBE<uint32>(&input[0x2C])) << 6ll;
-        F = bit::extract_signed<6, 19, sint64>(util::ReadBE<uint32>(&input[0x30])) << 6ll;
+        Px = bit::extract_signed<0, 13, sint32>(util::ReadBE<uint16>(&input[0x34]));
+        Py = bit::extract_signed<0, 13, sint32>(util::ReadBE<uint16>(&input[0x36]));
+        Pz = bit::extract_signed<0, 13, sint32>(util::ReadBE<uint16>(&input[0x38]));
 
-        Px = bit::extract_signed<0, 13, sint64>(util::ReadBE<uint16>(&input[0x34])) << 16ll;
-        Py = bit::extract_signed<0, 13, sint64>(util::ReadBE<uint16>(&input[0x36])) << 16ll;
-        Pz = bit::extract_signed<0, 13, sint64>(util::ReadBE<uint16>(&input[0x38])) << 16ll;
+        Cx = bit::extract_signed<0, 13, sint32>(util::ReadBE<uint16>(&input[0x3C]));
+        Cy = bit::extract_signed<0, 13, sint32>(util::ReadBE<uint16>(&input[0x3E]));
+        Cz = bit::extract_signed<0, 13, sint32>(util::ReadBE<uint16>(&input[0x40]));
 
-        Cx = bit::extract_signed<0, 13, sint64>(util::ReadBE<uint16>(&input[0x3C])) << 16ll;
-        Cy = bit::extract_signed<0, 13, sint64>(util::ReadBE<uint16>(&input[0x3E])) << 16ll;
-        Cz = bit::extract_signed<0, 13, sint64>(util::ReadBE<uint16>(&input[0x40])) << 16ll;
+        Mx = bit::extract_signed<6, 29, sint32>(util::ReadBE<uint32>(&input[0x44]));
+        My = bit::extract_signed<6, 29, sint32>(util::ReadBE<uint32>(&input[0x48]));
 
-        Mx = bit::extract_signed<6, 29, sint64>(util::ReadBE<uint32>(&input[0x44])) << 6ll;
-        My = bit::extract_signed<6, 29, sint64>(util::ReadBE<uint32>(&input[0x48])) << 6ll;
-
-        kx = bit::extract_signed<0, 24, sint64>(util::ReadBE<uint32>(&input[0x4C]));
-        ky = bit::extract_signed<0, 24, sint64>(util::ReadBE<uint32>(&input[0x50]));
+        kx = bit::extract_signed<0, 23, sint32>(util::ReadBE<uint32>(&input[0x4C]));
+        ky = bit::extract_signed<0, 23, sint32>(util::ReadBE<uint32>(&input[0x50]));
 
         KAst = bit::extract<6, 31>(util::ReadBE<uint32>(&input[0x54]));
         dKAst = bit::extract_signed<6, 25>(util::ReadBE<uint32>(&input[0x58]));
         dKAx = bit::extract_signed<6, 25>(util::ReadBE<uint32>(&input[0x5C]));
     }
 
-    // Screen start coordinates (signed 13.16 fixed point)
-    sint64 Xst, Yst, Zst;
+    // Screen start coordinates (signed 13.10 fixed point)
+    sint32 Xst, Yst, Zst;
 
-    // Screen vertical coordinate increments (signed 3.16 fixed point)
-    sint64 deltaXst, deltaYst;
+    // Screen vertical coordinate increments (signed 3.10 fixed point)
+    sint32 deltaXst, deltaYst;
 
-    // Screen horizontal coordinate increments (signed 3.16 fixed point)
-    sint64 deltaX, deltaY;
+    // Screen horizontal coordinate increments (signed 3.10 fixed point)
+    sint32 deltaX, deltaY;
 
-    // Rotation matrix parameters (signed 4.16 fixed point)
-    sint64 A, B, C, D, E, F;
+    // Rotation matrix parameters (signed 4.10 fixed point)
+    sint32 A, B, C, D, E, F;
 
-    // Viewpoint coordinates (signed 14-bit integer, normalized to 14.16 fixed point)
-    sint64 Px, Py, Pz;
+    // Viewpoint coordinates (signed 14-bit integer)
+    sint32 Px, Py, Pz;
 
-    // Center point coordinates (signed 14-bit integer, normalized to 14.16 fixed point)
-    sint64 Cx, Cy, Cz;
+    // Center point coordinates (signed 14-bit integer)
+    sint32 Cx, Cy, Cz;
 
-    // Horizontal shift (signed 14.16 fixed point)
-    sint64 Mx, My;
+    // Horizontal shift (signed 14.10 fixed point)
+    sint32 Mx, My;
 
     // Scaling coefficients (signed 8.16 fixed point)
-    sint64 kx, ky;
+    sint32 kx, ky;
 
     // Coefficient table parameters
     uint32 KAst;  // Coefficient table start address (unsigned 16.10 fixed point)
