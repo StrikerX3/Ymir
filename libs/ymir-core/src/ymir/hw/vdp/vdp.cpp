@@ -2817,17 +2817,7 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
         const uint32 maxX = m_HRes >> xShift;
 
         // Use per-dot coefficient if reading from CRAM or if any of the VRAM banks was designated as coefficient data
-        bool perDotCoeff = regs2.vramControl.colorRAMCoeffTableEnable;
-        if (!perDotCoeff) {
-            perDotCoeff = regs2.vramControl.rotDataBankSelA0 == RotDataBankSel::Coefficients ||
-                          regs2.vramControl.rotDataBankSelB0 == RotDataBankSel::Coefficients;
-            if (regs2.vramControl.partitionVRAMA) {
-                perDotCoeff |= regs2.vramControl.rotDataBankSelA1 == RotDataBankSel::Coefficients;
-            }
-            if (regs2.vramControl.partitionVRAMB) {
-                perDotCoeff |= regs2.vramControl.rotDataBankSelB1 == RotDataBankSel::Coefficients;
-            }
-        }
+        const bool perDotCoeff = regs2.vramControl.perDotRotationCoeffs;
 
         // Precompute line color data parameters
         const LineBackScreenParams &lineParams = regs2.lineScreenParams;

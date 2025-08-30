@@ -873,6 +873,7 @@ struct VRAMControl {
         partitionVRAMB = false;
         colorRAMMode = 0;
         colorRAMCoeffTableEnable = false;
+        UpdateDerivedValues();
     }
 
     [[nodiscard]] RotDataBankSel GetRotDataBankSel(uint32 bank) const {
@@ -916,6 +917,24 @@ struct VRAMControl {
     // Enables use of coefficient tables in CRAM.
     // Derived from RAMCTL.CRKTE
     bool colorRAMCoeffTableEnable;
+
+    // Determines if rotation parameter coefficients are per dot or not.
+    // Derived from RAMCTL.VRAMD, VRBMD and CRKTE
+    bool perDotRotationCoeffs;
+
+    void UpdateDerivedValues() {
+        perDotRotationCoeffs = colorRAMCoeffTableEnable;
+        if (!perDotRotationCoeffs) {
+            perDotRotationCoeffs =
+                rotDataBankSelA0 == RotDataBankSel::Coefficients || rotDataBankSelB0 == RotDataBankSel::Coefficients;
+            if (partitionVRAMA) {
+                perDotRotationCoeffs |= rotDataBankSelA1 == RotDataBankSel::Coefficients;
+            }
+            if (partitionVRAMB) {
+                perDotRotationCoeffs |= rotDataBankSelB1 == RotDataBankSel::Coefficients;
+            }
+        }
+    }
 };
 
 enum class InterlaceMode : uint16 { None, Invalid, SingleDensity, DoubleDensity };

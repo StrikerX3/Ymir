@@ -71,6 +71,7 @@ Introduced save state file version 9.
 - VDP2: Invert TVSTAT.ODD bit on single-density interlaced modes too. Fixes swapped interlaced fields in Pro-Pinball: The Web and Shienryuu. (#447)
 - VDP2: Implement VCNT skip as a dedicated vertical phase. (thanks to @celeriyacon)
 - VDP2: Move VCNT update to the left border horizontal phase where HBLANK switches to zero. (thanks to @celeriyacon)
+- VDP2: Precompute per-dot rotation coefficient flag instead of deriving it twice per scanline.
 - VDP2: Recalculate RBG0/1 page base addresses when changed mid-frame. Fixes broken ground on NiGHTS into Dreams's boss fights. (#423)
 - VDP2: Render transparent meshes onto a separate layer instead of immediately blending them onto the sprite layer. Fixes priority issues on Akumajou Dracula X when using the enhancement. (#484)
 - VDP2: Use more accurate NTSC/PAL clock timings for video sync. Eliminates stutters with refresh rates that are very slightly lower than a perfect multiple of the NTSC/PAL frame rates.

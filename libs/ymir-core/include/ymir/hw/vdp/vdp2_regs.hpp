@@ -518,6 +518,7 @@ struct VDP2Regs {
         vramControl.partitionVRAMB = bit::test<9>(value);
         vramControl.colorRAMMode = bit::extract<12, 13>(value);
         vramControl.colorRAMCoeffTableEnable = bit::test<15>(value);
+        vramControl.UpdateDerivedValues();
     }
 
     // 180010   CYCA0L  VRAM Cycle Pattern A0 Lower
