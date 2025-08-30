@@ -65,6 +65,7 @@ Introduced save state file version 9.
 - VDP2: Fix exclusive monitor timings and resolution sizes, and out-of-bounds reads from lookup tables. (thanks to @celeriyacon)
 - VDP2: Fix interlaced mode timings. (thanks to @celeriyacon)
 - VDP2: Fix palette-based transparent meshes not blending with VDP2 layer (such as in Bulk Slash).
+- VDP2: Force-fetch first character of every scanline. Fixes some garbage tiles on the left edge of the screen in Athlete Kings' splash screen. (#515)
 - VDP2: Handle sprite window on sprite layer manually. Fixes graphics effects when defeating the first boss in Metal Black. (#404)
 - VDP2: Invert TVSTAT.ODD bit on single-density interlaced modes too. Fixes swapped interlaced fields in Pro-Pinball: The Web and Shienryuu. (#447)
 - VDP2: Implement VCNT skip as a dedicated vertical phase. (thanks to @celeriyacon)

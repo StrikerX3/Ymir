@@ -3406,23 +3406,25 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
 FORCE_INLINE void VDP::VDP2PrepareLine(uint32 y) {
     VDP2Regs &regs2 = VDP2GetRegs();
 
-    // Don't process anything if the display is disabled
+    // Don't waste time processing anything if the display is disabled
+    // TODO: check if this is how the real VDP2 behaves
     if (!regs2.TVMD.DISP) [[unlikely]] {
         return;
     }
 
     VDP2CalcAccessPatterns(regs2);
-
-    // Load rotation parameters if any of the RBG layers is enabled
     if (regs2.bgEnabled[4] || regs2.bgEnabled[5]) {
         VDP2CalcRotationParameterTables(y);
     }
-
     VDP2UpdateRotationPageBaseAddresses(regs2);
-
     VDP2DrawLineColorAndBackScreens(y);
-
     VDP2UpdateLineScreenScrollParams(y);
+
+    for (auto &field : m_vramFetchers) {
+        for (auto &fetcher : field) {
+            fetcher.lastCharIndex = 0xFFFFFFFF; // force-fetch first character
+        }
+    }
 }
 
 FORCE_INLINE void VDP::VDP2FinishLine(uint32 y) {
