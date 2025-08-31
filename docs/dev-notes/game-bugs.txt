@@ -2,6 +2,7 @@
 Bugs that are actually game bugs and not emulator bugs
 ======================================================
 
+
 Battle Monsters
 ---------------
   The loading screen displays the selected arena then fades to the character portraits with a "VS" text. If the game
@@ -10,9 +11,16 @@ Battle Monsters
   copy of the fighters' names at the bottom of the screen where the portrait frames are supposed to be.
 
 
+Hang-On GP (USA)
+----------------
+  Displays garbage graphics for a few frames before the main menu is presented.
+  Also occurs on real hardware.
+
+
 Keriotosse
 ----------
   Displays garbage graphics for a few frames right before the title screen.
+  Also occurs on real hardware.
 
 
 Panzer Dragoon 2 Zwei
@@ -40,3 +48,9 @@ Panzer Dragoon 2 Zwei
   The sound bank gets fixed when you play any other Episode music then go back to Episode 1.
   This issue does not happen if you start a new game. It only happens if you boot up the game, go straight to Options
   and attempt to play the Episode 1 song right away.
+
+
+The Yakyuuken Special: Kon'ya wa 12-kaisen!!
+--------------------------------------------
+  The character intro FMVs get to the end, freeze, and play audio in an endless loop.
+  Also occurs on real hardware.
