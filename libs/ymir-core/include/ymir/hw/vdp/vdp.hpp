@@ -1065,6 +1065,12 @@ private:
     // State for the line color and back screens.
     LineBackLayerState m_lineBackLayerState;
 
+    // Line colors per RBG per pixel.
+    std::array<std::array<Color888, kMaxResH / 2>, 2> m_rbgLineColors;
+
+    // Whether to use line color for each RBG pixel.
+    std::array<std::array<bool, kMaxResH / 2>, 2> m_rbgLineColorEnable;
+
     // VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
@@ -1355,7 +1361,7 @@ private:
 
     // Draws a rotation scroll BG scanline.
     //
-    // y is the scanline to draw
+    // y is the scanline to draw.
     // bgParams contains the parameters for the BG to draw.
     // layerState is a reference to the common layer state for the background.
     // windowState is a reference to the window state for the layer.
@@ -1375,18 +1381,30 @@ private:
 
     // Draws a rotation bitmap BG scanline.
     //
-    // y is the scanline to draw
+    // y is the scanline to draw.
     // bgParams contains the parameters for the BG to draw.
     // layerState is a reference to the common layer state for the background.
     // windowState is a reference to the window state for the layer.
     // altField selects the complementary field when rendering deinterlaced frames
     //
+    // bgIndex specifies the rotation background index, from 0 to 1.
     // selRotParam enables dynamic rotation parameter selection (for RBG0).
     // colorFormat is the color format for bitmap data.
     // colorMode is the CRAM color mode.
-    template <bool selRotParam, ColorFormat colorFormat, uint32 colorMode>
+    template <uint32 bgIndex, bool selRotParam, ColorFormat colorFormat, uint32 colorMode>
     void VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
                                   std::span<const bool> windowState, bool altField);
+
+    // Stores the line color for the specified pixel of the RBG.
+    //
+    // x is the horizontal coordinate of the pixel.
+    // rotParams is a reference to the rotation parameters in use.
+    // rotParamState is a reference to the state of the rotation parameters in use.
+    //
+    // bgIndex specifies the rotation background index, from 0 to 1.
+    template <uint32 bgIndex>
+    void VDP2StoreRotationLineColorData(uint32 x, const RotationParams &rotParams,
+                                        const RotationParamState &rotParamState);
 
     // Selects a rotation parameter set based on the current parameter selection mode.
     //

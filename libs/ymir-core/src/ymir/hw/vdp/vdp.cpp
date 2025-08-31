@@ -3795,7 +3795,7 @@ FORCE_INLINE void VDP::VDP2DrawRotationBG(uint32 y, uint32 colorMode, bool altFi
 
             const auto cfEnum = static_cast<ColorFormat>(cf <= 4 ? cf : 4);
             const uint32 colorMode = cm <= 2 ? cm : 2;
-            arr[cf][cm] = &VDP::VDP2DrawRotationBitmapBG<selRotParam, cfEnum, colorMode>;
+            arr[cf][cm] = &VDP::VDP2DrawRotationBitmapBG<bgIndex, selRotParam, cfEnum, colorMode>;
         });
 
         return arr;
@@ -4925,9 +4925,8 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
             if (layer0LineColorEnabled[x]) {
                 if (layer == LYR_RBG0 || (layer == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
-                    const auto &rotParams = regs.rotParams[layer - LYR_RBG0];
-                    if (rotParams.coeffTableEnable && rotParams.coeffUseLineColorData) {
-                        layer0LineColors[x] = m_rotParamStates[layer - LYR_RBG0].lineColor[x >> xShift];
+                    if (m_rbgLineColorEnable[layer - LYR_RBG0][x >> xShift]) {
+                        layer0LineColors[x] = m_rbgLineColors[layer - LYR_RBG0][x >> xShift];
                     } else {
                         layer0LineColors[x] = m_lineBackLayerState.lineColor;
                     }
@@ -5352,6 +5351,8 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
             if (doubleResH && !windowState[xx + 1]) {
                 layerState.pixels.SetPixel(xx + 1, pixel);
             }
+
+            VDP2StoreRotationLineColorData<bgIndex>(x, rotParams, rotParamState);
         } else if (rotParams.screenOverProcess == ScreenOverProcess::RepeatChar) {
             // Out of bounds - repeat character
             static constexpr bool largePalette = colorFormat != ColorFormat::Palette16;
@@ -5371,6 +5372,8 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
             if (doubleResH && !windowState[xx + 1]) {
                 layerState.pixels.SetPixel(xx + 1, pixel);
             }
+
+            VDP2StoreRotationLineColorData<bgIndex>(x, rotParams, rotParamState);
         } else {
             // Out of bounds - transparent
             layerState.pixels.transparent[xx] = true;
@@ -5381,7 +5384,7 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
     }
 }
 
-template <bool selRotParam, ColorFormat colorFormat, uint32 colorMode>
+template <uint32 bgIndex, bool selRotParam, ColorFormat colorFormat, uint32 colorMode>
 NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
                                              std::span<const bool> windowState, bool altField) {
     const VDP2Regs &regs = VDP2GetRegs();
@@ -5435,6 +5438,8 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
             if (doubleResH && !windowState[xx + 1]) {
                 layerState.pixels.SetPixel(xx + 1, pixel);
             }
+
+            VDP2StoreRotationLineColorData<bgIndex>(x, rotParams, rotParamState);
         } else {
             // Out of bounds and no repeat
             layerState.pixels.transparent[xx] = true;
@@ -5442,6 +5447,16 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
                 layerState.pixels.transparent[xx + 1] = true;
             }
         }
+    }
+}
+
+template <uint32 bgIndex>
+FORCE_INLINE void VDP::VDP2StoreRotationLineColorData(uint32 x, const RotationParams &rotParams,
+                                                      const RotationParamState &rotParamState) {
+    const bool useLineColor = rotParams.coeffTableEnable && rotParams.coeffUseLineColorData;
+    m_rbgLineColorEnable[bgIndex][x] = useLineColor;
+    if (useLineColor) {
+        m_rbgLineColors[bgIndex][x] = rotParamState.lineColor[x];
     }
 }
 
