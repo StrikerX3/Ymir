@@ -2119,14 +2119,6 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
         return;
     }
 
-    // Don't waste time on zero width or height sprites -- these won't be drawn
-    if (coordA.x() == coordB.x() && coordB.x() == coordC.x() && coordC.x() == coordD.x()) {
-        return;
-    }
-    if (coordA.y() == coordB.y() && coordB.y() == coordC.y() && coordC.y() == coordD.y()) {
-        return;
-    }
-
     const VDP1Command::DrawMode mode{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x04)};
     const uint16 color = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x06);
     const uint32 charAddr = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x08) * 8u;
