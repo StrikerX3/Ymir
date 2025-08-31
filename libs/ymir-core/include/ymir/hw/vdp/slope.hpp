@@ -146,9 +146,11 @@ struct GouraudChannelStepper {
     FORCE_INLINE void Skip(uint32 steps) {
         m_value += m_intInc * steps;
         m_accum -= m_num * steps;
-        while (m_accum < 0) {
-            m_value += m_fracInc;
-            m_accum += m_den;
+        if (m_den != 0) {
+            while (m_accum < 0) {
+                m_value += m_fracInc;
+                m_accum += m_den;
+            }
         }
     }
 
@@ -364,10 +366,12 @@ struct LineStepper {
         m_y += m_yMajInc * startClip;
         for (uint32 i = 0; i < startClip; ++i) {
             m_accum -= m_num;
-            while (m_accum <= m_accumTarget) {
-                m_accum += m_den;
-                m_x += m_xMinInc;
-                m_y += m_yMinInc;
+            if (m_den != 0) {
+                while (m_accum <= m_accumTarget) {
+                    m_accum += m_den;
+                    m_x += m_xMinInc;
+                    m_y += m_yMinInc;
+                }
             }
         }
         length -= startClip;
@@ -400,10 +404,12 @@ struct LineStepper {
         sint32 tempAccum = m_accum;
         for (uint32 i = 0; i < endClip; ++i) {
             tempAccum -= m_num;
-            while (tempAccum <= m_accumTarget) {
-                tempAccum += m_den;
-                m_xEnd += m_xMinInc;
-                m_yEnd += m_yMinInc;
+            if (m_den != 0) {
+                while (tempAccum <= m_accumTarget) {
+                    tempAccum += m_den;
+                    m_xEnd += m_xMinInc;
+                    m_yEnd += m_yMinInc;
+                }
             }
         }
 

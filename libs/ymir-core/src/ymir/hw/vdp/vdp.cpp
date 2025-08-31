@@ -49,10 +49,12 @@ namespace grp {
     };
 
     struct vdp1_cmd : public vdp1 {
+        static constexpr devlog::Level level = devlog::level::trace;
         static constexpr std::string_view name = "VDP1-Command";
     };
 
     struct vdp1_render : public vdp1 {
+        static constexpr devlog::Level level = devlog::level::trace;
         static constexpr std::string_view name = "VDP1-Render";
     };
 
