@@ -1812,7 +1812,7 @@ bool VDP::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coo
 }
 
 template <bool deinterlace, bool transparentMeshes>
-FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams) {
+FORCE_INLINE bool VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams) {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
 
@@ -1820,7 +1820,7 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
 
     if constexpr (!transparentMeshes) {
         if (pixelParams.mode.meshEnable && ((x ^ y) & 1)) {
-            return;
+            return false;
         }
     }
 
@@ -1828,7 +1828,7 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
     const bool altFB = deinterlace && doubleDensity && (y & 1);
     if (doubleDensity) {
         if (!deinterlace && regs1.dblInterlaceEnable && (y & 1) != regs1.dblInterlaceDrawLine) {
-            return;
+            return false;
         }
     }
     if ((deinterlace && doubleDensity) || regs1.dblInterlaceEnable) {
@@ -1837,7 +1837,7 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
 
     // Reject pixels outside of clipping area
     if (VDP1IsPixelSystemClipped<deinterlace>(coord)) {
-        return;
+        return false;
     }
     if (pixelParams.mode.userClippingEnable) {
         // clippingMode = false -> draw inside, reject outside
@@ -1845,7 +1845,7 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
         // The function returns true if the pixel is clipped, therefore we want to reject pixels that return the
         // opposite of clippingMode on that function.
         if (VDP1IsPixelUserClipped<deinterlace>(coord) != pixelParams.mode.clippingMode) {
-            return;
+            return false;
         }
     }
 
@@ -1929,6 +1929,7 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
             }
         }
     }
+    return true;
 }
 
 template <bool antiAlias, bool deinterlace, bool transparentMeshes>
@@ -1955,11 +1956,12 @@ FORCE_INLINE bool VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LinePa
     }
 
     bool aa = false;
+    bool plotted = false;
     for (line.Step(); line.CanStep(); aa = line.Step()) {
-        VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
+        plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
         if constexpr (antiAlias) {
             if (aa) {
-                VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
+                plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
             }
         }
         if (pixelParams.mode.gouraudEnable) {
@@ -1967,7 +1969,7 @@ FORCE_INLINE bool VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LinePa
         }
     }
 
-    return true;
+    return plotted;
 }
 
 template <bool deinterlace, bool transparentMeshes>
@@ -2078,6 +2080,7 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
     readTexel();
 
     bool aa = false;
+    bool plotted = false;
     for (line.Step(); line.CanStep(); aa = line.Step()) {
         // Load new texels if U coordinate changed
         while (uStepper.ShouldStepTexel()) {
@@ -2099,16 +2102,16 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
 
         pixelParams.color = color;
 
-        VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
+        plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
         if (aa) {
-            VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
+            plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
         }
         if (mode.gouraudEnable) {
             pixelParams.gouraud.Step();
         }
     }
 
-    return true;
+    return plotted;
 }
 
 template <bool deinterlace, bool transparentMeshes>
@@ -2169,12 +2172,12 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
     quad.SetupTexture(lineParams.texVStepper, charSizeV, flipV);
 
     // Optimization for the case where the quad goes outside the system clipping area.
-    // Skip rendering the rest of the quad when a line is system clipped after plotting at least one line.
-    // The first few lines of the quad could also be system clipped; that is accounted for by requiring at least one
+    // Skip rendering the rest of the quad when a line is clipped after plotting at least one line.
+    // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
     bool plottedLine = false;
-    bool systemClippedLine = false;
+    bool clippedLine = false;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
@@ -2189,10 +2192,10 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
         if (plotted) {
             plottedLine = true;
         } else if (plottedLine) {
-            systemClippedLine = true;
+            clippedLine = true;
         }
 
-        if (plottedLine && systemClippedLine) {
+        if (plottedLine && clippedLine) {
             // No more lines can be drawn past this point
             break;
         }
@@ -2435,12 +2438,12 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
     }
 
     // Optimization for the case where the quad goes outside the system clipping area.
-    // Skip rendering the rest of the quad when a line is system clipped after plotting at least one line.
-    // The first few lines of the quad could also be system clipped; that is accounted for by requiring at least one
+    // Skip rendering the rest of the quad when a line is clipped after plotting at least one line.
+    // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
     bool plottedLine = false;
-    bool systemClippedLine = false;
+    bool clippedLine = false;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
@@ -2456,9 +2459,9 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
         if (plotted) {
             plottedLine = true;
         } else if (plottedLine) {
-            systemClippedLine = true;
+            clippedLine = true;
         }
-        if (plottedLine && systemClippedLine) {
+        if (plottedLine && clippedLine) {
             // No more lines can be drawn past this point
             break;
         }
