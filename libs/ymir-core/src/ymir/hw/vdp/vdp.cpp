@@ -1729,6 +1729,23 @@ void VDP::VDP1ProcessCommand() {
 }
 
 template <bool deinterlace>
+FORCE_INLINE bool VDP::VDP1IsPixelClipped(CoordS32 coord, bool userClippingEnable, bool clippingMode) const {
+    if (VDP1IsPixelSystemClipped<deinterlace>(coord)) {
+        return true;
+    }
+    if (userClippingEnable) {
+        // clippingMode = false -> draw inside, reject outside
+        // clippingMode = true -> draw outside, reject inside
+        // The function returns true if the pixel is clipped, therefore we want to reject pixels that return the
+        // opposite of clippingMode on that function.
+        if (VDP1IsPixelUserClipped<deinterlace>(coord) != clippingMode) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <bool deinterlace>
 FORCE_INLINE bool VDP::VDP1IsPixelUserClipped(CoordS32 coord) const {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
@@ -1816,9 +1833,14 @@ FORCE_INLINE bool VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
 
     auto [x, y] = coord;
 
+    // Reject pixels outside of clipping area
+    if (VDP1IsPixelClipped<deinterlace>(coord, pixelParams.mode.userClippingEnable, pixelParams.mode.clippingMode)) {
+        return false;
+    }
+
     if constexpr (!transparentMeshes) {
         if (pixelParams.mode.meshEnable && ((x ^ y) & 1)) {
-            return false;
+            return true;
         }
     }
 
@@ -1826,25 +1848,11 @@ FORCE_INLINE bool VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
     const bool altFB = deinterlace && doubleDensity && (y & 1);
     if (doubleDensity) {
         if (!deinterlace && regs1.dblInterlaceEnable && (y & 1) != regs1.dblInterlaceDrawLine) {
-            return false;
+            return true;
         }
     }
     if ((deinterlace && doubleDensity) || regs1.dblInterlaceEnable) {
         y >>= 1;
-    }
-
-    // Reject pixels outside of clipping area
-    if (VDP1IsPixelSystemClipped<deinterlace>(coord)) {
-        return false;
-    }
-    if (pixelParams.mode.userClippingEnable) {
-        // clippingMode = false -> draw inside, reject outside
-        // clippingMode = true -> draw outside, reject inside
-        // The function returns true if the pixel is clipped, therefore we want to reject pixels that return the
-        // opposite of clippingMode on that function.
-        if (VDP1IsPixelUserClipped<deinterlace>(coord) != pixelParams.mode.clippingMode) {
-            return false;
-        }
     }
 
     // TODO: pixelParams.mode.preClippingDisable
@@ -2095,6 +2103,13 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
         uStepper.StepPixel();
 
         if (hasEndCode || (transparent && !mode.transparentPixelDisable)) {
+            // Consider transparent pixels plotted
+            if (!VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
+                plotted = true;
+            }
+            if (aa && !VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
+                plotted = true;
+            }
             continue;
         }
 
@@ -2106,6 +2121,22 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
         }
         if (mode.gouraudEnable) {
             pixelParams.gouraud.Step();
+        }
+    }
+
+    if (endCodeCount == 2 && !plotted) {
+        // Check that the line is indeed entirely out of bounds.
+        // End codes cut the line short, so if it happens to cut the line before it managed to plot a pixel in-bounds,
+        // the optimization could interrupt rendering the rest of the quad.
+        for (; line.CanStep(); aa = line.Step()) {
+            if (!VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
+                plotted = true;
+                break;
+            }
+            if (aa && !VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
+                plotted = true;
+                break;
+            }
         }
     }
 

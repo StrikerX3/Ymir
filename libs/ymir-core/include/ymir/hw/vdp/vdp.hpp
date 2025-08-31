@@ -1127,11 +1127,17 @@ private:
     // Processes a single commmand from the VDP1 command table.
     TPL_TRAITS void VDP1ProcessCommand();
 
+    TPL_DEINTERLACE bool VDP1IsPixelClipped(CoordS32 coord, bool userClippingEnable, bool clippingMode) const;
+
     TPL_DEINTERLACE bool VDP1IsPixelUserClipped(CoordS32 coord) const;
     TPL_DEINTERLACE bool VDP1IsPixelSystemClipped(CoordS32 coord) const;
     TPL_DEINTERLACE bool VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2) const;
     TPL_DEINTERLACE bool VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coord3,
                                                  CoordS32 coord4) const;
+
+    // Plotting functions.
+    // Should return true if at least one pixel of the line is inside the system + user clipping areas, regardless of
+    // transparency, mesh, end codes, etc.
 
     TPL_TRAITS bool VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams);
     TPL_LINE_TRAITS bool VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams);
