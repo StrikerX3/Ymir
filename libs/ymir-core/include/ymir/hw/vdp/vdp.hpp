@@ -1134,8 +1134,8 @@ private:
                                                  CoordS32 coord4) const;
 
     TPL_TRAITS void VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams);
-    TPL_LINE_TRAITS void VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams);
-    TPL_TRAITS void VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams);
+    TPL_LINE_TRAITS bool VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams);
+    TPL_TRAITS bool VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams);
     TPL_TRAITS void VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Control control, VDP1Command::Size size,
                                          CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
 

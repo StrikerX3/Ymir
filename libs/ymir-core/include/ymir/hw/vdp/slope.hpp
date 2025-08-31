@@ -439,17 +439,17 @@ struct LineStepper {
         return {m_x, m_y};
     }
 
-    // Returns the X coordinate of the antialiased pixel
+    // Returns the X coordinate of the antialiased pixel.
     FORCE_INLINE sint32 AAX() const {
         return m_x + m_aaXInc;
     }
 
-    // Returns the Y coordinate of the antialiased pixel
+    // Returns the Y coordinate of the antialiased pixel.
     FORCE_INLINE sint32 AAY() const {
         return m_y + m_aaYInc;
     }
 
-    // Returns the X and Y coordinates of the antialiased pixel
+    // Returns the X and Y coordinates of the antialiased pixel.
     FORCE_INLINE CoordS32 AACoord() const {
         return {AAX(), AAY()};
     }

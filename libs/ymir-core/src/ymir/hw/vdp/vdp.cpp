@@ -1932,9 +1932,9 @@ FORCE_INLINE void VDP::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixe
 }
 
 template <bool antiAlias, bool deinterlace, bool transparentMeshes>
-FORCE_INLINE void VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams) {
+FORCE_INLINE bool VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams) {
     if (VDP1IsLineSystemClipped<deinterlace>(coord1, coord2)) {
-        return;
+        return false;
     }
 
     const VDP1Regs &regs1 = VDP1GetRegs();
@@ -1966,12 +1966,14 @@ FORCE_INLINE void VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LinePa
             pixelParams.gouraud.Step();
         }
     }
+
+    return true;
 }
 
 template <bool deinterlace, bool transparentMeshes>
-void VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams) {
+bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams) {
     if (VDP1IsLineSystemClipped<deinterlace>(coord1, coord2)) {
-        return;
+        return false;
     }
 
     const VDP1Regs &regs1 = VDP1GetRegs();
@@ -2105,6 +2107,8 @@ void VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
             pixelParams.gouraud.Step();
         }
     }
+
+    return true;
 }
 
 template <bool deinterlace, bool transparentMeshes>
@@ -2164,6 +2168,14 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
 
     quad.SetupTexture(lineParams.texVStepper, charSizeV, flipV);
 
+    // Optimization for the case where the quad goes outside the system clipping area.
+    // Skip rendering the rest of the quad when a line is system clipped after plotting at least one line.
+    // The first few lines of the quad could also be system clipped; that is accounted for by requiring at least one
+    // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
+    // can be plotted because they all sit outside the system clip area.
+    bool plottedLine = false;
+    bool systemClippedLine = false;
+
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         // Plot lines between the interpolated points
@@ -2173,7 +2185,17 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
             lineParams.texVStepper.StepTexel();
         }
         lineParams.texVStepper.StepPixel();
-        VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams);
+        const bool plotted = VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams);
+        if (plotted) {
+            plottedLine = true;
+        } else if (plottedLine) {
+            systemClippedLine = true;
+        }
+
+        if (plottedLine && systemClippedLine) {
+            // No more lines can be drawn past this point
+            break;
+        }
     }
 }
 
@@ -2412,6 +2434,14 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
 
+    // Optimization for the case where the quad goes outside the system clipping area.
+    // Skip rendering the rest of the quad when a line is system clipped after plotting at least one line.
+    // The first few lines of the quad could also be system clipped; that is accounted for by requiring at least one
+    // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
+    // can be plotted because they all sit outside the system clip area.
+    bool plottedLine = false;
+    bool systemClippedLine = false;
+
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         const CoordS32 coordL = quad.LeftEdge().Coord();
@@ -2422,7 +2452,16 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
             lineParams.gouraudLeft = quad.LeftEdge().GouraudValue();
             lineParams.gouraudRight = quad.RightEdge().GouraudValue();
         }
-        VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams);
+        const bool plotted = VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams);
+        if (plotted) {
+            plottedLine = true;
+        } else if (plottedLine) {
+            systemClippedLine = true;
+        }
+        if (plottedLine && systemClippedLine) {
+            // No more lines can be drawn past this point
+            break;
+        }
     }
 }
 
