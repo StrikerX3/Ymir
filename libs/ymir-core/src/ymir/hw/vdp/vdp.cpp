@@ -2214,80 +2214,66 @@ void VDP::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control contr
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
 
     // Calculated quad coordinates
-    sint32 qxa;
-    sint32 qya;
-    sint32 qxb;
-    sint32 qyb;
-    sint32 qxc;
-    sint32 qyc;
-    sint32 qxd;
-    sint32 qyd;
+    sint32 qxa = xa;
+    sint32 qya = ya;
+    sint32 qxb = xa;
+    sint32 qyb = ya;
+    sint32 qxc = xa;
+    sint32 qyc = ya;
+    sint32 qxd = xa;
+    sint32 qyd = ya;
 
     const uint8 zoomPointH = bit::extract<0, 1>(control.zoomPoint);
     const uint8 zoomPointV = bit::extract<2, 3>(control.zoomPoint);
-    if (zoomPointH == 0 || zoomPointV == 0) {
+
+    if (zoomPointH == 0) {
         const sint32 xc = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
-        const sint32 yc = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
 
-        // Top-left coordinates on vertex A
-        // Bottom-right coordinates on vertex C
-
-        qxa = xa;
-        qya = ya;
         qxb = xc;
-        qyb = ya;
         qxc = xc;
-        qyc = yc;
-        qxd = xa;
-        qyd = yc;
     } else {
         const sint32 xb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x10));
-        const sint32 yb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x12));
 
-        // Zoom origin on vertex A
-        // Zoom dimensions on vertex B
-
-        // X axis
         switch (zoomPointH) {
-        case 1: // left
-            qxa = xa;
-            qxb = xa + xb;
-            qxc = xa + xb;
-            qxd = xa;
+        case 1:
+            qxb += xb;
+            qxc += xb;
             break;
-        case 2: // center
-            qxa = xa - xb / 2;
-            qxb = xa + (xb + 1) / 2;
-            qxc = xa + (xb + 1) / 2;
-            qxd = xa - xb / 2;
+        case 2:
+            qxa -= xb >> 1;
+            qxb += (xb + 1) >> 1;
+            qxc += (xb + 1) >> 1;
+            qxd -= xb >> 1;
             break;
-        case 3: // right
-            qxa = xa - xb;
-            qxb = xa;
-            qxc = xa;
-            qxd = xa - xb;
+        case 3:
+            qxa -= xb;
+            qxd -= xb;
             break;
         }
+    }
 
-        // Y axis
+    if (zoomPointV == 0) {
+        const sint32 yc = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
+
+        qyc = yc;
+        qyd = yc;
+    } else {
+        const sint32 yb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x12));
+
         switch (zoomPointV) {
-        case 1: // upper
-            qya = ya;
-            qyb = ya;
-            qyc = ya + yb;
-            qyd = ya + yb;
+        case 1:
+            qyc += yb;
+            qyd += yb;
             break;
-        case 2: // center
-            qya = ya - yb / 2;
-            qyb = ya - yb / 2;
-            qyc = ya + (yb + 1) / 2;
-            qyd = ya + (yb + 1) / 2;
+        case 2:
+            qya -= yb >> 1;
+            qyb -= yb >> 1;
+            qyc += (yb + 1) >> 1;
+            qyd += (yb + 1) >> 1;
             break;
-        case 3: // lower
-            qya = ya - yb;
-            qyb = ya - yb;
-            qyc = ya;
-            qyd = ya;
+        case 3:
+            qya -= yb;
+            qyb -= yb;
             break;
         }
     }
