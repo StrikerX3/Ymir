@@ -33,9 +33,12 @@ inline constexpr uint32 kMaxResH = 704; // Maximum horizontal resolution
 inline constexpr uint32 kMaxResV = 512; // Maximum vertical resolution
 
 // -----------------------------------------------------------------------------
-// VDP1 sprite framebuffer
+// VDP1
 
 using SpriteFB = std::array<uint8, kVDP1FramebufferRAMSize>;
+
+inline constexpr uint64 kVDP1CycleBudgetPerFrame = 595000; // rough estimate for 8-bit fillrate per frame
+// inline constexpr uint64 kVDP1CycleBudgetPerFrame = 1200000; // pulled out of thin air, way higher than normal
 
 // -----------------------------------------------------------------------------
 // Colors

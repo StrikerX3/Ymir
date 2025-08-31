@@ -508,10 +508,10 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     // v9:
     // - New fields
     //   - doubleV = 0
+    //   - cyclesSpent = 0
     // v5:
     // - New fields
     //   - erase = false
-
 
     ar(s.sysClipH, s.sysClipV);
     if (version >= 9) {
@@ -528,6 +528,11 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
         s.erase = false;
     }
     ar(s.cycleCount);
+    if (version >= 9) {
+        ar(s.cyclesSpent);
+    } else {
+        s.cyclesSpent = 0;
+    }
 }
 
 template <class Archive>

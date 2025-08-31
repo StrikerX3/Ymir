@@ -717,6 +717,11 @@ private:
         // Command processing cycle counter
         uint64 cycleCount;
 
+        // Cycle spent on pixel rendering on this frame.
+        // This is a stopgap solution for games that horrendously abuse the VDP1 until proper cycle counting and
+        // rendering continuation is implemented.
+        uint64 cyclesSpent;
+
         // Transparent mesh sprite framebuffer.
         // Used when transparent meshes are enabled.
         // Indexing: [altFB][drawFB]

@@ -214,6 +214,7 @@ struct VDPState {
             bool erase;
 
             uint64 cycleCount;
+            uint64 cyclesSpent;
         };
 
         struct NormBGLayerState {

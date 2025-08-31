@@ -620,6 +620,7 @@ void VDP::SaveState(state::VDPState &state) const {
     state.renderer.vdp1State.rendering = m_VDP1RenderContext.rendering;
     state.renderer.vdp1State.erase = m_VDP1RenderContext.erase;
     state.renderer.vdp1State.cycleCount = m_VDP1RenderContext.cycleCount;
+    state.renderer.vdp1State.cyclesSpent = m_VDP1RenderContext.cyclesSpent;
 
     for (size_t i = 0; i < 4; i++) {
         state.renderer.normBGLayerStates[i].fracScrollX = m_normBGLayerStates[i].fracScrollX;
@@ -701,6 +702,7 @@ void VDP::LoadState(const state::VDPState &state) {
     m_VDP1RenderContext.rendering = state.renderer.vdp1State.rendering;
     m_VDP1RenderContext.erase = state.renderer.vdp1State.erase;
     m_VDP1RenderContext.cycleCount = state.renderer.vdp1State.cycleCount;
+    m_VDP1RenderContext.cyclesSpent = state.renderer.vdp1State.cyclesSpent;
 
     for (size_t i = 0; i < 4; i++) {
         m_normBGLayerStates[i].fracScrollX = state.renderer.normBGLayerStates[i].fracScrollX;
@@ -1146,6 +1148,9 @@ void VDP::BeginHPhaseLeftBorder() {
             m_state.regs1.fbManualErase = false;
             m_VDP1RenderContext.erase = true;
         }
+
+        // Reset cycles spent for VDP1 this frame
+        m_VDP1RenderContext.cyclesSpent = 0;
 
         // Swap framebuffer in manual swap requested or in 1-cycle mode
         if (!m_state.regs1.fbSwapMode || m_state.regs1.fbManualSwap) {
@@ -1654,6 +1659,9 @@ void VDP::VDP1ProcessCommand() {
     if (!m_VDP1RenderContext.rendering) {
         return;
     }
+    if (m_VDP1RenderContext.cyclesSpent >= kVDP1CycleBudgetPerFrame) {
+        return;
+    }
 
     auto &cmdAddress = m_state.regs1.currCommandAddress;
 
@@ -1940,8 +1948,12 @@ FORCE_INLINE bool VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LinePa
     }
 
     LineStepper line{coord1, coord2, antiAlias};
-    const auto &ctx = m_VDP1RenderContext;
+    auto &ctx = m_VDP1RenderContext;
     const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
+
+    // HACK: rough cost estimate
+    const uint64 cycleCost = line.Length();
+    ctx.cyclesSpent += cycleCost;
 
     VDP1PixelParams pixelParams{
         .mode = lineParams.mode,
@@ -1984,7 +1996,7 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
 
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
-    const auto &ctx = m_VDP1RenderContext;
+    auto &ctx = m_VDP1RenderContext;
 
     const uint32 charSizeH = lineParams.charSizeH;
     const uint32 charSizeV = lineParams.charSizeV;
@@ -1995,6 +2007,10 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
 
     LineStepper line{coord1, coord2, true};
     const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
+
+    // HACK: rough cost estimate
+    const uint64 cycleCost = line.Length();
+    ctx.cyclesSpent += cycleCost;
 
     VDP1PixelParams pixelParams{
         .mode = mode,
