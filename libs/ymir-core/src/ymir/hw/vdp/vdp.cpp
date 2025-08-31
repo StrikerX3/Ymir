@@ -1964,12 +1964,19 @@ FORCE_INLINE bool VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LinePa
     bool aa = false;
     bool plotted = false;
     for (line.Step(); line.CanStep(); aa = line.Step()) {
-        plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
+        bool plottedPixel = VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
         if constexpr (antiAlias) {
             if (aa) {
-                plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
+                plottedPixel |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
             }
         }
+        if (plottedPixel) {
+            plotted = true;
+        } else if (plotted) {
+            // No more pixels can be drawn past this point
+            break;
+        }
+
         if (pixelParams.mode.gouraudEnable) {
             pixelParams.gouraud.Step();
         }
@@ -2103,22 +2110,39 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
         uStepper.StepPixel();
 
         if (hasEndCode || (transparent && !mode.transparentPixelDisable)) {
-            // Consider transparent pixels plotted
+            // Check if the transparent pixel is in-bounds
             if (!VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
                 plotted = true;
+                continue;
             }
             if (aa && !VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
                 plotted = true;
+                continue;
             }
+
+            // At this point the pixel is clipped. Bail out if there have been in-bounds pixels before, as no more
+            // pixels can be drawn past this point.
+            if (plotted) {
+                break;
+            }
+
+            // Otherwise, continue to the next pixel
             continue;
         }
 
         pixelParams.color = color;
 
-        plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
+        bool plottedPixel = VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
         if (aa) {
-            plotted |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
+            plottedPixel |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
         }
+        if (plottedPixel) {
+            plotted = true;
+        } else if (plotted) {
+            // No more pixels can be drawn past this point
+            break;
+        }
+
         if (mode.gouraudEnable) {
             pixelParams.gouraud.Step();
         }
@@ -2198,7 +2222,6 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
     bool plottedLine = false;
-    bool clippedLine = false;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
@@ -2209,14 +2232,9 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
             lineParams.texVStepper.StepTexel();
         }
         lineParams.texVStepper.StepPixel();
-        const bool plotted = VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams);
-        if (plotted) {
+        if (VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
             plottedLine = true;
         } else if (plottedLine) {
-            clippedLine = true;
-        }
-
-        if (plottedLine && clippedLine) {
             // No more lines can be drawn past this point
             break;
         }
@@ -2464,7 +2482,6 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
     bool plottedLine = false;
-    bool clippedLine = false;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
@@ -2476,13 +2493,9 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
             lineParams.gouraudLeft = quad.LeftEdge().GouraudValue();
             lineParams.gouraudRight = quad.RightEdge().GouraudValue();
         }
-        const bool plotted = VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams);
-        if (plotted) {
+        if (VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
             plottedLine = true;
         } else if (plottedLine) {
-            clippedLine = true;
-        }
-        if (plottedLine && clippedLine) {
             // No more lines can be drawn past this point
             break;
         }
