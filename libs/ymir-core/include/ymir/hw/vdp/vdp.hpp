@@ -694,6 +694,7 @@ private:
         // System clipping dimensions
         uint16 sysClipH;
         uint16 sysClipV;
+        uint16 doubleV;
 
         // User clipping area
         // Top-left

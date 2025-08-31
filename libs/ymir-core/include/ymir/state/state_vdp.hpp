@@ -199,6 +199,7 @@ struct VDPState {
         struct VDP1RenderState {
             uint16 sysClipH;
             uint16 sysClipV;
+            uint16 doubleV;
 
             uint16 userClipX0;
             uint16 userClipY0;

@@ -505,7 +505,20 @@ void serialize(Archive &ar, VDPState::VDP2RegsState &s) {
 
 template <class Archive>
 void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, const uint32 version) {
+    // v9:
+    // - New fields
+    //   - doubleV = 0
+    // v5:
+    // - New fields
+    //   - erase = false
+
+
     ar(s.sysClipH, s.sysClipV);
+    if (version >= 9) {
+        ar(s.doubleV);
+    } else {
+        s.doubleV = 0;
+    }
     ar(s.userClipX0, s.userClipY0, s.userClipX1, s.userClipY1);
     ar(s.localCoordX, s.localCoordY);
     ar(s.rendering);

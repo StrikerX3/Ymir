@@ -610,6 +610,7 @@ void VDP::SaveState(state::VDPState &state) const {
 
     state.renderer.vdp1State.sysClipH = m_VDP1RenderContext.sysClipH;
     state.renderer.vdp1State.sysClipV = m_VDP1RenderContext.sysClipV;
+    state.renderer.vdp1State.doubleV = m_VDP1RenderContext.doubleV;
     state.renderer.vdp1State.userClipX0 = m_VDP1RenderContext.userClipX0;
     state.renderer.vdp1State.userClipY0 = m_VDP1RenderContext.userClipY0;
     state.renderer.vdp1State.userClipX1 = m_VDP1RenderContext.userClipX1;
@@ -690,6 +691,7 @@ void VDP::LoadState(const state::VDPState &state) {
 
     m_VDP1RenderContext.sysClipH = state.renderer.vdp1State.sysClipH;
     m_VDP1RenderContext.sysClipV = state.renderer.vdp1State.sysClipV;
+    m_VDP1RenderContext.doubleV = state.renderer.vdp1State.doubleV;
     m_VDP1RenderContext.userClipX0 = state.renderer.vdp1State.userClipX0;
     m_VDP1RenderContext.userClipY0 = state.renderer.vdp1State.userClipY0;
     m_VDP1RenderContext.userClipX1 = state.renderer.vdp1State.userClipX1;
@@ -1620,6 +1622,11 @@ void VDP::VDP1BeginFrame() {
     // (e.g.: Fighter's History Dynamite)
     m_VDP1TimingPenaltyCycles += 1000;
 
+    const VDP1Regs &regs1 = VDP1GetRegs();
+    const VDP2Regs &regs2 = VDP2GetRegs();
+    m_VDP1RenderContext.doubleV =
+        m_deinterlaceRender && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
+
     m_VDP1RenderContext.rendering = true;
     if (m_effectiveRenderVDP1InVDP2Thread) {
         m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1BeginFrame());
@@ -1747,15 +1754,12 @@ FORCE_INLINE bool VDP::VDP1IsPixelClipped(CoordS32 coord, bool userClippingEnabl
 
 template <bool deinterlace>
 FORCE_INLINE bool VDP::VDP1IsPixelUserClipped(CoordS32 coord) const {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const uint16 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
     auto [x, y] = coord;
     const auto &ctx = m_VDP1RenderContext;
     if (x < ctx.userClipX0 || x > ctx.userClipX1) {
         return true;
     }
-    if (y < (ctx.userClipY0 << doubleV) || y > (ctx.userClipY1 << doubleV)) {
+    if (y < (ctx.userClipY0 << ctx.doubleV) || y > (ctx.userClipY1 << ctx.doubleV)) {
         return true;
     }
     return false;
@@ -1763,15 +1767,12 @@ FORCE_INLINE bool VDP::VDP1IsPixelUserClipped(CoordS32 coord) const {
 
 template <bool deinterlace>
 FORCE_INLINE bool VDP::VDP1IsPixelSystemClipped(CoordS32 coord) const {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const uint16 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
     auto [x, y] = coord;
     const auto &ctx = m_VDP1RenderContext;
     if (x < 0 || x > ctx.sysClipH) {
         return true;
     }
-    if (y < 0 || y > (ctx.sysClipV << doubleV)) {
+    if (y < 0 || y > (ctx.sysClipV << ctx.doubleV)) {
         return true;
     }
     return false;
@@ -1779,9 +1780,6 @@ FORCE_INLINE bool VDP::VDP1IsPixelSystemClipped(CoordS32 coord) const {
 
 template <bool deinterlace>
 FORCE_INLINE bool VDP::VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2) const {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const uint16 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
     auto [x1, y1] = coord1;
     auto [x2, y2] = coord2;
     const auto &ctx = m_VDP1RenderContext;
@@ -1794,7 +1792,7 @@ FORCE_INLINE bool VDP::VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2)
     if (x1 > ctx.sysClipH && x2 > ctx.sysClipH) {
         return true;
     }
-    if (y1 > (ctx.sysClipV << doubleV) && y2 > (ctx.sysClipV << doubleV)) {
+    if (y1 > (ctx.sysClipV << ctx.doubleV) && y2 > (ctx.sysClipV << ctx.doubleV)) {
         return true;
     }
     return false;
@@ -1802,9 +1800,6 @@ FORCE_INLINE bool VDP::VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2)
 
 template <bool deinterlace>
 bool VDP::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coord3, CoordS32 coord4) const {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const uint16 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
     auto [x1, y1] = coord1;
     auto [x2, y2] = coord2;
     auto [x3, y3] = coord3;
@@ -1819,8 +1814,8 @@ bool VDP::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coo
     if (x1 > ctx.sysClipH && x2 > ctx.sysClipH && x3 > ctx.sysClipH && x4 > ctx.sysClipH) {
         return true;
     }
-    if (y1 > (ctx.sysClipV << doubleV) && y2 > (ctx.sysClipV << doubleV) && y3 > (ctx.sysClipV << doubleV) &&
-        y4 > (ctx.sysClipV << doubleV)) {
+    if (y1 > (ctx.sysClipV << ctx.doubleV) && y2 > (ctx.sysClipV << ctx.doubleV) &&
+        y3 > (ctx.sysClipV << ctx.doubleV) && y4 > (ctx.sysClipV << ctx.doubleV)) {
         return true;
     }
     return false;
@@ -1944,13 +1939,9 @@ FORCE_INLINE bool VDP::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LinePa
         return false;
     }
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const uint16 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
-
     LineStepper line{coord1, coord2, antiAlias};
-    const uint32 skipSteps =
-        line.SystemClip(m_VDP1RenderContext.sysClipH, (m_VDP1RenderContext.sysClipV << doubleV) | doubleV);
+    const auto &ctx = m_VDP1RenderContext;
+    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
 
     VDP1PixelParams pixelParams{
         .mode = lineParams.mode,
@@ -1993,6 +1984,7 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
 
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
+    const auto &ctx = m_VDP1RenderContext;
 
     const uint32 charSizeH = lineParams.charSizeH;
     const uint32 charSizeV = lineParams.charSizeV;
@@ -2001,10 +1993,8 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
 
     const uint32 v = lineParams.texVStepper.Value();
 
-    const uint16 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
     LineStepper line{coord1, coord2, true};
-    const uint32 skipSteps =
-        line.SystemClip(m_VDP1RenderContext.sysClipH, (m_VDP1RenderContext.sysClipV << doubleV) | doubleV);
+    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
 
     VDP1PixelParams pixelParams{
         .mode = mode,
@@ -2260,9 +2250,7 @@ void VDP::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control contr
     const sint32 rx = xa + std::max(charSizeH, 1u) - 1u; // right X
     const sint32 by = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const sint32 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
+    const sint32 doubleV = ctx.doubleV;
 
     const CoordS32 coordA{lx, ty << doubleV};
     const CoordS32 coordB{rx, ty << doubleV};
@@ -2361,9 +2349,7 @@ void VDP::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control contr
     qxd += ctx.localCoordX;
     qyd += ctx.localCoordY;
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const sint32 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
+    const sint32 doubleV = ctx.doubleV;
 
     const CoordS32 coordA{qxa, qya << doubleV};
     const CoordS32 coordB{qxb, qyb << doubleV};
@@ -2394,9 +2380,7 @@ void VDP::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control co
     const sint32 xd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const sint32 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
+    const sint32 doubleV = ctx.doubleV;
 
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
@@ -2430,9 +2414,7 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const sint32 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
+    const sint32 doubleV = ctx.doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -2522,9 +2504,7 @@ void VDP::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control)
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const sint32 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
+    const sint32 doubleV = ctx.doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -2589,9 +2569,7 @@ void VDP::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control) {
     const sint32 yb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const sint32 doubleV = deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
+    const sint32 doubleV = ctx.doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
 
