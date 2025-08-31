@@ -252,6 +252,7 @@ struct LineStepper {
         sint32 adx = abs(dx);
         sint32 ady = abs(dy);
         m_dmaj = std::max(adx, ady);
+        m_length = m_dmaj + 1;
         m_step = 0;
 
         const bool xMajor = adx >= ady;
@@ -312,17 +313,15 @@ struct LineStepper {
         height += kPadding;
 
         // Bail out early if the line length is zero
-        uint32 length = Length();
-        if (m_dmaj == 0) {
+        uint32 length = m_dmaj;
+        if (length == 0u) {
             return 0u;
         }
 
-        const sint32 xinc = m_xMajInc + m_xMinInc;
-        const sint32 yinc = m_yMajInc + m_yMinInc;
         const sint32 xs = m_x;
         const sint32 ys = m_y;
-        const sint32 xe = m_x + xinc * length;
-        const sint32 ye = m_y + yinc * length;
+        const sint32 xe = m_xEnd;
+        const sint32 ye = m_yEnd;
 
         // Bail out early if the line is entirely in-bounds
         if (xs >= -kPadding && xs <= width && ys >= -kPadding && ys <= height && xe >= -kPadding && xe <= width &&
@@ -335,90 +334,77 @@ struct LineStepper {
             (ys > height && ye > height)) {
             m_x = m_xEnd;
             m_y = m_yEnd;
-            m_step = 0xFFFFFFFFu;
+            m_length = 0u;
             return 0u;
         }
 
         // ---------------------------------------------------------------------
 
-        // Determine how many pixels to clip from the start
-        uint32 xclip;
-        if (xinc > 0 && xs < -kPadding) {
-            xclip = -xs - 1 - kPadding;
-        } else if (xinc < 0 && xs > width) {
-            xclip = xs - width;
-        } else {
-            xclip = 0;
-        }
-        uint32 yclip;
-        if (yinc > 0 && ys < -kPadding) {
-            yclip = -ys - 1 - kPadding;
-        } else if (yinc < 0 && ys > height) {
-            yclip = ys - height;
-        } else {
-            yclip = 0;
-        }
+        const bool xmajor = m_xMajInc != 0;
+        const sint32 inc = m_xMajInc + m_yMajInc; // only one of the two is non-zero
+        const sint32 start = xmajor ? xs : ys;
+        const sint32 end = xmajor ? xe : ye;
+        const sint32 maxLen = xmajor ? width : height;
 
-        // Use the longer of the two lengths to step the line ahead
-        uint32 startClip = std::max(xclip, yclip);
-        startClip = std::min(startClip, length - 1u);
-        m_x += m_xMajInc * startClip;
-        m_y += m_yMajInc * startClip;
-        for (uint32 i = 0; i < startClip; ++i) {
-            m_accum -= m_num;
-            if (m_den != 0) {
-                while (m_accum <= m_accumTarget) {
-                    m_accum += m_den;
-                    m_x += m_xMinInc;
-                    m_y += m_yMinInc;
+        // Clip from the start
+        uint32 startClip = 0u;
+        if (inc > 0 && start < -kPadding) {
+            startClip = -start - 1 - kPadding;
+        } else if (inc < 0 && start > maxLen) {
+            startClip = start - maxLen;
+        }
+        if (startClip > 0u) {
+            startClip = std::min(startClip, length - 1u);
+            m_x += m_xMajInc * startClip;
+            m_y += m_yMajInc * startClip;
+            for (uint32 i = 0; i < startClip; ++i) {
+                m_accum -= m_num;
+                if (m_den != 0) {
+                    while (m_accum <= m_accumTarget) {
+                        m_accum += m_den;
+                        m_x += m_xMinInc;
+                        m_y += m_yMinInc;
+                    }
                 }
             }
+            length -= startClip;
         }
-        length -= startClip;
-        m_step += startClip;
 
         // ---------------------------------------------------------------------
 
-        // Determine how many pixels to clip from the end
-        if (xinc < 0 && xe < -kPadding) {
-            xclip = -xe - 1 - kPadding;
-        } else if (xinc > 0 && xe > width) {
-            xclip = xe - width;
-        } else {
-            xclip = 0;
+        // Clip from the end
+        uint32 endClip = 0u;
+        if (inc < 0 && end < -kPadding) {
+            endClip = -end - 1 - kPadding;
+        } else if (inc > 0 && end > maxLen) {
+            endClip = end - maxLen;
         }
-        if (yinc < 0 && ye < -kPadding) {
-            yclip = -ye - 1 - kPadding;
-        } else if (yinc > 0 && ye > height) {
-            yclip = ye - height;
-        } else {
-            yclip = 0;
-        }
-
-        // Use the longer of the two lengths to step ahead and determine the line's endpoint
-        uint32 endClip = std::max(xclip, yclip);
-        endClip = std::min(endClip, length - 1u);
-        endClip = length - endClip;
-        m_xEnd = m_x;
-        m_yEnd = m_y;
-        sint32 tempAccum = m_accum;
-        for (uint32 i = 0; i < endClip; ++i) {
-            tempAccum -= m_num;
-            if (m_den != 0) {
-                while (tempAccum <= m_accumTarget) {
-                    tempAccum += m_den;
-                    m_xEnd += m_xMinInc;
-                    m_yEnd += m_yMinInc;
+        endClip = std::min(endClip, length);
+        if (endClip > 0u) {
+            endClip = length - endClip;
+            length = endClip;
+            m_xEnd = m_x;
+            m_yEnd = m_y;
+            sint32 tempAccum = m_accum;
+            for (uint32 i = 0; i < endClip; ++i) {
+                tempAccum -= m_num;
+                if (m_den != 0) {
+                    while (tempAccum <= m_accumTarget) {
+                        tempAccum += m_den;
+                        m_xEnd += m_xMinInc;
+                        m_yEnd += m_yMinInc;
+                    }
                 }
             }
         }
+        m_length = length + 1u;
 
         return startClip;
     }
 
     // Determines if the slope can be stepped.
     FORCE_INLINE bool CanStep() const {
-        return m_step <= m_dmaj + 1;
+        return m_step <= m_length;
     }
 
     // Steps the slope to the next coordinate.
@@ -491,6 +477,7 @@ private:
 
     uint32 m_dmaj;
     uint32 m_step;
+    uint32 m_length;
 
     sint32 m_aaXInc;
     sint32 m_aaYInc;
