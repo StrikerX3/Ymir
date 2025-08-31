@@ -149,10 +149,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
             fs::path filePath = u8filename;
             fs::path binPath;
             if (filePath.is_absolute()) {
-                binPath = filePath;
-                if (!fs::is_regular_file(binPath)) {
-                    binPath = cuePath.parent_path() / filePath.filename();
-                }
+                binPath = cuePath.parent_path() / filePath.filename();
             } else {
                 binPath = cuePath.parent_path() / filePath;
             }

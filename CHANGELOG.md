@@ -40,7 +40,7 @@ Introduced save state file version 9.
 - Input: Reset inputs when unbinding inputs or disconnecting gamepads.
 - Media: Adjust sectors offsets when reading CHD images with multiple data tracks. Fixes some Last Bronx (USA) CHD images not booting. (#238)
 - Media: Fix handling of Unicode characters when loading or saving the recent game disc list.
-- Media: Honor absolute paths when loading images from CUE sheets. If the absolute path is not found, try loading the file from the same directory as the CUE sheet.
+- Media: Ignore absolute paths when loading images from CUE sheets; load from the same directory as the CUE sheet instead.
 - Media: Properly handle UTF-8-encoded CUE files referencing other files with Unicode characters.
 - SCSP: Allow M68K to fetch instructions from SCSP registers. Fixes CroNSF audio playback.
 - SCSP: Don't use SBCTL on slots that are playing samples from Sound RAM when the EG reaches the silence threshold. Fixes busted audio in Guardian Heroes and Elevator Action^2. (#155)
