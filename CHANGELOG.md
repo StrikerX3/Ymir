@@ -8,6 +8,7 @@ Introduced save state file version 9.
 
 ### New features and improvements
 
+- App: Disable rounded window corners on Windows 11.
 - App: Implement exception handler for macOS. (#460; @Wunkolo)
 - App: Provide user feedback if any part of the app initialization fails.
 - App: Show warning dialog if the user is missing the required ROM cartridge images for games that require them.

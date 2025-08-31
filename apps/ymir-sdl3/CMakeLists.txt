@@ -288,6 +288,8 @@ add_executable(ymir-sdl3
     src/util/math.hpp
     src/util/os_exception_handler.cpp
     src/util/os_exception_handler.hpp
+    src/util/os_features.cpp
+    src/util/os_features.hpp
     src/util/regions.cpp
     src/util/regions.hpp
     src/util/ring_buffer.hpp
@@ -316,6 +318,11 @@ target_link_libraries(ymir-sdl3 PRIVATE
     stb::stb
     rtmidi
 )
+if (WIN32)
+    target_link_libraries(ymir-sdl3 PRIVATE
+        Dwmapi
+    )
+endif ()
 target_compile_features(ymir-sdl3 PUBLIC cxx_std_20)
 
 ## Create embedded resource library

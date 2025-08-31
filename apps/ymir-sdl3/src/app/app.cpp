@@ -107,6 +107,7 @@
 
 #include <util/file_loader.hpp>
 #include <util/math.hpp>
+#include <util/os_features.hpp>
 #include <util/std_lib.hpp>
 
 #include <SDL3/SDL.h>
@@ -611,6 +612,7 @@ void App::RunEmulator() {
         SDL_DestroyWindow(screen.window);
         SaveDebuggerState();
     }};
+    util::os::ConfigureWindowDecorations(screen.window);
 
     // ---------------------------------
     // Create renderer
