@@ -12,10 +12,6 @@
 
 namespace ymir::vdp {
 
-FORCE_INLINE auto SafeDiv(auto dividend, auto divisor) {
-    return (divisor != 0) ? dividend / divisor : 0;
-}
-
 // Steps over the texels of a texture.
 struct TextureStepper {
     FORCE_INLINE void Setup(uint32 length, sint32 start, sint32 end, bool hss = false, sint32 hssSelect = 0) {
@@ -176,13 +172,13 @@ struct GouraudChannelStepper {
     }
 
 private:
-    sint32 m_num = 0;
-    sint32 m_den = 0;
-    sint32 m_accum = 0;
+    sint32 m_num;
+    sint32 m_den;
+    sint32 m_accum;
 
-    sint32 m_value = 0;
-    sint32 m_intInc = 0;
-    sint32 m_fracInc = 0;
+    sint32 m_value;
+    sint32 m_intInc;
+    sint32 m_fracInc;
 };
 
 struct GouraudStepper {
