@@ -342,7 +342,8 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     } else {
         s.VDP1TimingPenalty = 0;
     }
-    ar(s.regs1, s.regs2);
+    serialize(ar, s.regs1, version);
+    ar(s.regs2);
     ar(s.HPhase, s.VPhase);
     if (version < 6) {
         uint16 VCounter;
@@ -406,6 +407,10 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
         s.renderer.normBGLayerStates[2].scrollAmountV = (s.regs2.SCYIN2 << 8u);
         s.renderer.normBGLayerStates[3].scrollAmountV = (s.regs2.SCYIN3 << 8u);
     }
+    if (version < 9) {
+        // Convert old "erase" value into new doDisplayErase flag
+        s.renderer.vdp1State.doDisplayErase &= !bit::test<3>(s.regs1.TVMR);
+    }
 }
 
 template <class Archive>
@@ -413,9 +418,6 @@ void serialize(Archive &ar, VDPState::VDPRendererState &s, const uint32 version)
     // v7:
     // - New fields
     //   - vramFetchers = (default values)
-    // v5:
-    // - New fields
-    //   - erase = false
     // v4:
     // - New fields
     //   - vertCellScrollInc = sizeof(uint32)
@@ -451,12 +453,20 @@ void serialize(Archive &ar, VDPState::VDPRendererState &s, const uint32 version)
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState::VDP1RegsState &s) {
+void serialize(Archive &ar, VDPState::VDP1RegsState &s, const uint32 version) {
+    // v9:
+    // - Removed fields
+    //   - bool manualSwap
+    //   - bool manualErase
+
     ar(s.TVMR, s.FBCR, s.PTMR);
     ar(s.EWDR, s.EWLR, s.EWRR, s.EDSR);
     ar(s.LOPR, s.COPR);
     ar(s.MODR);
-    ar(s.manualSwap, s.manualErase);
+    if (version < 9) {
+        bool dummy;
+        ar(dummy /*manualSwap*/, dummy /*manualErase*/);
+    }
 }
 
 template <class Archive>
@@ -509,6 +519,8 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     // - New fields
     //   - doubleV = 0
     //   - cyclesSpent = 0
+    // - Changed fields
+    //   - erase -> doDisplayErase = true when erase && VBE=0, otherwise false
     // v5:
     // - New fields
     //   - erase = false
@@ -522,11 +534,7 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     ar(s.userClipX0, s.userClipY0, s.userClipX1, s.userClipY1);
     ar(s.localCoordX, s.localCoordY);
     ar(s.rendering);
-    if (version >= 5) {
-        ar(s.erase);
-    } else {
-        s.erase = false;
-    }
+    ar(s.doDisplayErase);
     ar(s.cycleCount);
     if (version >= 9) {
         ar(s.cyclesSpent);

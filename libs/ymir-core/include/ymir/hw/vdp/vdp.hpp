@@ -686,23 +686,24 @@ private:
 
             rendering = false;
 
-            erase = false;
+            doDisplayErase = false;
+
+            eraseWriteValue = 0;
+            eraseX1 = 0;
+            eraseY1 = 0;
+            eraseX3 = 0;
+            eraseY3 = 0;
 
             cycleCount = 0;
         }
 
         // System clipping dimensions
-        uint16 sysClipH;
-        uint16 sysClipV;
+        uint16 sysClipH, sysClipV;
         uint16 doubleV;
 
         // User clipping area
-        // Top-left
-        uint16 userClipX0;
-        uint16 userClipY0;
-        // Bottom-right
-        uint16 userClipX1;
-        uint16 userClipY1;
+        uint16 userClipX0, userClipY0; // Top-left
+        uint16 userClipX1, userClipY1; // Bottom-right
 
         // Local coordinates offset
         sint32 localCoordX;
@@ -711,8 +712,12 @@ private:
         // Is the VDP1 currently processing commands?
         bool rendering;
 
-        // Is manual framebuffer erase scheduled for the next frame?
-        bool erase;
+        bool doDisplayErase; // Erase scheduled for display period
+
+        // Latched erase parameters
+        uint16 eraseWriteValue;  // 16-bit write value
+        uint16 eraseX1, eraseY1; // Top-left erase region coordinates
+        uint16 eraseX3, eraseY3; // Bottom-right erase region coordinates
 
         // Command processing cycle counter
         uint64 cycleCount;
@@ -1562,6 +1567,12 @@ public:
         [[nodiscard]] const VDP2Regs &GetVDP2Regs() const;
 
         [[nodiscard]] const std::array<NormBGLayerState, 4> &GetNBGLayerStates() const;
+
+        [[nodiscard]] uint16 GetLatchedEraseWriteValue() const;
+        [[nodiscard]] uint16 GetLatchedEraseX1() const;
+        [[nodiscard]] uint16 GetLatchedEraseY1() const;
+        [[nodiscard]] uint16 GetLatchedEraseX3() const;
+        [[nodiscard]] uint16 GetLatchedEraseY3() const;
 
         template <mem_primitive T>
         void VDP1WriteVRAM(uint32 address, T value);

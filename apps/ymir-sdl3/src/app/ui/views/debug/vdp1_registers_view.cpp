@@ -42,13 +42,19 @@ void VDP1RegistersView::Display() {
     checkbox("[FBCR.FCM] Framebuffer swap mode", regs1.fbSwapMode);
     ImGui::Indent();
     {
-        checkbox("Manual framebuffer erase requested", regs1.fbManualErase);
-        checkbox("Manual framebuffer swap requested", regs1.fbManualSwap);
+        checkbox("FBCR changed", regs1.fbParamsChanged);
     }
     ImGui::Unindent();
     ImGui::Text("[FBCR.PTM] Plot trigger mode: %u", regs1.plotTrigger);
     ImGui::Text("[FBCR.EWDR] Erase write value: 0x%04X", regs1.eraseWriteValue);
     ImGui::Text("[FBCR.EWDR] Erase window: %ux%u - %ux%u", regs1.eraseX1, regs1.eraseY1, regs1.eraseX3, regs1.eraseY3);
+    ImGui::Indent();
+    {
+        ImGui::Text("Latched erase write value: 0x%04X", probe.GetLatchedEraseWriteValue());
+        ImGui::Text("Latched erase window: %ux%u - %ux%u", probe.GetLatchedEraseX1(), probe.GetLatchedEraseY1(),
+                    probe.GetLatchedEraseX3(), probe.GetLatchedEraseY3());
+    }
+    ImGui::Unindent();
 
     ImGui::Separator();
 

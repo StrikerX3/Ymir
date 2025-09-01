@@ -45,8 +45,7 @@ struct VDP1Regs {
 
         returnAddress = ~0;
 
-        fbManualErase = false;
-        fbManualSwap = false;
+        fbParamsChanged = false;
 
         UpdateTVMR();
     }
@@ -172,8 +171,8 @@ struct VDP1Regs {
     // Used by commands that use the jump types Call and Return.
     uint32 returnAddress;
 
-    bool fbManualErase; // Manual framebuffer erase requested
-    bool fbManualSwap;  // Manual framebuffer swap requested
+    // Whether FCM or FCT have been written to.
+    bool fbParamsChanged;
 
     void UpdateTVMR() {
         static constexpr uint32 kSizesH[] = {512, 1024, 512, 512, 512, 512, 512, 512};
@@ -272,13 +271,7 @@ struct VDP1Regs {
         dblInterlaceEnable = bit::test<3>(value);
         evenOddCoordSelect = bit::test<4>(value);
 
-        if (fbSwapMode) {
-            if (fbSwapTrigger) {
-                fbManualSwap = true;
-            } else {
-                fbManualErase = true;
-            }
-        }
+        fbParamsChanged = true;
     }
 
     // 100004   PTMR  Draw Trigger

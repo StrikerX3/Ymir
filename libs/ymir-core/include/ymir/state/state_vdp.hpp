@@ -28,8 +28,6 @@ struct VDPState {
         uint16 LOPR;
         uint16 COPR;
         uint16 MODR;
-        bool manualSwap;
-        bool manualErase;
     } regs1;
 
     struct VDP2RegsState {
@@ -211,7 +209,7 @@ struct VDPState {
 
             bool rendering;
 
-            bool erase;
+            bool doDisplayErase;
 
             uint64 cycleCount;
             uint64 cyclesSpent;

@@ -458,9 +458,8 @@ FORCE_INLINE void VDP::VDP1WriteReg(uint32 address, uint16 value) {
         if constexpr (!poke) {
             devlog::trace<grp::vdp1_regs>("Write to DIE={:d} DIL={:d}", m_state.regs1.dblInterlaceEnable,
                                           m_state.regs1.dblInterlaceDrawLine);
-            devlog::trace<grp::vdp1_regs>("Write to FCM={:d} FCT={:d} manualswap={:d} manualerase={:d}",
-                                          m_state.regs1.fbSwapMode, m_state.regs1.fbSwapTrigger,
-                                          m_state.regs1.fbManualSwap, m_state.regs1.fbManualErase);
+            devlog::trace<grp::vdp1_regs>("Write to FCM={:d} FCT={:d}", m_state.regs1.fbSwapMode,
+                                          m_state.regs1.fbSwapTrigger);
         }
         break;
     case 0x04:
@@ -618,7 +617,7 @@ void VDP::SaveState(state::VDPState &state) const {
     state.renderer.vdp1State.localCoordX = m_VDP1RenderContext.localCoordX;
     state.renderer.vdp1State.localCoordY = m_VDP1RenderContext.localCoordY;
     state.renderer.vdp1State.rendering = m_VDP1RenderContext.rendering;
-    state.renderer.vdp1State.erase = m_VDP1RenderContext.erase;
+    state.renderer.vdp1State.doDisplayErase = m_VDP1RenderContext.doDisplayErase;
     state.renderer.vdp1State.cycleCount = m_VDP1RenderContext.cycleCount;
     state.renderer.vdp1State.cyclesSpent = m_VDP1RenderContext.cyclesSpent;
 
@@ -700,7 +699,7 @@ void VDP::LoadState(const state::VDPState &state) {
     m_VDP1RenderContext.localCoordX = state.renderer.vdp1State.localCoordX;
     m_VDP1RenderContext.localCoordY = state.renderer.vdp1State.localCoordY;
     m_VDP1RenderContext.rendering = state.renderer.vdp1State.rendering;
-    m_VDP1RenderContext.erase = state.renderer.vdp1State.erase;
+    m_VDP1RenderContext.doDisplayErase = state.renderer.vdp1State.doDisplayErase;
     m_VDP1RenderContext.cycleCount = state.renderer.vdp1State.cycleCount;
     m_VDP1RenderContext.cyclesSpent = state.renderer.vdp1State.cyclesSpent;
 
@@ -1079,10 +1078,11 @@ void VDP::BeginHPhaseRightBorder() {
 
     // Start erasing if we just entered VBlank IN
     if (m_state.regs2.VCNT == m_VTimings[m_VTimingField][static_cast<uint32>(VerticalPhase::Active)]) {
-        devlog::trace<grp::base>("## HBlank IN + VBlank IN  VBE={:d} manualerase={:d}", m_state.regs1.vblankErase,
-                                 m_state.regs1.fbManualErase);
+        devlog::trace<grp::base>("## HBlank IN + VBlank IN  VBE={:d}", m_state.regs1.vblankErase);
 
-        if (m_state.regs1.vblankErase || !m_state.regs1.fbSwapMode) {
+        auto &ctx1 = m_VDP1RenderContext;
+
+        if (m_state.regs1.vblankErase) {
             // TODO: cycle-count the erase process, starting here
             if (m_threadedVDPRendering) {
                 m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
@@ -1128,33 +1128,39 @@ void VDP::BeginHPhaseLeftBorder() {
     devlog::trace<grp::base>("(VCNT = {:3d})  Entering left border phase", m_state.regs2.VCNT);
 
     if (m_state.VPhase == VerticalPhase::LastLine) {
-        devlog::trace<grp::base>("## HBlank end + VBlank OUT  FCM={:d} FCT={:d} manualswap={:d} PTM={:d}",
-                                 m_state.regs1.fbSwapMode, m_state.regs1.fbSwapTrigger, m_state.regs1.fbManualSwap,
-                                 m_state.regs1.plotTrigger);
+        auto &ctx1 = m_VDP1RenderContext;
 
-        // Erase frame if manually requested in previous frame
-        if (m_VDP1RenderContext.erase) {
-            m_VDP1RenderContext.erase = false;
-            m_state.regs1.fbManualErase = false;
-            if (m_effectiveRenderVDP1InVDP2Thread) {
-                m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
+        devlog::trace<grp::base>("## HBlank end + VBlank OUT  FCM={:d} FCT={:d} VBE={:d} PTM={:d} changed={}",
+                                 m_state.regs1.fbSwapMode, m_state.regs1.fbSwapTrigger, m_state.regs1.vblankErase,
+                                 m_state.regs1.plotTrigger, m_state.regs1.fbParamsChanged);
+
+        bool erase = false;
+        bool swap = false;
+
+        if (!m_state.regs1.fbSwapMode) {
+            // 1-cycle framebuffer erase+swap
+            erase = true;
+            swap = true;
+        } else if (m_state.regs1.fbParamsChanged) {
+            if (m_state.regs1.fbSwapTrigger) {
+                swap = true;
             } else {
-                VDP1EraseFramebuffer();
+                erase = true;
             }
         }
 
-        // If manual erase is requested, schedule it for the next frame
-        if (m_state.regs1.fbManualErase) {
-            m_state.regs1.fbManualErase = false;
-            m_VDP1RenderContext.erase = true;
-        }
+        m_state.regs1.fbParamsChanged = false;
 
-        // Reset cycles spent for VDP1 this frame
+        // Reset cycles spent by VDP1 this frame
         m_VDP1RenderContext.cyclesSpent = 0;
 
-        // Swap framebuffer in manual swap requested or in 1-cycle mode
-        if (!m_state.regs1.fbSwapMode || m_state.regs1.fbManualSwap) {
-            m_state.regs1.fbManualSwap = false;
+        if (erase) {
+            // Configure erase process
+            // - when VBE=0, erase line by line during display; never erase past VCNT
+            // - when VBE=1, cycle-count erase process during VBlank period
+            ctx1.doDisplayErase = true;
+        }
+        if (swap) {
             VDP1SwapFramebuffer();
         }
     }
@@ -1200,6 +1206,22 @@ void VDP::BeginVPhaseBlankingAndSync() {
         m_VDPRenderContext.renderFinishedSignal.Reset();
     }
     m_cbFrameComplete(m_framebuffer.data(), m_HRes, m_VRes);
+
+    // Begin erasing display framebuffer during display
+    if (m_VDP1RenderContext.doDisplayErase) {
+        m_VDP1RenderContext.doDisplayErase = false;
+        // TODO: cycle-count the erase process from the start of the display when latched VBE=0
+        if (m_threadedVDPRendering) {
+            m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
+            if (!m_effectiveRenderVDP1InVDP2Thread) {
+                m_VDPRenderContext.eraseFramebufferReadySignal.Wait();
+                m_VDPRenderContext.eraseFramebufferReadySignal.Reset();
+                VDP1EraseFramebuffer();
+            }
+        } else {
+            VDP1EraseFramebuffer();
+        }
+    }
 }
 
 void VDP::BeginVPhaseVCounterSkip() {
@@ -1539,16 +1561,17 @@ FORCE_INLINE uint8 VDP::VDP1GetDisplayFBIndex() const {
 FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
+    auto &ctx = m_VDP1RenderContext;
 
     devlog::trace<grp::vdp1_render>("Erasing framebuffer {} - {}x{} to {}x{} -> {:04X}  {}x{}  {}-bit",
-                                    m_state.displayFB, regs1.eraseX1, regs1.eraseY1, regs1.eraseX3, regs1.eraseY3,
-                                    regs1.eraseWriteValue, regs1.fbSizeH, regs1.fbSizeV, (regs1.pixel8Bits ? 8 : 16));
+                                    m_state.displayFB, ctx.eraseX1, ctx.eraseY1, ctx.eraseX3, ctx.eraseY3,
+                                    ctx.eraseWriteValue, regs1.fbSizeH, regs1.fbSizeV, (regs1.pixel8Bits ? 8 : 16));
 
     const uint8 fbIndex = VDP1GetDisplayFBIndex();
     auto &fb = m_state.spriteFB[fbIndex];
     auto &altFB = m_altSpriteFB[fbIndex];
-    [[maybe_unused]] auto &meshFB = m_VDP1RenderContext.meshFB[0][fbIndex];
-    [[maybe_unused]] auto &altMeshFB = m_VDP1RenderContext.meshFB[1][fbIndex];
+    [[maybe_unused]] auto &meshFB = ctx.meshFB[0][fbIndex];
+    [[maybe_unused]] auto &altMeshFB = ctx.meshFB[1][fbIndex];
 
     const bool halfResH =
         !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
@@ -1564,10 +1587,10 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
 
     const uint32 offsetShift = regs1.pixel8Bits ? 0 : 1;
 
-    const uint32 x1 = std::min<uint32>(regs1.eraseX1, maxH) << scaleH;
-    const uint32 x3 = std::min<uint32>(regs1.eraseX3, maxH) << scaleH;
-    const uint32 y1 = std::min<uint32>(regs1.eraseY1, maxV) << scaleV;
-    const uint32 y3 = std::min<uint32>(regs1.eraseY3, maxV) << scaleV;
+    const uint32 x1 = std::min<uint32>(ctx.eraseX1, maxH) << scaleH;
+    const uint32 x3 = std::min<uint32>(ctx.eraseX3, maxH) << scaleH;
+    const uint32 y1 = std::min<uint32>(ctx.eraseY1, maxV) << scaleV;
+    const uint32 y3 = std::min<uint32>(ctx.eraseY3, maxV) << scaleV;
 
     const bool mirror = m_deinterlaceRender && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
 
@@ -1575,9 +1598,9 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
         const uint32 fbOffset = y * regs1.fbSizeH;
         for (uint32 x = x1; x <= x3; x++) {
             const uint32 address = (fbOffset + x) << offsetShift;
-            util::WriteBE<uint16>(&fb[address & 0x3FFFE], regs1.eraseWriteValue);
+            util::WriteBE<uint16>(&fb[address & 0x3FFFE], ctx.eraseWriteValue);
             if (mirror) {
-                util::WriteBE<uint16>(&altFB[address & 0x3FFFE], regs1.eraseWriteValue);
+                util::WriteBE<uint16>(&altFB[address & 0x3FFFE], ctx.eraseWriteValue);
             }
 
             if (m_transparentMeshes) {
@@ -1611,6 +1634,15 @@ FORCE_INLINE void VDP::VDP1SwapFramebuffer() {
     if (bit::test<1>(m_state.regs1.plotTrigger)) {
         VDP1BeginFrame();
     }
+
+    // TODO: latch PTM, EOS, DIE, DIL
+
+    // Latch erase parameters
+    m_VDP1RenderContext.eraseWriteValue = m_state.regs1.eraseWriteValue;
+    m_VDP1RenderContext.eraseX1 = m_state.regs1.eraseX1;
+    m_VDP1RenderContext.eraseY1 = m_state.regs1.eraseY1;
+    m_VDP1RenderContext.eraseX3 = m_state.regs1.eraseX3;
+    m_VDP1RenderContext.eraseY3 = m_state.regs1.eraseY3;
 }
 
 void VDP::VDP1BeginFrame() {
@@ -6375,6 +6407,26 @@ const VDP2Regs &VDP::Probe::GetVDP2Regs() const {
 
 const std::array<VDP::NormBGLayerState, 4> &VDP::Probe::GetNBGLayerStates() const {
     return m_vdp.m_normBGLayerStates;
+}
+
+uint16 VDP::Probe::GetLatchedEraseWriteValue() const {
+    return m_vdp.m_VDP1RenderContext.eraseWriteValue;
+}
+
+uint16 VDP::Probe::GetLatchedEraseX1() const {
+    return m_vdp.m_VDP1RenderContext.eraseX1;
+}
+
+uint16 VDP::Probe::GetLatchedEraseY1() const {
+    return m_vdp.m_VDP1RenderContext.eraseY1;
+}
+
+uint16 VDP::Probe::GetLatchedEraseX3() const {
+    return m_vdp.m_VDP1RenderContext.eraseX3;
+}
+
+uint16 VDP::Probe::GetLatchedEraseY3() const {
+    return m_vdp.m_VDP1RenderContext.eraseY3;
 }
 
 template <mem_primitive T>
