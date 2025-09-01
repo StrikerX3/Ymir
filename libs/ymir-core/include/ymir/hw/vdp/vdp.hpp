@@ -982,10 +982,10 @@ private:
         // Filled in only if the coefficient table is enabled.
         alignas(16) std::array<bool, kMaxResH / 2> transparent;
 
-        // Current base screen coordinates, updated every scanline.
+        // Current base screen coordinates (signed 13.10 fixed point), updated every scanline.
         sint32 Xst, Yst;
 
-        // Current base coefficient address (with 10 fractional bits), updated every scanline.
+        // Current base coefficient address (unsigned 16.10 fixed point), updated every scanline.
         uint32 KA;
     };
 

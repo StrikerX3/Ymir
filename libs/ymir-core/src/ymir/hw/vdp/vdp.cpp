@@ -2844,6 +2844,7 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
 
         // Transformed starting screen coordinates
         // 10*(10-10) + 10*(10-10) + 10*(10-10) = 20 frac bits
+        // 14*(23-24) + 14*(23-24) + 14*(23-24) = 38 total bits
         // reduce to 10 frac bits
         const sint32 Xsp =
             (t.A * (state.Xst - (t.Px << 10)) + t.B * (state.Yst - (t.Py << 10)) + t.C * (t.Zst - (t.Pz << 10))) >> 10;
@@ -2852,26 +2853,27 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
 
         // Transformed view coordinates
         // 10*(0-0) + 10*(0-0) + 10*(0-0) + 10 + 10 = 10+10+10 + 10+10 = 10 frac bits
+        // 14*(14-14) + 14*(14-14) + 14*(14-14) + 24 + 24 = 28+28+28 + 24+24 = 28 total bits
         /***/ sint32 Xp = (t.A * (t.Px - t.Cx) + t.B * (t.Py - t.Cy) + t.C * (t.Pz - t.Cz)) + (t.Cx << 10) + t.Mx;
         const sint32 Yp = (t.D * (t.Px - t.Cx) + t.E * (t.Py - t.Cy) + t.F * (t.Pz - t.Cz)) + (t.Cy << 10) + t.My;
 
         // Screen coordinate increments per Hcnt
-        // 10*10 + 10*10 = 20 + 20 = 20
+        // 10*10 + 10*10 = 20 + 20 = 20 frac bits
+        // 14*13 + 14*13 = 27 + 27 = 27 total bits
         // reduce to 10 frac bits
         const sint32 scrXIncH = (t.A * t.deltaX + t.B * t.deltaY) >> 10;
         const sint32 scrYIncH = (t.D * t.deltaX + t.E * t.deltaY) >> 10;
 
-        // Scaling factors
-        // 16 frac bits
+        // Scaling factors (8.16)
         sint64 kx = t.kx;
         sint64 ky = t.ky;
 
-        // Current screen coordinates (10 frac bits) and coefficient address (10 frac bits)
+        // Current screen coordinates (18.10) and coefficient address (16.10)
         sint32 scrX = Xsp;
         sint32 scrY = Ysp;
         uint32 KA = state.KA;
 
-        // Current sprite coordinates (16 frac bits)
+        // Current sprite coordinates (13.10)
         sint32 sprX;
         sint32 sprY;
         if (regs1.fbRotEnable) {
