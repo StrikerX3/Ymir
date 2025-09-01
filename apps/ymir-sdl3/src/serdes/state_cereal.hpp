@@ -691,6 +691,9 @@ void serialize(Archive &ar, SCSPState &s, const uint32 version) {
         auto cddaBuffer = std::make_unique<std::array<uint8, 2048 * 75>>();
         uint32 cddaReadPos, cddaWritePos;
         ar(*cddaBuffer, cddaReadPos, cddaWritePos, s.cddaReady);
+        if (cddaReadPos >= 2048 * 75 || cddaWritePos >= 2048 * 75) {
+            throw cereal::Exception("Illegal CDDA buffer positions");
+        }
 
         // Use the most recent samples if there is too much data in the old buffer since the new buffer is smaller
         uint32 count = cddaWritePos - cddaReadPos;
