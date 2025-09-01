@@ -2846,10 +2846,14 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
         // 10*(10-10) + 10*(10-10) + 10*(10-10) = 20 frac bits
         // 14*(23-24) + 14*(23-24) + 14*(23-24) = 38 total bits
         // reduce to 10 frac bits
-        const sint32 Xsp =
-            (t.A * (state.Xst - (t.Px << 10)) + t.B * (state.Yst - (t.Py << 10)) + t.C * (t.Zst - (t.Pz << 10))) >> 10;
-        const sint32 Ysp =
-            (t.D * (state.Xst - (t.Px << 10)) + t.E * (state.Yst - (t.Py << 10)) + t.F * (t.Zst - (t.Pz << 10))) >> 10;
+        const sint32 Xsp = (static_cast<sint64>(t.A) * (state.Xst - (t.Px << 10)) +
+                            static_cast<sint64>(t.B) * (state.Yst - (t.Py << 10)) +
+                            static_cast<sint64>(t.C) * (t.Zst - (t.Pz << 10))) >>
+                           10;
+        const sint32 Ysp = (static_cast<sint64>(t.D) * (state.Xst - (t.Px << 10)) +
+                            static_cast<sint64>(t.E) * (state.Yst - (t.Py << 10)) +
+                            static_cast<sint64>(t.F) * (t.Zst - (t.Pz << 10))) >>
+                           10;
 
         // Transformed view coordinates
         // 10*(0-0) + 10*(0-0) + 10*(0-0) + 10 + 10 = 10+10+10 + 10+10 = 10 frac bits
