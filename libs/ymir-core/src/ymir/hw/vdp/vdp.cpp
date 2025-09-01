@@ -2940,8 +2940,8 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
 
             if (regs1.fbRotEnable) {
                 // Store sprite coordinates
-                state.spriteCoords[x].x() = sprX >> 16ll;
-                state.spriteCoords[x].y() = sprY >> 16ll;
+                state.spriteCoords[x].x() = sprX >> 10ll;
+                state.spriteCoords[x].y() = sprY >> 10ll;
 
                 // Increment sprite coordinates by Hcnt
                 sprX += t.deltaX;
