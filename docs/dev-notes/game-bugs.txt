@@ -25,6 +25,13 @@ Keriotosse
 
 Panzer Dragoon 2 Zwei
 ---------------------
+  Misaligned sprite vs. NBG windows during level start transitions
+  ----------------------------------------------------------------
+  When starting Episodes with a growing windo transition (more evident on 2 and 3, barely on 4, 5 and 7), the sprite and
+  NBG windows are misaligned as if the NBG window calculations are delayed by one frame.
+  Also occurs on real hardware.
+
+
   Sound corruption during boot up with save data on both System and Cartridge Memory
   ----------------------------------------------------------------------------------
   During startup, the game plays an intro video followed by the splash screen.
