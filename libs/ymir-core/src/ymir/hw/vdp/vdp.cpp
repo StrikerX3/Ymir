@@ -3185,7 +3185,8 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
     }};
 
     for (uint8 i = 0; i < 8; ++i) {
-        for (uint8 bankIndex = 0; const auto &bank : regs2.cyclePatterns.timings) {
+        for (uint8 bankIndex = 0; bankIndex < regs2.cyclePatterns.timings.size(); ++bankIndex) {
+            const auto &bank = regs2.cyclePatterns.timings[bankIndex];
             if (bankIndex == 1 && !regs2.vramControl.partitionVRAMA) {
                 continue;
             }
@@ -3271,7 +3272,6 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
 
             default: break;
             }
-            ++bankIndex;
         }
 
         // Stop at T3 if in hi-res mode
