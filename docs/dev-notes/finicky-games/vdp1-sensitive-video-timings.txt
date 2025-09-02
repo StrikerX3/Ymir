@@ -2,7 +2,7 @@
 Games that are sensitive to VDP1 and video signal timings
 =========================================================
 
-See system-info/vdp1-erase-swap-timings.txt
+See docs/dev-notes/system-info/vdp1-erase-swap-timings.txt for context.
 
 What to test to verify VDP1 framebuffer erase and swap timings:
   DragonHeart - Fire & Steel    sprites get corrupted

@@ -2,19 +2,19 @@
 Interesting/annoying game quirks
 ================================
 
-See also finicky-games/race-conditions.txt
+See also docs/dev-notes/finicky-games/race-conditions.txt
 
 Akumajou Dracula X
 ------------------
   Bad order of operations when saving games
   -----------------------------------------
-  The game has a buffer for save data at 60485c0 with 4388 (0x1124) bytes.
+  The game has a buffer for save data at 60485C0 with 4388 (0x1124) bytes.
   When saving games, it calls one of the following functions:
-  - 600d370: Alucard save
-  - 600d264: Maria/Richter(unconfirmed) save
-  Both functions eventually call the function at 600cb74 which calculates the checksum of the save data starting from
-  60485c4 then write the result at 60485c0 (the beginning of the save data buffer). Immediately after that, they set
-  the save file's date/time BUP_SetDate using the RTC time (a copy of which is stored at 6057f60) and promptly write
+  - 600D370: Alucard save
+  - 600D264: Maria/Richter(unconfirmed) save
+  Both functions eventually call the function at 600CB74 which calculates the checksum of the save data starting from
+  60485c4 then write the result at 60485C0 (the beginning of the save data buffer). Immediately after that, they set
+  the save file's date/time BUP_SetDate using the RTC time (a copy of which is stored at 6057F60) and promptly write
   the converted value *into the buffer that was just checksummed*!
   
   Luckily, the game calls the save function twice in a row, so the checksum is updated with the new date/time and, as

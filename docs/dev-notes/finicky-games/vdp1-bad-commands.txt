@@ -2,6 +2,13 @@
 Games that create infinite loops in the VDP1 command table
 ==========================================================
 
+Baroque
+  Puts an FMV file into VDP1 VRAM but leaves PTM=2, causing it to process a bunch of invalid and extremely large polygons and sprites.
+
+Funky Fantasy
+  Fills VDP1 command table with commands to render the FMV over and over again.
+  If not properly cycle-counted, this will cause a massive slowdown on the emulator.
+
 Sega Rally Championship
   Certain menu screens (e.g. Arcade) request a framebuffer swap before the command table is set up in VRAM.
   This results in executing a large number of "blank" commands (draw normal 0x0 sprites) and an infinite loop at some points.

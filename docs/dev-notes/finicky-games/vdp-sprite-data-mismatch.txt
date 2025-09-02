@@ -5,6 +5,9 @@ Games that use mismatching VDP1 and VDP2 sprite data sizes
 VDP1 has a flag to draw sprites using 8-bit or 16-bit data.
 VDP2 has a setting to select the sprite data format from 16 options, half of which are 8 bits and half 16 bits.
 The sprite data sizes are supposed to match, but some games misbehave and set them up incorrectly.
+When VDP1 draws 16-bit data but VDP2 uses 8-bit sprite types, the readout occurs at 16-bit intervals and only reads the
+least significant 8 bits of the sprite data.
+No games so far have done the opposite.
 
 Sega Ages - I Love Mickey Mouse - Fushigi no Oshiro Daibouken & I Love Donald Duck - Georgia Ou no Hihou
   Both games set up VDP1 to render sprites with 16-bit data and VDP2 to use sprite data type 8 (an 8-bit format).
