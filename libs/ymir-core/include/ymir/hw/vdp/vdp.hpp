@@ -867,6 +867,7 @@ private:
             lastCharIndex = 0xFFFFFFFF;
 
             bitmapData.fill(0);
+            bitmapDataAddress = 0xFFFFFFFF;
 
             lastVCellScroll = 0xFFFFFFFF;
         }

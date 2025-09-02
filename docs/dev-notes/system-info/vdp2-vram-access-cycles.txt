@@ -113,8 +113,11 @@ Character pattern accesses for bitmap BGs
 -----------------------------------------
 
 Bitmap data is read in chunks of 8 bytes. The same rules for CP access cycle count based on ZMCTL reduction and color
-depth applies here. If multiple reads are done for a particular NBG, only the latest chunk is used; all other chunks are
-discarded.
+depth applies here.
+
+There is only one special restriction on bitmap accesses for an NBG: if configured across multiple banks, they must all
+start on the same timing slot. Bitmap accesses to the same NBG that occur at different timing slot on separate banks
+will result in graphics being shifted left by 8 bytes on the banks that have the later accesses.
 
 For example, if you set up NBG0 as a bitmap image with 256-color palette and no reduction, the total number of cycles
 required to fetch the data is 1*2*1 = 2 cycles. Suppose you use a high-resolution mode and set up the following access
@@ -124,9 +127,8 @@ cycles (seen in Capcom Generation - Dai-5-shuu Kakutouka-tachi):
    A     CP0 CP0
    B             CP0 CP0
 
-The two CP0 reads from VRAM bank A will occur normally and the internal address is incremented by 8. Then the two CP0
-reads from VRAM bank B will follow using the updated address which causes the second part of the bitmap image to be
-shifted left.
+The two CP0 reads from VRAM bank A will occur normally, but the CP0 reads from VRAM bank B will be shifted by 8 bytes
+because they are out of phase with bank A.
 
 If you set up the following access patterns instead:
 
@@ -134,8 +136,8 @@ If you set up the following access patterns instead:
    A     CP0 CP0 CP0 CP0
    B
 
-then bitmap data can only be read from VRAM bank A and will always be advanced by +8 bytes, because the first block read
-on T0-T1 will be discarded in favor of the second block read at T2-T3.
+then bitmap data can only be read from VRAM bank A and no shifting happens, as the reads from T0 and T1 are sufficient.
+The T2 and T3 reads go unused. This acts more like a slot reservation rather than actually reading the data from VRAM.
 
 If you also set up NBG1 with the same parameters as NBG0 and use the following timings (seen in Doukyuusei - if):
 
@@ -145,6 +147,15 @@ If you also set up NBG1 with the same parameters as NBG0 and use the following t
 
 then both NBG0 and NBG1 will read exactly one chunk of bitmap data each without interfering with the address, since each
 NBG has its own address counter.
+
+This final example occurs on Baroque Report - CD Data File:
+
+   Bank  T0  T1  T2  T3
+   A     CP0 CP0 CP0 CP0
+   B     CP0 CP0 CP0 CP0
+
+Both reads to VRAM bank A and B start at T0, so no shifting occurs.
+
 
 
 

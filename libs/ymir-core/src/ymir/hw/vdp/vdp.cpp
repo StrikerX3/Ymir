@@ -3173,46 +3173,26 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
     std::array<uint8, 4> pn = {0, 0, 0, 0}; // pattern name access masks
     std::array<uint8, 4> cp = {0, 0, 0, 0}; // character pattern access masks
 
-    // TODO: this should probably be extended to scroll NBGs too
+    // First bitmap CP access timing slot per NBG. 0xFF means no accesses found.
+    std::array<uint8, 4> firstBmAccessTiming = {0xFF, 0xFF, 0xFF, 0xFF};
 
-    // How many bitmap CP accesses there have been so far per NBG
-    std::array<uint8, 4> bmAccesses = {0, 0, 0, 0};
-
-    // How many bitmap CP accesses are required for each bitmap NBG (in log base 2)
-    std::array<uint8, 4> bmRequiredAccessShift = {0, 0, 0, 0};
-    for (uint32 nbg = 0; nbg < 4; ++nbg) {
-        auto &bgParams = regs2.bgParams[nbg + 1];
-        if (!bgParams.bitmap) {
-            continue;
-        }
-
-        uint8 &expectedCount = bmRequiredAccessShift[nbg];
-
-        // Start with a base count of 1 (2**0)
-        expectedCount = 0;
-
-        // Apply ZMCTL modifiers
-        if ((nbg == 0 && regs2.ZMCTL.N0ZMQT) || (nbg == 1 && regs2.ZMCTL.N1ZMQT)) {
-            expectedCount += 2;
-        } else if ((nbg == 0 && regs2.ZMCTL.N0ZMHF) || (nbg == 1 && regs2.ZMCTL.N1ZMHF)) {
-            expectedCount += 1;
-        }
-
-        // Apply color format modifiers
-        switch (bgParams.colorFormat) {
-        case ColorFormat::Palette16: break;
-        case ColorFormat::Palette256: expectedCount += 1; break;
-        case ColorFormat::Palette2048: expectedCount += 2; break;
-        case ColorFormat::RGB555: expectedCount += 2; break;
-        case ColorFormat::RGB888: expectedCount += 3; break;
-        }
-    }
+    // First bitmap CP access found per NBG per bank.
+    std::array<std::array<bool, 4>, 4> firstBmAccessFound = {{
+        {false, false, false, false},
+        {false, false, false, false},
+        {false, false, false, false},
+        {false, false, false, false},
+    }};
 
     for (uint8 i = 0; i < 8; ++i) {
-        // Whether a bitmap CP access has been found in this timing slot per NBG
-        std::array<bool, 4> bmHasAccess = {false, false, false, false};
-
         for (uint8 bankIndex = 0; const auto &bank : regs2.cyclePatterns.timings) {
+            if (bankIndex == 1 && !regs2.vramControl.partitionVRAMA) {
+                continue;
+            }
+            if (bankIndex == 3 && !regs2.vramControl.partitionVRAMB) {
+                continue;
+            }
+
             const auto timing = bank[i];
             switch (timing) {
             case CyclePatterns::PatNameNBG0: [[fallthrough]];
@@ -3238,42 +3218,52 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // Test cases:
                 //
                 // clang-format off
-                //  # Res  ZM  Color   CP mapping    Delay?  Game screen
-                //  1 hi   1x  pal256  CP0 01..      no      Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
-                //  2 hi   1x  pal256  CP0 ..23      yes     Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
-                //  3 hi   1x  pal256  CP0 01..      no      Doukyuusei - if, title screen
-                //  4 hi   1x  pal256  CP1 ..23      no      Doukyuusei - if, title screen
-                //  5 hi   1x  pal256  CP? 01..      no      Duke Nukem 3D, Netlink pages
-                //  6 hi   1x  pal256  CP? 0123      no      Sonic Jam, art gallery
-                //  7 hi   1x  rgb555  CP? 0123      no      Steam Heart's, title screen
-                //  8 lo   1x  pal16   CP? 0123....  no      Groove on Fight, scrolling background in Options screen
-                //  9 lo   1x  pal256  CP? 01......  no      Mr. Bones, in-game graphics
-                // 10 lo   1x  pal256  CP? 01......  no      DoDonPachi, title screen background
-                // 11 lo   1x  pal256  CP? 01......  no      Jung Rhythm, title screen
-                // 12 lo   1x  pal256  CP? 01......  no      The Need for Speed, menus
-                // 13 lo   1x  pal256  CP? ..23....  no      The Legend of Oasis, in-game HUD
-                // 14 lo   1x  rgb555  CP? 0123....  no      Jung Rhythm, title screen
-                // 15 lo   1x  rgb888  CP? 01234567  no      Street Fighter Zero 3, Capcom logo FMV
+                //  # Res  ZM  Color  Bnk  CP mapping    Delay?  Game screen
+                //  1 hi   1x  pal256  A   CP0 01..      no      Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
+                //                     B   CP0 ..23      yes     Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
+                //  2 hi   1x  pal256  A   CP0 01..      no      Doukyuusei - if, title screen
+                //                     B   CP1 ..23      no      Doukyuusei - if, title screen
+                //  3 hi   1x  pal256  A0  CP0 01..      no      Duke Nukem 3D, Netlink pages
+                //                     A1  CP0 01..      no      Duke Nukem 3D, Netlink pages
+                //                     B0  CP0 01..      no      Duke Nukem 3D, Netlink pages
+                //                     B1  CP0 01..      no      Duke Nukem 3D, Netlink pages
+                //  4 hi   1x  pal256  A   CP0 0123      no      Baroque Report, art screens
+                //                     B   CP0 0123      no      Baroque Report, art screens
+                //  5 hi   1x  pal256  A0  CP0 0123      no      Sonic Jam, art gallery
+                //                     A1  CP0 0123      no      Sonic Jam, art gallery
+                //                     B0  CP0 0123      no      Sonic Jam, art gallery
+                //                     B1  CP0 0123      no      Sonic Jam, art gallery
+                //  6 hi   1x  rgb555  A   CP0 0123      no      Steam Heart's, title screen
+                //                     B   CP0 0123      no      Steam Heart's, title screen
+                //  7 lo   1x  pal16       CP? 0123....  no      Groove on Fight, scrolling background in Options screen
+                //  8 lo   1x  pal256      CP? 01......  no      Mr. Bones, in-game graphics
+                //  9 lo   1x  pal256      CP? 01......  no      DoDonPachi, title screen background
+                // 10 lo   1x  pal256      CP? 01......  no      Jung Rhythm, title screen
+                // 11 lo   1x  pal256      CP? 01......  no      The Need for Speed, menus
+                // 12 lo   1x  pal256      CP? ..23....  no      The Legend of Oasis, in-game HUD
+                // 13 lo   1x  rgb555      CP? 0123....  no      Jung Rhythm, title screen
+                // 14 lo   1x  rgb888      CP? 01234567  no      Street Fighter Zero 3, Capcom logo FMV
                 // clang-format on
                 //
-                // Seems like the "delay" is caused by configuring multiple reads to the same NBG in a single cycle.
-                // In cases #1 and #2, CP0 needs two cycles, but is assigned 2x2 cycles to read data.
-                // Data from VRAM bank A is read fine, but VRAM bank B seems to be "pushed ahead" by 8 bytes, as if the
-                // address counter gets confused. Seems to be very similar to what happens to VC reads.
-                // In cases #3 and #4 we have the same display settings but CP0 gets two cycles and CP1 gets two cycles.
-                // These cause no "delay".
+                // Seems like the "delay" is caused by configuring out-of-phase reads for an NBG in different banks.
+                // In case #1, CP0 is assigned to T0-T1 on bank A and T2-T3 on bank B. This is out of phase, so bank B
+                // reads are delayed.
+                // In case #2 we have the same display settings but CP0 gets two cycles and CP1 gets two cycles.
+                // These cause no "delay" because they're different NBGs.
+                // Case #3 has no delay because all reads for the same NBG are assigned to the same cycle slot.
+                // Cases #4 and #5 include more reads than necessary for the NBG, but because they all start on the same
+                // slot, no delay occurs.
 
-                // TODO: seems to only apply to hi-res modes
+                // FIXME: seems to only apply to hi-res modes
                 if (hires) {
                     auto &bgParams = regs2.bgParams[bgIndex + 1];
                     if (bgParams.bitmap) {
-                        if (!bmHasAccess[bgIndex]) {
-                            bmHasAccess[bgIndex] = true;
-                            ++bmAccesses[bgIndex];
+                        if (firstBmAccessTiming[bgIndex] == 0xFF) {
+                            firstBmAccessTiming[bgIndex] = i;
+                        } else if (!firstBmAccessFound[bgIndex][bankIndex] && i > firstBmAccessTiming[bgIndex]) {
+                            bgParams.bitmapDataOffset[bankIndex] = 8u;
                         }
-                        const uint32 numAccesses = bmAccesses[bgIndex];
-                        const uint32 accessShift = bmRequiredAccessShift[bgIndex];
-                        bgParams.bitmapDataOffset[bankIndex] = ((numAccesses - 1u) >> accessShift) * 8u;
+                        firstBmAccessFound[bgIndex][bankIndex] = true;
                     }
                 }
                 break;
@@ -3522,7 +3512,8 @@ FORCE_INLINE void VDP::VDP2PrepareLine(uint32 y) {
 
     for (auto &field : m_vramFetchers) {
         for (auto &fetcher : field) {
-            fetcher.lastCharIndex = 0xFFFFFFFF; // force-fetch first character
+            fetcher.lastCharIndex = 0xFFFFFFFF;     // force-fetch first character
+            fetcher.bitmapDataAddress = 0xFFFFFFFF; // force-fetch first bitmap chunk
         }
     }
 }
