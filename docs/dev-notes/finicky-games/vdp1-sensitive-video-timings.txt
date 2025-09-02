@@ -2,6 +2,8 @@
 Games that are sensitive to VDP1 and video signal timings
 =========================================================
 
+See system-info/vdp1-erase-swap-timings.txt
+
 What to test to verify VDP1 framebuffer erase and swap timings:
   DragonHeart - Fire & Steel    sprites get corrupted
   I Love Donald Duck            sprites linger on items menu
@@ -82,45 +84,3 @@ Powerslave/Exhumed (intro FMV)
     [VBlank OUT] FCM=1 FCT=1 -- requests framebuffer swap; happens halfway through the line's HBlank
     [shortly after] PTM=1 -- begins rendering new VDP1 frame
   Frame 3: nothing
-
-
-=======
-Context
-=======
-
-Relevant VDP1 registers:
-  VBE=0 disables VBlank Erase mode. VBE=1 enables it.
-
-  FCM=0 FCT=0 is 1-cycle mode - framebuffer erase happens at every VBlank IN HBlank IN and framebuffer swap happens halfway through HBlank on every VBlank OUT.
-  Presumably FCM=0 FCT=1 works the same.
-
-  PTM defines VDP1 rendering triggers:
-    0 = never
-    1 = immediately upon writing this value (but only if changed from something else)
-    2 = on framebuffer swap
-
-  Manual erase is set when writing FCM=1 FCT=0 to FBCR.
-  Manual swap is set when writing FCM=1 FCT=1 to FBCR.
-
-  Manual erase is handled in the next frame.
-  If a manual swap is also requested, the erase happens just before the swap.
-
-Relevant video signal events:
-  VBlank IN
-    Happens at the start of the first scanline past the display area (aka the first bottom border line)
-    Triggers the VBlank IN interrupt on the SCU
-      Most games use this to set up FCM, FCT, sometimes VBE and PTM
-  VBlank OUT
-    Happens at the start of the last scanline (at least in this emulator)
-    Triggers the VBlank OUT interrupt on the SCU
-      Some games use this to set VBE=0 and manually start VDP1 rendering with PTM=1
-      Some games also use this to set FCM=1 FCT=1 to immediately swap framebuffers
-  HBlank IN during first line of VBlank IN
-    Triggers the HBlank IN interrupt on the SCU (as does HBlank IN on any other line)
-    Triggers VDP1 framebuffer erase if FCM=0 (1-cycle mode) or VBE=1 (VBlank Erase)
-    Does not respond to manual framebuffer erase, nor does it clear the flag
-  Halfway through HBlank during VBlank OUT
-    Stops framebuffer erase if in progress
-    Triggers the manual framebuffer erase if requested in the previous frame and clears the manual erase flag
-    Triggers VDP1 framebuffer swap if FCM=0 FCT=0 (1-cycle mode) or a manual swap was requested
-      Clears the manual swap flag

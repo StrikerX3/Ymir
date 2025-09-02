@@ -1,0 +1,50 @@
+=======================
+VDP1 erase/swap timings
+=======================
+
+Relevant VDP1 registers:
+  TVMD includes the VBlank erase setting:
+    VBE=0 disables VBlank Erase mode. VBE=1 enables it.
+    Framebuffer erase can occur during display (VBE=0) or during VBlank (VBE=1).
+
+  FBCR defines erase/swap mode among other things:
+    FCM=0 FCT=0 is 1-cycle mode.
+    FCM=0 FCT=1 is presumably 1-cycle mode as well.
+    FCM=1 FCT=0 is manual erase.
+    FCM=1 FCT=1 is manual swap.
+    Whenever FBCR is written to, an internal flag is set to indicate that FCM/FCT need to be handled next frame.
+    If multiple writes are done to this register in a single frame, only the last value is honored.
+
+  PTM defines VDP1 rendering triggers:
+    0 = never
+    1 = immediately upon writing this value
+    2 = on framebuffer swap
+
+  FCM and FCT are processed at the HBlank of the first active display line:
+    If FCM=0, setup erase and perform swap
+    If FCM=1 FCT=0 and FBCR was written to before this HBlank, setup erase only
+    If FCM=1 FCT=1 and FBCR was written to before this HBlank, perform swap only
+
+  Swap simply flips the draw/display framebuffer selector.
+  Erase is cycle-counted and writes one 16-bit value every 8 cycles.
+    When done during the display period, it never writes to current VCNT and beyond.
+    When done during VBlank, no Y coordinate restriction applies.
+
+  VBE=1 is processed at the first HBlank of the VBlank period and lasts until the next VBlank OUT.
+
+Relevant video signal events:
+  VBlank IN
+    Happens at the start of the first scanline past the display area (aka the first bottom border line)
+    Triggers the VBlank IN interrupt on the SCU
+      Most games use this to set up FCM, FCT, sometimes VBE and PTM
+  VBlank OUT
+    Happens at the start of the last scanline (at least in this emulator)
+    Triggers the VBlank OUT interrupt on the SCU
+      Some games use this to set VBE=0 and manually start VDP1 rendering with PTM=1
+      Some games also use this to set FCM=1 FCT=1 to immediately swap framebuffers
+  HBlank IN during first line of VBlank IN
+    Triggers the HBlank IN interrupt on the SCU (as does HBlank IN on any other line)
+    Triggers VDP1 framebuffer erase if VBE=1 (VBlank Erase)
+  End of HBlank during VBlank OUT
+    Stops VBlank erase if in progress
+    Processes FCM and FCT, triggering swap and/or erase depending on their values

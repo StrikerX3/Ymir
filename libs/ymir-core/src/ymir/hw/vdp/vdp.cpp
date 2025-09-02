@@ -1142,6 +1142,7 @@ void VDP::BeginHPhaseLeftBorder() {
             erase = true;
             swap = true;
         } else if (m_state.regs1.fbParamsChanged) {
+            // Manual erase/swap
             if (m_state.regs1.fbSwapTrigger) {
                 swap = true;
             } else {
@@ -1149,6 +1150,7 @@ void VDP::BeginHPhaseLeftBorder() {
             }
         }
 
+        // Clear manual erase/swap trigger
         m_state.regs1.fbParamsChanged = false;
 
         // Reset cycles spent by VDP1 this frame
