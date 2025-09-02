@@ -157,8 +157,6 @@ This final example occurs on Baroque Report - CD Data File:
 Both reads to VRAM bank A and B start at T0, so no shifting occurs.
 
 
-
-
 Vertical cell scroll accesses
 -----------------------------
 
