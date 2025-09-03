@@ -4,6 +4,8 @@
 
 #include <ymir/hw/vdp/vdp.hpp>
 
+#include <ymir/media/loader/loader_bin_cue.hpp>
+
 #include <ymir/util/size_ops.hpp>
 
 #include <SDL3/SDL.h>
@@ -1092,12 +1094,28 @@ static void runVDP1AccuracySandbox(std::filesystem::path testPath) {
     }
 }
 
+static void runBinCueLoaderSandbox(std::filesystem::path cuePath) {
+    ymir::media::Disc disc{};
+    if (ymir::media::loader::bincue::Load(cuePath, disc, false)) {
+        fmt::println("Disc image loaded successfully");
+    }
+}
+
 int main(int argc, char **argv) {
     // runSandbox();
     // runBUPSandbox();
     // runInputSandbox();
     if (argc >= 2) {
-        runVDP1AccuracySandbox(argv[1]);
+        // runVDP1AccuracySandbox(argv[1]);
+        runBinCueLoaderSandbox(argv[1]);
+        // TODO: rework the whole CUE parser
+        // - apparently PREGAP and INDEX 00 should combine together
+        // - use a composite binary reader to join together multi-bin files into a single image
+        //   - track absolute FAD in those cases
+        //   - keep using single-file binary reader for single-bin images
+        // - multi-bin should not skip pregaps
+        //   - track FAD range should include INDEX 00
+        //   - starting FAD should point to INDEX 01 (when seeking to track)
     }
 
     return EXIT_SUCCESS;
