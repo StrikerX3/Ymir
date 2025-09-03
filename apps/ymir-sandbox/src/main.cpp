@@ -536,7 +536,7 @@ struct Sandbox {
     std::array<bool, SDL_SCANCODE_COUNT> keyRepeat;
 };
 
-void runSandbox() {
+static void runSandbox() {
     using clk = std::chrono::steady_clock;
     using namespace std::chrono_literals;
 
@@ -821,7 +821,7 @@ void runBUPSandbox() {
     }
 }
 
-void runInputSandbox() {
+static void runInputSandbox() {
     using clk = std::chrono::steady_clock;
     using namespace std::chrono_literals;
 
@@ -972,7 +972,7 @@ const sample_struct g_samples[] = {
 };
 // clang-format on
 
-void runVDP1AccuracySandbox(std::filesystem::path testPath) {
+static void runVDP1AccuracySandbox(std::filesystem::path testPath) {
     fmt::println("Reading tests from {}", testPath);
 
     for (auto &test : g_samples) {
