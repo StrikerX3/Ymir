@@ -11,6 +11,15 @@ Battle Monsters
   copy of the fighters' names at the bottom of the screen where the portrait frames are supposed to be.
 
 
+DoDonPachi
+----------
+  During initialization the MSH2 overwrites SSH2 code while the latter is running, causing it to jump to the illegal
+  instruction handler to recover.
+  The MSH2 copies some data from 21xxxx to 601Cxxx in a loop between 200014 and 20001E while the SSH2 is in its typical
+  FRT ICI wait loop at 601CC36-601CC3A. The copy overwrites the SSH2 code with invalid instructions.
+  The game works normally after the SSH2 recovers.
+
+
 Hang-On GP (USA)
 ----------------
   Displays garbage graphics for a few frames before the main menu is presented.
