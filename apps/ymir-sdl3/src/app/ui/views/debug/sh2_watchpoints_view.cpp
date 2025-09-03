@@ -154,15 +154,15 @@ void SH2WatchpointsView::Display() {
             ImGui::TextUnformatted(text);
         };
 
-        const float flagCheckboxWidth = frameHeight + flagsSpacing;
+        const float flagCheckboxWidth = frameHeight;
         const float baseOffset = hexFieldWidth + flagsSpacing;
 
         {
             ImGui::NewLine();
             float offset = baseOffset;
-            centerTextWithOffset("Read", offset, flagCheckboxWidth * 3);
-            offset += flagCheckboxWidth * 3;
-            centerTextWithOffset("Write", offset, flagCheckboxWidth * 3);
+            centerTextWithOffset("Read", offset, flagCheckboxWidth * 3 + flagsSpacing * 2);
+            offset += flagCheckboxWidth * 3 + flagsSpacing * 3;
+            centerTextWithOffset("Write", offset, flagCheckboxWidth * 3 + flagsSpacing * 2);
         }
 
         {
@@ -170,17 +170,16 @@ void SH2WatchpointsView::Display() {
             centerTextWithOffset("Address", 0, hexFieldWidth);
             float offset = baseOffset;
             centerTextWithOffset("B", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth;
+            offset += flagCheckboxWidth + flagsSpacing;
             centerTextWithOffset("W", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth;
+            offset += flagCheckboxWidth + flagsSpacing;
             centerTextWithOffset("L", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth;
+            offset += flagCheckboxWidth + flagsSpacing;
             centerTextWithOffset("B", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth;
+            offset += flagCheckboxWidth + flagsSpacing;
             centerTextWithOffset("W", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth;
+            offset += flagCheckboxWidth + flagsSpacing;
             centerTextWithOffset("L", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth;
         }
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(flagsSpacing, flagsSpacing));
