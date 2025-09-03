@@ -92,7 +92,12 @@ void VideoSettingsView::Display() {
         "When enabled, while synchronizing video, the GUI frame rate will be adjusted to the largest integer multiple "
         "of the emulator's target frame rate that's not greater than your display's refresh rate.\n"
         "When disabled, the GUI frame rate will be limited to the emulator's target frame rate.\n"
-        "Enabling this option can slightly reduce input latency on high refresh rate displays.",
+        "Enabling this option can slightly reduce input latency on high refresh rate displays.\n"
+        "\n"
+        "WARNING: Before enabling this option, disable the \"Synchronize video in windowed mode\" above and check if "
+        "the reported GUI frame rate matches your display's refresh rate. If it is capped to any value lower than your "
+        "display's refresh rate (e.g. 60 fps on a 120 Hz display), enabling this option will slow down emulation "
+        "significantly.",
         m_context.displayScale);
 
     MakeDirty(ImGui::Checkbox("Reduce video latency on low refresh rate displays", &settings.reduceLatency));
