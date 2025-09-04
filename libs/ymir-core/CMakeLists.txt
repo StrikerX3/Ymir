@@ -121,6 +121,7 @@ add_library(ymir-core
     include/ymir/media/loader/loader_mdf_mds.hpp
 
     include/ymir/media/binary_reader/binary_reader.hpp
+    include/ymir/media/binary_reader/binary_reader_composite.hpp
     include/ymir/media/binary_reader/binary_reader_file.hpp
     include/ymir/media/binary_reader/binary_reader_impl.hpp
     include/ymir/media/binary_reader/binary_reader_mem.hpp

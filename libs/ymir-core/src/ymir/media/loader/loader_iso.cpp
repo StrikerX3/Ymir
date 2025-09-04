@@ -66,7 +66,9 @@ bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM) {
     track.interleavedSubchannel = false;
     track.startFrameAddress = session.startFrameAddress + 150;
     track.endFrameAddress = session.endFrameAddress;
+    track.track01FrameAddress = track.startFrameAddress;
 
+    track.indices.emplace_back(); // index 00
     auto &index = track.indices.emplace_back();
     index.startFrameAddress = track.startFrameAddress;
     index.endFrameAddress = track.endFrameAddress;

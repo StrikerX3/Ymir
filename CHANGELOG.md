@@ -44,6 +44,7 @@ Introduced save state file version 9.
 - Media: Fix handling of Unicode characters when loading or saving the recent game disc list.
 - Media: Ignore absolute paths when loading images from CUE sheets; load from the same directory as the CUE sheet instead.
 - Media: Properly handle UTF-8-encoded CUE files referencing other files with Unicode characters.
+- Media: Rewrite CUE parser to hopefully fix some audio skipping issues.
 - SCSP: Allow M68K to fetch instructions from SCSP registers. Fixes CroNSF audio playback.
 - SCSP: Don't use SBCTL on slots that are playing samples from Sound RAM when the EG reaches the silence threshold. Fixes busted audio in Guardian Heroes and Elevator Action^2. (#155)
 - SCSP: Silence audio when MVOL=0. Fixes lingering sound/music when pausing in Sega Ages - Galaxy Force II. (#427)

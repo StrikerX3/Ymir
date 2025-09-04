@@ -760,7 +760,10 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
                 track = &session.tracks[session.lastTrackIndex - 1];
             }
             endTrack = track->index;
-            endIndex = track->indices.size() - 1;
+            endIndex = track->FindIndex(m_playEndPos);
+            if (endIndex == 0xFF) {
+                endIndex = track->indices.size() - 1;
+            }
         } else {
             endTrack = bit::extract<8, 15>(endParam);
             endIndex = bit::extract<0, 7>(endParam);
@@ -773,7 +776,7 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         }
         if (endParam == 0) {
             endTrack = session.lastTrackIndex + 1;
-            endIndex = session.tracks[session.lastTrackIndex].indices.size() + 1;
+            endIndex = session.tracks[session.lastTrackIndex].indices.size() - 1;
         }
 
         devlog::debug<grp::play_init>("Track:Index range {:02d}:{:02d}-{:02d}:{:02d} ", startTrack, startIndex,
@@ -785,14 +788,14 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         uint8 lastTrack = session.lastTrackIndex + 1;
         startTrack = std::clamp(startTrack, firstTrack, lastTrack);
         endTrack = std::clamp(endTrack, firstTrack, lastTrack);
-        startIndex = std::clamp<uint8>(startIndex, 1, session.tracks[startTrack - 1].indices.size());
-        endIndex = std::clamp<uint8>(endIndex, 1, session.tracks[endTrack - 1].indices.size());
+        startIndex = std::clamp<uint8>(startIndex, 1, session.tracks[startTrack - 1].indices.size() - 1);
+        endIndex = std::clamp<uint8>(endIndex, 1, session.tracks[endTrack - 1].indices.size() - 1);
         devlog::debug<grp::play_init>("Track:Index range after clamping {:02d}:{:02d}-{:02d}:{:02d}", startTrack,
                                       startIndex, endTrack, endIndex);
 
         // Play frame address range for the specified tracks
-        m_playStartPos = session.tracks[startTrack - 1].indices[startIndex - 1].startFrameAddress;
-        m_playEndPos = session.tracks[endTrack - 1].indices[endIndex - 1].endFrameAddress;
+        m_playStartPos = session.tracks[startTrack - 1].indices[startIndex].startFrameAddress;
+        m_playEndPos = session.tracks[endTrack - 1].indices[endIndex].endFrameAddress;
 
         uint32 frameAddress = m_status.frameAddress;
         if (resetPos || frameAddress < m_playStartPos || frameAddress > m_playEndPos) {
@@ -2037,7 +2040,7 @@ void CDBlock::CmdSeekDisc() {
             if (trackNum - 1 >= session.firstTrackIndex && trackNum - 1 <= session.lastTrackIndex) {
                 const auto &track = session.tracks[trackNum - 1];
                 m_status.statusCode = kStatusCodePause;
-                m_status.frameAddress = track.startFrameAddress;
+                m_status.frameAddress = track.track01FrameAddress;
                 m_status.flags = track.controlADR == 0x41 ? 0x8 : 0x0;
                 m_status.controlADR = track.controlADR;
                 m_status.track = trackNum;

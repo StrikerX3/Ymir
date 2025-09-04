@@ -40,8 +40,9 @@ struct Track {
 
     uint32 startFrameAddress = 0;
     uint32 endFrameAddress = 0;
+    uint32 track01FrameAddress = 0;
 
-    std::vector<Index> indices;
+    std::vector<Index> indices; // 00 to 99
 
     uint8 FindIndex(uint32 frameAddress) const {
         auto it = std::find_if(indices.begin(), indices.end(), [=](const Index &index) {
@@ -284,7 +285,7 @@ struct Session {
         for (int i = 0; i < 99; i++) {
             auto &track = tracks[i];
             if (track.controlADR != 0x00) {
-                toc[i] = (track.controlADR << 24u) | track.startFrameAddress;
+                toc[i] = (track.controlADR << 24u) | track.track01FrameAddress;
                 if (firstTrackNum == 0) {
                     firstTrackNum = i + 1;
                 }

@@ -210,6 +210,7 @@ bool Load(std::filesystem::path mdsPath, Disc &disc, bool preloadToRAM) {
 
             if (trackData.trackNum <= 99) {
                 auto &track = session.tracks[trackIndex];
+                track.indices.emplace_back(); // index 00
                 auto &index = track.indices.emplace_back();
                 track.controlADR = (trackData.controlADR << 4u) | (trackData.controlADR >> 4u);
                 if (track.controlADR == 0x01 && trackData.sectorSize != 2352) {
@@ -221,6 +222,7 @@ bool Load(std::filesystem::path mdsPath, Disc &disc, bool preloadToRAM) {
 
                 track.startFrameAddress = trackData.startSector + 150;
                 index.startFrameAddress = track.startFrameAddress;
+                track.track01FrameAddress = track.startFrameAddress;
                 track.interleavedSubchannel = trackData.subchannelMode != 0;
 
                 // Complete previous track
