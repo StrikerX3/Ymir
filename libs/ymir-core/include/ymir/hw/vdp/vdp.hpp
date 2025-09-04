@@ -242,7 +242,7 @@ private:
     }
 
     FORCE_INLINE uint32 MapRendererCRAMAddress(uint32 address) const {
-        return kCRAMAddressMapping[m_VDPRenderContext.vdp2.regs.vramControl.colorRAMMode >> 1][address & 0xFFF];
+        return kCRAMAddressMapping[m_renderingContext.vdp2.regs.vramControl.colorRAMMode >> 1][address & 0xFFF];
     }
 
     template <mem_primitive T>
@@ -599,7 +599,7 @@ private:
         size_t DequeueEvents(It first, size_t count) {
             return eventQueue.wait_dequeue_bulk(cTok, first, count);
         }
-    } m_VDPRenderContext;
+    } m_renderingContext;
 
     std::thread m_VDPRenderThread;
     std::thread m_VDPDeinterlaceRenderThread;

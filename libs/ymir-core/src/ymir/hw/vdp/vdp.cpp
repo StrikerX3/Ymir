@@ -89,7 +89,7 @@ VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
 
 VDP::~VDP() {
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::Shutdown());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::Shutdown());
         if (m_VDPRenderThread.joinable()) {
             m_VDPRenderThread.join();
         }
@@ -113,7 +113,7 @@ void VDP::Reset(bool hard) {
     m_VDP1TimingPenaltyPerWrite = kVDP1TimingPenaltyPerWrite;
 
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::Reset());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::Reset());
     } else {
         m_framebuffer.fill(0xFF000000);
     }
@@ -403,7 +403,7 @@ FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
     address &= 0x7FFFF;
     util::WriteBE<T>(&m_state.VRAM1[address], value);
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1VRAMWrite<T>(address, value));
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1VRAMWrite<T>(address, value));
     }
 
     if constexpr (!poke) {
@@ -428,7 +428,7 @@ FORCE_INLINE void VDP::VDP1WriteFB(uint32 address, T value) {
         util::WriteBE<T>(&m_altSpriteFB[m_state.displayFB ^ 1][address & 0x3FFFF], value);
     }
     // if (m_effectiveRenderVDP1InVDP2Thread) {
-    //     m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1FBWrite<T>(address, value));
+    //     m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1FBWrite<T>(address, value));
     // }
 }
 
@@ -442,7 +442,7 @@ template <bool poke>
 FORCE_INLINE void VDP::VDP1WriteReg(uint32 address, uint16 value) {
     address &= 0x7FFFF;
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1RegWrite(address, value));
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1RegWrite(address, value));
     }
     m_state.regs1.Write<poke>(address, value);
 
@@ -491,7 +491,7 @@ FORCE_INLINE void VDP::VDP2WriteVRAM(uint32 address, T value) {
     address &= 0x7FFFF;
     util::WriteBE<T>(&m_state.VRAM2[address], value);
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2VRAMWrite<T>(address, value));
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2VRAMWrite<T>(address, value));
     }
 }
 
@@ -526,7 +526,7 @@ FORCE_INLINE void VDP::VDP2WriteCRAM(uint32 address, T value) {
     util::WriteBE<T>(&m_state.CRAM[address], value);
     VDP2UpdateCRAMCache<T>(address);
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address, value));
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address, value));
     }
     if (m_state.regs2.vramControl.colorRAMMode == 0) {
         if constexpr (!poke) {
@@ -535,7 +535,7 @@ FORCE_INLINE void VDP::VDP2WriteCRAM(uint32 address, T value) {
         util::WriteBE<T>(&m_state.CRAM[address ^ 0x800], value);
         VDP2UpdateCRAMCache<T>(address);
         if (m_threadedVDPRendering) {
-            m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address ^ 0x800, value));
+            m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address ^ 0x800, value));
         }
     }
 }
@@ -548,7 +548,7 @@ FORCE_INLINE uint16 VDP::VDP2ReadReg(uint32 address) const {
 FORCE_INLINE void VDP::VDP2WriteReg(uint32 address, uint16 value) {
     address &= 0x1FF;
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2RegWrite(address, value));
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2RegWrite(address, value));
     }
     m_state.regs2.Write(address, value);
     devlog::trace<grp::vdp2_regs>("VDP2 register write to {:03X} = {:04X}", address, value);
@@ -565,7 +565,7 @@ FORCE_INLINE void VDP::VDP2WriteReg(uint32 address, uint16 value) {
     case 0x028: [[fallthrough]]; // CHCTLA
     case 0x02A:                  // CHCTLB
         if (m_threadedVDPRendering) {
-            m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2UpdateEnabledBGs());
+            m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2UpdateEnabledBGs());
         } else {
             VDP2UpdateEnabledBGs();
         }
@@ -600,9 +600,9 @@ FORCE_INLINE void VDP::VDP2WriteReg(uint32 address, uint16 value) {
 
 void VDP::SaveState(state::VDPState &state) const {
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::PreSaveStateSync());
-        m_VDPRenderContext.preSaveSyncSignal.Wait();
-        m_VDPRenderContext.preSaveSyncSignal.Reset();
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::PreSaveStateSync());
+        m_renderingContext.preSaveSyncSignal.Wait();
+        m_renderingContext.preSaveSyncSignal.Reset();
     }
 
     m_state.SaveState(state);
@@ -664,8 +664,8 @@ void VDP::SaveState(state::VDPState &state) const {
 
     state.renderer.vertCellScrollInc = m_vertCellScrollInc;
 
-    state.renderer.displayFB = m_VDPRenderContext.displayFB;
-    state.renderer.vdp1Done = m_VDPRenderContext.vdp1Done;
+    state.renderer.displayFB = m_renderingContext.displayFB;
+    state.renderer.vdp1Done = m_renderingContext.vdp1Done;
 }
 
 bool VDP::ValidateState(const state::VDPState &state) const {
@@ -684,9 +684,9 @@ void VDP::LoadState(const state::VDPState &state) {
     VDP2UpdateEnabledBGs();
 
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::PostLoadStateSync());
-        m_VDPRenderContext.postLoadSyncSignal.Wait();
-        m_VDPRenderContext.postLoadSyncSignal.Reset();
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::PostLoadStateSync());
+        m_renderingContext.postLoadSyncSignal.Wait();
+        m_renderingContext.postLoadSyncSignal.Reset();
     }
 
     m_VDP1RenderContext.sysClipH = state.renderer.vdp1State.sysClipH;
@@ -746,8 +746,8 @@ void VDP::LoadState(const state::VDPState &state) {
 
     m_vertCellScrollInc = state.renderer.vertCellScrollInc;
 
-    m_VDPRenderContext.displayFB = state.renderer.displayFB;
-    m_VDPRenderContext.vdp1Done = state.renderer.vdp1Done;
+    m_renderingContext.displayFB = state.renderer.displayFB;
+    m_renderingContext.vdp1Done = state.renderer.vdp1Done;
 
     UpdateResolution<true>();
 
@@ -764,7 +764,7 @@ void VDP::LoadState(const state::VDPState &state) {
 void VDP::SetLayerEnabled(Layer layer, bool enabled) {
     m_layerRendered[static_cast<size_t>(layer)] = enabled;
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2UpdateEnabledBGs());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2UpdateEnabledBGs());
     } else {
         VDP2UpdateEnabledBGs();
     }
@@ -798,14 +798,14 @@ void VDP::EnableThreadedVDP(bool enable) {
 
     m_threadedVDPRendering = enable;
     if (enable) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::UpdateEffectiveRenderingFlags());
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::PostLoadStateSync());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::UpdateEffectiveRenderingFlags());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::PostLoadStateSync());
         m_VDPRenderThread = std::thread{[&] { VDPRenderThread(); }};
         m_VDPDeinterlaceRenderThread = std::thread{[&] { VDPDeinterlaceRenderThread(); }};
-        m_VDPRenderContext.postLoadSyncSignal.Wait();
-        m_VDPRenderContext.postLoadSyncSignal.Reset();
+        m_renderingContext.postLoadSyncSignal.Wait();
+        m_renderingContext.postLoadSyncSignal.Reset();
     } else {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::Shutdown());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::Shutdown());
         if (m_VDPRenderThread.joinable()) {
             m_VDPRenderThread.join();
         }
@@ -814,7 +814,7 @@ void VDP::EnableThreadedVDP(bool enable) {
         }
 
         VDPRenderEvent dummy{};
-        while (m_VDPRenderContext.eventQueue.try_dequeue(dummy)) {
+        while (m_renderingContext.eventQueue.try_dequeue(dummy)) {
         }
         UpdateEffectiveRenderingFlags();
     }
@@ -823,10 +823,10 @@ void VDP::EnableThreadedVDP(bool enable) {
 void VDP::IncludeVDP1RenderInVDPThread(bool enable) {
     m_renderVDP1OnVDP2Thread = enable;
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::UpdateEffectiveRenderingFlags());
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1StateSync());
-        m_VDPRenderContext.postLoadSyncSignal.Wait();
-        m_VDPRenderContext.postLoadSyncSignal.Reset();
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::UpdateEffectiveRenderingFlags());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1StateSync());
+        m_renderingContext.postLoadSyncSignal.Wait();
+        m_renderingContext.postLoadSyncSignal.Reset();
     } else {
         UpdateEffectiveRenderingFlags();
     }
@@ -1044,13 +1044,13 @@ void VDP::BeginHPhaseActiveDisplay() {
         }
 
         if (m_threadedVDPRendering) {
-            if (m_effectiveRenderVDP1InVDP2Thread && m_VDPRenderContext.vdp1Done) {
+            if (m_effectiveRenderVDP1InVDP2Thread && m_renderingContext.vdp1Done) {
                 m_state.regs1.currFrameEnded = true;
                 m_cbTriggerSpriteDrawEnd();
                 m_cbVDP1DrawFinished();
-                m_VDPRenderContext.vdp1Done = false;
+                m_renderingContext.vdp1Done = false;
             }
-            m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2DrawLine(m_state.regs2.VCNT));
+            m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2DrawLine(m_state.regs2.VCNT));
             VDP2CalcAccessPatterns(m_state.regs2);
         } else {
             const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
@@ -1085,10 +1085,10 @@ void VDP::BeginHPhaseRightBorder() {
         if (m_state.regs1.vblankErase) {
             // TODO: cycle-count the erase process, starting here
             if (m_threadedVDPRendering) {
-                m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
+                m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
                 if (!m_effectiveRenderVDP1InVDP2Thread) {
-                    m_VDPRenderContext.eraseFramebufferReadySignal.Wait();
-                    m_VDPRenderContext.eraseFramebufferReadySignal.Reset();
+                    m_renderingContext.eraseFramebufferReadySignal.Wait();
+                    m_renderingContext.eraseFramebufferReadySignal.Reset();
                     VDP1EraseFramebuffer();
                 }
             } else {
@@ -1102,14 +1102,14 @@ void VDP::BeginHPhaseRightBorder() {
             m_VTimingField = m_state.regs2.TVSTAT.ODD;
             devlog::trace<grp::base>("Switched to {} field", (m_state.regs2.TVSTAT.ODD ? "odd" : "even"));
             if (m_threadedVDPRendering) {
-                m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::OddField(m_state.regs2.TVSTAT.ODD));
+                m_renderingContext.EnqueueEvent(VDPRenderEvent::OddField(m_state.regs2.TVSTAT.ODD));
             }
         } else {
             if (m_state.regs2.TVSTAT.ODD != 1) {
                 m_state.regs2.TVSTAT.ODD = 1;
                 m_VTimingField = 0;
                 if (m_threadedVDPRendering) {
-                    m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::OddField(m_state.regs2.TVSTAT.ODD));
+                    m_renderingContext.EnqueueEvent(VDPRenderEvent::OddField(m_state.regs2.TVSTAT.ODD));
                 }
             }
         }
@@ -1203,9 +1203,9 @@ void VDP::BeginVPhaseBlankingAndSync() {
     // End frame
     devlog::trace<grp::base>("End VDP2 frame");
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2EndFrame());
-        m_VDPRenderContext.renderFinishedSignal.Wait();
-        m_VDPRenderContext.renderFinishedSignal.Reset();
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2EndFrame());
+        m_renderingContext.renderFinishedSignal.Wait();
+        m_renderingContext.renderFinishedSignal.Reset();
     }
     m_cbFrameComplete(m_framebuffer.data(), m_HRes, m_VRes);
 
@@ -1214,10 +1214,10 @@ void VDP::BeginVPhaseBlankingAndSync() {
         m_VDP1RenderContext.doDisplayErase = false;
         // TODO: cycle-count the erase process from the start of the display when latched VBE=0
         if (m_threadedVDPRendering) {
-            m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
+            m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
             if (!m_effectiveRenderVDP1InVDP2Thread) {
-                m_VDPRenderContext.eraseFramebufferReadySignal.Wait();
-                m_VDPRenderContext.eraseFramebufferReadySignal.Reset();
+                m_renderingContext.eraseFramebufferReadySignal.Wait();
+                m_renderingContext.eraseFramebufferReadySignal.Reset();
                 VDP1EraseFramebuffer();
             }
         } else {
@@ -1248,7 +1248,7 @@ void VDP::BeginVPhaseLastLine() {
     devlog::trace<grp::base>("Begin VDP2 frame, VDP1 framebuffer {}", m_state.displayFB);
 
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP2BeginFrame());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2BeginFrame());
     } else {
         VDP2InitFrame();
     }
@@ -1267,7 +1267,7 @@ void VDP::UpdateEffectiveRenderingFlags() {
 void VDP::VDPRenderThread() {
     util::SetCurrentThreadName("VDP render thread");
 
-    auto &rctx = m_VDPRenderContext;
+    auto &rctx = m_renderingContext;
 
     std::array<VDPRenderEvent, 64> events{};
 
@@ -1296,7 +1296,7 @@ void VDP::VDPRenderThread() {
                 rctx.framebufferSwapSignal.Set();
                 break;
             case EvtType::VDP1BeginFrame:
-                m_VDPRenderContext.vdp1Done = false;
+                m_renderingContext.vdp1Done = false;
                 for (int i = 0; i < 10000 && m_VDP1RenderContext.rendering; i++) {
                     (this->*m_fnVDP1ProcessCommand)();
                 }
@@ -1453,7 +1453,7 @@ void VDP::VDPRenderThread() {
 void VDP::VDPDeinterlaceRenderThread() {
     util::SetCurrentThreadName("VDP deinterlace render thread");
 
-    auto &rctx = m_VDPRenderContext;
+    auto &rctx = m_renderingContext;
 
     while (true) {
         rctx.deinterlaceRenderBeginSignal.Wait();
@@ -1472,7 +1472,7 @@ void VDP::VDPDeinterlaceRenderThread() {
 template <mem_primitive T>
 FORCE_INLINE T VDP::VDP1ReadRendererVRAM(uint32 address) {
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        return util::ReadBE<T>(&m_VDPRenderContext.vdp1.VRAM[address & 0x7FFFF]);
+        return util::ReadBE<T>(&m_renderingContext.vdp1.VRAM[address & 0x7FFFF]);
     } else {
         return VDP1ReadVRAM<T>(address);
     }
@@ -1483,7 +1483,7 @@ FORCE_INLINE T VDP::VDP2ReadRendererVRAM(uint32 address) {
     if (m_threadedVDPRendering) {
         // TODO: handle VRSIZE.VRAMSZ
         address &= 0x7FFFF;
-        return util::ReadBE<T>(&m_VDPRenderContext.vdp2.VRAM[address]);
+        return util::ReadBE<T>(&m_renderingContext.vdp2.VRAM[address]);
     } else {
         return VDP2ReadVRAM<T>(address);
     }
@@ -1499,19 +1499,19 @@ FORCE_INLINE T VDP::VDP2ReadRendererCRAM(uint32 address) {
         }
 
         address = MapRendererCRAMAddress(address);
-        return util::ReadBE<T>(&m_VDPRenderContext.vdp2.CRAM[address]);
+        return util::ReadBE<T>(&m_renderingContext.vdp2.CRAM[address]);
     } else {
         return VDP2ReadCRAM<T, false>(address);
     }
 }
 
 FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &VDP::VDP2GetRendererVRAM() {
-    return m_threadedVDPRendering ? m_VDPRenderContext.vdp2.VRAM : m_state.VRAM2;
+    return m_threadedVDPRendering ? m_renderingContext.vdp2.VRAM : m_state.VRAM2;
 }
 
 FORCE_INLINE Color888 VDP::VDP2ReadRendererColor5to8(uint32 address) const {
     if (m_threadedVDPRendering) {
-        return m_VDPRenderContext.vdp2.CRAMCache[(address / sizeof(uint16)) & 0x7FF];
+        return m_renderingContext.vdp2.CRAMCache[(address / sizeof(uint16)) & 0x7FF];
     } else {
         return m_CRAMCache[(address / sizeof(uint16)) & 0x7FF];
     }
@@ -1538,7 +1538,7 @@ void VDP::UpdateFunctionPointers() {
 
 FORCE_INLINE VDP1Regs &VDP::VDP1GetRegs() {
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        return m_VDPRenderContext.vdp1.regs;
+        return m_renderingContext.vdp1.regs;
     } else {
         return m_state.regs1;
     }
@@ -1546,7 +1546,7 @@ FORCE_INLINE VDP1Regs &VDP::VDP1GetRegs() {
 
 FORCE_INLINE const VDP1Regs &VDP::VDP1GetRegs() const {
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        return m_VDPRenderContext.vdp1.regs;
+        return m_renderingContext.vdp1.regs;
     } else {
         return m_state.regs1;
     }
@@ -1554,7 +1554,7 @@ FORCE_INLINE const VDP1Regs &VDP::VDP1GetRegs() const {
 
 FORCE_INLINE uint8 VDP::VDP1GetDisplayFBIndex() const {
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        return m_VDPRenderContext.displayFB;
+        return m_renderingContext.displayFB;
     } else {
         return m_state.displayFB;
     }
@@ -1620,9 +1620,9 @@ FORCE_INLINE void VDP::VDP1SwapFramebuffer() {
                                     m_state.displayFB ^ 1);
 
     if (m_threadedVDPRendering) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1SwapFramebuffer());
-        m_VDPRenderContext.framebufferSwapSignal.Wait();
-        m_VDPRenderContext.framebufferSwapSignal.Reset();
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1SwapFramebuffer());
+        m_renderingContext.framebufferSwapSignal.Wait();
+        m_renderingContext.framebufferSwapSignal.Reset();
     }
 
     m_state.regs1.prevCommandAddress = m_state.regs1.currCommandAddress;
@@ -1668,7 +1668,7 @@ void VDP::VDP1BeginFrame() {
 
     m_VDP1RenderContext.rendering = true;
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        m_VDPRenderContext.EnqueueEvent(VDPRenderEvent::VDP1BeginFrame());
+        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1BeginFrame());
     }
 }
 
@@ -1678,7 +1678,7 @@ void VDP::VDP1EndFrame() {
     m_VDP1TimingPenaltyCycles = 0;
 
     if (m_effectiveRenderVDP1InVDP2Thread) {
-        m_VDPRenderContext.vdp1Done = true;
+        m_renderingContext.vdp1Done = true;
     } else {
         m_state.regs1.currFrameEnded = true;
         m_cbTriggerSpriteDrawEnd();
@@ -2680,7 +2680,7 @@ void VDP::VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress) {
 
 FORCE_INLINE VDP2Regs &VDP::VDP2GetRegs() {
     if (m_threadedVDPRendering) {
-        return m_VDPRenderContext.vdp2.regs;
+        return m_renderingContext.vdp2.regs;
     } else {
         return m_state.regs2;
     }
@@ -2688,7 +2688,7 @@ FORCE_INLINE VDP2Regs &VDP::VDP2GetRegs() {
 
 FORCE_INLINE const VDP2Regs &VDP::VDP2GetRegs() const {
     if (m_threadedVDPRendering) {
-        return m_VDPRenderContext.vdp2.regs;
+        return m_renderingContext.vdp2.regs;
     } else {
         return m_state.regs2;
     }
@@ -2696,7 +2696,7 @@ FORCE_INLINE const VDP2Regs &VDP::VDP2GetRegs() const {
 
 FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &VDP::VDP2GetVRAM() {
     if (m_threadedVDPRendering) {
-        return m_VDPRenderContext.vdp2.VRAM;
+        return m_renderingContext.vdp2.VRAM;
     } else {
         return m_state.VRAM2;
     }
