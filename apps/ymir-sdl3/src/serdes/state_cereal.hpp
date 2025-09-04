@@ -408,8 +408,11 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
         s.renderer.normBGLayerStates[3].scrollAmountV = (s.regs2.SCYIN3 << 8u);
     }
     if (version < 9) {
-        // Convert old "erase" value into new doDisplayErase flag
-        s.renderer.vdp1State.doDisplayErase &= !bit::test<3>(s.regs1.TVMR);
+        // Convert old "erase" value into new doDisplayErase and doVBlankErase flags
+        const bool erase = s.renderer.vdp1State.doDisplayErase;
+        const bool vbe = bit::test<3>(s.regs1.TVMR);
+        s.renderer.vdp1State.doDisplayErase &= !vbe;
+        s.renderer.vdp1State.doVBlankErase = erase && vbe;
     }
 }
 
@@ -519,6 +522,7 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     // - New fields
     //   - doubleV = 0
     //   - cyclesSpent = 0
+    //   - doVBlankErase = true when erase && VBE=1, otherwise false
     // - Changed fields
     //   - erase -> doDisplayErase = true when erase && VBE=0, otherwise false
     // v5:
@@ -535,6 +539,10 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     ar(s.localCoordX, s.localCoordY);
     ar(s.rendering);
     ar(s.doDisplayErase);
+    if (version >= 9) {
+        ar(s.doVBlankErase);
+        // Default value for versions < 9 handled in the VDPState serializer
+    }
     ar(s.cycleCount);
     if (version >= 9) {
         ar(s.cyclesSpent);

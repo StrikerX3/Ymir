@@ -31,6 +31,7 @@ Marvel Super Heroes
 -----
 
 Panzer Dragoon 1 (in-game)
+  Uses PTM=2
   Frame 1:
     [VBlank IN]  VBE=1 -- expects the erase to happen at this line's HBlank IN
     [VBlank OUT] VBE=0 FCM=1 FCT=1 -- expects the swap to happen at this line's HBlank IN (halfway through)

@@ -261,6 +261,8 @@ private:
     std::array<std::array<uint32, 6>, 2> m_VTimings; // [even/odd][phase]
     uint32 m_VTimingField;
     uint16 m_VCounterSkip;
+    uint64 m_VBlankEraseCyclesPerLine;        // cycles per line for VBlank erase
+    std::array<uint64, 2> m_VBlankEraseLines; // lines in VBlank erase
 
     // Moves to the next phase.
     void UpdatePhase();
@@ -713,6 +715,7 @@ private:
         bool rendering;
 
         bool doDisplayErase; // Erase scheduled for display period
+        bool doVBlankErase;  // Erase scheduled for VBlank period
 
         // Latched erase parameters
         uint16 eraseWriteValue;  // 16-bit write value
@@ -1121,7 +1124,8 @@ private:
     uint8 VDP1GetDisplayFBIndex() const;
 
     // Erases the current VDP1 display framebuffer.
-    void VDP1EraseFramebuffer();
+    template <bool countCycles>
+    void VDP1EraseFramebuffer(uint64 cycles = ~0ull);
 
     // Swaps VDP1 framebuffers.
     void VDP1SwapFramebuffer();

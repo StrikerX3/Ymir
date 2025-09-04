@@ -210,6 +210,7 @@ struct VDPState {
             bool rendering;
 
             bool doDisplayErase;
+            bool doVBlankErase;
 
             uint64 cycleCount;
             uint64 cyclesSpent;

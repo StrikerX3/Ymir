@@ -986,6 +986,27 @@ void VDP::UpdateResolution() {
         timing *= dotClockMult;
     }
 
+    // Compute cycles available for VBlank erase
+    // TODO: penalty should be 200, but doing so results in less pixels than necessary being erased
+    static constexpr uint32 kVBEHorzPenalty = 150;
+    static constexpr std::array<uint32, 8> kVBEHorzTimings{{
+        1708 - kVBEHorzPenalty, // Normal Graphic A
+        1820 - kVBEHorzPenalty, // Normal Graphic B
+        1708 - kVBEHorzPenalty, // Hi-Res Graphic A
+        1820 - kVBEHorzPenalty, // Hi-Res Graphic B
+        852 - kVBEHorzPenalty,  // Exclusive Normal Graphic A
+        848 - kVBEHorzPenalty,  // Exclusive Normal Graphic B
+        852 - kVBEHorzPenalty,  // Exclusive Hi-Res Graphic A
+        848 - kVBEHorzPenalty,  // Exclusive Hi-Res Graphic B
+    }};
+    static constexpr auto kVPActiveIndex = static_cast<uint32>(VerticalPhase::Active);
+    static constexpr auto kVPLastLineIndex = static_cast<uint32>(VerticalPhase::LastLine);
+    m_VBlankEraseCyclesPerLine = kVBEHorzTimings[m_state.regs2.TVMD.HRESOn];
+    m_VBlankEraseLines = {
+        m_VTimings[0][kVPLastLineIndex] - m_VTimings[0][kVPActiveIndex],
+        m_VTimings[1][kVPLastLineIndex] - m_VTimings[1][kVPActiveIndex],
+    };
+
     m_state.regs2.VCNTShift = m_state.regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity ? 1 : 0;
 
     // TODO: field skips must be handled per frame
@@ -1080,21 +1101,7 @@ void VDP::BeginHPhaseRightBorder() {
     if (m_state.regs2.VCNT == m_VTimings[m_VTimingField][static_cast<uint32>(VerticalPhase::Active)]) {
         devlog::trace<grp::base>("## HBlank IN + VBlank IN  VBE={:d}", m_state.regs1.vblankErase);
 
-        auto &ctx1 = m_VDP1RenderContext;
-
-        if (m_state.regs1.vblankErase) {
-            // TODO: cycle-count the erase process, starting here
-            if (m_threadedVDPRendering) {
-                m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
-                if (!m_effectiveRenderVDP1InVDP2Thread) {
-                    m_renderingContext.eraseFramebufferReadySignal.Wait();
-                    m_renderingContext.eraseFramebufferReadySignal.Reset();
-                    VDP1EraseFramebuffer();
-                }
-            } else {
-                VDP1EraseFramebuffer();
-            }
-        }
+        m_VDP1RenderContext.doVBlankErase = m_state.regs1.vblankErase;
 
         // If we just entered the bottom blanking vertical phase, switch fields
         if (m_state.regs2.TVMD.LSMDn != InterlaceMode::None) {
@@ -1156,10 +1163,21 @@ void VDP::BeginHPhaseLeftBorder() {
         // Reset cycles spent by VDP1 this frame
         m_VDP1RenderContext.cyclesSpent = 0;
 
+        // End VBlank erase if in progress
+        if (m_VDP1RenderContext.doVBlankErase) {
+            if (m_threadedVDPRendering) {
+                m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
+                if (!m_effectiveRenderVDP1InVDP2Thread) {
+                    m_renderingContext.eraseFramebufferReadySignal.Wait();
+                    m_renderingContext.eraseFramebufferReadySignal.Reset();
+                }
+            }
+            if (!m_effectiveRenderVDP1InVDP2Thread) {
+                VDP1EraseFramebuffer<true>(m_VBlankEraseCyclesPerLine * m_VBlankEraseLines[m_VTimingField]);
+            }
+        }
+
         if (erase) {
-            // Configure erase process
-            // - when VBE=0, erase line by line during display; never erase past VCNT
-            // - when VBE=1, cycle-count erase process during VBlank period
             ctx1.doDisplayErase = true;
         }
         if (swap) {
@@ -1212,16 +1230,17 @@ void VDP::BeginVPhaseBlankingAndSync() {
     // Begin erasing display framebuffer during display
     if (m_VDP1RenderContext.doDisplayErase) {
         m_VDP1RenderContext.doDisplayErase = false;
-        // TODO: cycle-count the erase process from the start of the display when latched VBE=0
+        // TODO: erase line by line instead of the entire framebuffer in one go
         if (m_threadedVDPRendering) {
             m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1EraseFramebuffer());
             if (!m_effectiveRenderVDP1InVDP2Thread) {
                 m_renderingContext.eraseFramebufferReadySignal.Wait();
                 m_renderingContext.eraseFramebufferReadySignal.Reset();
-                VDP1EraseFramebuffer();
             }
-        } else {
-            VDP1EraseFramebuffer();
+        }
+        if (!m_effectiveRenderVDP1InVDP2Thread) {
+            // No need to count cycles here; there's always enough cycles in the display area to clear the entire screen
+            VDP1EraseFramebuffer<false>();
         }
     }
 }
@@ -1286,7 +1305,7 @@ void VDP::VDPRenderThread() {
             case EvtType::OddField: rctx.vdp2.regs.TVSTAT.ODD = event.oddField.odd; break;
             case EvtType::VDP1EraseFramebuffer:
                 if (m_effectiveRenderVDP1InVDP2Thread) {
-                    VDP1EraseFramebuffer();
+                    VDP1EraseFramebuffer<false>();
                 } else {
                     rctx.eraseFramebufferReadySignal.Set();
                 }
@@ -1560,7 +1579,8 @@ FORCE_INLINE uint8 VDP::VDP1GetDisplayFBIndex() const {
     }
 }
 
-FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
+template <bool countCycles>
+FORCE_INLINE void VDP::VDP1EraseFramebuffer(uint64 cycles) {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
     auto &ctx = m_VDP1RenderContext;
@@ -1596,9 +1616,11 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
 
     const bool mirror = m_deinterlaceRender && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
 
+    static constexpr uint64 kCyclesPerWrite = 1;
+
     for (uint32 y = y1; y <= y3; y++) {
         const uint32 fbOffset = y * regs1.fbSizeH;
-        for (uint32 x = x1; x <= x3; x++) {
+        for (uint32 x = x1; x < x3; x++) {
             const uint32 address = (fbOffset + x) << offsetShift;
             util::WriteBE<uint16>(&fb[address & 0x3FFFE], ctx.eraseWriteValue);
             if (mirror) {
@@ -1609,6 +1631,15 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer() {
                 util::WriteBE<uint16>(&meshFB[address & 0x3FFFE], 0);
                 if (mirror) {
                     util::WriteBE<uint16>(&altMeshFB[address & 0x3FFFE], 0);
+                }
+            }
+
+            if constexpr (countCycles) {
+                if (cycles >= kCyclesPerWrite) {
+                    cycles -= kCyclesPerWrite;
+                } else {
+                    devlog::trace<grp::vdp1_render>("Erase process ran out of cycles");
+                    return;
                 }
             }
         }
