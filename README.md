@@ -36,6 +36,8 @@ Grab the latest release: [stable](https://github.com/StrikerX3/Ymir/releases/lat
 - Graphics enhancements such as optional deinterlaced/progressive rendering of high resolution modes and transparent mesh polygon rendering
 - A work-in-progress feature-rich debugger
 
+Ymir runs on Windows 10 or later, macOS 13 (Ventura) or later, most modern Linux distributions and FreeBSD, and supports x86-64 (Intel, AMD) and ARM CPUs.
+
 
 ## Usage
 
