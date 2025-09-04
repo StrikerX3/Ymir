@@ -3095,10 +3095,10 @@ FORCE_INLINE void VDP::VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWi
         // 3    OR  false     skip - window has no effect on this line
         // 4    OR  true      fill with inside
 
-        const auto sy = static_cast<sint32>(y);
+        const auto sy = static_cast<sint16>(y);
         const auto startY = static_cast<sint16>(windowParam.startY) << doubleV;
         const auto endY = static_cast<sint16>(windowParam.endY) << doubleV;
-        if (y < startY || y > endY) {
+        if (sy < startY || sy > endY) {
             if (logicOR == inverted) {
                 // Cases 1 and 4
                 std::fill(windowState.begin(), windowState.end(), logicOR);

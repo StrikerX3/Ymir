@@ -15,6 +15,10 @@ Panzer Dragoon Saga
   The bottom half of the table has invalid entries:
     0000 to FFFF -> empty window (all outside)
 
+Radiant Silvergun
+  The transition to the start of Stage 2C involves a background rotation that uses illegal window coordinates:
+    0000 to FFFF -> outside
+
 Snatcher
   Sets up window parameters such that the starting point is greater than the ending point.
   Specifically:
