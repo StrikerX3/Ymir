@@ -132,6 +132,16 @@ struct DMAChannel {
         state.currDstAddrInc = currDstAddrInc;
         state.currIndirectSrc = currIndirectSrc;
         state.endIndirect = endIndirect;
+
+        state.xfer.buf = xfer.buf;
+        state.xfer.bufPos = xfer.bufPos;
+        state.xfer.currDstAddr = xfer.currDstAddr;
+        state.xfer.currDstOffset = xfer.currDstOffset;
+        state.xfer.initialDstAlignment = xfer.initialDstAlignment;
+        state.xfer.xferLength = xfer.xferLength;
+        state.xfer.baseSrcAddr = xfer.baseSrcAddr;
+        state.xfer.baseDstAddr = xfer.baseDstAddr;
+        state.xfer.started = xfer.started;
     }
 
     [[nodiscard]] bool ValidateState(const state::SCUDMAState &state) const {
@@ -183,6 +193,16 @@ struct DMAChannel {
         currDstAddrInc = state.currDstAddrInc;
         currIndirectSrc = state.currIndirectSrc;
         endIndirect = state.endIndirect;
+
+        xfer.buf = state.xfer.buf;
+        xfer.bufPos = state.xfer.bufPos;
+        xfer.currDstAddr = state.xfer.currDstAddr;
+        xfer.currDstOffset = state.xfer.currDstOffset;
+        xfer.initialDstAlignment = state.xfer.initialDstAlignment;
+        xfer.xferLength = state.xfer.xferLength;
+        xfer.baseSrcAddr = state.xfer.baseSrcAddr;
+        xfer.baseDstAddr = state.xfer.baseDstAddr;
+        xfer.started = state.xfer.started;
     }
 };
 

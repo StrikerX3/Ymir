@@ -174,7 +174,9 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
     // - New fields
     //   - enum SCUState::CartType: added ROM
 
-    ar(s.dma);
+    for (auto &dma : s.dma) {
+        serialize(ar, dma, version);
+    }
     serialize(ar, s.dsp, version);
     ar(s.cartType);
 
@@ -241,13 +243,53 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCUDMAState &s) {
+void serialize(Archive &ar, SCUDMAState &s, const uint32 version) {
+    // v9:
+    // - New fields
+    //   - xfer
+
     ar(s.srcAddr, s.dstAddr, s.xferCount);
     ar(s.srcAddrInc, s.dstAddrInc, s.updateSrcAddr, s.updateDstAddr);
     ar(s.enabled, s.active, s.indirect, s.trigger, s.start);
     ar(s.currSrcAddr, s.currDstAddr, s.currXferCount);
     ar(s.currSrcAddrInc, s.currDstAddrInc);
     ar(s.currIndirectSrc, s.endIndirect);
+    serialize(ar, s.xfer, version);
+}
+
+template <class Archive>
+void serialize(Archive &ar, SCUDMAState::Transfer &s, const uint32 version) {
+    // v9:
+    // - Struct newly introduced
+    // - New fields
+    //   - buf = 0
+    //   - bufPos = 0
+    //   - currDstAddr = 0
+    //   - currDstOffset = 0
+    //   - initialDstAlignment = 0
+    //   - xferLength = 0
+    //   - baseSrcAddr = 0
+    //   - baseDstAddr = 0
+    //   - started = false
+
+    if (version >= 9) {
+        ar(s.buf, s.bufPos);
+        ar(s.currDstAddr, s.currDstOffset);
+        ar(s.initialDstAlignment);
+        ar(s.xferLength);
+        ar(s.baseSrcAddr, s.baseDstAddr);
+        ar(s.started);
+    } else {
+        s.buf = 0;
+        s.bufPos = 0;
+        s.currDstAddr = 0;
+        s.currDstOffset = 0;
+        s.initialDstAlignment = 0;
+        s.xferLength = 0;
+        s.baseSrcAddr = 0;
+        s.baseDstAddr = 0;
+        s.started = false;
+    }
 }
 
 template <class Archive>
