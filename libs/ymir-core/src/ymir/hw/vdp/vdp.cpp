@@ -1689,8 +1689,8 @@ void VDP::VDP1BeginFrame() {
     m_state.regs1.currFrameEnded = false;
 
     // HACK: insert a delay to dodge some timing issues with games that trigger drawing too early
-    // (e.g.: Fighter's History Dynamite)
-    m_VDP1TimingPenaltyCycles += 1000;
+    // (e.g.: Fighter's History Dynamite, Cyberbots - Fullmetal Madness)
+    m_VDP1TimingPenaltyCycles += 1500;
 
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
