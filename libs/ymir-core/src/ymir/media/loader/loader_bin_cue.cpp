@@ -461,6 +461,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
 
             uint32 indexOffset = 0;
             if (sheetTrack.indexes.front().number != 0) {
+                // Insert dummy INDEX 00
                 track.indices.emplace_back();
                 indexOffset = 1;
             }

@@ -365,7 +365,7 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM) {
             track.endFrameAddress = frameAddress + frames - 1;
             track.track01FrameAddress = frameAddress;
             track.interleavedSubchannel = false;
-            track.indices.emplace_back(); // index 00
+            track.indices.emplace_back(); // Insert dummy index 00
             auto &index = track.indices.emplace_back();
             index.startFrameAddress = track.startFrameAddress;
             index.endFrameAddress = track.endFrameAddress;

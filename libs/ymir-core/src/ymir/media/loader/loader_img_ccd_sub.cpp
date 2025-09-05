@@ -284,7 +284,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
         for (int j = 0; j < session.numTracks; j++) {
             const uint32 trackNum = firstTrackNum + j;
             auto &track = session.tracks[trackNum - 1];
-            track.indices.emplace_back(); // index 00
+            track.indices.emplace_back(); // Insert dummy index 00
             auto &index = track.indices.emplace_back();
             auto &point = ccdSession.tocEntries[trackNum];
             if (point.point != trackNum) {
