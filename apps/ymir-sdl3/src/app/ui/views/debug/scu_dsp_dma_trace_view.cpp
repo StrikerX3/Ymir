@@ -56,6 +56,14 @@ void SCUDSPDMATraceView::Display() {
             }
             if (ImGui::TableNextColumn()) {
                 if (trace.toD0) {
+                    switch (trace.addrDSP) {
+                    case 0: ImGui::TextUnformatted("Data RAM 0"); break;
+                    case 1: ImGui::TextUnformatted("Data RAM 1"); break;
+                    case 2: ImGui::TextUnformatted("Data RAM 2"); break;
+                    case 3: ImGui::TextUnformatted("Data RAM 3"); break;
+                    default: ImGui::Text("Invalid (%u)", trace.addrDSP); break;
+                    }
+                } else {
                     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
                     ImGui::Text("%07X", trace.addrD0);
                     ImGui::PopFont();
@@ -75,27 +83,10 @@ void SCUDSPDMATraceView::Display() {
                         }
                     }
                     ImGui::PopFont();
-                } else {
-                    switch (trace.addrDSP) {
-                    case 0: ImGui::TextUnformatted("Data RAM 0"); break;
-                    case 1: ImGui::TextUnformatted("Data RAM 1"); break;
-                    case 2: ImGui::TextUnformatted("Data RAM 2"); break;
-                    case 3: ImGui::TextUnformatted("Data RAM 3"); break;
-                    default: ImGui::Text("Invalid (%u)", trace.addrDSP); break;
-                    }
                 }
             }
             if (ImGui::TableNextColumn()) {
                 if (trace.toD0) {
-                    switch (trace.addrDSP) {
-                    case 0: ImGui::TextUnformatted("Data RAM 0"); break;
-                    case 1: ImGui::TextUnformatted("Data RAM 1"); break;
-                    case 2: ImGui::TextUnformatted("Data RAM 2"); break;
-                    case 3: ImGui::TextUnformatted("Data RAM 3"); break;
-                    case 4: ImGui::TextUnformatted("Program RAM"); break;
-                    default: ImGui::Text("Invalid (%u)", trace.addrDSP); break;
-                    }
-                } else {
                     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
                     ImGui::Text("%07X", trace.addrD0);
                     ImGui::PopFont();
@@ -107,6 +98,15 @@ void SCUDSPDMATraceView::Display() {
                         ImGui::TextDisabled("-%d", -trace.addrInc);
                     }
                     ImGui::PopFont();
+                } else {
+                    switch (trace.addrDSP) {
+                    case 0: ImGui::TextUnformatted("Data RAM 0"); break;
+                    case 1: ImGui::TextUnformatted("Data RAM 1"); break;
+                    case 2: ImGui::TextUnformatted("Data RAM 2"); break;
+                    case 3: ImGui::TextUnformatted("Data RAM 3"); break;
+                    case 4: ImGui::TextUnformatted("Program RAM"); break;
+                    default: ImGui::Text("Invalid (%u)", trace.addrDSP); break;
+                    }
                 }
             }
             if (ImGui::TableNextColumn()) {
