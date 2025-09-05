@@ -48,7 +48,6 @@ Introduced save state file version 9.
 - SCSP: Allow M68K to fetch instructions from SCSP registers. Fixes CroNSF audio playback.
 - SCSP: Don't use SBCTL on slots that are playing samples from Sound RAM when the EG reaches the silence threshold. Fixes busted audio in Guardian Heroes and Elevator Action^2. (#155)
 - SCSP: Silence audio when MVOL=0. Fixes lingering sound/music when pausing in Sega Ages - Galaxy Force II. (#427)
-- SCU: Cycle count DMA transfers. Fixes lockup when selecting options in DeJig menus. (#541)
 - SCU: Timer 1 was never triggering when configured to trigger on Timer 0 match of 0x000.
 - SH2: Fix byte order of direct cache data accesses. (thanks to @celeriyacon)
 - SH2: Fix MOVA offset when in delay slot. (thanks to @celeriyacon)

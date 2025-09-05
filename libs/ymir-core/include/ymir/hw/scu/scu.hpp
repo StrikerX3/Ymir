@@ -198,7 +198,7 @@ private:
 
     void DMAReadIndirectTransfer(uint8 level);
 
-    void RunDMA(uint64 cycles);
+    void RunDMA();
 
     void RecalcDMAChannel();
 
