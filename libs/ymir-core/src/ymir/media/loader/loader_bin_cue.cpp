@@ -90,7 +90,7 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
     std::ifstream in{cuePath, std::ios::binary};
 
     if (!in) {
-        fmt::println("BIN/CUE: Could not load CUE file");
+        // fmt::println("BIN/CUE: Could not load CUE file");
         return std::nullopt;
     }
 
@@ -98,7 +98,7 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
     std::string line{};
     while (true) {
         if (!std::getline(in, line)) {
-            fmt::println("BIN/CUE: Could not read file");
+            // fmt::println("BIN/CUE: Could not read file");
             return std::nullopt;
         }
         if (!line.empty()) {
@@ -106,14 +106,14 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
             std::string keyword{};
             ins >> keyword;
             if (!kValidCueKeywords.contains(keyword)) {
-                fmt::println("BIN/CUE: Not a valid CUE file");
+                // fmt::println("BIN/CUE: Not a valid CUE file");
                 return std::nullopt;
             }
             if (keyword == "NO") {
                 // NO must be followed by COPY or PRE_EMPHASIS
                 ins >> keyword;
                 if (!kValidCueNOKeywords.contains(keyword)) {
-                    fmt::println("BIN/CUE: Not a valid CUE file");
+                    // fmt::println("BIN/CUE: Not a valid CUE file");
                     return std::nullopt;
                 }
             }
@@ -342,7 +342,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
                 reader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
             }
             if (err) {
-                fmt::println("BIN/CUE: Failed to load file - {}", err.message());
+                // fmt::println("BIN/CUE: Failed to load file - {}", err.message());
                 return false;
             }
         } else {
@@ -356,7 +356,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
                     fileReader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
                 }
                 if (err) {
-                    fmt::println("BIN/CUE: Failed to load file - {}", err.message());
+                    // fmt::println("BIN/CUE: Failed to load file - {}", err.message());
                     return false;
                 }
                 compReader->Append(fileReader);
@@ -493,12 +493,12 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
         std::array<uint8, 256> header{};
         const uintmax_t readSize = reader->Read(userDataOffset, 256, header);
         if (readSize < 256) {
-            fmt::println("BIN/CUE: File truncated");
+            // fmt::println("BIN/CUE: File truncated");
             return false;
         }
         disc.header.ReadFrom(header);
 
-        fmt::println("BIN/CUE: Final FAD = {:6d}", frameAddress - 1);
+        // fmt::println("BIN/CUE: Final FAD = {:6d}", frameAddress - 1);
 
         sgInvalidateDisc.Cancel();
 
