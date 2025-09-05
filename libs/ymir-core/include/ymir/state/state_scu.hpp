@@ -29,6 +29,21 @@ struct SCUDMAState {
 
     uint32 currIndirectSrc;
     bool endIndirect;
+
+    struct Transfer {
+        uint32 buf;
+        uint32 bufPos;
+        uint32 currDstAddr;
+        uint32 currDstOffset;
+
+        uint32 initialDstAlignment;
+        uint32 xferLength;
+
+        uint32 baseSrcAddr;
+        uint32 baseDstAddr;
+
+        bool started;
+    } xfer;
 };
 
 struct SCUDSPState {

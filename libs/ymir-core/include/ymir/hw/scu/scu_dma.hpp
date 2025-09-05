@@ -60,6 +60,16 @@ struct DMAChannel {
         endIndirect = false;
     }
 
+    void InitTransfer() {
+        xfer.buf = 0x00000000;
+        xfer.bufPos = currSrcAddr & 3u;
+        xfer.currDstAddr = currDstAddr;
+        xfer.currDstOffset = currDstAddr & 3u;
+        xfer.initialDstAlignment = xfer.currDstOffset;
+        xfer.xferLength = currXferCount;
+        xfer.started = true;
+    }
+
     uint32 srcAddr;     // DnR - Read address
     uint32 dstAddr;     // DnW - Write address
     uint32 xferCount;   // DnC - Transfer byte count (up to 1 MiB for level 0, 4 KiB for levels 1 and 2)
@@ -81,6 +91,23 @@ struct DMAChannel {
 
     uint32 currIndirectSrc; // Indirect data transfer source address
     bool endIndirect;       // Whether the end flag was sent on the current indirect transfer
+
+    // Transfer state
+    struct Transfer {
+        uint32 buf;
+        uint32 bufPos;
+        uint32 currDstAddr;
+        uint32 currDstOffset;
+
+        // These values are only needed for B-Bus writes because they're completely illogical.
+        uint32 initialDstAlignment;
+        uint32 xferLength;
+
+        uint32 baseSrcAddr;
+        uint32 baseDstAddr;
+
+        bool started;
+    } xfer;
 
     // -------------------------------------------------------------------------
     // Save states
@@ -105,6 +132,16 @@ struct DMAChannel {
         state.currDstAddrInc = currDstAddrInc;
         state.currIndirectSrc = currIndirectSrc;
         state.endIndirect = endIndirect;
+
+        state.xfer.buf = xfer.buf;
+        state.xfer.bufPos = xfer.bufPos;
+        state.xfer.currDstAddr = xfer.currDstAddr;
+        state.xfer.currDstOffset = xfer.currDstOffset;
+        state.xfer.initialDstAlignment = xfer.initialDstAlignment;
+        state.xfer.xferLength = xfer.xferLength;
+        state.xfer.baseSrcAddr = xfer.baseSrcAddr;
+        state.xfer.baseDstAddr = xfer.baseDstAddr;
+        state.xfer.started = xfer.started;
     }
 
     [[nodiscard]] bool ValidateState(const state::SCUDMAState &state) const {
@@ -156,6 +193,16 @@ struct DMAChannel {
         currDstAddrInc = state.currDstAddrInc;
         currIndirectSrc = state.currIndirectSrc;
         endIndirect = state.endIndirect;
+
+        xfer.buf = state.xfer.buf;
+        xfer.bufPos = state.xfer.bufPos;
+        xfer.currDstAddr = state.xfer.currDstAddr;
+        xfer.currDstOffset = state.xfer.currDstOffset;
+        xfer.initialDstAlignment = state.xfer.initialDstAlignment;
+        xfer.xferLength = state.xfer.xferLength;
+        xfer.baseSrcAddr = state.xfer.baseSrcAddr;
+        xfer.baseDstAddr = state.xfer.baseDstAddr;
+        xfer.started = state.xfer.started;
     }
 };
 

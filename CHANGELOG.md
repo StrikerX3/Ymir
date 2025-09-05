@@ -88,6 +88,7 @@ Introduced save state file version 9.
 	- Voice lines during intro and throughout the game in Rapyulus Panic (#338)
 - SCSP: Don't use SBCTL on slots that are playing samples from Sound RAM when the EG reaches the silence threshold. Fixes busted audio in Guardian Heroes and Elevator Action^2. (#155)
 - SCSP: Silence audio when MVOL=0. Fixes lingering sound/music when pausing in Sega Ages - Galaxy Force II. (#427)
+- SCU: Cycle count DMA transfers. Fixes lockup when selecting a character in Advanced V.G and when selecting options in DeJig menus. (#227, #541)
 - SCU: Properly handle 8-bit and 16-bit writes to registers. Fixes Phantasy Star IV graphics in Phantasy Star Collection. (#499)
 - SCU: Timer 1 was never triggering when configured to trigger on Timer 0 match of 0x000.
 - SH2: Fix byte order of direct cache data accesses. (thanks to @celeriyacon)
