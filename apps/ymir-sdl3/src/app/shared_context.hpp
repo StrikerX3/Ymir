@@ -95,11 +95,16 @@ namespace grp {
     // Hierarchy:
     //
     // base
+    //   media
 
     struct base {
         static constexpr bool enabled = true;
         static constexpr devlog::Level level = devlog::level::debug;
         static constexpr std::string_view name = "App";
+    };
+
+    struct media : public base {
+        static constexpr std::string_view name = "App-Media";
     };
 
 } // namespace grp

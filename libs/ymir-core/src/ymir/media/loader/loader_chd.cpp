@@ -176,13 +176,21 @@ static bool SetTrackInfo(const chd_header *header, std::string_view typestring, 
     return true;
 }
 
-bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM) {
+bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM, CbLoaderMessage cbMsg) {
     util::ScopeGuard sgInvalidateDisc{[&] { disc.Invalidate(); }};
+
+    auto invFmtMsg = [&](std::string message) { cbMsg(MessageType::InvalidFormat, message); };
+    auto errorMsg = [&](std::string message) { cbMsg(MessageType::Error, message); };
+    auto debugMsg = [&](std::string message) { cbMsg(MessageType::Debug, message); };
 
     chd_file *file = nullptr;
     chd_error error = chd_open(chdPath.string().c_str(), CHD_OPEN_READ, nullptr, &file);
     if (error != CHDERR_NONE) {
-        // fmt::println("CHD: Failed to open file {}: {}", chdPath, chd_error_string(error));
+        if (error == CHDERR_INVALID_DATA) {
+            invFmtMsg(fmt::format("CHD: Failed to open file: {}", chd_error_string(error)));
+        } else {
+            debugMsg(fmt::format("CHD: Failed to open file: {}", chd_error_string(error)));
+        }
         return false;
     }
     const chd_header *header = chd_get_header(file);
@@ -213,7 +221,7 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM) {
             break;
         }
         if (error != CHDERR_NONE) {
-            // fmt::println("CHD: Failed to read metadata: {}", chd_error_string(error));
+            errorMsg(fmt::format("CHD: Failed to read metadata: {}", chd_error_string(error)));
             return false;
         }
 
@@ -316,13 +324,13 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM) {
                     }
                 }
             } else {
-                // fmt::println("CHD: Unknown metadata format {}, contents: {}", resulttag, metabuf.data());
+                errorMsg(fmt::format("CHD: Unknown metadata format {}, contents: {}", resulttag, metabuf.data()));
                 return false;
             }
 
             auto &track = session.tracks[tracknum - 1];
             if (!SetTrackInfo(header, type, track)) {
-                // fmt::println("CHD: Unknown track type {}\n", type);
+                errorMsg(fmt::format("CHD: Unknown track type {}\n", type));
                 return false;
             }
             uintmax_t subviewOffset = byteOffset;
@@ -351,7 +359,7 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM) {
 
                     offset += track.sectorSize;
                     if (byteOffset + offset >= binaryReader->Size()) {
-                        // fmt::println("CHD: Could not find starting sector for track {}", track.index);
+                        errorMsg(fmt::format("CHD: Could not find starting sector for track {}", track.index));
                         return false;
                     }
                 }
@@ -398,7 +406,7 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM) {
     if (session.numTracks > 0) {
         std::array<uint8, 2048> headerData{};
         if (!session.tracks[session.firstTrackIndex].ReadSectorUserData(150, headerData)) {
-            // fmt::println("CHD: Could not read Saturn disc header");
+            errorMsg(fmt::format("CHD: Could not read Saturn disc header"));
             return false;
         }
 

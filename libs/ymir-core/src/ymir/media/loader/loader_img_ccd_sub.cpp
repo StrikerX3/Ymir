@@ -46,13 +46,17 @@ struct CaseInsensitiveStringCompare {
 const std::set<std::string, CaseInsensitiveStringCompare> kValidSectionNames = {"CloneCD", "Disc",  "CDText",
                                                                                 "Session", "Entry", "TRACK"};
 
-bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
+bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM, CbLoaderMessage cbMsg) {
     std::ifstream in{ccdPath, std::ios::binary};
 
     util::ScopeGuard sgInvalidateDisc{[&] { disc.Invalidate(); }};
 
+    auto invFmtMsg = [&](std::string message) { cbMsg(MessageType::InvalidFormat, message); };
+    auto errorMsg = [&](std::string message) { cbMsg(MessageType::Error, message); };
+    auto debugMsg = [&](std::string message) { cbMsg(MessageType::Debug, message); };
+
     if (!in) {
-        // fmt::println("IMG/CCD/SUB: Could not load CCD file");
+        errorMsg("IMG/CCD: Could not load CCD file");
         return false;
     }
 
@@ -67,7 +71,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
     };
 
     // Housekeeping variables
-    // uint32 lineNum = 0;
+    uint32 lineNum = 0;
     std::string line{};
     std::string currSection{};
     std::vector<CloneCDSession> ccdSessions{};
@@ -87,7 +91,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
             section = section.substr(0, section.size() - 1);
         } else {
             // Let's be lenient here and allow this small syntax error, but report it to the user
-            // fmt::println("IMG/CCD/SUB: Section \"{}\" is missing closing bracket (line {})", line, lineNum);
+            debugMsg(fmt::format("IMG/CCD: Section \"{}\" is missing closing bracket (line {})", line, lineNum));
         }
 
         // Some section contain index numbers; allow those
@@ -99,13 +103,13 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
 
         // Check that it is a valid section
         if (!kValidSectionNames.contains(sectionPrefix)) {
-            // fmt::println("IMG/CCD/SUB: Invalid section name: \"{}\"", section);
+            errorMsg(fmt::format("IMG/CCD: Invalid section name: \"{}\"", section));
             return false;
         }
 
         // Good to go
         currSection = section;
-        // fmt::println("IMG/CCD/SUB: Entering section \"{}\"", currSection);
+        debugMsg(fmt::format("IMG/CCD: Entering section \"{}\"", currSection));
         return true;
     };
 
@@ -113,16 +117,16 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
     {
         do {
             if (!std::getline(in, line)) {
-                // fmt::println("IMG/CCD/SUB: Could not read file");
+                errorMsg("IMG/CCD: Could not read file");
                 return false;
             }
             line = trimWhitespace(line);
-            // lineNum++;
+            ++lineNum;
         } while (line.empty());
 
         // Check if it looks like a section
         if (!tryGetSection()) {
-            // fmt::println("IMG/CCD/SUB: Not a valid CCD file");
+            invFmtMsg("IMG/CCD: Not a valid CCD file");
             return false;
         }
     }
@@ -151,7 +155,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
             const auto pos = line.find('=');
             if (pos == std::string::npos) {
                 // Let's be lenient here and allow this small syntax error, but report it to the user
-                // fmt::println("IMG/CCD/SUB: Line \"{}\" is missing value (line {}); skipping", line, lineNum);
+                debugMsg(fmt::format("IMG/CCD: Line \"{}\" is missing value (line {}); skipping", line, lineNum));
             } else {
                 const std::string key = line.substr(0, pos);
                 const std::string valueStr = ToLower(line.substr(pos + 1));
@@ -161,49 +165,48 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
                 } else {
                     value = std::stoll(valueStr);
                 }
-                // fmt::println("IMG/CCD/SUB:   {} = {}", key, value);
+                debugMsg(fmt::format("IMG/CCD:   {} = {}", key, value));
 
                 const std::string lcKey = ToLower(key);
                 if (ToLower(currSection) == "disc") {
                     if (lcKey == "sessions") {
                         if (value < 1) {
-                            // fmt::println("IMG/CCD/SUB: Invalid number of sessions ({}) (line {})", value, lineNum);
+                            errorMsg(fmt::format("IMG/CCD: Invalid number of sessions ({}) (line {})", value, lineNum));
                             return false;
                         }
-                        // fmt::println("IMG/CCD/SUB: {} {}", value, (value > 1 ? "sessions" : "session"));
+                        debugMsg(fmt::format("IMG/CCD: {} {}", value, (value > 1 ? "sessions" : "session")));
                         ccdSessions.resize(value);
                     } else if (lcKey == "datatracksscrambled") {
                         if (value) {
-                            // fmt::println("IMG/CCD/SUB: Scrambled data tracks is not supported");
+                            errorMsg("IMG/CCD: Scrambled data tracks are not supported");
                             return false;
                         }
                     }
                 } else if (ToLower(currSection).starts_with("entry")) {
                     if (lcKey == "session") {
                         if (value < 1) {
-                            // fmt::println("IMG/CCD/SUB: Invalid session number ({}) in [{}] (line {})", value,
-                            //              currSection, lineNum);
+                            errorMsg(fmt::format("IMG/CCD: Invalid session number ({}) in [{}] (line {})", value,
+                                                 currSection, lineNum));
                             return false;
                         }
                         currTocEntrySession = value;
                     } else if (lcKey == "point") {
                         if (value < 1) {
-                            // fmt::println("IMG/CCD/SUB: Invalid point number ({}) in [{}] (line {})", value,
-                            // currSection,
-                            //              lineNum);
+                            errorMsg(fmt::format("IMG/CCD: Invalid point number ({}) in [{}] (line {})", value,
+                                                 currSection, lineNum));
                             return false;
                         }
                         currTocEntry.point = value;
                     } else if (lcKey == "control") {
                         if (value < 0 || value > 0xF) {
-                            // fmt::println("IMG/CCD/SUB: Control value ({}) out of range in [{}] (line {})", value,
-                            //              currSection, lineNum);
+                            debugMsg(fmt::format("IMG/CCD: Control value ({}) out of range in [{}] (line {})", value,
+                                                 currSection, lineNum));
                         }
                         currTocEntry.control = value;
                     } else if (lcKey == "adr") {
                         if (value < 0 || value > 0xF) {
-                            // fmt::println("IMG/CCD/SUB: ADR value ({}) out of range in [{}] (line {})", value,
-                            //              currSection, lineNum);
+                            debugMsg(fmt::format("IMG/CCD: ADR value ({}) out of range in [{}] (line {})", value,
+                                                 currSection, lineNum));
                         }
                         currTocEntry.adr = value;
                     } else if (lcKey == "pmin") {
@@ -236,7 +239,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
         imgFile = std::make_shared<MemoryMappedBinaryReader>(imgPath, err);
     }
     if (err) {
-        // fmt::println("IMG/CCD/SUB: Failed to load image file {}: {}", imgPath, err.message());
+        errorMsg(fmt::format("IMG/CCD: Failed to load image file {}: {}", imgPath, err.message()));
         return false;
     }
 
@@ -245,7 +248,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
         std::array<uint8, 256> header{};
         const uintmax_t readSize = imgFile->Read(16, 256, header);
         if (readSize < 256) {
-            // fmt::println("IMG/CCD/SUB: Image file truncated");
+            errorMsg(fmt::format("IMG/CCD: Image file {} truncated", imgPath));
             return false;
         }
 
@@ -263,7 +266,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
         // We require points A0, A1 and A2 to properly build the disc structure
         for (uint32 point = 0xA0; point <= 0xA2; point++) {
             if (ccdSession.tocEntries[point].point != point) {
-                // fmt::println("IMG/CCD/SUB: Missing point {:02X} information for session {}", point, i);
+                errorMsg(fmt::format("IMG/CCD: Missing point {:02X} information for session {}", point, i));
                 return false;
             }
         }
@@ -288,7 +291,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM) {
             auto &index = track.indices.emplace_back();
             auto &point = ccdSession.tocEntries[trackNum];
             if (point.point != trackNum) {
-                // fmt::println("IMG/CCD/SUB: Missing track {} information for session {}", trackNum, i);
+                errorMsg(fmt::format("IMG/CCD: Missing track {} information for session {}", trackNum, i));
                 return false;
             }
 

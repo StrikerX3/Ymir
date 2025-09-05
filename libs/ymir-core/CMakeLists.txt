@@ -119,6 +119,7 @@ add_library(ymir-core
     include/ymir/media/loader/loader_img_ccd_sub.hpp
     include/ymir/media/loader/loader_iso.hpp
     include/ymir/media/loader/loader_mdf_mds.hpp
+    include/ymir/media/loader/loader_result.hpp
 
     include/ymir/media/binary_reader/binary_reader.hpp
     include/ymir/media/binary_reader/binary_reader_composite.hpp

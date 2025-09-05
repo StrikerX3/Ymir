@@ -10,13 +10,17 @@
 
 namespace ymir::media::loader::iso {
 
-bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM) {
+bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM, CbLoaderMessage cbMsg) {
     std::ifstream in{isoPath, std::ios::binary};
 
     util::ScopeGuard sgInvalidateDisc{[&] { disc.Invalidate(); }};
 
+    auto invFmtMsg = [&](std::string message) { cbMsg(MessageType::InvalidFormat, message); };
+    auto errorMsg = [&](std::string message) { cbMsg(MessageType::Error, message); };
+    auto debugMsg = [&](std::string message) { cbMsg(MessageType::Debug, message); };
+
     if (!in) {
-        // fmt::println("ISO: Could not load ISO file");
+        errorMsg("ISO: Could not load ISO file");
         return false;
     }
 
@@ -28,10 +32,10 @@ bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM) {
         in.read(reinterpret_cast<char *>(start.data()), start.size());
         if (!in) {
             if (in.gcount() < 12) {
-                // fmt::println("ISO: File too small");
+                invFmtMsg("ISO: File is too small");
             } else {
                 std::error_code err{errno, std::generic_category()};
-                // fmt::println("ISO: File could not be read: {}", err.message());
+                errorMsg(fmt::format("ISO: File could not be read: {}", err.message()));
             }
             return false;
         }
@@ -41,12 +45,12 @@ bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM) {
                                                             0xff, 0xff, 0xff, 0xff, 0xff, 0x00};
         sectorSize = start == syncBytes ? 2352 : 2048;
     }
-    // fmt::println("ISO: Sector size: {} bytes", sectorSize);
+    debugMsg(fmt::format("ISO: Sector size: {} bytes", sectorSize));
 
     // Sanity check: ensure file contains an exact multiple of the sector size
     const uintmax_t fileSize = std::filesystem::file_size(isoPath);
     if (fileSize % sectorSize != 0) {
-        // fmt::println("ISO: File is truncated");
+        invFmtMsg("ISO: Not a valid ISO file");
         return false;
     }
     const uint32 frames = fileSize / sectorSize;
@@ -80,7 +84,7 @@ bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM) {
         track.binaryReader = std::make_unique<MemoryMappedBinaryReader>(isoPath, err);
     }
     if (err) {
-        // fmt::println("ISO: Could not create file reader: {}", err.message());
+        errorMsg(fmt::format("ISO: Could not create file reader: {}", err.message()));
         return false;
     }
 
@@ -89,7 +93,7 @@ bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM) {
         std::array<uint8, 256> header{};
         const uintmax_t readSize = track.binaryReader->Read(sectorSize == 2352 ? 16 : 0, 256, header);
         if (readSize < 256) {
-            // fmt::println("ISO: Image file truncated");
+            errorMsg("ISO: Image file is truncated - cannot read header");
             return false;
         }
 

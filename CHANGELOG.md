@@ -23,6 +23,7 @@ Introduced save state file version 9.
 - Input: Add support for loading an external game controller database and include a [community-sourced database](https://github.com/mdqinc/SDL_GameControllerDB) in builds.
 - Input: Added hotkey for exiting the application, requiring a key combo to trigger: at least one key modifier (Ctrl, Alt, Shift, Option, etc.) and one other key (e.g. Ctrl+Shift+Q). (#160)
 - Media: Cache CHD hunks for improved performance at the cost of extra RAM usage.
+- Media: Provide basic error feedback when attempting to load bad, corrupt or truncated disc images.
 - SCSP: Basic debugger view for all slot registers and some state.
 - SCSP: Final output oscilloscope view.
 - VDP1: Optimize line plotting by skipping lines that are entirely out of the system clipping area.

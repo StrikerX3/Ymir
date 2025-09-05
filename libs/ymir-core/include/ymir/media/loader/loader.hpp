@@ -1,5 +1,7 @@
 #pragma once
 
+#include "loader_result.hpp"
+
 #include <ymir/media/disc.hpp>
 
 #include <filesystem>
@@ -15,6 +17,7 @@ namespace ymir::media {
 // Returns true if loading the file (and any auxiliary files) succeeded.
 // If this function returns false, the Disc object is invalidated.
 // preloadToRAM specifies if the entire disc image should be preloaded into memory.
-bool LoadDisc(std::filesystem::path path, Disc &disc, bool preloadToRAM);
+// cbMsg is the callback for message reporting.
+bool LoadDisc(std::filesystem::path path, Disc &disc, bool preloadToRAM, CbLoaderMessage cbMsg);
 
 } // namespace ymir::media

@@ -397,9 +397,9 @@ int App::Run(const CommandLineOptions &options) {
     // Load disc image if provided
     if (!options.gameDiscPath.empty()) {
         // This also inserts the game-specific cartridges or the one configured by the user in Settings > Cartridge
-        LoadDiscImage(options.gameDiscPath);
+        LoadDiscImage(options.gameDiscPath, false);
     } else if (m_context.settings.general.rememberLastLoadedDisc && !m_context.state.recentDiscs.empty()) {
-        LoadDiscImage(m_context.state.recentDiscs[0]);
+        LoadDiscImage(m_context.state.recentDiscs[0], false);
     } else {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
     }
@@ -3395,18 +3395,13 @@ void App::EmulatorThread() {
             {
                 auto path = std::get<std::filesystem::path>(evt.value);
                 // LoadDiscImage locks the disc mutex
-                if (LoadDiscImage(path)) {
+                if (LoadDiscImage(path, true)) {
                     LoadSaveStates();
                     LoadDebuggerState();
                     auto iplLoadResult = LoadIPLROM();
                     if (!iplLoadResult.succeeded) {
                         OpenSimpleErrorModal(fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
                     }
-                } else {
-                    // TODO: improve user feedback
-                    // - image loaders should return error messages
-                    // - LoadDiscImage should propagate those errors
-                    OpenSimpleErrorModal(fmt::format("Could not load {} as a game disc image.", path));
                 }
                 break;
             }
@@ -4459,11 +4454,29 @@ void App::ProcessOpenDiscImageFileDialogSelection(const char *const *filelist, i
     }
 }
 
-bool App::LoadDiscImage(std::filesystem::path path) {
+bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
     // Try to load disc image from specified path
     devlog::info<grp::base>("Loading disc image from {}", path);
     ymir::media::Disc disc{};
-    if (!ymir::media::LoadDisc(path, disc, m_context.settings.general.preloadDiscImagesToRAM)) {
+    if (!ymir::media::LoadDisc(path, disc, m_context.settings.general.preloadDiscImagesToRAM,
+                               [&](ymir::media::MessageType type, std::string message) {
+                                   switch (type) {
+                                   case ymir::media::MessageType::InvalidFormat:
+                                       devlog::trace<grp::media>("{}", message);
+                                       break;
+                                   case ymir::media::MessageType::Debug:
+                                       devlog::trace<grp::media>("{}", message);
+                                       break;
+                                   case ymir::media::MessageType::Error:
+                                       devlog::error<grp::media>("{}", message);
+                                       if (showErrorModal) {
+                                           OpenSimpleErrorModal(fmt::format(
+                                               "Could not load {} as a game disc image: {}", path, message));
+                                       }
+                                       break;
+                                   default: break;
+                                   }
+                               })) {
         devlog::error<grp::base>("Failed to load disc image");
         return false;
     }

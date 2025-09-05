@@ -86,11 +86,15 @@ struct CueSheet {
     std::vector<CueTrack> tracks;
 };
 
-static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
+static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath, CbLoaderMessage cbMsg) {
     std::ifstream in{cuePath, std::ios::binary};
 
+    auto invFmtMsg = [&](std::string message) { cbMsg(MessageType::InvalidFormat, message); };
+    auto errorMsg = [&](std::string message) { cbMsg(MessageType::Error, message); };
+    auto debugMsg = [&](std::string message) { cbMsg(MessageType::Debug, message); };
+
     if (!in) {
-        // fmt::println("BIN/CUE: Could not load CUE file");
+        errorMsg("BIN/CUE: Could not load CUE file");
         return std::nullopt;
     }
 
@@ -98,7 +102,7 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
     std::string line{};
     while (true) {
         if (!std::getline(in, line)) {
-            // fmt::println("BIN/CUE: Could not read file");
+            errorMsg("BIN/CUE: Could not read file");
             return std::nullopt;
         }
         if (!line.empty()) {
@@ -106,14 +110,14 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
             std::string keyword{};
             ins >> keyword;
             if (!kValidCueKeywords.contains(keyword)) {
-                // fmt::println("BIN/CUE: Not a valid CUE file");
+                invFmtMsg("BIN/CUE: Not a valid CUE file");
                 return std::nullopt;
             }
             if (keyword == "NO") {
                 // NO must be followed by COPY or PRE_EMPHASIS
                 ins >> keyword;
                 if (!kValidCueNOKeywords.contains(keyword)) {
-                    // fmt::println("BIN/CUE: Not a valid CUE file");
+                    invFmtMsg("BIN/CUE: Not a valid CUE file");
                     return std::nullopt;
                 }
             }
@@ -129,14 +133,14 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
     bool hasPregap = false;
     bool hasPostgap = false;
 
-    // uint32 lineNum = 1;
+    uint32 lineNum = 1;
 
     do {
         std::istringstream ins{line};
         std::string keyword{};
         ins >> keyword;
 
-        // fmt::println("BIN/CUE: [Line {}] {}", lineNum, line);
+        debugMsg(fmt::format("BIN/CUE: [Line {}] {}", lineNum, line));
 
         // Skip blank lines
         if (keyword.empty()) {
@@ -144,14 +148,14 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
         }
 
         if (!kValidCueKeywords.contains(keyword)) {
-            // fmt::println("BIN/CUE: Found invalid keyword {} (line {})", keyword, lineNum);
+            errorMsg(fmt::format("BIN/CUE: Found invalid keyword {} (line {})", keyword, lineNum));
             return std::nullopt;
         }
         if (keyword == "NO") {
             // NO must be followed by COPY or PRE_EMPHASIS
             ins >> keyword;
             if (!kValidCueNOKeywords.contains(keyword)) {
-                // fmt::println("BIN/CUE: Found invalid keyword NO {} (line {})", keyword, lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found invalid keyword NO {} (line {})", keyword, lineNum));
                 return std::nullopt;
             }
             keyword = "NO " + keyword;
@@ -162,7 +166,7 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
             std::string params = line.substr(line.find("FILE") + 5);
             auto pos = params.find_last_of(' ') + 1;
             if (pos == std::string::npos) {
-                // fmt::println("BIN/CUE: Invalid FILE entry: {} (line {})", line, lineNum);
+                errorMsg(fmt::format("BIN/CUE: Invalid FILE entry: {} (line {})", line, lineNum));
                 return std::nullopt;
             }
             std::string format = params.substr(pos);
@@ -188,24 +192,24 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
                 binPath = cuePath.parent_path() / filePath;
             }
             if (!std::filesystem::is_regular_file(binPath)) {
-                // fmt::println("BIN/CUE: File not found: {} (line {})", binPath, lineNum);
+                errorMsg(fmt::format("BIN/CUE: File not found: {} (line {})", binPath, lineNum));
                 return std::nullopt;
             }
             const uintmax_t size = std::filesystem::file_size(binPath);
 
-            // fmt::println("BIN/CUE: File {} - {} bytes", filename, size);
+            debugMsg(fmt::format("BIN/CUE: File {} - {} bytes", filename, size));
 
             sheet.files.push_back({.path = binPath, .size = size, .format = format});
         } else if (keyword == "TRACK") {
             // TRACK [number] [format]
             if (sheet.files.empty()) {
-                // fmt::println("BIN/CUE: Found TRACK without a FILE (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found TRACK without a FILE (line {})", lineNum));
                 return std::nullopt;
             }
 
             ++numTracks;
             if (numTracks > 99) {
-                // fmt::println("BIN/CUE: Too many tracks");
+                errorMsg(fmt::format("BIN/CUE: Too many tracks (line {})", lineNum));
                 return std::nullopt;
             }
 
@@ -217,14 +221,14 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
             if (nextTrackNum == 0) {
                 nextTrackNum = track.number + 1;
             } else if (track.number < nextTrackNum) {
-                // fmt::println("BIN/CUE: Unexpected track order: expected {} but found {} (line {})", nextTrackNum,
-                //              track.number, lineNum);
+                errorMsg(fmt::format("BIN/CUE: Unexpected track order: expected {} but found {} (line {})",
+                                     nextTrackNum, track.number, lineNum));
                 return std::nullopt;
             }
 
-            // fmt::println("BIN/CUE:   Track {:02d} - {}", track.number, track.format);
+            debugMsg(fmt::format("BIN/CUE:   Track {:02d} - {}", track.number, track.format));
             if (!track.format.starts_with("MODE") && track.format != "CDG" && track.format != "AUDIO") {
-                // fmt::println("BIN/CUE: Unsupported track format (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Unsupported track format (line {})", lineNum));
                 return std::nullopt;
             }
 
@@ -233,12 +237,12 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
         } else if (keyword == "INDEX") {
             // INDEX [number] [mm:ss:ff]
             if (hasPostgap) {
-                // fmt::println("BIN/CUE: Found INDEX after POSTGAP in a TRACK (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found INDEX after POSTGAP in a TRACK (line {})", lineNum));
                 return std::nullopt;
             }
 
             if (sheet.tracks.empty()) {
-                // fmt::println("BIN/CUE: Found INDEX without a TRACK (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found INDEX without a TRACK (line {})", lineNum));
                 return std::nullopt;
             }
             auto &track = sheet.tracks.back();
@@ -250,22 +254,22 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
             uint32 m = std::stoi(msf.substr(0, 2));
             uint32 s = std::stoi(msf.substr(3, 5));
             uint32 f = std::stoi(msf.substr(6, 8));
-            // fmt::println("BIN/CUE:     Index {:d} - {:02d}:{:02d}:{:02d}", index.number, m, s, f);
+            debugMsg(fmt::format("BIN/CUE:     Index {:d} - {:02d}:{:02d}:{:02d}", index.number, m, s, f));
             index.pos = TimestampToFrameAddress(m, s, f);
         } else if (keyword == "PREGAP") {
             // PREGAP [mm:ss:ff]
             if (sheet.tracks.empty()) {
-                // fmt::println("BIN/CUE: Found PREGAP without TRACK (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found PREGAP without TRACK (line {})", lineNum));
                 return std::nullopt;
             }
 
             auto &track = sheet.tracks.back();
             if (!track.indexes.empty()) {
-                // fmt::println("BIN/CUE: Found PREGAP after INDEX (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found PREGAP after INDEX (line {})", lineNum));
                 return std::nullopt;
             }
             if (hasPregap) {
-                // fmt::println("BIN/CUE: Found multiple PREGAPS in a TRACK (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found multiple PREGAPS in a TRACK (line {})", lineNum));
                 return std::nullopt;
             }
 
@@ -275,7 +279,7 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
             const uint32 m = std::stoi(msf.substr(0, 2));
             const uint32 s = std::stoi(msf.substr(3, 5));
             const uint32 f = std::stoi(msf.substr(6, 8));
-            // fmt::println("BIN/CUE:     Pregap - {:02d}:{:02d}:{:02d}", m, s, f);
+            debugMsg(fmt::format("BIN/CUE:     Pregap - {:02d}:{:02d}:{:02d}", m, s, f));
 
             track.pregap = TimestampToFrameAddress(m, s, f);
 
@@ -283,17 +287,17 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
         } else if (keyword == "POSTGAP") {
             // POSTGAP [mm:ss:ff]
             if (sheet.tracks.empty()) {
-                // fmt::println("BIN/CUE: Found POSTGAP without TRACK (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found POSTGAP without TRACK (line {})", lineNum));
                 return std::nullopt;
             }
 
             auto &track = sheet.tracks.back();
             if (!track.indexes.empty()) {
-                // fmt::println("BIN/CUE: Found POSTGAP without INDEX (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found POSTGAP without INDEX (line {})", lineNum));
                 return std::nullopt;
             }
             if (hasPostgap) {
-                // fmt::println("BIN/CUE: Found multiple POSTGAPS in a TRACK (line {})", lineNum);
+                errorMsg(fmt::format("BIN/CUE: Found multiple POSTGAPS in a TRACK (line {})", lineNum));
                 return std::nullopt;
             }
 
@@ -302,31 +306,34 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath) {
             uint32 m = std::stoi(msf.substr(0, 2));
             uint32 s = std::stoi(msf.substr(3, 5));
             uint32 f = std::stoi(msf.substr(6, 8));
-            // fmt::println("BIN/CUE:     Postgap - {:02d}:{:02d}:{:02d}", m, s, f);
+            debugMsg(fmt::format("BIN/CUE:     Postgap - {:02d}:{:02d}:{:02d}", m, s, f));
 
             track.postgap = TimestampToFrameAddress(m, s, f);
 
             hasPostgap = true;
         } else {
-            // fmt::println("BIN/CUE: Skipping {}", keyword);
+            debugMsg(fmt::format("BIN/CUE: Skipping {}", keyword));
         }
 
-        // lineNum++;
+        ++lineNum;
     } while (std::getline(in, line));
 
     // Sanity checks
     if (sheet.files.empty()) {
-        // fmt::println("BIN/CUE: No FILE specified");
+        errorMsg("BIN/CUE: No FILE specified");
         return std::nullopt;
     }
 
     return sheet;
 }
 
-bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
+bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoaderMessage cbMsg) {
     util::ScopeGuard sgInvalidateDisc{[&] { disc.Invalidate(); }};
 
-    if (auto optSheet = LoadSheet(cuePath)) {
+    auto errorMsg = [&](std::string message) { cbMsg(MessageType::Error, message); };
+    auto debugMsg = [&](std::string message) { cbMsg(MessageType::Debug, message); };
+
+    if (auto optSheet = LoadSheet(cuePath, cbMsg)) {
         CueSheet &sheet = *optSheet;
 
         // Build binary reader
@@ -342,7 +349,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
                 reader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
             }
             if (err) {
-                // fmt::println("BIN/CUE: Failed to load file - {}", err.message());
+                errorMsg(fmt::format("BIN/CUE: Failed to load file - {}", err.message()));
                 return false;
             }
         } else {
@@ -356,7 +363,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
                     fileReader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
                 }
                 if (err) {
-                    // fmt::println("BIN/CUE: Failed to load file - {}", err.message());
+                    errorMsg(fmt::format("BIN/CUE: Failed to load file - {}", err.message()));
                     return false;
                 }
                 compReader->Append(fileReader);
@@ -449,7 +456,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
                 track.SetSectorSize(2352);
                 track.controlADR = 0x01;
             } else {
-                // fmt::println("BIN/CUE: Unsupported track format: {}", sheetTrack.format);
+                errorMsg(fmt::format("BIN/CUE: Unsupported track format: {}", sheetTrack.format));
                 return false;
             }
 
@@ -494,12 +501,12 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM) {
         std::array<uint8, 256> header{};
         const uintmax_t readSize = reader->Read(userDataOffset, 256, header);
         if (readSize < 256) {
-            // fmt::println("BIN/CUE: File truncated");
+            errorMsg("BIN/CUE: Image file is truncated - cannot read header");
             return false;
         }
         disc.header.ReadFrom(header);
 
-        // fmt::println("BIN/CUE: Final FAD = {:6d}", frameAddress - 1);
+        debugMsg(fmt::format("BIN/CUE: Final FAD = {:6d}", frameAddress - 1));
 
         sgInvalidateDisc.Cancel();
 

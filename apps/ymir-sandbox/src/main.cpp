@@ -1096,7 +1096,8 @@ static void runVDP1AccuracySandbox(std::filesystem::path testPath) {
 
 static void runBinCueLoaderSandbox(std::filesystem::path cuePath) {
     ymir::media::Disc disc{};
-    if (ymir::media::loader::bincue::Load(cuePath, disc, false)) {
+    if (ymir::media::loader::bincue::Load(cuePath, disc, false,
+                                          [](auto, std::string msg) { fmt::println("{}", msg); })) {
         fmt::println("Disc image loaded successfully");
     }
 }
