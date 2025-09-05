@@ -52,7 +52,7 @@ struct Track {
         if (it == indices.end()) {
             return 0xFF;
         } else {
-            return std::distance(indices.begin(), it) + 1;
+            return std::distance(indices.begin(), it);
         }
     }
 
