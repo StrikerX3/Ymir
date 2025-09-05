@@ -990,11 +990,13 @@ void VDP::UpdateResolution() {
     // TODO: penalty should be 200, but doing so results in less pixels than necessary being erased
     // Test cases:
     //   Game                Where                Reso.     Sprite bits
-    //   Panzer Dragoon      FMV subtitles        352x224   16
-    //   Guardian Heroes     Main menu, in-game   320x224   16
-    //   Sonic R             In-game              352x224   16
     //   Die Hard Arcade     Menus, in-game       704x240   8
-    static constexpr uint32 kVBEHorzPenalty = 149;
+    //   Guardian Heroes     Main menu, in-game   320x224   16
+    //   Linkle Liver Story  In-game              320x224   16
+    //   Powerslave          Menus, in-game       320x240   16
+    //   Panzer Dragoon      FMV subtitles        352x224   16
+    //   Sonic R             In-game              352x224   16
+    static constexpr uint32 kVBEHorzPenalty = 138;
     static constexpr std::array<uint32, 8> kVBEHorzTimings{{
         1708 - kVBEHorzPenalty, // Normal Graphic A
         1820 - kVBEHorzPenalty, // Normal Graphic B
