@@ -988,7 +988,13 @@ void VDP::UpdateResolution() {
 
     // Compute cycles available for VBlank erase
     // TODO: penalty should be 200, but doing so results in less pixels than necessary being erased
-    static constexpr uint32 kVBEHorzPenalty = 150;
+    // Test cases:
+    //   Game                Where                Reso.     Sprite bits
+    //   Panzer Dragoon      FMV subtitles        352x224   16
+    //   Guardian Heroes     Main menu, in-game   320x224   16
+    //   Sonic R             In-game              352x224   16
+    //   Die Hard Arcade     Menus, in-game       704x240   8
+    static constexpr uint32 kVBEHorzPenalty = 149;
     static constexpr std::array<uint32, 8> kVBEHorzTimings{{
         1708 - kVBEHorzPenalty,       // Normal Graphic A
         1820 - kVBEHorzPenalty,       // Normal Graphic B
