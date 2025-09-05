@@ -990,14 +990,14 @@ void VDP::UpdateResolution() {
     // TODO: penalty should be 200, but doing so results in less pixels than necessary being erased
     static constexpr uint32 kVBEHorzPenalty = 150;
     static constexpr std::array<uint32, 8> kVBEHorzTimings{{
-        1708 - kVBEHorzPenalty, // Normal Graphic A
-        1820 - kVBEHorzPenalty, // Normal Graphic B
-        1708 - kVBEHorzPenalty, // Hi-Res Graphic A
-        1820 - kVBEHorzPenalty, // Hi-Res Graphic B
-        852 - kVBEHorzPenalty,  // Exclusive Normal Graphic A
-        848 - kVBEHorzPenalty,  // Exclusive Normal Graphic B
-        852 - kVBEHorzPenalty,  // Exclusive Hi-Res Graphic A
-        848 - kVBEHorzPenalty,  // Exclusive Hi-Res Graphic B
+        1708 - kVBEHorzPenalty,       // Normal Graphic A
+        1820 - kVBEHorzPenalty,       // Normal Graphic B
+        (1708 - kVBEHorzPenalty) * 2, // Hi-Res Graphic A  (TODO: why does x2 work?)
+        (1820 - kVBEHorzPenalty) * 2, // Hi-Res Graphic B  (TODO: why does x2 work?)
+        852 - kVBEHorzPenalty,        // Exclusive Normal Graphic A
+        848 - kVBEHorzPenalty,        // Exclusive Normal Graphic B
+        852 - kVBEHorzPenalty,        // Exclusive Hi-Res Graphic A
+        848 - kVBEHorzPenalty,        // Exclusive Hi-Res Graphic B
     }};
     static constexpr auto kVPActiveIndex = static_cast<uint32>(VerticalPhase::Active);
     static constexpr auto kVPLastLineIndex = static_cast<uint32>(VerticalPhase::LastLine);
