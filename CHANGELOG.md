@@ -60,6 +60,7 @@ Introduced save state file version 9.
 - System: Reset clock speed when soft resetting the system.
 - VDP1: Clear transparent mesh layer to 0 instead of the erase write value when erasing framebuffer. Fixes Rayman's level loading screens rendering at half brightness when using the transparent meshes enhancement.
 - VDP1: Cycle-count VBlank erase process. Fixes flashing subtitles in Panzer Dragoon FMVs.
+- VDP1: Improve performance by avoiding double-writing the same pixels in the erase process low resolution modes. Also fixes erase process cycle counting in high resolutions.
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)
 - VDP1: Delay PTM=1 drawing start to dodge some timing issues with games that trigger drawing too early. Fixes flickering glass shard in Fighter's History Dynamite's intro sequence. (#503)
 - VDP1: Primitive cycle counting to work around some games that horribly abuse the VDP1, such as Baroque, Dark Seed II, and Funky Fantasy. (#311, #316, #364)

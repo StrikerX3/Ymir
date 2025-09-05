@@ -996,14 +996,14 @@ void VDP::UpdateResolution() {
     //   Die Hard Arcade     Menus, in-game       704x240   8
     static constexpr uint32 kVBEHorzPenalty = 149;
     static constexpr std::array<uint32, 8> kVBEHorzTimings{{
-        1708 - kVBEHorzPenalty,       // Normal Graphic A
-        1820 - kVBEHorzPenalty,       // Normal Graphic B
-        (1708 - kVBEHorzPenalty) * 2, // Hi-Res Graphic A  (TODO: why does x2 work?)
-        (1820 - kVBEHorzPenalty) * 2, // Hi-Res Graphic B  (TODO: why does x2 work?)
-        852 - kVBEHorzPenalty,        // Exclusive Normal Graphic A
-        848 - kVBEHorzPenalty,        // Exclusive Normal Graphic B
-        852 - kVBEHorzPenalty,        // Exclusive Hi-Res Graphic A
-        848 - kVBEHorzPenalty,        // Exclusive Hi-Res Graphic B
+        1708 - kVBEHorzPenalty, // Normal Graphic A
+        1820 - kVBEHorzPenalty, // Normal Graphic B
+        1708 - kVBEHorzPenalty, // Hi-Res Graphic A
+        1820 - kVBEHorzPenalty, // Hi-Res Graphic B
+        852 - kVBEHorzPenalty,  // Exclusive Normal Graphic A
+        848 - kVBEHorzPenalty,  // Exclusive Normal Graphic B
+        852 - kVBEHorzPenalty,  // Exclusive Hi-Res Graphic A
+        848 - kVBEHorzPenalty,  // Exclusive Hi-Res Graphic B
     }};
     static constexpr auto kVPActiveIndex = static_cast<uint32>(VerticalPhase::Active);
     static constexpr auto kVPLastLineIndex = static_cast<uint32>(VerticalPhase::LastLine);
@@ -1604,30 +1604,28 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer(uint64 cycles) {
     const bool halfResH =
         !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
 
-    // Horizontal scale is doubled in hi-res mode, lo-res modes with 8-bit sprite data or when targeting rotation BG
-    const uint32 scaleH = (regs2.TVMD.HRESOn & 0b010) || halfResH || regs1.fbRotEnable ? 1 : 0;
+    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+
     // Vertical scale is doubled in double-interlace mode
-    const uint32 scaleV = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity ? 1 : 0;
+    const uint32 scaleV = doubleDensity ? 1 : 0;
 
     // Constrain erase area to certain limits based on current resolution
     const uint32 maxH = (regs2.TVMD.HRESOn & 1) ? 428 : 400;
     const uint32 maxV = m_VRes >> scaleV;
 
-    const uint32 offsetShift = regs1.pixel8Bits ? 0 : 1;
-
-    const uint32 x1 = std::min<uint32>(ctx.eraseX1, maxH) << scaleH;
-    const uint32 x3 = std::min<uint32>(ctx.eraseX3, maxH) << scaleH;
+    const uint32 x1 = std::min<uint32>(ctx.eraseX1, maxH);
+    const uint32 x3 = std::min<uint32>(ctx.eraseX3, maxH);
     const uint32 y1 = std::min<uint32>(ctx.eraseY1, maxV) << scaleV;
     const uint32 y3 = std::min<uint32>(ctx.eraseY3, maxV) << scaleV;
 
-    const bool mirror = m_deinterlaceRender && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+    const bool mirror = m_deinterlaceRender && doubleDensity;
 
     static constexpr uint64 kCyclesPerWrite = 1;
 
     for (uint32 y = y1; y <= y3; y++) {
-        const uint32 fbOffset = y * regs1.fbSizeH;
+        const uint32 fbOffset = y * 512;
         for (uint32 x = x1; x < x3; x++) {
-            const uint32 address = (fbOffset + x) << offsetShift;
+            const uint32 address = (fbOffset + x) * sizeof(uint16);
             util::WriteBE<uint16>(&fb[address & 0x3FFFE], ctx.eraseWriteValue);
             if (mirror) {
                 util::WriteBE<uint16>(&altFB[address & 0x3FFFE], ctx.eraseWriteValue);
