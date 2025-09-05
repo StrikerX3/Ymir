@@ -60,6 +60,16 @@ struct DMAChannel {
         endIndirect = false;
     }
 
+    void InitTransfer() {
+        xfer.buf = 0x00000000;
+        xfer.bufPos = currSrcAddr & 3u;
+        xfer.currDstAddr = currDstAddr;
+        xfer.currDstOffset = currDstAddr & 3u;
+        xfer.initialDstAlignment = xfer.currDstOffset;
+        xfer.xferLength = currXferCount;
+        xfer.started = true;
+    }
+
     uint32 srcAddr;     // DnR - Read address
     uint32 dstAddr;     // DnW - Write address
     uint32 xferCount;   // DnC - Transfer byte count (up to 1 MiB for level 0, 4 KiB for levels 1 and 2)
@@ -81,6 +91,23 @@ struct DMAChannel {
 
     uint32 currIndirectSrc; // Indirect data transfer source address
     bool endIndirect;       // Whether the end flag was sent on the current indirect transfer
+
+    // Transfer state
+    struct Transfer {
+        uint32 buf;
+        uint32 bufPos;
+        uint32 currDstAddr;
+        uint32 currDstOffset;
+
+        // These values are only needed for B-Bus writes because they're completely illogical.
+        uint32 initialDstAlignment;
+        uint32 xferLength;
+
+        uint32 baseSrcAddr;
+        uint32 baseDstAddr;
+
+        bool started;
+    } xfer;
 
     // -------------------------------------------------------------------------
     // Save states
