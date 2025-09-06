@@ -175,8 +175,11 @@ namespace detail {
     constexpr void log(fmt::format_string<TArgs...> fmt, TArgs &&...args) {
         static_assert(level < level::off);
         if constexpr (enabled<level, TGroup>) {
-            fmt::print("{:5s} | {:16s} | ", level::name<level>, TGroup::name);
-            fmt::println(fmt, static_cast<TArgs &&>(args)...);
+            fmt::memory_buffer buf{};
+            auto out = std::back_inserter(buf);
+            fmt::format_to(out, "{:5s} | {:16s} | ", level::name<level>, TGroup::name);
+            fmt::format_to(out, fmt, static_cast<TArgs &&>(args)...);
+            fmt::println("{}", fmt::to_string(buf));
         }
     }
 
@@ -191,8 +194,11 @@ namespace detail {
     constexpr void log(std::string_view nameArgs, fmt::format_string<TArgs...> fmt, TArgs &&...args) {
         static_assert(level < level::off);
         if constexpr (enabled<level, TGroup>) {
-            fmt::print("{:5s} | {:16s} | ", level::name<level>, TGroup::Name(nameArgs));
-            fmt::println(fmt, static_cast<TArgs &&>(args)...);
+            fmt::memory_buffer buf{};
+            auto out = std::back_inserter(buf);
+            fmt::format_to(out, "{:5s} | {:16s} | ", level::name<level>, TGroup::Name(nameArgs));
+            fmt::format_to(out, fmt, static_cast<TArgs &&>(args)...);
+            fmt::println("{}", fmt::to_string(buf));
         }
     }
 
