@@ -2547,15 +2547,6 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
         Color555 colorC{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
         Color555 colorD{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
 
-        // TODO: check if swapping is needed
-        if (control.flipH) {
-            std::swap(colorA, colorB);
-            std::swap(colorD, colorC);
-        }
-        if (control.flipV) {
-            std::swap(colorA, colorD);
-            std::swap(colorB, colorC);
-        }
         devlog::trace<grp::vdp1_render>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)colorA.r,
                                         (uint8)colorA.g, (uint8)colorA.b, (uint8)colorB.r, (uint8)colorB.g,
                                         (uint8)colorB.b, (uint8)colorC.r, (uint8)colorC.g, (uint8)colorC.b,
