@@ -413,6 +413,13 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
         const bool vbe = bit::test<3>(s.regs1.TVMR);
         s.renderer.vdp1State.doDisplayErase &= !vbe;
         s.renderer.vdp1State.doVBlankErase = erase && vbe;
+
+        // Copy VDP1 register values to latched registers
+        s.renderer.vdp1State.eraseWriteValue = s.regs1.EWDR;
+        s.renderer.vdp1State.eraseX1 = bit::extract<9, 14>(s.regs1.EWLR) << 3;
+        s.renderer.vdp1State.eraseY1 = bit::extract<0, 8>(s.regs1.EWLR);
+        s.renderer.vdp1State.eraseX3 = bit::extract<9, 15>(s.regs1.EWRR) << 3;
+        s.renderer.vdp1State.eraseY3 = bit::extract<0, 8>(s.regs1.EWRR);
     }
 }
 
@@ -523,6 +530,9 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     //   - doubleV = 0
     //   - cyclesSpent = 0
     //   - doVBlankErase = true when erase && VBE=1, otherwise false
+    //   - eraseWriteValue = EWDR
+    //   - eraseX1, eraseY1 = EWLR
+    //   - eraseX3, eraseY3 = EWRR
     // - Changed fields
     //   - erase -> doDisplayErase = true when erase && VBE=0, otherwise false
     // v5:
@@ -541,7 +551,10 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     ar(s.doDisplayErase);
     if (version >= 9) {
         ar(s.doVBlankErase);
-        // Default value for versions < 9 handled in the VDPState serializer
+        ar(s.eraseWriteValue);
+        ar(s.eraseX1, s.eraseX3);
+        ar(s.eraseY1, s.eraseY3);
+        // Default values for versions < 9 handled in the VDPState serializer
     }
     ar(s.cycleCount);
     if (version >= 9) {

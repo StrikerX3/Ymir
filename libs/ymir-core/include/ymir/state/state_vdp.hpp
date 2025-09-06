@@ -212,6 +212,10 @@ struct VDPState {
             bool doDisplayErase;
             bool doVBlankErase;
 
+            uint16 eraseWriteValue;
+            uint16 eraseX1, eraseY1;
+            uint16 eraseX3, eraseY3;
+
             uint64 cycleCount;
             uint64 cyclesSpent;
         };

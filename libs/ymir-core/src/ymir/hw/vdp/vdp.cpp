@@ -618,6 +618,12 @@ void VDP::SaveState(state::VDPState &state) const {
     state.renderer.vdp1State.localCoordY = m_VDP1RenderContext.localCoordY;
     state.renderer.vdp1State.rendering = m_VDP1RenderContext.rendering;
     state.renderer.vdp1State.doDisplayErase = m_VDP1RenderContext.doDisplayErase;
+    state.renderer.vdp1State.doVBlankErase = m_VDP1RenderContext.doVBlankErase;
+    state.renderer.vdp1State.eraseWriteValue = m_VDP1RenderContext.eraseWriteValue;
+    state.renderer.vdp1State.eraseX1 = m_VDP1RenderContext.eraseX1;
+    state.renderer.vdp1State.eraseY1 = m_VDP1RenderContext.eraseY1;
+    state.renderer.vdp1State.eraseX3 = m_VDP1RenderContext.eraseX3;
+    state.renderer.vdp1State.eraseY3 = m_VDP1RenderContext.eraseY3;
     state.renderer.vdp1State.cycleCount = m_VDP1RenderContext.cycleCount;
     state.renderer.vdp1State.cyclesSpent = m_VDP1RenderContext.cyclesSpent;
 
@@ -700,6 +706,12 @@ void VDP::LoadState(const state::VDPState &state) {
     m_VDP1RenderContext.localCoordY = state.renderer.vdp1State.localCoordY;
     m_VDP1RenderContext.rendering = state.renderer.vdp1State.rendering;
     m_VDP1RenderContext.doDisplayErase = state.renderer.vdp1State.doDisplayErase;
+    m_VDP1RenderContext.doVBlankErase = state.renderer.vdp1State.doVBlankErase;
+    m_VDP1RenderContext.eraseWriteValue = state.renderer.vdp1State.eraseWriteValue;
+    m_VDP1RenderContext.eraseX1 = state.renderer.vdp1State.eraseX1;
+    m_VDP1RenderContext.eraseY1 = state.renderer.vdp1State.eraseY1;
+    m_VDP1RenderContext.eraseX3 = state.renderer.vdp1State.eraseX3;
+    m_VDP1RenderContext.eraseY3 = state.renderer.vdp1State.eraseY3;
     m_VDP1RenderContext.cycleCount = state.renderer.vdp1State.cycleCount;
     m_VDP1RenderContext.cyclesSpent = state.renderer.vdp1State.cyclesSpent;
 
