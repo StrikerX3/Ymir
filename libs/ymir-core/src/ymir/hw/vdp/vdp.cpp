@@ -2099,6 +2099,10 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
     const uint32 charSizeV = lineParams.charSizeV;
     const auto mode = lineParams.mode;
     const auto control = lineParams.control;
+    if (mode.colorMode == 5) {
+        // Force-align character address in 16 bpp RGB mode
+        lineParams.charAddr &= ~0xF;
+    }
 
     const uint32 v = lineParams.texVStepper.Value();
 
