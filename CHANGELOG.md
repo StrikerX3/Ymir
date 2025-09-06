@@ -68,7 +68,9 @@ Introduced save state file version 9.
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)
 - VDP1: Delay PTM=1 drawing start to dodge some timing issues with games that trigger drawing too early. Fixes flickering glass shard in Fighter's History Dynamite's intro sequence. (#503)
 - VDP1: Primitive cycle counting to work around some games that horribly abuse the VDP1, such as Baroque, Dark Seed II, and Funky Fantasy. (#311, #316, #364)
-- VDP1: Remove write penalty hack introduced earlier for Mega Man X3's sprites. Fixes missing sprites in Seikai Risshiden - Yoi Kuni, Yoi Seiji and Jissen Pachinko Hisshou-hou! Twin. (#425, #537)
+- VDP1: Remove write penalty hack introduced earlier for Mega Man X3's sprites. Fixes multiple issues:
+    - Missing sprites in Seikai Risshiden - Yoi Kuni, Yoi Seiji, and Jissen Pachinko Hisshou-hou! Twin (#425, #537)
+	- Flashing FMVs in World Cup Golf - Professional Edition (#516)
 - VDP1: Rework scaled sprite rendering to correctly handle undocumented zoom point settings.
 - VDP2: Adjust line width for RBG line color insertion. Fixes half of the field not being colored in World League Soccer '98. (#517)
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.
