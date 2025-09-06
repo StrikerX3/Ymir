@@ -271,6 +271,8 @@ struct VDPState {
         uint8 displayFB;
         bool vdp1Done;
     } renderer;
+
+    bool displayEnabled;
 };
 
 } // namespace ymir::state

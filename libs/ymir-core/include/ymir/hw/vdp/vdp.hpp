@@ -256,6 +256,9 @@ private:
     uint32 m_VRes; // Vertical display resolution
     bool m_exclusiveMonitor;
 
+    // Display enabled (derived from TVMD.DISP)
+    bool m_displayEnabled;
+
     // Display timings
     std::array<uint32, 4> m_HTimings;                // [phase]
     std::array<std::array<uint32, 6>, 2> m_VTimings; // [even/odd][phase]

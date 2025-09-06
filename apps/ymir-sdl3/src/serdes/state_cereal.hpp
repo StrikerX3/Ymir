@@ -329,6 +329,7 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     // v9:
     // - New fields
     //   - enum VDPState::VerticalPhase: added VCounterSkip (= 5)
+    //   - displayEnabled = regs2.TVMD.DISP (= TVMD & 0x8000)
     // v7:
     // - New fields
     //   - VDP1TimingPenalty = 0
@@ -387,6 +388,11 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
         }
     }
     serialize(ar, s.renderer, version);
+    if (version >= 9) {
+        ar(s.displayEnabled);
+    } else {
+        s.displayEnabled = bit::test<15>(s.regs2.TVMD);
+    }
 
     if (version < 4) {
         // Compensate for the removal of SCXIN/SCYIN from fracScrollX/Y

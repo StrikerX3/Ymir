@@ -103,6 +103,7 @@ void VDP::Reset(bool hard) {
     m_HRes = 320;
     m_VRes = 224;
     m_exclusiveMonitor = false;
+    m_displayEnabled = false;
 
     m_state.Reset(hard);
     if (hard) {
@@ -672,6 +673,8 @@ void VDP::SaveState(state::VDPState &state) const {
 
     state.renderer.displayFB = m_renderingContext.displayFB;
     state.renderer.vdp1Done = m_renderingContext.vdp1Done;
+
+    state.displayEnabled = m_displayEnabled;
 }
 
 bool VDP::ValidateState(const state::VDPState &state) const {
@@ -760,6 +763,8 @@ void VDP::LoadState(const state::VDPState &state) {
 
     m_renderingContext.displayFB = state.renderer.displayFB;
     m_renderingContext.vdp1Done = state.renderer.vdp1Done;
+
+    m_displayEnabled = state.displayEnabled;
 
     UpdateResolution<true>();
 
@@ -1048,8 +1053,7 @@ void VDP::UpdateResolution() {
         case InterlaceMode::SingleDensity: devlog::info<grp::vdp2>("Single-density interlace mode"); break;
         case InterlaceMode::DoubleDensity: devlog::info<grp::vdp2>("Double-density interlace mode"); break;
         }
-        devlog::info<grp::vdp2>("Dot clock mult = {}, display {}", dotClockMult,
-                                (m_state.regs2.TVMD.DISP ? "ON" : "OFF"));
+        devlog::info<grp::vdp2>("Dot clock mult = {}, display {}", dotClockMult, (m_displayEnabled ? "ON" : "OFF"));
     }
 }
 
@@ -1275,6 +1279,9 @@ void VDP::BeginVPhaseTopBorder() {
     devlog::trace<grp::base>("(VCNT = {:3d})  Entering top border phase", m_state.regs2.VCNT);
 
     UpdateResolution<true>();
+
+    // Latch display enable flag
+    m_displayEnabled = m_state.regs2.TVMD.DISP;
 
     // TODO: draw border
 }
@@ -3543,13 +3550,13 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
 }
 
 FORCE_INLINE void VDP::VDP2PrepareLine(uint32 y) {
-    VDP2Regs &regs2 = VDP2GetRegs();
-
     // Don't waste time processing anything if the display is disabled
     // TODO: check if this is how the real VDP2 behaves
-    if (!regs2.TVMD.DISP) [[unlikely]] {
+    if (!m_displayEnabled) [[unlikely]] {
         return;
     }
+
+    VDP2Regs &regs2 = VDP2GetRegs();
 
     VDP2CalcAccessPatterns(regs2);
     if (regs2.bgEnabled[4] || regs2.bgEnabled[5]) {
@@ -4867,7 +4874,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
     y = VDP2GetY<deinterlace>(y) ^ static_cast<uint32>(altField);
 
-    if (!regs.TVMD.DISP) {
+    if (!m_displayEnabled) {
         uint32 color = 0xFF000000;
         if (regs.TVMD.BDCLMD) {
             color |= m_lineBackLayerState.backColor.u32;
