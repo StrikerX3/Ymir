@@ -64,6 +64,7 @@ Introduced save state file version 9.
 - VDP1: Don't swap gouraud values when horizontal and/or vertical flip is enabled for an untextured polygon. Fixes bad shading in Croc - Legend of the Gobbos. (#543)
 - VDP1: Force-align sprite character data address to 16 bytes when using RGB 5:5:5 color mode. Fixes misaligned team logos in All-Star Baseball '97 Featuring Frank Thomas. (#546)
 - VDP1: Improve performance by avoiding double-writing the same pixels in the erase process low resolution modes. Also fixes erase process cycle counting in high resolutions.
+- VDP1: Increase padding for system clip rendering optimization. Fixes stray white pixels on the right and bottom edges of the intro of Mahjong Yon Shimai - Wakakusa Monogatari. (#527)
 - VDP1: Pixel-perfect rendering. (thanks to Lordus)
 - VDP1: Delay PTM=1 drawing start to dodge some timing issues with games that trigger drawing too early. Fixes flickering glass shard in Fighter's History Dynamite's intro sequence. (#503)
 - VDP1: Primitive cycle counting to work around some games that horribly abuse the VDP1, such as Baroque, Dark Seed II, and Funky Fantasy. (#311, #316, #364)

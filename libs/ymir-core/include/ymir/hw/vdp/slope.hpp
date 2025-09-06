@@ -305,8 +305,8 @@ struct LineStepper {
         static constexpr sint32 kPadding = 1;
 
         // Add padding to compensate for minor inaccuracies
-        width += kPadding;
-        height += kPadding;
+        width += kPadding + 1;
+        height += kPadding + 1;
 
         // Bail out early if the line length is zero
         uint32 length = m_dmaj;
