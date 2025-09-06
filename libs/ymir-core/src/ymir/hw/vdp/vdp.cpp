@@ -2833,11 +2833,11 @@ void VDP::VDP2UpdateEnabledBGs() {
         const bool disableNBG3 = colorFormatNBG0 == ColorFormat::RGB888 ||
                                  colorFormatNBG1 == ColorFormat::Palette2048 || colorFormatNBG1 == ColorFormat::RGB555;
 
-        m_layerEnabled[1] = m_layerRendered[1] && regs2.bgEnabled[4];                          // RBG0
-        m_layerEnabled[2] = m_layerRendered[2] && (regs2.bgEnabled[0] || !regs2.bgEnabled[5]); // NBG0/RBG1
-        m_layerEnabled[3] = m_layerRendered[3] && regs2.bgEnabled[1] && !disableNBG1;          // NBG1/EXBG
-        m_layerEnabled[4] = m_layerRendered[4] && regs2.bgEnabled[2] && !disableNBG2;          // NBG2
-        m_layerEnabled[5] = m_layerRendered[5] && regs2.bgEnabled[3] && !disableNBG3;          // NBG3
+        m_layerEnabled[1] = m_layerRendered[1] && regs2.bgEnabled[4];                         // RBG0
+        m_layerEnabled[2] = m_layerRendered[2] && (regs2.bgEnabled[0] || regs2.bgEnabled[5]); // NBG0/RBG1
+        m_layerEnabled[3] = m_layerRendered[3] && regs2.bgEnabled[1] && !disableNBG1;         // NBG1/EXBG
+        m_layerEnabled[4] = m_layerRendered[4] && regs2.bgEnabled[2] && !disableNBG2;         // NBG2
+        m_layerEnabled[5] = m_layerRendered[5] && regs2.bgEnabled[3] && !disableNBG3;         // NBG3
     }
 }
 
