@@ -3722,15 +3722,31 @@ NO_INLINE void VDP::VDP2DrawSpriteLayer(uint32 y) {
     for (uint32 x = 0; x < maxX; x++) {
         const uint32 xx = x << xShift;
 
-        const uint32 spriteFBOffset = [&] {
-            if constexpr (rotate) {
-                const auto &rotParamState = m_rotParamStates[0];
-                const auto &coord = rotParamState.spriteCoords[x];
-                return coord.x() + coord.y() * regs1.fbSizeH;
-            } else {
-                return (x << xSpriteShift) + y * regs1.fbSizeH;
+        uint32 spriteFBOffset;
+        if constexpr (rotate) {
+            const auto &rotParamState = m_rotParamStates[0];
+            const auto &coord = rotParamState.spriteCoords[x];
+            if (coord.x() < 0 || coord.x() >= regs1.fbSizeH || coord.y() < 0 || coord.y() >= regs1.fbSizeV) {
+                layerState.pixels.transparent[xx] = true;
+                layerAttrs.shadowOrWindow[xx] = false;
+                if (doubleResH) {
+                    layerState.pixels.CopyPixel(xx, xx + 1);
+                    layerAttrs.CopyAttrs(xx, xx + 1);
+                }
+                if constexpr (transparentMeshes) {
+                    meshLayerState.pixels.transparent[xx] = true;
+                    meshLayerAttrs.shadowOrWindow[xx] = false;
+                    if (doubleResH) {
+                        meshLayerState.pixels.CopyPixel(xx, xx + 1);
+                        meshLayerAttrs.CopyAttrs(xx, xx + 1);
+                    }
+                }
+                continue;
             }
-        }();
+            spriteFBOffset = coord.x() + coord.y() * regs1.fbSizeH;
+        } else {
+            spriteFBOffset = (x << xSpriteShift) + y * regs1.fbSizeH;
+        }
 
         VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, false>(xx, params, spriteFB, spriteFBOffset);
         if (doubleResH) {

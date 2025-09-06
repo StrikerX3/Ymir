@@ -74,6 +74,7 @@ Introduced save state file version 9.
 - VDP1: Rework scaled sprite rendering to correctly handle undocumented zoom point settings.
 - VDP2: Adjust line width for RBG line color insertion. Fixes half of the field not being colored in World League Soccer '98. (#517)
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.
+- VDP2: Don't draw out of bounds areas of the sprite layer when rotated. Fixes ground-on-sky glitch in Sega Ages - Power Drift. (#492)
 - VDP2: Don't use supplementary data for characters in inaccessible VRAM banks. Fixes columns of "A"s in Darklight Conflict. (#545)
 - VDP2: Double vertical window coordinates when the display is in single-density interlaced mode. Fixes the bottom half of the screen missing in Pro-Pinball: The Web. (#371)
 - VDP2: Fix CRAM address bits shuffling. Fixes unexpected graphics showing up before the intro FMV in Saturn Bomberman. (#434)
