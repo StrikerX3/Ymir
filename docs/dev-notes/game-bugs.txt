@@ -20,6 +20,12 @@ DoDonPachi
   The game works normally after the SSH2 recovers.
 
 
+Golden Axe - The Duel
+---------------------
+  Sprites flash for a single frame when displaying the "Now Loading".
+  Also happens on real hardware.
+
+
 Hang-On GP (USA)
 ----------------
   Displays garbage graphics for a few frames before the main menu is presented.
