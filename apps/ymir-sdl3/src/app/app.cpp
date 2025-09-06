@@ -2603,25 +2603,6 @@ void App::RunEmulator() {
                         m_settingsWindow.OpenTab(ui::SettingsTab::Tweaks);
                     }
 
-                    ImGui::Separator();
-
-                    if (ImGui::MenuItem("Reload game controller database")) {
-                        ReloadSDLGameControllerDatabases(true);
-                    }
-                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) {
-                        if (ImGui::BeginItemTooltip()) {
-                            ImGui::PushTextWrapPos(500.0f * m_context.displayScale);
-                            ImGui::Text(
-                                "The game controller database will be loaded from these paths:\n%s\n%s",
-                                fmt::format("{}", Profile::GetPortableProfilePath() / kGameControllerDBFile).c_str(),
-                                fmt::format("{}", m_context.profile.GetPath(ProfilePath::Root) / kGameControllerDBFile)
-                                    .c_str());
-
-                            ImGui::PopTextWrapPos();
-                            ImGui::EndTooltip();
-                        }
-                    }
-
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Debug")) {
