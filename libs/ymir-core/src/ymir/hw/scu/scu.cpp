@@ -696,13 +696,8 @@ void SCU::RunDMA() {
                 TriggerDMAIllegal();
                 RecalcDMAChannel();
             }
-            m_bus.NotifySCUDMA(baseSrcAddr, false);
-            m_bus.NotifySCUDMA(baseDstAddr, false);
             continue;
         }
-
-        m_bus.NotifySCUDMA(baseSrcAddr, true);
-        m_bus.NotifySCUDMA(baseDstAddr, true);
 
         // Increment the write address
         auto incDst = [&] {
@@ -912,8 +907,6 @@ void SCU::RunDMA() {
             ch.currDstAddr = currDstAddr;
             TriggerDMAEnd(level);
             RecalcDMAChannel();
-            m_bus.NotifySCUDMA(baseSrcAddr, false);
-            m_bus.NotifySCUDMA(baseDstAddr, false);
         }
     }
 }

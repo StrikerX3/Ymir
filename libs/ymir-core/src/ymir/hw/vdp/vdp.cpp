@@ -111,7 +111,6 @@ void VDP::Reset(bool hard) {
     }
 
     m_VDP1TimingPenaltyCycles = 0;
-    m_VDP1TimingPenaltyPerWrite = kVDP1TimingPenaltyPerWrite;
 
     if (m_threadedVDPRendering) {
         m_renderingContext.EnqueueEvent(VDPRenderEvent::Reset());
@@ -170,9 +169,6 @@ void VDP::MapMemory(sys::Bus &bus) {
         [](uint32 address, uint32 value, void *ctx) {
             cast(ctx).VDP1WriteVRAM<uint16, false>(address + 0, value >> 16u);
             cast(ctx).VDP1WriteVRAM<uint16, false>(address + 2, value >> 0u);
-        },
-        [](uint32 address, bool SCUDMAactive, void *ctx) {
-            cast(ctx).m_VDP1TimingPenaltyPerWrite = SCUDMAactive ? 0 : kVDP1TimingPenaltyPerWrite;
         });
     bus.MapSideEffectFree(
         0x5C0'0000, 0x5C7'FFFF, this,
@@ -405,13 +401,6 @@ FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
     util::WriteBE<T>(&m_state.VRAM1[address], value);
     if (m_effectiveRenderVDP1InVDP2Thread) {
         m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP1VRAMWrite<T>(address, value));
-    }
-
-    if constexpr (!poke) {
-        // HACK: Add a timing penalty to VDP1 command execution on every VRAM write coming from SH-2
-        if (m_VDP1RenderContext.rendering) {
-            m_VDP1TimingPenaltyCycles += m_VDP1TimingPenaltyPerWrite; // FIXME: pulled out of thin air
-        }
     }
 }
 
@@ -2147,7 +2136,7 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
         auto processEndCode = [&](bool endCode) {
             if (endCode && !mode.endCodeDisable) {
                 hasEndCode = true;
-                endCodeCount++;
+                ++endCodeCount;
             } else {
                 hasEndCode = false;
             }

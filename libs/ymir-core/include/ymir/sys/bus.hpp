@@ -29,16 +29,12 @@ using FnWrite8 = void (*)(uint32 address, uint8 value, void *ctx);   ///< Functi
 using FnWrite16 = void (*)(uint32 address, uint16 value, void *ctx); ///< Function signature for 16-bit writes.
 using FnWrite32 = void (*)(uint32 address, uint32 value, void *ctx); ///< Function signature for 32-bit writes.
 
-using FnNotifySCUDMA = void (*)(uint32 address, bool active,
-                                void *ctx); ///< Function signature for SCU DMA notifications.
-
 /// @brief Specifies valid bus handler function types.
 /// @tparam T the type to check
 template <typename T>
 concept bus_handler_fn =
     fninfo::IsAssignable<FnRead8, T> || fninfo::IsAssignable<FnRead16, T> || fninfo::IsAssignable<FnRead32, T> ||
-    fninfo::IsAssignable<FnWrite8, T> || fninfo::IsAssignable<FnWrite16, T> || fninfo::IsAssignable<FnWrite32, T> ||
-    fninfo::IsAssignable<FnNotifySCUDMA, T>;
+    fninfo::IsAssignable<FnWrite8, T> || fninfo::IsAssignable<FnWrite16, T> || fninfo::IsAssignable<FnWrite32, T>;
 
 /// @brief Represents a memory bus interconnecting various components in the system.
 ///
@@ -213,16 +209,6 @@ public:
         }
     }
 
-    /// @brief Notifies the target component of the SCU DMA transfer state.
-    /// @param[in] address the address to notify, force-aligned to 32-bit
-    /// @param[in] active whether an SCU DMA transfer is in progress
-    FLATTEN FORCE_INLINE void NotifySCUDMA(uint32 address, bool active) {
-        address &= kAddressMask & ~3u;
-
-        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
-        entry.notifySCUDMA(address, active, entry.ctx);
-    }
-
     /// @brief Reads data from the bus using the side-effect-free handler assigned to the specified address.
     /// @tparam T the data type of the access
     /// @param[in] address the address to read
@@ -277,7 +263,7 @@ public:
     }
 
 private:
-    struct MemoryPage {
+    struct alignas(64) MemoryPage {
         // Fast path for simple arrays
 
         uint8 *array = nullptr;
@@ -302,10 +288,8 @@ private:
         FnWrite8 poke8 = [](uint32, uint8, void *) {};
         FnWrite16 poke16 = [](uint32, uint16, void *) {};
         FnWrite32 poke32 = [](uint32, uint32, void *) {};
-
-        FnNotifySCUDMA notifySCUDMA = [](uint32, bool, void *) {};
     };
-    static_assert(bit::is_power_of_two(sizeof(MemoryPage)));
+    static_assert(bit::is_power_of_two(sizeof(MemoryPage))); // in order to avoid a multiplication when indexing pages
 
     alignas(64) std::array<MemoryPage, kPageCount> m_pages;
 
@@ -357,8 +341,6 @@ private:
                 page.write16 = handler;
             } else if constexpr (fninfo::IsAssignable<FnWrite32, THandler>) {
                 page.write32 = handler;
-            } else if constexpr (fninfo::IsAssignable<FnNotifySCUDMA, THandler>) {
-                page.notifySCUDMA = handler;
             }
         }
     }

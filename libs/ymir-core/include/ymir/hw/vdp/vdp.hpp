@@ -167,8 +167,7 @@ private:
     // Hacky VDP1 command execution timing penalty accrued from external writes to VRAM
     // TODO: count pulled out of thin air
     static constexpr uint64 kVDP1TimingPenaltyPerWrite = 22;
-    uint64 m_VDP1TimingPenaltyCycles;   // accumulated cycle penalty
-    uint64 m_VDP1TimingPenaltyPerWrite; // penalty per write
+    uint64 m_VDP1TimingPenaltyCycles; // accumulated cycle penalty
 
     // -------------------------------------------------------------------------
     // Frontend callbacks
