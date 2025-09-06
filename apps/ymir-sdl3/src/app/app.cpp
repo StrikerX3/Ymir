@@ -2320,9 +2320,7 @@ void App::RunEmulator() {
 
                         ImGui::Separator();
 
-                        if (ImGui::MenuItem("Clear all", nullptr, nullptr,
-                                            !m_context.state.loadedDiscImagePath.empty())) {
-
+                        if (ImGui::MenuItem("Clear all")) {
                             OpenGenericModal(
                                 "Clear all save states",
                                 [&] {
@@ -2341,8 +2339,7 @@ void App::RunEmulator() {
                                 },
                                 false);
                         }
-                        if (ImGui::MenuItem("Open save states directory", nullptr, nullptr,
-                                            !m_context.state.loadedDiscImagePath.empty())) {
+                        if (ImGui::MenuItem("Open save states directory")) {
                             auto path = m_context.profile.GetPath(ProfilePath::SaveStates) /
                                         ToString(m_context.saturn.instance->GetDiscHash());
 
