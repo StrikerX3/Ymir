@@ -70,6 +70,7 @@ Introduced save state file version 9.
 - VDP1: Primitive cycle counting to work around some games that horribly abuse the VDP1, such as Baroque, Dark Seed II, and Funky Fantasy. (#311, #316, #364)
 - VDP1: Remove write penalty hack introduced earlier for Mega Man X3's sprites. Fixes multiple issues:
     - Missing sprites in Seikai Risshiden - Yoi Kuni, Yoi Seiji, and Jissen Pachinko Hisshou-hou! Twin (#425, #537)
+	- Flashing sprites in Contra - Legacy of War (#458)
 	- Flashing FMVs in World Cup Golf - Professional Edition (#516)
 - VDP1: Rework scaled sprite rendering to correctly handle undocumented zoom point settings.
 - VDP2: Adjust line width for RBG line color insertion. Fixes half of the field not being colored in World League Soccer '98. (#517)
