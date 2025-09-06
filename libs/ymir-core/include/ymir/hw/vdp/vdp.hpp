@@ -774,12 +774,12 @@ private:
 
     // Pattern Name Data, contains parameters for a character
     struct Character {
-        uint16 charNum;     // Character number, 15 bits
-        uint8 palNum;       // Palette number, 7 bits
-        bool specColorCalc; // Special color calculation
-        bool specPriority;  // Special priority
-        bool flipH;         // Horizontal flip
-        bool flipV;         // Vertical flip
+        uint16 charNum = 0;         // Character number, 15 bits
+        uint8 palNum = 0;           // Palette number, 7 bits
+        bool specColorCalc = false; // Special color calculation
+        bool specPriority = false;  // Special priority
+        bool flipH = false;         // Horizontal flip
+        bool flipV = false;         // Vertical flip
     };
 
     // Common pixel data: color, transparency, priority and special color calculation flag.

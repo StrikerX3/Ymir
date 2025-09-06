@@ -5924,7 +5924,12 @@ FORCE_INLINE VDP::Character VDP::VDP2FetchTwoWordCharacter(const BGParams &bgPar
                                                            uint32 charIndex) {
     const uint32 charAddress = pageBaseAddress + charIndex * sizeof(uint32);
     const uint32 charBank = (charAddress >> 17u) & 3u;
-    const uint32 charData = bgParams.patNameAccess[charBank] ? VDP2ReadRendererVRAM<uint32>(charAddress) : 0x00000000;
+
+    if (!bgParams.patNameAccess[charBank]) {
+        return {};
+    }
+
+    const uint32 charData = VDP2ReadRendererVRAM<uint32>(charAddress);
 
     Character ch{};
     ch.charNum = bit::extract<0, 14>(charData);
@@ -5956,8 +5961,12 @@ FORCE_INLINE VDP::Character VDP::VDP2FetchOneWordCharacter(const BGParams &bgPar
 
     const uint32 charAddress = pageBaseAddress + charIndex * sizeof(uint16);
     const uint32 charBank = (charAddress >> 17u) & 3u;
-    const uint16 charData = bgParams.patNameAccess[charBank] ? VDP2ReadRendererVRAM<uint16>(charAddress) : 0x0000;
 
+    if (!bgParams.patNameAccess[charBank]) {
+        return {};
+    }
+
+    const uint16 charData = VDP2ReadRendererVRAM<uint16>(charAddress);
     return VDP2ExtractOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, charData);
 }
 
