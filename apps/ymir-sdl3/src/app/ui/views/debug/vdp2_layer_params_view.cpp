@@ -57,6 +57,12 @@ void VDP2LayerParamsView::Display() {
         fmt::memory_buffer m_buf{};
     };
 
+    bool dispEnable = regs2.TVMD.DISP;
+    ImGui::Checkbox("Display enabled", &dispEnable);
+    ImGui::SameLine();
+    ImGui::AlignTextToFramePadding();
+    ImGui::Text("VCNT: %d", regs2.ReadVCNT());
+
     if (ImGui::BeginTable("layers", 7, ImGuiTableFlags_SizingFixedFit)) {
         ImGui::TableSetupColumn("");
         ImGui::TableSetupColumn("NBG0", ImGuiTableColumnFlags_WidthFixed, 60.0f * m_context.displayScale);
