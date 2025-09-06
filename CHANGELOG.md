@@ -70,9 +70,14 @@ Introduced save state file version 9.
 - VDP1: Primitive cycle counting to work around some games that horribly abuse the VDP1, such as Baroque, Dark Seed II, and Funky Fantasy. (#311, #316, #364)
 - VDP1: Remove write penalty hack introduced earlier for Mega Man X3's sprites. Fixes multiple issues:
     - Missing sprites in Seikai Risshiden - Yoi Kuni, Yoi Seiji, and Jissen Pachinko Hisshou-hou! Twin (#425, #537)
-	- Flashing sprites in Contra - Legacy of War (#458)
-	- Flashing FMVs in World Cup Golf - Professional Edition (#516)
+	- Flashing sprites in Alone in the Dark - One-Eyed Jacks Revenge, Cleaning Kit for Sega Saturn, and Contra - Legacy of War (#337, #412, #458)
+	- Flashing FMVs in Funky Fantasy, and World Cup Golf - Professional Edition (#311, #516)
+	- Flickering letters in the mission briefing screens in Alien Trilogy (#394)
 - VDP1: Rework scaled sprite rendering to correctly handle undocumented zoom point settings.
+- VDP1: Rework erase/swap timings. Fixes numerous issues:
+	- Screen flashing in Ayakashi Ninden Kunoichiban Plus (#478)
+	- Flashing map in the demo version of Drift King Shutokou Battle '97 - Tsuchiya Keiichi & Bandou Masaaki (#493)
+	- Every other interlace field missing in Virtual Mahjong 2 - My Fair Lady (#509)
 - VDP2: Adjust line width for RBG line color insertion. Fixes half of the field not being colored in World League Soccer '98. (#517)
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.
 - VDP2: Don't draw out of bounds areas of the sprite layer when rotated. Fixes ground-on-sky glitch in Sega Ages - Power Drift. (#492)
