@@ -2762,10 +2762,10 @@ void VDP::VDP2InitFrame() {
     const VDP2Regs &regs2 = VDP2GetRegs();
     if (!regs2.bgEnabled[5]) {
         VDP2InitNormalBG<0>();
-        VDP2InitNormalBG<1>();
-        VDP2InitNormalBG<2>();
-        VDP2InitNormalBG<3>();
     }
+    VDP2InitNormalBG<1>();
+    VDP2InitNormalBG<2>();
+    VDP2InitNormalBG<3>();
 }
 
 template <uint32 index>
@@ -2822,17 +2822,18 @@ void VDP::VDP2UpdateEnabledBGs() {
     // Sprite layer is always enabled, unless forcibly disabled
     m_layerEnabled[0] = m_layerRendered[0];
 
-    if (regs2.bgEnabled[5]) {
-        m_layerEnabled[1] = m_layerRendered[1] && regs2.bgEnabled[4]; // RBG0
-        m_layerEnabled[2] = m_layerRendered[2];                       // RBG1
-        m_layerEnabled[3] = false;                                    // EXBG
-        m_layerEnabled[4] = false;                                    // not used
-        m_layerEnabled[5] = false;                                    // not used
+    if (regs2.bgEnabled[4] && regs2.bgEnabled[5]) {
+        m_layerEnabled[1] = m_layerRendered[1]; // RBG0
+        m_layerEnabled[2] = m_layerRendered[2]; // RBG1
+        m_layerEnabled[3] = false;              // EXBG
+        m_layerEnabled[4] = false;              // not used
+        m_layerEnabled[5] = false;              // not used
     } else {
         // Certain color format settings on NBG0 and NBG1 restrict which BG layers can be enabled
         // - NBG1 is disabled when NBG0 uses 8:8:8 RGB
         // - NBG2 is disabled when NBG0 uses 2048 color palette or any RGB format
         // - NBG3 is disabled when NBG0 uses 8:8:8 RGB or NBG1 uses 2048 color palette or 5:5:5 RGB color format
+        // Additionally, NBG0 and RBG1 are mutually exclusive. If RBG1 is enabled, it takes place of NBG0.
         const ColorFormat colorFormatNBG0 = regs2.bgParams[1].colorFormat;
         const ColorFormat colorFormatNBG1 = regs2.bgParams[2].colorFormat;
         const bool disableNBG1 = colorFormatNBG0 == ColorFormat::RGB888;
@@ -2841,11 +2842,11 @@ void VDP::VDP2UpdateEnabledBGs() {
         const bool disableNBG3 = colorFormatNBG0 == ColorFormat::RGB888 ||
                                  colorFormatNBG1 == ColorFormat::Palette2048 || colorFormatNBG1 == ColorFormat::RGB555;
 
-        m_layerEnabled[1] = m_layerRendered[1] && regs2.bgEnabled[4];                 // RBG0
-        m_layerEnabled[2] = m_layerRendered[2] && regs2.bgEnabled[0];                 // NBG0
-        m_layerEnabled[3] = m_layerRendered[3] && regs2.bgEnabled[1] && !disableNBG1; // NBG1/EXBG
-        m_layerEnabled[4] = m_layerRendered[4] && regs2.bgEnabled[2] && !disableNBG2; // NBG2
-        m_layerEnabled[5] = m_layerRendered[5] && regs2.bgEnabled[3] && !disableNBG3; // NBG3
+        m_layerEnabled[1] = m_layerRendered[1] && regs2.bgEnabled[4];                          // RBG0
+        m_layerEnabled[2] = m_layerRendered[2] && (regs2.bgEnabled[0] || !regs2.bgEnabled[5]); // NBG0/RBG1
+        m_layerEnabled[3] = m_layerRendered[3] && regs2.bgEnabled[1] && !disableNBG1;          // NBG1/EXBG
+        m_layerEnabled[4] = m_layerRendered[4] && regs2.bgEnabled[2] && !disableNBG2;          // NBG2
+        m_layerEnabled[5] = m_layerRendered[5] && regs2.bgEnabled[3] && !disableNBG3;          // NBG3
     }
 }
 
@@ -3653,11 +3654,12 @@ void VDP::VDP2DrawLine(uint32 y, bool altField) {
     }
 
     // Draw background layers
-    if (regs2.bgEnabled[5]) {
+    if (regs2.bgEnabled[4] && regs2.bgEnabled[5]) {
         VDP2DrawRotationBG<0>(y, colorMode, altField); // RBG0
         VDP2DrawRotationBG<1>(y, colorMode, altField); // RBG1
     } else {
         VDP2DrawRotationBG<0>(y, colorMode, altField); // RBG0
+        VDP2DrawRotationBG<1>(y, colorMode, altField); // RBG1
         if (interlaced) {
             VDP2DrawNormalBG<0, deinterlace>(y, colorMode, altField); // NBG0
             VDP2DrawNormalBG<1, deinterlace>(y, colorMode, altField); // NBG1
@@ -3885,6 +3887,14 @@ FORCE_INLINE void VDP::VDP2DrawNormalBG(uint32 y, uint32 colorMode, bool altFiel
     }
 
     const VDP2Regs &regs = VDP2GetRegs();
+
+    if constexpr (bgIndex == 0) {
+        // NBG0 and RBG1 are mutually exclusive
+        if (regs.bgEnabled[5]) {
+            return;
+        }
+    }
+
     const BGParams &bgParams = regs.bgParams[bgIndex + 1];
     LayerState &layerState = m_layerStates[altField][bgIndex + 2];
     const NormBGLayerState &bgState = m_normBGLayerStates[bgIndex];

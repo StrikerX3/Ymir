@@ -1031,35 +1031,35 @@ private:
     };
 
     // Layer enabled by BGON and other factors.
-    //     RBG0+RBG1   RBG0        no RBGs
-    // [0] Sprite      Sprite      Sprite
-    // [1] RBG0        RBG0        -
-    // [2] RBG1        NBG0        NBG0
-    // [3] EXBG        NBG1/EXBG   NBG1/EXBG
-    // [4] -           NBG2        NBG2
-    // [5] -           NBG3        NBG3
+    //     RBG0+RBG1   RBG0        RBG1        no RBGs
+    // [0] Sprite      Sprite      Sprite      Sprite
+    // [1] RBG0        RBG0        -           -
+    // [2] RBG1        NBG0        RBG1        NBG0
+    // [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+    // [4] -           NBG2        NBG2        NBG2
+    // [5] -           NBG3        NBG3        NBG3
     std::array<bool, 6> m_layerEnabled;
 
     // Layer enabled for rendering.
     // Externally configured - do not include in save state!
-    //     RBG0+RBG1   RBG0        no RBGs
-    // [0] Sprite      Sprite      Sprite
-    // [1] RBG0        RBG0        -
-    // [2] RBG1        NBG0        NBG0
-    // [3] EXBG        NBG1/EXBG   NBG1/EXBG
-    // [4] -           NBG2        NBG2
-    // [5] -           NBG3        NBG3
+    //     RBG0+RBG1   RBG0        RBG1        no RBGs
+    // [0] Sprite      Sprite      Sprite      Sprite
+    // [1] RBG0        RBG0        -           -
+    // [2] RBG1        NBG0        RBG1        NBG0
+    // [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+    // [4] -           NBG2        NBG2        NBG2
+    // [5] -           NBG3        NBG3        NBG3
     std::array<bool, 6> m_layerRendered;
 
     // Common layer states.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
-    //     RBG0+RBG1   RBG0        no RBGs
-    // [0] Sprite      Sprite      Sprite
-    // [1] RBG0        RBG0        -
-    // [2] RBG1        NBG0        NBG0
-    // [3] EXBG        NBG1/EXBG   NBG1/EXBG
-    // [4] -           NBG2        NBG2
-    // [5] -           NBG3        NBG3
+    //     RBG0+RBG1   RBG0        RBG1        no RBGs
+    // [0] Sprite      Sprite      Sprite      Sprite
+    // [1] RBG0        RBG0        -           -
+    // [2] RBG1        NBG0        RBG1        NBG0
+    // [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+    // [4] -           NBG2        NBG2        NBG2
+    // [5] -           NBG3        NBG3        NBG3
     std::array<std::array<LayerState, 6>, 2> m_layerStates;
 
     // Sprite layer attributes.
