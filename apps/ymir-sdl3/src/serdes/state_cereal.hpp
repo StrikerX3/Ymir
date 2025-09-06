@@ -333,6 +333,7 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     // v7:
     // - New fields
     //   - VDP1TimingPenalty = 0
+    //   - FBCRChanged = false
     // v6:
     // - Removed fields
     //   - uint16 VCounter -> moved to regs2.VCNT
@@ -340,8 +341,10 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     ar(s.VRAM1, s.VRAM2, s.CRAM, s.spriteFB, s.displayFB);
     if (version >= 7) {
         ar(s.VDP1TimingPenalty);
+        ar(s.VDP1FBCRChanged);
     } else {
         s.VDP1TimingPenalty = 0;
+        s.VDP1FBCRChanged = false;
     }
     serialize(ar, s.regs1, version);
     ar(s.regs2);
@@ -539,6 +542,7 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     //   - eraseWriteValue = EWDR
     //   - eraseX1, eraseY1 = EWLR
     //   - eraseX3, eraseY3 = EWRR
+    //   - meshFB = filled with zeros
     // - Changed fields
     //   - erase -> doDisplayErase = true when erase && VBE=0, otherwise false
     // v5:
@@ -565,8 +569,13 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, cons
     ar(s.cycleCount);
     if (version >= 9) {
         ar(s.cyclesSpent);
+        ar(s.meshFB);
     } else {
         s.cyclesSpent = 0;
+        s.meshFB[0][0].fill(0);
+        s.meshFB[0][1].fill(0);
+        s.meshFB[1][0].fill(0);
+        s.meshFB[1][1].fill(0);
     }
 }
 

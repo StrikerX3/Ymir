@@ -68,6 +68,8 @@ struct VDPState {
         state.regs1.COPR = regs1.ReadCOPR();
         state.regs1.MODR = regs1.ReadMODR();
 
+        state.VDP1FBCRChanged = regs1.fbParamsChanged;
+
         state.regs2.TVMD = regs2.ReadTVMD();
         state.regs2.EXTEN = regs2.ReadEXTEN();
         state.regs2.TVSTAT = regs2.ReadTVSTAT();
@@ -269,6 +271,8 @@ struct VDPState {
         regs1.WriteLOPR(state.regs1.LOPR);
         regs1.WriteCOPR(state.regs1.COPR);
         regs1.WriteMODR(state.regs1.MODR);
+
+        regs1.fbParamsChanged = state.VDP1FBCRChanged;
 
         regs2.WriteTVMD(state.regs2.TVMD);
         regs2.WriteEXTEN(state.regs2.EXTEN);

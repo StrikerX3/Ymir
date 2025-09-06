@@ -16,6 +16,7 @@ struct VDPState {
     uint8 displayFB;
 
     uint64 VDP1TimingPenalty;
+    bool VDP1FBCRChanged;
 
     struct VDP1RegsState {
         uint16 TVMR;
@@ -218,6 +219,8 @@ struct VDPState {
 
             uint64 cycleCount;
             uint64 cyclesSpent;
+
+            std::array<std::array<std::array<uint8, vdp::kVDP1FramebufferRAMSize>, 2>, 2> meshFB;
         };
 
         struct NormBGLayerState {

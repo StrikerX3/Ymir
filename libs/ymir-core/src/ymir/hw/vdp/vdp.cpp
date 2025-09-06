@@ -608,6 +608,8 @@ void VDP::SaveState(state::VDPState &state) const {
 
     m_state.SaveState(state);
 
+    state.VDP1TimingPenalty = m_VDP1TimingPenaltyCycles;
+
     state.renderer.vdp1State.sysClipH = m_VDP1RenderContext.sysClipH;
     state.renderer.vdp1State.sysClipV = m_VDP1RenderContext.sysClipV;
     state.renderer.vdp1State.doubleV = m_VDP1RenderContext.doubleV;
@@ -627,6 +629,7 @@ void VDP::SaveState(state::VDPState &state) const {
     state.renderer.vdp1State.eraseY3 = m_VDP1RenderContext.eraseY3;
     state.renderer.vdp1State.cycleCount = m_VDP1RenderContext.cycleCount;
     state.renderer.vdp1State.cyclesSpent = m_VDP1RenderContext.cyclesSpent;
+    state.renderer.vdp1State.meshFB = m_VDP1RenderContext.meshFB;
 
     for (size_t i = 0; i < 4; i++) {
         state.renderer.normBGLayerStates[i].fracScrollX = m_normBGLayerStates[i].fracScrollX;
@@ -671,7 +674,7 @@ void VDP::SaveState(state::VDPState &state) const {
 
     state.renderer.vertCellScrollInc = m_vertCellScrollInc;
 
-    state.renderer.displayFB = m_renderingContext.displayFB;
+    state.renderer.displayFB = m_state.displayFB;
     state.renderer.vdp1Done = m_renderingContext.vdp1Done;
 
     state.displayEnabled = m_displayEnabled;
@@ -698,6 +701,8 @@ void VDP::LoadState(const state::VDPState &state) {
         m_renderingContext.postLoadSyncSignal.Reset();
     }
 
+    m_VDP1TimingPenaltyCycles = state.VDP1TimingPenalty;
+
     m_VDP1RenderContext.sysClipH = state.renderer.vdp1State.sysClipH;
     m_VDP1RenderContext.sysClipV = state.renderer.vdp1State.sysClipV;
     m_VDP1RenderContext.doubleV = state.renderer.vdp1State.doubleV;
@@ -717,6 +722,7 @@ void VDP::LoadState(const state::VDPState &state) {
     m_VDP1RenderContext.eraseY3 = state.renderer.vdp1State.eraseY3;
     m_VDP1RenderContext.cycleCount = state.renderer.vdp1State.cycleCount;
     m_VDP1RenderContext.cyclesSpent = state.renderer.vdp1State.cyclesSpent;
+    m_VDP1RenderContext.meshFB = state.renderer.vdp1State.meshFB;
 
     for (size_t i = 0; i < 4; i++) {
         m_normBGLayerStates[i].fracScrollX = state.renderer.normBGLayerStates[i].fracScrollX;
@@ -761,6 +767,7 @@ void VDP::LoadState(const state::VDPState &state) {
 
     m_vertCellScrollInc = state.renderer.vertCellScrollInc;
 
+    m_state.displayFB = state.renderer.displayFB;
     m_renderingContext.displayFB = state.renderer.displayFB;
     m_renderingContext.vdp1Done = state.renderer.vdp1Done;
 
