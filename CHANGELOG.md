@@ -68,7 +68,7 @@ Introduced save state file version 9.
 - SMPC, VDP: Trigger optimized INTBACK more consistently closer to 1ms before VBlank IN depending on vertical resolution.
 - System: Reset clock speed when soft resetting the system.
 - VDP1: Clear transparent mesh layer to 0 instead of the erase write value when erasing framebuffer. Fixes Rayman's level loading screens rendering at half brightness when using the transparent meshes enhancement.
-- VDP1: Cycle-count VBlank erase process. Fixes flashing subtitles in Panzer Dragoon FMVs.
+- VDP1: Cycle-count VBlank erase process. Fixes flashing subtitles in Panzer Dragoon FMVs and hangs in Parodius and Sexy Parodius. (#201)
 - VDP1: Don't swap gouraud values when horizontal and/or vertical flip is enabled for an untextured polygon. Fixes bad shading in Croc - Legend of the Gobbos. (#543)
 - VDP1: Force-align sprite character data address to 16 bytes when using RGB 5:5:5 color mode. Fixes misaligned team logos in All-Star Baseball '97 Featuring Frank Thomas. (#546)
 - VDP1: Improve performance by avoiding double-writing the same pixels in the erase process low resolution modes. Also fixes erase process cycle counting in high resolutions.
