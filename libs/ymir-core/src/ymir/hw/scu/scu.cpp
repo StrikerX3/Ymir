@@ -1184,6 +1184,285 @@ FORCE_INLINE T SCU::ReadReg(uint32 address) {
 template <bool poke>
 FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     switch (address) {
+    case 0x00: // (DMA0RA) Level 0 DMA Read Address (bits 24-31)
+    case 0x20: // (DMA1RA) Level 1 DMA Read Address (bits 24-31)
+    case 0x40: // (DMA2RA) Level 2 DMA Read Address (bits 24-31)
+        bit::deposit_into<24, 26>(m_dmaChannels[address >> 5u].srcAddr, value);
+        break;
+
+    case 0x01: // (DMA0RA) Level 0 DMA Read Address (bits 16-23)
+    case 0x21: // (DMA1RA) Level 1 DMA Read Address (bits 16-23)
+    case 0x41: // (DMA2RA) Level 2 DMA Read Address (bits 16-23)
+        bit::deposit_into<16, 23>(m_dmaChannels[address >> 5u].srcAddr, value);
+        break;
+
+    case 0x02: // (DMA0RA) Level 0 DMA Read Address (bits 8-15)
+    case 0x22: // (DMA1RA) Level 1 DMA Read Address (bits 8-15)
+    case 0x42: // (DMA2RA) Level 2 DMA Read Address (bits 8-15)
+        bit::deposit_into<8, 15>(m_dmaChannels[address >> 5u].srcAddr, value);
+        break;
+
+    case 0x03: // (DMA0RA) Level 0 DMA Read Address (bits 0-7)
+    case 0x23: // (DMA1RA) Level 1 DMA Read Address (bits 0-7)
+    case 0x43: // (DMA2RA) Level 2 DMA Read Address (bits 0-7)
+        bit::deposit_into<0, 7>(m_dmaChannels[address >> 5u].srcAddr, value);
+        break;
+
+    case 0x04: // (DMA0WA) Level 0 DMA Write Address (bits 24-31)
+    case 0x24: // (DMA1WA) Level 1 DMA Write Address (bits 24-31)
+    case 0x44: // (DMA2WA) Level 2 DMA Write Address (bits 24-31)
+        bit::deposit_into<24, 26>(m_dmaChannels[address >> 5u].dstAddr, value);
+        break;
+
+    case 0x05: // (DMA0WA) Level 0 DMA Write Address (bits 16-23)
+    case 0x25: // (DMA1WA) Level 1 DMA Write Address (bits 16-23)
+    case 0x45: // (DMA2WA) Level 2 DMA Write Address (bits 16-23)
+        bit::deposit_into<16, 23>(m_dmaChannels[address >> 5u].dstAddr, value);
+        break;
+
+    case 0x06: // (DMA0WA) Level 0 DMA Write Address (bits 8-15)
+    case 0x26: // (DMA1WA) Level 1 DMA Write Address (bits 8-15)
+    case 0x46: // (DMA2WA) Level 2 DMA Write Address (bits 8-15)
+        bit::deposit_into<8, 15>(m_dmaChannels[address >> 5u].dstAddr, value);
+        break;
+
+    case 0x07: // (DMA0WA) Level 0 DMA Write Address (bits 0-7)
+    case 0x27: // (DMA1WA) Level 1 DMA Write Address (bits 0-7)
+    case 0x47: // (DMA2WA) Level 2 DMA Write Address (bits 0-7)
+        bit::deposit_into<0, 7>(m_dmaChannels[address >> 5u].dstAddr, value);
+        break;
+
+    case 0x08: // (DMA0CNT) Level 0 DMA Transfer Number (bits 24-31)
+    case 0x28: // (DMA1CNT) Level 1 DMA Transfer Number (bits 24-31)
+    case 0x48: // (DMA2CNT) Level 2 DMA Transfer Number (bits 24-31)
+        // Nothing to write
+        break;
+
+    case 0x09: // (DMA0CNT) Level 0 DMA Transfer Number (bits 16-23)
+        bit::deposit_into<16, 19>(m_dmaChannels[0].xferCount, value);
+        break;
+    case 0x29: // (DMA1CNT) Level 1 DMA Transfer Number (bits 16-23)
+    case 0x49: // (DMA2CNT) Level 2 DMA Transfer Number (bits 16-23)
+        // Nothing to write
+        break;
+
+    case 0x0A: // (DMA0CNT) Level 0 DMA Transfer Number (bits 8-15)
+        bit::deposit_into<8, 15>(m_dmaChannels[0].xferCount, value);
+        break;
+    case 0x2A: // (DMA1CNT) Level 1 DMA Transfer Number (bits 8-15)
+    case 0x4A: // (DMA2CNT) Level 2 DMA Transfer Number (bits 8-15)
+        bit::deposit_into<8, 11>(m_dmaChannels[address >> 5u].xferCount, value);
+        break;
+
+    case 0x0B: // (DMA0CNT) Level 0 DMA Transfer Number (bits 0-7)
+        bit::deposit_into<0, 7>(m_dmaChannels[0].xferCount, value);
+        break;
+    case 0x2B: // (DMA1CNT) Level 1 DMA Transfer Number (bits 0-7)
+    case 0x4B: // (DMA2CNT) Level 2 DMA Transfer Number (bits 0-7)
+        bit::deposit_into<0, 7>(m_dmaChannels[address >> 5u].xferCount, value);
+        break;
+
+    case 0x0C: // (DMA0ADD) Level 0 DMA Increment (bits 24-31)
+    case 0x2C: // (DMA1ADD) Level 1 DMA Increment (bits 24-31)
+    case 0x4C: // (DMA2ADD) Level 2 DMA Increment (bits 24-31)
+        // Nothing to write
+        break;
+    case 0x0D: // (DMA0ADD) Level 0 DMA Increment (bits 16-23)
+    case 0x2D: // (DMA1ADD) Level 1 DMA Increment (bits 16-23)
+    case 0x4D: // (DMA2ADD) Level 2 DMA Increment (bits 16-23)
+        m_dmaChannels[address >> 5u].srcAddrInc = bit::extract<0>(value) * 4u;
+        break;
+    case 0x0E: // (DMA0ADD) Level 0 DMA Increment (bits 8-15)
+    case 0x2E: // (DMA1ADD) Level 1 DMA Increment (bits 8-15)
+    case 0x4E: // (DMA2ADD) Level 2 DMA Increment (bits 8-15)
+        // Nothing to write
+        break;
+    case 0x0F: // (DMA0ADD) Level 0 DMA Increment (bits 0-7)
+    case 0x2F: // (DMA1ADD) Level 1 DMA Increment (bits 0-7)
+    case 0x4F: // (DMA2ADD) Level 2 DMA Increment (bits 0-7)
+        m_dmaChannels[address >> 5u].dstAddrInc = (1u << bit::extract<0, 2>(value)) & ~1u;
+        break;
+
+    case 0x10: // (DMA0EN) Level 0 DMA Enable (bits 24-31)
+    case 0x30: // (DMA1EN) Level 1 DMA Enable (bits 24-31)
+    case 0x50: // (DMA2EN) Level 2 DMA Enable (bits 24-31)
+        // Nothing to write
+        break;
+
+    case 0x11: // (DMA0EN) Level 0 DMA Enable (bits 16-23)
+    case 0x31: // (DMA1EN) Level 1 DMA Enable (bits 16-23)
+    case 0x51: // (DMA2EN) Level 2 DMA Enable (bits 16-23)
+        // Nothing to write
+        break;
+
+    case 0x12: // (DMA0EN) Level 0 DMA Enable (bits 8-15)
+    case 0x32: // (DMA1EN) Level 1 DMA Enable (bits 8-15)
+    case 0x52: // (DMA2EN) Level 2 DMA Enable (bits 8-15)
+    {
+        const uint32 index = address >> 5u;
+        auto &ch = m_dmaChannels[index];
+        ch.enabled = bit::test<0>(value);
+        if constexpr (!poke) {
+            if (ch.enabled) {
+                devlog::trace<grp::dma>("DMA{} enabled - {:08X} (+{:02X}){} -> {:08X} (+{:02X}){} ({}), {}", index,
+                                        ch.srcAddr, ch.srcAddrInc, (ch.updateSrcAddr ? "!" : ""), ch.dstAddr,
+                                        ch.dstAddrInc, (ch.updateDstAddr ? "!" : ""),
+                                        (ch.indirect ? "indirect" : "direct"), ToString(ch.trigger));
+            }
+        }
+        break;
+    }
+
+    case 0x13: // (DMA0EN) Level 0 DMA Enable (bits 0-7)
+    case 0x33: // (DMA1EN) Level 1 DMA Enable (bits 0-7)
+    case 0x53: // (DMA2EN) Level 2 DMA Enable (bits 0-7)
+    {
+        const uint32 index = address >> 5u;
+        auto &ch = m_dmaChannels[index];
+        if constexpr (!poke) {
+            if (ch.enabled && ch.trigger == DMATrigger::Immediate && bit::test<0>(value)) {
+                if (ch.active) {
+                    devlog::trace<grp::dma>("DMA{} triggering immediate transfer while another transfer is in progress",
+                                            index);
+                    // Finish previous transfer
+                    RunDMA();
+                }
+                devlog::trace<grp::dma>("SCU DMA{}: Transfer triggered immediately", index);
+                ch.start = true;
+                RecalcDMAChannel();
+                RunDMA(); // HACK: run immediate DMA transfers immediately and instantly
+            }
+        }
+        break;
+    }
+
+    case 0x14: // (DMA0MODE) Level 0 DMA Mode (bits 24-31)
+    case 0x34: // (DMA1MODE) Level 1 DMA Mode (bits 24-31)
+    case 0x54: // (DMA2MODE) Level 2 DMA Mode (bits 24-31)
+        m_dmaChannels[address >> 5u].indirect = bit::test<0>(value);
+        break;
+
+    case 0x15: // (DMA0MODE) Level 0 DMA Mode (bits 16-23)
+    case 0x35: // (DMA1MODE) Level 1 DMA Mode (bits 16-23)
+    case 0x55: // (DMA2MODE) Level 2 DMA Mode (bits 16-23)
+        m_dmaChannels[address >> 5u].updateSrcAddr = bit::test<0>(value);
+        break;
+
+    case 0x16: // (DMA0MODE) Level 0 DMA Mode (bits 8-15)
+    case 0x36: // (DMA1MODE) Level 1 DMA Mode (bits 8-15)
+    case 0x56: // (DMA2MODE) Level 2 DMA Mode (bits 8-15)
+        m_dmaChannels[address >> 5u].updateDstAddr = bit::test<0>(value);
+        break;
+
+    case 0x17: // (DMA0MODE) Level 0 DMA Mode (bits 0-7)
+    case 0x37: // (DMA1MODE) Level 1 DMA Mode (bits 0-7)
+    case 0x57: // (DMA2MODE) Level 2 DMA Mode (bits 0-7)
+        m_dmaChannels[address >> 5u].trigger = static_cast<DMATrigger>(bit::extract<0, 2>(value));
+        break;
+
+    case 0x60: // (DMA_STOP) DMA Force Stop (bits 24-31)
+    case 0x61: // (DMA_STOP) DMA Force Stop (bits 16-23)
+    case 0x62: // (DMA_STOP) DMA Force Stop (bits 8-15)
+        // Nothing to write
+        break;
+    case 0x63: // (DMA_STOP) DMA Force Stop (bits 0-7)
+        if constexpr (!poke) {
+            if (bit::test<0>(value)) {
+                for (auto &ch : m_dmaChannels) {
+                    ch.active = false;
+                }
+                m_activeDMAChannelLevel = m_dmaChannels.size();
+            }
+        }
+        break;
+
+    case 0x7C: // (DMA_STATUS) DMA Status (read-only) (bits 16-31)
+    case 0x7D: // (DMA_STATUS) DMA Status (read-only) (bits 16-31)
+    case 0x7E: // (DMA_STATUS) DMA Status (read-only) (bits 0-15)
+    case 0x7F: // (DMA_STATUS) DMA Status (read-only) (bits 0-15)
+        break;
+
+    case 0x80: // (DSP_PPAF) DSP Program Control Port (bits 24-31)
+        // TODO: should this go through? should it be buffered? ignored?
+        // if (bit::test<1>(value)) {
+        //     m_dsp.programPaused = true;
+        // } else if (bit::test<2>(value)) {
+        //     m_dsp.programPaused = false;
+        // }
+        break;
+    case 0x81: // (DSP_PPAF) DSP Program Control Port (bits 16-23)
+        // TODO: should this go through? should it be buffered? ignored?
+        // m_dsp.programExecuting = bit::test<0>(value);
+        // m_dsp.programStep = bit::test<1>(value);
+        break;
+    case 0x82: // (DSP_PPAF) DSP Program Control Port (bits 8-15)
+        // TODO: should this go through? should it be buffered? ignored?
+        break;
+    case 0x83: // (DSP_PPAF) DSP Program Control Port (bits 0-7)
+        // TODO: should this go through? should it be buffered? ignored?
+        // if (bit::test<7>(value at 0x82)) {
+        //     m_dsp.WritePC<poke>(bit::extract<0, 7>(value));
+        // }
+        break;
+
+    case 0x84: // (DSP_PPD) DSP Program RAM Data Port (bits 24-31)
+    case 0x85: // (DSP_PPD) DSP Program RAM Data Port (bits 16-23)
+    case 0x86: // (DSP_PPD) DSP Program RAM Data Port (bits 8-15)
+    case 0x87: // (DSP_PPD) DSP Program RAM Data Port (bits 0-7)
+        // TODO: should this go through? should it be buffered? ignored?
+        // m_dsp.WriteProgram<poke>(value);
+        break;
+
+    case 0x88: // (DSP_PDA) DSP Data RAM Address Port (bits 24-31)
+    case 0x89: // (DSP_PDA) DSP Data RAM Address Port (bits 16-23)
+    case 0x8A: // (DSP_PDA) DSP Data RAM Address Port (bits 8-15)
+        // Nothing to write
+        break;
+    case 0x8B: // (DSP_PDA) DSP Data RAM Address Port (bits 0-7)
+        m_dsp.dataAddress = value;
+        break;
+
+    case 0x8C: // (DSP_PDD) DSP Data RAM Data Port (bits 24-31)
+    case 0x8D: // (DSP_PDD) DSP Data RAM Data Port (bits 16-23)
+    case 0x8E: // (DSP_PDD) DSP Data RAM Data Port (bits 8-15)
+    case 0x8F: // (DSP_PDD) DSP Data RAM Data Port (bits 0-7)
+        // TODO: should this go through? should it be buffered? ignored?
+        // m_dsp.WriteData<poke>(value);
+        break;
+
+    case 0x90: // (T0C) Timer 0 Compare (bits 24-31)
+    case 0x91: // (T0C) Timer 0 Compare (bits 16-23)
+        // Nothing to write
+        break;
+    case 0x92: // (T0C) Timer 0 Compare (bits 8-15)
+        WriteTimer0CompareHi(value);
+        break;
+    case 0x93: // (T0C) Timer 0 Compare (bits 0-7)
+        WriteTimer0CompareLo(value);
+        break;
+
+    case 0x94: // (T1S) Timer 1 Set Data (bits 24-31)
+    case 0x95: // (T1S) Timer 1 Set Data (bits 16-23)
+        // Nothing to write
+        break;
+    case 0x96: // (T1S) Timer 1 Set Data (bits 8-15)
+        WriteTimer1ReloadHi(value);
+        break;
+    case 0x97: // (T1S) Timer 1 Set Data (bits 0-7)
+        WriteTimer1ReloadLo(value);
+        break;
+
+    case 0x98: // (T1MD) Timer 1 Mode (bits 24-31)
+    case 0x99: // (T1MD) Timer 1 Mode (bits 16-23)
+        // Nothing to write
+        break;
+    case 0x9A: // (T1MD) Timer 1 Mode (bits 8-15)
+        m_timer1Mode = bit::test<0>(value);
+        break;
+    case 0x9B: // (T1MD) Timer 1 Mode (bits 0-7)
+        m_timerEnable = bit::test<0>(value);
+        break;
+
     case 0xA0: break; // (IMS) Interrupt Mask (bits 24-31)
     case 0xA1: break; // (IMS) Interrupt Mask (bits 16-23)
     case 0xA2:        // (IMS) Interrupt Mask (bits 8-15)
@@ -1242,13 +1521,7 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
         break;
 
     default:
-        if constexpr (poke) {
-            uint32 currValue = ReadReg<uint32, true>(address & ~3u);
-            const uint32 shift = (~address & 3u) * 8u;
-            const uint32 mask = ~(0xFF << shift);
-            currValue = (currValue & mask) | (value << shift);
-            WriteRegLong<true>(address & ~3u, currValue);
-        } else {
+        if constexpr (!poke) {
             devlog::debug<grp::regs>("unhandled 8-bit SCU register write to {:02X} = {:X}", address, value);
         }
         break;
@@ -1257,17 +1530,264 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
 
 template <bool poke>
 FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
-    uint32 currValue = ReadReg<uint32, poke>(address & ~3u);
-    const uint32 shift = (~address & 2u) * 8u;
-    const uint32 mask = ~(0xFFFF << shift);
-    currValue = (currValue & mask) | (value << shift);
-    WriteRegLong<poke>(address & ~3u, currValue);
+    switch (address) {
+    case 0x00: // (DMA0RA) Level 0 DMA Read Address (bits 16-31)
+    case 0x20: // (DMA1RA) Level 1 DMA Read Address (bits 16-31)
+    case 0x40: // (DMA2RA) Level 2 DMA Read Address (bits 16-31)
+        bit::deposit_into<16, 26>(m_dmaChannels[address >> 5u].srcAddr, value);
+        break;
+
+    case 0x02: // (DMA0RA) Level 0 DMA Read Address (bits 0-15)
+    case 0x22: // (DMA1RA) Level 1 DMA Read Address (bits 0-15)
+    case 0x42: // (DMA2RA) Level 2 DMA Read Address (bits 0-15)
+        bit::deposit_into<0, 15>(m_dmaChannels[address >> 5u].srcAddr, value);
+        break;
+
+    case 0x04: // (DMA0WA) Level 0 DMA Write Address (bits 16-31)
+    case 0x24: // (DMA1WA) Level 1 DMA Write Address (bits 16-31)
+    case 0x44: // (DMA2WA) Level 2 DMA Write Address (bits 16-31)
+        bit::deposit_into<16, 26>(m_dmaChannels[address >> 5u].dstAddr, value);
+        break;
+
+    case 0x06: // (DMA0WA) Level 0 DMA Write Address (bits 0-15)
+    case 0x26: // (DMA1WA) Level 1 DMA Write Address (bits 0-15)
+    case 0x46: // (DMA2WA) Level 2 DMA Write Address (bits 0-15)
+        bit::deposit_into<0, 15>(m_dmaChannels[address >> 5u].dstAddr, value);
+        break;
+
+    case 0x08: // (DMA0CNT) Level 0 DMA Transfer Number (bits 16-31)
+        bit::deposit_into<16, 19>(m_dmaChannels[0].xferCount, value);
+        break;
+    case 0x28: // (DMA1CNT) Level 1 DMA Transfer Number (bits 16-31)
+    case 0x48: // (DMA2CNT) Level 2 DMA Transfer Number (bits 16-31)
+        // Nothing to write
+        break;
+
+    case 0x0A: // (DMA0CNT) Level 0 DMA Transfer Number (bits 0-15)
+        bit::deposit_into<0, 15>(m_dmaChannels[0].xferCount, value);
+        break;
+    case 0x2A: // (DMA1CNT) Level 1 DMA Transfer Number (bits 0-15)
+    case 0x4A: // (DMA2CNT) Level 2 DMA Transfer Number (bits 0-15)
+        bit::deposit_into<0, 11>(m_dmaChannels[address >> 5u].xferCount, value);
+        break;
+
+    case 0x0C: // (DMA0ADD) Level 0 DMA Increment (bits 16-31)
+    case 0x2C: // (DMA1ADD) Level 1 DMA Increment (bits 16-31)
+    case 0x4C: // (DMA2ADD) Level 2 DMA Increment (bits 16-31)
+        // Nothing to write
+        break;
+    case 0x0E: // (DMA0ADD) Level 0 DMA Increment (bits 0-15)
+    case 0x2E: // (DMA1ADD) Level 1 DMA Increment (bits 0-15)
+    case 0x4E: // (DMA2ADD) Level 2 DMA Increment (bits 0-15)
+    {
+        auto &ch = m_dmaChannels[address >> 5u];
+        ch.srcAddrInc = bit::extract<8>(value) * 4u;
+        ch.dstAddrInc = (1u << bit::extract<0, 2>(value)) & ~1u;
+        break;
+    }
+
+    case 0x10: // (DMA0EN) Level 0 DMA Enable (bits 16-31)
+    case 0x30: // (DMA1EN) Level 1 DMA Enable (bits 16-31)
+    case 0x50: // (DMA2EN) Level 2 DMA Enable (bits 16-31)
+        // Nothing to write
+        break;
+
+    case 0x12: // (DMA0EN) Level 0 DMA Enable (bits 0-15)
+    case 0x32: // (DMA1EN) Level 1 DMA Enable (bits 0-15)
+    case 0x52: // (DMA2EN) Level 2 DMA Enable (bits 0-15)
+    {
+        const uint32 index = address >> 5u;
+        auto &ch = m_dmaChannels[index];
+        ch.enabled = bit::test<8>(value);
+        if constexpr (!poke) {
+            if (ch.enabled) {
+                devlog::trace<grp::dma>("DMA{} enabled - {:08X} (+{:02X}){} -> {:08X} (+{:02X}){} ({}), {}", index,
+                                        ch.srcAddr, ch.srcAddrInc, (ch.updateSrcAddr ? "!" : ""), ch.dstAddr,
+                                        ch.dstAddrInc, (ch.updateDstAddr ? "!" : ""),
+                                        (ch.indirect ? "indirect" : "direct"), ToString(ch.trigger));
+            }
+            if (ch.enabled && ch.trigger == DMATrigger::Immediate && bit::test<0>(value)) {
+                if (ch.active) {
+                    devlog::trace<grp::dma>("DMA{} triggering immediate transfer while another transfer is in progress",
+                                            index);
+                    // Finish previous transfer
+                    RunDMA();
+                }
+                devlog::trace<grp::dma>("SCU DMA{}: Transfer triggered immediately", index);
+                ch.start = true;
+                RecalcDMAChannel();
+                RunDMA(); // HACK: run immediate DMA transfers immediately and instantly
+            }
+        }
+        break;
+    }
+
+    case 0x14: // (DMA0MODE) Level 0 DMA Mode (bits 16-31)
+    case 0x34: // (DMA1MODE) Level 1 DMA Mode (bits 16-31)
+    case 0x54: // (DMA2MODE) Level 2 DMA Mode (bits 16-31)
+    {
+        auto &ch = m_dmaChannels[address >> 5u];
+        ch.indirect = bit::test<8>(value);
+        ch.updateSrcAddr = bit::test<0>(value);
+        break;
+    }
+
+    case 0x16: // (DMA0MODE) Level 0 DMA Mode (bits 0-15)
+    case 0x36: // (DMA1MODE) Level 1 DMA Mode (bits 0-15)
+    case 0x56: // (DMA2MODE) Level 2 DMA Mode (bits 0-15)
+    {
+        auto &ch = m_dmaChannels[address >> 5u];
+        ch.updateDstAddr = bit::test<8>(value);
+        ch.trigger = static_cast<DMATrigger>(bit::extract<0, 2>(value));
+        break;
+    }
+
+    case 0x60: // (DMA_STOP) DMA Force Stop (bits 16-31)
+        // Nothing to write
+        break;
+    case 0x62: // (DMA_STOP) DMA Force Stop (bits 0-15)
+        if constexpr (!poke) {
+            if (bit::test<0>(value)) {
+                for (auto &ch : m_dmaChannels) {
+                    ch.active = false;
+                }
+                m_activeDMAChannelLevel = m_dmaChannels.size();
+            }
+        }
+        break;
+
+    case 0x7C: // (DMA_STATUS) DMA Status (read-only) (bits 16-31)
+    case 0x7E: // (DMA_STATUS) DMA Status (read-only) (bits 0-15)
+        break;
+
+    case 0x80: // (DSP_PPAF) DSP Program Control Port (bits 16-31)
+        if (bit::test<9>(value)) {
+            m_dsp.programPaused = true;
+        } else if (bit::test<10>(value)) {
+            m_dsp.programPaused = false;
+        } else /*if (!m_dsp.programExecuting)*/ {
+            m_dsp.programExecuting = bit::test<0>(value);
+            m_dsp.programStep = bit::test<1>(value);
+        }
+        break;
+    case 0x82: // (DSP_PPAF) DSP Program Control Port (bits 0-15)
+        if (bit::test<15>(value)) {
+            m_dsp.WritePC<poke>(bit::extract<0, 7>(value));
+        }
+        break;
+
+    case 0x84: // (DSP_PPD) DSP Program RAM Data Port (bits 16-31)
+    case 0x86: // (DSP_PPD) DSP Program RAM Data Port (bits 0-15)
+        // TODO: should this go through? should it be buffered? ignored?
+        // m_dsp.WriteProgram<poke>(value);
+        break;
+
+    case 0x88: // (DSP_PDA) DSP Data RAM Address Port (bits 16-31)
+        // Nothing to write
+        break;
+    case 0x8A: // (DSP_PDA) DSP Data RAM Address Port (bits 0-15)
+        m_dsp.dataAddress = bit::extract<0, 7>(value);
+        break;
+
+    case 0x8C: // (DSP_PDD) DSP Data RAM Data Port (bits 16-31)
+    case 0x8E: // (DSP_PDD) DSP Data RAM Data Port (bits 0-15)
+        // TODO: should this go through? should it be buffered? ignored?
+        // m_dsp.WriteData<poke>(value);
+        break;
+
+    case 0x90: // (T0C) Timer 0 Compare (bits 16-31)
+        // Nothing to write
+        break;
+    case 0x92: // (T0C) Timer 0 Compare (bits 0-15)
+        WriteTimer0Compare(value);
+        break;
+
+    case 0x94: // (T1S) Timer 1 Set Data (bits 16-31)
+        // Nothing to write
+        break;
+    case 0x96: // (T1S) Timer 1 Set Data (bits 0-15)
+        WriteTimer1Reload(value);
+        break;
+
+    case 0x98: // (T1MD) Timer 1 Mode (bits 16-31)
+        // Nothing to write
+        break;
+    case 0x9A: // (T1MD) Timer 1 Mode (bits 0-15)
+        m_timerEnable = bit::test<0>(value);
+        m_timer1Mode = bit::test<8>(value);
+        break;
+
+    case 0xA0: // (IMS) Interrupt Mask (bits 16-31)
+        // Nothing to write
+        break;
+    case 0xA2: // (IMS) Interrupt Mask (bits 0-15)
+        m_intrMask.u32 = value & 0xBFFF;
+        if constexpr (!poke) {
+            UpdateMasterInterruptLevel();
+        }
+        break;
+
+    case 0xA4: // (IST) Interrupt Status (bits 16-31)
+        if constexpr (poke) {
+            m_intrStatus.u32 = value;
+        } else {
+            m_intrStatus.u32 &= value;
+        }
+        break;
+    case 0xA6: // (IST) Interrupt Status (bits 0-15)
+        if constexpr (poke) {
+            m_intrStatus.u32 = value & 0xBFFF;
+        } else {
+            m_intrStatus.u32 &= value;
+        }
+        break;
+
+    case 0xA8: // (AIACK) A-Bus Interrupt Acknowledge (bits 16-31)
+        // Nothing to write
+        break;
+    case 0xAA: // (AIACK) A-Bus Interrupt Acknowledge (bits 0-15)
+        if (bit::test<0>(value)) {
+            m_abusIntrsPendingAck = 0;
+        }
+        if constexpr (!poke) {
+            UpdateMasterInterruptLevel();
+        }
+        break;
+
+    case 0xB0: // (ASR0) A-Bus Set (part 1) (bits 16-31)
+    case 0xB2: // (ASR0) A-Bus Set (part 1) (bits 0-15)
+        // ignored for now
+        break;
+    case 0xB4: // (ASR1) A-Bus Set (part 2) (bits 16-31)
+    case 0xB6: // (ASR1) A-Bus Set (part 2) (bits 0-15)
+        // ignored for now
+        break;
+    case 0xB8: // (AREF) A-Bus Refresh (bits 16-31)
+    case 0xBA: // (AREF) A-Bus Refresh (bits 0-15)
+        // ignored for now
+        break;
+
+    case 0xC4: // (RSEL) SCU SDRAM Select (bits 16-31)
+        // Nothing to write
+        break;
+    case 0xC6: // (RSEL) SCU SDRAM Select (bits 0-15)
+        WriteWRAMSizeSelect(bit::test<0>(value));
+        break;
+
+    case 0xC8: // (VER) SCU Version (read-only) (bits 16-31)
+    case 0xCA: // (VER) SCU Version (read-only) (bits 0-15)
+        break;
+
+    default:
+        if constexpr (!poke) {
+            devlog::debug<grp::regs>("Unhandled 16-bit SCU register write to {:02X} = {:02X}", address, value);
+        }
+        break;
+    }
 }
 
 template <bool poke>
 FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
-    // TODO: handle 8-bit and 16-bit register writes if needed
-
     switch (address) {
     case 0x00: // (DMA0RA) Level 0 DMA Read Address
     case 0x20: // (DMA1RA) Level 1 DMA Read Address
@@ -1420,14 +1940,14 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
         break;
 
     case 0xC4: // (RSEL) SCU SDRAM Select
-        WriteWRAMSizeSelect(value);
+        WriteWRAMSizeSelect(bit::test<0>(value));
         break;
     case 0xC8: // (VER) SCU Version (read-only)
         break;
 
     default:
         if constexpr (!poke) {
-            devlog::debug<grp::regs>("unhandled 32-bit SCU register write to {:02X} = {:X}", address, value);
+            devlog::debug<grp::regs>("Unhandled 32-bit SCU register write to {:02X} = {:04X}", address, value);
         }
         break;
     }

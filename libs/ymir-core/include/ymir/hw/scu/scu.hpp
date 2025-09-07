@@ -243,6 +243,12 @@ private:
     FORCE_INLINE void WriteTimer0Compare(uint16 value) {
         m_timer0Compare = bit::extract<0, 9>(value);
     }
+    FORCE_INLINE void WriteTimer0CompareHi(uint8 value) {
+        bit::deposit_into<8, 9>(m_timer0Compare, value);
+    }
+    FORCE_INLINE void WriteTimer0CompareLo(uint8 value) {
+        bit::deposit_into<0, 7>(m_timer0Compare, value);
+    }
 
     FORCE_INLINE uint16 ReadTimer1Reload() const {
         return m_timer1Reload >> 2u;
@@ -250,6 +256,12 @@ private:
 
     FORCE_INLINE void WriteTimer1Reload(uint16 value) {
         m_timer1Reload = bit::extract<0, 8>(value) << 2u;
+    }
+    FORCE_INLINE void WriteTimer1ReloadHi(uint8 value) {
+        bit::deposit_into<10>(m_timer1Reload, value);
+    }
+    FORCE_INLINE void WriteTimer1ReloadLo(uint8 value) {
+        bit::deposit_into<2, 9>(m_timer1Reload, value);
     }
 
     void TickTimer1();
