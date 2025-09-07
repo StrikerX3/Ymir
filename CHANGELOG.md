@@ -80,7 +80,7 @@ Introduced save state file version 9.
 - VDP1: Remove write penalty hack introduced earlier for Mega Man X3's sprites. Fixes multiple issues:
     - Missing sprites in Seikai Risshiden - Yoi Kuni, Yoi Seiji, and Jissen Pachinko Hisshou-hou! Twin (#425, #537)
 	- Flashing sprites in Alone in the Dark - One-Eyed Jacks Revenge, Cleaning Kit for Sega Saturn, and Contra - Legacy of War (#337, #412, #458)
-	- Flashing FMVs in Funky Fantasy, and World Cup Golf - Professional Edition (#311, #516)
+	- Flashing FMVs in Funky Fantasy, World Cup Golf - Professional Edition, and Magic Carpet (#311, #516, #561)
 	- Flickering letters in the mission briefing screens in Alien Trilogy (#394)
 - VDP1: Rework scaled sprite rendering to correctly handle undocumented zoom point settings.
 - VDP1: Rework erase/swap timings. Fixes numerous issues:
