@@ -3182,7 +3182,7 @@ FORCE_INLINE void VDP::VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWi
             }
         } else {
             // Fill complement of [startX..endX] with outside if using AND logic or inside if using OR logic
-            startX = std::min<sint16>(startX, windowState.size() - 1);
+            startX = std::min<sint16>(startX, windowState.size());
             std::fill_n(windowState.begin(), startX, logicOR);
             if (endX < windowState.size()) {
                 std::fill(windowState.begin() + endX + 1, windowState.end(), logicOR);
