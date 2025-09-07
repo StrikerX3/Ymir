@@ -292,7 +292,7 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath, CbLoader
             }
 
             auto &track = sheet.tracks.back();
-            if (!track.indexes.empty()) {
+            if (track.indexes.empty()) {
                 errorMsg(fmt::format("BIN/CUE: Found POSTGAP without INDEX (line {})", lineNum));
                 return std::nullopt;
             }
