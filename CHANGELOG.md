@@ -102,7 +102,7 @@ Introduced save state file version 9.
 - VDP2: Handle sprite window on sprite layer manually. Fixes graphics effects when defeating the first boss in Metal Black. (#404)
 - VDP2: Invert TVSTAT.ODD bit on single-density interlaced modes too. Fixes swapped interlaced fields in Pro-Pinball: The Web and Shienryuu. (#447)
 - VDP2: Implement VCNT skip as a dedicated vertical phase. (thanks to @celeriyacon)
-- VDP2: Latch TVMD.DISP at start of the frame. Fixes garbage graphics after loading screen in Samurai Spirits - Zankurou Musouken. (#472)
+- VDP2: Latch TVMD.DISP and TVMD.BDCLMD at start of the frame. Fixes garbage graphics after loading screen in Samurai Spirits - Zankurou Musouken. (#472)
 - VDP2: Move VCNT update to the left border horizontal phase where HBLANK switches to zero. (thanks to @celeriyacon)
 - VDP2: Precompute per-dot rotation coefficient flag instead of deriving it twice per scanline.
 - VDP2: Read per-screen line/back color only at the start of the frame. Fixes red screen after SEGA licensing logo in Ayakashi Ninden Kunoichiban Plus. (#478)

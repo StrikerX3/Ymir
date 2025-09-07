@@ -276,6 +276,7 @@ struct VDPState {
     } renderer;
 
     bool displayEnabled;
+    bool borderColorMode;
 };
 
 } // namespace ymir::state

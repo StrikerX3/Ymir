@@ -104,6 +104,7 @@ void VDP::Reset(bool hard) {
     m_VRes = 224;
     m_exclusiveMonitor = false;
     m_displayEnabled = false;
+    m_borderColorMode = false;
 
     m_state.Reset(hard);
     if (hard) {
@@ -667,6 +668,7 @@ void VDP::SaveState(state::VDPState &state) const {
     state.renderer.vdp1Done = m_renderingContext.vdp1Done;
 
     state.displayEnabled = m_displayEnabled;
+    state.borderColorMode = m_borderColorMode;
 }
 
 bool VDP::ValidateState(const state::VDPState &state) const {
@@ -761,6 +763,7 @@ void VDP::LoadState(const state::VDPState &state) {
     m_renderingContext.vdp1Done = state.renderer.vdp1Done;
 
     m_displayEnabled = state.displayEnabled;
+    m_borderColorMode = state.borderColorMode;
 
     UpdateResolution<true>();
 
@@ -1276,8 +1279,9 @@ void VDP::BeginVPhaseTopBorder() {
 
     UpdateResolution<true>();
 
-    // Latch display enable flag
+    // Latch TVMD flags
     m_displayEnabled = m_state.regs2.TVMD.DISP;
+    m_borderColorMode = m_state.regs2.TVMD.BDCLMD;
 
     // TODO: draw border
 }
@@ -4891,7 +4895,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
     if (!m_displayEnabled) {
         uint32 color = 0xFF000000;
-        if (regs.TVMD.BDCLMD) {
+        if (m_borderColorMode) {
             color |= m_lineBackLayerState.backColor.u32;
         }
         std::fill_n(&m_framebuffer[y * m_HRes], m_HRes, color);

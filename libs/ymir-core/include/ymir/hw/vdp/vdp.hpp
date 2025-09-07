@@ -255,8 +255,9 @@ private:
     uint32 m_VRes; // Vertical display resolution
     bool m_exclusiveMonitor;
 
-    // Display enabled (derived from TVMD.DISP)
-    bool m_displayEnabled;
+    // Latched TVMD flags
+    bool m_displayEnabled;  // Display enabled (derived from TVMD.DISP)
+    bool m_borderColorMode; // Border color mode (derived from TVMD.BDCLMD)
 
     // Display timings
     std::array<uint32, 4> m_HTimings;                // [phase]

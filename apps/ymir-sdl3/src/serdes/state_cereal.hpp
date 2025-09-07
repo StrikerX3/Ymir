@@ -330,6 +330,7 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     // - New fields
     //   - enum VDPState::VerticalPhase: added VCounterSkip (= 5)
     //   - displayEnabled = regs2.TVMD.DISP (= TVMD & 0x8000)
+    //   - borderColorMode = regs2.TVMD.BDCLMD (= TVMD & 0x100)
     // v7:
     // - New fields
     //   - VDP1TimingPenalty = 0
@@ -392,9 +393,10 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     }
     serialize(ar, s.renderer, version);
     if (version >= 9) {
-        ar(s.displayEnabled);
+        ar(s.displayEnabled, s.borderColorMode);
     } else {
         s.displayEnabled = bit::test<15>(s.regs2.TVMD);
+        s.borderColorMode = bit::test<8>(s.regs2.TVMD);
     }
 
     if (version < 4) {
