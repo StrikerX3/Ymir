@@ -962,7 +962,11 @@ void CDBlock::ProcessDriveState() {
     }
 
     // FIXME: cdbtest fails if the PEND interrupt happens at the same time as the CSCT interrupt from Play
-    // CheckPlayEnd();
+    // The following games break if this line is disabled:
+    // - DJ Wars -- Boots back to BIOS
+    // - Gremlin Interactive Demo Disc -- Hardcore 4x4 demo stops before going "in-game"
+    // - X-Men: Children of the Atom (EU) -- hangs on a black screen after certain transitions (e.g. title to menus)
+    CheckPlayEnd();
 
     if (m_readyForPeriodicReports && !m_processingCommand) {
         // HACK to ensure the system detects the absence of a disc properly
