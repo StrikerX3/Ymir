@@ -3672,19 +3672,17 @@ FORCE_INLINE void VDP::VDP2DrawLineColorAndBackScreens(uint32 y) {
     const VDP2Regs &regs = VDP2GetRegs();
 
     // Read line color screen color
-    {
-        const LineBackScreenParams &lineParams = regs.lineScreenParams;
-        const uint32 line = lineParams.perLine ? y : 0;
-        const uint32 address = lineParams.baseAddress + line * sizeof(uint16);
+    const LineBackScreenParams &lineParams = regs.lineScreenParams;
+    if (lineParams.perLine || y == 0) {
+        const uint32 address = lineParams.baseAddress + y * sizeof(uint16);
         const uint32 cramAddress = VDP2ReadRendererVRAM<uint16>(address) * sizeof(uint16);
         m_lineBackLayerState.lineColor = VDP2ReadRendererColor5to8(cramAddress);
     }
 
     // Read back screen color
-    {
-        const LineBackScreenParams &backParams = regs.backScreenParams;
-        const uint32 line = backParams.perLine ? y : 0;
-        const uint32 address = backParams.baseAddress + line * sizeof(Color555);
+    const LineBackScreenParams &backParams = regs.backScreenParams;
+    if (backParams.perLine || y == 0) {
+        const uint32 address = backParams.baseAddress + y * sizeof(Color555);
         const Color555 color555{.u16 = VDP2ReadRendererVRAM<uint16>(address)};
         m_lineBackLayerState.backColor = ConvertRGB555to888(color555);
     }
