@@ -47,6 +47,14 @@ Introduced save state file version 9.
 - Media: Properly handle UTF-8-encoded CUE files referencing other files with Unicode characters.
 - Media: Rewrite CUE parser to hopefully fix some audio skipping issues.
 - SCSP: Allow M68K to fetch instructions from SCSP registers. Fixes CroNSF audio playback.
+- SCSP: Fix check for attack stuck bug when KRS=0xF. Fixes issues in multiple games:
+	- Announcer voice in DonPachi's title screen is now playing consistently (#475)
+	- Both games in Sega Ages - I Love Mickey Mouse - Fushigi no Oshiro Daibouken & I Love Donald Duck - Georgia Ou no Hihou now play their songs correctly (#498)
+	- All games in Sega Ages: Phantasy Star Collection now play their songs correctly (#499)
+	- "Xing" voice line in Arcade Gears Vol. 2 - Gun Frontier's boot up (#467)
+	- Character voice lines in Langrisser III (#426)
+	- Character voice lines in AnEarth Fantasy Stories - The First Volume (#358)
+	- Voice lines during intro and throughout the game in Rapyulus Panic (#338)
 - SCSP: Don't use SBCTL on slots that are playing samples from Sound RAM when the EG reaches the silence threshold. Fixes busted audio in Guardian Heroes and Elevator Action^2. (#155)
 - SCSP: Silence audio when MVOL=0. Fixes lingering sound/music when pausing in Sega Ages - Galaxy Force II. (#427)
 - SCU: Timer 1 was never triggering when configured to trigger on Timer 0 match of 0x000.

@@ -29,11 +29,10 @@ struct alignas(128) Slot {
                 egState = EGState::Attack;
                 currEGRate = attackRate;
 
+                CheckAttackBug();
                 if (keyRateScaling == 0xF) {
-                    egAttackBug = false;
                     egLevel = 0x280;
                 } else {
-                    CheckAttackBug();
                     egLevel = egAttackBug ? 0x000 : 0x280;
                 }
                 currEGLevel = egLevel;
@@ -657,9 +656,13 @@ struct alignas(128) Slot {
     sint32 finalLevel;
 
     FORCE_INLINE void CheckAttackBug() {
-        const sint8 oct = static_cast<sint8>(octave ^ 8) - 8;
-        const uint8 krs = std::clamp<uint8>(keyRateScaling + oct, 0x0, 0xF);
-        egAttackBug = (attackRate + krs) >= 0x20;
+        if (keyRateScaling == 0xF) {
+            egAttackBug = false;
+        } else {
+            const sint8 oct = static_cast<sint8>(octave ^ 8) - 8;
+            const uint8 krs = std::clamp<uint8>(keyRateScaling + oct, 0x0, 0xF);
+            egAttackBug = (attackRate + krs) >= 0x20;
+        }
     }
 
     FORCE_INLINE uint16 GetEGLevel() const {
