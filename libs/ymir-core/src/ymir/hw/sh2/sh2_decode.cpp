@@ -170,6 +170,14 @@ DecodeTable::DecodeTable() {
             mem.second.disp = bit::extract<0, 3>(instr) * size;
         };
 
+        auto storeDispRn4 = [&](uint8 size) {
+            mem.second.type = DecodedMemAccesses::Type::AtDispReg;
+            mem.second.write = true;
+            mem.second.size = size;
+            mem.second.reg = bit::extract<4, 7>(instr);
+            mem.second.disp = bit::extract<0, 3>(instr) * size;
+        };
+
         auto loadDispGBR = [&](uint8 size) {
             mem.first.type = DecodedMemAccesses::Type::AtDispGBR;
             mem.first.write = false;
@@ -221,8 +229,8 @@ DecodeTable::DecodeTable() {
         auto loadDispRm_B = [&] { loadDispRm(sizeof(uint8)); };
         auto loadDispRm_W = [&] { loadDispRm(sizeof(uint16)); };
         auto loadDispRm_L = [&] { loadDispRm(sizeof(uint32)); };
-        auto storeDispRn_B = [&] { storeDispRn(sizeof(uint8)); };
-        auto storeDispRn_W = [&] { storeDispRn(sizeof(uint16)); };
+        auto storeDispRn_B = [&] { storeDispRn4(sizeof(uint8)); };
+        auto storeDispRn_W = [&] { storeDispRn4(sizeof(uint16)); };
         auto storeDispRn_L = [&] { storeDispRn(sizeof(uint32)); };
 
         auto loadDispGBR_B = [&] { loadDispGBR(sizeof(uint8)); };
