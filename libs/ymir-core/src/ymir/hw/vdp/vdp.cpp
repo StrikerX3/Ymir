@@ -26,6 +26,9 @@ namespace grp {
     // Hierarchy:
     //
     // base
+    //   phase
+    //   intr
+    //     intr_hb
     //   vdp1
     //     vdp1_regs
     //     vdp1_cmd
@@ -33,11 +36,24 @@ namespace grp {
     //   vdp2
     //     vdp2_regs
     //     vdp2_render
+    //       vdp2_render_verbose
 
     struct base {
         static constexpr bool enabled = true;
         static constexpr devlog::Level level = devlog::level::debug;
         static constexpr std::string_view name = "VDP";
+    };
+
+    struct phase : public base {
+        static constexpr std::string_view name = "VDP-Phase";
+    };
+
+    struct intr : public base {
+        static constexpr std::string_view name = "VDP-Interrupt";
+    };
+
+    struct intr_hb : public intr {
+        static constexpr devlog::Level level = devlog::level::debug;
     };
 
     struct vdp1 : public base {
@@ -66,6 +82,10 @@ namespace grp {
 
     struct vdp2_render : public vdp2 {
         static constexpr std::string_view name = "VDP2-Render";
+    };
+
+    struct vdp2_render_verbose : public vdp2_render {
+        static constexpr devlog::Level level = devlog::level::debug;
     };
 
 } // namespace grp
@@ -810,7 +830,7 @@ void VDP::EnableThreadedVDP(bool enable) {
         return;
     }
 
-    devlog::debug<grp::vdp2_render>("{} threaded VDP rendering", (enable ? "Enabling" : "Disabling"));
+    devlog::debug<grp::vdp2>("{} threaded VDP rendering", (enable ? "Enabling" : "Disabling"));
 
     m_threadedVDPRendering = enable;
     if (enable) {
@@ -1081,7 +1101,7 @@ FORCE_INLINE void VDP::IncrementVCounter() {
 // ----
 
 void VDP::BeginHPhaseActiveDisplay() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering horizontal active display phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering horizontal active display phase", m_state.regs2.VCNT);
     if (m_state.VPhase == VerticalPhase::Active) {
         if (m_state.regs2.VCNT == m_VTimings[m_VTimingField][0] - 16) { // ~1ms before VBlank IN
             m_cbTriggerOptimizedINTBACKRead();
@@ -1110,9 +1130,9 @@ void VDP::BeginHPhaseActiveDisplay() {
 }
 
 void VDP::BeginHPhaseRightBorder() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering right border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering right border phase", m_state.regs2.VCNT);
 
-    devlog::trace<grp::base>("## HBlank IN {:3d}", m_state.regs2.VCNT);
+    devlog::trace<grp::intr_hb>("## HBlank IN {:3d}", m_state.regs2.VCNT);
 
     m_state.regs2.TVSTAT.HBLANK = 1;
     m_cbHBlankStateChange(true, m_state.regs2.TVSTAT.VBLANK);
@@ -1122,7 +1142,7 @@ void VDP::BeginHPhaseRightBorder() {
 
     // Start erasing if we just entered VBlank IN
     if (m_state.regs2.VCNT == m_VTimings[m_VTimingField][static_cast<uint32>(VerticalPhase::Active)]) {
-        devlog::trace<grp::base>("## HBlank IN + VBlank IN  VBE={:d}", m_state.regs1.vblankErase);
+        devlog::trace<grp::intr>("## HBlank IN + VBlank IN  VBE={:d}", m_state.regs1.vblankErase);
 
         m_VDP1RenderContext.doVBlankErase = m_state.regs1.vblankErase;
 
@@ -1130,7 +1150,7 @@ void VDP::BeginHPhaseRightBorder() {
         if (m_state.regs2.TVMD.LSMDn != InterlaceMode::None) {
             m_state.regs2.TVSTAT.ODD ^= 1;
             m_VTimingField = m_state.regs2.TVSTAT.ODD;
-            devlog::trace<grp::base>("Switched to {} field", (m_state.regs2.TVSTAT.ODD ? "odd" : "even"));
+            devlog::trace<grp::vdp2_render>("Switched to {} field", (m_state.regs2.TVSTAT.ODD ? "odd" : "even"));
             if (m_threadedVDPRendering) {
                 m_renderingContext.EnqueueEvent(VDPRenderEvent::OddField(m_state.regs2.TVSTAT.ODD));
             }
@@ -1149,18 +1169,18 @@ void VDP::BeginHPhaseRightBorder() {
 }
 
 void VDP::BeginHPhaseSync() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering horizontal sync phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering horizontal sync phase", m_state.regs2.VCNT);
 
     // This phase intentionally does nothing to insert a gap between the two border phases
 }
 
 void VDP::BeginHPhaseLeftBorder() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering left border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering left border phase", m_state.regs2.VCNT);
 
     if (m_state.VPhase == VerticalPhase::LastLine) {
         auto &ctx1 = m_VDP1RenderContext;
 
-        devlog::trace<grp::base>("## HBlank end + VBlank OUT  FCM={:d} FCT={:d} VBE={:d} PTM={:d} changed={}",
+        devlog::trace<grp::intr>("## HBlank end + VBlank OUT  FCM={:d} FCT={:d} VBE={:d} PTM={:d} changed={}",
                                  m_state.regs1.fbSwapMode, m_state.regs1.fbSwapTrigger, m_state.regs1.vblankErase,
                                  m_state.regs1.plotTrigger, m_state.regs1.fbParamsChanged);
 
@@ -1221,15 +1241,15 @@ void VDP::BeginHPhaseLeftBorder() {
 // ----
 
 void VDP::BeginVPhaseActiveDisplay() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering vertical active display phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering vertical active display phase", m_state.regs2.VCNT);
 
     m_state.regs2.VCNTSkip = 0;
 }
 
 void VDP::BeginVPhaseBottomBorder() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering bottom border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering bottom border phase", m_state.regs2.VCNT);
 
-    devlog::trace<grp::base>("## VBlank IN");
+    devlog::trace<grp::intr>("## VBlank IN");
 
     m_state.regs2.TVSTAT.VBLANK = 1;
     m_cbVBlankStateChange(true);
@@ -1239,10 +1259,10 @@ void VDP::BeginVPhaseBottomBorder() {
 }
 
 void VDP::BeginVPhaseBlankingAndSync() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering blanking/vertical sync phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering blanking/vertical sync phase", m_state.regs2.VCNT);
 
     // End frame
-    devlog::trace<grp::base>("End VDP2 frame");
+    devlog::trace<grp::vdp2_render>("End VDP2 frame");
     if (m_threadedVDPRendering) {
         m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2EndFrame());
         m_renderingContext.renderFinishedSignal.Wait();
@@ -1269,13 +1289,13 @@ void VDP::BeginVPhaseBlankingAndSync() {
 }
 
 void VDP::BeginVPhaseVCounterSkip() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering vertical counter skip phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering vertical counter skip phase", m_state.regs2.VCNT);
 
     m_state.regs2.VCNTSkip = m_VCounterSkip;
 }
 
 void VDP::BeginVPhaseTopBorder() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering top border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering top border phase", m_state.regs2.VCNT);
 
     UpdateResolution<true>();
 
@@ -1287,11 +1307,11 @@ void VDP::BeginVPhaseTopBorder() {
 }
 
 void VDP::BeginVPhaseLastLine() {
-    devlog::trace<grp::base>("(VCNT = {:3d})  Entering last line phase", m_state.regs2.VCNT);
+    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering last line phase", m_state.regs2.VCNT);
 
-    devlog::trace<grp::base>("## VBlank OUT");
+    devlog::trace<grp::intr>("## VBlank OUT");
 
-    devlog::trace<grp::base>("Begin VDP2 frame, VDP1 framebuffer {}", m_state.displayFB);
+    devlog::trace<grp::vdp2_render>("Begin VDP2 frame, VDP1 framebuffer {}", m_state.displayFB);
 
     if (m_threadedVDPRendering) {
         m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2BeginFrame());
@@ -2281,8 +2301,8 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
     const uint32 charSizeH = size.H * 8;
     const uint32 charSizeV = size.V;
 
-    devlog::trace<grp::vdp1_render>("Textured quad parameters: color={:04X} mode={:04X} size={:2d}x{:<2d} char={:05X}",
-                                    color, mode.u16, charSizeH, charSizeV, charAddr);
+    devlog::trace<grp::vdp1_cmd>("Textured quad parameters: color={:04X} mode={:04X} size={:2d}x{:<2d} char={:05X}",
+                                 color, mode.u16, charSizeH, charSizeV, charAddr);
 
     VDP1TexturedLineParams lineParams{
         .control = control,
@@ -2304,10 +2324,10 @@ FORCE_INLINE void VDP::VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Cont
         Color555 colorC{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
         Color555 colorD{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
 
-        devlog::trace<grp::vdp1_render>(
-            "[{:05X}] Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", gouraudTable, (uint8)colorA.r,
-            (uint8)colorA.g, (uint8)colorA.b, (uint8)colorB.r, (uint8)colorB.g, (uint8)colorB.b, (uint8)colorC.r,
-            (uint8)colorC.g, (uint8)colorC.b, (uint8)colorD.r, (uint8)colorD.g, (uint8)colorD.b);
+        devlog::trace<grp::vdp1_cmd>("[{:05X}] Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})",
+                                     gouraudTable, (uint8)colorA.r, (uint8)colorA.g, (uint8)colorA.b, (uint8)colorB.r,
+                                     (uint8)colorB.g, (uint8)colorB.b, (uint8)colorC.r, (uint8)colorC.g,
+                                     (uint8)colorC.b, (uint8)colorD.r, (uint8)colorD.g, (uint8)colorD.b);
 
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
         lineParams.gouraudLeft = &quad.LeftEdge().Gouraud();
@@ -2367,8 +2387,8 @@ void VDP::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control contr
     const CoordS32 coordC{rx, by << doubleV};
     const CoordS32 coordD{lx, by << doubleV};
 
-    devlog::trace<grp::vdp1_render>("[{:05X}] Draw normal sprite: {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d}",
-                                    cmdAddress, lx, ty, rx, ty, rx, by, lx, by);
+    devlog::trace<grp::vdp1_cmd>("[{:05X}] Draw normal sprite: {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d}",
+                                 cmdAddress, lx, ty, rx, ty, rx, by, lx, by);
 
     VDP1PlotTexturedQuad<deinterlace, transparentMeshes>(cmdAddress, control, size, coordA, coordB, coordC, coordD);
 }
@@ -2466,8 +2486,8 @@ void VDP::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control contr
     const CoordS32 coordC{qxc, qyc << doubleV};
     const CoordS32 coordD{qxd, qyd << doubleV};
 
-    devlog::trace<grp::vdp1_render>("[{:05X}] Draw scaled sprite: {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d}",
-                                    cmdAddress, qxa, qya, qxb, qyb, qxc, qyc, qxd, qyd);
+    devlog::trace<grp::vdp1_cmd>("[{:05X}] Draw scaled sprite: {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d}",
+                                 cmdAddress, qxa, qya, qxb, qyb, qxc, qyc, qxd, qyd);
 
     VDP1PlotTexturedQuad<deinterlace, transparentMeshes>(cmdAddress, control, size, coordA, coordB, coordC, coordD);
 }
@@ -2497,9 +2517,8 @@ void VDP::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control co
     const CoordS32 coordC{xc, yc << doubleV};
     const CoordS32 coordD{xd, yd << doubleV};
 
-    devlog::trace<grp::vdp1_render>(
-        "[{:05X}] Draw distorted sprite: {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d}", cmdAddress, xa, ya, xb,
-        yb, xc, yc, xd, yd);
+    devlog::trace<grp::vdp1_cmd>("[{:05X}] Draw distorted sprite: {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d}",
+                                 cmdAddress, xa, ya, xb, yb, xc, yc, xd, yd);
 
     VDP1PlotTexturedQuad<deinterlace, transparentMeshes>(cmdAddress, control, size, coordA, coordB, coordC, coordD);
 }
@@ -2530,9 +2549,9 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
     const CoordS32 coordC{xc, yc << doubleV};
     const CoordS32 coordD{xd, yd << doubleV};
 
-    devlog::trace<grp::vdp1_render>("[{:05X}] Draw polygon: {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d}, color "
-                                    "{:04X}, gouraud table {:05X}, CMDPMOD = {:04X}",
-                                    cmdAddress, xa, ya, xb, yb, xc, yc, xd, yd, color, gouraudTable, mode.u16);
+    devlog::trace<grp::vdp1_cmd>("[{:05X}] Draw polygon: {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d} {:6d}x{:<6d}, color "
+                                 "{:04X}, gouraud table {:05X}, CMDPMOD = {:04X}",
+                                 cmdAddress, xa, ya, xb, yb, xc, yc, xd, yd, color, gouraudTable, mode.u16);
 
     if (VDP1IsQuadSystemClipped<deinterlace>(coordA, coordB, coordC, coordD)) {
         return;
@@ -2551,10 +2570,10 @@ void VDP::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
         Color555 colorC{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
         Color555 colorD{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
 
-        devlog::trace<grp::vdp1_render>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)colorA.r,
-                                        (uint8)colorA.g, (uint8)colorA.b, (uint8)colorB.r, (uint8)colorB.g,
-                                        (uint8)colorB.b, (uint8)colorC.r, (uint8)colorC.g, (uint8)colorC.b,
-                                        (uint8)colorD.r, (uint8)colorD.g, (uint8)colorD.b);
+        devlog::trace<grp::vdp1_cmd>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)colorA.r,
+                                     (uint8)colorA.g, (uint8)colorA.b, (uint8)colorB.r, (uint8)colorB.g,
+                                     (uint8)colorB.b, (uint8)colorC.r, (uint8)colorC.g, (uint8)colorC.b,
+                                     (uint8)colorD.r, (uint8)colorD.g, (uint8)colorD.b);
 
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
@@ -2611,7 +2630,7 @@ void VDP::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control)
     const CoordS32 coordC{xc, yc << doubleV};
     const CoordS32 coordD{xd, yd << doubleV};
 
-    devlog::trace<grp::vdp1_render>(
+    devlog::trace<grp::vdp1_cmd>(
         "[{:05X}] Draw polylines: {}x{} - {}x{} - {}x{} - {}x{}, color {:04X}, gouraud table {:05X}, CMDPMOD = {:04X}",
         cmdAddress, xa, ya, xb, yb, xc, yc, xd, yd, color, gouraudTable >> 3u, mode.u16);
 
@@ -2628,9 +2647,9 @@ void VDP::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control)
     const Color555 B{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 2u)};
     const Color555 C{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
     const Color555 D{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
-    devlog::trace<grp::vdp1_render>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)A.r,
-                                    (uint8)A.g, (uint8)A.b, (uint8)B.r, (uint8)B.g, (uint8)B.b, (uint8)C.r, (uint8)C.g,
-                                    (uint8)C.b, (uint8)D.r, (uint8)D.g, (uint8)D.b);
+    devlog::trace<grp::vdp1_cmd>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)A.r, (uint8)A.g,
+                                 (uint8)A.b, (uint8)B.r, (uint8)B.g, (uint8)B.b, (uint8)C.r, (uint8)C.g, (uint8)C.b,
+                                 (uint8)D.r, (uint8)D.g, (uint8)D.b);
 
     if (mode.gouraudEnable) {
         lineParams.gouraudLeft = A;
@@ -2674,7 +2693,7 @@ void VDP::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control) {
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
 
-    devlog::trace<grp::vdp1_render>(
+    devlog::trace<grp::vdp1_cmd>(
         "[{:05X}] Draw line: {}x{} - {}x{}, color {:04X}, gouraud table {:05X}, CMDPMOD = {:04X}", cmdAddress, xa, ya,
         xb, yb, color, gouraudTable, mode.u16);
 
@@ -2694,8 +2713,8 @@ void VDP::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control) {
         lineParams.gouraudLeft = colorA;
         lineParams.gouraudRight = colorB;
 
-        devlog::trace<grp::vdp1_render>("Gouraud colors: ({},{},{}) ({},{},{})", (uint8)colorA.r, (uint8)colorA.g,
-                                        (uint8)colorA.b, (uint8)colorB.r, (uint8)colorB.g, (uint8)colorB.b);
+        devlog::trace<grp::vdp1_cmd>("Gouraud colors: ({},{},{}) ({},{},{})", (uint8)colorA.r, (uint8)colorA.g,
+                                     (uint8)colorA.b, (uint8)colorB.r, (uint8)colorB.g, (uint8)colorB.b);
     }
 
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams);
@@ -2705,7 +2724,7 @@ void VDP::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
     auto &ctx = m_VDP1RenderContext;
     ctx.sysClipH = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
     ctx.sysClipV = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
-    devlog::trace<grp::vdp1_render>("[{:05X}] Set system clipping: {}x{}", cmdAddress, ctx.sysClipH, ctx.sysClipV);
+    devlog::trace<grp::vdp1_cmd>("[{:05X}] Set system clipping: {}x{}", cmdAddress, ctx.sysClipH, ctx.sysClipV);
 }
 
 void VDP::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
@@ -2714,16 +2733,15 @@ void VDP::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
     ctx.userClipY0 = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
     ctx.userClipX1 = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
     ctx.userClipY1 = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
-    devlog::trace<grp::vdp1_render>("[{:05X}] Set user clipping: {}x{} - {}x{}", cmdAddress, ctx.userClipX0,
-                                    ctx.userClipY0, ctx.userClipX1, ctx.userClipY1);
+    devlog::trace<grp::vdp1_cmd>("[{:05X}] Set user clipping: {}x{} - {}x{}", cmdAddress, ctx.userClipX0,
+                                 ctx.userClipY0, ctx.userClipX1, ctx.userClipY1);
 }
 
 void VDP::VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress) {
     auto &ctx = m_VDP1RenderContext;
     ctx.localCoordX = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
     ctx.localCoordY = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
-    devlog::trace<grp::vdp1_render>("[{:05X}] Set local coordinates: {}x{}", cmdAddress, ctx.localCoordX,
-                                    ctx.localCoordY);
+    devlog::trace<grp::vdp1_cmd>("[{:05X}] Set local coordinates: {}x{}", cmdAddress, ctx.localCoordX, ctx.localCoordY);
 }
 
 // -----------------------------------------------------------------------------
@@ -3597,7 +3615,7 @@ FORCE_INLINE void VDP::VDP2FinishLine(uint32 y) {
 
 template <bool deinterlace, bool transparentMeshes>
 void VDP::VDP2DrawLine(uint32 y, bool altField) {
-    devlog::trace<grp::vdp2_render>("Drawing line {} {} field", y, (altField ? "alt" : "main"));
+    devlog::trace<grp::vdp2_render_verbose>("Drawing line {} {} field", y, (altField ? "alt" : "main"));
 
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();

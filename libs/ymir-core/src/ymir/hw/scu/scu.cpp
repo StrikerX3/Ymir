@@ -605,7 +605,7 @@ void SCU::DMAReadIndirectTransfer(uint8 level) {
     ch.currSrcAddrInc = ch.srcAddrInc;
     ch.currDstAddrInc = ch.dstAddrInc;
 
-    devlog::trace<grp::dma>(
+    devlog::trace<grp::dma_start>(
         "SCU DMA{}: Starting indirect transfer at {:08X} - {:06X} bytes from {:08X} (+{:02X}) to {:08X} (+{:02X}){}",
         level, baseIndirectSrc, ch.currXferCount, ch.currSrcAddr, ch.currSrcAddrInc, ch.currDstAddr, ch.currDstAddrInc,
         (ch.endIndirect ? " (final)" : ""));
@@ -961,7 +961,7 @@ void SCU::RecalcDMAChannel() {
                 ch.currSrcAddrInc = ch.srcAddrInc;
                 ch.currDstAddrInc = ch.dstAddrInc;
 
-                devlog::trace<grp::dma>(
+                devlog::trace<grp::dma_start>(
                     "SCU DMA{}: Starting direct transfer of {:06X} bytes from {:08X} (+{:02X}) to {:08X} (+{:02X})",
                     level, ch.currXferCount, ch.currSrcAddr, ch.currSrcAddrInc, ch.currDstAddr, ch.currDstAddrInc);
                 if (ch.currSrcAddr & 1) {
