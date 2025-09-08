@@ -1394,13 +1394,11 @@ private:
     // vramFetcher is the corresponding background layer's VRAM fetcher.
     //
     // bgIndex specifies the rotation background index, from 0 to 1.
-    // selRotParam enables dynamic rotation parameter selection (for RBG0).
     // charMode indicates if character patterns use two words or one word with standard or extended character data.
     // fourCellChar indicates if character patterns are 1x1 cells (false) or 2x2 cells (true).
     // colorFormat is the color format for cell data.
     // colorMode is the CRAM color mode.
-    template <uint32 bgIndex, bool selRotParam, CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat,
-              uint32 colorMode>
+    template <uint32 bgIndex, CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode>
     void VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams, LayerState &layerState, VRAMFetcher &vramFetcher,
                                   std::span<const bool> windowState, bool altField);
 
@@ -1413,10 +1411,9 @@ private:
     // altField selects the complementary field when rendering deinterlaced frames
     //
     // bgIndex specifies the rotation background index, from 0 to 1.
-    // selRotParam enables dynamic rotation parameter selection (for RBG0).
     // colorFormat is the color format for bitmap data.
     // colorMode is the CRAM color mode.
-    template <uint32 bgIndex, bool selRotParam, ColorFormat colorFormat, uint32 colorMode>
+    template <uint32 bgIndex, ColorFormat colorFormat, uint32 colorMode>
     void VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
                                   std::span<const bool> windowState, bool altField);
 

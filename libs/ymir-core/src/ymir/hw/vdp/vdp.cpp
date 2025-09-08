@@ -3947,8 +3947,6 @@ template <uint32 bgIndex>
 FORCE_INLINE void VDP::VDP2DrawRotationBG(uint32 y, uint32 colorMode, bool altField) {
     static_assert(bgIndex < 2, "Invalid RBG index");
 
-    static constexpr bool selRotParam = bgIndex == 0;
-
     using FnDrawScroll =
         void (VDP::*)(uint32 y, const BGParams &, LayerState &, VRAMFetcher &, std::span<const bool>, bool);
     using FnDrawBitmap = void (VDP::*)(uint32 y, const BGParams &, LayerState &, std::span<const bool>, bool);
@@ -3967,8 +3965,7 @@ FORCE_INLINE void VDP::VDP2DrawRotationBG(uint32 y, uint32 colorMode, bool altFi
             const auto chmEnum = static_cast<CharacterMode>(chm);
             const auto cfEnum = static_cast<ColorFormat>(cf <= 4 ? cf : 4);
             const uint32 colorMode = clm <= 2 ? clm : 2;
-            arr[chm][fcc][cf][clm] =
-                &VDP::VDP2DrawRotationScrollBG<bgIndex, selRotParam, chmEnum, fcc, cfEnum, colorMode>;
+            arr[chm][fcc][cf][clm] = &VDP::VDP2DrawRotationScrollBG<bgIndex, chmEnum, fcc, cfEnum, colorMode>;
         });
 
         return arr;
@@ -3985,7 +3982,7 @@ FORCE_INLINE void VDP::VDP2DrawRotationBG(uint32 y, uint32 colorMode, bool altFi
 
             const auto cfEnum = static_cast<ColorFormat>(cf <= 4 ? cf : 4);
             const uint32 colorMode = cm <= 2 ? cm : 2;
-            arr[cf][cm] = &VDP::VDP2DrawRotationBitmapBG<bgIndex, selRotParam, cfEnum, colorMode>;
+            arr[cf][cm] = &VDP::VDP2DrawRotationBitmapBG<bgIndex, cfEnum, colorMode>;
         });
 
         return arr;
@@ -5464,11 +5461,12 @@ NO_INLINE void VDP::VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, L
     }
 }
 
-template <uint32 bgIndex, bool selRotParam, VDP::CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat,
-          uint32 colorMode>
+template <uint32 bgIndex, VDP::CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode>
 NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
                                              VRAMFetcher &vramFetcher, std::span<const bool> windowState,
                                              bool altField) {
+    static constexpr bool selRotParam = bgIndex == 0;
+
     const VDP2Regs &regs = VDP2GetRegs();
 
     const bool doubleResH = regs.TVMD.HRESOn & 0b010;
@@ -5574,9 +5572,11 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
     }
 }
 
-template <uint32 bgIndex, bool selRotParam, ColorFormat colorFormat, uint32 colorMode>
+template <uint32 bgIndex, ColorFormat colorFormat, uint32 colorMode>
 NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
                                              std::span<const bool> windowState, bool altField) {
+    static constexpr bool selRotParam = bgIndex == 0;
+
     const VDP2Regs &regs = VDP2GetRegs();
 
     const bool doubleResH = regs.TVMD.HRESOn & 0b010;
