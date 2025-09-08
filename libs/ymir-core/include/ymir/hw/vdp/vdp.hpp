@@ -1086,9 +1086,6 @@ private:
     // Line colors per RBG per pixel.
     std::array<std::array<Color888, kMaxResH / 2>, 2> m_rbgLineColors;
 
-    // Whether to use line color for each RBG pixel.
-    std::array<std::array<bool, kMaxResH / 2>, 2> m_rbgLineColorEnable;
-
     // VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;

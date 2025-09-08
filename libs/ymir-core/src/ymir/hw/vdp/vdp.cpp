@@ -5113,14 +5113,11 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 break;
             case LYR_Back: layer0LineColorEnabled[x] = false; break;
             default:
-                if (layer == LYR_RBG0 || (layer == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
-                    layer0LineColorEnabled[x] = m_rbgLineColorEnable[layer - LYR_RBG0][x >> xShift];
-                    if (layer0LineColorEnabled[x]) {
+                layer0LineColorEnabled[x] = regs.bgParams[layer - LYR_RBG0].lineColorScreenEnable;
+                if (layer0LineColorEnabled[x]) {
+                    if (layer == LYR_RBG0 || (layer == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
                         layer0LineColors[x] = m_rbgLineColors[layer - LYR_RBG0][x >> xShift];
-                    }
-                } else {
-                    layer0LineColorEnabled[x] = regs.bgParams[layer - LYR_RBG0].lineColorScreenEnable;
-                    if (layer0LineColorEnabled[x]) {
+                    } else {
                         layer0LineColors[x] = m_lineBackLayerState.lineColor;
                     }
                 }
@@ -5651,9 +5648,7 @@ FORCE_INLINE void VDP::VDP2StoreRotationLineColorData(uint32 x, const BGParams &
     const VDP2Regs &regs = VDP2GetRegs();
     const CommonRotationParams &commonRotParams = regs.commonRotParams;
 
-    const bool useLineColor = bgParams.lineColorScreenEnable;
-    m_rbgLineColorEnable[bgIndex][x] = useLineColor;
-    if (useLineColor) {
+    if (bgParams.lineColorScreenEnable) {
         // Line color for rotation parameters can be either the raw LNCL value or combined with coefficient table data.
         // When combined, CRAM address bits 10-7 come from LNCL and bits 6-0 come from the coefficient table.
         // This is handled in VDP2CalcRotationParameterTables.
