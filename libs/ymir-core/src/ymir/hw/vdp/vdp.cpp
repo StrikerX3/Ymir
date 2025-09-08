@@ -3000,7 +3000,7 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
         const LineBackScreenParams &lineParams = regs2.lineScreenParams;
         const uint32 line = lineParams.perLine ? y : 0;
         const uint32 lineColorAddress = lineParams.baseAddress + line * sizeof(uint16);
-        const uint32 baseLineColorCRAMAddress = VDP2ReadRendererVRAM<uint16>(lineColorAddress) * sizeof(uint16);
+        const uint32 baseLineColorData = bit::extract<7, 10>(VDP2ReadRendererVRAM<uint16>(lineColorAddress)) << 7;
 
         // Fetch first coefficient
         Coefficient coeff = VDP2FetchRotationCoefficient(params, KA);
@@ -3022,8 +3022,8 @@ FORCE_INLINE void VDP::VDP2CalcRotationParameterTables(uint32 y) {
 
                 // Compute line colors
                 if (params.coeffUseLineColorData) {
-                    const uint32 cramAddress = baseLineColorCRAMAddress + (coeff.lineColorData << 1);
-                    state.lineColor[x] = VDP2ReadRendererColor5to8(cramAddress);
+                    const uint32 cramAddress = baseLineColorData | coeff.lineColorData;
+                    state.lineColor[x] = VDP2ReadRendererColor5to8(cramAddress * sizeof(uint16));
                 }
 
                 // Increment coefficient table address by Hcnt if using per-dot coefficients

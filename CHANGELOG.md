@@ -99,6 +99,7 @@ Introduced save state file version 9.
 - VDP2: Fix interlaced mode timings. (thanks to @celeriyacon)
 - VDP2: Fix off-by-one error when clamping window X coordinates. Fixes one-pixel glitches in Albert Odyssey when displaying dialogue boxes.
 - VDP2: Fix palette-based transparent meshes not blending with VDP2 layer (such as in Bulk Slash).
+- VDP2: Fix rotation parameter line color data address calculation.
 - VDP2: Fix window calculations involving illegal vertical coordinates. Fixes background glitch in Radiant Silvergun's Stage 2C.
 - VDP2: Force-fetch first character of every scanline. Fixes some garbage tiles on the left edge of the screen in Athlete Kings' splash screen. (#515)
 - VDP2: Handle games that only enable RBG1. Fixes missing background graphics in Houkago Ren'ai Club - Koi no Etude. (#551)
