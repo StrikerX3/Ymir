@@ -104,6 +104,7 @@ Introduced save state file version 9.
 - VDP2: Force-fetch first character of every scanline. Fixes some garbage tiles on the left edge of the screen in Athlete Kings' splash screen. (#515)
 - VDP2: Handle games that only enable RBG1. Fixes missing background graphics in Houkago Ren'ai Club - Koi no Etude. (#551)
 - VDP2: Handle sprite window on sprite layer manually. Fixes graphics effects when defeating the first boss in Metal Black. (#404)
+- VDP2: Honor rotation parameter mode register when selecting line color data. Fixes bad sky on Episode 2 of Panzer Dragoon II Zwei and glitched sky/ceiling in Savaki. (#570)
 - VDP2: Invert TVSTAT.ODD bit on single-density interlaced modes too. Fixes swapped interlaced fields in Pro-Pinball: The Web and Shienryuu. (#447)
 - VDP2: Implement VCNT skip as a dedicated vertical phase. (thanks to @celeriyacon)
 - VDP2: Latch TVMD.DISP and TVMD.BDCLMD at start of the frame. Fixes:

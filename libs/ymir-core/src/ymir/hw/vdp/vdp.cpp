@@ -5105,21 +5105,26 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
             const LayerIndex layer = scanline_layers[x][0];
 
             switch (layer) {
-            case LYR_Sprite: layer0LineColorEnabled[x] = regs.spriteParams.lineColorScreenEnable; break;
-            case LYR_Back: layer0LineColorEnabled[x] = false; break;
-            default: layer0LineColorEnabled[x] = regs.bgParams[layer - LYR_RBG0].lineColorScreenEnable; break;
-            }
-
-            if (layer0LineColorEnabled[x]) {
-                if (layer == LYR_RBG0 || (layer == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
-                    if (m_rbgLineColorEnable[layer - LYR_RBG0][x >> xShift]) {
-                        layer0LineColors[x] = m_rbgLineColors[layer - LYR_RBG0][x >> xShift];
-                    } else {
-                        layer0LineColors[x] = m_lineBackLayerState.lineColor;
-                    }
-                } else {
+            case LYR_Sprite:
+                layer0LineColorEnabled[x] = regs.spriteParams.lineColorScreenEnable;
+                if (layer0LineColorEnabled[x]) {
                     layer0LineColors[x] = m_lineBackLayerState.lineColor;
                 }
+                break;
+            case LYR_Back: layer0LineColorEnabled[x] = false; break;
+            default:
+                if (layer == LYR_RBG0 || (layer == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
+                    layer0LineColorEnabled[x] = m_rbgLineColorEnable[layer - LYR_RBG0][x >> xShift];
+                    if (layer0LineColorEnabled[x]) {
+                        layer0LineColors[x] = m_rbgLineColors[layer - LYR_RBG0][x >> xShift];
+                    }
+                } else {
+                    layer0LineColorEnabled[x] = regs.bgParams[layer - LYR_RBG0].lineColorScreenEnable;
+                    if (layer0LineColorEnabled[x]) {
+                        layer0LineColors[x] = m_lineBackLayerState.lineColor;
+                    }
+                }
+                break;
             }
         }
 
@@ -5540,7 +5545,7 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
                 layerState.pixels.SetPixel(xx + 1, pixel);
             }
 
-            VDP2StoreRotationLineColorData<bgIndex>(x, rotParams, rotParamState);
+            VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
         } else if (rotParams.screenOverProcess == ScreenOverProcess::RepeatChar) {
             // Out of bounds - repeat character
             static constexpr bool largePalette = colorFormat != ColorFormat::Palette16;
@@ -5561,7 +5566,7 @@ NO_INLINE void VDP::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams,
                 layerState.pixels.SetPixel(xx + 1, pixel);
             }
 
-            VDP2StoreRotationLineColorData<bgIndex>(x, rotParams, rotParamState);
+            VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
         } else {
             // Out of bounds - transparent
             layerState.pixels.transparent[xx] = true;
@@ -5629,7 +5634,7 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
                 layerState.pixels.SetPixel(xx + 1, pixel);
             }
 
-            VDP2StoreRotationLineColorData<bgIndex>(x, rotParams, rotParamState);
+            VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
         } else {
             // Out of bounds and no repeat
             layerState.pixels.transparent[xx] = true;
@@ -5641,12 +5646,59 @@ NO_INLINE void VDP::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams,
 }
 
 template <uint32 bgIndex>
-FORCE_INLINE void VDP::VDP2StoreRotationLineColorData(uint32 x, const RotationParams &rotParams,
-                                                      const RotationParamState &rotParamState) {
-    const bool useLineColor = rotParams.coeffTableEnable && rotParams.coeffUseLineColorData;
+FORCE_INLINE void VDP::VDP2StoreRotationLineColorData(uint32 x, const BGParams &bgParams,
+                                                      RotParamSelector rotParamSelector) {
+    const VDP2Regs &regs = VDP2GetRegs();
+    const CommonRotationParams &commonRotParams = regs.commonRotParams;
+
+    const bool useLineColor = bgParams.lineColorScreenEnable;
     m_rbgLineColorEnable[bgIndex][x] = useLineColor;
     if (useLineColor) {
-        m_rbgLineColors[bgIndex][x] = rotParamState.lineColor[x];
+        // Line color for rotation parameters can be either the raw LNCL value or combined with coefficient table data.
+        // When combined, CRAM address bits 10-7 come from LNCL and bits 6-0 come from the coefficient table.
+        // This is handled in VDP2CalcRotationParameterTables.
+        //
+        // Whether to combine line color data depends on the rotation parameter mode:
+        //   0: data from coeff A is added to rotparam A
+        //   1: data from coeff B is added to rotparam B
+        //   2: data from coeff A is added to both rotparams
+        //   3: data from each coeff is added to each rotparam
+        // If RBG1 is enabled, coeff data A is used for both RBG0 and RBG1
+
+        const bool hasRBG1 = regs.bgEnabled[5];
+
+        bool useCoeffLineColor = false;
+        RotParamSelector coeffSel;
+
+        using enum RotationParamMode;
+        switch (commonRotParams.rotParamMode) {
+        case RotationParamA:
+            useCoeffLineColor = rotParamSelector == RotParamA;
+            coeffSel = RotParamA;
+            break;
+        case RotationParamB:
+            useCoeffLineColor = rotParamSelector == RotParamB;
+            coeffSel = hasRBG1 ? RotParamA : RotParamB;
+            break;
+        case Coefficient:
+            useCoeffLineColor = true;
+            coeffSel = RotParamA;
+            break;
+        case Window:
+            useCoeffLineColor = true;
+            coeffSel = hasRBG1 ? RotParamA : rotParamSelector;
+            break;
+        }
+
+        m_rbgLineColors[bgIndex][x] = m_lineBackLayerState.lineColor;
+
+        if (useCoeffLineColor) {
+            const RotationParams &rotParams = regs.rotParams[coeffSel];
+            const RotationParamState &rotParamState = m_rotParamStates[coeffSel];
+            if (rotParams.coeffTableEnable && rotParams.coeffUseLineColorData) {
+                m_rbgLineColors[bgIndex][x] = rotParamState.lineColor[x];
+            }
+        }
     }
 }
 

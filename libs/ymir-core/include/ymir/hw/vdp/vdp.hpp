@@ -1420,13 +1420,12 @@ private:
     // Stores the line color for the specified pixel of the RBG.
     //
     // x is the horizontal coordinate of the pixel.
-    // rotParams is a reference to the rotation parameters in use.
-    // rotParamState is a reference to the state of the rotation parameters in use.
+    // bgParams contains the parameters for the BG to draw.
+    // rotParamSelector is the rotation parameter in use.
     //
     // bgIndex specifies the rotation background index, from 0 to 1.
     template <uint32 bgIndex>
-    void VDP2StoreRotationLineColorData(uint32 x, const RotationParams &rotParams,
-                                        const RotationParamState &rotParamState);
+    void VDP2StoreRotationLineColorData(uint32 x, const BGParams &bgParams, RotParamSelector rotParamSelector);
 
     // Selects a rotation parameter set based on the current parameter selection mode.
     //
