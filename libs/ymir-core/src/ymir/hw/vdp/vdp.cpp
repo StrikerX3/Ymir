@@ -4911,7 +4911,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
     y = VDP2GetY<deinterlace>(y) ^ static_cast<uint32>(altField);
 
-    if (!m_displayEnabled) {
+    if (!m_displayEnabled || !m_state.regs2.TVMD.DISP) {
         uint32 color = 0xFF000000;
         if (m_borderColorMode) {
             color |= m_lineBackLayerState.backColor.u32;
