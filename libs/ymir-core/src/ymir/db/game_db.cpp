@@ -42,6 +42,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfos = {
     {"T-1230G", {.cartridge = Cartridge::DRAM32Mbit}}, // Pocket Fighter (Japan)
     {"T-1246G", {.cartridge = Cartridge::DRAM32Mbit}}, // Street Fighter Zero 3 (Japan)
     {"T-1229G", {.cartridge = Cartridge::DRAM32Mbit}}, // Vampire Savior (Japan)
+    {"6106881", {.cartridge = Cartridge::DRAM32Mbit}}, // Vampire Savior (Japan) (Demo)
     {"T-1226G", {.cartridge = Cartridge::DRAM32Mbit}}, // X-Men vs. Street Fighter (Japan)
 
     {"T-16804G", {.cartridge = Cartridge::BackupRAM, .cartReason = "Required for saving games"}},   // Dezaemon 2 (Japan)

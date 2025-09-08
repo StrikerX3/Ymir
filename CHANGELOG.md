@@ -16,6 +16,7 @@ Introduced save state file version 9.
 - Build: FreeBSD support for ARM64 systems. (#421; @bsdcode)
 - Build: ARM64 Windows support. (#483; @tordona)
 - Cart: Automatically insert Backup RAM cartridges for games that recommend their use, such as Dezaemon 2 and Sega Ages - Galaxy Force II. (#356)
+- Cart: Add Vampire Savior - The Lord of Vampire demo to internal database of games that need a DRAM cartridge.
 - CD Block: Allow querying files at specific frame addresses and display file being read in System State window.
 - Debug: Allow exporting debug output to a file.
 - Debug: Move debug port writes to a callback and remove them from the SCU tracer. Eliminates the need for debug tracing to use Mednafen's debug output method.
