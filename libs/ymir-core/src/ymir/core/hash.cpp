@@ -24,4 +24,13 @@ std::string ToString(const XXH128Hash &hash) {
     return fmt::to_string(buf);
 }
 
+XXH128Hash MakeXXH128Hash(uint64_t hi, uint64_t lo) {
+    XXH128Hash out{};
+    for (uint64_t byte = 0ull; byte < 8ull; ++byte) {
+        out[byte + 0] = hi >> ((7ull - byte) * 8ull);
+        out[byte + 8] = lo >> ((7ull - byte) * 8ull);
+    }
+    return out;
+}
+
 } // namespace ymir

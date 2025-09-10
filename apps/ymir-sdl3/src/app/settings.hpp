@@ -440,7 +440,7 @@ struct Settings {
         } backupRAM;
 
         struct DRAM {
-            enum Capacity { _32Mbit, _8Mbit };
+            enum Capacity { _48Mbit, _32Mbit, _8Mbit };
             Capacity capacity;
         } dram;
 

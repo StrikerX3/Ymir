@@ -8,7 +8,7 @@ namespace ymir::db {
 // https://github.com/libretro-mirrors/mednafen-git/blob/master/src/ss/db.cpp
 
 // clang-format off
-static const std::unordered_map<std::string_view, GameInfo> kGameInfos = {
+static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"MK-81088", {.cartridge = Cartridge::ROM_KOF95}},    // King of Fighters '95, The (Europe)
     {"T-3101G",  {.cartridge = Cartridge::ROM_KOF95}},    // King of Fighters '95, The (Japan)
     {"T-13308G", {.cartridge = Cartridge::ROM_Ultraman}}, // Ultraman - Hikari no Kyojin Densetsu (Japan)
@@ -54,11 +54,17 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfos = {
     {"T-5013H",  {.sh2Cache = true}}, // Soviet Strike (Europe, France, Germany, USA)
     {"T-10621G", {.sh2Cache = true}}, // Soviet Strike (Japan)
 };
+
+static const std::unordered_map<XXH128Hash, GameInfo> kGameInfosByHash = {
+    {MakeXXH128Hash(0xCFA7E24F43C986F7, 0x051DAF831876C5FD), {.cartridge = Cartridge::DRAM48Mbit}}, // Heart of Darkness (Japan) (Prototype)
+};
 // clang-format on
 
-const GameInfo *GetGameInfo(std::string_view productCode) {
-    if (kGameInfos.contains(productCode)) {
-        return &kGameInfos.at(productCode);
+const GameInfo *GetGameInfo(std::string_view productCode, XXH128Hash hash) {
+    if (kGameInfosByCode.contains(productCode)) {
+        return &kGameInfosByCode.at(productCode);
+    } else if (kGameInfosByHash.contains(hash)) {
+        return &kGameInfosByHash.at(hash);
     } else {
         return nullptr;
     }

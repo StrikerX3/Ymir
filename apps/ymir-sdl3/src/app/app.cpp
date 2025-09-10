@@ -4153,7 +4153,7 @@ void App::LoadRecommendedCartridge() {
     {
         std::unique_lock lock{m_context.locks.disc};
         const auto &disc = m_context.saturn.instance->CDBlock.GetDisc();
-        info = ymir::db::GetGameInfo(disc.header.productNumber);
+        info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
     }
     if (info == nullptr) {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
@@ -4168,6 +4168,7 @@ void App::LoadRecommendedCartridge() {
     case Cart::None: break;
     case Cart::DRAM8Mbit: m_context.EnqueueEvent(events::emu::Insert8MbitDRAMCartridge()); break;
     case Cart::DRAM32Mbit: m_context.EnqueueEvent(events::emu::Insert32MbitDRAMCartridge()); break;
+    case Cart::DRAM48Mbit: m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge()); break;
     case Cart::ROM_KOF95: [[fallthrough]];
     case Cart::ROM_Ultraman: //
     {
@@ -4222,7 +4223,7 @@ void App::ApplyGameSpecificConfiguration() {
     {
         std::unique_lock lock{m_context.locks.disc};
         const auto &disc = m_context.saturn.instance->CDBlock.GetDisc();
-        info = ymir::db::GetGameInfo(disc.header.productNumber);
+        info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
     }
 
     const bool forceSH2CacheEmulation = info != nullptr && info->sh2Cache;
@@ -4453,7 +4454,7 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
                                        devlog::error<grp::media>("{}", message);
                                        if (showErrorModal) {
                                            OpenSimpleErrorModal(fmt::format(
-                                               "Could not load {} as a game disc image: {}", path, message));
+                                               "Could not load {} as a game disc image.\n\n{}", path, message));
                                        }
                                        break;
                                    default: break;

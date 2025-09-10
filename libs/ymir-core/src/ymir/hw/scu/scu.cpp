@@ -373,6 +373,15 @@ void SCU::SaveState(state::SCUState &state) const {
         cart->DumpRAM(std::span<uint8, 4_MiB>(state.cartData.begin(), 4_MiB));
         break;
     }
+    case cart::CartType::DRAM48Mbit: //
+    {
+        const cart::DRAM48MbitCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::DRAM48Mbit>();
+        assert(cart != nullptr);
+        state.cartType = state::SCUState::CartType::DRAM48Mbit;
+        state.cartData.resize(6_MiB);
+        cart->DumpRAM(std::span<uint8, 6_MiB>(state.cartData.begin(), 6_MiB));
+        break;
+    }
     case cart::CartType::ROM: //
     {
         const cart::ROMCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::ROM>();
@@ -445,6 +454,12 @@ void SCU::LoadState(const state::SCUState &state) {
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::DRAM32MbitCartridge>();
         cart->LoadRAM(std::span<const uint8, 4_MiB>(state.cartData.begin(), 4_MiB));
+        break;
+    }
+    case state::SCUState::CartType::DRAM48Mbit: //
+    {
+        auto *cart = m_cartSlot.InsertCartridge<cart::DRAM48MbitCartridge>();
+        cart->LoadRAM(std::span<const uint8, 6_MiB>(state.cartData.begin(), 6_MiB));
         break;
     }
     case state::SCUState::CartType::ROM: //

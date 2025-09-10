@@ -81,7 +81,7 @@ struct SCUState {
     std::array<SCUDMAState, 3> dma;
     SCUDSPState dsp;
 
-    enum class CartType { None, BackupMemory, DRAM8Mbit, DRAM32Mbit, ROM };
+    enum class CartType { None = 0, BackupMemory = 1, DRAM8Mbit = 2, DRAM32Mbit = 3, DRAM48Mbit = 5, ROM = 4 };
     CartType cartType;
     std::vector<uint8> cartData; // DRAM or ROM carts
 

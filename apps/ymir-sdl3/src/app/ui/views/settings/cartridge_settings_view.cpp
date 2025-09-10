@@ -106,7 +106,7 @@ void CartridgeSettingsView::Display() {
         std::unique_lock lock{m_context.locks.disc};
         const auto &disc = m_context.saturn.GetCDBlock().GetDisc();
         if (!disc.sessions.empty()) {
-            gameInfo = db::GetGameInfo(disc.header.productNumber);
+            gameInfo = db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
         }
     }
     if (gameInfo != nullptr) {
@@ -114,6 +114,7 @@ void CartridgeSettingsView::Display() {
         switch (gameInfo->cartridge) {
         case db::Cartridge::DRAM8Mbit: wantedCartType = cart::CartType::DRAM8Mbit; break;
         case db::Cartridge::DRAM32Mbit: wantedCartType = cart::CartType::DRAM32Mbit; break;
+        case db::Cartridge::DRAM48Mbit: wantedCartType = cart::CartType::DRAM48Mbit; break;
         case db::Cartridge::ROM_KOF95: wantedCartType = cart::CartType::ROM; break;
         case db::Cartridge::ROM_Ultraman: wantedCartType = cart::CartType::ROM; break;
         case db::Cartridge::BackupRAM: wantedCartType = cart::CartType::BackupMemory; break;
@@ -137,6 +138,9 @@ void CartridgeSettingsView::Display() {
                 break;
             case db::Cartridge::DRAM32Mbit:
                 ImGui::TextColored(color, "The currently loaded game requires a 32 Mbit DRAM cartridge.");
+                break;
+            case db::Cartridge::DRAM48Mbit:
+                ImGui::TextColored(color, "The currently loaded game requires a 48 Mbit DRAM dev cartridge.");
                 break;
             case db::Cartridge::ROM_KOF95:
                 ImGui::TextColored(color, "The currently loaded game requires the King of Fighters '95 ROM cartridge.");
@@ -251,6 +255,10 @@ void CartridgeSettingsView::DrawDRAMSettings() {
 
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Capacity:");
+    ImGui::SameLine();
+    if (MakeDirty(ImGui::RadioButton("48 Mbit (6 MiB)", settings.capacity == DRAMCap::_48Mbit))) {
+        settings.capacity = DRAMCap::_48Mbit;
+    }
     ImGui::SameLine();
     if (MakeDirty(ImGui::RadioButton("32 Mbit (4 MiB)", settings.capacity == DRAMCap::_32Mbit))) {
         settings.capacity = DRAMCap::_32Mbit;

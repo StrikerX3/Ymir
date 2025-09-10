@@ -6,11 +6,12 @@
 
 namespace ymir::cart {
 
-enum class CartType { None, BackupMemory, DRAM8Mbit, DRAM32Mbit, ROM };
+enum class CartType { None, BackupMemory, DRAM8Mbit, DRAM32Mbit, DRAM48Mbit, ROM };
 
 class BackupMemoryCartridge;
 class DRAM8MbitCartridge;
 class DRAM32MbitCartridge;
+class DRAM48MbitCartridge;
 class ROMCartridge;
 
 namespace detail {
@@ -31,6 +32,11 @@ namespace detail {
     template <>
     struct CartTypeMeta<CartType::DRAM32Mbit> {
         using type = DRAM32MbitCartridge;
+    };
+
+    template <>
+    struct CartTypeMeta<CartType::DRAM48Mbit> {
+        using type = DRAM48MbitCartridge;
     };
 
     template <>

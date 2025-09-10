@@ -252,6 +252,10 @@ EmuEvent Insert32MbitDRAMCartridge() {
     return RunFunction([](SharedContext &ctx) { ctx.saturn.instance->InsertCartridge<cart::DRAM32MbitCartridge>(); });
 }
 
+EmuEvent Insert48MbitDRAMCartridge() {
+    return RunFunction([](SharedContext &ctx) { ctx.saturn.instance->InsertCartridge<cart::DRAM48MbitCartridge>(); });
+}
+
 EmuEvent InsertROMCartridge(std::filesystem::path path) {
     return RunFunction([=](SharedContext &ctx) {
         // TODO: deduplicate code
@@ -371,6 +375,10 @@ EmuEvent InsertCartridgeFromSettings() {
         }
         case Settings::Cartridge::Type::DRAM:
             switch (settings.dram.capacity) {
+            case Settings::Cartridge::DRAM::Capacity::_48Mbit:
+                ctx.saturn.instance->InsertCartridge<cart::DRAM48MbitCartridge>();
+                devlog::info<grp::base>("48 Mbit DRAM dev cartridge inserted");
+                break;
             case Settings::Cartridge::DRAM::Capacity::_32Mbit:
                 ctx.saturn.instance->InsertCartridge<cart::DRAM32MbitCartridge>();
                 devlog::info<grp::base>("32 Mbit DRAM cartridge inserted");

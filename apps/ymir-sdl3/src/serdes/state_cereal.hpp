@@ -24,7 +24,8 @@ namespace ymir::state {
 //   7 = 0.1.6
 //   8 = 0.1.7
 //   9 = 0.1.8
-inline constexpr uint32 kVersion = 9;
+//  10 = 0.2.0
+inline constexpr uint32 kVersion = 10;
 
 } // namespace ymir::state
 
@@ -183,6 +184,13 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
         switch (s.cartType) {
         case SCUState::CartType::DRAM8Mbit: s.cartData.resize(1_MiB); break;
         case SCUState::CartType::DRAM32Mbit: s.cartData.resize(4_MiB); break;
+        case SCUState::CartType::DRAM48Mbit:
+            if (version >= 10) {
+                s.cartData.resize(6_MiB);
+            } else {
+                throw cereal::Exception("48 Mbit DRAM cart is not available in save state versions 9 and earlier");
+            }
+            break;
         case SCUState::CartType::ROM: s.cartData.resize(2_MiB);
         default: s.cartData.clear(); break;
         }

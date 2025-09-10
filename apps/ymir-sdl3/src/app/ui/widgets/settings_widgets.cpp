@@ -22,7 +22,7 @@ namespace settings::system {
             std::unique_lock lock{ctx.locks.disc};
             const auto &disc = ctx.saturn.GetCDBlock().GetDisc();
             if (!disc.sessions.empty()) {
-                gameInfo = db::GetGameInfo(disc.header.productNumber);
+                gameInfo = db::GetGameInfo(disc.header.productNumber, ctx.saturn.GetDiscHash());
             }
         }
         const bool forced = gameInfo != nullptr && gameInfo->sh2Cache;

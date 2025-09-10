@@ -26,6 +26,12 @@ XXH128Hash CalcHash128(const void *input, size_t len, uint64_t seed = 0);
 /// @return the hash as a 32-character string of hex digits
 std::string ToString(const XXH128Hash &hash);
 
+/// @brief Constructs a `XXH128Hash` from a pair of 64-bit big-endian values.
+/// @param[in] hi the high-order bytes
+/// @param[in] lo the low-order bytes
+/// @return a hash constructed from hi[63:56], hi[55:48], ..., hi[7:0], lo[63:56], lo[55:48], ..., lo[7:0].
+XXH128Hash MakeXXH128Hash(uint64_t hi, uint64_t lo);
+
 } // namespace ymir
 
 template <>

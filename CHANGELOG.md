@@ -8,7 +8,13 @@ Uses save state file version 9.
 
 ### New features and improvements
 
+- Cart: Added 6 MiB development DRAM cartridge, required by the Heart of Darkness prototype. (#584)
+- GameDB: Added support for using disc hashes to the database.
+- GameDB: Included Heart of Darkness prototype to automatically insert the 6 MiB development DRAM cartridge, allowing it to go in-game. (#584)
+
 ### Fixes
+
+- App: Avoid crash if the `<profile>/roms/cart` folder is deleted while the emulator is running and the user loads a game that needs to load a cartridge from that folder.
 
 
 ---
@@ -78,7 +84,7 @@ Introduced save state file version 9.
 - SH2: Swap memory read order for MAC.W and MAC.L operands. (thanks to @celeriyacon)
 - SMPC: Clear SF (with a delay) when receiving an INTBACK break request. Fixes Phantasy Star Collection hanging on a black screen after SEGA licensing screen.
 - SMPC: Fix register reads/writes. (thanks to @celeriyacon)
-- SMPC: Optimized INTBACK flag is inverted. (thanks to @celeriyacon)
+- SMPC: Optimized INTBACK flag is inverted. Fixes some input issues during the intro sequence in Magic Knight Rayearth. (#477; thanks to @celeriyacon)
 - SMPC: Time out pending INTBACK at VBlank IN if no Continue or Break requests are received until then. Fixes inputs in both Discworld versions. (#245; thanks to @celeriyacon)
 - SMPC, VDP: Trigger optimized INTBACK more consistently closer to 1ms before VBlank IN depending on vertical resolution.
 - System: Reset clock speed when soft resetting the system.

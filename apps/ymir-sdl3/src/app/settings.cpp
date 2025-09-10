@@ -224,7 +224,9 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Cart
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Cartridge::DRAM::Capacity &value) {
     value = Settings::Cartridge::DRAM::Capacity::_32Mbit;
     if (auto opt = node.value<std::string>()) {
-        if (*opt == "32Mbit"s) {
+        if (*opt == "48Mbit"s) {
+            value = Settings::Cartridge::DRAM::Capacity::_48Mbit;
+        } else if (*opt == "32Mbit"s) {
             value = Settings::Cartridge::DRAM::Capacity::_32Mbit;
         } else if (*opt == "8Mbit"s) {
             value = Settings::Cartridge::DRAM::Capacity::_8Mbit;
@@ -355,6 +357,7 @@ FORCE_INLINE static const char *ToTOML(const Settings::Cartridge::BackupRAM::Cap
 FORCE_INLINE static const char *ToTOML(const Settings::Cartridge::DRAM::Capacity value) {
     switch (value) {
     default: [[fallthrough]];
+    case Settings::Cartridge::DRAM::Capacity::_48Mbit: return "48Mbit";
     case Settings::Cartridge::DRAM::Capacity::_32Mbit: return "32Mbit";
     case Settings::Cartridge::DRAM::Capacity::_8Mbit: return "8Mbit";
     }
