@@ -51,13 +51,14 @@ void ROMManager::ScanIPLROMs(std::filesystem::path path) {
     }
 }
 
-void ROMManager::ScanROMCarts(std::filesystem::path path) {
+void ROMManager::ScanROMCarts(std::filesystem::path path, std::error_code &err) {
     std::vector<char> buf{};
     buf.resize(cart::kROMCartSize);
 
     m_cartEntries.clear();
+    err.clear();
 
-    for (const std::filesystem::directory_entry &dirEntry : std::filesystem::recursive_directory_iterator(path)) {
+    for (const std::filesystem::directory_entry &dirEntry : std::filesystem::recursive_directory_iterator(path, err)) {
         if (!dirEntry.is_regular_file()) {
             continue;
         }

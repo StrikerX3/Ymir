@@ -34,7 +34,7 @@ public:
     }
 
     // Scans the given path recursively for cartridge ROM files.
-    void ScanROMCarts(std::filesystem::path path);
+    void ScanROMCarts(std::filesystem::path path, std::error_code &err);
 
     // Retrieves all scanned cartridge ROMs.
     const std::unordered_map<std::filesystem::path, ROMCartEntry> &GetROMCarts() const {

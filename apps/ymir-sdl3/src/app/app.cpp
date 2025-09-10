@@ -4126,7 +4126,11 @@ void App::ScanROMCarts() {
 
     {
         std::unique_lock lock{m_context.locks.romManager};
-        m_context.romManager.ScanROMCarts(romCartsPath);
+        std::error_code error{};
+        m_context.romManager.ScanROMCarts(romCartsPath, error);
+        if (error) {
+            devlog::warn<grp::base>("Failed to read ROM carts folder: {}", error.message());
+        }
     }
 
     if constexpr (devlog::info_enabled<grp::base>) {
