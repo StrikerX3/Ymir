@@ -74,6 +74,7 @@ struct MemoryViewerState {
 // [Cart:000000..3FFFFF] Backup RAM cart data   (32 Mbit)
 // [Cart:000000..0FFFFF] DRAM cart data          (8 Mbit)
 // [Cart:000000..3FFFFF] DRAM cart data         (32 Mbit)
+// [Cart:000000..5FFFFF] DRAM cart data         (48 Mbit)
 
 // TODO: raw CD-ROM contents
 // --- CD-ROM ------------------

@@ -2522,6 +2522,9 @@ void App::RunEmulator() {
                         if (ImGui::MenuItem("Insert 32 Mbit DRAM")) {
                             m_context.EnqueueEvent(events::emu::Insert32MbitDRAMCartridge());
                         }
+                        if (ImGui::MenuItem("Insert 48 Mbit DRAM")) {
+                            m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge());
+                        }
                         if (ImGui::MenuItem("Insert 16 Mbit ROM...")) {
                             OpenROMCartFileDialog();
                         }
