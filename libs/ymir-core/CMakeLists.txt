@@ -294,6 +294,7 @@ target_precompile_headers(ymir-core
         "$<$<COMPILE_LANGUAGE:CXX>:<initializer_list$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<iosfwd$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<iostream$<ANGLE-R>>"
+        "$<$<COMPILE_LANGUAGE:CXX>:<iterator$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<limits$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<memory$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<mutex$<ANGLE-R>>"

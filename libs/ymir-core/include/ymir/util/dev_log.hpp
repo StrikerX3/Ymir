@@ -55,9 +55,12 @@ if constexpr (devlog::trace_enabled<grp::base>) {
 ```
 */
 
+#include <ymir/core/types.hpp>
+
 #include <fmt/format.h>
 
 #include <concepts>
+#include <iterator>
 #include <string>
 
 namespace devlog {
