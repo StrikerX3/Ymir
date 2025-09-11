@@ -348,7 +348,7 @@ FLATTEN uint64 SH2::Advance(uint64 cycles, uint64 spilloverCycles) {
         YMIR_DEV_ASSERT((PC >> 29u) == 0b000 || (PC >> 29u) == 0b001 || (PC >> 29u) == 0b100 || (PC >> 29u) == 0b101 ||
                         (PC >> 29u) == 0b110);
 
-        // Check for breakpoints in debug tracing mode
+        // Check for breakpoints and watchpoints in debug tracing mode
         if constexpr (debug) {
             if (m_debugBreakMgr) {
                 if (CheckBreakpoint()) {
@@ -360,12 +360,6 @@ FLATTEN uint64 SH2::Advance(uint64 cycles, uint64 spilloverCycles) {
                 if (CheckWatchpoints(mem)) {
                     break;
                 }
-
-                // Bail out if debug break was raised on watchpoints or other cases
-                // TODO: probably needs to be an internal signal instead, otherwise it breaks SSH2 cycle counting
-                /*if (m_debugBreakMgr->IsDebugBreakRaised()) {
-                    break;
-                }*/
             }
         }
 
