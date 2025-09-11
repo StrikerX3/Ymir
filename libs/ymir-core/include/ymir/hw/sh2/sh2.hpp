@@ -66,10 +66,6 @@ public:
     // -------------------------------------------------------------------------
     // Usage
 
-    // Advances the SH2 for at least the specified number of cycles.
-    // Returns the total number of cycles executed.
-    //
-
     /// @brief Advances the SH2 for at least the specified number of cycles.
     /// @tparam debug whether to enable debug features
     /// @tparam enableCache whether to emulate the cache
