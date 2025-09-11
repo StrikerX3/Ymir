@@ -31,12 +31,16 @@ struct Index {
 struct Track {
     std::unique_ptr<IBinaryReader> binaryReader;
     uint32 index = 0;
-    uint32 sectorSize = 0;
+    uint32 unitSize = 0;   // size of a unit, always >= sectorSize
+    uint32 sectorSize = 0; // size of the valid data in the sector
     uint32 userDataOffset = 0;
     uint8 controlADR = 0;
     bool mode2 = false;
     bool interleavedSubchannel = false; // true=96-byte PW subchannel, interleaved
     bool bigEndian = false;             // indicates audio data endianness on audio tracks
+    bool hasSyncBytes = false;
+    bool hasHeader = false;
+    bool hasECC = false;
 
     uint32 startFrameAddress = 0;
     uint32 endFrameAddress = 0;
@@ -57,8 +61,12 @@ struct Track {
     }
 
     void SetSectorSize(uint32 size) {
+        unitSize = size;
         sectorSize = size;
         userDataOffset = size >= 2352 ? (mode2 ? 24 : 16) : size >= 2340 ? (mode2 ? 12 : 4) : 0;
+        hasSyncBytes = size >= 2352;
+        hasHeader = size >= 2340;
+        hasECC = size >= 2336;
     }
 
     // Reads the user data portion of a sector.
@@ -70,7 +78,7 @@ struct Track {
             return false;
         }
 
-        const uint32 sectorOffset = (frameAddress - startFrameAddress) * sectorSize;
+        const uint32 sectorOffset = (frameAddress - startFrameAddress) * unitSize;
         return binaryReader->Read(sectorOffset + userDataOffset, 2048, outBuf) == 2048;
     }
 
@@ -90,20 +98,17 @@ struct Track {
 
         // Audio tracks always have 2352 bytes
         if (controlADR == 0x01) {
-            const uint32 sectorOffset = (frameAddress - startFrameAddress) * sectorSize;
+            const uint32 sectorOffset = (frameAddress - startFrameAddress) * unitSize;
             const uintmax_t readSize = binaryReader->Read(sectorOffset, 2352, outBuf);
             return readSize == 2352;
         }
 
         // Determine which components are present and where to write the sector data in the output buffer
-        const bool hasSyncBytes = sectorSize >= 2352;
-        const bool hasHeader = sectorSize >= 2340;
-        const bool hasSubheader = sectorSize >= 2336;
         const uint32 writeOffset = !hasSyncBytes * 12 + !hasHeader * 4;
 
         // Try to read raw sector data based on specifications
         const uint32 outputSize = std::min(sectorSize, 2352u);
-        const uint32 sectorOffset = (frameAddress - startFrameAddress) * sectorSize;
+        const uint32 sectorOffset = (frameAddress - startFrameAddress) * unitSize;
         const std::span<uint8> output{outBuf.begin() + writeOffset, outputSize};
         const uintmax_t readSize = binaryReader->Read(sectorOffset, outputSize, output);
         if (readSize != outputSize) {
@@ -112,7 +117,7 @@ struct Track {
 
         /*fmt::println("== SECTOR DUMP - FAD {:X} ==", frameAddress);
         fmt::println("Track sector size: {} bytes", sectorSize);
-        fmt::println("Requested size:    {} bytes", targetSize);*/
+        fmt::println("Track unit size:   {} bytes", unitSize);*/
 
         // Fill in any missing data
         if (!hasSyncBytes) {
@@ -130,13 +135,7 @@ struct Track {
             // Determine mode based on track type and sector size
             if (controlADR == 0x41) {
                 // Data track
-                if (sectorSize == 2336) {
-                    // Mode 2 form 1
-                    outBuf[0xF] = 0x02;
-                } else {
-                    // Mode 1
-                    outBuf[0xF] = 0x01;
-                }
+                outBuf[0xF] = mode2 ? 0x02 : 0x01;
             } else {
                 // Audio track
                 outBuf[0xF] = 0x00;
@@ -147,7 +146,7 @@ struct Track {
             YMIR_DEV_ASSERT(outBuf[0xD] == util::to_bcd((frameAddress / 75) % 60));
             YMIR_DEV_ASSERT(outBuf[0xE] == util::to_bcd(frameAddress % 75));
         }
-        if (!hasSubheader) {
+        if (!hasECC) {
             // Fill out EDC, Intermediate, P-Parity and Q-Parity fields
             // TODO: handle Mode 2 Form 1 and 2
 
@@ -169,7 +168,7 @@ struct Track {
         }
 
         /*fmt::println("Raw sector data:");
-        for (uint32 i = 0; i < targetSize; i++) {
+        for (uint32 i = 0; i < outBuf.size(); i++) {
             fmt::print("{:02X}", outBuf[i]);
             if (i % 32 == 31) {
                 fmt::println("");
@@ -198,9 +197,7 @@ struct Track {
         }
 
         // Read subheader
-        const bool hasSyncBytes = sectorSize >= 2352;
-        const bool hasHeader = sectorSize >= 2340;
-        const uintmax_t baseOffset = static_cast<uintmax_t>(frameAddress - startFrameAddress) * sectorSize;
+        const uintmax_t baseOffset = static_cast<uintmax_t>(frameAddress - startFrameAddress) * unitSize;
         const uintmax_t subheaderOffset = hasSyncBytes ? 16 : hasHeader ? 4 : 0;
         std::array<uint8, 4> subheaderData{};
         if (binaryReader->Read(baseOffset + subheaderOffset, 4, subheaderData) < 4) {

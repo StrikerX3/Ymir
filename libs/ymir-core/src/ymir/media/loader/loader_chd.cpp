@@ -97,82 +97,83 @@ static bool SetTrackInfo(const chd_header *header, std::string_view typestring, 
     // NOTE: This loader uses raw sector sizes which is determined by the unit size from the CHD header
     if (typestring == "MODE1") {
         track.mode2 = false;
-        track.SetSectorSize(header->unitbytes); // 2048
+        track.SetSectorSize(2048);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE1/2048") {
         track.mode2 = false;
-        track.SetSectorSize(header->unitbytes); // 2048
+        track.SetSectorSize(2048);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE1_RAW") {
         track.mode2 = false;
-        track.SetSectorSize(header->unitbytes); // 2352
+        track.SetSectorSize(2352);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE1/2352") {
         track.mode2 = false;
-        track.SetSectorSize(header->unitbytes); // 2352
+        track.SetSectorSize(2352);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2336
+        track.SetSectorSize(2336);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2/2336") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2336
+        track.SetSectorSize(2336);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2_FORM1") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2048
+        track.SetSectorSize(2048);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2/2048") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2048
+        track.SetSectorSize(2048);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2_FORM2") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2324
+        track.SetSectorSize(2324);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2/2324") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2324
+        track.SetSectorSize(2324);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2_FORM_MIX") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2336
+        track.SetSectorSize(2336);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2_RAW") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2352
+        track.SetSectorSize(2352);
         track.controlADR = 0x41;
 
     } else if (typestring == "MODE2/2352") {
         track.mode2 = true;
-        track.SetSectorSize(header->unitbytes); // 2352
+        track.SetSectorSize(2352);
         track.controlADR = 0x41;
 
     } else if (typestring == "CDI/2352") {
         track.mode2 = false;
-        track.SetSectorSize(header->unitbytes); // 2352
+        track.SetSectorSize(2352);
         track.controlADR = 0x41;
 
     } else if (typestring == "AUDIO") {
         track.mode2 = false;
-        track.SetSectorSize(header->unitbytes); // 2352
+        track.SetSectorSize(2352);
         track.controlADR = 0x01;
         track.bigEndian = true;
     } else {
         return false;
     }
+    track.unitSize = header->unitbytes;
     return true;
 }
 
@@ -336,28 +337,50 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM, CbLoader
             uintmax_t subviewOffset = byteOffset;
             if (track.controlADR == 0x01) {
                 // Add pregap on audio tracks
-                subviewOffset += pregap * track.sectorSize;
-            } else {
-                // Find start of next sector and adjust offset accordingly
+                subviewOffset += pregap * track.unitSize;
+            } else if (track.hasHeader) {
+                const bool hasSync = track.hasSyncBytes;
+
+                // Find start of next sector (if we have the header) and adjust offset accordingly
                 uintmax_t offset = 0;
                 while (true) {
-                    static constexpr std::array<uint8, 12> kSyncBytes = {
-                        0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-                    };
-                    std::array<uint8, 12> syncBuf{};
-                    if (binaryReader->Read(byteOffset + offset, syncBuf.size(), syncBuf) == syncBuf.size() &&
-                        syncBuf == kSyncBytes) {
+                    // If we have sync bytes, check them, otherwise assume good
+                    bool validSync = false;
+                    if (hasSync) {
+                        static constexpr std::array<uint8, 12> kSyncBytes = {
+                            0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
+                        };
+                        std::array<uint8, 12> syncBuf{};
+                        if (binaryReader->Read(byteOffset + offset, syncBuf.size(), syncBuf) != syncBuf.size()) {
+                            errorMsg(fmt::format("CHD: Track {} truncated", track.index));
+                            return false;
+                        }
+                        validSync = syncBuf == kSyncBytes;
+                    } else {
+                        validSync = true;
+                    }
+
+                    // If the sync bytes are valid, we have a data sector.
+                    // Check if the header contains the expected MM:SS:FF values.
+                    if (validSync) {
+                        const uintmax_t headerOffset = hasSync ? 0xC : 0x0;
                         std::array<uint8, 3> headerBuf{};
-                        if (binaryReader->Read(byteOffset + offset + 0xC, headerBuf.size(), headerBuf) ==
-                                headerBuf.size() &&
-                            headerBuf[0] == util::to_bcd(frameAddress / 75 / 60) &&
+                        if (binaryReader->Read(byteOffset + offset + headerOffset, headerBuf.size(), headerBuf) !=
+                            headerBuf.size()) {
+                            errorMsg(fmt::format("CHD: Track {} truncated", track.index));
+                            return false;
+                        }
+
+                        if (headerBuf[0] == util::to_bcd(frameAddress / 75 / 60) &&
                             headerBuf[1] == util::to_bcd((frameAddress / 75) % 60) &&
                             headerBuf[2] == util::to_bcd(frameAddress % 75)) {
+                            // Found the matching sector
                             break;
                         }
                     }
 
-                    offset += track.sectorSize;
+                    // Current sector does not match, go forward
+                    offset += track.unitSize;
                     if (byteOffset + offset >= binaryReader->Size()) {
                         errorMsg(fmt::format("CHD: Could not find starting sector for track {}", track.index));
                         return false;
@@ -368,7 +391,7 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM, CbLoader
                 subviewOffset += offset;
             }
             track.binaryReader =
-                std::make_unique<SharedSubviewBinaryReader>(binaryReader, subviewOffset, frames * track.sectorSize);
+                std::make_unique<SharedSubviewBinaryReader>(binaryReader, subviewOffset, frames * track.unitSize);
             track.startFrameAddress = frameAddress;
             track.endFrameAddress = frameAddress + frames - 1;
             track.track01FrameAddress = frameAddress;
@@ -378,7 +401,7 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM, CbLoader
             index.startFrameAddress = track.startFrameAddress;
             index.endFrameAddress = track.endFrameAddress;
             frameAddress += frames;
-            byteOffset += frames * track.sectorSize;
+            byteOffset += frames * track.unitSize;
 
             if (!foundTrack) {
                 foundTrack = true;

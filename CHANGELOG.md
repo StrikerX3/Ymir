@@ -15,6 +15,8 @@ Introduced save state file version 10.
 ### Fixes
 
 - App: Avoid crash if the `<profile>/roms/cart` folder is deleted while the emulator is running and the user loads a game that needs to load a cartridge from that folder.
+- Media: Tracks now include the unit sizes along with sector sizes, only needed for CHDs.
+- Media: Allow loading CHDs that don't contain raw sector data, such as those created from ISOs.
 
 
 ---
