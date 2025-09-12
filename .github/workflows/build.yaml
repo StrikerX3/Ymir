@@ -62,7 +62,7 @@ jobs:
           - name: "ARM64"
             enable_avx2_option: "OFF"
             runner: windows-11-arm
-            target: arm64         
+            target: arm64
         include:
           - c_compiler: clang
             cpp_compiler: clang
@@ -87,7 +87,7 @@ jobs:
         if: ${{ matrix.c_compiler == 'cl' }}
         uses: TheMrMilchmann/setup-msvc-dev@v3
         with:
-         arch: ${{ matrix.architecture.target }}
+          arch: ${{ matrix.architecture.target }}
 
       - name: Configure CMake
         run: >
@@ -372,7 +372,7 @@ jobs:
           cp -f ${{ github.workspace }}/gcdb/gamecontrollerdb.txt gamecontrollerdb.txt
           zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip licenses README.md CHANGELOG.md gamecontrollerdb.txt
           cd ${{ github.workspace }}/build/apps/ymir-sdl3/
-          zip ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip ymir-sdl3
+          zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip ymir-sdl3.app
 
       - name: Upload Ymir artifact
         uses: actions/upload-artifact@v4

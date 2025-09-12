@@ -29,7 +29,7 @@ add_executable(ymir-sdl3
     src/app/debug/scu_tracer.hpp
     src/app/debug/sh2_tracer.cpp
     src/app/debug/sh2_tracer.hpp
-    
+
     src/app/events/emu_debug_event_factory.cpp
     src/app/events/emu_debug_event_factory.hpp
     src/app/events/emu_event.hpp
@@ -49,7 +49,7 @@ add_executable(ymir-sdl3
     src/app/input/input_primitives.cpp
     src/app/input/input_primitives.hpp
     src/app/input/input_utils.hpp
-    
+
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp
 
@@ -298,9 +298,31 @@ add_executable(ymir-sdl3
     src/util/std_lib.hpp
 )
 add_executable(ymir::ymir-sdl3 ALIAS ymir-sdl3)
-set_target_properties(ymir-sdl3 PROPERTIES
-                      VERSION ${Ymir_VERSION}
-                      SOVERSION ${Ymir_VERSION_MAJOR})
+
+## Configure macOS bundle properties
+if(APPLE)
+    # Configure Info.plist
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/res/Info.plist.in ${CMAKE_CURRENT_BINARY_DIR}/Info.plist @ONLY)
+
+    set_target_properties(ymir-sdl3 PROPERTIES
+                          VERSION ${Ymir_VERSION}
+                          SOVERSION ${Ymir_VERSION_MAJOR}
+                          MACOSX_BUNDLE TRUE
+                          MACOSX_BUNDLE_BUNDLE_NAME "Ymir"
+                          MACOSX_BUNDLE_BUNDLE_VERSION "${Ymir_VERSION}"
+                          MACOSX_BUNDLE_GUI_IDENTIFIER "io.github.strikerx3.ymir"
+                          MACOSX_BUNDLE_ICON_FILE "ymir.icns"
+                          MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_BINARY_DIR}/Info.plist
+                          MACOSX_BUNDLE_SHORT_VERSION_STRING "${Ymir_VERSION}")
+
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/res/ymir.icns PROPERTIES
+                                MACOSX_PACKAGE_LOCATION "Resources")
+    target_sources(ymir-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/res/ymir.icns)
+else()
+    set_target_properties(ymir-sdl3 PROPERTIES
+                          VERSION ${Ymir_VERSION}
+                          SOVERSION ${Ymir_VERSION_MAJOR})
+endif()
 target_include_directories(ymir-sdl3
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
@@ -337,7 +359,7 @@ cmrc_add_resource_library(ymir-sdl3-rc
     res/embed/fonts/SplineSansMono-Bold.ttf
     res/embed/fonts/SplineSansMono-Medium.ttf
     res/embed/fonts/ZenDots-Regular.ttf
-    
+
     res/embed/images/ymir.png
 )
 
@@ -347,7 +369,7 @@ cmrk_copy_runtime_dlls(ymir-sdl3)
 if (APPLE)
     find_path(MACH_EXC_DEFS_DIR "mach/mach_exc.defs")
     message(STATUS "mach/mach_exc.defs location: ${MACH_EXC_DEFS_DIR}")
-    if(MACH_EXC_DEFS_DIR)        
+    if(MACH_EXC_DEFS_DIR)
         execute_process(
             COMMAND
                 mkdir -p "${CMAKE_CURRENT_SOURCE_DIR}/src/util/mig/x64"

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Ymir</string>
+	<key>CFBundleExecutable</key>
+	<string>ymir-sdl3</string>
+	<key>CFBundleIconFile</key>
+	<string>ymir.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.strikerx3.ymir</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Ymir</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>${Ymir_VERSION}</string>
+	<key>CFBundleVersion</key>
+	<string>${Ymir_VERSION}</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025 StrikerX3. All rights reserved.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSRequiresAquaSystemAppearance</key>
+	<false/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>MAME CHD File</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>chd</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+			<key>NSDocumentClass</key>
+			<string>YmirDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>BIN/CUE Image</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>cue</string>
+				<string>bin</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+			<key>NSDocumentClass</key>
+			<string>YmirDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>IMG/CCD Image</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>ccd</string>
+				<string>img</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+			<key>NSDocumentClass</key>
+			<string>YmirDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>MDF/MDS Image</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>mds</string>
+				<string>mdf</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+			<key>NSDocumentClass</key>
+			<string>YmirDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>ISO Image</string>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>iso</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSTypeIsPackage</key>
+			<false/>
+			<key>NSDocumentClass</key>
+			<string>YmirDocument</string>
+		</dict>
+	</array>
+</dict>
+</plist>
