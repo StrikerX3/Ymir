@@ -8,6 +8,7 @@ Introduced save state file version 10.
 
 ### New features and improvements
 
+- Build: Create macOS app bundle. (#591; @tegaidogun)
 - Cart: Add 6 MiB development DRAM cartridge, required by the Heart of Darkness prototype. (#584)
 - GameDB: Include Heart of Darkness prototype to automatically insert the 6 MiB development DRAM cartridge, allowing it to go in-game. (#584)
 - GameDB: Support for using disc hashes to the database in addition to product codes.
