@@ -136,16 +136,6 @@ pkg install zenity
 
 ## Building on macOS
 
-### macOS App Bundle Build
-
-For easy distribution on macOS, you can build Ymir as a proper .app bundle using the provided build script:
-
-```sh
-./build_macos_app.sh
-```
-
-This creates a complete macOS application bundle at `build/apps/ymir-sdl3/ymir-sdl3.app`.
-
 ### Standard Build
 
 Use CMake to generate a Makefile or (preferably) a Ninja build script:
