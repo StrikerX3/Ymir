@@ -149,3 +149,10 @@ You can use CMake to build the project, regardless of generator:
 ```sh
 cmake --build build --parallel
 ```
+
+
+After building, you will find the .app bundle at:
+```sh
+build/apps/ymir-sdl3/ymir-sdl3.app
+```
+

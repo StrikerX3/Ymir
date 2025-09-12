@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Basic metadata -->
+    <key>CFBundleDisplayName</key>
+    <string>Ymir</string>
+    <key>CFBundleName</key>
+    <string>Ymir</string>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.strikerx3.ymir</string>
+    <key>CFBundleExecutable</key>
+    <string>ymir-sdl3</string>
+    <key>CFBundleIconFile</key>
+    <string>ymir.icns</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <!-- Version info (substituted by CMake) -->
+    <key>CFBundleShortVersionString</key>
+    <string>@Ymir_VERSION@</string>
+    <key>CFBundleVersion</key>
+    <string>@Ymir_VERSION@</string>
+
+    <!-- macOS compatibility -->
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSRequiresAquaSystemAppearance</key>
+    <false/>
+
+    <!-- Categorization -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.games</string>
+
+    <!-- Legal -->
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2025 StrikerX3. All rights reserved.</string>
+
+    <!-- Supported document types (disc image formats) -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>MAME CHD File</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>chd</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>BIN/CUE Image</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>bin</string>
+                <string>cue</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>IMG/CCD Image</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>img</string>
+                <string>ccd</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>MDF/MDS Image</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>mdf</string>
+                <string>mds</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>ISO Image</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>iso</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+        </dict>
+    </array>
+</dict>
+</plist>
