@@ -136,8 +136,6 @@ pkg install zenity
 
 ## Building on macOS
 
-### Standard Build
-
 Use CMake to generate a Makefile or (preferably) a Ninja build script:
 
 ```sh
@@ -151,3 +149,10 @@ You can use CMake to build the project, regardless of generator:
 ```sh
 cmake --build build --parallel
 ```
+
+
+After building, you will find the .app bundle at:
+```
+build/apps/ymir-sdl3/ymir-sdl3.app
+```
+
