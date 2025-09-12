@@ -539,7 +539,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(", including:");
     ImGui::Indent();
-    ImGui::TextUnformatted("Wunkolo, bsdcode, GlaireDaggers, BlueInterlude, lvsweat, floreal, tordona.");
+    ImGui::TextUnformatted("BlueInterlude, bsdcode, floreal, GlaireDaggers, lvsweat, tegaidogun, tordona, Wunkolo.");
     ImGui::Unindent();
 
     ImGui::TextUnformatted("To the friends in the ");
