@@ -299,14 +299,16 @@ add_executable(ymir-sdl3
 )
 add_executable(ymir::ymir-sdl3 ALIAS ymir-sdl3)
 
-## Configure macOS bundle properties
+set_target_properties(ymir-sdl3 PROPERTIES
+                      VERSION ${Ymir_VERSION}
+                      SOVERSION ${Ymir_VERSION_MAJOR})
+
 if(APPLE)
     # Configure Info.plist
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/res/Info.plist.in ${CMAKE_CURRENT_BINARY_DIR}/Info.plist @ONLY)
 
+    # Set Apple-specific bundle properties
     set_target_properties(ymir-sdl3 PROPERTIES
-                          VERSION ${Ymir_VERSION}
-                          SOVERSION ${Ymir_VERSION_MAJOR}
                           MACOSX_BUNDLE TRUE
                           MACOSX_BUNDLE_BUNDLE_NAME "Ymir"
                           MACOSX_BUNDLE_BUNDLE_VERSION "${Ymir_VERSION}"
@@ -318,11 +320,8 @@ if(APPLE)
     set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/res/ymir.icns PROPERTIES
                                 MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(ymir-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/res/ymir.icns)
-else()
-    set_target_properties(ymir-sdl3 PROPERTIES
-                          VERSION ${Ymir_VERSION}
-                          SOVERSION ${Ymir_VERSION_MAJOR})
 endif()
+
 target_include_directories(ymir-sdl3
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
