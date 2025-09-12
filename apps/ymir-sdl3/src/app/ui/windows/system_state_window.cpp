@@ -29,8 +29,8 @@ SystemStateWindow::SystemStateWindow(SharedContext &context)
 }
 
 void SystemStateWindow::PrepareWindow() {
-    ImGui::SetNextWindowSizeConstraints(ImVec2(kWindowWidth * m_context.displayScale, 0),
-                                        ImVec2(kWindowWidth * m_context.displayScale, FLT_MAX));
+    /*ImGui::SetNextWindowSizeConstraints(ImVec2(kWindowWidth * m_context.displayScale, 0),
+                                        ImVec2(kWindowWidth * m_context.displayScale, FLT_MAX));*/
 }
 
 void SystemStateWindow::DrawContents() {

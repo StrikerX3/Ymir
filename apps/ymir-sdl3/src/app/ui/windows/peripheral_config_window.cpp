@@ -32,7 +32,7 @@ void PeripheralConfigWindow::PrepareWindow() {
     //                                   m_slotIndex + 1, periph.GetName());
 
     ImGui::SetNextWindowSizeConstraints(ImVec2(500 * m_context.displayScale, 300 * m_context.displayScale),
-                                        ImVec2(FLT_MAX, FLT_MAX));
+                                        ImVec2(1000 * m_context.displayScale, 900 * m_context.displayScale));
     auto *vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f), ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));

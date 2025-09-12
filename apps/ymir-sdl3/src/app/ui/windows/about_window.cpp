@@ -182,7 +182,7 @@ void AboutWindow::PrepareWindow() {
     ImGui::SetNextWindowSize(ImVec2(660 * m_context.displayScale, 800 * m_context.displayScale),
                              ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSizeConstraints(ImVec2(400 * m_context.displayScale, 240 * m_context.displayScale),
-                                        ImVec2(FLT_MAX, FLT_MAX));
+                                        ImVec2(1000 * m_context.displayScale, 900 * m_context.displayScale));
 }
 
 void AboutWindow::DrawContents() {
