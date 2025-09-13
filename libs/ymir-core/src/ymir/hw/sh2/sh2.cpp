@@ -226,7 +226,7 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     // - PC = ReadLong(0x00000000)  [NOTE: ignores VBR]
 
     // On-chip peripherals:
-    // - BSC, USB and FMR are not reset on power-on/hard reset
+    // - BSC, UBC and FMR are not reset on power-on/hard reset
     // - all other modules reset always
 
     R.fill(0);
