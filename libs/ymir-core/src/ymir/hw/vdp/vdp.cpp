@@ -1064,6 +1064,13 @@ void VDP::UpdateResolution() {
         m_VCounterSkip = 0x200 - baseSkip + fieldSkip;
     }
 
+    // Clear framebuffer to avoid artifacts when switching modes
+    uint32 color = 0xFF000000;
+    if (m_state.regs2.TVMD.BDCLMD) {
+        color |= m_lineBackLayerState.backColor.u32;
+    }
+    std::fill_n(m_framebuffer.begin(), m_HRes * m_VRes, color);
+
     if constexpr (verbose) {
         devlog::info<grp::vdp2>("Screen resolution set to {}x{}", m_HRes, m_VRes);
         switch (m_state.regs2.TVMD.LSMDn) {
@@ -5255,7 +5262,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
     // Apply color offset if enabled
     if (AnyBool(std::span{layer0ColorOffsetEnabled}.first(m_HRes))) {
-        for (uint32 x = 0; Color888 & outputColor : framebufferOutput) {
+        for (uint32 x = 0; Color888 &outputColor : framebufferOutput) {
             if (layer0ColorOffsetEnabled[x]) {
                 const auto &colorOffset = regs.colorOffset[regs.colorOffsetSelect[scanline_layers[x][0]]];
                 if (colorOffset.nonZero) {

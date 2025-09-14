@@ -19,6 +19,7 @@ Introduced save state file version 10.
 - GUI: Limit maximum size of various windows.
 - Media: Tracks now include the unit sizes along with sector sizes, only needed for CHDs.
 - Media: Allow loading CHDs that don't contain raw sector data, such as those created from ISOs.
+- VDP2: Clear framebuffer when switching resolutions. Fixes single-frame artifacts in multiple games that switch modes without clearing the screen.
 
 
 ---
