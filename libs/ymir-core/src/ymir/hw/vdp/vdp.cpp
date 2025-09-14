@@ -1649,8 +1649,7 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer(uint64 cycles) {
     [[maybe_unused]] auto &meshFB = ctx.meshFB[0][fbIndex];
     [[maybe_unused]] auto &altMeshFB = ctx.meshFB[1][fbIndex];
 
-    const bool halfResH =
-        !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
+    const uint32 fbOffsetShift = regs1.eraseOffsetShift;
 
     const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
 
@@ -1671,7 +1670,7 @@ FORCE_INLINE void VDP::VDP1EraseFramebuffer(uint64 cycles) {
     static constexpr uint64 kCyclesPerWrite = 1;
 
     for (uint32 y = y1; y <= y3; y++) {
-        const uint32 fbOffset = y * 512;
+        const uint32 fbOffset = y << fbOffsetShift;
         for (uint32 x = x1; x < x3; x++) {
             const uint32 address = (fbOffset + x) * sizeof(uint16);
             util::WriteBE<uint16>(&fb[address & 0x3FFFE], ctx.eraseWriteValue);
@@ -5276,7 +5275,6 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
     }
 
     // Opaque alpha
-    uint32 x = 0;
     for (Color888 &outputColor : framebufferOutput) {
         outputColor.u32 |= 0xFF000000;
     }
