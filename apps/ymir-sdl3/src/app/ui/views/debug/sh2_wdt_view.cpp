@@ -22,7 +22,7 @@ void SH2WatchdogTimerView::Display() {
     if (ImGui::BeginTable("regs", 2, ImGuiTableFlags_SizingFixedFit)) {
         ImGui::TableNextRow();
         if (ImGui::TableNextColumn()) {
-            uint8 WTCSR = wdt.ReadWTCSR();
+            uint8 WTCSR = wdt.ReadWTCSR<true>();
 
             ImGui::BeginGroup();
             ImGui::SetNextItemWidth(ImGui::GetStyle().FramePadding.x * 2 + hexCharWidth * 2);

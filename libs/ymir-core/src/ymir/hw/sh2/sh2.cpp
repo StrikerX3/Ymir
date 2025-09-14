@@ -861,7 +861,7 @@ FORCE_INLINE uint8 SH2::OnChipRegReadByte(uint32 address) {
         if constexpr (!peek) {
             AdvanceFRT<false>();
         }
-        return FRT.ReadFTCSR();
+        return FRT.ReadFTCSR<peek>();
     case 0x12:
         if constexpr (!peek) {
             AdvanceFRT<false>();
@@ -892,10 +892,10 @@ FORCE_INLINE uint8 SH2::OnChipRegReadByte(uint32 address) {
     case 0x80: [[fallthrough]];
     case 0x88:
         if constexpr (peek) {
-            return WDT.ReadWTCSR();
+            return WDT.ReadWTCSR<peek>();
         } else {
             AdvanceWDT<false>();
-            return m_WDTBusValue = WDT.ReadWTCSR();
+            return m_WDTBusValue = WDT.ReadWTCSR<peek>();
         }
 
     case 0x81: [[fallthrough]];

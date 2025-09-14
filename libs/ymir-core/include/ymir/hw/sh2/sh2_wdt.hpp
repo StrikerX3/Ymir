@@ -115,6 +115,7 @@ struct WatchdogTimer {
         mutable bool OVFread;
     } WTCSR;
 
+    template <bool peek>
     FORCE_INLINE uint8 ReadWTCSR() const {
         uint8 value = 0;
         bit::deposit_into<7>(value, WTCSR.OVF);
@@ -122,7 +123,9 @@ struct WatchdogTimer {
         bit::deposit_into<5>(value, WTCSR.TME);
         bit::deposit_into<3, 4>(value, 0b11);
         bit::deposit_into<0, 2>(value, WTCSR.CKSn);
-        WTCSR.OVFread = WTCSR.OVF;
+        if constexpr (!peek) {
+            WTCSR.OVFread = WTCSR.OVF;
+        }
         return value;
     }
 
@@ -227,7 +230,7 @@ struct WatchdogTimer {
     // Save states
 
     void SaveState(state::SH2State::WDT &state) const {
-        state.WTCSR = ReadWTCSR();
+        state.WTCSR = ReadWTCSR<true>();
         state.WTCNT = ReadWTCNT();
         state.RSTCSR = ReadRSTCSR();
         state.cycleCount = m_cycleCount;

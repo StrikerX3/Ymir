@@ -58,7 +58,7 @@ void SH2FreeRunningTimerView::Display() {
 
         ImGui::TableNextRow();
         if (ImGui::TableNextColumn()) {
-            uint8 FTCSR = frt.ReadFTCSR();
+            uint8 FTCSR = frt.ReadFTCSR<true>();
 
             ImGui::BeginGroup();
             ImGui::SetNextItemWidth(ImGui::GetStyle().FramePadding.x * 2 + hexCharWidth * 2);

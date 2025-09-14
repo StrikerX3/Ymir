@@ -168,6 +168,7 @@ struct FreeRunningTimer {
         mutable uint8 mask;
     } FTCSR;
 
+    template <bool peek>
     FORCE_INLINE uint8 ReadFTCSR() const {
         uint8 value = 0;
         bit::deposit_into<7>(value, FTCSR.ICF);
@@ -175,7 +176,9 @@ struct FreeRunningTimer {
         bit::deposit_into<2>(value, FTCSR.OCFB);
         bit::deposit_into<1>(value, FTCSR.OVF);
         bit::deposit_into<0>(value, FTCSR.CCLRA);
-        FTCSR.mask = value;
+        if constexpr (!peek) {
+            FTCSR.mask = value;
+        }
         return value;
     }
 
@@ -403,7 +406,7 @@ struct FreeRunningTimer {
 
     void SaveState(state::SH2State::FRT &state) const {
         state.TIER = ReadTIER();
-        state.FTCSR = ReadFTCSR();
+        state.FTCSR = ReadFTCSR<true>();
         state.FRC = FRC;
         state.OCRA = OCRA;
         state.OCRB = OCRB;
