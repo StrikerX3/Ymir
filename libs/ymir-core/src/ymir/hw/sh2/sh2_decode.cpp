@@ -318,7 +318,6 @@ DecodeTable::DecodeTable() {
 
             case 0xA: setOpcode(OpcodeType::SUBC), decodeNM(); break;
             case 0xB: setOpcode(OpcodeType::SUBV), decodeNM(); break;
-
             case 0xC: setOpcode(OpcodeType::ADD), decodeNM(); break;
             case 0xD: setOpcode(OpcodeType::DMULS), decodeNM(); break;
             case 0xE: setOpcode(OpcodeType::ADDC), decodeNM(); break;

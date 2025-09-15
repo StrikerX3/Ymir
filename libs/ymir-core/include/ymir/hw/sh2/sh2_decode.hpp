@@ -47,13 +47,13 @@ enum class OpcodeType : uint16 {
     MOVT,       // n    0000 nnnn 0010 1001   movt     Rn
     CLRT,       // 0    0000 0000 0000 1000   clrt
     SETT,       // 0    0000 0000 0001 1000   sett
-    EXTUB,      // nm   0110 nnnn mmmm 1100   extu.b   Rm, Rn
-    EXTUW,      // nm   0110 nnnn mmmm 1101   extu.w   Rm, Rn
-    EXTSB,      // nm   0110 nnnn mmmm 1110   exts.b   Rm, Rn
-    EXTSW,      // nm   0110 nnnn mmmm 1111   exts.w   Rm, Rn
-    SWAPB,      // nm   0110 nnnn mmmm 1000   swap.b   Rm, Rn
-    SWAPW,      // nm   0110 nnnn mmmm 1001   swap.w   Rm, Rn
-    XTRCT,      // nm   0010 nnnn mmmm 1101   xtrct    Rm, Rn
+    EXTUB,      // nm   0110 nnnn mmmm 1100   extu.b   Rm,   Rn
+    EXTUW,      // nm   0110 nnnn mmmm 1101   extu.w   Rm,   Rn
+    EXTSB,      // nm   0110 nnnn mmmm 1110   exts.b   Rm,   Rn
+    EXTSW,      // nm   0110 nnnn mmmm 1111   exts.w   Rm,   Rn
+    SWAPB,      // nm   0110 nnnn mmmm 1000   swap.b   Rm,   Rn
+    SWAPW,      // nm   0110 nnnn mmmm 1001   swap.w   Rm,   Rn
+    XTRCT,      // nm   0010 nnnn mmmm 1101   xtrct    Rm,   Rn
     LDC_GBR_R,  // m    0110 mmmm 0001 1110   ldc      Rm,   GBR
     LDC_SR_R,   // m    0100 mmmm 0000 1110   ldc      Rm,   SR
     LDC_VBR_R,  // m    0110 mmmm 0010 1110   ldc      Rm,   VBR
