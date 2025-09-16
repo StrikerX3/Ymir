@@ -84,7 +84,7 @@ bool RewindBuffer::PopState() {
     std::vector<char> &buffer = m_buffers[m_bufferFlip];
     buffer.resize(maxSize);
     [[maybe_unused]] int result = LZ4_decompress_safe(&lastDelta[0], &buffer[0], size, maxSize);
-    assert(result == maxSize);
+    buffer.resize(result);
 
     // Use pointers to allow for vectorization
     char *out = &m_buffers[m_bufferFlip ^ 1][0];
@@ -93,10 +93,10 @@ bool RewindBuffer::PopState() {
 
     // Apply XOR delta
     size_t i = 0;
-    for (; i + sizeof(uint64) < maxSize; i += sizeof(uint64)) {
+    for (; i + sizeof(uint64) < result; i += sizeof(uint64)) {
         util::WriteNE<uint64>(&out[i], util::ReadNE<uint64>(&b0[i]) ^ util::ReadNE<uint64>(&b1[i]));
     }
-    for (; i < maxSize; i++) {
+    for (; i < result; i++) {
         out[i] = b0[i] ^ b1[i];
     }
 

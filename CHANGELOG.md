@@ -20,6 +20,7 @@ Introduced save state file version 10.
 - GUI: Limit maximum size of various windows.
 - Media: Tracks now include the unit sizes along with sector sizes, only needed for CHDs.
 - Media: Allow loading CHDs that don't contain raw sector data, such as those created from ISOs.
+- Rewind: Allow varying the size of the state struct. Fixes occasional crashes when rewinding.
 - VDP1: Adjust Y coordinate framebuffer offsets for erase process based on TVMR.TVM. Fixes erase glitches in Grandia when using transparent meshes.
 - VDP2: Clear framebuffer when switching resolutions. Fixes single-frame artifacts in multiple games that switch modes without clearing the screen.
 
