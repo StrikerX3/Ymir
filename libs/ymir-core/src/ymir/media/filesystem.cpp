@@ -13,6 +13,10 @@ using namespace ymir::media::iso9660;
 
 namespace ymir::media::fs {
 
+Filesystem::Filesystem() {
+    Clear();
+}
+
 void Filesystem::Clear() {
     m_directories.clear();
     m_currDirectory = ~0;
@@ -257,9 +261,6 @@ void Filesystem::SaveState(state::CDBlockState::FilesystemState &state) const {
 }
 
 bool Filesystem::ValidateState(const state::CDBlockState::FilesystemState &state) const {
-    if (state.currDirectory >= m_directories.size()) {
-        return false;
-    }
     return true;
 }
 

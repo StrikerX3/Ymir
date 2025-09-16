@@ -158,6 +158,8 @@ private:
 
 class Filesystem {
 public:
+    Filesystem();
+
     // Clears the loaded file system.
     void Clear();
 
