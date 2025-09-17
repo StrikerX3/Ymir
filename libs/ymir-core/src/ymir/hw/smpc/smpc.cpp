@@ -65,6 +65,8 @@ void SMPC::Reset(bool hard) {
 
     IREG.fill(0x00);
     OREG.fill(0x00);
+    OREG[31] = 0xF0; // stops the dev kit BIOS from entering a soft-reset loop
+
     COMREG = Command::None;
     SR.u8 = 0x80;
     SF = false;
