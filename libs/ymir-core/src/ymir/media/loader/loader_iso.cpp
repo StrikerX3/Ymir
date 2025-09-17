@@ -6,19 +6,32 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
+#include <cctype>
 #include <fstream>
+#include <string>
 
 namespace ymir::media::loader::iso {
 
-bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM, CbLoaderMessage cbMsg) {
-    std::ifstream in{isoPath, std::ios::binary};
+static std::string ToLower(std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(), [](char c) { return std::tolower(c); });
+    return str;
+}
 
+bool Load(std::filesystem::path isoPath, Disc &disc, bool preloadToRAM, CbLoaderMessage cbMsg) {
     util::ScopeGuard sgInvalidateDisc{[&] { disc.Invalidate(); }};
 
     auto invFmtMsg = [&](std::string message) { cbMsg(MessageType::InvalidFormat, message); };
     auto errorMsg = [&](std::string message) { cbMsg(MessageType::Error, message); };
     auto debugMsg = [&](std::string message) { cbMsg(MessageType::Debug, message); };
 
+    // Require the file extension for ISO files
+    if (ToLower(isoPath.extension().string()) != ".iso") {
+        invFmtMsg("ISO: Not an ISO file");
+        return false;
+    }
+
+    std::ifstream in{isoPath, std::ios::binary};
     if (!in) {
         errorMsg("ISO: Could not load ISO file");
         return false;

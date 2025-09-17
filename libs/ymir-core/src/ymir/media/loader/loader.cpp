@@ -16,13 +16,18 @@ bool LoadDisc(std::filesystem::path path, Disc &disc, bool preloadToRAM, CbLoade
         return false;
     }
 
+    auto fail = [&] {
+        cbMsg(MessageType::Error, "Not a valid disc image format. Supported files are .CCD, .CHD, .CUE, .MDS and .ISO");
+        return false;
+    };
+
     // Abuse short-circuiting to pick the first matching loader with less verbosity
     return loader::chd::Load(path, disc, preloadToRAM, cbMsg) ||    //
            loader::bincue::Load(path, disc, preloadToRAM, cbMsg) || //
            loader::mdfmds::Load(path, disc, preloadToRAM, cbMsg) || //
            loader::ccd::Load(path, disc, preloadToRAM, cbMsg) ||    //
-           // NOTE: ISO must be the last to be tested since its detection is more lenient
-           loader::iso::Load(path, disc, preloadToRAM, cbMsg);
+           loader::iso::Load(path, disc, preloadToRAM, cbMsg) ||    //
+           fail();
 }
 
 } // namespace ymir::media
