@@ -1887,6 +1887,7 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
         devlog::trace<grp::intr>(m_logPrefix, "Handling interrupt level {:02X}, vector number {:02X}, PC {:08X}",
                                  INTC.pending.level, vecNum, PC);
         const uint64 cycles = EnterException<debug, enableCache>(vecNum);
+        devlog::trace<grp::intr>(m_logPrefix, "Entering interrupt handler, PC {:08X}", PC);
         SR.ILevel = std::min<uint8>(INTC.pending.level, 0xF);
         m_intrPending = false;
 
@@ -3563,7 +3564,7 @@ FORCE_INLINE uint64 SH2::JSR(const DecodedArgs &args) {
 // trapa #imm
 template <bool debug, bool enableCache>
 FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
-    devlog::trace<grp::intr>(m_logPrefix, "Handling TRAPA, vector number {:02X}, PC {:08X}", args.dispImm, PC);
+    devlog::trace<grp::intr>(m_logPrefix, "Handling TRAPA, vector number {:02X}, PC {:08X}", args.dispImm >> 2u, PC);
     const uint32 address1 = R[15] - 4;
     const uint32 address2 = R[15] - 8;
     const uint32 address3 = VBR + args.dispImm;
@@ -3571,6 +3572,7 @@ FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
     MemWriteLong<debug, enableCache>(address2, PC + 2);
     PC = MemReadLong<enableCache>(address3);
     R[15] -= 8;
+    devlog::trace<grp::intr>(m_logPrefix, "Entering TRAPA handler, PC {:08X}", PC);
     return AccessCycles<enableCache>(address1) + AccessCycles<enableCache>(address2) +
            AccessCycles<enableCache>(address3) + 5;
 }
@@ -3584,7 +3586,7 @@ FORCE_INLINE uint64 SH2::RTE() {
     SR.u32 = MemReadLong<enableCache>(address2) & 0x000003F3;
     PC += 2;
     R[15] += 8;
-    devlog::trace<grp::intr>(m_logPrefix, "Returning from interrupt handler, PC {:08X} -> {:08X}", PC,
+    devlog::trace<grp::intr>(m_logPrefix, "Returning from exception handler, PC {:08X} -> {:08X}", PC,
                              m_delaySlotTarget);
     return AccessCycles<enableCache>(address1) + AccessCycles<enableCache>(address2) + 2;
 }
