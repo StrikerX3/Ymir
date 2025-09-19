@@ -35,6 +35,10 @@ add_library(ymir-core
     include/ymir/hw/cdblock/cdblock_defs.hpp
     include/ymir/hw/cdblock/cdblock_filter.hpp
     include/ymir/hw/cdblock/cdblock_internal_callbacks.hpp
+    include/ymir/hw/cdblock/cd_drive.hpp
+    include/ymir/hw/cdblock/cd_drive_internal_callbacks.hpp
+    include/ymir/hw/cdblock/ygr.hpp
+    include/ymir/hw/cdblock/ygr_internal_callbacks.hpp
 
     include/ymir/hw/m68k/m68k.hpp
     include/ymir/hw/m68k/m68k_decode.hpp
@@ -59,6 +63,23 @@ add_library(ymir-core
     include/ymir/hw/scu/scu_dsp_instr.hpp
     include/ymir/hw/scu/scu_dsp_disasm.hpp
     include/ymir/hw/scu/scu_internal_callbacks.hpp
+
+    include/ymir/hw/sh1/sh1.hpp
+    include/ymir/hw/sh1/sh1_ad.hpp
+    include/ymir/hw/sh1/sh1_bsc.hpp
+    include/ymir/hw/sh1/sh1_decode.hpp
+    #include/ymir/hw/sh1/sh1_disasm.hpp
+    include/ymir/hw/sh1/sh1_dmac.hpp
+    include/ymir/hw/sh1/sh1_excpt.hpp
+    include/ymir/hw/sh1/sh1_intc.hpp
+    #include/ymir/hw/sh1/sh1_internal_callbacks.hpp
+    include/ymir/hw/sh1/sh1_itu.hpp
+    include/ymir/hw/sh1/sh1_pfc.hpp
+    include/ymir/hw/sh1/sh1_power.hpp
+    include/ymir/hw/sh1/sh1_regs.hpp
+    include/ymir/hw/sh1/sh1_sci.hpp
+    include/ymir/hw/sh1/sh1_tpc.hpp
+    include/ymir/hw/sh1/sh1_wdt.hpp
 
     include/ymir/hw/sh2/sh2.hpp
     include/ymir/hw/sh2/sh2_bsc.hpp
@@ -192,6 +213,8 @@ add_library(ymir-core
     src/ymir/hw/cdblock/cdblock.cpp
     src/ymir/hw/cdblock/cdblock_devlog.hpp
     src/ymir/hw/cdblock/cdblock_partition_manager.cpp
+    src/ymir/hw/cdblock/cd_drive.cpp
+    src/ymir/hw/cdblock/ygr.cpp
     
     src/ymir/hw/m68k/m68k.cpp
     src/ymir/hw/m68k/m68k_addr_modes.hpp
@@ -215,8 +238,11 @@ add_library(ymir-core
     src/ymir/hw/smpc/peripheral/peripheral_impl_control_pad.cpp
     src/ymir/hw/smpc/peripheral/peripheral_impl_mission_stick.cpp
 
+    src/ymir/hw/sh1/sh1.cpp
+    src/ymir/hw/sh1/sh1_decode.cpp
+    #src/ymir/hw/sh1/sh1_disasm.cpp
+
     src/ymir/hw/sh2/sh2.cpp
-    
     src/ymir/hw/sh2/sh2_decode.cpp
     src/ymir/hw/sh2/sh2_disasm.cpp
 

@@ -5,21 +5,22 @@
 namespace ymir::cdblock {
 
 // HIRQ flags
-inline constexpr uint16 kHIRQ_CMOK = 0x0001; // Ready to receive command
-inline constexpr uint16 kHIRQ_DRDY = 0x0002; // Ready to transfer data
-inline constexpr uint16 kHIRQ_CSCT = 0x0004; // Sector read finished
-inline constexpr uint16 kHIRQ_BFUL = 0x0008; // CD buffer full
-inline constexpr uint16 kHIRQ_PEND = 0x0010; // CD playback stopped
-inline constexpr uint16 kHIRQ_DCHG = 0x0020; // Disc changed
-inline constexpr uint16 kHIRQ_ESEL = 0x0040; // Selector processing finished
-inline constexpr uint16 kHIRQ_EHST = 0x0080; // Host I/O processing finished
-inline constexpr uint16 kHIRQ_ECPY = 0x0100; // Copy or move finished
-inline constexpr uint16 kHIRQ_EFLS = 0x0200; // Filesystem processing finished
-inline constexpr uint16 kHIRQ_SCDQ = 0x0400; // Subcode Q updated
-inline constexpr uint16 kHIRQ_MPED = 0x0800; // MPEG processing finished
-inline constexpr uint16 kHIRQ_MPCM = 0x1000; // Long-running MPEG operation finished
-inline constexpr uint16 kHIRQ_MPST = 0x2000; // MPEG interrupt raised
-inline constexpr uint16 kHIRQ_mask = 0x3FFF; // all valid HIRQ bits
+using HIRQFlags = uint16;
+inline constexpr HIRQFlags kHIRQ_CMOK = 0x0001; // Ready to receive command
+inline constexpr HIRQFlags kHIRQ_DRDY = 0x0002; // Ready to transfer data
+inline constexpr HIRQFlags kHIRQ_CSCT = 0x0004; // Sector read finished
+inline constexpr HIRQFlags kHIRQ_BFUL = 0x0008; // CD buffer full
+inline constexpr HIRQFlags kHIRQ_PEND = 0x0010; // CD playback stopped
+inline constexpr HIRQFlags kHIRQ_DCHG = 0x0020; // Disc changed
+inline constexpr HIRQFlags kHIRQ_ESEL = 0x0040; // Selector processing finished
+inline constexpr HIRQFlags kHIRQ_EHST = 0x0080; // Host I/O processing finished
+inline constexpr HIRQFlags kHIRQ_ECPY = 0x0100; // Copy or move finished
+inline constexpr HIRQFlags kHIRQ_EFLS = 0x0200; // Filesystem processing finished
+inline constexpr HIRQFlags kHIRQ_SCDQ = 0x0400; // Subcode Q updated
+inline constexpr HIRQFlags kHIRQ_MPED = 0x0800; // MPEG processing finished
+inline constexpr HIRQFlags kHIRQ_MPCM = 0x1000; // Long-running MPEG operation finished
+inline constexpr HIRQFlags kHIRQ_MPST = 0x2000; // MPEG interrupt raised
+inline constexpr HIRQFlags kHIRQ_mask = 0x3FFF; // all valid HIRQ bits
 
 // Status codes
 inline constexpr uint8 kStatusCodeBusy = 0x00;
