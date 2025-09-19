@@ -86,7 +86,7 @@ SH-1 interrupts
 70  1C0  WDT ITI
 71  1C4  BSC REF CMI
 
-* denotes interrutps used by the CD Block ROM
+* denotes interrupts used by the CD Block ROM
 
 
 SCU interrupts (SH-2 M)
