@@ -1,0 +1,21 @@
+YGR registers
+-------------
+Addresses
+CDB Host  Code      Name
+00  00    DATA      Data transfer
+02  --    TRCTL     Transfer control
+04  --    CDIRQL    Lower CD IRQ bits
+06  --    CDIRQU    Upper CD IRQ bits
+08  --    CDMSKL    Lower CD IRQ mask
+0A  --    CDMSU     Upper CD IRQ mask
+0C  --    REG0C     Unknown
+0E  --    REG0E     Unknown
+10  18    CR1/RR1   Command/Response register 1
+12  1C    CR2/RR2   Command/Response register 2
+14  20    CR3/RR3   Command/Response register 3
+16  24    CR4/RR4   Command/Response register 4
+18  --    REG18     Unknown
+1A  --    REG1A     Unknown
+1C  --    REG1C     Unknown
+1E  08    HIRQ      Host IRQ bits
+--  0C    HIRQMASK  Host IRQ mask

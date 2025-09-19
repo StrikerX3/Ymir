@@ -1,0 +1,148 @@
+SH-1 pin configuration (PFC)
+----------------------------
+Pin  Mode 0         Mode 1         Mode 2         Mode 3
+A0   I/O PA0          O CS4#       I/O TIOCA0     -   -
+A1   I/O PA1          O CS5#         O RAS#       -   -
+A2   I/O PA2          O CS6#       I/O TIOCB0     -   -
+A3   I/O PA3          O CS7#       I   WAIT#      -   -
+A4   I/O PA4          O WRL#/WR#
+A5   I/O PA5          O WRH#/LBS#
+A6   I/O PA6          O RD#
+A7   I/O PA7          O BACK#
+A8   I/O PA8        I   BREQ#
+A9   I/O PA9          O AH#        I   ADTRG#       O IRQOUT#
+A10  I/O PA10       I/O DPL        I/O TIOCA1     -   -
+A11  I/O PA11       I/O DPH        I/O TIOCB1     -   -
+A12  I/O PA12       I   IRQ0#      I   TCLKA        O DACK0
+A13  I/O PA13       I   IRQ1#      I   TCLKB      I   DREQ0#
+A14  I/O PA14       I   IRQ2#      -   -            O DACK1
+A15  I/O PA15       I   IRQ3#      -   -          I   DREQ1#
+B0   I/O PB0        -   -          I/O TIOCA2       O TP0
+B1   I/O PB1        -   -          I/O TIOCB2       O TP1
+B2   I/O PB2        -   -          I/O TIOCA3       O TP2
+B3   I/O PB3        -   -          I/O TIOCB3       O TP3
+B4   I/O PB4        -   -          I/O TIOCA4       O TP4
+B5   I/O PB5        -   -          I/O TIOCB4       O TP5
+B6   I/O PB6        I   TCLKC        O TOCXA4       O TP6
+B7   I/O PB7        I   TCLKD        O TOCXB4       O TP7
+B8   I/O PB8        -   -          I   RxD0         O TP8
+B9   I/O PB9          O AH#          O TxD0         O TP9
+B10  I/O PB10       I/O DPL        I   RxD1         O TP10
+B11  I/O PB11       I/O DPH          O TxD1         O TP11
+B12  I/O PB12       I   IRQ4#      I/O SCK0         O TP12
+B13  I/O PB13       I   IRQ5#      I/O SCK1         O TP13
+B14  I/O PB14       I   IRQ6#      -   -            O TP14
+B15  I/O PB15       I   IRQ7#      -   -            O TP15
+
+
+SH-1 pin usage/connections
+--------------------------
+A0  I TIOCA0    <- MPEG card - MPEG A data transfer (DMA3) request input (edge detection)
+A1  O RAS#      -> DRAM - CASL output
+A2  O CS6#      -> YGR - [CS6#] CS6 output (area 6 access -- MPEG ROM)
+A3  I PA3       <- Vss (=0)
+A4  O WRL#/WR#  -> DRAM/external space - WRL output / test point TP6
+A5  O WRH#/LBS# -> DRAM/external space - WRH output
+A6  O RD#       -> DRAM/external space - RD output
+A7  O PA7       -> YGR - [RESET] GA reset output (0=reset, 1=release) / test point TP5 (GND)
+A8  O PA8
+A9  O PA9       -> [IRQOUT] Spare to output 0 during interrupt process
+A10 I TIOCA1    <- MPEG card - MPEG V data transfer (DMA2) request input (edge detection)
+A11 O PA11
+A12 O DACK0     -> YGR - [DACK0]  DMA0 (for CD-ROM sector data input) ACK output (to GA)
+A13 I DREQ0#    <- YGR - [DREQ0#] DMA0 (for CD-ROM sector data input) REQ input (from GA)
+A14 O DACK1     -> YGR - [DACK1]  DMA1 (for host data input/output) ACK output (to GA)
+A15 I DREQ1#    <- YGR - [DREQ1#] DMA1 (for host data input/output) REQ output (from GA)
+B0  I TIOCA2    <- MPEG card - [MPEGA_IRQ#] MPEG A interrupt input (edge detection)
+B1  I TIOCB2    <- MPEG card - [MPEGV_IRQ#] MPEG V interrupt input (edge detection)
+B2  I PB2       <- CD drive - [COMSYNC#] CD comms start signal input: 0=start, 1=middle
+B3  I TIOCB3    <- CD drive - [COMREQ#] CD comms sync interrupt input (edge detection): 0=during clock transfer, 1=during interval
+B4  O PB4
+B5  O PB5
+B6  O PB6       -> CD drive - [DEMP] Deemphasis output: 0=off, 1=on
+B7  O PB7
+B8  I RxD0      <- CD drive - [CDATA] CD comms data input (SCK0 used)
+B9  O TxD0      -> CD drive - [HDATA] CD comms data output (SCK0 used)
+B10 I PB10      <- test point TP3 - [TEST#] Test control input (0=test mode, 1=normal mode) -- attached to Vcc so always 1 unless shorted to GND
+B11 O TxD1      -> test point TP2 - [TDATA] Test data output
+B12 O SCK0      -> CD drive - [COMCLK] CD comms clock output (SCK0 used)
+B13 O SCK1      -> test point TP1 - [TCLK] Clock output for test data
+B14 I IRQ6#     <- YGR - [IRQ_L#] Host command interrupt input (level detection)
+B15 I IRQ7#     <- YGR - [IRQ_H#] CD-ROM sync detection, subcode sync detection interrupt input (level detection)
+C0  I PC0/AN0
+C1  I PC1/AN1
+C2  I PC2/AN2
+C3  I PC3/AN3
+C4  I PC4/AN4
+C5  I PC5/AN5   <- MPEG card - [VCD] Input to detect whether VCD connected is connected or not (0=CD drive connected, 1=VCD connected)
+C6  I PC6/AN6
+C7  I PC7/AN7
+
+Notes:
+- A/D converted is never used, so all Port C pins remain as PC0-PC7
+- Pins without description are NC
+
+
+Pins grouped by component
+-------------------------
+=== DRAM/external space ===
+A1  O RAS#      -> CASL output
+A4  O WRL#/WR#  -> WRL output / test point TP6
+A5  O WRH#/LBS# -> WRH output
+A6  O RD#       -> RD output
+
+=== YGR ===
+A2  O CS6#      -> [CS6#] CS6 output (area 6 access -- MPEG ROM)
+A7  O PA7       -> [RESET] GA reset output (0=reset, 1=release) / test point TP5 (GND)
+A12 O DACK0     -> [DACK0]  DMA0 (for CD-ROM sector data input) ACK output (to GA)
+A13 I DREQ0#    <- [DREQ0#] DMA0 (for CD-ROM sector data input) REQ input (from GA)
+A14 O DACK1     -> [DACK1]  DMA1 (for host data input/output) ACK output (to GA)
+A15 I DREQ1#    <- [DREQ1#] DMA1 (for host data input/output) REQ output (from GA)
+B14 I IRQ6#     <- [IRQ_L#] Host command interrupt input (level detection)
+B15 I IRQ7#     <- [IRQ_H#] CD-ROM sync detection, subcode sync detection interrupt input (level detection)
+
+=== CD drive ===
+B2  I PB2       <- [COMSYNC#] CD comms start signal input: 0=start, 1=middle
+B3  I TIOCB3    <- [COMREQ#] CD comms sync interrupt input (edge detection): 0=during clock transfer, 1=during interval
+B6  O PB6       -> [DEMP] Deemphasis output: 0=off, 1=on
+B8  I RxD0      <- [CDATA] CD comms data input (SCK0 used)
+B9  O TxD0      -> [HDATA] CD comms data output (SCK0 used)
+B12 O SCK0      -> [COMCLK] CD comms clock output (SCK0 used)
+
+=== MPEG card ===
+A0  I TIOCA0    <- [TIOCA0#] MPEG A data transfer (DMA3) request input (edge detection)
+A10 I TIOCA1    <- [TIOCA1#] MPEG V data transfer (DMA2) request input (edge detection)
+B0  I TIOCA2    <- [MPEGA_IRQ#] MPEG A interrupt input (edge detection)
+B1  I TIOCB2    <- [MPEGV_IRQ#] MPEG V interrupt input (edge detection)
+C5  I PC5/AN5   <- [VCD] Input to detect whether VCD connected is connected or not (0=CD drive connected, 1=VCD connected)
+
+=== Misc ===
+A3  I PA3       <- Vss (=0)
+A9  O PA9       -> [IRQOUT] Spare to output 0 during interrupt process
+B10 I PB10      <- test point TP3 - [TEST#] Test control input (0=test mode, 1=normal mode) -- attached to Vcc so always 1 unless shorted to GND
+B11 O TxD1      -> test point TP2 - [TDATA] Test data output
+B13 O SCK1      -> test point TP1 - [TCLK] Clock output for test data
+
+=== Not connected ===
+A8  O PA8
+A11 O PA11
+B4  O PB4
+B5  O PB5
+B7  O PB7
+C0  I PC0/AN0
+C1  I PC1/AN1
+C2  I PC2/AN2
+C3  I PC3/AN3
+C4  I PC4/AN4
+C6  I PC6/AN6
+C7  I PC7/AN7
+
+=== Test points ===
+TP1 <- SH1 - [B13/SCK1/TCLK] Clock output for test data
+TP2 <- SH1 - [TDATA] Test data output
+TP3 -> SH1 - [TEST#] Test control input (0=test mode, 1=normal mode) -- attached to Vcc so always 1 unless shorted to GND
+TP4 -> GND
+TP5 <- YGR - [RESET] GA reset output (0=reset, 1=release)
+TP6 <- DRAM/external space - WRL output
+TP7 -> SH1 - [RESET#] Reset input
+TP8 -> YGR - [TP5] Test pin
