@@ -17,7 +17,7 @@ enum class BackupMemoryImageLoadResult { Success, FilesystemError, InvalidSize }
 
 class BackupMemory final : public IBackupMemory {
 public:
-    void MapMemory(sys::Bus &bus, uint32 start, uint32 end);
+    void MapMemory(sys::SH2Bus &bus, uint32 start, uint32 end);
 
     // -------------------------------------------------------------------------
     // Image management

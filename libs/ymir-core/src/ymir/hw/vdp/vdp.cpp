@@ -170,7 +170,7 @@ void VDP::Reset(bool hard) {
     m_scheduler.ScheduleFromNow(m_phaseUpdateEvent, GetPhaseCycles());
 }
 
-void VDP::MapMemory(sys::Bus &bus) {
+void VDP::MapMemory(sys::SH2Bus &bus) {
     static constexpr auto cast = [](void *ctx) -> VDP & { return *static_cast<VDP *>(ctx); };
 
     // VDP1 VRAM

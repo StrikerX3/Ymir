@@ -348,7 +348,7 @@ public:
     // Components
 
     sys::SystemMemory mem;    ///< IPL ROM, low and high WRAM, internal backup memory
-    sys::Bus mainBus;         ///< Primary system bus
+    sys::SH2Bus mainBus;      ///< Primary system bus connecting SH-2s, SCU, IPL ROM and WRAMs
     sh2::SH2 masterSH2;       ///< Master SH-2
     sh2::SH2 slaveSH2;        ///< Slave SH-2
     bool slaveSH2Enabled;     ///< Slave SH-2 enable flag

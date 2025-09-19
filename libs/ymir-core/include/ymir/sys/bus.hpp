@@ -43,13 +43,15 @@ concept bus_handler_fn =
 ///
 /// `Map` methods assign read/write functions to a range of addresses. `MapNormal` refers to the regular `Read`/`Write`
 /// functions and `MapSideEffectFree` refers to the `Peek`/`Poke` variants. `Unmap` clears the assignments.
+///
+/// @tparam addressBits number of valid address bits
+template <uint32 addressBits>
 class Bus {
-    static constexpr uint32 kAddressBits = 27; // TODO: turn this into a class template parameter
-    static constexpr uint32 kAddressMask = (1u << kAddressBits) - 1;
+    static constexpr uint32 kAddressMask = (1u << addressBits) - 1;
     static constexpr uint32 kPageGranularityBits = 16;
     static constexpr uint32 kPageSize = 1u << kPageGranularityBits;
     static constexpr uint32 kPageMask = kPageSize - 1;
-    static constexpr uint32 kPageCount = (1u << (kAddressBits - kPageGranularityBits));
+    static constexpr uint32 kPageCount = (1u << (addressBits - kPageGranularityBits));
 
 public:
     /// @brief Maps both normal (read/write) and side-effect-free (peek/poke) handlers to the specified range.
@@ -345,5 +347,8 @@ private:
         }
     }
 };
+
+using SH1Bus = Bus<28>;
+using SH2Bus = Bus<27>;
 
 } // namespace ymir::sys

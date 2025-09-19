@@ -22,7 +22,7 @@ using CBTriggerDSPEnd = util::RequiredCallback<void()>;
 
 class SCUDSP {
 public:
-    explicit SCUDSP(sys::Bus &bus);
+    explicit SCUDSP(sys::SH2Bus &bus);
 
     void Reset(bool hard);
 
@@ -390,7 +390,7 @@ public:
     uint32 dmaPC;        // Initial DMA PC address (when writing to Program RAM)
 
 private:
-    sys::Bus &m_bus;
+    sys::SH2Bus &m_bus;
 
     CBTriggerDSPEnd m_cbTriggerDSPEnd;
 

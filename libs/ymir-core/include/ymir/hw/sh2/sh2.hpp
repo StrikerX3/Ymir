@@ -46,7 +46,7 @@ namespace ymir::sh2 {
 
 class SH2 {
 public:
-    SH2(core::Scheduler &scheduler, sys::Bus &bus, bool master, const sys::SystemFeatures &systemFeatures);
+    SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master, const sys::SystemFeatures &systemFeatures);
 
     void Reset(bool hard, bool watchdogInitiated = false);
 
@@ -58,7 +58,7 @@ public:
         m_debugBreakMgr = mgr;
     }
 
-    void MapMemory(sys::Bus &bus);
+    void MapMemory(sys::SH2Bus &bus);
 
     void DumpCacheData(std::ostream &out) const;
     void DumpCacheAddressTag(std::ostream &out) const;
@@ -566,7 +566,7 @@ private:
     // -------------------------------------------------------------------------
     // Memory accessors
 
-    sys::Bus &m_bus;
+    sys::SH2Bus &m_bus;
     const sys::SystemFeatures &m_systemFeatures;
 
     // According to the SH7604/SH7095 manuals, the address space is divided into these areas:

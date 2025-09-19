@@ -12,7 +12,7 @@ using namespace ymir;
 namespace scu_dsp {
 
 struct TestSubject {
-    mutable sys::Bus bus;
+    mutable sys::SH2Bus bus;
     mutable scu::SCUDSP dsp{bus};
 
     mutable bool dspEndTriggered = false;

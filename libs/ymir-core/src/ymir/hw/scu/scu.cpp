@@ -38,7 +38,7 @@ FORCE_INLINE static void TraceDMA(debug::ISCUTracer *tracer, uint8 channel, uint
 // -----------------------------------------------------------------------------
 // Implementation
 
-SCU::SCU(core::Scheduler &scheduler, sys::Bus &bus)
+SCU::SCU(core::Scheduler &scheduler, sys::SH2Bus &bus)
     : m_bus(bus)
     , m_scheduler(scheduler)
     , m_dsp(bus) {
@@ -85,7 +85,7 @@ void SCU::Reset(bool hard) {
     m_WRAMSizeSelect = false;
 }
 
-void SCU::MapMemory(sys::Bus &bus) {
+void SCU::MapMemory(sys::SH2Bus &bus) {
     static constexpr auto cast = [](void *ctx) -> SCU & { return *static_cast<SCU *>(ctx); };
 
     // A-Bus CS0 and CS1 - Cartridge

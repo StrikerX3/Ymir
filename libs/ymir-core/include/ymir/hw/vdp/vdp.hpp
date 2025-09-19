@@ -54,7 +54,7 @@ public:
         m_cbTriggerSMPCVBlankIN = cbSMPCVBlankIN;
     }
 
-    void MapMemory(sys::Bus &bus);
+    void MapMemory(sys::SH2Bus &bus);
 
     // TODO: replace with scheduler events
     template <bool debug>

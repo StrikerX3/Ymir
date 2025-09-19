@@ -49,7 +49,6 @@ struct Saturn;
 
 namespace sys {
     struct SystemMemory;
-    class Bus;
 } // namespace sys
 
 namespace sh2 {
@@ -114,7 +113,7 @@ struct SharedContext {
         std::unique_ptr<ymir::Saturn> instance;
 
         ymir::sys::SystemMemory &GetSystemMemory();
-        ymir::sys::Bus &GetMainBus();
+        ymir::sys::SH2Bus &GetMainBus();
         ymir::sh2::SH2 &GetMasterSH2();
         ymir::sh2::SH2 &GetSlaveSH2();
         ymir::sh2::SH2 &GetSH2(bool master) {
@@ -127,7 +126,7 @@ struct SharedContext {
         ymir::cdblock::CDBlock &GetCDBlock();
         ymir::cart::BaseCartridge &GetCartridge();
 
-        const ymir::sys::Bus &GetMainBus() const {
+        const ymir::sys::SH2Bus &GetMainBus() const {
             return const_cast<SaturnContainer *>(this)->GetMainBus();
         }
         const ymir::sh2::SH2 &GetMasterSH2() const {

@@ -123,7 +123,7 @@ void SCSP::Reset(bool hard) {
     m_dsp.Reset();
 }
 
-void SCSP::MapMemory(sys::Bus &bus) {
+void SCSP::MapMemory(sys::SH2Bus &bus) {
     static constexpr auto cast = [](void *ctx) -> SCSP & { return *static_cast<SCSP *>(ctx); };
 
     // WRAM

@@ -140,7 +140,7 @@ void CDBlock::Reset(bool hard) {
     m_netlinkSCR = 0x00;
 }
 
-void CDBlock::MapMemory(sys::Bus &bus) {
+void CDBlock::MapMemory(sys::SH2Bus &bus) {
     // CD Block registers are mirrored every 64 bytes in a 4 KiB block.
     // These 4 KiB blocks are mapped every 32 KiB.
 
