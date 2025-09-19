@@ -110,7 +110,7 @@ void SMPC::FactoryReset() {
     }
 }
 
-void SMPC::MapMemory(sys::Bus &bus) {
+void SMPC::MapMemory(sys::SH2Bus &bus) {
     static constexpr auto cast = [](void *ctx) -> SMPC & { return *static_cast<SMPC *>(ctx); };
 
     bus.MapNormal(

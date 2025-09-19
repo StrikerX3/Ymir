@@ -39,7 +39,7 @@ struct SystemMemory {
 
     /// @brief Maps memory handlers into the specified `Bus`.
     /// @param[in] bus the `Bus` instance to map handlers into
-    void MapMemory(Bus &bus);
+    void MapMemory(SH2Bus &bus);
 
     /// @brief Loads the specified IPL ROM image.
     /// @param[in] ipl the contents of the IPL ROM image

@@ -16,7 +16,7 @@ void SystemMemory::Reset(bool hard) {
     }
 }
 
-void SystemMemory::MapMemory(Bus &bus) {
+void SystemMemory::MapMemory(SH2Bus &bus) {
     bus.MapArray(0x000'0000, 0x00F'FFFF, IPL, false);
     m_internalBackupRAM.MapMemory(bus, 0x018'0000, 0x01F'FFFF);
     bus.MapArray(0x020'0000, 0x02F'FFFF, WRAMLow, true);

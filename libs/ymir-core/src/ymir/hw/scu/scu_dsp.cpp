@@ -22,7 +22,7 @@ FORCE_INLINE static void TraceDSPDMA(debug::ISCUTracer *tracer, bool toD0, uint3
 // -----------------------------------------------------------------------------
 // Implementation
 
-SCUDSP::SCUDSP(sys::Bus &bus)
+SCUDSP::SCUDSP(sys::SH2Bus &bus)
     : m_bus(bus) {
     Reset(true);
 }

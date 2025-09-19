@@ -32,7 +32,7 @@ public:
         m_cbPadInterruptCallback = padCallback;
     }
 
-    void MapMemory(sys::Bus &bus);
+    void MapMemory(sys::SH2Bus &bus);
 
     void UpdateClockRatios(const sys::ClockRatios &clockRatios);
 

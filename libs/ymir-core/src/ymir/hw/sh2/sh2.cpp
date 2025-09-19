@@ -202,7 +202,7 @@ FORCE_INLINE static void TraceDMAXferEnd(debug::ISH2Tracer *tracer, uint32 chann
 // -----------------------------------------------------------------------------
 // Implementation
 
-SH2::SH2(core::Scheduler &scheduler, sys::Bus &bus, bool master, const sys::SystemFeatures &systemFeatures)
+SH2::SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master, const sys::SystemFeatures &systemFeatures)
     : m_scheduler(scheduler)
     , m_bus(bus)
     , m_systemFeatures(systemFeatures)
@@ -272,7 +272,7 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     m_cache.Reset();
 }
 
-void SH2::MapMemory(sys::Bus &bus) {
+void SH2::MapMemory(sys::SH2Bus &bus) {
     const uint32 addressOffset = !BCR1.MASTER * 0x80'0000;
 
     // Map MINIT/SINIT area

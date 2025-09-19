@@ -27,7 +27,7 @@ static constexpr size_t kBlockSizes[] = {
     1024, // 32 Mbit External Backup RAM
 };
 
-void BackupMemory::MapMemory(sys::Bus &bus, uint32 start, uint32 end) {
+void BackupMemory::MapMemory(sys::SH2Bus &bus, uint32 start, uint32 end) {
     bus.MapBoth(
         start, end, this,
         [](uint32 address, void *ctx) -> uint8 { return static_cast<BackupMemory *>(ctx)->ReadByte(address); },

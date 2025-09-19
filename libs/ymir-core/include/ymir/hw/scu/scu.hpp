@@ -69,7 +69,7 @@ namespace ymir::scu {
 //   - Byte reads work normally
 class SCU {
 public:
-    SCU(core::Scheduler &scheduler, sys::Bus &bus);
+    SCU(core::Scheduler &scheduler, sys::SH2Bus &bus);
 
     void Reset(bool hard);
 
@@ -78,7 +78,7 @@ public:
         m_cbExternalSlaveInterrupt = slave;
     }
 
-    void MapMemory(sys::Bus &bus);
+    void MapMemory(sys::SH2Bus &bus);
 
     template <bool debug>
     void Advance(uint64 cycles);
@@ -152,7 +152,7 @@ public:
     void LoadState(const state::SCUState &state);
 
 private:
-    sys::Bus &m_bus;
+    sys::SH2Bus &m_bus;
 
     CBExternalInterrupt m_cbExternalMasterInterrupt;
     CBExternalInterrupt m_cbExternalSlaveInterrupt;

@@ -85,7 +85,7 @@ ymir::sys::SystemMemory &SharedContext::SaturnContainer::GetSystemMemory() {
     return instance->mem;
 }
 
-ymir::sys::Bus &SharedContext::SaturnContainer::GetMainBus() {
+ymir::sys::SH2Bus &SharedContext::SaturnContainer::GetMainBus() {
     return instance->mainBus;
 }
 
