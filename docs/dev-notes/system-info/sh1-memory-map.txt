@@ -1,0 +1,29 @@
+SH-1 address space
+------------------
+Adapted from the SH7034 Hardware Manual
+
+Address range          Width  Capacity  Area
+0x0000000..0x0FFFFFF   32     64 KiB    On-chip ROM
+0x1000000..0x1FFFFFF   8      4/16 MiB  External memory (BCR.DRAME=0) or DRAM (BCR.DRAME=1)
+0x2000000..0x2FFFFFF   8      4 MiB     External memory (unused?)
+0x3000000..0x3FFFFFF   8      4 MiB     External memory (unused?)
+0x4000000..0x4FFFFFF   8      4 MiB     External memory (unused?)
+0x5000000..0x5FFFFFF   8/16   512 B     On-chip supporting modules (000..0FF = 8-bit, 100..1FF = 16-bit)
+0x6000000..0x6FFFFFF   8      4 MiB     External memory (BCR.IOE=0) or multiplexed I/O (BCR.IOE=1)
+0x7000000..0x7FFFFFF   8      4 MiB     External memory (unused?)
+0x8000000..0x8FFFFFF   32     64 KiB    On-chip ROM
+0x9000000..0x9FFFFFF   16     4/16 MiB  External memory (BCR.DRAME=0) or DRAM (BCR.DRAME=1)
+0xA000000..0xAFFFFFF   16     4 MiB     External memory (YGR registers)
+0xB000000..0xBFFFFFF   16     4 MiB     External memory (YGR registers)
+0xC000000..0xCFFFFFF   16     4 MiB     External memory (YGR registers)
+0xD000000..0xDFFFFFF   16     4 MiB     External memory (unused)
+0xE000000..0xEFFFFFF   16     4 MiB     External memory (MPEG ROM)
+0xF000000..0xFFFFFFF   32     4 KiB     On-chip RAM
+
+Notes:
+- Upper 4 bits of the address are ignored
+- 28-bit addresses divided into 8 areas using bits 24-26 + 27 for special cases
+- MD2-MD0 is fixed to 0b010
+- DRAM is mirrored every 512 KiB
+- On-chip RAM is mirrored every 4 KiB
+- On-chip ROM is mirrored every 64 KiB

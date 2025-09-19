@@ -34,6 +34,61 @@ All other vectors are available for user programs.
 * denotes auto-vector numbers; vectors vary when using external vector fetch (INTC ICR.VECMD=1)
 
 
+SH-1 interrupts
+---------------
+00  000  Power-on reset PC value
+01  004  Power-on reset SP value
+02  008  Manual reset PC value
+03  00C  Manual reset SP value
+04  010  General illegal instruction
+06  018  Slot illegal instruction
+09  024  CPU address error
+0A  028  DMA address error
+0B  02C  NMI interrupt
+0C  030  User break interrupt
+40  100  IRQ0
+41  104  IRQ1
+42  108  IRQ2
+43  10C  IRQ3
+44  110  IRQ4
+45  114  IRQ5
+46  118  IRQ6 * -- command requests (triggered on writes to CR4 from host)
+47  11C  IRQ7 * -- HIRQ interrupt requests
+48  120  DMAC0 DEI0 *
+4A  128  DMAC1 DEI1
+4C  130  DMAC2 DEI2 *
+4E  138  DMAC3 DEI3
+50  140  ITU0 IMIA0 *
+51  144  ITU0 IMIB0 *
+52  148  ITU0 OVI0
+54  150  ITU1 IMIA1 *
+55  154  ITU1 IMIB1 *
+56  158  ITU1 OVI1
+58  160  ITU2 IMIA2 *
+59  164  ITU2 IMIB2 *
+5A  168  ITU2 OVI2
+5C  170  ITU3 IMIA3 *
+5D  174  ITU3 IMIB3 *
+5E  178  ITU3 OVI3
+60  180  ITU4 IMIA4 *
+61  184  ITU4 IMIB4 *
+62  188  ITU4 OVI4  *
+64  190  SCI0 ERI0
+65  194  SCI0 RxI0  *
+66  198  SCI0 TxI0
+67  19C  SCI0 TEI0
+68  1A0  SCI1 ERI1
+69  1A4  SCI1 RxI1
+6A  1A8  SCI1 TxI1
+6B  1AC  SCI1 TEI1
+6C  1B0  BSC PRT PEI
+6D  1B4  A/D ITI
+70  1C0  WDT ITI
+71  1C4  BSC REF CMI
+
+* denotes interrutps used by the CD Block ROM
+
+
 SCU interrupts (SH-2 M)
 -----------------------
  bit  vec   lvl  source  reason
@@ -161,3 +216,22 @@ SCSP interrupts
 8  Timer C
 9  MIDI output empty
 A  Sample tick
+
+
+CD Block HIRQs
+--------------
+#  Hex   Code  Name
+0  0001  CMOK  Ready to receive command
+1  0002  DRDY  Ready to transfer data
+2  0004  CSCT  Sector read finished
+3  0008  BFUL  CD buffer full
+4  0010  PEND  CD playback stopped
+5  0020  DCHG  Disc changed
+6  0040  ESEL  Selector processing finished
+7  0080  EHST  Host I/O processing finished
+8  0100  ECPY  Copy or move finished
+9  0200  EFLS  Filesystem processing finished
+A  0400  SCDQ  Subcode Q updated
+B  0800  MPED  MPEG processing finished
+C  1000  MPCM  Long-running MPEG operation finished
+D  2000  MPST  MPEG interrupt raised
