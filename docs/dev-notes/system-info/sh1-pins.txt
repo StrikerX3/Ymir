@@ -35,8 +35,8 @@ B14  I/O PB14       I   IRQ6#      -   -            O TP14
 B15  I/O PB15       I   IRQ7#      -   -            O TP15
 
 
-SH-1 pin usage/connections
---------------------------
+SH-1 / pin usage and connections (as configured by CD Block ROM)
+----------------------------------------------------------------
 A0  I TIOCA0    <- MPEG card - MPEG A data transfer (DMA3) request input (edge detection)
 A1  O RAS#      -> DRAM - CASL output
 A2  O CS6#      -> YGR - [CS6#] CS6 output (area 6 access -- MPEG ROM)
@@ -80,7 +80,7 @@ C7  I PC7/AN7
 
 Notes:
 - A/D converted is never used, so all Port C pins remain as PC0-PC7
-- Pins without description are NC
+- Pins without description are not connected (NC)
 
 
 Pins grouped by component
@@ -119,7 +119,7 @@ C5  I PC5/AN5   <- [VCD] Input to detect whether VCD connected is connected or n
 === Misc ===
 A3  I PA3       <- Vss (=0)
 A9  O PA9       -> [IRQOUT] Spare to output 0 during interrupt process
-B10 I PB10      <- test point TP3 - [TEST#] Test control input (0=test mode, 1=normal mode) -- attached to Vcc so always 1 unless shorted to GND
+B10 I PB10      <- test point TP3 - [TEST#] Test control input (0=test mode, 1=normal mode) -- attached to Vcc so always 1 unless shorted to Vss
 B11 O TxD1      -> test point TP2 - [TDATA] Test data output
 B13 O SCK1      -> test point TP1 - [TCLK] Clock output for test data
 
