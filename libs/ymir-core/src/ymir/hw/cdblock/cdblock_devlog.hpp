@@ -16,6 +16,12 @@ namespace ymir::cdblock::grp {
 //   play
 //   xfer
 //   part_mgr
+//   ygr
+//     ygr_regs
+//   lle
+//     lle_cd
+//       lle_cd_cmd
+//       lle_cd_status
 
 struct base {
     static constexpr bool enabled = true;
@@ -45,6 +51,30 @@ struct xfer : public base {
 
 struct part_mgr : public base {
     static constexpr std::string_view name = "CDBlock-PartMgr";
+};
+
+struct ygr : public base {
+    static constexpr std::string_view name = "CDBlock-YGR";
+};
+
+struct ygr_regs : public ygr {
+    static constexpr std::string_view name = "CDBlock-YGR-Regs";
+};
+
+struct lle : public base {
+    static constexpr std::string_view name = "CDB-LLE";
+};
+
+struct lle_cd : public lle {
+    static constexpr std::string_view name = "CDB-LLE-CD";
+};
+
+struct lle_cd_cmd : public lle_cd {
+    static constexpr std::string_view name = "CDB-LLE-CDCommand";
+};
+
+struct lle_cd_status : public lle_cd {
+    static constexpr std::string_view name = "CDB-LLE-CDStatus";
 };
 
 } // namespace ymir::cdblock::grp
