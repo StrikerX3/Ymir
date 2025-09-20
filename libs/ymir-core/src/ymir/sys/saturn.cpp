@@ -116,7 +116,7 @@ Saturn::Saturn()
     if constexpr (static_config::use_cdblock_lle) {
         SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
         CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn, YGR.CbDiscChanged); // TODO: SCSP.CbCDDASector
-        YGR.MapCallbacks(SH1.CbAssertIRQ6, SCU.CbTriggerExtIntr0);
+        YGR.MapCallbacks(SH1.CbAssertIRQ6, SH1.CbSetDREQ0n, SH1.CbSetDREQ1n, SCU.CbTriggerExtIntr0);
     } else {
         CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
     }

@@ -217,17 +217,21 @@ void SH1::SetNMI() {
     RaiseInterrupt(InterruptSource::NMI);
 }
 
-void SH1::SetnDREQ0(bool level) {
-    m_nDREQ[0] = level;
-    if (!level) {
-        RunDMAC(0);
+void SH1::SetDREQ0n(bool level) {
+    if (m_nDREQ[0] != level) {
+        m_nDREQ[0] = level;
+        if (!level) {
+            RunDMAC(0);
+        }
     }
 }
 
-void SH1::SetnDREQ1(bool level) {
-    m_nDREQ[1] = level;
-    if (!level) {
-        RunDMAC(1);
+void SH1::SetDREQ1n(bool level) {
+    if (m_nDREQ[1] != level) {
+        m_nDREQ[1] = level;
+        if (!level) {
+            RunDMAC(1);
+        }
     }
 }
 
@@ -388,7 +392,8 @@ FORCE_INLINE uint64 SH1::AccessCycles(uint32 address) {
     case 0xF: // on-chip RAM
         return 1;
     default: // external memory
-        return 5; // wild guess
+        // wild guess
+        return 5;
     }
 
     util::unreachable();
@@ -1824,12 +1829,14 @@ void SH1::RunDMAC(uint32 channel) {
     do {
         // Perform one unit of transfer
         switch (ch.xferSize) {
-        case DMATransferSize::Byte: {
+        case DMATransferSize::Byte: //
+        {
             const uint8 value = MemReadByte(ch.srcAddress);
             MemWriteByte(ch.dstAddress, value);
             break;
         }
-        case DMATransferSize::Word: {
+        case DMATransferSize::Word: //
+        {
             const uint16 value = MemReadWord(ch.srcAddress);
             MemWriteWord(ch.dstAddress, value);
             break;

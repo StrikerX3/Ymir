@@ -32,6 +32,7 @@ void YGR::Reset() {
     m_fifo.readPos = 0;
     m_fifo.writePos = 0;
     m_fifo.count = 0;
+    UpdateFIFODREQ();
 }
 
 void YGR::MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus) {
@@ -92,7 +93,12 @@ FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
 
     address &= 0xFFFF;
     switch (address) {
-    case 0x00: return m_fifo.Read<false>();
+    case 0x00: //
+    {
+        const uint16 value = m_fifo.Read<false>();
+        UpdateFIFODREQ();
+        return value;
+    }
     case 0x02: return m_regs.TRCTL.u16;
     case 0x04: return m_regs.CDIRQL.u16;
     case 0x06: return m_regs.CDIRQU.u16;
@@ -120,12 +126,16 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
 
     address &= 0xFFFF;
     switch (address) {
-    case 0x00: m_fifo.Write<false>(value); break;
+    case 0x00:
+        m_fifo.Write<false>(value);
+        UpdateFIFODREQ();
+        break;
     case 0x02:
         m_regs.TRCTL.u16 = value & 0xF;
         if (m_regs.TRCTL.RES) {
             m_fifo.Clear();
         }
+        UpdateFIFODREQ();
         break;
     case 0x04: m_regs.CDIRQL.u16 = value & 0x3; break;
     case 0x06: m_regs.CDIRQU.u16 &= value; break;
@@ -136,7 +146,11 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     case 0x10: m_regs.RR[0] = value; break;
     case 0x12: m_regs.RR[1] = value; break;
     case 0x14: m_regs.RR[2] = value; break;
-    case 0x16: m_regs.RR[3] = value; break;
+    case 0x16:
+        m_regs.RR[3] = value;
+        devlog::trace<grp::ygr_cr>("CDB  RR writes: {:04X} {:04X} {:04X} {:04X}", m_regs.RR[0], m_regs.RR[1],
+                                   m_regs.RR[2], m_regs.RR[3]);
+        break;
     case 0x18: m_regs.REG18.u16 = value & 0x3F; break;
     case 0x1A: m_regs.REG1A.u16 = value & 0xD7; break;
     case 0x1C: m_regs.REG1C.u16 = value & 0xFF; break;
@@ -154,7 +168,16 @@ template <bool peek>
 FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
     address &= 0x3C;
     switch (address) {
-    case 0x00: return m_regs.TRCTL.DIR && !peek ? 0u : m_fifo.Read<peek>();
+    case 0x00:
+        if (m_regs.TRCTL.DIR && !peek) {
+            return 0u;
+        } else {
+            const uint16 value = m_fifo.Read<peek>();
+            if constexpr (!peek) {
+                UpdateFIFODREQ();
+            }
+            return value;
+        }
     case 0x08: return m_regs.HIRQ;
     case 0x0C: return m_regs.HIRQMASK;
     case 0x18: return m_regs.RR[0];
@@ -177,6 +200,9 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
     case 0x00:
         if (m_regs.TRCTL.DIR && !poke) {
             m_fifo.Write<poke>(value);
+            if constexpr (!poke) {
+                UpdateFIFODREQ();
+            }
         }
         break;
     case 0x08:
@@ -200,6 +226,8 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
         m_regs.CR[3] = value;
         if constexpr (!poke) {
             m_cbAssertIRQ6();
+            devlog::trace<grp::ygr_cr>("Host CR writes: {:04X} {:04X} {:04X} {:04X}", m_regs.CR[0], m_regs.CR[1],
+                                       m_regs.CR[2], m_regs.CR[3]);
         }
         break;
     case 0x28: /* TODO: write MPEGRGB */ break;
@@ -274,6 +302,15 @@ void YGR::UpdateInterrupts() {
     if (m_regs.HIRQ & m_regs.HIRQMASK) {
         m_cbTriggerExternalInterrupt0();
     }
+}
+
+void YGR::UpdateFIFODREQ() const {
+    // DREQ is asserted when doing a read transfer and there is room in the FIFO.
+    // DREQ is deasserted if:
+    // - transfers are disabled (TRCTL.TE=0)
+    // - the FIFO is full
+    // - the FIFO is empty when doing a write (put) transfer
+    m_cbSetDREQ1n(!m_regs.TRCTL.TE || m_fifo.IsFull() || (m_regs.TRCTL.DIR && m_fifo.IsEmpty()));
 }
 
 void YGR::DiscChanged() {

@@ -20,4 +20,7 @@ using CbSerialTx = util::RequiredCallback<void(bool bit)>;
 /// @brief Invoked to raise the IRQ6 signal on the SH-1.
 using CBAssertIRQ6 = util::RequiredCallback<void()>;
 
+/// @brief Invoked to set the DREQ0/1# signals on the SH-1.
+using CBSetDREQn = util::RequiredCallback<void(bool level)>;
+
 } // namespace ymir::sh1

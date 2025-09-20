@@ -18,6 +18,7 @@ namespace ymir::cdblock::grp {
 //   part_mgr
 //   ygr
 //     ygr_regs
+//     ygr_cr
 //   lle
 //     lle_cd
 //       lle_cd_cmd
@@ -59,6 +60,11 @@ struct ygr : public base {
 
 struct ygr_regs : public ygr {
     static constexpr std::string_view name = "CDBlock-YGR-Regs";
+};
+
+struct ygr_cr : public ygr {
+    static constexpr devlog::Level level = devlog::level::trace;
+    static constexpr std::string_view name = "CDBlock-YGR-CR";
 };
 
 struct lle : public base {

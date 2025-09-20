@@ -22,8 +22,11 @@ struct YGR {
 
     void Reset();
 
-    void MapCallbacks(sh1::CBAssertIRQ6 assertIRQ6, CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
+    void MapCallbacks(sh1::CBAssertIRQ6 assertIRQ6, sh1::CBSetDREQn setDREQ0n, sh1::CBSetDREQn setDREQ1n,
+                      CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
         m_cbAssertIRQ6 = assertIRQ6;
+        m_cbSetDREQ0n = setDREQ0n;
+        m_cbSetDREQ1n = setDREQ1n;
         m_cbTriggerExternalInterrupt0 = triggerExternalInterrupt0;
     }
 
@@ -48,6 +51,8 @@ struct YGR {
 
 private:
     sh1::CBAssertIRQ6 m_cbAssertIRQ6;
+    sh1::CBSetDREQn m_cbSetDREQ0n;
+    sh1::CBSetDREQn m_cbSetDREQ1n;
     CBTriggerExternalInterrupt0 m_cbTriggerExternalInterrupt0;
 
     // Legend:
@@ -222,6 +227,7 @@ private:
     } m_regs;
 
     void UpdateInterrupts();
+    void UpdateFIFODREQ() const;
 
     void DiscChanged();
 

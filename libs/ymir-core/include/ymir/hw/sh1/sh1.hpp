@@ -69,8 +69,8 @@ public:
     bool GetNMI() const;
     void SetNMI();
 
-    void SetnDREQ0(bool level);
-    void SetnDREQ1(bool level);
+    void SetDREQ0n(bool level);
+    void SetDREQ1n(bool level);
 
     void AssertIRQ6();
     void AssertIRQ7(bool asserted);
@@ -460,6 +460,8 @@ public:
     // Callbacks
 
     const CBAssertIRQ6 CbAssertIRQ6 = util::MakeClassMemberRequiredCallback<&SH1::AssertIRQ6>(this);
+    const CBSetDREQn CbSetDREQ0n = util::MakeClassMemberRequiredCallback<&SH1::SetDREQ0n>(this);
+    const CBSetDREQn CbSetDREQ1n = util::MakeClassMemberRequiredCallback<&SH1::SetDREQ1n>(this);
     const cdblock::CBSetCOMSYNCn CbSetCOMSYNCn = util::MakeClassMemberRequiredCallback<&SH1::SetPB2>(this);
     const cdblock::CBSetCOMREQn CbSetCOMREQn = util::MakeClassMemberRequiredCallback<&SH1::SetTIOCB3>(this);
 };
