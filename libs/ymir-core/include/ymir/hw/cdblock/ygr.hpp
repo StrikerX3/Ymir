@@ -4,6 +4,7 @@
 
 #include "cdblock_internal_callbacks.hpp"
 #include "ygr_internal_callbacks.hpp"
+#include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 
 #include <ymir/sys/bus.hpp>
 
@@ -21,7 +22,7 @@ struct YGR {
 
     void Reset();
 
-    void MapCallbacks(CBAssertIRQ6 assertIRQ6, CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
+    void MapCallbacks(sh1::CBAssertIRQ6 assertIRQ6, CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
         m_cbAssertIRQ6 = assertIRQ6;
         m_cbTriggerExternalInterrupt0 = triggerExternalInterrupt0;
     }
@@ -46,7 +47,7 @@ struct YGR {
     void HostPokeByte(uint32 address, uint8 value);
 
 private:
-    CBAssertIRQ6 m_cbAssertIRQ6;
+    sh1::CBAssertIRQ6 m_cbAssertIRQ6;
     CBTriggerExternalInterrupt0 m_cbTriggerExternalInterrupt0;
 
     // Legend:
@@ -221,6 +222,14 @@ private:
     } m_regs;
 
     void UpdateInterrupts();
+
+    void DiscChanged();
+
+public:
+    // -------------------------------------------------------------------------
+    // Callbacks
+
+    const CBDiscChanged CbDiscChanged = util::MakeClassMemberRequiredCallback<&YGR::DiscChanged>(this);
 };
 
 } // namespace ymir::cdblock

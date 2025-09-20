@@ -13,6 +13,9 @@ namespace static_config {
     // Maximizes component synchronization at a massive cost to performance.
     static constexpr bool max_timing_granularity = false;
 
+    // Enables CD Block LLE emulation.
+    static constexpr bool use_cdblock_lle = true;
+
 } // namespace static_config
 
 namespace grp {
@@ -38,8 +41,6 @@ namespace grp {
     };
 
 } // namespace grp
-
-static constexpr bool useCDBlockLLE = true;
 
 Saturn::Saturn()
     : masterSH2(m_scheduler, mainBus, true, m_systemFeatures)
@@ -76,7 +77,7 @@ Saturn::Saturn()
             devlog::debug<grp::bus>("Unhandled 32-bit main bus write to {:07X} = {:07X}", address, value);
         });
 
-    if constexpr (useCDBlockLLE) {
+    if constexpr (static_config::use_cdblock_lle) {
         SH1Bus.MapNormal(
             0x000'0000, 0xFFF'FFFF, nullptr,
             [](uint32 address, void *) -> uint8 {
@@ -112,9 +113,9 @@ Saturn::Saturn()
                      SMPC.CbTriggerOptimizedINTBACKRead, SMPC.CbTriggerVBlankIN);
     SMPC.MapCallbacks(SCU.CbTriggerSystemManager, SCU.CbTriggerPad);
     SCSP.MapCallbacks(SCU.CbTriggerSoundRequest);
-    if constexpr (useCDBlockLLE) {
+    if constexpr (static_config::use_cdblock_lle) {
         SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
-        CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn); // TODO: SCSP.CbCDDASector
+        CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn, YGR.CbDiscChanged); // TODO: SCSP.CbCDDASector
         YGR.MapCallbacks(SH1.CbAssertIRQ6, SCU.CbTriggerExtIntr0);
     } else {
         CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
@@ -122,7 +123,7 @@ Saturn::Saturn()
 
     m_system.AddClockSpeedChangeCallback(SCSP.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
-    if constexpr (useCDBlockLLE) {
+    if constexpr (static_config::use_cdblock_lle) {
         m_system.AddClockSpeedChangeCallback(CDDrive.CbClockSpeedChange);
     } else {
         m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
@@ -138,7 +139,7 @@ Saturn::Saturn()
     VDP.MapMemory(mainBus);
     SMPC.MapMemory(mainBus);
     SCSP.MapMemory(mainBus);
-    if constexpr (useCDBlockLLE) {
+    if constexpr (static_config::use_cdblock_lle) {
         YGR.MapMemory(mainBus, SH1Bus);
     } else {
         CDBlock.MapMemory(mainBus);
@@ -223,23 +224,43 @@ XXH128Hash Saturn::GetDiscHash() const noexcept {
 void Saturn::LoadDisc(media::Disc &&disc) {
     // Configure area code based on compatible area codes from the disc
     AutodetectRegion(disc.header.compatAreaCode);
-    CDBlock.LoadDisc(std::move(disc));
+    if constexpr (static_config::use_cdblock_lle) {
+        CDDrive.LoadDisc(std::move(disc));
+    } else {
+        CDBlock.LoadDisc(std::move(disc));
+    }
 }
 
 void Saturn::EjectDisc() {
-    CDBlock.EjectDisc();
+    if constexpr (static_config::use_cdblock_lle) {
+        CDDrive.EjectDisc();
+    } else {
+        CDBlock.EjectDisc();
+    }
 }
 
 void Saturn::OpenTray() {
-    CDBlock.OpenTray();
+    if constexpr (static_config::use_cdblock_lle) {
+        CDDrive.OpenTray();
+    } else {
+        CDBlock.OpenTray();
+    }
 }
 
 void Saturn::CloseTray() {
-    CDBlock.CloseTray();
+    if constexpr (static_config::use_cdblock_lle) {
+        CDDrive.CloseTray();
+    } else {
+        CDBlock.CloseTray();
+    }
 }
 
 bool Saturn::IsTrayOpen() const noexcept {
-    return CDBlock.IsTrayOpen();
+    if constexpr (static_config::use_cdblock_lle) {
+        return CDDrive.IsTrayOpen();
+    } else {
+        return CDBlock.IsTrayOpen();
+    }
 }
 
 void Saturn::UsePreferredRegion() {
@@ -459,7 +480,7 @@ bool Saturn::Run() {
 
     // SCSP+M68K and CD block are ticked by the scheduler
 
-    if constexpr (useCDBlockLLE) {
+    if constexpr (static_config::use_cdblock_lle) {
         // Advance SH-1
         const auto &clockRatios = GetClockRatios();
         const uint64 sh1CycleCount = execCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
@@ -505,7 +526,7 @@ uint64 Saturn::StepMasterSH2Impl() {
 
         // SCSP+M68K and CD block are ticked by the scheduler
 
-        if constexpr (useCDBlockLLE) {
+        if constexpr (static_config::use_cdblock_lle) {
             // Advance SH-1
             const auto &clockRatios = GetClockRatios();
             const uint64 sh1Cycles = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
@@ -549,7 +570,7 @@ uint64 Saturn::StepSlaveSH2Impl() {
 
         // SCSP+M68K and CD block are ticked by the scheduler
 
-        if constexpr (useCDBlockLLE) {
+        if constexpr (static_config::use_cdblock_lle) {
             // Advance SH-1
             const auto &clockRatios = GetClockRatios();
             const uint64 sh1Cycles = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
