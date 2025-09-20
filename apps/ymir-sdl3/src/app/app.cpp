@@ -4034,6 +4034,7 @@ void App::ScanIPLROMs() {
                 ++numKnown;
             } else {
                 ++numUnknown;
+                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
             }
         }
         devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
@@ -4146,6 +4147,7 @@ void App::ScanCDBlockROMs() {
                 ++numKnown;
             } else {
                 ++numUnknown;
+                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
             }
         }
         devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
@@ -4205,7 +4207,7 @@ void App::ScanROMCarts() {
                 ++numKnown;
             } else {
                 ++numUnknown;
-                fmt::println("{} - {}", path, ymir::ToString(info.hash));
+                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
             }
         }
         devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
