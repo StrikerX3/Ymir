@@ -3,8 +3,10 @@
 #include "cd_drive_internal_callbacks.hpp"
 
 #include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
+#include <ymir/sys/system_internal_callbacks.hpp>
 
 #include <ymir/core/scheduler.hpp>
+#include <ymir/sys/clocks.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -22,6 +24,8 @@ public:
         m_cbSetCOMSYNCn = setCOMSYNCn;
         m_cbSetCOMREQn = setCOMREQn;
     }
+
+    void UpdateClockRatios(const sys::ClockRatios &clockRatios);
 
 private:
     core::Scheduler &m_scheduler;
@@ -141,6 +145,9 @@ public:
 
     const sh1::CbSerialRx CbSerialRx = util::MakeClassMemberRequiredCallback<&CDDrive::SerialRead>(this);
     const sh1::CbSerialTx CbSerialTx = util::MakeClassMemberRequiredCallback<&CDDrive::SerialWrite>(this);
+
+    const sys::CBClockSpeedChange CbClockSpeedChange =
+        util::MakeClassMemberRequiredCallback<&CDDrive::UpdateClockRatios>(this);
 };
 
 } // namespace ymir::cdblock

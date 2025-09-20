@@ -10,6 +10,7 @@ namespace app {
 const std::filesystem::path kPathSuffixes[] = {
     "",                                           // Root
     std::filesystem::path("roms") / "ipl",        // IPLROMImages
+    std::filesystem::path("roms") / "cdb",        // CDBlockROMImages
     std::filesystem::path("roms") / "cart",       // ROMCartImages
     "backup",                                     // BackupMemory
     std::filesystem::path("backup") / "exported", // ExportedBackups

@@ -446,6 +446,7 @@ struct SharedContext {
 
     ROMManager romManager;
     std::filesystem::path iplRomPath;
+    std::filesystem::path cdbRomPath;
 
     struct SaveState {
         std::unique_ptr<ymir::state::State> state;

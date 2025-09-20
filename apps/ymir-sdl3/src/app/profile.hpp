@@ -6,15 +6,16 @@
 namespace app {
 
 enum class ProfilePath {
-    Root,            // Root of the profile    <profile>/
-    IPLROMImages,    // IPL ROM images         <profile>/roms/ipl/
-    ROMCartImages,   // Cartridge ROMs         <profile>/roms/cart/
-    BackupMemory,    // Backup memory images   <profile>/backup/
-    ExportedBackups, // Exported backup files  <profile>/backup/exported/
-    PersistentState, // Persistent app state   <profile>/state/
-    SaveStates,      // Save states            <profile>/savestates/
-    Dumps,           // Memory dumps           <profile>/dumps/
-    Screenshots,     // Screenshots            <profile>/screenshots/
+    Root,             // Root of the profile    <profile>/
+    IPLROMImages,     // IPL ROM images         <profile>/roms/ipl/
+    CDBlockROMImages, // CD block ROM images    <profile>/roms/cdb/
+    ROMCartImages,    // Cartridge ROMs         <profile>/roms/cart/
+    BackupMemory,     // Backup memory images   <profile>/backup/
+    ExportedBackups,  // Exported backup files  <profile>/backup/exported/
+    PersistentState,  // Persistent app state   <profile>/state/
+    SaveStates,       // Save states            <profile>/savestates/
+    Dumps,            // Memory dumps           <profile>/dumps/
+    Screenshots,      // Screenshots            <profile>/screenshots/
 
     _Count,
 };

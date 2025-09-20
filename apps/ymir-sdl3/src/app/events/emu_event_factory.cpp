@@ -6,7 +6,7 @@
 
 #include <ymir/sys/saturn.hpp>
 
-#include <util/ipl_rom_loader.hpp>
+#include <util/rom_loader.hpp>
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/scope_guard.hpp>
 

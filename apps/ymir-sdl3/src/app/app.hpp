@@ -20,7 +20,7 @@
 
 #include <ymir/hw/smpc/peripheral/peripheral_report.hpp>
 
-#include <util/ipl_rom_loader.hpp>
+#include <util/rom_loader.hpp>
 
 #include <ymir/util/dev_log.hpp>
 
@@ -94,8 +94,12 @@ private:
     void ReloadSDLGameControllerDatabase(std::filesystem::path path, bool showMessages);
 
     void ScanIPLROMs();
-    util::IPLROMLoadResult LoadIPLROM();
+    util::ROMLoadResult LoadIPLROM();
     std::filesystem::path GetIPLROMPath();
+
+    void ScanCDBlockROMs();
+    util::ROMLoadResult LoadCDBlockROM();
+    std::filesystem::path GetCDBlockROMPath();
 
     void ScanROMCarts();
     void LoadRecommendedCartridge();

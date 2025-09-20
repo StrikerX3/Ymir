@@ -408,7 +408,6 @@ int App::Run(const CommandLineOptions &options) {
     // Should be done after loading disc image so that the auto-detected region is used to select the appropriate ROM
     ScanIPLROMs();
     auto iplLoadResult = LoadIPLROM();
-
     if (!iplLoadResult.succeeded) {
         if (m_context.romManager.GetIPLROMs().empty()) {
             // Could not load IPL ROM because there are none -- likely to be a fresh install, so show the Welcome screen
@@ -416,6 +415,13 @@ int App::Run(const CommandLineOptions &options) {
         } else {
             OpenSimpleErrorModal(fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
         }
+    }
+
+    // Load CD Block ROM
+    ScanCDBlockROMs();
+    auto cdbLoadResult = LoadCDBlockROM();
+    if (!cdbLoadResult.succeeded) {
+        OpenSimpleErrorModal(fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
     }
 
     // Load SMPC persistent data and set up the path
@@ -2043,7 +2049,7 @@ void App::RunEmulator() {
             }
             case EvtType::ReloadIPLROM: //
             {
-                util::IPLROMLoadResult result = LoadIPLROM();
+                util::ROMLoadResult result = LoadIPLROM();
                 if (result.succeeded) {
                     m_context.EnqueueEvent(events::emu::HardReset());
                 } else {
@@ -3557,7 +3563,7 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
         std::filesystem::path path;
 
         bool hasResult = false;
-        util::IPLROMLoadResult result;
+        util::ROMLoadResult result;
     };
 
     OpenGenericModal("Welcome", [=, this, nextScanDeadline = clk::now() + kScanInterval,
@@ -3692,7 +3698,7 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
             if (romCount != lastROMCount) {
                 lastROMCount = romCount;
             } else {
-                util::IPLROMLoadResult result = LoadIPLROM();
+                util::ROMLoadResult result = LoadIPLROM();
                 if (result.succeeded) {
                     m_context.EnqueueEvent(events::emu::HardReset());
                     m_closeGenericModal = true;
@@ -4012,12 +4018,12 @@ void App::ReloadSDLGameControllerDatabase(std::filesystem::path path, bool showM
 }
 
 void App::ScanIPLROMs() {
-    auto iplRomsPath = m_context.profile.GetPath(ProfilePath::IPLROMImages);
-    devlog::info<grp::base>("Scanning for IPL ROMs in {}...", iplRomsPath);
+    auto romsPath = m_context.profile.GetPath(ProfilePath::IPLROMImages);
+    devlog::info<grp::base>("Scanning for IPL ROMs in {}...", romsPath);
 
     {
         std::unique_lock lock{m_context.locks.romManager};
-        m_context.romManager.ScanIPLROMs(iplRomsPath);
+        m_context.romManager.ScanIPLROMs(romsPath);
     }
 
     if constexpr (devlog::info_enabled<grp::base>) {
@@ -4034,17 +4040,17 @@ void App::ScanIPLROMs() {
     }
 }
 
-util::IPLROMLoadResult App::LoadIPLROM() {
-    std::filesystem::path iplPath = GetIPLROMPath();
-    if (iplPath.empty()) {
+util::ROMLoadResult App::LoadIPLROM() {
+    std::filesystem::path romPath = GetIPLROMPath();
+    if (romPath.empty()) {
         devlog::warn<grp::base>("No IPL ROM found");
-        return util::IPLROMLoadResult::Fail("No IPL ROM found");
+        return util::ROMLoadResult::Fail("No IPL ROM found");
     }
 
-    devlog::info<grp::base>("Loading IPL ROM from {}...", iplPath);
-    util::IPLROMLoadResult result = util::LoadIPLROM(iplPath, *m_context.saturn.instance);
+    devlog::info<grp::base>("Loading IPL ROM from {}...", romPath);
+    util::ROMLoadResult result = util::LoadIPLROM(romPath, *m_context.saturn.instance);
     if (result.succeeded) {
-        m_context.iplRomPath = iplPath;
+        m_context.iplRomPath = romPath;
         devlog::info<grp::base>("IPL ROM loaded successfully");
     } else {
         devlog::error<grp::base>("Failed to load IPL ROM: {}", result.errorMessage);
@@ -4121,6 +4127,61 @@ std::filesystem::path App::GetIPLROMPath() {
 
     // Return whatever is available
     return firstMatch;
+}
+
+void App::ScanCDBlockROMs() {
+    auto romsPath = m_context.profile.GetPath(ProfilePath::CDBlockROMImages);
+    devlog::info<grp::base>("Scanning for CD Block ROMs in {}...", romsPath);
+
+    {
+        std::unique_lock lock{m_context.locks.romManager};
+        m_context.romManager.ScanCDBlockROMs(romsPath);
+    }
+
+    if constexpr (devlog::info_enabled<grp::base>) {
+        int numKnown = 0;
+        int numUnknown = 0;
+        for (auto &[path, info] : m_context.romManager.GetCDBlockROMs()) {
+            if (info.info != nullptr) {
+                ++numKnown;
+            } else {
+                ++numUnknown;
+            }
+        }
+        devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
+    }
+}
+
+util::ROMLoadResult App::LoadCDBlockROM() {
+    std::filesystem::path romPath = GetCDBlockROMPath();
+    if (romPath.empty()) {
+        devlog::warn<grp::base>("No CD Block ROM found");
+        return util::ROMLoadResult::Fail("No CD Block ROM found");
+    }
+
+    devlog::info<grp::base>("Loading CD Block ROM from {}...", romPath);
+    util::ROMLoadResult result = util::LoadCDBlockROM(romPath, *m_context.saturn.instance);
+    if (result.succeeded) {
+        m_context.cdbRomPath = romPath;
+        devlog::info<grp::base>("CD Block ROM loaded successfully");
+    } else {
+        devlog::error<grp::base>("Failed to load CD Block ROM: {}", result.errorMessage);
+    }
+    return result;
+}
+
+std::filesystem::path App::GetCDBlockROMPath() {
+    // TODO: Load from settings if override is enabled
+    /*if (m_context.settings.cdblock.overrideImage && !m_context.settings.cdblock.romPath.empty()) {
+        devlog::info<grp::base>("Using CD Block ROM overridden by settings");
+        return m_context.settings.cdblock.romPath;
+    }*/
+
+    // Use first available match
+    if (!m_context.romManager.GetCDBlockROMs().empty()) {
+        return m_context.romManager.GetCDBlockROMs().begin()->first;
+    }
+    return "";
 }
 
 void App::ScanROMCarts() {

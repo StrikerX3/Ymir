@@ -14,19 +14,20 @@ struct Saturn;
 
 namespace util {
 
-struct IPLROMLoadResult {
+struct ROMLoadResult {
     bool succeeded;
     std::string errorMessage;
 
-    static IPLROMLoadResult Success() {
+    static ROMLoadResult Success() {
         return {true};
     }
 
-    static IPLROMLoadResult Fail(std::string message) {
+    static ROMLoadResult Fail(std::string message) {
         return {false, message};
     }
 };
 
-IPLROMLoadResult LoadIPLROM(std::filesystem::path path, ymir::Saturn &saturn);
+ROMLoadResult LoadIPLROM(std::filesystem::path path, ymir::Saturn &saturn);
+ROMLoadResult LoadCDBlockROM(std::filesystem::path path, ymir::Saturn &saturn);
 
 } // namespace util

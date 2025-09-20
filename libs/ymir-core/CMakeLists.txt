@@ -10,6 +10,7 @@ add_library(ymir-core
     include/ymir/core/scheduler_defs.hpp
     include/ymir/core/types.hpp
 
+    include/ymir/db/cdb_rom_db.hpp
     include/ymir/db/game_db.hpp
     include/ymir/db/ipl_db.hpp
     include/ymir/db/rom_cart_db.hpp
@@ -68,6 +69,7 @@ add_library(ymir-core
     include/ymir/hw/sh1/sh1_ad.hpp
     include/ymir/hw/sh1/sh1_bsc.hpp
     include/ymir/hw/sh1/sh1_decode.hpp
+    include/ymir/hw/sh1/sh1_defs.hpp
     #include/ymir/hw/sh1/sh1_disasm.hpp
     include/ymir/hw/sh1/sh1_dmac.hpp
     include/ymir/hw/sh1/sh1_excpt.hpp
@@ -203,6 +205,7 @@ add_library(ymir-core
     src/ymir/core/configuration.cpp
     src/ymir/core/hash.cpp
 
+    src/ymir/db/cdb_rom_db.cpp
     src/ymir/db/game_db.cpp
     src/ymir/db/ipl_db.cpp
     src/ymir/db/rom_cart_db.cpp
