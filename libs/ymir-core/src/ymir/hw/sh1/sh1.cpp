@@ -141,13 +141,66 @@ void SH1::LoadROM(std::span<uint8, 64 * 1024> rom) {
     std::copy(rom.begin(), rom.end(), m_rom.begin());
 }
 
+uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
+    m_cyclesExecuted = spilloverCycles;
+
+    // TODO: debugging features
+    /*if constexpr (debug) {
+        if (m_debugSuspend) {
+            m_cyclesExecuted = cycles;
+            return m_cyclesExecuted;
+        }
+    }*/
+
+    // Skip interpreting instructions if CPU is in sleep or standby mode.
+    // Wake up on interrupts.
+    if (m_sleep) [[unlikely]] {
+        if (m_intrPending) {
+            m_sleep = false;
+            PC += 2;
+        } else {
+            return cycles;
+        }
+    }
+
+    while (m_cyclesExecuted < cycles) {
+        // [[maybe_unused]] const uint32 prevPC = PC; // debug aid
+
+        // TODO: choose between interpreter (cached or uncached) and JIT recompiler
+        m_cyclesExecuted += InterpretNext();
+        // TODO: lazily update these
+        // TODO: AdvanceWDT<false>();
+        AdvanceITU();
+        AdvanceSCI();
+        // TODO: AdvanceDMA<false>();
+
+        // Check for breakpoints and watchpoints in debug tracing mode
+        // TODO: debugging features
+        /*if constexpr (debug) {
+            if (m_debugBreakMgr) {
+                if (CheckBreakpoint()) {
+                    break;
+                }
+
+                const uint16 instr = MemRead<uint16, true, true, enableCache>(PC);
+                const auto &mem = DecodeTable::s_instance.mem[instr];
+                if (CheckWatchpoints(mem)) {
+                    break;
+                }
+            }
+        }*/
+    }
+    return m_cyclesExecuted;
+}
+
 FLATTEN uint64 SH1::Step() {
+    m_cyclesExecuted = 0; // so that on-chip modules are synced to the scheduler
+    // TODO: AdvanceWDT<false>();
+    AdvanceITU();
+    AdvanceSCI();
+    // TODO: AdvanceDMA<false>();
     const uint64 cycles = InterpretNext();
 
-    // TODO: AdvanceWDT<false>(cycles);
-    AdvanceITU(cycles);
-    AdvanceSCI(cycles);
-    // TODO: AdvanceDMA<false>(cycles);
     return cycles;
 }
 
@@ -217,6 +270,10 @@ void SH1::SetTIOCB3(bool level) {
             RaiseInterrupt(InterruptSource::ITU3_IMIB3);
         }
     }
+}
+
+FORCE_INLINE uint64 SH1::GetCurrentCycleCount() const {
+    return m_scheduler.CurrentCount() + m_cyclesExecuted;
 }
 
 // -----------------------------------------------------------------------------
@@ -1878,35 +1935,40 @@ uint8 SH1::ReadPortC() const {
     return 0u;
 }
 
-void SH1::AdvanceITU(uint64 cycles) {
+void SH1::AdvanceITU() {
+    const uint64 cycles = GetCurrentCycleCount();
+
     for (uint32 i = 0; i < 5; ++i) {
         auto &timer = ITU.timers[i];
         if (!timer.started) {
             continue;
         }
 
-        const uint64 timerCycles = cycles + timer.accumCycles;
+        // Must be monotonically increasing
+        assert(cycles >= timer.currCycles);
+
+        const uint64 timerCycles = cycles - timer.currCycles;
 
         uint64 steps = 0;
         using Prescaler = IntegratedTimerPulseUnit::Timer::Prescaler;
         switch (timer.prescaler) {
         case Prescaler::Phi:
             steps = timerCycles;
-            timer.accumCycles = 0;
+            timer.currCycles = cycles;
             break;
         case Prescaler::Phi2:
             steps = timerCycles >> 1ull;
-            timer.accumCycles = timerCycles & 1ull;
+            timer.currCycles = cycles & ~1ull;
             break;
         case Prescaler::Phi4:
             steps = timerCycles >> 2ull;
-            timer.accumCycles = timerCycles & 3ull;
+            timer.currCycles = cycles & ~3ull;
             break;
         case Prescaler::Phi8:
             steps = timerCycles >> 3ull;
-            timer.accumCycles = timerCycles & 7ull;
+            timer.currCycles = cycles & ~7ull;
             break;
-        default: break; // TCLKA to TCLKD
+        default: timer.currCycles = cycles; break; // TCLKA to TCLKD, not implemented
         }
 
         uint64 nextCount = timer.counter + steps;
@@ -1970,7 +2032,9 @@ void SH1::AdvanceITU(uint64 cycles) {
     }
 }
 
-void SH1::AdvanceSCI(uint64 cycles) {
+void SH1::AdvanceSCI() {
+    const uint64 cycles = GetCurrentCycleCount();
+
     for (uint32 i = 0; i < 2; ++i) {
         auto &ch = SCI.channels[i];
         if (ch.clockEnable >= 2) {
@@ -1982,7 +2046,10 @@ void SH1::AdvanceSCI(uint64 cycles) {
             continue;
         }
 
-        uint64 chCycles = cycles + ch.spilloverCycles;
+        // Must be monotonically increasing
+        assert(cycles >= ch.currCycles);
+
+        uint64 chCycles = cycles - ch.currCycles;
         while (chCycles >= ch.cyclesPerBit) {
             chCycles -= ch.cyclesPerBit;
             if (ch.txEnd) {
@@ -1995,7 +2062,7 @@ void SH1::AdvanceSCI(uint64 cycles) {
                 m_cbSerialTx[i](ch.TransmitBit());
             }
         }
-        ch.spilloverCycles = chCycles;
+        ch.currCycles = cycles - chCycles;
     }
 }
 

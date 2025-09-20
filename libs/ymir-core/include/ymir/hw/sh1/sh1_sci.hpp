@@ -25,7 +25,7 @@ struct SerialCommunicationInterface {
         }
 
         void Reset() {
-            spilloverCycles = 0;
+            currCycles = 0;
 
             TDR = 0xFF;
             TDRvalid = false;
@@ -102,8 +102,8 @@ struct SerialCommunicationInterface {
             }
         }
 
-        // Cycles spilled over since last tick.
-        uint64 spilloverCycles;
+        // Current absolute cycle count.
+        uint64 currCycles;
 
         // 0C0  R/W  8,16     00        SMR0    Serial mode register 0
         // 0C8  R/W  8,16     00        SMR1    Serial mode register 1

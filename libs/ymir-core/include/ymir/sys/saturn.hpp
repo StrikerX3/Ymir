@@ -22,9 +22,12 @@ See @ref index for instructions on how to use the emulator.
 
 #include <ymir/hw/cart/cart.hpp>
 #include <ymir/hw/cart/cart_slot.hpp>
+#include <ymir/hw/cdblock/cd_drive.hpp>
 #include <ymir/hw/cdblock/cdblock.hpp>
+#include <ymir/hw/cdblock/ygr.hpp>
 #include <ymir/hw/scsp/scsp.hpp>
 #include <ymir/hw/scu/scu.hpp>
+#include <ymir/hw/sh1/sh1.hpp>
 #include <ymir/hw/sh2/sh2.hpp>
 #include <ymir/hw/smpc/smpc.hpp>
 #include <ymir/hw/vdp/vdp.hpp>
@@ -357,6 +360,13 @@ public:
     smpc::SMPC SMPC;          ///< SMPC and input devices
     scsp::SCSP SCSP;          ///< SCSP and its DSP, and MC68EC000 CPU
     cdblock::CDBlock CDBlock; ///< CD block and media
+
+    // LLE CD block components
+    sh1::SH1 SH1;                              ///< CD block SH-1
+    sys::SH1Bus SH1Bus;                        ///< CD block SH-1 bus
+    cdblock::CDDrive CDDrive;                  ///< CD block drive
+    cdblock::YGR YGR;                          ///< CD block YGR LSI
+    std::array<uint8, 512 * 1024> CDBlockDRAM; ///< CD block DRAM
 
 private:
     // -------------------------------------------------------------------------

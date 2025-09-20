@@ -46,7 +46,9 @@ Saturn::Saturn()
     , VDP(m_scheduler, configuration)
     , SMPC(m_scheduler, smpcOps, configuration.rtc)
     , SCSP(m_scheduler, configuration.audio)
-    , CDBlock(m_scheduler, configuration.cdblock) {
+    , CDBlock(m_scheduler, configuration.cdblock)
+    , SH1(m_scheduler, SH1Bus)
+    , CDDrive(m_scheduler) {
 
     mainBus.MapNormal(
         0x000'0000, 0x7FF'FFFF, nullptr,
@@ -80,6 +82,43 @@ Saturn::Saturn()
     SMPC.MapCallbacks(SCU.CbTriggerSystemManager, SCU.CbTriggerPad);
     SCSP.MapCallbacks(SCU.CbTriggerSoundRequest);
     CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
+
+    SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
+    CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn);
+    YGR.MapCallbacks(SH1.CbAssertIRQ6);
+
+    SH1Bus.MapNormal(
+        0x000'0000, 0xFFF'FFFF, nullptr,
+        [](uint32 address, void *) -> uint8 {
+            printf("Unhandled 8-bit main bus read from %07X\n", address);
+            return 0;
+        },
+        [](uint32 address, void *) -> uint16 {
+            printf("Unhandled 16-bit main bus read from %07X\n", address);
+            return 0;
+        },
+        [](uint32 address, void *) -> uint32 {
+            printf("Unhandled 32-bit main bus read from %07X\n", address);
+            return 0;
+        },
+        [](uint32 address, uint8 value, void *) {
+            printf("Unhandled 8-bit main bus write to %07X = %02X\n", address, value);
+        },
+        [](uint32 address, uint16 value, void *) {
+            printf("Unhandled 16-bit main bus write to %07X = %04X\n", address, value);
+        },
+        [](uint32 address, uint32 value, void *) {
+            printf("Unhandled 32-bit main bus write to %07X = %07X\n", address, value);
+        });
+
+    SH1Bus.MapArray(0x1000000, 0x1FFFFFF, CDBlockDRAM, true);
+    SH1Bus.MapArray(0x9000000, 0x9FFFFFF, CDBlockDRAM, true);
+    SH1Bus.MapNormal(
+        0xA000000, 0xCFFFFFF, &YGR,
+        [](uint32 address, void *ctx) -> uint16 { return static_cast<cdblock::YGR *>(ctx)->CDBReadWord(address); },
+        [](uint32 address, uint16 value, void *ctx) {
+            static_cast<cdblock::YGR *>(ctx)->CDBWriteWord(address, value);
+        });
 
     m_system.AddClockSpeedChangeCallback(SCSP.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
