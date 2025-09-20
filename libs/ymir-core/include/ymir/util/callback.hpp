@@ -126,6 +126,24 @@ namespace detail {
             return m_fn(std::forward<TArgs>(args)..., m_context);
         }
 
+        /// @brief Invokes the callback function with the specified arguments.
+        /// @param[in,out] ...args the arguments to pass to the callback function
+        /// @return the return value of the callback function
+        FLATTEN FORCE_INLINE TReturn operator()(TArgs... args) const {
+            if constexpr (!skipNullCheck) {
+                if (m_fn == nullptr) [[unlikely]] {
+                    if constexpr (std::is_void_v<TReturn>) {
+                        return;
+                    } else {
+                        return {};
+                    }
+                }
+            } else {
+                assert(m_fn != nullptr);
+            }
+            return m_fn(std::forward<TArgs>(args)..., m_context);
+        }
+
     private:
         void *m_context; ///< The context (user data) pointer
         FnType m_fn;     ///< The callback function pointer
