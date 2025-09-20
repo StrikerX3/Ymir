@@ -106,30 +106,30 @@ uint64 CDDrive::ProcessState() {
         m_cbSetCOMSYNCn(true);
         m_cbSetCOMREQn(true);
         m_state = TxState::Noop;
-        return 18000000;
+        return 25000000 * 3;
 
-    case TxState::Noop: m_state = TxState::TxBegin; return 10000;
+    case TxState::Noop: m_state = TxState::TxBegin; return 10000 * 3;
 
     case TxState::TxBegin:
         m_cbSetCOMSYNCn(false);
         m_state = TxState::TxByte;
-        return 10000;
+        return 10000 * 3;
 
-    case TxState::TxByte: m_cbSetCOMREQn(false); return 10000;
+    case TxState::TxByte: m_cbSetCOMREQn(false); return 10000 * 3;
 
     case TxState::TxInter1:
         m_cbSetCOMREQn(true);
         m_state = TxState::TxByte;
-        return 10000;
+        return 10000 * 3;
 
-    case TxState::TxInterN: m_state = TxState::TxByte; return 10000;
+    case TxState::TxInterN: m_state = TxState::TxByte; return 10000 * 3;
 
     case TxState::TxEnd:
         // ProcessCommand also handles the state change
         return ProcessCommand();
     }
 
-    return 10000;
+    return 10000 * 3;
 }
 
 uint64 CDDrive::ProcessCommand() {
