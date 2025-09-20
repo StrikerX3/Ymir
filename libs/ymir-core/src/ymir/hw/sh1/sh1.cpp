@@ -168,11 +168,6 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
 
         // TODO: choose between interpreter (cached or uncached) and JIT recompiler
         m_cyclesExecuted += InterpretNext();
-        // TODO: lazily update these
-        // TODO: AdvanceWDT<false>();
-        AdvanceITU();
-        AdvanceSCI();
-        // TODO: AdvanceDMA<false>();
 
         // Check for breakpoints and watchpoints in debug tracing mode
         // TODO: debugging features
@@ -190,6 +185,13 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
             }
         }*/
     }
+
+    // TODO: lazily update these
+    // TODO: AdvanceWDT<false>();
+    AdvanceITU();
+    AdvanceSCI();
+    // TODO: AdvanceDMA<false>();
+
     return m_cyclesExecuted;
 }
 
