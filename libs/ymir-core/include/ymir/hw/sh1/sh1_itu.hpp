@@ -216,7 +216,7 @@ struct IntegratedTimerPulseUnit {
             GRA = GRB = 0xFFFF;
             BRA = BRB = 0xFFFF;
 
-            accumCycles = 0;
+            currCycles = 0;
         }
 
         // 104  R/W  8        80/00     TCR0    Timer control register 0
@@ -592,8 +592,8 @@ struct IntegratedTimerPulseUnit {
         // Only valid for channels 3 and 4.
         uint16 BRA, BRB;
 
-        // Accumulated cycles until next count tick.
-        uint64 accumCycles;
+        // Current cycles count.
+        uint64 currCycles;
     };
 
     std::array<Timer, 5> timers;

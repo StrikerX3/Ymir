@@ -72,7 +72,7 @@ add_library(ymir-core
     include/ymir/hw/sh1/sh1_dmac.hpp
     include/ymir/hw/sh1/sh1_excpt.hpp
     include/ymir/hw/sh1/sh1_intc.hpp
-    #include/ymir/hw/sh1/sh1_internal_callbacks.hpp
+    include/ymir/hw/sh1/sh1_internal_callbacks.hpp
     include/ymir/hw/sh1/sh1_itu.hpp
     include/ymir/hw/sh1/sh1_pfc.hpp
     include/ymir/hw/sh1/sh1_power.hpp

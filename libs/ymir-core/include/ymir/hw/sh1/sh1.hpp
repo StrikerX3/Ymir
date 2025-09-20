@@ -20,6 +20,7 @@
 
 #include <ymir/hw/cdblock/cd_drive_internal_callbacks.hpp>
 #include <ymir/hw/cdblock/ygr_internal_callbacks.hpp>
+#include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
@@ -40,9 +41,6 @@
 
 namespace ymir::sh1 {
 
-using CbSerialRx = util::RequiredCallback<bool()>;
-using CbSerialTx = util::RequiredCallback<void(bool bit)>;
-
 // -----------------------------------------------------------------------------
 
 class SH1 {
@@ -56,7 +54,11 @@ public:
     // -------------------------------------------------------------------------
     // Usage
 
-    // TODO: uint64 Advance(uint64 cycles, uint64 spilloverCycles);
+    /// @brief Advances the SH1 for at least the specified number of cycles.
+    /// @param[in] cycles the minimum number of cycles
+    /// @param[in] spilloverCycles cycles spilled over from the previous execution
+    /// @return the number of cycles actually executed
+    uint64 Advance(uint64 cycles, uint64 spilloverCycles);
 
     // Executes a single instruction.
     // Returns the number of cycles executed.
@@ -108,7 +110,16 @@ private:
     uint32 m_delaySlotTarget;
     bool m_delaySlot;
 
+    // -------------------------------------------------------------------------
+    // Cycle counting
+
     core::Scheduler &m_scheduler;
+
+    // Number of cycles executed in the current Advance invocation
+    uint64 m_cyclesExecuted;
+
+    // Retrieves the current absolute cycle count
+    uint64 GetCurrentCycleCount() const;
 
     // -------------------------------------------------------------------------
     // Memory accessors
@@ -212,8 +223,8 @@ private:
     // -------------------------------------------------------------------------
     // Serial transfers
 
-    void AdvanceITU(uint64 cycles);
-    void AdvanceSCI(uint64 cycles);
+    void AdvanceITU();
+    void AdvanceSCI();
 
     std::array<CbSerialRx, 2> m_cbSerialRx;
     std::array<CbSerialTx, 2> m_cbSerialTx;

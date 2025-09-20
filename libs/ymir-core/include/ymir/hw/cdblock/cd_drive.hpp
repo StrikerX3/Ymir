@@ -2,6 +2,8 @@
 
 #include "cd_drive_internal_callbacks.hpp"
 
+#include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
+
 #include <ymir/core/scheduler.hpp>
 
 #include <ymir/core/types.hpp>
@@ -132,6 +134,13 @@ private:
     uint64 ProcessOperation();
 
     void UpdateStatus();
+
+public:
+    // -------------------------------------------------------------------------
+    // Callbacks
+
+    const sh1::CbSerialRx CbSerialRx = util::MakeClassMemberRequiredCallback<&CDDrive::SerialRead>(this);
+    const sh1::CbSerialTx CbSerialTx = util::MakeClassMemberRequiredCallback<&CDDrive::SerialWrite>(this);
 };
 
 } // namespace ymir::cdblock
