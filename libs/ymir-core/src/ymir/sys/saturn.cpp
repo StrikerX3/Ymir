@@ -39,6 +39,8 @@ namespace grp {
 
 } // namespace grp
 
+static constexpr bool useCDBlockLLE = true;
+
 Saturn::Saturn()
     : masterSH2(m_scheduler, mainBus, true, m_systemFeatures)
     , slaveSH2(m_scheduler, mainBus, false, m_systemFeatures)
@@ -74,56 +76,57 @@ Saturn::Saturn()
             devlog::debug<grp::bus>("Unhandled 32-bit main bus write to {:07X} = {:07X}", address, value);
         });
 
+    if constexpr (useCDBlockLLE) {
+        SH1Bus.MapNormal(
+            0x000'0000, 0xFFF'FFFF, nullptr,
+            [](uint32 address, void *) -> uint8 {
+                devlog::debug<grp::bus>("Unhandled 8-bit main bus read from {:07X}\n", address);
+                return 0;
+            },
+            [](uint32 address, void *) -> uint16 {
+                devlog::debug<grp::bus>("Unhandled 16-bit main bus read from {:07X}\n", address);
+                return 0;
+            },
+            [](uint32 address, void *) -> uint32 {
+                devlog::debug<grp::bus>("Unhandled 32-bit main bus read from {:07X}\n", address);
+                return 0;
+            },
+            [](uint32 address, uint8 value, void *) {
+                devlog::debug<grp::bus>("Unhandled 8-bit main bus write to {:07X} = {:02X}\n", address, value);
+            },
+            [](uint32 address, uint16 value, void *) {
+                devlog::debug<grp::bus>("Unhandled 16-bit main bus write to {:07X} = {:04X}\n", address, value);
+            },
+            [](uint32 address, uint32 value, void *) {
+                devlog::debug<grp::bus>("Unhandled 32-bit main bus write to {:07X} = {:08X}\n", address, value);
+            });
+
+        SH1Bus.MapArray(0x1000000, 0x1FFFFFF, CDBlockDRAM, true);
+        SH1Bus.MapArray(0x9000000, 0x9FFFFFF, CDBlockDRAM, true);
+    }
+
     masterSH2.MapCallbacks(SCU.CbAckExtIntr);
-    // Slave SH2 nIVECF pin is not connected, so the external interrupt vector fetch callback shouldn't be mapped
+    // Slave SH2 IVECF# pin is not connected, so the external interrupt vector fetch callback shouldn't be mapped
     SCU.MapCallbacks(masterSH2.CbExtIntr, slaveSH2.CbExtIntr);
     VDP.MapCallbacks(SCU.CbHBlankStateChange, SCU.CbVBlankStateChange, SCU.CbTriggerSpriteDrawEnd,
                      SMPC.CbTriggerOptimizedINTBACKRead, SMPC.CbTriggerVBlankIN);
     SMPC.MapCallbacks(SCU.CbTriggerSystemManager, SCU.CbTriggerPad);
     SCSP.MapCallbacks(SCU.CbTriggerSoundRequest);
-    CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
-
-    SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
-    CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn);
-    YGR.MapCallbacks(SH1.CbAssertIRQ6);
-
-    SH1Bus.MapNormal(
-        0x000'0000, 0xFFF'FFFF, nullptr,
-        [](uint32 address, void *) -> uint8 {
-            printf("Unhandled 8-bit main bus read from %07X\n", address);
-            return 0;
-        },
-        [](uint32 address, void *) -> uint16 {
-            printf("Unhandled 16-bit main bus read from %07X\n", address);
-            return 0;
-        },
-        [](uint32 address, void *) -> uint32 {
-            printf("Unhandled 32-bit main bus read from %07X\n", address);
-            return 0;
-        },
-        [](uint32 address, uint8 value, void *) {
-            printf("Unhandled 8-bit main bus write to %07X = %02X\n", address, value);
-        },
-        [](uint32 address, uint16 value, void *) {
-            printf("Unhandled 16-bit main bus write to %07X = %04X\n", address, value);
-        },
-        [](uint32 address, uint32 value, void *) {
-            printf("Unhandled 32-bit main bus write to %07X = %07X\n", address, value);
-        });
-
-    SH1Bus.MapArray(0x1000000, 0x1FFFFFF, CDBlockDRAM, true);
-    SH1Bus.MapArray(0x9000000, 0x9FFFFFF, CDBlockDRAM, true);
-    SH1Bus.MapNormal(
-        0xA000000, 0xCFFFFFF, &YGR,
-        [](uint32 address, void *ctx) -> uint16 { return static_cast<cdblock::YGR *>(ctx)->CDBReadWord(address); },
-        [](uint32 address, uint16 value, void *ctx) {
-            static_cast<cdblock::YGR *>(ctx)->CDBWriteWord(address, value);
-        });
+    if constexpr (useCDBlockLLE) {
+        SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
+        CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn); // TODO: SCSP.CbCDDASector
+        YGR.MapCallbacks(SH1.CbAssertIRQ6, SCU.CbTriggerExtIntr0);
+    } else {
+        CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
+    }
 
     m_system.AddClockSpeedChangeCallback(SCSP.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
-    m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
-    m_system.AddClockSpeedChangeCallback(CDDrive.CbClockSpeedChange);
+    if constexpr (useCDBlockLLE) {
+        m_system.AddClockSpeedChangeCallback(CDDrive.CbClockSpeedChange);
+    } else {
+        m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
+    }
 
     masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
     slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
@@ -135,7 +138,11 @@ Saturn::Saturn()
     VDP.MapMemory(mainBus);
     SMPC.MapMemory(mainBus);
     SCSP.MapMemory(mainBus);
-    CDBlock.MapMemory(mainBus);
+    if constexpr (useCDBlockLLE) {
+        YGR.MapMemory(mainBus, SH1Bus);
+    } else {
+        CDBlock.MapMemory(mainBus);
+    }
 
     m_systemFeatures.enableDebugTracing = false;
     m_systemFeatures.emulateSH2Cache = false;
@@ -452,15 +459,17 @@ bool Saturn::Run() {
 
     // SCSP+M68K and CD block are ticked by the scheduler
 
-    // Advance SH-1
-    const auto &clockRatios = GetClockRatios();
-    const uint64 sh1CycleCount = execCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-    if (sh1CycleCount > 0) {
-        const uint64 sh1Cycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
-        m_sh1SpilloverCycles = sh1Cycles - sh1CycleCount;
-    }
+    if constexpr (useCDBlockLLE) {
+        // Advance SH-1
+        const auto &clockRatios = GetClockRatios();
+        const uint64 sh1CycleCount = execCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+        if (sh1CycleCount > 0) {
+            const uint64 sh1Cycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+            m_sh1SpilloverCycles = sh1Cycles - sh1CycleCount;
+        }
 
-    // CD drive is ticked by the scheduler
+        // CD drive is ticked by the scheduler
+    }
 
     // TODO: advance SMPC
     /*m_smpcCycles += execCycles * 2464;
@@ -496,15 +505,17 @@ uint64 Saturn::StepMasterSH2Impl() {
 
         // SCSP+M68K and CD block are ticked by the scheduler
 
-        // Advance SH-1
-        const auto &clockRatios = GetClockRatios();
-        const uint64 sh1Cycles = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-        if (sh1Cycles > 0) {
-            const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
-            m_sh1SpilloverCycles = execCycles - sh1Cycles;
-        }
+        if constexpr (useCDBlockLLE) {
+            // Advance SH-1
+            const auto &clockRatios = GetClockRatios();
+            const uint64 sh1Cycles = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+            if (sh1Cycles > 0) {
+                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
+                m_sh1SpilloverCycles = execCycles - sh1Cycles;
+            }
 
-        // CD drive is ticked by the scheduler
+            // CD drive is ticked by the scheduler
+        }
 
         // TODO: advance SMPC
         /*m_smpcCycles += masterCycles * 2464;
@@ -538,15 +549,17 @@ uint64 Saturn::StepSlaveSH2Impl() {
 
         // SCSP+M68K and CD block are ticked by the scheduler
 
-        // Advance SH-1
-        const auto &clockRatios = GetClockRatios();
-        const uint64 sh1Cycles = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-        if (sh1Cycles > 0) {
-            const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
-            m_sh1SpilloverCycles = execCycles - sh1Cycles;
-        }
+        if constexpr (useCDBlockLLE) {
+            // Advance SH-1
+            const auto &clockRatios = GetClockRatios();
+            const uint64 sh1Cycles = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+            if (sh1Cycles > 0) {
+                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
+                m_sh1SpilloverCycles = execCycles - sh1Cycles;
+            }
 
-        // CD drive is ticked by the scheduler
+            // CD drive is ticked by the scheduler
+        }
 
         // TODO: advance SMPC
         /*m_smpcCycles += slaveCycles * 2464;

@@ -2,7 +2,10 @@
 
 #include "cdblock_defs.hpp"
 
+#include "cdblock_internal_callbacks.hpp"
 #include "ygr_internal_callbacks.hpp"
+
+#include <ymir/sys/bus.hpp>
 
 #include <ymir/util/inline.hpp>
 
@@ -18,9 +21,12 @@ struct YGR {
 
     void Reset();
 
-    void MapCallbacks(CBAssertIRQ6 assertIRQ6) {
+    void MapCallbacks(CBAssertIRQ6 assertIRQ6, CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
         m_cbAssertIRQ6 = assertIRQ6;
+        m_cbTriggerExternalInterrupt0 = triggerExternalInterrupt0;
     }
+
+    void MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus);
 
     // -------------------------------------------------------------------------
     // CD-block bus
@@ -31,11 +37,17 @@ struct YGR {
     // -------------------------------------------------------------------------
     // Host bus
 
+    template <bool peek>
     uint16 HostReadWord(uint32 address) const;
+    template <bool poke>
     void HostWriteWord(uint32 address, uint16 value);
+
+    uint8 HostPeekByte(uint32 address) const;
+    void HostPokeByte(uint32 address, uint8 value);
 
 private:
     CBAssertIRQ6 m_cbAssertIRQ6;
+    CBTriggerExternalInterrupt0 m_cbTriggerExternalInterrupt0;
 
     // Legend:
     // xx r/w   yy r/w   code        name
@@ -69,20 +81,26 @@ private:
             count = 0;
         }
 
+        template <bool peek>
         FORCE_INLINE uint16 Read() const {
-            const uint16 value = data[readPos++];
-            readPos %= data.size();
-            if (count > 0) {
-                --count;
+            const uint16 value = data[readPos];
+            if constexpr (!peek) {
+                readPos = (readPos + 1) % data.size();
+                if (count > 0) {
+                    --count;
+                }
             }
             return value;
         }
 
+        template <bool poke>
         FORCE_INLINE void Write(uint16 value) {
             assert(count < data.size());
-            data[writePos++] = value;
-            writePos %= data.size();
-            ++count;
+            data[writePos] = value;
+            if constexpr (!poke) {
+                writePos = (writePos + 1) % data.size();
+                ++count;
+            }
         }
     } m_fifo;
 
@@ -201,6 +219,8 @@ private:
         // --  -   0C R/W   HIRQMASK   Host IRQ mask
         HIRQFlags HIRQMASK;
     } m_regs;
+
+    void UpdateInterrupts();
 };
 
 } // namespace ymir::cdblock
