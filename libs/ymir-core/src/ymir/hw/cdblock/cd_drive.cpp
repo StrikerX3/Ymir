@@ -270,14 +270,15 @@ void CDDrive::UpdateStatus() {
                 m_status.frac = m_status.absFrac = m_currFAD % 75;
                 m_status.zero = 0x04;
             } else {
-                // Somehow missing track info for this FAD... shouldn't happen unless FAD < 150
-                m_status.subcodeQ = 0xFF;
-                m_status.trackNum = 0xFF;
-                m_status.indexNum = 0xFF;
-                m_status.min = m_status.absMin = 0xFF;
-                m_status.sec = m_status.absSec = 0xFF;
-                m_status.frac = m_status.absFrac = 0xFF;
-                m_status.zero = 0xFF;
+                // FAD < 150
+                // TODO: check if this is correct
+                m_status.subcodeQ = session.tracks[0].controlADR;
+                m_status.trackNum = 1;
+                m_status.indexNum = 1;
+                m_status.min = m_status.absMin = m_currFAD / 75 / 60;
+                m_status.sec = m_status.absSec = m_currFAD / 75 % 60;
+                m_status.frac = m_status.absFrac = m_currFAD % 75;
+                m_status.zero = 0x04;
             }
         }
     }
