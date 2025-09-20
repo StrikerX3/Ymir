@@ -19,6 +19,8 @@ CDDrive::CDDrive(core::Scheduler &scheduler)
             eventContext.Reschedule(cycleInterval);
         });
 
+    m_trayOpen = false;
+
     Reset();
 }
 
@@ -42,6 +44,46 @@ void CDDrive::Reset() {
 void CDDrive::UpdateClockRatios(const sys::ClockRatios &clockRatios) {
     // Drive state updates is counted in thirds, as explained in cdblock_defs.hpp
     m_scheduler.SetEventCountFactor(m_stateEvent, clockRatios.CDBlockNum * 3, clockRatios.CDBlockDen);
+}
+
+void CDDrive::LoadDisc(media::Disc &&disc) {
+    m_disc.Swap(std::move(disc));
+    if (m_fs.Read(m_disc)) {
+        devlog::info<grp::base>("Filesystem built successfully");
+    } else {
+        devlog::warn<grp::base>("Failed to build filesystem");
+    }
+    CloseTray();
+    m_cbDiscChanged();
+}
+
+void CDDrive::EjectDisc() {
+    m_disc = {};
+    m_fs.Clear();
+    CloseTray();
+    m_cbDiscChanged();
+}
+
+void CDDrive::OpenTray() {
+    if (!m_trayOpen) {
+        m_trayOpen = true;
+        m_cbDiscChanged();
+        // TODO: check if this is correct
+        m_status.operation = Operation::TrayOpen;
+    }
+}
+
+void CDDrive::CloseTray() {
+    if (m_trayOpen) {
+        m_trayOpen = false;
+        m_cbDiscChanged();
+        // TODO: check if this is correct
+        m_status.operation = Operation::NoDisc;
+    }
+}
+
+XXH128Hash CDDrive::GetDiscHash() const {
+    return m_fs.GetHash();
 }
 
 bool CDDrive::SerialRead() {
@@ -124,9 +166,7 @@ uint64 CDDrive::ProcessState() {
 
     case TxState::TxInterN: m_state = TxState::TxByte; return 10000 * 3;
 
-    case TxState::TxEnd:
-        // ProcessCommand also handles the state change
-        return ProcessCommand();
+    case TxState::TxEnd: return ProcessCommand(); // also handles the state change
     }
 
     return 10000 * 3;
@@ -158,7 +198,7 @@ uint64 CDDrive::ProcessCommand() {
     }
 
     // TODO: proper cycles per command
-    return 10000;
+    return 10000 * 3;
 }
 
 uint64 CDDrive::ProcessOperation() {
@@ -196,18 +236,51 @@ uint64 CDDrive::ProcessOperation() {
     }
 
     // TODO: proper cycles per operation
-    return 10000;
+    return 10000 * 3;
 }
 
 void CDDrive::UpdateStatus() {
-    // TODO: update status fields
-    // TODO: needs TOC/disc structure... let's just fake it for now
-    m_status.trackNum = 1;
-    m_status.indexNum = 1;
-    m_status.min = m_status.absMin = m_currFAD / 75 / 60;
-    m_status.sec = m_status.absSec = m_currFAD / 75 % 60;
-    m_status.frac = m_status.absFrac = m_currFAD % 75;
-    m_status.zero = 0x04;
+    if (m_disc.sessions.empty()) {
+        m_status.subcodeQ = 0xFF;
+        m_status.trackNum = 0xFF;
+        m_status.indexNum = 0xFF;
+        m_status.min = m_status.absMin = 0xFF;
+        m_status.sec = m_status.absSec = 0xFF;
+        m_status.frac = m_status.absFrac = 0xFF;
+        m_status.zero = 0xFF;
+    } else {
+        auto &session = m_disc.sessions.back();
+        if (m_currFAD > session.endFrameAddress) {
+            // Lead-out
+            m_status.subcodeQ = 1;
+            m_status.trackNum = 0xAA;
+            m_status.indexNum = 1;
+            m_status.min = m_status.absMin = m_currFAD / 75 / 60;
+            m_status.sec = m_status.absSec = m_currFAD / 75 % 60;
+            m_status.frac = m_status.absFrac = m_currFAD % 75;
+            m_status.zero = 0x04;
+        } else {
+            const uint8 trackIndex = session.FindTrackIndex(m_currFAD);
+            if (trackIndex != 0xFF) {
+                m_status.subcodeQ = session.tracks[trackIndex].controlADR;
+                m_status.trackNum = trackIndex + 1;
+                m_status.indexNum = session.tracks[trackIndex].FindIndex(m_currFAD);
+                m_status.min = m_status.absMin = m_currFAD / 75 / 60;
+                m_status.sec = m_status.absSec = m_currFAD / 75 % 60;
+                m_status.frac = m_status.absFrac = m_currFAD % 75;
+                m_status.zero = 0x04;
+            } else {
+                // Somehow missing track info for this FAD... shouldn't happen unless FAD < 150
+                m_status.subcodeQ = 0xFF;
+                m_status.trackNum = 0xFF;
+                m_status.indexNum = 0xFF;
+                m_status.min = m_status.absMin = 0xFF;
+                m_status.sec = m_status.absSec = 0xFF;
+                m_status.frac = m_status.absFrac = 0xFF;
+                m_status.zero = 0xFF;
+            }
+        }
+    }
 
     m_status.checksum = ~std::accumulate(m_status.chksumData.begin(), m_status.chksumData.end(), 0);
 }

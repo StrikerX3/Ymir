@@ -2,12 +2,17 @@
 
 #include "cd_drive_internal_callbacks.hpp"
 
+#include "ygr_internal_callbacks.hpp"
 #include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 #include <ymir/sys/system_internal_callbacks.hpp>
 
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/clocks.hpp>
 
+#include <ymir/media/disc.hpp>
+#include <ymir/media/filesystem.hpp>
+
+#include <ymir/core/hash.hpp>
 #include <ymir/core/types.hpp>
 
 #include <array>
@@ -20,19 +25,39 @@ public:
 
     void Reset();
 
-    void MapCallbacks(CBSetCOMSYNCn setCOMSYNCn, CBSetCOMREQn setCOMREQn) {
+    void MapCallbacks(CBSetCOMSYNCn setCOMSYNCn, CBSetCOMREQn setCOMREQn, CBDiscChanged discChanged) {
         m_cbSetCOMSYNCn = setCOMSYNCn;
         m_cbSetCOMREQn = setCOMREQn;
+        m_cbDiscChanged = discChanged;
     }
 
     void UpdateClockRatios(const sys::ClockRatios &clockRatios);
+
+    void LoadDisc(media::Disc &&disc);
+    void EjectDisc();
+    void OpenTray();
+    void CloseTray();
+    [[nodiscard]] bool IsTrayOpen() const {
+        return m_trayOpen;
+    }
+
+    [[nodiscard]] const media::Disc &GetDisc() const {
+        return m_disc;
+    }
+    [[nodiscard]] XXH128Hash GetDiscHash() const;
 
 private:
     core::Scheduler &m_scheduler;
     core::EventID m_stateEvent;
 
+    // TODO: use a device instead, to support reading from real drives as well as disc images
+    media::Disc m_disc;
+    media::fs::Filesystem m_fs;
+    bool m_trayOpen;
+
     CBSetCOMSYNCn m_cbSetCOMSYNCn;
     CBSetCOMREQn m_cbSetCOMREQn;
+    CBDiscChanged m_cbDiscChanged;
 
     enum class Command : uint8 {
         Noop = 0x0,

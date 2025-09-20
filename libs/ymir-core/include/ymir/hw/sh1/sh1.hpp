@@ -459,7 +459,7 @@ public:
     // -------------------------------------------------------------------------
     // Callbacks
 
-    const cdblock::CBAssertIRQ6 CbAssertIRQ6 = util::MakeClassMemberRequiredCallback<&SH1::AssertIRQ6>(this);
+    const CBAssertIRQ6 CbAssertIRQ6 = util::MakeClassMemberRequiredCallback<&SH1::AssertIRQ6>(this);
     const cdblock::CBSetCOMSYNCn CbSetCOMSYNCn = util::MakeClassMemberRequiredCallback<&SH1::SetPB2>(this);
     const cdblock::CBSetCOMREQn CbSetCOMREQn = util::MakeClassMemberRequiredCallback<&SH1::SetTIOCB3>(this);
 };

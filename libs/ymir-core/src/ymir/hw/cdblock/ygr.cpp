@@ -212,7 +212,7 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
 }
 
 uint8 YGR::HostPeekByte(uint32 address) const {
-    address &= 0x3C;
+    address &= 0x3D;
     switch (address) {
     case 0x00: return m_fifo.Read<true>() >> 8u;
     case 0x01: return m_fifo.Read<true>();
@@ -274,6 +274,11 @@ void YGR::UpdateInterrupts() {
     if (m_regs.HIRQ & m_regs.HIRQMASK) {
         m_cbTriggerExternalInterrupt0();
     }
+}
+
+void YGR::DiscChanged() {
+    m_regs.HIRQ |= kHIRQ_DCHG | kHIRQ_EFLS;
+    UpdateInterrupts();
 }
 
 } // namespace ymir::cdblock
