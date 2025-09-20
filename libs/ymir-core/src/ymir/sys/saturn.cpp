@@ -177,10 +177,13 @@ void Saturn::Reset(bool hard) {
     VDP.Reset(hard);
     SMPC.Reset(hard);
     SCSP.Reset(hard);
-    CDBlock.Reset(hard);
-    SH1.Reset(hard);
-    YGR.Reset();
-    CDDrive.Reset();
+    if constexpr (static_config::use_cdblock_lle) {
+        SH1.Reset(hard);
+        YGR.Reset();
+        CDDrive.Reset();
+    } else {
+        CDBlock.Reset(hard);
+    }
 }
 
 void Saturn::FactoryReset() {
@@ -218,7 +221,11 @@ XXH128Hash Saturn::GetIPLHash() const noexcept {
 }
 
 XXH128Hash Saturn::GetDiscHash() const noexcept {
-    return CDBlock.GetDiscHash();
+    if constexpr (static_config::use_cdblock_lle) {
+        return CDDrive.GetDiscHash();
+    } else {
+        return CDBlock.GetDiscHash();
+    }
 }
 
 void Saturn::LoadDisc(media::Disc &&disc) {
