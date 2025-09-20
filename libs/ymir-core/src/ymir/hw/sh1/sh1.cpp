@@ -144,6 +144,12 @@ void SH1::LoadROM(std::span<uint8, 64 * 1024> rom) {
 uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
     m_cyclesExecuted = spilloverCycles;
 
+    // TODO: lazily update these
+    // TODO: AdvanceWDT<false>();
+    AdvanceITU();
+    AdvanceSCI();
+    // TODO: AdvanceDMA<false>();
+
     // TODO: debugging features
     /*if constexpr (debug) {
         if (m_debugSuspend) {
@@ -185,12 +191,6 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
             }
         }*/
     }
-
-    // TODO: lazily update these
-    // TODO: AdvanceWDT<false>();
-    AdvanceITU();
-    AdvanceSCI();
-    // TODO: AdvanceDMA<false>();
 
     return m_cyclesExecuted;
 }
