@@ -456,7 +456,8 @@ bool Saturn::Run() {
     const auto &clockRatios = GetClockRatios();
     const uint64 sh1CycleCount = execCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
     if (sh1CycleCount > 0) {
-        m_sh1SpilloverCycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+        const uint64 sh1Cycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+        m_sh1SpilloverCycles = sh1Cycles - sh1CycleCount;
     }
 
     // CD drive is ticked by the scheduler
@@ -497,9 +498,10 @@ uint64 Saturn::StepMasterSH2Impl() {
 
         // Advance SH-1
         const auto &clockRatios = GetClockRatios();
-        const uint64 sh1CycleCount = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-        if (sh1CycleCount > 0) {
-            m_sh1SpilloverCycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+        const uint64 sh1Cycles = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+        if (sh1Cycles > 0) {
+            const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
+            m_sh1SpilloverCycles = execCycles - sh1Cycles;
         }
 
         // CD drive is ticked by the scheduler
@@ -538,9 +540,10 @@ uint64 Saturn::StepSlaveSH2Impl() {
 
         // Advance SH-1
         const auto &clockRatios = GetClockRatios();
-        const uint64 sh1CycleCount = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-        if (sh1CycleCount > 0) {
-            m_sh1SpilloverCycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+        const uint64 sh1Cycles = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+        if (sh1Cycles > 0) {
+            const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
+            m_sh1SpilloverCycles = execCycles - sh1Cycles;
         }
 
         // CD drive is ticked by the scheduler
