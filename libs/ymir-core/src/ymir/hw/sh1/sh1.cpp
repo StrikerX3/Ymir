@@ -375,9 +375,19 @@ FLATTEN FORCE_INLINE void SH1::MemWriteLong(uint32 address, uint32 value) {
 }
 
 FORCE_INLINE uint64 SH1::AccessCycles(uint32 address) {
-    // const uint32 partition = (address >> 29u) & 0b111;
-    // TODO: switch (partition) { ... }
-    return 1;
+    // TODO: figure out timings
+    const uint32 partition = (address >> 24u) & 0xF;
+    switch (partition) {
+    case 0x0: [[fallthrough]];
+    case 0x8: // on-chip ROM
+        return 1;
+    case 0x5: // on-chip modules
+        return 3;
+    case 0xF: // on-chip RAM
+        return 1;
+    default: // external memory
+        return 7;
+    }
 
     util::unreachable();
 }
