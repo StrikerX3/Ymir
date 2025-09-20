@@ -366,6 +366,7 @@ public:
     cdblock::CDBlock CDBlock; ///< CD block and media
 
     // LLE CD block components
+    // TODO: move them to cdblock::CDBlock
     sh1::SH1 SH1;                              ///< CD block SH-1
     sys::SH1Bus SH1Bus;                        ///< CD block SH-1 bus
     cdblock::CDDrive CDDrive;                  ///< CD block drive
