@@ -2087,17 +2087,6 @@ void SH1::SetnIRQ(uint8 irqnum, bool level) {
     const auto source = static_cast<InterruptSource>(static_cast<uint8>(InterruptSource::IRQ0) - irqnum);
     const bool trigger = INTC.UpdateIRQ(irqnum, level);
     if (trigger) {
-        switch (irqnum) {
-        case 0: UpdateInterruptLevels<InterruptSource::IRQ0>(); break;
-        case 1: UpdateInterruptLevels<InterruptSource::IRQ1>(); break;
-        case 2: UpdateInterruptLevels<InterruptSource::IRQ2>(); break;
-        case 3: UpdateInterruptLevels<InterruptSource::IRQ3>(); break;
-        case 4: UpdateInterruptLevels<InterruptSource::IRQ4>(); break;
-        case 5: UpdateInterruptLevels<InterruptSource::IRQ5>(); break;
-        case 6: UpdateInterruptLevels<InterruptSource::IRQ6>(); break;
-        case 7: UpdateInterruptLevels<InterruptSource::IRQ7>(); break;
-        }
-
         RaiseInterrupt(source);
         devlog::trace<grp::intr>("IRQ{} raised; pending level {:X}", irqnum, INTC.pending.level);
     } else {
