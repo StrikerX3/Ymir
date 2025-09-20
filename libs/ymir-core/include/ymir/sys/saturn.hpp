@@ -86,6 +86,10 @@ struct Saturn {
     /// @param[in] ipl the contents of the IPL ROM image
     void LoadIPL(std::span<uint8, sys::kIPLSize> ipl);
 
+    /// @brief Loads the specified CD Block ROM image.
+    /// @param[in] rom the contents of the CD Block ROM image
+    void LoadCDBlockROM(std::span<uint8, sh1::kROMSize> rom);
+
     /// @brief Loads the specified internal backup memory image.
     ///
     /// `error` will contain the filesystem error if the image failed to load.
@@ -374,6 +378,7 @@ private:
 
     uint64 m_msh2SpilloverCycles; ///< Master SH-2 execution cycles spilled over between executions
     uint64 m_ssh2SpilloverCycles; ///< Slave SH-2 execution cycles spilled over between executions
+    uint64 m_sh1SpilloverCycles;  ///< SH-1 execution cycles spilled over between executions
 
     // -------------------------------------------------------------------------
     // System operations (SMPC) - smpc::ISMPCOperations implementation

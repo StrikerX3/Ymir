@@ -35,6 +35,13 @@ void CDDrive::Reset() {
 
     m_currFAD = 0u;
     m_targetFAD = 0u;
+
+    m_scheduler.ScheduleAt(m_stateEvent, 0);
+}
+
+void CDDrive::UpdateClockRatios(const sys::ClockRatios &clockRatios) {
+    // Drive state updates is counted in thirds, as explained in cdblock_defs.hpp
+    m_scheduler.SetEventCountFactor(m_stateEvent, clockRatios.CDBlockNum * 3, clockRatios.CDBlockDen);
 }
 
 bool CDDrive::SerialRead() {
@@ -85,7 +92,7 @@ uint64 CDDrive::ProcessState() {
     //   Start Strobe  = COMSYNC# = PB2
     //   Output Enable = COMREQ#  = TIOCB3
     //
-    // State sequence:                                   repeat this 11 times
+    // State sequence:                                       repeat this 11 times
     //          Reset ... Noop TxBegin TxByte (tx) TxInter1 [TxByte (tx) TxInterN] TxByte (tx) TxEnd Noop ...
     // COMREQ#   HI        HI    HI      LO    HI     HI      LO     HI     HI       LO    HI   HI    HI
     // COMSYNC#  HI        HI    LO      LO    LO     HI      HI     HI     HI       HI    HI   HI    HI

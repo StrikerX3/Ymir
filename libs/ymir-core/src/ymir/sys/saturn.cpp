@@ -123,6 +123,7 @@ Saturn::Saturn()
     m_system.AddClockSpeedChangeCallback(SCSP.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
+    m_system.AddClockSpeedChangeCallback(CDDrive.CbClockSpeedChange);
 
     masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
     slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
@@ -162,12 +163,16 @@ void Saturn::Reset(bool hard) {
     slaveSH2Enabled = false;
     m_msh2SpilloverCycles = 0;
     m_ssh2SpilloverCycles = 0;
+    m_sh1SpilloverCycles = 0;
 
     SCU.Reset(hard);
     VDP.Reset(hard);
     SMPC.Reset(hard);
     SCSP.Reset(hard);
     CDBlock.Reset(hard);
+    SH1.Reset(hard);
+    YGR.Reset();
+    CDDrive.Reset();
 }
 
 void Saturn::FactoryReset() {
@@ -190,6 +195,10 @@ const sys::ClockRatios &Saturn::GetClockRatios() const noexcept {
 
 void Saturn::LoadIPL(std::span<uint8, sys::kIPLSize> ipl) {
     mem.LoadIPL(ipl);
+}
+
+void Saturn::LoadCDBlockROM(std::span<uint8, sh1::kROMSize> rom) {
+    SH1.LoadROM(rom);
 }
 
 void Saturn::LoadInternalBackupMemoryImage(std::filesystem::path path, std::error_code &error) {
@@ -375,6 +384,7 @@ bool Saturn::LoadState(const state::State &state) {
 // [ ] Single-step M68K (if enabled)
 // [ ] Single-step SCU DSP (if running)
 // [ ] Single-step SCSP DSP
+// [ ] Single-step CD Block SH-1
 // Note:
 // - Step out/return can be implemented in terms of single-stepping and instruction tracing events
 
@@ -442,6 +452,15 @@ bool Saturn::Run() {
 
     // SCSP+M68K and CD block are ticked by the scheduler
 
+    // Advance SH-1
+    const auto &clockRatios = GetClockRatios();
+    const uint64 sh1CycleCount = execCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+    if (sh1CycleCount > 0) {
+        m_sh1SpilloverCycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+    }
+
+    // CD drive is ticked by the scheduler
+
     // TODO: advance SMPC
     /*m_smpcCycles += execCycles * 2464;
     const uint64 smpcCycleCount = m_smpcCycles / 17640;
@@ -476,6 +495,15 @@ uint64 Saturn::StepMasterSH2Impl() {
 
         // SCSP+M68K and CD block are ticked by the scheduler
 
+        // Advance SH-1
+        const auto &clockRatios = GetClockRatios();
+        const uint64 sh1CycleCount = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+        if (sh1CycleCount > 0) {
+            m_sh1SpilloverCycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+        }
+
+        // CD drive is ticked by the scheduler
+
         // TODO: advance SMPC
         /*m_smpcCycles += masterCycles * 2464;
         const uint64 smpcCycleCount = m_smpcCycles / 17640;
@@ -507,6 +535,15 @@ uint64 Saturn::StepSlaveSH2Impl() {
         VDP.Advance<debug>(slaveCycles);
 
         // SCSP+M68K and CD block are ticked by the scheduler
+
+        // Advance SH-1
+        const auto &clockRatios = GetClockRatios();
+        const uint64 sh1CycleCount = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+        if (sh1CycleCount > 0) {
+            m_sh1SpilloverCycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
+        }
+
+        // CD drive is ticked by the scheduler
 
         // TODO: advance SMPC
         /*m_smpcCycles += slaveCycles * 2464;

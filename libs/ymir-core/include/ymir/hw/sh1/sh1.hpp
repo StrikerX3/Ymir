@@ -34,6 +34,8 @@
 #include <ymir/util/callback.hpp>
 #include <ymir/util/inline.hpp>
 
+#include "sh1_defs.hpp"
+
 #include <array>
 #include <iosfwd>
 #include <map>
@@ -49,7 +51,7 @@ public:
 
     void Reset(bool hard, bool watchdogInitiated = false);
 
-    void LoadROM(std::span<uint8, 64 * 1024> rom);
+    void LoadROM(std::span<uint8, kROMSize> rom);
 
     // -------------------------------------------------------------------------
     // Usage
@@ -125,7 +127,7 @@ private:
     // Memory accessors
 
     sys::SH1Bus &m_bus;
-    std::array<uint8, 64 * 1024> m_rom;
+    std::array<uint8, kROMSize> m_rom;
     std::array<uint8, 4 * 1024> m_ram;
 
     // According to the SH7034 manual, the address space is divided into these areas:

@@ -1,6 +1,7 @@
 #include "rom_manager.hpp"
 
 #include <ymir/hw/cart/rom_cart_defs.hpp>
+#include <ymir/hw/sh1/sh1_defs.hpp>
 #include <ymir/sys/memory_defs.hpp>
 
 #include <fstream>
@@ -48,6 +49,44 @@ void ROMManager::ScanIPLROMs(std::filesystem::path path) {
 
         // Add it to the list (including unknown entries, in case the image is modified)
         m_iplEntries.insert({canonicalPath, entry});
+    }
+}
+
+void ROMManager::ScanCDBlockROMs(std::filesystem::path path) {
+    std::vector<char> buf{};
+    buf.resize(sh1::kROMSize);
+
+    m_cdbEntries.clear();
+
+    for (const std::filesystem::directory_entry &dirEntry : std::filesystem::recursive_directory_iterator(path)) {
+        if (!dirEntry.is_regular_file()) {
+            continue;
+        }
+        if (dirEntry.file_size() != sh1::kROMSize) {
+            continue;
+        }
+
+        // Read file into buffer
+        std::filesystem::path canonicalPath = std::filesystem::canonical(dirEntry.path());
+        {
+            std::ifstream in{canonicalPath, std::ios::binary};
+            in.read(buf.data(), buf.size());
+            if (!in) {
+                continue;
+            }
+        }
+
+        // Build entry
+        CDBlockROMEntry entry{};
+        entry.path = canonicalPath;
+
+        // Get database entry
+        XXH128Hash hash = CalcHash128(buf.data(), buf.size(), sh1::kROMHashSeed);
+        entry.info = db::GetCDBlockROMInfo(hash);
+        entry.hash = hash;
+
+        // Add it to the list (including unknown entries, in case the image is modified)
+        m_cdbEntries.insert({canonicalPath, entry});
     }
 }
 
