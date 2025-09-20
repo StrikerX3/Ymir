@@ -388,7 +388,7 @@ FORCE_INLINE uint64 SH1::AccessCycles(uint32 address) {
     case 0xF: // on-chip RAM
         return 1;
     default: // external memory
-        return 7;
+        return 5; // wild guess
     }
 
     util::unreachable();
