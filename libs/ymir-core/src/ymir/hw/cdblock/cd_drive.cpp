@@ -198,11 +198,11 @@ uint64 CDDrive::ProcessCommand() {
     case Command::ReadTOC:
         m_currTOCEntry = 0;
         m_currTOCRepeat = 0;
-        return TransferTOC();
+        return Op_ReadTOC();
     case Command::Stop: break;
     case Command::ReadSector: break;
     case Command::Pause: break;
-    case Command::SeekSector: break;
+    case Command::SeekSector: return Op_Seek();
     case Command::ScanForwards: break;
     case Command::ScanBackwards: break;
     default: break;
@@ -218,7 +218,7 @@ uint64 CDDrive::ProcessOperation() {
         // Default value at boot-up, theoretically shouldn't ever be processed
         break;
 
-    case Operation::ReadTOC: return TransferTOC();
+    case Operation::ReadTOC: return Op_ReadTOC();
 
     case Operation::Stopped: m_state = TxState::PreTx; break;
 
@@ -257,7 +257,7 @@ uint64 CDDrive::GetReadSpeedFactor() const {
     return m_command.readSpeed == 1 ? 1 : 2;
 }
 
-uint64 CDDrive::TransferTOC() {
+uint64 CDDrive::Op_ReadTOC() {
     const uint8 readSpeed = GetReadSpeedFactor();
 
     // No disc
@@ -298,6 +298,14 @@ uint64 CDDrive::TransferTOC() {
     return kDriveCyclesPlaying1x / readSpeed;
 }
 
+uint64 CDDrive::Op_Seek() {
+    const uint8 readSpeed = GetReadSpeedFactor();
+
+    // TODO: implement
+
+    return kDriveCyclesPlaying1x / readSpeed;
+}
+
 void CDDrive::UpdateStatus() {
     if (m_disc.sessions.empty()) {
         m_status.subcodeQ = 0xFF;
@@ -309,37 +317,50 @@ void CDDrive::UpdateStatus() {
         m_status.zero = 0xFF;
     } else {
         auto &session = m_disc.sessions.back();
-        if (m_currFAD > session.endFrameAddress) {
-            // Lead-out
-            m_status.subcodeQ = 1;
-            m_status.trackNum = 0xAA;
-            m_status.indexNum = 1;
-            // TODO: separate MSF from absolute MSF
-            m_status.min = m_status.absMin = m_currFAD / 75 / 60;
-            m_status.sec = m_status.absSec = m_currFAD / 75 % 60;
-            m_status.frac = m_status.absFrac = m_currFAD % 75;
-            m_status.zero = 0x04;
-        } else if (m_currFAD < 150) {
+        if (m_currFAD < 150) {
             // Lead-in
             // TODO: check if this is correct
             m_status.subcodeQ = session.tracks[0].controlADR;
-            m_status.trackNum = 1;
-            m_status.indexNum = 1;
-            // TODO: separate MSF from absolute MSF
-            m_status.min = m_status.absMin = m_currFAD / 75 / 60;
-            m_status.sec = m_status.absSec = m_currFAD / 75 % 60;
-            m_status.frac = m_status.absFrac = m_currFAD % 75;
+            m_status.trackNum = 0x00;
+            m_status.indexNum = 0x01;
+            m_status.min = 0;
+            m_status.sec = 0;
+            m_status.frac = 0;
+            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(m_currFAD % 75);
+            m_status.zero = 0x04;
+        } else if (m_currFAD > session.endFrameAddress) {
+            // Lead-out
+            const uint32 leadoutFAD = session.endFrameAddress + 1;
+            m_status.subcodeQ = session.tracks[session.lastTrackIndex].controlADR;
+            m_status.trackNum = 0xAA;
+            m_status.indexNum = 0x01;
+            m_status.min = util::to_bcd(leadoutFAD / 75 / 60);
+            m_status.sec = util::to_bcd(leadoutFAD / 75 % 60);
+            m_status.frac = util::to_bcd(leadoutFAD % 75);
+            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(m_currFAD % 75);
             m_status.zero = 0x04;
         } else {
+            // Tracks 01 to 99
             const uint8 trackIndex = session.FindTrackIndex(m_currFAD);
             assert(trackIndex != 0xFF);
-            m_status.subcodeQ = session.tracks[trackIndex].controlADR;
-            m_status.trackNum = trackIndex + 1;
-            m_status.indexNum = session.tracks[trackIndex].FindIndex(m_currFAD);
-            // TODO: separate MSF from absolute MSF
-            m_status.min = m_status.absMin = m_currFAD / 75 / 60;
-            m_status.sec = m_status.absSec = m_currFAD / 75 % 60;
-            m_status.frac = m_status.absFrac = m_currFAD % 75;
+            const auto &track = session.tracks[trackIndex];
+            sint32 relFAD = track.indices[1].startFrameAddress - m_currFAD;
+            if (relFAD < 0) {
+                relFAD = -relFAD; // INDEX 00 frame addresses count downwards to 00:00:00 until start of INDEX 01
+            }
+            m_status.subcodeQ = track.controlADR;
+            m_status.trackNum = util::to_bcd(trackIndex + 1);
+            m_status.indexNum = util::to_bcd(track.FindIndex(m_currFAD));
+            m_status.min = util::to_bcd(relFAD / 75 / 60);
+            m_status.sec = util::to_bcd(relFAD / 75 % 60);
+            m_status.frac = util::to_bcd(relFAD % 75);
+            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(m_currFAD % 75);
             m_status.zero = 0x04;
         }
     }

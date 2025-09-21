@@ -160,7 +160,8 @@ private:
 
     uint64 GetReadSpeedFactor() const;
 
-    uint64 TransferTOC();
+    uint64 Op_ReadTOC();
+    uint64 Op_Seek();
 
     void UpdateStatus();
 
