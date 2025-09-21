@@ -76,11 +76,11 @@ struct lle_cd : public lle {
 };
 
 struct lle_cd_cmd : public lle_cd {
-    static constexpr std::string_view name = "CDB-LLE-CDCommand";
+    static constexpr std::string_view name = "CDB-LLE-Command";
 };
 
 struct lle_cd_status : public lle_cd {
-    static constexpr std::string_view name = "CDB-LLE-CDStatus";
+    static constexpr std::string_view name = "CDB-LLE-Status";
 };
 
 } // namespace ymir::cdblock::grp
