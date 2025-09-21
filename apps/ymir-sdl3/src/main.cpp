@@ -28,6 +28,8 @@ int main(int argc, char **argv) {
     options.add_options()("f,fullscreen", "Start in fullscreen mode",
                           cxxopts::value(progOpts.fullScreen)->default_value("false"));
     options.add_options()("P,paused", "Start paused", cxxopts::value(progOpts.startPaused)->default_value("false"));
+    options.add_options()("D,debug", "Start with debug tracing enabled",
+                          cxxopts::value(progOpts.enableDebugTracing)->default_value("false"));
     options.add_options()("E,exceptions", "Capture all unhandled exceptions",
                           cxxopts::value(enableAllExceptions)->default_value("false"));
     options.parse_positional({"disc"});

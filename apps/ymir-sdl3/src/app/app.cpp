@@ -923,8 +923,11 @@ void App::RunEmulator() {
     auto &inputContext = m_context.inputContext;
 
     m_context.paused = m_options.startPaused;
-    events::emu::SetPaused(m_options.startPaused);
     bool pausedByLostFocus = false;
+
+    if (m_options.enableDebugTracing) {
+        m_context.EnqueueEvent(events::emu::SetDebugTrace(true));
+    }
 
     // General
     {
