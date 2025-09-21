@@ -204,16 +204,7 @@ uint64 CDDrive::ProcessCommand() {
     case Command::Stop: break;
     case Command::ReadSector: break;
     case Command::Pause: break;
-    case Command::SeekSector: //
-    {
-        const uint64 cycles = BeginSeek(Operation::Idle);
-        UpdateStatus();
-        m_status.operation = Operation::Seek;
-        m_state = TxState::PreTx;
-        OutputStatus();
-        return cycles;
-    }
-
+    case Command::SeekSector: return BeginSeek(Operation::Idle);
     case Command::ScanForwards: break;
     case Command::ScanBackwards: break;
     default: break;
@@ -326,6 +317,11 @@ uint64 CDDrive::BeginSeek(Operation op) {
     m_seekCountdown = 9;
     devlog::debug<grp::lle_cd>("Seek to FAD {:06X}", fad);
 
+    m_status.operation = Operation::Seek;
+    m_state = TxState::PreTx;
+    UpdateStatus();
+    OutputStatus();
+
     return kDriveCyclesPlaying1x / readSpeed;
 }
 
@@ -340,52 +336,40 @@ void CDDrive::UpdateStatus() {
         m_status.zero = 0xFF;
     } else {
         auto &session = m_disc.sessions.back();
-        const uint32 currFAD = m_currFAD + 4;
-        if (currFAD < 150) {
-            // Lead-in
-            // TODO: check if this is correct
-            m_status.subcodeQ = session.tracks[0].controlADR;
-            m_status.trackNum = 0x00;
-            m_status.indexNum = 0x01;
-            m_status.min = 0;
-            m_status.sec = 0;
-            m_status.frac = 0;
-            m_status.absMin = util::to_bcd(currFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(currFAD % 75);
-            m_status.zero = 0x04;
-        } else if (currFAD > session.endFrameAddress) {
+        if (m_currFAD > session.endFrameAddress) {
             // Lead-out
             const uint32 leadoutFAD = session.endFrameAddress + 1;
-            m_status.subcodeQ = session.tracks[session.lastTrackIndex].controlADR;
+            m_status.subcodeQ = 0x01;
             m_status.trackNum = 0xAA;
             m_status.indexNum = 0x01;
-            m_status.min = util::to_bcd(leadoutFAD / 75 / 60);
-            m_status.sec = util::to_bcd(leadoutFAD / 75 % 60);
-            m_status.frac = util::to_bcd(leadoutFAD % 75);
-            m_status.absMin = util::to_bcd(currFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(currFAD % 75);
+            m_status.min = 0x00;
+            m_status.sec = 0x00;
+            m_status.frac = 0x00;
             m_status.zero = 0x04;
+            m_status.absMin = util::to_bcd(leadoutFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(leadoutFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(leadoutFAD % 75);
         } else {
             // Tracks 01 to 99
-            const uint8 trackIndex = session.FindTrackIndex(currFAD);
-            assert(trackIndex != 0xFF);
-            const auto &track = session.tracks[trackIndex];
-            sint32 relFAD = track.indices[1].startFrameAddress - currFAD;
+            const bool isLeadIn = m_currFAD < 150;
+            const uint8 trackIndex = isLeadIn ? 0 : session.FindTrackIndex(m_currFAD);
+            const auto &track = trackIndex == 0xFF ? session.tracks[0] : session.tracks[trackIndex];
+            const uint8 trackNum = trackIndex + 1;
+            const uint8 indexNum = isLeadIn ? 0 : track.FindIndex(m_currFAD);
+            sint32 relFAD = m_currFAD - track.startFrameAddress;
             if (relFAD < 0) {
                 relFAD = -relFAD; // INDEX 00 frame addresses count downwards to 00:00:00 until start of INDEX 01
             }
             m_status.subcodeQ = track.controlADR;
-            m_status.trackNum = util::to_bcd(trackIndex + 1);
-            m_status.indexNum = util::to_bcd(track.FindIndex(currFAD));
+            m_status.trackNum = util::to_bcd(trackNum);
+            m_status.indexNum = util::to_bcd(indexNum);
             m_status.min = util::to_bcd(relFAD / 75 / 60);
             m_status.sec = util::to_bcd(relFAD / 75 % 60);
             m_status.frac = util::to_bcd(relFAD % 75);
-            m_status.absMin = util::to_bcd(currFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(currFAD % 75);
             m_status.zero = 0x04;
+            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(m_currFAD % 75);
         }
     }
 }
