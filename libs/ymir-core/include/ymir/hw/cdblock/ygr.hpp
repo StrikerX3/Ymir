@@ -110,7 +110,7 @@ private:
         }
     } m_fifo;
 
-    struct Registers {
+    mutable struct Registers {
         // 02 R/W   -- -     TRCTL       Transfer control
         union RegTRCTL {
             uint16 u16;

@@ -183,7 +183,11 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
     case 0x18: return m_regs.RR[0];
     case 0x1C: return m_regs.RR[1];
     case 0x20: return m_regs.RR[2];
-    case 0x24: return m_regs.RR[3];
+    case 0x24:
+        if constexpr (!peek) {
+            m_regs.CDIRQL.RESP = 1;
+        }
+        return m_regs.RR[3];
     case 0x28: return 0u; // TODO: read MPEGRGB
     default:
         if constexpr (!peek) {
@@ -225,6 +229,7 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
     case 0x24:
         m_regs.CR[3] = value;
         if constexpr (!poke) {
+            m_regs.CDIRQL.CMD = 1;
             m_cbAssertIRQ6();
             devlog::trace<grp::ygr_cr>("Host CR writes: {:04X} {:04X} {:04X} {:04X}", m_regs.CR[0], m_regs.CR[1],
                                        m_regs.CR[2], m_regs.CR[3]);
@@ -314,6 +319,7 @@ void YGR::UpdateFIFODREQ() const {
 }
 
 void YGR::DiscChanged() {
+    // TODO: should probably let the CD Block code deal with this based on CD drive status reports
     m_regs.HIRQ |= kHIRQ_DCHG | kHIRQ_EFLS;
     UpdateInterrupts();
 }
