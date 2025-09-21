@@ -52,29 +52,29 @@ SH-1 interrupts
 43  10C  IRQ3
 44  110  IRQ4
 45  114  IRQ5
-46  118  IRQ6 * -- command requests (triggered on writes to CR4 from host)
-47  11C  IRQ7 * -- HIRQ interrupt requests
-48  120  DMAC0 DEI0 *
-4A  128  DMAC1 DEI1
-4C  130  DMAC2 DEI2 *
-4E  138  DMAC3 DEI3
-50  140  ITU0 IMIA0 *
-51  144  ITU0 IMIB0 *
+46  118  IRQ6       * -- command requests (triggered on writes to CR4 from host)
+47  11C  IRQ7       * -- HIRQ interrupt requests
+48  120  DMAC0 DEI0 * -- CD-ROM sector data transfers
+4A  128  DMAC1 DEI1 * -- host data transfers
+4C  130  DMAC2 DEI2 * -- MPEG video data transfers
+4E  138  DMAC3 DEI3 * -- MPEG audio data transfers
+50  140  ITU0 IMIA0
+51  144  ITU0 IMIB0
 52  148  ITU0 OVI0
-54  150  ITU1 IMIA1 *
-55  154  ITU1 IMIB1 *
+54  150  ITU1 IMIA1
+55  154  ITU1 IMIB1
 56  158  ITU1 OVI1
-58  160  ITU2 IMIA2 *
-59  164  ITU2 IMIB2 *
+58  160  ITU2 IMIA2 * -- MPEG audio data transfer requests
+59  164  ITU2 IMIB2 * -- MPEG video data transfer requests
 5A  168  ITU2 OVI2
-5C  170  ITU3 IMIA3 *
-5D  174  ITU3 IMIB3 *
+5C  170  ITU3 IMIA3
+5D  174  ITU3 IMIB3 * -- COMREQ# signal from CD drive indicating a status/command byte has been transferred
 5E  178  ITU3 OVI3
-60  180  ITU4 IMIA4 *
-61  184  ITU4 IMIB4 *
-62  188  ITU4 OVI4  *
+60  180  ITU4 IMIA4 * -- task scheduling?
+61  184  ITU4 IMIB4 * -- delayed task scheduling?
+62  188  ITU4 OVI4  * -- timer increment (upper 16 bits of 48-bit counter)
 64  190  SCI0 ERI0
-65  194  SCI0 RxI0  *
+65  194  SCI0 RxI0  * -- serial transfers between CD drive and SH-1, triggered every bit
 66  198  SCI0 TxI0
 67  19C  SCI0 TEI0
 68  1A0  SCI1 ERI1
