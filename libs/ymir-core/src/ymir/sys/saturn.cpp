@@ -179,7 +179,9 @@ void Saturn::Reset(bool hard) {
     SCSP.Reset(hard);
     if constexpr (static_config::use_cdblock_lle) {
         SH1.Reset(hard);
-        YGR.Reset();
+        if (hard) {
+            YGR.Reset();
+        }
         CDDrive.Reset();
     } else {
         CDBlock.Reset(hard);
