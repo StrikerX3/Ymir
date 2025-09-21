@@ -91,6 +91,8 @@ public:
         m_cbSerialTx[1] = tx;
     }
 
+    void DumpRAM(std::ostream &out);
+
 private:
     // -------------------------------------------------------------------------
     // CPU state

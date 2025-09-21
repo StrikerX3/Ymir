@@ -406,6 +406,10 @@ bool Saturn::LoadState(const state::State &state) {
     return true;
 }
 
+void Saturn::DumpCDBlockDRAM(std::ostream &out) {
+    out.write((const char *)CDBlockDRAM.data(), CDBlockDRAM.size());
+}
+
 // Run scenarios:
 // [x] Run a full frame -- RunFrameImpl()
 // [x] Run until next event -- Run()

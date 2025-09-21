@@ -260,6 +260,10 @@ struct Saturn {
         m_debugBreakMgr.SetDebugBreakRaisedCallback(callback);
     }
 
+    /// @brief Dumps the CD Block DRAM to the specified output stream.
+    /// @param[in] out the output stream
+    void DumpCDBlockDRAM(std::ostream &out);
+
 private:
     /// @brief Runs the emulator until the end of the current frame.
     /// @tparam debug whether to use debug tracing

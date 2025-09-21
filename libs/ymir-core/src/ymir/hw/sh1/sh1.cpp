@@ -278,6 +278,10 @@ void SH1::SetTIOCB3(bool level) {
     }
 }
 
+void SH1::DumpRAM(std::ostream &out) {
+    out.write((const char *)m_ram.data(), m_ram.size());
+}
+
 FORCE_INLINE uint64 SH1::GetCurrentCycleCount() const {
     return m_scheduler.CurrentCount() + m_cyclesExecuted;
 }

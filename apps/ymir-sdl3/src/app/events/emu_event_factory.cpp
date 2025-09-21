@@ -175,6 +175,14 @@ EmuEvent DumpMemory() {
             std::ofstream out{dumpPath / "scsp-dsp-regs.bin", std::ios::binary};
             ctx.saturn.instance->SCSP.DumpDSPRegs(out);
         }
+        {
+            std::ofstream out{dumpPath / "sh1-ram.bin", std::ios::binary};
+            ctx.saturn.instance->SH1.DumpRAM(out);
+        }
+        {
+            std::ofstream out{dumpPath / "cdb-dram.bin", std::ios::binary};
+            ctx.saturn.instance->DumpCDBlockDRAM(out);
+        }
         devlog::info<grp::base>("Dump complete");
     });
 }
