@@ -321,6 +321,35 @@ struct Session {
 
         // -----------------------------------------------------------------------------------------
 
+        for (int i = 0; i < 99; i++) {
+            auto &track = tracks[i];
+            if (track.controlADR == 0x00) {
+                continue;
+            }
+
+            for (uint32 j = 0; j < track.indices.size(); ++j) {
+                const auto &index = track.indices[j];
+                if (index.startFrameAddress == 0 && index.endFrameAddress == 0) {
+                    // Placeholder INDEX 00 for tracks that don't have such index
+                    continue;
+                }
+                auto &entry = leadInTOC.emplace_back();
+                entry.controlADR = track.controlADR;
+                entry.trackNum = util::to_bcd(i + 1);
+                entry.pointOrIndex = util::to_bcd(j);
+                // TODO: absolute vs. relative MSF
+                entry.min = entry.amin = util::to_bcd(index.startFrameAddress / 75 / 60);
+                entry.sec = entry.asec = util::to_bcd(index.startFrameAddress / 75 % 60);
+                entry.frac = entry.afrac = util::to_bcd(index.startFrameAddress % 75);
+                entry.zero = 0x00;
+
+                // These entries are repeated thrice
+                const TOCEntry copy = entry;
+                leadInTOC.push_back(copy);
+                leadInTOC.push_back(copy);
+            }
+        }
+
         // Point A0 - first data track
         {
             auto &tocEntry = leadInTOC.emplace_back();
@@ -364,30 +393,6 @@ struct Session {
             tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
             tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
             tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
-        }
-
-        for (int i = 0; i < 99; i++) {
-            auto &track = tracks[i];
-            if (track.controlADR == 0x00) {
-                continue;
-            }
-
-            for (uint32 j = 0; j < track.indices.size(); ++j) {
-                const auto &index = track.indices[j];
-                if (index.startFrameAddress == 0 && index.endFrameAddress == 0) {
-                    // Placeholder INDEX 00 for tracks that don't have such index
-                    continue;
-                }
-                auto &entry = leadInTOC.emplace_back();
-                entry.controlADR = track.controlADR;
-                entry.trackNum = util::to_bcd(i + 1);
-                entry.pointOrIndex = util::to_bcd(j);
-                // TODO: absolute vs. relative MSF
-                entry.min = entry.amin = util::to_bcd(index.startFrameAddress / 75 / 60);
-                entry.sec = entry.asec = util::to_bcd(index.startFrameAddress / 75 % 60);
-                entry.frac = entry.afrac = util::to_bcd(index.startFrameAddress % 75);
-                entry.zero = 0x00;
-            }
         }
     }
 };
