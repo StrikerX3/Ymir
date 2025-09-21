@@ -148,7 +148,7 @@ uint64 CDDrive::ProcessState() {
         m_cbSetCOMSYNCn(true);
         m_cbSetCOMREQn(true);
         m_state = TxState::Noop;
-        return 25000000 * 3;
+        return 18000000 * 3;
 
     case TxState::Noop: m_state = TxState::TxBegin; return 10000 * 3;
 
