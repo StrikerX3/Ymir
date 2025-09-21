@@ -90,8 +90,7 @@ private:
             uint8 zero13;
         };
     } m_command;
-    uint8 m_commandBit;
-    uint8 m_commandIndex;
+    uint8 m_commandPos;
 
     enum class Operation : uint8 {
         Zero = 0x00,
@@ -108,42 +107,36 @@ private:
         SeekSecurityRingB6 = 0xB6
     };
 
+    struct CDStatus {
+        Operation operation;
+        uint8 subcodeQ;
+        uint8 trackNum;
+        uint8 indexNum;
+        uint8 min;
+        uint8 sec;
+        uint8 frac;
+        uint8 zero;
+        uint8 absMin;
+        uint8 absSec;
+        uint8 absFrac;
+    } m_status;
+
     // Sent to SH1
-    union CDStatus {
+    union StatusData {
         std::array<uint8, 13> data;
         std::array<uint8, 11> chksumData;
-        struct {
-            Operation operation;
-            uint8 subcodeQ;
-
-            // Subcode Q data
-            uint8 trackNum;
-            uint8 indexNum;
-            uint8 min;
-            uint8 sec;
-            uint8 frac;
-            uint8 zero;
-            uint8 absMin;
-            uint8 absSec;
-            uint8 absFrac;
-
-            // Checksum of all of the above bytes
-            uint8 checksum;
-
-            // Next (and final) byte is always zero
-        };
-    } m_status;
-    uint8 m_statusBit;
-    uint8 m_statusIndex;
+        CDStatus cdStatus; // for easy copying
+    } m_statusData;
+    uint8 m_statusPos;
 
     enum class TxState {
         Reset,    // deassert COMREQ#, deassert COMSYNC#, initialize, switch to Noop
-        Noop,     // init transfer counters, switch to TxBegin
+        PreTx,    // init transfer counters, switch to TxBegin
         TxBegin,  // assert COMSYNC#, switch to TxByte
         TxByte,   // assert COMREQ#, do byte transfer
         TxInter1, // deassert COMSYNC#, switch to TxByte
         TxInterN, // switch to TxByte
-        TxEnd,    // process command, switch to Noop
+        TxEnd,    // process command, switch to PreTx
 
         // At the end of a byte transfer (not handled in these states):
         // - deassert COMREQ#, deassert COMSYNC#
@@ -155,6 +148,8 @@ private:
     uint32 m_currFAD;
     uint32 m_targetFAD;
 
+    uint32 m_currTOCEntry;
+
     bool SerialRead();
     void SerialWrite(bool bit);
 
@@ -162,7 +157,12 @@ private:
     uint64 ProcessCommand();
     uint64 ProcessOperation();
 
+    uint64 TransferTOC();
+
     void UpdateStatus();
+
+    void CopyStatusToOutput();
+    void CalcStatusDataChecksum();
 
 public:
     // -------------------------------------------------------------------------

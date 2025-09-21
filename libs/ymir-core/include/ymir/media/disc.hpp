@@ -23,6 +23,22 @@
 
 namespace ymir::media {
 
+struct TOCEntry {
+    uint8 controlADR;        // Bits 7-4 = Control, bits 3-0 = q-Mode
+                             //   Control = 0b0100 (0x4) = non-copyable data
+                             //   Control = 0b0110 (0x6) = copyable data
+                             //   q-Mode = 0b0001 (0x1) = lead-in, user data, lead-out areas
+                             //   q-Mode = 0b0010 (0x2) = information area
+    uint8 trackNum;          // 00 for lead-in, 01 to 99 for tracks, AA for lead-out
+    uint8 pointOrIndex;      // Pointer field for lead-in, index for tracks and lead-out
+                             //   For tracks: index 00 is pause, 01 to 99 are various indices within the track
+                             //   Lead-out always uses 01
+    uint8 min, sec, frac;    // Relative time. During pause (index 00) this time is relative to the start of the track
+                             // (index 01) and counts in decreasing order
+    uint8 zero;              // Must be 0x00
+    uint8 amin, asec, afrac; // Absolute time. Monotonically increasing until the lead-out track.
+};
+
 struct Index {
     uint32 startFrameAddress = 0;
     uint32 endFrameAddress = 0;
@@ -272,8 +288,10 @@ struct Session {
     // 101: Point A2
     //   31-24  leadout track control/ADR
     //   23-0   leadout frame address
-
     std::array<uint32, 99 + 3> toc;
+
+    // TOC entries listed in the lead-in area
+    std::vector<TOCEntry> leadInTOC;
 
     // Build table of contents using track information
     void BuildTOC() {
@@ -292,12 +310,84 @@ struct Session {
             }
         }
 
+        const uint32 leadOutFAD = endFrameAddress + 1;
         if (firstTrackNum != 0) {
             toc[99] = (tracks[firstTrackNum - 1].controlADR << 24u) | (firstTrackNum << 16u);
             toc[100] = (tracks[lastTrackNum - 1].controlADR << 24u) | (lastTrackNum << 16u);
-            toc[101] = (tracks[lastTrackNum - 1].controlADR << 24u) | endFrameAddress;
+            toc[101] = (tracks[lastTrackNum - 1].controlADR << 24u) | leadOutFAD;
         } else {
             toc[99] = toc[100] = toc[101] = 0xFFFFFFFF;
+        }
+
+        // -----------------------------------------------------------------------------------------
+
+        // Point A0 - first data track
+        {
+            auto &tocEntry = leadInTOC.emplace_back();
+            tocEntry.controlADR = tracks[firstTrackNum - 1].controlADR;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA0;
+            tocEntry.min = startFrameAddress / 75 / 60; // TODO: check this
+            tocEntry.sec = startFrameAddress / 75 % 60; // TODO: check this
+            tocEntry.frac = startFrameAddress % 75;     // TODO: check this
+            tocEntry.zero = 0x00;
+            tocEntry.amin = firstTrackNum;
+            tocEntry.asec = 0x00;
+            tocEntry.afrac = 0x00;
+        }
+
+        // Point A1 - last data track
+        {
+            auto &tocEntry = leadInTOC.emplace_back();
+            tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA1;
+            tocEntry.min = startFrameAddress / 75 / 60; // TODO: check this
+            tocEntry.sec = startFrameAddress / 75 % 60; // TODO: check this
+            tocEntry.frac = startFrameAddress % 75;     // TODO: check this
+            tocEntry.zero = 0x00;
+            tocEntry.amin = lastTrackNum;
+            tocEntry.asec = 0x00;
+            tocEntry.afrac = 0x00;
+        }
+
+        // Point A2 - start of leadout track
+        {
+            auto &tocEntry = leadInTOC.emplace_back();
+            tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA2;
+            tocEntry.min = startFrameAddress / 75 / 60; // TODO: check this
+            tocEntry.sec = startFrameAddress / 75 % 60; // TODO: check this
+            tocEntry.frac = startFrameAddress % 75;     // TODO: check this
+            tocEntry.zero = 0x00;
+            tocEntry.amin = leadOutFAD / 75 / 60;
+            tocEntry.asec = leadOutFAD / 75 % 60;
+            tocEntry.afrac = leadOutFAD % 75;
+        }
+
+        for (int i = 0; i < 99; i++) {
+            auto &track = tracks[i];
+            if (track.controlADR == 0x00) {
+                continue;
+            }
+
+            for (uint32 j = 0; j < track.indices.size(); ++j) {
+                const auto &index = track.indices[j];
+                if (index.startFrameAddress == 0 && index.endFrameAddress == 0) {
+                    // Placeholder INDEX 00 for tracks that don't have such index
+                    continue;
+                }
+                auto &entry = leadInTOC.emplace_back();
+                entry.controlADR = track.controlADR;
+                entry.trackNum = i + 1;
+                entry.pointOrIndex = j;
+                // TODO: absolute vs. relative MSF
+                entry.min = entry.amin = index.startFrameAddress / 75 / 60;
+                entry.sec = entry.asec = index.startFrameAddress / 75 % 60;
+                entry.frac = entry.afrac = index.startFrameAddress % 75;
+                entry.zero = 0x00;
+            }
         }
     }
 };
