@@ -327,11 +327,11 @@ struct Session {
             tocEntry.controlADR = tracks[firstTrackNum - 1].controlADR;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA0;
-            tocEntry.min = startFrameAddress / 75 / 60; // TODO: check this
-            tocEntry.sec = startFrameAddress / 75 % 60; // TODO: check this
-            tocEntry.frac = startFrameAddress % 75;     // TODO: check this
+            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60); // TODO: check this
+            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60); // TODO: check this
+            tocEntry.frac = util::to_bcd(startFrameAddress % 75);     // TODO: check this
             tocEntry.zero = 0x00;
-            tocEntry.amin = firstTrackNum;
+            tocEntry.amin = util::to_bcd(firstTrackNum);
             tocEntry.asec = 0x00;
             tocEntry.afrac = 0x00;
         }
@@ -342,11 +342,11 @@ struct Session {
             tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA1;
-            tocEntry.min = startFrameAddress / 75 / 60; // TODO: check this
-            tocEntry.sec = startFrameAddress / 75 % 60; // TODO: check this
-            tocEntry.frac = startFrameAddress % 75;     // TODO: check this
+            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60); // TODO: check this
+            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60); // TODO: check this
+            tocEntry.frac = util::to_bcd(startFrameAddress % 75);     // TODO: check this
             tocEntry.zero = 0x00;
-            tocEntry.amin = lastTrackNum;
+            tocEntry.amin = util::to_bcd(lastTrackNum);
             tocEntry.asec = 0x00;
             tocEntry.afrac = 0x00;
         }
@@ -357,13 +357,13 @@ struct Session {
             tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA2;
-            tocEntry.min = startFrameAddress / 75 / 60; // TODO: check this
-            tocEntry.sec = startFrameAddress / 75 % 60; // TODO: check this
-            tocEntry.frac = startFrameAddress % 75;     // TODO: check this
+            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60); // TODO: check this
+            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60); // TODO: check this
+            tocEntry.frac = util::to_bcd(startFrameAddress % 75);     // TODO: check this
             tocEntry.zero = 0x00;
-            tocEntry.amin = leadOutFAD / 75 / 60;
-            tocEntry.asec = leadOutFAD / 75 % 60;
-            tocEntry.afrac = leadOutFAD % 75;
+            tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
+            tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
+            tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
         }
 
         for (int i = 0; i < 99; i++) {
@@ -380,12 +380,12 @@ struct Session {
                 }
                 auto &entry = leadInTOC.emplace_back();
                 entry.controlADR = track.controlADR;
-                entry.trackNum = i + 1;
-                entry.pointOrIndex = j;
+                entry.trackNum = util::to_bcd(i + 1);
+                entry.pointOrIndex = util::to_bcd(j);
                 // TODO: absolute vs. relative MSF
-                entry.min = entry.amin = index.startFrameAddress / 75 / 60;
-                entry.sec = entry.asec = index.startFrameAddress / 75 % 60;
-                entry.frac = entry.afrac = index.startFrameAddress % 75;
+                entry.min = entry.amin = util::to_bcd(index.startFrameAddress / 75 / 60);
+                entry.sec = entry.asec = util::to_bcd(index.startFrameAddress / 75 % 60);
+                entry.frac = entry.afrac = util::to_bcd(index.startFrameAddress % 75);
                 entry.zero = 0x00;
             }
         }
