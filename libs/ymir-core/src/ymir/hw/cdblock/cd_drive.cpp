@@ -155,41 +155,29 @@ uint64 CDDrive::ProcessState() {
         m_cbSetCOMSYNCn(true);
         m_cbSetCOMREQn(true);
         m_state = TxState::PreTx;
-        // TODO: get actual cycles
-        return 18000000 * 3;
+        return kTxCyclesPowerOn + kTxCyclesFirstTx;
 
-    case TxState::PreTx:
-        m_state = TxState::TxBegin;
-        // TODO: get actual cycles
-        return 100 * 3;
+    case TxState::PreTx: m_state = TxState::TxBegin; return kTxCyclesBeginTx;
 
     case TxState::TxBegin:
         m_cbSetCOMSYNCn(false);
         m_state = TxState::TxByte;
-        // TODO: get actual cycles
-        return 100 * 3;
+        return kTxCyclesInterTx;
 
-    case TxState::TxByte:
-        m_cbSetCOMREQn(false);
-        // TODO: get actual cycles
-        return 100 * 3;
+    case TxState::TxByte: m_cbSetCOMREQn(false); return kTxCyclesPerByte;
 
     case TxState::TxInter1:
         m_cbSetCOMREQn(true);
         m_state = TxState::TxByte;
-        // TODO: get actual cycles
-        return 100 * 3;
+        return kTxCyclesInterTx;
 
-    case TxState::TxInterN:
-        m_state = TxState::TxByte;
-        // TODO: get actual cycles
-        return 100 * 3;
+    case TxState::TxInterN: m_state = TxState::TxByte; return kTxCyclesInterTx;
 
     case TxState::TxEnd: return ProcessCommand(); // also handles the state change
     }
 
-    // TODO: get actual cycles
-    return 100 * 3;
+    // Invalid state; shouldn't happen
+    return 1000;
 }
 
 uint64 CDDrive::ProcessCommand() {
@@ -203,7 +191,7 @@ uint64 CDDrive::ProcessCommand() {
         devlog::trace<grp::lle_cd_cmd>("{}", fmt::to_string(buf));
     }
 
-    // TODO: implement
+    // TODO: implement the remaining commmands
     switch (m_command.command) {
     case Command::Noop: return ProcessOperation();
     case Command::SeekRing: break;
@@ -220,8 +208,8 @@ uint64 CDDrive::ProcessCommand() {
     default: break;
     }
 
-    // TODO: proper cycles per command
-    return 100 * 3;
+    // Invalid command; shouldn't happen
+    return 1000;
 }
 
 uint64 CDDrive::ProcessOperation() {
@@ -260,16 +248,23 @@ uint64 CDDrive::ProcessOperation() {
     default: m_state = TxState::PreTx; break;
     }
 
-    // TODO: proper cycles per operation
-    return 10000 * 3;
+    // Invalid operation; shouldn't happen
+    return 1000;
+}
+
+uint64 CDDrive::GetReadSpeedFactor() const {
+    // TODO: apply read speed tweak
+    return m_command.readSpeed == 1 ? 1 : 2;
 }
 
 uint64 CDDrive::TransferTOC() {
+    const uint8 readSpeed = GetReadSpeedFactor();
+
     // No disc
     if (m_disc.sessions.empty()) {
         m_status.operation = Operation::NoDisc;
         m_state = TxState::PreTx;
-        return kDriveCyclesPlaying1x / 2;
+        return kDriveCyclesPlaying1x / readSpeed;
     }
 
     auto &session = m_disc.sessions.back();
@@ -300,7 +295,7 @@ uint64 CDDrive::TransferTOC() {
     }
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x / 2;
+    return kDriveCyclesPlaying1x / readSpeed;
 }
 
 void CDDrive::UpdateStatus() {

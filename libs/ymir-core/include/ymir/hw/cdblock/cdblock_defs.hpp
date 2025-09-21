@@ -41,11 +41,13 @@ inline constexpr uint8 kStatusFlagWait = 0x80;
 
 inline constexpr uint8 kStatusReject = 0xFF;
 
-// Drive parameters
-inline constexpr uint16 kMinStandbyTime = 60;
-inline constexpr uint16 kMaxStandbyTime = 900;
+// ---------------------------------------------------------------------------------------------------------------------
+// Drive timings
 
 inline constexpr uint32 kCyclesPerSecond = 20000000;
+
+inline constexpr uint16 kMinStandbyTime = 60;
+inline constexpr uint16 kMaxStandbyTime = 900;
 
 // Periodic response intervals:
 // - Not playing:         16.667ms =  60 Hz = 1000000/3 (333333.333) cycles @ 20 MHz = once per video frame
@@ -59,7 +61,18 @@ inline constexpr uint32 kCyclesPerSecond = 20000000;
 inline constexpr uint32 kDriveCyclesNotPlaying = 1000000;
 inline constexpr uint32 kDriveCyclesPlaying1x = 800000;
 
+// Serial data transfer timings adapted from Yabause.
+// Times are in cycles and tripled for the reason above.
+
+inline constexpr uint32 kTxCyclesPowerOn = 451448 * 20 * 3; // Power-on stable -> first COMSYNC# falling edge
+inline constexpr uint32 kTxCyclesFirstTx = 416509 * 20 * 3; // First COMSYNC# falling edge -> first transmission
+inline constexpr uint32 kTxCyclesBeginTx = 187 * 20 * 3;    // COMSYNC# falling -> rising edge (start of transfer)
+inline constexpr uint32 kTxCyclesPerByte = 150 * 20 * 3;    // COMREQ# falling -> rising edge (one byte transfer)
+inline constexpr uint32 kTxCyclesInterTx = 26 * 20 * 3;     // COMREQ# rising -> falling edge (inter-byte)
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Buffers and filters
+
 inline constexpr uint32 kNumBuffers = 200;   // total number of buffers
 inline constexpr uint32 kNumFilters = 24;    // total number of filters
 inline constexpr uint32 kNumPartitions = 24; // total number of buffer partitions

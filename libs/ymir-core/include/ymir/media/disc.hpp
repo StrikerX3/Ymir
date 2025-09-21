@@ -296,6 +296,10 @@ struct Session {
 
     // Build table of contents using track information
     void BuildTOC() {
+        // -----------------------------------------------------------------------------------------
+        // Simplified TOC data (4 bytes per entry)
+        // Returned by Read TOC CD block command
+
         uint32 firstTrackNum = 0;
         uint32 lastTrackNum = 0;
         for (int i = 0; i < 99; i++) {
@@ -321,6 +325,8 @@ struct Session {
         }
 
         // -----------------------------------------------------------------------------------------
+        // Raw TOC data (10 bytes per entry)
+        // Stored in lead-in area of the disc
 
         leadInTOCCount = 0;
 
@@ -369,6 +375,7 @@ struct Session {
             tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
         }
 
+        // Tracks
         for (int i = 0; i < 99; i++) {
             auto &track = tracks[i];
             if (track.controlADR == 0x00) {

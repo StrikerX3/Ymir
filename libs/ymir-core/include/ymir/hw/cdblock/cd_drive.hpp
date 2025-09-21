@@ -158,6 +158,8 @@ private:
     uint64 ProcessCommand();
     uint64 ProcessOperation();
 
+    uint64 GetReadSpeedFactor() const;
+
     uint64 TransferTOC();
 
     void UpdateStatus();
