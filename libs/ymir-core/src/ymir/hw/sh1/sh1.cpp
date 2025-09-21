@@ -1043,15 +1043,39 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
     switch (address) {
     case 0x0C0: SCI.channels[0].WriteSMR(value); break;
     case 0x0C1: SCI.channels[0].WriteBRR(value); break;
-    case 0x0C2: SCI.channels[0].WriteSCR(value); break;
+    case 0x0C2:
+        SCI.channels[0].WriteSCR<poke>(value);
+        if (INTC.pending.source == InterruptSource::SCI0_ERI0 || INTC.pending.source == InterruptSource::SCI0_RxI0 ||
+            INTC.pending.source == InterruptSource::SCI0_TxI0) {
+            RecalcInterrupts();
+        }
+        break;
     case 0x0C3: SCI.channels[0].WriteTDR(value); break;
-    case 0x0C4: SCI.channels[0].WriteSSR<poke>(value); break;
+    case 0x0C4:
+        SCI.channels[0].WriteSSR<poke>(value);
+        if (INTC.pending.source == InterruptSource::SCI0_ERI0 || INTC.pending.source == InterruptSource::SCI0_RxI0 ||
+            INTC.pending.source == InterruptSource::SCI0_TxI0 || INTC.pending.source == InterruptSource::SCI0_TEI0) {
+            RecalcInterrupts();
+        }
+        break;
     case 0x0C5: SCI.channels[0].WriteRDR<poke>(value); break; // SCI RDR0 is read-only
     case 0x0C8: SCI.channels[1].WriteSMR(value); break;
     case 0x0C9: SCI.channels[1].WriteBRR(value); break;
-    case 0x0CA: SCI.channels[1].WriteSCR(value); break;
+    case 0x0CA:
+        SCI.channels[1].WriteSCR<poke>(value);
+        if (INTC.pending.source == InterruptSource::SCI1_ERI1 || INTC.pending.source == InterruptSource::SCI1_RxI1 ||
+            INTC.pending.source == InterruptSource::SCI1_TxI1) {
+            RecalcInterrupts();
+        }
+        break;
     case 0x0CB: SCI.channels[1].WriteTDR(value); break;
-    case 0x0CC: SCI.channels[1].WriteSSR<poke>(value); break;
+    case 0x0CC:
+        SCI.channels[1].WriteSSR<poke>(value);
+        if (INTC.pending.source == InterruptSource::SCI1_ERI1 || INTC.pending.source == InterruptSource::SCI1_RxI1 ||
+            INTC.pending.source == InterruptSource::SCI1_TxI1 || INTC.pending.source == InterruptSource::SCI1_TEI1) {
+            RecalcInterrupts();
+        }
+        break;
     case 0x0CD: SCI.channels[1].WriteRDR<poke>(value); break; // SCI RDR1 is read-only
 
     case 0x0E0: AD.WriteADDRH<poke>(0, value); break; // A/D ADDRAH is read-only
@@ -2063,7 +2087,8 @@ void SH1::AdvanceSCI() {
                 const bool bit = m_cbSerialRx[i]();
                 ch.ReceiveBit(bit);
                 if (ch.rxIntrEnable && ch.rxFull) {
-                    RaiseInterrupt(InterruptSource::SCI0_RxI0);
+                    RaiseInterrupt(
+                        static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::SCI0_RxI0) - i * 4));
                 }
             }
             if (ch.txEnable) {

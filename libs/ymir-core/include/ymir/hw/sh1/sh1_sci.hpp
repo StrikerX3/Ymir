@@ -197,7 +197,12 @@ struct SerialCommunicationInterface {
             return value;
         }
 
+        template <bool poke>
         FORCE_INLINE void WriteSCR(uint8 value) {
+            if constexpr (!poke) {
+                txEmpty &= bit::test<7>(value) || !txIntrEnable;
+                rxFull &= bit::test<6>(value) || !rxIntrEnable;
+            }
             txIntrEnable = bit::test<7>(value);
             rxIntrEnable = bit::test<6>(value);
             txEnable = bit::test<5>(value);
@@ -205,6 +210,10 @@ struct SerialCommunicationInterface {
             multiprocessorIntrEnable = bit::test<3>(value);
             txEndIntrEnable = bit::test<2>(value);
             clockEnable = bit::extract<0, 1>(value);
+            if constexpr (!poke) {
+                txEmpty |= !txEnable;
+                txEnd |= !txEnable;
+            }
         }
 
         // 0C3  R/W  8,16     FF        TDR0    Transmit data register 0
@@ -274,9 +283,7 @@ struct SerialCommunicationInterface {
                 framingError = bit::test<4>(value);
                 parityError = bit::test<3>(value);
             } else {
-                if (txEmpty && txEmptyMask && !bit::test<7>(value)) {
-                    txEnd = false;
-                }
+                txEnd &= bit::test<7>(value) || !txEmpty || !txEmptyMask;
                 txEmpty &= bit::test<7>(value) || !txEmptyMask;
                 rxFull &= bit::test<6>(value) || !rxFullMask;
                 overrunError &= bit::test<5>(value) || !overrunErrorMask;
