@@ -105,7 +105,7 @@ void CDBlock::Reset(bool hard) {
     m_mpegAuthStatus = 0;
 
     if (hard) {
-        m_HIRQ = 0x0BC1; // 0x0BE1;
+        m_HIRQ = 0x0BE1;
         m_HIRQMASK = 0;
     } else {
         m_HIRQ &= kHIRQ_mask & ~kHIRQ_DCHG;
