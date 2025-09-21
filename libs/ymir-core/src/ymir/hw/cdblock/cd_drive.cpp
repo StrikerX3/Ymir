@@ -155,28 +155,41 @@ uint64 CDDrive::ProcessState() {
         m_cbSetCOMSYNCn(true);
         m_cbSetCOMREQn(true);
         m_state = TxState::PreTx;
+        // TODO: get actual cycles
         return 18000000 * 3;
 
-    case TxState::PreTx: m_state = TxState::TxBegin; return 10000 * 3;
+    case TxState::PreTx:
+        m_state = TxState::TxBegin;
+        // TODO: get actual cycles
+        return 100 * 3;
 
     case TxState::TxBegin:
         m_cbSetCOMSYNCn(false);
         m_state = TxState::TxByte;
-        return 10000 * 3;
+        // TODO: get actual cycles
+        return 100 * 3;
 
-    case TxState::TxByte: m_cbSetCOMREQn(false); return 10000 * 3;
+    case TxState::TxByte:
+        m_cbSetCOMREQn(false);
+        // TODO: get actual cycles
+        return 100 * 3;
 
     case TxState::TxInter1:
         m_cbSetCOMREQn(true);
         m_state = TxState::TxByte;
-        return 10000 * 3;
+        // TODO: get actual cycles
+        return 100 * 3;
 
-    case TxState::TxInterN: m_state = TxState::TxByte; return 10000 * 3;
+    case TxState::TxInterN:
+        m_state = TxState::TxByte;
+        // TODO: get actual cycles
+        return 100 * 3;
 
     case TxState::TxEnd: return ProcessCommand(); // also handles the state change
     }
 
-    return 10000 * 3;
+    // TODO: get actual cycles
+    return 100 * 3;
 }
 
 uint64 CDDrive::ProcessCommand() {
@@ -194,7 +207,10 @@ uint64 CDDrive::ProcessCommand() {
     switch (m_command.command) {
     case Command::Noop: return ProcessOperation();
     case Command::SeekRing: break;
-    case Command::ReadTOC: m_currTOCEntry = 0; return TransferTOC();
+    case Command::ReadTOC:
+        m_currTOCEntry = 0;
+        m_currTOCRepeat = 0;
+        return TransferTOC();
     case Command::Stop: break;
     case Command::ReadSector: break;
     case Command::Pause: break;
@@ -205,7 +221,7 @@ uint64 CDDrive::ProcessCommand() {
     }
 
     // TODO: proper cycles per command
-    return 10000 * 3;
+    return 100 * 3;
 }
 
 uint64 CDDrive::ProcessOperation() {
@@ -253,13 +269,13 @@ uint64 CDDrive::TransferTOC() {
     if (m_disc.sessions.empty()) {
         m_status.operation = Operation::NoDisc;
         m_state = TxState::PreTx;
-        return 800000 / 2;
+        return kDriveCyclesPlaying1x / 2;
     }
 
     auto &session = m_disc.sessions.back();
 
     // Copy TOC entry to status output
-    if (m_currTOCEntry < session.leadInTOC.size()) {
+    if (m_currTOCRepeat == 0 && m_currTOCEntry < session.leadInTOCCount) {
         auto &tocEntry = session.leadInTOC[m_currTOCEntry];
         m_statusData.data[0] = static_cast<uint8>(Operation::ReadTOC);
         m_statusData.data[1] = tocEntry.controlADR;
@@ -274,15 +290,17 @@ uint64 CDDrive::TransferTOC() {
         m_statusData.data[10] = tocEntry.afrac;
         CalcStatusDataChecksum();
     }
-    if (++m_currTOCEntry < session.leadInTOC.size()) {
-        m_status.operation = Operation::ReadTOC;
-    } else {
-        m_status.operation = Operation::Idle;
+    m_status.operation = Operation::ReadTOC;
+    if (++m_currTOCRepeat == 3) {
+        if (++m_currTOCEntry == session.leadInTOCCount) {
+            m_status.operation = Operation::Idle;
+        } else {
+            m_currTOCRepeat = 0;
+        }
     }
     m_state = TxState::PreTx;
 
-    // TODO: proper cycles per operation
-    return 800000 / 2;
+    return kDriveCyclesPlaying1x / 2;
 }
 
 void CDDrive::UpdateStatus() {

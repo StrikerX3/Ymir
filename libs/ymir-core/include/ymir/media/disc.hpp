@@ -291,7 +291,8 @@ struct Session {
     std::array<uint32, 99 + 3> toc;
 
     // TOC entries listed in the lead-in area
-    std::vector<TOCEntry> leadInTOC;
+    std::array<TOCEntry, 99 + 3> leadInTOC;
+    uint32 leadInTOCCount;
 
     // Build table of contents using track information
     void BuildTOC() {
@@ -321,44 +322,17 @@ struct Session {
 
         // -----------------------------------------------------------------------------------------
 
-        for (int i = 0; i < 99; i++) {
-            auto &track = tracks[i];
-            if (track.controlADR == 0x00) {
-                continue;
-            }
-
-            for (uint32 j = 0; j < track.indices.size(); ++j) {
-                const auto &index = track.indices[j];
-                if (index.startFrameAddress == 0 && index.endFrameAddress == 0) {
-                    // Placeholder INDEX 00 for tracks that don't have such index
-                    continue;
-                }
-                auto &entry = leadInTOC.emplace_back();
-                entry.controlADR = track.controlADR;
-                entry.trackNum = util::to_bcd(i + 1);
-                entry.pointOrIndex = util::to_bcd(j);
-                // TODO: absolute vs. relative MSF
-                entry.min = entry.amin = util::to_bcd(index.startFrameAddress / 75 / 60);
-                entry.sec = entry.asec = util::to_bcd(index.startFrameAddress / 75 % 60);
-                entry.frac = entry.afrac = util::to_bcd(index.startFrameAddress % 75);
-                entry.zero = 0x00;
-
-                // These entries are repeated thrice
-                const TOCEntry copy = entry;
-                leadInTOC.push_back(copy);
-                leadInTOC.push_back(copy);
-            }
-        }
+        leadInTOCCount = 0;
 
         // Point A0 - first data track
         {
-            auto &tocEntry = leadInTOC.emplace_back();
+            auto &tocEntry = leadInTOC[leadInTOCCount++];
             tocEntry.controlADR = tracks[firstTrackNum - 1].controlADR;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA0;
-            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60); // TODO: check this
-            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60); // TODO: check this
-            tocEntry.frac = util::to_bcd(startFrameAddress % 75);     // TODO: check this
+            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60);
+            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60);
+            tocEntry.frac = util::to_bcd(startFrameAddress % 75);
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(firstTrackNum);
             tocEntry.asec = 0x00;
@@ -367,13 +341,13 @@ struct Session {
 
         // Point A1 - last data track
         {
-            auto &tocEntry = leadInTOC.emplace_back();
+            auto &tocEntry = leadInTOC[leadInTOCCount++];
             tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA1;
-            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60); // TODO: check this
-            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60); // TODO: check this
-            tocEntry.frac = util::to_bcd(startFrameAddress % 75);     // TODO: check this
+            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60);
+            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60);
+            tocEntry.frac = util::to_bcd(startFrameAddress % 75);
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(lastTrackNum);
             tocEntry.asec = 0x00;
@@ -382,17 +356,38 @@ struct Session {
 
         // Point A2 - start of leadout track
         {
-            auto &tocEntry = leadInTOC.emplace_back();
+            auto &tocEntry = leadInTOC[leadInTOCCount++];
             tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA2;
-            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60); // TODO: check this
-            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60); // TODO: check this
-            tocEntry.frac = util::to_bcd(startFrameAddress % 75);     // TODO: check this
+            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60);
+            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60);
+            tocEntry.frac = util::to_bcd(startFrameAddress % 75);
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
             tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
             tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
+        }
+
+        for (int i = 0; i < 99; i++) {
+            auto &track = tracks[i];
+            if (track.controlADR == 0x00) {
+                continue;
+            }
+
+            const auto &index = track.indices[1];
+            const uint32 index01FAD = index.startFrameAddress - track.startFrameAddress;
+            auto &entry = leadInTOC[leadInTOCCount++];
+            entry.controlADR = track.controlADR;
+            entry.trackNum = 0x00;
+            entry.pointOrIndex = util::to_bcd(i + 1);
+            entry.min = util::to_bcd(index01FAD / 75 / 60);
+            entry.sec = util::to_bcd(index01FAD / 75 % 60);
+            entry.frac = util::to_bcd(index01FAD % 75);
+            entry.amin = util::to_bcd(index.startFrameAddress / 75 / 60);
+            entry.asec = util::to_bcd(index.startFrameAddress / 75 % 60);
+            entry.afrac = util::to_bcd(index.startFrameAddress % 75);
+            entry.zero = 0x00;
         }
     }
 };

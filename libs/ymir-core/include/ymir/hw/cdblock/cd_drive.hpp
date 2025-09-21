@@ -149,6 +149,7 @@ private:
     uint32 m_targetFAD;
 
     uint32 m_currTOCEntry;
+    uint32 m_currTOCRepeat;
 
     bool SerialRead();
     void SerialWrite(bool bit);
