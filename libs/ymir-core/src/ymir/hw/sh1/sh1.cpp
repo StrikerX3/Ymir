@@ -1866,21 +1866,6 @@ FLATTEN FORCE_INLINE bool SH1::IsDMATransferActive(const DMAController::DMAChann
     return ch.IsEnabled() && DMAC.DMAOR.DME && !DMAC.DMAOR.NMIF && !DMAC.DMAOR.AE;
 }
 
-FORCE_INLINE void SH1::SCI0RxBit(bool bit) {
-    auto &ch = SCI.channels[0];
-    ch.ReceiveBit(bit);
-    if (ch.RSRbit == 0u && ch.rxIntrEnable && ch.rxFull) {
-        RaiseInterrupt(InterruptSource::SCI0_RxI0);
-    }
-}
-
-FORCE_INLINE bool SH1::SCI0TxBit() {
-    auto &ch = SCI.channels[0];
-    const bool value = ch.TransmitBit();
-    // TODO: handle Tx-related interrupts
-    return value;
-}
-
 // TODO: Wire up pins:
 // A0  I TIOCA0    <- MPEG card - MPEG A data transfer (DMA3) request input (edge detected)
 // A1  O RAS#      -> DRAM - CASL output
@@ -2075,10 +2060,16 @@ void SH1::AdvanceSCI() {
                 break;
             }
             if (ch.rxEnable) {
-                ch.ReceiveBit(m_cbSerialRx[i]());
+                const bool bit = m_cbSerialRx[i]();
+                ch.ReceiveBit(bit);
+                if (ch.rxIntrEnable && ch.rxFull) {
+                    RaiseInterrupt(InterruptSource::SCI0_RxI0);
+                }
             }
             if (ch.txEnable) {
-                m_cbSerialTx[i](ch.TransmitBit());
+                const bool bit = ch.TransmitBit();
+                m_cbSerialTx[i](bit);
+                // TODO: handle Tx-related interrupts
             }
         }
         ch.currCycles = cycles - chCycles;

@@ -207,9 +207,6 @@ private:
     void RunDMAC(uint32 channel);
     bool IsDMATransferActive(const DMAController::DMAChannel &ch) const;
 
-    void SCI0RxBit(bool bit);
-    bool SCI0TxBit();
-
     uint16 ReadPortA() const;
     void WritePortA(uint16 value) const;
     void WritePortAHi(uint8 value) const;

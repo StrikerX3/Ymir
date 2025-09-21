@@ -99,6 +99,7 @@ struct SerialCommunicationInterface {
                 RSRbit = 1u;
                 RDR = RSR;
                 RSR = 0u;
+                rxFull = true;
             }
         }
 
