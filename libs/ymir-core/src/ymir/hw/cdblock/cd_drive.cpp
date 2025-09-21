@@ -151,7 +151,7 @@ uint64 CDDrive::ProcessState() {
     case TxState::Reset:
         m_status.operation = Operation::Idle;
         UpdateStatus();
-        CopyStatusToOutput();
+        OutputStatus();
         m_cbSetCOMSYNCn(true);
         m_cbSetCOMREQn(true);
         m_state = TxState::PreTx;
@@ -198,11 +198,22 @@ uint64 CDDrive::ProcessCommand() {
     case Command::ReadTOC:
         m_currTOCEntry = 0;
         m_currTOCRepeat = 0;
-        return Op_ReadTOC();
+        devlog::debug<grp::lle_cd>("Read TOC");
+        return ReadTOC();
+
     case Command::Stop: break;
     case Command::ReadSector: break;
     case Command::Pause: break;
-    case Command::SeekSector: return Op_Seek();
+    case Command::SeekSector: //
+    {
+        const uint64 cycles = BeginSeek(Operation::Idle);
+        UpdateStatus();
+        m_status.operation = Operation::Seek;
+        m_state = TxState::PreTx;
+        OutputStatus();
+        return cycles;
+    }
+
     case Command::ScanForwards: break;
     case Command::ScanBackwards: break;
     default: break;
@@ -218,14 +229,21 @@ uint64 CDDrive::ProcessOperation() {
         // Default value at boot-up, theoretically shouldn't ever be processed
         break;
 
-    case Operation::ReadTOC: return Op_ReadTOC();
+    case Operation::ReadTOC: return ReadTOC();
 
     case Operation::Stopped: m_state = TxState::PreTx; break;
 
     case Operation::Seek: [[fallthrough]];
     case Operation::SeekSecurityRingB2: [[fallthrough]];
     case Operation::SeekSecurityRingB6:
-        // TODO: implement
+        m_state = TxState::PreTx;
+        UpdateStatus();
+        OutputStatus();
+
+        if (--m_seekCountdown == 0) {
+            m_status.operation = m_seekOp;
+            devlog::debug<grp::lle_cd>("Seek done");
+        }
         break;
 
     case Operation::ReadAudioSector: [[fallthrough]];
@@ -242,7 +260,7 @@ uint64 CDDrive::ProcessOperation() {
         }
 
         UpdateStatus();
-        CopyStatusToOutput();
+        OutputStatus();
         break;
 
     default: m_state = TxState::PreTx; break;
@@ -257,7 +275,7 @@ uint64 CDDrive::GetReadSpeedFactor() const {
     return m_command.readSpeed == 1 ? 1 : 2;
 }
 
-uint64 CDDrive::Op_ReadTOC() {
+uint64 CDDrive::ReadTOC() {
     const uint8 readSpeed = GetReadSpeedFactor();
 
     // No disc
@@ -298,10 +316,15 @@ uint64 CDDrive::Op_ReadTOC() {
     return kDriveCyclesPlaying1x / readSpeed;
 }
 
-uint64 CDDrive::Op_Seek() {
+uint64 CDDrive::BeginSeek(Operation op) {
     const uint8 readSpeed = GetReadSpeedFactor();
 
-    // TODO: implement
+    const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
+    m_currFAD = fad - 4;
+    m_targetFAD = fad - 4;
+    m_seekOp = op;
+    m_seekCountdown = 9;
+    devlog::debug<grp::lle_cd>("Seek to FAD {:06X}", fad);
 
     return kDriveCyclesPlaying1x / readSpeed;
 }
@@ -317,7 +340,8 @@ void CDDrive::UpdateStatus() {
         m_status.zero = 0xFF;
     } else {
         auto &session = m_disc.sessions.back();
-        if (m_currFAD < 150) {
+        const uint32 currFAD = m_currFAD + 4;
+        if (currFAD < 150) {
             // Lead-in
             // TODO: check if this is correct
             m_status.subcodeQ = session.tracks[0].controlADR;
@@ -326,11 +350,11 @@ void CDDrive::UpdateStatus() {
             m_status.min = 0;
             m_status.sec = 0;
             m_status.frac = 0;
-            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(m_currFAD % 75);
+            m_status.absMin = util::to_bcd(currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(currFAD % 75);
             m_status.zero = 0x04;
-        } else if (m_currFAD > session.endFrameAddress) {
+        } else if (currFAD > session.endFrameAddress) {
             // Lead-out
             const uint32 leadoutFAD = session.endFrameAddress + 1;
             m_status.subcodeQ = session.tracks[session.lastTrackIndex].controlADR;
@@ -339,34 +363,34 @@ void CDDrive::UpdateStatus() {
             m_status.min = util::to_bcd(leadoutFAD / 75 / 60);
             m_status.sec = util::to_bcd(leadoutFAD / 75 % 60);
             m_status.frac = util::to_bcd(leadoutFAD % 75);
-            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(m_currFAD % 75);
+            m_status.absMin = util::to_bcd(currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(currFAD % 75);
             m_status.zero = 0x04;
         } else {
             // Tracks 01 to 99
-            const uint8 trackIndex = session.FindTrackIndex(m_currFAD);
+            const uint8 trackIndex = session.FindTrackIndex(currFAD);
             assert(trackIndex != 0xFF);
             const auto &track = session.tracks[trackIndex];
-            sint32 relFAD = track.indices[1].startFrameAddress - m_currFAD;
+            sint32 relFAD = track.indices[1].startFrameAddress - currFAD;
             if (relFAD < 0) {
                 relFAD = -relFAD; // INDEX 00 frame addresses count downwards to 00:00:00 until start of INDEX 01
             }
             m_status.subcodeQ = track.controlADR;
             m_status.trackNum = util::to_bcd(trackIndex + 1);
-            m_status.indexNum = util::to_bcd(track.FindIndex(m_currFAD));
+            m_status.indexNum = util::to_bcd(track.FindIndex(currFAD));
             m_status.min = util::to_bcd(relFAD / 75 / 60);
             m_status.sec = util::to_bcd(relFAD / 75 % 60);
             m_status.frac = util::to_bcd(relFAD % 75);
-            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(m_currFAD % 75);
+            m_status.absMin = util::to_bcd(currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(currFAD % 75);
             m_status.zero = 0x04;
         }
     }
 }
 
-void CDDrive::CopyStatusToOutput() {
+void CDDrive::OutputStatus() {
     m_statusData.cdStatus = m_status;
     CalcStatusDataChecksum();
 }

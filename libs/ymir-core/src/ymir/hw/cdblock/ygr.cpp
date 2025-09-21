@@ -297,7 +297,7 @@ void YGR::HostPokeByte(uint32 address, uint8 value) {
 }
 
 void YGR::UpdateInterrupts() {
-    devlog::debug<grp::base>("HIRQ = {:04X}  mask = {:04X}  active = {:04X}", m_regs.HIRQ, m_regs.HIRQMASK,
+    devlog::trace<grp::base>("HIRQ = {:04X}  mask = {:04X}  active = {:04X}", m_regs.HIRQ, m_regs.HIRQMASK,
                              m_regs.HIRQ & m_regs.HIRQMASK);
     if (m_regs.HIRQ & m_regs.HIRQMASK) {
         m_cbTriggerExternalInterrupt0();

@@ -147,6 +147,8 @@ private:
 
     uint32 m_currFAD;
     uint32 m_targetFAD;
+    Operation m_seekOp;
+    uint32 m_seekCountdown;
 
     uint32 m_currTOCEntry;
     uint32 m_currTOCRepeat;
@@ -160,12 +162,12 @@ private:
 
     uint64 GetReadSpeedFactor() const;
 
-    uint64 Op_ReadTOC();
-    uint64 Op_Seek();
+    uint64 ReadTOC();
+    uint64 BeginSeek(Operation op);
 
     void UpdateStatus();
 
-    void CopyStatusToOutput();
+    void OutputStatus();
     void CalcStatusDataChecksum();
 
 public:
