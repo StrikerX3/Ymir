@@ -173,6 +173,7 @@ uint64 CDDrive::ProcessState() {
 
     case TxState::TxInterN: m_state = TxState::TxByte; return kTxCyclesInterTx;
 
+    // TODO: need to compensate for time spent transmitting serial data
     case TxState::TxEnd: return ProcessCommand(); // also handles the state change
     }
 
@@ -191,6 +192,10 @@ uint64 CDDrive::ProcessCommand() {
         devlog::trace<grp::lle_cd_cmd>("{}", fmt::to_string(buf));
     }
 
+    if (m_command.command != Command::Noop) {
+        GetReadSpeedFactor();
+    }
+
     // TODO: implement the remaining commmands
     switch (m_command.command) {
     case Command::Noop: return ProcessOperation();
@@ -202,9 +207,9 @@ uint64 CDDrive::ProcessCommand() {
         return ReadTOC();
 
     case Command::Stop: break;
-    case Command::ReadSector: break;
+    case Command::ReadSector: return BeginSeek(true);
     case Command::Pause: break;
-    case Command::SeekSector: return BeginSeek(Operation::Idle);
+    case Command::SeekSector: return BeginSeek(false);
     case Command::ScanForwards: break;
     case Command::ScanBackwards: break;
     default: break;
@@ -261,13 +266,13 @@ uint64 CDDrive::ProcessOperation() {
     return 1000;
 }
 
-uint64 CDDrive::GetReadSpeedFactor() const {
+void CDDrive::GetReadSpeedFactor() {
     // TODO: apply read speed tweak
-    return m_command.readSpeed == 1 ? 1 : 2;
+    m_readSpeed = m_command.readSpeed == 1 ? 1 : 2;
 }
 
 uint64 CDDrive::ReadTOC() {
-    const uint8 readSpeed = GetReadSpeedFactor();
+    const uint8 readSpeed = m_readSpeed;
 
     // No disc
     if (m_disc.sessions.empty()) {
@@ -307,15 +312,29 @@ uint64 CDDrive::ReadTOC() {
     return kDriveCyclesPlaying1x / readSpeed;
 }
 
-uint64 CDDrive::BeginSeek(Operation op) {
-    const uint8 readSpeed = GetReadSpeedFactor();
+uint64 CDDrive::BeginSeek(bool read) {
+    const uint8 readSpeed = m_readSpeed;
 
     const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
     m_currFAD = fad - 4;
     m_targetFAD = fad - 4;
-    m_seekOp = op;
+    if (read) {
+        if (m_disc.sessions.empty()) {
+            m_seekOp = Operation::NoDisc;
+        } else {
+            const auto &session = m_disc.sessions.back();
+            const auto *track = session.FindTrack(fad);
+            if (track == nullptr || (track->controlADR & 0xF0) == 0x40) {
+                m_seekOp = Operation::ReadDataSector;
+            } else {
+                m_seekOp = Operation::ReadAudioSector;
+            }
+        }
+    } else {
+        m_seekOp = Operation::Idle;
+    }
     m_seekCountdown = 9;
-    devlog::debug<grp::lle_cd>("Seek to FAD {:06X}", fad);
+    devlog::debug<grp::lle_cd>("Seek to FAD {:06X} then {}", fad, (read ? "read" : "pause"));
 
     m_status.operation = Operation::Seek;
     m_state = TxState::PreTx;

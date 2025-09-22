@@ -153,6 +153,8 @@ private:
     uint32 m_currTOCEntry;
     uint32 m_currTOCRepeat;
 
+    uint8 m_readSpeed;
+
     bool SerialRead();
     void SerialWrite(bool bit);
 
@@ -160,10 +162,10 @@ private:
     uint64 ProcessCommand();
     uint64 ProcessOperation();
 
-    uint64 GetReadSpeedFactor() const;
+    void GetReadSpeedFactor();
 
     uint64 ReadTOC();
-    uint64 BeginSeek(Operation op);
+    uint64 BeginSeek(bool read);
 
     void UpdateStatus();
 
