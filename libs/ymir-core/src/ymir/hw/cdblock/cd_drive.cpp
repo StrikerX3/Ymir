@@ -221,7 +221,7 @@ uint64 CDDrive::ProcessCommand() {
     }
 
     // Invalid command; shouldn't happen
-    return 1000;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 uint64 CDDrive::ProcessOperation() {
@@ -232,7 +232,10 @@ uint64 CDDrive::ProcessOperation() {
 
     case Operation::ReadTOC: return ReadTOC();
 
-    case Operation::Stopped: m_state = TxState::PreTx; break;
+    case Operation::Stopped:
+        m_state = TxState::PreTx;
+        // TODO: timing
+        break;
 
     case Operation::Seek: [[fallthrough]];
     case Operation::SeekSecurityRingB2: [[fallthrough]];
@@ -245,6 +248,7 @@ uint64 CDDrive::ProcessOperation() {
             m_status.operation = m_seekOp;
             devlog::debug<grp::lle_cd>("Seek done");
         }
+        // TODO: timing
         break;
 
     case Operation::ReadAudioSector: [[fallthrough]];
@@ -262,9 +266,13 @@ uint64 CDDrive::ProcessOperation() {
 
         UpdateStatus();
         OutputStatus();
+        // TODO: timing
         break;
 
-    default: m_state = TxState::PreTx; break;
+    default:
+        m_state = TxState::PreTx;
+        // TODO: timing
+        break;
     }
 
     // Invalid operation; shouldn't happen
@@ -277,13 +285,11 @@ void CDDrive::GetReadSpeedFactor() {
 }
 
 uint64 CDDrive::ReadTOC() {
-    const uint8 readSpeed = m_readSpeed;
-
     // No disc
     if (m_disc.sessions.empty()) {
         m_status.operation = Operation::NoDisc;
         m_state = TxState::PreTx;
-        return kDriveCyclesPlaying1x / readSpeed;
+        return kDriveCyclesPlaying1x / m_readSpeed;
     }
 
     auto &session = m_disc.sessions.back();
@@ -314,12 +320,10 @@ uint64 CDDrive::ReadTOC() {
     }
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x / readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 uint64 CDDrive::BeginSeek(bool read) {
-    const uint8 readSpeed = m_readSpeed;
-
     const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
     m_currFAD = fad - 4;
     m_targetFAD = fad - 4;
@@ -329,7 +333,7 @@ uint64 CDDrive::BeginSeek(bool read) {
         } else {
             const auto &session = m_disc.sessions.back();
             const auto *track = session.FindTrack(fad);
-            if (track == nullptr || (track->controlADR & 0xF0) == 0x40) {
+            if (track == nullptr || (track->controlADR & 0x40)) {
                 m_seekOp = Operation::ReadDataSector;
             } else {
                 m_seekOp = Operation::ReadAudioSector;
@@ -346,7 +350,7 @@ uint64 CDDrive::BeginSeek(bool read) {
     UpdateStatus();
     OutputStatus();
 
-    return kDriveCyclesPlaying1x / readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 void CDDrive::UpdateStatus() {
