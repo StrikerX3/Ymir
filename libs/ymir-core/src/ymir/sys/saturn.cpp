@@ -224,6 +224,14 @@ XXH128Hash Saturn::GetIPLHash() const noexcept {
     return mem.GetIPLHash();
 }
 
+const media::Disc &Saturn::GetDisc() const noexcept {
+    if constexpr (static_config::use_cdblock_lle) {
+        return CDDrive.GetDisc();
+    } else {
+        return CDBlock.GetDisc();
+    }
+}
+
 XXH128Hash Saturn::GetDiscHash() const noexcept {
     if constexpr (static_config::use_cdblock_lle) {
         return CDDrive.GetDiscHash();

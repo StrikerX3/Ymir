@@ -79,6 +79,10 @@ namespace cart {
     class BaseCartridge;
 } // namespace cart
 
+namespace media {
+    struct Disc;
+} // namespace media
+
 } // namespace ymir
 
 // -----------------------------------------------------------------------------
@@ -158,8 +162,9 @@ struct SharedContext {
         void SetSlaveSH2Enabled(bool enabled);
         bool IsDebugTracingEnabled() const;
 
-        ymir::XXH128Hash GetIPLHash() const;
-        ymir::XXH128Hash GetDiscHash() const;
+        [[nodiscard]] ymir::XXH128Hash GetIPLHash() const;
+        [[nodiscard]] ymir::XXH128Hash GetDiscHash() const;
+        [[nodiscard]] const ymir::media::Disc &GetDisc() const;
 
         ymir::core::Configuration &GetConfiguration();
         const ymir::core::Configuration &GetConfiguration() const {

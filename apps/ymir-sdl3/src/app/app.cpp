@@ -2119,7 +2119,7 @@ void App::RunEmulator() {
             std::string fullGameTitle;
             {
                 std::unique_lock lock{m_context.locks.disc};
-                const media::Disc &disc = m_context.saturn.instance->CDBlock.GetDisc();
+                const media::Disc &disc = m_context.saturn.GetDisc();
                 const media::SaturnHeader &header = disc.header;
                 std::string productNumber = "";
                 std::string gameTitle{};
@@ -4221,7 +4221,7 @@ void App::LoadRecommendedCartridge() {
     const ymir::db::GameInfo *info;
     {
         std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.instance->CDBlock.GetDisc();
+        const auto &disc = m_context.saturn.GetDisc();
         info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
     }
     if (info == nullptr) {
@@ -4291,7 +4291,7 @@ void App::ApplyGameSpecificConfiguration() {
     const ymir::db::GameInfo *info;
     {
         std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.instance->CDBlock.GetDisc();
+        const auto &disc = m_context.saturn.GetDisc();
         info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
     }
 
@@ -4418,7 +4418,7 @@ void App::WriteSaveStateMeta() {
     std::ofstream out{gameMetaPath};
     if (out) {
         std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.instance->CDBlock.GetDisc();
+        const auto &disc = m_context.saturn.GetDisc();
 
         auto iter = std::ostream_iterator<char>(out);
         fmt::format_to(iter, "IPL ROM hash: {}\n", ymir::ToString(m_context.saturn.instance->GetIPLHash()));

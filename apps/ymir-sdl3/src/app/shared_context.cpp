@@ -22,7 +22,7 @@ std::filesystem::path SharedContext::GetGameFileName(bool oldStyle) const {
     // Use serial number + disc title if available
     {
         std::unique_lock lock{locks.disc};
-        const auto &disc = saturn.instance->CDBlock.GetDisc();
+        const auto &disc = saturn.GetDisc();
         if (!disc.sessions.empty() && !disc.header.productNumber.empty()) {
             if (!disc.header.gameTitle.empty()) {
                 std::string title = disc.header.gameTitle;
@@ -139,6 +139,10 @@ ymir::XXH128Hash SharedContext::SaturnContainer::GetIPLHash() const {
 
 ymir::XXH128Hash SharedContext::SaturnContainer::GetDiscHash() const {
     return instance->GetDiscHash();
+}
+
+const ymir::media::Disc &SharedContext::SaturnContainer::GetDisc() const {
+    return instance->GetDisc();
 }
 
 ymir::core::Configuration &SharedContext::SaturnContainer::GetConfiguration() {

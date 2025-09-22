@@ -259,7 +259,7 @@ void SystemStateWindow::DrawCDDrive() {
         std::string hash{};
         {
             std::unique_lock lock{m_context.locks.disc};
-            hash = ToString(m_context.saturn.instance->CDBlock.GetDiscHash());
+            hash = ToString(m_context.saturn.GetDiscHash());
         }
 
         ImGui::Text("Hash: %s", hash.c_str());

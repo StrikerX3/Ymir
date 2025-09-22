@@ -102,6 +102,10 @@ struct Saturn {
     /// @return the hash code of the currently loaded IPL ROM image
     [[nodiscard]] XXH128Hash GetIPLHash() const noexcept;
 
+    /// @brief Retrieves the currently loaded disc.
+    /// @return a read-only reference to the currently loaded disc
+    [[nodiscard]] const media::Disc &GetDisc() const noexcept;
+
     /// @brief Retrieves the game disc image hash code.
     /// @return the hash code of the currently loaded game disc image
     [[nodiscard]] XXH128Hash GetDiscHash() const noexcept;
