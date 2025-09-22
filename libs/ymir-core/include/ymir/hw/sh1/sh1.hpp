@@ -250,7 +250,7 @@ private:
 
     InterruptController INTC;
 
-    void SetnIRQ(uint8 irqnum, bool level);
+    void SetIRQn(uint8 irqnum, bool level);
 
     // Raises the interrupt signal of the specified source.
     FORCE_INLINE void RaiseInterrupt(InterruptSource source) {

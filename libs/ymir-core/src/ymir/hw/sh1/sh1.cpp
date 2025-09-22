@@ -236,11 +236,11 @@ void SH1::SetDREQ1n(bool level) {
 }
 
 void SH1::AssertIRQ6() {
-    SetnIRQ(6, false);
+    SetIRQn(6, false);
 }
 
-void SH1::AssertIRQ7(bool asserted) {
-    SetnIRQ(7, !asserted);
+void SH1::AssertIRQ7() {
+    SetIRQn(7, false);
 }
 
 void SH1::SetTIOCB3(bool level) {
@@ -2108,7 +2108,7 @@ void SH1::AdvanceSCI() {
 // -----------------------------------------------------------------------------
 // Interrupts
 
-void SH1::SetnIRQ(uint8 irqnum, bool level) {
+void SH1::SetIRQn(uint8 irqnum, bool level) {
     assert(irqnum < 8);
 
     const auto source = static_cast<InterruptSource>(static_cast<uint8>(InterruptSource::IRQ0) - irqnum);
@@ -2272,14 +2272,14 @@ FORCE_INLINE uint64 SH1::InterpretNext() {
         // Acknowledge interrupt
         // HACK: Deassert IRQs as soon as they're handled
         switch (INTC.pending.source) {
-        case InterruptSource::IRQ0: SetnIRQ(0, true); break;
-        case InterruptSource::IRQ1: SetnIRQ(1, true); break;
-        case InterruptSource::IRQ2: SetnIRQ(2, true); break;
-        case InterruptSource::IRQ3: SetnIRQ(3, true); break;
-        case InterruptSource::IRQ4: SetnIRQ(4, true); break;
-        case InterruptSource::IRQ5: SetnIRQ(5, true); break;
-        case InterruptSource::IRQ6: SetnIRQ(6, true); break;
-        case InterruptSource::IRQ7: SetnIRQ(7, true); break;
+        case InterruptSource::IRQ0: SetIRQn(0, true); break;
+        case InterruptSource::IRQ1: SetIRQn(1, true); break;
+        case InterruptSource::IRQ2: SetIRQn(2, true); break;
+        case InterruptSource::IRQ3: SetIRQn(3, true); break;
+        case InterruptSource::IRQ4: SetIRQn(4, true); break;
+        case InterruptSource::IRQ5: SetIRQn(5, true); break;
+        case InterruptSource::IRQ6: SetIRQn(6, true); break;
+        case InterruptSource::IRQ7: SetIRQn(7, true); break;
 
         case InterruptSource::NMI:
             INTC.NMI = false;
