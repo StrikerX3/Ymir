@@ -4,6 +4,7 @@
 
 #include <ymir/util/arith_ops.hpp>
 #include <ymir/util/dev_log.hpp>
+#include <ymir/util/inline.hpp>
 
 #include <numeric>
 
@@ -15,7 +16,7 @@ CDDrive::CDDrive(core::Scheduler &scheduler)
     // TODO: should reuse/replace the original CD Block drive state once the transition is done
     m_stateEvent = m_scheduler.RegisterEvent(
         core::events::CDBlockLLEDriveState, this, [](core::EventContext &eventContext, void *userContext) {
-            const uint64 cycleInterval = static_cast<CDDrive *>(userContext)->ProcessState();
+            const uint64 cycleInterval = static_cast<CDDrive *>(userContext)->ProcessTxState();
             eventContext.Reschedule(cycleInterval);
         });
 
@@ -131,7 +132,7 @@ void CDDrive::SerialWrite(bool bit) {
     }
 }
 
-uint64 CDDrive::ProcessState() {
+uint64 CDDrive::ProcessTxState() {
     // Signalling based on:
     //   https://web.archive.org/web/20111203080908/http://www.crazynation.org/SEGA/Saturn/cd_tech.htm
     // where:
@@ -150,8 +151,7 @@ uint64 CDDrive::ProcessState() {
     switch (m_state) {
     case TxState::Reset:
         m_status.operation = Operation::Idle;
-        UpdateStatus();
-        OutputStatus();
+        OutputDriveStatus();
         m_cbSetCOMSYNCn(true);
         m_cbSetCOMREQn(true);
         m_state = TxState::PreTx;
@@ -183,10 +183,12 @@ uint64 CDDrive::ProcessState() {
     }
 
     // Invalid state; shouldn't happen
-    return 1000;
+    devlog::trace<grp::lle_cd>("Processing illegal TX state {:X}", static_cast<uint8>(m_state));
+    m_state = TxState::PreTx;
+    return kTxCyclesBeginTx;
 }
 
-uint64 CDDrive::ProcessCommand() {
+FORCE_INLINE uint64 CDDrive::ProcessCommand() {
     if constexpr (devlog::trace_enabled<grp::lle_cd_cmd>) {
         fmt::memory_buffer buf{};
         auto out = std::back_inserter(buf);
@@ -204,93 +206,232 @@ uint64 CDDrive::ProcessCommand() {
     // TODO: implement the remaining commmands
     switch (m_command.command) {
     case Command::Noop: return ProcessOperation();
-    case Command::SeekRing: break;
-    case Command::ReadTOC: return BeginReadTOC();
-    case Command::Stop: return Stop();
-    case Command::ReadSector: return BeginSeek(true);
-    case Command::Pause: return Pause();
-    case Command::SeekSector: return BeginSeek(false);
-    case Command::ScanForwards: break;
-    case Command::ScanBackwards: break;
-    default: break;
+    case Command::SeekRing: return CmdSeekRing();
+    case Command::ReadTOC: return CmdReadTOC();
+    case Command::Stop: return CmdStop();
+    case Command::ReadSector: return CmdReadSector();
+    case Command::Pause: return CmdPause();
+    case Command::SeekSector: return CmdSeekSector();
+    case Command::ScanForwards: return CmdScan(true);
+    case Command::ScanBackwards: return CmdScan(false);
+    default: return CmdUnknown();
     }
-
-    // Invalid command; shouldn't happen
-    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
-uint64 CDDrive::ProcessOperation() {
+FORCE_INLINE uint64 CDDrive::ProcessOperation() {
     switch (m_status.operation) {
-    case Operation::Zero:
-        // Default value at boot-up, theoretically shouldn't ever be processed
-        break;
-
-    case Operation::ReadTOC: return ReadTOC();
-
-    case Operation::Stopped:
-        m_state = TxState::PreTx;
-        UpdateStatus();
-        OutputStatus();
-        // TODO: timing
-        break;
-
+    case Operation::ReadTOC: return OpReadTOC();
+    case Operation::Stopped: return OpStopped();
     case Operation::Seek: [[fallthrough]];
     case Operation::SeekSecurityRingB2: [[fallthrough]];
-    case Operation::SeekSecurityRingB6:
-        m_state = TxState::PreTx;
-        UpdateStatus();
-        OutputStatus();
-
-        if (--m_seekCountdown == 0) {
-            m_status.operation = m_seekOp;
-            devlog::debug<grp::lle_cd>("Seek done");
-        }
-        // TODO: timing
-        break;
-
+    case Operation::SeekSecurityRingB6: return OpSeek();
     case Operation::ReadAudioSector: [[fallthrough]];
-    case Operation::ReadDataSector: return ReadSector();
-    case Operation::Idle:
-        m_state = TxState::PreTx;
-
-        ++m_currFAD;
-        if (m_currFAD > m_targetFAD + 5) {
-            m_currFAD = m_targetFAD;
-        }
-
-        UpdateStatus();
-        OutputStatus();
-        // TODO: timing
-        break;
-
-    default:
-        m_state = TxState::PreTx;
-        // TODO: timing
-        break;
+    case Operation::ReadDataSector: return OpReadSector();
+    case Operation::Idle: return OpIdle();
+    default: return OpUnknown();
     }
-
-    // Invalid operation; shouldn't happen
-    return 1000;
 }
 
-void CDDrive::GetReadSpeedFactor() {
-    // TODO: apply read speed tweak
-    m_readSpeed = m_command.readSpeed == 1 ? 1 : 2;
-}
-
-uint64 CDDrive::BeginReadTOC() {
+FORCE_INLINE uint64 CDDrive::CmdReadTOC() {
     devlog::debug<grp::lle_cd>("Read TOC");
     m_currTOCEntry = 0;
     m_currTOCRepeat = 0;
     return ReadTOC();
 }
 
-uint64 CDDrive::ReadTOC() {
+FORCE_INLINE uint64 CDDrive::CmdSeekRing() {
+    SetupSeek(false);
+
+    m_status.operation = Operation::SeekSecurityRingB6;
+    m_state = TxState::PreTx;
+    OutputRingStatus();
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::CmdSeekSector() {
+    return BeginSeek(false);
+}
+
+FORCE_INLINE uint64 CDDrive::CmdReadSector() {
+    return BeginSeek(true);
+}
+
+FORCE_INLINE uint64 CDDrive::CmdPause() {
+    devlog::debug<grp::lle_cd>("Pause");
+    m_status.operation = Operation::Idle;
+
+    OutputDriveStatus();
+    m_state = TxState::PreTx;
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::CmdStop() {
+    devlog::debug<grp::lle_cd>("Stop");
+    m_status.operation = Operation::Stopped;
+
+    OutputDriveStatus();
+    m_state = TxState::PreTx;
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+FORCE_INLINE uint64 CDDrive::CmdScan(bool fwd) {
+    devlog::debug<grp::lle_cd>("Scan {}", (fwd ? "forwards" : "backwards"));
+    // TODO: implement
+    __debugbreak();
+
+    m_status.operation = Operation::Idle;
+
+    OutputDriveStatus();
+    m_state = TxState::PreTx;
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::CmdUnknown() {
+    devlog::debug<grp::lle_cd>("Unknown command {:02X}", static_cast<uint8>(m_command.command));
+    m_status.operation = Operation::Idle;
+
+    OutputDriveStatus();
+    m_state = TxState::PreTx;
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::OpReadTOC() {
+    return ReadTOC();
+}
+
+FORCE_INLINE uint64 CDDrive::OpStopped() {
+    m_state = TxState::PreTx;
+    OutputDriveStatus();
+
+    return kDriveCyclesNotPlaying;
+}
+
+FORCE_INLINE uint64 CDDrive::OpSeek() {
+    m_state = TxState::PreTx;
+    OutputDriveStatus();
+
+    if (--m_seekCountdown == 0) {
+        m_status.operation = m_seekOp;
+        devlog::debug<grp::lle_cd>("Seek done");
+    }
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::OpReadSector() {
+    if (m_disc.sessions.empty()) {
+        devlog::debug<grp::lle_cd>("Read sector - no disc");
+        m_status.operation = Operation::NoDisc;
+        return kDriveCyclesPlaying1x - m_readSpeed;
+    }
+
+    devlog::debug<grp::lle_cd>("Read sector {:06X}", m_currFAD);
+
+    const auto &session = m_disc.sessions.back();
+    const auto *track = session.FindTrack(m_currFAD);
+    const bool isData = track == nullptr || (track->controlADR & 0x40);
+    m_status.operation = isData ? Operation::ReadDataSector : Operation::ReadAudioSector;
+
+    uint64 cycles = kDriveCyclesPlaying1x - m_readSpeed;
+    if (track != nullptr && track->ReadSector(m_currFAD, m_sectorDataBuffer)) {
+        if (isData) {
+            // TODO: might have to skip the sync bytes
+            m_cbDataSector(m_sectorDataBuffer);
+        } else {
+            // The callback returns how many thirds of the buffer are full
+            const uint32 currBufferLength = m_cbCDDASector(m_sectorDataBuffer);
+
+            // Adjust pace based on how full the SCSP CDDA buffer is
+            if (currBufferLength < 1) {
+                // Run faster if the buffer is less than a third full
+                cycles = kDriveCyclesPlaying1x - (kDriveCyclesPlaying1x >> 2);
+            } else if (currBufferLength >= 2) {
+                // Run slower if the buffer is more than two-thirds full
+                cycles = kDriveCyclesPlaying1x + (kDriveCyclesPlaying1x >> 2);
+            } else {
+                // Normal speed otherwise
+                cycles = kDriveCyclesPlaying1x;
+            }
+        }
+    }
+    ++m_currFAD;
+
+    m_cbSectorTransferDone();
+
+    OutputDriveStatus();
+    m_state = TxState::PreTx;
+
+    return cycles;
+}
+
+FORCE_INLINE uint64 CDDrive::OpIdle() {
+    m_state = TxState::PreTx;
+
+    ++m_currFAD;
+    if (m_currFAD > m_targetFAD + 5) {
+        m_currFAD = m_targetFAD;
+    }
+
+    OutputDriveStatus();
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::OpUnknown() {
+    m_state = TxState::PreTx;
+    OutputDriveStatus();
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE void CDDrive::GetReadSpeedFactor() {
+    // TODO: apply read speed tweak
+    m_readSpeed = m_command.readSpeed == 1 ? 1 : 2;
+}
+
+FORCE_INLINE void CDDrive::SetupSeek(bool read) {
+    const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
+    m_currFAD = fad - 4;
+    m_targetFAD = fad - 4;
+    if (read) {
+        if (m_disc.sessions.empty()) {
+            m_seekOp = Operation::NoDisc;
+        } else {
+            const auto &session = m_disc.sessions.back();
+            const auto *track = session.FindTrack(fad);
+            if (track == nullptr || (track->controlADR & 0x40)) {
+                m_seekOp = Operation::ReadDataSector;
+            } else {
+                m_seekOp = Operation::ReadAudioSector;
+            }
+        }
+    } else {
+        m_seekOp = Operation::Idle;
+    }
+    m_seekCountdown = 9;
+    devlog::debug<grp::lle_cd>("Seek to FAD {:06X} then {}", fad, (read ? "read" : "pause"));
+}
+
+FORCE_INLINE uint64 CDDrive::BeginSeek(bool read) {
+    SetupSeek(read);
+
+    m_status.operation = Operation::Seek;
+    m_state = TxState::PreTx;
+    OutputDriveStatus();
+
+    return kDriveCyclesPlaying1x - m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::ReadTOC() {
     // No disc
     if (m_disc.sessions.empty()) {
         m_status.operation = Operation::NoDisc;
         m_state = TxState::PreTx;
-        return kDriveCyclesPlaying1x / m_readSpeed;
+        return kDriveCyclesPlaying1x - m_readSpeed;
     }
 
     auto &session = m_disc.sessions.back();
@@ -321,109 +462,10 @@ uint64 CDDrive::ReadTOC() {
     }
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x / m_readSpeed;
+    return kDriveCyclesPlaying1x - m_readSpeed;
 }
 
-uint64 CDDrive::BeginSeek(bool read) {
-    const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
-    m_currFAD = fad - 4;
-    m_targetFAD = fad - 4;
-    if (read) {
-        if (m_disc.sessions.empty()) {
-            m_seekOp = Operation::NoDisc;
-        } else {
-            const auto &session = m_disc.sessions.back();
-            const auto *track = session.FindTrack(fad);
-            if (track == nullptr || (track->controlADR & 0x40)) {
-                m_seekOp = Operation::ReadDataSector;
-            } else {
-                m_seekOp = Operation::ReadAudioSector;
-            }
-        }
-    } else {
-        m_seekOp = Operation::Idle;
-    }
-    m_seekCountdown = 9;
-    devlog::debug<grp::lle_cd>("Seek to FAD {:06X} then {}", fad, (read ? "read" : "pause"));
-
-    m_status.operation = Operation::Seek;
-    m_state = TxState::PreTx;
-    UpdateStatus();
-    OutputStatus();
-
-    return kDriveCyclesPlaying1x / m_readSpeed;
-}
-
-uint64 CDDrive::ReadSector() {
-    if (m_disc.sessions.empty()) {
-        devlog::debug<grp::lle_cd>("Read sector - no disc");
-        m_status.operation = Operation::NoDisc;
-        return kDriveCyclesPlaying1x / m_readSpeed;
-    }
-
-    devlog::debug<grp::lle_cd>("Read sector {:06X}", m_currFAD);
-
-    const auto &session = m_disc.sessions.back();
-    const auto *track = session.FindTrack(m_currFAD);
-    const bool isData = track == nullptr || (track->controlADR & 0x40);
-    m_status.operation = isData ? Operation::ReadDataSector : Operation::ReadAudioSector;
-
-    uint64 cycles = kDriveCyclesPlaying1x / m_readSpeed;
-    if (track != nullptr && track->ReadSector(m_currFAD, m_sectorDataBuffer)) {
-        if (isData) {
-            // TODO: might have to skip the sync bytes
-            m_cbDataSector(m_sectorDataBuffer);
-        } else {
-            // The callback returns how many thirds of the buffer are full
-            const uint32 currBufferLength = m_cbCDDASector(m_sectorDataBuffer);
-
-            // Adjust pace based on how full the SCSP CDDA buffer is
-            if (currBufferLength < 1) {
-                // Run faster if the buffer is less than a third full
-                cycles = kDriveCyclesPlaying1x - (kDriveCyclesPlaying1x >> 2);
-            } else if (currBufferLength >= 2) {
-                // Run slower if the buffer is more than two-thirds full
-                cycles = kDriveCyclesPlaying1x + (kDriveCyclesPlaying1x >> 2);
-            } else {
-                // Normal speed otherwise
-                cycles = kDriveCyclesPlaying1x;
-            }
-        }
-    }
-    ++m_currFAD;
-
-    m_cbSectorTransferDone();
-
-    UpdateStatus();
-    OutputStatus();
-    m_state = TxState::PreTx;
-
-    return cycles;
-}
-
-uint64 CDDrive::Pause() {
-    devlog::debug<grp::lle_cd>("Pause");
-    m_status.operation = Operation::Idle;
-
-    UpdateStatus();
-    OutputStatus();
-    m_state = TxState::PreTx;
-
-    return kDriveCyclesPlaying1x / m_readSpeed;
-}
-
-uint64 CDDrive::Stop() {
-    devlog::debug<grp::lle_cd>("Stop");
-    m_status.operation = Operation::Stopped;
-
-    UpdateStatus();
-    OutputStatus();
-    m_state = TxState::PreTx;
-
-    return kDriveCyclesPlaying1x / m_readSpeed;
-}
-
-void CDDrive::UpdateStatus() {
+FORCE_INLINE void CDDrive::OutputDriveStatus() {
     if (m_disc.sessions.empty()) {
         m_status.subcodeQ = 0xFF;
         m_status.trackNum = 0xFF;
@@ -470,14 +512,28 @@ void CDDrive::UpdateStatus() {
             m_status.absFrac = util::to_bcd(m_currFAD % 75);
         }
     }
-}
 
-void CDDrive::OutputStatus() {
     m_statusData.cdStatus = m_status;
     CalcStatusDataChecksum();
 }
 
-void CDDrive::CalcStatusDataChecksum() {
+FORCE_INLINE void CDDrive::OutputRingStatus() {
+    const uint32 currFAD = m_currFAD + 4;
+    m_statusData.data[0] = static_cast<uint8>(Operation::SeekSecurityRingB6);
+    m_statusData.data[1] = 0x44;
+    m_statusData.data[2] = 0xF1;
+    m_statusData.data[3] = currFAD >> 16u;
+    m_statusData.data[4] = currFAD >> 8u;
+    m_statusData.data[5] = currFAD;
+    m_statusData.data[6] = 0x09;
+    m_statusData.data[7] = 0x09;
+    m_statusData.data[8] = 0x09;
+    m_statusData.data[9] = 0x09;
+    m_statusData.data[10] = currFAD % 75;
+    CalcStatusDataChecksum();
+}
+
+FORCE_INLINE void CDDrive::CalcStatusDataChecksum() {
     m_statusData.data[11] = ~std::accumulate(m_statusData.chksumData.begin(), m_statusData.chksumData.end(), 0);
 }
 

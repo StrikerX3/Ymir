@@ -167,22 +167,34 @@ private:
     bool SerialRead();
     void SerialWrite(bool bit);
 
-    uint64 ProcessState();
+    uint64 ProcessTxState();
     uint64 ProcessCommand();
     uint64 ProcessOperation();
 
+    uint64 CmdReadTOC();
+    uint64 CmdSeekRing();
+    uint64 CmdSeekSector();
+    uint64 CmdReadSector();
+    uint64 CmdPause();
+    uint64 CmdStop();
+    uint64 CmdScan(bool fwd);
+    uint64 CmdUnknown();
+
+    uint64 OpReadTOC();
+    uint64 OpStopped();
+    uint64 OpSeek();
+    uint64 OpReadSector();
+    uint64 OpIdle();
+    uint64 OpUnknown();
+
     void GetReadSpeedFactor();
 
-    uint64 BeginReadTOC();
-    uint64 ReadTOC();
+    void SetupSeek(bool read);
     uint64 BeginSeek(bool read);
-    uint64 ReadSector();
-    uint64 Pause();
-    uint64 Stop();
+    uint64 ReadTOC();
 
-    void UpdateStatus();
-
-    void OutputStatus();
+    void OutputDriveStatus();
+    void OutputRingStatus();
     void CalcStatusDataChecksum();
 
 public:

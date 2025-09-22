@@ -14,7 +14,7 @@ namespace static_config {
     static constexpr bool max_timing_granularity = false;
 
     // Enables CD Block LLE emulation.
-    // Currently experimental, non-working, and introduces a noticeable performance penalty.
+    // Currently experimental, partially working, and introduces a noticeable performance penalty.
     static constexpr bool use_cdblock_lle = true;
 
 } // namespace static_config
