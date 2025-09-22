@@ -205,15 +205,10 @@ uint64 CDDrive::ProcessCommand() {
     switch (m_command.command) {
     case Command::Noop: return ProcessOperation();
     case Command::SeekRing: break;
-    case Command::ReadTOC:
-        m_currTOCEntry = 0;
-        m_currTOCRepeat = 0;
-        devlog::debug<grp::lle_cd>("Read TOC");
-        return ReadTOC();
-
-    case Command::Stop: break;
+    case Command::ReadTOC: return BeginReadTOC();
+    case Command::Stop: return Stop();
     case Command::ReadSector: return BeginSeek(true);
-    case Command::Pause: break;
+    case Command::Pause: return Pause();
     case Command::SeekSector: return BeginSeek(false);
     case Command::ScanForwards: break;
     case Command::ScanBackwards: break;
@@ -234,6 +229,8 @@ uint64 CDDrive::ProcessOperation() {
 
     case Operation::Stopped:
         m_state = TxState::PreTx;
+        UpdateStatus();
+        OutputStatus();
         // TODO: timing
         break;
 
@@ -279,6 +276,13 @@ uint64 CDDrive::ProcessOperation() {
 void CDDrive::GetReadSpeedFactor() {
     // TODO: apply read speed tweak
     m_readSpeed = m_command.readSpeed == 1 ? 1 : 2;
+}
+
+uint64 CDDrive::BeginReadTOC() {
+    devlog::debug<grp::lle_cd>("Read TOC");
+    m_currTOCEntry = 0;
+    m_currTOCRepeat = 0;
+    return ReadTOC();
 }
 
 uint64 CDDrive::ReadTOC() {
@@ -352,9 +356,12 @@ uint64 CDDrive::BeginSeek(bool read) {
 
 uint64 CDDrive::ReadSector() {
     if (m_disc.sessions.empty()) {
+        devlog::debug<grp::lle_cd>("Read sector - no disc");
         m_status.operation = Operation::NoDisc;
         return kDriveCyclesPlaying1x / m_readSpeed;
     }
+
+    devlog::debug<grp::lle_cd>("Read sector {:06X}", m_currFAD);
 
     const auto &session = m_disc.sessions.back();
     const auto *track = session.FindTrack(m_currFAD);
@@ -392,6 +399,28 @@ uint64 CDDrive::ReadSector() {
     m_state = TxState::PreTx;
 
     return cycles;
+}
+
+uint64 CDDrive::Pause() {
+    devlog::debug<grp::lle_cd>("Pause");
+    m_status.operation = Operation::Idle;
+
+    UpdateStatus();
+    OutputStatus();
+    m_state = TxState::PreTx;
+
+    return kDriveCyclesPlaying1x / m_readSpeed;
+}
+
+uint64 CDDrive::Stop() {
+    devlog::debug<grp::lle_cd>("Stop");
+    m_status.operation = Operation::Stopped;
+
+    UpdateStatus();
+    OutputStatus();
+    m_state = TxState::PreTx;
+
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 void CDDrive::UpdateStatus() {

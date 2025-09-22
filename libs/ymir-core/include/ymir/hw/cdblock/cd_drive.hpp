@@ -173,9 +173,12 @@ private:
 
     void GetReadSpeedFactor();
 
+    uint64 BeginReadTOC();
     uint64 ReadTOC();
     uint64 BeginSeek(bool read);
     uint64 ReadSector();
+    uint64 Pause();
+    uint64 Stop();
 
     void UpdateStatus();
 
