@@ -324,4 +324,11 @@ void YGR::DiscChanged() {
     UpdateInterrupts();
 }
 
+void YGR::SectorTransferDone() {
+    m_regs.CDIRQU.DET = 1;
+    if (m_regs.CDIRQU.u16 & m_regs.CDMSKU.u16) {
+        m_cbAssertIRQ7();
+    }
+}
+
 } // namespace ymir::cdblock

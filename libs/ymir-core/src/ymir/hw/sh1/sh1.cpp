@@ -1894,6 +1894,71 @@ FLATTEN FORCE_INLINE bool SH1::IsDMATransferActive(const DMAController::DMAChann
     return ch.IsEnabled() && DMAC.DMAOR.DME && !DMAC.DMAOR.NMIF && !DMAC.DMAOR.AE;
 }
 
+void SH1::DMAC0DREQTransfer(std::span<uint8> data) {
+    auto &ch = DMAC.channels[0];
+
+    if (!IsDMATransferActive(ch)) {
+        return;
+    }
+
+    if (ch.xferResSelect != DMAResourceSelect::nDREQSingleDACKDst &&
+        ch.xferResSelect != DMAResourceSelect::nDREQSingleDACKSrc) {
+        return;
+    }
+
+    devlog::trace<grp::dma>("DMAC0 DREQ-based transfer started: (internal) to {:08X}, {:04X} {} units", ch.srcAddress,
+                            ch.dstAddress, ch.xferCount, (ch.xferSize == DMATransferSize::Byte ? "byte" : "word"));
+
+    static constexpr uint32 kXferSize[] = {1, 2};
+    const uint32 xferSize = kXferSize[static_cast<uint32>(ch.xferSize)];
+    auto getAddressInc = [&](DMATransferIncrementMode mode) -> sint32 {
+        using enum DMATransferIncrementMode;
+        switch (mode) {
+        default: [[fallthrough]];
+        case Fixed: return 0;
+        case Increment: return +xferSize;
+        case Decrement: return -xferSize;
+        case Reserved: return 0;
+        }
+    };
+
+    const sint32 srcInc = getAddressInc(ch.srcMode);
+    const sint32 dstInc = getAddressInc(ch.dstMode);
+
+    uint32 srcAddr = 0;
+    do {
+        // Perform one unit of transfer
+        switch (ch.xferSize) {
+        case DMATransferSize::Byte: //
+        {
+            const uint8 value = data[srcAddr];
+            MemWriteByte(ch.dstAddress, value);
+            srcAddr += 1;
+            break;
+        }
+        case DMATransferSize::Word: //
+        {
+            const uint16 value = util::ReadBE<uint16>(&data[srcAddr]);
+            MemWriteWord(ch.dstAddress, value);
+            srcAddr += 2;
+            break;
+        }
+        }
+
+        // Update address and remaining count
+        ch.srcAddress += srcInc;
+        ch.dstAddress += dstInc;
+        --ch.xferCount;
+    } while (ch.xferCount != 0);
+
+    ch.xferEnded = true;
+    devlog::trace<grp::dma>("DMAC0 DREQ-based transfer finished");
+    if (ch.irqEnable) {
+        devlog::trace<grp::dma>("DMAC0 DEI0 raised");
+        RaiseInterrupt(InterruptSource::DMAC0_DEI0);
+    }
+}
+
 // TODO: Wire up pins:
 // A0  I TIOCA0    <- MPEG card - MPEG A data transfer (DMA3) request input (edge detected)
 // A1  O RAS#      -> DRAM - CASL output

@@ -116,8 +116,9 @@ Saturn::Saturn()
     SCSP.MapCallbacks(SCU.CbTriggerSoundRequest);
     if constexpr (static_config::use_cdblock_lle) {
         SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
-        CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn, YGR.CbDiscChanged); // TODO: SCSP.CbCDDASector
-        YGR.MapCallbacks(SH1.CbAssertIRQ6, SH1.CbSetDREQ0n, SH1.CbSetDREQ1n, SCU.CbTriggerExtIntr0);
+        CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn, YGR.CbDiscChanged, SH1.CbCDBDataSector,
+                             SCSP.CbCDDASector, YGR.CbSectorTransferDone);
+        YGR.MapCallbacks(SH1.CbAssertIRQ6, SH1.CbAssertIRQ7, SH1.CbSetDREQ0n, SH1.CbSetDREQ1n, SCU.CbTriggerExtIntr0);
     } else {
         CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
     }

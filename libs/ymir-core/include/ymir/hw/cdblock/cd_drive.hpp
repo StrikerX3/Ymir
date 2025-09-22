@@ -1,7 +1,7 @@
 #pragma once
 
 #include "cd_drive_internal_callbacks.hpp"
-
+#include "cdblock_internal_callbacks.hpp"
 #include "ygr_internal_callbacks.hpp"
 #include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 #include <ymir/sys/system_internal_callbacks.hpp>
@@ -25,10 +25,14 @@ public:
 
     void Reset();
 
-    void MapCallbacks(CBSetCOMSYNCn setCOMSYNCn, CBSetCOMREQn setCOMREQn, CBDiscChanged discChanged) {
+    void MapCallbacks(CBSetCOMSYNCn setCOMSYNCn, CBSetCOMREQn setCOMREQn, CBDiscChanged discChanged,
+                      CBDataSector dataSector, CBCDDASector cddaSector, CBSectorTransferDone sectorTransferDone) {
         m_cbSetCOMSYNCn = setCOMSYNCn;
         m_cbSetCOMREQn = setCOMREQn;
         m_cbDiscChanged = discChanged;
+        m_cbDataSector = dataSector;
+        m_cbCDDASector = cddaSector;
+        m_cbSectorTransferDone = sectorTransferDone;
     }
 
     void UpdateClockRatios(const sys::ClockRatios &clockRatios);
@@ -58,6 +62,11 @@ private:
     CBSetCOMSYNCn m_cbSetCOMSYNCn;
     CBSetCOMREQn m_cbSetCOMREQn;
     CBDiscChanged m_cbDiscChanged;
+    CBDataSector m_cbDataSector;
+    CBCDDASector m_cbCDDASector;
+    CBSectorTransferDone m_cbSectorTransferDone;
+
+    std::array<uint8, 2352> m_sectorDataBuffer;
 
     enum class Command : uint8 {
         Noop = 0x0,
@@ -166,6 +175,7 @@ private:
 
     uint64 ReadTOC();
     uint64 BeginSeek(bool read);
+    uint64 ReadSector();
 
     void UpdateStatus();
 

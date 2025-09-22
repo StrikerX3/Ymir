@@ -17,8 +17,8 @@ using CbSerialRx = util::RequiredCallback<bool()>;
 /// @brief Send a bit to one of the SH-1's SCI channels.
 using CbSerialTx = util::RequiredCallback<void(bool bit)>;
 
-/// @brief Invoked to raise the IRQ6 signal on the SH-1.
-using CBAssertIRQ6 = util::RequiredCallback<void()>;
+/// @brief Invoked to raise an IRQ signal on the SH-1.
+using CBAssertIRQ = util::RequiredCallback<void()>;
 
 /// @brief Invoked to set the DREQ0/1# signals on the SH-1.
 using CBSetDREQn = util::RequiredCallback<void(bool level)>;

@@ -19,7 +19,7 @@
 #include <ymir/hw/hw_defs.hpp>
 
 #include <ymir/hw/cdblock/cd_drive_internal_callbacks.hpp>
-#include <ymir/hw/cdblock/ygr_internal_callbacks.hpp>
+#include <ymir/hw/cdblock/cdblock_internal_callbacks.hpp>
 #include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 
 #include <ymir/core/scheduler.hpp>
@@ -73,7 +73,7 @@ public:
     void SetDREQ1n(bool level);
 
     void AssertIRQ6();
-    void AssertIRQ7(bool asserted);
+    void AssertIRQ7();
 
     void SetPB2(bool level) {
         m_PB2 = level;
@@ -208,6 +208,7 @@ private:
 
     void RunDMAC(uint32 channel);
     bool IsDMATransferActive(const DMAController::DMAChannel &ch) const;
+    void DMAC0DREQTransfer(std::span<uint8> data);
 
     uint16 ReadPortA() const;
     void WritePortA(uint16 value) const;
@@ -458,11 +459,13 @@ public:
     // -------------------------------------------------------------------------
     // Callbacks
 
-    const CBAssertIRQ6 CbAssertIRQ6 = util::MakeClassMemberRequiredCallback<&SH1::AssertIRQ6>(this);
+    const CBAssertIRQ CbAssertIRQ6 = util::MakeClassMemberRequiredCallback<&SH1::AssertIRQ6>(this);
+    const CBAssertIRQ CbAssertIRQ7 = util::MakeClassMemberRequiredCallback<&SH1::AssertIRQ7>(this);
     const CBSetDREQn CbSetDREQ0n = util::MakeClassMemberRequiredCallback<&SH1::SetDREQ0n>(this);
     const CBSetDREQn CbSetDREQ1n = util::MakeClassMemberRequiredCallback<&SH1::SetDREQ1n>(this);
     const cdblock::CBSetCOMSYNCn CbSetCOMSYNCn = util::MakeClassMemberRequiredCallback<&SH1::SetPB2>(this);
     const cdblock::CBSetCOMREQn CbSetCOMREQn = util::MakeClassMemberRequiredCallback<&SH1::SetTIOCB3>(this);
+    const cdblock::CBDataSector CbCDBDataSector = util::MakeClassMemberRequiredCallback<&SH1::DMAC0DREQTransfer>(this);
 };
 
 } // namespace ymir::sh1

@@ -252,10 +252,7 @@ uint64 CDDrive::ProcessOperation() {
         break;
 
     case Operation::ReadAudioSector: [[fallthrough]];
-    case Operation::ReadDataSector:
-        // TODO: implement
-        break;
-
+    case Operation::ReadDataSector: return ReadSector();
     case Operation::Idle:
         m_state = TxState::PreTx;
 
@@ -351,6 +348,50 @@ uint64 CDDrive::BeginSeek(bool read) {
     OutputStatus();
 
     return kDriveCyclesPlaying1x / m_readSpeed;
+}
+
+uint64 CDDrive::ReadSector() {
+    if (m_disc.sessions.empty()) {
+        m_status.operation = Operation::NoDisc;
+        return kDriveCyclesPlaying1x / m_readSpeed;
+    }
+
+    const auto &session = m_disc.sessions.back();
+    const auto *track = session.FindTrack(m_currFAD);
+    const bool isData = track == nullptr || (track->controlADR & 0x40);
+    m_status.operation = isData ? Operation::ReadDataSector : Operation::ReadAudioSector;
+
+    uint64 cycles = kDriveCyclesPlaying1x / m_readSpeed;
+    if (track != nullptr && track->ReadSector(m_currFAD, m_sectorDataBuffer)) {
+        if (isData) {
+            // TODO: might have to skip the sync bytes
+            m_cbDataSector(m_sectorDataBuffer);
+        } else {
+            // The callback returns how many thirds of the buffer are full
+            const uint32 currBufferLength = m_cbCDDASector(m_sectorDataBuffer);
+
+            // Adjust pace based on how full the SCSP CDDA buffer is
+            if (currBufferLength < 1) {
+                // Run faster if the buffer is less than a third full
+                cycles = kDriveCyclesPlaying1x - (kDriveCyclesPlaying1x >> 2);
+            } else if (currBufferLength >= 2) {
+                // Run slower if the buffer is more than two-thirds full
+                cycles = kDriveCyclesPlaying1x + (kDriveCyclesPlaying1x >> 2);
+            } else {
+                // Normal speed otherwise
+                cycles = kDriveCyclesPlaying1x;
+            }
+        }
+    }
+    ++m_currFAD;
+
+    m_cbSectorTransferDone();
+
+    UpdateStatus();
+    OutputStatus();
+    m_state = TxState::PreTx;
+
+    return cycles;
 }
 
 void CDDrive::UpdateStatus() {

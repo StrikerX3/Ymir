@@ -22,9 +22,10 @@ struct YGR {
 
     void Reset();
 
-    void MapCallbacks(sh1::CBAssertIRQ6 assertIRQ6, sh1::CBSetDREQn setDREQ0n, sh1::CBSetDREQn setDREQ1n,
-                      CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
+    void MapCallbacks(sh1::CBAssertIRQ assertIRQ6, sh1::CBAssertIRQ assertIRQ7, sh1::CBSetDREQn setDREQ0n,
+                      sh1::CBSetDREQn setDREQ1n, CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
         m_cbAssertIRQ6 = assertIRQ6;
+        m_cbAssertIRQ7 = assertIRQ7;
         m_cbSetDREQ0n = setDREQ0n;
         m_cbSetDREQ1n = setDREQ1n;
         m_cbTriggerExternalInterrupt0 = triggerExternalInterrupt0;
@@ -50,7 +51,8 @@ struct YGR {
     void HostPokeByte(uint32 address, uint8 value);
 
 private:
-    sh1::CBAssertIRQ6 m_cbAssertIRQ6;
+    sh1::CBAssertIRQ m_cbAssertIRQ6;
+    sh1::CBAssertIRQ m_cbAssertIRQ7;
     sh1::CBSetDREQn m_cbSetDREQ0n;
     sh1::CBSetDREQn m_cbSetDREQ1n;
     CBTriggerExternalInterrupt0 m_cbTriggerExternalInterrupt0;
@@ -230,12 +232,15 @@ private:
     void UpdateFIFODREQ() const;
 
     void DiscChanged();
+    void SectorTransferDone();
 
 public:
     // -------------------------------------------------------------------------
     // Callbacks
 
     const CBDiscChanged CbDiscChanged = util::MakeClassMemberRequiredCallback<&YGR::DiscChanged>(this);
+    const CBSectorTransferDone CbSectorTransferDone =
+        util::MakeClassMemberRequiredCallback<&YGR::SectorTransferDone>(this);
 };
 
 } // namespace ymir::cdblock
