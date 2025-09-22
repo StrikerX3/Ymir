@@ -174,7 +174,12 @@ uint64 CDDrive::ProcessState() {
     case TxState::TxInterN: m_state = TxState::TxByte; return kTxCyclesInterTx;
 
     // TODO: need to compensate for time spent transmitting serial data
-    case TxState::TxEnd: return ProcessCommand(); // also handles the state change
+    case TxState::TxEnd: //
+    {
+        // ProcessCommand() also handles the state change
+        const uint64 cycles = ProcessCommand();
+        return cycles > kTxCyclesTotal ? cycles - kTxCyclesTotal : 1;
+    }
     }
 
     // Invalid state; shouldn't happen

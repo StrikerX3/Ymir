@@ -69,6 +69,8 @@ inline constexpr uint32 kTxCyclesFirstTx = 416509 * 20 * 3; // First COMSYNC# fa
 inline constexpr uint32 kTxCyclesBeginTx = 187 * 20 * 3;    // COMSYNC# falling -> rising edge (start of transfer)
 inline constexpr uint32 kTxCyclesPerByte = 150 * 20 * 3;    // COMREQ# falling -> rising edge (one byte transfer)
 inline constexpr uint32 kTxCyclesInterTx = 26 * 20 * 3;     // COMREQ# rising -> falling edge (inter-byte)
+inline constexpr uint32 kTxCyclesTotal =
+    kTxCyclesBeginTx + kTxCyclesInterTx + (kTxCyclesPerByte + kTxCyclesInterTx) * 13; // total cycles per transfer
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Buffers and filters
