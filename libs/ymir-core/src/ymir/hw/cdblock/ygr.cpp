@@ -96,6 +96,8 @@ FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
     case 0x00: //
     {
         const uint16 value = m_fifo.Read<false>();
+        devlog::trace<grp::ygr_fifo>("CDB  FIFO read  <- rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
+                                     m_fifo.count);
         UpdateFIFODREQ();
         return value;
     }
@@ -128,12 +130,16 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     switch (address) {
     case 0x00:
         m_fifo.Write<false>(value);
+        devlog::trace<grp::ygr_fifo>("CDB  FIFO write -> rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
+                                     m_fifo.count);
         UpdateFIFODREQ();
         break;
     case 0x02:
         m_regs.TRCTL.u16 = value & 0xF;
         if (m_regs.TRCTL.RES) {
             m_fifo.Clear();
+            devlog::trace<grp::ygr_fifo>("CDB  FIFO reset -- rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
+                                         m_fifo.count);
         }
         UpdateFIFODREQ();
         break;
@@ -172,8 +178,16 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
         if (m_regs.TRCTL.DIR && !peek) {
             return 0u;
         } else {
+            if constexpr (!peek) {
+                if (m_fifo.IsEmpty()) {
+                    // Force transfer if possible
+                    m_cbStepDMAC1();
+                }
+            }
             const uint16 value = m_fifo.Read<peek>();
             if constexpr (!peek) {
+                devlog::trace<grp::ygr_fifo>("Host FIFO read  <- rd={:X} wr={:X} cnt={:X}", m_fifo.readPos,
+                                             m_fifo.writePos, m_fifo.count);
                 UpdateFIFODREQ();
             }
             return value;
@@ -205,7 +219,13 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
         if (m_regs.TRCTL.DIR && !poke) {
             m_fifo.Write<poke>(value);
             if constexpr (!poke) {
+                devlog::trace<grp::ygr_fifo>("Host FIFO write -> rd={:X} wr={:X} cnt={:X}", m_fifo.readPos,
+                                             m_fifo.writePos, m_fifo.count);
                 UpdateFIFODREQ();
+                if (m_fifo.IsFull()) {
+                    // Force transfer if possible
+                    m_cbStepDMAC1();
+                }
             }
         }
         break;

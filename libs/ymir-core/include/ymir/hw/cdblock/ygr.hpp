@@ -23,11 +23,13 @@ struct YGR {
     void Reset();
 
     void MapCallbacks(sh1::CBAssertIRQ assertIRQ6, sh1::CBAssertIRQ assertIRQ7, sh1::CBSetDREQn setDREQ0n,
-                      sh1::CBSetDREQn setDREQ1n, CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
+                      sh1::CBSetDREQn setDREQ1n, sh1::CBStepDMAC stepDMAC1,
+                      CBTriggerExternalInterrupt0 triggerExternalInterrupt0) {
         m_cbAssertIRQ6 = assertIRQ6;
         m_cbAssertIRQ7 = assertIRQ7;
         m_cbSetDREQ0n = setDREQ0n;
         m_cbSetDREQ1n = setDREQ1n;
+        m_cbStepDMAC1 = stepDMAC1;
         m_cbTriggerExternalInterrupt0 = triggerExternalInterrupt0;
     }
 
@@ -55,6 +57,7 @@ private:
     sh1::CBAssertIRQ m_cbAssertIRQ7;
     sh1::CBSetDREQn m_cbSetDREQ0n;
     sh1::CBSetDREQn m_cbSetDREQ1n;
+    sh1::CBStepDMAC m_cbStepDMAC1;
     CBTriggerExternalInterrupt0 m_cbTriggerExternalInterrupt0;
 
     // Legend:
@@ -72,7 +75,7 @@ private:
     // Used for data transfers between host and CD Block. Uses an internal FIFO.
 
     struct FIFO {
-        std::array<uint16, 4096> data; // TODO: should be much smaller than this (8 entries only)
+        std::array<uint16, 8192> data; // TODO: should be much smaller than this (4 entries only)
         mutable uint32 readPos;
         uint32 writePos;
         mutable uint32 count;

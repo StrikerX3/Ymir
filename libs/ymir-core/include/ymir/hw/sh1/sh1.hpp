@@ -214,6 +214,10 @@ private:
     bool IsDMATransferActive(const DMAController::DMAChannel &ch) const;
     void DMAC0DREQTransfer(std::span<uint8> data);
 
+    void StepDMAC1() {
+        StepDMAC(1);
+    }
+
     uint16 ReadPortA() const;
     void WritePortA(uint16 value) const;
     void WritePortAHi(uint8 value) const;
@@ -464,6 +468,7 @@ public:
     const CBAssertIRQ CbAssertIRQ7 = util::MakeClassMemberRequiredCallback<&SH1::AssertIRQ7>(this);
     const CBSetDREQn CbSetDREQ0n = util::MakeClassMemberRequiredCallback<&SH1::SetDREQ0n>(this);
     const CBSetDREQn CbSetDREQ1n = util::MakeClassMemberRequiredCallback<&SH1::SetDREQ1n>(this);
+    const CBStepDMAC CbStepDMAC1 = util::MakeClassMemberRequiredCallback<&SH1::StepDMAC1>(this);
     const cdblock::CBSetCOMSYNCn CbSetCOMSYNCn = util::MakeClassMemberRequiredCallback<&SH1::SetPB2>(this);
     const cdblock::CBSetCOMREQn CbSetCOMREQn = util::MakeClassMemberRequiredCallback<&SH1::SetTIOCB3>(this);
     const cdblock::CBDataSector CbCDBDataSector = util::MakeClassMemberRequiredCallback<&SH1::DMAC0DREQTransfer>(this);

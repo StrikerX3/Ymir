@@ -62,6 +62,11 @@ struct ygr_regs : public ygr {
     static constexpr std::string_view name = "CDBlock-YGR-Regs";
 };
 
+struct ygr_fifo : public ygr {
+    // static constexpr devlog::Level level = devlog::level::trace;
+    static constexpr std::string_view name = "CDBlock-YGR-FIFO";
+};
+
 struct ygr_cr : public ygr {
     // static constexpr devlog::Level level = devlog::level::trace;
     static constexpr std::string_view name = "CDBlock-YGR-CR";
