@@ -182,6 +182,9 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
                 if (m_fifo.IsEmpty()) {
                     // Force transfer if possible
                     m_cbStepDMAC1();
+                    if (m_fifo.IsEmpty()) {
+                        devlog::trace<grp::ygr_fifo>("FIFO still empty; transfer might break!");
+                    }
                 }
             }
             const uint16 value = m_fifo.Read<peek>();
@@ -225,6 +228,9 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
                 if (m_fifo.IsFull()) {
                     // Force transfer if possible
                     m_cbStepDMAC1();
+                    if (m_fifo.IsFull()) {
+                        devlog::trace<grp::ygr_fifo>("FIFO still full; transfer will break!");
+                    }
                 }
             }
         }
