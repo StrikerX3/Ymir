@@ -406,9 +406,9 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
     OutputDriveStatus();
 
     // Need to fudge cycles, otherwise SH-1 rejects the transfers
-    static constexpr uint64 kCyclesFudge = 100500;
+    static constexpr sint64 kCyclesFudge = +2600;
     if (isData) {
-        cycles -= kCyclesFudge;
+        cycles += kCyclesFudge;
     }
     return cycles;
 }

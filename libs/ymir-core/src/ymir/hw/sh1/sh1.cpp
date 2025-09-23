@@ -73,9 +73,8 @@ namespace grp {
 // - MemRead/MemWrite do not mask bits A23 and A22 on external space accesses for performance and consistency.
 // - Only implements the subset of the on-chip modules' features used by the Saturn's CD Block ROM.
 
-SH1::SH1(core::Scheduler &scheduler, sys::SH1Bus &bus)
-    : m_scheduler(scheduler)
-    , m_bus(bus) {
+SH1::SH1(sys::SH1Bus &bus)
+    : m_bus(bus) {
 
     Reset(true);
 }
@@ -135,6 +134,8 @@ void SH1::Reset(bool hard, bool watchdogInitiated) {
 
     m_delaySlotTarget = 0;
     m_delaySlot = false;
+
+    m_totalCycles = 0;
 }
 
 void SH1::LoadROM(std::span<uint8, 64 * 1024> rom) {
@@ -192,6 +193,7 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
             }
         }*/
     }
+    m_totalCycles += m_cyclesExecuted - spilloverCycles;
 
     return m_cyclesExecuted;
 }
@@ -203,6 +205,7 @@ FLATTEN uint64 SH1::Step() {
     AdvanceSCI();
     const uint64 cycles = InterpretNext();
     AdvanceDMA(cycles);
+    m_totalCycles += cycles;
     return cycles;
 }
 
@@ -272,12 +275,8 @@ void SH1::DumpRAM(std::ostream &out) {
     out.write((const char *)m_ram.data(), m_ram.size());
 }
 
-FORCE_INLINE uint64 SH1::GetCurrentCycleCount() const {
-    return m_scheduler.CurrentCount() + m_cyclesExecuted;
-}
-
 FORCE_INLINE void SH1::AdvanceITU() {
-    const uint64 cycles = GetCurrentCycleCount();
+    const uint64 cycles = m_totalCycles;
 
     for (uint32 i = 0; i < 5; ++i) {
         auto &timer = ITU.timers[i];
@@ -374,7 +373,7 @@ FORCE_INLINE void SH1::AdvanceITU() {
 }
 
 FORCE_INLINE void SH1::AdvanceSCI() {
-    const uint64 cycles = GetCurrentCycleCount();
+    const uint64 cycles = m_totalCycles;
 
     for (uint32 i = 0; i < 2; ++i) {
         auto &ch = SCI.channels[i];
@@ -394,6 +393,7 @@ FORCE_INLINE void SH1::AdvanceSCI() {
         while (chCycles >= ch.cyclesPerBit) {
             chCycles -= ch.cyclesPerBit;
             if (ch.txEnd) {
+                chCycles = cycles;
                 break;
             }
             if (ch.rxEnable) {

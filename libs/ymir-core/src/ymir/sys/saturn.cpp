@@ -51,7 +51,7 @@ Saturn::Saturn()
     , SMPC(m_scheduler, smpcOps, configuration.rtc)
     , SCSP(m_scheduler, configuration.audio)
     , CDBlock(m_scheduler, configuration.cdblock)
-    , SH1(m_scheduler, SH1Bus)
+    , SH1(SH1Bus)
     , CDDrive(m_scheduler) {
 
     mainBus.MapNormal(

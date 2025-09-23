@@ -134,7 +134,7 @@ public:
         event.countNumerator = numerator;
         event.countDenominator = denominator;
 
-        if (m_nextCount == oldTarget) {
+        if (remaining <= 0) {
             RecalcSchedule();
         }
     }

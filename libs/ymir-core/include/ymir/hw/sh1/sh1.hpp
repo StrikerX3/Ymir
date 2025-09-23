@@ -22,7 +22,6 @@
 #include <ymir/hw/cdblock/cdblock_internal_callbacks.hpp>
 #include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 
-#include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
 
 // TODO: save state
@@ -47,7 +46,7 @@ namespace ymir::sh1 {
 
 class SH1 {
 public:
-    SH1(core::Scheduler &scheduler, sys::SH1Bus &bus);
+    SH1(sys::SH1Bus &bus);
 
     void Reset(bool hard, bool watchdogInitiated = false);
 
@@ -117,13 +116,9 @@ private:
     // -------------------------------------------------------------------------
     // Cycle counting
 
-    core::Scheduler &m_scheduler;
-
     // Number of cycles executed in the current Advance invocation
     uint64 m_cyclesExecuted;
-
-    // Retrieves the current absolute cycle count
-    uint64 GetCurrentCycleCount() const;
+    uint64 m_totalCycles;
 
     void AdvanceITU();
     void AdvanceSCI();
