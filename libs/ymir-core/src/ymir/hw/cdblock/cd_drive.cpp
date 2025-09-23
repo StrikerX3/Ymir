@@ -241,6 +241,8 @@ FORCE_INLINE uint64 CDDrive::CmdReadTOC() {
 }
 
 FORCE_INLINE uint64 CDDrive::CmdSeekRing() {
+    devlog::debug<grp::lle_cd>("Seek security ring");
+
     SetupSeek(false);
 
     m_status.operation = Operation::SeekSecurityRingB6;
@@ -338,25 +340,64 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
     m_status.operation = isData ? Operation::ReadDataSector : Operation::ReadAudioSector;
 
     uint64 cycles = kDriveCyclesPlaying1x / m_readSpeed;
-    if (track != nullptr && track->ReadSector(m_currFAD, m_sectorDataBuffer)) {
-        if (isData) {
-            // Skip the sync bytes
-            m_cbDataSector(std::span<uint8>(m_sectorDataBuffer).subspan(12));
-        } else {
-            // The callback returns how many thirds of the buffer are full
-            const uint32 currBufferLength = m_cbCDDASector(m_sectorDataBuffer);
+    if (m_currFAD > session.endFrameAddress) {
+        // Security ring area
+        m_sectorDataBuffer.fill(0);
 
-            // Adjust pace based on how full the SCSP CDDA buffer is
-            if (currBufferLength < 1) {
-                // Run faster if the buffer is less than a third full
-                cycles = kDriveCyclesPlaying1x - (kDriveCyclesPlaying1x >> 2);
-            } else if (currBufferLength >= 2) {
-                // Run slower if the buffer is more than two-thirds full
-                cycles = kDriveCyclesPlaying1x + (kDriveCyclesPlaying1x >> 2);
-            } else {
-                // Normal speed otherwise
-                cycles = kDriveCyclesPlaying1x;
+        uint16 lfsr = 1u;
+        for (uint32 i = 12u; i < 2352u; i++) {
+            uint8 a = (i & 1) ? 0x59u : 0xA8u;
+            for (uint32 j = 0u; j < 8u; j++) {
+                uint32 x = a;
+                a = std::rotr<uint8>(a ^ (lfsr & 1u), 1u);
+                x = (lfsr >> 1u) ^ lfsr;
+                lfsr = (lfsr | (x << 15u)) >> 1u;
             }
+            m_sectorDataBuffer[i] = a;
+        }
+
+        // Sync bytes (for CRC calculation)
+        for (uint32 i = 1; i <= 10; ++i) {
+            m_sectorDataBuffer[i] = 0xFF;
+        }
+
+        m_sectorDataBuffer[12] = util::to_bcd(m_currFAD / 75 / 60);
+        m_sectorDataBuffer[13] = util::to_bcd(m_currFAD / 75 % 60);
+        m_sectorDataBuffer[14] = util::to_bcd(m_currFAD % 75);
+        m_sectorDataBuffer[15] = 0x02; // Mode 2 form 2
+        m_sectorDataBuffer[16] = m_sectorDataBuffer[20] = 0x00;
+        m_sectorDataBuffer[17] = m_sectorDataBuffer[21] = 0x00;
+        m_sectorDataBuffer[18] = m_sectorDataBuffer[22] = 0x1C;
+        m_sectorDataBuffer[19] = m_sectorDataBuffer[23] = 0x00;
+
+        const uint32 crc = media::CalcCRC(std::span<uint8, 2064>{std::span<uint8>{m_sectorDataBuffer}.first(2064)});
+        util::WriteLE<uint32>(&m_sectorDataBuffer[2348], crc);
+    } else if (track == nullptr || !track->ReadSector(m_currFAD, m_sectorDataBuffer)) {
+        // Lead-in area or unavailable/empty sector
+        m_sectorDataBuffer.fill(0);
+        m_sectorDataBuffer[12] = util::to_bcd(m_currFAD / 75 / 60);
+        m_sectorDataBuffer[13] = util::to_bcd(m_currFAD / 75 % 60);
+        m_sectorDataBuffer[14] = util::to_bcd(m_currFAD % 75);
+        m_sectorDataBuffer[15] = 0x01;
+    }
+
+    if (isData) {
+        // Skip the sync bytes
+        m_cbDataSector(std::span<uint8>(m_sectorDataBuffer).subspan(12));
+    } else {
+        // The callback returns how many thirds of the buffer are full
+        const uint32 currBufferLength = m_cbCDDASector(m_sectorDataBuffer);
+
+        // Adjust pace based on how full the SCSP CDDA buffer is
+        if (currBufferLength < 1) {
+            // Run faster if the buffer is less than a third full
+            cycles = kDriveCyclesPlaying1x - (kDriveCyclesPlaying1x >> 2);
+        } else if (currBufferLength >= 2) {
+            // Run slower if the buffer is more than two-thirds full
+            cycles = kDriveCyclesPlaying1x + (kDriveCyclesPlaying1x >> 2);
+        } else {
+            // Normal speed otherwise
+            cycles = kDriveCyclesPlaying1x;
         }
     }
     ++m_currFAD;
