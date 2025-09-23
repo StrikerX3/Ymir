@@ -183,6 +183,7 @@ uint64 CDDrive::ProcessTxState() {
     {
         // ProcessCommand() also handles the state change
         const uint64 cycles = ProcessCommand();
+        m_state = TxState::PreTx;
         return cycles > kTxCyclesTotal ? cycles - kTxCyclesTotal : 1;
     }
     }
@@ -250,7 +251,6 @@ FORCE_INLINE uint64 CDDrive::CmdSeekRing() {
     SetupSeek(false);
 
     m_status.operation = Operation::SeekSecurityRingB6;
-    m_state = TxState::PreTx;
     OutputRingStatus();
 
     return kDriveCyclesPlaying1x / m_readSpeed;
@@ -269,7 +269,6 @@ FORCE_INLINE uint64 CDDrive::CmdPause() {
     m_status.operation = Operation::Idle;
 
     OutputDriveStatus();
-    m_state = TxState::PreTx;
 
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
@@ -279,7 +278,6 @@ FORCE_INLINE uint64 CDDrive::CmdStop() {
     m_status.operation = Operation::Stopped;
 
     OutputDriveStatus();
-    m_state = TxState::PreTx;
 
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
@@ -291,7 +289,6 @@ FORCE_INLINE uint64 CDDrive::CmdScan(bool fwd) {
     m_status.operation = Operation::Idle;
 
     OutputDriveStatus();
-    m_state = TxState::PreTx;
 
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
@@ -301,7 +298,6 @@ FORCE_INLINE uint64 CDDrive::CmdUnknown() {
     m_status.operation = Operation::Idle;
 
     OutputDriveStatus();
-    m_state = TxState::PreTx;
 
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
@@ -311,14 +307,12 @@ FORCE_INLINE uint64 CDDrive::OpReadTOC() {
 }
 
 FORCE_INLINE uint64 CDDrive::OpStopped() {
-    m_state = TxState::PreTx;
     OutputDriveStatus();
 
     return kDriveCyclesNotPlaying;
 }
 
 FORCE_INLINE uint64 CDDrive::OpSeek() {
-    m_state = TxState::PreTx;
     OutputDriveStatus();
 
     if (--m_seekCountdown == 0) {
@@ -409,7 +403,6 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
     m_cbSectorTransferDone();
 
     OutputDriveStatus();
-    m_state = TxState::PreTx;
 
     // Need to fudge cycles, otherwise SH-1 rejects the transfers
     static constexpr uint64 kCyclesFudge = 100500;
@@ -420,8 +413,6 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
 }
 
 FORCE_INLINE uint64 CDDrive::OpIdle() {
-    m_state = TxState::PreTx;
-
     ++m_currFAD;
     if (m_currFAD > m_targetFAD + 5) {
         m_currFAD = m_targetFAD;
@@ -433,8 +424,6 @@ FORCE_INLINE uint64 CDDrive::OpIdle() {
 }
 
 FORCE_INLINE uint64 CDDrive::OpTrayOpen() {
-    m_state = TxState::PreTx;
-
     OutputDriveStatus();
 
     if (m_autoCloseTray) {
@@ -445,7 +434,6 @@ FORCE_INLINE uint64 CDDrive::OpTrayOpen() {
 }
 
 FORCE_INLINE uint64 CDDrive::OpUnknown() {
-    m_state = TxState::PreTx;
     OutputDriveStatus();
 
     return kDriveCyclesPlaying1x / m_readSpeed;
@@ -483,7 +471,6 @@ FORCE_INLINE uint64 CDDrive::BeginSeek(bool read) {
     SetupSeek(read);
 
     m_status.operation = Operation::Seek;
-    m_state = TxState::PreTx;
     OutputDriveStatus();
 
     return kDriveCyclesPlaying1x / m_readSpeed;
@@ -493,7 +480,6 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
     // No disc
     if (m_disc.sessions.empty()) {
         m_status.operation = Operation::NoDisc;
-        m_state = TxState::PreTx;
         return kDriveCyclesPlaying1x / m_readSpeed;
     }
 
@@ -523,7 +509,6 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
             m_currTOCRepeat = 0;
         }
     }
-    m_state = TxState::PreTx;
 
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
