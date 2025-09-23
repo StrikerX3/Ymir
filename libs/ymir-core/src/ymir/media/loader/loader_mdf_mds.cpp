@@ -229,7 +229,7 @@ bool Load(std::filesystem::path mdsPath, Disc &disc, bool preloadToRAM, CbLoader
 
                 track.startFrameAddress = trackData.startSector + 150;
                 index.startFrameAddress = track.startFrameAddress;
-                track.track01FrameAddress = track.startFrameAddress;
+                track.index01FrameAddress = track.startFrameAddress;
                 track.interleavedSubchannel = trackData.subchannelMode != 0;
 
                 // Complete previous track

@@ -60,7 +60,7 @@ struct Track {
 
     uint32 startFrameAddress = 0;
     uint32 endFrameAddress = 0;
-    uint32 track01FrameAddress = 0;
+    uint32 index01FrameAddress = 0;
 
     std::vector<Index> indices; // 00 to 99
 
@@ -305,7 +305,7 @@ struct Session {
         for (int i = 0; i < 99; i++) {
             auto &track = tracks[i];
             if (track.controlADR != 0x00) {
-                toc[i] = (track.controlADR << 24u) | track.track01FrameAddress;
+                toc[i] = (track.controlADR << 24u) | track.index01FrameAddress;
                 if (firstTrackNum == 0) {
                     firstTrackNum = i + 1;
                 }
@@ -382,19 +382,18 @@ struct Session {
                 continue;
             }
 
-            const auto &index = track.indices[1];
-            const uint32 index01FAD = index.startFrameAddress - track.startFrameAddress;
+            const uint32 relFAD = track.index01FrameAddress - track.startFrameAddress;
             auto &entry = leadInTOC[leadInTOCCount++];
             entry.controlADR = track.controlADR;
             entry.trackNum = 0x00;
             entry.pointOrIndex = util::to_bcd(i + 1);
-            entry.min = util::to_bcd(index01FAD / 75 / 60);
-            entry.sec = util::to_bcd(index01FAD / 75 % 60);
-            entry.frac = util::to_bcd(index01FAD % 75);
-            entry.amin = util::to_bcd(index.startFrameAddress / 75 / 60);
-            entry.asec = util::to_bcd(index.startFrameAddress / 75 % 60);
-            entry.afrac = util::to_bcd(index.startFrameAddress % 75);
+            entry.min = util::to_bcd(relFAD / 75 / 60);
+            entry.sec = util::to_bcd(relFAD / 75 % 60);
+            entry.frac = util::to_bcd(relFAD % 75);
             entry.zero = 0x00;
+            entry.amin = util::to_bcd(track.index01FrameAddress / 75 / 60);
+            entry.asec = util::to_bcd(track.index01FrameAddress / 75 % 60);
+            entry.afrac = util::to_bcd(track.index01FrameAddress % 75);
         }
     }
 };

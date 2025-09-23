@@ -394,7 +394,7 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM, CbLoader
                 std::make_unique<SharedSubviewBinaryReader>(binaryReader, subviewOffset, frames * track.unitSize);
             track.startFrameAddress = frameAddress;
             track.endFrameAddress = frameAddress + frames - 1;
-            track.track01FrameAddress = frameAddress;
+            track.index01FrameAddress = frameAddress;
             track.interleavedSubchannel = false;
             track.indices.emplace_back(); // Insert dummy index 00
             auto &index = track.indices.emplace_back();

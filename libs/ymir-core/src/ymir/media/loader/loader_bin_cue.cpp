@@ -482,7 +482,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     prevIndex.endFrameAddress = index.startFrameAddress - 1;
                 }
                 if (sheetIndex.number == 1) {
-                    track.track01FrameAddress = index.startFrameAddress;
+                    track.index01FrameAddress = index.startFrameAddress;
                 }
             }
         }

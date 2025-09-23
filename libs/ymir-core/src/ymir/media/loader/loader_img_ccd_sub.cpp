@@ -301,7 +301,7 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM, CbLoader
 
             track.startFrameAddress = TimestampToFrameAddress(point.min, point.sec, point.frame);
             index.startFrameAddress = track.startFrameAddress;
-            track.track01FrameAddress = track.startFrameAddress;
+            track.index01FrameAddress = track.startFrameAddress;
 
             // Finish previous track
             if (j > 0) {

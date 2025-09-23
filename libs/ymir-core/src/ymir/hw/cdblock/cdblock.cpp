@@ -2044,7 +2044,7 @@ void CDBlock::CmdSeekDisc() {
             if (trackNum - 1 >= session.firstTrackIndex && trackNum - 1 <= session.lastTrackIndex) {
                 const auto &track = session.tracks[trackNum - 1];
                 m_status.statusCode = kStatusCodePause;
-                m_status.frameAddress = track.track01FrameAddress;
+                m_status.frameAddress = track.index01FrameAddress;
                 m_status.flags = track.controlADR == 0x41 ? 0x8 : 0x0;
                 m_status.controlADR = track.controlADR;
                 m_status.track = trackNum;
