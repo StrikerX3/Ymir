@@ -318,12 +318,6 @@ void YGR::UpdateFIFODREQ() const {
     m_cbSetDREQ1n(!m_regs.TRCTL.TE || m_fifo.IsFull() || (m_regs.TRCTL.DIR && m_fifo.IsEmpty()));
 }
 
-void YGR::DiscChanged() {
-    // TODO: should probably let the CD Block code deal with this based on CD drive status reports
-    m_regs.HIRQ |= kHIRQ_DCHG | kHIRQ_EFLS;
-    UpdateInterrupts();
-}
-
 void YGR::SectorTransferDone() {
     m_regs.CDIRQU.DET = 1;
     if (m_regs.CDIRQU.u16 & m_regs.CDMSKU.u16) {

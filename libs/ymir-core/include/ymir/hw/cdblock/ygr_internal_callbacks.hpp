@@ -11,9 +11,6 @@
 
 namespace ymir::cdblock {
 
-/// @brief Invoked when the disc is changed.
-using CBDiscChanged = util::RequiredCallback<void()>;
-
 /// @brief Invoked when a sector transfer is finished
 using CBSectorTransferDone = util::RequiredCallback<void()>;
 

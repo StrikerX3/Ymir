@@ -233,14 +233,12 @@ private:
     void UpdateInterrupts();
     void UpdateFIFODREQ() const;
 
-    void DiscChanged();
     void SectorTransferDone();
 
 public:
     // -------------------------------------------------------------------------
     // Callbacks
 
-    const CBDiscChanged CbDiscChanged = util::MakeClassMemberRequiredCallback<&YGR::DiscChanged>(this);
     const CBSectorTransferDone CbSectorTransferDone =
         util::MakeClassMemberRequiredCallback<&YGR::SectorTransferDone>(this);
 };

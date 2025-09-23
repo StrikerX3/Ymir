@@ -25,11 +25,10 @@ public:
 
     void Reset();
 
-    void MapCallbacks(CBSetCOMSYNCn setCOMSYNCn, CBSetCOMREQn setCOMREQn, CBDiscChanged discChanged,
-                      CBDataSector dataSector, CBCDDASector cddaSector, CBSectorTransferDone sectorTransferDone) {
+    void MapCallbacks(CBSetCOMSYNCn setCOMSYNCn, CBSetCOMREQn setCOMREQn, CBDataSector dataSector,
+                      CBCDDASector cddaSector, CBSectorTransferDone sectorTransferDone) {
         m_cbSetCOMSYNCn = setCOMSYNCn;
         m_cbSetCOMREQn = setCOMREQn;
-        m_cbDiscChanged = discChanged;
         m_cbDataSector = dataSector;
         m_cbCDDASector = cddaSector;
         m_cbSectorTransferDone = sectorTransferDone;
@@ -42,7 +41,7 @@ public:
     void OpenTray();
     void CloseTray();
     [[nodiscard]] bool IsTrayOpen() const {
-        return m_trayOpen;
+        return m_status.operation == Operation::TrayOpen;
     }
 
     [[nodiscard]] const media::Disc &GetDisc() const {
@@ -57,11 +56,16 @@ private:
     // TODO: use a device instead, to support reading from real drives as well as disc images
     media::Disc m_disc;
     media::fs::Filesystem m_fs;
-    bool m_trayOpen;
+
+    // The CD block program only responds to disc change events if they follow the Tray Open state.
+    // The auto close tray flag causes the TrayOpen operation processor to automatically close the tray and switch to
+    // the appropriate state after outputting the tray open status once.
+    bool m_autoCloseTray;
+
+    void OpenTray(bool autoClose);
 
     CBSetCOMSYNCn m_cbSetCOMSYNCn;
     CBSetCOMREQn m_cbSetCOMREQn;
-    CBDiscChanged m_cbDiscChanged;
     CBDataSector m_cbDataSector;
     CBCDDASector m_cbCDDASector;
     CBSectorTransferDone m_cbSectorTransferDone;
@@ -106,7 +110,7 @@ private:
         ReadTOC = 0x04,
         Stopped = 0x12,
         Seek = 0x22,
-        Unknown = 0x30,
+        DiscChanged = 0x30,
         ReadAudioSector = 0x34,
         ReadDataSector = 0x36,
         Idle = 0x46,
@@ -185,6 +189,7 @@ private:
     uint64 OpSeek();
     uint64 OpReadSector();
     uint64 OpIdle();
+    uint64 OpTrayOpen();
     uint64 OpUnknown();
 
     void GetReadSpeedFactor();

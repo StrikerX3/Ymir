@@ -20,7 +20,7 @@ CDDrive::CDDrive(core::Scheduler &scheduler)
             eventContext.Reschedule(cycleInterval);
         });
 
-    m_trayOpen = false;
+    m_autoCloseTray = false;
 
     Reset();
 }
@@ -62,37 +62,40 @@ void CDDrive::LoadDisc(media::Disc &&disc) {
     } else {
         devlog::warn<grp::base>("Failed to build filesystem");
     }
-    CloseTray();
-    m_cbDiscChanged();
+    OpenTray(true);
 }
 
 void CDDrive::EjectDisc() {
     m_disc = {};
     m_fs.Clear();
-    CloseTray();
-    m_cbDiscChanged();
+    OpenTray(true);
 }
 
 void CDDrive::OpenTray() {
-    if (!m_trayOpen) {
-        m_trayOpen = true;
-        m_cbDiscChanged();
-        // TODO: check if this is correct
-        m_status.operation = Operation::TrayOpen;
-    }
+    OpenTray(false);
 }
 
 void CDDrive::CloseTray() {
-    if (m_trayOpen) {
-        m_trayOpen = false;
-        m_cbDiscChanged();
-        // TODO: check if this is correct
+    if (m_status.operation != Operation::TrayOpen) {
+        return;
+    }
+
+    m_autoCloseTray = false;
+    if (m_disc.sessions.empty()) {
         m_status.operation = Operation::NoDisc;
+    } else {
+        m_status.operation = Operation::DiscChanged;
+        m_currFAD = 0;
     }
 }
 
 XXH128Hash CDDrive::GetDiscHash() const {
     return m_fs.GetHash();
+}
+
+FORCE_INLINE void CDDrive::OpenTray(bool autoClose) {
+    m_status.operation = Operation::TrayOpen;
+    m_autoCloseTray = autoClose;
 }
 
 bool CDDrive::SerialRead() {
@@ -229,6 +232,7 @@ FORCE_INLINE uint64 CDDrive::ProcessOperation() {
     case Operation::ReadAudioSector: [[fallthrough]];
     case Operation::ReadDataSector: return OpReadSector();
     case Operation::Idle: return OpIdle();
+    case Operation::TrayOpen: return OpTrayOpen();
     default: return OpUnknown();
     }
 }
@@ -424,6 +428,18 @@ FORCE_INLINE uint64 CDDrive::OpIdle() {
     }
 
     OutputDriveStatus();
+
+    return kDriveCyclesPlaying1x / m_readSpeed;
+}
+
+FORCE_INLINE uint64 CDDrive::OpTrayOpen() {
+    m_state = TxState::PreTx;
+
+    OutputDriveStatus();
+
+    if (m_autoCloseTray) {
+        CloseTray();
+    }
 
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
