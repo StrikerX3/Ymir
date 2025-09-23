@@ -63,7 +63,7 @@ struct ygr_regs : public ygr {
 };
 
 struct ygr_cr : public ygr {
-    static constexpr devlog::Level level = devlog::level::trace;
+    // static constexpr devlog::Level level = devlog::level::trace;
     static constexpr std::string_view name = "CDBlock-YGR-CR";
 };
 
@@ -76,12 +76,12 @@ struct lle_cd : public lle {
 };
 
 struct lle_cd_cmd : public lle_cd {
-    static constexpr devlog::Level level = devlog::level::trace;
+    // static constexpr devlog::Level level = devlog::level::trace;
     static constexpr std::string_view name = "CDB-LLE-Command";
 };
 
 struct lle_cd_status : public lle_cd {
-    static constexpr devlog::Level level = devlog::level::trace;
+    // static constexpr devlog::Level level = devlog::level::trace;
     static constexpr std::string_view name = "CDB-LLE-Status";
 };
 

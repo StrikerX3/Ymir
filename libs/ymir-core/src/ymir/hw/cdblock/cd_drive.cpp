@@ -45,6 +45,8 @@ void CDDrive::Reset() {
     m_currFAD = 0u;
     m_targetFAD = 0u;
 
+    m_readSpeed = 1;
+
     m_scheduler.ScheduleAt(m_stateEvent, 0);
 }
 
@@ -203,7 +205,6 @@ FORCE_INLINE uint64 CDDrive::ProcessCommand() {
         GetReadSpeedFactor();
     }
 
-    // TODO: implement the remaining commmands
     switch (m_command.command) {
     case Command::Noop: return ProcessOperation();
     case Command::SeekRing: return CmdSeekRing();
@@ -246,7 +247,7 @@ FORCE_INLINE uint64 CDDrive::CmdSeekRing() {
     m_state = TxState::PreTx;
     OutputRingStatus();
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE uint64 CDDrive::CmdSeekSector() {
@@ -264,7 +265,7 @@ FORCE_INLINE uint64 CDDrive::CmdPause() {
     OutputDriveStatus();
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE uint64 CDDrive::CmdStop() {
@@ -274,7 +275,7 @@ FORCE_INLINE uint64 CDDrive::CmdStop() {
     OutputDriveStatus();
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 FORCE_INLINE uint64 CDDrive::CmdScan(bool fwd) {
     devlog::debug<grp::lle_cd>("Scan {}", (fwd ? "forwards" : "backwards"));
@@ -286,7 +287,7 @@ FORCE_INLINE uint64 CDDrive::CmdScan(bool fwd) {
     OutputDriveStatus();
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE uint64 CDDrive::CmdUnknown() {
@@ -296,7 +297,7 @@ FORCE_INLINE uint64 CDDrive::CmdUnknown() {
     OutputDriveStatus();
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE uint64 CDDrive::OpReadTOC() {
@@ -319,14 +320,14 @@ FORCE_INLINE uint64 CDDrive::OpSeek() {
         devlog::debug<grp::lle_cd>("Seek done");
     }
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE uint64 CDDrive::OpReadSector() {
     if (m_disc.sessions.empty()) {
         devlog::debug<grp::lle_cd>("Read sector - no disc");
         m_status.operation = Operation::NoDisc;
-        return kDriveCyclesPlaying1x - m_readSpeed;
+        return kDriveCyclesPlaying1x / m_readSpeed;
     }
 
     devlog::debug<grp::lle_cd>("Read sector {:06X}", m_currFAD);
@@ -336,11 +337,11 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
     const bool isData = track == nullptr || (track->controlADR & 0x40);
     m_status.operation = isData ? Operation::ReadDataSector : Operation::ReadAudioSector;
 
-    uint64 cycles = kDriveCyclesPlaying1x - m_readSpeed;
+    uint64 cycles = kDriveCyclesPlaying1x / m_readSpeed;
     if (track != nullptr && track->ReadSector(m_currFAD, m_sectorDataBuffer)) {
         if (isData) {
-            // TODO: might have to skip the sync bytes
-            m_cbDataSector(m_sectorDataBuffer);
+            // Skip the sync bytes
+            m_cbDataSector(std::span<uint8>(m_sectorDataBuffer).subspan(12));
         } else {
             // The callback returns how many thirds of the buffer are full
             const uint32 currBufferLength = m_cbCDDASector(m_sectorDataBuffer);
@@ -365,6 +366,11 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
     OutputDriveStatus();
     m_state = TxState::PreTx;
 
+    // Need to fudge cycles, otherwise SH-1 rejects the transfers
+    static constexpr uint64 kCyclesFudge = 100500;
+    if (isData) {
+        cycles -= kCyclesFudge;
+    }
     return cycles;
 }
 
@@ -378,14 +384,14 @@ FORCE_INLINE uint64 CDDrive::OpIdle() {
 
     OutputDriveStatus();
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE uint64 CDDrive::OpUnknown() {
     m_state = TxState::PreTx;
     OutputDriveStatus();
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE void CDDrive::GetReadSpeedFactor() {
@@ -423,7 +429,7 @@ FORCE_INLINE uint64 CDDrive::BeginSeek(bool read) {
     m_state = TxState::PreTx;
     OutputDriveStatus();
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE uint64 CDDrive::ReadTOC() {
@@ -431,7 +437,7 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
     if (m_disc.sessions.empty()) {
         m_status.operation = Operation::NoDisc;
         m_state = TxState::PreTx;
-        return kDriveCyclesPlaying1x - m_readSpeed;
+        return kDriveCyclesPlaying1x / m_readSpeed;
     }
 
     auto &session = m_disc.sessions.back();
@@ -462,7 +468,7 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
     }
     m_state = TxState::PreTx;
 
-    return kDriveCyclesPlaying1x - m_readSpeed;
+    return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
 FORCE_INLINE void CDDrive::OutputDriveStatus() {
