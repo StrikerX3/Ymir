@@ -148,7 +148,6 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
     // TODO: AdvanceWDT<false>();
     AdvanceITU();
     AdvanceSCI();
-    // TODO: AdvanceDMA<false>();
 
     // TODO: debugging features
     /*if constexpr (debug) {
@@ -192,6 +191,8 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
         }*/
     }
 
+    AdvanceDMA(m_cyclesExecuted - spilloverCycles);
+
     return m_cyclesExecuted;
 }
 
@@ -200,9 +201,8 @@ FLATTEN uint64 SH1::Step() {
     // TODO: AdvanceWDT<false>();
     AdvanceITU();
     AdvanceSCI();
-    // TODO: AdvanceDMA<false>();
     const uint64 cycles = InterpretNext();
-
+    AdvanceDMA(cycles);
     return cycles;
 }
 
@@ -284,6 +284,154 @@ void SH1::DumpRAM(std::ostream &out) {
 
 FORCE_INLINE uint64 SH1::GetCurrentCycleCount() const {
     return m_scheduler.CurrentCount() + m_cyclesExecuted;
+}
+
+FORCE_INLINE void SH1::AdvanceITU() {
+    const uint64 cycles = GetCurrentCycleCount();
+
+    for (uint32 i = 0; i < 5; ++i) {
+        auto &timer = ITU.timers[i];
+        if (!timer.started) {
+            continue;
+        }
+
+        // Must be monotonically increasing
+        assert(cycles >= timer.currCycles);
+
+        const uint64 timerCycles = cycles - timer.currCycles;
+
+        uint64 steps = 0;
+        using Prescaler = IntegratedTimerPulseUnit::Timer::Prescaler;
+        switch (timer.prescaler) {
+        case Prescaler::Phi:
+            steps = timerCycles;
+            timer.currCycles = cycles;
+            break;
+        case Prescaler::Phi2:
+            steps = timerCycles >> 1ull;
+            timer.currCycles = cycles & ~1ull;
+            break;
+        case Prescaler::Phi4:
+            steps = timerCycles >> 2ull;
+            timer.currCycles = cycles & ~3ull;
+            break;
+        case Prescaler::Phi8:
+            steps = timerCycles >> 3ull;
+            timer.currCycles = cycles & ~7ull;
+            break;
+        default: timer.currCycles = cycles; break; // TCLKA to TCLKD, not implemented
+        }
+
+        uint64 nextCount = timer.counter + steps;
+        if (nextCount >= 0x10000) {
+            timer.OVF = true;
+            if (timer.OVFIntrEnable) {
+                RaiseInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::ITU0_OVI0) - i * 3));
+            }
+        }
+
+        using GRMode = IntegratedTimerPulseUnit::Timer::GRMode;
+        using ClearMode = IntegratedTimerPulseUnit::Timer::ClearMode;
+        if (static_cast<uint16>(timer.GRA - timer.counter) < steps) {
+            // TODO: update TIOCAn here
+            switch (timer.GRAMode) {
+            case GRMode::OutputNone: break;
+            case GRMode::Output0: break;
+            case GRMode::Output1: break;
+            case GRMode::OutputToggle:
+                if (i == 2) {
+                    // Behaves like Output1 instead
+                } else {
+                }
+                break;
+            default: break; // the rest are inputs
+            }
+
+            timer.IMFA = true;
+            if (timer.clearMode == ClearMode::GRA) {
+                nextCount = 0;
+            }
+            if (timer.IMFAIntrEnable) {
+                RaiseInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::ITU0_IMIA0) - i * 3));
+            }
+        }
+
+        if (static_cast<uint16>(timer.GRB - timer.counter) < steps) {
+            // TODO: update TIOCBn here
+            switch (timer.GRBMode) {
+            case GRMode::OutputNone: break;
+            case GRMode::Output0: break;
+            case GRMode::Output1: break;
+            case GRMode::OutputToggle:
+                if (i == 2) {
+                    // Behaves like Output1 instead
+                } else {
+                }
+                break;
+            default: break; // the rest are inputs
+            }
+
+            timer.IMFB = true;
+            if (timer.clearMode == ClearMode::GRB) {
+                nextCount = 0;
+            }
+            if (timer.IMFBIntrEnable) {
+                RaiseInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::ITU0_IMIB0) - i * 3));
+            }
+        }
+        timer.counter = nextCount;
+    }
+}
+
+FORCE_INLINE void SH1::AdvanceSCI() {
+    const uint64 cycles = GetCurrentCycleCount();
+
+    for (uint32 i = 0; i < 2; ++i) {
+        auto &ch = SCI.channels[i];
+        if (ch.clockEnable >= 2) {
+            // External clock signals are not implemented
+            continue;
+        }
+        if (!ch.sync) {
+            // Async mode not implemented
+            continue;
+        }
+
+        // Must be monotonically increasing
+        assert(cycles >= ch.currCycles);
+
+        uint64 chCycles = cycles - ch.currCycles;
+        while (chCycles >= ch.cyclesPerBit) {
+            chCycles -= ch.cyclesPerBit;
+            if (ch.txEnd) {
+                break;
+            }
+            if (ch.rxEnable) {
+                const bool bit = m_cbSerialRx[i]();
+                ch.ReceiveBit(bit);
+                if (ch.rxIntrEnable && ch.rxFull) {
+                    RaiseInterrupt(
+                        static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::SCI0_RxI0) - i * 4));
+                }
+            }
+            if (ch.txEnable) {
+                const bool bit = ch.TransmitBit();
+                m_cbSerialTx[i](bit);
+                // TODO: handle Tx-related interrupts
+            }
+        }
+        ch.currCycles = cycles - chCycles;
+    }
+}
+
+void SH1::AdvanceDMA(uint64 cycles) {
+    for (uint32 i = 0; i < 4; ++i) {
+        for (uint64 c = 0; c < cycles; ++c) {
+            if (!StepDMAC(i)) {
+                break;
+            }
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1296,7 +1444,6 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         auto &ch = DMAC.channels[index];
         ch.WriteCHCRHi(value);
         if constexpr (!poke) {
-            RunDMAC(index); // TODO: should be scheduled
             if (!DMAC.DMAOR.DME || !ch.xferEnded || !ch.irqEnable) {
                 LowerInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::DMAC0_DEI0) - index));
             }
@@ -1312,7 +1459,6 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         auto &ch = DMAC.channels[index];
         ch.WriteCHCRLo<poke>(value);
         if constexpr (!poke) {
-            RunDMAC(index); // TODO: should be scheduled
             if (!DMAC.DMAOR.DME || !ch.xferEnded || !ch.irqEnable) {
                 LowerInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::DMAC0_DEI0) - index));
             }
@@ -1325,7 +1471,6 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         DMAC.WriteDMAOR<poke>(value);
         if constexpr (!poke) {
             for (uint32 i = 0; i < 4; ++i) {
-                RunDMAC(i); // TODO: should be scheduled
                 if (!DMAC.DMAOR.DME) {
                     LowerInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::DMAC0_DEI0) - i));
                 }
@@ -1589,7 +1734,6 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
         auto &ch = DMAC.channels[index];
         ch.WriteCHCR<poke>(value);
         if constexpr (!poke) {
-            RunDMAC(index); // TODO: should be scheduled
             if (!DMAC.DMAOR.DME || !ch.xferEnded || !ch.irqEnable) {
                 LowerInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::DMAC0_DEI0) - index));
             }
@@ -1890,6 +2034,99 @@ void SH1::RunDMAC(uint32 channel) {
     }
 }
 
+FORCE_INLINE bool SH1::StepDMAC(uint32 channel) {
+    assert(channel < DMAC.channels.size());
+    auto &ch = DMAC.channels[channel];
+
+    // TODO: prioritize channels based on DMAOR.PRn
+    // TODO: proper timings, cycle-stealing, etc. (suspend instructions if not cached)
+
+    if (!IsDMATransferActive(ch)) {
+        return false;
+    }
+
+    switch (ch.xferResSelect) {
+    case DMAResourceSelect::nDREQDual: [[fallthrough]];
+    case DMAResourceSelect::nDREQSingleDACKDst: [[fallthrough]];
+    case DMAResourceSelect::nDREQSingleDACKSrc:
+        if (channel >= 2) {
+            // No DREQ# signals for these channels
+            return false;
+        }
+        if (m_nDREQ[channel]) {
+            // DREQ# not asserted
+            return false;
+        }
+        break;
+    case DMAResourceSelect::SCI0_RXI0: /*TODO*/ return false;
+    case DMAResourceSelect::SCI0_TXI0: /*TODO*/ return false;
+    case DMAResourceSelect::SCI1_RXI1: /*TODO*/ return false;
+    case DMAResourceSelect::SCI1_TXI1: /*TODO*/ return false;
+    case DMAResourceSelect::ITU0_IMIA0: /*TODO*/ return false;
+    case DMAResourceSelect::ITU1_IMIA1: /*TODO*/ return false;
+    case DMAResourceSelect::ITU2_IMIA2: /*TODO*/ return false;
+    case DMAResourceSelect::ITU3_IMIA3: /*TODO*/ return false;
+    case DMAResourceSelect::AutoRequest: break;
+    case DMAResourceSelect::AD_ADI: /*TODO*/ return false;
+    case DMAResourceSelect::Reserved1: [[fallthrough]];
+    case DMAResourceSelect::ReservedE: [[fallthrough]];
+    case DMAResourceSelect::ReservedF: return false;
+    }
+
+    static constexpr uint32 kXferSize[] = {1, 2};
+    const uint32 xferSize = kXferSize[static_cast<uint32>(ch.xferSize)];
+    auto getAddressInc = [&](DMATransferIncrementMode mode) -> sint32 {
+        using enum DMATransferIncrementMode;
+        switch (mode) {
+        default: [[fallthrough]];
+        case Fixed: return 0;
+        case Increment: return +xferSize;
+        case Decrement: return -xferSize;
+        case Reserved: return 0;
+        }
+    };
+
+    const sint32 srcInc = getAddressInc(ch.srcMode);
+    const sint32 dstInc = getAddressInc(ch.dstMode);
+
+    // Perform one unit of transfer
+    switch (ch.xferSize) {
+    case DMATransferSize::Byte: //
+    {
+        const uint8 value = MemReadByte(ch.srcAddress);
+        MemWriteByte(ch.dstAddress, value);
+        break;
+    }
+    case DMATransferSize::Word: //
+    {
+        const uint16 value = MemReadWord(ch.srcAddress);
+        MemWriteWord(ch.dstAddress, value);
+        break;
+    }
+    }
+
+    // Update address and remaining count
+    ch.srcAddress += srcInc;
+    ch.dstAddress += dstInc;
+    --ch.xferCount;
+
+    if (ch.xferCount == 0) {
+        ch.xferEnded = true;
+        devlog::trace<grp::dma>("DMAC{} transfer finished", channel);
+        if (ch.irqEnable) {
+            devlog::trace<grp::dma>("DMAC{} DEI{} raised", channel, channel);
+            switch (channel) {
+            case 0: RaiseInterrupt(InterruptSource::DMAC0_DEI0); break;
+            case 1: RaiseInterrupt(InterruptSource::DMAC1_DEI1); break;
+            case 2: RaiseInterrupt(InterruptSource::DMAC2_DEI2); break;
+            case 3: RaiseInterrupt(InterruptSource::DMAC3_DEI3); break;
+            }
+        }
+        return false;
+    }
+    return true;
+}
+
 FLATTEN FORCE_INLINE bool SH1::IsDMATransferActive(const DMAController::DMAChannel &ch) const {
     return ch.IsEnabled() && DMAC.DMAOR.DME && !DMAC.DMAOR.NMIF && !DMAC.DMAOR.AE;
 }
@@ -2030,144 +2267,6 @@ void SH1::WritePortBLo(uint8 value) const {}
 
 uint8 SH1::ReadPortC() const {
     return 0u;
-}
-
-void SH1::AdvanceITU() {
-    const uint64 cycles = GetCurrentCycleCount();
-
-    for (uint32 i = 0; i < 5; ++i) {
-        auto &timer = ITU.timers[i];
-        if (!timer.started) {
-            continue;
-        }
-
-        // Must be monotonically increasing
-        assert(cycles >= timer.currCycles);
-
-        const uint64 timerCycles = cycles - timer.currCycles;
-
-        uint64 steps = 0;
-        using Prescaler = IntegratedTimerPulseUnit::Timer::Prescaler;
-        switch (timer.prescaler) {
-        case Prescaler::Phi:
-            steps = timerCycles;
-            timer.currCycles = cycles;
-            break;
-        case Prescaler::Phi2:
-            steps = timerCycles >> 1ull;
-            timer.currCycles = cycles & ~1ull;
-            break;
-        case Prescaler::Phi4:
-            steps = timerCycles >> 2ull;
-            timer.currCycles = cycles & ~3ull;
-            break;
-        case Prescaler::Phi8:
-            steps = timerCycles >> 3ull;
-            timer.currCycles = cycles & ~7ull;
-            break;
-        default: timer.currCycles = cycles; break; // TCLKA to TCLKD, not implemented
-        }
-
-        uint64 nextCount = timer.counter + steps;
-        if (nextCount >= 0x10000) {
-            timer.OVF = true;
-            if (timer.OVFIntrEnable) {
-                RaiseInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::ITU0_OVI0) - i * 3));
-            }
-        }
-
-        using GRMode = IntegratedTimerPulseUnit::Timer::GRMode;
-        using ClearMode = IntegratedTimerPulseUnit::Timer::ClearMode;
-        if (static_cast<uint16>(timer.GRA - timer.counter) < steps) {
-            // TODO: update TIOCAn here
-            switch (timer.GRAMode) {
-            case GRMode::OutputNone: break;
-            case GRMode::Output0: break;
-            case GRMode::Output1: break;
-            case GRMode::OutputToggle:
-                if (i == 2) {
-                    // Behaves like Output1 instead
-                } else {
-                }
-                break;
-            default: break; // the rest are inputs
-            }
-
-            timer.IMFA = true;
-            if (timer.clearMode == ClearMode::GRA) {
-                nextCount = 0;
-            }
-            if (timer.IMFAIntrEnable) {
-                RaiseInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::ITU0_IMIA0) - i * 3));
-            }
-        }
-
-        if (static_cast<uint16>(timer.GRB - timer.counter) < steps) {
-            // TODO: update TIOCBn here
-            switch (timer.GRBMode) {
-            case GRMode::OutputNone: break;
-            case GRMode::Output0: break;
-            case GRMode::Output1: break;
-            case GRMode::OutputToggle:
-                if (i == 2) {
-                    // Behaves like Output1 instead
-                } else {
-                }
-                break;
-            default: break; // the rest are inputs
-            }
-
-            timer.IMFB = true;
-            if (timer.clearMode == ClearMode::GRB) {
-                nextCount = 0;
-            }
-            if (timer.IMFBIntrEnable) {
-                RaiseInterrupt(static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::ITU0_IMIB0) - i * 3));
-            }
-        }
-        timer.counter = nextCount;
-    }
-}
-
-void SH1::AdvanceSCI() {
-    const uint64 cycles = GetCurrentCycleCount();
-
-    for (uint32 i = 0; i < 2; ++i) {
-        auto &ch = SCI.channels[i];
-        if (ch.clockEnable >= 2) {
-            // External clock signals are not implemented
-            continue;
-        }
-        if (!ch.sync) {
-            // Async mode not implemented
-            continue;
-        }
-
-        // Must be monotonically increasing
-        assert(cycles >= ch.currCycles);
-
-        uint64 chCycles = cycles - ch.currCycles;
-        while (chCycles >= ch.cyclesPerBit) {
-            chCycles -= ch.cyclesPerBit;
-            if (ch.txEnd) {
-                break;
-            }
-            if (ch.rxEnable) {
-                const bool bit = m_cbSerialRx[i]();
-                ch.ReceiveBit(bit);
-                if (ch.rxIntrEnable && ch.rxFull) {
-                    RaiseInterrupt(
-                        static_cast<InterruptSource>(static_cast<uint32>(InterruptSource::SCI0_RxI0) - i * 4));
-                }
-            }
-            if (ch.txEnable) {
-                const bool bit = ch.TransmitBit();
-                m_cbSerialTx[i](bit);
-                // TODO: handle Tx-related interrupts
-            }
-        }
-        ch.currCycles = cycles - chCycles;
-    }
 }
 
 // -----------------------------------------------------------------------------

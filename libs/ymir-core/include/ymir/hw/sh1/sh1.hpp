@@ -125,6 +125,10 @@ private:
     // Retrieves the current absolute cycle count
     uint64 GetCurrentCycleCount() const;
 
+    void AdvanceITU();
+    void AdvanceSCI();
+    void AdvanceDMA(uint64 cycles);
+
     // -------------------------------------------------------------------------
     // Memory accessors
 
@@ -207,6 +211,7 @@ private:
     bool m_sleep;
 
     void RunDMAC(uint32 channel);
+    bool StepDMAC(uint32 channel);
     bool IsDMATransferActive(const DMAController::DMAChannel &ch) const;
     void DMAC0DREQTransfer(std::span<uint8> data);
 
@@ -224,9 +229,6 @@ private:
 
     // -------------------------------------------------------------------------
     // Serial transfers
-
-    void AdvanceITU();
-    void AdvanceSCI();
 
     std::array<CbSerialRx, 2> m_cbSerialRx;
     std::array<CbSerialTx, 2> m_cbSerialTx;
