@@ -3,6 +3,7 @@
 #include "cdblock_devlog.hpp"
 
 #include <ymir/util/arith_ops.hpp>
+#include <ymir/util/dev_assert.hpp>
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/inline.hpp>
 
@@ -284,7 +285,7 @@ FORCE_INLINE uint64 CDDrive::CmdStop() {
 FORCE_INLINE uint64 CDDrive::CmdScan(bool fwd) {
     devlog::debug<grp::lle_cd>("Scan {}", (fwd ? "forwards" : "backwards"));
     // TODO: implement
-    __debugbreak();
+    YMIR_DEV_CHECK();
 
     m_status.operation = Operation::Idle;
 
