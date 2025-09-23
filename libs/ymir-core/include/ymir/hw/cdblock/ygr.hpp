@@ -72,7 +72,7 @@ private:
     // Used for data transfers between host and CD Block. Uses an internal FIFO.
 
     struct FIFO {
-        std::array<uint16, 65536> data; // TODO: should be much smaller than this (8 entries only)
+        std::array<uint16, 4096> data; // TODO: should be much smaller than this (8 entries only)
         mutable uint32 readPos;
         uint32 writePos;
         mutable uint32 count;
@@ -86,6 +86,8 @@ private:
         }
 
         FORCE_INLINE void Clear() {
+            readPos = 0;
+            writePos = 0;
             count = 0;
         }
 

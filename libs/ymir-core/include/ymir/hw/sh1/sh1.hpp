@@ -210,7 +210,6 @@ private:
     RegSBYCR SBYCR; // 1BC  R/W  8,16,32  1F        SBYCR   Standby Control Register
     bool m_sleep;
 
-    void RunDMAC(uint32 channel);
     bool StepDMAC(uint32 channel);
     bool IsDMATransferActive(const DMAController::DMAChannel &ch) const;
     void DMAC0DREQTransfer(std::span<uint8> data);

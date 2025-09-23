@@ -172,7 +172,9 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
         // [[maybe_unused]] const uint32 prevPC = PC; // debug aid
 
         // TODO: choose between interpreter (cached or uncached) and JIT recompiler
-        m_cyclesExecuted += InterpretNext();
+        const uint64 cycles = InterpretNext();
+        AdvanceDMA(cycles);
+        m_cyclesExecuted += cycles;
 
         // Check for breakpoints and watchpoints in debug tracing mode
         // TODO: debugging features
@@ -190,8 +192,6 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
             }
         }*/
     }
-
-    AdvanceDMA(m_cyclesExecuted - spilloverCycles);
 
     return m_cyclesExecuted;
 }
@@ -218,21 +218,11 @@ void SH1::SetNMI() {
 }
 
 void SH1::SetDREQ0n(bool level) {
-    if (m_nDREQ[0] != level) {
-        m_nDREQ[0] = level;
-        if (!level) {
-            RunDMAC(0);
-        }
-    }
+    m_nDREQ[0] = level;
 }
 
 void SH1::SetDREQ1n(bool level) {
-    if (m_nDREQ[1] != level) {
-        m_nDREQ[1] = level;
-        if (!level) {
-            RunDMAC(1);
-        }
-    }
+    m_nDREQ[1] = level;
 }
 
 void SH1::AssertIRQ6() {
@@ -1937,100 +1927,6 @@ FORCE_INLINE void SH1::OnChipRegWriteLong(uint32 address, uint32 value) {
         OnChipRegWriteWord<poke>(address + 0, value >> 16u);
         OnChipRegWriteWord<poke>(address + 2, value >> 0u);
         break;
-    }
-}
-
-void SH1::RunDMAC(uint32 channel) {
-    assert(channel < DMAC.channels.size());
-    auto &ch = DMAC.channels[channel];
-
-    // TODO: prioritize channels based on DMAOR.PRn
-    // TODO: proper timings, cycle-stealing, etc. (suspend instructions if not cached)
-
-    if (!IsDMATransferActive(ch)) {
-        return;
-    }
-
-    switch (ch.xferResSelect) {
-    case DMAResourceSelect::nDREQDual: [[fallthrough]];
-    case DMAResourceSelect::nDREQSingleDACKDst: [[fallthrough]];
-    case DMAResourceSelect::nDREQSingleDACKSrc:
-        if (channel >= 2) {
-            // No DREQ# signals for these channels
-            return;
-        }
-        if (m_nDREQ[channel]) {
-            // DREQ# not asserted
-            return;
-        }
-        break;
-    case DMAResourceSelect::SCI0_RXI0: /*TODO*/ return;
-    case DMAResourceSelect::SCI0_TXI0: /*TODO*/ return;
-    case DMAResourceSelect::SCI1_RXI1: /*TODO*/ return;
-    case DMAResourceSelect::SCI1_TXI1: /*TODO*/ return;
-    case DMAResourceSelect::ITU0_IMIA0: /*TODO*/ return;
-    case DMAResourceSelect::ITU1_IMIA1: /*TODO*/ return;
-    case DMAResourceSelect::ITU2_IMIA2: /*TODO*/ return;
-    case DMAResourceSelect::ITU3_IMIA3: /*TODO*/ return;
-    case DMAResourceSelect::AutoRequest: break;
-    case DMAResourceSelect::AD_ADI: /*TODO*/ return;
-    case DMAResourceSelect::Reserved1: [[fallthrough]];
-    case DMAResourceSelect::ReservedE: [[fallthrough]];
-    case DMAResourceSelect::ReservedF: return;
-    }
-
-    devlog::trace<grp::dma>("DMAC{} transfer started: {:08X} to {:08X}, {:04X} {} units", channel, ch.srcAddress,
-                            ch.dstAddress, ch.xferCount, (ch.xferSize == DMATransferSize::Byte ? "byte" : "word"));
-
-    static constexpr uint32 kXferSize[] = {1, 2};
-    const uint32 xferSize = kXferSize[static_cast<uint32>(ch.xferSize)];
-    auto getAddressInc = [&](DMATransferIncrementMode mode) -> sint32 {
-        using enum DMATransferIncrementMode;
-        switch (mode) {
-        default: [[fallthrough]];
-        case Fixed: return 0;
-        case Increment: return +xferSize;
-        case Decrement: return -xferSize;
-        case Reserved: return 0;
-        }
-    };
-
-    const sint32 srcInc = getAddressInc(ch.srcMode);
-    const sint32 dstInc = getAddressInc(ch.dstMode);
-
-    do {
-        // Perform one unit of transfer
-        switch (ch.xferSize) {
-        case DMATransferSize::Byte: //
-        {
-            const uint8 value = MemReadByte(ch.srcAddress);
-            MemWriteByte(ch.dstAddress, value);
-            break;
-        }
-        case DMATransferSize::Word: //
-        {
-            const uint16 value = MemReadWord(ch.srcAddress);
-            MemWriteWord(ch.dstAddress, value);
-            break;
-        }
-        }
-
-        // Update address and remaining count
-        ch.srcAddress += srcInc;
-        ch.dstAddress += dstInc;
-        --ch.xferCount;
-    } while (ch.xferCount != 0);
-
-    ch.xferEnded = true;
-    devlog::trace<grp::dma>("DMAC{} transfer finished", channel);
-    if (ch.irqEnable) {
-        devlog::trace<grp::dma>("DMAC{} DEI{} raised", channel, channel);
-        switch (channel) {
-        case 0: RaiseInterrupt(InterruptSource::DMAC0_DEI0); break;
-        case 1: RaiseInterrupt(InterruptSource::DMAC1_DEI1); break;
-        case 2: RaiseInterrupt(InterruptSource::DMAC2_DEI2); break;
-        case 3: RaiseInterrupt(InterruptSource::DMAC3_DEI3); break;
-        }
     }
 }
 
