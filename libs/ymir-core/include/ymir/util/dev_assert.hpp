@@ -19,6 +19,11 @@ Development assertions must be enabled by defining the `Ymir_DEV_ASSERTIONS` mac
 @param[in] condition the condition to check
 */
 
+/**
+@def YMIR_DEV_CHECK
+@brief Breaks into the debugger immediately.
+*/
+
 #if Ymir_DEV_ASSERTIONS
     #define YMIR_DEV_ASSERT(cond) \
         do {                      \
