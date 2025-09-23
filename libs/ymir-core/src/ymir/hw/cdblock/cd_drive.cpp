@@ -533,9 +533,9 @@ FORCE_INLINE void CDDrive::OutputDriveStatus() {
             m_status.sec = 0x00;
             m_status.frac = 0x00;
             m_status.zero = 0x04;
-            m_status.absMin = util::to_bcd(leadoutFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(leadoutFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(leadoutFAD % 75);
+            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
+            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
+            m_status.absFrac = util::to_bcd(m_currFAD % 75);
         } else {
             // Tracks 01 to 99
             const bool isLeadIn = m_currFAD < 150;
