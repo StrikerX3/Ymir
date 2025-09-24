@@ -141,9 +141,14 @@ void SCU::MapMemory(sys::SH2Bus &bus) {
 
 template <bool debug>
 void SCU::Advance(uint64 cycles) {
-    // HACK: run faster to fix audio glitch on BIOS boot and flickering graphics in Virtual On - Cyber Troopers
+    // FIXME: SCU DMA transfers should probably delay SH-2s and other things.
+    // Since introducing SCU DMA single-stepping, some games exhibit issues:
+    // - BIOS animation: audio glitch
+    // - Powerslave/Exhumed: garbage graphics left behind on the map screen
+    // - Virtual On - Cyber Troopers: flickering graphics
+    // Speeding up these transfers by 50x fixes these issues
     // The proper solution is to adjust bus timings, delay SH-2s, etc.
-    RunDMA(cycles * 2);
+    RunDMA(cycles * 50);
 
     if (m_dsp.dmaRun) {
         // HACK: finish all DMA transfers before running DSP DMA transfer
