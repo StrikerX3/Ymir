@@ -106,7 +106,9 @@ void SCUDSP::Run(uint64 cycles) {
         if (dmaRun) {
             dmaPC = PC;
             // HACK: This fixes Grandia FMVs... what the heck is this DMA doing on real hardware?!?
-            RunDMA<debug>(0);
+            if (RunDMA<debug>(0)) {
+                return;
+            }
         }
 
         switch (instruction.instructionInfo.instructionClass) {
@@ -137,19 +139,19 @@ template void SCUDSP::Run<false>(uint64 cycles);
 template void SCUDSP::Run<true>(uint64 cycles);
 
 template <bool debug>
-void SCUDSP::RunDMA(uint64 cycles) {
+bool SCUDSP::RunDMA(uint64 cycles) {
     // TODO: proper cycle counting
 
     // Bail out if DMA is not running
     if (!dmaRun) {
-        return;
+        return false;
     }
 
     const bool toD0 = dmaToD0;
     const BusID bus = GetBusID(dmaAddrD0);
     if (bus == BusID::None) {
         dmaRun = false;
-        return;
+        return false;
     }
 
     // Run transfer
@@ -160,10 +162,13 @@ void SCUDSP::RunDMA(uint64 cycles) {
     uint8 programRAMIndex = dmaPC;
 
     do {
-        --cycles;
-        --dmaCount;
         if (toD0) {
             // Data RAM -> D0
+            if (m_bus.IsBusWait(dmaAddrD0, sizeof(uint32), true)) {
+                devlog::debug<grp::dsp>("SCU DSP DMA: Read from {:08X} stalled by bus wait signal", dmaAddrD0);
+                return true;
+            }
+
             const uint32 value = useDataRAM ? dataRAM[ctIndex][CT.array[ctIndex]] : ~0u;
             if (bus == BusID::ABus) {
                 // A-Bus -> one 32-bit write
@@ -182,6 +187,11 @@ void SCUDSP::RunDMA(uint64 cycles) {
             }
         } else {
             // D0 -> Data/Program RAM
+            if (m_bus.IsBusWait(dmaAddrD0, sizeof(uint32), false)) {
+                devlog::debug<grp::dsp>("SCU DSP DMA: Read from {:08X} stalled by bus wait signal", dmaAddrD0);
+                return true;
+            }
+
             uint32 value;
             if (bus == BusID::ABus) {
                 // A-Bus -> one 32-bit read
@@ -208,7 +218,7 @@ void SCUDSP::RunDMA(uint64 cycles) {
             CT.array[ctIndex]++;
             CT.array[ctIndex] &= 0x3F;
         }
-    } while (dmaCount != 0 && cycles != 0);
+    } while (--dmaCount != 0 && --cycles != 0);
 
     if (dmaCount == 0) {
         // Update RA0/WA0 if not holding address
@@ -239,6 +249,8 @@ void SCUDSP::RunDMA(uint64 cycles) {
             PC = loopTop;
         }
     }
+
+    return false;
 }
 
 void SCUDSP::SaveState(state::SCUDSPState &state) const {

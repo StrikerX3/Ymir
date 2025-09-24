@@ -37,7 +37,7 @@ public:
     void Run(uint64 cycles);
 
     template <bool debug>
-    void RunDMA(uint64 cycles);
+    bool RunDMA(uint64 cycles); // returns true if stalled
 
     // -------------------------------------------------------------------------
     // Memory accessors

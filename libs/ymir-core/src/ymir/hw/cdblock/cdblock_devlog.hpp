@@ -63,7 +63,7 @@ struct ygr_regs : public ygr {
 };
 
 struct ygr_fifo : public ygr {
-    // static constexpr devlog::Level level = devlog::level::trace;
+    static constexpr devlog::Level level = devlog::level::trace;
     static constexpr std::string_view name = "CDBlock-YGR-FIFO";
 };
 

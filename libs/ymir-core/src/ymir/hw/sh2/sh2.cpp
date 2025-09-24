@@ -2312,8 +2312,10 @@ FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
-    AdvancePC<delaySlot>();
+    if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
+        R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+        AdvancePC<delaySlot>();
+    }
     return AccessCycles<enableCache>(address);
 }
 
@@ -2321,8 +2323,10 @@ FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    R[args.rn] = MemReadLong<enableCache>(address);
-    AdvancePC<delaySlot>();
+    if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
+        R[args.rn] = MemReadLong<enableCache>(address);
+        AdvancePC<delaySlot>();
+    }
     return AccessCycles<enableCache>(address);
 }
 
