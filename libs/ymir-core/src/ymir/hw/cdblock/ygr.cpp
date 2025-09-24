@@ -59,12 +59,20 @@ void YGR::MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus) {
                 cast(ctx).HostWriteWord<false>(address + 0, value >> 16u);
                 cast(ctx).HostWriteWord<false>(address + 2, value >> 0u);
             },
+
+            // Bus wait handler
             [](uint32 address, uint32 size, bool write, void *ctx) -> bool {
+                if ((address & 0x3C) != 0x00) {
+                    // Only the FIFO register stalls
+                    return false;
+                }
+
                 auto &ygr = cast(ctx);
                 if (!ygr.m_regs.TRCTL.TE) {
                     // No need to stall if transfer is disabled
                     return false;
                 }
+
                 if (write) {
                     return ygr.m_fifo.Free() < size / sizeof(uint16);
                 } else {
