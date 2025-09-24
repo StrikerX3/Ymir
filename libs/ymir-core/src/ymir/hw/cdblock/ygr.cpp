@@ -60,6 +60,10 @@ void YGR::MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus) {
             },
             [](uint32 address, uint32 size, bool write, void *ctx) -> bool {
                 auto &ygr = cast(ctx);
+                if (!ygr.m_regs.TRCTL.TE) {
+                    // No need to stall if transfer is disabled
+                    return false;
+                }
                 if (write) {
                     return ygr.m_fifo.Free() < size / sizeof(uint16);
                 } else {
@@ -190,7 +194,7 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
                 if (m_fifo.IsEmpty()) {
                     // Force transfer if possible
                     m_cbStepDMAC1();
-                    if (m_fifo.IsEmpty()) {
+                    if (m_fifo.IsEmpty() && m_regs.TRCTL.TE) {
                         devlog::trace<grp::ygr_fifo>("FIFO still empty; transfer might break!");
                         __debugbreak();
                     }
@@ -237,7 +241,7 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
                 if (m_fifo.IsFull()) {
                     // Force transfer if possible
                     m_cbStepDMAC1();
-                    if (m_fifo.IsFull()) {
+                    if (m_fifo.IsFull() && m_regs.TRCTL.TE) {
                         devlog::trace<grp::ygr_fifo>("FIFO still full; transfer will break!");
                         __debugbreak();
                     }
