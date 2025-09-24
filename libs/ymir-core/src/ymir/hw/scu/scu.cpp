@@ -657,11 +657,11 @@ void SCU::RunDMA(uint64 cycles) {
 
         // Check for stalls
         if (m_bus.IsBusWait(ch.currSrcAddr, std::min<uint32>(sizeof(uint32), ch.currXferCount), false)) {
-            devlog::debug<grp::dma>("SCU DMA{}: Read from {:08X} stalled by bus wait signal", level, ch.currSrcAddr);
+            devlog::trace<grp::dma>("SCU DMA{}: Read from {:08X} stalled by bus wait signal", level, ch.currSrcAddr);
             return;
         }
         if (m_bus.IsBusWait(ch.currDstAddr, std::min<uint32>(sizeof(uint32), ch.currXferCount), true)) {
-            devlog::debug<grp::dma>("SCU DMA{}: Write to {:08X} stalled by bus wait signal", level, ch.currDstAddr);
+            devlog::trace<grp::dma>("SCU DMA{}: Write to {:08X} stalled by bus wait signal", level, ch.currDstAddr);
             return;
         }
 
