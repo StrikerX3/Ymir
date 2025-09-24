@@ -75,7 +75,7 @@ private:
     // Used for data transfers between host and CD Block. Uses an internal FIFO.
 
     struct FIFO {
-        std::array<uint16, 8192> data; // TODO: should be much smaller than this (4 entries only)
+        std::array<uint16, 4> data;
         mutable uint32 readPos;
         uint32 writePos;
         mutable uint32 count;
