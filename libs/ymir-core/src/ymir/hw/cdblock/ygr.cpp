@@ -2,6 +2,7 @@
 
 #include "cdblock_devlog.hpp"
 
+#include <ymir/util/dev_assert.hpp>
 #include <ymir/util/inline.hpp>
 
 #include <cstdio>
@@ -196,7 +197,7 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
                     m_cbStepDMAC1();
                     if (m_fifo.IsEmpty() && m_regs.TRCTL.TE) {
                         devlog::trace<grp::ygr_fifo>("FIFO still empty; transfer might break!");
-                        __debugbreak();
+                        YMIR_DEV_CHECK();
                     }
                 }
             }
@@ -243,7 +244,7 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
                     m_cbStepDMAC1();
                     if (m_fifo.IsFull() && m_regs.TRCTL.TE) {
                         devlog::trace<grp::ygr_fifo>("FIFO still full; transfer will break!");
-                        __debugbreak();
+                        YMIR_DEV_CHECK();
                     }
                 }
             }
