@@ -88,6 +88,14 @@ private:
             return count == data.size();
         }
 
+        FORCE_INLINE uint32 Used() const {
+            return count;
+        }
+
+        FORCE_INLINE uint32 Free() const {
+            return data.size() - count;
+        }
+
         FORCE_INLINE void Clear() {
             readPos = 0;
             writePos = 0;

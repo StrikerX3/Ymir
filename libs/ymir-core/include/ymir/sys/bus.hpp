@@ -29,12 +29,16 @@ using FnWrite8 = void (*)(uint32 address, uint8 value, void *ctx);   ///< Functi
 using FnWrite16 = void (*)(uint32 address, uint16 value, void *ctx); ///< Function signature for 16-bit writes.
 using FnWrite32 = void (*)(uint32 address, uint32 value, void *ctx); ///< Function signature for 32-bit writes.
 
+/// @brief Function signature for bus wait checks.
+using FnBusWait = bool (*)(uint32 address, uint32 size, bool write, void *ctx);
+
 /// @brief Specifies valid bus handler function types.
 /// @tparam T the type to check
 template <typename T>
 concept bus_handler_fn =
     fninfo::IsAssignable<FnRead8, T> || fninfo::IsAssignable<FnRead16, T> || fninfo::IsAssignable<FnRead32, T> ||
-    fninfo::IsAssignable<FnWrite8, T> || fninfo::IsAssignable<FnWrite16, T> || fninfo::IsAssignable<FnWrite32, T>;
+    fninfo::IsAssignable<FnWrite8, T> || fninfo::IsAssignable<FnWrite16, T> || fninfo::IsAssignable<FnWrite32, T> ||
+    fninfo::IsAssignable<FnBusWait, T>;
 
 /// @brief Represents a memory bus interconnecting various components in the system.
 ///
@@ -264,6 +268,22 @@ public:
         }
     }
 
+    /// @brief Determines if the given access is blocked.
+    /// @param[in] address the address to check
+    /// @param[in] size the number of bytes to be accessed
+    /// @param[in] write `true` for a write, `false` for a read
+    /// @return `true` if the access is blocked
+    FLATTEN FORCE_INLINE bool IsBusWait(uint32 address, uint32 size, bool write) {
+        address &= kAddressMask;
+
+        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+
+        if (entry.array) {
+            return false;
+        }
+        return entry.busWait(address, size, write, entry.ctx);
+    }
+
 private:
     struct alignas(64) MemoryPage {
         // Fast path for simple arrays
@@ -290,6 +310,8 @@ private:
         FnWrite8 poke8 = [](uint32, uint8, void *) {};
         FnWrite16 poke16 = [](uint32, uint16, void *) {};
         FnWrite32 poke32 = [](uint32, uint32, void *) {};
+
+        FnBusWait busWait = [](uint32, uint32, bool, void *) -> bool { return false; };
     };
     static_assert(bit::is_power_of_two(sizeof(MemoryPage))); // in order to avoid a multiplication when indexing pages
 
@@ -316,7 +338,9 @@ private:
 
     template <bool peekpoke, bus_handler_fn THandler>
     static void AssignHandler(MemoryPage &page, THandler &&handler) {
-        if constexpr (peekpoke) {
+        if constexpr (fninfo::IsAssignable<FnBusWait, THandler>) {
+            page.busWait = handler;
+        } else if constexpr (peekpoke) {
             if constexpr (fninfo::IsAssignable<FnRead8, THandler>) {
                 page.peek8 = handler;
             } else if constexpr (fninfo::IsAssignable<FnRead16, THandler>) {

@@ -57,6 +57,14 @@ void YGR::MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus) {
             [](uint32 address, uint32 value, void *ctx) {
                 cast(ctx).HostWriteWord<false>(address + 0, value >> 16u);
                 cast(ctx).HostWriteWord<false>(address + 2, value >> 0u);
+            },
+            [](uint32 address, uint32 size, bool write, void *ctx) -> bool {
+                auto &ygr = cast(ctx);
+                if (write) {
+                    return ygr.m_fifo.Free() < size / sizeof(uint16);
+                } else {
+                    return ygr.m_fifo.Used() < size / sizeof(uint16);
+                }
             });
 
         mainBus.MapSideEffectFree(
@@ -184,6 +192,7 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
                     m_cbStepDMAC1();
                     if (m_fifo.IsEmpty()) {
                         devlog::trace<grp::ygr_fifo>("FIFO still empty; transfer might break!");
+                        __debugbreak();
                     }
                 }
             }
@@ -230,6 +239,7 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
                     m_cbStepDMAC1();
                     if (m_fifo.IsFull()) {
                         devlog::trace<grp::ygr_fifo>("FIFO still full; transfer will break!");
+                        __debugbreak();
                     }
                 }
             }

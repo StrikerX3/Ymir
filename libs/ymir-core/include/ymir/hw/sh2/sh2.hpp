@@ -699,7 +699,10 @@ private:
     bool IsDMATransferActive(const DMAChannel &ch) const;
 
     template <bool debug, bool enableCache>
-    void RunDMAC(uint32 channel);
+    bool StepDMAC(uint32 channel);
+
+    template <bool debug, bool enableCache>
+    void AdvanceDMA(uint64 cycles);
 
     // --- WDT module ---
 
