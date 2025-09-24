@@ -1634,11 +1634,14 @@ bool SH2::StepDMAC(uint32 channel) {
 template <bool debug, bool enableCache>
 FORCE_INLINE void SH2::AdvanceDMA(uint64 cycles) {
     for (uint32 i = 0; i < 2; ++i) {
-        for (uint64 c = 0; c < cycles; ++c) {
+        // HACK: run full transfers to fix sprite glitches in Golden Axe - The Duel
+        while (StepDMAC<debug, enableCache>(i)) {
+        }
+        /*for (uint64 c = 0; c < cycles; ++c) {
             if (!StepDMAC<debug, enableCache>(i)) {
                 break;
             }
-        }
+        }*/
     }
 }
 
