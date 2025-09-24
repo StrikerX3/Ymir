@@ -13,6 +13,7 @@ Introduced save state file version 10.
 - CD Block: Implemented low-level emulation mode.
 - GameDB: Include Heart of Darkness prototype to automatically insert the 6 MiB development DRAM cartridge, allowing it to go in-game. (#584)
 - GameDB: Support for using disc hashes to the database in addition to product codes.
+- SH2: Cycle count DMAC transfers. Necessary for CD Block LLE.
 - SMPC: Preinitialize OREG31 to 0xF0 to avoid lockup when attempting to boot the dev kit BIOS. (#612)
 
 ### Fixes
@@ -24,6 +25,7 @@ Introduced save state file version 10.
 - Media: Restrict ISO loader to files with the .iso extension to prevent users from loading .bin files instead of the .cue files.
 - Media: Tracks now include the unit sizes along with sector sizes, only needed for CHDs.
 - Rewind: Allow varying the size of the state struct. Fixes occasional crashes when rewinding.
+- SCU: Cycle count DMA transfers. Fixes lockup when selecting a character in Advanced V.G and when selecting options in DeJig menus. (#227, #541)
 - VDP1: Adjust Y coordinate framebuffer offsets for erase process based on TVMR.TVM. Fixes erase glitches in Grandia when using transparent meshes.
 - VDP2: Clear framebuffer when switching resolutions. Fixes single-frame artifacts in multiple games that switch modes without clearing the screen.
 - VDP2: Use TVMD.DISP from threaded state if rendering with dedicated VDP2 thread. Fixes black stripes on the bottom of the screen in Bug! (#623)
@@ -89,7 +91,6 @@ Introduced save state file version 9.
 	- Voice lines during intro and throughout the game in Rapyulus Panic (#338)
 - SCSP: Don't use SBCTL on slots that are playing samples from Sound RAM when the EG reaches the silence threshold. Fixes busted audio in Guardian Heroes and Elevator Action^2. (#155)
 - SCSP: Silence audio when MVOL=0. Fixes lingering sound/music when pausing in Sega Ages - Galaxy Force II. (#427)
-- SCU: Cycle count DMA transfers. Fixes lockup when selecting a character in Advanced V.G and when selecting options in DeJig menus. (#227, #541)
 - SCU: Properly handle 8-bit and 16-bit writes to registers. Fixes Phantasy Star IV graphics in Phantasy Star Collection. (#499)
 - SCU: Timer 1 was never triggering when configured to trigger on Timer 0 match of 0x000.
 - SH2: Fix byte order of direct cache data accesses. (thanks to @celeriyacon)
