@@ -351,12 +351,12 @@ void YGR::UpdateInterrupts() {
 }
 
 void YGR::UpdateFIFODREQ() const {
-    // DREQ is asserted when doing a read transfer and there is room in the FIFO.
-    // DREQ is deasserted if:
-    // - transfers are disabled (TRCTL.TE=0)
-    // - the FIFO is full
-    // - the FIFO is empty when doing a write (put) transfer
-    m_cbSetDREQ1n(!m_regs.TRCTL.TE || m_fifo.IsFull() || (m_regs.TRCTL.DIR && m_fifo.IsEmpty()));
+    // DREQ# signals data transfers between the host and the CD block SH-1.
+    // DREQ# is asserted when transfers are enabled and not blocked from the SH-1 side:
+    // - When doing a CDB->host transfer (SH-1 is writing to the FIFO), the FIFO should not be full
+    // - When doing a host->CDB transfer (SH-1 is reading from the FIFO), the FIFO should not be empty
+    // The signal is inverted, so `true` means the transfer should be blocked.
+    m_cbSetDREQ1n(!m_regs.TRCTL.TE || (m_regs.TRCTL.DIR ? m_fifo.IsEmpty() : m_fifo.IsFull()));
 }
 
 void YGR::SectorTransferDone() {
