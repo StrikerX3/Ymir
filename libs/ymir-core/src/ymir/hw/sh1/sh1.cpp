@@ -1951,6 +1951,7 @@ FORCE_INLINE bool SH1::StepDMAC(uint32 channel) {
         }
         if (m_nDREQ[channel]) {
             // DREQ# not asserted
+            devlog::trace<grp::dma>("DMAC{} DREQ# not asserted", channel);
             return false;
         }
         break;
@@ -1991,12 +1992,16 @@ FORCE_INLINE bool SH1::StepDMAC(uint32 channel) {
     {
         const uint8 value = MemReadByte(ch.srcAddress);
         MemWriteByte(ch.dstAddress, value);
+        devlog::trace<grp::dma>("DMAC{} 8-bit transfer from {:08X} to {:08} = {:02X}", channel, ch.srcAddress,
+                                ch.dstAddress, value);
         break;
     }
     case DMATransferSize::Word: //
     {
         const uint16 value = MemReadWord(ch.srcAddress);
         MemWriteWord(ch.dstAddress, value);
+        devlog::trace<grp::dma>("DMAC{} 16-bit transfer from {:08X} to {:08} = {:04X}", channel, ch.srcAddress,
+                                ch.dstAddress, value);
         break;
     }
     }
