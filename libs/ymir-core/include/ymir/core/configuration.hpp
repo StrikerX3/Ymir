@@ -106,6 +106,13 @@ struct Configuration {
         ///
         /// This value is thread-safe.
         util::Observable<uint8> readSpeedFactor = 2;
+
+        /// @brief Use CD block low-level emulation.
+        ///
+        /// Requires the CD block ROM to be loaded.
+        ///
+        /// Causes a hard reset when changed.
+        util::Observable<bool> useLLE = false;
     } cdblock;
 
     /// @brief Notifies all observers registered with all observables.

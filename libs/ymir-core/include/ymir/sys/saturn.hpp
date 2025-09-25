@@ -276,28 +276,32 @@ private:
     /// @brief Runs the emulator until the end of the current frame.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
-    template <bool debug, bool enableSH2Cache>
+    /// @tparam cdblockLLE whether to use low-level CD block emulation
+    template <bool debug, bool enableSH2Cache, bool cdblockLLE>
     void RunFrameImpl();
 
     /// @brief Runs the emulator until the next scheduled event.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
+    /// @tparam cdblockLLE whether to use low-level CD block emulation
     /// @return true if execution should continue, false to suspend
-    template <bool debug, bool enableSH2Cache>
+    template <bool debug, bool enableSH2Cache, bool cdblockLLE>
     bool Run();
 
     /// @brief Runs a single master SH-2 instruction.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
+    /// @tparam cdblockLLE whether to use low-level CD block emulation
     /// @return the number of cycles executed
-    template <bool debug, bool enableSH2Cache>
+    template <bool debug, bool enableSH2Cache, bool cdblockLLE>
     uint64 StepMasterSH2Impl();
 
     /// @brief Runs a single slave SH-2 instruction if the CPU is enabled.
     /// @tparam debug whether to use debug tracing
     /// @tparam enableSH2Cache whether to emulate SH-2 caches
+    /// @tparam cdblockLLE whether to use low-level CD block emulation
     /// @return the number of cycles executed, zero if the slave SH-2 is disabled
-    template <bool debug, bool enableSH2Cache>
+    template <bool debug, bool enableSH2Cache, bool cdblockLLE>
     uint64 StepSlaveSH2Impl();
 
     /// @brief The type of the `RunFrameImpl()` implementation to use from `RunFrame()`.
@@ -338,6 +342,9 @@ private:
     /// @brief The preferred system region order to be used when auto-configuring the SMPC area code.
     std::vector<media::AreaCode> m_preferredRegionOrder;
 
+    /// @brief Whether to use low-level emulation for the CD block.
+    bool m_cdblockLLE = false;
+
     /// @brief Updates the preferred region order list.
     ///
     /// Registered as an observer of `ymir::core::Configuration::system::preferredRegionOrder`.
@@ -352,6 +359,11 @@ private:
     /// @brief Updates the video standard to emulate and adjusts clock ratios across the system's components.
     /// @param[in] videoStandard the new video standard
     void UpdateVideoStandard(core::config::sys::VideoStandard videoStandard);
+
+    /// @brief Enables or disables low-level CD block emulation.
+    /// Causes a hard reset when changed.
+    /// @param[in] enabled whether to enable low-level CD block emulation
+    void SetCDBlockLLE(bool enabled);
 
     // -------------------------------------------------------------------------
     // Global components and parameters

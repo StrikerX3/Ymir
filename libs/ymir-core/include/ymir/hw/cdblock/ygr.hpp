@@ -35,7 +35,8 @@ struct YGR {
         m_cbTriggerExternalInterrupt0 = triggerExternalInterrupt0;
     }
 
-    void MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus);
+    void MapMemory(sys::SH1Bus &cdbBus);
+    void MapMemory(sys::SH2Bus &mainBus);
 
     // -------------------------------------------------------------------------
     // CD block bus

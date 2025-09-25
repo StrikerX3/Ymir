@@ -13,10 +13,6 @@ namespace static_config {
     // Maximizes component synchronization at a massive cost to performance.
     static constexpr bool max_timing_granularity = false;
 
-    // Enables CD Block LLE emulation.
-    // Currently experimental, partially working, and introduces a noticeable performance penalty.
-    static constexpr bool use_cdblock_lle = true;
-
 } // namespace static_config
 
 namespace grp {
@@ -78,34 +74,32 @@ Saturn::Saturn()
             devlog::debug<grp::bus>("Unhandled 32-bit main bus write to {:07X} = {:07X}", address, value);
         });
 
-    if constexpr (static_config::use_cdblock_lle) {
-        SH1Bus.MapNormal(
-            0x000'0000, 0xFFF'FFFF, nullptr,
-            [](uint32 address, void *) -> uint8 {
-                devlog::debug<grp::bus>("Unhandled 8-bit main bus read from {:07X}\n", address);
-                return 0;
-            },
-            [](uint32 address, void *) -> uint16 {
-                devlog::debug<grp::bus>("Unhandled 16-bit main bus read from {:07X}\n", address);
-                return 0;
-            },
-            [](uint32 address, void *) -> uint32 {
-                devlog::debug<grp::bus>("Unhandled 32-bit main bus read from {:07X}\n", address);
-                return 0;
-            },
-            [](uint32 address, uint8 value, void *) {
-                devlog::debug<grp::bus>("Unhandled 8-bit main bus write to {:07X} = {:02X}\n", address, value);
-            },
-            [](uint32 address, uint16 value, void *) {
-                devlog::debug<grp::bus>("Unhandled 16-bit main bus write to {:07X} = {:04X}\n", address, value);
-            },
-            [](uint32 address, uint32 value, void *) {
-                devlog::debug<grp::bus>("Unhandled 32-bit main bus write to {:07X} = {:08X}\n", address, value);
-            });
+    SH1Bus.MapNormal(
+        0x000'0000, 0xFFF'FFFF, nullptr,
+        [](uint32 address, void *) -> uint8 {
+            devlog::debug<grp::bus>("Unhandled 8-bit main bus read from {:07X}\n", address);
+            return 0;
+        },
+        [](uint32 address, void *) -> uint16 {
+            devlog::debug<grp::bus>("Unhandled 16-bit main bus read from {:07X}\n", address);
+            return 0;
+        },
+        [](uint32 address, void *) -> uint32 {
+            devlog::debug<grp::bus>("Unhandled 32-bit main bus read from {:07X}\n", address);
+            return 0;
+        },
+        [](uint32 address, uint8 value, void *) {
+            devlog::debug<grp::bus>("Unhandled 8-bit main bus write to {:07X} = {:02X}\n", address, value);
+        },
+        [](uint32 address, uint16 value, void *) {
+            devlog::debug<grp::bus>("Unhandled 16-bit main bus write to {:07X} = {:04X}\n", address, value);
+        },
+        [](uint32 address, uint32 value, void *) {
+            devlog::debug<grp::bus>("Unhandled 32-bit main bus write to {:07X} = {:08X}\n", address, value);
+        });
 
-        SH1Bus.MapArray(0x1000000, 0x1FFFFFF, CDBlockDRAM, true);
-        SH1Bus.MapArray(0x9000000, 0x9FFFFFF, CDBlockDRAM, true);
-    }
+    SH1Bus.MapArray(0x1000000, 0x1FFFFFF, CDBlockDRAM, true);
+    SH1Bus.MapArray(0x9000000, 0x9FFFFFF, CDBlockDRAM, true);
 
     masterSH2.MapCallbacks(SCU.CbAckExtIntr);
     // Slave SH2 IVECF# pin is not connected, so the external interrupt vector fetch callback shouldn't be mapped
@@ -114,23 +108,17 @@ Saturn::Saturn()
                      SMPC.CbTriggerOptimizedINTBACKRead, SMPC.CbTriggerVBlankIN);
     SMPC.MapCallbacks(SCU.CbTriggerSystemManager, SCU.CbTriggerPad);
     SCSP.MapCallbacks(SCU.CbTriggerSoundRequest);
-    if constexpr (static_config::use_cdblock_lle) {
-        SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
-        CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn, SH1.CbCDBDataSector, SCSP.CbCDDASector,
-                             YGR.CbSectorTransferDone);
-        YGR.MapCallbacks(SH1.CbAssertIRQ6, SH1.CbAssertIRQ7, SH1.CbSetDREQ0n, SH1.CbSetDREQ1n, SH1.CbStepDMAC1,
-                         SCU.CbTriggerExtIntr0);
-    } else {
-        CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
-    }
+    SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
+    CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn, SH1.CbCDBDataSector, SCSP.CbCDDASector,
+                         YGR.CbSectorTransferDone);
+    YGR.MapCallbacks(SH1.CbAssertIRQ6, SH1.CbAssertIRQ7, SH1.CbSetDREQ0n, SH1.CbSetDREQ1n, SH1.CbStepDMAC1,
+                     SCU.CbTriggerExtIntr0);
+    CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
 
     m_system.AddClockSpeedChangeCallback(SCSP.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
-    if constexpr (static_config::use_cdblock_lle) {
-        m_system.AddClockSpeedChangeCallback(CDDrive.CbClockSpeedChange);
-    } else {
-        m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
-    }
+    m_system.AddClockSpeedChangeCallback(CDDrive.CbClockSpeedChange);
+    m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
 
     masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
     slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
@@ -142,11 +130,12 @@ Saturn::Saturn()
     VDP.MapMemory(mainBus);
     SMPC.MapMemory(mainBus);
     SCSP.MapMemory(mainBus);
-    if constexpr (static_config::use_cdblock_lle) {
-        YGR.MapMemory(mainBus, SH1Bus);
+    if (m_cdblockLLE) {
+        YGR.MapMemory(mainBus);
     } else {
         CDBlock.MapMemory(mainBus);
     }
+    YGR.MapMemory(SH1Bus);
 
     m_systemFeatures.enableDebugTracing = false;
     m_systemFeatures.emulateSH2Cache = false;
@@ -157,6 +146,7 @@ Saturn::Saturn()
     configuration.system.emulateSH2Cache.Observe([&](bool enabled) { UpdateSH2CacheEmulation(enabled); });
     configuration.system.videoStandard.Observe(
         [&](core::config::sys::VideoStandard videoStandard) { UpdateVideoStandard(videoStandard); });
+    configuration.cdblock.useLLE.Observe([&](bool enabled) { SetCDBlockLLE(enabled); });
 
     Reset(true);
 }
@@ -180,7 +170,7 @@ void Saturn::Reset(bool hard) {
     VDP.Reset(hard);
     SMPC.Reset(hard);
     SCSP.Reset(hard);
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         SH1.Reset(hard);
         if (hard) {
             YGR.Reset();
@@ -226,7 +216,7 @@ XXH128Hash Saturn::GetIPLHash() const noexcept {
 }
 
 const media::Disc &Saturn::GetDisc() const noexcept {
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         return CDDrive.GetDisc();
     } else {
         return CDBlock.GetDisc();
@@ -234,7 +224,7 @@ const media::Disc &Saturn::GetDisc() const noexcept {
 }
 
 XXH128Hash Saturn::GetDiscHash() const noexcept {
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         return CDDrive.GetDiscHash();
     } else {
         return CDBlock.GetDiscHash();
@@ -244,7 +234,7 @@ XXH128Hash Saturn::GetDiscHash() const noexcept {
 void Saturn::LoadDisc(media::Disc &&disc) {
     // Configure area code based on compatible area codes from the disc
     AutodetectRegion(disc.header.compatAreaCode);
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         CDDrive.LoadDisc(std::move(disc));
     } else {
         CDBlock.LoadDisc(std::move(disc));
@@ -252,7 +242,7 @@ void Saturn::LoadDisc(media::Disc &&disc) {
 }
 
 void Saturn::EjectDisc() {
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         CDDrive.EjectDisc();
     } else {
         CDBlock.EjectDisc();
@@ -260,7 +250,7 @@ void Saturn::EjectDisc() {
 }
 
 void Saturn::OpenTray() {
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         CDDrive.OpenTray();
     } else {
         CDBlock.OpenTray();
@@ -268,7 +258,7 @@ void Saturn::OpenTray() {
 }
 
 void Saturn::CloseTray() {
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         CDDrive.CloseTray();
     } else {
         CDBlock.CloseTray();
@@ -276,7 +266,7 @@ void Saturn::CloseTray() {
 }
 
 bool Saturn::IsTrayOpen() const noexcept {
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         return CDDrive.IsTrayOpen();
     } else {
         return CDBlock.IsTrayOpen();
@@ -364,8 +354,8 @@ void Saturn::SaveState(state::State &state) const {
     SMPC.SaveState(state.smpc);
     VDP.SaveState(state.vdp);
     SCSP.SaveState(state.scsp);
-    state.cdblockLLE = static_config::use_cdblock_lle;
-    if constexpr (static_config::use_cdblock_lle) {
+    state.cdblockLLE = m_cdblockLLE;
+    if (m_cdblockLLE) {
         SH1.SaveState(state.sh1);
         YGR.SaveState(state.ygr);
         CDDrive.SaveState(state.cddrive);
@@ -404,11 +394,7 @@ bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
         return false;
     }
 
-    if (state.cdblockLLE != static_config::use_cdblock_lle) {
-        return false;
-    }
-
-    if constexpr (static_config::use_cdblock_lle) {
+    if (m_cdblockLLE) {
         if (!SH1.ValidateState(state.sh1, skipROMChecks)) {
             return false;
         }
@@ -436,7 +422,8 @@ bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
     SMPC.LoadState(state.smpc);
     VDP.LoadState(state.vdp);
     SCSP.LoadState(state.scsp);
-    if constexpr (static_config::use_cdblock_lle) {
+    m_cdblockLLE = state.cdblockLLE;
+    if (m_cdblockLLE) {
         SH1.LoadState(state.sh1);
         YGR.LoadState(state.ygr);
         CDDrive.LoadState(state.cddrive);
@@ -472,22 +459,22 @@ void Saturn::DumpCDBlockDRAM(std::ostream &out) {
 // Note:
 // - Step out/return can be implemented in terms of single-stepping and instruction tracing events
 
-template <bool debug, bool enableSH2Cache>
+template <bool debug, bool enableSH2Cache, bool cdblockLLE>
 void Saturn::RunFrameImpl() {
     // Use the last line phase as reference to give some leeway if we overshoot the target cycles
     while (VDP.InLastLinePhase()) {
-        if (!Run<debug, enableSH2Cache>()) {
+        if (!Run<debug, enableSH2Cache, cdblockLLE>()) {
             return;
         }
     }
     while (!VDP.InLastLinePhase()) {
-        if (!Run<debug, enableSH2Cache>()) {
+        if (!Run<debug, enableSH2Cache, cdblockLLE>()) {
             return;
         }
     }
 }
 
-template <bool debug, bool enableSH2Cache>
+template <bool debug, bool enableSH2Cache, bool cdblockLLE>
 bool Saturn::Run() {
     static constexpr uint64 kSH2SyncMaxStep = 32;
 
@@ -536,7 +523,7 @@ bool Saturn::Run() {
 
     // SCSP+M68K and CD block are ticked by the scheduler
 
-    if constexpr (static_config::use_cdblock_lle) {
+    if constexpr (cdblockLLE) {
         // Advance SH-1
         const auto &clockRatios = GetClockRatios();
         const uint64 sh1CycleCount = execCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
@@ -567,7 +554,7 @@ bool Saturn::Run() {
     return true;
 }
 
-template <bool debug, bool enableSH2Cache>
+template <bool debug, bool enableSH2Cache, bool cdblockLLE>
 uint64 Saturn::StepMasterSH2Impl() {
     uint64 masterCycles = masterSH2.Step<debug, enableSH2Cache>();
     if (masterCycles >= m_msh2SpilloverCycles) {
@@ -582,7 +569,7 @@ uint64 Saturn::StepMasterSH2Impl() {
 
         // SCSP+M68K and CD block are ticked by the scheduler
 
-        if constexpr (static_config::use_cdblock_lle) {
+        if constexpr (cdblockLLE) {
             // Advance SH-1
             const auto &clockRatios = GetClockRatios();
             const uint64 sh1Cycles = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
@@ -609,7 +596,7 @@ uint64 Saturn::StepMasterSH2Impl() {
     return masterCycles;
 }
 
-template <bool debug, bool enableSH2Cache>
+template <bool debug, bool enableSH2Cache, bool cdblockLLE>
 uint64 Saturn::StepSlaveSH2Impl() {
     if (!slaveSH2Enabled) {
         return 0;
@@ -626,7 +613,7 @@ uint64 Saturn::StepSlaveSH2Impl() {
 
         // SCSP+M68K and CD block are ticked by the scheduler
 
-        if constexpr (static_config::use_cdblock_lle) {
+        if constexpr (cdblockLLE) {
             // Advance SH-1
             const auto &clockRatios = GetClockRatios();
             const uint64 sh1Cycles = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
@@ -654,23 +641,18 @@ uint64 Saturn::StepSlaveSH2Impl() {
 }
 
 void Saturn::UpdateFunctionPointers() {
-    m_runFrameFn = m_systemFeatures.enableDebugTracing
-                       ? (m_systemFeatures.emulateSH2Cache ? &Saturn::RunFrameImpl<true, true>
-                                                           : &Saturn::RunFrameImpl<true, false>)
-                       : (m_systemFeatures.emulateSH2Cache ? &Saturn::RunFrameImpl<false, true>
-                                                           : &Saturn::RunFrameImpl<false, false>);
-
-    m_stepMSH2Fn = m_systemFeatures.enableDebugTracing
-                       ? (m_systemFeatures.emulateSH2Cache ? &Saturn::StepMasterSH2Impl<true, true>
-                                                           : &Saturn::StepMasterSH2Impl<true, false>)
-                       : (m_systemFeatures.emulateSH2Cache ? &Saturn::StepMasterSH2Impl<false, true>
-                                                           : &Saturn::StepMasterSH2Impl<false, false>);
-
-    m_stepSSH2Fn = m_systemFeatures.enableDebugTracing
-                       ? (m_systemFeatures.emulateSH2Cache ? &Saturn::StepSlaveSH2Impl<true, true>
-                                                           : &Saturn::StepSlaveSH2Impl<true, false>)
-                       : (m_systemFeatures.emulateSH2Cache ? &Saturn::StepSlaveSH2Impl<false, true>
-                                                           : &Saturn::StepSlaveSH2Impl<false, false>);
+    auto apply = [&]<bool enableDebugTracing>() {
+        auto apply = [&]<bool emulateSH2Cache>() {
+            auto apply = [&]<bool cdblockLLE>() {
+                m_runFrameFn = &Saturn::RunFrameImpl<enableDebugTracing, emulateSH2Cache, cdblockLLE>;
+                m_stepMSH2Fn = &Saturn::StepMasterSH2Impl<enableDebugTracing, emulateSH2Cache, cdblockLLE>;
+                m_stepSSH2Fn = &Saturn::StepSlaveSH2Impl<enableDebugTracing, emulateSH2Cache, cdblockLLE>;
+            };
+            m_cdblockLLE ? apply.template operator()<true>() : apply.template operator()<false>();
+        };
+        m_systemFeatures.emulateSH2Cache ? apply.template operator()<true>() : apply.template operator()<false>();
+    };
+    m_systemFeatures.enableDebugTracing ? apply.template operator()<true>() : apply.template operator()<false>();
 }
 
 void Saturn::UpdatePreferredRegionOrder(std::span<const core::config::sys::Region> regions) {
@@ -710,6 +692,20 @@ void Saturn::UpdateSH2CacheEmulation(bool enabled) {
 void Saturn::UpdateVideoStandard(core::config::sys::VideoStandard videoStandard) {
     m_system.videoStandard = videoStandard;
     m_system.UpdateClockRatios();
+}
+
+void Saturn::SetCDBlockLLE(bool enabled) {
+    if (m_cdblockLLE != enabled) {
+        m_cdblockLLE = enabled;
+        // TODO: move disc out of CDBlock/CDDrive and make CDBlock/CDDrive refer to that instance instead of owning it
+        if (m_cdblockLLE) {
+            YGR.MapMemory(mainBus);
+        } else {
+            CDBlock.MapMemory(mainBus);
+        }
+        UpdateFunctionPointers();
+        Reset(true);
+    }
 }
 
 // -----------------------------------------------------------------------------

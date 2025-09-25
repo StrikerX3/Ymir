@@ -36,7 +36,19 @@ void YGR::Reset() {
     UpdateFIFODREQ();
 }
 
-void YGR::MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus) {
+void YGR::MapMemory(sys::SH1Bus &cdbBus) {
+    static constexpr auto cast = [](void *ctx) -> YGR & { return *static_cast<YGR *>(ctx); };
+
+    // -------------------------------------------------------------------------
+    // CD Block (SH-1) bus mappings
+
+    cdbBus.MapNormal(
+        0xA000000, 0xCFFFFFF, this, //
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).CDBReadWord(address); },
+        [](uint32 address, uint16 value, void *ctx) { cast(ctx).CDBWriteWord(address, value); });
+}
+
+void YGR::MapMemory(sys::SH2Bus &mainBus) {
     static constexpr auto cast = [](void *ctx) -> YGR & { return *static_cast<YGR *>(ctx); };
 
     // -------------------------------------------------------------------------
@@ -96,14 +108,6 @@ void YGR::MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus) {
                 cast(ctx).HostWriteWord<true>(address + 2, value >> 0u);
             });
     }
-
-    // -------------------------------------------------------------------------
-    // CD Block (SH-1) bus mappings
-
-    cdbBus.MapNormal(
-        0xA000000, 0xCFFFFFF, this, //
-        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).CDBReadWord(address); },
-        [](uint32 address, uint16 value, void *ctx) { cast(ctx).CDBWriteWord(address, value); });
 }
 
 // -----------------------------------------------------------------------------
