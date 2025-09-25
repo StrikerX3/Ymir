@@ -100,7 +100,7 @@ public:
     // Save states
 
     void SaveState(state::SH1State &state) const;
-    [[nodiscard]] bool ValidateState(const state::SH1State &state) const;
+    [[nodiscard]] bool ValidateState(const state::SH1State &state, bool skipROMChecks = false) const;
     void LoadState(const state::SH1State &state);
 
 private:

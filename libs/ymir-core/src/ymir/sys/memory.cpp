@@ -57,8 +57,8 @@ void SystemMemory::SaveState(state::SystemState &state) const {
     state.WRAMHigh = WRAMHigh;
 }
 
-bool SystemMemory::ValidateState(const state::SystemState &state) const {
-    if (state.iplRomHash != m_iplHash) {
+bool SystemMemory::ValidateState(const state::SystemState &state, bool skipROMChecks) const {
+    if (!skipROMChecks && state.iplRomHash != m_iplHash) {
         return false;
     }
     return true;

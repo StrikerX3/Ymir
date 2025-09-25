@@ -294,7 +294,7 @@ void SH1::SaveState(state::SH1State &state) const {
     state.delaySlotTarget = m_delaySlotTarget;
     state.delaySlot = m_delaySlot;
     state.totalCycles = m_totalCycles;
-    state.ROMHash = m_romHash;
+    state.romHash = m_romHash;
     state.onChipRAM = m_ram;
 
     BSC.SaveState(state.bsc);
@@ -315,8 +315,8 @@ void SH1::SaveState(state::SH1State &state) const {
     state.TIOCB3 = m_TIOCB3;
 }
 
-bool SH1::ValidateState(const state::SH1State &state) const {
-    if (m_romHash != state.ROMHash) {
+bool SH1::ValidateState(const state::SH1State &state, bool skipROMChecks) const {
+    if (!skipROMChecks && m_romHash != state.romHash) {
         return false;
     }
     if (!BSC.ValidateState(state.bsc)) {

@@ -517,42 +517,108 @@ EmuEvent LoadState(uint32 slot) {
     return RunFunction([=](SharedContext &ctx) {
         if (slot < ctx.saveStates.size() && ctx.saveStates[slot].state) {
             auto &state = *ctx.saveStates[slot].state;
-            // If the IPL ROM is mismatched, load it if possible
-            if (state.system.iplRomHash != ctx.saturn.instance->GetIPLHash()) {
-                devlog::warn<grp::base>("Save state IPL ROM hash mismatch; attempting to load IPL ROM with hash {}",
+
+            // Sanity check: ensure that the disc hash matches
+            {
+                std::unique_lock lock{ctx.locks.disc};
+                if (!state.ValidateDiscHash(ctx.saturn.GetDiscHash())) {
+                    devlog::warn<grp::base>("Save state disc hash mismatch; refusing to load save state");
+                    return;
+                }
+            }
+
+            // Check for IPL and CD block ROM mismatches and locate and load matching ROMs if possible.
+            // Refuse to load the save state otherwise.
+
+            std::filesystem::path candidateIPLROMPath{};
+            std::filesystem::path candidateCDBROMPath{};
+
+            // Locate ROMs
+            if (!state.ValidateIPLROMHash(ctx.saturn.instance->GetIPLHash())) {
+                devlog::warn<grp::base>("Save state IPL ROM hash mismatch; locating IPL ROM with hash {}",
                                         ToString(state.system.iplRomHash));
 
                 std::unique_lock lock{ctx.locks.romManager};
                 for (auto &[path, info] : ctx.romManager.GetIPLROMs()) {
                     if (info.hash == state.system.iplRomHash) {
-                        auto result = util::LoadIPLROM(path, *ctx.saturn.instance);
-                        if (result.succeeded) {
-                            devlog::info<grp::base>("IPL ROM matching save state loaded successfully from {}", path);
-                            ctx.iplRomPath = path;
-                        } else {
-                            // If the IPL ROM doesn't exist of fails to load, we'll let it slide unless an SH-2 is in
-                            // the IPL ROM area
-                            devlog::warn<grp::base>("Failed to load IPL ROM from {} matching save state: {}", path,
-                                                    result.errorMessage);
-                            if (state.msh2.PC < 0x100000) {
-                                devlog::warn<grp::base>("Not loading save state with a mismatched IPL ROM and the MSH2 "
-                                                        "in IPL area ({:08X})",
-                                                        state.msh2.PC);
-                                return;
-                            }
-                            if (state.system.slaveSH2Enabled && state.ssh2.PC < 0x100000) {
-                                devlog::warn<grp::base>("Not loading save state with a mismatched IPL ROM and the SSH2 "
-                                                        "in IPL area ({:08X})",
-                                                        state.ssh2.PC);
-                                return;
-                            }
-                        }
+                        candidateIPLROMPath = path;
+                        devlog::info<grp::base>("Found matching IPL ROM at {}", path);
                         break;
                     }
                 }
+                if (candidateIPLROMPath.empty()) {
+                    devlog::warn<grp::base>("Could not find matching IPL ROM. Refusing to load save state");
+                    return;
+                }
             }
 
-            if (ctx.saturn.instance->LoadState(state)) {
+            if (!state.ValidateCDBlockROMHash(ctx.saturn.instance->SH1.GetROMHash())) {
+                devlog::warn<grp::base>("Save state CD block ROM hash mismatch; locating CD block ROM with hash {}",
+                                        ToString(state.sh1.romHash));
+
+                std::unique_lock lock{ctx.locks.romManager};
+                for (auto &[path, info] : ctx.romManager.GetCDBlockROMs()) {
+                    if (info.hash == state.sh1.romHash) {
+                        candidateCDBROMPath = path;
+                        devlog::info<grp::base>("Found matching CD block ROM at {}", path);
+                        break;
+                    }
+                }
+                if (candidateCDBROMPath.empty()) {
+                    devlog::warn<grp::base>("Could not find matching CD block ROM. Refusing to load save state");
+                    return;
+                }
+            }
+
+            // ROMs to load, if possible, into the Saturn instance.
+            // Empty optional means "don't load, the Saturn instance already contains the correct ROM."
+            std::optional<std::vector<uint8>> iplROMData{};
+            std::optional<std::vector<uint8>> cdbROMData{};
+
+            // Load ROMs if needed
+            if (!candidateIPLROMPath.empty()) {
+                std::error_code error{};
+                iplROMData = util::LoadFile(candidateIPLROMPath, error);
+                if (error) {
+                    devlog::warn<grp::base>("Could not load IPL ROM: {}. Refusing to load save state", error.message());
+                    return;
+                }
+                if (iplROMData->size() != ymir::sys::kIPLSize) {
+                    devlog::warn<grp::base>(
+                        "Could not load IPL ROM: size mismatch - must be {} bytes. Refusing to load save state",
+                        ymir::sys::kIPLSize);
+                    return;
+                }
+            }
+            if (!candidateCDBROMPath.empty()) {
+                std::error_code error{};
+                cdbROMData = util::LoadFile(candidateCDBROMPath, error);
+                if (error) {
+                    devlog::warn<grp::base>("Could not load CD block ROM: {}. Refusing to load save state",
+                                            error.message());
+                    return;
+                }
+                if (cdbROMData->size() != ymir::sh1::kROMSize) {
+                    devlog::warn<grp::base>(
+                        "Could not load CD block ROM: size mismatch - must be {} bytes. Refusing to load save state",
+                        ymir::sh1::kROMSize);
+                    return;
+                }
+            }
+
+            // At this point the ROMs have been loaded and validated
+
+            if (ctx.saturn.instance->LoadState(state, true)) {
+                // Now that the save state has been succesfully loaded, load the ROMs
+                if (iplROMData) {
+                    ctx.saturn.instance->LoadIPL(std::span<uint8, sys::kIPLSize>(*iplROMData));
+                    ctx.iplRomPath = candidateIPLROMPath;
+                }
+                if (cdbROMData) {
+                    ctx.saturn.instance->LoadCDBlockROM(std::span<uint8, sh1::kROMSize>(*cdbROMData));
+                    ctx.cdbRomPath = candidateCDBROMPath;
+                }
+
                 ctx.EnqueueEvent(events::gui::StateLoaded(slot));
             } else {
                 devlog::warn<grp::base>("Failed to load save state");

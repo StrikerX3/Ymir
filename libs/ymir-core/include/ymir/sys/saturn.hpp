@@ -246,14 +246,18 @@ struct Saturn {
     /// @param[out] state the state object to store into
     void SaveState(state::State &state) const;
 
-    /// @brief Loads a complete system state from the given state object.
+    /// @brief Validates and loads a complete system state from the given state object.
     ///
-    /// Requires the IPL ROM and disc hashes to match. Additional filtering and validations are performed by components
-    /// to ensure the state is consistent and valid.
+    /// Requires the IPL ROM, CD block ROM  and disc hashes to match. Additional filtering and validations are performed
+    /// by components to ensure the state is consistent and valid.
+    ///
+    /// The IPL and CD block ROM checks can be optionally skipped, as long as they are manually checked beforehand using
+    /// the `State::Validate*ROMHash()` methods.
     ///
     /// @param[in] state the state object to load from
+    /// @param[in] skipROMChecks skip IPL/CD block ROM validations
     /// @return `true` if the state was loaded successfully
-    [[nodiscard]] bool LoadState(const state::State &state);
+    [[nodiscard]] bool LoadState(const state::State &state, bool skipROMChecks = false);
 
     // -------------------------------------------------------------------------
     // Debugger

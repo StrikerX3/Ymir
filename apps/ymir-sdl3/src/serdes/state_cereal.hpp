@@ -1273,7 +1273,7 @@ void serialize(Archive &ar, SH1State &s, const uint32 version) {
         ar(s.R, s.PC, s.PR, s.MACL, s.MACH, s.SR, s.GBR, s.VBR);
         ar(s.delaySlot, s.delaySlotTarget);
         ar(s.totalCycles);
-        ar(s.ROMHash);
+        ar(s.romHash);
         ar(s.onChipRAM);
         serialize(ar, s.bsc, version);
         serialize(ar, s.dmac, version);

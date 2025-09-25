@@ -26,7 +26,7 @@ struct SH1State {
 
     uint64 totalCycles;
 
-    XXH128Hash ROMHash;
+    XXH128Hash romHash;
     std::array<uint8, 4 * 1024> onChipRAM;
 
     struct BSC {

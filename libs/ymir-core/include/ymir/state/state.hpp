@@ -39,6 +39,18 @@ struct State {
         return cdblockLLE ? cddrive.discHash : cdblock.discHash;
     }
 
+    [[nodiscard]] bool ValidateDiscHash(XXH128Hash hash) const {
+        return GetDiscHash() == hash;
+    }
+
+    [[nodiscard]] bool ValidateIPLROMHash(XXH128Hash hash) const {
+        return system.iplRomHash == hash;
+    }
+
+    [[nodiscard]] bool ValidateCDBlockROMHash(XXH128Hash hash) const {
+        return !cdblockLLE || sh1.romHash == hash;
+    }
+
     // Execution state
     uint64 msh2SpilloverCycles;
     uint64 ssh2SpilloverCycles;

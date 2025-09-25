@@ -98,8 +98,9 @@ struct SystemMemory {
 
     /// @brief Validates the given state object.
     /// @param[in] state the state object to validate
+    /// @param[in] skipROMChecks skip IPL block ROM validation
     /// @return `true` if the state is valid
-    [[nodiscard]] bool ValidateState(const state::SystemState &state) const;
+    [[nodiscard]] bool ValidateState(const state::SystemState &state, bool skipROMChecks = false) const;
 
     /// @brief Loads the system memory state from the given state object.
     ///

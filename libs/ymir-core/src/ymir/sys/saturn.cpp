@@ -375,14 +375,14 @@ void Saturn::SaveState(state::State &state) const {
     }
 }
 
-bool Saturn::LoadState(const state::State &state) {
+bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
     if (!m_scheduler.ValidateState(state.scheduler)) {
         return false;
     }
     if (!m_system.ValidateState(state.system)) {
         return false;
     }
-    if (!mem.ValidateState(state.system)) {
+    if (!mem.ValidateState(state.system, skipROMChecks)) {
         return false;
     }
     if (!masterSH2.ValidateState(state.msh2)) {
@@ -409,7 +409,7 @@ bool Saturn::LoadState(const state::State &state) {
     }
 
     if constexpr (static_config::use_cdblock_lle) {
-        if (!SH1.ValidateState(state.sh1)) {
+        if (!SH1.ValidateState(state.sh1, skipROMChecks)) {
             return false;
         }
         if (!YGR.ValidateState(state.ygr)) {
