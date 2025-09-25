@@ -20,7 +20,7 @@ struct SCUDMAState {
     bool indirect;
     uint8 trigger;
 
-    bool start;
+    uint32 startDelay;
     uint32 currSrcAddr;
     uint32 currDstAddr;
     uint32 currXferCount;

@@ -252,13 +252,22 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
 
 template <class Archive>
 void serialize(Archive &ar, SCUDMAState &s, const uint32 version) {
-    // v9:
+    // v10:
     // - New fields
     //   - xfer
+    // - Changed fields
+    //   - start -> startDelay = same value as before
 
     ar(s.srcAddr, s.dstAddr, s.xferCount);
     ar(s.srcAddrInc, s.dstAddrInc, s.updateSrcAddr, s.updateDstAddr);
-    ar(s.enabled, s.active, s.indirect, s.trigger, s.start);
+    ar(s.enabled, s.active, s.indirect, s.trigger);
+    if (version >= 10) {
+        ar(s.startDelay);
+    } else {
+        bool start{};
+        ar(start);
+        s.startDelay = start ? 1 : 0;
+    }
     ar(s.currSrcAddr, s.currDstAddr, s.currXferCount);
     ar(s.currSrcAddrInc, s.currDstAddrInc);
     ar(s.currIndirectSrc, s.endIndirect);

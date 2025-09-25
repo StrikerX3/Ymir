@@ -1,0 +1,58 @@
+======================================
+Games that rely on SCU DMA bus hogging
+======================================
+
+These games require the SCU DMA to stall all bus transfers from other components for the duration of the transfer.
+
+
+Jung Rhythm
+  VDP2 NBG1 is filled with garbage during the loading screen if the MSH-2 is allowed to run in parallel.
+  The garbage persists throughout gameplay.
+
+Powerslave/Exhumed
+  Leaves VDP1 frame data uncleared, causing the previous screen's sprites to flicker in the map screen.
+
+Virtual On - Cyber Troopers
+  3D graphics flicker if DMA transfers don't halt the MSH-2.
+
+====================================================================
+Games that rely on SCU DMA transfers not starting/ending immediately
+====================================================================
+
+These games will usually hang or exhibit issues if SCU DMA transfers are finished immediately after the instruction that
+starts it is executed.
+
+
+Advanced V.G.
+DeJig - Aqua World
+DeJig - Lassen - Art Collection
+DeJig - McKnight - Art Collection
+DeJig - Tin Toy
+[Homebrew] Rockin-B All-Stars 06-03-23
+[Homebrew] Cubecat 1.0.3
+  All of these games freeze under certain conditions if the immediate SCU DMA transfer completes instantly because of
+  inverted order of operations.
+  
+  The SH-2 code responsible for setting up the transfer uses a control variable to manage the state. It is initialized
+  *after* writing to the SCU DMA registers instead of *before*. The routine uses the SCU DMA transfer end interrupt
+  handler to mark the transfer as finished on the control variable, which results in inverted execution order if the
+  transfer happens to finish immediately.
+
+  The interrupt handler routine writes (ORs) the flag 0x4 ("transfer finished") onto this variable. However, the setup
+  code simply writes the value 0x8, replacing the previous value with one that indicates "transfer in progress".
+  The routine then enters a loop waiting for the variable to have the bit 0x4 set, which of course never happens.
+
+  The expected execution order is:
+  1. SH-2 sets up SCU DMA transfer; DMA takes a few moments to start
+  2. SH-2 writes 0x8 to the control variable
+  3. SH-2 enters a loop waiting for the DMA transfer to finish
+  4. SCU DMA transfer finishes and triggers the DMA transfer finished interrupt
+  5. SH-2 enters interrupt handler, ORs the value 0x4 onto the control variable and returns
+  6. SH-2 exits the loop and continues program execution
+
+  If the SCU DMA transfer finishes immediately, this happens instead:
+  1. SH-2 sets up SCU DMA transfer
+  2. SCU DMA transfer finishes immediately and triggers the DMA transfer finished interrupt
+  3. SH-2 enters interrupt handler, ORs the value 0x4 onto the control variable and returns
+  4. SH-2 writes 0x8 to the control variable
+  5. SH-2 enters a loop waiting for the DMA transfer to finish
