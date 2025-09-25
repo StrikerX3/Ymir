@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -22,6 +24,36 @@ struct PinFunctionController {
         cashMode = 1;
         caslMode = 1;
     }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::PFC &state) const {
+        state.PAIOR = ReadPAIOR();
+        state.PBIOR = ReadPBIOR();
+        state.PACR1 = ReadPACR1();
+        state.PACR2 = ReadPACR2();
+        state.PBCR1 = ReadPBCR1();
+        state.PBCR2 = ReadPBCR2();
+        state.CASCR = ReadCASCR();
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::PFC &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::PFC &state) {
+        WritePAIOR(state.PAIOR);
+        WritePBIOR(state.PBIOR);
+        WritePACR1(state.PACR1);
+        WritePACR2(state.PACR2);
+        WritePBCR1(state.PBCR1);
+        WritePBCR2(state.PBCR2);
+        WriteCASCR(state.CASCR);
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
 
     // 1C4  R/W  8,16,32  0000      PAIOR   Port A I/O register
     //

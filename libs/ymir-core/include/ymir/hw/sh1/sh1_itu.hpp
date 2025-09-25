@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -26,6 +28,68 @@ struct IntegratedTimerPulseUnit {
         invertOutputLevel3 = false;
         invertOutputLevel4 = false;
     }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::ITU &state) const {
+        for (uint32 i = 0; i < 5; ++i) {
+            state.timers[i].TCR = timers[i].ReadTCR();
+            state.timers[i].TIOR = timers[i].ReadTIOR();
+            state.timers[i].TIER = timers[i].ReadTIER();
+            state.timers[i].TSR = timers[i].ReadTSR<true>();
+            state.timers[i].TCNT = timers[i].counter;
+            state.timers[i].GRA = timers[i].GRA;
+            state.timers[i].GRB = timers[i].GRB;
+            state.timers[i].BRA = timers[i].BRA;
+            state.timers[i].BRB = timers[i].BRB;
+
+            state.timers[i].IMFAread = timers[i].IMFAread;
+            state.timers[i].IMFBread = timers[i].IMFBread;
+            state.timers[i].OVFread = timers[i].OVFread;
+
+            state.timers[i].currCycles = timers[i].currCycles;
+        }
+
+        state.TSTR = ReadTSTR();
+        state.TSNC = ReadTSNC();
+        state.TMDR = ReadTMDR();
+        state.TFCR = ReadTFCR();
+        state.TOCR = ReadTOCR();
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::ITU &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::ITU &state) {
+        for (uint32 i = 0; i < 5; ++i) {
+            timers[i].WriteTCR(state.timers[i].TCR);
+            timers[i].WriteTIOR(state.timers[i].TIOR);
+            timers[i].WriteTIER(state.timers[i].TIER);
+            timers[i].WriteTSR<true>(state.timers[i].TSR);
+            timers[i].counter = state.timers[i].TCNT;
+            timers[i].GRA = state.timers[i].GRA;
+            timers[i].GRB = state.timers[i].GRB;
+            timers[i].BRA = state.timers[i].BRA;
+            timers[i].BRB = state.timers[i].BRB;
+
+            timers[i].IMFAread = state.timers[i].IMFAread;
+            timers[i].IMFBread = state.timers[i].IMFBread;
+            timers[i].OVFread = state.timers[i].OVFread;
+
+            timers[i].currCycles = state.timers[i].currCycles;
+        }
+
+        WriteTSTR(state.TSTR);
+        WriteTSNC(state.TSNC);
+        WriteTMDR(state.TMDR);
+        WriteTFCR(state.TFCR);
+        WriteTOCR(state.TOCR);
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
 
     // 100  R/W  8        E0/60     TSTR    Timer start register
     //
@@ -351,15 +415,18 @@ struct IntegratedTimerPulseUnit {
         //
         // All three flags are cleared by reading 1 then writing 0. Writing 1 has no effect.
 
+        template <bool peek>
         FORCE_INLINE uint8 ReadTSR() const {
             uint8 value = 0;
             bit::deposit_into<3, 6>(value, 0b1111);
             bit::deposit_into<2>(value, OVF);
             bit::deposit_into<1>(value, IMFB);
             bit::deposit_into<0>(value, IMFA);
-            OVFread = OVF;
-            IMFBread = IMFB;
-            IMFAread = IMFA;
+            if constexpr (!peek) {
+                OVFread = OVF;
+                IMFBread = IMFB;
+                IMFAread = IMFA;
+            }
             return value;
         }
 

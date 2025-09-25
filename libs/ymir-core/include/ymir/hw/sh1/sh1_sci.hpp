@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -18,6 +20,66 @@ struct SerialCommunicationInterface {
         channels[0].Reset();
         channels[1].Reset();
     }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::SCI &state) const {
+        for (uint32 i = 0; i < 2; ++i) {
+            state.channels[i].SMR = channels[i].ReadSMR();
+            state.channels[i].BRR = channels[i].ReadBRR();
+            state.channels[i].SCR = channels[i].ReadSCR();
+            state.channels[i].TDR = channels[i].TDR;
+            state.channels[i].TDRvalid = channels[i].TDRvalid;
+            state.channels[i].SSR = channels[i].ReadSSR<true>();
+            state.channels[i].RDR = channels[i].RDR;
+
+            state.channels[i].RSR = channels[i].RSR;
+            state.channels[i].RSRbit = channels[i].RSRbit;
+            state.channels[i].TSR = channels[i].TSR;
+            state.channels[i].TSRbit = channels[i].TSRbit;
+
+            state.channels[i].txEmptyMask = channels[i].txEmptyMask;
+            state.channels[i].rxFullMask = channels[i].rxFullMask;
+            state.channels[i].overrunErrorMask = channels[i].overrunErrorMask;
+            state.channels[i].framingErrorMask = channels[i].framingErrorMask;
+            state.channels[i].parityErrorMask = channels[i].parityErrorMask;
+
+            state.channels[i].currCycles = channels[i].currCycles;
+        }
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::SCI &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::SCI &state) {
+        for (uint32 i = 0; i < 2; ++i) {
+            channels[i].WriteSMR(state.channels[i].SMR);
+            channels[i].WriteBRR(state.channels[i].BRR);
+            channels[i].WriteSCR<true>(state.channels[i].SCR);
+            channels[i].TDR = state.channels[i].TDR;
+            channels[i].TDRvalid = state.channels[i].TDRvalid;
+            channels[i].WriteSSR<true>(state.channels[i].SSR);
+            channels[i].RDR = state.channels[i].RDR;
+
+            channels[i].RSR = state.channels[i].RSR;
+            channels[i].RSRbit = state.channels[i].RSRbit;
+            channels[i].TSR = state.channels[i].TSR;
+            channels[i].TSRbit = state.channels[i].TSRbit;
+
+            channels[i].txEmptyMask = state.channels[i].txEmptyMask;
+            channels[i].rxFullMask = state.channels[i].rxFullMask;
+            channels[i].overrunErrorMask = state.channels[i].overrunErrorMask;
+            channels[i].framingErrorMask = state.channels[i].framingErrorMask;
+            channels[i].parityErrorMask = state.channels[i].parityErrorMask;
+
+            channels[i].currCycles = state.channels[i].currCycles;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
 
     struct Channel {
         Channel() {
@@ -228,15 +290,18 @@ struct SerialCommunicationInterface {
             return TDR;
         }
 
+        template <bool poke>
         FORCE_INLINE void WriteTDR(uint8 value) {
             TDR = value;
-            if (TSRbit == 0u) {
-                TSR = value;
-                TSRbit = 1u;
-                txEmpty = true;
-            } else {
-                TDRvalid = true;
-                txEmpty = false;
+            if constexpr (!poke) {
+                if (TSRbit == 0u) {
+                    TSR = value;
+                    TSRbit = 1u;
+                    txEmpty = true;
+                } else {
+                    TDRvalid = true;
+                    txEmpty = false;
+                }
             }
         }
 

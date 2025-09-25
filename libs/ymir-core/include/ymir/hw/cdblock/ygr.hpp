@@ -8,6 +8,8 @@
 
 #include <ymir/sys/bus.hpp>
 
+#include <ymir/state/state_ygr.hpp>
+
 #include <ymir/util/inline.hpp>
 
 #include <ymir/core/types.hpp>
@@ -36,7 +38,7 @@ struct YGR {
     void MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus);
 
     // -------------------------------------------------------------------------
-    // CD-block bus
+    // CD block bus
 
     uint16 CDBReadWord(uint32 address) const;
     void CDBWriteWord(uint32 address, uint16 value);
@@ -51,6 +53,13 @@ struct YGR {
 
     uint8 HostPeekByte(uint32 address) const;
     void HostPokeByte(uint32 address, uint8 value);
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::YGRState &state) const;
+    [[nodiscard]] bool ValidateState(const state::YGRState &state) const;
+    void LoadState(const state::YGRState &state);
 
 private:
     sh1::CBAssertIRQ m_cbAssertIRQ6;

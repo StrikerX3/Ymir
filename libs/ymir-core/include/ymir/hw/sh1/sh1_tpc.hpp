@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -22,6 +24,34 @@ struct TimingPatternController {
         NDER.u16 = 0x0000;
         NDR.u16 = 0x0000;
     }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::TPC &state) const {
+        state.TPMR = ReadTPMR();
+        state.TPCR = ReadTPCR();
+        state.NDERB = ReadNDERB();
+        state.NDERA = ReadNDERA();
+        state.NDRB = NDR.B;
+        state.NDRA = NDR.A;
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::TPC &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::TPC &state) {
+        WriteTPMR(state.TPMR);
+        WriteTPCR(state.TPCR);
+        WriteNDERB(state.NDERB);
+        WriteNDERA(state.NDERA);
+        NDR.B = state.NDRB;
+        NDR.A = state.NDRA;
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
 
     // 1F0  R/W  8,16     F0        TPMR    TPC output mode register
     //

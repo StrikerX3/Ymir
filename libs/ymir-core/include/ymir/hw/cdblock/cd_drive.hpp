@@ -6,6 +6,8 @@
 #include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 #include <ymir/sys/system_internal_callbacks.hpp>
 
+#include <ymir/state/state_cd_drive.hpp>
+
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/clocks.hpp>
 
@@ -49,9 +51,22 @@ public:
     }
     [[nodiscard]] XXH128Hash GetDiscHash() const;
 
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::CDDriveState &state) const;
+    [[nodiscard]] bool ValidateState(const state::CDDriveState &state) const;
+    void LoadState(const state::CDDriveState &state);
+
 private:
     core::Scheduler &m_scheduler;
     core::EventID m_stateEvent;
+
+    CBSetCOMSYNCn m_cbSetCOMSYNCn;
+    CBSetCOMREQn m_cbSetCOMREQn;
+    CBDataSector m_cbDataSector;
+    CBCDDASector m_cbCDDASector;
+    CBSectorTransferDone m_cbSectorTransferDone;
 
     // TODO: use a device instead, to support reading from real drives as well as disc images
     media::Disc m_disc;
@@ -63,12 +78,6 @@ private:
     bool m_autoCloseTray;
 
     void OpenTray(bool autoClose);
-
-    CBSetCOMSYNCn m_cbSetCOMSYNCn;
-    CBSetCOMREQn m_cbSetCOMREQn;
-    CBDataSector m_cbDataSector;
-    CBCDDASector m_cbCDDASector;
-    CBSectorTransferDone m_cbSectorTransferDone;
 
     std::array<uint8, 2352> m_sectorDataBuffer;
 

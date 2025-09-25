@@ -364,7 +364,15 @@ void Saturn::SaveState(state::State &state) const {
     SMPC.SaveState(state.smpc);
     VDP.SaveState(state.vdp);
     SCSP.SaveState(state.scsp);
-    CDBlock.SaveState(state.cdblock);
+    state.cdblockLLE = static_config::use_cdblock_lle;
+    if constexpr (static_config::use_cdblock_lle) {
+        SH1.SaveState(state.sh1);
+        YGR.SaveState(state.ygr);
+        CDDrive.SaveState(state.cddrive);
+        state.cdblockDRAM = CDBlockDRAM;
+    } else {
+        CDBlock.SaveState(state.cdblock);
+    }
 }
 
 bool Saturn::LoadState(const state::State &state) {
@@ -395,8 +403,25 @@ bool Saturn::LoadState(const state::State &state) {
     if (!SCSP.ValidateState(state.scsp)) {
         return false;
     }
-    if (!CDBlock.ValidateState(state.cdblock)) {
+
+    if (state.cdblockLLE != static_config::use_cdblock_lle) {
         return false;
+    }
+
+    if constexpr (static_config::use_cdblock_lle) {
+        if (!SH1.ValidateState(state.sh1)) {
+            return false;
+        }
+        if (!YGR.ValidateState(state.ygr)) {
+            return false;
+        }
+        if (!CDDrive.ValidateState(state.cddrive)) {
+            return false;
+        }
+    } else {
+        if (!CDBlock.ValidateState(state.cdblock)) {
+            return false;
+        }
     }
 
     m_scheduler.LoadState(state.scheduler);
@@ -411,7 +436,14 @@ bool Saturn::LoadState(const state::State &state) {
     SMPC.LoadState(state.smpc);
     VDP.LoadState(state.vdp);
     SCSP.LoadState(state.scsp);
-    CDBlock.LoadState(state.cdblock);
+    if constexpr (static_config::use_cdblock_lle) {
+        SH1.LoadState(state.sh1);
+        YGR.LoadState(state.ygr);
+        CDDrive.LoadState(state.cddrive);
+        CDBlockDRAM = state.cdblockDRAM;
+    } else {
+        CDBlock.LoadState(state.cdblock);
+    }
 
     return true;
 }

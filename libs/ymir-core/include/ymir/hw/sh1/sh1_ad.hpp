@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -30,6 +32,36 @@ struct ADConverter {
         m_dataRegs.fill(0);
         TEMP = 0x00;
     }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::AD &state) const {
+        state.ADDR = m_dataRegs;
+        state.ADCSR = ReadADCSR<true>();
+        state.ADCR = ReadADCR();
+
+        state.TEMP = TEMP;
+
+        state.convEndedMask = convEndedMask;
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::AD &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::AD &state) {
+        m_dataRegs = state.ADDR;
+        WriteADCSR<true>(state.ADCSR);
+        WriteADCR(state.ADCR);
+
+        TEMP = state.TEMP;
+
+        convEndedMask = state.convEndedMask;
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
 
     // Updates the converted value for the given data register.
     FORCE_INLINE void SetValue(uint8 index, uint16 value) {

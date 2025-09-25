@@ -4385,7 +4385,7 @@ void App::PersistSaveState(size_t slot) {
 
         // Create directory for this game's save states
         auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-        auto gameStatesPath = basePath / ymir::ToString(state.cdblock.discHash);
+        auto gameStatesPath = basePath / ymir::ToString(state.GetDiscHash());
         std::filesystem::create_directories(gameStatesPath);
 
         // Write save state

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -69,6 +71,31 @@ struct WatchdogTimer {
         TCNT = nextCount;
 
         return event;
+    }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::WDT &state) const {
+        state.TCSR = ReadTCSR<true>();
+        state.TCNT = TCNT;
+        state.RSTCSR = ReadRSTCSR();
+
+        state.OVFread = TCSR.OVFread;
+        state.cycleCount = m_cycleCount;
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::WDT &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::WDT &state) {
+        WriteTCSR<true>(state.TCSR);
+        TCNT = state.TCNT;
+        WriteRSTCSR<true>(state.RSTCSR);
+
+        TCSR.OVFread = state.OVFread;
+        m_cycleCount = state.cycleCount;
     }
 
     // -------------------------------------------------------------------------
@@ -147,9 +174,11 @@ struct WatchdogTimer {
         TCSR.WT_nIT = bit::test<6>(value);
         TCSR.TME = bit::test<5>(value);
         TCSR.CKSn = bit::extract<0, 2>(value);
-        if (!TCSR.TME) {
-            TCNT = 0;
-            TCSR.OVF = 0;
+        if constexpr (!poke) {
+            if (!TCSR.TME) {
+                TCNT = 0;
+                TCSR.OVF = 0;
+            }
         }
 
         m_clockDividerShift = kDividerShifts[TCSR.CKSn];

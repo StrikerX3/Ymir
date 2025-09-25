@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <array>
@@ -23,6 +25,42 @@ struct BusStateController {
         RTCNT = 0x00;
         RTCOR = 0xFF;
     }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::BSC &state) const {
+        state.BCR = BCR.u16;
+        state.WCR1 = WCR1.u16;
+        state.WCR2 = WCR2.u16;
+        state.WCR3 = WCR3.u16;
+        state.DCR = DCR.u16;
+        state.PCR = PCR.u16;
+        state.RCR = RCR.u16;
+        state.RTCSR = RTCSR.u16;
+        state.RTCNT = RTCNT;
+        state.RTCOR = RTCOR;
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::BSC &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::BSC &state) {
+        BCR.u16 = state.BCR & 0xF800;
+        WCR1.u16 = (state.WCR1 & 0xFF02) | 0x00FD;
+        WCR2.u16 = state.WCR2;
+        WCR3.u16 = state.WCR3 & 0xF800;
+        DCR.u16 = state.DCR & 0xFF00;
+        PCR.u16 = state.PCR & 0xF800;
+        RCR.u16 = state.RCR & 0xF0;
+        RTCSR.u16 = state.RTCSR & 0xF8;
+        RTCNT = state.RTCNT;
+        RTCOR = state.RTCOR;
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
 
     // 1A0  R/W  8,16,32  0000      BCR     Bus control register
     //

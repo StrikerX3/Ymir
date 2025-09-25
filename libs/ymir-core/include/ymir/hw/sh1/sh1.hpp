@@ -24,10 +24,11 @@
 
 #include <ymir/sys/bus.hpp>
 
-// TODO: save state
+#include <ymir/state/state_sh1.hpp>
 
-// TODO: breakpoints, watchpoints
+// TODO: breakpoints, watchpoints, probe, tracers
 
+#include <ymir/core/hash.hpp>
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/callback.hpp>
@@ -51,6 +52,9 @@ public:
     void Reset(bool hard, bool watchdogInitiated = false);
 
     void LoadROM(std::span<uint8, kROMSize> rom);
+    XXH128Hash GetROMHash() const {
+        return m_romHash;
+    }
 
     // -------------------------------------------------------------------------
     // Usage
@@ -92,6 +96,13 @@ public:
 
     void DumpRAM(std::ostream &out);
 
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State &state) const;
+    [[nodiscard]] bool ValidateState(const state::SH1State &state) const;
+    void LoadState(const state::SH1State &state);
+
 private:
     // -------------------------------------------------------------------------
     // CPU state
@@ -118,6 +129,8 @@ private:
 
     // Number of cycles executed in the current Advance invocation
     uint64 m_cyclesExecuted;
+
+    // Total number of cycles executed since the latest hard reset
     uint64 m_totalCycles;
 
     void AdvanceITU();
@@ -130,6 +143,7 @@ private:
     sys::SH1Bus &m_bus;
     std::array<uint8, kROMSize> m_rom;
     std::array<uint8, 4 * 1024> m_ram;
+    XXH128Hash m_romHash;
 
     // According to the SH7034 manual, the address space is divided into these areas:
     // (CD Block mappings in [brackets])

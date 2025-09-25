@@ -106,6 +106,9 @@ void YGR::MapMemory(sys::SH2Bus &mainBus, sys::SH1Bus &cdbBus) {
         [](uint32 address, uint16 value, void *ctx) { cast(ctx).CDBWriteWord(address, value); });
 }
 
+// -----------------------------------------------------------------------------
+// CD block bus
+
 FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
     if (((address >> 20) & 0xF) == 0x1) {
         // TODO: read from Video CD Card registers instead
@@ -182,7 +185,7 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     case 0x1A: m_regs.REG1A.u16 = value & 0xD7; break;
     case 0x1C: m_regs.REG1C.u16 = value & 0xFF; break;
     case 0x1E:
-        m_regs.HIRQ |= value;
+        m_regs.HIRQ |= value & 0x3FFF;
         UpdateInterrupts();
         break;
     default:
@@ -190,6 +193,9 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
         break;
     }
 }
+
+// -----------------------------------------------------------------------------
+// Host bus
 
 template <bool peek>
 FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
@@ -352,6 +358,69 @@ void YGR::HostPokeByte(uint32 address, uint8 value) {
     case 0x29: /* TODO: write MPEGRGB */ break;
     }
 }
+
+// -----------------------------------------------------------------------------
+// Save states
+
+void YGR::SaveState(state::YGRState &state) const {
+    state.fifo.data = m_fifo.data;
+    state.fifo.readPos = m_fifo.readPos;
+    state.fifo.writePos = m_fifo.writePos;
+    state.fifo.count = m_fifo.count;
+
+    state.regs.TRCTL = m_regs.TRCTL.u16;
+    state.regs.CDIRQL = m_regs.CDIRQL.u16;
+    state.regs.CDIRQU = m_regs.CDIRQU.u16;
+    state.regs.CDMSKL = m_regs.CDMSKL.u16;
+    state.regs.CDMSKU = m_regs.CDMSKU.u16;
+    state.regs.REG0C = m_regs.REG0C.u16;
+    state.regs.REG0E = m_regs.REG0E;
+    state.regs.CR = m_regs.CR;
+    state.regs.RR = m_regs.RR;
+    state.regs.REG18 = m_regs.REG18.u16;
+    state.regs.REG1A = m_regs.REG1A.u16;
+    state.regs.REG1C = m_regs.REG1C.u16;
+    state.regs.HIRQ = m_regs.HIRQ;
+    state.regs.HIRQMASK = m_regs.HIRQMASK;
+}
+
+bool YGR::ValidateState(const state::YGRState &state) const {
+    if (state.fifo.readPos >= m_fifo.data.size()) {
+        return false;
+    }
+    if (state.fifo.writePos >= m_fifo.data.size()) {
+        return false;
+    }
+    if (state.fifo.count > m_fifo.data.size()) {
+        return false;
+    }
+    return true;
+}
+
+void YGR::LoadState(const state::YGRState &state) {
+    m_fifo.data = state.fifo.data;
+    m_fifo.readPos = state.fifo.readPos;
+    m_fifo.writePos = state.fifo.writePos;
+    m_fifo.count = state.fifo.count;
+
+    m_regs.TRCTL.u16 = state.regs.TRCTL & 0xF;
+    m_regs.CDIRQL.u16 = state.regs.CDIRQL & 0x3;
+    m_regs.CDIRQU.u16 = state.regs.CDIRQU;
+    m_regs.CDMSKL.u16 = state.regs.CDMSKL & 0x3;
+    m_regs.CDMSKU.u16 = state.regs.CDMSKU & 0x70;
+    m_regs.REG0C.u16 = state.regs.REG0C & 0x3;
+    m_regs.REG0E = state.regs.REG0E;
+    m_regs.CR = state.regs.CR;
+    m_regs.RR = state.regs.RR;
+    m_regs.REG18.u16 = state.regs.REG18 & 0x3F;
+    m_regs.REG1A.u16 = state.regs.REG1A & 0xD7;
+    m_regs.REG1C.u16 = state.regs.REG1C & 0xFF;
+    m_regs.HIRQ = state.regs.HIRQ & 0x3FFF;
+    m_regs.HIRQMASK = state.regs.HIRQMASK & 0x3FFF;
+}
+
+// -----------------------------------------------------------------------------
+// Helpers
 
 void YGR::UpdateInterrupts() {
     devlog::trace<grp::base>("HIRQ = {:04X}  mask = {:04X}  active = {:04X}", m_regs.HIRQ, m_regs.HIRQMASK,

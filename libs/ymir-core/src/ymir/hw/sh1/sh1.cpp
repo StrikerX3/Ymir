@@ -76,6 +76,9 @@ namespace grp {
 SH1::SH1(sys::SH1Bus &bus)
     : m_bus(bus) {
 
+    m_rom.fill(0);
+    m_romHash = CalcHash128(m_rom.data(), m_rom.size(), kROMHashSeed);
+
     Reset(true);
 }
 
@@ -140,6 +143,7 @@ void SH1::Reset(bool hard, bool watchdogInitiated) {
 
 void SH1::LoadROM(std::span<uint8, 64 * 1024> rom) {
     std::copy(rom.begin(), rom.end(), m_rom.begin());
+    m_romHash = CalcHash128(m_rom.data(), m_rom.size(), kROMHashSeed);
 }
 
 uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
@@ -274,6 +278,113 @@ void SH1::SetTIOCB3(bool level) {
 void SH1::DumpRAM(std::ostream &out) {
     out.write((const char *)m_ram.data(), m_ram.size());
 }
+
+// -----------------------------------------------------------------------------
+// Save states
+
+void SH1::SaveState(state::SH1State &state) const {
+    state.R = R;
+    state.PC = PC;
+    state.PR = PR;
+    state.MACL = MAC.L;
+    state.MACH = MAC.H;
+    state.SR = SR.u32;
+    state.GBR = GBR;
+    state.VBR = VBR;
+    state.delaySlotTarget = m_delaySlotTarget;
+    state.delaySlot = m_delaySlot;
+    state.totalCycles = m_totalCycles;
+    state.ROMHash = m_romHash;
+    state.onChipRAM = m_ram;
+
+    BSC.SaveState(state.bsc);
+    DMAC.SaveState(state.dmac);
+    ITU.SaveState(state.itu);
+    TPC.SaveState(state.tpc);
+    WDT.SaveState(state.wdt);
+    SCI.SaveState(state.sci);
+    AD.SaveState(state.ad);
+    PFC.SaveState(state.pfc);
+    INTC.SaveState(state.intc);
+
+    state.SBYCR = SBYCR.u8;
+    state.sleep = m_sleep;
+
+    state.nDREQ = m_nDREQ;
+    state.PB2 = m_PB2;
+    state.TIOCB3 = m_TIOCB3;
+}
+
+bool SH1::ValidateState(const state::SH1State &state) const {
+    if (m_romHash != state.ROMHash) {
+        return false;
+    }
+    if (!BSC.ValidateState(state.bsc)) {
+        return false;
+    }
+    if (!DMAC.ValidateState(state.dmac)) {
+        return false;
+    }
+    if (!ITU.ValidateState(state.itu)) {
+        return false;
+    }
+    if (!TPC.ValidateState(state.tpc)) {
+        return false;
+    }
+    if (!WDT.ValidateState(state.wdt)) {
+        return false;
+    }
+    if (!SCI.ValidateState(state.sci)) {
+        return false;
+    }
+    if (!AD.ValidateState(state.ad)) {
+        return false;
+    }
+    if (!PFC.ValidateState(state.pfc)) {
+        return false;
+    }
+    if (!INTC.ValidateState(state.intc)) {
+        return false;
+    }
+    return true;
+}
+
+void SH1::LoadState(const state::SH1State &state) {
+    R = state.R;
+    PC = state.PC;
+    PR = state.PR;
+    MAC.L = state.MACL;
+    MAC.H = bit::sign_extend<10>(state.MACH);
+    SR.u32 = state.SR;
+    GBR = state.GBR;
+    VBR = state.VBR;
+    m_delaySlotTarget = state.delaySlotTarget;
+    m_delaySlot = state.delaySlot;
+    m_totalCycles = state.totalCycles;
+    m_ram = state.onChipRAM;
+
+    BSC.LoadState(state.bsc);
+    DMAC.LoadState(state.dmac);
+    ITU.LoadState(state.itu);
+    TPC.LoadState(state.tpc);
+    WDT.LoadState(state.wdt);
+    SCI.LoadState(state.sci);
+    AD.LoadState(state.ad);
+    PFC.LoadState(state.pfc);
+    INTC.LoadState(state.intc);
+
+    SBYCR.u8 = (state.SBYCR & 0xC0) | 0x1F;
+    m_sleep = state.sleep;
+
+    m_nDREQ = state.nDREQ;
+    m_PB2 = state.PB2;
+    m_TIOCB3 = state.TIOCB3;
+
+    m_intrPending = !m_delaySlot && INTC.pending.level > SR.ILevel;
+}
+
+// -----------------------------------------------------------------------------
+// Cycle counting
 
 FORCE_INLINE void SH1::AdvanceITU() {
     const uint64 cycles = m_totalCycles;
@@ -589,7 +700,7 @@ FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
     case 0x104: return ITU.timers[0].ReadTCR();
     case 0x105: return ITU.timers[0].ReadTIOR();
     case 0x106: return ITU.timers[0].ReadTIER();
-    case 0x107: return ITU.timers[0].ReadTSR();
+    case 0x107: return ITU.timers[0].ReadTSR<peek>();
     case 0x108: return ITU.timers[0].ReadTCNT() >> 8u;
     case 0x109: return ITU.timers[0].ReadTCNT();
     case 0x10A: return ITU.timers[0].ReadGRA() >> 8u;
@@ -599,7 +710,7 @@ FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
     case 0x10E: return ITU.timers[1].ReadTCR();
     case 0x10F: return ITU.timers[1].ReadTIOR();
     case 0x110: return ITU.timers[1].ReadTIER();
-    case 0x111: return ITU.timers[1].ReadTSR();
+    case 0x111: return ITU.timers[1].ReadTSR<peek>();
     case 0x112: return ITU.timers[1].ReadTCNT() >> 8u;
     case 0x113: return ITU.timers[1].ReadTCNT();
     case 0x114: return ITU.timers[1].ReadGRA() >> 8u;
@@ -609,7 +720,7 @@ FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
     case 0x118: return ITU.timers[2].ReadTCR();
     case 0x119: return ITU.timers[2].ReadTIOR();
     case 0x11A: return ITU.timers[2].ReadTIER();
-    case 0x11B: return ITU.timers[2].ReadTSR();
+    case 0x11B: return ITU.timers[2].ReadTSR<peek>();
     case 0x11C: return ITU.timers[2].ReadTCNT() >> 8u;
     case 0x11D: return ITU.timers[2].ReadTCNT();
     case 0x11E: return ITU.timers[2].ReadGRA() >> 8u;
@@ -619,7 +730,7 @@ FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
     case 0x122: return ITU.timers[3].ReadTCR();
     case 0x123: return ITU.timers[3].ReadTIOR();
     case 0x124: return ITU.timers[3].ReadTIER();
-    case 0x125: return ITU.timers[3].ReadTSR();
+    case 0x125: return ITU.timers[3].ReadTSR<peek>();
     case 0x126: return ITU.timers[3].ReadTCNT() >> 8u;
     case 0x127: return ITU.timers[3].ReadTCNT();
     case 0x128: return ITU.timers[3].ReadGRA() >> 8u;
@@ -634,7 +745,7 @@ FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
     case 0x132: return ITU.timers[4].ReadTCR();
     case 0x133: return ITU.timers[4].ReadTIOR();
     case 0x134: return ITU.timers[4].ReadTIER();
-    case 0x135: return ITU.timers[4].ReadTSR();
+    case 0x135: return ITU.timers[4].ReadTSR<peek>();
     case 0x136: return ITU.timers[4].ReadTCNT() >> 8u;
     case 0x137: return ITU.timers[4].ReadTCNT();
     case 0x138: return ITU.timers[4].ReadGRA() >> 8u;
@@ -710,15 +821,15 @@ FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
     case 0x15E: // DMAC CHCR1 (bits 8-15)
     case 0x16E: // DMAC CHCR2 (bits 8-15)
     case 0x17E: // DMAC CHCR3 (bits 8-15)
-        return DMAC.channels[(address >> 4) & 3].ReadCHCR() >> 8u;
+        return DMAC.channels[(address >> 4) & 3].ReadCHCR<peek>() >> 8u;
     case 0x14F: // DMAC CHCR0 (bits 0-7)
     case 0x15F: // DMAC CHCR1 (bits 0-7)
     case 0x16F: // DMAC CHCR2 (bits 0-7)
     case 0x17F: // DMAC CHCR3 (bits 0-7)
-        return DMAC.channels[(address >> 4) & 3].ReadCHCR();
+        return DMAC.channels[(address >> 4) & 3].ReadCHCR<peek>();
 
-    case 0x148: return DMAC.ReadDMAOR() >> 8u;
-    case 0x149: return DMAC.ReadDMAOR();
+    case 0x148: return DMAC.ReadDMAOR<peek>() >> 8u;
+    case 0x149: return DMAC.ReadDMAOR<peek>();
     case 0x158: return 0; // DMAC unused
     case 0x159: return 0; // DMAC unused
     case 0x168: return 0; // DMAC unused
@@ -1002,9 +1113,9 @@ FORCE_INLINE uint16 SH1::OnChipRegReadWord(uint32 address) {
     case 0x15E: // DMAC CHCR1
     case 0x16E: // DMAC CHCR2
     case 0x17E: // DMAC CHCR3
-        return DMAC.channels[(address >> 4) & 3].ReadCHCR();
+        return DMAC.channels[(address >> 4) & 3].ReadCHCR<peek>();
 
-    case 0x148: return DMAC.ReadDMAOR();
+    case 0x148: return DMAC.ReadDMAOR<peek>();
     case 0x158: return 0; // DMAC unused
     case 0x168: return 0; // DMAC unused
     case 0x178: return 0; // DMAC unused
@@ -1192,7 +1303,7 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
             RecalcInterrupts();
         }
         break;
-    case 0x0C3: SCI.channels[0].WriteTDR(value); break;
+    case 0x0C3: SCI.channels[0].WriteTDR<poke>(value); break;
     case 0x0C4:
         SCI.channels[0].WriteSSR<poke>(value);
         if (INTC.pending.source == InterruptSource::SCI0_ERI0 || INTC.pending.source == InterruptSource::SCI0_RxI0 ||
@@ -1210,7 +1321,7 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
             RecalcInterrupts();
         }
         break;
-    case 0x0CB: SCI.channels[1].WriteTDR(value); break;
+    case 0x0CB: SCI.channels[1].WriteTDR<poke>(value); break;
     case 0x0CC:
         SCI.channels[1].WriteSSR<poke>(value);
         if (INTC.pending.source == InterruptSource::SCI1_ERI1 || INTC.pending.source == InterruptSource::SCI1_RxI1 ||

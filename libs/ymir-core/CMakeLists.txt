@@ -154,6 +154,7 @@ add_library(ymir-core
 
     include/ymir/state/state.hpp
     include/ymir/state/state_cdblock.hpp
+    include/ymir/state/state_cd_drive.hpp
     include/ymir/state/state_m68k.hpp
     include/ymir/state/state_scheduler.hpp
     include/ymir/state/state_scsp.hpp
@@ -161,10 +162,12 @@ add_library(ymir-core
     include/ymir/state/state_scsp_slot.hpp
     include/ymir/state/state_scsp_timer.hpp
     include/ymir/state/state_scu.hpp
+    include/ymir/state/state_sh1.hpp
     include/ymir/state/state_sh2.hpp
     include/ymir/state/state_smpc.hpp
     include/ymir/state/state_system.hpp
     include/ymir/state/state_vdp.hpp
+    include/ymir/state/state_ygr.hpp
 
     include/ymir/sys/backup_ram.hpp
     include/ymir/sys/backup_ram_defs.hpp

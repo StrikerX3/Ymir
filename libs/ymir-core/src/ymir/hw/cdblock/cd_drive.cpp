@@ -94,6 +94,123 @@ XXH128Hash CDDrive::GetDiscHash() const {
     return m_fs.GetHash();
 }
 
+// -----------------------------------------------------------------------------
+// Save states
+
+void CDDrive::SaveState(state::CDDriveState &state) const {
+    state.discHash = m_fs.GetHash();
+
+    state.autoCloseTray = m_autoCloseTray;
+
+    state.sectorDataBuffer = m_sectorDataBuffer;
+
+    state.commandData = m_command.data;
+    state.commandPos = m_commandPos;
+
+    state.statusData = m_statusData.data;
+    state.statusPos = m_statusPos;
+
+    state.status.operation = static_cast<uint8>(m_status.operation);
+    state.status.subcodeQ = m_status.subcodeQ;
+    state.status.trackNum = m_status.trackNum;
+    state.status.indexNum = m_status.indexNum;
+    state.status.min = m_status.min;
+    state.status.sec = m_status.sec;
+    state.status.frac = m_status.frac;
+    state.status.zero = m_status.zero;
+    state.status.absMin = m_status.absMin;
+    state.status.absSec = m_status.absSec;
+    state.status.absFrac = m_status.absFrac;
+
+    switch (m_state) {
+    case TxState::Reset: state.state = state::CDDriveState::TxState::Reset; break;
+    case TxState::PreTx: state.state = state::CDDriveState::TxState::PreTx; break;
+    case TxState::TxBegin: state.state = state::CDDriveState::TxState::TxBegin; break;
+    case TxState::TxByte: state.state = state::CDDriveState::TxState::TxByte; break;
+    case TxState::TxInter1: state.state = state::CDDriveState::TxState::TxInter1; break;
+    case TxState::TxInterN: state.state = state::CDDriveState::TxState::TxInterN; break;
+    case TxState::TxEnd: state.state = state::CDDriveState::TxState::TxEnd; break;
+    default: state.state = state::CDDriveState::TxState::PreTx; break;
+    }
+
+    state.currFAD = m_currFAD;
+    state.targetFAD = m_targetFAD;
+    state.seekOp = static_cast<uint8>(m_seekOp);
+    state.seekCountdown = m_seekCountdown;
+
+    state.currTOCEntry = m_currTOCEntry;
+    state.currTOCRepeat = m_currTOCRepeat;
+
+    state.readSpeed = m_readSpeed;
+}
+
+bool CDDrive::ValidateState(const state::CDDriveState &state) const {
+    if (state.discHash != m_fs.GetHash()) {
+        return false;
+    }
+
+    switch (state.state) {
+    case state::CDDriveState::TxState::Reset: break;
+    case state::CDDriveState::TxState::PreTx: break;
+    case state::CDDriveState::TxState::TxBegin: break;
+    case state::CDDriveState::TxState::TxByte: break;
+    case state::CDDriveState::TxState::TxInter1: break;
+    case state::CDDriveState::TxState::TxInterN: break;
+    case state::CDDriveState::TxState::TxEnd: break;
+    default: return false;
+    }
+
+    return true;
+}
+
+void CDDrive::LoadState(const state::CDDriveState &state) {
+    m_autoCloseTray = state.autoCloseTray;
+
+    m_sectorDataBuffer = state.sectorDataBuffer;
+
+    m_command.data = state.commandData;
+    m_commandPos = state.commandPos;
+
+    m_statusData.data = state.statusData;
+    m_statusPos = state.statusPos;
+
+    m_status.operation = static_cast<Operation>(state.status.operation);
+    m_status.subcodeQ = state.status.subcodeQ;
+    m_status.trackNum = state.status.trackNum;
+    m_status.indexNum = state.status.indexNum;
+    m_status.min = state.status.min;
+    m_status.sec = state.status.sec;
+    m_status.frac = state.status.frac;
+    m_status.zero = state.status.zero;
+    m_status.absMin = state.status.absMin;
+    m_status.absSec = state.status.absSec;
+    m_status.absFrac = state.status.absFrac;
+
+    switch (state.state) {
+    case state::CDDriveState::TxState::Reset: m_state = TxState::Reset; break;
+    case state::CDDriveState::TxState::PreTx: m_state = TxState::PreTx; break;
+    case state::CDDriveState::TxState::TxBegin: m_state = TxState::TxBegin; break;
+    case state::CDDriveState::TxState::TxByte: m_state = TxState::TxByte; break;
+    case state::CDDriveState::TxState::TxInter1: m_state = TxState::TxInter1; break;
+    case state::CDDriveState::TxState::TxInterN: m_state = TxState::TxInterN; break;
+    case state::CDDriveState::TxState::TxEnd: m_state = TxState::TxEnd; break;
+    default: m_state = TxState::PreTx; break;
+    }
+
+    m_currFAD = state.currFAD;
+    m_targetFAD = state.targetFAD;
+    m_seekOp = static_cast<Operation>(state.seekOp);
+    m_seekCountdown = state.seekCountdown;
+
+    m_currTOCEntry = state.currTOCEntry;
+    m_currTOCRepeat = state.currTOCRepeat;
+
+    m_readSpeed = state.readSpeed;
+}
+
+// -----------------------------------------------------------------------------
+// Operations
+
 FORCE_INLINE void CDDrive::OpenTray(bool autoClose) {
     m_status.operation = Operation::TrayOpen;
     m_autoCloseTray = autoClose;

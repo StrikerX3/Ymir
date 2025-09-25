@@ -8,6 +8,7 @@
 #include <cereal/types/vector.hpp>
 
 #include <algorithm>
+#include <string>
 
 namespace ymir::state {
 
@@ -34,8 +35,22 @@ CEREAL_CLASS_VERSION(ymir::state::State, ymir::state::kVersion);
 namespace ymir::state {
 
 template <class Archive>
-void serialize(Archive &ar, SchedulerState &s) {
-    ar(s.currCount, s.events);
+void serialize(Archive &ar, SchedulerState &s, const uint32 version) {
+    // v10:
+    // - Changed fields
+    //   - events increased from 6 to 7; new event was never used before this version
+    ar(s.currCount);
+    if (version >= 10) {
+        ar(s.events);
+    } else {
+        std::array<SchedulerState::EventState, 6> events{};
+        ar(events);
+        std::copy(events.begin(), events.end(), s.events.begin());
+        s.events[6].target = ~static_cast<uint64>(0);
+        s.events[6].countNumerator = 1;
+        s.events[6].countDenominator = 1;
+        s.events[6].id = core::events::CDBlockLLEDriveState;
+    }
 }
 
 template <class Archive>
@@ -256,7 +271,7 @@ void serialize(Archive &ar, SCUDMAState &s, const uint32 version) {
     // - New fields
     //   - xfer
     // - Changed fields
-    //   - start -> startDelay = same value as before
+    //   - bool start -> uint32 startDelay = same value as before
 
     ar(s.srcAddr, s.dstAddr, s.xferCount);
     ar(s.srcAddrInc, s.dstAddrInc, s.updateSrcAddr, s.updateDstAddr);
@@ -1250,7 +1265,329 @@ void serialize(Archive &ar, CDBlockState::FilesystemState &s, const uint32 versi
 }
 
 template <class Archive>
+void serialize(Archive &ar, SH1State &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.R, s.PC, s.PR, s.MACL, s.MACH, s.SR, s.GBR, s.VBR);
+        ar(s.delaySlot, s.delaySlotTarget);
+        ar(s.totalCycles);
+        ar(s.ROMHash);
+        ar(s.onChipRAM);
+        serialize(ar, s.bsc, version);
+        serialize(ar, s.dmac, version);
+        serialize(ar, s.itu, version);
+        serialize(ar, s.tpc, version);
+        serialize(ar, s.wdt, version);
+        serialize(ar, s.sci, version);
+        serialize(ar, s.ad, version);
+        serialize(ar, s.pfc, version);
+        serialize(ar, s.intc, version);
+        ar(s.SBYCR);
+        ar(s.sleep);
+        ar(s.nDREQ, s.PB2, s.TIOCB3);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::BSC &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.BCR);
+        ar(s.WCR1, s.WCR2, s.WCR3);
+        ar(s.DCR);
+        ar(s.PCR);
+        ar(s.RCR);
+        ar(s.RTCSR);
+        ar(s.RTCNT);
+        ar(s.RTCOR);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::DMAC &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        for (auto &ch : s.channels) {
+            serialize(ar, ch, version);
+        }
+        ar(s.DMAOR);
+        ar(s.AEread, s.NMIFread);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::DMAC::Channel &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.SAR);
+        ar(s.DAR);
+        ar(s.TCR);
+        ar(s.CHCR);
+        ar(s.xferEndedMask);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::ITU &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        for (auto &timer : s.timers) {
+            serialize(ar, timer, version);
+        }
+        ar(s.TSTR);
+        ar(s.TSNC);
+        ar(s.TMDR);
+        ar(s.TFCR);
+        ar(s.TOCR);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::ITU::Timer &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.TCR);
+        ar(s.TIOR);
+        ar(s.TIER);
+        ar(s.TSR);
+        ar(s.TCNT);
+        ar(s.GRA);
+        ar(s.GRB);
+        ar(s.BRA);
+        ar(s.BRB);
+        ar(s.IMFAread, s.IMFBread, s.OVFread);
+        ar(s.currCycles);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::TPC &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.TPMR);
+        ar(s.TPCR);
+        ar(s.NDERB, s.NDERA);
+        ar(s.NDRB, s.NDRA);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::WDT &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.TCSR);
+        ar(s.TCNT);
+        ar(s.RSTCSR);
+        ar(s.OVFread);
+        ar(s.cycleCount);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::SCI &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        for (auto &ch : s.channels) {
+            serialize(ar, ch, version);
+        }
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::SCI::Channel &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.SMR);
+        ar(s.BRR);
+        ar(s.SCR);
+        ar(s.TDR, s.TDRvalid);
+        ar(s.SSR);
+        ar(s.RDR);
+        ar(s.RSR, s.RSRbit);
+        ar(s.TSR, s.TSRbit);
+        ar(s.txEmptyMask, s.rxFullMask);
+        ar(s.overrunErrorMask, s.framingErrorMask, s.parityErrorMask);
+        ar(s.currCycles);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::AD &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.ADDR);
+        ar(s.ADCSR);
+        ar(s.ADCR);
+        ar(s.TEMP);
+        ar(s.convEndedMask);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::PFC &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.PAIOR);
+        ar(s.PBIOR);
+        ar(s.PACR1, s.PACR2);
+        ar(s.PBCR1, s.PBCR2);
+        ar(s.CASCR);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, SH1State::INTC &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.ICR);
+        ar(s.levels);
+        ar(s.vectors);
+        ar(s.pendingSource);
+        ar(s.pendingLevel);
+        ar(s.NMI);
+        ar(s.irqs);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, YGRState &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        serialize(ar, s.fifo, version);
+        serialize(ar, s.regs, version);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, YGRState::FIFOState &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.data);
+        ar(s.readPos, s.writePos);
+        ar(s.count);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, YGRState::Registers &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.TRCTL);
+        ar(s.CDIRQL, s.CDIRQU);
+        ar(s.CDMSKL, s.CDMSKU);
+        ar(s.REG0C);
+        ar(s.REG0E);
+        ar(s.CR, s.RR);
+        ar(s.REG18);
+        ar(s.REG1A);
+        ar(s.REG1C);
+        ar(s.HIRQ, s.HIRQMASK);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, CDDriveState &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.discHash);
+        ar(s.autoCloseTray);
+        ar(s.sectorDataBuffer);
+        ar(s.commandData, s.commandPos);
+        ar(s.statusData, s.statusPos);
+        serialize(ar, s.status, version);
+        ar(s.state);
+        ar(s.currFAD, s.targetFAD);
+        ar(s.seekOp, s.seekCountdown);
+        ar(s.currTOCEntry, s.currTOCRepeat);
+        ar(s.readSpeed);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
+void serialize(Archive &ar, CDDriveState::CDStatusState &s, const uint32 version) {
+    // v10:
+    // - Struct newly introduced
+
+    if (version >= 10) {
+        ar(s.operation);
+        ar(s.subcodeQ);
+        ar(s.trackNum);
+        ar(s.indexNum);
+        ar(s.min);
+        ar(s.sec);
+        ar(s.frac);
+        ar(s.zero);
+        ar(s.absMin);
+        ar(s.absSec);
+        ar(s.absFrac);
+    }
+    // No need to initialize on pre-v10 because CD Block LLE did not exist
+}
+
+template <class Archive>
 void serialize(Archive &ar, State &s, const uint32 version) {
+    // v10:
+    // - Every component now has a 4-byte magic field to check for data alignment
+    // - New fields:
+    //   - cdblockLLE = false
+    //     - valid fields depend on this value:
+    //       - false: cdblock
+    //       - true: sh1, ygr, cddrive, CDBROMHash
+    //   - sh1 = default
+    //   - ygr = default
+    //   - cddrive = default
+    //   - CDBROMHash = default
     // v8:
     // - New fields:
     //   - uint64 msh2SpilloverCycles = 0
@@ -1263,17 +1600,37 @@ void serialize(Archive &ar, State &s, const uint32 version) {
         return;
     }
 
-    // NOTE: serialize is invoked manually here to handle versioned and non-versioned (pre-v4) variants
-    serialize(ar, s.scheduler);
-    serialize(ar, s.system);
-    serialize(ar, s.msh2, version);
-    serialize(ar, s.ssh2, version);
-    serialize(ar, s.scu, version);
-    serialize(ar, s.smpc, version);
-    serialize(ar, s.vdp, version);
-    serialize(ar, s.scsp, version);
-    serialize(ar, s.cdblock, version);
+    auto magic = [&](auto expected) {
+        std::array<char, 4> expect{expected[0], expected[1], expected[2], expected[3]};
+        std::array<char, 4> actual = expect;
+        ar(actual);
 
+        if (expect != actual) {
+            throw cereal::Exception(fmt::format("Could not find expected magic '{}'", expected));
+        }
+    };
+
+    // NOTE: serialize is invoked manually here to handle versioned and non-versioned (pre-v4) variants
+    magic("Schd"), serialize(ar, s.scheduler, version);
+    magic("Syst"), serialize(ar, s.system);
+    magic("MSH2"), serialize(ar, s.msh2, version);
+    magic("SSH2"), serialize(ar, s.ssh2, version);
+    magic("SCU#"), serialize(ar, s.scu, version);
+    magic("SMPC"), serialize(ar, s.smpc, version);
+    magic("VDP#"), serialize(ar, s.vdp, version);
+    magic("SCSP"), serialize(ar, s.scsp, version);
+    magic("CDBl");
+    magic("cLLE"), ar(s.cdblockLLE);
+    if (s.cdblockLLE) {
+        magic("cSH1"), serialize(ar, s.sh1, version);
+        magic("cYGR"), serialize(ar, s.ygr, version);
+        magic("cCDD"), serialize(ar, s.cddrive, version);
+        magic("cRAM"), ar(s.cdblockDRAM);
+    } else {
+        magic("cCDB"), serialize(ar, s.cdblock, version);
+    }
+
+    magic("MISC");
     if (version >= 8) {
         ar(s.msh2SpilloverCycles);
     } else {
@@ -1284,6 +1641,7 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     } else {
         s.ssh2SpilloverCycles = 0;
     }
+    magic("END#");
 
     if (version < 5) {
         // Fixup FRT and WDT cycle counters which changed from local to global

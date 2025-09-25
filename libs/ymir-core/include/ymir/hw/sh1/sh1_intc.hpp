@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -212,6 +214,36 @@ struct InterruptController {
 
         irqs = 0xFF;
     }
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::INTC &state) const {
+        state.ICR = ReadICR();
+        state.levels = m_levels;
+        state.vectors = m_vectors;
+        state.pendingSource = static_cast<uint8>(pending.source);
+        state.pendingLevel = pending.level;
+        state.NMI = NMI;
+        state.irqs = irqs;
+    }
+
+    bool ValidateState(const state::SH1State::INTC &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::INTC &state) {
+        WriteICR<true, true, true>(state.ICR);
+        m_levels = state.levels;
+        m_vectors = state.vectors;
+        pending.source = static_cast<InterruptSource>(state.pendingSource);
+        pending.level = state.pendingLevel;
+        NMI = state.NMI;
+        irqs = state.irqs;
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
 
     // Gets the interrupt vector number for the specified interrupt source.
     FORCE_INLINE uint8 GetVector(InterruptSource source) const {

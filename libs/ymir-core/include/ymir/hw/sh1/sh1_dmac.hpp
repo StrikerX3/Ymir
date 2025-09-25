@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/state/state_sh1.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -42,6 +44,42 @@ struct DMAController {
         DMAOR.Reset();
     }
 
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::SH1State::DMAC &state) const {
+        for (uint32 i = 0; i < 4; ++i) {
+            state.channels[i].SAR = channels[i].srcAddress;
+            state.channels[i].DAR = channels[i].dstAddress;
+            state.channels[i].TCR = channels[i].xferCount;
+            state.channels[i].CHCR = channels[i].ReadCHCR<true>();
+            state.channels[i].xferEndedMask = channels[i].xferEndedMask;
+        }
+        state.DMAOR = ReadDMAOR<true>();
+        state.AEread = DMAOR.AEread;
+        state.NMIFread = DMAOR.NMIFread;
+    }
+
+    [[nodiscard]] bool ValidateState(const state::SH1State::DMAC &state) const {
+        return true;
+    }
+
+    void LoadState(const state::SH1State::DMAC &state) {
+        for (uint32 i = 0; i < 4; ++i) {
+            channels[i].srcAddress = state.channels[i].SAR;
+            channels[i].dstAddress = state.channels[i].DAR;
+            channels[i].xferCount = state.channels[i].TCR;
+            channels[i].WriteCHCR<true>(state.channels[i].CHCR);
+            channels[i].xferEndedMask = state.channels[i].xferEndedMask;
+        }
+        WriteDMAOR<true>(state.DMAOR);
+        DMAOR.AEread = state.AEread;
+        DMAOR.NMIFread = state.NMIFread;
+    }
+
+    // -------------------------------------------------------------------------
+    // Registers
+
     struct DMAChannel {
         DMAChannel() {
             Reset();
@@ -78,7 +116,7 @@ struct DMAController {
         // 170  R/W  16/32    ud        SAR3    DMA source address register 3
         //
         //   bits   r/w  code   description
-        //   31-0   R/W  -      Source address
+        //   31-0   R/W  SAR    Source address
         uint32 srcAddress;
 
         // 144  R/W  16/32    ud        DAR0    DMA destination address register 0
@@ -87,7 +125,7 @@ struct DMAController {
         // 174  R/W  16/32    ud        DAR3    DMA destination address register 3
         //
         //   bits   r/w  code   description
-        //   31-0   R/W  -      Destination address
+        //   31-0   R/W  DAR    Destination address
         uint32 dstAddress;
 
         // 14A  R/W  16/32    ud        TCR0    DMA transfer counter register 0
@@ -97,7 +135,7 @@ struct DMAController {
         //
         //   bits   r/w  code   description
         //  31-16   R    -      Reserved - must be zero
-        //   15-0   R/W  -      Transfer count (0000=65536, 0001=1, ... FFFF=65535)
+        //   15-0   R/W  TCR    Transfer count (0000=65536, 0001=1, ... FFFF=65535)
         uint16 xferCount;
 
         // 14E  R/W  8/16/32  0000      CHCR0   DMA channel control register 0
@@ -165,6 +203,7 @@ struct DMAController {
 
         mutable bool xferEndedMask;
 
+        template <bool peek>
         FORCE_INLINE uint16 ReadCHCR() const {
             uint16 value{};
             bit::deposit_into<14, 15>(value, static_cast<uint16>(dstMode));
@@ -178,7 +217,9 @@ struct DMAController {
             bit::deposit_into<2>(value, irqEnable);
             bit::deposit_into<1>(value, xferEnded);
             bit::deposit_into<0>(value, xferEnabled);
-            xferEndedMask = xferEnded;
+            if constexpr (!peek) {
+                xferEndedMask = xferEnded;
+            }
             return value;
         }
 
@@ -260,14 +301,17 @@ struct DMAController {
             NMIFread = false;
         }
 
+        template <bool peek>
         FORCE_INLINE uint16 Read() const {
             uint16 value = 0;
             bit::deposit_into<8, 9>(value, PRn);
             bit::deposit_into<2>(value, AE);
             bit::deposit_into<1>(value, NMIF);
             bit::deposit_into<0>(value, DME);
-            AEread = AE;
-            NMIFread = NMIF;
+            if constexpr (!peek) {
+                AEread = AE;
+                NMIFread = NMIF;
+            }
             return value;
         }
 
@@ -293,8 +337,9 @@ struct DMAController {
         mutable bool NMIFread;
     };
 
+    template <bool peek>
     FORCE_INLINE uint16 ReadDMAOR() const {
-        return DMAOR.Read();
+        return DMAOR.Read<peek>();
     }
 
     template <bool poke>
