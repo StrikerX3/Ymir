@@ -8,8 +8,6 @@
 namespace ymir::state {
 
 struct CDDriveState {
-    XXH128Hash discHash;
-
     bool autoCloseTray;
 
     std::array<uint8, 2352> sectorDataBuffer;

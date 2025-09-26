@@ -96,8 +96,6 @@ XXH128Hash CDDrive::GetDiscHash() const {
 // Save states
 
 void CDDrive::SaveState(state::CDDriveState &state) const {
-    state.discHash = m_fs.GetHash();
-
     state.autoCloseTray = m_autoCloseTray;
 
     state.sectorDataBuffer = m_sectorDataBuffer;
@@ -143,10 +141,6 @@ void CDDrive::SaveState(state::CDDriveState &state) const {
 }
 
 bool CDDrive::ValidateState(const state::CDDriveState &state) const {
-    if (state.discHash != m_fs.GetHash()) {
-        return false;
-    }
-
     switch (state.state) {
     case state::CDDriveState::TxState::Reset: break;
     case state::CDDriveState::TxState::PreTx: break;

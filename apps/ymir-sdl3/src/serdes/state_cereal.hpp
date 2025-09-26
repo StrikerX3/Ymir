@@ -1542,7 +1542,6 @@ void serialize(Archive &ar, CDDriveState &s, const uint32 version) {
     // - Struct newly introduced
 
     if (version >= 10) {
-        ar(s.discHash);
         ar(s.autoCloseTray);
         ar(s.sectorDataBuffer);
         ar(s.commandData, s.commandPos);
