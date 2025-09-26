@@ -1133,7 +1133,10 @@ void serialize(Archive &ar, CDBlockState &s, State &root, const uint32 version) 
     // - Removed fields
     //   - scratchBuffer moved into the buffers array
 
-    ar(root.discHash);
+    if (version < 10) {
+        ar(root.discHash);
+        // v10+ is handled in the root serializer
+    }
     ar(s.CR, s.HIRQ, s.HIRQMASK);
     serialize(ar, s.status, version);
     ar(s.readyForPeriodicReports);
@@ -1621,15 +1624,17 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     magic("Syst"), serialize(ar, s.system);
     magic("MSH2"), serialize(ar, s.msh2, version);
     magic("SSH2"), serialize(ar, s.ssh2, version);
-    magic("SCU#"), serialize(ar, s.scu, version);
+    magic("SCU_"), serialize(ar, s.scu, version);
     magic("SMPC"), serialize(ar, s.smpc, version);
     magic("VDP#"), serialize(ar, s.vdp, version);
     magic("SCSP"), serialize(ar, s.scsp, version);
     magic("CDBl");
     if (version >= 10) {
         magic("cLLE"), ar(s.cdblockLLE);
+        magic("CD##"), ar(s.discHash);
     } else {
         s.cdblockLLE = false;
+        // v9- discHash is handled in the CDBlock serializer
     }
     if (s.cdblockLLE) {
         magic("cSH1"), serialize(ar, s.sh1, version);
@@ -1653,7 +1658,7 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     } else {
         s.ssh2SpilloverCycles = 0;
     }
-    magic("END#");
+    magic("END_");
 
     if (version < 5) {
         // Fixup FRT and WDT cycle counters which changed from local to global

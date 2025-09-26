@@ -407,7 +407,7 @@ bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
         return false;
     }
 
-    if (m_cdblockLLE) {
+    if (state.cdblockLLE) {
         if (!SH1.ValidateState(state.sh1, skipROMChecks)) {
             return false;
         }
@@ -426,6 +426,9 @@ bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
         return false;
     }
 
+    // Changing this option causes a hard reset, so do it before loading the state
+    SetCDBlockLLE(state.cdblockLLE);
+
     m_scheduler.LoadState(state.scheduler);
     m_system.LoadState(state.system);
     mem.LoadState(state.system);
@@ -438,7 +441,6 @@ bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
     SMPC.LoadState(state.smpc);
     VDP.LoadState(state.vdp);
     SCSP.LoadState(state.scsp);
-    m_cdblockLLE = state.cdblockLLE;
     if (m_cdblockLLE) {
         SH1.LoadState(state.sh1);
         YGR.LoadState(state.ygr);
