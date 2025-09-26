@@ -1839,7 +1839,7 @@ FORCE_INLINE bool SH2::CheckBreakpoint() {
 }
 
 FORCE_INLINE bool SH2::CheckWatchpoints(const DecodedMemAccesses &mem) {
-    if (!mem.anyAccess || m_watchpoints.empty()) {
+    if (m_watchpoints.empty() || !mem.anyAccess) {
         return false;
     }
     const bool wtpt1 = CheckWatchpoint(mem.first);
