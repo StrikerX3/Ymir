@@ -24,6 +24,7 @@ namespace grp {
     //
     // system
     // bus
+    // media
 
     struct system {
         static constexpr bool enabled = true;
@@ -37,6 +38,12 @@ namespace grp {
         static constexpr std::string_view name = "Bus";
     };
 
+    struct media {
+        static constexpr bool enabled = true;
+        static constexpr devlog::Level level = devlog::level::debug;
+        static constexpr std::string_view name = "Media";
+    };
+
 } // namespace grp
 
 Saturn::Saturn()
@@ -46,9 +53,9 @@ Saturn::Saturn()
     , VDP(m_scheduler, configuration)
     , SMPC(m_scheduler, smpcOps, configuration.rtc)
     , SCSP(m_scheduler, configuration.audio)
-    , CDBlock(m_scheduler, configuration.cdblock)
+    , CDBlock(m_scheduler, m_disc, m_fs, configuration.cdblock)
     , SH1(SH1Bus)
-    , CDDrive(m_scheduler) {
+    , CDDrive(m_scheduler, m_disc) {
 
     mainBus.MapNormal(
         0x000'0000, 0x7FF'FFFF, nullptr,
@@ -216,36 +223,41 @@ XXH128Hash Saturn::GetIPLHash() const noexcept {
 }
 
 const media::Disc &Saturn::GetDisc() const noexcept {
-    if (m_cdblockLLE) {
-        return CDDrive.GetDisc();
-    } else {
-        return CDBlock.GetDisc();
-    }
+    return m_disc;
 }
 
 XXH128Hash Saturn::GetDiscHash() const noexcept {
-    if (m_cdblockLLE) {
-        return CDDrive.GetDiscHash();
-    } else {
-        return CDBlock.GetDiscHash();
-    }
+    return m_fs.GetHash();
 }
 
 void Saturn::LoadDisc(media::Disc &&disc) {
     // Configure area code based on compatible area codes from the disc
     AutodetectRegion(disc.header.compatAreaCode);
-    if (m_cdblockLLE) {
-        CDDrive.LoadDisc(std::move(disc));
+    m_disc.Swap(std::move(disc));
+
+    // Try building filesystem structure
+    if (m_fs.Read(m_disc)) {
+        devlog::info<grp::media>("Filesystem built successfully");
     } else {
-        CDBlock.LoadDisc(std::move(disc));
+        devlog::warn<grp::media>("Failed to build filesystem");
+    }
+
+    if (m_cdblockLLE) {
+        CDDrive.OnDiscLoaded();
+    } else {
+        CDBlock.OnDiscLoaded();
     }
 }
 
 void Saturn::EjectDisc() {
-    if (m_cdblockLLE) {
-        CDDrive.EjectDisc();
-    } else {
-        CDBlock.EjectDisc();
+    if (!m_disc.sessions.empty()) {
+        m_disc = {};
+        m_fs.Clear();
+        if (m_cdblockLLE) {
+            CDDrive.OnDiscEjected();
+        } else {
+            CDBlock.OnDiscEjected();
+        }
     }
 }
 
@@ -363,6 +375,7 @@ void Saturn::SaveState(state::State &state) const {
     } else {
         CDBlock.SaveState(state.cdblock);
     }
+    state.discHash = GetDiscHash();
 }
 
 bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
@@ -408,6 +421,9 @@ bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
         if (!CDBlock.ValidateState(state.cdblock)) {
             return false;
         }
+    }
+    if (state.discHash != m_fs.GetHash()) {
+        return false;
     }
 
     m_scheduler.LoadState(state.scheduler);

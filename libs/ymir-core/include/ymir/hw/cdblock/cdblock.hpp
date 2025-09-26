@@ -32,7 +32,8 @@ namespace ymir::cdblock {
 
 class CDBlock {
 public:
-    CDBlock(core::Scheduler &scheduler, core::Configuration::CDBlock &config);
+    CDBlock(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+            core::Configuration::CDBlock &config);
 
     void Reset(bool hard);
 
@@ -45,16 +46,11 @@ public:
 
     void UpdateClockRatios(const sys::ClockRatios &clockRatios);
 
-    void LoadDisc(media::Disc &&disc);
-    void EjectDisc();
+    void OnDiscLoaded();
+    void OnDiscEjected();
     void OpenTray();
     void CloseTray();
     [[nodiscard]] bool IsTrayOpen() const;
-
-    [[nodiscard]] const media::Disc &GetDisc() const {
-        return m_disc;
-    }
-    [[nodiscard]] XXH128Hash GetDiscHash() const;
 
     // -------------------------------------------------------------------------
     // Save states
@@ -76,9 +72,9 @@ private:
 
     alignas(uint64) std::array<uint16, 4> m_CR;
 
-    // TODO: use a device instead, to support reading from real drives as well as disc images
-    media::Disc m_disc;
-    media::fs::Filesystem m_fs;
+    const media::Disc &m_disc;
+    const media::fs::Filesystem &m_fs;
+    media::fs::FilesystemState m_fsState{m_fs};
 
     // -------------------------------------------------------------------------
     // Memory accessors (SCU-facing bus)

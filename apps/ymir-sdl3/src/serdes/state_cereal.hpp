@@ -1111,7 +1111,10 @@ void serialize(Archive &ar, SCSPTimer &s) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDBlockState &s, const uint32 version) {
+void serialize(Archive &ar, CDBlockState &s, State &root, const uint32 version) {
+    // v10:
+    // - Removed fields
+    //   - discHash moved to the root of the structure
     // v9:
     // - New fields
     //   - seekTicks = 0
@@ -1130,7 +1133,7 @@ void serialize(Archive &ar, CDBlockState &s, const uint32 version) {
     // - Removed fields
     //   - scratchBuffer moved into the buffers array
 
-    ar(s.discHash);
+    ar(root.discHash);
     ar(s.CR, s.HIRQ, s.HIRQMASK);
     serialize(ar, s.status, version);
     ar(s.readyForPeriodicReports);
@@ -1580,6 +1583,7 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     // v10:
     // - Every component now has a 4-byte magic field to check for data alignment
     // - New fields:
+    //   - discHash = CDBlock.discHash
     //   - cdblockLLE = false
     //     - valid fields depend on this value:
     //       - false: cdblock
@@ -1601,6 +1605,9 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     }
 
     auto magic = [&](auto expected) {
+        if (version < 10) {
+            return;
+        }
         std::array<char, 4> expect{expected[0], expected[1], expected[2], expected[3]};
         std::array<char, 4> actual = expect;
         ar(actual);
@@ -1620,14 +1627,20 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     magic("VDP#"), serialize(ar, s.vdp, version);
     magic("SCSP"), serialize(ar, s.scsp, version);
     magic("CDBl");
-    magic("cLLE"), ar(s.cdblockLLE);
+    if (version >= 10) {
+        magic("cLLE"), ar(s.cdblockLLE);
+    } else {
+        s.cdblockLLE = false;
+    }
     if (s.cdblockLLE) {
         magic("cSH1"), serialize(ar, s.sh1, version);
         magic("cYGR"), serialize(ar, s.ygr, version);
         magic("cCDD"), serialize(ar, s.cddrive, version);
         magic("cRAM"), ar(s.cdblockDRAM);
     } else {
-        magic("cCDB"), serialize(ar, s.cdblock, version);
+        // Passing in the root of the save state structure to allow the CDBlockState serializer to load the disc hash
+        // into the field that was moved to the root State struct.
+        magic("cCDB"), serialize(ar, s.cdblock, s, version);
     }
 
     magic("MISC");

@@ -381,6 +381,7 @@ int App::Run(const CommandLineOptions &options) {
     devlog::debug<grp::base>("Profile directory: {}", m_context.profile.GetPath(ProfilePath::Root));
 
     m_context.saturn.instance->UsePreferredRegion();
+    m_context.saturn.instance->configuration.cdblock.useLLE = true;
 
     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
 
@@ -2469,7 +2470,7 @@ void App::RunEmulator() {
                     ImGui::MenuItem("System state", nullptr, &m_systemStateWindow.Open);
                     if (ImGui::MenuItem("Copy disc hash")) {
                         std::unique_lock lock{m_context.locks.disc};
-                        std::string hash = ToString(m_context.saturn.instance->CDBlock.GetDiscHash());
+                        std::string hash = ToString(m_context.saturn.instance->GetDiscHash());
                         SDL_SetClipboardText(hash.c_str());
                     }
 
@@ -4385,7 +4386,7 @@ void App::PersistSaveState(size_t slot) {
 
         // Create directory for this game's save states
         auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-        auto gameStatesPath = basePath / ymir::ToString(state.GetDiscHash());
+        auto gameStatesPath = basePath / ymir::ToString(state.discHash);
         std::filesystem::create_directories(gameStatesPath);
 
         // Write save state

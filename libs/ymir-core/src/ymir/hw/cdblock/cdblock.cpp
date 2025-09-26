@@ -43,8 +43,11 @@ static uint32 CalcPutOffset(uint32 size) {
 // NOTE: cannot be less than 2 due to how the Seek state processing is implemented
 static constexpr uint32 kSeekTicks = 2;
 
-CDBlock::CDBlock(core::Scheduler &scheduler, core::Configuration::CDBlock &config)
-    : m_scheduler(scheduler) {
+CDBlock::CDBlock(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+                 core::Configuration::CDBlock &config)
+    : m_scheduler(scheduler)
+    , m_disc(disc)
+    , m_fs(fs) {
 
     m_driveStateUpdateEvent = m_scheduler.RegisterEvent(core::events::CDBlockDriveState, this, OnDriveStateUpdateEvent);
     m_commandExecEvent = m_scheduler.RegisterEvent(core::events::CDBlockCommand, this, OnCommandExecEvent);
@@ -180,9 +183,7 @@ void CDBlock::UpdateClockRatios(const sys::ClockRatios &clockRatios) {
     m_scheduler.SetEventCountFactor(m_commandExecEvent, clockRatios.CDBlockNum, clockRatios.CDBlockDen);
 }
 
-void CDBlock::LoadDisc(media::Disc &&disc) {
-    m_disc.Swap(std::move(disc));
-
+void CDBlock::OnDiscLoaded() {
     const uint8 status = GetStatusCode();
     if (status == kStatusCodeNoDisc || status == kStatusCodeOpen || status == kStatusCodePlay ||
         status == kStatusCodeSeek || status == kStatusCodeBusy) {
@@ -192,32 +193,21 @@ void CDBlock::LoadDisc(media::Disc &&disc) {
         m_discAuthStatus = 0;
     }
     SetInterrupt(kHIRQ_DCHG | kHIRQ_EFLS);
-
-    // Try building filesystem structure
-    if (m_fs.Read(m_disc)) {
-        devlog::info<grp::base>("Filesystem built successfully");
-    } else {
-        devlog::warn<grp::base>("Failed to build filesystem");
-    }
 }
 
-void CDBlock::EjectDisc() {
-    if (!m_disc.sessions.empty()) {
-        m_disc = {};
+void CDBlock::OnDiscEjected() {
+    m_status.statusCode = kStatusCodeNoDisc;
+    m_status.frameAddress = 0xFFFFFF;
+    m_status.flags = 0xF;
+    m_status.repeatCount = 0xF;
+    m_status.controlADR = 0xFF;
+    m_status.track = 0xFF;
+    m_status.index = 0xFF;
 
-        m_status.statusCode = kStatusCodeNoDisc;
-        m_status.frameAddress = 0xFFFFFF;
-        m_status.flags = 0xF;
-        m_status.repeatCount = 0xF;
-        m_status.controlADR = 0xFF;
-        m_status.track = 0xFF;
-        m_status.index = 0xFF;
+    m_fsState.Reset();
+    SetInterrupt(kHIRQ_DCHG | kHIRQ_EFLS);
 
-        m_fs.Clear();
-        SetInterrupt(kHIRQ_DCHG | kHIRQ_EFLS);
-
-        devlog::debug<grp::base>("Ejected disc");
-    }
+    devlog::debug<grp::base>("Ejected disc");
 }
 
 void CDBlock::OpenTray() {
@@ -257,13 +247,7 @@ bool CDBlock::IsTrayOpen() const {
     return GetStatusCode() == kStatusCodeOpen;
 }
 
-XXH128Hash CDBlock::GetDiscHash() const {
-    return m_fs.GetHash();
-}
-
 void CDBlock::SaveState(state::CDBlockState &state) const {
-    state.discHash = m_fs.GetHash();
-
     state.CR = m_CR;
     state.HIRQ = m_HIRQ;
     state.HIRQMASK = m_HIRQMASK;
@@ -395,17 +379,14 @@ void CDBlock::SaveState(state::CDBlockState &state) const {
 
     state.processingCommand = m_processingCommand;
 
-    m_fs.SaveState(state.fs);
+    m_fsState.SaveState(state.fs);
 }
 
 bool CDBlock::ValidateState(const state::CDBlockState &state) const {
-    if (state.discHash != m_fs.GetHash()) {
-        return false;
-    }
     if (!m_partitionManager.ValidateState(state)) {
         return false;
     }
-    if (!m_fs.ValidateState(state.fs)) {
+    if (!m_fsState.ValidateState(state.fs)) {
         return false;
     }
     return true;
@@ -525,7 +506,7 @@ void CDBlock::LoadState(const state::CDBlockState &state) {
 
     m_processingCommand = state.processingCommand;
 
-    m_fs.LoadState(state.fs);
+    m_fsState.LoadState(state.fs);
 }
 
 void CDBlock::OnDriveStateUpdateEvent(core::EventContext &eventContext, void *userContext) {
@@ -850,7 +831,7 @@ bool CDBlock::SetupFilePlayback(uint32 fileID, uint32 offset, uint8 filterNumber
     }
 
     // Bail out if there is no current directory
-    if (!m_fs.HasCurrentDirectory()) {
+    if (!m_fsState.HasCurrentDirectory()) {
         devlog::debug<grp::play_init>("No current directory set; rejecting playback request");
         m_targetDriveCycles = kDriveCyclesNotPlaying;
         m_status.statusCode = kStatusCodePause;
@@ -858,7 +839,7 @@ bool CDBlock::SetupFilePlayback(uint32 fileID, uint32 offset, uint8 filterNumber
     }
 
     // Reject if the file ID is out of range
-    const media::fs::FileInfo &fileInfo = m_fs.GetFileInfo(fileID);
+    const media::fs::FileInfo &fileInfo = m_fsState.GetFileInfo(fileID);
     if (!fileInfo.IsValid()) {
         devlog::debug<grp::play_init>("Invalid file ID {:X}; rejecting playback request", fileID);
         return false;
@@ -1305,8 +1286,8 @@ void CDBlock::SetupPutSectorTransfer(uint16 sectorCount, uint8 partitionNumber) 
 uint32 CDBlock::SetupFileInfoTransfer(uint32 fileID) {
     devlog::debug<grp::xfer>("Starting file info transfer - file ID {:X}", fileID);
 
-    const uint32 fileOffset = m_fs.GetFileOffset();
-    const uint32 fileCount = m_fs.GetFileCount();
+    const uint32 fileOffset = m_fsState.GetFileOffset();
+    const uint32 fileCount = m_fsState.GetFileCount();
     assert(fileOffset < fileCount);
 
     const bool readAll = fileID == 0xFFFFFF;
@@ -1326,7 +1307,7 @@ uint32 CDBlock::SetupFileInfoTransfer(uint32 fileID) {
 
     const uint32 baseFileID = readAll ? 0 : fileID;
     for (uint32 i = 0; i < numFileInfos; i++) {
-        const media::fs::FileInfo &fileInfo = m_fs.GetFileInfoWithOffset(baseFileID + i);
+        const media::fs::FileInfo &fileInfo = m_fsState.GetFileInfoWithOffset(baseFileID + i);
         m_xferBuffer[i * 6 + 0] = fileInfo.frameAddress >> 16u;
         m_xferBuffer[i * 6 + 1] = fileInfo.frameAddress >> 0u;
         m_xferBuffer[i * 6 + 2] = fileInfo.fileSize >> 16u;
@@ -3004,10 +2985,10 @@ void CDBlock::CmdChangeDirectory() {
     bool reject = false;
     if (filterNumber < m_filters.size()) {
         // TODO: use filter to read the sector(s) containing the directory record
-        reject = !m_fs.ChangeDirectory(fileID);
+        reject = !m_fsState.ChangeDirectory(fileID);
         if (!reject) {
-            devlog::debug<grp::base>("Changed directory to {} (file ID {:X}) using filter {}", m_fs.GetCurrentPath(),
-                                     fileID, filterNumber);
+            devlog::debug<grp::base>("Changed directory to {} (file ID {:X}) using filter {}",
+                                     m_fsState.GetCurrentPath(), fileID, filterNumber);
         }
     } else if (filterNumber == 0xFF) {
         reject = true;
@@ -3037,10 +3018,10 @@ void CDBlock::CmdReadDirectory() {
     bool reject = false;
     if (filterNumber < m_filters.size()) {
         // TODO: use filter to read the sector(s) containing the directory record
-        reject = !m_fs.ReadDirectory(fileID);
+        reject = !m_fsState.ReadDirectory(fileID);
         if (!reject) {
             devlog::debug<grp::base>("Reading directory {} (file ID {:X}) using filter {}",
-                                     m_fs.GetFileInfo(fileID).name, fileID, filterNumber);
+                                     m_fsState.GetFileInfo(fileID).name, fileID, filterNumber);
         }
     } else if (filterNumber == 0xFF) {
         reject = true;
@@ -3071,8 +3052,8 @@ void CDBlock::CmdGetFileSystemScope() {
     // directory end offset   first file ID bits 23-16
     // first file ID bits 15-0
 
-    const uint32 fileOffset = m_fs.GetFileOffset() + 2;
-    const uint32 fileCount = m_fs.GetFileCount();
+    const uint32 fileOffset = m_fsState.GetFileOffset() + 2;
+    const uint32 fileCount = m_fsState.GetFileCount();
     const bool endOfDirectory = fileOffset + 254 >= fileCount;
     m_CR[0] = GetStatusCode() << 8u;
     m_CR[1] = fileCount;
@@ -3096,10 +3077,10 @@ void CDBlock::CmdGetFileInfo() {
     const uint32 fileID = (bit::extract<0, 7>(m_CR[2]) << 16u) | m_CR[3];
 
     bool reject = false;
-    if (!m_fs.IsValid() || !m_fs.HasCurrentDirectory()) {
+    if (!m_fs.IsValid() || !m_fsState.HasCurrentDirectory()) {
         reject = true;
     }
-    if (fileID != 0xFFFFFF && fileID > 2 + m_fs.GetFileCount() - m_fs.GetFileOffset()) {
+    if (fileID != 0xFFFFFF && fileID > 2 + m_fsState.GetFileCount() - m_fsState.GetFileOffset()) {
         reject = true;
     }
 

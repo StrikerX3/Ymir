@@ -136,6 +136,10 @@ public:
         return m_contents;
     }
 
+    const std::map<uint32, uint32> &GetDirectoryMappings() const {
+        return m_dirMappings;
+    }
+
 private:
     uint32 m_frameAddress;
     uint16 m_parent;
@@ -168,49 +172,20 @@ public:
     // If this function returns false, the filesystem object is invalidated.
     bool Read(const Disc &disc);
 
-    // Attempts to switch to the specified directory.
-    // Returns true if succesful, false if fileID is not a directory or does not exist.
-    // The filesystem state is not modified on failure.
-    bool ChangeDirectory(uint32 fileID);
-
-    // Attempts to read the specified directory.
-    // Returns true if succesful, false if fileID is not a directory or does not exist.
-    // The filesystem state is not modified on failure.
-    bool ReadDirectory(uint32 fileID);
-
-    // Retrieves the path to the current directory.
-    // Returns an empty string if the file system is invalid.
-    // Returns "/" if the current directory is the root directory.
-    std::string GetCurrentPath() const;
-
     // Determines if the file system is valid, i.e., there is at least one directory.
     bool IsValid() const {
         return !m_directories.empty();
+    }
+
+    // Returns the directory list of this filesystem.
+    const std::vector<Directory> &GetDirectories() const {
+        return m_directories;
     }
 
     // Returns the disc hash, which comprises the first 16 data sectors and those containing the volume descriptors.
     XXH128Hash GetHash() const {
         return m_hash;
     }
-
-    // Determines if the file system has a valid current directory.
-    bool HasCurrentDirectory() const {
-        return m_currDirectory < m_directories.size();
-    }
-
-    // Returns the current file offset for file listings.
-    uint32 GetFileOffset() const {
-        return m_currFileOffset;
-    }
-
-    // Returns the number of files in the current directory, minus the self and parent directory references (. and ..)
-    uint32 GetFileCount() const;
-
-    // Retrieves the file info from the current directory for the given file ID relative to the current file offset.
-    const FileInfo &GetFileInfoWithOffset(uint8 fileID) const;
-
-    // Retrieves the file info from the current directory for the given absolute file ID.
-    const FileInfo &GetFileInfo(uint32 fileID) const;
 
     // Retrieves the filesystem entry at the specified frame address.
     // Retuns nullptr if there is no file at that FAD, it is out of range or it doesn't point to a data track.
@@ -220,12 +195,8 @@ public:
     // Retuns nullptr if there is no file at that FAD, it is out of range or it doesn't point to a data track.
     std::string GetPathAtFrameAddress(uint32 fad) const;
 
-    // -------------------------------------------------------------------------
-    // Save states
-
-    void SaveState(state::CDBlockState::FilesystemState &state) const;
-    [[nodiscard]] bool ValidateState(const state::CDBlockState::FilesystemState &state) const;
-    void LoadState(const state::CDBlockState::FilesystemState &state);
+    // Retrieves teh full path of the specified directory index.
+    std::string BuildPath(uint16 directoryIndex) const;
 
 private:
     // Directories parsed from the path table records.
@@ -244,15 +215,62 @@ private:
 
     std::optional<FileIndex> LookupFileIndexAtFrameAddress(uint32 fad) const;
 
-    std::string BuildPath(uint16 directoryIndex) const;
+    bool ReadPathTableRecords(const Track &track, const media::iso9660::VolumeDescriptor &volDesc);
+};
 
-    // Current file system operation state.
-    // These fields should be stored in the save state
+class FilesystemState {
+public:
+    FilesystemState(const Filesystem &fs);
+
+    // Resets the filesystem state.
+    void Reset();
+
+    // Attempts to switch to the specified directory.
+    // Returns true if succesful, false if fileID is not a directory or does not exist.
+    // The filesystem state is not modified on failure.
+    bool ChangeDirectory(uint32 fileID);
+
+    // Attempts to read the specified directory.
+    // Returns true if succesful, false if fileID is not a directory or does not exist.
+    // The filesystem state is not modified on failure.
+    bool ReadDirectory(uint32 fileID);
+
+    // Retrieves the path to the current directory.
+    // Returns an empty string if the file system is invalid.
+    // Returns "/" if the current directory is the root directory.
+    std::string GetCurrentPath() const;
+
+    // Determines if the file system has a valid current directory.
+    bool HasCurrentDirectory() const {
+        return m_currDirectory < m_fs.GetDirectories().size();
+    }
+
+    // Returns the current file offset for file listings.
+    uint32 GetFileOffset() const {
+        return m_currFileOffset;
+    }
+
+    // Returns the number of files in the current directory, minus the self and parent directory references (. and ..)
+    uint32 GetFileCount() const;
+
+    // Retrieves the file info from the current directory for the given file ID relative to the current file offset.
+    const FileInfo &GetFileInfoWithOffset(uint8 fileID) const;
+
+    // Retrieves the file info from the current directory for the given absolute file ID.
+    const FileInfo &GetFileInfo(uint32 fileID) const;
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(state::CDBlockState::FilesystemState &state) const;
+    [[nodiscard]] bool ValidateState(const state::CDBlockState::FilesystemState &state) const;
+    void LoadState(const state::CDBlockState::FilesystemState &state);
+
+private:
+    const Filesystem &m_fs;
 
     uint32 m_currDirectory;
     uint32 m_currFileOffset;
-
-    bool ReadPathTableRecords(const Track &track, const media::iso9660::VolumeDescriptor &volDesc);
 };
 
 } // namespace ymir::media::fs

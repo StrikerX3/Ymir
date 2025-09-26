@@ -11,10 +11,10 @@
 
 namespace ymir::cdblock {
 
-CDDrive::CDDrive(core::Scheduler &scheduler)
-    : m_scheduler(scheduler) {
+CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc)
+    : m_scheduler(scheduler)
+    , m_disc(disc) {
 
-    // TODO: should reuse/replace the original CD Block drive state once the transition is done
     m_stateEvent = m_scheduler.RegisterEvent(
         core::events::CDBlockLLEDriveState, this, [](core::EventContext &eventContext, void *userContext) {
             const uint64 cycleInterval = static_cast<CDDrive *>(userContext)->ProcessTxState();
@@ -56,8 +56,7 @@ void CDDrive::UpdateClockRatios(const sys::ClockRatios &clockRatios) {
     m_scheduler.SetEventCountFactor(m_stateEvent, clockRatios.CDBlockNum * 3, clockRatios.CDBlockDen);
 }
 
-void CDDrive::LoadDisc(media::Disc &&disc) {
-    m_disc.Swap(std::move(disc));
+void CDDrive::OnDiscLoaded() {
     if (m_fs.Read(m_disc)) {
         devlog::info<grp::base>("Filesystem built successfully");
     } else {
@@ -66,8 +65,7 @@ void CDDrive::LoadDisc(media::Disc &&disc) {
     OpenTray(true);
 }
 
-void CDDrive::EjectDisc() {
-    m_disc = {};
+void CDDrive::OnDiscEjected() {
     m_fs.Clear();
     OpenTray(true);
 }

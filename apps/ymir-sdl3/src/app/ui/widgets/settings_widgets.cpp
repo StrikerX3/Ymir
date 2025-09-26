@@ -20,7 +20,7 @@ namespace settings::system {
         const db::GameInfo *gameInfo = nullptr;
         {
             std::unique_lock lock{ctx.locks.disc};
-            const auto &disc = ctx.saturn.GetCDBlock().GetDisc();
+            const auto &disc = ctx.saturn.GetDisc();
             if (!disc.sessions.empty()) {
                 gameInfo = db::GetGameInfo(disc.header.productNumber, ctx.saturn.GetDiscHash());
             }

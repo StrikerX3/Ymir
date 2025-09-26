@@ -35,12 +35,10 @@ struct State {
     CDDriveState cddrive;
     std::array<uint8, 512 * 1024> cdblockDRAM;
 
-    XXH128Hash GetDiscHash() const {
-        return cdblockLLE ? cddrive.discHash : cdblock.discHash;
-    }
+    XXH128Hash discHash;
 
     [[nodiscard]] bool ValidateDiscHash(XXH128Hash hash) const {
-        return GetDiscHash() == hash;
+        return discHash == hash;
     }
 
     [[nodiscard]] bool ValidateIPLROMHash(XXH128Hash hash) const {

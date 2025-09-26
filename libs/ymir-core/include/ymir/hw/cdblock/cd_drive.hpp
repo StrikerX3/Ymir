@@ -23,7 +23,7 @@ namespace ymir::cdblock {
 
 class CDDrive {
 public:
-    CDDrive(core::Scheduler &scheduler);
+    CDDrive(core::Scheduler &scheduler, const media::Disc &disc);
 
     void Reset();
 
@@ -38,8 +38,8 @@ public:
 
     void UpdateClockRatios(const sys::ClockRatios &clockRatios);
 
-    void LoadDisc(media::Disc &&disc);
-    void EjectDisc();
+    void OnDiscLoaded();
+    void OnDiscEjected();
     void OpenTray();
     void CloseTray();
     [[nodiscard]] bool IsTrayOpen() const {
@@ -68,8 +68,7 @@ private:
     CBCDDASector m_cbCDDASector;
     CBSectorTransferDone m_cbSectorTransferDone;
 
-    // TODO: use a device instead, to support reading from real drives as well as disc images
-    media::Disc m_disc;
+    const media::Disc &m_disc;
     media::fs::Filesystem m_fs;
 
     // The CD block program only responds to disc change events if they follow the Tray Open state.

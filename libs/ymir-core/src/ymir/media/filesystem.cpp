@@ -19,8 +19,6 @@ Filesystem::Filesystem() {
 
 void Filesystem::Clear() {
     m_directories.clear();
-    m_currDirectory = ~0;
-    m_currFileOffset = 0;
     m_hash.fill(0);
     m_fadToFiles.clear();
 }
@@ -95,8 +93,6 @@ bool Filesystem::Read(const Disc &disc) {
                 YMIR_DEV_CHECK();
                 return false;
             } else {
-                m_currDirectory = 0;
-                m_currFileOffset = 0;
                 XXH128_hash_t hash = XXH3_128bits_digest(xxh3State);
                 XXH128_canonical_t canonicalHash{};
                 XXH128_canonicalFromHash(&canonicalHash, hash);
@@ -127,110 +123,6 @@ bool Filesystem::Read(const Disc &disc) {
     return false;
 }
 
-bool Filesystem::ChangeDirectory(uint32 fileID) {
-    if (!IsValid()) {
-        return false;
-    }
-
-    if (fileID == 0xFFFFFF) {
-        // Go to root directory; should be the first in the list
-        m_currDirectory = 0;
-    } else if (fileID == 0) {
-        // Self directory; no change
-    } else if (m_currDirectory != ~0 && fileID == 1) {
-        // Go to parent directory
-        m_currDirectory = m_directories[m_currDirectory].m_parent - 1;
-    } else if (fileID + m_currFileOffset < m_directories[m_currDirectory].GetContents().size()) {
-        // Go to specified directory
-        const auto &mapping = m_directories[m_currDirectory].GetDirectoryMappings();
-        const uint32 id = fileID + m_currFileOffset;
-        if (!mapping.contains(id)) {
-            return false;
-        }
-        m_currDirectory = mapping.at(id);
-    } else {
-        // File ID out of range or invalid current directory
-        return false;
-    }
-
-    m_currFileOffset = 0;
-    return true;
-}
-
-bool Filesystem::ReadDirectory(uint32 fileID) {
-    if (!IsValid()) {
-        return false;
-    }
-    if (!HasCurrentDirectory()) {
-        return false;
-    }
-    assert(m_currDirectory < m_directories.size());
-
-    // TODO: should read and retain up to 254 files (plus self and parent dirs) starting from fileID
-    return true;
-}
-
-std::string Filesystem::GetCurrentPath() const {
-    if (!IsValid()) {
-        return "";
-    }
-    if (!HasCurrentDirectory()) {
-        return "";
-    }
-    assert(m_currDirectory < m_directories.size());
-
-    return BuildPath(m_currDirectory);
-}
-
-uint32 Filesystem::GetFileCount() const {
-    if (!IsValid()) {
-        // No file system loaded
-        return 0;
-    }
-    if (!HasCurrentDirectory()) {
-        // Invalid directory
-        return 0;
-    }
-    assert(m_currDirectory < m_directories.size());
-
-    return m_directories[m_currDirectory].GetContents().size() - 2;
-}
-
-static const FileInfo kEmptyFileInfo = {};
-
-const FileInfo &Filesystem::GetFileInfoWithOffset(uint8 fileID) const {
-    if (!IsValid()) {
-        // No file system loaded
-        return kEmptyFileInfo;
-    }
-    if (!HasCurrentDirectory()) {
-        // Invalid directory
-        return kEmptyFileInfo;
-    }
-    const auto offset = fileID + m_currFileOffset;
-    const auto &currDirContents = m_directories[m_currDirectory].GetContents();
-    if (offset >= currDirContents.size()) {
-        return kEmptyFileInfo;
-    }
-    return currDirContents[offset].GetFileInfo();
-}
-
-const FileInfo &media::fs::Filesystem::GetFileInfo(uint32 fileID) const {
-    if (!IsValid()) {
-        // No file system loaded
-        return kEmptyFileInfo;
-    }
-    if (!HasCurrentDirectory()) {
-        // Invalid directory
-        return kEmptyFileInfo;
-    }
-    const auto &currDirContents = m_directories[m_currDirectory].GetContents();
-    if (fileID >= currDirContents.size()) {
-        return kEmptyFileInfo;
-    }
-    return currDirContents[fileID].GetFileInfo();
-}
-
 const FilesystemEntry *Filesystem::GetFileAtFrameAddress(uint32 fad) const {
     if (auto index = LookupFileIndexAtFrameAddress(fad)) {
         auto &dir = m_directories[index->directory];
@@ -253,20 +145,6 @@ std::string Filesystem::GetPathAtFrameAddress(uint32 fad) const {
         }
     }
     return "";
-}
-
-void Filesystem::SaveState(state::CDBlockState::FilesystemState &state) const {
-    state.currDirectory = m_currDirectory;
-    state.currFileOffset = m_currFileOffset;
-}
-
-bool Filesystem::ValidateState(const state::CDBlockState::FilesystemState &state) const {
-    return true;
-}
-
-void Filesystem::LoadState(const state::CDBlockState::FilesystemState &state) {
-    m_currDirectory = state.currDirectory;
-    m_currFileOffset = state.currFileOffset;
 }
 
 std::optional<Filesystem::FileIndex> Filesystem::LookupFileIndexAtFrameAddress(uint32 fad) const {
@@ -298,7 +176,7 @@ std::string Filesystem::BuildPath(uint16 directoryIndex) const {
     uint32 currDir = directoryIndex;
     fullPath.push_back(currDir);
     while (currDir != 0 && fullPath.size() < 32) {
-        currDir = m_directories[currDir].m_parent - 1; // 1-indexed
+        currDir = m_directories[currDir].Parent() - 1; // 1-indexed
         if (currDir != 0) {
             fullPath.push_back(currDir);
         }
@@ -313,7 +191,7 @@ std::string Filesystem::BuildPath(uint16 directoryIndex) const {
         } else {
             out += "/";
         }
-        out += m_directories[*it].m_name;
+        out += m_directories[*it].Name();
     }
     return out;
 }
@@ -493,6 +371,138 @@ bool Filesystem::ReadPathTableRecords(const Track &track, const VolumeDescriptor
     }
 
     return true;
+}
+
+// -----------------------------------------------------------------------------
+
+FilesystemState::FilesystemState(const Filesystem &fs)
+    : m_fs(fs) {
+    Reset();
+}
+
+void FilesystemState::Reset() {
+    m_currDirectory = ~0;
+    m_currFileOffset = 0;
+}
+
+bool FilesystemState::ChangeDirectory(uint32 fileID) {
+    if (!m_fs.IsValid()) {
+        return false;
+    }
+
+    const auto &dirs = m_fs.GetDirectories();
+
+    if (fileID == 0xFFFFFF) {
+        // Go to root directory; should be the first in the list
+        m_currDirectory = 0;
+    } else if (fileID == 0) {
+        // Self directory; no change
+    } else if (m_currDirectory != ~0 && fileID == 1) {
+        // Go to parent directory
+        m_currDirectory = dirs[m_currDirectory].Parent() - 1;
+    } else if (fileID + m_currFileOffset < dirs[m_currDirectory].GetContents().size()) {
+        // Go to specified directory
+        const auto &mapping = dirs[m_currDirectory].GetDirectoryMappings();
+        const uint32 id = fileID + m_currFileOffset;
+        if (!mapping.contains(id)) {
+            return false;
+        }
+        m_currDirectory = mapping.at(id);
+    } else {
+        // File ID out of range or invalid current directory
+        return false;
+    }
+
+    m_currFileOffset = 0;
+    return true;
+}
+
+bool FilesystemState::ReadDirectory(uint32 fileID) {
+    if (!m_fs.IsValid()) {
+        return false;
+    }
+    if (!HasCurrentDirectory()) {
+        return false;
+    }
+    assert(m_currDirectory < m_directories.size());
+
+    // TODO: should read and retain up to 254 files (plus self and parent dirs) starting from fileID
+    return true;
+}
+
+std::string FilesystemState::GetCurrentPath() const {
+    if (!m_fs.IsValid()) {
+        return "";
+    }
+    if (!HasCurrentDirectory()) {
+        return "";
+    }
+    assert(m_currDirectory < m_fs.GetDirectories().size());
+
+    return m_fs.BuildPath(m_currDirectory);
+}
+
+uint32 FilesystemState::GetFileCount() const {
+    if (!m_fs.IsValid()) {
+        // No file system loaded
+        return 0;
+    }
+    if (!HasCurrentDirectory()) {
+        // Invalid directory
+        return 0;
+    }
+    assert(m_currDirectory < m_fs.GetDirectories().size());
+
+    return m_fs.GetDirectories()[m_currDirectory].GetContents().size() - 2;
+}
+
+static const FileInfo kEmptyFileInfo = {};
+
+const FileInfo &FilesystemState::GetFileInfoWithOffset(uint8 fileID) const {
+    if (!m_fs.IsValid()) {
+        // No file system loaded
+        return kEmptyFileInfo;
+    }
+    if (!HasCurrentDirectory()) {
+        // Invalid directory
+        return kEmptyFileInfo;
+    }
+    const auto offset = fileID + m_currFileOffset;
+    const auto &currDirContents = m_fs.GetDirectories()[m_currDirectory].GetContents();
+    if (offset >= currDirContents.size()) {
+        return kEmptyFileInfo;
+    }
+    return currDirContents[offset].GetFileInfo();
+}
+
+const FileInfo &FilesystemState::GetFileInfo(uint32 fileID) const {
+    if (!m_fs.IsValid()) {
+        // No file system loaded
+        return kEmptyFileInfo;
+    }
+    if (!HasCurrentDirectory()) {
+        // Invalid directory
+        return kEmptyFileInfo;
+    }
+    const auto &currDirContents = m_fs.GetDirectories()[m_currDirectory].GetContents();
+    if (fileID >= currDirContents.size()) {
+        return kEmptyFileInfo;
+    }
+    return currDirContents[fileID].GetFileInfo();
+}
+
+void FilesystemState::SaveState(state::CDBlockState::FilesystemState &state) const {
+    state.currDirectory = m_currDirectory;
+    state.currFileOffset = m_currFileOffset;
+}
+
+bool FilesystemState::ValidateState(const state::CDBlockState::FilesystemState &state) const {
+    return true;
+}
+
+void FilesystemState::LoadState(const state::CDBlockState::FilesystemState &state) {
+    m_currDirectory = state.currDirectory;
+    m_currFileOffset = state.currFileOffset;
 }
 
 } // namespace ymir::media::fs

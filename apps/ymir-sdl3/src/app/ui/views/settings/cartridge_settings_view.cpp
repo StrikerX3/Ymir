@@ -104,7 +104,7 @@ void CartridgeSettingsView::Display() {
     const db::GameInfo *gameInfo = nullptr;
     {
         std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetCDBlock().GetDisc();
+        const auto &disc = m_context.saturn.GetDisc();
         if (!disc.sessions.empty()) {
             gameInfo = db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
         }

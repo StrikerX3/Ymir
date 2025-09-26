@@ -401,6 +401,10 @@ private:
     // -------------------------------------------------------------------------
     // Internal state
 
+    // TODO: use an abstraction to support reading from real drives as well as disc images
+    media::Disc m_disc;         ///< Currently loaded game disc
+    media::fs::Filesystem m_fs; ///< Filesystem contained in the disc
+
     uint64 m_msh2SpilloverCycles; ///< Master SH-2 execution cycles spilled over between executions
     uint64 m_ssh2SpilloverCycles; ///< Slave SH-2 execution cycles spilled over between executions
     uint64 m_sh1SpilloverCycles;  ///< SH-1 execution cycles spilled over between executions
