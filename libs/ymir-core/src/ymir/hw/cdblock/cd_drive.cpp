@@ -502,6 +502,13 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
         // Skip the sync bytes
         m_cbDataSector(std::span<uint8>(m_sectorDataBuffer).subspan(12));
     } else {
+        if (track->bigEndian) {
+            // Swap endianness if necessary
+            for (uint32 offset = 0; offset < 2352; offset += 2) {
+                util::WriteLE<uint16>(&m_sectorDataBuffer[offset], util::ReadBE<uint16>(&m_sectorDataBuffer[offset]));
+            }
+        }
+
         // The callback returns how many thirds of the buffer are full
         const uint32 currBufferLength = m_cbCDDASector(m_sectorDataBuffer);
 
