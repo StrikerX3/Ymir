@@ -1839,12 +1839,15 @@ FORCE_INLINE bool SH2::CheckBreakpoint() {
 }
 
 FORCE_INLINE bool SH2::CheckWatchpoints(const DecodedMemAccesses &mem) {
+    if (!mem.anyAccess || m_watchpoints.empty()) {
+        return false;
+    }
     const bool wtpt1 = CheckWatchpoint(mem.first);
     const bool wtpt2 = CheckWatchpoint(mem.second);
     return wtpt1 || wtpt2;
 }
 
-bool SH2::CheckWatchpoint(const DecodedMemAccesses::Access &access) {
+FORCE_INLINE bool SH2::CheckWatchpoint(const DecodedMemAccesses::Access &access) {
     uint32 address;
 
     using AccType = DecodedMemAccesses::Type;

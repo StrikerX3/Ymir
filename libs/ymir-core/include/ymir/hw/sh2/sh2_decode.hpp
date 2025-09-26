@@ -309,6 +309,7 @@ struct DecodedMemAccesses {
     };
 
     Access first, second;
+    bool anyAccess = false;
 };
 
 struct DecodeTable {
