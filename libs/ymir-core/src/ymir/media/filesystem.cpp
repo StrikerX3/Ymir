@@ -424,7 +424,7 @@ bool FilesystemState::ReadDirectory(uint32 fileID) {
     if (!HasCurrentDirectory()) {
         return false;
     }
-    assert(m_currDirectory < m_directories.size());
+    assert(m_currDirectory < m_fs.GetDirectories().size());
 
     // TODO: should read and retain up to 254 files (plus self and parent dirs) starting from fileID
     return true;
