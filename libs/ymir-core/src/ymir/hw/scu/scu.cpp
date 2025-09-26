@@ -6,6 +6,7 @@
 #include "scu_devlog.hpp"
 
 #include <ymir/util/inline.hpp>
+#include <ymir/util/scope_guard.hpp>
 #include <ymir/util/size_ops.hpp>
 
 #include <bit>
@@ -701,17 +702,23 @@ void SCU::RunDMA(uint64 cycles) {
         assert(ch.active);
 
         // Check for stalls
-        if (m_bus.IsBusWait(ch.currSrcAddr, std::min<uint32>(sizeof(uint32), ch.currXferCount), false)) {
-            devlog::trace<grp::dma>("SCU DMA{}: Read from {:08X} stalled by bus wait signal", level, ch.currSrcAddr);
-            return;
-        }
-        if (m_bus.IsBusWait(ch.currDstAddr, std::min<uint32>(sizeof(uint32), ch.currXferCount), true)) {
-            devlog::trace<grp::dma>("SCU DMA{}: Write to {:08X} stalled by bus wait signal", level, ch.currDstAddr);
-            return;
-        }
+        auto checkStall = [&](uint32 address, uint32 size, bool write) {
+            if (m_bus.IsBusWait(address, size, write)) {
+                devlog::trace<grp::dma>("SCU DMA{}: {}-bit {} {:08X} stalled by bus wait signal", level, size * 8,
+                                        (write ? "write to" : "read from"), ch.currSrcAddr);
+                return true;
+            }
+            return false;
+        };
+
+        auto checkReadStall = [&] { return checkStall(ch.currSrcAddr & ~3u, sizeof(uint32), false); };
+        auto checkWriteStall = [&](uint32 address, uint32 size) { return checkStall(address, size, true); };
 
         auto &xfer = ch.xfer;
         if (xfer.started) {
+            if (checkReadStall()) {
+                return;
+            }
             xfer.started = false;
             xfer.buf = m_bus.Read<uint32>(ch.currSrcAddr & ~3u);
             devlog::trace<grp::dma>("SCU DMA{}: Read from {:08X} -> {:08X}", level, ch.currSrcAddr & ~3u, xfer.buf);
@@ -766,12 +773,20 @@ void SCU::RunDMA(uint64 cycles) {
             continue;
         }
 
-        // Increment the write address
+        uint32 currDstOffset = xfer.currDstOffset;
+        uint32 currDstAddr = xfer.currDstAddr;
+        util::ScopeGuard sgUpdateDst{[&] {
+            xfer.currDstOffset = currDstOffset;
+            xfer.currDstAddr = currDstAddr;
+        }};
+
+        // Increment the write address.
+        // Calling this twice is harmless. This can happen when the transfer is stalled by the bus.
         auto incDst = [&] {
-            if (xfer.currDstOffset >= 4u) {
-                xfer.currDstOffset -= 4u;
-                xfer.currDstAddr += ch.currDstAddrInc;
-                xfer.currDstAddr &= 0x7FF'FFFF;
+            if (currDstOffset >= 4u) {
+                currDstOffset -= 4u;
+                currDstAddr += ch.currDstAddrInc;
+                currDstAddr &= 0x7FF'FFFF;
             }
         };
 
@@ -780,60 +795,80 @@ void SCU::RunDMA(uint64 cycles) {
             // Nicely-behaved straightforward writes to A-Bus and WRAM.
             // At least *something* in this chip works as intended!
 
-            xfer.currDstAddr &= ~3u;
+            currDstAddr &= ~3u;
 
             // 8-bit -> 16/32-bit realignment
-            if (ch.currXferCount >= 1 && (xfer.currDstOffset & 1)) {
-                const uint32 addr = xfer.currDstAddr + xfer.currDstOffset;
+            if (ch.currXferCount >= 1 && (currDstOffset & 1)) {
+                const uint32 addr = currDstAddr + currDstOffset;
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint8))) {
+                    return;
+                }
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
-                xfer.currDstOffset += 1;
-                ch.currXferCount -= 1;
                 devlog::trace<grp::dma>("SCU DMA{}: 8-bit write to {:08X} -> {:02X}", level, addr, value);
+
+                currDstOffset += 1;
+                ch.currXferCount -= 1;
             }
 
             // 16-bit -> 32-bit realignment
-            if (ch.currXferCount >= 2 && (xfer.currDstOffset & 2)) {
+            if (ch.currXferCount >= 2 && (currDstOffset & 2)) {
                 incDst();
-                const uint32 addr = (xfer.currDstAddr + xfer.currDstOffset) & ~1u;
+                const uint32 addr = (currDstAddr + currDstOffset) & ~1u;
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint16))) {
+                    return;
+                }
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
-                xfer.currDstOffset += 2;
-                ch.currXferCount -= 2;
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr, value);
+
+                currDstOffset += 2;
+                ch.currXferCount -= 2;
             }
 
             // 32-bit transfers -- the bulk of the DMA operation
             while (ch.currXferCount >= 4) {
                 incDst();
-                const uint32 addr = (xfer.currDstAddr + xfer.currDstOffset) & ~3u;
+                const uint32 addr = (currDstAddr + currDstOffset) & ~3u;
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint32))) {
+                    return;
+                }
                 const uint32 value = read32();
                 m_bus.Write<uint32>(addr, value);
-                xfer.currDstOffset += 4;
-                ch.currXferCount -= 4;
                 devlog::trace<grp::dma>("SCU DMA{}: 32-bit write to {:08X} -> {:08X}", level, addr, value);
+
+                currDstOffset += 4;
+                ch.currXferCount -= 4;
             }
 
             // Final 16-bit transfer
             if (ch.currXferCount & 2) {
                 incDst();
-                const uint32 addr = (xfer.currDstAddr + xfer.currDstOffset) & ~1u;
+                const uint32 addr = (currDstAddr + currDstOffset) & ~1u;
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint16))) {
+                    return;
+                }
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
-                xfer.currDstOffset += 2;
-                ch.currXferCount -= 2;
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr, value);
+
+                currDstOffset += 2;
+                ch.currXferCount -= 2;
             }
 
             // Final 8-bit transfer
             if (ch.currXferCount & 1) {
                 incDst();
-                const uint32 addr = xfer.currDstAddr + xfer.currDstOffset;
+                const uint32 addr = currDstAddr + currDstOffset;
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint8))) {
+                    return;
+                }
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
-                xfer.currDstOffset += 1;
-                ch.currXferCount -= 1;
                 devlog::trace<grp::dma>("SCU DMA{}: 8-bit write to {:08X} -> {:02X}", level, addr, value);
+
+                currDstOffset += 1;
+                ch.currXferCount -= 1;
             }
 
             // Now that we've dealt with this perfectly logical implementation, let's take a look at the nonsensical
@@ -844,47 +879,56 @@ void SCU::RunDMA(uint64 cycles) {
             // word-aligned but not longword-aligned (write address & 3 == 2) -- at least those follow the proper
             // increment intervals. Every other increment is pretty much useless in practice.
 
-            xfer.currDstAddr &= ~1u;
+            currDstAddr &= ~1u;
 
             // 8-bit -> 16/32-bit realignment
-            if (ch.currXferCount >= 1 && (xfer.currDstOffset & 1)) {
-                const uint32 addr = xfer.currDstAddr | xfer.currDstOffset;
+            if (ch.currXferCount >= 1 && (currDstOffset & 1)) {
+                const uint32 addr = currDstAddr | currDstOffset;
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint8))) {
+                    return;
+                }
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
-                xfer.currDstOffset += 1;
-                ch.currXferCount -= 1;
                 devlog::trace<grp::dma>("SCU DMA{}: 8-bit write to {:08X} -> {:02X}", level, addr, value);
 
+                currDstOffset += 1;
+                ch.currXferCount -= 1;
+
                 // B-Bus shenanigans
-                if (xfer.xferLength > 1 && ch.currDstAddrInc >= 4u && xfer.currDstOffset >= 4u) {
+                if (xfer.xferLength > 1 && ch.currDstAddrInc >= 4u && currDstOffset >= 4u) {
                     // Let's double-increment just for fun, but only if the increment is at least 4 for some reason
-                    xfer.currDstAddr += ch.currDstAddrInc;
-                    xfer.currDstAddr &= 0x7FF'FFFF;
+                    currDstAddr += ch.currDstAddrInc;
+                    currDstAddr &= 0x7FF'FFFF;
                 }
             }
 
             // 16-bit -> 32-bit realignment
-            if (ch.currXferCount >= 2 && (xfer.currDstOffset & 2)) {
+            if (ch.currXferCount >= 2 && (currDstOffset & 2)) {
                 incDst();
-                uint32 addr = (xfer.currDstAddr | xfer.currDstOffset) & ~1u;
+                uint32 addr = (currDstAddr | currDstOffset) & ~1u;
 
                 // B-Bus shenanigans
-                if (ch.currDstAddrInc >= 4u && xfer.initialDstAlignment == 1u && xfer.currDstOffset + 2u >= 4u) {
+                if (ch.currDstAddrInc >= 4u && xfer.initialDstAlignment == 1u && currDstOffset + 2u >= 4u) {
                     // Might as well modify the address too, because who wants predictability?
                     addr += ch.currDstAddrInc;
                 }
 
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint16))) {
+                    return;
+                }
+
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
-                xfer.currDstOffset += 2;
-                ch.currXferCount -= 2;
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr, value);
 
+                currDstOffset += 2;
+                ch.currXferCount -= 2;
+
                 // B-Bus shenanigans
-                if (xfer.xferLength > 3 && xfer.initialDstAlignment == 1u && xfer.currDstOffset >= 4u) {
+                if (xfer.xferLength > 3 && xfer.initialDstAlignment == 1u && currDstOffset >= 4u) {
                     // Let's double-increment just for fun, but this time with the full increment value
-                    xfer.currDstAddr += ch.currDstAddrInc;
-                    xfer.currDstAddr &= 0x7FF'FFFF;
+                    currDstAddr += ch.currDstAddrInc;
+                    currDstAddr &= 0x7FF'FFFF;
                 }
             }
 
@@ -893,38 +937,49 @@ void SCU::RunDMA(uint64 cycles) {
             while (ch.currXferCount >= 4) {
                 incDst();
 
-                const uint32 addr1 = (xfer.currDstAddr | xfer.currDstOffset) & ~1u;
+                const uint32 addr1 = (currDstAddr | currDstOffset) & ~1u;
+                const uint32 addr2 = (((currDstAddr + ch.currDstAddrInc) & 0x7FF'FFFF) | currDstOffset) & ~1u;
+
+                if (checkReadStall() || checkWriteStall(addr1, sizeof(uint16)) ||
+                    checkWriteStall(addr2, sizeof(uint16))) {
+                    return;
+                }
+
                 const uint32 value1 = read16();
                 m_bus.Write<uint16>(addr1, value1);
-                xfer.currDstAddr += ch.currDstAddrInc;
-                xfer.currDstAddr &= 0x7FF'FFFF;
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr1, value1);
 
-                const uint32 addr2 = (xfer.currDstAddr | xfer.currDstOffset) & ~1u;
                 const uint32 value2 = read16();
                 m_bus.Write<uint16>(addr2, value2);
-                xfer.currDstOffset += 4;
-                ch.currXferCount -= 4;
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr2, value2);
+
+                currDstAddr += ch.currDstAddrInc;
+                currDstAddr &= 0x7FF'FFFF;
+                currDstOffset += 4;
+                ch.currXferCount -= 4;
 
                 // B-Bus shenanigans
                 if (ch.currXferCount == 0) {
                     // Sure, let's go backwards, who cares? The transfer is over anyway. It's not like we could
                     // chain multiple transfers in a row and reuse the previous write address... oh, wait.
-                    xfer.currDstAddr -= ch.currDstAddrInc;
-                    xfer.currDstAddr &= 0x7FF'FFFF;
+                    currDstAddr -= ch.currDstAddrInc;
+                    currDstAddr &= 0x7FF'FFFF;
                 }
             }
 
             // Final 16-bit transfer
             if (ch.currXferCount & 2) {
                 incDst();
-                const uint32 addr = (xfer.currDstAddr | xfer.currDstOffset) & ~1u;
+                const uint32 addr = (currDstAddr | currDstOffset) & ~1u;
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint16))) {
+                    return;
+                }
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
-                xfer.currDstOffset += 2;
-                ch.currXferCount -= 2;
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr, value);
+
+                currDstOffset += 2;
+                ch.currXferCount -= 2;
 
                 // This is the only well-behaved case; no shenanigans here
             }
@@ -932,24 +987,29 @@ void SCU::RunDMA(uint64 cycles) {
             // Final 8-bit transfer
             if (ch.currXferCount & 1) {
                 incDst();
-                uint32 addr = xfer.currDstAddr | xfer.currDstOffset;
+                uint32 addr = currDstAddr | currDstOffset;
 
                 // B-Bus shenanigans
-                if (xfer.xferLength > 1 && ch.currDstAddrInc >= 4u && (xfer.currDstOffset & 2u)) {
+                if (xfer.xferLength > 1 && ch.currDstAddrInc >= 4u && (currDstOffset & 2u)) {
                     // Are you surprised yet?
                     addr += ch.currDstAddrInc;
                 }
 
+                if (checkReadStall() || checkWriteStall(addr, sizeof(uint8))) {
+                    return;
+                }
+
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
-                xfer.currDstOffset += 1;
-                ch.currXferCount -= 1;
                 devlog::trace<grp::dma>("SCU DMA{}: 8-bit write to {:08X} -> {:02X}", level, addr, value);
+
+                currDstOffset += 1;
+                ch.currXferCount -= 1;
             }
         }
 
         devlog::trace<grp::dma>("SCU DMA{}: Addresses incremented to {:08X}, {:08X}", level, ch.currSrcAddr,
-                                xfer.currDstAddr);
+                                currDstAddr);
 
         assert(ch.currXferCount == 0);
 
@@ -966,12 +1026,12 @@ void SCU::RunDMA(uint64 cycles) {
                     ch.dstAddr = ch.currIndirectSrc;
                 } else if (dstBus == BusID::BBus) {
                     // Not even this is straightforward, believe it or not
-                    ch.dstAddr = ((xfer.currDstAddr & ~3u) | (xfer.currDstOffset & 3u)) + (xfer.currDstOffset & ~3u);
+                    ch.dstAddr = ((currDstAddr & ~3u) | (currDstOffset & 3u)) + (currDstOffset & ~3u);
                 } else {
-                    ch.dstAddr = (xfer.currDstAddr & ~3u) + xfer.currDstOffset;
+                    ch.dstAddr = (currDstAddr & ~3u) + currDstOffset;
                 }
             }
-            ch.currDstAddr = xfer.currDstAddr;
+            ch.currDstAddr = currDstAddr;
             TriggerDMAEnd(level);
             RecalcDMAChannel();
         }

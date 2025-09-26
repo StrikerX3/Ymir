@@ -2149,6 +2149,7 @@ void SH1::DMAC0DREQTransfer(std::span<uint8> data) {
     auto &ch = DMAC.channels[0];
 
     if (!IsDMATransferActive(ch)) {
+        devlog::trace<grp::dma>("DMAC0 DREQ-based transfer requested while channel is disabled");
         return;
     }
 
@@ -2157,8 +2158,8 @@ void SH1::DMAC0DREQTransfer(std::span<uint8> data) {
         return;
     }
 
-    devlog::trace<grp::dma>("DMAC0 DREQ-based transfer started: (internal) to {:08X}, {:04X} {} units", ch.srcAddress,
-                            ch.dstAddress, ch.xferCount, (ch.xferSize == DMATransferSize::Byte ? "byte" : "word"));
+    devlog::trace<grp::dma>("DMAC0 DREQ-based transfer started: (internal) to {:08X}, {:04X} {} units", ch.dstAddress,
+                            ch.xferCount, (ch.xferSize == DMATransferSize::Byte ? "byte" : "word"));
 
     static constexpr uint32 kXferSize[] = {1, 2};
     const uint32 xferSize = kXferSize[static_cast<uint32>(ch.xferSize)];

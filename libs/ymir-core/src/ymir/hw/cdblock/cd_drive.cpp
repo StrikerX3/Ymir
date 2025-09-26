@@ -449,7 +449,7 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
         return kDriveCyclesPlaying1x / m_readSpeed;
     }
 
-    devlog::trace<grp::lle_cd>("Read sector {:06X}", m_currFAD);
+    devlog::debug<grp::lle_cd>("Read sector {:06X}", m_currFAD);
 
     const auto &session = m_disc.sessions.back();
     const auto *track = session.FindTrack(m_currFAD);
