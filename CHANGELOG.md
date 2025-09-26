@@ -37,7 +37,7 @@ Introduced save state file version 10.
 - Media: Restrict ISO loader to files with the .iso extension to prevent users from loading .bin files instead of the .cue files.
 - Media: Tracks now include the unit sizes along with sector sizes, only needed for CHDs.
 - Rewind: Allow varying the size of the state struct. Fixes occasional crashes when rewinding.
-- SCU: Delay immediate transfers by 64 cycles. Fixes hangs in Advanced V.G., DeJig games, and several homebrew apps (#227, #399, #541, #620)
+- SCU: Delay immediate transfer interrupt signals by 48 cycles. Fixes hangs in Advanced V.G., DeJig games, and several homebrew apps (#227, #399, #541, #620)
 - SCU: Make DMA transfers interruptible to support LLE CD Block interactions.
 - VDP1: Adjust Y coordinate framebuffer offsets for erase process based on TVMR.TVM. Fixes erase glitches in Grandia when using transparent meshes.
 - VDP2: Clear framebuffer when switching resolutions. Fixes single-frame artifacts in multiple games that switch modes without clearing the screen.

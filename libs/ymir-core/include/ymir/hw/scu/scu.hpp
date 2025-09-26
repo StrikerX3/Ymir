@@ -205,7 +205,7 @@ private:
     void DMAReadIndirectTransfer(uint8 level);
 
     // Runs DMA transfers.
-    // The cycle counter is used to update delayed transfers.
+    // The cycle counter is used to trigger delayed interrupt signals.
     void RunDMA(uint64 cycles);
 
     void ForceRunImmediateDMA(uint32 index);

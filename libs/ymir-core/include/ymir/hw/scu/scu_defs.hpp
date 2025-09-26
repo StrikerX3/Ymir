@@ -98,10 +98,7 @@ inline BusID GetBusID(uint32 address) {
     }
 }
 
-// Number of cycles to delay immediate DMA transfers to VDP1/VDP2 area
-inline constexpr uint64 kImmediateDMAVDPDelay = 20;
-
-// Number of cycles to delay immediate DMA transfers to other areas
-inline constexpr uint64 kImmediateDMAOtherDelay = 64;
+// Number of cycles to delay immediate DMA transfer end interrupt signals
+inline constexpr uint64 kImmediateDMAIntrDelay = 48;
 
 } // namespace ymir::scu

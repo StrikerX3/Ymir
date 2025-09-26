@@ -49,7 +49,8 @@ struct DMAChannel {
         indirect = false;
         trigger = DMATrigger::Immediate;
 
-        startDelay = 0;
+        start = false;
+        intrDelay = 0;
         currSrcAddr = 0;
         currDstAddr = 0;
         currXferCount = 0;
@@ -82,7 +83,8 @@ struct DMAChannel {
     bool indirect;      // DxMOD - Mode (false=direct, true=indirect)
     DMATrigger trigger; // DxFT2-0 - DMA Starting Factor
 
-    uint32 startDelay;     // Start transfer in X cycles (0=no start, N=wait N cycles)
+    bool start;            // Start transfer on next cycle
+    uint32 intrDelay;      // Interrupt signal delay (0=no trigger, N=delay for N cycles)
     uint32 currSrcAddr;    // Current read address
     uint32 currDstAddr;    // Current write address
     uint32 currXferCount;  // Current transfer count (stops when == 0)
@@ -124,7 +126,8 @@ struct DMAChannel {
         state.active = active;
         state.indirect = indirect;
         state.trigger = static_cast<uint8>(trigger);
-        state.startDelay = startDelay;
+        state.start = start;
+        state.intrDelay = intrDelay;
         state.currSrcAddr = currSrcAddr;
         state.currDstAddr = currDstAddr;
         state.currXferCount = currXferCount;
@@ -185,7 +188,8 @@ struct DMAChannel {
         active = state.active;
         indirect = state.indirect;
         trigger = static_cast<DMATrigger>(state.trigger);
-        startDelay = state.startDelay;
+        start = state.start;
+        intrDelay = state.intrDelay;
         currSrcAddr = state.currSrcAddr;
         currDstAddr = state.currDstAddr;
         currXferCount = state.currXferCount;

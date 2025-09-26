@@ -666,29 +666,16 @@ void SCU::DMAReadIndirectTransfer(uint8 level) {
 }
 
 void SCU::RunDMA(uint64 cycles) {
-    // Decrement delay counters and start delayed DMA transfers
-    if (cycles > 0) {
-        bool needsUpdate = false;
-        for (auto &ch : m_dmaChannels) {
-            if (ch.active) {
-                // Transfer is already active
-                continue;
-            }
-            if (ch.startDelay == 0) {
-                // Not scheduled
-                continue;
-            }
-            if (cycles + 1 >= ch.startDelay) {
-                // Trigger now
-                ch.startDelay = 1;
-                needsUpdate = true;
-            } else {
-                // Decrement
-                ch.startDelay -= cycles;
-            }
+    for (uint32 level = 0; level < m_dmaChannels.size(); ++level) {
+        auto &ch = m_dmaChannels[level];
+        if (ch.intrDelay == 0) {
+            continue;
         }
-        if (needsUpdate) {
-            RecalcDMAChannel();
+        if (ch.intrDelay > cycles) {
+            ch.intrDelay -= cycles;
+        } else {
+            ch.intrDelay = 0;
+            TriggerDMAEnd(level);
         }
     }
 
@@ -1055,7 +1042,11 @@ void SCU::RunDMA(uint64 cycles) {
                 }
             }
             ch.currDstAddr = currDstAddr;
-            TriggerDMAEnd(level);
+            if (ch.trigger == DMATrigger::Immediate) {
+                ch.intrDelay = kImmediateDMAIntrDelay;
+            } else {
+                TriggerDMAEnd(level);
+            }
             RecalcDMAChannel();
         }
     }
@@ -1064,9 +1055,9 @@ void SCU::RunDMA(uint64 cycles) {
 FORCE_INLINE void SCU::ForceRunImmediateDMA(uint32 index) {
     assert(index < m_dmaChannels.size());
     auto &ch = m_dmaChannels[index];
-    if (ch.enabled && ch.trigger == DMATrigger::Immediate && (ch.active || ch.startDelay > 0)) {
+    if (ch.enabled && ch.trigger == DMATrigger::Immediate && (ch.active || ch.start)) {
         devlog::trace<grp::dma>("DMA{} finishing pending immediate DMA transfer", index);
-        RunDMA(ch.startDelay);
+        RunDMA(0);
     }
 }
 
@@ -1083,7 +1074,7 @@ void SCU::RecalcDMAChannel() {
             m_activeDMAChannelLevel = level;
             break;
         }
-        if (ch.startDelay != 1) {
+        if (!ch.start) {
             continue;
         }
 
@@ -1098,7 +1089,7 @@ void SCU::RecalcDMAChannel() {
             }
         };
 
-        ch.startDelay = 0;
+        ch.start = false;
         ch.active = true;
         if (ch.indirect) {
             ch.currIndirectSrc = ch.dstAddr;
@@ -1148,17 +1139,9 @@ FORCE_INLINE void SCU::TriggerImmediateDMA(uint32 index) {
     assert(index < m_dmaChannels.size());
     auto &ch = m_dmaChannels[index];
     if (ch.enabled && ch.trigger == DMATrigger::Immediate) {
-        devlog::trace<grp::dma>("SCU DMA{}: Delaying immediate transfer", index);
-        // HACK: use different delays depending on the destination area
-        // Exhumed shows graphics artifacts if the delay is too long
-        // Many games freeze/crash if too short
-        // Luckily, the difference is the target of the transfers: VDP vs. SCSP
-        // We can use different delays based on that
-        if (util::AddressInRange<0x5C0'0000, 0x5FB'FFFF>(ch.dstAddr)) {
-            ch.startDelay = kImmediateDMAVDPDelay;
-        } else {
-            ch.startDelay = kImmediateDMAOtherDelay;
-        }
+        devlog::trace<grp::dma>("SCU DMA{}: Transfer triggered immediately", index);
+        ch.start = true;
+        RecalcDMAChannel();
     }
 }
 
@@ -1167,7 +1150,7 @@ void SCU::TriggerDMATransfer(DMATrigger trigger) {
         auto &ch = m_dmaChannels[i];
         if (ch.enabled && !ch.active && ch.trigger == trigger) {
             devlog::trace<grp::dma>("SCU DMA{}: Transfer triggered by {}", i, ToString(trigger));
-            ch.startDelay = 1;
+            ch.start = true;
         }
     }
     RecalcDMAChannel();

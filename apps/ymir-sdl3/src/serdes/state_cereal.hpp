@@ -270,18 +270,16 @@ void serialize(Archive &ar, SCUDMAState &s, const uint32 version) {
     // v10:
     // - New fields
     //   - xfer
-    // - Changed fields
-    //   - bool start -> uint32 startDelay = same value as before
+    //   - intrDelay = 0
 
     ar(s.srcAddr, s.dstAddr, s.xferCount);
     ar(s.srcAddrInc, s.dstAddrInc, s.updateSrcAddr, s.updateDstAddr);
     ar(s.enabled, s.active, s.indirect, s.trigger);
+    ar(s.start);
     if (version >= 10) {
-        ar(s.startDelay);
+        ar(s.intrDelay);
     } else {
-        bool start{};
-        ar(start);
-        s.startDelay = start ? 1 : 0;
+        s.intrDelay = 0;
     }
     ar(s.currSrcAddr, s.currDstAddr, s.currXferCount);
     ar(s.currSrcAddrInc, s.currDstAddrInc);
