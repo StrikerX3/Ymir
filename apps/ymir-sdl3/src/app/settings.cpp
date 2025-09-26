@@ -2,6 +2,8 @@
 
 #include <app/shared_context.hpp>
 
+#include <app/events/emu_event_factory.hpp>
+
 #include <ymir/sys/saturn.hpp>
 
 #include <ymir/util/dev_log.hpp>
@@ -759,6 +761,7 @@ void Settings::ResetToDefaults() {
     cartridge.autoLoadGameCarts = true;
 
     cdblock.readSpeedFactor = 2;
+    cdblock.useLLE = false;
 }
 
 void Settings::BindConfiguration(ymir::core::Configuration &config) {
@@ -770,14 +773,17 @@ void Settings::BindConfiguration(ymir::core::Configuration &config) {
     system.rtc.virtHardResetStrategy.Observe([&](auto value) { config.rtc.virtHardResetStrategy = value; });
     system.rtc.virtHardResetTimestamp.Observe([&](auto value) { config.rtc.virtHardResetTimestamp = value; });
 
-    video.threadedVDP.Observe([&](auto value) { config.video.threadedVDP = value; });
-    video.threadedDeinterlacer.Observe([&](auto value) { config.video.threadedDeinterlacer = value; });
-    video.includeVDP1InRenderThread.Observe([&](auto value) { config.video.includeVDP1InRenderThread = value; });
+    video.threadedVDP.Observe([&](auto value) { m_context.EnqueueEvent(events::emu::EnableThreadedVDP(value)); });
+    video.threadedDeinterlacer.Observe(
+        [&](auto value) { m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(value)); });
+    video.includeVDP1InRenderThread.Observe(
+        [&](auto value) { m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(value)); });
 
     audio.interpolation.Observe([&](auto value) { config.audio.interpolation = value; });
-    audio.threadedSCSP.Observe([&](auto value) { config.audio.threadedSCSP = value; });
+    audio.threadedSCSP.Observe([&](auto value) { m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(value)); });
 
     cdblock.readSpeedFactor.Observe([&](auto value) { config.cdblock.readSpeedFactor = value; });
+    cdblock.useLLE.Observe([&](auto value) { m_context.EnqueueEvent(events::emu::SetCDBlockLLE(value)); });
 }
 
 SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
@@ -1170,6 +1176,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
 
     if (auto tblCDBlock = data["CDBlock"]) {
         Parse(tblCDBlock, "ReadSpeed", cdblock.readSpeedFactor);
+        Parse(tblCDBlock, "UseLLE", cdblock.useLLE);
     }
 
     this->path = path;
@@ -1565,6 +1572,7 @@ SettingsSaveResult Settings::Save() {
 
         {"CDBlock", toml::table{{
             {"ReadSpeed", cdblock.readSpeedFactor.Get()},
+            {"UseLLE", cdblock.useLLE.Get()},
         }}},
     }};
     // clang-format on

@@ -493,6 +493,10 @@ EmuEvent SetEmulateSH2Cache(bool enable) {
     });
 }
 
+EmuEvent SetCDBlockLLE(bool enable) {
+    return RunFunction([=](SharedContext &ctx) { ctx.saturn.instance->configuration.cdblock.useLLE = enable; });
+}
+
 EmuEvent EnableThreadedVDP(bool enable) {
     return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedVDP = enable; });
 }
@@ -613,10 +617,12 @@ EmuEvent LoadState(uint32 slot) {
                 if (iplROMData) {
                     ctx.saturn.instance->LoadIPL(std::span<uint8, sys::kIPLSize>(*iplROMData));
                     ctx.iplRomPath = candidateIPLROMPath;
+                    ctx.DisplayMessage(fmt::format("IPL ROM used by save state loaded from {}", ctx.iplRomPath));
                 }
                 if (cdbROMData) {
                     ctx.saturn.instance->LoadCDBlockROM(std::span<uint8, sh1::kROMSize>(*cdbROMData));
                     ctx.cdbRomPath = candidateCDBROMPath;
+                    ctx.DisplayMessage(fmt::format("CD block ROM used by save state loaded from {}", ctx.cdbRomPath));
                 }
 
                 ctx.EnqueueEvent(events::gui::StateLoaded(slot));

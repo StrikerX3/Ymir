@@ -715,7 +715,6 @@ void Saturn::UpdateVideoStandard(core::config::sys::VideoStandard videoStandard)
 void Saturn::SetCDBlockLLE(bool enabled) {
     if (m_cdblockLLE != enabled) {
         m_cdblockLLE = enabled;
-        // TODO: move disc out of CDBlock/CDDrive and make CDBlock/CDDrive refer to that instance instead of owning it
         if (m_cdblockLLE) {
             YGR.MapMemory(mainBus);
         } else {

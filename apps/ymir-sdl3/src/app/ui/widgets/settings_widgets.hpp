@@ -31,7 +31,8 @@ namespace settings::audio {
 namespace settings::cdblock {
 
     void CDReadSpeed(SharedContext &ctx);
+    void CDBlockLLE(SharedContext &ctx);
 
-}
+} // namespace settings::cdblock
 
 } // namespace app::ui::widgets

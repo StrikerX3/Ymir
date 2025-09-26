@@ -381,7 +381,6 @@ int App::Run(const CommandLineOptions &options) {
     devlog::debug<grp::base>("Profile directory: {}", m_context.profile.GetPath(ProfilePath::Root));
 
     m_context.saturn.instance->UsePreferredRegion();
-    m_context.saturn.instance->configuration.cdblock.useLLE = false;
 
     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
 

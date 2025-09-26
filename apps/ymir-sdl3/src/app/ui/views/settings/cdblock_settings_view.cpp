@@ -13,6 +13,14 @@ void CDBlockSettingsView::Display() {
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Accuracy");
+    ImGui::PopFont();
+
+    widgets::settings::cdblock::CDBlockLLE(m_context);
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Tweaks");
     ImGui::PopFont();
 

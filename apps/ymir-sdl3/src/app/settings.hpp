@@ -453,6 +453,7 @@ struct Settings {
 
     struct CDBlock {
         util::Observable<uint8> readSpeedFactor;
+        util::Observable<bool> useLLE;
     } cdblock;
 
     // ---------------------------------------------------------------------------------------------

@@ -301,6 +301,22 @@ namespace settings::cdblock {
         }
     }
 
+    void CDBlockLLE(SharedContext &ctx) {
+        auto &config = ctx.settings.cdblock;
+
+        bool useLLE = config.useLLE;
+        if (ctx.settings.MakeDirty(ImGui::Checkbox("Use low level CD Block emulation", &useLLE))) {
+            config.useLLE = useLLE;
+        }
+        widgets::ExplanationTooltip("Choose between high or low level CD Block emulation.\n"
+                                    "High level emulation is faster, but has lower compatibility.\n"
+                                    "Low level emulation is much more accurate, but also more demanding and requires a "
+                                    "valid CD block ROM image.\n"
+                                    "\n"
+                                    "Changing this option causes a hard reset.",
+                                    ctx.displayScale);
+    }
+
 } // namespace settings::cdblock
 
 } // namespace app::ui::widgets
