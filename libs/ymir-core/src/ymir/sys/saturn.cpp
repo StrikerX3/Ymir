@@ -55,7 +55,7 @@ Saturn::Saturn()
     , SCSP(m_scheduler, configuration.audio)
     , CDBlock(m_scheduler, m_disc, m_fs, configuration.cdblock)
     , SH1(SH1Bus)
-    , CDDrive(m_scheduler, m_disc) {
+    , CDDrive(m_scheduler, m_disc, configuration.cdblock) {
 
     mainBus.MapNormal(
         0x000'0000, 0x7FF'FFFF, nullptr,
@@ -715,7 +715,7 @@ void Saturn::UpdateVideoStandard(core::config::sys::VideoStandard videoStandard)
 void Saturn::SetCDBlockLLE(bool enabled) {
     if (m_cdblockLLE != enabled) {
         m_cdblockLLE = enabled;
-        if (m_cdblockLLE) {
+        if (enabled) {
             YGR.MapMemory(mainBus);
         } else {
             CDBlock.MapMemory(mainBus);

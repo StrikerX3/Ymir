@@ -775,14 +775,12 @@ void Settings::BindConfiguration(ymir::core::Configuration &config) {
     system.rtc.virtHardResetStrategy.Observe([&](auto value) { config.rtc.virtHardResetStrategy = value; });
     system.rtc.virtHardResetTimestamp.Observe([&](auto value) { config.rtc.virtHardResetTimestamp = value; });
 
-    video.threadedVDP.Observe([&](auto value) { m_context.EnqueueEvent(events::emu::EnableThreadedVDP(value)); });
-    video.threadedDeinterlacer.Observe(
-        [&](auto value) { m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(value)); });
-    video.includeVDP1InRenderThread.Observe(
-        [&](auto value) { m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(value)); });
+    video.threadedVDP.Observe([&](auto value) { config.video.threadedVDP = value; });
+    video.threadedDeinterlacer.Observe([&](auto value) { config.video.threadedDeinterlacer = value; });
+    video.includeVDP1InRenderThread.Observe([&](auto value) { config.video.includeVDP1InRenderThread = value; });
 
     audio.interpolation.Observe([&](auto value) { config.audio.interpolation = value; });
-    audio.threadedSCSP.Observe([&](auto value) { m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(value)); });
+    audio.threadedSCSP.Observe([&](auto value) { config.audio.threadedSCSP = value; });
 
     cdblock.readSpeedFactor.Observe([&](auto value) { config.cdblock.readSpeedFactor = value; });
     cdblock.useLLE.Observe([&](auto value) { m_context.EnqueueEvent(events::emu::SetCDBlockLLE(value)); });

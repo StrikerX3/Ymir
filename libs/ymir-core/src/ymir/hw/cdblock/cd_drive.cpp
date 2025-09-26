@@ -11,7 +11,7 @@
 
 namespace ymir::cdblock {
 
-CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc)
+CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc, core::Configuration::CDBlock &config)
     : m_scheduler(scheduler)
     , m_disc(disc) {
 
@@ -20,6 +20,13 @@ CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc)
             const uint64 cycleInterval = static_cast<CDDrive *>(userContext)->ProcessTxState();
             eventContext.Reschedule(cycleInterval);
         });
+
+    config.useLLE.ObserveAndNotify([&](bool useLLE) {
+        m_eventsEnabled = useLLE;
+        if (!m_eventsEnabled) {
+            m_scheduler.Cancel(m_stateEvent);
+        }
+    });
 
     m_autoCloseTray = false;
 
@@ -48,7 +55,9 @@ void CDDrive::Reset() {
 
     m_readSpeed = 1;
 
-    m_scheduler.ScheduleAt(m_stateEvent, 0);
+    if (m_eventsEnabled) {
+        m_scheduler.ScheduleAt(m_stateEvent, 0);
+    }
 }
 
 void CDDrive::UpdateClockRatios(const sys::ClockRatios &clockRatios) {

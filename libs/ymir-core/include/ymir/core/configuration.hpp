@@ -94,6 +94,8 @@ struct Configuration {
             config::audio::SampleInterpolationMode::Linear;
 
         /// @brief Runs the SCSP and MC68EC000 CPU in a dedicated thread.
+        ///
+        /// Currently unimplemented.
         util::Observable<bool> threadedSCSP = false;
     } audio;
 

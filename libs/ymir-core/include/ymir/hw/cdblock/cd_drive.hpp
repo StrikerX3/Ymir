@@ -14,6 +14,7 @@
 #include <ymir/media/disc.hpp>
 #include <ymir/media/filesystem.hpp>
 
+#include <ymir/core/configuration.hpp>
 #include <ymir/core/hash.hpp>
 #include <ymir/core/types.hpp>
 
@@ -23,7 +24,7 @@ namespace ymir::cdblock {
 
 class CDDrive {
 public:
-    CDDrive(core::Scheduler &scheduler, const media::Disc &disc);
+    CDDrive(core::Scheduler &scheduler, const media::Disc &disc, core::Configuration::CDBlock &config);
 
     void Reset();
 
@@ -61,6 +62,7 @@ public:
 private:
     core::Scheduler &m_scheduler;
     core::EventID m_stateEvent;
+    bool m_eventsEnabled;
 
     CBSetCOMSYNCn m_cbSetCOMSYNCn;
     CBSetCOMREQn m_cbSetCOMREQn;

@@ -287,7 +287,9 @@ namespace settings::cdblock {
         ImGui::TextUnformatted("CD read speed");
         widgets::ExplanationTooltip("Changes the maximum read speed of the emulated CD drive.\n"
                                     "The default value is 2x, matching the real Saturn's CD drive speed.\n"
-                                    "Higher speeds decrease load times but may reduce compatibility.",
+                                    "Higher speeds decrease load times but may reduce compatibility.\n"
+                                    "\n"
+                                    "This option is unavailable when using low level CD block emulation.",
                                     ctx.displayScale);
 
         ImGui::SameLine();

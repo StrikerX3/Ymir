@@ -66,6 +66,7 @@ private:
     core::Scheduler &m_scheduler;
     core::EventID m_driveStateUpdateEvent;
     core::EventID m_commandExecEvent;
+    bool m_eventsEnabled;
 
     static void OnDriveStateUpdateEvent(core::EventContext &eventContext, void *userContext);
     static void OnCommandExecEvent(core::EventContext &eventContext, void *userContext);

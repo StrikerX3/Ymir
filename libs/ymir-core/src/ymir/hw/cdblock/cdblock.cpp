@@ -61,6 +61,14 @@ CDBlock::CDBlock(core::Scheduler &scheduler, const media::Disc &disc, const medi
     });
     m_readSpeedFactor = 2;
 
+    config.useLLE.ObserveAndNotify([&](bool useLLE) {
+        m_eventsEnabled = !useLLE;
+        if (!m_eventsEnabled) {
+            m_scheduler.Cancel(m_driveStateUpdateEvent);
+            m_scheduler.Cancel(m_commandExecEvent);
+        }
+    });
+
     for (int i = 0; auto &filter : m_filters) {
         filter.index = i;
         i++;
@@ -87,7 +95,9 @@ void CDBlock::Reset(bool hard) {
 
     m_currDriveCycles = 0;
     m_targetDriveCycles = kDriveCyclesNotPlaying;
-    m_scheduler.ScheduleFromNow(m_driveStateUpdateEvent, 0);
+    if (m_eventsEnabled) {
+        m_scheduler.ScheduleFromNow(m_driveStateUpdateEvent, 0);
+    }
 
     m_playStartParam = 0;
     m_playEndParam = 0;
