@@ -91,8 +91,16 @@ inline GUIEvent TryLoadIPLROM(std::filesystem::path path) {
     return {.type = GUIEvent::Type::TryLoadIPLROM, .value = path};
 }
 
+inline GUIEvent TryLoadCDBlockROM(std::filesystem::path path) {
+    return {.type = GUIEvent::Type::TryLoadCDBlockROM, .value = path};
+}
+
 inline GUIEvent ReloadIPLROM() {
     return {.type = GUIEvent::Type::ReloadIPLROM};
+}
+
+inline GUIEvent ReloadCDBlockROM() {
+    return {.type = GUIEvent::Type::ReloadCDBlockROM};
 }
 
 inline GUIEvent TakeScreenshot() {

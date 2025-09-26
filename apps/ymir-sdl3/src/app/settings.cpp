@@ -762,6 +762,8 @@ void Settings::ResetToDefaults() {
 
     cdblock.readSpeedFactor = 2;
     cdblock.useLLE = false;
+    cdblock.overrideROM = false;
+    cdblock.romPath = "";
 }
 
 void Settings::BindConfiguration(ymir::core::Configuration &config) {
@@ -1177,6 +1179,9 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
     if (auto tblCDBlock = data["CDBlock"]) {
         Parse(tblCDBlock, "ReadSpeed", cdblock.readSpeedFactor);
         Parse(tblCDBlock, "UseLLE", cdblock.useLLE);
+        Parse(tblCDBlock, "OverrideROM", cdblock.overrideROM);
+        Parse(tblCDBlock, "ROMPath", cdblock.romPath);
+        cdblock.romPath = Absolute(ProfilePath::CDBlockROMImages, cdblock.romPath);
     }
 
     this->path = path;
@@ -1573,6 +1578,8 @@ SettingsSaveResult Settings::Save() {
         {"CDBlock", toml::table{{
             {"ReadSpeed", cdblock.readSpeedFactor.Get()},
             {"UseLLE", cdblock.useLLE.Get()},
+            {"OverrideROM", cdblock.overrideROM},
+            {"ROMPath", Proximate(ProfilePath::CDBlockROMImages, cdblock.romPath).native()},
         }}},
     }};
     // clang-format on

@@ -2061,6 +2061,35 @@ void App::RunEmulator() {
                 }
                 break;
             }
+            case EvtType::TryLoadCDBlockROM: //
+            {
+                auto path = std::get<std::filesystem::path>(evt.value);
+                auto result = util::LoadCDBlockROM(path, *m_context.saturn.instance);
+                if (result.succeeded) {
+                    if (m_context.settings.cdblock.romPath != path) {
+                        m_context.settings.cdblock.romPath = path;
+                        m_context.settings.MakeDirty();
+                        if (m_context.settings.cdblock.useLLE) {
+                            m_context.EnqueueEvent(events::emu::HardReset());
+                        }
+                    }
+                } else {
+                    OpenSimpleErrorModal(
+                        fmt::format("Failed to load CD block ROM from \"{}\": {}", path, result.errorMessage));
+                }
+                break;
+            }
+            case EvtType::ReloadCDBlockROM: //
+            {
+                util::ROMLoadResult result = LoadCDBlockROM();
+                if (result.succeeded) {
+                    m_context.EnqueueEvent(events::emu::HardReset());
+                } else {
+                    OpenSimpleErrorModal(fmt::format("Failed to reload CD block ROM from \"{}\": {}",
+                                                     m_context.cdbRomPath, result.errorMessage));
+                }
+                break;
+            }
 
             case EvtType::TakeScreenshot: //
             {
@@ -4176,13 +4205,13 @@ util::ROMLoadResult App::LoadCDBlockROM() {
 }
 
 std::filesystem::path App::GetCDBlockROMPath() {
-    // TODO: Load from settings if override is enabled
-    /*if (m_context.settings.cdblock.overrideImage && !m_context.settings.cdblock.romPath.empty()) {
+    // Load from settings if override is enabled
+    if (m_context.settings.cdblock.overrideROM && !m_context.settings.cdblock.romPath.empty()) {
         devlog::info<grp::base>("Using CD Block ROM overridden by settings");
         return m_context.settings.cdblock.romPath;
-    }*/
+    }
 
-    // Use first available match
+    // Use first available match otherwise
     if (!m_context.romManager.GetCDBlockROMs().empty()) {
         return m_context.romManager.GetCDBlockROMs().begin()->first;
     }

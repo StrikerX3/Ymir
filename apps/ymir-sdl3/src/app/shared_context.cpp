@@ -137,6 +137,10 @@ ymir::XXH128Hash SharedContext::SaturnContainer::GetIPLHash() const {
     return instance->GetIPLHash();
 }
 
+ymir::XXH128Hash SharedContext::SaturnContainer::GetCDBlockROMHash() const {
+    return instance->SH1.GetROMHash();
+}
+
 ymir::XXH128Hash SharedContext::SaturnContainer::GetDiscHash() const {
     return instance->GetDiscHash();
 }

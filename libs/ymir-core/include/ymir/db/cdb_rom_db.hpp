@@ -7,11 +7,13 @@
 
 #include <ymir/core/hash.hpp>
 
+#include <string_view>
+
 namespace ymir::db {
 
 /// @brief Information about a CD Block ROM in the database.
 struct CDBlockROMInfo {
-    const char *version; ///< CD Block ROM version string
+    std::string_view version; ///< CD Block ROM version string
 };
 
 /// @brief Retrieves information about a CD Block ROM image given its XXH128 hash.

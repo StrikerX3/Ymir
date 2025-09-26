@@ -163,6 +163,7 @@ struct SharedContext {
         bool IsDebugTracingEnabled() const;
 
         [[nodiscard]] ymir::XXH128Hash GetIPLHash() const;
+        [[nodiscard]] ymir::XXH128Hash GetCDBlockROMHash() const;
         [[nodiscard]] ymir::XXH128Hash GetDiscHash() const;
         [[nodiscard]] const ymir::media::Disc &GetDisc() const;
 
