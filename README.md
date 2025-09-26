@@ -34,6 +34,7 @@ Grab the latest release: [stable](https://github.com/StrikerX3/Ymir/releases/lat
 - Rewinding (up to one minute at 60 fps), turbo speed, frame step (forwards and backwards)
 - Full screen mode with VRR support and low input lag
 - Graphics enhancements such as optional deinterlaced/progressive rendering of high resolution modes and transparent mesh polygon rendering
+- Optional low level CD block emulation
 - A work-in-progress feature-rich debugger
 
 Ymir runs on Windows 10 or later, macOS 13 (Ventura) or later, most modern Linux distributions and FreeBSD, and supports x86-64 (Intel, AMD) and ARM CPUs.
