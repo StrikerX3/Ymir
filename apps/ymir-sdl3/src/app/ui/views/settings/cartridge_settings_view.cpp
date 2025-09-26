@@ -256,7 +256,7 @@ void CartridgeSettingsView::DrawDRAMSettings() {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Capacity:");
     ImGui::SameLine();
-    if (MakeDirty(ImGui::RadioButton("48 Mbit (6 MiB)", settings.capacity == DRAMCap::_48Mbit))) {
+    if (MakeDirty(ImGui::RadioButton("48 Mbit (6 MiB) (dev)", settings.capacity == DRAMCap::_48Mbit))) {
         settings.capacity = DRAMCap::_48Mbit;
     }
     ImGui::SameLine();
