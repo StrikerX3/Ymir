@@ -87,6 +87,12 @@ public:
         m_cbDebugPortWrite = callback;
     }
 
+    // Checks if a DMA transfer is active.
+    // This is used to stall the SH-2s.
+    bool IsDMAActive() const {
+        return m_activeDMAChannelLevel < m_dmaChannels.size();
+    }
+
     // -------------------------------------------------------------------------
     // Cartridge slot
 

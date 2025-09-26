@@ -85,9 +85,6 @@ void YGR::MapMemory(sys::SH2Bus &mainBus) {
                     return false;
                 }
 
-                // Force transfer if possible
-                ygr.m_cbStepDMAC1(size);
-
                 if (write) {
                     return ygr.m_fifo.Free() < size / sizeof(uint16);
                 } else {

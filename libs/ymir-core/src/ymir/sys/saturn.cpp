@@ -498,44 +498,51 @@ bool Saturn::Run() {
 
     const uint64 cycles = static_config::max_timing_granularity ? 1 : std::max<sint64>(m_scheduler.RemainingCount(), 0);
 
-    uint64 execCycles = m_msh2SpilloverCycles;
-    m_msh2SpilloverCycles = 0;
-    if (slaveSH2Enabled) {
-        uint64 slaveCycles = m_ssh2SpilloverCycles;
-        do {
-            const uint64 prevExecCycles = execCycles;
-            const uint64 targetCycles = std::min(execCycles + kSH2SyncMaxStep, cycles);
-            execCycles = masterSH2.Advance<debug, enableSH2Cache>(targetCycles, execCycles);
-            slaveCycles = slaveSH2.Advance<debug, enableSH2Cache>(execCycles, slaveCycles);
-            SCU.Advance<debug>(execCycles - prevExecCycles);
-            if constexpr (debug) {
-                if (m_debugBreakMgr.IsDebugBreakRaised()) {
-                    break;
+    uint64 execCycles;
+    if (SCU.IsDMAActive()) {
+        // Stall both SH2 CPUs and only run the SCU and other stuff
+        execCycles = cycles;
+        SCU.Advance<debug>(execCycles);
+    } else {
+        execCycles = m_msh2SpilloverCycles;
+        m_msh2SpilloverCycles = 0;
+        if (slaveSH2Enabled) {
+            uint64 slaveCycles = m_ssh2SpilloverCycles;
+            do {
+                const uint64 prevExecCycles = execCycles;
+                const uint64 targetCycles = std::min(execCycles + kSH2SyncMaxStep, cycles);
+                execCycles = masterSH2.Advance<debug, enableSH2Cache>(targetCycles, execCycles);
+                slaveCycles = slaveSH2.Advance<debug, enableSH2Cache>(execCycles, slaveCycles);
+                SCU.Advance<debug>(execCycles - prevExecCycles);
+                if constexpr (debug) {
+                    if (m_debugBreakMgr.IsDebugBreakRaised()) {
+                        break;
+                    }
                 }
-            }
-        } while (execCycles < cycles);
-        if constexpr (debug) {
-            // If the SSH2 hits a breakpoint early, the cycle count may be shorter than the total executed cycles.
-            if (slaveCycles > execCycles) {
-                m_ssh2SpilloverCycles = slaveCycles - execCycles;
+            } while (execCycles < cycles);
+            if constexpr (debug) {
+                // If the SSH2 hits a breakpoint early, the cycle count may be shorter than the total executed cycles.
+                if (slaveCycles > execCycles) {
+                    m_ssh2SpilloverCycles = slaveCycles - execCycles;
+                } else {
+                    m_msh2SpilloverCycles = execCycles - slaveCycles;
+                }
             } else {
-                m_msh2SpilloverCycles = execCycles - slaveCycles;
+                m_ssh2SpilloverCycles = slaveCycles - execCycles;
             }
         } else {
-            m_ssh2SpilloverCycles = slaveCycles - execCycles;
-        }
-    } else {
-        do {
-            const uint64 prevExecCycles = execCycles;
-            const uint64 targetCycles = std::min(execCycles + kSH2SyncMaxStep, cycles);
-            execCycles = masterSH2.Advance<debug, enableSH2Cache>(targetCycles, execCycles);
-            SCU.Advance<debug>(execCycles - prevExecCycles);
-            if constexpr (debug) {
-                if (m_debugBreakMgr.IsDebugBreakRaised()) {
-                    break;
+            do {
+                const uint64 prevExecCycles = execCycles;
+                const uint64 targetCycles = std::min(execCycles + kSH2SyncMaxStep, cycles);
+                execCycles = masterSH2.Advance<debug, enableSH2Cache>(targetCycles, execCycles);
+                SCU.Advance<debug>(execCycles - prevExecCycles);
+                if constexpr (debug) {
+                    if (m_debugBreakMgr.IsDebugBreakRaised()) {
+                        break;
+                    }
                 }
-            }
-        } while (execCycles < cycles);
+            } while (execCycles < cycles);
+        }
     }
     VDP.Advance<debug>(execCycles);
 
@@ -574,6 +581,24 @@ bool Saturn::Run() {
 
 template <bool debug, bool enableSH2Cache, bool cdblockLLE>
 uint64 Saturn::StepMasterSH2Impl() {
+    while (SCU.IsDMAActive()) {
+        const uint64 cycles = 64;
+        SCU.Advance<debug>(cycles);
+        VDP.Advance<debug>(cycles);
+        if constexpr (cdblockLLE) {
+            // Advance SH-1
+            const auto &clockRatios = GetClockRatios();
+            const uint64 sh1Cycles = cycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+            if (sh1Cycles > 0) {
+                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
+                m_sh1SpilloverCycles = execCycles - sh1Cycles;
+            }
+
+            // CD drive is ticked by the scheduler
+        }
+        m_scheduler.Advance(cycles);
+    }
+
     uint64 masterCycles = masterSH2.Step<debug, enableSH2Cache>();
     if (masterCycles >= m_msh2SpilloverCycles) {
         masterCycles -= m_msh2SpilloverCycles;
@@ -618,6 +643,24 @@ template <bool debug, bool enableSH2Cache, bool cdblockLLE>
 uint64 Saturn::StepSlaveSH2Impl() {
     if (!slaveSH2Enabled) {
         return 0;
+    }
+
+    while (SCU.IsDMAActive()) {
+        const uint64 cycles = 64;
+        SCU.Advance<debug>(cycles);
+        VDP.Advance<debug>(cycles);
+        if constexpr (cdblockLLE) {
+            // Advance SH-1
+            const auto &clockRatios = GetClockRatios();
+            const uint64 sh1Cycles = cycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
+            if (sh1Cycles > 0) {
+                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
+                m_sh1SpilloverCycles = execCycles - sh1Cycles;
+            }
+
+            // CD drive is ticked by the scheduler
+        }
+        m_scheduler.Advance(cycles);
     }
 
     uint64 slaveCycles = slaveSH2.Step<debug, enableSH2Cache>();
