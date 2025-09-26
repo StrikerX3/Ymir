@@ -10,7 +10,19 @@ Introduced save state file version 10.
 
 - Build: Create macOS app bundle. (#591; @tegaidogun)
 - Cart: Add 6 MiB development DRAM cartridge, required by the Heart of Darkness prototype. (#584)
-- CD Block: Implemented low-level emulation mode.
+- CD Block: Implemented optional low-level emulation mode. Requires valid CD Block ROMs and has considerable performance cost, but fixes numerous issues when enabled:
+    - Gunbird music no longer stops when pausing and resuming the game (#625)
+    - X-Men: Children of the Atom no longer hangs on the loading screen (#488)
+    - Mr. Bones is now 100% stable (#494)
+    - Several games now boot properly:
+        - Primal Rage (USA) (#225)
+        - Hop Step Idol (#512)
+        - Hissatsu Pachinko Collection (#536)
+        - DonPachi (#475)
+        - Shichuu Suimei Pitagraph (#549)
+        - Deroon Dero Dero (#501)
+        - Sol Divide (#470)
+        - ... and probably more
 - GameDB: Include Heart of Darkness prototype to automatically insert the 6 MiB development DRAM cartridge, allowing it to go in-game. (#584)
 - GameDB: Support for using disc hashes to the database in addition to product codes.
 - SH2: Cycle count DMAC transfers. Necessary for CD Block LLE.
@@ -83,13 +95,13 @@ Introduced save state file version 9.
 - Media: Rewrite CUE parser to hopefully fix some audio skipping issues.
 - SCSP: Allow M68K to fetch instructions from SCSP registers. Fixes CroNSF audio playback.
 - SCSP: Fix check for attack stuck bug when KRS=0xF. Fixes issues in multiple games:
-	- Announcer voice in DonPachi's title screen is now playing consistently (#475)
-	- Both games in Sega Ages - I Love Mickey Mouse - Fushigi no Oshiro Daibouken & I Love Donald Duck - Georgia Ou no Hihou now play their songs correctly (#498)
-	- All games in Sega Ages: Phantasy Star Collection now play their songs correctly (#499)
-	- "Xing" voice line in Arcade Gears Vol. 2 - Gun Frontier's boot up (#467)
-	- Character voice lines in Langrisser III (#426)
-	- Character voice lines in AnEarth Fantasy Stories - The First Volume (#358)
-	- Voice lines during intro and throughout the game in Rapyulus Panic (#338)
+    - Announcer voice in DonPachi's title screen is now playing consistently (#475)
+    - Both games in Sega Ages - I Love Mickey Mouse - Fushigi no Oshiro Daibouken & I Love Donald Duck - Georgia Ou no Hihou now play their songs correctly (#498)
+    - All games in Sega Ages: Phantasy Star Collection now play their songs correctly (#499)
+    - "Xing" voice line in Arcade Gears Vol. 2 - Gun Frontier's boot up (#467)
+    - Character voice lines in Langrisser III (#426)
+    - Character voice lines in AnEarth Fantasy Stories - The First Volume (#358)
+    - Voice lines during intro and throughout the game in Rapyulus Panic (#338)
 - SCSP: Don't use SBCTL on slots that are playing samples from Sound RAM when the EG reaches the silence threshold. Fixes busted audio in Guardian Heroes and Elevator Action^2. (#155)
 - SCSP: Silence audio when MVOL=0. Fixes lingering sound/music when pausing in Sega Ages - Galaxy Force II. (#427)
 - SCU: Properly handle 8-bit and 16-bit writes to registers. Fixes Phantasy Star IV graphics in Phantasy Star Collection. (#499)
@@ -114,14 +126,14 @@ Introduced save state file version 9.
 - VDP1: Primitive cycle counting to work around some games that horribly abuse the VDP1, such as Baroque, Dark Seed II, and Funky Fantasy. (#311, #316, #364)
 - VDP1: Remove write penalty hack introduced earlier for Mega Man X3's sprites. Fixes multiple issues:
     - Missing sprites in Seikai Risshiden - Yoi Kuni, Yoi Seiji, and Jissen Pachinko Hisshou-hou! Twin (#425, #537)
-	- Flashing sprites in Alone in the Dark - One-Eyed Jacks Revenge, Cleaning Kit for Sega Saturn, and Contra - Legacy of War (#337, #412, #458)
-	- Flashing FMVs in Funky Fantasy, World Cup Golf - Professional Edition, and Magic Carpet (#311, #516, #561)
-	- Flickering letters in the mission briefing screens in Alien Trilogy (#394)
+    - Flashing sprites in Alone in the Dark - One-Eyed Jacks Revenge, Cleaning Kit for Sega Saturn, and Contra - Legacy of War (#337, #412, #458)
+    - Flashing FMVs in Funky Fantasy, World Cup Golf - Professional Edition, and Magic Carpet (#311, #516, #561)
+    - Flickering letters in the mission briefing screens in Alien Trilogy (#394)
 - VDP1: Rework scaled sprite rendering to correctly handle undocumented zoom point settings.
 - VDP1: Rework erase/swap timings. Fixes numerous issues:
-	- Screen flashing in Ayakashi Ninden Kunoichiban Plus (#478)
-	- Flashing map in the demo version of Drift King Shutokou Battle '97 - Tsuchiya Keiichi & Bandou Masaaki (#493)
-	- Every other interlace field missing in Virtual Mahjong 2 - My Fair Lady (#509)
+    - Screen flashing in Ayakashi Ninden Kunoichiban Plus (#478)
+    - Flashing map in the demo version of Drift King Shutokou Battle '97 - Tsuchiya Keiichi & Bandou Masaaki (#493)
+    - Every other interlace field missing in Virtual Mahjong 2 - My Fair Lady (#509)
 - VDP2: Adjust line width for RBG line color insertion. Fixes half of the field not being colored in World League Soccer '98. (#517)
 - VDP2: Always read line screen scroll data even for disabled NBGs. Fixes one-frame offset on system settings screen and Deep Fear's GUI elements.
 - VDP2: Don't draw out of bounds areas of the sprite layer when rotated. Fixes ground-on-sky glitch in Sega Ages - Power Drift. (#492)
@@ -142,8 +154,8 @@ Introduced save state file version 9.
 - VDP2: Invert TVSTAT.ODD bit on single-density interlaced modes too. Fixes swapped interlaced fields in Pro-Pinball: The Web and Shienryuu. (#447)
 - VDP2: Implement VCNT skip as a dedicated vertical phase. (thanks to @celeriyacon)
 - VDP2: Latch TVMD.DISP and TVMD.BDCLMD at start of the frame. Fixes:
-	- Garbage graphics after loading screen in Samurai Spirits - Zankurou Musouken (#472)
-	- One-frame glitches in Ayakashi Ninden Kunoichiban Plus and Ninpen Manmaru (#478, #569)
+    - Garbage graphics after loading screen in Samurai Spirits - Zankurou Musouken (#472)
+    - One-frame glitches in Ayakashi Ninden Kunoichiban Plus and Ninpen Manmaru (#478, #569)
 - VDP2: Move VCNT update to the left border horizontal phase where HBLANK switches to zero. (thanks to @celeriyacon)
 - VDP2: Precompute per-dot rotation coefficient flag instead of deriving it twice per scanline.
 - VDP2: Read per-screen line/back color only at the start of the frame. Fixes red screen after SEGA licensing logo in Ayakashi Ninden Kunoichiban Plus. (#478)
@@ -229,10 +241,10 @@ Introduced save state file version 8.
 - VDP1: Disable "antialiasing" for lines and polylines.
 - VDP1: Fix bad transparency caused by "illegal" RGB 5:5:5 color data (0x0001..0x7FFE). Fixes transparency in Sonic X-treme.
 - VDP1: Process framebuffer swap slightly later in the VBlank OUT line. Fixes numerous issues:
-	- Flickering graphics in DragonHeart - Fire & Steel, King of Fighters '96 / '97, Jantei Battle Cos-Player, PhantasM, Soviet Strike, Virtua Cop 2, and Yellow Brick Road (#272, #303, #334, #335, #336, #368)
-	- Corrupted sprites in Center Ring Boxing, and Marvel Super Heroes (Shuma Gorath's Chaos Dimension move) (#72, #377)
-	- Partially missing sprites in Fuusui Sensei - Feng-Shui Master (#405)
-	- Freezes/crashes in Mahou no Janshi - Poe Poe Poemy, and Shockwave Assault (#378, #406)
+    - Flickering graphics in DragonHeart - Fire & Steel, King of Fighters '96 / '97, Jantei Battle Cos-Player, PhantasM, Soviet Strike, Virtua Cop 2, and Yellow Brick Road (#272, #303, #334, #335, #336, #368)
+    - Corrupted sprites in Center Ring Boxing, and Marvel Super Heroes (Shuma Gorath's Chaos Dimension move) (#72, #377)
+    - Partially missing sprites in Fuusui Sensei - Feng-Shui Master (#405)
+    - Freezes/crashes in Mahou no Janshi - Poe Poe Poemy, and Shockwave Assault (#378, #406)
 - VDP1: Reorder LOPR, COPR, CEF and BEF updates. Fixes missing graphics in Virtual On - Cyber Troopers and Sega Touring CARS. (#112, #246)
 - VDP1: Use SCU DMA bus notification to adjust VDP1 VRAM write timing penalty. Fixes hanging intro FMV in Sonic Jam without breaking Mega Man X3's sprites. (#83)
 - VDP2: Always initialize and update background counters even for disabled layers. Fixes rolling screen in F-1 Challenge. (#300)
