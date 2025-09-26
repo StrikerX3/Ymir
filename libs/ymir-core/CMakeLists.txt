@@ -267,7 +267,7 @@ add_library(ymir-core
 
     src/ymir/sys/backup_ram.cpp
     src/ymir/sys/memory.cpp
-    src/ymir/sys/null_ipl.hpp
+    src/ymir/sys/null_program.hpp
     src/ymir/sys/saturn.cpp
 
     src/ymir/util/backup_datetime.cpp

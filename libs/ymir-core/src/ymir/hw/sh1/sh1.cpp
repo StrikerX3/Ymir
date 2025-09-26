@@ -1,5 +1,7 @@
 #include <ymir/hw/sh1/sh1.hpp>
 
+#include <ymir/sys/null_program.hpp>
+
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/dev_assert.hpp>
@@ -76,7 +78,7 @@ namespace grp {
 SH1::SH1(sys::SH1Bus &bus)
     : m_bus(bus) {
 
-    m_rom.fill(0);
+    nullprog::CopyNullProgram(m_rom);
     m_romHash = CalcHash128(m_rom.data(), m_rom.size(), kROMHashSeed);
 
     Reset(true);

@@ -1,11 +1,11 @@
 #include <ymir/sys/memory.hpp>
 
-#include "null_ipl.hpp"
+#include "null_program.hpp"
 
 namespace ymir::sys {
 
 SystemMemory::SystemMemory() {
-    IPL = nullipl::kNullIPL;
+    nullprog::CopyNullProgram(IPL);
     Reset(true);
 }
 
