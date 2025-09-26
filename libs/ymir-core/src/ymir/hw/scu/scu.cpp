@@ -1037,6 +1037,7 @@ void SCU::RunDMA(uint64 cycles) {
 
         if (ch.indirect && !ch.endIndirect) {
             DMAReadIndirectTransfer(level);
+            sgUpdateDst.Cancel();
         } else {
             devlog::trace<grp::dma>("SCU DMA{}: Finished transfer", level);
             ch.active = false;
