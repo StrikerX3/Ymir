@@ -85,6 +85,9 @@ void YGR::MapMemory(sys::SH2Bus &mainBus) {
                     return false;
                 }
 
+                // Force transfer if possible
+                ygr.m_cbStepDMAC1(size);
+
                 if (write) {
                     return ygr.m_fifo.Free() < size / sizeof(uint16);
                 } else {
@@ -124,8 +127,8 @@ FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
     case 0x00: //
     {
         const uint16 value = m_fifo.Read<false>();
-        devlog::trace<grp::ygr_fifo>("CDB  FIFO read  <- rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
-                                     m_fifo.count);
+        devlog::trace<grp::ygr_fifo>("CDB  FIFO read  <- rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
+                                     m_fifo.writePos, m_fifo.count, value);
         UpdateFIFODREQ();
         return value;
     }
@@ -158,8 +161,8 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     switch (address) {
     case 0x00:
         m_fifo.Write<false>(value);
-        devlog::trace<grp::ygr_fifo>("CDB  FIFO write -> rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
-                                     m_fifo.count);
+        devlog::trace<grp::ygr_fifo>("CDB  FIFO write -> rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
+                                     m_fifo.writePos, m_fifo.count, value);
         UpdateFIFODREQ();
         break;
     case 0x02:
@@ -216,7 +219,7 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
 
         if (m_fifo.IsEmpty()) {
             // Force transfer if possible
-            m_cbStepDMAC1();
+            m_cbStepDMAC1(sizeof(uint16));
             if (m_fifo.IsEmpty() && m_regs.TRCTL.TE) {
                 devlog::trace<grp::ygr_fifo>("FIFO still empty; transfer might break!");
                 YMIR_DEV_CHECK();
@@ -225,8 +228,8 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
 
         {
             const uint16 value = m_fifo.Read<peek>();
-            devlog::trace<grp::ygr_fifo>("Host FIFO read  <- rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
-                                         m_fifo.count);
+            devlog::trace<grp::ygr_fifo>("Host FIFO read  <- rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
+                                         m_fifo.writePos, m_fifo.count, value);
             UpdateFIFODREQ();
             return value;
         }
@@ -259,15 +262,15 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
         } else if (m_regs.TRCTL.DIR) {
             if (m_fifo.IsFull()) {
                 // Force transfer if possible
-                m_cbStepDMAC1();
+                m_cbStepDMAC1(sizeof(uint16));
                 if (m_fifo.IsFull() && m_regs.TRCTL.TE) {
                     devlog::trace<grp::ygr_fifo>("FIFO still full; transfer will break!");
                     YMIR_DEV_CHECK();
                 }
             }
             m_fifo.Write<poke>(value);
-            devlog::trace<grp::ygr_fifo>("Host FIFO write -> rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
-                                         m_fifo.count);
+            devlog::trace<grp::ygr_fifo>("Host FIFO write -> rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
+                                         m_fifo.writePos, m_fifo.count, value);
             UpdateFIFODREQ();
         }
         break;

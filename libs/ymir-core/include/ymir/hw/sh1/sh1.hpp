@@ -223,8 +223,11 @@ private:
     bool IsDMATransferActive(const DMAController::DMAChannel &ch) const;
     void DMAC0DREQTransfer(std::span<uint8> data);
 
-    void StepDMAC1() {
-        StepDMAC(1);
+    void StepDMAC1(uint32 size) {
+        const uint32 count = DMAC.channels[1].xferSize == DMATransferSize::Word ? (size + 1u) / sizeof(uint16) : size;
+        for (uint32 i = 0; i < count; ++i) {
+            StepDMAC(1);
+        }
     }
 
     uint16 ReadPortA() const;

@@ -23,7 +23,8 @@ using CBAssertIRQ = util::RequiredCallback<void()>;
 /// @brief Invoked to set the DREQ0/1# signals on the SH-1.
 using CBSetDREQn = util::RequiredCallback<void(bool level)>;
 
-/// @brief Invoked to step a DMA channel on the SH-1.
-using CBStepDMAC = util::RequiredCallback<void()>;
+/// @brief Invoked to step a DMA channel on the SH-1 until the specified number of bytes have been transferred or the
+/// DREQ# signal is deasserted.
+using CBStepDMAC = util::RequiredCallback<void(uint32 bytes)>;
 
 } // namespace ymir::sh1
