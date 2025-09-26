@@ -659,18 +659,20 @@ uint64 Saturn::StepSlaveSH2Impl() {
 }
 
 void Saturn::UpdateFunctionPointers() {
-    auto apply = [&]<bool enableDebugTracing>() {
-        auto apply = [&]<bool emulateSH2Cache>() {
-            auto apply = [&]<bool cdblockLLE>() {
-                m_runFrameFn = &Saturn::RunFrameImpl<enableDebugTracing, emulateSH2Cache, cdblockLLE>;
-                m_stepMSH2Fn = &Saturn::StepMasterSH2Impl<enableDebugTracing, emulateSH2Cache, cdblockLLE>;
-                m_stepSSH2Fn = &Saturn::StepSlaveSH2Impl<enableDebugTracing, emulateSH2Cache, cdblockLLE>;
-            };
-            m_cdblockLLE ? apply.template operator()<true>() : apply.template operator()<false>();
-        };
-        m_systemFeatures.emulateSH2Cache ? apply.template operator()<true>() : apply.template operator()<false>();
-    };
-    m_systemFeatures.enableDebugTracing ? apply.template operator()<true>() : apply.template operator()<false>();
+    UpdateFunctionPointersTemplate(m_systemFeatures.enableDebugTracing, m_systemFeatures.emulateSH2Cache, m_cdblockLLE);
+}
+
+template <bool... t_features>
+void Saturn::UpdateFunctionPointersTemplate(bool feature, auto... features) {
+    feature ? UpdateFunctionPointersTemplate<t_features..., true>(features...)
+            : UpdateFunctionPointersTemplate<t_features..., false>(features...);
+}
+
+template <bool... t_features>
+void Saturn::UpdateFunctionPointersTemplate() {
+    m_runFrameFn = &Saturn::RunFrameImpl<t_features...>;
+    m_stepMSH2Fn = &Saturn::StepMasterSH2Impl<t_features...>;
+    m_stepSSH2Fn = &Saturn::StepSlaveSH2Impl<t_features...>;
 }
 
 void Saturn::UpdatePreferredRegionOrder(std::span<const core::config::sys::Region> regions) {

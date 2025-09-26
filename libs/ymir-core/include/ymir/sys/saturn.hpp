@@ -329,6 +329,14 @@ private:
     /// settings.
     void UpdateFunctionPointers();
 
+    /// @brief Helper template to convert runtime parameters into compile-time constants for building function pointers.
+    template <bool... t_features>
+    void UpdateFunctionPointersTemplate(bool feature, auto... features);
+
+    /// @brief Terminal case for helper template.
+    template <bool... t_features>
+    void UpdateFunctionPointersTemplate();
+
     // -------------------------------------------------------------------------
     // Cycle counting
     // NOTE: Scheduler must be initialized before other components as they use it to register events
