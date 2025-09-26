@@ -1066,7 +1066,16 @@ FORCE_INLINE void SCU::TriggerImmediateDMA(uint32 index) {
     auto &ch = m_dmaChannels[index];
     if (ch.enabled && ch.trigger == DMATrigger::Immediate) {
         devlog::trace<grp::dma>("SCU DMA{}: Delaying immediate transfer", index);
-        ch.startDelay = kImmediateDMADelay;
+        // HACK: use different delays depending on the destination area
+        // Exhumed shows graphics artifacts if the delay is too long
+        // Many games freeze/crash if too short
+        // Luckily, the difference is the target of the transfers: VDP vs. SCSP
+        // We can use different delays based on that
+        if (util::AddressInRange<0x5C0'0000, 0x5FB'FFFF>(ch.dstAddr)) {
+            ch.startDelay = kImmediateDMAVDPDelay;
+        } else {
+            ch.startDelay = kImmediateDMAOtherDelay;
+        }
     }
 }
 
