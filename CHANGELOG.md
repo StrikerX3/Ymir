@@ -38,7 +38,24 @@ Introduced save state file version 10.
 - Media: Restrict ISO loader to files with the .iso extension to prevent users from loading .bin files instead of the .cue files.
 - Media: Tracks now include the unit sizes along with sector sizes, only needed for CHDs.
 - Rewind: Allow varying the size of the state struct. Fixes occasional crashes when rewinding.
-- SCU: Delay immediate transfer interrupt signals by 48 cycles. Fixes hangs in Advanced V.G., DeJig games, and several homebrew apps (#227, #399, #541, #620)
+- SCU: Delay immediate transfer interrupt signals by 48 cycles. Fixes multiple hang/freeze/crash issues:
+    - Advanced V.G. (#227)
+    - Angel Graffiti S - Anata e no Profile (#461)
+    - Arcade Gears Vol. 1 - Pu-Li-Ru-La (#468)
+    - DeJig games (#399, #541)
+    - Dream Square - Hinagata Akiko (#361)
+    - Ferox prototype (#609)
+    - Gekka no Kishi - Ouryuu-sen (#353)
+    - Goiken Muyou - Anarchy in the Nippon (#556)
+    - Horror Tour (#319)
+    - Kuro no Danshou - The Literary Fragment (#610)
+    - Mahou Shoujo Pretty Samy - Heart no Kimochi (#431)
+    - Marie no Atelier Ver. 1.3 - Salburg no Renkinjutsushi (#619)
+    - Mario Mushano no Chou Shougi Juku - Mario Mushano's Hyper Shogi School (#430)
+    - Nonomura Byouin no Hitobito (#436)
+    - Sega Saturn Choice Cuts (RE) (#550)
+    - Tenchi Muyou Rensa Hitsuyou (#339)
+    - Several homebrew apps (#620, #626)
 - SCU: Make DMA transfers interruptible to support LLE CD Block interactions.
 - VDP1: Adjust Y coordinate framebuffer offsets for erase process based on TVMR.TVM. Fixes erase glitches in Grandia when using transparent meshes.
 - VDP2: Clear framebuffer when switching resolutions. Fixes single-frame artifacts in multiple games that switch modes without clearing the screen.
