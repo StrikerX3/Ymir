@@ -14,14 +14,6 @@
 
 namespace ymir::sh2 {
 
-namespace static_config {
-
-    // When enabled, bus timings are pulled from the attached Bus to compute instruction cycle timings.
-    // Otherwise, a static number of cycles is used for all memory accesses.
-    static constexpr bool use_bus_timings = true;
-
-} // namespace static_config
-
 // -----------------------------------------------------------------------------
 // Dev log groups
 
@@ -827,11 +819,7 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
                 return 1;
             } else {
                 // Cache miss - fill cache line
-                if constexpr (static_config::use_bus_timings) {
-                    return m_bus.GetAccessCycles<write>(address) * 4;
-                } else {
-                    return 5 * 4; // rough hyper-optimistic estimate
-                }
+                return m_bus.GetAccessCycles<write>(address) * 4;
             }
         } else if constexpr (!enableCache) {
             // Simplified model - assume cache hits on all accesses to cached area
@@ -840,11 +828,7 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
         [[fallthrough]];
     case 0b001: [[fallthrough]];
     case 0b101: // cache-through
-        if constexpr (static_config::use_bus_timings) {
-            return m_bus.GetAccessCycles<write>(address);
-        } else {
-            return 5; // rough hyper-optimistic estimate
-        }
+        return m_bus.GetAccessCycles<write>(address);
     case 0b010: return 1;        // associative purge
     case 0b011: return 1;        // cache address array
     case 0b100: [[fallthrough]]; // cache data array
