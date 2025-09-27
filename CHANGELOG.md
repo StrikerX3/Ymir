@@ -12,8 +12,10 @@ Introduced save state file version 10.
 - Cart: Add 6 MiB development DRAM cartridge, required by the Heart of Darkness prototype. (#584)
 - CD Block: Implemented optional low-level emulation mode. Requires valid CD Block ROMs and has considerable performance cost, but fixes numerous issues when enabled:
     - Gunbird music no longer stops when pausing and resuming the game (#625)
-    - X-Men: Children of the Atom no longer hangs on the loading screen (#488)
     - Mr. Bones is now 100% stable (#494)
+    - Pocket Fighter's audio and video are now in sync (#222)
+    - X-Men: Children of the Atom no longer hangs on the loading screen (#488)
+    - X-Men vs. Street Fighter and Marvel vs. Street Fighter no longer hang at the end of the Capcom logo (#507)
     - Several games now boot properly:
         - Primal Rage (USA) (#225)
         - Hop Step Idol (#512)
