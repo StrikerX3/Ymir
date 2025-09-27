@@ -38,7 +38,7 @@ Introduced save state file version 10.
 - Media: Restrict ISO loader to files with the .iso extension to prevent users from loading .bin files instead of the .cue files.
 - Media: Tracks now include the unit sizes along with sector sizes, only needed for CHDs.
 - Rewind: Allow varying the size of the state struct. Fixes occasional crashes when rewinding.
-- SCU: Delay immediate transfer interrupt signals by 48 cycles. Fixes multiple hang/freeze/crash issues:
+- SCU: Delay immediate transfer interrupt signals based on the transfer length. Fixes multiple hang/freeze/crash issues:
     - Advanced V.G. (#227)
     - Angel Graffiti S - Anata e no Profile (#461)
     - Arcade Gears Vol. 1 - Pu-Li-Ru-La (#468)
@@ -53,7 +53,6 @@ Introduced save state file version 10.
     - Marie no Atelier Ver. 1.3 - Salburg no Renkinjutsushi (#619)
     - Mario Mushano no Chou Shougi Juku - Mario Mushano's Hyper Shogi School (#430)
     - Nonomura Byouin no Hitobito (#436)
-    - Sega Saturn Choice Cuts (RE) (#550)
     - Tenchi Muyou Rensa Hitsuyou (#339)
     - Several homebrew apps (#620, #626)
 - SCU: Make DMA transfers interruptible to support LLE CD Block interactions.

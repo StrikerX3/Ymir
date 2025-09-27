@@ -208,7 +208,6 @@ private:
     // The cycle counter is used to trigger delayed interrupt signals.
     void RunDMA(uint64 cycles);
 
-    void ForceRunImmediateDMA(uint32 index);
     void RecalcDMAChannel();
 
     void TriggerImmediateDMA(uint32 index);

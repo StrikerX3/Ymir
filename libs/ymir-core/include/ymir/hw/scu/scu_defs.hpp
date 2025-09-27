@@ -98,7 +98,4 @@ inline BusID GetBusID(uint32 address) {
     }
 }
 
-// Number of cycles to delay immediate DMA transfer end interrupt signals
-inline constexpr uint64 kImmediateDMAIntrDelay = 48;
-
 } // namespace ymir::scu

@@ -628,6 +628,17 @@ FORCE_INLINE void SCU::UpdateMasterInterruptLevel() {
     }
 }
 
+FORCE_INLINE static uint32 AdjustZeroSizeXferCount(uint32 level, uint32 xferCount) {
+    if (xferCount != 0) {
+        return xferCount;
+    }
+    if (level == 0) {
+        return 0x100000u;
+    } else {
+        return 0x1000u;
+    }
+}
+
 void SCU::DMAReadIndirectTransfer(uint8 level) {
     auto &ch = m_dmaChannels[level];
     const uint32 baseIndirectSrc = ch.currIndirectSrc;
@@ -1043,21 +1054,12 @@ void SCU::RunDMA(uint64 cycles) {
             }
             ch.currDstAddr = currDstAddr;
             if (ch.trigger == DMATrigger::Immediate) {
-                ch.intrDelay = kImmediateDMAIntrDelay;
+                ch.intrDelay = 1 + (AdjustZeroSizeXferCount(level, ch.xferCount) >> 4u);
             } else {
                 TriggerDMAEnd(level);
             }
             RecalcDMAChannel();
         }
-    }
-}
-
-FORCE_INLINE void SCU::ForceRunImmediateDMA(uint32 index) {
-    assert(index < m_dmaChannels.size());
-    auto &ch = m_dmaChannels[index];
-    if (ch.enabled && ch.trigger == DMATrigger::Immediate && (ch.active || ch.start)) {
-        devlog::trace<grp::dma>("DMA{} finishing pending immediate DMA transfer", index);
-        RunDMA(0);
     }
 }
 
@@ -1077,17 +1079,6 @@ void SCU::RecalcDMAChannel() {
         if (!ch.start) {
             continue;
         }
-
-        auto adjustZeroSizeXferCount = [&](uint32 xferCount) -> uint32 {
-            if (xferCount != 0) {
-                return xferCount;
-            }
-            if (level == 0) {
-                return 0x100000u;
-            } else {
-                return 0x1000u;
-            }
-        };
 
         ch.start = false;
         ch.active = true;
@@ -1113,7 +1104,7 @@ void SCU::RecalcDMAChannel() {
         } else {
             ch.currSrcAddr = ch.srcAddr & 0x7FF'FFFF;
             ch.currDstAddr = ch.dstAddr & 0x7FF'FFFF;
-            ch.currXferCount = adjustZeroSizeXferCount(ch.xferCount);
+            ch.currXferCount = AdjustZeroSizeXferCount(level, ch.xferCount);
             ch.currSrcAddrInc = ch.srcAddrInc;
             ch.currDstAddrInc = ch.dstAddrInc;
             ch.InitTransfer();
@@ -1142,6 +1133,7 @@ FORCE_INLINE void SCU::TriggerImmediateDMA(uint32 index) {
         devlog::trace<grp::dma>("SCU DMA{}: Transfer triggered immediately", index);
         ch.start = true;
         RecalcDMAChannel();
+        RunDMA(0);
     }
 }
 
@@ -1352,9 +1344,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x40: // (DMA2RA) Level 2 DMA Read Address (bits 24-31)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<24, 26>(m_dmaChannels[index].srcAddr, value);
         break;
     }
@@ -1364,9 +1353,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x41: // (DMA2RA) Level 2 DMA Read Address (bits 16-23)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<16, 23>(m_dmaChannels[index].srcAddr, value);
         break;
     }
@@ -1376,9 +1362,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x42: // (DMA2RA) Level 2 DMA Read Address (bits 8-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<8, 15>(m_dmaChannels[index].srcAddr, value);
         break;
     }
@@ -1388,9 +1371,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x43: // (DMA2RA) Level 2 DMA Read Address (bits 0-7)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 7>(m_dmaChannels[index].srcAddr, value);
         break;
     }
@@ -1400,9 +1380,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x44: // (DMA2WA) Level 2 DMA Write Address (bits 24-31)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<24, 26>(m_dmaChannels[index].dstAddr, value);
         break;
     }
@@ -1412,9 +1389,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x45: // (DMA2WA) Level 2 DMA Write Address (bits 16-23)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<16, 23>(m_dmaChannels[index].dstAddr, value);
         break;
     }
@@ -1424,9 +1398,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x46: // (DMA2WA) Level 2 DMA Write Address (bits 8-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<8, 15>(m_dmaChannels[index].dstAddr, value);
         break;
     }
@@ -1436,9 +1407,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x47: // (DMA2WA) Level 2 DMA Write Address (bits 0-7)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 7>(m_dmaChannels[index].dstAddr, value);
         break;
     }
@@ -1452,9 +1420,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x09: // (DMA0CNT) Level 0 DMA Transfer Number (bits 16-23)
     {
         const uint32 index = 0;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<16, 19>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1466,9 +1431,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x0A: // (DMA0CNT) Level 0 DMA Transfer Number (bits 8-15)
     {
         const uint32 index = 0;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<8, 15>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1476,9 +1438,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x4A: // (DMA2CNT) Level 2 DMA Transfer Number (bits 8-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<8, 11>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1487,9 +1446,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     {
         const uint32 index = 0;
         auto &ch = m_dmaChannels[index];
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 7>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1497,9 +1453,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x4B: // (DMA2CNT) Level 2 DMA Transfer Number (bits 0-7)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 7>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1514,9 +1467,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x4D: // (DMA2ADD) Level 2 DMA Increment (bits 16-23)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].srcAddrInc = bit::extract<0>(value) * 4u;
         break;
     }
@@ -1530,9 +1480,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x4F: // (DMA2ADD) Level 2 DMA Increment (bits 0-7)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].dstAddrInc = (1u << bit::extract<0, 2>(value)) & ~1u;
         break;
     }
@@ -1555,9 +1502,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     {
         const uint32 index = address >> 5u;
         auto &ch = m_dmaChannels[index];
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         ch.enabled = bit::test<0>(value);
         if constexpr (!poke) {
             if (ch.enabled) {
@@ -1577,7 +1521,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
         const uint32 index = address >> 5u;
         auto &ch = m_dmaChannels[index];
         if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
             if (bit::test<0>(value)) {
                 TriggerImmediateDMA(index);
             }
@@ -1590,9 +1533,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x54: // (DMA2MODE) Level 2 DMA Mode (bits 24-31)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].indirect = bit::test<0>(value);
         break;
     }
@@ -1602,9 +1542,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x55: // (DMA2MODE) Level 2 DMA Mode (bits 16-23)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].updateSrcAddr = bit::test<0>(value);
         break;
     }
@@ -1614,9 +1551,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x56: // (DMA2MODE) Level 2 DMA Mode (bits 8-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].updateDstAddr = bit::test<0>(value);
         break;
     }
@@ -1626,9 +1560,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x57: // (DMA2MODE) Level 2 DMA Mode (bits 0-7)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].trigger = static_cast<DMATrigger>(bit::extract<0, 2>(value));
         break;
     }
@@ -1809,9 +1740,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x40: // (DMA2RA) Level 2 DMA Read Address (bits 16-31)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<16, 26>(m_dmaChannels[index].srcAddr, value);
         break;
     }
@@ -1821,9 +1749,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x42: // (DMA2RA) Level 2 DMA Read Address (bits 0-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 15>(m_dmaChannels[index].srcAddr, value);
         break;
     }
@@ -1833,9 +1758,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x44: // (DMA2WA) Level 2 DMA Write Address (bits 16-31)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<16, 26>(m_dmaChannels[index].dstAddr, value);
         break;
     }
@@ -1845,9 +1767,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x46: // (DMA2WA) Level 2 DMA Write Address (bits 0-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 15>(m_dmaChannels[index].dstAddr, value);
         break;
     }
@@ -1855,9 +1774,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x08: // (DMA0CNT) Level 0 DMA Transfer Number (bits 16-31)
     {
         const uint32 index = 0;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<16, 19>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1869,9 +1785,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x0A: // (DMA0CNT) Level 0 DMA Transfer Number (bits 0-15)
     {
         const uint32 index = 0;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 15>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1879,9 +1792,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x4A: // (DMA2CNT) Level 2 DMA Transfer Number (bits 0-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         bit::deposit_into<0, 11>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1896,9 +1806,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x4E: // (DMA2ADD) Level 2 DMA Increment (bits 0-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         auto &ch = m_dmaChannels[index];
         ch.srcAddrInc = bit::extract<8>(value) * 4u;
         ch.dstAddrInc = (1u << bit::extract<0, 2>(value)) & ~1u;
@@ -1916,9 +1823,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x52: // (DMA2EN) Level 2 DMA Enable (bits 0-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         auto &ch = m_dmaChannels[index];
         ch.enabled = bit::test<8>(value);
         if constexpr (!poke) {
@@ -1940,9 +1844,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x54: // (DMA2MODE) Level 2 DMA Mode (bits 16-31)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         auto &ch = m_dmaChannels[index];
         ch.indirect = bit::test<8>(value);
         ch.updateSrcAddr = bit::test<0>(value);
@@ -1954,9 +1855,6 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x56: // (DMA2MODE) Level 2 DMA Mode (bits 0-15)
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         auto &ch = m_dmaChannels[index];
         ch.updateDstAddr = bit::test<8>(value);
         ch.trigger = static_cast<DMATrigger>(bit::extract<0, 2>(value));
@@ -2115,9 +2013,6 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x40: // (DMA2RA) Level 2 DMA Read Address
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].srcAddr = bit::extract<0, 26>(value);
         break;
     }
@@ -2127,9 +2022,6 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x44: // (DMA2WA) Level 2 DMA Write Address
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].dstAddr = bit::extract<0, 26>(value);
         break;
     }
@@ -2137,9 +2029,6 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x08: // (DMA0CNT) Level 0 DMA Transfer Number
     {
         const uint32 index = 0;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].xferCount = bit::extract<0, 19>(value);
         break;
     }
@@ -2148,9 +2037,6 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x48: // (DMA2CNT) Level 2 DMA Transfer Number
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         m_dmaChannels[index].xferCount = bit::extract<0, 11>(value);
         break;
     }
@@ -2160,9 +2046,6 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x4C: // (DMA2ADD) Level 2 DMA Increment
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         auto &ch = m_dmaChannels[index];
         ch.srcAddrInc = bit::extract<8>(value) * 4u;
         ch.dstAddrInc = (1u << bit::extract<0, 2>(value)) & ~1u;
@@ -2173,9 +2056,6 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x50: // (DMA2EN) Level 2 DMA Enable
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         auto &ch = m_dmaChannels[index];
         ch.enabled = bit::test<8>(value);
         if constexpr (!poke) {
@@ -2196,9 +2076,6 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x54: // (DMA2MODE) Level 2 DMA Mode
     {
         const uint32 index = address >> 5u;
-        if constexpr (!poke) {
-            ForceRunImmediateDMA(index);
-        }
         auto &ch = m_dmaChannels[index];
         ch.indirect = bit::test<24>(value);
         ch.updateSrcAddr = bit::test<16>(value);
