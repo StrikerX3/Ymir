@@ -15,6 +15,7 @@ Powerslave/Exhumed
 Virtual On - Cyber Troopers
   3D graphics flicker if DMA transfers don't halt the MSH-2.
 
+
 ====================================================================
 Games that rely on SCU DMA transfers not starting/ending immediately
 ====================================================================
@@ -32,7 +33,7 @@ DeJig - Tin Toy
 [Homebrew] Cubecat 1.0.3
   All of these games freeze under certain conditions if the immediate SCU DMA transfer completes instantly because of
   inverted order of operations.
-  
+
   The SH-2 code responsible for setting up the transfer uses a control variable to manage the state. It is initialized
   *after* writing to the SCU DMA registers instead of *before*. The routine uses the SCU DMA transfer end interrupt
   handler to mark the transfer as finished on the control variable, which results in inverted execution order if the
@@ -56,3 +57,9 @@ DeJig - Tin Toy
   3. SH-2 enters interrupt handler, ORs the value 0x4 onto the control variable and returns
   4. SH-2 writes 0x8 to the control variable
   5. SH-2 enters a loop waiting for the DMA transfer to finish
+
+Virtua Racing
+  Sets up an SCU DMA transfer to copy data to SCSP WRAM. About 20 SH-2 instructions later, the program reads some of
+  that data to make more SCU DMA transfers, then waits for a response from the M68000 CPU by reading a value in SCSP
+  WRAM repeatedly. If the code reaches the second SCU DMA transfer, it will read empty/uninitialized SCSP WRAM and
+  transfer the M68K program to the wrong address, which will then crash the CPU.
