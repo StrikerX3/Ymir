@@ -283,6 +283,9 @@ namespace settings::cdblock {
     void CDReadSpeed(SharedContext &ctx) {
         auto &config = ctx.settings.cdblock;
 
+        if (ctx.settings.cdblock.useLLE) {
+            ImGui::BeginDisabled();
+        }
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted("CD read speed");
         widgets::ExplanationTooltip("Changes the maximum read speed of the emulated CD drive.\n"
@@ -300,6 +303,9 @@ namespace settings::cdblock {
         if (ctx.settings.MakeDirty(ImGui::SliderScalar("##read_speed", ImGuiDataType_U8, &readSpeed, &kMinReadSpeed,
                                                        &kMaxReadSpeed, "%ux", ImGuiSliderFlags_AlwaysClamp))) {
             config.readSpeedFactor = readSpeed;
+        }
+        if (ctx.settings.cdblock.useLLE) {
+            ImGui::EndDisabled();
         }
     }
 

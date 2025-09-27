@@ -216,13 +216,7 @@ void CDBlockSettingsView::Display() {
     ImGui::SeparatorText("Tweaks");
     ImGui::PopFont();
 
-    if (m_context.settings.cdblock.useLLE) {
-        ImGui::BeginDisabled();
-    }
     widgets::settings::cdblock::CDReadSpeed(m_context);
-    if (m_context.settings.cdblock.useLLE) {
-        ImGui::EndDisabled();
-    }
 }
 
 void CDBlockSettingsView::ProcessLoadCDBlockROM(void *userdata, std::filesystem::path file, int filter) {

@@ -87,6 +87,8 @@ void TweaksSettingsView::Display() {
         // CD Block
 
         fmt::format_to(inserter, "### CD Block\n");
+        fmt::format_to(inserter, "- {}\n",
+                       checkbox("Use low level CD Block emulation", settings.cdblock.useLLE.Get()));
         fmt::format_to(inserter, "- CD read speed: {}x\n", settings.cdblock.readSpeedFactor.Get());
 
         tweaksList = fmt::to_string(buf);
@@ -257,6 +259,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::SeparatorText("CD Block");
     ImGui::PopFont();
 
+    widgets::settings::cdblock::CDBlockLLE(m_context);
     widgets::settings::cdblock::CDReadSpeed(m_context);
 }
 
