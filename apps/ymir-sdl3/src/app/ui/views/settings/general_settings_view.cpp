@@ -226,6 +226,7 @@ void GeneralSettingsView::Display() {
         };
 
         drawRow("IPL ROM images", ProfilePath::IPLROMImages);
+        drawRow("CD block ROM images", ProfilePath::CDBlockROMImages);
         drawRow("Cartridge ROM images", ProfilePath::ROMCartImages);
         drawRow("Backup memory", ProfilePath::BackupMemory);
         drawRow("Exported backup files", ProfilePath::ExportedBackups);
