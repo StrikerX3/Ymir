@@ -296,8 +296,8 @@ public:
         const uint32 startIndex = start >> kPageGranularityBits;
         const uint32 endIndex = end >> kPageGranularityBits;
         for (uint32 i = startIndex; i <= endIndex; i++) {
-            m_pages[i].readCycles = std::max(readCycles, 1ull);
-            m_pages[i].writeCycles = std::max(writeCycles, 1ull);
+            m_pages[i].readCycles = std::max<uint64>(readCycles, 1ull);
+            m_pages[i].writeCycles = std::max<uint64>(writeCycles, 1ull);
         }
     }
 
