@@ -83,7 +83,7 @@ private:
     std::array<uint8, 2352> m_sectorDataBuffer;
 
     enum class Command : uint8 {
-        Noop = 0x0,
+        Continue = 0x0,
         SeekRing = 0x2,
         ReadTOC = 0x3,
         Stop = 0x4,
@@ -153,7 +153,7 @@ private:
     uint8 m_statusPos;
 
     enum class TxState {
-        Reset,    // deassert COMREQ#, deassert COMSYNC#, initialize, switch to Noop
+        Reset,    // deassert COMREQ#, deassert COMSYNC#, initialize, switch to Continue
         PreTx,    // init transfer counters, switch to TxBegin
         TxBegin,  // assert COMSYNC#, switch to TxByte
         TxByte,   // assert COMREQ#, do byte transfer

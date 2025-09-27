@@ -297,10 +297,8 @@ uint64 CDDrive::ProcessTxState() {
 
     case TxState::TxInterN: m_state = TxState::TxByte; return kTxCyclesInterTx;
 
-    // TODO: need to compensate for time spent transmitting serial data
     case TxState::TxEnd: //
     {
-        // ProcessCommand() also handles the state change
         const uint64 cycles = ProcessCommand();
         m_state = TxState::PreTx;
         return cycles > kTxCyclesTotal ? cycles - kTxCyclesTotal : 1;
@@ -324,12 +322,12 @@ FORCE_INLINE uint64 CDDrive::ProcessCommand() {
         devlog::trace<grp::lle_cd_cmd>("{}", fmt::to_string(buf));
     }
 
-    if (m_command.command != Command::Noop) {
+    if (m_command.command != Command::Continue) {
         GetReadSpeedFactor();
     }
 
     switch (m_command.command) {
-    case Command::Noop: return ProcessOperation();
+    case Command::Continue: return ProcessOperation();
     case Command::SeekRing: return CmdSeekRing();
     case Command::ReadTOC: return CmdReadTOC();
     case Command::Stop: return CmdStop();
@@ -566,7 +564,6 @@ FORCE_INLINE uint64 CDDrive::OpUnknown() {
 }
 
 FORCE_INLINE void CDDrive::GetReadSpeedFactor() {
-    // TODO: apply read speed tweak
     m_readSpeed = m_command.readSpeed == 1 ? 1 : 2;
 }
 
