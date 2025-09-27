@@ -30,10 +30,18 @@ void CDBlockSettingsView::Display() {
     ImGui::SeparatorText("Accuracy");
     ImGui::PopFont();
 
-    widgets::settings::cdblock::CDBlockLLE(m_context);
-
-    if (!m_context.settings.cdblock.useLLE) {
+    bool hasROMs;
+    {
+        std::unique_lock lock{m_context.locks.romManager};
+        hasROMs = !m_context.romManager.GetCDBlockROMs().empty();
+    }
+    if (!hasROMs) {
         ImGui::BeginDisabled();
+    }
+    widgets::settings::cdblock::CDBlockLLE(m_context);
+    if (!hasROMs) {
+        ImGui::EndDisabled();
+        ImGui::TextColored(m_context.colors.warn, "No CD Block ROMs found. Low level emulation cannot be enabled.");
     }
 
     ImGui::TextUnformatted("NOTE: Changing any of these options will cause a hard reset");
@@ -204,10 +212,6 @@ void CDBlockSettingsView::Display() {
         ImGui::Text("Version: %s", info->version.data());
     } else {
         ImGui::TextUnformatted("Unknown CD block ROM");
-    }
-
-    if (!m_context.settings.cdblock.useLLE) {
-        ImGui::EndDisabled();
     }
 
     // -----------------------------------------------------------------------------------------------------------------

@@ -420,7 +420,7 @@ int App::Run(const CommandLineOptions &options) {
     // Load CD Block ROM
     ScanCDBlockROMs();
     auto cdbLoadResult = LoadCDBlockROM();
-    if (!cdbLoadResult.succeeded) {
+    if (!cdbLoadResult.succeeded && m_context.settings.cdblock.useLLE) {
         OpenSimpleErrorModal(fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
     }
 
@@ -2073,7 +2073,7 @@ void App::RunEmulator() {
                             m_context.EnqueueEvent(events::emu::HardReset());
                         }
                     }
-                } else {
+                } else if (m_context.settings.cdblock.useLLE) {
                     OpenSimpleErrorModal(
                         fmt::format("Failed to load CD block ROM from \"{}\": {}", path, result.errorMessage));
                 }
@@ -2082,11 +2082,13 @@ void App::RunEmulator() {
             case EvtType::ReloadCDBlockROM: //
             {
                 util::ROMLoadResult result = LoadCDBlockROM();
-                if (result.succeeded) {
-                    m_context.EnqueueEvent(events::emu::HardReset());
-                } else {
-                    OpenSimpleErrorModal(fmt::format("Failed to reload CD block ROM from \"{}\": {}",
-                                                     m_context.cdbRomPath, result.errorMessage));
+                if (m_context.settings.cdblock.useLLE) {
+                    if (result.succeeded) {
+                        m_context.EnqueueEvent(events::emu::HardReset());
+                    } else {
+                        OpenSimpleErrorModal(fmt::format("Failed to reload CD block ROM from \"{}\": {}",
+                                                         m_context.cdbRomPath, result.errorMessage));
+                    }
                 }
                 break;
             }
@@ -4190,6 +4192,8 @@ util::ROMLoadResult App::LoadCDBlockROM() {
     std::filesystem::path romPath = GetCDBlockROMPath();
     if (romPath.empty()) {
         devlog::warn<grp::base>("No CD Block ROM found");
+        m_context.settings.cdblock.useLLE = false;
+        m_context.DisplayMessage("Low level CD block emulation disabled: no ROMs found");
         return util::ROMLoadResult::Fail("No CD Block ROM found");
     }
 
@@ -4207,8 +4211,11 @@ util::ROMLoadResult App::LoadCDBlockROM() {
 std::filesystem::path App::GetCDBlockROMPath() {
     // Load from settings if override is enabled
     if (m_context.settings.cdblock.overrideROM && !m_context.settings.cdblock.romPath.empty()) {
-        devlog::info<grp::base>("Using CD Block ROM overridden by settings");
-        return m_context.settings.cdblock.romPath;
+        if (std::filesystem::is_regular_file(m_context.settings.cdblock.romPath)) {
+            devlog::info<grp::base>("Using CD Block ROM overridden by settings");
+            return m_context.settings.cdblock.romPath;
+        }
+        m_context.settings.cdblock.romPath = "";
     }
 
     // Use first available match otherwise
