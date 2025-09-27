@@ -1592,6 +1592,8 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     //   - ygr = default
     //   - cddrive = default
     //   - CDBROMHash = default
+    //   - uint64 sh1SpilloverCycles = 0
+    //   - uint64 sh1FracCycles = 0
     // v8:
     // - New fields:
     //   - uint64 msh2SpilloverCycles = 0
@@ -1632,10 +1634,11 @@ void serialize(Archive &ar, State &s, const uint32 version) {
         magic("CD##"), ar(s.discHash);
     } else {
         s.cdblockLLE = false;
-        // v9- discHash is handled in the CDBlock serializer
+        // v1-v9 discHash is handled in the CDBlock serializer
     }
     if (s.cdblockLLE) {
         magic("cSH1"), serialize(ar, s.sh1, version);
+        ar(s.sh1SpilloverCycles, s.sh1FracCycles);
         magic("cYGR"), serialize(ar, s.ygr, version);
         magic("cCDD"), serialize(ar, s.cddrive, version);
         magic("cRAM"), ar(s.cdblockDRAM);
@@ -1643,6 +1646,8 @@ void serialize(Archive &ar, State &s, const uint32 version) {
         // Passing in the root of the save state structure to allow the CDBlockState serializer to load the disc hash
         // into the field that was moved to the root State struct.
         magic("cCDB"), serialize(ar, s.cdblock, s, version);
+        s.sh1SpilloverCycles = 0;
+        s.sh1FracCycles = 0;
     }
 
     magic("MISC");

@@ -344,6 +344,11 @@ private:
     /// @brief The event scheduler.
     core::Scheduler m_scheduler;
 
+    /// @brief Advances the SH-1 CPU by the specified number of system (SH-2) cycles.
+    /// Uses and updates spillover and fractional SH-1 cycle counters.
+    /// @param[in] cycles the number of system cycles to advance
+    void AdvanceSH1(uint64 cycles);
+
     // -------------------------------------------------------------------------
     // Internal configuration
 
@@ -416,6 +421,7 @@ private:
     uint64 m_msh2SpilloverCycles; ///< Master SH-2 execution cycles spilled over between executions
     uint64 m_ssh2SpilloverCycles; ///< Slave SH-2 execution cycles spilled over between executions
     uint64 m_sh1SpilloverCycles;  ///< SH-1 execution cycles spilled over between executions
+    uint64 m_sh1FracCycles;       ///< SH-1 fractional execution cycles spilled over by clock ratio calculation
 
     // -------------------------------------------------------------------------
     // System operations (SMPC) - smpc::ISMPCOperations implementation

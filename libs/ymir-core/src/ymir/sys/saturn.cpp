@@ -214,6 +214,7 @@ void Saturn::Reset(bool hard) {
     m_msh2SpilloverCycles = 0;
     m_ssh2SpilloverCycles = 0;
     m_sh1SpilloverCycles = 0;
+    m_sh1FracCycles = 0;
 
     SCU.Reset(hard);
     VDP.Reset(hard);
@@ -414,6 +415,8 @@ void Saturn::SaveState(state::State &state) const {
         YGR.SaveState(state.ygr);
         CDDrive.SaveState(state.cddrive);
         state.cdblockDRAM = CDBlockDRAM;
+        state.sh1SpilloverCycles = m_sh1SpilloverCycles;
+        state.sh1FracCycles = m_sh1FracCycles;
     } else {
         CDBlock.SaveState(state.cdblock);
     }
@@ -488,6 +491,8 @@ bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
         YGR.LoadState(state.ygr);
         CDDrive.LoadState(state.cddrive);
         CDBlockDRAM = state.cdblockDRAM;
+        m_sh1SpilloverCycles = state.sh1SpilloverCycles;
+        m_sh1FracCycles = state.sh1FracCycles;
     } else {
         CDBlock.LoadState(state.cdblock);
     }
@@ -591,23 +596,19 @@ bool Saturn::Run() {
     // SCSP+M68K and CD block are ticked by the scheduler
 
     if constexpr (cdblockLLE) {
-        // Advance SH-1
-        const auto &clockRatios = GetClockRatios();
-        const uint64 sh1CycleCount = execCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-        if (sh1CycleCount > 0) {
-            const uint64 sh1Cycles = SH1.Advance(sh1CycleCount, m_sh1SpilloverCycles);
-            m_sh1SpilloverCycles = sh1Cycles - sh1CycleCount;
-        }
-
+        AdvanceSH1(execCycles);
         // CD drive is ticked by the scheduler
     }
 
-    // TODO: advance SMPC
-    /*m_smpcCycles += execCycles * 2464;
-    const uint64 smpcCycleCount = m_smpcCycles / 17640;
-    if (smpcCycleCount > 0) {
-        m_smpcCycles -= smpcCycleCount * 17640;
-        SMPC.Advance<debug>(smpcCycleCount);
+    const auto &cc = GetClockRatios();
+
+    // TODO: AdvanceSMPC(execCycles);
+    /*const auto &clockRatios = GetClockRatios();
+    const uint64 smpcScaledCycles = cycles * clockRatios.SMPCNum + m_smpcFracCycles;
+    const uint64 smpcCycles = smpcScaledCycles / clockRatios.SMPCDen;
+    m_smpcFracCycles = smpcScaledCycles % clockRatios.SMPCDen;
+    if (smpcCycles > 0) {
+        SMPC.Advance(smpcCycles);
     }*/
 
     m_scheduler.Advance(execCycles);
@@ -627,17 +628,12 @@ uint64 Saturn::StepMasterSH2Impl() {
         const uint64 cycles = 64;
         SCU.Advance<debug>(cycles);
         VDP.Advance<debug>(cycles);
+        // SCSP+M68K and CD block are ticked by the scheduler
         if constexpr (cdblockLLE) {
-            // Advance SH-1
-            const auto &clockRatios = GetClockRatios();
-            const uint64 sh1Cycles = cycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-            if (sh1Cycles > 0) {
-                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
-                m_sh1SpilloverCycles = execCycles - sh1Cycles;
-            }
-
+            AdvanceSH1(cycles);
             // CD drive is ticked by the scheduler
         }
+        // TODO: AdvanceSMPC(cycles);
         m_scheduler.Advance(cycles);
     }
 
@@ -651,29 +647,12 @@ uint64 Saturn::StepMasterSH2Impl() {
         }
         SCU.Advance<debug>(masterCycles);
         VDP.Advance<debug>(masterCycles);
-
         // SCSP+M68K and CD block are ticked by the scheduler
-
         if constexpr (cdblockLLE) {
-            // Advance SH-1
-            const auto &clockRatios = GetClockRatios();
-            const uint64 sh1Cycles = masterCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-            if (sh1Cycles > 0) {
-                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
-                m_sh1SpilloverCycles = execCycles - sh1Cycles;
-            }
-
+            AdvanceSH1(masterCycles);
             // CD drive is ticked by the scheduler
         }
-
-        // TODO: advance SMPC
-        /*m_smpcCycles += masterCycles * 2464;
-        const uint64 smpcCycleCount = m_smpcCycles / 17640;
-        if (smpcCycleCount > 0) {
-            m_smpcCycles -= smpcCycleCount * 17640;
-            SMPC.Advance<debug>(smpcCycleCount);
-        }*/
-
+        // TODO: AdvanceSMPC(masterCycles);
         m_scheduler.Advance(masterCycles);
     } else {
         m_msh2SpilloverCycles -= masterCycles;
@@ -691,17 +670,12 @@ uint64 Saturn::StepSlaveSH2Impl() {
         const uint64 cycles = 64;
         SCU.Advance<debug>(cycles);
         VDP.Advance<debug>(cycles);
+        // SCSP+M68K and CD block are ticked by the scheduler
         if constexpr (cdblockLLE) {
-            // Advance SH-1
-            const auto &clockRatios = GetClockRatios();
-            const uint64 sh1Cycles = cycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-            if (sh1Cycles > 0) {
-                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
-                m_sh1SpilloverCycles = execCycles - sh1Cycles;
-            }
-
+            AdvanceSH1(cycles);
             // CD drive is ticked by the scheduler
         }
+        // TODO: AdvanceSMPC(cycles);
         m_scheduler.Advance(cycles);
     }
 
@@ -713,29 +687,12 @@ uint64 Saturn::StepSlaveSH2Impl() {
         m_msh2SpilloverCycles = masterCycles - slaveCycles;
         SCU.Advance<debug>(slaveCycles);
         VDP.Advance<debug>(slaveCycles);
-
         // SCSP+M68K and CD block are ticked by the scheduler
-
         if constexpr (cdblockLLE) {
-            // Advance SH-1
-            const auto &clockRatios = GetClockRatios();
-            const uint64 sh1Cycles = slaveCycles * clockRatios.CDBlockNum / clockRatios.CDBlockDen;
-            if (sh1Cycles > 0) {
-                const uint64 execCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
-                m_sh1SpilloverCycles = execCycles - sh1Cycles;
-            }
-
+            AdvanceSH1(slaveCycles);
             // CD drive is ticked by the scheduler
         }
-
-        // TODO: advance SMPC
-        /*m_smpcCycles += slaveCycles * 2464;
-        const uint64 smpcCycleCount = m_smpcCycles / 17640;
-        if (smpcCycleCount > 0) {
-            m_smpcCycles -= smpcCycleCount * 17640;
-            SMPC.Advance<debug>(smpcCycleCount);
-        }*/
-
+        // TODO: AdvanceSMPC(slaveCycles);
         m_scheduler.Advance(slaveCycles);
     } else {
         m_ssh2SpilloverCycles -= slaveCycles;
@@ -758,6 +715,17 @@ void Saturn::UpdateFunctionPointersTemplate() {
     m_runFrameFn = &Saturn::RunFrameImpl<t_features...>;
     m_stepMSH2Fn = &Saturn::StepMasterSH2Impl<t_features...>;
     m_stepSSH2Fn = &Saturn::StepSlaveSH2Impl<t_features...>;
+}
+
+FORCE_INLINE void Saturn::AdvanceSH1(uint64 cycles) {
+    const auto &clockRatios = GetClockRatios();
+    const uint64 sh1ScaledCycles = cycles * clockRatios.CDBlockNum + m_sh1FracCycles;
+    const uint64 sh1Cycles = sh1ScaledCycles / clockRatios.CDBlockDen;
+    m_sh1FracCycles = sh1ScaledCycles % clockRatios.CDBlockDen;
+    if (sh1Cycles > 0) {
+        const uint64 sh1ExecCycles = SH1.Advance(sh1Cycles, m_sh1SpilloverCycles);
+        m_sh1SpilloverCycles = sh1ExecCycles - sh1Cycles;
+    }
 }
 
 void Saturn::UpdatePreferredRegionOrder(std::span<const core::config::sys::Region> regions) {

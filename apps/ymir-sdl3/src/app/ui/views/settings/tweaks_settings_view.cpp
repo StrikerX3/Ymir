@@ -199,7 +199,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         settings.system.emulateSH2Cache = true;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
-        settings.audio.stepGranularity = 0; // TODO: change back to 5 when it doesn't break CD block LLE
+        settings.audio.stepGranularity = 5;
 
         settings.cdblock.readSpeedFactor = 2;
         settings.cdblock.useLLE = true;

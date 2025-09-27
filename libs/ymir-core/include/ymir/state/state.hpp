@@ -52,6 +52,8 @@ struct State {
     // Execution state
     uint64 msh2SpilloverCycles;
     uint64 ssh2SpilloverCycles;
+    uint64 sh1SpilloverCycles;
+    uint64 sh1FracCycles;
 };
 
 } // namespace ymir::state
