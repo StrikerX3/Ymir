@@ -851,6 +851,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
             };
 
             parse("IPLROMImages", ProfilePath::IPLROMImages);
+            parse("CDBlockROMImages", ProfilePath::CDBlockROMImages);
             parse("ROMCartImages", ProfilePath::ROMCartImages);
             parse("BackupMemory", ProfilePath::BackupMemory);
             parse("ExportedBackups", ProfilePath::ExportedBackups);
@@ -1210,6 +1211,7 @@ SettingsSaveResult Settings::Save() {
 
             {"PathOverrides", toml::table{{
                 {"IPLROMImages", m_context.profile.GetPathOverride(ProfilePath::IPLROMImages).native()},
+                {"CDBlockROMImages", m_context.profile.GetPathOverride(ProfilePath::CDBlockROMImages).native()},
                 {"ROMCartImages", m_context.profile.GetPathOverride(ProfilePath::ROMCartImages).native()},
                 {"BackupMemory", m_context.profile.GetPathOverride(ProfilePath::BackupMemory).native()},
                 {"ExportedBackups", m_context.profile.GetPathOverride(ProfilePath::ExportedBackups).native()},
