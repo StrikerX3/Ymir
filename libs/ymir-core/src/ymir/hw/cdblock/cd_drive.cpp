@@ -589,7 +589,7 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
     } else {
         m_seekOp = Operation::Idle;
     }
-    m_seekCountdown = 9;
+    m_seekCountdown = 9; // TODO: compute based on disc geometry, head position, spin speed, etc.
     devlog::debug<grp::lle_cd>("Seek to FAD {:06X} then {}", fad, (read ? "read" : "pause"));
 }
 
