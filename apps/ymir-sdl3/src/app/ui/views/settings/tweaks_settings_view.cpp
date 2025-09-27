@@ -87,8 +87,7 @@ void TweaksSettingsView::Display() {
         // CD Block
 
         fmt::format_to(inserter, "### CD Block\n");
-        fmt::format_to(inserter, "- {}\n",
-                       checkbox("Use low level CD Block emulation", settings.cdblock.useLLE.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Use low level CD Block emulation", settings.cdblock.useLLE.Get()));
         fmt::format_to(inserter, "- CD read speed: {}x\n", settings.cdblock.readSpeedFactor.Get());
 
         tweaksList = fmt::to_string(buf);
@@ -172,6 +171,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
         m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(false));
+        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
 
@@ -179,6 +179,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         settings.audio.stepGranularity = 0;
 
         settings.cdblock.readSpeedFactor = 2;
+        settings.cdblock.useLLE = false;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted(
@@ -193,13 +194,15 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
         m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(false));
+        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(true));
 
         settings.system.emulateSH2Cache = true;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
-        settings.audio.stepGranularity = 5;
+        settings.audio.stepGranularity = 0; // TODO: change back to 5 when it doesn't break CD block LLE
 
         settings.cdblock.readSpeedFactor = 2;
+        settings.cdblock.useLLE = true;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes accuracy with no regard for performance.");
@@ -213,6 +216,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
         m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(false));
+        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
 
@@ -220,6 +224,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         settings.audio.stepGranularity = 0;
 
         settings.cdblock.readSpeedFactor = 200;
+        settings.cdblock.useLLE = false;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes performance with no regard for accuracy.\n"
