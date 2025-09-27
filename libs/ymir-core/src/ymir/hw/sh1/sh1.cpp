@@ -2340,7 +2340,7 @@ void SH1::RecalcInterrupts() {
     // From this point on, all interrupt sources have dynamic priorities, so we need to check them all
     // TODO: should probably optimize this further somehow, maybe by sorting them by priority so we can bail out early
 
-    if (INTC.IsIRQAsserted(1)) {
+    /*if (INTC.IsIRQAsserted(1)) {
         RaiseInterrupt(InterruptSource::IRQ0);
     }
     if (INTC.IsIRQAsserted(1)) {
@@ -2357,7 +2357,7 @@ void SH1::RecalcInterrupts() {
     }
     if (INTC.IsIRQAsserted(5)) {
         RaiseInterrupt(InterruptSource::IRQ5);
-    }
+    }*/
     if (INTC.IsIRQAsserted(6)) {
         RaiseInterrupt(InterruptSource::IRQ6);
     }
@@ -2392,9 +2392,9 @@ void SH1::RecalcInterrupts() {
     // TODO: SCI0 TxI0, TEI0
 
     // TODO: SCI1 ERI1
-    if (SCI.channels[1].rxIntrEnable && SCI.channels[1].rxFull) {
+    /*if (SCI.channels[1].rxIntrEnable && SCI.channels[1].rxFull) {
         RaiseInterrupt(InterruptSource::SCI1_RxI1);
-    }
+    }*/
     // TODO: SCI1 TxI1, TEI1
 
     // TODO: BSC REF CMI
