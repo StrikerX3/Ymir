@@ -53,6 +53,10 @@ void CDDrive::Reset() {
     m_currFAD = 0u;
     m_targetFAD = 0u;
 
+    m_scan = false;
+    m_scanDirection = false;
+    m_scanCounter = 0;
+
     m_readSpeed = 1;
 
     if (m_eventsEnabled) {
@@ -142,6 +146,9 @@ void CDDrive::SaveState(state::CDDriveState &state) const {
     state.targetFAD = m_targetFAD;
     state.seekOp = static_cast<uint8>(m_seekOp);
     state.seekCountdown = m_seekCountdown;
+    state.scan = m_scan;
+    state.scanDirection = m_scanDirection;
+    state.scanCounter = m_scanCounter;
 
     state.currTOCEntry = m_currTOCEntry;
     state.currTOCRepeat = m_currTOCRepeat;
@@ -202,6 +209,9 @@ void CDDrive::LoadState(const state::CDDriveState &state) {
     m_targetFAD = state.targetFAD;
     m_seekOp = static_cast<Operation>(state.seekOp);
     m_seekCountdown = state.seekCountdown;
+    m_scan = state.scan;
+    m_scanDirection = state.scanDirection;
+    m_scanCounter = state.scanCounter;
 
     m_currTOCEntry = state.currTOCEntry;
     m_currTOCRepeat = state.currTOCRepeat;
@@ -348,6 +358,7 @@ FORCE_INLINE uint64 CDDrive::ProcessOperation() {
     case Operation::SeekSecurityRingB2: [[fallthrough]];
     case Operation::SeekSecurityRingB6: return OpSeek();
     case Operation::ReadAudioSector: [[fallthrough]];
+    case Operation::ScanAudioSector: [[fallthrough]];
     case Operation::ReadDataSector: return OpReadSector();
     case Operation::Idle: return OpIdle();
     case Operation::TrayOpen: return OpTrayOpen();
@@ -400,14 +411,19 @@ FORCE_INLINE uint64 CDDrive::CmdStop() {
 }
 FORCE_INLINE uint64 CDDrive::CmdScan(bool fwd) {
     devlog::debug<grp::lle_cd>("Scan {}", (fwd ? "forwards" : "backwards"));
-    // TODO: implement
-    YMIR_DEV_CHECK();
 
-    m_status.operation = Operation::Idle;
+    // TODO: check how this command works on real hardware
 
-    OutputDriveStatus();
+    // Should only scan audio tracks
+    if (m_status.operation != Operation::ReadAudioSector) {
+        return kDriveCyclesPlaying1x / m_readSpeed;
+    }
 
-    return kDriveCyclesPlaying1x / m_readSpeed;
+    m_scan = true;
+    m_scanDirection = fwd;
+
+    // Continue with read sector, which handles the scan flags
+    return OpReadSector();
 }
 
 FORCE_INLINE uint64 CDDrive::CmdUnknown() {
@@ -452,7 +468,9 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
     const auto &session = m_disc.sessions.back();
     const auto *track = session.FindTrack(m_currFAD);
     const bool isData = track == nullptr || (track->controlADR & 0x40);
-    m_status.operation = isData ? Operation::ReadDataSector : Operation::ReadAudioSector;
+    m_status.operation = isData   ? Operation::ReadDataSector
+                         : m_scan ? Operation::ScanAudioSector
+                                  : Operation::ReadAudioSector;
 
     uint64 cycles = kDriveCyclesPlaying1x / m_readSpeed;
     if (m_currFAD > session.endFrameAddress) {
@@ -504,6 +522,32 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
             // Swap endianness if necessary
             for (uint32 offset = 0; offset < 2352; offset += 2) {
                 util::WriteLE<uint16>(&m_sectorDataBuffer[offset], util::ReadBE<uint16>(&m_sectorDataBuffer[offset]));
+            }
+        }
+
+        if (m_scan) {
+            // While scanning, attenuate volume by 12 dB
+            for (uint32 offset = 0; offset < 2352; offset += 2) {
+                util::WriteLE<sint16>(&m_sectorDataBuffer[offset],
+                                      util::ReadLE<sint16>(&m_sectorDataBuffer[offset]) >> 2u);
+            }
+
+            constexpr uint8 kScanCounter = 15;
+            constexpr uint8 kScanFrameSkip = 75;
+            static_assert(kScanFrameSkip >= kScanCounter,
+                          "scan frame skip includes the frame counter, so it cannot be shorter than the counter");
+
+            // Skip frames while scanning
+            m_scanCounter++;
+            if (m_scanCounter >= kScanCounter) {
+                m_scanCounter = 0;
+                if (m_scanDirection) {
+                    m_currFAD += kScanFrameSkip - kScanCounter;
+                } else {
+                    m_currFAD -= kScanFrameSkip + kScanCounter;
+                }
+                devlog::debug<grp::lle_cd>("Scan to sector {:06X}", m_currFAD);
+                m_status.operation = Operation::ScanAudioSector;
             }
         }
 
@@ -586,6 +630,7 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
     } else {
         m_seekOp = Operation::Idle;
     }
+    m_scan = false;
     m_seekCountdown = 9; // TODO: compute based on disc geometry, head position, spin speed, etc.
     devlog::debug<grp::lle_cd>("Seek to FAD {:06X} then {}", fad, (read ? "read" : "pause"));
 }

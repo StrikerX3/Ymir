@@ -39,6 +39,9 @@ struct CDDriveState {
     uint32 targetFAD;
     uint8 seekOp;
     uint32 seekCountdown;
+    bool scan;
+    bool scanDirection;
+    uint32 scanCounter;
 
     uint32 currTOCEntry;
     uint32 currTOCRepeat;

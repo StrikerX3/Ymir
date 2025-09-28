@@ -1551,6 +1551,7 @@ void serialize(Archive &ar, CDDriveState &s, const uint32 version) {
         ar(s.state);
         ar(s.currFAD, s.targetFAD);
         ar(s.seekOp, s.seekCountdown);
+        ar(s.scan, s.scanDirection, s.scanCounter);
         ar(s.currTOCEntry, s.currTOCRepeat);
         ar(s.readSpeed);
     }

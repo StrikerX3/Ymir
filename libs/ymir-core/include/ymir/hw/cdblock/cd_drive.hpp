@@ -124,6 +124,7 @@ private:
         ReadAudioSector = 0x34,
         ReadDataSector = 0x36,
         Idle = 0x46,
+        ScanAudioSector = 0x54,
         TrayOpen = 0x80,
         NoDisc = 0x83,
         SeekSecurityRingB2 = 0xB2,
@@ -170,8 +171,11 @@ private:
 
     uint32 m_currFAD;
     uint32 m_targetFAD;
-    Operation m_seekOp;
-    uint32 m_seekCountdown;
+    Operation m_seekOp;     // Operation to set after done seeking
+    uint32 m_seekCountdown; // How many ticks until done seeking
+    bool m_scan;            // Are audio tracks being scanned?
+    bool m_scanDirection;   // true=forwards, false=backwards
+    uint32 m_scanCounter;   // Number of ticks until next scan jump
 
     uint32 m_currTOCEntry;
     uint32 m_currTOCRepeat;
