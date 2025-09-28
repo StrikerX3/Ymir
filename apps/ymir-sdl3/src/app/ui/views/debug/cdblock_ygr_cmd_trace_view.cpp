@@ -1,4 +1,6 @@
-#include "cdblock_cmd_trace_view.hpp"
+#include "cdblock_ygr_cmd_trace_view.hpp"
+
+#include <ymir/util/bit_ops.hpp>
 
 namespace app::ui {
 
@@ -11,11 +13,11 @@ static ImVec4 MakeColorFromU8(uint8 value) {
     return color;
 }
 
-CDBlockCommandTraceView::CDBlockCommandTraceView(SharedContext &context)
+YGRCommandTraceView::YGRCommandTraceView(SharedContext &context)
     : m_context(context)
-    , m_tracer(context.tracers.CDBlock) {}
+    , m_tracer(context.tracers.YGR) {}
 
-void CDBlockCommandTraceView::Display() {
+void YGRCommandTraceView::Display() {
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
     const float hexCharWidth = ImGui::CalcTextSize("F").x;
@@ -34,10 +36,11 @@ void CDBlockCommandTraceView::Display() {
     if (ImGui::Button("Clear")) {
         m_tracer.ClearCommands();
     }
-    if (m_context.settings.cdblock.useLLE) {
+    if (!m_context.settings.cdblock.useLLE) {
         ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
-        ImGui::TextColored(m_context.colors.notice,
-                           "CD Block LLE is enabled. Commands will be traced to the YGR command trace window instead.");
+        ImGui::TextColored(
+            m_context.colors.notice,
+            "CD Block LLE is disabled. Commands will be traced to the CD Block command trace window instead.");
         ImGui::PopTextWrapPos();
     }
 
@@ -68,14 +71,18 @@ void CDBlockCommandTraceView::Display() {
                 ImGui::PopFont();
             }
             if (ImGui::TableNextColumn()) {
-                const uint8 cmd = trace.request[0] >> 8u;
                 ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-                ImGui::TextColored(MakeColorFromU8(cmd), "%04X %04X %04X %04X", trace.request[0], trace.request[1],
-                                   trace.request[2], trace.request[3]);
+                if (trace.reqValid) {
+                    const uint8 cmd = trace.request[0] >> 8u;
+                    ImGui::TextColored(MakeColorFromU8(cmd), "%04X %04X %04X %04X", trace.request[0], trace.request[1],
+                                       trace.request[2], trace.request[3]);
+                } else {
+                    ImGui::TextUnformatted("---- ---- ---- ----");
+                }
                 ImGui::PopFont();
             }
             if (ImGui::TableNextColumn()) {
-                if (trace.processed) {
+                if (trace.resValid) {
                     const uint8 status = trace.response[0] >> 8u;
                     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
                     ImGui::TextColored(MakeColorFromU8(status), "%04X %04X %04X %04X", trace.response[0],

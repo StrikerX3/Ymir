@@ -2742,6 +2742,9 @@ void App::RunEmulator() {
                     if (ImGui::BeginMenu("CD Block")) {
                         ImGui::MenuItem("Command trace", nullptr, &m_cdblockWindowSet.cmdTrace.Open);
                         ImGui::MenuItem("Filters", nullptr, &m_cdblockWindowSet.filters.Open);
+                        ImGui::Separator();
+                        ImGui::MenuItem("CD drive state", nullptr, &m_cdblockWindowSet.driveState.Open);
+                        ImGui::MenuItem("YGR command trace", nullptr, &m_cdblockWindowSet.ygrCmdTrace.Open);
                         ImGui::EndMenu();
                     }
 

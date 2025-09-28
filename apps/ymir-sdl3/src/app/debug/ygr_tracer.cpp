@@ -26,6 +26,9 @@ void YGRTracer::ReceiveCDBlockResponse(uint16 rr1, uint16 rr2, uint16 rr3, uint1
     // Otherwise, this is a periodic status and needs a new entry with reqValid=false, resValid=true.
     const bool lastProcessed = commands.GetLast().resValid;
     auto &cmd = lastProcessed ? commands.Emplace() : commands.GetLast();
+    if (lastProcessed) {
+        cmd.index = m_commandCounter++;
+    }
     cmd.response[0] = rr1;
     cmd.response[1] = rr2;
     cmd.response[2] = rr3;

@@ -21,7 +21,7 @@ struct YGRTracer final : ymir::debug::IYGRTracer {
 
     bool traceCommands = false;
 
-    util::RingBuffer<CommandInfo, 1024> commands;
+    util::RingBuffer<CommandInfo, 4096> commands;
 
 private:
     uint32 m_commandCounter = 0;
