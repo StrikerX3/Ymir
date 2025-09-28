@@ -179,9 +179,16 @@ uint64 SH1::Advance(uint64 cycles, uint64 spilloverCycles) {
         // [[maybe_unused]] const uint32 prevPC = PC; // debug aid
 
         // TODO: choose between interpreter (cached or uncached) and JIT recompiler
-        const uint64 cycles = InterpretNext();
-        AdvanceDMA(cycles);
-        m_cyclesExecuted += cycles;
+        uint64 loopCycles = 0;
+        do {
+            const uint64 instrCycles = InterpretNext();
+            loopCycles += instrCycles;
+            m_cyclesExecuted += instrCycles;
+        } while (m_cyclesExecuted < cycles && loopCycles < 16);
+        AdvanceDMA(loopCycles);
+        /*const uint64 instrCycles = InterpretNext();
+        AdvanceDMA(instrCycles);
+        m_cyclesExecuted += instrCycles;*/
 
         // Check for breakpoints and watchpoints in debug tracing mode
         // TODO: debugging features
@@ -527,7 +534,7 @@ FORCE_INLINE void SH1::AdvanceSCI() {
     }
 }
 
-void SH1::AdvanceDMA(uint64 cycles) {
+/*FORCE_INLINE*/ void SH1::AdvanceDMA(uint64 cycles) {
     for (uint32 i = 0; i < 4; ++i) {
         for (uint64 c = 0; c < cycles; ++c) {
             if (!StepDMAC(i)) {
