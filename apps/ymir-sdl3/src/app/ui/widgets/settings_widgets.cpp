@@ -313,6 +313,15 @@ namespace settings::cdblock {
         auto &config = ctx.settings.cdblock;
 
         bool useLLE = config.useLLE;
+
+        bool hasROMs;
+        {
+            std::unique_lock lock{ctx.locks.romManager};
+            hasROMs = !ctx.romManager.GetCDBlockROMs().empty();
+        }
+        if (!hasROMs) {
+            ImGui::BeginDisabled();
+        }
         if (ctx.settings.MakeDirty(ImGui::Checkbox("Use low level CD Block emulation", &useLLE))) {
             config.useLLE = useLLE;
         }
@@ -323,6 +332,10 @@ namespace settings::cdblock {
                                     "\n"
                                     "Changing this option causes a hard reset.",
                                     ctx.displayScale);
+        if (!hasROMs) {
+            ImGui::EndDisabled();
+            ImGui::TextColored(ctx.colors.warn, "No CD Block ROMs found. Low level emulation cannot be enabled.");
+        }
     }
 
 } // namespace settings::cdblock

@@ -30,19 +30,7 @@ void CDBlockSettingsView::Display() {
     ImGui::SeparatorText("Accuracy");
     ImGui::PopFont();
 
-    bool hasROMs;
-    {
-        std::unique_lock lock{m_context.locks.romManager};
-        hasROMs = !m_context.romManager.GetCDBlockROMs().empty();
-    }
-    if (!hasROMs) {
-        ImGui::BeginDisabled();
-    }
     widgets::settings::cdblock::CDBlockLLE(m_context);
-    if (!hasROMs) {
-        ImGui::EndDisabled();
-        ImGui::TextColored(m_context.colors.warn, "No CD Block ROMs found. Low level emulation cannot be enabled.");
-    }
 
     ImGui::TextUnformatted("NOTE: Changing any of these options will cause a hard reset");
 
@@ -76,7 +64,7 @@ void CDBlockSettingsView::Display() {
                               ImGuiTableFlags_SortTristate,
                           ImVec2(0, 100 * m_context.displayScale))) {
         ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_DefaultSort, 0.0f);
-        ImGui::TableSetupColumn("Version", ImGuiTableColumnFlags_WidthFixed, 50 * m_context.displayScale);
+        ImGui::TableSetupColumn("Version", ImGuiTableColumnFlags_WidthFixed, 60 * m_context.displayScale);
         ImGui::TableSetupColumn("##use", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort,
                                 useButtonWidth);
         ImGui::TableSetupScrollFreeze(0, 1);
