@@ -11,9 +11,11 @@
 
 namespace ymir::cdblock {
 
-CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc, core::Configuration::CDBlock &config)
+CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+                 core::Configuration::CDBlock &config)
     : m_scheduler(scheduler)
-    , m_disc(disc) {
+    , m_disc(disc)
+    , m_fs(fs) {
 
     m_stateEvent = m_scheduler.RegisterEvent(
         core::events::CDBlockLLEDriveState, this, [](core::EventContext &eventContext, void *userContext) {
@@ -70,16 +72,10 @@ void CDDrive::UpdateClockRatios(const sys::ClockRatios &clockRatios) {
 }
 
 void CDDrive::OnDiscLoaded() {
-    if (m_fs.Read(m_disc)) {
-        devlog::info<grp::base>("Filesystem built successfully");
-    } else {
-        devlog::warn<grp::base>("Failed to build filesystem");
-    }
     OpenTray(true);
 }
 
 void CDDrive::OnDiscEjected() {
-    m_fs.Clear();
     OpenTray(true);
 }
 
@@ -633,6 +629,9 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
     m_scan = false;
     m_seekCountdown = 9; // TODO: compute based on disc geometry, head position, spin speed, etc.
     devlog::debug<grp::lle_cd>("Seek to FAD {:06X} then {}", fad, (read ? "read" : "pause"));
+    if (auto path = m_fs.GetPathAtFrameAddress(fad); !path.empty()) {
+        devlog::debug<grp::lle_cd>("File: {}", path);
+    }
 }
 
 FORCE_INLINE uint64 CDDrive::BeginSeek(bool read) {

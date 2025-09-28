@@ -188,14 +188,14 @@ public:
     }
 
     // Retrieves the filesystem entry at the specified frame address.
-    // Retuns nullptr if there is no file at that FAD, it is out of range or it doesn't point to a data track.
+    // Returns nullptr if there is no file at that FAD, it is out of range or it doesn't point to a data track.
     const FilesystemEntry *GetFileAtFrameAddress(uint32 fad) const;
 
     // Retrieves the full path of the file at the specified frame address.
-    // Retuns nullptr if there is no file at that FAD, it is out of range or it doesn't point to a data track.
+    // Returns an empty string if there is no file at that FAD, it is out of range or it doesn't point to a data track.
     std::string GetPathAtFrameAddress(uint32 fad) const;
 
-    // Retrieves teh full path of the specified directory index.
+    // Retrieves the full path of the specified directory index.
     std::string BuildPath(uint16 directoryIndex) const;
 
 private:

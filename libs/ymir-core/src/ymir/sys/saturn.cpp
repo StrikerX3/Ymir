@@ -55,7 +55,7 @@ Saturn::Saturn()
     , SCSP(m_scheduler, configuration.audio)
     , CDBlock(m_scheduler, m_disc, m_fs, configuration.cdblock)
     , SH1(SH1Bus)
-    , CDDrive(m_scheduler, m_disc, configuration.cdblock) {
+    , CDDrive(m_scheduler, m_disc, m_fs, configuration.cdblock) {
 
     mainBus.MapNormal(
         0x000'0000, 0x7FF'FFFF, nullptr,

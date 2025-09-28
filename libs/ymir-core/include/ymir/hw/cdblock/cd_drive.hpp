@@ -24,7 +24,8 @@ namespace ymir::cdblock {
 
 class CDDrive {
 public:
-    CDDrive(core::Scheduler &scheduler, const media::Disc &disc, core::Configuration::CDBlock &config);
+    CDDrive(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+            core::Configuration::CDBlock &config);
 
     void Reset();
 
@@ -71,7 +72,7 @@ private:
     CBSectorTransferDone m_cbSectorTransferDone;
 
     const media::Disc &m_disc;
-    media::fs::Filesystem m_fs;
+    const media::fs::Filesystem &m_fs;
 
     // The CD block program only responds to disc change events if they follow the Tray Open state.
     // The auto close tray flag causes the TrayOpen operation processor to automatically close the tray and switch to
