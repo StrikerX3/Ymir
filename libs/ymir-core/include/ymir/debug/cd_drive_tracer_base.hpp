@@ -20,13 +20,10 @@ struct ICDDriveTracer {
     /// @brief Default virtual destructor. Required for inheritance.
     virtual ~ICDDriveTracer() = default;
 
-    /// @brief Invoked when the CD drive receives a command through the serial interface.
+    /// @brief Invoked when the CD drive receives a command and transmits its status through the serial interface.
     /// @param[in] command the command sent to the CD drive
-    virtual void RxCommand(std::span<const uint8, 13> command) {}
-
-    /// @brief Invoked when the CD drive transmits its status through the serial interface.
     /// @param[in] status the status sent to the SH-1
-    virtual void TxStatus(std::span<const uint8, 13> status) {}
+    virtual void RxCommandTxStatus(std::span<const uint8, 13> command, std::span<const uint8, 13> status) {}
 };
 
 } // namespace ymir::debug

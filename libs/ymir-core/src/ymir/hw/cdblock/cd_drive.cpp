@@ -14,15 +14,10 @@ namespace ymir::cdblock {
 // -----------------------------------------------------------------------------
 // Debugger
 
-FORCE_INLINE static void TraceRxCommand(debug::ICDDriveTracer *tracer, std::span<const uint8, 13> command) {
+FORCE_INLINE static void TraceRxCommandTxStatus(debug::ICDDriveTracer *tracer, std::span<const uint8, 13> command,
+                                                std::span<const uint8, 13> status) {
     if (tracer) {
-        return tracer->RxCommand(command);
-    }
-}
-
-FORCE_INLINE static void TraceTxStatus(debug::ICDDriveTracer *tracer, std::span<const uint8, 13> status) {
-    if (tracer) {
-        return tracer->TxStatus(status);
+        return tracer->RxCommandTxStatus(command, status);
     }
 }
 
@@ -247,7 +242,6 @@ bool CDDrive::SerialRead() {
     const bool bit = (m_statusData.data[byteIndex] >> bitIndex) & 1;
     if (++m_statusPos == (m_statusData.data.size() << 3u)) {
         m_statusPos = 0;
-        TraceTxStatus(m_tracer, m_statusData.data);
     }
     return bit;
 }
@@ -271,7 +265,7 @@ void CDDrive::SerialWrite(bool bit) {
                 }
                 devlog::trace<grp::lle_cd_status>("{}", fmt::to_string(buf));
             }
-            TraceRxCommand(m_tracer, m_command.data);
+            TraceRxCommandTxStatus(m_tracer, m_command.data, m_statusData.data);
         } else if (m_commandPos == (1 << 3u)) {
             m_state = TxState::TxInter1;
         } else {

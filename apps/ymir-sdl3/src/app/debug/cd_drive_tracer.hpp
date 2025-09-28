@@ -14,23 +14,21 @@ struct CDDriveTracer final : ymir::debug::ICDDriveTracer {
         uint32 index;
         std::array<uint8, 13> command;
         std::array<uint8, 13> status;
-        bool processed;
     };
 
-    void ClearCommands();
+    void ClearStateUpdates();
 
     bool traceStateUpdates = false;
 
     util::RingBuffer<StateUpdateInfo, 1024> stateUpdates;
 
 private:
-    uint32 m_commandCounter = 0;
+    uint32 m_stateUpdateCounter = 0;
 
     // -------------------------------------------------------------------------
     // ICDDriveTracer implementation
 
-    void RxCommand(std::span<const uint8, 13> command) final;
-    void TxStatus(std::span<const uint8, 13> status) final;
+    void RxCommandTxStatus(std::span<const uint8, 13> command, std::span<const uint8, 13> status) final;
 };
 
 } // namespace app

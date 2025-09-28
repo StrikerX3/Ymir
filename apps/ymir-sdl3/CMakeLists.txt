@@ -66,6 +66,8 @@ add_executable(ymir-sdl3
 
     src/app/ui/views/debug/cdblock_cmd_trace_view.cpp
     src/app/ui/views/debug/cdblock_cmd_trace_view.hpp
+    src/app/ui/views/debug/cdblock_drive_state_trace_view.cpp
+    src/app/ui/views/debug/cdblock_drive_state_trace_view.hpp
     src/app/ui/views/debug/cdblock_filters_view.cpp
     src/app/ui/views/debug/cdblock_filters_view.hpp
     src/app/ui/views/debug/cdblock_ygr_cmd_trace_view.cpp

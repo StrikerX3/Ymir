@@ -2,28 +2,19 @@
 
 namespace app {
 
-void CDDriveTracer::ClearCommands() {
+void CDDriveTracer::ClearStateUpdates() {
     stateUpdates.Clear();
-    m_commandCounter = 0;
+    m_stateUpdateCounter = 0;
 }
 
-void CDDriveTracer::RxCommand(std::span<const uint8, 13> command) {
+void CDDriveTracer::RxCommandTxStatus(std::span<const uint8, 13> command, std::span<const uint8, 13> status) {
     if (!traceStateUpdates) {
         return;
     }
 
-    auto &entry = stateUpdates.Write({.index = m_commandCounter++, .processed = false});
+    auto &entry = stateUpdates.Write({.index = m_stateUpdateCounter++});
     std::copy(command.begin(), command.end(), entry.command.begin());
-}
-
-void CDDriveTracer::TxStatus(std::span<const uint8, 13> status) {
-    if (!traceStateUpdates) {
-        return;
-    }
-
-    auto &entry = stateUpdates.GetLast();
     std::copy(status.begin(), status.end(), entry.status.begin());
-    entry.processed = true;
 }
 
 } // namespace app
