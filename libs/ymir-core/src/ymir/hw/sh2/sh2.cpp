@@ -255,6 +255,7 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     for (auto &ch : m_dmaChannels) {
         ch.Reset();
     }
+    m_dmacTraced.fill(false);
 
     WDT.Reset(watchdogInitiated);
 
@@ -1571,9 +1572,13 @@ bool SH2::StepDMAC(uint32 channel) {
     const sint32 srcInc = getAddressInc(ch.srcMode);
     const sint32 dstInc = getAddressInc(ch.dstMode);
 
-    // TODO: trace only when the transfer is started
-    // TraceDMAXferBegin<debug>(m_tracer, channel, ch.srcAddress, ch.dstAddress, ch.xferCount, xferSize, srcInc,
-    // dstInc);
+    if constexpr (debug) {
+        if (!m_dmacTraced[channel]) {
+            m_dmacTraced[channel] = true;
+            TraceDMAXferBegin<debug>(m_tracer, channel, ch.srcAddress, ch.dstAddress, ch.xferCount, xferSize, srcInc,
+                                     dstInc);
+        }
+    }
 
     // Perform one unit of transfer
     switch (ch.xferSize) {
@@ -1629,6 +1634,9 @@ bool SH2::StepDMAC(uint32 channel) {
 
     if (ch.xferCount == 0) {
         TraceDMAXferEnd<debug>(m_tracer, channel, ch.irqEnable);
+        if constexpr (debug) {
+            m_dmacTraced[channel] = false;
+        }
 
         ch.xferEnded = true;
         devlog::trace<grp::dma>(m_logPrefix, "DMAC{} transfer finished", channel);

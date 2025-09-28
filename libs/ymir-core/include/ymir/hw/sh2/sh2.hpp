@@ -791,6 +791,8 @@ private:
     Probe m_probe{*this};
     debug::ISH2Tracer *m_tracer = nullptr;
 
+    std::array<bool, 2> m_dmacTraced; // whether each DMA channel has had a transfer traced
+
     std::set<uint32> m_breakpoints;
     std::map<uint32, debug::WatchpointFlags> m_watchpoints;
 
