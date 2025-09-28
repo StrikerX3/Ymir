@@ -26,7 +26,7 @@
 
 #include <ymir/state/state_sh1.hpp>
 
-// TODO: breakpoints, watchpoints, probe, tracers
+// TODO: breakpoints, watchpoints, tracers
 
 #include <ymir/core/hash.hpp>
 #include <ymir/core/types.hpp>
