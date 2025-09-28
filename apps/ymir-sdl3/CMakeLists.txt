@@ -218,8 +218,8 @@ add_executable(ymir-sdl3
 
     src/app/ui/windows/debug/cdblock_cmd_trace_window.cpp
     src/app/ui/windows/debug/cdblock_cmd_trace_window.hpp
-    src/app/ui/windows/debug/cdblock_drive_state_window.cpp
-    src/app/ui/windows/debug/cdblock_drive_state_window.hpp
+    src/app/ui/windows/debug/cdblock_drive_state_trace_window.cpp
+    src/app/ui/windows/debug/cdblock_drive_state_trace_window.hpp
     src/app/ui/windows/debug/cdblock_filters_window.cpp
     src/app/ui/windows/debug/cdblock_filters_window.hpp
     src/app/ui/windows/debug/cdblock_window_base.cpp

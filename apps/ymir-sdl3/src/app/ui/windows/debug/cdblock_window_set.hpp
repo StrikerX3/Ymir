@@ -1,7 +1,7 @@
 #pragma once
 
 #include "cdblock_cmd_trace_window.hpp"
-#include "cdblock_drive_state_window.hpp"
+#include "cdblock_drive_state_trace_window.hpp"
 #include "cdblock_filters_window.hpp"
 #include "cdblock_ygr_cmd_trace_window.hpp"
 
@@ -11,19 +11,19 @@ struct CDBlockWindowSet {
     CDBlockWindowSet(SharedContext &context)
         : cmdTrace(context)
         , filters(context)
-        , driveState(context)
+        , driveStateTrace(context)
         , ygrCmdTrace(context) {}
 
     void DisplayAll() {
         cmdTrace.Display();
         filters.Display();
-        driveState.Display();
+        driveStateTrace.Display();
         ygrCmdTrace.Display();
     }
 
     CDBlockCommandTraceWindow cmdTrace;
     CDBlockFiltersWindow filters;
-    CDDriveStateWindow driveState;
+    CDDriveStateTraceWindow driveStateTrace;
     YGRCommandTraceWindow ygrCmdTrace;
 };
 
