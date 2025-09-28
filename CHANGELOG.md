@@ -48,6 +48,7 @@ Introduced save state file version 10.
     - DeJig games (#399, #541)
     - Dream Square - Hinagata Akiko (#361)
     - Ferox prototype (#609)
+    - GeGeGe no Kitarou - Gentou Kaikitan (#396)
     - Gekka no Kishi - Ouryuu-sen (#353)
     - Goiken Muyou - Anarchy in the Nippon (#556)
     - Horror Tour (#319)
@@ -56,6 +57,7 @@ Introduced save state file version 10.
     - Marie no Atelier Ver. 1.3 - Salburg no Renkinjutsushi (#619)
     - Mario Mushano no Chou Shougi Juku - Mario Mushano's Hyper Shogi School (#430)
     - Nonomura Byouin no Hitobito (#436)
+    - Pastel Muses (#380)
     - Tenchi Muyou Rensa Hitsuyou (#339)
     - Several homebrew apps (#620, #626)
 - SCU: Make DMA transfers interruptible to support LLE CD Block interactions.
