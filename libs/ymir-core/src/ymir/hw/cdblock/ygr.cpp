@@ -44,8 +44,24 @@ void YGR::MapMemory(sys::SH1Bus &cdbBus) {
 
     cdbBus.MapNormal(
         0xA000000, 0xCFFFFFF, this, //
-        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).CDBReadWord(address); },
-        [](uint32 address, uint16 value, void *ctx) { cast(ctx).CDBWriteWord(address, value); });
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).CDBReadWord<false>(address); },
+        [](uint32 address, uint16 value, void *ctx) { cast(ctx).CDBWriteWord<false>(address, value); });
+
+    cdbBus.MapSideEffectFree(
+        0xA000000, 0xCFFFFFF, this, //
+        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).CDBPeekByte(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).CDBReadWord<true>(address); },
+        [](uint32 address, void *ctx) -> uint32 {
+            uint32 value = cast(ctx).CDBReadWord<true>(address + 0) << 16u;
+            value |= cast(ctx).CDBReadWord<true>(address + 2) << 0u;
+            return value;
+        },
+        [](uint32 address, uint8 value, void *ctx) { cast(ctx).CDBPokeByte(address, value); },
+        [](uint32 address, uint16 value, void *ctx) { cast(ctx).CDBWriteWord<true>(address, value); },
+        [](uint32 address, uint32 value, void *ctx) {
+            cast(ctx).CDBWriteWord<true>(address + 0, value >> 16u);
+            cast(ctx).CDBWriteWord<true>(address + 2, value >> 0u);
+        });
 }
 
 void YGR::MapMemory(sys::SH2Bus &mainBus) {
@@ -113,6 +129,7 @@ void YGR::MapMemory(sys::SH2Bus &mainBus) {
 // -----------------------------------------------------------------------------
 // CD block bus
 
+template <bool peek>
 FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
     if (((address >> 20) & 0xF) == 0x1) {
         // TODO: read from Video CD Card registers instead
@@ -123,10 +140,12 @@ FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
     switch (address) {
     case 0x00: //
     {
-        const uint16 value = m_fifo.Read<false>();
-        devlog::trace<grp::ygr_fifo>("CDB  FIFO read  <- rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
-                                     m_fifo.writePos, m_fifo.count, value);
-        UpdateFIFODREQ();
+        const uint16 value = m_fifo.Read<peek>();
+        if constexpr (!peek) {
+            devlog::trace<grp::ygr_fifo>("CDB  FIFO read  <- rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
+                                         m_fifo.writePos, m_fifo.count, value);
+            UpdateFIFODREQ();
+        }
         return value;
     }
     case 0x02: return m_regs.TRCTL.u16;
@@ -144,10 +163,15 @@ FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
     case 0x1A: return m_regs.REG1A.u16;
     case 0x1C: return m_regs.REG1C.u16;
     case 0x1E: return m_regs.HIRQ;
-    default: devlog::trace<grp::ygr_regs>("Unhandled 16-bit CD Block YGR read from {:02X}", address); return 0u;
+    default:
+        if constexpr (!peek) {
+            devlog::trace<grp::ygr_regs>("Unhandled 16-bit CD Block YGR read from {:02X}", address);
+        }
+        return 0u;
     }
 }
 
+template <bool poke>
 FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     if (((address >> 20) & 0xF) == 0x1) {
         // TODO: write to Video CD Card registers instead
@@ -157,22 +181,32 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     address &= 0xFFFF;
     switch (address) {
     case 0x00:
-        m_fifo.Write<false>(value);
-        devlog::trace<grp::ygr_fifo>("CDB  FIFO write -> rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
-                                     m_fifo.writePos, m_fifo.count, value);
-        UpdateFIFODREQ();
+        m_fifo.Write<poke>(value);
+        if constexpr (!poke) {
+            devlog::trace<grp::ygr_fifo>("CDB  FIFO write -> rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
+                                         m_fifo.writePos, m_fifo.count, value);
+            UpdateFIFODREQ();
+        }
         break;
     case 0x02:
         m_regs.TRCTL.u16 = value & 0xF;
-        if (m_regs.TRCTL.RES) {
-            m_fifo.Clear();
-            devlog::trace<grp::ygr_fifo>("CDB  FIFO reset -- rd={:X} wr={:X} cnt={:X}", m_fifo.readPos, m_fifo.writePos,
-                                         m_fifo.count);
+        if constexpr (!poke) {
+            if (m_regs.TRCTL.RES) {
+                m_fifo.Clear();
+                devlog::trace<grp::ygr_fifo>("CDB  FIFO reset -- rd={:X} wr={:X} cnt={:X}", m_fifo.readPos,
+                                             m_fifo.writePos, m_fifo.count);
+            }
+            UpdateFIFODREQ();
         }
-        UpdateFIFODREQ();
         break;
     case 0x04: m_regs.CDIRQL.u16 = value & 0x3; break;
-    case 0x06: m_regs.CDIRQU.u16 &= value; break;
+    case 0x06:
+        if constexpr (poke) {
+            m_regs.CDIRQU.u16 = value & 0x70;
+        } else {
+            m_regs.CDIRQU.u16 &= value;
+        }
+        break;
     case 0x08: m_regs.CDMSKL.u16 = value & 0x3; break;
     case 0x0A: m_regs.CDMSKU.u16 = value & 0x70; break;
     case 0x0C: m_regs.REG0C.u16 = value & 0x3; break;
@@ -182,19 +216,126 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     case 0x14: m_regs.RR[2] = value; break;
     case 0x16:
         m_regs.RR[3] = value;
-        devlog::trace<grp::ygr_cr>("CDB  RR writes: {:04X} {:04X} {:04X} {:04X}", m_regs.RR[0], m_regs.RR[1],
-                                   m_regs.RR[2], m_regs.RR[3]);
+        if constexpr (!poke) {
+            devlog::trace<grp::ygr_cr>("CDB  RR writes: {:04X} {:04X} {:04X} {:04X}", m_regs.RR[0], m_regs.RR[1],
+                                       m_regs.RR[2], m_regs.RR[3]);
+        }
         break;
     case 0x18: m_regs.REG18.u16 = value & 0x3F; break;
     case 0x1A: m_regs.REG1A.u16 = value & 0xD7; break;
     case 0x1C: m_regs.REG1C.u16 = value & 0xFF; break;
     case 0x1E:
-        m_regs.HIRQ |= value & 0x3FFF;
-        UpdateInterrupts();
+        if constexpr (poke) {
+            m_regs.HIRQ = value & 0x3FFF;
+        } else {
+            m_regs.HIRQ |= value & 0x3FFF;
+            UpdateInterrupts();
+        }
         break;
     default:
-        devlog::trace<grp::ygr_regs>("Unhandled 16-bit CD Block YGR write to {:02X} = {:04X}", address, value);
+        if constexpr (!poke) {
+            devlog::trace<grp::ygr_regs>("Unhandled 16-bit CD Block YGR write to {:02X} = {:04X}", address, value);
+        }
         break;
+    }
+}
+
+FORCE_INLINE uint8 YGR::CDBPeekByte(uint32 address) const {
+    if (((address >> 20) & 0xF) == 0x1) {
+        // TODO: read from Video CD Card registers instead
+        return 0;
+    }
+
+    address &= 0xFFFF;
+    switch (address) {
+    case 0x00: return m_fifo.Read<true>() >> 8u;
+    case 0x01: return m_fifo.Read<true>();
+    case 0x02: return m_regs.TRCTL.u16 >> 8u;
+    case 0x03: return m_regs.TRCTL.u16;
+    case 0x04: return m_regs.CDIRQL.u16 >> 8u;
+    case 0x05: return m_regs.CDIRQL.u16;
+    case 0x06: return m_regs.CDIRQU.u16 >> 8u;
+    case 0x07: return m_regs.CDIRQU.u16;
+    case 0x08: return m_regs.CDMSKL.u16 >> 8u;
+    case 0x09: return m_regs.CDMSKL.u16;
+    case 0x0A: return m_regs.CDMSKU.u16 >> 8u;
+    case 0x0B: return m_regs.CDMSKU.u16;
+    case 0x0C: return m_regs.REG0C.u16 >> 8u;
+    case 0x0D: return m_regs.REG0C.u16;
+    case 0x0E: return m_regs.REG0E >> 8u;
+    case 0x0F: return m_regs.REG0E;
+    case 0x10: return m_regs.CR[0] >> 8u;
+    case 0x11: return m_regs.CR[0];
+    case 0x12: return m_regs.CR[1] >> 8u;
+    case 0x13: return m_regs.CR[1];
+    case 0x14: return m_regs.CR[2] >> 8u;
+    case 0x15: return m_regs.CR[2];
+    case 0x16: return m_regs.CR[3] >> 8u;
+    case 0x17: return m_regs.CR[3];
+    case 0x18: return m_regs.REG18.u16 >> 8u;
+    case 0x19: return m_regs.REG18.u16;
+    case 0x1A: return m_regs.REG1A.u16 >> 8u;
+    case 0x1B: return m_regs.REG1A.u16;
+    case 0x1C: return m_regs.REG1C.u16 >> 8u;
+    case 0x1D: return m_regs.REG1C.u16;
+    case 0x1E: return m_regs.HIRQ >> 8u;
+    case 0x1F: return m_regs.HIRQ;
+    default: return 0u;
+    }
+}
+
+FORCE_INLINE void YGR::CDBPokeByte(uint32 address, uint8 value) {
+    if (((address >> 20) & 0xF) == 0x1) {
+        // TODO: write to Video CD Card registers instead
+        return;
+    }
+
+    address &= 0xFFFF;
+    switch (address) {
+    case 0x00: //
+    {
+        uint16 fifoVal = m_fifo.Read<true>();
+        bit::deposit_into<8, 15>(fifoVal, value);
+        m_fifo.Write<true>(fifoVal);
+        break;
+    }
+    case 0x01: //
+    {
+        uint16 fifoVal = m_fifo.Read<true>();
+        bit::deposit_into<0, 7>(fifoVal, value);
+        m_fifo.Write<true>(fifoVal);
+        break;
+    }
+    case 0x02: break;
+    case 0x03: m_regs.TRCTL.u16 = value & 0xF; break;
+    case 0x04: break;
+    case 0x05: m_regs.CDIRQL.u16 = value & 0x3; break;
+    case 0x06: break;
+    case 0x07: m_regs.CDIRQU.u16 = value & 0x70; break;
+    case 0x08: break;
+    case 0x09: m_regs.CDMSKL.u16 = value & 0x3; break;
+    case 0x0A: break;
+    case 0x0B: m_regs.CDMSKU.u16 = value & 0x70; break;
+    case 0x0C: break;
+    case 0x0D: m_regs.REG0C.u16 = value & 0x3; break;
+    case 0x0E: bit::deposit_into<8, 15>(m_regs.REG0E, value); break;
+    case 0x0F: bit::deposit_into<0, 7>(m_regs.REG0E, value); break;
+    case 0x10: bit::deposit_into<8, 15>(m_regs.RR[0], value); break;
+    case 0x11: bit::deposit_into<0, 7>(m_regs.RR[0], value); break;
+    case 0x12: bit::deposit_into<8, 15>(m_regs.RR[1], value); break;
+    case 0x13: bit::deposit_into<0, 7>(m_regs.RR[1], value); break;
+    case 0x14: bit::deposit_into<8, 15>(m_regs.RR[2], value); break;
+    case 0x15: bit::deposit_into<0, 7>(m_regs.RR[2], value); break;
+    case 0x16: bit::deposit_into<8, 15>(m_regs.RR[3], value); break;
+    case 0x17: bit::deposit_into<0, 7>(m_regs.RR[3], value); break;
+    case 0x18: break;
+    case 0x19: m_regs.REG18.u16 = value & 0x3F; break;
+    case 0x1A: break;
+    case 0x1B: m_regs.REG1A.u16 = value & 0xD7; break;
+    case 0x1C: break;
+    case 0x1D: m_regs.REG1C.u16 = value & 0xFF; break;
+    case 0x1E: bit::deposit_into<8, 13>(m_regs.HIRQ, value); break;
+    case 0x1F: bit::deposit_into<0, 7>(m_regs.HIRQ, value); break;
     }
 }
 

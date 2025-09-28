@@ -4,6 +4,7 @@
 
 #include <app/shared_context.hpp>
 
+#include <ymir/hw/sh1/sh1.hpp>
 #include <ymir/hw/sh2/sh2.hpp>
 #include <ymir/hw/vdp/vdp.hpp>
 #include <ymir/sys/bus.hpp>
@@ -29,6 +30,20 @@ EmuEvent WriteMainMemory(uint32 address, uint8 value, bool enableSideEffects) {
         return RunFunction([=](SharedContext &ctx) { ctx.saturn.GetMainBus().Write<uint8>(address, value); });
     } else {
         return RunFunction([=](SharedContext &ctx) { ctx.saturn.GetMainBus().Poke<uint8>(address, value); });
+    }
+}
+
+EmuEvent WriteSH1Memory(uint32 address, uint8 value, bool enableSideEffects) {
+    if (enableSideEffects) {
+        return RunFunction([=](SharedContext &ctx) {
+            auto &sh1 = ctx.saturn.GetSH1();
+            sh1.GetProbe().MemWriteByte(address, value);
+        });
+    } else {
+        return RunFunction([=](SharedContext &ctx) {
+            auto &sh1 = ctx.saturn.GetSH1();
+            sh1.GetProbe().MemPokeByte(address, value);
+        });
     }
 }
 

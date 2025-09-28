@@ -41,8 +41,13 @@ struct YGR {
     // -------------------------------------------------------------------------
     // CD block bus
 
+    template <bool peek>
     uint16 CDBReadWord(uint32 address) const;
+    template <bool poke>
     void CDBWriteWord(uint32 address, uint16 value);
+
+    uint8 CDBPeekByte(uint32 address) const;
+    void CDBPokeByte(uint32 address, uint8 value);
 
     // -------------------------------------------------------------------------
     // Host bus

@@ -121,6 +121,10 @@ ymir::cart::BaseCartridge &SharedContext::SaturnContainer::GetCartridge() {
     return instance->GetCartridge();
 }
 
+ymir::sh1::SH1 &SharedContext::SaturnContainer::GetSH1() {
+    return instance->SH1;
+}
+
 bool SharedContext::SaturnContainer::IsSlaveSH2Enabled() const {
     return instance->slaveSH2Enabled;
 }

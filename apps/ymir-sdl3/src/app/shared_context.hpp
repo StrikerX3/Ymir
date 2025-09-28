@@ -51,6 +51,10 @@ namespace sys {
     struct SystemMemory;
 } // namespace sys
 
+namespace sh1 {
+    class SH1;
+} // namespace sh1
+
 namespace sh2 {
     class SH2;
 } // namespace sh2
@@ -129,6 +133,7 @@ struct SharedContext {
         ymir::scsp::SCSP &GetSCSP();
         ymir::cdblock::CDBlock &GetCDBlock();
         ymir::cart::BaseCartridge &GetCartridge();
+        ymir::sh1::SH1 &GetSH1();
 
         const ymir::sys::SH2Bus &GetMainBus() const {
             return const_cast<SaturnContainer *>(this)->GetMainBus();

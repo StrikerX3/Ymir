@@ -13,6 +13,7 @@ namespace app::events::emu::debug {
 EmuEvent ExecuteSH2Division(bool master, bool div64);
 
 EmuEvent WriteMainMemory(uint32 address, uint8 value, bool enableSideEffects);
+EmuEvent WriteSH1Memory(uint32 address, uint8 value, bool enableSideEffects);
 EmuEvent WriteSH2Memory(uint32 address, uint8 value, bool enableSideEffects, bool master, bool bypassCache);
 
 EmuEvent AddSH2Breakpoint(bool master, uint32 address);

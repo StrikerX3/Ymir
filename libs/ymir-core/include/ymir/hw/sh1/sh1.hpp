@@ -103,6 +103,121 @@ public:
     [[nodiscard]] bool ValidateState(const state::SH1State &state, bool skipROMChecks = false) const;
     void LoadState(const state::SH1State &state);
 
+    // -------------------------------------------------------------------------
+    // Debugger
+
+    class Probe {
+    public:
+        Probe(SH1 &sh1);
+
+        // ---------------------------------------------------------------------
+        // Registers
+
+        FORCE_INLINE std::array<uint32, 16> &R() {
+            return m_sh1.R;
+        }
+        FORCE_INLINE const std::array<uint32, 16> &R() const {
+            return m_sh1.R;
+        }
+
+        FORCE_INLINE uint32 &R(uint8 rn) {
+            assert(rn <= 15);
+            return m_sh1.R[rn];
+        }
+        FORCE_INLINE const uint32 &R(uint8 rn) const {
+            assert(rn <= 15);
+            return m_sh1.R[rn];
+        }
+
+        FORCE_INLINE uint32 &PC() {
+            return m_sh1.PC;
+        }
+        FORCE_INLINE uint32 PC() const {
+            return m_sh1.PC;
+        }
+
+        FORCE_INLINE uint32 &PR() {
+            return m_sh1.PR;
+        }
+        FORCE_INLINE uint32 PR() const {
+            return m_sh1.PR;
+        }
+
+        FORCE_INLINE RegMAC &MAC() {
+            return m_sh1.MAC;
+        }
+        FORCE_INLINE RegMAC MAC() const {
+            return m_sh1.MAC;
+        }
+
+        FORCE_INLINE RegSR &SR() {
+            return m_sh1.SR;
+        }
+        FORCE_INLINE RegSR SR() const {
+            return m_sh1.SR;
+        }
+
+        FORCE_INLINE uint32 &GBR() {
+            return m_sh1.GBR;
+        }
+        FORCE_INLINE uint32 GBR() const {
+            return m_sh1.GBR;
+        }
+
+        FORCE_INLINE uint32 &VBR() {
+            return m_sh1.VBR;
+        }
+        FORCE_INLINE uint32 VBR() const {
+            return m_sh1.VBR;
+        }
+
+        // ---------------------------------------------------------------------
+        // Regular memory accessors (with side-effects)
+
+        uint16 FetchInstruction(uint32 address) const;
+
+        uint8 MemReadByte(uint32 address) const;
+        uint16 MemReadWord(uint32 address) const;
+        uint32 MemReadLong(uint32 address) const;
+
+        void MemWriteByte(uint32 address, uint8 value);
+        void MemWriteWord(uint32 address, uint16 value);
+        void MemWriteLong(uint32 address, uint32 value);
+
+        // ---------------------------------------------------------------------
+        // Debug memory accessors (without side-effects)
+
+        uint16 PeekInstruction(uint32 address) const;
+
+        uint8 MemPeekByte(uint32 address) const;
+        uint16 MemPeekWord(uint32 address) const;
+        uint32 MemPeekLong(uint32 address) const;
+
+        void MemPokeByte(uint32 address, uint8 value);
+        void MemPokeWord(uint32 address, uint16 value);
+        void MemPokeLong(uint32 address, uint32 value);
+
+        // ---------------------------------------------------------------------
+        // Execution state
+
+        bool IsInDelaySlot() const;
+        uint32 DelaySlotTarget() const;
+
+        bool GetSleepState() const;
+        void SetSleepState(bool sleep);
+
+    private:
+        SH1 &m_sh1;
+    };
+
+    Probe &GetProbe() {
+        return m_probe;
+    }
+
+    const Probe &GetProbe() const {
+        return m_probe;
+    }
+
 private:
     // -------------------------------------------------------------------------
     // CPU state
@@ -181,6 +296,16 @@ private:
     void MemWriteByte(uint32 address, uint8 value);
     void MemWriteWord(uint32 address, uint16 value);
     void MemWriteLong(uint32 address, uint32 value);
+
+    uint16 PeekInstruction(uint32 address);
+
+    uint8 MemPeekByte(uint32 address);
+    uint16 MemPeekWord(uint32 address);
+    uint32 MemPeekLong(uint32 address);
+
+    void MemPokeByte(uint32 address, uint8 value);
+    void MemPokeWord(uint32 address, uint16 value);
+    void MemPokeLong(uint32 address, uint32 value);
 
     uint64 AccessCycles(uint32 address);
 
@@ -303,6 +428,11 @@ private:
     // This value is updated when any of these variables is changed, which happens less often than once per instruction.
     // There's no need to store this in the save state struct since its value can be derived as above.
     bool m_intrPending;
+
+    // -------------------------------------------------------------------------
+    // Debugger
+
+    Probe m_probe{*this};
 
     // -------------------------------------------------------------------------
     // Helper functions

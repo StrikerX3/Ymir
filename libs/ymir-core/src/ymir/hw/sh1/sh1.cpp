@@ -642,6 +642,34 @@ FLATTEN FORCE_INLINE void SH1::MemWriteLong(uint32 address, uint32 value) {
     MemWrite<uint32, false>(address, value);
 }
 
+FLATTEN FORCE_INLINE uint16 SH1::PeekInstruction(uint32 address) {
+    return MemRead<uint16, true, true>(address);
+}
+
+FLATTEN FORCE_INLINE uint8 SH1::MemPeekByte(uint32 address) {
+    return MemRead<uint8, false, true>(address);
+}
+
+FLATTEN FORCE_INLINE uint16 SH1::MemPeekWord(uint32 address) {
+    return MemRead<uint16, false, true>(address);
+}
+
+FLATTEN FORCE_INLINE uint32 SH1::MemPeekLong(uint32 address) {
+    return MemRead<uint32, false, true>(address);
+}
+
+FLATTEN FORCE_INLINE void SH1::MemPokeByte(uint32 address, uint8 value) {
+    MemWrite<uint8, true>(address, value);
+}
+
+FLATTEN FORCE_INLINE void SH1::MemPokeWord(uint32 address, uint16 value) {
+    MemWrite<uint16, true>(address, value);
+}
+
+FLATTEN FORCE_INLINE void SH1::MemPokeLong(uint32 address, uint32 value) {
+    MemWrite<uint32, true>(address, value);
+}
+
 FORCE_INLINE uint64 SH1::AccessCycles(uint32 address) {
     // TODO: figure out timings
     const uint32 partition = (address >> 24u) & 0xF;
@@ -4093,6 +4121,84 @@ FORCE_INLINE uint64 SH1::RTS() {
     SetupDelaySlot(PR);
     PC += 2;
     return 2;
+}
+
+// -----------------------------------------------------------------------------
+// Probe implementation
+
+SH1::Probe::Probe(SH1 &sh1)
+    : m_sh1(sh1) {}
+
+uint16 SH1::Probe::FetchInstruction(uint32 address) const {
+    return m_sh1.FetchInstruction(address);
+}
+
+uint8 SH1::Probe::MemReadByte(uint32 address) const {
+    return m_sh1.MemReadByte(address);
+}
+
+uint16 SH1::Probe::MemReadWord(uint32 address) const {
+    return m_sh1.MemReadWord(address);
+}
+
+uint32 SH1::Probe::MemReadLong(uint32 address) const {
+    return m_sh1.MemReadLong(address);
+}
+
+void SH1::Probe::MemWriteByte(uint32 address, uint8 value) {
+    m_sh1.MemWriteByte(address, value);
+}
+
+void SH1::Probe::MemWriteWord(uint32 address, uint16 value) {
+    m_sh1.MemWriteWord(address, value);
+}
+
+void SH1::Probe::MemWriteLong(uint32 address, uint32 value) {
+    m_sh1.MemWriteLong(address, value);
+}
+
+uint16 SH1::Probe::PeekInstruction(uint32 address) const {
+    return m_sh1.PeekInstruction(address);
+}
+
+uint8 SH1::Probe::MemPeekByte(uint32 address) const {
+    return m_sh1.MemPeekByte(address);
+}
+
+uint16 SH1::Probe::MemPeekWord(uint32 address) const {
+    return m_sh1.MemPeekWord(address);
+}
+
+uint32 SH1::Probe::MemPeekLong(uint32 address) const {
+    return m_sh1.MemPeekLong(address);
+}
+
+void SH1::Probe::MemPokeByte(uint32 address, uint8 value) {
+    m_sh1.MemPokeByte(address, value);
+}
+
+void SH1::Probe::MemPokeWord(uint32 address, uint16 value) {
+    m_sh1.MemPokeWord(address, value);
+}
+
+void SH1::Probe::MemPokeLong(uint32 address, uint32 value) {
+    m_sh1.MemPokeLong(address, value);
+}
+
+bool SH1::Probe::IsInDelaySlot() const {
+    return m_sh1.m_delaySlot;
+}
+
+uint32 SH1::Probe::DelaySlotTarget() const {
+    return m_sh1.m_delaySlotTarget;
+}
+
+bool SH1::Probe::GetSleepState() const {
+    return m_sh1.m_sleep;
+}
+
+void SH1::Probe::SetSleepState(bool sleep) {
+    m_sh1.m_sleep = sleep;
 }
 
 } // namespace ymir::sh1

@@ -4,6 +4,7 @@
 
 #include <app/events/emu_debug_event_factory.hpp>
 
+#include <ymir/hw/sh1/sh1.hpp>
 #include <ymir/hw/sh2/sh2.hpp>
 
 #include <imgui_memory_editor.h>
@@ -64,6 +65,16 @@ struct MemoryViewerState {
 // [SSH2:60000000..600003FF] SSH2 cache address array   (based on currently selected way)
 // [SSH2:C0000000..C0000FFF] SSH2 cache data array
 // [SSH2:FFFFFE00..FFFFFFFF] SSH2 on-chip registers
+// --- CD Block SH-1 --------------
+// [SH1:00000000..07FFFFFF] SH1 address space
+// [SH1:00000000..0000FFFF] SH1 on-chip ROM
+// [SH1:05FFFE00..05FFFFFF] SH1 on-chip supporting modules
+// [SH1:09000000..0907FFFF] CD block DRAM
+// [SH1:0A000000..0A00001F] YGR CD drive registers
+// [SH1:0A100000..0A10003F] YGR MPEG card registers (low)
+// [SH1:0A180000..0A18000F] YGR MPEG card registers (high)
+// [SH1:0E000000..0E07FFFF] MPEG card ROM
+// [SH1:0F000000..0F000FFF] SH1 on-chip RAM
 
 // TODO: cartridge contents
 // --- Cartridge ---------------
@@ -191,6 +202,19 @@ namespace regions {
         }
     }
 
+    inline ImU8 SH1BusRead(const ImU8 *mem, size_t off, void *user_data) {
+        auto &state = *static_cast<const MemoryViewerState *>(user_data);
+        off += state.selectedRegion->baseAddress;
+        auto &sh1 = state.sharedCtx.saturn.GetSH1();
+        return sh1.GetProbe().MemPeekByte(off);
+    }
+
+    inline void SH1BusWrite(ImU8 *mem, size_t off, ImU8 d, void *user_data) {
+        auto &state = *static_cast<MemoryViewerState *>(user_data);
+        off += state.selectedRegion->baseAddress;
+        state.sharedCtx.EnqueueEvent(events::emu::debug::WriteSH1Memory(off, d, state.enableSideEffects));
+    }
+
     // clang-format off
     inline constexpr Region kMainRegions[] = {
         { .name = "Main address space",          .addressBlockName = "Main", .baseAddress = 0x0000000, .size = 0x8000000, .readFn = MainBusRead, .writeFn = MainBusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
@@ -234,10 +258,23 @@ namespace regions {
         { .name = "SSH2 on-chip registers",      .addressBlockName = "SSH2", .baseAddress = 0xFFFFFE00, .size =     0x200, .readFn = SH2BusRead<false>, .writeFn = SH2BusWrite<false>, .bgColorFn = SH2BusBgColor<false>,   .paramsFn = nullptr,             .hoverFn = nullptr              },
     };
 
+    inline constexpr Region kSH1Regions[] = {
+        { .name = "SH1 address space",               .addressBlockName = "SH1", .baseAddress = 0x00000000, .size = 0x8000000, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "SH1 on-chip ROM",                 .addressBlockName = "SH1", .baseAddress = 0x00000000, .size =   0x10000, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "SH1 on-chip supporting modules",  .addressBlockName = "SH1", .baseAddress = 0x05FFFE00, .size =     0x200, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "CD block DRAM",                   .addressBlockName = "SH1", .baseAddress = 0x09000000, .size =   0x80000, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "YGR registers (CD drive)",        .addressBlockName = "SH1", .baseAddress = 0x0A000000, .size =      0x20, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "YGR registers (MPEG card, low)",  .addressBlockName = "SH1", .baseAddress = 0x0A100000, .size =      0x40, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "YGR registers (MPEG card, high)", .addressBlockName = "SH1", .baseAddress = 0x0A180000, .size =      0x10, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "MPEG card ROM",                   .addressBlockName = "SH1", .baseAddress = 0x0E000000, .size =   0x80000, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+        { .name = "SH1 on-chip RAM",                 .addressBlockName = "SH1", .baseAddress = 0x0F000000, .size =    0x1000, .readFn = SH1BusRead, .writeFn = SH1BusWrite, .bgColorFn = MainBusBgColor, .paramsFn = nullptr, .hoverFn = nullptr },
+    };
+
     inline constexpr RegionGroup kRegionGroups[] = {
         { .name = "Main address space", .regions = kMainRegions },
         { .name = "Master SH-2",        .regions = kMSH2Regions },
         { .name = "Slave SH-2",         .regions = kSSH2Regions },
+        { .name = "CD block SH-1",      .regions = kSH1Regions  },
     };
     // clang-format on
 
