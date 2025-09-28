@@ -125,21 +125,21 @@ public:
         assert(denominator > 0);
         Event &event = m_events[id];
 
+        bool reschedule = false;
+        if (event.target != kNoDeadline) {
+            const uint64 oldTarget = event.target;
+            const uint64 oldScaledCount = m_currCount * event.countNumerator / event.countDenominator;
+            const sint64 remaining = oldTarget - oldScaledCount;
+            const sint64 rescaledCount = m_currCount * numerator / denominator;
+
+            event.target = rescaledCount + remaining;
+            reschedule = remaining <= 0;
+        }
+
         event.countNumerator = numerator;
         event.countDenominator = denominator;
 
-        if (event.target == kNoDeadline) {
-            return;
-        }
-
-        const uint64 oldTarget = event.target;
-        const uint64 oldScaledCount = m_currCount * event.countNumerator / event.countDenominator;
-        const sint64 remaining = oldTarget - oldScaledCount;
-        const sint64 rescaledCount = m_currCount * numerator / denominator;
-
-        event.target = rescaledCount + remaining;
-
-        if (remaining <= 0) {
+        if (reschedule) {
             RecalcSchedule();
         }
     }
