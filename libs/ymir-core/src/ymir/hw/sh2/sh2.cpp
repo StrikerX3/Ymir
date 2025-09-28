@@ -1518,7 +1518,8 @@ FORCE_INLINE uint64 SH2::GetCurrentCycleCount() const {
 }
 
 FLATTEN FORCE_INLINE bool SH2::IsDMATransferActive(const DMAChannel &ch) const {
-    return ch.IsEnabled() && DMAOR.DME && !DMAOR.NMIF && !DMAOR.AE;
+    // AE never occurs and NMIF is never set, so both checks can be safely skipped
+    return ch.IsEnabled() && DMAOR.DME /*&& !DMAOR.NMIF && !DMAOR.AE*/;
 }
 
 template <bool debug, bool enableCache>

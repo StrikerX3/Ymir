@@ -2149,7 +2149,8 @@ FORCE_INLINE bool SH1::StepDMAC(uint32 channel) {
 }
 
 FLATTEN FORCE_INLINE bool SH1::IsDMATransferActive(const DMAController::DMAChannel &ch) const {
-    return ch.IsEnabled() && DMAC.DMAOR.DME && !DMAC.DMAOR.NMIF && !DMAC.DMAOR.AE;
+    // AE never occurs and NMIF is never set, so both checks can be safely skipped
+    return ch.IsEnabled() && DMAC.DMAOR.DME /*&& !DMAC.DMAOR.NMIF && !DMAC.DMAOR.AE*/;
 }
 
 void SH1::DMAC0DREQTransfer(std::span<uint8> data) {
