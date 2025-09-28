@@ -463,7 +463,7 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
         return kDriveCyclesPlaying1x / m_readSpeed;
     }
 
-    devlog::debug<grp::lle_cd>("Read sector {:06X}", m_currFAD);
+    devlog::trace<grp::lle_cd>("Read sector {:06X}", m_currFAD);
 
     const auto &session = m_disc.sessions.back();
     const auto *track = session.FindTrack(m_currFAD);
@@ -546,7 +546,7 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
                 } else {
                     m_currFAD -= kScanFrameSkip + kScanCounter;
                 }
-                devlog::debug<grp::lle_cd>("Scan to sector {:06X}", m_currFAD);
+                devlog::trace<grp::lle_cd>("Scan to sector {:06X}", m_currFAD);
                 m_status.operation = Operation::ScanAudioSector;
             }
         }
