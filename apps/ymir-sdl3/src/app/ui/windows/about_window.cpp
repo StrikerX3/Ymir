@@ -432,7 +432,8 @@ void AboutWindow::DrawAcknowledgementsTab() {
     };
 
     ackWithAuthor("antime's feeble Sega Saturn page", "antime", "https://antime.kapsi.fi/sega/");
-    ackWithAuthor("Hardware signal traces", "Sergiy Dvodnenko (srg320)", "https://github.com/srg320/Saturn_hw");
+    ackWithAuthor("Hardware research and signal traces", "Sergiy Dvodnenko (srg320)",
+                  "https://github.com/srg320/Saturn_hw");
     ackWithAuthor("Original research", "Charles MacDonald",
                   "https://web.archive.org/web/20150119062930/http://cgfm2.emuviews.com/saturn.php");
     {
@@ -458,6 +459,25 @@ void AboutWindow::DrawAcknowledgementsTab() {
                       "AICA/DOCS/myaica.txt");
         ImGui::Unindent();
     }
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+    ImGui::TextUnformatted("CD block research");
+    ImGui::PopFont();
+    {
+        ImGui::Indent();
+        ackWithAuthor("CD block modchip research", "Pinchy",
+                      "https://segaxtreme.net/threads/finally-made-a-working-modchip.14781/");
+        ackWithAuthor("CD interface and signal traces", "Pinchy",
+                      "https://web.archive.org/web/20111203080908/http://www.crazynation.org/SEGA/Saturn/cd_tech.htm");
+        ackWithAuthor(
+            "CD drive command log", "Pinchy",
+            "https://web.archive.org/web/20111011104440/http://www.crazynation.org/SEGA/Saturn/files/command_log.txt");
+        ackWithAuthor(
+            "Raw optical disc format", "Joachim Metz",
+            "https://github.com/libyal/libodraw/blob/main/documentation/Optical%20disc%20RAW%20format.asciidoc");
+        ackWithAuthor("YGR registers, ROM disassembly and signal traces", "Sergiy Dvodnenko (srg320)",
+                      "https://github.com/srg320/Saturn_hw/tree/main/CDB");
+        ImGui::Unindent();
+    }
     ack("Yabause wiki", "http://wiki.yabause.org/");
     ack("SegaRetro on Sega Saturn", "https://segaretro.org/Sega_Saturn");
 
@@ -476,7 +496,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ackWithAuthor("M68000 single step tests", "raddad772", "https://github.com/SingleStepTests/m68000");
     ackWithAuthor("Various tests", "celeriyacon", "https://github.com/celeriyacon");
     ImGui::Indent();
-    ImGui::TextUnformatted("cdbtest, memtimes, misctest, scspadpcm, scsptest, sh2test, scutest and vdp2test");
+    ImGui::TextUnformatted("cdbtest, memtimes, misctest, scspadpcm, scsptest, scutest, sh2test, smpctest and vdp2test");
     ImGui::Unindent();
 
     // -----------------------------------------------------------------------------
