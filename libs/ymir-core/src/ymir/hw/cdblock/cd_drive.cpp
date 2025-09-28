@@ -39,7 +39,7 @@ void CDDrive::Reset() {
     m_command.data.fill(0x00);
     m_commandPos = 0u;
 
-    m_status.operation = Operation::Zero;
+    m_status.operation = Operation::Reset;
     m_status.subcodeQ = 0x00;
     m_status.trackNum = 0x00;
     m_status.indexNum = 0x00;
@@ -329,7 +329,7 @@ FORCE_INLINE uint64 CDDrive::ProcessCommand() {
     }
 
     if (m_command.command != Command::Continue) {
-        GetReadSpeedFactor();
+        UpdateReadSpeedFactor();
     }
 
     switch (m_command.command) {
@@ -603,7 +603,7 @@ FORCE_INLINE uint64 CDDrive::OpUnknown() {
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
 
-FORCE_INLINE void CDDrive::GetReadSpeedFactor() {
+FORCE_INLINE void CDDrive::UpdateReadSpeedFactor() {
     m_readSpeed = m_command.readSpeed == 1 ? 1 : 2;
 }
 
@@ -750,6 +750,32 @@ FORCE_INLINE void CDDrive::OutputRingStatus() {
 
 FORCE_INLINE void CDDrive::CalcStatusDataChecksum() {
     m_statusData.data[11] = ~std::accumulate(m_statusData.chksumData.begin(), m_statusData.chksumData.end(), 0);
+}
+
+// -----------------------------------------------------------------------------
+// Probe implementation
+
+CDDrive::Probe::Probe(CDDrive &cddrive)
+    : m_cddrive(cddrive) {}
+
+const CDDrive::CDStatus &CDDrive::Probe::GetStatus() const {
+    return m_cddrive.m_status;
+}
+
+uint8 CDDrive::Probe::GetReadSpeed() const {
+    return m_cddrive.m_readSpeed;
+}
+
+uint32 CDDrive::Probe::GetCurrentFrameAddress() const {
+    return m_cddrive.m_currFAD;
+}
+
+uint32 CDDrive::Probe::GetTargetFrameAddress() const {
+    return m_cddrive.m_targetFAD;
+}
+
+std::string CDDrive::Probe::GetPathAtFrameAddress(uint32 fad) const {
+    return m_cddrive.m_fs.GetPathAtFrameAddress(fad);
 }
 
 } // namespace ymir::cdblock

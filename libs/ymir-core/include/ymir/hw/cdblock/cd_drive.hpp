@@ -24,6 +24,81 @@ namespace ymir::cdblock {
 
 class CDDrive {
 public:
+    enum class Command : uint8 {
+        Continue = 0x0,
+        SeekRing = 0x2,
+        ReadTOC = 0x3,
+        Stop = 0x4,
+        ReadSector = 0x6,
+        Pause = 0x8,
+        SeekSector = 0x9,
+        ScanForwards = 0xA,
+        ScanBackwards = 0xB,
+    };
+
+    enum class Operation : uint8 {
+        Reset = 0x00,
+        ReadTOC = 0x04,
+        Stopped = 0x12,
+        Seek = 0x22,
+        DiscChanged = 0x30,
+        ReadAudioSector = 0x34,
+        ReadDataSector = 0x36,
+        Idle = 0x46,
+        ScanAudioSector = 0x54,
+        TrayOpen = 0x80,
+        NoDisc = 0x83,
+        SeekSecurityRingB2 = 0xB2,
+        SeekSecurityRingB6 = 0xB6
+    };
+
+    enum class TxState {
+        Reset,    // deassert COMREQ#, deassert COMSYNC#, initialize, switch to Continue
+        PreTx,    // init transfer counters, switch to TxBegin
+        TxBegin,  // assert COMSYNC#, switch to TxByte
+        TxByte,   // assert COMREQ#, do byte transfer
+        TxInter1, // deassert COMSYNC#, switch to TxByte
+        TxInterN, // switch to TxByte
+        TxEnd,    // process command, switch to PreTx
+
+        // At the end of a byte transfer (not handled in these states):
+        // - deassert COMREQ#, deassert COMSYNC#
+        // - switch to TxEnd if 13th byte or TxInter otherwise
+    };
+
+    union CDCommand {
+        std::array<uint8, 13> data;
+        struct {
+            Command command;
+            uint8 fadTop;
+            uint8 fadMid;
+            uint8 fadBtm;
+            uint8 zero4;
+            uint8 zero5;
+            uint8 zero6;
+            uint8 zero7;
+            uint8 zero8;
+            uint8 zero9;
+            uint8 readSpeed; // 1=1x, otherwise 2x
+            uint8 parity;
+            uint8 zero13;
+        };
+    };
+
+    struct CDStatus {
+        Operation operation;
+        uint8 subcodeQ;
+        uint8 trackNum;
+        uint8 indexNum;
+        uint8 min;
+        uint8 sec;
+        uint8 frac;
+        uint8 zero;
+        uint8 absMin;
+        uint8 absSec;
+        uint8 absFrac;
+    };
+
     CDDrive(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
             core::Configuration::CDBlock &config);
 
@@ -60,6 +135,33 @@ public:
     [[nodiscard]] bool ValidateState(const state::CDDriveState &state) const;
     void LoadState(const state::CDDriveState &state);
 
+    // -------------------------------------------------------------------------
+    // Debugger
+
+    class Probe {
+    public:
+        Probe(CDDrive &cddrive);
+
+        const CDStatus &GetStatus() const;
+        uint8 GetReadSpeed() const;
+
+        uint32 GetCurrentFrameAddress() const;
+        uint32 GetTargetFrameAddress() const;
+
+        std::string GetPathAtFrameAddress(uint32 fad) const;
+
+    private:
+        CDDrive &m_cddrive;
+    };
+
+    Probe &GetProbe() {
+        return m_probe;
+    }
+
+    const Probe &GetProbe() const {
+        return m_probe;
+    }
+
 private:
     core::Scheduler &m_scheduler;
     core::EventID m_stateEvent;
@@ -83,68 +185,11 @@ private:
 
     std::array<uint8, 2352> m_sectorDataBuffer;
 
-    enum class Command : uint8 {
-        Continue = 0x0,
-        SeekRing = 0x2,
-        ReadTOC = 0x3,
-        Stop = 0x4,
-        ReadSector = 0x6,
-        Pause = 0x8,
-        SeekSector = 0x9,
-        ScanForwards = 0xA,
-        ScanBackwards = 0xB,
-    };
-
     // Received from SH1
-    union CDCommand {
-        std::array<uint8, 13> data;
-        struct {
-            Command command;
-            uint8 fadTop;
-            uint8 fadMid;
-            uint8 fadBtm;
-            uint8 zero4;
-            uint8 zero5;
-            uint8 zero6;
-            uint8 zero7;
-            uint8 zero8;
-            uint8 zero9;
-            uint8 readSpeed; // 1=1x, otherwise 2x
-            uint8 parity;
-            uint8 zero13;
-        };
-    } m_command;
+    CDCommand m_command;
     uint8 m_commandPos;
 
-    enum class Operation : uint8 {
-        Zero = 0x00,
-        ReadTOC = 0x04,
-        Stopped = 0x12,
-        Seek = 0x22,
-        DiscChanged = 0x30,
-        ReadAudioSector = 0x34,
-        ReadDataSector = 0x36,
-        Idle = 0x46,
-        ScanAudioSector = 0x54,
-        TrayOpen = 0x80,
-        NoDisc = 0x83,
-        SeekSecurityRingB2 = 0xB2,
-        SeekSecurityRingB6 = 0xB6
-    };
-
-    struct CDStatus {
-        Operation operation;
-        uint8 subcodeQ;
-        uint8 trackNum;
-        uint8 indexNum;
-        uint8 min;
-        uint8 sec;
-        uint8 frac;
-        uint8 zero;
-        uint8 absMin;
-        uint8 absSec;
-        uint8 absFrac;
-    } m_status;
+    CDStatus m_status;
 
     // Sent to SH1
     union StatusData {
@@ -153,20 +198,6 @@ private:
         CDStatus cdStatus; // for easy copying
     } m_statusData;
     uint8 m_statusPos;
-
-    enum class TxState {
-        Reset,    // deassert COMREQ#, deassert COMSYNC#, initialize, switch to Continue
-        PreTx,    // init transfer counters, switch to TxBegin
-        TxBegin,  // assert COMSYNC#, switch to TxByte
-        TxByte,   // assert COMREQ#, do byte transfer
-        TxInter1, // deassert COMSYNC#, switch to TxByte
-        TxInterN, // switch to TxByte
-        TxEnd,    // process command, switch to PreTx
-
-        // At the end of a byte transfer (not handled in these states):
-        // - deassert COMREQ#, deassert COMSYNC#
-        // - switch to TxEnd if 13th byte or TxInter otherwise
-    };
 
     TxState m_state;
 
@@ -207,7 +238,7 @@ private:
     uint64 OpTrayOpen();
     uint64 OpUnknown();
 
-    void GetReadSpeedFactor();
+    void UpdateReadSpeedFactor();
 
     void SetupSeek(bool read);
     uint64 BeginSeek(bool read);
@@ -216,6 +247,11 @@ private:
     void OutputDriveStatus();
     void OutputRingStatus();
     void CalcStatusDataChecksum();
+
+    // -------------------------------------------------------------------------
+    // Debugger
+
+    Probe m_probe{*this};
 
 public:
     // -------------------------------------------------------------------------

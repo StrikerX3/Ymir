@@ -17,6 +17,7 @@ private:
     void DrawScreen();
     void DrawRealTimeClock();
     void DrawClocks();
+    void DrawCDBlock();
     void DrawCDDrive();
     void DrawBackupMemory();
     void DrawCartridge();

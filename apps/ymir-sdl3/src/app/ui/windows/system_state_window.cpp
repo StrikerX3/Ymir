@@ -45,7 +45,11 @@ void SystemStateWindow::DrawContents() {
     DrawClocks();
 
     ImGui::SeparatorText("CD drive");
-    DrawCDDrive();
+    if (m_context.settings.cdblock.useLLE) {
+        DrawCDDrive();
+    } else {
+        DrawCDBlock();
+    }
 
     ImGui::SeparatorText("Backup memory");
     DrawBackupMemory();
@@ -234,7 +238,7 @@ void SystemStateWindow::DrawClocks() {
     }
 }
 
-void SystemStateWindow::DrawCDDrive() {
+void SystemStateWindow::DrawCDBlock() {
     auto &probe = m_context.saturn.instance->CDBlock.GetProbe();
 
     const uint8 status = probe.GetCurrentStatusCode();
@@ -394,6 +398,173 @@ void SystemStateWindow::DrawCDDrive() {
     }
 
     if (status == cdblock::kStatusCodePlay) {
+        std::string file = probe.GetPathAtFrameAddress(fad);
+        if (!file.empty()) {
+            ImGui::Text("Reading file %s", file.c_str());
+        } else {
+            ImGui::TextUnformatted("Not a file");
+        }
+    } else {
+        ImGui::TextUnformatted("");
+    }
+}
+
+void SystemStateWindow::DrawCDDrive() {
+    auto &probe = m_context.saturn.instance->CDDrive.GetProbe();
+
+    using CDOp = cdblock::CDDrive::Operation;
+
+    const auto &status = probe.GetStatus();
+
+    if (ImGui::Button(status.operation == CDOp::TrayOpen ? "Close tray" : "Open tray")) {
+        m_context.EnqueueEvent(events::emu::OpenCloseTray());
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load disc...")) {
+        m_context.EnqueueEvent(events::gui::LoadDisc());
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Eject disc")) {
+        m_context.EnqueueEvent(events::emu::EjectDisc());
+    }
+
+    ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x);
+    if (m_context.state.loadedDiscImagePath.empty()) {
+        ImGui::TextUnformatted("No image loaded");
+    } else {
+        ImGui::Text("Image from %s", fmt::format("{}", m_context.state.loadedDiscImagePath).c_str());
+        std::string hash{};
+        {
+            std::unique_lock lock{m_context.locks.disc};
+            hash = ToString(m_context.saturn.GetDiscHash());
+        }
+
+        ImGui::Text("Hash: %s", hash.c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Copy##disc_hash")) {
+            SDL_SetClipboardText(hash.c_str());
+        }
+    }
+    ImGui::PopTextWrapPos();
+    switch (status.operation) {
+    case CDOp::Reset: ImGui::TextUnformatted("Reset"); break;
+    case CDOp::Idle: ImGui::TextUnformatted("Idle"); break;
+    case CDOp::Stopped: ImGui::TextUnformatted("Stopped"); break;
+    case CDOp::TrayOpen: ImGui::TextUnformatted("Tray open"); break;
+    case CDOp::NoDisc: ImGui::TextUnformatted("No disc"); break;
+    case CDOp::ReadTOC: ImGui::TextUnformatted("Reading TOC"); break;
+    case CDOp::DiscChanged: ImGui::TextUnformatted("Disc changed"); break;
+    case CDOp::ReadDataSector:
+        ImGui::Text("Reading track %u, index %u (Data)", status.trackNum, status.indexNum);
+        break;
+    case CDOp::ReadAudioSector:
+        ImGui::Text("Playing track %u, index %u (CDDA)", status.trackNum, status.indexNum);
+        break;
+    case CDOp::ScanAudioSector:
+        ImGui::Text("Scanning track %u, index %u (CDDA)", status.trackNum, status.indexNum);
+        break;
+    case CDOp::Seek: ImGui::TextUnformatted("Seeking"); break;
+    case CDOp::SeekSecurityRingB2: [[fallthrough]];
+    case CDOp::SeekSecurityRingB6: ImGui::TextUnformatted("Seeking security ring"); break;
+    default: ImGui::Text("Unknown (%02X)", static_cast<uint8>(status.operation)); break;
+    }
+
+    ImGui::Text("Read speed: %ux", probe.GetReadSpeed());
+
+    const bool isReading = status.operation == CDOp::ReadDataSector || status.operation == CDOp::ReadAudioSector ||
+                           status.operation == CDOp::ScanAudioSector;
+    const bool isSeeking = status.operation == CDOp::Seek || status.operation == CDOp::SeekSecurityRingB2 ||
+                           status.operation == CDOp::SeekSecurityRingB6;
+
+    const uint32 fad = isSeeking ? probe.GetTargetFrameAddress() : probe.GetCurrentFrameAddress();
+    const cdblock::MSF msf = cdblock::FADToMSF(fad);
+
+    if (isReading || isSeeking) {
+        ImGui::BeginGroup();
+        ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+        if (msf.m == 0) {
+            ImGui::TextDisabled("00");
+        } else {
+            if (msf.m < 10) {
+                ImGui::TextDisabled("0");
+                ImGui::SameLine(0, 0);
+            }
+            ImGui::Text("%u", msf.m);
+        }
+        ImGui::SameLine(0, 0);
+        ImGui::TextUnformatted(":");
+        ImGui::SameLine(0, 0);
+        if (msf.m == 0 && msf.s == 0) {
+            ImGui::TextDisabled("00");
+        } else {
+            if (msf.m == 0 && msf.s < 10) {
+                ImGui::TextDisabled("0");
+                ImGui::SameLine(0, 0);
+                ImGui::Text("%u", msf.s);
+            } else {
+                ImGui::Text("%02u", msf.s);
+            }
+        }
+        ImGui::SameLine(0, 0);
+        ImGui::TextUnformatted(".");
+        ImGui::SameLine(0, 0);
+        if (msf.m == 0 && msf.s == 0 && msf.f == 0) {
+            ImGui::TextDisabled("00");
+        } else {
+            if (msf.m == 0 && msf.s == 0 && msf.f < 10) {
+                ImGui::TextDisabled("0");
+                ImGui::SameLine(0, 0);
+                ImGui::Text("%u", msf.f);
+            } else {
+                ImGui::Text("%02u", msf.f);
+            }
+        }
+        ImGui::PopFont();
+        ImGui::EndGroup();
+        ImGui::SetItemTooltip("MM:SS.FF\nMinutes, seconds and frames\n(75 frames per second)");
+
+        ImGui::SameLine(0, 0);
+        ImGui::TextUnformatted(" :: ");
+        ImGui::SameLine(0, 0);
+
+        ImGui::BeginGroup();
+        ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+        const uint32 numZeros = std::countl_zero(fad) / 4 - 2; // FAD is 24 bits
+        ImGui::TextDisabled("%0*u", numZeros, 0);
+        ImGui::SameLine(0, 0);
+        ImGui::Text("%X", fad);
+        ImGui::PopFont();
+        ImGui::EndGroup();
+        ImGui::SetItemTooltip("Frame address (FAD)");
+    } else {
+        ImGui::BeginGroup();
+        ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+        ImGui::TextDisabled("--");
+        ImGui::SameLine(0, 0);
+        ImGui::TextUnformatted(":");
+        ImGui::SameLine(0, 0);
+        ImGui::TextDisabled("--");
+        ImGui::SameLine(0, 0);
+        ImGui::TextUnformatted(".");
+        ImGui::SameLine(0, 0);
+        ImGui::TextDisabled("--");
+        ImGui::PopFont();
+        ImGui::EndGroup();
+        ImGui::SetItemTooltip("MM:SS.FF\nMinutes, seconds and frames\n(75 frames per second)");
+
+        ImGui::SameLine(0, 0);
+        ImGui::TextUnformatted(" :: ");
+        ImGui::SameLine(0, 0);
+
+        ImGui::BeginGroup();
+        ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+        ImGui::TextDisabled("------");
+        ImGui::PopFont();
+        ImGui::EndGroup();
+        ImGui::SetItemTooltip("Frame address (FAD)");
+    }
+
+    if (status.operation == CDOp::ReadDataSector) {
         std::string file = probe.GetPathAtFrameAddress(fad);
         if (!file.empty()) {
             ImGui::Text("Reading file %s", file.c_str());
