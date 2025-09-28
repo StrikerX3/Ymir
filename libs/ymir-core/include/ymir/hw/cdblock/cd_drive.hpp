@@ -8,6 +8,8 @@
 
 #include <ymir/state/state_cd_drive.hpp>
 
+#include <ymir/debug/cd_drive_tracer_base.hpp>
+
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/clocks.hpp>
 
@@ -138,6 +140,12 @@ public:
     // -------------------------------------------------------------------------
     // Debugger
 
+    // Attaches the specified tracer to this component.
+    // Pass nullptr to disable tracing.
+    void UseTracer(debug::ICDDriveTracer *tracer) {
+        m_tracer = tracer;
+    }
+
     class Probe {
     public:
         Probe(CDDrive &cddrive);
@@ -252,6 +260,7 @@ private:
     // Debugger
 
     Probe m_probe{*this};
+    debug::ICDDriveTracer *m_tracer = nullptr;
 
 public:
     // -------------------------------------------------------------------------

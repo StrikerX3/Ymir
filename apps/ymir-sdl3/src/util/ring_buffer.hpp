@@ -12,14 +12,15 @@ public:
         m_count = 0;
     }
 
-    void Write(T value) {
-        m_entries[m_writePos++] = value;
+    T &Write(T value) {
+        T &entry = m_entries[m_writePos++] = value;
         if (m_writePos >= m_entries.size()) {
             m_writePos = 0;
         }
         if (m_count < m_entries.size()) {
             m_count++;
         }
+        return entry;
     }
 
     size_t Capacity() const {
@@ -43,6 +44,17 @@ public:
     T &GetLast() {
         size_t pos = (m_writePos - 1) % N;
         return m_entries[pos];
+    }
+
+    T &Emplace() {
+        T &entry = m_entries[m_writePos++];
+        if (m_writePos >= m_entries.size()) {
+            m_writePos = 0;
+        }
+        if (m_count < m_entries.size()) {
+            m_count++;
+        }
+        return entry;
     }
 
 private:

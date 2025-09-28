@@ -16,11 +16,13 @@ add_library(ymir-core
     include/ymir/db/rom_cart_db.hpp
 
     include/ymir/debug/cdblock_tracer_base.hpp
+    include/ymir/debug/cd_drive_tracer_base.hpp
     include/ymir/debug/debug_break.hpp
     include/ymir/debug/scsp_tracer_base.hpp
     include/ymir/debug/scu_tracer_base.hpp
     include/ymir/debug/sh2_tracer_base.hpp
     include/ymir/debug/watchpoint_defs.hpp
+    include/ymir/debug/ygr_tracer_base.hpp
 
     include/ymir/hw/hw_defs.hpp
 

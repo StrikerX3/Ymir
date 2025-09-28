@@ -9,6 +9,26 @@
 
 namespace ymir::cdblock {
 
+// -----------------------------------------------------------------------------
+// Debugger
+
+FORCE_INLINE static void TraceReceiveHostCommand(debug::IYGRTracer *tracer, uint16 cr1, uint16 cr2, uint16 cr3,
+                                                 uint16 cr4) {
+    if (tracer) {
+        return tracer->ReceiveHostCommand(cr1, cr2, cr3, cr4);
+    }
+}
+
+FORCE_INLINE static void TraceReceiveCDBlockResponse(debug::IYGRTracer *tracer, uint16 rr1, uint16 rr2, uint16 rr3,
+                                                     uint16 rr4) {
+    if (tracer) {
+        return tracer->ReceiveCDBlockResponse(rr1, rr2, rr3, rr4);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Implementation
+
 YGR::YGR() {
     Reset();
 }
@@ -219,6 +239,7 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
         if constexpr (!poke) {
             devlog::trace<grp::ygr_cr>("CDB  RR writes: {:04X} {:04X} {:04X} {:04X}", m_regs.RR[0], m_regs.RR[1],
                                        m_regs.RR[2], m_regs.RR[3]);
+            TraceReceiveCDBlockResponse(m_tracer, m_regs.RR[0], m_regs.RR[1], m_regs.RR[2], m_regs.RR[3]);
         }
         break;
     case 0x18: m_regs.REG18.u16 = value & 0x3F; break;
@@ -436,6 +457,7 @@ FORCE_INLINE void YGR::HostWriteWord(uint32 address, uint16 value) {
             m_cbAssertIRQ6();
             devlog::trace<grp::ygr_cr>("Host CR writes: {:04X} {:04X} {:04X} {:04X}", m_regs.CR[0], m_regs.CR[1],
                                        m_regs.CR[2], m_regs.CR[3]);
+            TraceReceiveHostCommand(m_tracer, m_regs.CR[0], m_regs.CR[1], m_regs.CR[2], m_regs.CR[3]);
         }
         break;
     case 0x28: /* TODO: write MPEGRGB */ break;

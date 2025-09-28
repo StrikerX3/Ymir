@@ -10,10 +10,12 @@
 #include <app/input/input_context.hpp>
 #include <app/input/input_utils.hpp>
 
+#include <app/debug/cd_drive_tracer.hpp>
 #include <app/debug/cdblock_tracer.hpp>
 #include <app/debug/scsp_tracer.hpp>
 #include <app/debug/scu_tracer.hpp>
 #include <app/debug/sh2_tracer.hpp>
+#include <app/debug/ygr_tracer.hpp>
 
 #include <app/events/emu_event.hpp>
 #include <app/events/gui_event.hpp>
@@ -510,6 +512,8 @@ struct SharedContext {
         SCUTracer SCU;
         SCSPTracer SCSP;
         CDBlockTracer CDBlock;
+        CDDriveTracer CDDrive;
+        YGRTracer YGR;
     } tracers;
 
     struct Fonts {

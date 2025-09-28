@@ -23,12 +23,16 @@ add_executable(ymir-sdl3
 
     src/app/debug/cdblock_tracer.cpp
     src/app/debug/cdblock_tracer.hpp
+    src/app/debug/cd_drive_tracer.cpp
+    src/app/debug/cd_drive_tracer.hpp
     src/app/debug/scsp_tracer.cpp
     src/app/debug/scsp_tracer.hpp
     src/app/debug/scu_tracer.cpp
     src/app/debug/scu_tracer.hpp
     src/app/debug/sh2_tracer.cpp
     src/app/debug/sh2_tracer.hpp
+    src/app/debug/ygr_tracer.cpp
+    src/app/debug/ygr_tracer.hpp
 
     src/app/events/emu_debug_event_factory.cpp
     src/app/events/emu_debug_event_factory.hpp

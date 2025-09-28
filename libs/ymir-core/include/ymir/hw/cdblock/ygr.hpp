@@ -10,6 +10,8 @@
 
 #include <ymir/state/state_ygr.hpp>
 
+#include <ymir/debug/ygr_tracer_base.hpp>
+
 #include <ymir/util/inline.hpp>
 
 #include <ymir/core/types.hpp>
@@ -66,6 +68,15 @@ struct YGR {
     void SaveState(state::YGRState &state) const;
     [[nodiscard]] bool ValidateState(const state::YGRState &state) const;
     void LoadState(const state::YGRState &state);
+
+    // -------------------------------------------------------------------------
+    // Debugger
+
+    // Attaches the specified tracer to this component.
+    // Pass nullptr to disable tracing.
+    void UseTracer(debug::IYGRTracer *tracer) {
+        m_tracer = tracer;
+    }
 
 private:
     sh1::CBAssertIRQ m_cbAssertIRQ6;
@@ -260,6 +271,11 @@ private:
     void UpdateFIFODREQ() const;
 
     void SectorTransferDone();
+
+    // -------------------------------------------------------------------------
+    // Debugger
+
+    debug::IYGRTracer *m_tracer = nullptr;
 
 public:
     // -------------------------------------------------------------------------

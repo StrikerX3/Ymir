@@ -231,6 +231,8 @@ struct Saturn {
         SCU.UseTracer(nullptr);
         SCSP.UseTracer(nullptr);
         CDBlock.UseTracer(nullptr);
+        CDDrive.UseTracer(nullptr);
+        YGR.UseTracer(nullptr);
     }
 
     // -------------------------------------------------------------------------
