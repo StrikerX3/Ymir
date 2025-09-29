@@ -47,7 +47,7 @@ Address range            Mirror size   Description
 0x000'0000..0x00F'FFFF   0x80000       Boot ROM / IPL
 0x010'0000..0x017'FFFF   0x80          SMPC registers
 0x018'0000..0x01F'FFFF   0x10000       Backup RAM
-0x020'0000..0x02F'FFFF   0x100000      Work RAM Low
+0x020'0000..0x02F'FFFF   0x100000      Low Work RAM
 0x030'0000..0x03F'FFFF   -             Varies depending on system revision (see notes below)
 0x040'0000..0x07F'FFFF   -             Reads 0x0000
 0x080'0000..0x0FF'FFFF   -             Reads 0x0000 0x0001 0x0002 0x0003 0x0004 0x0005 0x0006 0x0007
@@ -74,7 +74,7 @@ Address range            Mirror size   Description
 0x5FC'0000..0x5FD'FFFF   -                 Reads 0x000E0000
 0x5FE'0000..0x5FE'FFFF   0x100             SCU registers
 0x5FF'0000..0x5FF'FFFF   0x100             Unknown registers
-0x600'0000..0x7FF'FFFF   0x100000      Work RAM High
+0x600'0000..0x7FF'FFFF   0x100000      High Work RAM
 
 Notes
 - With the exception of VDP1 registers, all regions are mirrored across the designated area
