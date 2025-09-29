@@ -56,25 +56,39 @@ Usage:
   Ymir [OPTION...] positional parameters
 
   -p, --profile arg  Path to profile directory
+  -u, --user         Force user profile
   -h, --help         Display help text
   -f, --fullscreen   Start in fullscreen mode
   -P, --paused       Start paused
+  -D, --debug        Start with debug tracing enabled
   -E, --exceptions   Capture all unhandled exceptions
 ```
 
+The options are case-sensitive -- lowercase `-p` sets the profile path, uppercase `-P` makes the emulator start paused.
+
 Use `-p <profile-path>` to point to a separate set of configuration and state files, useful if you wish to have different user profiles (hence the name).
 
-The options are case-sensitive -- lowercase `-p` sets the profile path, uppercase `-P` makes the emulator start paused.
+The `-u` option forces usage of the OS's user profile folder (e.g. `C:\Users\<username>\AppData\Roaming\StrikerX3\Ymir` on Windows or `/home/<username>/.local/share/Ymir` on Linux).
+
+`-f` forces the emulator to start in fullscreen mode, ignoring the preference in Ymir.toml.
+
+`-D` starts the emulator with debug tracing enabled.
 
 `-E` captures all unhandled exceptions, which can be useful to troubleshoot crashes or failure to start the emulator.
 
-Note that the Windows version does not output anything to the console, but it does honor the command line parameters.
+Note that the Windows version does not output anything to the console, but it does honor the command line parameters. You can pipe the output of the command to a file:
 
-Ymir requires an IPL (BIOS) ROM to work. You can place the ROMs under the `roms` directory created alongside the executable on the first run.
+```sh
+ymir-sdl3 > out.txt
+```
+
+Ymir requires an IPL (BIOS) ROM to work. You can place the ROMs under the `roms\ipl` directory created alongside the executable on the first run.
 The emulator will scan and automatically select the IPL ROM matching the loaded disc. If no disc is loaded, it will use a ROM matching the first preferred region. Failing that, it will pick whatever is available.
 You can override the selection on Settings > IPL.
 
 Ymir can load game disc images from MAME CHD, BIN+CUE, IMG+CCD, MDF+MDS or ISO files. It does not support injecting .elf files directly at the moment.
+
+When using low level CD block emulation (LLE), Ymir also requires the CD block ROM to be placed in `roms\cdb`.
 
 
 ## Compiling
