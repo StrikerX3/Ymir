@@ -27,6 +27,7 @@ Introduced save state file version 10.
         - ... and probably more
 - GameDB: Apply game-specific settings directly in the emulator core rather that from the frontend.
 - GameDB: Include Heart of Darkness prototype to automatically insert the 6 MiB development DRAM cartridge, allowing it to go in-game. (#584)
+- GameDB: Introduce flag to force fast bus timings to work around issues with X-Men/Marvel Super Heroes vs. Street Fighter. (#507)
 - GameDB: Support for using disc hashes to the database in addition to product codes.
 - M68K, SH2: Implement approximate bus access timings. Fixes softlocks in Resident Evil, Shichisei Toushin Guyferd - Crown Kaimetsu Sakusen, and Densha de Go. (#41, #42, #333, #523)
 - SH2: Cycle count DMAC transfers. Necessary for CD Block LLE.

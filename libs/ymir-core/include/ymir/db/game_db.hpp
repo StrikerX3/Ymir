@@ -21,6 +21,7 @@ struct GameInfo {
     Cartridge cartridge = Cartridge::None; ///< Cartridge required for the game to work
     const char *cartReason = nullptr;      ///< Text describing why the cartridge is required
     bool sh2Cache = false;                 ///< SH-2 cache emulation required for the game to work
+    bool fastBusTimings = false;           ///< Fast bus timings required to fix stability issues
 };
 
 /// @brief Retrieves information about a game image given its product code or hash.

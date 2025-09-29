@@ -351,6 +351,10 @@ private:
     /// @param[in] cycles the number of system cycles to advance
     void AdvanceSH1(uint64 cycles);
 
+    /// @brief Configures bus access cycles.
+    /// @param[in] fastTimings `true` to use 1 waitstate for every access, `false` to use normal timings
+    void ConfigureAccessCycles(bool fastTimings);
+
     // -------------------------------------------------------------------------
     // Internal configuration
 
