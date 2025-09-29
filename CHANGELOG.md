@@ -27,7 +27,7 @@ Introduced save state file version 10.
         - ... and probably more
 - GameDB: Include Heart of Darkness prototype to automatically insert the 6 MiB development DRAM cartridge, allowing it to go in-game. (#584)
 - GameDB: Support for using disc hashes to the database in addition to product codes.
-- M68K, SH2: Implement approximate bus access timings. Fixes softlocks in Resident Evil, Shichisei Toushin Guyferd - Crown Kaimetsu Sakusen, and Densha de Go. (#333, #523)
+- M68K, SH2: Implement approximate bus access timings. Fixes softlocks in Resident Evil, Shichisei Toushin Guyferd - Crown Kaimetsu Sakusen, and Densha de Go. (#41, #42, #333, #523)
 - SH2: Cycle count DMAC transfers. Necessary for CD Block LLE.
 - SH2: Optimize watchpoint checks to reduce performance penalty when debug tracing is enabled.
 - SMPC: Preinitialize OREG31 to 0xF0 to avoid lockup when attempting to boot the dev kit BIOS. (#612)
