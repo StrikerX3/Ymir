@@ -745,11 +745,17 @@ void serialize(Archive &ar, VDPState::VDPRendererState::Character &s) {
 
 template <class Archive>
 void serialize(Archive &ar, VDPState::VDPRendererState::VRAMFetcherState &s, const uint32 version) {
+    // v10:
+    // - New fields
+    //   - lastCellX = 0
     // v7:
     // - Struct created
 
     if (version >= 7) {
         ar(s.currChar, s.nextChar, s.lastCharIndex);
+        if (version >= 10) {
+            ar(s.lastCellX);
+        }
         ar(s.bitmapData, s.bitmapDataAddress);
         ar(s.lastVCellScroll);
     } else {

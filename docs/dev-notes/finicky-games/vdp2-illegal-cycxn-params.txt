@@ -24,6 +24,9 @@ Capcom Generation - Dai-5-shuu Kakutouka-tachi
 Battle Arena Toshinden Remix
   Sets up multiple PN accesses for NBG2 in-game to display UI elements.
 
+Shichuu Suimei Pitagraph
+  Sets up invalid CP accesses for NBG0 with 2x2 character patterns which causes them to be half-shifted forward.
+
 
 =======
 Context

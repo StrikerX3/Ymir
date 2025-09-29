@@ -676,6 +676,7 @@ void VDP::SaveState(state::VDPState &state) const {
             copyChar(state.renderer.vramFetchers[i][j].currChar, m_vramFetchers[i][j].currChar);
             copyChar(state.renderer.vramFetchers[i][j].nextChar, m_vramFetchers[i][j].nextChar);
             state.renderer.vramFetchers[i][j].lastCharIndex = m_vramFetchers[i][j].lastCharIndex;
+            state.renderer.vramFetchers[i][j].lastCellX = m_vramFetchers[i][j].lastCellX;
             state.renderer.vramFetchers[i][j].bitmapData = m_vramFetchers[i][j].bitmapData;
             state.renderer.vramFetchers[i][j].bitmapDataAddress = m_vramFetchers[i][j].bitmapDataAddress;
             state.renderer.vramFetchers[i][j].lastVCellScroll = m_vramFetchers[i][j].lastVCellScroll;
@@ -770,6 +771,7 @@ void VDP::LoadState(const state::VDPState &state) {
             copyChar(m_vramFetchers[i][j].currChar, state.renderer.vramFetchers[i][j].currChar);
             copyChar(m_vramFetchers[i][j].nextChar, state.renderer.vramFetchers[i][j].nextChar);
             m_vramFetchers[i][j].lastCharIndex = state.renderer.vramFetchers[i][j].lastCharIndex;
+            m_vramFetchers[i][j].lastCellX = state.renderer.vramFetchers[i][j].lastCellX;
             m_vramFetchers[i][j].bitmapData = state.renderer.vramFetchers[i][j].bitmapData;
             m_vramFetchers[i][j].bitmapDataAddress = state.renderer.vramFetchers[i][j].bitmapDataAddress;
             m_vramFetchers[i][j].lastVCellScroll = state.renderer.vramFetchers[i][j].lastVCellScroll;
@@ -3394,7 +3396,7 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
             };
 
             for (uint8 pnIndex = 0; pnIndex < 4; ++pnIndex) {
-                if ((bgPN & (1u << pnIndex)) != 0 && ((bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) != 0)) {
+                if ((bgPN & (1u << pnIndex)) != 0 && ((bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) != bgCP)) {
                     bgParams.charPatDelay = bgCP < bgPN;
                     break;
                 }
@@ -3589,6 +3591,7 @@ FORCE_INLINE void VDP::VDP2PrepareLine(uint32 y) {
     for (auto &field : m_vramFetchers) {
         for (auto &fetcher : field) {
             fetcher.lastCharIndex = 0xFFFFFFFF;     // force-fetch first character
+            fetcher.lastCellX = 0xFF;               // align 2x2 char fetcher
             fetcher.bitmapDataAddress = 0xFFFFFFFF; // force-fetch first bitmap chunk
         }
     }
@@ -6002,6 +6005,15 @@ VDP::VDP2FetchScrollBGPixel(const BGParams &bgParams, std::span<const uint32> pa
         // Send character to pipeline
         vramFetcher.currChar = bgParams.charPatDelay ? vramFetcher.nextChar : ch;
         vramFetcher.nextChar = ch;
+    } else if constexpr (fourCellChar) {
+        // Each cell of a 2x2 character is fetched individually.
+        // With the delay, the fetch is done between the first and the second half of the character.
+        if (bgParams.charPatDelay && vramFetcher.lastCellX != cellX) {
+            vramFetcher.lastCellX = cellX;
+            if (cellX == 1) {
+                vramFetcher.currChar = vramFetcher.nextChar;
+            }
+        }
     }
 
     // Fetch pixel using character data

@@ -891,6 +891,7 @@ private:
         Character currChar;
         Character nextChar;
         uint32 lastCharIndex;
+        uint8 lastCellX;
 
         // Bitmap data (for bitmap BGs)
         alignas(uint64) std::array<uint8, 8> bitmapData;
