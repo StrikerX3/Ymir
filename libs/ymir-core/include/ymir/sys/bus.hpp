@@ -49,13 +49,12 @@ concept bus_handler_fn =
 /// functions and `MapSideEffectFree` refers to the `Peek`/`Poke` variants. `Unmap` clears the assignments.
 ///
 /// @tparam addressBits number of valid address bits
-template <uint32 addressBits>
+template <uint32 addressBits, uint32 pageGranularityBits>
 class Bus {
     static constexpr uint32 kAddressMask = (1u << addressBits) - 1;
-    static constexpr uint32 kPageGranularityBits = 16;
-    static constexpr uint32 kPageSize = 1u << kPageGranularityBits;
+    static constexpr uint32 kPageSize = 1u << pageGranularityBits;
     static constexpr uint32 kPageMask = kPageSize - 1;
-    static constexpr uint32 kPageCount = (1u << (addressBits - kPageGranularityBits));
+    static constexpr uint32 kPageCount = (1u << (addressBits - pageGranularityBits));
 
 public:
     /// @brief Maps both normal (read/write) and side-effect-free (peek/poke) handlers to the specified range.
@@ -123,8 +122,8 @@ public:
     /// @param[in] start the lower bound of the address range to unmap the handlers from
     /// @param[in] end the upper bound of the address range to unmap the handlers from
     void Unmap(uint32 start, uint32 end) {
-        const uint32 startIndex = start >> kPageGranularityBits;
-        const uint32 endIndex = end >> kPageGranularityBits;
+        const uint32 startIndex = start >> pageGranularityBits;
+        const uint32 endIndex = end >> pageGranularityBits;
         for (uint32 i = startIndex; i <= endIndex; i++) {
             m_pages[i] = {};
         }
@@ -148,8 +147,8 @@ public:
     void MapArray(uint32 start, uint32 end, std::array<uint8, N> &array, bool writable) {
         static constexpr uint32 kMask = N - 1;
 
-        const uint32 startIndex = start >> kPageGranularityBits;
-        const uint32 endIndex = end >> kPageGranularityBits;
+        const uint32 startIndex = start >> pageGranularityBits;
+        const uint32 endIndex = end >> pageGranularityBits;
         uint32 offset = 0;
         for (uint32 i = startIndex; i <= endIndex; i++) {
             m_pages[i] = {}; // clear all handlers
@@ -170,7 +169,7 @@ public:
     FLATTEN FORCE_INLINE T Read(uint32 address) const {
         address &= kAddressMask & ~(sizeof(T) - 1);
 
-        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+        const MemoryPage &entry = m_pages[address >> pageGranularityBits];
 
         if (entry.array) {
             return util::ReadBE<T>(&entry.array[address & kPageMask]);
@@ -195,7 +194,7 @@ public:
     FLATTEN FORCE_INLINE void Write(uint32 address, T value) {
         address &= kAddressMask & ~(sizeof(T) - 1);
 
-        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+        const MemoryPage &entry = m_pages[address >> pageGranularityBits];
 
         if (entry.array) {
             if (entry.arrayWritable) {
@@ -223,7 +222,7 @@ public:
     FLATTEN FORCE_INLINE T Peek(uint32 address) const {
         address &= kAddressMask & ~(sizeof(T) - 1);
 
-        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+        const MemoryPage &entry = m_pages[address >> pageGranularityBits];
 
         if (entry.array) {
             return util::ReadBE<T>(&entry.array[address & kPageMask]);
@@ -248,7 +247,7 @@ public:
     FLATTEN FORCE_INLINE void Poke(uint32 address, T value) {
         address &= kAddressMask & ~(sizeof(T) - 1);
 
-        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+        const MemoryPage &entry = m_pages[address >> pageGranularityBits];
 
         if (entry.array) {
             if (entry.arrayWritable) {
@@ -276,7 +275,7 @@ public:
     FLATTEN FORCE_INLINE bool IsBusWait(uint32 address, uint32 size, bool write) {
         address &= kAddressMask;
 
-        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+        const MemoryPage &entry = m_pages[address >> pageGranularityBits];
 
         if (entry.array) {
             return false;
@@ -293,8 +292,8 @@ public:
     /// @param[in] readCycles the number of cycles taken to perform a read from this region
     /// @param[in] writeCycles the number of cycles taken to perform a write to this region
     void SetAccessCycles(uint32 start, uint32 end, uint64 readCycles, uint64 writeCycles) {
-        const uint32 startIndex = start >> kPageGranularityBits;
-        const uint32 endIndex = end >> kPageGranularityBits;
+        const uint32 startIndex = start >> pageGranularityBits;
+        const uint32 endIndex = end >> pageGranularityBits;
         for (uint32 i = startIndex; i <= endIndex; i++) {
             m_pages[i].readCycles = std::max<uint64>(readCycles, 1ull);
             m_pages[i].writeCycles = std::max<uint64>(writeCycles, 1ull);
@@ -310,7 +309,7 @@ public:
         // TODO: different timings for 32-bit reads in some regions
         address &= kAddressMask;
 
-        const MemoryPage &entry = m_pages[address >> kPageGranularityBits];
+        const MemoryPage &entry = m_pages[address >> pageGranularityBits];
         return write ? entry.writeCycles : entry.readCycles;
     }
 
@@ -353,8 +352,8 @@ private:
     template <bool normal, bool sideEffectFree, bus_handler_fn... THandlers>
         requires util::unique_types<THandlers...>
     void Map(uint32 start, uint32 end, void *context, THandlers &&...handlers) {
-        const uint32 startIndex = start >> kPageGranularityBits;
-        const uint32 endIndex = end >> kPageGranularityBits;
+        const uint32 startIndex = start >> pageGranularityBits;
+        const uint32 endIndex = end >> pageGranularityBits;
         for (uint32 i = startIndex; i <= endIndex; i++) {
             m_pages[i].array = nullptr;
             m_pages[i].arrayWritable = false;
@@ -405,7 +404,7 @@ private:
     }
 };
 
-using SH1Bus = Bus<28>;
-using SH2Bus = Bus<27>;
+using SH1Bus = Bus<28, 19>;
+using SH2Bus = Bus<27, 16>;
 
 } // namespace ymir::sys
