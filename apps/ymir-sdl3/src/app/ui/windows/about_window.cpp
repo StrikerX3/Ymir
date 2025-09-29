@@ -26,8 +26,9 @@
 #define LZMA_VERSION "24.05" // Private dependency of libchdr
 #define MIO_VERSION "1.1.0"  // Not exported
 #define SDL_VERSION_STR _STR(SDL_MAJOR_VERSION) "." _STR(SDL_MINOR_VERSION) "." _STR(SDL_MICRO_VERSION)
-#define STB_IMAGE_VERSION "2.30"     // Not exported
-#define MC_CONCQUEUE_VERSION "1.0.4" // Not exported
+#define STB_IMAGE_VERSION "2.30"       // Not exported
+#define STB_IMAGE_WRITE_VERSION "1.16" // Not exported
+#define MC_CONCQUEUE_VERSION "1.0.4"   // Not exported
 #define TOMLPP_VERSION _STR(TOML_LIB_MAJOR) "." _STR(TOML_LIB_MINOR) "." _STR(TOML_LIB_PATCH)
 #define XXHASH_VERSION _STR(XXH_VERSION_MAJOR) "." _STR(XXH_VERSION_MINOR) "." _STR(XXH_VERSION_RELEASE)
 #define ZLIB_VERSION "1.3.1" // Private dependency of libchdr
@@ -95,6 +96,7 @@ static const struct {
     {.name = "SDL3",                          .version = SDL_VERSION_STR,            .license = licenseZlib,          .repoURL = "https://github.com/libsdl-org/SDL",              .licenseURL = "https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt"},
     {.name = "SDL_GameControllerDB",                                                 .license = licenseZlib,          .repoURL = "https://github.com/mdqinc/SDL_GameControllerDB", .licenseURL = "https://github.com/mdqinc/SDL_GameControllerDB/blob/master/LICENSE"},
     {.name = "stb_image",                     .version = STB_IMAGE_VERSION,          .license = licenseMIT,           .repoURL = "https://github.com/nothings/stb",                .licenseURL = "https://github.com/nothings/stb/blob/master/LICENSE"},
+    {.name = "stb_image_write",               .version = STB_IMAGE_WRITE_VERSION,    .license = licenseMIT,           .repoURL = "https://github.com/nothings/stb",                .licenseURL = "https://github.com/nothings/stb/blob/master/LICENSE"},
     {.name = "toml++",                        .version = TOMLPP_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/marzer/tomlplusplus" ,        .licenseURL = "https://github.com/marzer/tomlplusplus/blob/master/LICENSE",             .homeURL = "https://marzer.github.io/tomlplusplus/"},
     {.name = "xxHash",                        .version = XXHASH_VERSION,             .license = licenseBSD2,          .repoURL = "https://github.com/Cyan4973/xxHash",             .licenseURL = "https://github.com/Cyan4973/xxHash/blob/dev/LICENSE",                    .homeURL = "https://xxhash.com/"},
     {.name = "zlib",                          .version = ZLIB_VERSION,               .license = licenseZlib,          .repoURL = "https://github.com/madler/zlib",                 .licenseURL = "https://github.com/madler/zlib/blob/develop/LICENSE",                    .homeURL = "https://zlib.net/"},
@@ -559,7 +561,8 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(", including:");
     ImGui::Indent();
-    ImGui::TextUnformatted("BlueInterlude, bsdcode, floreal, GlaireDaggers, lvsweat, tegaidogun, tordona, Wunkolo.");
+    ImGui::TextUnformatted(
+        "BlueInterlude, bsdcode, Citrodata, floreal, GlaireDaggers, lvsweat, tegaidogun, tordona, Wunkolo.");
     ImGui::Unindent();
 
     ImGui::TextUnformatted("To the friends in the ");
