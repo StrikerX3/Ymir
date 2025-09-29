@@ -2896,114 +2896,64 @@ void App::RunEmulator() {
                 // TODO: add mouse interactions
             }
 
-            // Draw pause/fast forward/rewind indicators on top-right of viewport
+            // Draw speed indicators on top-right of viewport
             {
                 static constexpr float kBaseSize = 50.0f;
                 static constexpr float kBasePadding = 30.0f;
-                static constexpr float kBaseRounding = 0;
                 static constexpr float kBaseShadowOffset = 3.0f;
                 static constexpr float kBaseTextShadowOffset = 1.0f;
                 static constexpr sint64 kBlinkInterval = 700;
                 const float size = kBaseSize * m_context.displayScale;
                 const float padding = kBasePadding * m_context.displayScale;
-                const float rounding = kBaseRounding * m_context.displayScale;
                 const float shadowOffset = kBaseShadowOffset * m_context.displayScale;
                 const float textShadowOffset = kBaseTextShadowOffset * m_context.displayScale;
+                ImFont *font = m_context.fonts.sansSerif.regular;
+                ImGui::PushFont(font, size);
+                const ImVec2 charSize = ImGui::CalcTextSize(ICON_MS_PLAY_ARROW);
+                ImGui::PopFont();
 
-                auto *drawList = ImGui::GetBackgroundDrawList();
-
-                const ImVec2 tl{viewport->WorkPos.x + viewport->WorkSize.x - padding - size,
+                const ImVec2 tl{viewport->WorkPos.x + viewport->WorkSize.x - padding - charSize.x,
                                 viewport->WorkPos.y + padding};
-                const ImVec2 br{tl.x + size, tl.y + size};
+                const ImVec2 br{tl.x + charSize.x, tl.y + charSize.y};
 
                 const sint64 currMillis =
                     std::chrono::duration_cast<std::chrono::milliseconds>(clk::now().time_since_epoch()).count();
                 const double phase =
                     (double)(currMillis % kBlinkInterval) / (double)kBlinkInterval * std::numbers::pi * 2.0;
                 const double alpha = std::sin(phase) * 0.2 + 0.7;
-                const uint32 alphaU32 = std::clamp((uint32)(alpha * 255.0), 0u, 255u);
-                const uint32 color = 0xFFFFFF | (alphaU32 << 24u);
-                const uint32 shadowColor = 0x000000 | (alphaU32 << 24u);
+
+                auto *drawList = ImGui::GetBackgroundDrawList();
+                auto drawIndicator = [&](ImVec2 pos, double alpha, float size, const char *text) {
+                    const uint32 alphaU32 = std::clamp((uint32)(alpha * 255.0), 0u, 255u);
+                    const uint32 shadowAlphaU32 = std::clamp((uint32)(alpha * 0.65 * 255.0), 0u, 255u);
+                    const uint32 color = 0xFFFFFF | (alphaU32 << 24u);
+                    const uint32 shadowColor = 0x000000 | (shadowAlphaU32 << 24u);
+                    drawList->AddText(font, size, ImVec2(pos.x + shadowOffset, pos.y + shadowOffset), shadowColor,
+                                      text);
+                    drawList->AddText(font, size, pos, color, text);
+                };
+
+                // Draw bounding box
+                // drawList->AddRect(tl, br, 0xFFFF00FF);
 
                 if (m_context.paused) {
-                    drawList->AddRectFilled(ImVec2(tl.x + size * 0.2f + shadowOffset, tl.y + shadowOffset),
-                                            ImVec2(tl.x + size * 0.4f + shadowOffset, br.y + shadowOffset), shadowColor,
-                                            rounding);
-                    drawList->AddRectFilled(ImVec2(tl.x + size * 0.6f + shadowOffset, tl.y + shadowOffset),
-                                            ImVec2(tl.x + size * 0.8f + shadowOffset, br.y + shadowOffset), shadowColor,
-                                            rounding);
-
-                    drawList->AddRectFilled(ImVec2(tl.x + size * 0.2f, tl.y), ImVec2(tl.x + size * 0.4f, br.y), color,
-                                            rounding);
-                    drawList->AddRectFilled(ImVec2(tl.x + size * 0.6f, tl.y), ImVec2(tl.x + size * 0.8f, br.y), color,
-                                            rounding);
+                    drawIndicator(tl, alpha, size, ICON_MS_PAUSE);
                 } else {
+                    // Determine icon based on speed factor and direction
                     const bool rev = m_context.rewindBuffer.IsRunning() && m_context.rewinding;
                     const float speedFactor = m_context.emuSpeed.GetCurrentSpeedFactor();
                     const bool slomo = m_context.emuSpeed.limitSpeed && speedFactor < 1.0;
                     if (!m_context.emuSpeed.limitSpeed ||
                         (speedFactor != 1.0 && m_context.settings.gui.showSpeedIndicatorForAllSpeeds)) {
-                        // Fast forward/rewind -> two triangles: >> or <<
-                        // Slow motion/rewind -> rectangle and triangle: |> or <|
+
                         const std::string speed =
                             m_context.emuSpeed.limitSpeed
                                 ? fmt::format("{:.02f}x{}", speedFactor, m_context.emuSpeed.altSpeed ? "\n(alt)" : "")
                                 : "(unlimited)";
 
-                        ImVec2 p1{tl.x, tl.y};
-                        ImVec2 p2{tl.x + size * 0.5f, (tl.y + br.y) * 0.5f};
-                        ImVec2 p3{tl.x, br.y};
-
-                        if (rev) {
-                            p1 = {tl.x + size * 0.5f, br.y};
-                            p2 = {tl.x, (tl.y + br.y) * 0.5f};
-                            p3 = {tl.x + size * 0.5f, tl.y};
-                        } else {
-                            p1 = {tl.x, tl.y};
-                            p2 = {tl.x + size * 0.5f, (tl.y + br.y) * 0.5f};
-                            p3 = {tl.x, br.y};
-                        }
-
-                        if (slomo && rev) {
-                            drawList->AddRectFilled(ImVec2(tl.x + size * 0.7f + shadowOffset, tl.y + shadowOffset),
-                                                    ImVec2(tl.x + size * 0.9f + shadowOffset, br.y + shadowOffset),
-                                                    shadowColor, rounding);
-                            drawList->AddTriangleFilled(ImVec2(p1.x + shadowOffset, p1.y + shadowOffset),
-                                                        ImVec2(p2.x + shadowOffset, p2.y + shadowOffset),
-                                                        ImVec2(p3.x + shadowOffset, p3.y + shadowOffset), shadowColor);
-
-                            drawList->AddRectFilled(ImVec2(tl.x + size * 0.7f, tl.y), ImVec2(tl.x + size * 0.9f, br.y),
-                                                    color, rounding);
-                            drawList->AddTriangleFilled(ImVec2(p1.x, p1.y), ImVec2(p2.x, p2.y), ImVec2(p3.x, p3.y),
-                                                        color);
-                        } else if (slomo) {
-                            drawList->AddRectFilled(ImVec2(tl.x + size * 0.1f + shadowOffset, tl.y + shadowOffset),
-                                                    ImVec2(tl.x + size * 0.3f + shadowOffset, br.y + shadowOffset),
-                                                    shadowColor, rounding);
-                            drawList->AddTriangleFilled(ImVec2(p1.x + size * 0.5f + shadowOffset, p1.y + shadowOffset),
-                                                        ImVec2(p2.x + size * 0.5f + shadowOffset, p2.y + shadowOffset),
-                                                        ImVec2(p3.x + size * 0.5f + shadowOffset, p3.y + shadowOffset),
-                                                        shadowColor);
-
-                            drawList->AddRectFilled(ImVec2(tl.x + size * 0.1f, tl.y), ImVec2(tl.x + size * 0.3f, br.y),
-                                                    color, rounding);
-                            drawList->AddTriangleFilled(ImVec2(p1.x + size * 0.5f, p1.y),
-                                                        ImVec2(p2.x + size * 0.5f, p2.y),
-                                                        ImVec2(p3.x + size * 0.5f, p3.y), color);
-                        } else {
-                            drawList->AddTriangleFilled(ImVec2(p1.x + shadowOffset, p1.y + shadowOffset),
-                                                        ImVec2(p2.x + shadowOffset, p2.y + shadowOffset),
-                                                        ImVec2(p3.x + shadowOffset, p3.y + shadowOffset), shadowColor);
-                            drawList->AddTriangleFilled(ImVec2(p1.x + size * 0.5f + shadowOffset, p1.y + shadowOffset),
-                                                        ImVec2(p2.x + size * 0.5f + shadowOffset, p2.y + shadowOffset),
-                                                        ImVec2(p3.x + size * 0.5f + shadowOffset, p3.y + shadowOffset),
-                                                        shadowColor);
-
-                            drawList->AddTriangleFilled(p1, p2, p3, color);
-                            drawList->AddTriangleFilled(ImVec2(p1.x + size * 0.5f, p1.y),
-                                                        ImVec2(p2.x + size * 0.5f, p2.y),
-                                                        ImVec2(p3.x + size * 0.5f, p3.y), color);
-                        }
+                        drawIndicator(tl, alpha, size,
+                                      slomo ? (rev ? ICON_MS_ARROW_BACK_2 : ICON_MS_PLAY_ARROW)
+                                            : (rev ? ICON_MS_FAST_REWIND : ICON_MS_FAST_FORWARD));
 
                         ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.medium);
                         const auto textSize = ImGui::CalcTextSize(speed.c_str());
@@ -3011,7 +2961,7 @@ void App::RunEmulator() {
 
                         const ImVec2 textPadding = style.FramePadding;
 
-                        const ImVec2 rectPos(tl.x + (size - textSize.x - textPadding.x * 2.0f) * 0.5f,
+                        const ImVec2 rectPos(tl.x + (charSize.x - textSize.x - textPadding.x * 2.0f) * 0.5f,
                                              br.y + textPadding.y);
                         const ImVec2 textPos(rectPos.x + textPadding.x, rectPos.y + textPadding.y);
 
@@ -3023,15 +2973,7 @@ void App::RunEmulator() {
                                           m_context.fontSizes.medium * m_context.displayScale, textPos,
                                           ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.00f)), speed.c_str());
                     } else if (rev) {
-                        const ImVec2 p1 = {tl.x + size * 0.75f, br.y};
-                        const ImVec2 p2 = {tl.x + size * 0.25f, (tl.y + br.y) * 0.5f};
-                        const ImVec2 p3 = {tl.x + size * 0.75f, tl.y};
-
-                        drawList->AddTriangleFilled(ImVec2(p1.x + shadowOffset, p1.y + shadowOffset),
-                                                    ImVec2(p2.x + shadowOffset, p2.y + shadowOffset),
-                                                    ImVec2(p3.x + shadowOffset, p3.y + shadowOffset), shadowColor);
-
-                        drawList->AddTriangleFilled(p1, p2, p3, color);
+                        drawIndicator(tl, alpha, size, ICON_MS_ARROW_BACK_2);
                     }
                 }
             }
