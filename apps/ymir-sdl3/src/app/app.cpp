@@ -2896,7 +2896,7 @@ void App::RunEmulator() {
                 // TODO: add mouse interactions
             }
 
-            // Draw speed indicators on top-right of viewport
+            // Draw speed and mute indicators on top-right of viewport
             {
                 static constexpr float kBaseSize = 50.0f;
                 static constexpr float kBasePadding = 30.0f;
@@ -2975,6 +2975,23 @@ void App::RunEmulator() {
                     } else if (rev) {
                         drawIndicator(tl, alpha, size, ICON_MS_ARROW_BACK_2);
                     }
+                }
+
+                // Draw sound mute indicator
+                if (m_context.audioSystem.IsMute() || m_context.audioSystem.GetGain() == 0.0f) {
+                    static constexpr float kMuteBaseSize = 30.0f;
+                    static constexpr float kMuteBasePadding = 10.0f;
+                    const float muteSize = kMuteBaseSize * m_context.displayScale;
+                    const float mutePadding = kMuteBasePadding * m_context.displayScale;
+                    const char *icon = m_context.audioSystem.IsMute() ? ICON_MS_VOLUME_OFF : ICON_MS_VOLUME_MUTE;
+
+                    ImGui::PushFont(font, muteSize);
+                    const ImVec2 charSize = ImGui::CalcTextSize(icon);
+                    ImGui::PopFont();
+
+                    const ImVec2 tlMute{viewport->WorkPos.x + viewport->WorkSize.x - mutePadding - charSize.x,
+                                        viewport->WorkPos.y + mutePadding};
+                    drawIndicator(tlMute, 0.9, muteSize, icon);
                 }
             }
 
