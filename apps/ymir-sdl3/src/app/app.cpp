@@ -4326,23 +4326,6 @@ void App::LoadRecommendedCartridge() {
     // TODO: notify user
 }
 
-void App::ApplyGameSpecificConfiguration() {
-    const ymir::db::GameInfo *info;
-    {
-        std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetDisc();
-        info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
-    }
-
-    const bool forceSH2CacheEmulation = info != nullptr && info->sh2Cache;
-
-    if (forceSH2CacheEmulation) {
-        m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(true));
-    } else {
-        m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(m_context.settings.system.emulateSH2Cache));
-    }
-}
-
 void App::LoadSaveStates() {
     WriteSaveStateMeta();
 
@@ -4611,7 +4594,6 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
     } else {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
     }
-    ApplyGameSpecificConfiguration();
 
     m_context.rewindBuffer.Reset();
     return true;

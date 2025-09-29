@@ -380,6 +380,17 @@ private:
     /// @param[in] enabled whether to enable low-level CD block emulation
     void SetCDBlockLLE(bool enabled);
 
+    /// @brief Whether to force SH-2 cache emulation.
+    bool m_forceSH2CacheEmulation = false;
+
+    /// @brief Enables or disables forced SH-2 cache emulation.
+    ///
+    /// @param[in] enable whether to enable or disable forced SH-2 cache emulation
+    void ForceSH2CacheEmulation(bool enable) {
+        m_forceSH2CacheEmulation = enable;
+        UpdateSH2CacheEmulation(configuration.system.emulateSH2Cache);
+    }
+
     // -------------------------------------------------------------------------
     // Global components and parameters
 

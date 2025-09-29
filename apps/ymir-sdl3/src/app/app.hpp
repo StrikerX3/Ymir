@@ -104,8 +104,6 @@ private:
     void ScanROMCarts();
     void LoadRecommendedCartridge();
 
-    void ApplyGameSpecificConfiguration();
-
     void LoadSaveStates();
     void ClearSaveStates();
     void LoadSaveStateSlot(size_t slot);

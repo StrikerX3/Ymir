@@ -1,5 +1,7 @@
 #include <ymir/sys/saturn.hpp>
 
+#include <ymir/db/game_db.hpp>
+
 #include <ymir/util/dev_log.hpp>
 
 #include <bit>
@@ -291,6 +293,10 @@ void Saturn::LoadDisc(media::Disc &&disc) {
     } else {
         CDBlock.OnDiscLoaded();
     }
+
+    // Apply game-specific settings if needed
+    const db::GameInfo *info = db::GetGameInfo(m_disc.header.productNumber, m_fs.GetHash());
+    ForceSH2CacheEmulation(info && info->sh2Cache);
 }
 
 void Saturn::EjectDisc() {
@@ -755,6 +761,7 @@ void Saturn::UpdatePreferredRegionOrder(std::span<const core::config::sys::Regio
 }
 
 void Saturn::UpdateSH2CacheEmulation(bool enabled) {
+    enabled |= m_forceSH2CacheEmulation;
     if (!m_systemFeatures.emulateSH2Cache && enabled) {
         masterSH2.PurgeCache();
         slaveSH2.PurgeCache();
