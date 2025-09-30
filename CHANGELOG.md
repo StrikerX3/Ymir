@@ -64,6 +64,7 @@ Introduced save state file version 10.
     - Several homebrew apps (#620, #626)
 - SCU: Make DMA transfers interruptible to support LLE CD Block interactions.
 - VDP1: Adjust Y coordinate framebuffer offsets for erase process based on TVMR.TVM. Fixes erase glitches in Grandia when using transparent meshes.
+- VDP2: Bitmap delays only occur if the timings are mapped to different VRAM chips, not banks. Fixes right team name plate being shifted left during game intro in 3D Baseball. (#593
 - VDP2: Clear framebuffer when switching resolutions. Fixes single-frame artifacts in multiple games that switch modes without clearing the screen.
 - VDP2: Shift one cell of 2x2 character patterns which have illegal access cycles. Fixes garbled text in Shichuu Suimei Pitagraph. (#549)
 - VDP2: Use line color calculation ratio when LNCL is inserted on top of a layer that uses color calculations. Fixes text dialog background in Find Love 2 - The Prologue. (#618)

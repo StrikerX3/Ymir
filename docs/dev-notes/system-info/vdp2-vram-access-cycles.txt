@@ -115,9 +115,9 @@ Character pattern accesses for bitmap BGs
 Bitmap data is read in chunks of 8 bytes. The same rules for CP access cycle count based on ZMCTL reduction and color
 depth applies here.
 
-There is only one special restriction on bitmap accesses for an NBG: if configured across multiple banks, they must all
-start on the same timing slot. Bitmap accesses to the same NBG that occur at different timing slot on separate banks
-will result in graphics being shifted left by 8 bytes on the banks that have the later accesses.
+There is only one special restriction on bitmap accesses for an NBG: if configured across the two VRAM chips, they must
+all start on the same timing slot. Bitmap accesses to the same NBG that occur at different timing slots on separate VRAM
+chips will result in graphics being shifted left by 8 bytes on the banks that have the later accesses.
 
 For example, if you set up NBG0 as a bitmap image with 256-color palette and no reduction, the total number of cycles
 required to fetch the data is 1*2*1 = 2 cycles. Suppose you use a high-resolution mode and set up the following access
@@ -148,7 +148,15 @@ If you also set up NBG1 with the same parameters as NBG0 and use the following t
 then both NBG0 and NBG1 will read exactly one chunk of bitmap data each without interfering with the address, since each
 NBG has its own address counter.
 
-This final example occurs on Baroque Report - CD Data File:
+An example that uses VRAM bank partitioning and doesn't cause any issues is 3D Baseball (in-game team nameplates):
+
+   Bank  T0  T1  T2  T3
+   B0    CP1 CP1
+   B1            CP1 CP1
+
+Because the CP1 accesses are all mapped to VRAM chip B, no shifting occurs.
+
+This final example is present on Baroque Report - CD Data File:
 
    Bank  T0  T1  T2  T3
    A     CP0 CP0 CP0 CP0

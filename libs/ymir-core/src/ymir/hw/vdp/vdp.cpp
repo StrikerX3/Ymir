@@ -3254,6 +3254,9 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
     // First bitmap CP access timing slot per NBG. 0xFF means no accesses found.
     std::array<uint8, 4> firstBmAccessTiming = {0xFF, 0xFF, 0xFF, 0xFF};
 
+    // First bitmap CP access VRAM chip per NBG. 0xFF means no accesses found.
+    std::array<uint8, 4> firstBmAccessVRAMIndex = {0xFF, 0xFF, 0xFF, 0xFF};
+
     // First bitmap CP access found per NBG per bank.
     std::array<std::array<bool, 4>, 4> firstBmAccessFound = {{
         {false, false, false, false},
@@ -3300,46 +3303,53 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 //  # Res  ZM  Color  Bnk  CP mapping    Delay?  Game screen
                 //  1 hi   1x  pal256  A   CP0 01..      no      Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
                 //                     B   CP0 ..23      yes     Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
-                //  2 hi   1x  pal256  A   CP0 01..      no      Doukyuusei - if, title screen
+                //  2 hi   1x  pal256  B0  CP1 01..      no      3D Baseball, in-game (team nameplates during intro)
+                //                     B1  CP1 ..23      no      3D Baseball, in-game (team nameplates during intro)
+                //  3 hi   1x  pal256  A   CP0 01..      no      Doukyuusei - if, title screen
                 //                     B   CP1 ..23      no      Doukyuusei - if, title screen
-                //  3 hi   1x  pal256  A0  CP0 01..      no      Duke Nukem 3D, Netlink pages
+                //  4 hi   1x  pal256  A0  CP0 01..      no      Duke Nukem 3D, Netlink pages
                 //                     A1  CP0 01..      no      Duke Nukem 3D, Netlink pages
                 //                     B0  CP0 01..      no      Duke Nukem 3D, Netlink pages
                 //                     B1  CP0 01..      no      Duke Nukem 3D, Netlink pages
-                //  4 hi   1x  pal256  A   CP0 0123      no      Baroque Report, art screens
+                //  5 hi   1x  pal256  A   CP0 0123      no      Baroque Report, art screens
                 //                     B   CP0 0123      no      Baroque Report, art screens
-                //  5 hi   1x  pal256  A0  CP0 0123      no      Sonic Jam, art gallery
+                //  6 hi   1x  pal256  A0  CP0 0123      no      Sonic Jam, art gallery
                 //                     A1  CP0 0123      no      Sonic Jam, art gallery
                 //                     B0  CP0 0123      no      Sonic Jam, art gallery
                 //                     B1  CP0 0123      no      Sonic Jam, art gallery
-                //  6 hi   1x  rgb555  A   CP0 0123      no      Steam Heart's, title screen
+                //  7 hi   1x  rgb555  A   CP0 0123      no      Steam Heart's, title screen
                 //                     B   CP0 0123      no      Steam Heart's, title screen
-                //  7 lo   1x  pal16       CP? 0123....  no      Groove on Fight, scrolling background in Options screen
-                //  8 lo   1x  pal256      CP? 01......  no      Mr. Bones, in-game graphics
-                //  9 lo   1x  pal256      CP? 01......  no      DoDonPachi, title screen background
-                // 10 lo   1x  pal256      CP? 01......  no      Jung Rhythm, title screen
-                // 11 lo   1x  pal256      CP? 01......  no      The Need for Speed, menus
-                // 12 lo   1x  pal256      CP? ..23....  no      The Legend of Oasis, in-game HUD
-                // 13 lo   1x  rgb555      CP? 0123....  no      Jung Rhythm, title screen
-                // 14 lo   1x  rgb888      CP? 01234567  no      Street Fighter Zero 3, Capcom logo FMV
+                //  8 lo   1x  pal16       CP? 0123....  no      Groove on Fight, scrolling background in Options screen
+                //  9 lo   1x  pal256      CP? 01......  no      Mr. Bones, in-game graphics
+                // 10 lo   1x  pal256      CP? 01......  no      DoDonPachi, title screen background
+                // 11 lo   1x  pal256      CP? 01......  no      Jung Rhythm, title screen
+                // 12 lo   1x  pal256      CP? 01......  no      The Need for Speed, menus
+                // 13 lo   1x  pal256      CP? ..23....  no      The Legend of Oasis, in-game HUD
+                // 14 lo   1x  rgb555      CP? 0123....  no      Jung Rhythm, title screen
+                // 15 lo   1x  rgb888      CP? 01234567  no      Street Fighter Zero 3, Capcom logo FMV
                 // clang-format on
                 //
                 // Seems like the "delay" is caused by configuring out-of-phase reads for an NBG in different banks.
-                // In case #1, CP0 is assigned to T0-T1 on bank A and T2-T3 on bank B. This is out of phase, so bank B
-                // reads are delayed.
-                // In case #2 we have the same display settings but CP0 gets two cycles and CP1 gets two cycles.
+                // In case #1, CP0 is assigned to T0-T1 on bank A and T2-T3 on bank B. This is out of phase and on
+                // different VRAM chips, so bank B reads are delayed.
+                // In case #2, CP1 is assigned to T0-T1 on bank B0 and T2-T3 on bank B1. Despite being out of phase,
+                // they're accessed on the same VRAM chip, so there is no delay.
+                // In case #3 we have the same display settings but CP0 gets two cycles and CP1 gets two cycles.
                 // These cause no "delay" because they're different NBGs.
-                // Case #3 has no delay because all reads for the same NBG are assigned to the same cycle slot.
-                // Cases #4 and #5 include more reads than necessary for the NBG, but because they all start on the same
+                // Case #4 has no delay because all reads for the same NBG are assigned to the same cycle slot.
+                // Cases #5 and #6 include more reads than necessary for the NBG, but because they all start on the same
                 // slot, no delay occurs.
 
                 // FIXME: seems to only apply to hi-res modes
                 if (hires) {
                     auto &bgParams = regs2.bgParams[bgIndex + 1];
                     if (bgParams.bitmap) {
+                        const uint8 vramIndex = bankIndex >> 1u;
                         if (firstBmAccessTiming[bgIndex] == 0xFF) {
                             firstBmAccessTiming[bgIndex] = i;
-                        } else if (!firstBmAccessFound[bgIndex][bankIndex] && i > firstBmAccessTiming[bgIndex]) {
+                            firstBmAccessVRAMIndex[bgIndex] = vramIndex;
+                        } else if (!firstBmAccessFound[bgIndex][bankIndex] && i > firstBmAccessTiming[bgIndex] &&
+                                   vramIndex != firstBmAccessVRAMIndex[bgIndex]) {
                             bgParams.bitmapDataOffset[bankIndex] = 8u;
                         }
                         firstBmAccessFound[bgIndex][bankIndex] = true;
