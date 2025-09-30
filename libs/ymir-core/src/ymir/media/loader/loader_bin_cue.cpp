@@ -377,7 +377,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
         session.startFrameAddress = 0;
 
         uint32 frameAddress = 150;         // Current (absolute) frame address
-        uint32 accumPrePostGaps = 0;       // Accumulated pre/postgaps
+        uint32 accumPreGaps = 0;           // Accumulated pregaps
         uint32 currFileFrameAddress = 150; // Starting frame address of the current file
         uintmax_t binOffset = 0;           // Current byte offset into binary data
         uintmax_t currFileBinOffset = 0;   // Byte offset into binary data of the current file
@@ -396,8 +396,9 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 trackSectors = sectorBytes / prevTrack.sectorSize;
             } else {
                 // Continuing in the same file
-                trackSectors = sheetTrack->indexes[0].pos - prevTrack.startFrameAddress + 150 + accumPrePostGaps;
+                trackSectors = sheetTrack->indexes[0].pos - prevTrack.startFrameAddress + 150 + accumPreGaps;
             }
+            trackSectors += prevSheetTrack.postgap;
 
             const uintmax_t trackSizeBytes = static_cast<uintmax_t>(trackSectors) * prevTrack.sectorSize;
             prevTrack.endFrameAddress = prevTrack.startFrameAddress + trackSectors - 1;
@@ -462,7 +463,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
 
             track.startFrameAddress = frameAddress;
 
-            accumPrePostGaps += sheetTrack.pregap + sheetTrack.postgap;
+            accumPreGaps += sheetTrack.pregap;
 
             assert(!sheetTrack.indexes.empty());
 
@@ -475,7 +476,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
             for (uint32 j = 0; j < sheetTrack.indexes.size(); ++j) {
                 auto &sheetIndex = sheetTrack.indexes[j];
                 auto &index = track.indices.emplace_back();
-                index.startFrameAddress = sheetIndex.pos + currFileFrameAddress + accumPrePostGaps;
+                index.startFrameAddress = sheetIndex.pos + currFileFrameAddress + accumPreGaps;
                 if (j > 0) {
                     // Close previous index
                     auto &prevIndex = track.indices[j - 1 + indexOffset];
