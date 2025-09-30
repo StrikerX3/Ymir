@@ -66,6 +66,7 @@ Introduced save state file version 10.
 - VDP1: Adjust Y coordinate framebuffer offsets for erase process based on TVMR.TVM. Fixes erase glitches in Grandia when using transparent meshes.
 - VDP2: Clear framebuffer when switching resolutions. Fixes single-frame artifacts in multiple games that switch modes without clearing the screen.
 - VDP2: Shift one cell of 2x2 character patterns which have illegal access cycles. Fixes garbled text in Shichuu Suimei Pitagraph. (#549)
+- VDP2: Use line color calculation ratio when LNCL is inserted on top of a layer that uses color calculations. Fixes text dialog background in Find Love 2 - The Prologue. (#618)
 - VDP2: Use TVMD.DISP from threaded state if rendering with dedicated VDP2 thread. Fixes black stripes on the bottom of the screen in Bug! (#623)
 
 

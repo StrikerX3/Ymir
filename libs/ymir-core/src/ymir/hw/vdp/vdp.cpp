@@ -5194,7 +5194,7 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
             // Saturated add
             Color888SatAddMasked(framebufferOutput, layer0ColorCalcEnabled, layer0Pixels, layer1Pixels);
         } else {
-            // Gather extended color ratio info
+            // Gather color ratio info
             alignas(16) std::array<uint8, kMaxResH> scanline_ratio;
             for (uint32 x = 0; x < m_HRes; x++) {
                 if (!layer0ColorCalcEnabled[x]) {
@@ -5205,7 +5205,10 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 const LayerIndex layer = scanline_layers[x][colorCalcParams.useSecondScreenRatio];
                 switch (layer) {
                 case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].colorCalcRatio[x]; break;
-                case LYR_Back: scanline_ratio[x] = regs.backScreenParams.colorCalcRatio; break;
+                case LYR_Back:
+                    scanline_ratio[x] = layer0LineColorEnabled[x] ? regs.lineScreenParams.colorCalcRatio
+                                                                  : regs.backScreenParams.colorCalcRatio;
+                    break;
                 default: scanline_ratio[x] = regs.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
                 }
             }
