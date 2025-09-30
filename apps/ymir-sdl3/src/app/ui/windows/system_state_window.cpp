@@ -255,7 +255,7 @@ void SystemStateWindow::DrawCDBlock() {
         m_context.EnqueueEvent(events::emu::EjectDisc());
     }
 
-    ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x);
+    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
     if (m_context.state.loadedDiscImagePath.empty()) {
         ImGui::TextUnformatted("No image loaded");
     } else {
@@ -428,7 +428,7 @@ void SystemStateWindow::DrawCDDrive() {
         m_context.EnqueueEvent(events::emu::EjectDisc());
     }
 
-    ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x);
+    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
     if (m_context.state.loadedDiscImagePath.empty()) {
         ImGui::TextUnformatted("No image loaded");
     } else {
