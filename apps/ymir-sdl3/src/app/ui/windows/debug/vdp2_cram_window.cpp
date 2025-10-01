@@ -11,8 +11,8 @@ VDP2CRAMWindow::VDP2CRAMWindow(SharedContext &context)
 }
 
 void VDP2CRAMWindow::PrepareWindow() {
-    ImGui::SetNextWindowSizeConstraints(ImVec2(855 * m_context.displayScale, 250 * m_context.displayScale),
-                                        ImVec2(855 * m_context.displayScale, FLT_MAX));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(860 * m_context.displayScale, 250 * m_context.displayScale),
+                                        ImVec2(860 * m_context.displayScale, FLT_MAX));
 }
 
 void VDP2CRAMWindow::DrawContents() {

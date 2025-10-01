@@ -33,6 +33,9 @@ void VDP2CRAMView::Display() {
     ImGui::BeginGroup();
 
     for (uint32 i = 0; i < numColors; ++i) {
+        if (i > 0 && i % 256 == 0) {
+            ImGui::Dummy(ImVec2(0, 1 * m_context.displayScale));
+        }
         if (i % kNumCols == 0) {
             const uint32 address = i * colorSize;
             ImGui::AlignTextToFramePadding();
@@ -40,6 +43,8 @@ void VDP2CRAMView::Display() {
             ImGui::Text("%03X", address);
             ImGui::PopFont();
             ImGui::SameLine();
+        } else if (i % kNumCols == kNumCols / 2) {
+            ImGui::SameLine(0, 8 * m_context.displayScale);
         } else {
             ImGui::SameLine(0, 3 * m_context.displayScale);
         }
@@ -55,7 +60,6 @@ void VDP2CRAMView::Display() {
 
         std::array<float, 3> colorFloat{color.r / 255.0f, color.g / 255.0f, color.b / 255.0f};
 
-        ImGui::TableNextColumn();
         if (ImGui::ColorEdit3(fmt::format("##clr_{}", i).c_str(), colorFloat.data(),
                               ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel)) {
             color.r = colorFloat[0] * 255.0f;
