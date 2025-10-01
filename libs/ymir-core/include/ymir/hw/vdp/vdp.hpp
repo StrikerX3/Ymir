@@ -1558,6 +1558,64 @@ public:
     // -------------------------------------------------------------------------
     // Debugger
 
+    struct VDP2DebugRenderOptions {
+        bool enable = false;
+
+        // Debug overlay alpha blended on top of the final composite image
+        struct Overlay {
+            enum class Type {
+                None,       // No overlay is applied
+                LayerStack, // Colorize by layer on a level of the stack
+                Windows,    // Colorize by window state (one layer or custom setup)
+                RotParams,  // Colorize by rotation parameters on RBG0
+            } type = Type::None;
+
+            // 8-bit opacity for overlay layer. 0=fully transparent, 255=fully opaque
+            uint8 alpha = 128;
+
+            // Which layer stack level to display when displaying Layer overlays.
+            // 0=top, 1=middle, 2=bottom.
+            // Any other value defaults to 0.
+            uint8 layerStackIndex = 0;
+
+            // Colors for each layer:
+            // [0] Sprite
+            // [1] RBG0
+            // [2] NBG0/RBG1
+            // [3] NBG1/EXBG
+            // [4] NBG2
+            // [5] NBG3
+            // [6] Back
+            // [7] Line color (never used)
+            std::array<Color888, 8> layerColors{{
+                {.r = 0xFF, .g = 0xFF, .b = 0xFF},
+                {.r = 0x00, .g = 0xFF, .b = 0xFF},
+                {.r = 0xFF, .g = 0x00, .b = 0xFF},
+                {.r = 0x00, .g = 0x00, .b = 0xFF},
+                {.r = 0xFF, .g = 0xFF, .b = 0x00},
+                {.r = 0x00, .g = 0xFF, .b = 0x00},
+                {.r = 0xFF, .g = 0x00, .b = 0x00},
+                {.r = 0x00, .g = 0x00, .b = 0x00},
+            }};
+
+            // Which layer to display the window state of.
+            // 0 = RBG0
+            // 1 = NBG0/RBG1
+            // 2 = NBG1/EXBG
+            // 3 = NBG2
+            // 4 = NBG3
+            // Any other value is interpreted as NBG3
+            uint8 windowLayerIndex;
+
+            Color888 windowInsideColor{.r = 0xFF, .g = 0xFF, .b = 0xFF};
+            Color888 windowOutsideColor{.r = 0x00, .g = 0x00, .b = 0x00};
+
+            Color888 rotParamAColor{.r = 0x00, .g = 0xFF, .b = 0xFF};
+            Color888 rotParamBColor{.r = 0xFF, .g = 0x00, .b = 0xFF};
+        } overlay;
+
+    } vdp2DebugRenderOptions;
+
     class Probe {
     public:
         explicit Probe(VDP &vdp);

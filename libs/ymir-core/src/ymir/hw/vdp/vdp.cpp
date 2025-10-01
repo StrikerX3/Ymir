@@ -5289,9 +5289,49 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
         }
     }
 
-    // Opaque alpha
-    for (Color888 &outputColor : framebufferOutput) {
-        outputColor.u32 |= 0xFF000000;
+    if (vdp2DebugRenderOptions.enable) {
+        auto &overlay = vdp2DebugRenderOptions.overlay;
+        using OverlayType = VDP2DebugRenderOptions::Overlay::Type;
+
+        if (overlay.type != OverlayType::None) {
+            for (uint32 x = 0; x < m_HRes; ++x) {
+                Color888 layerColor{};
+
+                switch (overlay.type) {
+                case OverlayType::None: break;
+                case OverlayType::LayerStack: //
+                {
+                    const uint8 layerLevel = overlay.layerStackIndex < 3 ? overlay.layerStackIndex : 0;
+                    const uint32 layerNum = static_cast<uint32>(scanline_layers[x][layerLevel]);
+                    layerColor = overlay.layerColors[layerNum];
+                    break;
+                }
+                case OverlayType::Windows: //
+                {
+                    const uint8 layerIndex = std::min<uint8>(overlay.windowLayerIndex, 4);
+                    layerColor =
+                        m_bgWindows[altField][layerIndex][x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
+
+                    break;
+                }
+                case OverlayType::RotParams: //
+                    layerColor = VDP2SelectRotationParameter(x, y, altField) == RotParamA ? overlay.rotParamAColor
+                                                                                          : overlay.rotParamBColor;
+                    break;
+                }
+
+                const uint8 alpha = overlay.alpha;
+                Color888 &out = framebufferOutput[x];
+                out.r = out.r + ((int)layerColor.r - out.r) * alpha / 255;
+                out.g = out.g + ((int)layerColor.g - out.g) * alpha / 255;
+                out.b = out.b + ((int)layerColor.b - out.b) * alpha / 255;
+            }
+        }
+
+        // Opaque alpha
+        for (Color888 &outputColor : framebufferOutput) {
+            outputColor.u32 |= 0xFF000000;
+        }
     }
 }
 
