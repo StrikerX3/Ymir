@@ -23,4 +23,7 @@ EmuEvent ClearSH2Breakpoints(bool master);
 
 EmuEvent SetLayerEnabled(ymir::vdp::Layer layer, bool enabled);
 
+EmuEvent VDP2SetCRAMColor555(uint32 index, ymir::vdp::Color555 color);
+EmuEvent VDP2SetCRAMColor888(uint32 index, ymir::vdp::Color888 color);
+
 } // namespace app::events::emu::debug

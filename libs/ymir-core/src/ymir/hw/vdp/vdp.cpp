@@ -527,26 +527,25 @@ FORCE_INLINE void VDP::VDP2WriteCRAM(uint32 address, T value) {
     if constexpr (std::is_same_v<T, uint32>) {
         VDP2WriteCRAM<uint16, poke>(address + 0, value >> 16u);
         VDP2WriteCRAM<uint16, poke>(address + 2, value >> 0u);
-        return;
-    }
-
-    address = MapCRAMAddress(address);
-    if constexpr (!poke) {
-        devlog::trace<grp::vdp2_regs>("{}-bit VDP2 CRAM write to {:05X} = {:X}", sizeof(T) * 8, address, value);
-    }
-    util::WriteBE<T>(&m_state.CRAM[address], value);
-    VDP2UpdateCRAMCache<T>(address);
-    if (m_threadedVDPRendering) {
-        m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address, value));
-    }
-    if (m_state.regs2.vramControl.colorRAMMode == 0) {
+    } else {
+        address = MapCRAMAddress(address);
         if constexpr (!poke) {
-            devlog::trace<grp::vdp2_regs>("   replicated to {:05X}", address ^ 0x800);
+            devlog::trace<grp::vdp2_regs>("{}-bit VDP2 CRAM write to {:05X} = {:X}", sizeof(T) * 8, address, value);
         }
-        util::WriteBE<T>(&m_state.CRAM[address ^ 0x800], value);
+        util::WriteBE<T>(&m_state.CRAM[address], value);
         VDP2UpdateCRAMCache<T>(address);
         if (m_threadedVDPRendering) {
-            m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address ^ 0x800, value));
+            m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address, value));
+        }
+        if (m_state.regs2.vramControl.colorRAMMode == 0) {
+            if constexpr (!poke) {
+                devlog::trace<grp::vdp2_regs>("   replicated to {:05X}", address ^ 0x800);
+            }
+            util::WriteBE<T>(&m_state.CRAM[address ^ 0x800], value);
+            VDP2UpdateCRAMCache<T>(address);
+            if (m_threadedVDPRendering) {
+                m_renderingContext.EnqueueEvent(VDPRenderEvent::VDP2CRAMWrite<T>(address ^ 0x800, value));
+            }
         }
     }
 }
@@ -6611,6 +6610,26 @@ template void VDP::Probe::VDP1WriteVRAM<uint16>(uint32, uint16);
 
 void VDP::Probe::VDP1WriteReg(uint32 address, uint16 value) {
     m_vdp.VDP1WriteReg<true>(address, value);
+}
+
+Color555 VDP::Probe::VDP2GetCRAMColor555(uint32 index) const {
+    return ConvertRGB888to555(m_vdp.VDP2FetchCRAMColor<1>(0, index));
+}
+
+Color888 VDP::Probe::VDP2GetCRAMColor888(uint32 index) const {
+    return m_vdp.VDP2FetchCRAMColor<2>(0, index);
+}
+
+void VDP::Probe::VDP2SetCRAMColor555(uint32 index, Color555 color) {
+    m_vdp.VDP2WriteCRAM<uint16, true>(index * sizeof(uint16), color.u16);
+}
+
+void VDP::Probe::VDP2SetCRAMColor888(uint32 index, Color888 color) {
+    m_vdp.VDP2WriteCRAM<uint32, true>(index * sizeof(uint32), color.u32);
+}
+
+uint8 VDP::Probe::VDP2GetCRAMMode() const {
+    return m_vdp.m_state.regs2.vramControl.colorRAMMode;
 }
 
 } // namespace ymir::vdp

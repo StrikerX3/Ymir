@@ -1581,6 +1581,12 @@ public:
 
         void VDP1WriteReg(uint32 address, uint16 value);
 
+        Color555 VDP2GetCRAMColor555(uint32 index) const;
+        Color888 VDP2GetCRAMColor888(uint32 index) const;
+        void VDP2SetCRAMColor555(uint32 index, Color555 color);
+        void VDP2SetCRAMColor888(uint32 index, Color888 color);
+        uint8 VDP2GetCRAMMode() const;
+
     private:
         VDP &m_vdp;
     };

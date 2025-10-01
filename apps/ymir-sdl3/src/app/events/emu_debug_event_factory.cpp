@@ -100,4 +100,18 @@ EmuEvent SetLayerEnabled(ymir::vdp::Layer layer, bool enabled) {
     });
 }
 
+EmuEvent VDP2SetCRAMColor555(uint32 index, ymir::vdp::Color555 color) {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &vdp = ctx.saturn.GetVDP();
+        vdp.GetProbe().VDP2SetCRAMColor555(index, color);
+    });
+}
+
+EmuEvent VDP2SetCRAMColor888(uint32 index, ymir::vdp::Color888 color) {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &vdp = ctx.saturn.GetVDP();
+        vdp.GetProbe().VDP2SetCRAMColor888(index, color);
+    });
+}
+
 } // namespace app::events::emu::debug

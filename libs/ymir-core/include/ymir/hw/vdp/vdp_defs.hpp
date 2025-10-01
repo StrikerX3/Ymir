@@ -80,6 +80,15 @@ FORCE_INLINE Color888 ConvertRGB555to888(Color555 color) {
     };
 }
 
+FORCE_INLINE Color555 ConvertRGB888to555(Color888 color) {
+    return Color555{
+        .r = static_cast<uint16>(color.r >> 3u),
+        .g = static_cast<uint16>(color.g >> 3u),
+        .b = static_cast<uint16>(color.b >> 3u),
+        .msb = static_cast<uint16>(color.msb),
+    };
+}
+
 // -----------------------------------------------------------------------------
 // Coordinates
 
