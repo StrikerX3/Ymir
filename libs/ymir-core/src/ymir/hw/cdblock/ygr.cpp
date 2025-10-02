@@ -169,6 +169,11 @@ FORCE_INLINE uint16 YGR::CDBReadWord(uint32 address) const {
     switch (address) {
     case 0x00: //
     {
+        if constexpr (!peek) {
+            if (!m_regs.TRCTL.TE && m_regs.TRCTL.DIR && m_fifo.count == 1) {
+                m_regs.TRCTL.TE = 1;
+            }
+        }
         const uint16 value = m_fifo.Read<peek>();
         if constexpr (!peek) {
             devlog::trace<grp::ygr_fifo>("CDB  FIFO read  <- rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
@@ -212,6 +217,9 @@ FORCE_INLINE void YGR::CDBWriteWord(uint32 address, uint16 value) {
     case 0x00:
         m_fifo.Write<poke>(value);
         if constexpr (!poke) {
+            if (m_regs.TRCTL.TE && m_regs.TRCTL.DIR) {
+                m_regs.TRCTL.TE = 0;
+            }
             devlog::trace<grp::ygr_fifo>("CDB  FIFO write -> rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
                                          m_fifo.writePos, m_fifo.count, value);
             UpdateFIFODREQ();
