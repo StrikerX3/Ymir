@@ -1875,7 +1875,11 @@ void App::RunEmulator() {
             {
                 const int playerIndex = gamepadPlayerIndexes[evt.gdevice.which];
                 devlog::debug<grp::base>("Gamepad {} removed -> player index {}", evt.gdevice.which, playerIndex);
-                SDL_CloseGamepad(gamepads.at(evt.gdevice.which));
+                if (gamepads.contains(evt.gdevice.which)) {
+                    SDL_CloseGamepad(gamepads.at(evt.gdevice.which));
+                } else {
+                    devlog::warn<grp::base>("Gamepad {} was not open!", evt.gdevice.which);
+                }
                 gamepadPlayerIndexes.erase(evt.gdevice.which);
                 addFreePlayerIndex(playerIndex);
                 gamepads.erase(evt.gdevice.which);
