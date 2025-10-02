@@ -349,12 +349,14 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 reader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
             }
             if (err) {
-                errorMsg(fmt::format("BIN/CUE: Failed to load file - {}", err.message()));
+                errorMsg(fmt::format("BIN/CUE: Failed to load {} - {}", file.path, err.message()));
                 return false;
             }
         } else {
             auto compReader = std::make_shared<CompositeBinaryReader>();
-            for (auto &file : sheet.files) {
+            for (uint32 fileIndex = 0; fileIndex < sheet.files.size(); ++fileIndex) {
+                auto &file = sheet.files[fileIndex];
+
                 std::shared_ptr<IBinaryReader> fileReader;
                 std::error_code err{};
                 if (preloadToRAM) {
@@ -362,8 +364,118 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 } else {
                     fileReader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
                 }
+                if (file.format == "WAVE") {
+                    // Check if wave file is raw, uncompressed 16-bit PCM stereo at 44100 Hz and grab a subview if so
+                    [&] {
+                        std::array<uint8, 4> buf{};
+
+                        auto readBuf = [&](uintmax_t offset, std::span<uint8> out) {
+                            if (fileReader->Read(offset, out.size(), out) != out.size()) {
+                                errorMsg(
+                                    fmt::format("BIN/CUE: {} is not a valid WAVE file: file is truncated", file.path));
+                                return false;
+                            }
+                            return true;
+                        };
+
+                        // Check RIFF magic
+                        if (!readBuf(0, buf)) {
+                            return;
+                        }
+                        if (buf[0] != 'R' || buf[1] != 'I' || buf[2] != 'F' || buf[3] != 'F') {
+                            errorMsg(
+                                fmt::format("BIN/CUE: {} is not a valid WAVE file: invalid RIFF magic", file.path));
+                            return;
+                        }
+
+                        // Check file size
+                        if (!readBuf(4, buf)) {
+                            return;
+                        }
+                        const uintmax_t fileSize = util::ReadLE<uint32>(&buf[0]) + 8ull;
+                        if (fileSize > fileReader->Size()) {
+                            errorMsg(fmt::format("BIN/CUE: {} is not a valid WAVE file: file is truncated: "
+                                                 "reported {} vs actual {}",
+                                                 file.path, fileSize, fileReader->Size()));
+                            return;
+                        }
+
+                        // Check WAVE magic
+                        if (!readBuf(8, buf)) {
+                            return;
+                        }
+                        if (buf[0] != 'W' || buf[1] != 'A' || buf[2] != 'V' || buf[3] != 'E') {
+                            errorMsg(
+                                fmt::format("BIN/CUE: {} is not a valid WAVE file: invalid WAVE magic", file.path));
+                            return;
+                        }
+
+                        // Parse chunks and look for the "fmt " and "data" chunks only
+                        uint32 chunkOffset = 0xC;
+                        std::array<uint8, 4> chunkID{};
+                        while (true) {
+                            if (!readBuf(chunkOffset, chunkID) || !readBuf(chunkOffset + 4ull, buf)) {
+                                return;
+                            }
+                            const uint32 chunkSize = util::ReadLE<uint32>(&buf[0]);
+
+                            if (chunkID[0] == 'f' && chunkID[1] == 'm' && chunkID[2] == 't' && chunkID[3] == ' ') {
+                                std::array<uint8, 16> fmtData{};
+                                if (!readBuf(chunkOffset + 8ull, fmtData)) {
+                                    return;
+                                }
+
+                                // Parse and check wave format, which must be:
+                                // - 44100 Hz
+                                // - 2 channel (stereo)
+                                // - raw 16-bit PCM data (LE or BE)
+
+                                const auto format = util::ReadLE<uint16>(&fmtData[0]);
+                                const auto numChannels = util::ReadLE<uint16>(&fmtData[2]);
+                                const auto sampleRate = util::ReadLE<uint32>(&fmtData[4]);
+                                const auto bitsPerSample = util::ReadLE<uint16>(&fmtData[14]);
+
+                                if (format != 1) {
+                                    errorMsg(fmt::format("BIN/CUE: {}: non-PCM wave formats not supported (0x{:X})",
+                                                         file.path, format));
+                                    return;
+                                }
+                                if (numChannels != 2 || sampleRate != 44100 || bitsPerSample != 16) {
+                                    errorMsg(fmt::format("BIN/CUE: {}: PCM wave format not supported: {} channel(s), "
+                                                         "{} Hz, {} bits per sample. Wave files must have 2 channels, "
+                                                         "44100 Hz, 16 bits per sample, raw PCM data",
+                                                         file.path, format, numChannels, sampleRate, bitsPerSample));
+                                    return;
+                                }
+                            } else if (chunkID[0] == 'd' && chunkID[1] == 'a' && chunkID[2] == 't' &&
+                                       chunkID[3] == 'a') {
+                                // Found the "data" chunk; make subview
+                                const uintmax_t dataOffset = chunkOffset + 8ull;
+                                debugMsg(
+                                    fmt::format("BIN/CUE: {}: found WAVE data starting at {}", file.path, dataOffset));
+                                fileReader =
+                                    std::make_shared<SharedSubviewBinaryReader>(fileReader, dataOffset, chunkSize);
+
+                                // If the first track that uses this file has a PREGAP, append a silent binary reader
+                                for (auto &sheetTrack : sheet.tracks) {
+                                    if (sheetTrack.fileIndex == fileIndex) {
+                                        if (sheetTrack.pregap > 0) {
+                                            const uintmax_t pregapSize = sheetTrack.pregap * 2352;
+                                            compReader->Append(std::make_shared<ZeroBinaryReader>(pregapSize));
+                                            file.size += pregapSize;
+                                        }
+                                        break;
+                                    }
+                                }
+
+                                return;
+                            }
+                            chunkOffset += chunkSize + 8ull;
+                        }
+                    }();
+                }
                 if (err) {
-                    errorMsg(fmt::format("BIN/CUE: Failed to load file - {}", err.message()));
+                    errorMsg(fmt::format("BIN/CUE: Failed to load {} - {}", file.path, err.message()));
                     return false;
                 }
                 compReader->Append(fileReader);
@@ -398,6 +510,8 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 // Continuing in the same file
                 trackSectors = sheetTrack->indexes[0].pos - prevTrack.startFrameAddress + 150 + accumPreGaps;
             }
+
+            // TODO: this is still wrong! probably need to insert a silence section after the track
             trackSectors += prevSheetTrack.postgap;
 
             const uintmax_t trackSizeBytes = static_cast<uintmax_t>(trackSectors) * prevTrack.sectorSize;

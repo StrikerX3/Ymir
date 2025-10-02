@@ -153,6 +153,7 @@ add_library(ymir-core
     include/ymir/media/binary_reader/binary_reader_mem.hpp
     include/ymir/media/binary_reader/binary_reader_mmap.hpp
     include/ymir/media/binary_reader/binary_reader_subview.hpp
+    include/ymir/media/binary_reader/binary_reader_zero.hpp
 
     include/ymir/state/state.hpp
     include/ymir/state/state_cdblock.hpp

@@ -7,3 +7,4 @@
 #include "binary_reader_mem.hpp"
 #include "binary_reader_mmap.hpp"
 #include "binary_reader_subview.hpp"
+#include "binary_reader_zero.hpp"

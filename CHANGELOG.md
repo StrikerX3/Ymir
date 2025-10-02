@@ -30,6 +30,7 @@ Introduced save state file version 10.
 - GameDB: Introduce flag to force fast bus timings to work around issues with X-Men/Marvel Super Heroes vs. Street Fighter. (#507)
 - GameDB: Support for using disc hashes to the database in addition to product codes.
 - M68K, SH2: Implement approximate bus access timings. Fixes softlocks in Resident Evil, Shichisei Toushin Guyferd - Crown Kaimetsu Sakusen, and Densha de Go. (#41, #42, #333, #523)
+- Media: Support WAVE audio tracks.
 - SH2: Cycle count DMAC transfers. Necessary for CD Block LLE.
 - SH2: Optimize watchpoint checks to reduce performance penalty when debug tracing is enabled.
 - SMPC: Preinitialize OREG31 to 0xF0 to avoid lockup when attempting to boot the dev kit BIOS. (#612)
