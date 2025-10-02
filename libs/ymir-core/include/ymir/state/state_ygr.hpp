@@ -8,7 +8,7 @@ namespace ymir::state {
 
 struct YGRState {
     struct FIFOState {
-        std::array<uint16, 4> data;
+        std::array<uint16, 6> data;
         uint32 readPos;
         uint32 writePos;
         uint32 count;
