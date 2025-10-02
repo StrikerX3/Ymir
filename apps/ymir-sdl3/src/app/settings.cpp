@@ -1824,11 +1824,11 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
 
     rebindCtx.Rebind(hotkeys.turboSpeed, {KeyCombo{Mod::None, Key::Tab}});
     rebindCtx.Rebind(hotkeys.turboSpeedHold, {KeyCombo{Mod::None, Key::GraveAccent}});
-    rebindCtx.Rebind(hotkeys.toggleAlternateSpeed, {KeyCombo{Mod::None, Key::Slash}});
-    rebindCtx.Rebind(hotkeys.increaseSpeed, {KeyCombo{Mod::None, Key::Period}});
-    rebindCtx.Rebind(hotkeys.decreaseSpeed, {KeyCombo{Mod::None, Key::Comma}});
-    rebindCtx.Rebind(hotkeys.increaseSpeedLarge, {KeyCombo{Mod::Shift, Key::Period}});
-    rebindCtx.Rebind(hotkeys.decreaseSpeedLarge, {KeyCombo{Mod::Shift, Key::Comma}});
+    rebindCtx.Rebind(hotkeys.toggleAlternateSpeed, {KeyCombo{Mod::Shift, Key::Slash}});
+    rebindCtx.Rebind(hotkeys.increaseSpeed, {KeyCombo{Mod::Control, Key::Period}});
+    rebindCtx.Rebind(hotkeys.decreaseSpeed, {KeyCombo{Mod::Control, Key::Comma}});
+    rebindCtx.Rebind(hotkeys.increaseSpeedLarge, {KeyCombo{Mod::Control | Mod::Shift, Key::Period}});
+    rebindCtx.Rebind(hotkeys.decreaseSpeedLarge, {KeyCombo{Mod::Control | Mod::Shift, Key::Comma}});
     rebindCtx.Rebind(hotkeys.resetSpeed, {KeyCombo{Mod::Control, Key::Slash}});
     rebindCtx.Rebind(hotkeys.pauseResume, {KeyCombo{Mod::None, Key::Pause}, KeyCombo{Mod::None, Key::Spacebar}});
     rebindCtx.Rebind(hotkeys.fwdFrameStep, {KeyCombo{Mod::None, Key::RightBracket}});
