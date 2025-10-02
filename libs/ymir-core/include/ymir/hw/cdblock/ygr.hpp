@@ -56,6 +56,9 @@ struct YGR {
 
     template <bool peek>
     uint16 HostReadWord(uint32 address) const;
+    template <bool doubleFIFOPull>
+    uint32 HostReadLong(uint32 address) const;
+
     template <bool poke>
     void HostWriteWord(uint32 address, uint16 value);
 

@@ -97,11 +97,8 @@ void YGR::MapMemory(sys::SH2Bus &mainBus) {
         mainBus.MapNormal(
             address, address + 0xFFF, this,
             [](uint32 address, void *ctx) -> uint16 { return cast(ctx).HostReadWord<false>(address); },
-            [](uint32 address, void *ctx) -> uint32 {
-                uint32 value = cast(ctx).HostReadWord<false>(address + 0) << 16u;
-                value |= cast(ctx).HostReadWord<false>(address + 2) << 0u;
-                return value;
-            },
+            // 32-bit reads are weird and handled separately
+
             [](uint32 address, uint16 value, void *ctx) { cast(ctx).HostWriteWord<false>(address, value); },
             [](uint32 address, uint32 value, void *ctx) {
                 cast(ctx).HostWriteWord<false>(address + 0, value >> 16u);
@@ -127,6 +124,18 @@ void YGR::MapMemory(sys::SH2Bus &mainBus) {
                     return ygr.m_fifo.Used() < size / sizeof(uint16);
                 }
             });
+
+        // 32-bit reads from FIFO at 0x25890000 pull one word.
+        // 32-bit reads from FIFO at 0x25810000 pull two words.
+        if (address & 0x80000) {
+            mainBus.MapNormal(address, address + 0xFFF, this, [](uint32 address, void *ctx) -> uint32 {
+                return cast(ctx).HostReadLong<false>(address);
+            });
+        } else {
+            mainBus.MapNormal(address, address + 0xFFF, this, [](uint32 address, void *ctx) -> uint32 {
+                return cast(ctx).HostReadLong<true>(address);
+            });
+        }
 
         mainBus.MapSideEffectFree(
             address, address + 0xFFF, this,
@@ -408,6 +417,60 @@ FORCE_INLINE uint16 YGR::HostReadWord(uint32 address) const {
             devlog::trace<grp::ygr_regs>("Unhandled 16-bit host YGR read from {:02X}", address);
         }
         return 0u;
+    }
+}
+
+template <bool doubleFIFOPull>
+uint32 YGR::HostReadLong(uint32 address) const {
+    address &= 0x3C;
+    switch (address) {
+    case 0x00:
+        if (m_regs.TRCTL.DIR) {
+            return 0u;
+        }
+
+        if (m_fifo.IsEmpty()) {
+            // Force transfer if possible
+            m_cbStepDMAC1(sizeof(uint16));
+            if (m_fifo.IsEmpty() && m_regs.TRCTL.TE) {
+                devlog::trace<grp::ygr_fifo>("FIFO still empty; transfer might break!");
+                YMIR_DEV_CHECK();
+            }
+        }
+
+        if constexpr (doubleFIFOPull) {
+            uint32 value = m_fifo.Read<false>() << 16u;
+
+            if (m_fifo.IsEmpty()) {
+                // Force transfer if possible
+                m_cbStepDMAC1(sizeof(uint16));
+                if (m_fifo.IsEmpty() && m_regs.TRCTL.TE) {
+                    devlog::trace<grp::ygr_fifo>("FIFO still empty; transfer might break!");
+                    YMIR_DEV_CHECK();
+                }
+            }
+
+            value |= m_fifo.Read<false>();
+            devlog::trace<grp::ygr_fifo>("Host FIFO read  <- rd={:X} wr={:X} cnt={:X}  {:08X}", m_fifo.readPos,
+                                         m_fifo.writePos, m_fifo.count, value);
+            UpdateFIFODREQ();
+            return value;
+        } else {
+            const uint16 value = m_fifo.Read<false>();
+            devlog::trace<grp::ygr_fifo>("Host FIFO read  <- rd={:X} wr={:X} cnt={:X}  {:04X}", m_fifo.readPos,
+                                         m_fifo.writePos, m_fifo.count, value);
+            UpdateFIFODREQ();
+            return value;
+        }
+
+    case 0x08: return m_regs.HIRQ;
+    case 0x0C: return m_regs.HIRQMASK;
+    case 0x18: return m_regs.RR[0];
+    case 0x1C: return m_regs.RR[1];
+    case 0x20: return m_regs.RR[2];
+    case 0x24: m_regs.CDIRQL.RESP = 1; return m_regs.RR[3];
+    case 0x28: return 0u; // TODO: read MPEGRGB
+    default: devlog::trace<grp::ygr_regs>("Unhandled 32-bit host YGR read from {:02X}", address); return 0u;
     }
 }
 
