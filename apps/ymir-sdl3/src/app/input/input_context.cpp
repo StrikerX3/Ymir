@@ -308,7 +308,7 @@ void InputContext::ResetGamepadInputs(uint32 id) {
 
 void InputContext::ResetAllGamepadInputs() {
     for (auto &[id, buttons] : m_gamepadButtonStates) {
-        m_gamepadButtonStates[id].fill(false);
+        buttons.fill(false);
         for (uint32 i = 0; i < static_cast<uint32>(GamepadButton::_Count); ++i) {
             const auto button = static_cast<GamepadButton>(i);
             ResetInput({id, button});

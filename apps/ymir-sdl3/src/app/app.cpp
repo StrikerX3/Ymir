@@ -1873,17 +1873,17 @@ void App::RunEmulator() {
             }
             case SDL_EVENT_GAMEPAD_REMOVED: //
             {
-                const int playerIndex = gamepadPlayerIndexes[evt.gdevice.which];
-                devlog::debug<grp::base>("Gamepad {} removed -> player index {}", evt.gdevice.which, playerIndex);
                 if (gamepads.contains(evt.gdevice.which)) {
+                    const int playerIndex = gamepadPlayerIndexes[evt.gdevice.which];
+                    devlog::debug<grp::base>("Gamepad {} removed -> player index {}", evt.gdevice.which, playerIndex);
                     SDL_CloseGamepad(gamepads.at(evt.gdevice.which));
+                    gamepadPlayerIndexes.erase(evt.gdevice.which);
+                    addFreePlayerIndex(playerIndex);
+                    inputContext.DisconnectGamepad(playerIndex);
+                    gamepads.erase(evt.gdevice.which);
                 } else {
-                    devlog::warn<grp::base>("Gamepad {} was not open!", evt.gdevice.which);
+                    devlog::warn<grp::base>("Gamepad {} removed, but it was not open!", evt.gdevice.which);
                 }
-                gamepadPlayerIndexes.erase(evt.gdevice.which);
-                addFreePlayerIndex(playerIndex);
-                gamepads.erase(evt.gdevice.which);
-                inputContext.DisconnectGamepad(playerIndex);
                 break;
             }
             case SDL_EVENT_GAMEPAD_REMAPPED: [[fallthrough]];
