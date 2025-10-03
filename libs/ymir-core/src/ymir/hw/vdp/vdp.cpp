@@ -5327,11 +5327,11 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 out.b = out.b + ((int)layerColor.b - out.b) * alpha / 255;
             }
         }
+    }
 
-        // Opaque alpha
-        for (Color888 &outputColor : framebufferOutput) {
-            outputColor.u32 |= 0xFF000000;
-        }
+    // Opaque alpha
+    for (Color888 &outputColor : framebufferOutput) {
+        outputColor.u32 |= 0xFF000000;
     }
 }
 
