@@ -623,8 +623,7 @@ FORCE_INLINE void CDDrive::UpdateReadSpeedFactor() {
 
 FORCE_INLINE void CDDrive::SetupSeek(bool read) {
     const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
-    m_currFAD = fad - 4;
-    m_targetFAD = fad - 4;
+    m_currFAD = m_targetFAD = fad - 4;
     if (read) {
         if (m_disc.sessions.empty()) {
             m_seekOp = Operation::NoDisc;
@@ -634,6 +633,8 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
             if (track == nullptr || (track->controlADR & 0x40)) {
                 m_seekOp = Operation::ReadDataSector;
             } else {
+                const uint8 index = std::min<uint8>(m_command.index, track->indices.size());
+                m_currFAD = m_targetFAD = track->indices[index].startFrameAddress - 4;
                 m_seekOp = Operation::ReadAudioSector;
             }
         }

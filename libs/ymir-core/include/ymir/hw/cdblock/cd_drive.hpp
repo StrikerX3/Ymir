@@ -75,11 +75,11 @@ public:
             uint8 fadTop;
             uint8 fadMid;
             uint8 fadBtm;
-            uint8 zero4;
-            uint8 zero5;
-            uint8 zero6;
-            uint8 zero7;
-            uint8 zero8;
+            uint8 index;
+            uint8 fadEndTop; // guess
+            uint8 fadEndMid; // guess
+            uint8 fadEndBtm; // guess
+            uint8 indexEnd;  // guess
             uint8 zero9;
             uint8 readSpeed; // 1=1x, otherwise 2x
             uint8 parity;
