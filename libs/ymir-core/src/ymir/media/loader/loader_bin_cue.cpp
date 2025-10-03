@@ -353,6 +353,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 return false;
             }
         } else {
+            uint32 currSheetTrackIndex = 0;
             auto compReader = std::make_shared<CompositeBinaryReader>();
             for (uint32 fileIndex = 0; fileIndex < sheet.files.size(); ++fileIndex) {
                 auto &file = sheet.files[fileIndex];
@@ -479,6 +480,47 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     return false;
                 }
                 compReader->Append(fileReader);
+
+                // If the last track that uses this file has a POSTGAP, append a silent binary reader
+                while (currSheetTrackIndex < sheet.tracks.size()) {
+                    auto &sheetTrack = sheet.tracks[currSheetTrackIndex];
+                    if (sheetTrack.fileIndex != fileIndex) {
+                        break;
+                    }
+                    ++currSheetTrackIndex;
+                }
+                if (currSheetTrackIndex > 0) {
+                    auto &prevTrack = sheet.tracks[currSheetTrackIndex - 1];
+                    if (prevTrack.postgap > 0) {
+                        uint32 sectorSize;
+                        if (prevTrack.format.starts_with("MODE")) {
+                            // Data track
+                            if (prevTrack.format.ends_with("_RAW")) {
+                                // MODE1_RAW and MODE2_RAW
+                                sectorSize = 2352;
+                            } else {
+                                // Known modes:
+                                // MODE1/2048   MODE2/2048
+                                //              MODE2/2324
+                                //              MODE2/2336
+                                // MODE1/2352   MODE2/2352
+                                sectorSize = std::stoi(prevTrack.format.substr(6));
+                            }
+                        } else if (prevTrack.format == "CDG") {
+                            // Karaoke CD+G track
+                            sectorSize = 2448;
+                        } else if (prevTrack.format == "AUDIO") {
+                            // Audio track
+                            sectorSize = 2352;
+                        } else {
+                            errorMsg(fmt::format("BIN/CUE: Unsupported track format: {}", prevTrack.format));
+                            return false;
+                        }
+                        const uintmax_t postgapSize = prevTrack.postgap * sectorSize;
+                        // TODO: should probably synthesize headers, sync bytes, etc. if this is a data track
+                        compReader->Append(std::make_shared<ZeroBinaryReader>(postgapSize));
+                    }
+                }
             }
             reader = compReader;
         }
@@ -510,8 +552,6 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 // Continuing in the same file
                 trackSectors = sheetTrack->indexes[0].pos - prevTrack.startFrameAddress + 150 + accumPreGaps;
             }
-
-            // TODO: this is still wrong! probably need to insert a silence section after the track
             trackSectors += prevSheetTrack.postgap;
 
             const uintmax_t trackSizeBytes = static_cast<uintmax_t>(trackSectors) * prevTrack.sectorSize;
@@ -577,12 +617,13 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
 
             track.startFrameAddress = frameAddress;
 
-            accumPreGaps += sheetTrack.pregap;
+            frameAddress += sheetTrack.pregap;
 
             assert(!sheetTrack.indexes.empty());
 
             uint32 indexOffset = 0;
-            if (sheetTrack.indexes.front().number != 0) {
+            const bool hasIndex00 = sheetTrack.indexes.front().number == 0;
+            if (!hasIndex00) {
                 // Insert dummy INDEX 00
                 track.indices.emplace_back();
                 indexOffset = 1;
@@ -590,14 +631,18 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
             for (uint32 j = 0; j < sheetTrack.indexes.size(); ++j) {
                 auto &sheetIndex = sheetTrack.indexes[j];
                 auto &index = track.indices.emplace_back();
-                index.startFrameAddress = sheetIndex.pos + currFileFrameAddress + accumPreGaps;
+                index.startFrameAddress = sheetIndex.pos + currFileFrameAddress;
                 if (j > 0) {
                     // Close previous index
                     auto &prevIndex = track.indices[j - 1 + indexOffset];
                     prevIndex.endFrameAddress = index.startFrameAddress - 1;
                 }
                 if (sheetIndex.number == 1) {
-                    track.index01FrameAddress = index.startFrameAddress;
+                    if (hasIndex00) {
+                        track.index01FrameAddress = index.startFrameAddress;
+                    } else {
+                        track.index01FrameAddress = frameAddress;
+                    }
                 }
             }
         }
