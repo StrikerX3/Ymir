@@ -34,7 +34,8 @@ Introduced save state file version 10.
 - SH2: Cycle count DMAC transfers. Necessary for CD Block LLE.
 - SH2: Optimize watchpoint checks to reduce performance penalty when debug tracing is enabled.
 - SMPC: Preinitialize OREG31 to 0xF0 to avoid lockup when attempting to boot the dev kit BIOS. (#612)
-- VDP2: Added VDP2 CRAM palette viewer/editor.
+- VDP2: Added CRAM palette viewer/editor.
+- VDP2: Added debug overlays: layer stack, window states, RBG0 rotation parameters.
 
 ### Fixes
 
