@@ -1599,13 +1599,17 @@ public:
             }};
 
             // Which layer to display the window state of.
-            // 0 = RBG0
-            // 1 = NBG0/RBG1
-            // 2 = NBG1/EXBG
-            // 3 = NBG2
-            // 4 = NBG3
-            // Any other value is interpreted as NBG3
-            uint8 windowLayerIndex;
+            // 0 = Sprite
+            // 1 = RBG0
+            // 2 = NBG0/RBG1
+            // 3 = NBG1/EXBG
+            // 4 = NBG2
+            // 5 = NBG3
+            // Any other value is interpreted as a custom mode
+            uint8 windowLayerIndex = 0;
+
+            WindowSet<true> customWindowSet{};
+            std::array<std::array<bool, vdp::kMaxResH>, 2> customWindowState{};
 
             Color888 windowInsideColor{.r = 0xFF, .g = 0xFF, .b = 0xFF};
             Color888 windowOutsideColor{.r = 0x00, .g = 0x00, .b = 0x00};

@@ -5294,6 +5294,16 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
         using OverlayType = VDP2DebugRenderOptions::Overlay::Type;
 
         if (overlay.type != OverlayType::None) {
+            if (overlay.type == OverlayType::Windows && overlay.windowLayerIndex > 5) {
+                if (altField) {
+                    VDP2CalcWindow<true>(y, overlay.customWindowSet, regs.windowParams,
+                                         overlay.customWindowState[altField]);
+                } else {
+                    VDP2CalcWindow<false>(y, overlay.customWindowSet, regs.windowParams,
+                                          overlay.customWindowState[altField]);
+                }
+            }
+
             for (uint32 x = 0; x < m_HRes; ++x) {
                 Color888 layerColor{};
 
@@ -5308,9 +5318,20 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 }
                 case OverlayType::Windows: //
                 {
-                    const uint8 layerIndex = std::min<uint8>(overlay.windowLayerIndex, 4);
-                    layerColor =
-                        m_bgWindows[altField][layerIndex][x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
+                    const uint8 layerIndex = overlay.windowLayerIndex;
+                    if (layerIndex == 0) {
+                        // Sprite layer
+                        layerColor = m_spriteLayerAttrs[altField].window[x] ? overlay.windowInsideColor
+                                                                            : overlay.windowOutsideColor;
+                    } else if (layerIndex <= 5) {
+                        // RBG0 and NBGs
+                        layerColor = m_bgWindows[altField][layerIndex - 1][x] ? overlay.windowInsideColor
+                                                                              : overlay.windowOutsideColor;
+                    } else {
+                        // Custom window
+                        layerColor = overlay.customWindowState[altField][x] ? overlay.windowInsideColor
+                                                                            : overlay.windowOutsideColor;
+                    }
 
                     break;
                 }

@@ -91,17 +91,69 @@ void VDP2DebugOverlayView::Display() {
     }
     case OverlayType::Windows: //
     {
-        auto option = [&](const char *name, uint8 layerIndex) {
-            if (ImGui::RadioButton(fmt::format("{}##window_layer", name).c_str(),
-                                   overlay.windowLayerIndex == layerIndex)) {
-                overlay.windowLayerIndex = layerIndex;
+        auto windowLayerName = [](uint8 index) {
+            switch (index) {
+            case 0: return "Sprite";
+            case 1: return "RBG0";
+            case 2: return "NBG0/RBG1";
+            case 3: return "NBG1/EXBG";
+            case 4: return "NBG2";
+            case 5: return "NBG3";
+            default: return "Custom";
             }
         };
-        option("RBG0", 0);
-        option("NBG0/RBG1", 1);
-        option("NBG1/EXBG", 2);
-        option("NBG2", 3);
-        option("NBG3", 4);
+
+        if (ImGui::BeginCombo("Layer##window", windowLayerName(overlay.windowLayerIndex))) {
+            for (uint32 i = 0; i <= 6; ++i) {
+                const std::string label = fmt::format("{}##window_layer", windowLayerName(i));
+                if (ImGui::Selectable(label.c_str(), overlay.windowLayerIndex == i)) {
+                    overlay.windowLayerIndex = i;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        // TODO: show window set state for other layers (read-only)
+        // TODO: support window sets for rotation parameters and color calculations
+        if (overlay.windowLayerIndex > 5) {
+            if (ImGui::BeginTable("custom_window", 4, ImGuiTableFlags_SizingFixedFit)) {
+                ImGui::TableSetupColumn("Layer");
+                ImGui::TableSetupColumn("W0");
+                ImGui::TableSetupColumn("W1");
+                ImGui::TableSetupColumn("SW");
+                ImGui::TableHeadersRow();
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted("Enable");
+                for (uint32 i = 0; i < 3; ++i) {
+                    ImGui::TableNextColumn();
+                    ImGui::Checkbox(fmt::format("##window_enable_{}", i).c_str(), &overlay.customWindowSet.enabled[i]);
+                }
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted("Invert");
+                for (uint32 i = 0; i < 3; ++i) {
+                    ImGui::TableNextColumn();
+                    ImGui::Checkbox(fmt::format("##window_invert_{}", i).c_str(), &overlay.customWindowSet.inverted[i]);
+                }
+
+                ImGui::EndTable();
+
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted("Combine:");
+                ImGui::SameLine();
+                if (ImGui::RadioButton("AND", overlay.customWindowSet.logic == vdp::WindowLogic::And)) {
+                    overlay.customWindowSet.logic = vdp::WindowLogic::And;
+                }
+                ImGui::SameLine();
+                if (ImGui::RadioButton("OR", overlay.customWindowSet.logic == vdp::WindowLogic::Or)) {
+                    overlay.customWindowSet.logic = vdp::WindowLogic::Or;
+                }
+            }
+        }
         colorPicker("Inside##window", overlay.windowInsideColor);
         colorPicker("Outside##window", overlay.windowOutsideColor);
         break;
