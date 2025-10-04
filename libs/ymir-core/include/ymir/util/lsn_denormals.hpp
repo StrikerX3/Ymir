@@ -39,6 +39,8 @@ constexpr bool HasNoSubnormalsControl() {
 static inline std::uint64_t GetFPCR() {
     #if __has_builtin(__builtin_aarch64_get_fpcr)
     return __builtin_aarch64_get_fpcr();
+    #elif defined(_MSC_VER)
+    return _ReadStatusReg(ARM64_SYSREG(0b11, 0b011, 0b0100, 0b100, 0b000));
     #else
     std::uint64_t ullFpcr;
     __asm__ __volatile__("MRS %[fpcr], fpcr" : [fpcr] "=r"(ullFpcr));
@@ -49,6 +51,8 @@ static inline std::uint64_t GetFPCR() {
 static inline void SetFPCR(std::uint64_t ullFpcr) {
     #if __has_builtin(__builtin_aarch64_set_fpcr)
     __builtin_aarch64_set_fpcr(ullFpcr);
+    #elif defined(_MSC_VER)
+    _WriteStatusReg(ARM64_SYSREG(0b11, 0b011, 0b0100, 0b100, 0b000), ullFpcr);
     #else
     __asm__ __volatile__("MSR fpcr, %[fpcr]" : : [fpcr] "r"(ullFpcr));
     #endif
