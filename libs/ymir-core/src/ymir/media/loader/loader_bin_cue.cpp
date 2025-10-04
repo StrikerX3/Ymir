@@ -525,6 +525,9 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
             reader = compReader;
         }
 
+        // TODO: silent pregaps and postgaps need to be inserted at the appropriate locations
+        // INDEX 00 is present in the binary files, PREGAP/POSTGAP are not but do exist on the disc
+
         // BIN/CUE images have only one session
         disc.sessions.clear();
         auto &session = disc.sessions.emplace_back();
