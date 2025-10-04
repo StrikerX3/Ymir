@@ -174,7 +174,9 @@ void CDBlock::MapMemory(sys::SH2Bus &bus) {
             [](uint32 address, uint32 value, void *ctx) {
                 cast(ctx).WriteReg<uint16>(address + 0, value >> 16u);
                 cast(ctx).WriteReg<uint16>(address + 2, value >> 0u);
-            });
+            },
+            // Bus wait handler
+            [](uint32, uint32, bool, void *) -> bool { return false; });
 
         bus.MapSideEffectFree(
             address, address + 0xFFF, this,
