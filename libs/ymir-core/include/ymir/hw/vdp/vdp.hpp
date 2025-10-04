@@ -1564,16 +1564,28 @@ public:
         // Debug overlay alpha blended on top of the final composite image
         struct Overlay {
             enum class Type {
-                None,       // No overlay is applied
-                LayerStack, // Colorize by layer on a level of the stack
-                Windows,    // Colorize by window state (one layer or custom setup)
-                RotParams,  // Colorize by rotation parameters on RBG0
+                None,        // No overlay is applied
+                SingleLayer, // Display raw contents of a single layer
+                LayerStack,  // Colorize by layer on a level of the stack
+                Windows,     // Colorize by window state (one layer or custom setup)
+                RotParams,   // Colorize by rotation parameters on RBG0
             } type = Type::None;
 
             // 8-bit opacity for overlay layer. 0=fully transparent, 255=fully opaque
             uint8 alpha = 128;
 
-            // Which layer stack level to display when displaying Layer overlays.
+            // Which layer stack level to draw when using SingleLayer overlay.
+            // [0] Sprite
+            // [1] RBG0
+            // [2] NBG0/RBG1
+            // [3] NBG1/EXBG
+            // [4] NBG2
+            // [5] NBG3
+            // [6] Back
+            // [7] Line color
+            uint8 singleLayerIndex = 0;
+
+            // Which layer stack level to draw when using LayerStack overlay.
             // 0=top, 1=middle, 2=bottom.
             // Any other value defaults to 0.
             uint8 layerStackIndex = 0;

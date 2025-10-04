@@ -27,6 +27,7 @@ void VDP2DebugOverlayView::Display() {
     auto overlayName = [](OverlayType type) {
         switch (type) {
         case OverlayType::None: return "No overlay";
+        case OverlayType::SingleLayer: return "Single layer";
         case OverlayType::LayerStack: return "Layer stack";
         case OverlayType::Windows: return "Windows";
         case OverlayType::RotParams: return "RBG0 rotation parameters";
@@ -60,6 +61,7 @@ void VDP2DebugOverlayView::Display() {
             }
         };
         option(OverlayType::None);
+        option(OverlayType::SingleLayer);
         option(OverlayType::LayerStack);
         option(OverlayType::Windows);
         option(OverlayType::RotParams);
@@ -78,6 +80,32 @@ void VDP2DebugOverlayView::Display() {
     }
 
     switch (overlay.type) {
+    case OverlayType::SingleLayer: //
+    {
+        auto layerName = [](uint8 index) {
+            switch (index) {
+            case 0: return "Sprite";
+            case 1: return "RBG0";
+            case 2: return "NBG0/RBG1";
+            case 3: return "NBG1/EXBG";
+            case 4: return "NBG2";
+            case 5: return "NBG3";
+            case 6: return "Back screen";
+            case 7: return "Line color screen";
+            default: return "Invalid";
+            }
+        };
+        if (ImGui::BeginCombo("Layer##single", layerName(overlay.singleLayerIndex), ImGuiComboFlags_HeightLargest)) {
+            for (uint32 i = 0; i <= 7; ++i) {
+                const std::string label = fmt::format("{}##single_layer", layerName(i));
+                if (ImGui::Selectable(label.c_str(), overlay.singleLayerIndex == i)) {
+                    overlay.singleLayerIndex = i;
+                }
+            }
+            ImGui::EndCombo();
+        }
+        break;
+    }
     case OverlayType::LayerStack: //
     {
         static constexpr uint8 kMinLayerStackIndex = 0;

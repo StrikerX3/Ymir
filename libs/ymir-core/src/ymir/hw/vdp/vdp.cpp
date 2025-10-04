@@ -5310,15 +5310,27 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
             }
 
             for (uint32 x = 0; x < m_HRes; ++x) {
-                Color888 layerColor{};
+                Color888 overlayColor{};
 
                 switch (overlay.type) {
                 case OverlayType::None: break;
+                case OverlayType::SingleLayer: //
+                {
+                    const uint8 layerLevel = std::min<uint8>(overlay.singleLayerIndex, 7);
+                    if (layerLevel == LYR_Back) {
+                        overlayColor = m_lineBackLayerState.backColor;
+                    } else if (layerLevel == LYR_LineColor) {
+                        overlayColor = m_lineBackLayerState.lineColor;
+                    } else {
+                        overlayColor = m_layerStates[altField][layerLevel].pixels.color[x];
+                    }
+                    break;
+                }
                 case OverlayType::LayerStack: //
                 {
                     const uint8 layerLevel = overlay.layerStackIndex < 3 ? overlay.layerStackIndex : 0;
                     const uint32 layerNum = static_cast<uint32>(scanline_layers[x][layerLevel]);
-                    layerColor = overlay.layerColors[layerNum];
+                    overlayColor = overlay.layerColors[layerNum];
                     break;
                 }
                 case OverlayType::Windows: //
@@ -5326,44 +5338,44 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                     const uint8 layerIndex = overlay.windowLayerIndex;
                     switch (layerIndex) {
                     case 0: // Sprite
-                        layerColor = m_spriteLayerAttrs[altField].window[x] ? overlay.windowInsideColor
-                                                                            : overlay.windowOutsideColor;
+                        overlayColor = m_spriteLayerAttrs[altField].window[x] ? overlay.windowInsideColor
+                                                                              : overlay.windowOutsideColor;
                         break;
                     case 1: [[fallthrough]]; // RBG0
                     case 2: [[fallthrough]]; // NBG0/RBG1
                     case 3: [[fallthrough]]; // NBG1/EXBG
                     case 4: [[fallthrough]]; // NBG2
                     case 5:                  // NBG3
-                        layerColor = m_bgWindows[altField][layerIndex - 1][x] ? overlay.windowInsideColor
-                                                                              : overlay.windowOutsideColor;
+                        overlayColor = m_bgWindows[altField][layerIndex - 1][x] ? overlay.windowInsideColor
+                                                                                : overlay.windowOutsideColor;
                         break;
                     case 6: // Rotation parameters
-                        layerColor =
+                        overlayColor =
                             m_rotParamsWindow[altField][x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
                         break;
                     case 7: // Color calculations
-                        layerColor =
+                        overlayColor =
                             m_colorCalcWindow[altField][x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
                         break;
                     default: // Custom window
-                        layerColor = overlay.customWindowState[altField][x] ? overlay.windowInsideColor
-                                                                            : overlay.windowOutsideColor;
+                        overlayColor = overlay.customWindowState[altField][x] ? overlay.windowInsideColor
+                                                                              : overlay.windowOutsideColor;
                         break;
                     }
 
                     break;
                 }
                 case OverlayType::RotParams: //
-                    layerColor = VDP2SelectRotationParameter(x, y, altField) == RotParamA ? overlay.rotParamAColor
-                                                                                          : overlay.rotParamBColor;
+                    overlayColor = VDP2SelectRotationParameter(x, y, altField) == RotParamA ? overlay.rotParamAColor
+                                                                                            : overlay.rotParamBColor;
                     break;
                 }
 
                 const uint8 alpha = overlay.alpha;
                 Color888 &out = framebufferOutput[x];
-                out.r = out.r + ((int)layerColor.r - out.r) * alpha / 255;
-                out.g = out.g + ((int)layerColor.g - out.g) * alpha / 255;
-                out.b = out.b + ((int)layerColor.b - out.b) * alpha / 255;
+                out.r = out.r + ((int)overlayColor.r - out.r) * alpha / 255;
+                out.g = out.g + ((int)overlayColor.g - out.g) * alpha / 255;
+                out.b = out.b + ((int)overlayColor.b - out.b) * alpha / 255;
             }
         }
     }
