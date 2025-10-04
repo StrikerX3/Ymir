@@ -1605,10 +1605,14 @@ public:
             // 3 = NBG1/EXBG
             // 4 = NBG2
             // 5 = NBG3
+            // 6 = Rotation parameters
+            // 7 = Color calculations
             // Any other value is interpreted as a custom mode
             uint8 windowLayerIndex = 0;
 
             WindowSet<true> customWindowSet{};
+            std::array<bool, 2> customLineWindowTableEnable{};
+            std::array<uint32, 2> customLineWindowTableAddress{};
             std::array<std::array<bool, vdp::kMaxResH>, 2> customWindowState{};
 
             Color888 windowInsideColor{.r = 0xFF, .g = 0xFF, .b = 0xFF};

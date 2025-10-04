@@ -19,6 +19,11 @@ void VDP2DebugOverlayView::Display() {
     auto &overlay = m_vdp.vdp2DebugRenderOptions.overlay;
     using OverlayType = vdp::VDP::VDP2DebugRenderOptions::Overlay::Type;
 
+    const float paddingWidth = ImGui::GetStyle().FramePadding.x;
+    ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+    const float hexCharWidth = ImGui::CalcTextSize("F").x;
+    ImGui::PopFont();
+
     auto overlayName = [](OverlayType type) {
         switch (type) {
         case OverlayType::None: return "No overlay";
@@ -99,12 +104,15 @@ void VDP2DebugOverlayView::Display() {
             case 3: return "NBG1/EXBG";
             case 4: return "NBG2";
             case 5: return "NBG3";
+            case 6: return "Rotation parameters";
+            case 7: return "Color calculations";
             default: return "Custom";
             }
         };
 
-        if (ImGui::BeginCombo("Layer##window", windowLayerName(overlay.windowLayerIndex))) {
-            for (uint32 i = 0; i <= 6; ++i) {
+        if (ImGui::BeginCombo("Layer##window", windowLayerName(overlay.windowLayerIndex),
+                              ImGuiComboFlags_HeightLargest)) {
+            for (uint32 i = 0; i <= 8; ++i) {
                 const std::string label = fmt::format("{}##window_layer", windowLayerName(i));
                 if (ImGui::Selectable(label.c_str(), overlay.windowLayerIndex == i)) {
                     overlay.windowLayerIndex = i;
@@ -113,45 +121,43 @@ void VDP2DebugOverlayView::Display() {
             ImGui::EndCombo();
         }
         // TODO: show window set state for other layers (read-only)
-        // TODO: support window sets for rotation parameters and color calculations
-        if (overlay.windowLayerIndex > 5) {
-            if (ImGui::BeginTable("custom_window", 4, ImGuiTableFlags_SizingFixedFit)) {
-                ImGui::TableSetupColumn("Layer");
-                ImGui::TableSetupColumn("W0");
-                ImGui::TableSetupColumn("W1");
-                ImGui::TableSetupColumn("SW");
-                ImGui::TableHeadersRow();
-
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted("Enable");
+        if (overlay.windowLayerIndex > 7) {
+            if (ImGui::BeginTable("custom_window", 2, ImGuiTableFlags_SizingFixedFit)) {
                 for (uint32 i = 0; i < 3; ++i) {
+                    ImGui::PushID(i);
+                    ImGui::TableNextRow();
                     ImGui::TableNextColumn();
-                    ImGui::Checkbox(fmt::format("##window_enable_{}", i).c_str(), &overlay.customWindowSet.enabled[i]);
-                }
-
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted("Invert");
-                for (uint32 i = 0; i < 3; ++i) {
+                    ImGui::AlignTextToFramePadding();
+                    ImGui::TextUnformatted("W0");
                     ImGui::TableNextColumn();
-                    ImGui::Checkbox(fmt::format("##window_invert_{}", i).c_str(), &overlay.customWindowSet.inverted[i]);
+                    ImGui::Checkbox("Enable", &overlay.customWindowSet.enabled[i]);
+                    ImGui::SameLine();
+                    ImGui::Checkbox("Invert", &overlay.customWindowSet.inverted[i]);
+                    if (i < 2) {
+                        ImGui::SameLine();
+                        ImGui::Checkbox("Line table:", &overlay.customLineWindowTableEnable[i]);
+                        ImGui::SameLine();
+                        ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+                        ImGui::SetNextItemWidth(5 * hexCharWidth + 2 * paddingWidth);
+                        ImGui::InputScalar("##linetbl_addr", ImGuiDataType_U32,
+                                           &overlay.customLineWindowTableAddress[i], nullptr, nullptr, "%05X");
+                        ImGui::PopFont();
+                    }
+                    ImGui::PopID();
                 }
 
                 ImGui::EndTable();
+            }
 
-                ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted("Combine:");
-                ImGui::SameLine();
-                if (ImGui::RadioButton("AND", overlay.customWindowSet.logic == vdp::WindowLogic::And)) {
-                    overlay.customWindowSet.logic = vdp::WindowLogic::And;
-                }
-                ImGui::SameLine();
-                if (ImGui::RadioButton("OR", overlay.customWindowSet.logic == vdp::WindowLogic::Or)) {
-                    overlay.customWindowSet.logic = vdp::WindowLogic::Or;
-                }
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("Combine:");
+            ImGui::SameLine();
+            if (ImGui::RadioButton("OR", overlay.customWindowSet.logic == vdp::WindowLogic::Or)) {
+                overlay.customWindowSet.logic = vdp::WindowLogic::Or;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("AND", overlay.customWindowSet.logic == vdp::WindowLogic::And)) {
+                overlay.customWindowSet.logic = vdp::WindowLogic::And;
             }
         }
         colorPicker("Inside##window", overlay.windowInsideColor);

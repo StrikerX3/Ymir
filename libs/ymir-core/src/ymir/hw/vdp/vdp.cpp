@@ -5295,12 +5295,17 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
 
         if (overlay.type != OverlayType::None) {
             if (overlay.type == OverlayType::Windows && overlay.windowLayerIndex > 5) {
+                const auto &windowSet = overlay.customWindowSet;
+                auto &windowState = overlay.customWindowState[altField];
+                auto windowParams = regs.windowParams;
+                for (uint32 i = 0; i < 2; ++i) {
+                    windowParams[i].lineWindowTableEnable = overlay.customLineWindowTableEnable[i];
+                    windowParams[i].lineWindowTableAddress = overlay.customLineWindowTableAddress[i] & 0x7FFFF;
+                }
                 if (altField) {
-                    VDP2CalcWindow<true>(y, overlay.customWindowSet, regs.windowParams,
-                                         overlay.customWindowState[altField]);
+                    VDP2CalcWindow<true>(y, windowSet, windowParams, windowState);
                 } else {
-                    VDP2CalcWindow<false>(y, overlay.customWindowSet, regs.windowParams,
-                                          overlay.customWindowState[altField]);
+                    VDP2CalcWindow<false>(y, windowSet, windowParams, windowState);
                 }
             }
 
@@ -5319,18 +5324,31 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 case OverlayType::Windows: //
                 {
                     const uint8 layerIndex = overlay.windowLayerIndex;
-                    if (layerIndex == 0) {
-                        // Sprite layer
+                    switch (layerIndex) {
+                    case 0: // Sprite
                         layerColor = m_spriteLayerAttrs[altField].window[x] ? overlay.windowInsideColor
                                                                             : overlay.windowOutsideColor;
-                    } else if (layerIndex <= 5) {
-                        // RBG0 and NBGs
+                        break;
+                    case 1: [[fallthrough]]; // RBG0
+                    case 2: [[fallthrough]]; // NBG0/RBG1
+                    case 3: [[fallthrough]]; // NBG1/EXBG
+                    case 4: [[fallthrough]]; // NBG2
+                    case 5:                  // NBG3
                         layerColor = m_bgWindows[altField][layerIndex - 1][x] ? overlay.windowInsideColor
                                                                               : overlay.windowOutsideColor;
-                    } else {
-                        // Custom window
+                        break;
+                    case 6: // Rotation parameters
+                        layerColor =
+                            m_rotParamsWindow[altField][x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
+                        break;
+                    case 7: // Color calculations
+                        layerColor =
+                            m_colorCalcWindow[altField][x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
+                        break;
+                    default: // Custom window
                         layerColor = overlay.customWindowState[altField][x] ? overlay.windowInsideColor
                                                                             : overlay.windowOutsideColor;
+                        break;
                     }
 
                     break;
