@@ -92,11 +92,12 @@ void VDP2DebugOverlayView::Display() {
             case 5: return "NBG3";
             case 6: return "Back screen";
             case 7: return "Line color screen";
+            case 8: return "Transparent mesh sprites";
             default: return "Invalid";
             }
         };
         if (ImGui::BeginCombo("Layer##single", layerName(overlay.singleLayerIndex), ImGuiComboFlags_HeightLargest)) {
-            for (uint32 i = 0; i <= 7; ++i) {
+            for (uint32 i = 0; i <= 8; ++i) {
                 const std::string label = fmt::format("{}##single_layer", layerName(i));
                 if (ImGui::Selectable(label.c_str(), overlay.singleLayerIndex == i)) {
                     overlay.singleLayerIndex = i;

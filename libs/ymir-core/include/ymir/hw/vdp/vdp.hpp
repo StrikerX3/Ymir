@@ -1583,6 +1583,7 @@ public:
             // [5] NBG3
             // [6] Back
             // [7] Line color
+            // [8] Transparent mesh sprites (when enhancement is enabled)
             uint8 singleLayerIndex = 0;
 
             // Which layer stack level to draw when using LayerStack overlay.

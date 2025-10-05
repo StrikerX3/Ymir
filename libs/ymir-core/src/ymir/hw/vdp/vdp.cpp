@@ -5316,13 +5316,12 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                 case OverlayType::None: break;
                 case OverlayType::SingleLayer: //
                 {
-                    const uint8 layerLevel = std::min<uint8>(overlay.singleLayerIndex, 7);
-                    if (layerLevel == LYR_Back) {
-                        overlayColor = m_lineBackLayerState.backColor;
-                    } else if (layerLevel == LYR_LineColor) {
-                        overlayColor = m_lineBackLayerState.lineColor;
-                    } else {
-                        overlayColor = m_layerStates[altField][layerLevel].pixels.color[x];
+                    const uint8 layerLevel = std::min<uint8>(overlay.singleLayerIndex, 8);
+                    switch (layerLevel) {
+                    case LYR_Back: overlayColor = m_lineBackLayerState.backColor; break;
+                    case LYR_LineColor: overlayColor = m_lineBackLayerState.lineColor; break;
+                    case 8 /*transparent meshes*/: overlayColor = m_meshLayerState[altField].pixels.color[x]; break;
+                    default: overlayColor = m_layerStates[altField][layerLevel].pixels.color[x];
                     }
                     break;
                 }
