@@ -5368,6 +5368,14 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                     overlayColor = VDP2SelectRotationParameter(x, y, altField) == RotParamA ? overlay.rotParamAColor
                                                                                             : overlay.rotParamBColor;
                     break;
+                case OverlayType::ColorCalc: //
+                {
+                    const uint8 stackIndex = overlay.colorCalcStackIndex <= 1 ? overlay.colorCalcStackIndex : 0;
+                    overlayColor = isColorCalcEnabled(scanline_layers[x][stackIndex], x)
+                                       ? overlay.colorCalcEnableColor
+                                       : overlay.colorCalcDisableColor;
+                    break;
+                }
                 }
 
                 const uint8 alpha = overlay.alpha;
