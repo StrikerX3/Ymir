@@ -38,7 +38,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
 
     {"T-1245G", {.cartridge = Cartridge::DRAM32Mbit}}, // Dungeons and Dragons Collection (Japan)
     {"T-1248G", {.cartridge = Cartridge::DRAM32Mbit}}, // Final Fight Revenge (Japan)
-    {"T-1238G", {.cartridge = Cartridge::DRAM32Mbit}}, // Marvel Super Heroes vs. Street Fighter (Japan)
+    {"T-1238G", {.cartridge = Cartridge::DRAM32Mbit, .fastBusTimings = true}}, // Marvel Super Heroes vs. Street Fighter (Japan)
     {"T-1230G", {.cartridge = Cartridge::DRAM32Mbit}}, // Pocket Fighter (Japan)
     {"T-1246G", {.cartridge = Cartridge::DRAM32Mbit}}, // Street Fighter Zero 3 (Japan)
     {"T-1229G", {.cartridge = Cartridge::DRAM32Mbit}}, // Vampire Savior (Japan)
