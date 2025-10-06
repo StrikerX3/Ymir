@@ -212,7 +212,7 @@ void Saturn::Reset(bool hard) {
         if (hard) {
             YGR.Reset();
         }
-        CDDrive.Reset();
+        CDDrive.Reset(hard);
     } else {
         CDBlock.Reset(hard);
     }

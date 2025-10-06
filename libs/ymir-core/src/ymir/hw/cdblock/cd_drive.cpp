@@ -45,10 +45,10 @@ CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc, const medi
 
     m_autoCloseTray = false;
 
-    Reset();
+    Reset(true);
 }
 
-void CDDrive::Reset() {
+void CDDrive::Reset(bool hard) {
     m_command.data.fill(0x00);
     m_commandPos = 0u;
 
@@ -74,7 +74,7 @@ void CDDrive::Reset() {
 
     m_readSpeed = 1;
 
-    if (m_eventsEnabled) {
+    if (hard && m_eventsEnabled) {
         m_scheduler.ScheduleAt(m_stateEvent, 0);
     }
 }

@@ -104,7 +104,7 @@ public:
     CDDrive(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
             core::Configuration::CDBlock &config);
 
-    void Reset();
+    void Reset(bool hard);
 
     void MapCallbacks(CBSetCOMSYNCn setCOMSYNCn, CBSetCOMREQn setCOMREQn, CBDataSector dataSector,
                       CBCDDASector cddaSector, CBSectorTransferDone sectorTransferDone) {
