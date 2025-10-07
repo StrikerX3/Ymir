@@ -15,6 +15,18 @@ on:
         default: ""
         type: string
   workflow_dispatch: # Enable manual runs
+    inputs:
+      dev-build:
+        required: true
+        type: boolean
+      build-version:
+        required: false
+        default: ""
+        type: string
+      prerelease-version:
+        required: false
+        default: ""
+        type: string
 
 jobs:
   get-project-version:
