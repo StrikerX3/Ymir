@@ -195,8 +195,6 @@ jobs:
           architecture: x86-64
           version: '14.3'
           run: |
-            sudo mkdir -p /usr/local/etc/pkg/repos
-            echo 'FreeBSD: { url: "pkg+https://pkg.FreeBSD.org/${ABI}/latest" }' | sudo tee /usr/local/etc/pkg/repos/FreeBSD.conf
             sudo pkg upgrade -y
             sudo pkg install -y cmake evdev-proto libX11 libXcursor libXext libXfixes \
               libXi libXrandr libXrender libXScrnSaver libglvnd libinotify llvm21 \
