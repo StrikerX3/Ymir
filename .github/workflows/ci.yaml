@@ -211,7 +211,7 @@ jobs:
               -DCMAKE_C_FLAGS=-I/usr/local/include \
               -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/lib \
               -DCMAKE_BUILD_TYPE=Debug \
-              -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+              -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
               -DBUILD_SHARED_LIBS=OFF \
               -DYmir_ENABLE_DEVLOG=OFF \
               -DYmir_ENABLE_IMGUI_DEMO=OFF \
