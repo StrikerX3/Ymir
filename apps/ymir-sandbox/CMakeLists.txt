@@ -16,16 +16,17 @@ find_package(fmt CONFIG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
+find_package(Stb REQUIRED)
 
 ## Add dependencies
 target_link_libraries(ymir-sandbox PRIVATE
     ymir::ymir-core
     SDL3::SDL3
-    stb::stb
     fmt::fmt
     CURL::libcurl_static
     nlohmann_json::nlohmann_json
 )
+target_include_directories(ymir-sandbox PRIVATE ${Stb_INCLUDE_DIR})
 
 cmrk_copy_runtime_dlls(ymir-sandbox)
 

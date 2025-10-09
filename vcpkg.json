@@ -24,19 +24,21 @@
     },
     {
       "name": "sdl3",
-      "platform": "!windows",
-      "features": [
-        "alsa",
-        "x11"
-      ]
-    },
-    {
-      "name": "sdl3",
-      "platform": "linux",
       "features": [
         "ibus",
         "wayland"
-      ]
-    }
+      ],
+      "platform": "linux"
+    },
+    {
+      "name": "sdl3",
+      "features": [
+        "alsa",
+        "x11"
+      ],
+      "platform": "!windows"
+    },
+    "tomlplusplus",
+    "stb"
   ]
 }

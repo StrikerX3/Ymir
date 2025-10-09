@@ -20,6 +20,7 @@ add_executable(ymir-sdl3
     src/app/shared_context.cpp
     src/app/shared_context.hpp
     src/app/stb_implementations.cpp
+    src/app/toml_implementation.cpp
 
     src/app/debug/cdblock_tracer.cpp
     src/app/debug/cdblock_tracer.hpp
@@ -348,10 +349,15 @@ find_package(CURL REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(rtmidi CONFIG REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
+find_package(Stb REQUIRED)
+find_package(tomlplusplus CONFIG REQUIRED)
 
 target_include_directories(ymir-sdl3
-    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-    PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+    PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    PRIVATE
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+        "$<BUILD_INTERFACE:${Stb_INCLUDE_DIR}>"
 )
 target_link_libraries(ymir-sdl3 PRIVATE
     ymir::ymir-core
@@ -363,7 +369,6 @@ target_link_libraries(ymir-sdl3 PRIVATE
     tomlplusplus::tomlplusplus
     cereal::cereal
     lz4::lz4
-    stb::stb
     RtMidi::rtmidi
     CURL::libcurl_static
 )

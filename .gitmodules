@@ -8,18 +8,12 @@
 	path = vendor/imgui/imgui
 	url = https://github.com/ocornut/imgui.git
 	branch = docking
-[submodule "vendor/tomlplusplus"]
-	path = vendor/tomlplusplus
-	url = https://github.com/marzer/tomlplusplus.git
 [submodule "vendor/xxHash/xxHash"]
 	path = vendor/xxHash/xxHash
 	url = https://github.com/Cyan4973/xxHash
 [submodule "vendor/lz4/lz4"]
 	path = vendor/lz4/lz4
 	url = https://github.com/lz4/lz4.git
-[submodule "vendor/stb/stb"]
-	path = vendor/stb/stb
-	url = https://github.com/nothings/stb.git
 [submodule "vendor/libchdr"]
 	path = vendor/libchdr
 	url = https://github.com/rtissera/libchdr.git
