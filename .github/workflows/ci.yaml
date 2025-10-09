@@ -7,13 +7,24 @@ on:
   pull_request:
 
 jobs:
-  build-windows-x64:
-    name: windows-x64
-    runs-on: windows-2025
+  build-windows:
+    name: windows-${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        arch:
+          - name: x64
+            runner: windows-2025
+          - name: a64
+            runner: windows-11-arm
 
     steps:
       # Set up MASM for lzma
       - uses: glslang/setup-masm@v1
+        if: ${{ matrix.arch.name == 'x64' }}
 
       - uses: actions/checkout@v4
         with:
@@ -44,111 +55,19 @@ jobs:
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
 
-  build-windows-a64:
-    name: windows-a64
-    runs-on: windows-11-arm
+  build-linux:
+    name: linux-${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    strategy:
+      fail-fast: false
 
-      - name: Set reusable strings
-        id: strings
-        shell: bash
-        run: |
-          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-
-      - name: Configure CMake
-        run: >
-          cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER=clang
-          -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
-          -DBUILD_SHARED_LIBS=OFF
-          -DYmir_ENABLE_DEVLOG=OFF
-          -DYmir_ENABLE_IMGUI_DEMO=OFF
-          -DYmir_ENABLE_SANDBOX=OFF
-          -DYmir_ENABLE_YMDASM=ON
-          -DYmir_ENABLE_IPO=OFF
-          -S ${{ github.workspace }}
-          -G Ninja
-
-      - name: Build
-        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
-
-  build-linux-x64:
-    name: linux-x64
-    runs-on: ubuntu-22.04
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set reusable strings
-        id: strings
-        shell: bash
-        run: |
-          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
-
-      - name: Install SDL3 Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install build-essential git make pkg-config \
-            cmake ninja-build gnome-desktop-testing \
-            libasound2-dev libpulse-dev libaudio-dev \
-            libjack-dev libsndio-dev libx11-dev \
-            libxext-dev libxrandr-dev libxcursor-dev \
-            libxfixes-dev libxi-dev libxss-dev \
-            libxtst-dev libxkbcommon-dev libdrm-dev \
-            libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
-            libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev \
-            libudev-dev mono-complete nuget clang-15
-
-      - name: Bootstrap vcpkg
-        shell: bash
-        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
-
-      - name: Add NuGet sources to vcpkg
-        shell: bash
-        env: 
-          VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
-          USERNAME: StrikerX3
-          FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
-        run: |
-          nuget sources add \
-            -Source "${{ env.FEED_URL }}" \
-            -StorePasswordInClearText \
-            -Name GitHubPackages \
-            -UserName "${{ env.USERNAME }}" \
-            -Password "${{ secrets.GITHUB_TOKEN }}"
-          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
-            -Source "${{ env.FEED_URL }}"
-
-      - name: Configure CMake
-        run: >
-          cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=clang++-15
-          -DCMAKE_C_COMPILER=clang-15
-          -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
-          -DBUILD_SHARED_LIBS=OFF
-          -DYmir_ENABLE_DEVLOG=OFF
-          -DYmir_ENABLE_IMGUI_DEMO=OFF
-          -DYmir_ENABLE_SANDBOX=OFF
-          -DYmir_ENABLE_YMDASM=ON
-          -DYmir_ENABLE_IPO=OFF
-          -S ${{ github.workspace }}
-          -G Ninja
-
-      - name: Build
-        run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
-
-  build-linux-a64:
-    name: linux-a64
-    runs-on: ubuntu-22.04-arm
+      matrix:
+        arch:
+          - name: x64
+            runner: ubuntu-22.04
+          - name: a64
+            runner: ubuntu-22.04-arm
 
     steps:
       - uses: actions/checkout@v4
