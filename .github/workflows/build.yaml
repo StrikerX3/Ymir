@@ -77,12 +77,12 @@ jobs:
             enable_avx2_option: "OFF"
             runner: windows-latest
             target: x64
-            vcpkg_triplet: x64-windows
+            vcpkg_triplet: x64-win-llvm-lto-static-md
           - name: "x86_64-AVX2"
             enable_avx2_option: "ON"
             runner: windows-latest
             target: x64
-            vcpkg_triplet: x64-windows
+            vcpkg_triplet: x64-win-llvm-lto-static-md
           - name: "ARM64"
             enable_avx2_option: "OFF"
             runner: windows-11-arm

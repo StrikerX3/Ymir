@@ -345,6 +345,7 @@ endif()
 
 find_package(cereal CONFIG REQUIRED)
 find_package(cxxopts CONFIG REQUIRED)
+find_package(OpenSSL CONFIG REQUIRED)
 find_package(CURL REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(rtmidi CONFIG REQUIRED)

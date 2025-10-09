@@ -18,8 +18,10 @@ jobs:
         arch:
           - name: x64
             runner: windows-2025
+            vcpkg_triplet: x64-win-llvm-lto-static-md
           - name: a64
             runner: windows-11-arm
+            vcpkg_triplet: arm64-windows
 
     steps:
       # Set up MASM for lzma
@@ -36,12 +38,33 @@ jobs:
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Add NuGet sources to vcpkg
+        shell: bash
+        env: 
+          VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+          USERNAME: StrikerX3
+          FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
+        run: |
+          nuget sources add \
+            -Source "${{ env.FEED_URL }}" \
+            -StorePasswordInClearText \
+            -Name GitHubPackages \
+            -UserName "${{ env.USERNAME }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
+            -Source "${{ env.FEED_URL }}"
+
       - name: Configure CMake
         env:
           CXX: clang++
           CC: clang
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.architecture.vcpkg_triplet }}
           -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Debug
@@ -156,6 +179,8 @@ jobs:
         shell: bash
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+      # TODO: configure vcpkg cache
 
       - uses: cross-platform-actions/action@v0.29.0
         with:

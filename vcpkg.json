@@ -38,7 +38,8 @@
       ],
       "platform": "!windows"
     },
+    "stb",
     "tomlplusplus",
-    "stb"
+    "openssl"
   ]
 }
