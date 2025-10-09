@@ -198,8 +198,6 @@ jobs:
           Copy-Item -Path ".\vendor\libchdr\deps\zstd-1.5.6\LICENSE"          -Destination "$licensesDir\zstd-LICENSE"
           Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                      -Destination "$licensesDir\lz4-LICENSE"
           Copy-Item -Path ".\vendor\mio\LICENSE"                              -Destination "$licensesDir\mio-LICENSE"
-          Copy-Item -Path ".\vendor\stb\stb\LICENSE"                          -Destination "$licensesDir\stb-LICENSE"
-          Copy-Item -Path ".\vendor\tomlplusplus\LICENSE"                     -Destination "$licensesDir\tomlplusplus-LICENSE"
           Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                    -Destination "$licensesDir\xxHash-LICENSE"
           Copy-Item -Path ".\LICENSE"                                         -Destination "$licensesDir\Ymir-LICENSE"
           Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"              -Destination "$licensesDir\SDL_GameControllerDB-LICENSE"
@@ -341,8 +339,6 @@ jobs:
           cp -f vendor/libchdr/deps/zstd-1.5.6/LICENSE            licenses/zstd-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
-          cp -f vendor/stb/stb/LICENSE                            licenses/stb-LICENSE
-          cp -f vendor/tomlplusplus/LICENSE                       licenses/tomlplusplus-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
           cp -f LICENSE                                           licenses/Ymir-LICENSE
           cp -f ${{ github.workspace }}/gcdb/LICENSE              licenses/SDL_GameControllerDB-LICENSE
@@ -471,8 +467,6 @@ jobs:
           cp -f vendor/libchdr/deps/zstd-1.5.6/LICENSE            licenses/zstd-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
-          cp -f vendor/stb/stb/LICENSE                            licenses/stb-LICENSE
-          cp -f vendor/tomlplusplus/LICENSE                       licenses/tomlplusplus-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
           cp -f LICENSE                                           licenses/Ymir-LICENSE
           cp -f ${{ github.workspace }}/gcdb/LICENSE              licenses/SDL_GameControllerDB-LICENSE
