@@ -133,6 +133,9 @@ jobs:
             -Source "${{ env.FEED_URL }}"
 
       - name: Configure CMake
+        env:
+          CXX: ${{ matrix.cpp_compiler }}
+          CC: ${{ matrix.c_compiler }}
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
@@ -155,6 +158,9 @@ jobs:
           -G Ninja
 
       - name: Build
+        env:
+          CXX: ${{ matrix.cpp_compiler }}
+          CC: ${{ matrix.c_compiler }}
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} --parallel
 
       ## FIXME: Catch2 integration still isn't working
