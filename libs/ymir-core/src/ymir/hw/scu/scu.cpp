@@ -1055,14 +1055,16 @@ void SCU::RunDMA(uint64 cycles) {
             ch.currDstAddr = currDstAddr;
             if (ch.trigger == DMATrigger::Immediate) {
                 // HACK: use different base timings depending on the destination.
-                // Gunbird writes to VDP1 and requires interrupts to be delivered quickly
-                // Several homebrew apps write to SCSP RAM and require interrupts to delay a bit longer
+                // Gunbird writes to VDP1 and requires interrupts to be delivered quickly.
+                // Several homebrew apps write to SCSP RAM and require interrupts to delay a bit longer.
+                // Some games (Casper, Dungeon Master Nexus) slow down tremendously if the interrupt signal takes too
+                // long, though.
                 if (util::AddressInRange<0x5C0'0000, 0x5FB'FFFF>(ch.dstAddr)) {
                     ch.intrDelay = 1;
                 } else {
                     ch.intrDelay = 33;
                 }
-                ch.intrDelay += AdjustZeroSizeXferCount(level, ch.xferCount) >> 4u;
+                ch.intrDelay += std::min(AdjustZeroSizeXferCount(level, ch.xferCount) >> 4u, 32u);
             } else {
                 TriggerDMAEnd(level);
             }
