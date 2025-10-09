@@ -289,9 +289,11 @@ target_include_directories(ymir-core
 )
 target_compile_features(ymir-core PUBLIC cxx_std_20)
 
+find_package(fmt CONFIG REQUIRED)
+
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
-    fmt
+    fmt::fmt
     mio
     concurrentqueue
     xxHash::xxHash

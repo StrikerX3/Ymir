@@ -14,8 +14,11 @@ set_target_properties(ymir-core-tests PROPERTIES
 target_link_libraries(ymir-core-tests PRIVATE ymir::ymir-core)
 target_compile_features(ymir-core-tests PUBLIC cxx_std_20)
 
+find_package(fmt CONFIG REQUIRED)
+find_package(Catch2 CONFIG REQUIRED)
+
 ## Add dependencies
-target_link_libraries(ymir-core-tests PRIVATE fmt Catch2::Catch2WithMain)
+target_link_libraries(ymir-core-tests PRIVATE fmt::fmt Catch2::Catch2WithMain)
 
 cmrk_copy_runtime_dlls(ymir-core-tests)
 
@@ -46,6 +49,7 @@ if (MSVC)
 endif ()
 
 ## Register Catch2 test with CTest
+include(Catch)
 catch_discover_tests(ymir-core-tests)
 
-## No packaging for this project it's meant for unit tests
+## No packaging for this project as it's meant for unit tests

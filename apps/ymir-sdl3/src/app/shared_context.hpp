@@ -31,7 +31,7 @@
 
 #include <blockingconcurrentqueue.h>
 
-#include <RtMidi.h>
+#include <rtmidi/RtMidi.h>
 
 #include <array>
 #include <chrono>

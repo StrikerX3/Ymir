@@ -5,7 +5,7 @@
 #include <app/ui/widgets/common_widgets.hpp>
 #include <app/ui/widgets/settings_widgets.hpp>
 
-#include <RtMidi.h>
+#include <rtmidi/RtMidi.h>
 
 using namespace ymir;
 

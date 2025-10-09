@@ -9,11 +9,11 @@
 #include <SDL3/SDL_clipboard.h>
 
 // Includes for versions only
-#include <RtMidi.h>
 #include <SDL3/SDL.h>
 #include <cxxopts.hpp>
 #include <fmt/format.h>
 #include <lz4.h>
+#include <rtmidi/RtMidi.h>
 #include <toml++/toml.hpp>
 #include <xxhash.h>
 

@@ -10,8 +10,10 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
+#include <curl/curl.h>
 #include <fmt/format.h>
 #include <fmt/std.h>
+#include <nlohmann/json.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -1102,22 +1104,89 @@ static void runBinCueLoaderSandbox(std::filesystem::path cuePath) {
     }
 }
 
+struct CurlState {
+    CurlState() {
+        curl_global_init(CURL_GLOBAL_ALL);
+        m_curl = curl_easy_init();
+        curl_easy_setopt(m_curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(m_curl, CURLOPT_CA_CACHE_TIMEOUT, 604800L);
+        curl_easy_setopt(m_curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+        curl_easy_setopt(m_curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+        curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, CurlWriteFn);
+    }
+
+    ~CurlState() {
+        curl_easy_cleanup(m_curl);
+        curl_global_cleanup();
+    }
+
+    // Not thread safe!
+    CURLcode Get(std::string &out, const char *url, std::unordered_map<std::string, std::string> headers = {}) {
+        if (!m_curl) {
+            return CURLE_FAILED_INIT;
+        }
+        out.clear();
+        curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &out);
+
+        curl_easy_setopt(m_curl, CURLOPT_URL, url);
+
+        struct curl_slist *headerList = NULL;
+        for (auto &[k, v] : headers) {
+            headerList = curl_slist_append(headerList, fmt::format("{}: {}", k, v).c_str());
+        }
+        curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, headerList);
+
+        CURLcode res = curl_easy_perform(m_curl);
+        curl_slist_free_all(headerList);
+        return res;
+    }
+
+private:
+    CURL *m_curl = nullptr;
+
+    static size_t CurlWriteFn(char *data, size_t size, size_t nmemb, void *clientp) {
+        auto *state = static_cast<std::string *>(clientp);
+        state->insert(state->end(), data, data + nmemb);
+        return nmemb;
+    }
+};
+
+static void runCurlSandbox() {
+    CurlState curl{};
+    std::string out{};
+    CURLcode code = curl.Get(out, "https://api.github.com/repos/StrikerX3/Ymir/releases/latest",
+                             {{"Accept", "application/vnd.github+json"}, {"X-GitHub-Api-Version", "2022-11-28"}});
+    if (code != CURLE_OK) {
+        fmt::println("cURL request failed: {}", curl_easy_strerror(code));
+        return;
+    }
+
+    auto res = nlohmann::json::parse(out);
+    if (res["tag_name"] == "latest-nightly") {
+        fmt::println("Nightly build");
+    } else {
+        fmt::println("Release {}", res["tag_name"].get<std::string>());
+    }
+    // fmt::println("{}", res.dump());
+}
+
 int main(int argc, char **argv) {
     // runSandbox();
     // runBUPSandbox();
     // runInputSandbox();
-    if (argc >= 2) {
-        // runVDP1AccuracySandbox(argv[1]);
-        runBinCueLoaderSandbox(argv[1]);
-        // TODO: rework the whole CUE parser
-        // - apparently PREGAP and INDEX 00 should combine together
-        // - use a composite binary reader to join together multi-bin files into a single image
-        //   - track absolute FAD in those cases
-        //   - keep using single-file binary reader for single-bin images
-        // - multi-bin should not skip pregaps
-        //   - track FAD range should include INDEX 00
-        //   - starting FAD should point to INDEX 01 (when seeking to track)
-    }
+    // if (argc >= 2) {
+    //     // runVDP1AccuracySandbox(argv[1]);
+    //     runBinCueLoaderSandbox(argv[1]);
+    //     // TODO: rework the whole CUE parser
+    //     // - apparently PREGAP and INDEX 00 should combine together
+    //     // - use a composite binary reader to join together multi-bin files into a single image
+    //     //   - track absolute FAD in those cases
+    //     //   - keep using single-file binary reader for single-bin images
+    //     // - multi-bin should not skip pregaps
+    //     //   - track FAD range should include INDEX 00
+    //     //   - starting FAD should point to INDEX 01 (when seeking to track)
+    // }
+    runCurlSandbox();
 
     return EXIT_SUCCESS;
 }

@@ -132,7 +132,7 @@
 #include <fmt/chrono.h>
 #include <fmt/std.h>
 
-#include <RtMidi.h>
+#include <rtmidi/RtMidi.h>
 
 #include <clocale>
 #include <mutex>

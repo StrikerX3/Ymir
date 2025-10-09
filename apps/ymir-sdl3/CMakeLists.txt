@@ -342,6 +342,13 @@ if(APPLE)
     target_sources(ymir-sdl3 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/res/ymir.icns)
 endif()
 
+find_package(cereal CONFIG REQUIRED)
+find_package(cxxopts CONFIG REQUIRED)
+find_package(CURL REQUIRED)
+find_package(fmt CONFIG REQUIRED)
+find_package(rtmidi CONFIG REQUIRED)
+find_package(SDL3 CONFIG REQUIRED)
+
 target_include_directories(ymir-sdl3
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
@@ -350,14 +357,15 @@ target_link_libraries(ymir-sdl3 PRIVATE
     ymir::ymir-core
     ymir-sdl3::rc
     SDL3::SDL3
-    fmt
-    cxxopts
+    fmt::fmt
+    cxxopts::cxxopts
     imgui::imgui
     tomlplusplus::tomlplusplus
     cereal::cereal
     lz4::lz4
     stb::stb
-    rtmidi
+    RtMidi::rtmidi
+    CURL::libcurl_static
 )
 if (WIN32)
     target_link_libraries(ymir-sdl3 PRIVATE

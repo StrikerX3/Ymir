@@ -23,6 +23,9 @@ target_include_directories(ymdasm
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
 )
+
+find_package(cxxopts CONFIG REQUIRED)
+
 target_link_libraries(ymdasm PRIVATE
     ymir::ymir-core
     cxxopts::cxxopts

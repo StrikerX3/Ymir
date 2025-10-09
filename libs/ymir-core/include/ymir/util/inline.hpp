@@ -69,7 +69,7 @@ For use with functions that heavily impact build times.
 #elif defined(_MSC_VER)
     #define FORCE_INLINE [[msvc::forceinline]] inline
     #define NO_INLINE [[msvc::noinline]]
-    #define FLATTEN [[msvc::flatten]]
+    #define FLATTEN // MSVC dies when [[msvc::flatten]] is (ab)used
 #else
     #define FORCE_INLINE inline
     #define NO_INLINE

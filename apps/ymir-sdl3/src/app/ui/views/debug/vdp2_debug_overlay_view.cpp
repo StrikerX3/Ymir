@@ -200,6 +200,7 @@ void VDP2DebugOverlayView::Display() {
         colorPicker("B##rotparam", overlay.rotParamBColor);
         break;
     case OverlayType::ColorCalc: //
+    {
         static constexpr uint8 kMinLayerStackIndex = 0;
         static constexpr uint8 kMaxLayerStackIndex = 1;
         ImGui::SliderScalar("Layer level##vdp2_overlay", ImGuiDataType_U8, &overlay.colorCalcStackIndex,
@@ -207,6 +208,7 @@ void VDP2DebugOverlayView::Display() {
         colorPicker("Disabled##color_calc", overlay.colorCalcDisableColor);
         colorPicker("Enabled##color_calc", overlay.colorCalcEnableColor);
         break;
+    }
     default: break;
     }
     ImGui::Unindent();

@@ -28,6 +28,15 @@ on:
         default: ""
         type: string
 
+permissions:
+  packages: write
+
+env: 
+  USERNAME: StrikerX3
+  VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+  FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
+  VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/StrikerX3/index.json,readwrite"
+
 jobs:
   get-project-version:
     runs-on: ubuntu-latest
@@ -68,14 +77,17 @@ jobs:
             enable_avx2_option: "OFF"
             runner: windows-latest
             target: x64
+            vcpkg_triplet: x64-windows
           - name: "x86_64-AVX2"
             enable_avx2_option: "ON"
             runner: windows-latest
             target: x64
+            vcpkg_triplet: x64-windows
           - name: "ARM64"
             enable_avx2_option: "OFF"
             runner: windows-11-arm
             target: arm64
+            vcpkg_triplet: arm64-windows
         include:
           - c_compiler: clang
             cpp_compiler: clang
@@ -102,12 +114,32 @@ jobs:
         with:
           arch: ${{ matrix.architecture.target }}
 
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat
+      
+      - name: Add NuGet sources to vcpkg
+        shell: pwsh
+        run: |
+          .$(${{ env.VCPKG_EXE }} fetch nuget) `
+            sources add `
+            -Source "${{ env.FEED_URL }}" `
+            -StorePasswordInClearText `
+            -Name GitHubPackages `
+            -UserName "${{ env.USERNAME }}" `
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          .$(${{ env.VCPKG_EXE }} fetch nuget) `
+            setapikey "${{ secrets.GITHUB_TOKEN }}" `
+            -Source "${{ env.FEED_URL }}"
+
       - name: Configure CMake
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.architecture.vcpkg_triplet }}
           -DBUILD_SHARED_LIBS=OFF
           -DYmir_AVX2=${{ matrix.architecture.enable_avx2_option }}
           -DYmir_ENABLE_IPO=ON
@@ -142,29 +174,31 @@ jobs:
 
       - name: Package Ymir artifact
         run: |
-          md licenses
-          Copy-Item -Path ".\apps\ymir-sdl3\res\licenses\*"                   -Destination ".\licenses\"  -Recurse
-          Copy-Item -Path ".\vendor\Catch2\LICENSE.txt"                       -Destination ".\licenses\Catch2-LICENSE.txt"
-          Copy-Item -Path ".\vendor\cereal\LICENSE"                           -Destination ".\licenses\cereal-LICENSE"
-          Copy-Item -Path ".\vendor\concurrentqueue\LICENSE.md"               -Destination ".\licenses\concurrentqueue-LICENSE.md"
-          Copy-Item -Path ".\vendor\cxxopts\LICENSE"                          -Destination ".\licenses\cxxopts-LICENSE"
-          Copy-Item -Path ".\vendor\fmt\LICENSE"                              -Destination ".\licenses\fmt-LICENSE"
-          Copy-Item -Path ".\vendor\imgui\imgui\LICENSE.txt"                  -Destination ".\licenses\imgui-LICENSE.txt"
-          Copy-Item -Path ".\vendor\libchdr\LICENSE.txt"                      -Destination ".\licenses\libchdr-LICENSE.txt"
-          Copy-Item -Path ".\vendor\libchdr\deps\lzma-24.05\LICENSE"          -Destination ".\licenses\lzma-LICENSE"
-          Copy-Item -Path ".\vendor\libchdr\deps\zlib-1.3.1\LICENSE"          -Destination ".\licenses\zlib-LICENSE"
-          Copy-Item -Path ".\vendor\libchdr\deps\zstd-1.5.6\LICENSE"          -Destination ".\licenses\zstd-LICENSE"
-          Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                      -Destination ".\licenses\lz4-LICENSE"
-          Copy-Item -Path ".\vendor\mio\LICENSE"                              -Destination ".\licenses\mio-LICENSE"
-          Copy-Item -Path ".\vendor\rtmidi\LICENSE"                           -Destination ".\licenses\RtMidi-LICENSE"
-          Copy-Item -Path ".\vendor\SDL\LICENSE.txt"                          -Destination ".\licenses\SDL-LICENSE.txt"
-          Copy-Item -Path ".\vendor\stb\stb\LICENSE"                          -Destination ".\licenses\stb-LICENSE"
-          Copy-Item -Path ".\vendor\tomlplusplus\LICENSE"                     -Destination ".\licenses\tomlplusplus-LICENSE"
-          Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                    -Destination ".\licenses\xxHash-LICENSE"
-          Copy-Item -Path ".\LICENSE"                                         -Destination ".\licenses\Ymir-LICENSE"
-          Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"              -Destination ".\licenses\SDL_GameControllerDB-LICENSE"
+          $licensesDir = Join-Path (Get-Location) "licenses"
+          New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
+          Get-ChildItem -Recurse -Path "${{ steps.strings.outputs.build-output-dir }}\vcpkg_installed" -Filter copyright |
+            ForEach-Object {
+              $port = Split-Path $_.DirectoryName -Leaf
+              $dest = Join-Path $licensesDir "$port-LICENSE.txt"
+              Copy-Item $_.FullName $dest -Force
+            }
+
+          Copy-Item -Path ".\apps\ymir-sdl3\res\licenses\*"                   -Destination "$licensesDir\"  -Recurse
+          Copy-Item -Path ".\vendor\concurrentqueue\LICENSE.md"               -Destination "$licensesDir\concurrentqueue-LICENSE.md"
+          Copy-Item -Path ".\vendor\imgui\imgui\LICENSE.txt"                  -Destination "$licensesDir\imgui-LICENSE.txt"
+          Copy-Item -Path ".\vendor\libchdr\LICENSE.txt"                      -Destination "$licensesDir\libchdr-LICENSE.txt"
+          Copy-Item -Path ".\vendor\libchdr\deps\lzma-24.05\LICENSE"          -Destination "$licensesDir\lzma-LICENSE"
+          Copy-Item -Path ".\vendor\libchdr\deps\zlib-1.3.1\LICENSE"          -Destination "$licensesDir\zlib-LICENSE"
+          Copy-Item -Path ".\vendor\libchdr\deps\zstd-1.5.6\LICENSE"          -Destination "$licensesDir\zstd-LICENSE"
+          Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                      -Destination "$licensesDir\lz4-LICENSE"
+          Copy-Item -Path ".\vendor\mio\LICENSE"                              -Destination "$licensesDir\mio-LICENSE"
+          Copy-Item -Path ".\vendor\stb\stb\LICENSE"                          -Destination "$licensesDir\stb-LICENSE"
+          Copy-Item -Path ".\vendor\tomlplusplus\LICENSE"                     -Destination "$licensesDir\tomlplusplus-LICENSE"
+          Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                    -Destination "$licensesDir\xxHash-LICENSE"
+          Copy-Item -Path ".\LICENSE"                                         -Destination "$licensesDir\Ymir-LICENSE"
+          Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"              -Destination "$licensesDir\SDL_GameControllerDB-LICENSE"
           Copy-Item -Path "${{ github.workspace }}\gcdb\gamecontrollerdb.txt" -Destination ".\gamecontrollerdb.txt"
-          Compress-Archive -Path "README.md","CHANGELOG.md","gamecontrollerdb.txt","licenses/","build/apps/ymir-sdl3/ymir-sdl3.exe" -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
+          Compress-Archive -Path "README.md","CHANGELOG.md","gamecontrollerdb.txt","$licensesDir/","build/apps/ymir-sdl3/ymir-sdl3.exe" -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
 
       - name: Upload Ymir artifact
         uses: actions/upload-artifact@v4
@@ -184,7 +218,7 @@ jobs:
         build_type: [Release]
         # Notes about compilers:
         # - GCC (gcc) gets stuck building sh2.cpp (didn't finish after 12+ hours)
-        c_compiler: [clang] # [clang, gcc]
+        c_compiler: [clang-15] # [clang, gcc]
         architecture:
           - name: "x86_64-SSE2"
             enable_avx2_option: "OFF"
@@ -194,10 +228,10 @@ jobs:
             runner: ubuntu-22.04
           - name: "AArch64-NEON"
             enable_avx2_option: "OFF" # doesn't matter actually
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-22.04-arm
         include:
-          - c_compiler: clang
-            cpp_compiler: clang++
+          - c_compiler: "clang-15"
+            cpp_compiler: "clang++-15"
 
     steps:
       - uses: actions/checkout@v4
@@ -212,7 +246,7 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
           echo "ymir-artifact-name=ymir-linux-${{ matrix.architecture.name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Install SDL3 Dependencies
+      - name: Install packages and SDL3 dependencies
         run: |
           sudo apt-get update
           sudo apt-get install build-essential git make pkg-config \
@@ -224,7 +258,27 @@ jobs:
             libxtst-dev libxkbcommon-dev libdrm-dev \
             libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
             libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev \
-            libudev-dev
+            libudev-dev mono-complete nuget clang-15
+
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Add NuGet sources to vcpkg
+        shell: bash
+        env: 
+          VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+          USERNAME: StrikerX3
+          FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
+        run: |
+          nuget sources add \
+            -Source "${{ env.FEED_URL }}" \
+            -StorePasswordInClearText \
+            -Name GitHubPackages \
+            -UserName "${{ env.USERNAME }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
+            -Source "${{ env.FEED_URL }}"
 
       - name: Configure CMake
         run: >
@@ -232,6 +286,7 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DBUILD_SHARED_LIBS=OFF
           -DYmir_AVX2=${{ matrix.architecture.enable_avx2_option }}
           -DYmir_ENABLE_IPO=ON
@@ -266,13 +321,13 @@ jobs:
 
       - name: Package artifacts
         run: |
-          mkdir licenses
+          mkdir -p licenses
+          find "${{ steps.strings.outputs.build-output-dir }}/vcpkg_installed" -type f -path "*/share/*/copyright" | while read -r file; do
+            port=$(basename "$(dirname "$file")")
+            cp "$file" "licenses/${port}-LICENSE.txt"
+          done
           cp -Rf apps/ymir-sdl3/res/licenses/*                    ./licenses/
-          cp -f vendor/Catch2/LICENSE.txt                         licenses/Catch2-LICENSE.txt
-          cp -f vendor/cereal/LICENSE                             licenses/cereal-LICENSE
           cp -f vendor/concurrentqueue/LICENSE.md                 licenses/concurrentqueue-LICENSE.md
-          cp -f vendor/cxxopts/LICENSE                            licenses/cxxopts-LICENSE
-          cp -f vendor/fmt/LICENSE                                licenses/fmt-LICENSE
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/LICENSE.txt                        licenses/libchdr-LICENSE.txt
           cp -f vendor/libchdr/deps/lzma-24.05/LICENSE            licenses/lzma-LICENSE
@@ -280,8 +335,6 @@ jobs:
           cp -f vendor/libchdr/deps/zstd-1.5.6/LICENSE            licenses/zstd-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
-          cp -f vendor/rtmidi/LICENSE                             licenses/RtMidi-LICENSE
-          cp -f vendor/SDL/LICENSE.txt                            licenses/SDL-LICENSE.txt
           cp -f vendor/stb/stb/LICENSE                            licenses/stb-LICENSE
           cp -f vendor/tomlplusplus/LICENSE                       licenses/tomlplusplus-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
@@ -307,8 +360,18 @@ jobs:
       matrix:
         build_type: [Release]
         arch:
-          - name: "universal"
-            isa_name: "'x86_64;arm64'"
+          - name: "x64"
+            isa_name: "x86_64"
+            triplet_arch: "x64"
+            enable_avx2_option: "ON"
+          - name: "arm64"
+            isa_name: "arm64"
+            triplet_arch: "arm64"
+            enable_avx2_option: "OFF"
+          # Disabled because vcpkg doesn't support universal binaries
+          # See https://github.com/microsoft/vcpkg/discussions/19454
+          #- name: "universal"
+          #  isa_name: "'x86_64;arm64'"
 
     steps:
       - uses: actions/checkout@v4
@@ -323,12 +386,39 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
           echo "ymir-artifact-name=ymir-macos-${{ matrix.arch.name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
+      - name: Install tools
+        shell: bash
+        run: brew install mono nuget
+
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Add NuGet sources to vcpkg
+        shell: bash
+        env: 
+          VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+          USERNAME: StrikerX3
+          FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
+        run: |
+          nuget sources add \
+            -Source "${{ env.FEED_URL }}" \
+            -StorePasswordInClearText \
+            -Name GitHubPackages \
+            -UserName "${{ env.USERNAME }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
+            -Source "${{ env.FEED_URL }}"
+
       - name: Configure CMake
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DBUILD_SHARED_LIBS=OFF
           -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch.isa_name }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.arch.triplet_arch }}-osx
+          -DYmir_AVX2=${{ matrix.arch.enable_avx2_option }}
           -DYmir_ENABLE_IPO=ON
           -DYmir_ENABLE_DEVLOG=OFF
           -DYmir_ENABLE_IMGUI_DEMO=OFF
@@ -362,12 +452,12 @@ jobs:
       - name: Package artifacts
         run: |
           mkdir licenses
+          find "${{ steps.strings.outputs.build-output-dir }}/vcpkg_installed" -type f -path "*/share/*/copyright" | while read -r file; do
+            port=$(basename "$(dirname "$file")")
+            cp "$file" "licenses/${port}-LICENSE.txt"
+          done
           cp -Rf apps/ymir-sdl3/res/licenses/*                    ./licenses/
-          cp -f vendor/Catch2/LICENSE.txt                         licenses/Catch2-LICENSE.txt
-          cp -f vendor/cereal/LICENSE                             licenses/cereal-LICENSE
           cp -f vendor/concurrentqueue/LICENSE.md                 licenses/concurrentqueue-LICENSE.md
-          cp -f vendor/cxxopts/LICENSE                            licenses/cxxopts-LICENSE
-          cp -f vendor/fmt/LICENSE                                licenses/fmt-LICENSE
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/LICENSE.txt                        licenses/libchdr-LICENSE.txt
           cp -f vendor/libchdr/deps/lzma-24.05/LICENSE            licenses/lzma-LICENSE
@@ -375,8 +465,6 @@ jobs:
           cp -f vendor/libchdr/deps/zstd-1.5.6/LICENSE            licenses/zstd-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
-          cp -f vendor/rtmidi/LICENSE                             licenses/RtMidi-LICENSE
-          cp -f vendor/SDL/LICENSE.txt                            licenses/SDL-LICENSE.txt
           cp -f vendor/stb/stb/LICENSE                            licenses/stb-LICENSE
           cp -f vendor/tomlplusplus/LICENSE                       licenses/tomlplusplus-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE

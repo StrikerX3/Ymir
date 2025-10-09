@@ -1,0 +1,42 @@
+{
+  "dependencies": [
+    "catch2",
+    "cereal",
+    {
+      "name": "curl",
+      "features": [
+        "brotli",
+        "http2",
+        "http3",
+        "ssl",
+        "zstd"
+      ]
+    },
+    "cxxopts",
+    "fmt",
+    "nlohmann-json",
+    "rtmidi",
+    {
+      "name": "sdl3",
+      "features": [
+        "vulkan"
+      ]
+    },
+    {
+      "name": "sdl3",
+      "platform": "!windows",
+      "features": [
+        "alsa",
+        "x11"
+      ]
+    },
+    {
+      "name": "sdl3",
+      "platform": "linux",
+      "features": [
+        "ibus",
+        "wayland"
+      ]
+    }
+  ]
+}

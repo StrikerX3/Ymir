@@ -22,10 +22,6 @@ endfunction()
 
 message(STATUS "Adding vendored libraries")
 
-# {fmt} - https://github.com/fmtlib/fmt
-message(STATUS "==> {fmt}")
-add_subdirectory(fmt EXCLUDE_FROM_ALL)
-
 # mio - https://github.com/vimpunk/mio
 # Notes:
 # - Using StrikerX3's fork instead
@@ -33,25 +29,6 @@ add_subdirectory(fmt EXCLUDE_FROM_ALL)
 #   - It also stops the library from including CTest unconditionally, which is not done in that PR
 message(STATUS "==> mio")
 add_subdirectory(mio EXCLUDE_FROM_ALL)
-
-# SDL - https://github.com/libsdl-org/SDL
-message(STATUS "==> SDL")
-set(SDL_DISABLE_UNINSTALL ON)
-set(SDL_TEST_LIBRARY OFF)
-set(SDL_TESTS OFF)
-set(SDL_EXAMPLES OFF)
-if (BUILD_SHARED_LIBS)
-    set(SDL_SHARED ON)
-    set(SDL_STATIC OFF)
-else ()
-    set(SDL_SHARED OFF)
-    set(SDL_STATIC ON)
-endif ()
-add_subdirectory_quiet(SDL EXCLUDE_FROM_ALL)
-
-# cxxopts - https://github.com/jarro2783/cxxopts
-message(STATUS "==> cxxopts")
-add_subdirectory(cxxopts EXCLUDE_FROM_ALL)
 
 # concurrentqueue - https://github.com/cameron314/concurrentqueue
 message(STATUS "==> concurrentqueue")
@@ -74,13 +51,6 @@ add_subdirectory(xxHash EXCLUDE_FROM_ALL)
 message(STATUS "==> lz4")
 add_subdirectory(lz4 EXCLUDE_FROM_ALL)
 
-# cereal - https://github.com/USCiLab/cereal
-message(STATUS "==> cereal")
-set(BUILD_DOC OFF)
-set(BUILD_SANDBOX OFF)
-set(JUST_INSTALL_CEREAL ON)
-add_subdirectory(cereal EXCLUDE_FROM_ALL)
-
 # stb - https://github.com/nothings/stb
 message(STATUS "==> stb")
 add_subdirectory(stb)
@@ -90,42 +60,14 @@ message(STATUS "==> libchdr")
 set(BUILD_FUZZER OFF)
 add_subdirectory(libchdr)
 
-# rtmidi - https://github.com/thestk/rtmidi
-message(STATUS "==> rtmidi")
-set(RTMIDI_BUILD_STATIC_LIBS ON)
-set(RTMIDI_BUILD_TESTING OFF)
-add_subdirectory(rtmidi)
-
-# --------------------------------------------------------------------------------------------------
-# Test dependencies
-
-if (Ymir_ENABLE_TESTS)
-    # Catch2 - https://github.com/catchorg/Catch2
-    message(VERBOSE "==> Catch2")
-    add_subdirectory(Catch2 EXCLUDE_FROM_ALL)
-endif ()
-
-# --------------------------------------------------------------------------------------------------
-
 # Place vendored library projects under a Vendored folder in Visual Studio solutions
 if (MSVC)
-    if (BUILD_SHARED_LIBS)
-        set_target_properties(SDL3-shared PROPERTIES FOLDER Vendored)
-    else ()
-        set_target_properties(SDL3-static PROPERTIES FOLDER Vendored)
-    endif ()
-    set_target_properties(Catch2 PROPERTIES FOLDER Vendored)
-    set_target_properties(Catch2WithMain PROPERTIES FOLDER Vendored)
     set_target_properties(chdr-benchmark PROPERTIES FOLDER Vendored)
     set_target_properties(chdr-static PROPERTIES FOLDER Vendored)
-    set_target_properties(fmt PROPERTIES FOLDER Vendored)
     set_target_properties(imgui PROPERTIES FOLDER Vendored)
     set_target_properties(libzstd_static PROPERTIES FOLDER Vendored)
     set_target_properties(lz4 PROPERTIES FOLDER Vendored)
     set_target_properties(lzma PROPERTIES FOLDER Vendored)
-    set_target_properties(rt_uninstall PROPERTIES FOLDER Vendored)
-    set_target_properties(rtmidi PROPERTIES FOLDER Vendored)
-    set_target_properties(SDL_uclibc PROPERTIES FOLDER Vendored)
     set_target_properties(stb PROPERTIES FOLDER Vendored)
     set_target_properties(xxHash PROPERTIES FOLDER Vendored)
     set_target_properties(zlibstatic PROPERTIES FOLDER Vendored)

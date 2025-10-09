@@ -32,9 +32,9 @@ message(STATUS "Ymir: Devlog ${Ymir_ENABLE_DEVLOG}")
 message(STATUS "Ymir: Extra inlining ${Ymir_EXTRA_INLINING}")
 
 # Create Universal Binary on MacOS
-if (APPLE)
-    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
-endif ()
+#if (APPLE)
+#    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
+#endif ()
 
 # Detect target architectures
 # ARCHITECTURES may have multiple variables in the case of a multi-arch build
@@ -67,15 +67,19 @@ if (NOT DEFINED CMAKE_CXX_VISIBILITY_PRESET AND
   set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 endif ()
 
+## Force static linkage
+set(Ymir_SHARED_LIBS OFF)
+set(BUILD_SHARED_LIBS OFF)
+
 ## Let Ymir_SHARED_LIBS override BUILD_SHARED_LIBS
-if (DEFINED Ymir_SHARED_LIBS)
-    set(BUILD_SHARED_LIBS "${Ymir_SHARED_LIBS}")
-endif ()
+#if (DEFINED Ymir_SHARED_LIBS)
+#    set(BUILD_SHARED_LIBS "${Ymir_SHARED_LIBS}")
+#endif ()
 
 ## Build static libraries by default if BUILD_SHARED_LIBS is not specified
-if (NOT DEFINED BUILD_SHARED_LIBS)
-    set(BUILD_SHARED_LIBS OFF)
-endif ()
+#if (NOT DEFINED BUILD_SHARED_LIBS)
+#    set(BUILD_SHARED_LIBS OFF)
+#endif ()
 
 ## Configure Visual Studio solution
 if (MSVC)

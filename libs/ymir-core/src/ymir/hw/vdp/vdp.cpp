@@ -3405,8 +3405,12 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
             };
 
             for (uint8 pnIndex = 0; pnIndex < 4; ++pnIndex) {
-                if ((bgPN & (1u << pnIndex)) != 0 && ((bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) != bgCP)) {
-                    bgParams.charPatDelay = bgCP < bgPN;
+                // Delay happens when either:
+                // - CP access happens entirely before PN access
+                // - CP access occurs in illegal time slot
+                if ((bgPN & (1u << pnIndex)) != 0 &&
+                    (bgCP < bgPN || (bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) != bgCP)) {
+                    bgParams.charPatDelay = true;
                     break;
                 }
             }

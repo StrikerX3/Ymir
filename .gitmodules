@@ -1,18 +1,6 @@
-[submodule "vendor/fmt"]
-	path = vendor/fmt
-	url = https://github.com/fmtlib/fmt.git
-[submodule "vendor/SDL"]
-	path = vendor/SDL
-	url = https://github.com/libsdl-org/SDL.git
 [submodule "vendor/mio"]
 	path = vendor/mio
 	url = https://github.com/StrikerX3/mio.git
-[submodule "vendor/cxxopts"]
-	path = vendor/cxxopts
-	url = https://github.com/jarro2783/cxxopts.git
-[submodule "vendor/Catch2"]
-	path = vendor/Catch2
-	url = https://github.com/catchorg/Catch2.git
 [submodule "vendor/concurrentqueue"]
 	path = vendor/concurrentqueue
 	url = https://github.com/cameron314/concurrentqueue.git
@@ -26,9 +14,6 @@
 [submodule "vendor/xxHash/xxHash"]
 	path = vendor/xxHash/xxHash
 	url = https://github.com/Cyan4973/xxHash
-[submodule "vendor/cereal"]
-	path = vendor/cereal
-	url = https://github.com/USCiLab/cereal.git
 [submodule "vendor/lz4/lz4"]
 	path = vendor/lz4/lz4
 	url = https://github.com/lz4/lz4.git
@@ -38,6 +23,6 @@
 [submodule "vendor/libchdr"]
 	path = vendor/libchdr
 	url = https://github.com/rtissera/libchdr.git
-[submodule "vendor/rtmidi"]
-	path = vendor/rtmidi
-	url = https://github.com/thestk/rtmidi.git
+[submodule "vcpkg"]
+	path = vcpkg
+	url = https://github.com/microsoft/vcpkg.git
