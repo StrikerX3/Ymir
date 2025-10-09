@@ -80,7 +80,7 @@ jobs:
 
   build-linux-x64:
     name: linux-x64
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -105,13 +105,33 @@ jobs:
             libxtst-dev libxkbcommon-dev libdrm-dev \
             libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
             libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev \
-            libudev-dev
+            libudev-dev mono-complete nuget clang-15
+
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Add NuGet sources to vcpkg
+        shell: bash
+        env: 
+          VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+          USERNAME: StrikerX3
+          FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
+        run: |
+          nuget sources add \
+            -Source "${{ env.FEED_URL }}" \
+            -StorePasswordInClearText \
+            -Name GitHubPackages \
+            -UserName "${{ env.USERNAME }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
+            -Source "${{ env.FEED_URL }}"
 
       - name: Configure CMake
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++-15
+          -DCMAKE_C_COMPILER=clang-15
           -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DBUILD_SHARED_LIBS=OFF
@@ -128,7 +148,7 @@ jobs:
 
   build-linux-a64:
     name: linux-a64
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -153,13 +173,33 @@ jobs:
             libxtst-dev libxkbcommon-dev libdrm-dev \
             libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
             libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev \
-            libudev-dev
+            libudev-dev mono-complete nuget clang-15
+
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Add NuGet sources to vcpkg
+        shell: bash
+        env: 
+          VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+          USERNAME: StrikerX3
+          FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
+        run: |
+          nuget sources add \
+            -Source "${{ env.FEED_URL }}" \
+            -StorePasswordInClearText \
+            -Name GitHubPackages \
+            -UserName "${{ env.USERNAME }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
+            -Source "${{ env.FEED_URL }}"
 
       - name: Configure CMake
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++-15
+          -DCMAKE_C_COMPILER=clang-15
           -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DBUILD_SHARED_LIBS=OFF
@@ -232,8 +272,16 @@ jobs:
 
       matrix:
         arch:
-          - name: "universal"
-            isa_name: "'x86_64;arm64'"
+          - name: "x64"
+            isa_name: "x86_64"
+            triplet_arch: "x64"
+          - name: "arm64"
+            isa_name: "arm64"
+            triplet_arch: "arm64"
+          # Disabled because vcpkg doesn't support universal binaries
+          # See https://github.com/microsoft/vcpkg/discussions/19454
+          #- name: "universal"
+          #  isa_name: "'x86_64;arm64'"
 
     steps:
       - uses: actions/checkout@v4
@@ -246,6 +294,30 @@ jobs:
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
+      - name: Install tools
+        shell: bash
+        run: brew install mono nuget
+
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
+
+      - name: Add NuGet sources to vcpkg
+        shell: bash
+        env: 
+          VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
+          USERNAME: StrikerX3
+          FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
+        run: |
+          nuget sources add \
+            -Source "${{ env.FEED_URL }}" \
+            -StorePasswordInClearText \
+            -Name GitHubPackages \
+            -UserName "${{ env.USERNAME }}" \
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
+            -Source "${{ env.FEED_URL }}"
+
       - name: Configure CMake
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
@@ -253,6 +325,7 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DBUILD_SHARED_LIBS=OFF
           -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch.isa_name }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.arch.triplet_arch }}-osx
           -DYmir_ENABLE_DEVLOG=OFF
           -DYmir_ENABLE_IMGUI_DEMO=OFF
           -DYmir_ENABLE_SANDBOX=OFF
