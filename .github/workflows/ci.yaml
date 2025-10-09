@@ -24,7 +24,7 @@ jobs:
         arch:
           - name: x64
             runner: windows-2025
-            vcpkg_triplet: x64-win-llvm-lto-static-md
+            vcpkg_triplet: x64-win-llvm-static-md
           - name: a64
             runner: windows-11-arm
             vcpkg_triplet: arm64-windows
