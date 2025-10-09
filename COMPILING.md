@@ -44,10 +44,15 @@ It is highly recommended to use [Ninja](https://ninja-build.org/) as it greatly 
 To build Ymir on Windows, you will need [Visual Studio 2022 Community](https://visualstudio.microsoft.com/vs/community/) and [CMake 3.28+](https://cmake.org/).
 Clang is highly recommended over MSVC as it produces much higher quality code, outperforming MSVC by 50-80%. However, MSVC tends to provide a better debugging experience.
 
-All dependencies are included in the `vendor` directory and are built together with the emulator. No external dependencies are needed.
+All dependencies are included through `vcpkg` and in the `vendor` directory, and are built together with the emulator. No external dependencies are needed.
 
 You can choose to generate a .sln file with CMake or open the directory directly with Visual Studio.
 Both methods work, but opening the directory allows Visual Studio to use Ninja for significantly faster build times.
+If you choose to generate the .sln file, you will need to specify the vcpkg toolchain:
+
+```sh
+cmake -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
+```
 
 
 ## Building on Linux
@@ -59,7 +64,7 @@ The compiler of choice for this platform is Clang. GCC is also supported, but pr
 Use CMake to generate a Makefile or (preferably) a Ninja build script:
 
 ```sh
-cmake -S . -B build -G Ninja
+cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
 Pass additional `-D<option>=<value>` parameters to tune the build. See the [Build configuration](#build-configuration) section above for details.
@@ -106,7 +111,8 @@ cmake -S . -B build -G Ninja \
     -DCMAKE_CXX_FLAGS=-I/usr/local/include \
     -DCMAKE_C_COMPILER=clang19 \
     -DCMAKE_C_FLAGS=-I/usr/local/include \
-    -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/lib
+    -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/lib \
+    -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
 Pass additional `-D<option>=<value>` parameters to tune the build. See the [Build configuration](#build-configuration) section above for details.
@@ -147,7 +153,7 @@ Pass additional `-D<option>=<value>` parameters to tune the build. See the [Buil
 You can use CMake to build the project, regardless of generator:
 
 ```sh
-cmake --build build --parallel
+cmake --build build --parallel -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
 
