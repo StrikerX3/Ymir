@@ -68,7 +68,7 @@ jobs:
           CC: clang
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DVCPKG_TARGET_TRIPLET=${{ matrix.architecture.vcpkg_triplet }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.arch.vcpkg_triplet }}
           -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_BUILD_TYPE=Debug
