@@ -54,6 +54,8 @@ If you choose to generate the .sln file, you will need to specify the vcpkg tool
 cmake -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
+Ymir uses custom Windows triplets to ensure all libraries are statically linked when possible. You can find the overridden triplets in the `vcpkg-triplets` folder.
+
 
 ## Building on Linux
 
