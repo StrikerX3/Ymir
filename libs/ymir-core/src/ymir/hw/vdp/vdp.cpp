@@ -3671,11 +3671,11 @@ void VDP::VDP2DrawLine(uint32 y, bool altField) {
 
     // Calculate window for sprite layer
     if (altField) {
-        VDP2CalcWindow<true>(VDP2GetY<deinterlace>(y) ^ altField, regs2.spriteParams.windowSet, regs2.windowParams,
-                             std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
+        VDP2CalcWindow<true>(VDP2GetY<deinterlace>(y) ^ static_cast<uint32>(altField), regs2.spriteParams.windowSet,
+                             regs2.windowParams, std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
     } else {
-        VDP2CalcWindow<false>(VDP2GetY<deinterlace>(y) ^ altField, regs2.spriteParams.windowSet, regs2.windowParams,
-                              std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
+        VDP2CalcWindow<false>(VDP2GetY<deinterlace>(y) ^ static_cast<uint32>(altField), regs2.spriteParams.windowSet,
+                              regs2.windowParams, std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
     }
 
     // Draw sprite layer

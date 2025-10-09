@@ -32,6 +32,7 @@ void VDP2DebugOverlayView::Display() {
         case OverlayType::Windows: return "Windows";
         case OverlayType::RotParams: return "RBG0 rotation parameters";
         case OverlayType::ColorCalc: return "Color calculations";
+        default: return "Invalid";
         }
     };
 

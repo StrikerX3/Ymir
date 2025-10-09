@@ -485,7 +485,7 @@ FORCE_INLINE uint8 SMPC::ReadSF() const {
     if constexpr (peek) {
         return SF;
     } else {
-        return SF | (m_busValue & 0xFE);
+        return static_cast<uint8>(SF) | (m_busValue & 0xFE);
     }
 }
 
