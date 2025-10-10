@@ -14,6 +14,10 @@ on:
         required: false
         default: ""
         type: string
+    outputs:
+      app-version:
+        description: "The app version string as shown in the About window"
+        value: ${{ jobs.get-project-version.outputs.project-version-unfiltered }}
   workflow_dispatch: # Enable manual runs
     inputs:
       dev-build:
@@ -42,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       project-version: ${{ steps.project-version.outputs.project-version }}
+      project-version-unfiltered: ${{ steps.project-version.outputs.project-version-unfiltered }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,10 +59,12 @@ jobs:
         shell: bash
         run: |
           if [ ${{ inputs.dev-build }} = true ]; then
-            echo "project-version=v$(sed -nr "s/project\(Ymir\s+VERSION\s+(\S+)\)/\1/p" CMakeLists.txt)-dev-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+            export PROJ_VER="v$(sed -nr "s/project\(Ymir\s+VERSION\s+(\S+)\)/\1/p" CMakeLists.txt)-dev+${GITHUB_SHA::8}"
           else
-            echo "project-version=${GITHUB_REF_NAME//+/_}" >> "$GITHUB_OUTPUT"
+            echo "project-version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
+          echo "project-version=${PROJ_VER//+/_}" >> "$GITHUB_OUTPUT"
+          echo "project-version-unfiltered=${PROJ_VER}" >> "$GITHUB_OUTPUT"
 
   build-windows:
     name: windows-${{ matrix.c_compiler }}-${{ matrix.architecture.name }}
