@@ -10,21 +10,31 @@
 
 // Includes for versions only
 #include <SDL3/SDL.h>
+#include <curl/curlver.h>
 #include <cxxopts.hpp>
 #include <fmt/format.h>
 #include <lz4.h>
+#include <nghttp2/nghttp2ver.h>
+#include <nghttp3/version.h>
+#include <ngtcp2/version.h>
+#include <nlohmann/json.hpp>
+#include <openssl/opensslv.h>
 #include <rtmidi/RtMidi.h>
 #include <toml++/toml.hpp>
 #include <xxhash.h>
 
 #define _STR_IMPL(x) #x
 #define _STR(x) _STR_IMPL(x)
+#define BROTLI_VERSION "1.1.0" // Not exported
 #define CEREAL_VERSION "1.3.2" // Not exported
 #define CMRC_VERSION "2.0.0"   // Not exported
+#define CURL_VERSION _STR(LIBCURL_VERSION_MAJOR) "." _STR(LIBCURL_VERSION_MINOR) "." _STR(LIBCURL_VERSION_PATCH)
 #define CXXOPTS_VERSION _STR(CXXOPTS__VERSION_MAJOR) "." _STR(CXXOPTS__VERSION_MINOR) "." _STR(CXXOPTS__VERSION_PATCH)
 #define IMGUI_VERSION_FULL IMGUI_VERSION " (" _STR(IMGUI_VERSION_NUM) ")"
 #define LZMA_VERSION "24.05" // Private dependency of libchdr
 #define MIO_VERSION "1.1.0"  // Not exported
+#define NLOHMANN_JSON_VERSION \
+    _STR(NLOHMANN_JSON_VERSION_MAJOR) "." _STR(NLOHMANN_JSON_VERSION_MINOR) "." _STR(NLOHMANN_JSON_VERSION_PATCH)
 #define SDL_VERSION_STR _STR(SDL_MAJOR_VERSION) "." _STR(SDL_MINOR_VERSION) "." _STR(SDL_MICRO_VERSION)
 #define STB_IMAGE_VERSION "2.30"       // Not exported
 #define STB_IMAGE_WRITE_VERSION "1.16" // Not exported
@@ -66,6 +76,7 @@ inline constexpr License licenseBSD3        {.name = "BSD-3-Clause",  .url = "ht
 //inline constexpr License licenseBSL         {.name = "BSL-1.0", .      url = "https://opensource.org/license/bsl-1-0"};
 //inline constexpr License licenseISC         {.name = "ISC",           .url = "https://opensource.org/licenses/ISC"};
 inline constexpr License licenseMIT         {.name = "MIT",           .url = "https://opensource.org/licenses/MIT"};
+inline constexpr License licenseMITCurl     {.name = "MIT-cURL",      .url = "https://github.com/curl/curl/blob/master/COPYING"};
 inline constexpr License licenseMITRtMidi   {.name = "MIT-RtMidi",    .url = "https://github.com/thestk/rtmidi/blob/master/LICENSE"};
 inline constexpr License licensePublicDomain{.name = "Public domain", .url = nullptr};
 //inline constexpr License licenseUnlicense   {.name = "Unlicense",     .url = "https://opensource.org/licenses/unlicense"};
@@ -81,8 +92,10 @@ static const struct {
     const bool repoPrivate = false;
     const char *homeURL = nullptr;
 } depsCode[] = {
+    {.name = "Brotli",                        .version = BROTLI_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/google/brotli",               .licenseURL = "https://github.com/google/brotli/blob/master/LICENSE"},
     {.name = "cereal",                        .version = CEREAL_VERSION,             .license = licenseBSD3,          .repoURL = "https://github.com/USCiLab/cereal",              .licenseURL = "https://github.com/USCiLab/cereal/blob/master/LICENSE",                  .homeURL = "https://uscilab.github.io/cereal/index.html"},
     {.name = "CMakeRC",                       .version = CMRC_VERSION,               .license = licenseMIT,           .repoURL = "https://github.com/vector-of-bool/cmrc",         .licenseURL = "https://github.com/vector-of-bool/cmrc/blob/master/LICENSE.txt"},
+    {.name = "curl",                          .version = CURL_VERSION,               .license = licenseMITCurl,       .repoURL = "https://github.com/curl/curl",                   .licenseURL = "https://github.com/curl/curl/blob/master/COPYING",                       .homeURL = "https://curl.se/"},
     {.name = "cxxopts",                       .version = CXXOPTS_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/jarro2783/cxxopts",           .licenseURL = "https://github.com/jarro2783/cxxopts/blob/master/LICENSE"},
     {.name = "Dear ImGui",                    .version = IMGUI_VERSION_FULL,         .license = licenseMIT,           .repoURL = "https://github.com/ocornut/imgui",               .licenseURL = "https://github.com/ocornut/imgui/blob/master/LICENSE.txt"},
     {.name = "{fmt}",                         .version = fmtVersion.c_str(),         .license = licenseMIT,           .repoURL = "https://github.com/fmtlib/fmt",                  .licenseURL = "https://github.com/fmtlib/fmt/blob/master/LICENSE",                      .homeURL = "https://fmt.dev/latest/index.html"},
@@ -92,6 +105,11 @@ static const struct {
     {.name = "lzma",                          .version = LZMA_VERSION,               .license = licensePublicDomain,                                                                                                                                                       .homeURL = "https://www.7-zip.org/sdk.html",},
     {.name = "mio",                           .version = MIO_VERSION,                .license = licenseMIT,           .repoURL = "https://github.com/StrikerX3/mio",               .licenseURL = "https://github.com/StrikerX3/mio/blob/master/LICENSE"},
     {.name = "moodycamel::\nConcurrentQueue", .version = "\n" MC_CONCQUEUE_VERSION,  .license = licenseBSD2,          .repoURL = "https://github.com/cameron314/concurrentqueue",  .licenseURL = "https://github.com/cameron314/concurrentqueue/blob/master/LICENSE.md"},
+    {.name = "nghttp2",                       .version = NGHTTP2_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/nghttp2/nghttp2",             .licenseURL = "https://github.com/nghttp2/nghttp2/blob/master/COPYING",                 .homeURL = "https://nghttp2.org/"},
+    {.name = "nghttp3",                       .version = NGHTTP3_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/ngtcp2/nghttp3",              .licenseURL = "https://github.com/ngtcp2/nghttp3/blob/main/COPYING",                    .homeURL = "https://nghttp2.org/nghttp3/"},
+    {.name = "ngtcp2",                        .version = NGTCP2_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/ngtcp2/ngtcp2",               .licenseURL = "https://github.com/ngtcp2/ngtcp2/blob/main/COPYING",                     .homeURL = "https://nghttp2.org/ngtcp2/"},
+    {.name = "nlohmann/json",                 .version = NLOHMANN_JSON_VERSION,      .license = licenseMIT,           .repoURL = "https://github.com/nlohmann/json",               .licenseURL = "https://github.com/nlohmann/json/blob/develop/LICENSE.MIT",              .homeURL = "https://json.nlohmann.me/"},
+    {.name = "OpenSSL",                       .version = OPENSSL_FULL_VERSION_STR,   .license = licenseApache2_0,     .repoURL = "https://github.com/openssl/openssl",             .licenseURL = "https://github.com/openssl/openssl/blob/master/LICENSE.txt",             .homeURL = "https://www.openssl.org/"},
     {.name = "RtMidi",                        .version = RTMIDI_VERSION,             .license = licenseMITRtMidi,     .repoURL = "https://github.com/thestk/rtmidi",               .licenseURL = "https://github.com/thestk/rtmidi/blob/master/LICENSE"},
     {.name = "SDL3",                          .version = SDL_VERSION_STR,            .license = licenseZlib,          .repoURL = "https://github.com/libsdl-org/SDL",              .licenseURL = "https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt"},
     {.name = "SDL_GameControllerDB",                                                 .license = licenseZlib,          .repoURL = "https://github.com/mdqinc/SDL_GameControllerDB", .licenseURL = "https://github.com/mdqinc/SDL_GameControllerDB/blob/master/LICENSE"},
