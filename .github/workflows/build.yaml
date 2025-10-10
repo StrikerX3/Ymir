@@ -194,8 +194,6 @@ jobs:
           Copy-Item -Path ".\vendor\imgui\imgui\LICENSE.txt"                  -Destination "$licensesDir\imgui-LICENSE.txt"
           Copy-Item -Path ".\vendor\libchdr\LICENSE.txt"                      -Destination "$licensesDir\libchdr-LICENSE.txt"
           Copy-Item -Path ".\vendor\libchdr\deps\lzma-24.05\LICENSE"          -Destination "$licensesDir\lzma-LICENSE"
-          Copy-Item -Path ".\vendor\libchdr\deps\zlib-1.3.1\LICENSE"          -Destination "$licensesDir\zlib-LICENSE"
-          Copy-Item -Path ".\vendor\libchdr\deps\zstd-1.5.6\LICENSE"          -Destination "$licensesDir\zstd-LICENSE"
           Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                      -Destination "$licensesDir\lz4-LICENSE"
           Copy-Item -Path ".\vendor\mio\LICENSE"                              -Destination "$licensesDir\mio-LICENSE"
           Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                    -Destination "$licensesDir\xxHash-LICENSE"
@@ -335,8 +333,6 @@ jobs:
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/LICENSE.txt                        licenses/libchdr-LICENSE.txt
           cp -f vendor/libchdr/deps/lzma-24.05/LICENSE            licenses/lzma-LICENSE
-          cp -f vendor/libchdr/deps/zlib-1.3.1/LICENSE            licenses/zlib-LICENSE
-          cp -f vendor/libchdr/deps/zstd-1.5.6/LICENSE            licenses/zstd-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
@@ -463,8 +459,6 @@ jobs:
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/LICENSE.txt                        licenses/libchdr-LICENSE.txt
           cp -f vendor/libchdr/deps/lzma-24.05/LICENSE            licenses/lzma-LICENSE
-          cp -f vendor/libchdr/deps/zlib-1.3.1/LICENSE            licenses/zlib-LICENSE
-          cp -f vendor/libchdr/deps/zstd-1.5.6/LICENSE            licenses/zstd-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
