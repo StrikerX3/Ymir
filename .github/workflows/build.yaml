@@ -209,7 +209,7 @@ jobs:
           path: ${{ steps.strings.outputs.ymir-artifact-name }}.zip
 
   build-linux:
-    name: linux-${{ matrix.c_compiler }}-${{ matrix.architecture.name }}
+    name: linux-${{ matrix.compiler }}-${{ matrix.architecture.name }}
     runs-on: ${{ matrix.architecture.runner }}
     needs: [get-project-version]
 
@@ -220,7 +220,7 @@ jobs:
         build_type: [Release]
         # Notes about compilers:
         # - GCC (gcc) gets stuck building sh2.cpp (didn't finish after 12+ hours)
-        c_compiler: [clang-15] # [clang, gcc]
+        compiler: [clang] # [clang, gcc]
         architecture:
           - name: "x86_64-SSE2"
             enable_avx2_option: "OFF"
@@ -232,7 +232,8 @@ jobs:
             enable_avx2_option: "OFF" # doesn't matter actually
             runner: ubuntu-22.04-arm
         include:
-          - c_compiler: "clang-15"
+          - compiler: clang
+            c_compiler: "clang-15"
             cpp_compiler: "clang++-15"
 
     steps:
