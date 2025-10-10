@@ -101,13 +101,15 @@ jobs:
           make_latest: false
           tag_name: ${{ env.NIGHTLY_TAG_NAME }}
           body: |
-            <!-- Version-String [${{ needs.build-all.outputs.app-version }}] -->
             This is a nightly release built from the latest commit. Before you use these builds, **make sure to backup your data, especially the save states!**
           
             Save states are constantly evolving and are only guaranteed to be compatible on stable (numbered) releases.
             The file format may be changed without notice, so be careful when using save states from nightly releases.
 
             You can find the changelog for this build [here](https://github.com/StrikerX3/Ymir/blob/latest-nightly/CHANGELOG.md).
+
+            <!-- Version-String [${{ needs.build-all.outputs.app-version }}] -->
+            <!-- Build-Timestamp [${{ needs.build-all.outputs.build-timestamp }}] -->
           files: |
             ymir/*
           

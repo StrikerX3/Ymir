@@ -372,6 +372,9 @@ target_compile_definitions(ymir-core PUBLIC Ymir_VERSION_MINOR=${Ymir_VERSION_MI
 target_compile_definitions(ymir-core PUBLIC Ymir_VERSION_PATCH=${Ymir_VERSION_PATCH})
 target_compile_definitions(ymir-core PUBLIC Ymir_VERSION_PRERELEASE="${Ymir_VERSION_PRERELEASE}")
 target_compile_definitions(ymir-core PUBLIC Ymir_VERSION_BUILD="${Ymir_VERSION_BUILD}")
+if (DEFINED Ymir_BUILD_TIMESTAMP AND NOT Ymir_BUILD_TIMESTAMP STREQUAL "")
+    target_compile_definitions(ymir-core PUBLIC Ymir_BUILD_TIMESTAMP="${Ymir_BUILD_TIMESTAMP}")
+endif ()
 
 ## Define additional macros
 target_compile_definitions(ymir-core PUBLIC "Ymir_ENABLE_DEVLOG=$<BOOL:${Ymir_ENABLE_DEVLOG}>")

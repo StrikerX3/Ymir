@@ -18,6 +18,9 @@ on:
       app-version:
         description: "The app version string as shown in the About window"
         value: ${{ jobs.get-project-version.outputs.project-version-unfiltered }}
+      build-timestamp:
+        description: "The build timestamp"
+        value: ${{ jobs.get-project-version.outputs.build-timestamp }}
   workflow_dispatch: # Enable manual runs
     inputs:
       dev-build:
@@ -47,6 +50,7 @@ jobs:
     outputs:
       project-version: ${{ steps.project-version.outputs.project-version }}
       project-version-unfiltered: ${{ steps.project-version.outputs.project-version-unfiltered }}
+      build-timestamp: ${{ steps.project-version.outputs.build-timestamp }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,10 +65,11 @@ jobs:
           if [ ${{ inputs.dev-build }} = true ]; then
             export PROJ_VER="v$(sed -nr "s/project\(Ymir\s+VERSION\s+(\S+)\)/\1/p" CMakeLists.txt)-dev+${GITHUB_SHA::8}"
           else
-            echo "project-version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            export PROJ_VER="${GITHUB_REF_NAME}"
           fi
           echo "project-version=${PROJ_VER//+/_}" >> "$GITHUB_OUTPUT"
           echo "project-version-unfiltered=${PROJ_VER}" >> "$GITHUB_OUTPUT"
+          echo "build-timestamp=${date +'%Y-%m-%dT%H:%M:%S'}" >> "$GITHUB_OUTPUT"
 
   build-windows:
     name: windows-${{ matrix.c_compiler }}-${{ matrix.architecture.name }}
@@ -160,6 +165,7 @@ jobs:
           -DYmir_EXTRA_INLINING=ON
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
+          -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
           -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
           -S ${{ github.workspace }}
           -G Ninja
@@ -307,6 +313,7 @@ jobs:
           -DYmir_EXTRA_INLINING=ON
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
+          -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
           -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
           -S ${{ github.workspace }}
           -G Ninja
@@ -433,6 +440,7 @@ jobs:
           -DYmir_EXTRA_INLINING=ON
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
+          -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
           -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
           -S ${{ github.workspace }}
           -G Ninja
