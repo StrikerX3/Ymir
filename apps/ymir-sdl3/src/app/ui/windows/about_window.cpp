@@ -594,14 +594,15 @@ void AboutWindow::DrawAcknowledgementsTab() {
         "Katanchiro, sasori95 / Immersion95, secreto7, Silanda, Sorer, TheCoolPup, waspennator, Zet-sensei.");
     ImGui::Unindent();
 
-    ImGui::TextUnformatted("To the ");
+    ImGui::TextUnformatted("To the current and former ");
     ImGui::SameLine(0, 0);
     ImGui::TextLinkOpenURL("Patreon supporters", "https://www.patreon.com/StrikerX3");
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(":");
     ImGui::Indent();
-    ImGui::TextUnformatted("Aydan Watkins, Diego Bartolom\u00E9, Elcorsico 28, Jeff Greulich, Julien P, khalifax10, "
-                           "Mored4u, Munch, Oliver Stadler.");
+    ImGui::TextUnformatted(
+        "Aitor Guevara, Aydan Watkins, Diego Bartolom\u00E9, Elcorsico 28, Jeff Greulich, Julien P, khalifax10, "
+        "Mored4u, Munch, Oliver Stadler.");
     ImGui::Unindent();
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
