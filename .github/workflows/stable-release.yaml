@@ -4,6 +4,9 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  packages: write
+
 jobs:
   parse-version:
     runs-on: ubuntu-latest

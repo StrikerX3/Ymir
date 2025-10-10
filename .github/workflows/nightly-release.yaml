@@ -14,6 +14,9 @@ on:
     - cron: '45 3 * * *'
   workflow_dispatch: # Enable manual runs
 
+permissions:
+  packages: write
+
 env:
   NIGHTLY_TAG_NAME: latest-nightly
 
