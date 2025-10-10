@@ -201,8 +201,12 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
         settings.audio.stepGranularity = 5;
 
+        const bool hasCDBlockROMs = [&] {
+            std::unique_lock lock{m_context.locks.romManager};
+            return !m_context.romManager.GetCDBlockROMs().empty();
+        }();
         settings.cdblock.readSpeedFactor = 2;
-        settings.cdblock.useLLE = true;
+        settings.cdblock.useLLE = hasCDBlockROMs;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes accuracy with no regard for performance.");
