@@ -442,6 +442,31 @@ int App::Run(const CommandLineOptions &options) {
     m_context.debuggers.dirtyTimestamp = clk::now();
     LoadDebuggerState();
 
+    {
+        // TODO: do these asynchronously
+        const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
+        auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath);
+        if (stableResult) {
+            devlog::info<grp::base>("Stable channel version: {}", stableResult.updateInfo.version.to_string());
+        } else {
+            devlog::warn<grp::base>("Failed to check for stable channel updates: {}", stableResult.errorMessage);
+        }
+
+        auto nightlyResult = m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath);
+        if (nightlyResult) {
+            devlog::info<grp::base>("Nightly channel version: {}", nightlyResult.updateInfo.version.to_string());
+        } else {
+            devlog::warn<grp::base>("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage);
+        }
+        // TODO: use this to compare against release versions
+        /*static constexpr semver::version currVer = [] {
+            static_assert(semver::valid(Ymir_VERSION), "Ymir_VERSION is not a valid semver string");
+            semver::version ver;
+            semver::parse(Ymir_VERSION, ver);
+            return ver;
+        }();*/
+    }
+
     RunEmulator();
 
     return 0;

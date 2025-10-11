@@ -3,15 +3,38 @@
 #include <app/profile.hpp>
 #include <util/std_lib.hpp>
 
+#include <ymir/core/types.hpp>
+
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <semver.hpp>
 
+#include <fstream>
+#include <optional>
 #include <regex>
 
 namespace app {
 
 static const std::regex g_buildPropertyPattern{"<!--\\s*@@\\s*([A-Za-z0-9-]+)\\s*\\[([^\\]]*)\\]\\s*@@\\s*-->",
                                                std::regex_constants::ECMAScript};
+
+struct UpdateInfoJSON {
+    std::string version;
+    std::chrono::seconds::rep buildTimestamp;
+    std::chrono::seconds::rep lastCheckTimestamp;
+};
+
+static void to_json(nlohmann::json &j, const UpdateInfoJSON &info) {
+    j = nlohmann::json{{"version", info.version},
+                       {"buildTimestamp", info.buildTimestamp},
+                       {"lastCheckTimestamp", info.lastCheckTimestamp}};
+}
+
+static void from_json(const nlohmann::json &j, UpdateInfoJSON &info) {
+    j.at("version").get_to(info.version);
+    j.at("buildTimestamp").get_to(info.buildTimestamp);
+    j.at("lastCheckTimestamp").get_to(info.lastCheckTimestamp);
+}
 
 UpdateChecker::UpdateChecker() {
     curl_global_init(CURL_GLOBAL_ALL);
@@ -37,7 +60,7 @@ UpdateChecker::~UpdateChecker() {
     curl_global_cleanup();
 }
 
-bool UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path cacheRoot) {
+UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path cacheRoot) {
     const char *url;
     std::filesystem::path updateFileName;
     switch (channel) {
@@ -49,39 +72,54 @@ bool UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path cacheRoo
         url = "https://api.github.com/repos/StrikerX3/Ymir/releases/tags/latest-nightly";
         updateFileName = "nightly.json";
         break;
-    default: return false; // shouldn't happen
+    default: return UpdateResult::Failed("Invalid release channel");
     }
 
     // Get cached version if available
-    // auto updatesRootPath = m_profile.GetPath(ProfilePath::PersistentState) / "updates";
     auto updateFilePath = cacheRoot / updateFileName;
     if (std::filesystem::is_regular_file(updateFilePath)) {
-        // TODO: read, check TTL and return update info object from cache if not expired
-        return false;
+        try {
+            auto j = nlohmann::json::parse(std::ifstream{updateFilePath});
+            auto cachedInfo = j.template get<UpdateInfoJSON>();
+
+            // Check if cached value is still fresh
+            static constexpr auto kCacheTTL = std::chrono::hours{1};
+            std::chrono::system_clock::time_point tp{std::chrono::seconds{cachedInfo.lastCheckTimestamp}};
+            if (std::chrono::system_clock::now() <= tp + kCacheTTL) {
+                UpdateInfo info{};
+
+                // Require all components to be parsed correctly
+                if (semver::parse(cachedInfo.version, info.version)) {
+                    info.timestamp = std::chrono::sys_seconds{std::chrono::seconds{cachedInfo.buildTimestamp}};
+                    return UpdateResult::Ok(info);
+                }
+            }
+        } catch (const nlohmann::json::exception &) {
+            // Ignore error and force new fetch
+        }
     }
 
-    // Response is stale or not cached.
-    // Do new request then cache version and build info
+    // Cached response is stale, invalid or not found
+
+    // Create update response cache folder
     {
         std::error_code err{};
         std::filesystem::create_directories(cacheRoot, err);
         if (err) {
-            // TODO: notify error
-            return false;
+            return UpdateResult::Failed(
+                fmt::format("Could not create update request cache directory: {}", err.message()));
         }
     }
 
+    // Get version and build info
     std::string body{};
     CURLcode err = DoRequest(body, url);
     if (err != CURLE_OK) {
-        // TODO: notify error
-        // fmt::println("Web request failed: {}", curl_easy_strerror(err));
-        return false;
+        return UpdateResult::Failed(fmt::format("Web request failed: {}", curl_easy_strerror(err)));
     }
 
-    UpdateInfo info{};
-
     // Parse response
+    UpdateInfo info{};
     auto res = nlohmann::json::parse(body);
     if (channel == ReleaseChannel::Stable) {
         auto value = res["tag_name"].get<std::string>();
@@ -90,9 +128,7 @@ bool UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path cacheRoo
         }
 
         if (!semver::parse(value, info.version)) {
-            // TODO: notify error
-            // fmt::println("Could not parse {} as semver", value);
-            return false;
+            return UpdateResult::Failed(fmt::format("Could not parse {} as semantic version", value));
         }
     } else { // channel == ReleaseChannel::Nightly
         auto body = res["body"].get<std::string>();
@@ -100,51 +136,42 @@ bool UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path cacheRoo
         auto end = body.cend();
 
         std::smatch match;
-        std::unordered_map<std::string, std::string> matches{};
         while (std::regex_search(start, end, match, g_buildPropertyPattern)) {
             auto key = match[1].str();
             auto value = match[2].str();
             std::transform(key.begin(), key.end(), key.begin(), tolower);
-            matches[key] = value;
+            if (key == "version-string") {
+                if (value.starts_with("v")) {
+                    value = value.substr(1);
+                }
+
+                if (!semver::parse(value, info.version)) {
+                    return UpdateResult::Failed(fmt::format("Could not parse {} as semantic version", value));
+                }
+            } else if (key == "build-timestamp") {
+                if (auto updateTimestamp = util::parse8601(value)) {
+                    info.timestamp = *updateTimestamp;
+                } else {
+                    return UpdateResult::Failed(fmt::format("Could not parse {} as build timestamp", value));
+                }
+            }
             start = match.suffix().first;
         }
-
-        if (matches.contains("version-string")) {
-            std::string value = matches.at("version-string");
-            if (value.starts_with("v")) {
-                value = value.substr(1);
-            }
-
-            if (!semver::parse(value, info.version)) {
-                // TODO: notify error
-                // fmt::println("Could not parse {} as semver", value);
-                return false;
-            }
-        }
-
-        if (matches.contains("build-timestamp")) {
-            std::string value = matches.at("build-timestamp");
-            if (auto updateTimestamp = util::parse8601(value)) {
-                info.timestamp = *updateTimestamp;
-            } else {
-                // TODO: notify error
-                // fmt::println("Could not parse {} as build timestamp", value);
-                return false;
-            }
-        }
     }
-    // TODO: write update info to cache
 
-    // TODO: use this to compare against release versions
-    /*static constexpr semver::version currVer = [] {
-        static_assert(semver::valid(Ymir_VERSION), "Ymir_VERSION is not a valid semver string");
-        semver::version ver;
-        semver::parse(Ymir_VERSION, ver);
-        return ver;
-    }();*/
+    // Write update info to cache
+    {
+        UpdateInfoJSON infoJSON{.version = info.version.to_string(),
+                                .buildTimestamp = info.timestamp.time_since_epoch().count(),
+                                .lastCheckTimestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                                                          std::chrono::system_clock::now().time_since_epoch())
+                                                          .count()};
+        nlohmann::json j = infoJSON;
+        std::ofstream out{updateFilePath};
+        out << j;
+    }
 
-    // TODO: return update info object
-    return false;
+    return UpdateResult::Ok(info);
 }
 
 CURLcode UpdateChecker::DoRequest(std::string &out, const char *url) {
