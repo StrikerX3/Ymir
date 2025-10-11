@@ -442,42 +442,28 @@ int App::Run(const CommandLineOptions &options) {
     m_context.debuggers.dirtyTimestamp = clk::now();
     LoadDebuggerState();
 
-    {
-        // TODO: do these asynchronously
-        const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
-        auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath);
-        if (stableResult) {
-            devlog::info<grp::base>("Stable channel version: {}", stableResult.updateInfo.version.to_string());
-        } else {
-            devlog::warn<grp::base>("Failed to check for stable channel updates: {}", stableResult.errorMessage);
-        }
-
-        auto nightlyResult = m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath);
-        if (nightlyResult) {
-            devlog::info<grp::base>("Nightly channel version: {}", nightlyResult.updateInfo.version.to_string());
-        } else {
-            devlog::warn<grp::base>("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage);
-        }
-        // TODO: use this to compare against release versions
-        /*static constexpr semver::version currVer = [] {
-            static_assert(semver::valid(Ymir_VERSION), "Ymir_VERSION is not a valid semver string");
-            semver::version ver;
-            semver::parse(Ymir_VERSION, ver);
-            return ver;
-        }();*/
-    }
-
     RunEmulator();
 
     return 0;
 }
 
 void App::RunEmulator() {
-    lsn::CScopedNoSubnormals snsNoSubnormals{};
-
     using namespace std::chrono_literals;
     using namespace ymir;
     using namespace util;
+
+    lsn::CScopedNoSubnormals snsNoSubnormals{};
+
+    // Start update checker thread and fire update check immediately
+    m_updateCheckEvent.Set();
+    m_updateCheckerThread = std::thread([&] { UpdateCheckerThread(); });
+    ScopeGuard sgStopUpdateCheckerThread{[&] {
+        m_updateCheckerThreadRunning = false;
+        m_updateCheckEvent.Set();
+        if (m_updateCheckerThread.joinable()) {
+            m_updateCheckerThread.join();
+        }
+    }};
 
     // Get embedded file system
     auto embedfs = cmrc::Ymir_sdl3_rc::get_filesystem();
@@ -1615,7 +1601,7 @@ void App::RunEmulator() {
         }
     }};
 
-    // Start screenshots thread
+    // Start screenshot processor thread
     m_screenshotThread = std::thread([&] { ScreenshotThread(); });
     ScopeGuard sgStopScreenshotThread{[&] {
         m_screenshotThreadRunning = false;
@@ -3576,6 +3562,56 @@ void App::ScreenshotThread() {
 
             m_context.DisplayMessage(fmt::format("Screenshot saved to {}", screenshotPath));
         }
+    }
+}
+
+void App::UpdateCheckerThread() {
+    util::SetCurrentThreadName("Update checker thread");
+
+    // TODO: would be nice if this could be constexpr
+    static const auto currVersion = [] {
+        static_assert(semver::valid(Ymir_VERSION), "Ymir_VERSION is not a valid semver string");
+        semver::version version;
+        semver::parse(Ymir_VERSION, version);
+        return version;
+    }();
+
+    m_updateCheckerThreadRunning = true;
+    while (m_updateCheckerThreadRunning) {
+        m_updateCheckEvent.Wait();
+        m_updateCheckEvent.Reset();
+        if (!m_updateCheckerThreadRunning) {
+            break;
+        }
+
+        const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
+        auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath);
+        if (stableResult) {
+            devlog::info<grp::updater>("Stable channel version: {}", stableResult.updateInfo.version.to_string());
+        } else {
+            devlog::warn<grp::updater>("Failed to check for stable channel updates: {}", stableResult.errorMessage);
+        }
+
+        auto nightlyResult = m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath);
+        if (nightlyResult) {
+            devlog::info<grp::updater>("Nightly channel version: {}", nightlyResult.updateInfo.version.to_string());
+        } else {
+            devlog::warn<grp::updater>("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage);
+        }
+
+        // TODO: compare versions:
+        // - stable builds are more up-to-date than nightly builds if their versions are equal
+        //   - e.g. 0.2.0-dev+1234abcd (nightly) < 0.2.0 (stable)
+        // - if the update version > current Ymir version, update is available
+        // - if the latest version is a nightly build, then:
+        //   - if the current Ymir version is stable, nightly is newer
+        //   - if the current Ymir version is nightly, check nightly timestamp vs. Ymir_BUILD_TIMESTAMP
+        // - never update pure dev builds (not built by the pipeline)
+        //   - "pure dev build" == has Ymir_BUILD_TIMESTAMP defined
+        // - honor update check settings and state
+        //   - user can choose to only update to stable versions or include nightlies
+        //   - user can choose to ignore certain updates
+        //     - this needs to be persisted
     }
 }
 

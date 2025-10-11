@@ -68,10 +68,15 @@ private:
     std::mutex m_screenshotQueueMtx;
     bool m_screenshotThreadRunning;
 
+    std::thread m_updateCheckerThread;
+    util::Event m_updateCheckEvent;
+    bool m_updateCheckerThreadRunning;
+
     void RunEmulator();
 
     void EmulatorThread();
     void ScreenshotThread();
+    void UpdateCheckerThread();
 
     void OpenWelcomeModal(bool scanIPLROMS);
 

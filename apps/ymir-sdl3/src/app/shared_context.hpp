@@ -106,6 +106,7 @@ namespace grp {
     //
     // base
     //   media
+    //   updater
 
     struct base {
         static constexpr bool enabled = true;
@@ -115,6 +116,10 @@ namespace grp {
 
     struct media : public base {
         static constexpr std::string_view name = "App-Media";
+    };
+
+    struct updater : public base {
+        static constexpr std::string_view name = "App-Updater";
     };
 
 } // namespace grp
