@@ -2,6 +2,7 @@
 
 #include <ymir/version.hpp>
 
+#include <util/std_lib.hpp>
 #include <ymir/util/compiler_info.hpp>
 
 #include <app/ui/fonts/IconsMaterialSymbols.h>
@@ -268,8 +269,10 @@ void AboutWindow::DrawAboutTab() {
     ImGui::NewLine();
     ImGui::Text("Compiled with %s %s.", compiler::name, compiler::version::string.c_str());
 #ifdef Ymir_BUILD_TIMESTAMP
-    // TODO: parse date/time into a std::chrono timestamp to convert to the host's time zone
-    ImGui::TextUnformatted("Built at " Ymir_BUILD_TIMESTAMP);
+    if (auto buildTimestamp = util::parse8601(Ymir_BUILD_TIMESTAMP)) {
+        auto localBuildTime = util::to_local_time(*buildTimestamp);
+        ImGui::TextUnformatted(fmt::format("Built at {}", localBuildTime).c_str());
+    }
 #endif
 #if defined(__x86_64__) || defined(_M_X64)
     #ifdef Ymir_AVX2
