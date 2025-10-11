@@ -1,5 +1,7 @@
 #include "std_lib.hpp"
 
+#include <date/date.h>
+
 namespace util {
 
 tm to_local_time(std::chrono::system_clock::time_point tp) {
@@ -15,12 +17,12 @@ tm to_local_time(std::chrono::system_clock::time_point tp) {
     return tm;
 }
 
-std::optional<std::chrono::sys_time<std::chrono::seconds>> parse8601(std::string str) {
+std::optional<std::chrono::seconds> parse8601(std::string str) {
     std::istringstream in{str};
-    std::chrono::sys_time<std::chrono::seconds> tp{};
-    in >> std::chrono::parse("%FT%TZ", tp);
+    date::sys_time<std::chrono::seconds> tp{};
+    in >> date::parse("%FT%TZ", tp);
     if (in) {
-        return tp;
+        return tp.time_since_epoch();
     }
     return std::nullopt;
 }

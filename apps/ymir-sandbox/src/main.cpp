@@ -16,6 +16,8 @@
 #include <nlohmann/json.hpp>
 #include <semver.hpp>
 
+#include <date/date.h>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
@@ -1169,9 +1171,9 @@ tm to_local_time(std::chrono::system_clock::time_point tp) {
     return tm;
 }
 
-bool parse8601(std::string str, std::chrono::sys_time<std::chrono::seconds> &tp) {
+bool parse8601(std::string str, date::sys_time<std::chrono::seconds> &tp) {
     std::istringstream in{str};
-    in >> std::chrono::parse("%FT%TZ", tp);
+    in >> date::parse("%FT%TZ", tp);
     return !in.fail();
 }
 
@@ -1226,7 +1228,7 @@ static void runCurlSandbox() {
         }
         if (matches.contains("build-timestamp")) {
             std::string value = matches.at("build-timestamp");
-            std::chrono::sys_time<std::chrono::seconds> buildTimestamp;
+            date::sys_time<std::chrono::seconds> buildTimestamp;
             if (parse8601(value, buildTimestamp)) {
                 fmt::println("Parsed build timestamp: {}", buildTimestamp);
                 auto localNow = util::to_local_time(buildTimestamp);

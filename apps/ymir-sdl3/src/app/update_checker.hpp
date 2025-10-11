@@ -12,7 +12,7 @@ enum class ReleaseChannel { Stable, Nightly };
 
 struct UpdateInfo {
     semver::version<> version;
-    std::chrono::sys_time<std::chrono::seconds> timestamp;
+    std::chrono::seconds timestamp;
 };
 
 struct UpdateResult {

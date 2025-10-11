@@ -8,6 +8,6 @@
 namespace util {
 
 tm to_local_time(std::chrono::system_clock::time_point tp);
-std::optional<std::chrono::sys_time<std::chrono::seconds>> parse8601(std::string str);
+std::optional<std::chrono::seconds> parse8601(std::string str);
 
 } // namespace util

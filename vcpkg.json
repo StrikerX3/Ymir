@@ -13,7 +13,9 @@
       ]
     },
     "cxxopts",
+    "date",
     "fmt",
+    "neargye-semver",
     "nlohmann-json",
     "openssl",
     "rtmidi",
@@ -40,7 +42,6 @@
       "platform": "!windows"
     },
     "stb",
-    "tomlplusplus",
-    "neargye-semver"
+    "tomlplusplus"
   ]
 }

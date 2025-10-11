@@ -90,7 +90,7 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
 
                 // Require all components to be parsed correctly
                 if (semver::parse(cachedInfo.version, info.version)) {
-                    info.timestamp = std::chrono::sys_seconds{std::chrono::seconds{cachedInfo.buildTimestamp}};
+                    info.timestamp = std::chrono::seconds{cachedInfo.buildTimestamp};
                     return UpdateResult::Ok(info);
                 }
             }
@@ -162,7 +162,7 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
     // Write update info to cache
     {
         UpdateInfoJSON infoJSON{.version = info.version.to_string(),
-                                .buildTimestamp = info.timestamp.time_since_epoch().count(),
+                                .buildTimestamp = info.timestamp.count(),
                                 .lastCheckTimestamp = std::chrono::duration_cast<std::chrono::seconds>(
                                                           std::chrono::system_clock::now().time_since_epoch())
                                                           .count()};

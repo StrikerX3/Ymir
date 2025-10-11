@@ -347,6 +347,7 @@ endif()
 
 find_package(cereal CONFIG REQUIRED)
 find_package(cxxopts CONFIG REQUIRED)
+find_package(date CONFIG REQUIRED)
 find_package(OpenSSL CONFIG REQUIRED)
 find_package(CURL REQUIRED)
 find_package(fmt CONFIG REQUIRED)
@@ -366,6 +367,7 @@ target_link_libraries(ymir-sdl3 PRIVATE
     ymir::ymir-core
     ymir-sdl3::rc
     SDL3::SDL3
+    date::date
     fmt::fmt
     cxxopts::cxxopts
     imgui::imgui
