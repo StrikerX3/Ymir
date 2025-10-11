@@ -1192,7 +1192,7 @@ static void runCurlSandbox() {
     auto res = nlohmann::json::parse(out);
     if (res["tag_name"] == "latest-nightly") {
         fmt::println("Nightly build");
-        static const std::regex pattern{"<!--\\s*([A-Za-z0-9-]+)\\s*\\[([^\\]]*)\\]\\s*-->",
+        static const std::regex pattern{"<!--\\s*@@\\s*([A-Za-z0-9-]+)\\s*\\[([^\\]]*)\\]\\s*@@\\s*-->",
                                         std::regex_constants::ECMAScript};
         auto body = res["body"].get<std::string>();
         auto start = body.cbegin();

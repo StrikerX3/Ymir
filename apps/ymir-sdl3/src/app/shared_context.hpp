@@ -6,6 +6,7 @@
 #include <app/rewind_buffer.hpp>
 #include <app/rom_manager.hpp>
 #include <app/settings.hpp>
+#include <app/update_checker.hpp>
 
 #include <app/input/input_context.hpp>
 #include <app/input/input_utils.hpp>
@@ -456,6 +457,7 @@ struct SharedContext {
 
     Profile profile;
     Settings settings{*this};
+    UpdateChecker updateChecker;
 
     ROMManager romManager;
     std::filesystem::path iplRomPath;

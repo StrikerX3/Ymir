@@ -21,6 +21,8 @@ add_executable(ymir-sdl3
     src/app/shared_context.hpp
     src/app/stb_implementations.cpp
     src/app/toml_implementation.cpp
+    src/app/update_checker.cpp
+    src/app/update_checker.hpp
 
     src/app/debug/cdblock_tracer.cpp
     src/app/debug/cdblock_tracer.hpp

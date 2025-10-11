@@ -108,8 +108,9 @@ jobs:
 
             You can find the changelog for this build [here](https://github.com/StrikerX3/Ymir/blob/latest-nightly/CHANGELOG.md).
 
-            <!-- Version-String [${{ needs.build-all.outputs.app-version }}] -->
-            <!-- Build-Timestamp [${{ needs.build-all.outputs.build-timestamp }}] -->
+            <!-- Auto-generated section. Do not delete this! -->
+            <!-- @@ Version-String [${{ needs.build-all.outputs.app-version }}] @@ -->
+            <!-- @@ Build-Timestamp [${{ needs.build-all.outputs.build-timestamp }}] @@ -->
           files: |
             ymir/*
           
