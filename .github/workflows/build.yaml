@@ -69,7 +69,7 @@ jobs:
           fi
           echo "project-version=${PROJ_VER//+/_}" >> "$GITHUB_OUTPUT"
           echo "project-version-unfiltered=${PROJ_VER}" >> "$GITHUB_OUTPUT"
-          echo "build-timestamp=${date +'%Y-%m-%dT%H:%M:%S'}" >> "$GITHUB_OUTPUT"
+          echo "build-timestamp=$(date +'%Y-%m-%dT%H:%M:%S')" >> "$GITHUB_OUTPUT"
 
   build-windows:
     name: windows-${{ matrix.c_compiler }}-${{ matrix.architecture.name }}
