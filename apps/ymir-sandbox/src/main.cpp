@@ -1169,19 +1169,10 @@ tm to_local_time(std::chrono::system_clock::time_point tp) {
     return tm;
 }
 
-static std::chrono::sys_time<std::chrono::milliseconds> parse8601(std::istream &&is) {
-    std::string save;
-    is >> save;
-    std::istringstream in{save};
-    std::chrono::sys_time<std::chrono::milliseconds> tp;
+bool parse8601(std::string str, std::chrono::sys_time<std::chrono::seconds> &tp) {
+    std::istringstream in{str};
     in >> std::chrono::parse("%FT%TZ", tp);
-    if (in.fail()) {
-        in.clear();
-        in.exceptions(std::ios::failbit);
-        in.str(save);
-        in >> std::chrono::parse("%FT%T%Ez", tp);
-    }
-    return tp;
+    return !in.fail();
 }
 
 } // namespace util
@@ -1189,8 +1180,8 @@ static std::chrono::sys_time<std::chrono::milliseconds> parse8601(std::istream &
 static void runCurlSandbox() {
     CurlState curl{};
     std::string out{};
-    // const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/latest";
-    const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/tags/latest-nightly";
+    const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/latest";
+    // const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/tags/latest-nightly";
     CURLcode code =
         curl.Get(out, url, {{"Accept", "application/vnd.github+json"}, {"X-GitHub-Api-Version", "2022-11-28"}});
     if (code != CURLE_OK) {
@@ -1235,15 +1226,27 @@ static void runCurlSandbox() {
         }
         if (matches.contains("build-timestamp")) {
             std::string value = matches.at("build-timestamp");
-            const auto buildTimestamp = parse8601(std::istringstream{value});
-            fmt::println("Parsed build timestamp: {}", buildTimestamp);
-            auto localNow = util::to_local_time(buildTimestamp);
-            auto fracTime =
-                std::chrono::duration_cast<std::chrono::milliseconds>(buildTimestamp.time_since_epoch()).count() % 1000;
-            fmt::println("In local time: {}", localNow);
+            std::chrono::sys_time<std::chrono::seconds> buildTimestamp;
+            if (parse8601(value, buildTimestamp)) {
+                fmt::println("Parsed build timestamp: {}", buildTimestamp);
+                auto localNow = util::to_local_time(buildTimestamp);
+                fmt::println("In local time: {}", localNow);
+            } else {
+                fmt::println("Could not parse {} as build timestamp", value);
+            }
         }
     } else {
-        fmt::println("Release {}", res["tag_name"].get<std::string>());
+        auto value = res["tag_name"].get<std::string>();
+        if (value.starts_with("v")) {
+            value = value.substr(1);
+        }
+        fmt::println("Release v{}", value);
+        semver::version ver;
+        if (semver::parse(value, ver)) {
+            fmt::println("Parsed version: {}", ver.to_string());
+        } else {
+            fmt::println("Could not parse {} as semver", value);
+        }
     }
     // fmt::println("{}", res.dump());
 }
