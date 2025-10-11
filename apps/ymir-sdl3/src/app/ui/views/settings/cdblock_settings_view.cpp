@@ -30,9 +30,9 @@ void CDBlockSettingsView::Display() {
     ImGui::SeparatorText("Accuracy");
     ImGui::PopFont();
 
-    widgets::settings::cdblock::CDBlockLLE(m_context);
-
     ImGui::TextUnformatted("NOTE: Changing any of these options will cause a hard reset");
+
+    widgets::settings::cdblock::CDBlockLLE(m_context);
 
     ImGui::Separator();
 
@@ -62,7 +62,7 @@ void CDBlockSettingsView::Display() {
     if (ImGui::BeginTable("cdb_roms", 3,
                           ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti |
                               ImGuiTableFlags_SortTristate,
-                          ImVec2(0, 100 * m_context.displayScale))) {
+                          ImVec2(0, 150 * m_context.displayScale))) {
         ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch | ImGuiTableColumnFlags_DefaultSort, 0.0f);
         ImGui::TableSetupColumn("Version", ImGuiTableColumnFlags_WidthFixed, 60 * m_context.displayScale);
         ImGui::TableSetupColumn("##use", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort,
