@@ -15,6 +15,7 @@
     "cxxopts",
     "fmt",
     "nlohmann-json",
+    "openssl",
     "rtmidi",
     {
       "name": "sdl3",
@@ -40,6 +41,6 @@
     },
     "stb",
     "tomlplusplus",
-    "openssl"
+    "neargye-semver"
   ]
 }

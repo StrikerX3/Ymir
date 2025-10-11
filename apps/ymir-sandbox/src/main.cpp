@@ -14,6 +14,7 @@
 #include <fmt/format.h>
 #include <fmt/std.h>
 #include <nlohmann/json.hpp>
+#include <semver.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -24,6 +25,7 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <regex>
 #include <vector>
 
 using namespace util;
@@ -1104,6 +1106,7 @@ static void runBinCueLoaderSandbox(std::filesystem::path cuePath) {
     }
 }
 
+// Not thread safe!
 struct CurlState {
     CurlState() {
         curl_global_init(CURL_GLOBAL_ALL);
@@ -1120,7 +1123,6 @@ struct CurlState {
         curl_global_cleanup();
     }
 
-    // Not thread safe!
     CURLcode Get(std::string &out, const char *url, std::unordered_map<std::string, std::string> headers = {}) {
         if (!m_curl) {
             return CURLE_FAILED_INIT;
@@ -1154,8 +1156,10 @@ private:
 static void runCurlSandbox() {
     CurlState curl{};
     std::string out{};
-    CURLcode code = curl.Get(out, "https://api.github.com/repos/StrikerX3/Ymir/releases/latest",
-                             {{"Accept", "application/vnd.github+json"}, {"X-GitHub-Api-Version", "2022-11-28"}});
+    // const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/latest";
+    const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/tags/latest-nightly";
+    CURLcode code =
+        curl.Get(out, url, {{"Accept", "application/vnd.github+json"}, {"X-GitHub-Api-Version", "2022-11-28"}});
     if (code != CURLE_OK) {
         fmt::println("cURL request failed: {}", curl_easy_strerror(code));
         return;
@@ -1164,6 +1168,45 @@ static void runCurlSandbox() {
     auto res = nlohmann::json::parse(out);
     if (res["tag_name"] == "latest-nightly") {
         fmt::println("Nightly build");
+        static const std::regex pattern{"Version-String \\[v([^\\]]*)\\]",
+                                        std::regex_constants::ECMAScript | std::regex_constants::icase};
+        // auto verStr = res["body"].get<std::string>();
+        std::string verStr1 = "Version-String [v1.2.3-dev+1234abcd]";
+        std::string verStr2 = "Version-String [v1.2.3-dev+5678efab]";
+
+        std::smatch match1;
+        std::smatch match2;
+        if (std::regex_search(verStr1, match1, pattern) && std::regex_search(verStr2, match2, pattern)) {
+            verStr1 = match1[1].str();
+            verStr2 = match2[1].str();
+            fmt::println("{} {}", verStr1, verStr2);
+
+            semver::version ver1;
+            if (semver::parse(verStr1, ver1)) {
+                fmt::println("{}", ver1.to_string());
+            } else {
+                fmt::println("Could not parse {} as semver", verStr1);
+            }
+
+            semver::version ver2;
+            if (semver::parse(verStr2, ver2)) {
+                fmt::println("{}", ver2.to_string());
+            } else {
+                fmt::println("Could not parse {} as semver", verStr2);
+            }
+
+            // TODO: probably better to check build timestamp instead
+
+            fmt::println("{} {} {}", ver1 > ver2, ver1 < ver2, ver1 == ver2);
+            fmt::println("{} {}", ver1.major(), ver2.major());
+            fmt::println("{} {}", ver1.minor(), ver2.minor());
+            fmt::println("{} {}", ver1.patch(), ver2.patch());
+            fmt::println("{} {}", ver1.prerelease_tag(), ver2.prerelease_tag());
+            fmt::println("{} {}", ver1.build_metadata(), ver2.build_metadata());
+        } else {
+            fmt::println("Could not find version info");
+        }
+
     } else {
         fmt::println("Release {}", res["tag_name"].get<std::string>());
     }

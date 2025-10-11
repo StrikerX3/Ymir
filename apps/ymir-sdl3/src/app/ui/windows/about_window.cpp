@@ -20,6 +20,7 @@
 #include <nlohmann/json.hpp>
 #include <openssl/opensslv.h>
 #include <rtmidi/RtMidi.h>
+#include <semver.hpp>
 #include <toml++/toml.hpp>
 #include <xxhash.h>
 
@@ -36,6 +37,7 @@
 #define NLOHMANN_JSON_VERSION \
     _STR(NLOHMANN_JSON_VERSION_MAJOR) "." _STR(NLOHMANN_JSON_VERSION_MINOR) "." _STR(NLOHMANN_JSON_VERSION_PATCH)
 #define SDL_VERSION_STR _STR(SDL_MAJOR_VERSION) "." _STR(SDL_MINOR_VERSION) "." _STR(SDL_MICRO_VERSION)
+#define SEMVER_VERSION _STR(SEMVER_VERSION_MAJOR) "." _STR(SEMVER_VERSION_MINOR) "." _STR(SEMVER_VERSION_PATCH)
 #define STB_IMAGE_VERSION "2.30"       // Not exported
 #define STB_IMAGE_WRITE_VERSION "1.16" // Not exported
 #define MC_CONCQUEUE_VERSION "1.0.4"   // Not exported
@@ -105,6 +107,7 @@ static const struct {
     {.name = "lzma",                          .version = LZMA_VERSION,               .license = licensePublicDomain,                                                                                                                                                       .homeURL = "https://www.7-zip.org/sdk.html",},
     {.name = "mio",                           .version = MIO_VERSION,                .license = licenseMIT,           .repoURL = "https://github.com/StrikerX3/mio",               .licenseURL = "https://github.com/StrikerX3/mio/blob/master/LICENSE"},
     {.name = "moodycamel::\nConcurrentQueue", .version = "\n" MC_CONCQUEUE_VERSION,  .license = licenseBSD2,          .repoURL = "https://github.com/cameron314/concurrentqueue",  .licenseURL = "https://github.com/cameron314/concurrentqueue/blob/master/LICENSE.md"},
+    {.name = "Neargye/semver",                .version = SEMVER_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/Neargye/semver",              .licenseURL = "https://github.com/Neargye/semver/blob/master/LICENSE"},
     {.name = "nghttp2",                       .version = NGHTTP2_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/nghttp2/nghttp2",             .licenseURL = "https://github.com/nghttp2/nghttp2/blob/master/COPYING",                 .homeURL = "https://nghttp2.org/"},
     {.name = "nghttp3",                       .version = NGHTTP3_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/ngtcp2/nghttp3",              .licenseURL = "https://github.com/ngtcp2/nghttp3/blob/main/COPYING",                    .homeURL = "https://nghttp2.org/nghttp3/"},
     {.name = "ngtcp2",                        .version = NGTCP2_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/ngtcp2/ngtcp2",               .licenseURL = "https://github.com/ngtcp2/ngtcp2/blob/main/COPYING",                     .homeURL = "https://nghttp2.org/ngtcp2/"},
@@ -264,6 +267,10 @@ void AboutWindow::DrawAboutTab() {
 
     ImGui::NewLine();
     ImGui::Text("Compiled with %s %s.", compiler::name, compiler::version::string.c_str());
+#ifdef Ymir_BUILD_TIMESTAMP
+    // TODO: parse date/time into a std::chrono timestamp to convert to the host's time zone
+    ImGui::TextUnformatted("Built at " Ymir_BUILD_TIMESTAMP);
+#endif
 #if defined(__x86_64__) || defined(_M_X64)
     #ifdef Ymir_AVX2
     ImGui::Text("Using AVX2 instruction set.");
