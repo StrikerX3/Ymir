@@ -296,6 +296,13 @@ jobs:
           nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
             -Source "${{ env.FEED_URL }}"
 
+      # This absolute monstrosity of a hack is taken from https://github.com/microsoft/vcpkg/issues/46040
+      - name: Overwrite /usr/bin/mono
+        # nuget downloaded by vcpkg fetch on aarch64 is a shell script, not a CIL program.
+        # This prevents vcpkg from trying and failing to run it in mono.
+        if: matrix.architecture.name == 'AArch64-NEON'
+        run: sudo sh -c "mv /usr/bin/mono /usr/bin/mono-real && echo '#! /usr/bin/env bash\nif [ \"\$1\" = \"/usr/bin/nuget\" ]; then \$*; else /usr/bin/mono-real \$*; fi' > /usr/bin/mono && chmod 755 /usr/bin/mono"
+
       - name: Configure CMake
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
