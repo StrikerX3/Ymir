@@ -26,6 +26,7 @@
 #include <chrono>
 #include <filesystem>
 #include <regex>
+#include <sstream>
 #include <vector>
 
 using namespace util;
@@ -1153,6 +1154,38 @@ private:
     }
 };
 
+namespace util {
+
+tm to_local_time(std::chrono::system_clock::time_point tp) {
+    const time_t time = std::chrono::system_clock::to_time_t(tp);
+    tm tm;
+#if defined(_MSC_VER) || defined(_M_ARM64)
+    void(localtime_s(&tm, &time));
+#elif defined(__GNUC__)
+    localtime_r(&time, &tm);
+#else
+    tm = *localtime(&time);
+#endif
+    return tm;
+}
+
+static std::chrono::sys_time<std::chrono::milliseconds> parse8601(std::istream &&is) {
+    std::string save;
+    is >> save;
+    std::istringstream in{save};
+    std::chrono::sys_time<std::chrono::milliseconds> tp;
+    in >> std::chrono::parse("%FT%TZ", tp);
+    if (in.fail()) {
+        in.clear();
+        in.exceptions(std::ios::failbit);
+        in.str(save);
+        in >> std::chrono::parse("%FT%T%Ez", tp);
+    }
+    return tp;
+}
+
+} // namespace util
+
 static void runCurlSandbox() {
     CurlState curl{};
     std::string out{};
@@ -1168,45 +1201,47 @@ static void runCurlSandbox() {
     auto res = nlohmann::json::parse(out);
     if (res["tag_name"] == "latest-nightly") {
         fmt::println("Nightly build");
-        static const std::regex pattern{"Version-String \\[v([^\\]]*)\\]",
-                                        std::regex_constants::ECMAScript | std::regex_constants::icase};
-        // auto verStr = res["body"].get<std::string>();
-        std::string verStr1 = "Version-String [v1.2.3-dev+1234abcd]";
-        std::string verStr2 = "Version-String [v1.2.3-dev+5678efab]";
+        static const std::regex pattern{"<!--\\s*([A-Za-z0-9-]+)\\s*\\[([^\\]]*)\\]\\s*-->",
+                                        std::regex_constants::ECMAScript};
+        auto body = res["body"].get<std::string>();
+        auto start = body.cbegin();
+        auto end = body.cend();
 
-        std::smatch match1;
-        std::smatch match2;
-        if (std::regex_search(verStr1, match1, pattern) && std::regex_search(verStr2, match2, pattern)) {
-            verStr1 = match1[1].str();
-            verStr2 = match2[1].str();
-            fmt::println("{} {}", verStr1, verStr2);
-
-            semver::version ver1;
-            if (semver::parse(verStr1, ver1)) {
-                fmt::println("{}", ver1.to_string());
-            } else {
-                fmt::println("Could not parse {} as semver", verStr1);
-            }
-
-            semver::version ver2;
-            if (semver::parse(verStr2, ver2)) {
-                fmt::println("{}", ver2.to_string());
-            } else {
-                fmt::println("Could not parse {} as semver", verStr2);
-            }
-
-            // TODO: probably better to check build timestamp instead
-
-            fmt::println("{} {} {}", ver1 > ver2, ver1 < ver2, ver1 == ver2);
-            fmt::println("{} {}", ver1.major(), ver2.major());
-            fmt::println("{} {}", ver1.minor(), ver2.minor());
-            fmt::println("{} {}", ver1.patch(), ver2.patch());
-            fmt::println("{} {}", ver1.prerelease_tag(), ver2.prerelease_tag());
-            fmt::println("{} {}", ver1.build_metadata(), ver2.build_metadata());
-        } else {
-            fmt::println("Could not find version info");
+        std::smatch match;
+        std::unordered_map<std::string, std::string> matches{};
+        while (std::regex_search(start, end, match, pattern)) {
+            auto key = match[1].str();
+            auto value = match[2].str();
+            std::transform(key.begin(), key.end(), key.begin(), tolower);
+            matches[key] = value;
+            start = match.suffix().first;
         }
 
+        for (auto &[k, v] : matches) {
+            fmt::println("{} = {}", k, v);
+        }
+
+        if (matches.contains("version-string")) {
+            std::string value = matches.at("version-string");
+            if (value.starts_with("v")) {
+                value = value.substr(1);
+            }
+            semver::version ver;
+            if (semver::parse(value, ver)) {
+                fmt::println("Parsed version: {}", ver.to_string());
+            } else {
+                fmt::println("Could not parse {} as semver", value);
+            }
+        }
+        if (matches.contains("build-timestamp")) {
+            std::string value = matches.at("build-timestamp");
+            const auto buildTimestamp = parse8601(std::istringstream{value});
+            fmt::println("Parsed build timestamp: {}", buildTimestamp);
+            auto localNow = util::to_local_time(buildTimestamp);
+            auto fracTime =
+                std::chrono::duration_cast<std::chrono::milliseconds>(buildTimestamp.time_since_epoch()).count() % 1000;
+            fmt::println("In local time: {}", localNow);
+        }
     } else {
         fmt::println("Release {}", res["tag_name"].get<std::string>());
     }
