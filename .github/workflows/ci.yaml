@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
 
-env: 
+env:
   USERNAME: StrikerX3
   VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
   FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
@@ -162,12 +162,19 @@ jobs:
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
 
-  build-freebsd-x64:
-    name: freebsd-x64
-    runs-on: ubuntu-latest
-    # strategy:
-    #   matrix:
-    #     architecture: [ arm64, x86-64 ]
+  build-freebsd:
+    name: freebsd-${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        arch:
+          - name: x64
+            runner: ubuntu-22.04
+          # - name: arm64
+          #   runner: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -183,23 +190,24 @@ jobs:
       # TODO: configure vcpkg cache
 
       - uses: cross-platform-actions/action@v0.29.0
+        env:
+          CXX: clang++21
+          CC: clang21
+          PKG_CONFIG_PATH: ${{ github.workspace }}/vcpkg/packages/sdl3_${{ matrix.arch.name }}-freebsd/libdata/pkgconfig
         with:
           operating_system: freebsd
-          # architecture: ${{ matrix.architecture }}
-          architecture: x86-64
+          architecture: ${{ matrix.arch.name }}
           version: '14.3'
+          environment_variables: CXX CC PKG_CONFIG_PATH
           run: |
             sudo pkg upgrade -y
-            sudo pkg install -y cmake evdev-proto libX11 libXcursor libXext libXfixes \
-              libXi libXrandr libXrender libXScrnSaver libglvnd libinotify llvm21 \
-              ninja pkgconf vulkan-loader
+            sudo pkg install -y cmake evdev-proto git gmake libX11 libXcursor libXext \
+              libXfixes libXi libXrandr libXrender libXScrnSaver libglvnd libinotify \
+              llvm21 ninja patchelf pkgconf python3 vulkan-loader zip
+
+            ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
 
             cmake -B ${{ steps.strings.outputs.build-output-dir }} \
-              -DCMAKE_CXX_COMPILER=clang++21 \
-              -DCMAKE_CXX_FLAGS=-I/usr/local/include \
-              -DCMAKE_C_COMPILER=clang21 \
-              -DCMAKE_C_FLAGS=-I/usr/local/include \
-              -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/lib \
               -DCMAKE_BUILD_TYPE=Debug \
               -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
               -DBUILD_SHARED_LIBS=OFF \

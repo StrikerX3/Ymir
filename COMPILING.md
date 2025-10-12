@@ -80,59 +80,51 @@ cmake --build build --parallel
 
 ## Building on FreeBSD
 
-To build Ymir on FreeBSD, first you will need to install SDL3's required dependencies:
+Install required packages:
 
 ```sh
-pkg install evdev-proto libX11 libXcursor libXext libXfixes libXi libXrandr libXrender \
-    libXScrnSaver libglvnd libinotify pkgconf vulkan-loader
+pkg install cmake evdev-proto git gmake libX11 libXcursor libXext libXfixes libXi \
+    libXrandr libXrender libXScrnSaver libglvnd libinotify llvm19 ninja patchelf \
+    pkgconf python3 vulkan-loader zip
 ```
 
-The compiler of choice for this platform is Clang. Although a Clang compiler toolchain
-is provided with a base install of FreeBSD, it lacks the required `clang-scan-deps`
-binary. It is required to install a complete LLVM toolchain (arm64 builds require
-at least version 21 due to a compiler bug in lower versions):
+Notes:
+- A default FreeBSD installation provides a stripped-down LLVM toolchain which lacks
+  the required `clang-scan-deps` binary. Therefore it is necessary to install a
+  complete LLVM toolchain package, e.g. `llvm19`.
+- The usage of CMake's "Precompile Headers" feature triggers a compiler bug in LLVM
+  prior to version 21 for ARM64 builds on FreeBSD. Therefore it is necessary to install
+  and use at least `llvm21` for ARM64.
+
+Configure build:
 
 ```sh
-pkg install llvm19
+CXX=clang++19 \
+CC=clang19 \
+PKG_CONFIG_PATH=$PWD/vcpkg/packages/sdl3_x64-freebsd/libdata/pkgconfig \
+cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
-Finally, install CMake. Compiling with Ninja is generally recommended:
-
-```sh
-pkg install cmake ninja
-```
-
-Use CMake to generate a Makefile or (preferably) a Ninja build script. It is necessary
-to tell CMake to use the correct compiler from the previous LLVM installation. It
-is also recommended to add the paths `/usr/local/include` and `/usr/local/lib` to
-the build environment:
-
-```sh
-cmake -S . -B build -G Ninja \
-    -DCMAKE_CXX_COMPILER=clang++19 \
-    -DCMAKE_CXX_FLAGS=-I/usr/local/include \
-    -DCMAKE_C_COMPILER=clang19 \
-    -DCMAKE_C_FLAGS=-I/usr/local/include \
-    -DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/lib \
-    -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
-```
+Notes:
+- By default vcpkg and CMake will use the stripped-down LLVM toolchain instead of
+  the previously installed complete toolchain. Therefore it is necessary to set
+  the `CXX` and `CC` environment variables to the correct compilers.
+- For some unknown reason vcpkg fails to locate the `sdl3.pc` file from its packages.
+  Therefore it is necessary to add the absolute path to the `pkgconfig` directory
+  to the `PKG_CONFIG_PATH` environment variable.
+- The dependency RtMidi will be build with ALSA support if the `alsa-libs` package
+  is installed on the build host. In this case Ymir will fail to start because RtMidi
+  tries to access `/dev/snd/seq` which isn't available on FreeBSD out-of-the box.
+  Either ensure `alsa-libs` isn't installed when building, or install the `alsa-seq-server`
+  package and start its service.
 
 Pass additional `-D<option>=<value>` parameters to tune the build. See the [Build configuration](#build-configuration) section above for details.
 
-You can use CMake to build the project, regardless of generator:
+Build:
 
 ```sh
 cmake --build build --parallel
 ```
-
-If you have ALSA libraries installed during compilation (`alsa-libs` package is
-installed), the vendored dependency RtMidi will be build with ALSA support. Ymir
-will fail to start because RtMidi tries to access `/dev/snd/seq`, which isn't available
-on FreeBSD out-of-the box. There are three ways to circumvent this problem:
-
-- deinstall `alsa-libs` prior to compiling
-- include the `-DRTMIDI_API_ALSA=off` parameter during CMake generation
-- install `alsa-seq-server` on the system and start its service
 
 Ymir uses SDL3's Dialog API. This requires an installed dialog driver in order for
 the file dialogs to work in Ymir. Install Zenity:
@@ -163,4 +155,3 @@ After building, you will find the .app bundle at:
 ```sh
 build/apps/ymir-sdl3/ymir-sdl3.app
 ```
-
