@@ -3634,25 +3634,63 @@ void App::UpdateCheckerThread() {
                 fmt::format("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage));
         }
 
-        // TODO: compare versions:
-        // - stable builds are more up-to-date than nightly builds if their versions are equal
-        //   - e.g. 0.2.0-dev+1234abcd (nightly) < 0.2.0 (stable)
-        // - if the update version > current Ymir version, update is available
-        // - if the latest version is a nightly build, then:
-        //   - if the current Ymir version is stable, nightly is newer
-        //   - if the current Ymir version is nightly, check nightly timestamp vs. Ymir_BUILD_TIMESTAMP
-        // - never update pure dev builds (not built by the pipeline)
-        //   - "pure dev build" == has Ymir_BUILD_TIMESTAMP defined
-        // - honor update check settings and state
-        //   - user can choose to only update to stable versions or include nightlies
-        //   - user can choose to ignore certain updates
-        //     - this needs to be persisted
+        // TODO: allow user to skip/ignore certain updates
+        // - this needs to be persisted
 
-        bool hasUpdate = false;
-        std::string targetVersion = "";
+        struct TargetUpdate {
+            UpdateInfo info;
+            ReleaseChannel channel;
+        };
+        std::optional<TargetUpdate> targetUpdate = std::nullopt;
 
-        if (hasUpdate) {
-            m_context.DisplayMessage(fmt::format("Update to v{} available", targetVersion));
+        // Check stable update first, nice and easy
+        if (stableResult && stableResult.updateInfo.version > currVersion) {
+            targetUpdate = {.info = stableResult.updateInfo, .channel = ReleaseChannel::Stable};
+        }
+
+        // Check nightly update if requested
+        if (m_context.settings.general.includeNightlyBuilds && nightlyResult) {
+            const bool isUpdateAvailable = [&] {
+                // If both stable and nightly are the same version, the stable version is more up-to-date.
+                // In theory there shouldn't be any nightly builds of a certain version after it is released.
+                if (targetUpdate && nightlyResult.updateInfo.version > targetUpdate->info.version) {
+                    // If the stable version is newer than the current version, this nightly will be even newer.
+                    // We don't need to check against the current version again due to transitivity of the > operator.
+                    return true;
+                }
+
+                // Stable release couldn't be retrieved or isn't newer than the current version.
+                // Check if nightly is an update.
+                if (!targetUpdate) {
+                    if (nightlyResult.updateInfo.version > currVersion) {
+                        return true;
+                    }
+
+#if Ymir_NIGHTLY_BUILD && defined(Ymir_BUILD_TIMESTAMP)
+                    // Current version is a nightly build
+                    if (nightlyResult.updateInfo.version < currVersion) {
+                        return false;
+                    }
+
+                    // Nightly versions match; compare build timestamps
+                    if (auto buildTimestamp = util::parse8601(Ymir_BUILD_TIMESTAMP)) {
+                        return nightlyResult.updateInfo.timestamp > *buildTimestamp;
+                    }
+#endif
+                }
+
+                return false;
+            }();
+
+            if (isUpdateAvailable) {
+                targetUpdate = {.info = nightlyResult.updateInfo, .channel = ReleaseChannel::Nightly};
+            }
+        }
+
+        if (targetUpdate) {
+            m_context.DisplayMessage(
+                fmt::format("Update to v{} ({} channel) available", targetUpdate->info.version.to_string(),
+                            (targetUpdate->channel == ReleaseChannel::Stable ? "stable" : "nightly")));
             if constexpr (ymir::version::is_local_build) {
                 devlog::info<grp::updater>("Updates are disabled on local builds");
             } else {
