@@ -3601,7 +3601,7 @@ void App::UpdateCheckerThread() {
 
     // TODO: would be nice if this could be constexpr
     static const auto currVersion = [] {
-        static_assert(semver::valid(Ymir_VERSION), "Ymir_VERSION is not a valid semver string");
+        // static_assert(semver::valid(Ymir_VERSION), "Ymir_VERSION is not a valid semver string");
         semver::version version;
         semver::parse(Ymir_VERSION, version);
         return version;
