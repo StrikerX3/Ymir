@@ -183,6 +183,12 @@ void GeneralSettingsView::Display() {
 
         ImGui::EndTable();
     }
+    if (m_context.targetUpdate) {
+        ImGui::Text("Update to v%s (%s channel) available.", m_context.targetUpdate->info.version.to_string().c_str(),
+                    (m_context.targetUpdate->channel == ReleaseChannel::Stable ? "stable" : "nightly"));
+    } else {
+        ImGui::TextUnformatted("You are already using the latest version.");
+    }
 
     // -----------------------------------------------------------------------------------------------------------------
 

@@ -3658,37 +3658,24 @@ void App::UpdateCheckerThread() {
                 // Stable release couldn't be retrieved or isn't newer than the current version.
                 // Check if nightly is an update.
                 if (!m_context.targetUpdate) {
-                    m_context.DisplayMessage("Checking nightly version...");
                     if (semver::detail::compare_parsed(nightlyResult.updateInfo.version, currVersion,
                                                        semver::version_compare_option::exclude_prerelease) > 0) {
-                        m_context.DisplayMessage("Nightly is newer than current version");
                         return true;
                     }
 
                     if constexpr (true || ymir::version::is_nightly_build) {
-                        m_context.DisplayMessage("Nightly is newer than stable");
                         // Current version is a nightly build
                         if (semver::detail::compare_parsed(nightlyResult.updateInfo.version, currVersion,
                                                            semver::version_compare_option::exclude_prerelease) < 0) {
-                            m_context.DisplayMessage("Nightly is older than current version (how?)");
                             return false;
                         }
 
                         // Nightly versions match; compare build timestamps
 #ifdef Ymir_BUILD_TIMESTAMP
-                        m_context.DisplayMessage("Comparing nightly build timestamp");
                         if (auto buildTimestamp = util::parse8601(Ymir_BUILD_TIMESTAMP)) {
-                            m_context.DisplayMessage(fmt::format(
-                                "Current build timestamp: {}",
-                                util::to_local_time(std::chrono::system_clock::time_point(*buildTimestamp))));
-                            m_context.DisplayMessage(
-                                fmt::format("Nightly build timestamp: {}",
-                                            util::to_local_time(std::chrono::system_clock::time_point(
-                                                nightlyResult.updateInfo.timestamp))));
                             return nightlyResult.updateInfo.timestamp > *buildTimestamp;
                         }
 #endif
-                        m_context.DisplayMessage("Nightly probably matches current version");
                     }
                 }
 
