@@ -7,7 +7,6 @@
 
 #if Ymir_DEV_BUILD
     #define Ymir_FULL_VERSION Ymir_VERSION "-dev"
-    #define Ymir_DEV_BUILD 1
     #ifdef Ymir_BUILD_TIMESTAMP
         #define Ymir_NIGHTLY_BUILD 1
     #else
