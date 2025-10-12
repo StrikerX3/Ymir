@@ -4,6 +4,8 @@
 
 #include <app/events/gui_event_factory.hpp>
 
+#include <util/os_features.hpp>
+
 #include <ymir/version.hpp>
 
 namespace app::ui {
@@ -46,6 +48,9 @@ void UpdateOnboardingWindow::DrawContents() {
         const auto updaterPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
         const auto onboardedPath = updaterPath / ".onboarded";
         std::ofstream{onboardedPath};
+
+        util::os::SetFileHidden(onboardedPath, true);
+
         m_context.settings.general.checkForUpdates = m_checkForUpdates;
         m_context.settings.general.includeNightlyBuilds = m_includeNightlyBuilds;
         if (m_checkForUpdates) {
