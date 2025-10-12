@@ -276,6 +276,14 @@ void AboutWindow::DrawAboutTab() {
         ImGui::TextUnformatted(fmt::format("Built at {}", localBuildTime).c_str());
     }
 #endif
+    if constexpr (ymir::version::is_nightly_build) {
+        ImGui::TextUnformatted("Nightly release channel.");
+    } else if constexpr (ymir::version::is_stable_build) {
+        ImGui::TextUnformatted("Stable release channel.");
+    } else if constexpr (ymir::version::is_local_build) {
+        ImGui::TextUnformatted("Local development build.");
+    }
+
 #if defined(__x86_64__) || defined(_M_X64)
     #ifdef Ymir_AVX2
     ImGui::Text("Using AVX2 instruction set.");
