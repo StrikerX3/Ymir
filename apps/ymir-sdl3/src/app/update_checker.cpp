@@ -60,7 +60,7 @@ UpdateChecker::~UpdateChecker() {
     curl_global_cleanup();
 }
 
-UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path cacheRoot) {
+UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path cacheRoot, UpdateCheckMode mode) {
     const char *url;
     std::filesystem::path updateFileName;
     switch (channel) {
@@ -75,6 +75,12 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
     default: return UpdateResult::Failed("Invalid release channel");
     }
 
+    static constexpr auto kCacheTTLDefault = std::chrono::hours{1};
+    static constexpr auto kCacheTTLShort = std::chrono::minutes{1};
+
+    const bool online = mode != UpdateCheckMode::Offline;
+    const auto cacheTTL = mode == UpdateCheckMode::OnlineNoCache ? kCacheTTLShort : kCacheTTLDefault;
+
     // Get cached version if available
     auto updateFilePath = cacheRoot / updateFileName;
     if (std::filesystem::is_regular_file(updateFilePath)) {
@@ -82,10 +88,10 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
             auto j = nlohmann::json::parse(std::ifstream{updateFilePath});
             auto cachedInfo = j.template get<UpdateInfoJSON>();
 
-            // Check if cached value is still fresh
-            static constexpr auto kCacheTTL = std::chrono::hours{1};
+            // Check if cached value is still fresh.
+            // Consider cached values always fresh when offline
             std::chrono::system_clock::time_point tp{std::chrono::seconds{cachedInfo.lastCheckTimestamp}};
-            if (std::chrono::system_clock::now() <= tp + kCacheTTL) {
+            if (!online || std::chrono::system_clock::now() <= tp + cacheTTL) {
                 UpdateInfo info{};
 
                 // Require all components to be parsed correctly
@@ -100,6 +106,10 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
     }
 
     // Cached response is stale, invalid or not found
+    // If offline, bail out now
+    if (!online) {
+        return UpdateResult::Failed("Could not find cached update info");
+    }
 
     // Create update response cache folder
     {

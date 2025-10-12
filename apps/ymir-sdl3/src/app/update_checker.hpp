@@ -9,6 +9,7 @@
 namespace app {
 
 enum class ReleaseChannel { Stable, Nightly };
+enum class UpdateCheckMode { Offline, Online, OnlineNoCache };
 
 struct UpdateInfo {
     semver::version<> version;
@@ -37,7 +38,7 @@ struct UpdateChecker {
     UpdateChecker();
     ~UpdateChecker();
 
-    UpdateResult Check(ReleaseChannel channel, std::filesystem::path cacheRoot);
+    UpdateResult Check(ReleaseChannel channel, std::filesystem::path cacheRoot, UpdateCheckMode mode);
 
 private:
     CURL *m_curl = nullptr;

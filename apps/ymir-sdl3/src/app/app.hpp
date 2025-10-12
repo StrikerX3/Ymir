@@ -70,6 +70,7 @@ private:
 
     std::thread m_updateCheckerThread;
     util::Event m_updateCheckEvent;
+    UpdateCheckMode m_updateCheckMode;
     bool m_updateCheckerThreadRunning;
 
     void RunEmulator();
@@ -79,6 +80,7 @@ private:
     void UpdateCheckerThread();
 
     void OpenWelcomeModal(bool scanIPLROMS);
+    void CheckForUpdates(bool skipCache);
 
     void RebindInputs();
 
@@ -167,6 +169,16 @@ private:
     ui::PeripheralConfigWindow m_periphConfigWindow;
     ui::AboutWindow m_aboutWindow;
 
+    // -------------------------------------------------------------------------
+    // Auto-update setup modal
+
+    bool m_openAutoUpdateSetupModal = false;  // Open generic modal on the next frame
+    bool m_closeAutoUpdateSetupModal = false; // Close generic modal on the next frame
+
+    void OpenAutoUpdateSetupModal();
+    void DrawUpdateSetupModal();
+
+    // -------------------------------------------------------------------------
     // Generic modal dialog
 
     void DrawGenericModal();

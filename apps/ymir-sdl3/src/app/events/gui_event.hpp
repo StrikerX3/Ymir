@@ -79,6 +79,8 @@ struct GUIEvent {
         TryLoadCDBlockROM,
         ReloadCDBlockROM,
 
+        CheckForUpdates,
+
         TakeScreenshot,
 
         // Emulator notifications

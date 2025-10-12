@@ -103,6 +103,10 @@ inline GUIEvent ReloadCDBlockROM() {
     return {.type = GUIEvent::Type::ReloadCDBlockROM};
 }
 
+inline GUIEvent CheckForUpdates() {
+    return {.type = GUIEvent::Type::CheckForUpdates};
+}
+
 inline GUIEvent TakeScreenshot() {
     return {.type = GUIEvent::Type::TakeScreenshot};
 }

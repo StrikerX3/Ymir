@@ -464,6 +464,12 @@ struct SharedContext {
     Settings settings{*this};
     UpdateChecker updateChecker;
 
+    struct Updates {
+        bool inProgress = false;
+        std::string latestStableVersion = "";
+        std::string latestNightlyVersion = "";
+    } updates;
+
     ROMManager romManager;
     std::filesystem::path iplRomPath;
     std::filesystem::path cdbRomPath;
@@ -506,6 +512,7 @@ struct SharedContext {
         std::mutex messages;
         std::mutex breakpoints;
         std::mutex watchpoints;
+        std::mutex updates;
     } locks;
 
     struct State {

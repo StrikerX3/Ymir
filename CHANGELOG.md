@@ -8,6 +8,7 @@ Introduced save state file version 10.
 
 ### New features and improvements
 
+- App: Added option to check for updates on startup. Also added manual update check action.
 - Build: Create macOS app bundle. (#591; @tegaidogun)
 - Cart: Add 6 MiB development DRAM cartridge, required by the Heart of Darkness prototype. (#584)
 - CD Block: Implemented optional low-level emulation mode. Requires valid CD Block ROMs and has considerable performance cost, but fixes numerous issues when enabled:

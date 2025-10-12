@@ -454,8 +454,21 @@ void App::RunEmulator() {
 
     lsn::CScopedNoSubnormals snsNoSubnormals{};
 
-    // Start update checker thread and fire update check immediately
-    m_updateCheckEvent.Set();
+    // Start update checker thread and fire update check immediately if configured to do so
+    if (m_context.settings.general.checkForUpdates) {
+        CheckForUpdates(false);
+    } else {
+        // Load cached results if available
+        const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
+        if (auto result =
+                m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath, UpdateCheckMode::Offline)) {
+            m_context.updates.latestStableVersion = result.updateInfo.version.to_string();
+        }
+        if (auto result =
+                m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath, UpdateCheckMode::Offline)) {
+            m_context.updates.latestNightlyVersion = result.updateInfo.version.to_string();
+        }
+    }
     m_updateCheckerThread = std::thread([&] { UpdateCheckerThread(); });
     ScopeGuard sgStopUpdateCheckerThread{[&] {
         m_updateCheckerThreadRunning = false;
@@ -2127,6 +2140,8 @@ void App::RunEmulator() {
                 break;
             }
 
+            case EvtType::CheckForUpdates: CheckForUpdates(true); break;
+
             case EvtType::StateLoaded:
                 m_context.DisplayMessage(fmt::format("State {} loaded", std::get<uint32>(evt.value) + 1));
                 break;
@@ -2771,6 +2786,9 @@ void App::RunEmulator() {
                 if (ImGui::BeginMenu("Help")) {
                     if (ImGui::MenuItem("Open welcome window", nullptr)) {
                         OpenWelcomeModal(false);
+                    }
+                    if (ImGui::MenuItem("Check for updates", nullptr)) {
+                        CheckForUpdates(true);
                     }
 
                     ImGui::Separator();
@@ -3578,25 +3596,36 @@ void App::UpdateCheckerThread() {
 
     m_updateCheckerThreadRunning = true;
     while (m_updateCheckerThreadRunning) {
+        m_context.updates.inProgress = false;
         m_updateCheckEvent.Wait();
         m_updateCheckEvent.Reset();
         if (!m_updateCheckerThreadRunning) {
             break;
         }
+        const auto mode = m_updateCheckMode;
+        m_context.updates.inProgress = true;
+
+        m_context.DisplayMessage("Checking for updates...");
 
         const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
-        auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath);
+        auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath, mode);
         if (stableResult) {
+            std::unique_lock lock{m_context.locks.updates};
+            m_context.updates.latestStableVersion = stableResult.updateInfo.version.to_string();
             devlog::info<grp::updater>("Stable channel version: {}", stableResult.updateInfo.version.to_string());
         } else {
-            devlog::warn<grp::updater>("Failed to check for stable channel updates: {}", stableResult.errorMessage);
+            m_context.DisplayMessage(
+                fmt::format("Failed to check for stable channel updates: {}", stableResult.errorMessage));
         }
 
-        auto nightlyResult = m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath);
+        auto nightlyResult = m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath, mode);
         if (nightlyResult) {
-            devlog::info<grp::updater>("Nightly channel version: {}", nightlyResult.updateInfo.version.to_string());
+            std::unique_lock lock{m_context.locks.updates};
+            m_context.updates.latestNightlyVersion = nightlyResult.updateInfo.version.to_string();
+            devlog::info<grp::updater>("Nightly channel version: {}", m_context.updates.latestNightlyVersion);
         } else {
-            devlog::warn<grp::updater>("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage);
+            m_context.DisplayMessage(
+                fmt::format("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage));
         }
 
         // TODO: compare versions:
@@ -3612,6 +3641,8 @@ void App::UpdateCheckerThread() {
         //   - user can choose to only update to stable versions or include nightlies
         //   - user can choose to ignore certain updates
         //     - this needs to be persisted
+
+        m_context.DisplayMessage("No updates found");
     }
 }
 
@@ -3769,6 +3800,11 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
             }
         }
     });
+}
+
+void App::CheckForUpdates(bool skipCache) {
+    m_updateCheckMode = skipCache ? UpdateCheckMode::OnlineNoCache : UpdateCheckMode::Online;
+    m_updateCheckEvent.Set();
 }
 
 void App::RebindInputs() {
@@ -4799,6 +4835,37 @@ void App::OpenMemoryViewer() {
 void App::OpenPeripheralBindsEditor(const PeripheralBindsParams &params) {
     m_periphConfigWindow.Open(params.portIndex, params.slotIndex);
     m_periphConfigWindow.RequestFocus();
+}
+
+void App::OpenAutoUpdateSetupModal() {
+    m_openAutoUpdateSetupModal = true;
+}
+
+void App::DrawUpdateSetupModal() {
+    if (m_openAutoUpdateSetupModal) {
+        m_openAutoUpdateSetupModal = false;
+        ImGui::OpenPopup("Configure update checks");
+    }
+
+    if (ImGui::BeginPopupModal("Configure update checks", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::PushTextWrapPos(500.0f * m_context.displayScale);
+
+        ImGui::TextUnformatted("Ymir can check for updates on startup. Choose your preference:");
+
+        ImGui::PopTextWrapPos();
+
+        bool close = m_closeAutoUpdateSetupModal;
+        if (ImGui::Button("Cancel", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
+            close = true;
+        }
+        if (close) {
+            ImGui::CloseCurrentPopup();
+            m_genericModalContents = {};
+            m_closeAutoUpdateSetupModal = false;
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 void App::DrawGenericModal() {

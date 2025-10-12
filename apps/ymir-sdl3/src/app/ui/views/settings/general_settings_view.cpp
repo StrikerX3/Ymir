@@ -129,6 +129,30 @@ void GeneralSettingsView::Display() {
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Updates");
+    ImGui::PopFont();
+
+    MakeDirty(ImGui::Checkbox("Check for updates on startup", &settings.checkForUpdates));
+    ImGui::Indent();
+    MakeDirty(ImGui::Checkbox("Update to nightly builds", &settings.includeNightlyBuilds));
+    widgets::ExplanationTooltip("When enabled, Ymir will also notify you when new nightly builds are available.",
+                                m_context.displayScale);
+    ImGui::Unindent();
+    if (ImGui::Button("Check now")) {
+        m_context.EnqueueEvent(events::gui::CheckForUpdates());
+    }
+    {
+        std::unique_lock lock{m_context.locks.updates};
+        auto verStr = [&](const std::string &v) {
+            return m_context.updates.inProgress ? "Checking..." : v.empty() ? "Not checked" : v.c_str();
+        };
+        ImGui::Text("Latest stable version: %s", verStr(m_context.updates.latestStableVersion));
+        ImGui::Text("Latest nightly version: %s", verStr(m_context.updates.latestNightlyVersion));
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Screenshots");
     ImGui::PopFont();
 
