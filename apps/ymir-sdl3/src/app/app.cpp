@@ -179,7 +179,7 @@ App::App()
 }
 
 int App::Run(const CommandLineOptions &options) {
-    devlog::info<grp::base>("{} {}", Ymir_APP_NAME, ymir::version::fullstring);
+    devlog::info<grp::base>("{} {}", Ymir_APP_NAME, ymir::version::string);
 
     // Use UTF-8 locale by default on all C runtime functions
     // TODO: adjust this to the user's preferred locale (with ".UTF8" suffix) when i18n is implemented
@@ -633,7 +633,7 @@ void App::RunEmulator() {
         }
 
         // Assume the following calls succeed
-        SDL_SetStringProperty(windowProps, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Ymir " Ymir_FULL_VERSION);
+        SDL_SetStringProperty(windowProps, SDL_PROP_WINDOW_CREATE_TITLE_STRING, "Ymir " Ymir_VERSION);
         SDL_SetBooleanProperty(windowProps, SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, true);
         SDL_SetBooleanProperty(windowProps, SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
         SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, windowWidth);
@@ -2220,14 +2220,14 @@ void App::RunEmulator() {
 
             std::string title{};
             if (m_context.paused) {
-                title = fmt::format("Ymir " Ymir_FULL_VERSION
+                title = fmt::format("Ymir " Ymir_VERSION
                                     " - {} | Speed: {} | VDP2: paused | VDP1: paused | GUI: {:.0f} fps",
                                     fullGameTitle, speedStr, io.Framerate);
             } else {
                 const double frameInterval = screen.frameInterval.count() * 0.000000001;
                 const double currSpeed = screen.lastVDP2Frames * frameInterval * 100.0;
                 std::string currSpeedStr = fmt::format("{:.0f}%", currSpeed);
-                title = fmt::format("Ymir " Ymir_FULL_VERSION
+                title = fmt::format("Ymir " Ymir_VERSION
                                     " - {} | Speed: {} / {} | VDP2: {} fps | VDP1: {} fps, {} draws | GUI: {:.0f} fps",
                                     fullGameTitle, currSpeedStr, speedStr, screen.lastVDP2Frames, screen.lastVDP1Frames,
                                     screen.lastVDP1DrawCalls, io.Framerate);

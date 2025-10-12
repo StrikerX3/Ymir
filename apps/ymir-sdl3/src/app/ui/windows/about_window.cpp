@@ -251,7 +251,7 @@ void AboutWindow::DrawAboutTab() {
     ImGui::TextUnformatted("Ymir");
     ImGui::PopFont();
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.xlarge);
-    ImGui::TextUnformatted("Version " Ymir_FULL_VERSION);
+    ImGui::TextUnformatted("Version " Ymir_VERSION);
     ImGui::PopFont();
 #if Ymir_DEV_BUILD
     ImGui::SameLine();
@@ -265,7 +265,7 @@ void AboutWindow::DrawAboutTab() {
     ImGui::PopFont();
 
     if (ImGui::Button("Copy version")) {
-        SDL_SetClipboardText(Ymir_FULL_VERSION);
+        SDL_SetClipboardText(Ymir_VERSION);
     }
 
     ImGui::NewLine();

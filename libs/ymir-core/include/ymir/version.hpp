@@ -6,14 +6,12 @@
 */
 
 #if Ymir_DEV_BUILD
-    #define Ymir_FULL_VERSION Ymir_VERSION "-dev"
     #ifdef Ymir_BUILD_TIMESTAMP
         #define Ymir_NIGHTLY_BUILD 1
     #else
         #define Ymir_NIGHTLY_BUILD 0
     #endif
 #else
-    #define Ymir_FULL_VERSION Ymir_VERSION
     #define Ymir_DEV_BUILD 0
     #define Ymir_NIGHTLY_BUILD 0
 #endif
@@ -28,12 +26,6 @@ namespace ymir::version {
 /// The string follows the Semantic Versioning system, with mandatory major, minor and patch numbers and optional
 /// prerelease and build components.
 inline constexpr auto string = Ymir_VERSION;
-
-/// @brief The library version string in the format "<major>.<minor>.<patch>[-<prerelease>][+<build>][-dev]".
-///
-/// The string mostly follows the Semantic Versioning system, with mandatory major, minor and patch numbers and optional
-/// prerelease and build components. It also adds a `-dev` suffix for development builds.
-inline constexpr auto fullstring = Ymir_FULL_VERSION;
 
 inline constexpr auto major = static_cast<unsigned>(Ymir_VERSION_MAJOR); ///< The library's major version
 inline constexpr auto minor = static_cast<unsigned>(Ymir_VERSION_MINOR); ///< The library's minor version

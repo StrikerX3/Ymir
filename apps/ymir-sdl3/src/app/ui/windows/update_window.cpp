@@ -29,7 +29,7 @@ void UpdateWindow::DrawContents() {
     auto &info = m_context.targetUpdate->info;
 
     ImGui::TextUnformatted("A new version of Ymir is available.");
-    ImGui::TextUnformatted("Current version: " Ymir_FULL_VERSION);
+    ImGui::TextUnformatted("Current version: " Ymir_VERSION);
     ImGui::TextUnformatted("New version: ");
     ImGui::SameLine(0, 0);
     ImGui::TextLinkOpenURL(info.version.to_string().c_str(), info.downloadURL.c_str());
