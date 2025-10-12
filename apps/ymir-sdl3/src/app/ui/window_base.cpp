@@ -10,12 +10,17 @@ void WindowBase::Display() {
         return;
     }
 
+    PrepareWindow();
+    if (!Open) {
+        // Second opportunity to close the window
+        return;
+    }
+
     if (m_focusRequested) {
         m_focusRequested = false;
         ImGui::SetNextWindowFocus();
     }
 
-    PrepareWindow();
     if (ImGui::Begin(m_windowConfig.name.c_str(), &Open, m_windowConfig.flags)) {
         DrawContents();
 

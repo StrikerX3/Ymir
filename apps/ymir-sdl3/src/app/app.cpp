@@ -168,7 +168,8 @@ App::App()
     , m_debugOutputWindow(m_context)
     , m_settingsWindow(m_context)
     , m_periphConfigWindow(m_context)
-    , m_aboutWindow(m_context) {
+    , m_aboutWindow(m_context)
+    , m_updateWindow(m_context) {
 
     // Preinitialize some memory viewers
     for (int i = 0; i < 8; i++) {
@@ -3637,15 +3638,9 @@ void App::UpdateCheckerThread() {
         // TODO: allow user to skip/ignore certain updates
         // - this needs to be persisted
 
-        struct TargetUpdate {
-            UpdateInfo info;
-            ReleaseChannel channel;
-        };
-        std::optional<TargetUpdate> targetUpdate = std::nullopt;
-
         // Check stable update first, nice and easy
         if (stableResult && stableResult.updateInfo.version > currVersion) {
-            targetUpdate = {.info = stableResult.updateInfo, .channel = ReleaseChannel::Stable};
+            m_context.targetUpdate = {.info = stableResult.updateInfo, .channel = ReleaseChannel::Stable};
         }
 
         // Check nightly update if requested
@@ -3653,7 +3648,7 @@ void App::UpdateCheckerThread() {
             const bool isUpdateAvailable = [&] {
                 // If both stable and nightly are the same version, the stable version is more up-to-date.
                 // In theory there shouldn't be any nightly builds of a certain version after it is released.
-                if (targetUpdate && nightlyResult.updateInfo.version > targetUpdate->info.version) {
+                if (m_context.targetUpdate && nightlyResult.updateInfo.version > m_context.targetUpdate->info.version) {
                     // If the stable version is newer than the current version, this nightly will be even newer.
                     // We don't need to check against the current version again due to transitivity of the > operator.
                     return true;
@@ -3661,7 +3656,7 @@ void App::UpdateCheckerThread() {
 
                 // Stable release couldn't be retrieved or isn't newer than the current version.
                 // Check if nightly is an update.
-                if (!targetUpdate) {
+                if (!m_context.targetUpdate) {
                     if (nightlyResult.updateInfo.version > currVersion) {
                         return true;
                     }
@@ -3683,18 +3678,18 @@ void App::UpdateCheckerThread() {
             }();
 
             if (isUpdateAvailable) {
-                targetUpdate = {.info = nightlyResult.updateInfo, .channel = ReleaseChannel::Nightly};
+                m_context.targetUpdate = {.info = nightlyResult.updateInfo, .channel = ReleaseChannel::Nightly};
             }
         }
 
-        if (targetUpdate) {
+        if (m_context.targetUpdate) {
             m_context.DisplayMessage(
-                fmt::format("Update to v{} ({} channel) available", targetUpdate->info.version.to_string(),
-                            (targetUpdate->channel == ReleaseChannel::Stable ? "stable" : "nightly")));
+                fmt::format("Update to v{} ({} channel) available", m_context.targetUpdate->info.version.to_string(),
+                            (m_context.targetUpdate->channel == ReleaseChannel::Stable ? "stable" : "nightly")));
             if constexpr (ymir::version::is_local_build) {
                 devlog::info<grp::updater>("Updates are disabled on local builds");
             } else {
-                // TODO: notify user
+                m_updateWindow.Open = true;
             }
         } else if (showMessages) {
             m_context.DisplayMessage("No updates found");
@@ -4868,6 +4863,7 @@ void App::DrawWindows() {
     m_settingsWindow.Display();
     m_periphConfigWindow.Display();
     m_aboutWindow.Display();
+    m_updateWindow.Display();
 }
 
 void App::OpenMemoryViewer() {

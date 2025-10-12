@@ -9,6 +9,7 @@
 #include "ui/windows/peripheral_config_window.hpp"
 #include "ui/windows/settings_window.hpp"
 #include "ui/windows/system_state_window.hpp"
+#include "ui/windows/update_window.hpp"
 
 #include "ui/windows/debug/cdblock_window_set.hpp"
 #include "ui/windows/debug/debug_output_window.hpp"
@@ -169,6 +170,7 @@ private:
     ui::SettingsWindow m_settingsWindow;
     ui::PeripheralConfigWindow m_periphConfigWindow;
     ui::AboutWindow m_aboutWindow;
+    ui::UpdateWindow m_updateWindow;
 
     // -------------------------------------------------------------------------
     // Generic modal dialog

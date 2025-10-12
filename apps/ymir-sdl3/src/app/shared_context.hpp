@@ -470,6 +470,12 @@ struct SharedContext {
         std::optional<UpdateInfo> latestNightly;
     } updates;
 
+    struct TargetUpdate {
+        UpdateInfo info;
+        ReleaseChannel channel;
+    };
+    std::optional<TargetUpdate> targetUpdate = std::nullopt;
+
     ROMManager romManager;
     std::filesystem::path iplRomPath;
     std::filesystem::path cdbRomPath;
