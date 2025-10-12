@@ -169,6 +169,7 @@ App::App()
     , m_settingsWindow(m_context)
     , m_periphConfigWindow(m_context)
     , m_aboutWindow(m_context)
+    , m_updateOnboardingWindow(m_context)
     , m_updateWindow(m_context) {
 
     // Preinitialize some memory viewers
@@ -455,24 +456,32 @@ void App::RunEmulator() {
 
     lsn::CScopedNoSubnormals snsNoSubnormals{};
 
-    // TODO: show modal for configuring automatic update checks if user hasn't opted in or out yet
-    // - note that this might conflict with the Welcome modal. This should be shown immediately after instead
+    {
+        const auto updaterPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
+        const auto onboardedPath = updaterPath / ".onboarded";
 
-    // Start update checker thread and fire update check immediately if configured to do so
-    if (m_context.settings.general.checkForUpdates) {
-        CheckForUpdates(false);
-    } else {
-        // Load cached results if available
-        const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
-        if (auto result =
-                m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath, UpdateCheckMode::Offline)) {
-            m_context.updates.latestStable = result.updateInfo;
+        // Check if user has opted in or out of automatic updates
+        const bool onboarded = std::filesystem::is_regular_file(onboardedPath);
+        if (!onboarded) {
+            m_updateOnboardingWindow.Open = true;
         }
-        if (auto result =
-                m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath, UpdateCheckMode::Offline)) {
-            m_context.updates.latestNightly = result.updateInfo;
+
+        // Start update checker thread and fire update check immediately if configured to do so
+        if (m_context.settings.general.checkForUpdates) {
+            CheckForUpdates(false);
+        } else {
+            // Load cached results if available
+            if (auto result =
+                    m_context.updateChecker.Check(ReleaseChannel::Stable, updaterPath, UpdateCheckMode::Offline)) {
+                m_context.updates.latestStable = result.updateInfo;
+            }
+            if (auto result =
+                    m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterPath, UpdateCheckMode::Offline)) {
+                m_context.updates.latestNightly = result.updateInfo;
+            }
         }
     }
+
     m_updateCheckerThread = std::thread([&] { UpdateCheckerThread(); });
     ScopeGuard sgStopUpdateCheckerThread{[&] {
         m_updateCheckerThreadRunning = false;
@@ -4870,6 +4879,7 @@ void App::DrawWindows() {
     m_settingsWindow.Display();
     m_periphConfigWindow.Display();
     m_aboutWindow.Display();
+    m_updateOnboardingWindow.Display();
     m_updateWindow.Display();
 }
 

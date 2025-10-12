@@ -222,6 +222,8 @@ add_executable(ymir-sdl3
     src/app/ui/windows/settings_window.hpp
     src/app/ui/windows/system_state_window.cpp
     src/app/ui/windows/system_state_window.hpp
+    src/app/ui/windows/update_onboarding_window.cpp
+    src/app/ui/windows/update_onboarding_window.hpp
     src/app/ui/windows/update_window.cpp
     src/app/ui/windows/update_window.hpp
 

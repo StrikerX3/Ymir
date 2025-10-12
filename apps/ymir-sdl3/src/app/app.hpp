@@ -9,6 +9,7 @@
 #include "ui/windows/peripheral_config_window.hpp"
 #include "ui/windows/settings_window.hpp"
 #include "ui/windows/system_state_window.hpp"
+#include "ui/windows/update_onboarding_window.hpp"
 #include "ui/windows/update_window.hpp"
 
 #include "ui/windows/debug/cdblock_window_set.hpp"
@@ -170,6 +171,7 @@ private:
     ui::SettingsWindow m_settingsWindow;
     ui::PeripheralConfigWindow m_periphConfigWindow;
     ui::AboutWindow m_aboutWindow;
+    ui::UpdateOnboardingWindow m_updateOnboardingWindow;
     ui::UpdateWindow m_updateWindow;
 
     // -------------------------------------------------------------------------
