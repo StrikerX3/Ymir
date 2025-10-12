@@ -170,15 +170,6 @@ private:
     ui::AboutWindow m_aboutWindow;
 
     // -------------------------------------------------------------------------
-    // Auto-update setup modal
-
-    bool m_openAutoUpdateSetupModal = false;  // Open generic modal on the next frame
-    bool m_closeAutoUpdateSetupModal = false; // Close generic modal on the next frame
-
-    void OpenAutoUpdateSetupModal();
-    void DrawUpdateSetupModal();
-
-    // -------------------------------------------------------------------------
     // Generic modal dialog
 
     void DrawGenericModal();

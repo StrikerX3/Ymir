@@ -454,6 +454,9 @@ void App::RunEmulator() {
 
     lsn::CScopedNoSubnormals snsNoSubnormals{};
 
+    // TODO: show modal for configuring automatic update checks if user hasn't opted in or out yet
+    // - note that this might conflict with the Welcome modal. This should be shown immediately after instead
+
     // Start update checker thread and fire update check immediately if configured to do so
     if (m_context.settings.general.checkForUpdates) {
         CheckForUpdates(false);
@@ -3603,9 +3606,12 @@ void App::UpdateCheckerThread() {
             break;
         }
         const auto mode = m_updateCheckMode;
+        const bool showMessages = mode == UpdateCheckMode::OnlineNoCache;
         m_context.updates.inProgress = true;
 
-        m_context.DisplayMessage("Checking for updates...");
+        if (showMessages) {
+            m_context.DisplayMessage("Checking for updates...");
+        }
 
         const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
         auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath, mode);
@@ -3642,7 +3648,19 @@ void App::UpdateCheckerThread() {
         //   - user can choose to ignore certain updates
         //     - this needs to be persisted
 
-        m_context.DisplayMessage("No updates found");
+        bool hasUpdate = false;
+        std::string targetVersion = "";
+
+        if (hasUpdate) {
+            m_context.DisplayMessage(fmt::format("Update to v{} available", targetVersion));
+            if constexpr (ymir::version::is_local_build) {
+                devlog::info<grp::updater>("Updates are disabled on local builds");
+            } else {
+                // TODO: notify user
+            }
+        } else if (showMessages) {
+            m_context.DisplayMessage("No updates found");
+        }
     }
 }
 
@@ -4835,37 +4853,6 @@ void App::OpenMemoryViewer() {
 void App::OpenPeripheralBindsEditor(const PeripheralBindsParams &params) {
     m_periphConfigWindow.Open(params.portIndex, params.slotIndex);
     m_periphConfigWindow.RequestFocus();
-}
-
-void App::OpenAutoUpdateSetupModal() {
-    m_openAutoUpdateSetupModal = true;
-}
-
-void App::DrawUpdateSetupModal() {
-    if (m_openAutoUpdateSetupModal) {
-        m_openAutoUpdateSetupModal = false;
-        ImGui::OpenPopup("Configure update checks");
-    }
-
-    if (ImGui::BeginPopupModal("Configure update checks", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::PushTextWrapPos(500.0f * m_context.displayScale);
-
-        ImGui::TextUnformatted("Ymir can check for updates on startup. Choose your preference:");
-
-        ImGui::PopTextWrapPos();
-
-        bool close = m_closeAutoUpdateSetupModal;
-        if (ImGui::Button("Cancel", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
-            close = true;
-        }
-        if (close) {
-            ImGui::CloseCurrentPopup();
-            m_genericModalContents = {};
-            m_closeAutoUpdateSetupModal = false;
-        }
-
-        ImGui::EndPopup();
-    }
 }
 
 void App::DrawGenericModal() {
