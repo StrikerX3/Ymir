@@ -603,7 +603,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::Indent();
     ImGui::TextUnformatted(
         "Aydan Watkins, celeriyacon, Charles / thelastangryman1907, Damian Gracz, fathamburger, GoodWall_533, Jano, "
-        "Katanchiro, sasori95 / Immersion95, secreto7, Silanda, Sorer, TheCoolPup, waspennator, Zet-sensei.");
+        "Katanchiro, Lordus, sasori95 / Immersion95, secreto7, Silanda, Sorer, TheCoolPup, waspennator, Zet-sensei.");
     ImGui::Unindent();
 
     ImGui::TextUnformatted("To the current and former ");
