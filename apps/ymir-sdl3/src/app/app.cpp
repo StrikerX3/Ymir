@@ -3649,8 +3649,23 @@ void App::UpdateCheckerThread() {
         // - this needs to be persisted
 
         // Check stable update first, nice and easy
-        if (stableResult && stableResult.updateInfo.version > currVersion) {
-            m_context.targetUpdate = {.info = stableResult.updateInfo, .channel = ReleaseChannel::Stable};
+        if (stableResult) {
+            const bool isUpdateAvailable = [&] {
+                if (stableResult.updateInfo.version > currVersion) {
+                    return true;
+                }
+
+                // On nightly builds, a stable release of the same version as the current version is always newer
+                if constexpr (ymir::version::is_nightly_build) {
+                    return stableResult.updateInfo.version == currVersion;
+                }
+
+                return false;
+            }();
+
+            if (isUpdateAvailable) {
+                m_context.targetUpdate = {.info = stableResult.updateInfo, .channel = ReleaseChannel::Stable};
+            }
         }
 
         // Check nightly update if requested

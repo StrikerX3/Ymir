@@ -10,6 +10,8 @@ Uses save state file version 10.
 
 ### Fixes
 
+- Updater: Detect nightly -> stable update when the current version matches the stable version.
+
 
 ## Version 0.2.0
 
