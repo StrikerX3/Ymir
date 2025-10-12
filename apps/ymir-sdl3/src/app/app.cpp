@@ -465,11 +465,11 @@ void App::RunEmulator() {
         const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
         if (auto result =
                 m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath, UpdateCheckMode::Offline)) {
-            m_context.updates.latestStableVersion = result.updateInfo.version.to_string();
+            m_context.updates.latestStable = result.updateInfo;
         }
         if (auto result =
                 m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath, UpdateCheckMode::Offline)) {
-            m_context.updates.latestNightlyVersion = result.updateInfo.version.to_string();
+            m_context.updates.latestNightly = result.updateInfo;
         }
     }
     m_updateCheckerThread = std::thread([&] { UpdateCheckerThread(); });
@@ -3617,7 +3617,7 @@ void App::UpdateCheckerThread() {
         auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath, mode);
         if (stableResult) {
             std::unique_lock lock{m_context.locks.updates};
-            m_context.updates.latestStableVersion = stableResult.updateInfo.version.to_string();
+            m_context.updates.latestStable = stableResult.updateInfo;
             devlog::info<grp::updater>("Stable channel version: {}", stableResult.updateInfo.version.to_string());
         } else {
             m_context.DisplayMessage(
@@ -3627,8 +3627,8 @@ void App::UpdateCheckerThread() {
         auto nightlyResult = m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath, mode);
         if (nightlyResult) {
             std::unique_lock lock{m_context.locks.updates};
-            m_context.updates.latestNightlyVersion = nightlyResult.updateInfo.version.to_string();
-            devlog::info<grp::updater>("Nightly channel version: {}", m_context.updates.latestNightlyVersion);
+            m_context.updates.latestNightly = nightlyResult.updateInfo;
+            devlog::info<grp::updater>("Nightly channel version: {}", nightlyResult.updateInfo.version.to_string());
         } else {
             m_context.DisplayMessage(
                 fmt::format("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage));

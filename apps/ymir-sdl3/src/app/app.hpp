@@ -31,6 +31,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <queue>
 #include <string_view>
 #include <thread>
 #include <vector>

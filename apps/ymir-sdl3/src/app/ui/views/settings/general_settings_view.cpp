@@ -141,13 +141,47 @@ void GeneralSettingsView::Display() {
     if (ImGui::Button("Check now")) {
         m_context.EnqueueEvent(events::gui::CheckForUpdates());
     }
-    {
+    ImGui::TextUnformatted("Latest versions:");
+    if (ImGui::BeginTable("updates", 3, ImGuiTableFlags_SizingFixedFit)) {
         std::unique_lock lock{m_context.locks.updates};
-        auto verStr = [&](const std::string &v) {
-            return m_context.updates.inProgress ? "Checking..." : v.empty() ? "Not checked" : v.c_str();
+        auto version = [&](const char *name, const std::optional<UpdateInfo> &ver) {
+            ImGui::PushID(name);
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", name);
+
+            ImGui::TableNextColumn();
+            if (ver) {
+                if (m_context.updates.inProgress) {
+                    ImGui::TextUnformatted("Checking...");
+                } else {
+                    ImGui::Text("%s", ver->version.to_string().c_str());
+                }
+            } else {
+                ImGui::TextUnformatted("Not checked");
+            }
+
+            ImGui::TableNextColumn();
+            if (!ver->releaseNotesURL.empty()) {
+                if (ImGui::SmallButton("Release notes")) {
+                    SDL_OpenURL(ver->releaseNotesURL.c_str());
+                }
+            }
+            if (!ver->downloadURL.empty()) {
+                if (!ver->releaseNotesURL.empty()) {
+                    ImGui::SameLine();
+                }
+                if (ImGui::SmallButton("Download")) {
+                    SDL_OpenURL(ver->downloadURL.c_str());
+                }
+            }
+            ImGui::PopID();
         };
-        ImGui::Text("Latest stable version: %s", verStr(m_context.updates.latestStableVersion));
-        ImGui::Text("Latest nightly version: %s", verStr(m_context.updates.latestNightlyVersion));
+        version("Stable", m_context.updates.latestStable);
+        version("Nightly", m_context.updates.latestNightly);
+
+        ImGui::EndTable();
     }
 
     // -----------------------------------------------------------------------------------------------------------------

@@ -466,8 +466,8 @@ struct SharedContext {
 
     struct Updates {
         bool inProgress = false;
-        std::string latestStableVersion = "";
-        std::string latestNightlyVersion = "";
+        std::optional<UpdateInfo> latestStable;
+        std::optional<UpdateInfo> latestNightly;
     } updates;
 
     ROMManager romManager;
