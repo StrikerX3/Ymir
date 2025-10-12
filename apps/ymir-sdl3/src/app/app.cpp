@@ -3663,7 +3663,7 @@ void App::UpdateCheckerThread() {
                         return true;
                     }
 
-                    if constexpr (true || ymir::version::is_nightly_build) {
+                    if constexpr (ymir::version::is_nightly_build) {
                         // Current version is a nightly build
                         if (semver::detail::compare_parsed(nightlyResult.updateInfo.version, currVersion,
                                                            semver::version_compare_option::exclude_prerelease) < 0) {
