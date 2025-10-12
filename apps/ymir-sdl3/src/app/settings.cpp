@@ -3,6 +3,7 @@
 #include <app/shared_context.hpp>
 
 #include <app/events/emu_event_factory.hpp>
+#include <app/events/gui_event_factory.hpp>
 
 #include <ymir/sys/saturn.hpp>
 
@@ -669,6 +670,9 @@ void Settings::ResetToDefaults() {
 
     general.pauseWhenUnfocused = false;
 
+    general.checkForUpdates = false;
+    general.includeNightlyBuilds = false;
+
     gui.overrideUIScale = false;
     gui.uiScale = 1.0;
     gui.rememberWindowGeometry = true;
@@ -835,6 +839,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblGeneral, "AltSpeedFactor", general.altSpeedFactor);
         Parse(tblGeneral, "UseAltSpeed", general.useAltSpeed);
         Parse(tblGeneral, "PauseWhenUnfocused", general.pauseWhenUnfocused);
+        Parse(tblGeneral, "CheckForUpdates", general.checkForUpdates);
+        Parse(tblGeneral, "IncludeNightlyBuilds", general.includeNightlyBuilds);
 
         general.screenshotScale = std::clamp(general.screenshotScale, 1, 4);
 
@@ -1208,6 +1214,8 @@ SettingsSaveResult Settings::Save() {
             {"AltSpeedFactor", general.altSpeedFactor.Get()},
             {"UseAltSpeed", general.useAltSpeed.Get()},
             {"PauseWhenUnfocused", general.pauseWhenUnfocused},
+            {"CheckForUpdates", general.checkForUpdates},
+            {"IncludeNightlyBuilds", general.includeNightlyBuilds},
 
             {"PathOverrides", toml::table{{
                 {"IPLROMImages", m_context.profile.GetPathOverride(ProfilePath::IPLROMImages).native()},
