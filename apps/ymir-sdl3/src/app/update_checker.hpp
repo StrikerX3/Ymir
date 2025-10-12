@@ -14,6 +14,8 @@ enum class UpdateCheckMode { Offline, Online, OnlineNoCache };
 struct UpdateInfo {
     semver::version<> version;
     std::chrono::seconds timestamp;
+    std::string downloadURL;
+    std::string releaseNotesURL;
 };
 
 struct UpdateResult {

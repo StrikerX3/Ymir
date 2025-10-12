@@ -21,18 +21,24 @@ static const std::regex g_buildPropertyPattern{"<!--\\s*@@\\s*([A-Za-z0-9-]+)\\s
 struct UpdateInfoJSON {
     std::string version;
     std::chrono::seconds::rep buildTimestamp;
+    std::string downloadURL;
+    std::string releaseNotesURL;
     std::chrono::seconds::rep lastCheckTimestamp;
 };
 
 static void to_json(nlohmann::json &j, const UpdateInfoJSON &info) {
     j = nlohmann::json{{"version", info.version},
                        {"buildTimestamp", info.buildTimestamp},
+                       {"downloadURL", info.downloadURL},
+                       {"releaseNotesURL", info.releaseNotesURL},
                        {"lastCheckTimestamp", info.lastCheckTimestamp}};
 }
 
 static void from_json(const nlohmann::json &j, UpdateInfoJSON &info) {
     j.at("version").get_to(info.version);
     j.at("buildTimestamp").get_to(info.buildTimestamp);
+    j.at("downloadURL").get_to(info.downloadURL);
+    j.at("releaseNotesURL").get_to(info.releaseNotesURL);
     j.at("lastCheckTimestamp").get_to(info.lastCheckTimestamp);
 }
 
@@ -97,6 +103,8 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
                 // Require all components to be parsed correctly
                 if (semver::parse(cachedInfo.version, info.version)) {
                     info.timestamp = std::chrono::seconds{cachedInfo.buildTimestamp};
+                    info.downloadURL = cachedInfo.downloadURL;
+                    info.releaseNotesURL = cachedInfo.releaseNotesURL;
                     return UpdateResult::Ok(info);
                 }
             }
@@ -169,10 +177,55 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
         }
     }
 
+    // Find matching download
+    std::string assetPrefix = "";
+#if defined(_WIN32)
+    #if defined(_M_X64) || defined(__x86_64__)
+        #if Ymir_AVX2
+    assetPrefix = "ymir-windows-x86_64-AVX2-";
+        #else
+    assetPrefix = "ymir-windows-x86_64-SSE2-";
+        #endif
+    #elif defined(_M_ARM64) || defined(__aarch64__)
+    assetPrefix = "ymir-windows-ARM64-";
+    #endif
+#elif defined(__linux__)
+    #if defined(_M_X64) || defined(__x86_64__)
+        #if Ymir_AVX2
+    assetPrefix = "ymir-linux-x86_64-AVX2-";
+        #else
+    assetPrefix = "ymir-linux-x86_64-SSE2-";
+        #endif
+    #elif defined(_M_ARM64) || defined(__aarch64__)
+    assetPrefix = "ymir-linux-AArch64-NEON-";
+    #endif
+#elif defined(__APPLE__)
+    #if defined(_M_X64) || defined(__x86_64__)
+    assetPrefix = "ymir-macos-x64-";
+    #elif defined(_M_ARM64) || defined(__aarch64__)
+    assetPrefix = "ymir-macos-arm64-";
+    #endif
+#endif
+
+    for (auto &asset : res["assets"]) {
+        try {
+            auto name = asset["name"].get<std::string>();
+            if (name.starts_with(assetPrefix)) {
+                info.downloadURL = asset["browser_download_url"].get<std::string>();
+                break;
+            }
+        } catch (const nlohmann::json::exception &e) {
+            return UpdateResult::Failed(fmt::format("Failed to parse response: {}", e.what()));
+        }
+    }
+    info.releaseNotesURL = res["html_url"];
+
     // Write update info to cache
     {
         UpdateInfoJSON infoJSON{.version = info.version.to_string(),
                                 .buildTimestamp = info.timestamp.count(),
+                                .downloadURL = info.downloadURL,
+                                .releaseNotesURL = info.releaseNotesURL,
                                 .lastCheckTimestamp = std::chrono::duration_cast<std::chrono::seconds>(
                                                           std::chrono::system_clock::now().time_since_epoch())
                                                           .count()};
