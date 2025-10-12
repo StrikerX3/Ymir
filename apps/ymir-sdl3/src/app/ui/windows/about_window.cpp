@@ -272,7 +272,7 @@ void AboutWindow::DrawAboutTab() {
     ImGui::Text("Compiled with %s %s.", compiler::name, compiler::version::string.c_str());
 #ifdef Ymir_BUILD_TIMESTAMP
     if (auto buildTimestamp = util::parse8601(Ymir_BUILD_TIMESTAMP)) {
-        auto localBuildTime = util::to_local_time(*buildTimestamp);
+        auto localBuildTime = util::to_local_time(std::chrono::system_clock::time_point(*buildTimestamp));
         ImGui::TextUnformatted(fmt::format("Built at {}", localBuildTime).c_str());
     }
 #endif
