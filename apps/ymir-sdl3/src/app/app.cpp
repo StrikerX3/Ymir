@@ -4308,8 +4308,10 @@ util::ROMLoadResult App::LoadCDBlockROM() {
     std::filesystem::path romPath = GetCDBlockROMPath();
     if (romPath.empty()) {
         devlog::warn<grp::base>("No CD Block ROM found");
-        m_context.settings.cdblock.useLLE = false;
-        m_context.DisplayMessage("Low level CD block emulation disabled: no ROMs found");
+        if (m_context.settings.cdblock.useLLE) {
+            m_context.settings.cdblock.useLLE = false;
+            m_context.DisplayMessage("Low level CD block emulation disabled: no ROMs found");
+        }
         return util::ROMLoadResult::Fail("No CD Block ROM found");
     }
 
