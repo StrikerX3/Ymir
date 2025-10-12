@@ -1,5 +1,16 @@
 # Ymir changelog
 
+## Version 0.2.1
+
+In development.
+
+Uses save state file version 10.
+
+### New features and improvements
+
+### Fixes
+
+
 ## Version 0.2.0
 
 Released 2025-10-12.
@@ -8,7 +19,7 @@ Introduced save state file version 10.
 
 ### New features and improvements
 
-- App: Added option to check for updates on startup. Also added manual update check action.
+- App: Added option to check for updates on startup. Also added manual update check action. (#110)
 - Build: Create macOS app bundle. (#591; @tegaidogun)
 - Cart: Add 6 MiB development DRAM cartridge, required by the Heart of Darkness prototype. (#584)
 - CD Block: Implemented optional low-level emulation mode. Requires valid CD Block ROMs and has considerable performance cost, but fixes numerous issues when enabled:
