@@ -1570,6 +1570,7 @@ public:
                 Windows,     // Colorize by window state (one layer or custom setup)
                 RotParams,   // Colorize by rotation parameters on RBG0
                 ColorCalc,   // Colorize by color calculation flag/mode
+                Shadow,      // Colorize by shadow flag
             } type = Type::None;
 
             // 8-bit opacity for overlay layer. 0=fully transparent, 255=fully opaque
@@ -1641,6 +1642,9 @@ public:
             uint8 colorCalcStackIndex = 0;
             Color888 colorCalcDisableColor{.r = 0x00, .g = 0x00, .b = 0x00};
             Color888 colorCalcEnableColor{.r = 0xFF, .g = 0xFF, .b = 0xFF};
+
+            Color888 shadowDisableColor{.r = 0xFF, .g = 0xFF, .b = 0xFF};
+            Color888 shadowEnableColor{.r = 0x00, .g = 0x00, .b = 0x00};
         } overlay;
 
     } vdp2DebugRenderOptions;

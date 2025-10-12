@@ -32,6 +32,7 @@ void VDP2DebugOverlayView::Display() {
         case OverlayType::Windows: return "Windows";
         case OverlayType::RotParams: return "RBG0 rotation parameters";
         case OverlayType::ColorCalc: return "Color calculations";
+        case OverlayType::Shadow: return "Shadows";
         default: return "Invalid";
         }
     };
@@ -68,6 +69,7 @@ void VDP2DebugOverlayView::Display() {
         option(OverlayType::Windows);
         option(OverlayType::RotParams);
         option(OverlayType::ColorCalc);
+        option(OverlayType::Shadow);
         ImGui::EndCombo();
     }
 
@@ -208,6 +210,12 @@ void VDP2DebugOverlayView::Display() {
                             &kMinLayerStackIndex, &kMaxLayerStackIndex, nullptr, ImGuiSliderFlags_AlwaysClamp);
         colorPicker("Disabled##color_calc", overlay.colorCalcDisableColor);
         colorPicker("Enabled##color_calc", overlay.colorCalcEnableColor);
+        break;
+    }
+    case OverlayType::Shadow: //
+    {
+        colorPicker("Disabled##shadow", overlay.shadowDisableColor);
+        colorPicker("Enabled##shadow", overlay.shadowEnableColor);
         break;
     }
     default: break;

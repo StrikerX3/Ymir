@@ -5380,6 +5380,11 @@ FORCE_INLINE void VDP::VDP2ComposeLine(uint32 y, bool altField) {
                                        : overlay.colorCalcDisableColor;
                     break;
                 }
+                case OverlayType::Shadow: //
+                {
+                    overlayColor = layer0ShadowEnabled[x] ? overlay.shadowEnableColor : overlay.shadowDisableColor;
+                    break;
+                }
                 }
 
                 const uint8 alpha = overlay.alpha;
