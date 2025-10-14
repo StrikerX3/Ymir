@@ -20,7 +20,7 @@ tm to_local_time(std::chrono::system_clock::time_point tp) {
 std::optional<std::chrono::seconds> parse8601(std::string str) {
     std::istringstream in{str};
     date::sys_time<std::chrono::seconds> tp{};
-    in >> date::parse("%FT%TZ", tp);
+    date::from_stream(in, "%FT%TZ", tp);
     if (in) {
         return tp.time_since_epoch();
     }
