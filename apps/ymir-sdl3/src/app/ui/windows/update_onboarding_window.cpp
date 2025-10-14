@@ -41,7 +41,8 @@ void UpdateOnboardingWindow::DrawContents() {
         m_context.displayScale);
 
     ImGui::NewLine();
-    ImGui::TextUnformatted("Choose Accept to apply these settings or Decide later to close this window now.");
+    ImGui::TextUnformatted("Choose Accept to apply these settings or Decide later to close this window now.\n"
+                           "If you choose to decide later, this popup will appear again on next startup.");
 
     ImGui::Separator();
     if (ImGui::Button("Accept")) {
