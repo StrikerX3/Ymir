@@ -935,6 +935,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblHotkeys, "ToggleAlternateSpeed", hotkeys.toggleAlternateSpeed);
         Parse(tblHotkeys, "IncreaseSpeed", hotkeys.increaseSpeed);
         Parse(tblHotkeys, "DecreaseSpeed", hotkeys.decreaseSpeed);
+        Parse(tblHotkeys, "IncreaseSpeedLarge", hotkeys.increaseSpeedLarge);
+        Parse(tblHotkeys, "DecreaseSpeedLarge", hotkeys.decreaseSpeedLarge);
         Parse(tblHotkeys, "ResetSpeed", hotkeys.resetSpeed);
         Parse(tblHotkeys, "PauseResume", hotkeys.pauseResume);
         Parse(tblHotkeys, "ForwardFrameStep", hotkeys.fwdFrameStep);
