@@ -10,6 +10,7 @@ Uses save state file version 10.
 
 ### Fixes
 
+- Settings: Properly reload binds for "increase/decrease speed by 25%".
 - Updater: Detect nightly -> stable update when the current version matches the stable version.
 
 
