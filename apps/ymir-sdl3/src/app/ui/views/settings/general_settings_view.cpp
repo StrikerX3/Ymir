@@ -156,24 +156,24 @@ void GeneralSettingsView::Display() {
                 } else {
                     ImGui::Text("%s", ver->version.to_string().c_str());
                 }
+                ImGui::TableNextColumn();
+                if (!ver->releaseNotesURL.empty()) {
+                    if (ImGui::SmallButton("Release notes")) {
+                        SDL_OpenURL(ver->releaseNotesURL.c_str());
+                    }
+                }
+                if (!ver->downloadURL.empty()) {
+                    if (!ver->releaseNotesURL.empty()) {
+                        ImGui::SameLine();
+                    }
+                    if (ImGui::SmallButton("Download")) {
+                        SDL_OpenURL(ver->downloadURL.c_str());
+                    }
+                }
             } else {
                 ImGui::TextUnformatted("Not checked");
             }
 
-            ImGui::TableNextColumn();
-            if (!ver->releaseNotesURL.empty()) {
-                if (ImGui::SmallButton("Release notes")) {
-                    SDL_OpenURL(ver->releaseNotesURL.c_str());
-                }
-            }
-            if (!ver->downloadURL.empty()) {
-                if (!ver->releaseNotesURL.empty()) {
-                    ImGui::SameLine();
-                }
-                if (ImGui::SmallButton("Download")) {
-                    SDL_OpenURL(ver->downloadURL.c_str());
-                }
-            }
             ImGui::PopID();
         };
         version("Stable", m_context.updates.latestStable);
