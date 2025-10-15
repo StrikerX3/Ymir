@@ -46,8 +46,9 @@ void UpdateOnboardingWindow::DrawContents() {
 
     ImGui::Separator();
     if (ImGui::Button("Accept")) {
-        const auto updaterPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
-        const auto onboardedPath = updaterPath / ".onboarded";
+        const auto updatesPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
+        const auto onboardedPath = updatesPath / ".onboarded";
+        std::filesystem::create_directories(updatesPath);
         std::ofstream{onboardedPath};
 
         util::os::SetFileHidden(onboardedPath, true);

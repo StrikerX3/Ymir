@@ -457,8 +457,8 @@ void App::RunEmulator() {
     lsn::CScopedNoSubnormals snsNoSubnormals{};
 
     {
-        const auto updaterPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
-        const auto onboardedPath = updaterPath / ".onboarded";
+        const auto updatesPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
+        const auto onboardedPath = updatesPath / ".onboarded";
 
         // Check if user has opted in or out of automatic updates
         const bool onboarded = std::filesystem::is_regular_file(onboardedPath);
@@ -472,11 +472,11 @@ void App::RunEmulator() {
         } else {
             // Load cached results if available
             if (auto result =
-                    m_context.updateChecker.Check(ReleaseChannel::Stable, updaterPath, UpdateCheckMode::Offline)) {
+                    m_context.updateChecker.Check(ReleaseChannel::Stable, updatesPath, UpdateCheckMode::Offline)) {
                 m_context.updates.latestStable = result.updateInfo;
             }
             if (auto result =
-                    m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterPath, UpdateCheckMode::Offline)) {
+                    m_context.updateChecker.Check(ReleaseChannel::Nightly, updatesPath, UpdateCheckMode::Offline)) {
                 m_context.updates.latestNightly = result.updateInfo;
             }
         }

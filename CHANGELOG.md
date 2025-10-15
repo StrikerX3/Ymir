@@ -11,6 +11,7 @@ Uses save state file version 10.
 ### Fixes
 
 - Settings: Properly reload binds for "increase/decrease speed by 25%".
+- Updater: Create `state/updates` folder before writing `.onboarded` file in case the user opts out of automatic update checks.
 - Updater: Detect nightly -> stable update when the current version matches the stable version.
 
 
