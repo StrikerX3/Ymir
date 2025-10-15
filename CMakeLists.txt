@@ -22,6 +22,7 @@ option(Ymir_ENABLE_IPO "Enable IPO / LTO for Ymir" ON)
 option(Ymir_ENABLE_DEVLOG "Enable development logs" ${Ymir_DEV_BUILD})
 option(Ymir_ENABLE_DEV_ASSERTIONS "Enable development-time assertions" OFF)
 option(Ymir_ENABLE_IMGUI_DEMO "Enable ImGui demo window" ON)
+option(Ymir_ENABLE_UPDATE_CHECKS "Enable update checks" ON)
 
 if (Ymir_DEV_BUILD)
     message(STATUS "Ymir: Development build")
@@ -30,6 +31,7 @@ else ()
 endif ()
 message(STATUS "Ymir: Devlog ${Ymir_ENABLE_DEVLOG}")
 message(STATUS "Ymir: Extra inlining ${Ymir_EXTRA_INLINING}")
+message(STATUS "Ymir: Update checks ${Ymir_ENABLE_UPDATE_CHECKS}")
 
 # Create Universal Binary on MacOS
 #if (APPLE)

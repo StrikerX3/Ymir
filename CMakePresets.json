@@ -28,7 +28,8 @@
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_AVX2": "ON"
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -60,7 +61,8 @@
         "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
         "Ymir_EXTRA_INLINING": "OFF",
-        "Ymir_AVX2": "ON"
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -94,7 +96,8 @@
         "Ymir_EXTRA_INLINING": "ON",
         "Ymir_AVX2": "ON",
         "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF"
+        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -128,7 +131,8 @@
         "Ymir_EXTRA_INLINING": "ON",
         "Ymir_AVX2": "OFF",
         "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF"
+        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -158,7 +162,8 @@
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_AVX2": "ON"
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -188,7 +193,8 @@
         "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
         "Ymir_EXTRA_INLINING": "OFF",
-        "Ymir_AVX2": "ON"
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -220,7 +226,8 @@
         "Ymir_EXTRA_INLINING": "ON",
         "Ymir_AVX2": "ON",
         "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF"
+        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {
@@ -252,7 +259,8 @@
         "Ymir_EXTRA_INLINING": "ON",
         "Ymir_AVX2": "OFF",
         "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF"
+        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": {

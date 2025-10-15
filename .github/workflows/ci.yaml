@@ -76,6 +76,7 @@ jobs:
           -DBUILD_SHARED_LIBS=OFF
           -DYmir_ENABLE_DEVLOG=OFF
           -DYmir_ENABLE_IMGUI_DEMO=OFF
+          -DYmir_ENABLE_UPDATE_CHECKS=ON
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=ON
           -DYmir_ENABLE_IPO=OFF
@@ -153,6 +154,7 @@ jobs:
           -DBUILD_SHARED_LIBS=OFF
           -DYmir_ENABLE_DEVLOG=OFF
           -DYmir_ENABLE_IMGUI_DEMO=OFF
+          -DYmir_ENABLE_UPDATE_CHECKS=ON
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=ON
           -DYmir_ENABLE_IPO=OFF
@@ -213,6 +215,7 @@ jobs:
               -DBUILD_SHARED_LIBS=OFF \
               -DYmir_ENABLE_DEVLOG=OFF \
               -DYmir_ENABLE_IMGUI_DEMO=OFF \
+              -DYmir_ENABLE_UPDATE_CHECKS=ON \
               -DYmir_ENABLE_SANDBOX=OFF \
               -DYmir_ENABLE_YMDASM=ON \
               -DYmir_ENABLE_IPO=OFF \
@@ -282,6 +285,7 @@ jobs:
           -DVCPKG_TARGET_TRIPLET=${{ matrix.arch.triplet_arch }}-osx
           -DYmir_ENABLE_DEVLOG=OFF
           -DYmir_ENABLE_IMGUI_DEMO=OFF
+          -DYmir_ENABLE_UPDATE_CHECKS=ON
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=ON
           -DYmir_ENABLE_IPO=OFF

@@ -132,7 +132,9 @@ void GeneralSettingsView::Display() {
     ImGui::SeparatorText("Updates");
     ImGui::PopFont();
 
+#if Ymir_ENABLE_UPDATE_CHECKS
     MakeDirty(ImGui::Checkbox("Check for updates on startup", &settings.checkForUpdates));
+#endif
     MakeDirty(ImGui::Checkbox("Update to nightly builds", &settings.includeNightlyBuilds));
     widgets::ExplanationTooltip("When enabled, Ymir will also notify you when new nightly builds are available.",
                                 m_context.displayScale);

@@ -458,16 +458,18 @@ void App::RunEmulator() {
 
     {
         const auto updatesPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
-        const auto onboardedPath = updatesPath / ".onboarded";
 
+#if Ymir_ENABLE_UPDATE_CHECKS
         // Check if user has opted in or out of automatic updates
+        const auto onboardedPath = updatesPath / ".onboarded";
         const bool onboarded = std::filesystem::is_regular_file(onboardedPath);
         if (!onboarded) {
             m_updateOnboardingWindow.Open = true;
         }
+#endif
 
         // Start update checker thread and fire update check immediately if configured to do so
-        if (m_context.settings.general.checkForUpdates) {
+        if (Ymir_ENABLE_UPDATE_CHECKS && m_context.settings.general.checkForUpdates) {
             CheckForUpdates(false);
         } else {
             // Load cached results if available
@@ -4894,7 +4896,9 @@ void App::DrawWindows() {
     m_settingsWindow.Display();
     m_periphConfigWindow.Display();
     m_aboutWindow.Display();
+#if Ymir_ENABLE_UPDATE_CHECKS
     m_updateOnboardingWindow.Display();
+#endif
     m_updateWindow.Display();
 }
 
