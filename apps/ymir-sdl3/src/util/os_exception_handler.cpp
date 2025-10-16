@@ -393,7 +393,7 @@ mig_external kern_return_t catch_mach_exception_raise_state(
     #elif defined(__aarch64__) || defined(__arm64__)
     using thread_state_t = arm_thread_state64_t;
     #else
-        #error "Unsupported architecture
+        #error "Unsupported architecture"
     #endif
 
     // No modifications to the exception-thread, just copy it over
@@ -436,7 +436,7 @@ mig_external kern_return_t catch_mach_exception_raise_state(
                    threadState.__lr, threadState.__sp);
     fmt::format_to(out, "PC={:X} CPSR={:X}", threadState.__pc, threadState.__cpsr);
     #else
-        #error "Unsupported architecture
+        #error "Unsupported architecture"
     #endif
 
     const std::string errMsg = fmt::to_string(buf);
