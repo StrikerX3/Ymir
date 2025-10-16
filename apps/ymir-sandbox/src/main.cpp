@@ -1173,7 +1173,7 @@ tm to_local_time(std::chrono::system_clock::time_point tp) {
 
 bool parse8601(std::string str, date::sys_time<std::chrono::seconds> &tp) {
     std::istringstream in{str};
-    in >> date::parse("%FT%TZ", tp);
+    date::from_stream(in, "%FT%TZ", tp);
     return !in.fail();
 }
 
