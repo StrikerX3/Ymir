@@ -4,6 +4,7 @@
 #include <ymir/sys/clocks.hpp>
 
 #include <ymir/hw/smpc/peripheral/peripheral_defs.hpp>
+#include "app/ui/state/debug/memory_viewer_state.hpp"
 
 #include "emu_event.hpp"
 
@@ -99,6 +100,7 @@ EmuEvent SetTransparentMeshes(bool enable);
 
 EmuEvent SetDebugTrace(bool enable);
 EmuEvent DumpMemory();
+EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView);
 
 EmuEvent InsertPort1Peripheral(ymir::peripheral::PeripheralType type);
 EmuEvent InsertPort2Peripheral(ymir::peripheral::PeripheralType type);
