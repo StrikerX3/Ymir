@@ -4,6 +4,8 @@
 
 #include <app/ui/state/debug/memory_viewer_state.hpp>
 
+#include "app/events/emu_event_factory.hpp"
+
 #include <memory>
 
 namespace app::ui {
