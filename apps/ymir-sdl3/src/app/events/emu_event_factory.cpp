@@ -193,11 +193,11 @@ EmuEvent DumpMemory() {
 EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView) {
     return RunFunction([memView](const SharedContext &ctx) {
         // get path from ctx, setup errors, try dir creation
-        const auto dmpPth = ctx.profile.GetPath(ProfilePath::Dumps);
+        const auto dumpPath = ctx.profile.GetPath(ProfilePath::Dumps);
         std::error_code ec{};
-        std::filesystem::create_directories(dmpPth, ec);
+        std::filesystem::create_directories(dumpPath, ec);
         if (ec) {
-            devlog::warn<grp::base>("Could not create dump directory {}: {}", dmpPth, ec.message());
+            devlog::warn<grp::base>("Could not create dump directory {}: {}", dumpPath, ec.message());
             return;
         }
 
@@ -221,27 +221,29 @@ EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView) {
 
         // filename sanitizer to be safe
         auto sanitize = [](std::string s) {
-            for (char &c : s)
-                if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-')
+            for (char &c : s) {
+                if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-') {
                     c = '_';
+                }
+            }
             return s;
         };
 
         // get game product num, setup path
-        const auto prod_num = ctx.saturn.GetDisc().header.productNumber;
-        const auto outPth =
-            dmpPth / fmt::format("{}_{}_{:08X}_{}B.bin", prod_num, sanitize(region->name), region->baseAddress, size);
+        const auto product_number = ctx.saturn.GetDisc().header.productNumber;
+        const auto outPath =
+            dumpPath / fmt::format("{}_{}_{:08X}_{}B.bin", product_number, sanitize(region->name), region->baseAddress, size);
 
         // write to dump path
-        std::ofstream out{outPth, std::ios::binary | std::ios::trunc};
+        std::ofstream out{outPath, std::ios::binary | std::ios::trunc};
         if (!out) {
-            devlog::warn<grp::base>("DumpMemRegion: failed to open {}", outPth);
+            devlog::warn<grp::base>("DumpMemRegion: failed to open {}", outPath);
             return;
         }
         out.write(reinterpret_cast<const char *>(buf.data()), static_cast<std::streamsize>(buf.size()));
 
         devlog::info<grp::base>("Dumped {} bytes from [{}:{:08X}..{:08X}] to {}", size, region->addressBlockName,
-                                region->baseAddress, region->baseAddress + size - 1, outPth);
+                                region->baseAddress, region->baseAddress + size - 1, outPath);
     });
 }
 
