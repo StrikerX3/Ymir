@@ -57,10 +57,11 @@ void MemoryViewerWindow::DrawContents() {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Region");
 
-    ImGui::Checkbox("Enable side-effects", &m_memViewState->enableSideEffects);
-    if (ImGui::SmallButton("Dump memory region")) {
+    if (ImGui::Button("Dump")) {
         m_context.EnqueueEvent(events::emu::DumpMemRegion(*m_memViewState));
     };
+    ImGui::SameLine();
+    ImGui::Checkbox("Enable side-effects", &m_memViewState->enableSideEffects);
     if (currRegion.paramsFn) {
         currRegion.paramsFn(m_memViewState.get());
     }

@@ -581,7 +581,7 @@ struct SharedContext {
     } eventQueues;
 
     // Circular buffer of messages to be displayed
-    struct Messages {
+    mutable struct Messages {
         std::array<Message, 10> list{};
         size_t count = 0;
         size_t head = 0;
@@ -625,7 +625,7 @@ struct SharedContext {
     SharedContext();
     ~SharedContext();
 
-    void DisplayMessage(std::string message) {
+    void DisplayMessage(std::string message) const {
         std::unique_lock lock{locks.messages};
         devlog::info<grp::base>("{}", message);
         messages.Add(message);

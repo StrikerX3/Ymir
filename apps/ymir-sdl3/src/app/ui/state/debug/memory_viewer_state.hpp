@@ -196,7 +196,7 @@ namespace regions {
         if (!emulateSH2Cache) {
             ImGui::BeginDisabled();
         }
-        ImGui::Checkbox("Bypass SH2 cache", &state->bypassSH2Cache);
+        ImGui::Checkbox("Bypass cache", &state->bypassSH2Cache);
         if (!emulateSH2Cache) {
             ImGui::EndDisabled();
         }

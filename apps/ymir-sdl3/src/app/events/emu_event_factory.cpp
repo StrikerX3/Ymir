@@ -230,9 +230,9 @@ EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView) {
         };
 
         // get game product num, setup path
-        const auto product_number = ctx.saturn.GetDisc().header.productNumber;
-        const auto outPath =
-            dumpPath / fmt::format("{}_{}_{:08X}_{}B.bin", product_number, sanitize(region->name), region->baseAddress, size);
+        const auto &productNumber = ctx.saturn.GetDisc().header.productNumber;
+        const auto outPath = dumpPath / fmt::format("{}_{}_{:08X}_{}B.bin", productNumber, sanitize(region->name),
+                                                    region->baseAddress, size);
 
         // write to dump path
         std::ofstream out{outPath, std::ios::binary | std::ios::trunc};
@@ -242,8 +242,8 @@ EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView) {
         }
         out.write(reinterpret_cast<const char *>(buf.data()), static_cast<std::streamsize>(buf.size()));
 
-        devlog::info<grp::base>("Dumped {} bytes from [{}:{:08X}..{:08X}] to {}", size, region->addressBlockName,
-                                region->baseAddress, region->baseAddress + size - 1, outPath);
+        ctx.DisplayMessage(fmt::format("Dumped {} bytes from [{}:{:08X}..{:08X}] to {}", size, region->addressBlockName,
+                                       region->baseAddress, region->baseAddress + size - 1, outPath));
     });
 }
 
