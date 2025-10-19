@@ -189,6 +189,64 @@ EmuEvent DumpMemory() {
     });
 }
 
+// handler to dump a specified memory region from the mem viewer
+EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView) {
+    return RunFunction([memView](const SharedContext &ctx) {
+        // get path from ctx, setup errors, try dir creation
+        const auto dumpPath = ctx.profile.GetPath(ProfilePath::Dumps);
+        std::error_code ec{};
+        std::filesystem::create_directories(dumpPath, ec);
+        if (ec) {
+            devlog::warn<grp::base>("Could not create dump directory {}: {}", dumpPath, ec.message());
+            return;
+        }
+
+        // get size from region, check readFn
+        const auto *region = memView.selectedRegion;
+        if (!region || region->size == 0 || !region->readFn) {
+            // could happen for invalid region or if no readFn exists
+            devlog::warn<grp::base>("DumpMemRegion: invalid region/readFn/size");
+            return;
+        }
+        const uint32_t size = region->size;
+
+        devlog::info<grp::base>("Dumping memory region {}...", region->name);
+
+        // fill buffer /w same size as mem region
+        std::vector<std::uint8_t> buf(size);
+        void *userData = memView.memoryEditor.UserData;
+        for (uint32_t i = 0; i < size; ++i) {
+            buf[i] = region->readFn(nullptr, i, userData);
+        }
+
+        // filename sanitizer to be safe
+        auto sanitize = [](std::string s) {
+            for (char &c : s) {
+                if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-') {
+                    c = '_';
+                }
+            }
+            return s;
+        };
+
+        // get game product num, setup path
+        const auto product_number = ctx.saturn.GetDisc().header.productNumber;
+        const auto outPath =
+            dumpPath / fmt::format("{}_{}_{:08X}_{}B.bin", product_number, sanitize(region->name), region->baseAddress, size);
+
+        // write to dump path
+        std::ofstream out{outPath, std::ios::binary | std::ios::trunc};
+        if (!out) {
+            devlog::warn<grp::base>("DumpMemRegion: failed to open {}", outPath);
+            return;
+        }
+        out.write(reinterpret_cast<const char *>(buf.data()), static_cast<std::streamsize>(buf.size()));
+
+        devlog::info<grp::base>("Dumped {} bytes from [{}:{:08X}..{:08X}] to {}", size, region->addressBlockName,
+                                region->baseAddress, region->baseAddress + size - 1, outPath);
+    });
+}
+
 static void InsertPeripheral(peripheral::PeripheralType type, peripheral::PeripheralPort &port) {
     switch (type) {
     case ymir::peripheral::PeripheralType::None: port.DisconnectPeripherals(); break;

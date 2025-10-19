@@ -9,6 +9,7 @@ Uses save state file version 10.
 ### New features and improvements
 
 - Added compile-time flag `Ymir_ENABLE_UPDATE_CHECKS` to enable or disable the automatic update checker, including the onboarding process.
+- Added `Dump memory region` button to the Memory Viewer to dump the currently selected region to a raw .bin file in the profile’s dump path.
 
 ### Fixes
 
