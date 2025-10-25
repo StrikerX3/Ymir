@@ -320,7 +320,7 @@
     {
       "name": "x64-Clang-Release-Linux",
       "displayName": "x64 Clang Release",
-      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
+      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, release build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "architecture": {
@@ -387,7 +387,7 @@
     {
       "name": "x64-Clang-Release-MacOS",
       "displayName": "x64 Clang Release",
-      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
+      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, release build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "architecture": {
@@ -455,7 +455,7 @@
     {
       "name": "a64-Clang-Release-MacOS",
       "displayName": "arm64 Clang Release",
-      "description": "Sets Ninja generator, Clang compiler, arm64 architecture, build and install directory, debug build type",
+      "description": "Sets Ninja generator, Clang compiler, arm64 architecture, build and install directory, reset build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "architecture": {
