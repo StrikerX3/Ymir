@@ -25,17 +25,31 @@ Development assertions must be enabled by defining the `Ymir_DEV_ASSERTIONS` mac
 */
 
 #if Ymir_DEV_ASSERTIONS
-    #define YMIR_DEV_ASSERT(cond) \
-        do {                      \
-            if (!(cond)) {        \
-                __debugbreak();   \
-            }                     \
-        } while (false)
+    #if __has_builtin(__builtin_debugtrap)
+        #define YMIR_DEV_ASSERT(cond)      \
+            do {                           \
+                if (!(cond)) {             \
+                    __builtin_debugtrap(); \
+                }                          \
+            } while (false)
 
-    #define YMIR_DEV_CHECK() \
-        do {                 \
-            __debugbreak();  \
-        } while (false)
+        #define YMIR_DEV_CHECK()       \
+            do {                       \
+                __builtin_debugtrap(); \
+            } while (false)
+    #elif defined(_MSC_VER)
+        #define YMIR_DEV_ASSERT(cond) \
+            do {                      \
+                if (!(cond)) {        \
+                    __debugbreak();   \
+                }                     \
+            } while (false)
+
+        #define YMIR_DEV_CHECK() \
+            do {                 \
+                __debugbreak();  \
+            } while (false)
+    #endif
 #else
     #define YMIR_DEV_ASSERT(cond)
     #define YMIR_DEV_CHECK()
