@@ -318,6 +318,39 @@
       }
     },
     {
+      "name": "x64-Clang-Release-Linux",
+      "displayName": "x64 Clang Release",
+      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Linux"
+          ],
+          "intelliSenseMode": "linux-gcc-x64"
+        }
+      }
+    },
+    {
       "name": "x64-Clang-Debug-MacOS",
       "displayName": "x64 Clang Debug",
       "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
@@ -351,9 +384,42 @@
       }
     },
     {
+      "name": "x64-Clang-Release-MacOS",
+      "displayName": "x64 Clang Release",
+      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "environment": {
+        "CC": "/usr/bin/clang",
+        "CXX": "/usr/bin/clang++"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-osx",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "macOS"
+          ],
+          "intelliSenseMode": "ios-clang-x64"
+        }
+      }
+    },
+    {
       "name": "a64-Clang-Debug-MacOS",
       "displayName": "arm64 Clang Debug",
-      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
+      "description": "Sets Ninja generator, Clang compiler, arm64 architecture, build and install directory, debug build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "architecture": {
@@ -368,6 +434,39 @@
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "arm64-osx",
         "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_AVX2": "OFF",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "macOS"
+          ],
+          "intelliSenseMode": "ios-clang-arm64"
+        }
+      }
+    },
+    {
+      "name": "a64-Clang-Release-MacOS",
+      "displayName": "arm64 Clang Release",
+      "description": "Sets Ninja generator, Clang compiler, arm64 architecture, build and install directory, debug build type",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "arm64",
+        "strategy": "external"
+      },
+      "environment": {
+        "CC": "/usr/bin/clang",
+        "CXX": "/usr/bin/clang++"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-osx",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
