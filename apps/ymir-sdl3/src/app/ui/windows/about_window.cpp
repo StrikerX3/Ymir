@@ -621,7 +621,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::TextUnformatted(":");
     ImGui::Indent();
     ImGui::TextUnformatted("Aitor Guevara, Aydan Watkins, Diego Bartolom\u00E9, Elcorsico 28, Israel Jacquez, Jeff "
-                           "Greulich, Julien P, khalifax10, Mored4u, Munch, Oliver Stadler.");
+                           "Greulich, Julien P, khalifax10, Mored4u, Munch, Oliver Stadler, rifter.");
     ImGui::Unindent();
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
