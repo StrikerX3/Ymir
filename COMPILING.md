@@ -140,7 +140,7 @@ pkg install zenity
 Use CMake to generate a Makefile or (preferably) a Ninja build script:
 
 ```sh
-cmake -S . -B build -G Ninja
+cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
 Pass additional `-D<option>=<value>` parameters to tune the build. See the [Build configuration](#build-configuration) section above for details.
@@ -148,7 +148,7 @@ Pass additional `-D<option>=<value>` parameters to tune the build. See the [Buil
 You can use CMake to build the project, regardless of generator:
 
 ```sh
-cmake --build build --parallel -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
+cmake --build build --parallel
 ```
 
 
