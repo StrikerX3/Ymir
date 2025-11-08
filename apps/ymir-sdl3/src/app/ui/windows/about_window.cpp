@@ -599,8 +599,17 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(", including:");
     ImGui::Indent();
-    ImGui::TextUnformatted("BlueInterlude, bsdcode, Citrodata, floreal, GlaireDaggers, lvsweat, mmkzer0, ronan22, "
-                           "tegaidogun, tordona, Wunkolo.");
+    ImGui::TextUnformatted("BlueInterlude, "
+                           "bsdcode, "
+                           "Citrodata, "
+                           "floreal, "
+                           "GlaireDaggers, "
+                           "lvsweat, "
+                           "mmkzer0, "
+                           "ronan22, "
+                           "tegaidogun, "
+                           "tordona, "
+                           "Wunkolo.");
     ImGui::Unindent();
 
     ImGui::TextUnformatted("To the friends in the ");
@@ -609,9 +618,22 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(", especially:");
     ImGui::Indent();
-    ImGui::TextUnformatted(
-        "Aydan Watkins, celeriyacon, Charles / thelastangryman1907, Damian Gracz, fathamburger, GoodWall_533, Jano, "
-        "Katanchiro, Lordus, sasori95 / Immersion95, secreto7, Silanda, Sorer, TheCoolPup, waspennator, Zet-sensei.");
+    ImGui::TextUnformatted("Aydan Watkins, "
+                           "celeriyacon, "
+                           "Charles / thelastangryman1907, "
+                           "Damian Gracz, "
+                           "fathamburger, "
+                           "GoodWall_533, "
+                           "Jano, "
+                           "Katanchiro, "
+                           "Lordus, "
+                           "sasori95 / Immersion95, "
+                           "secreto7, "
+                           "Silanda, "
+                           "Sorer, "
+                           "TheCoolPup, "
+                           "waspennator, "
+                           "Zet-sensei.");
     ImGui::Unindent();
 
     ImGui::TextUnformatted("To the current and former ");
@@ -620,8 +642,20 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(":");
     ImGui::Indent();
-    ImGui::TextUnformatted("Aitor Guevara, Aydan Watkins, Diego Bartolom\u00E9, Elcorsico 28, Israel Jacquez, Jeff "
-                           "Greulich, Julien P, khalifax10, Mored4u, Munch, Oliver Stadler, rifter.");
+    ImGui::TextUnformatted("Aitor Guevara, "
+                           "Aydan Watkins, "
+                           "Derek Fagan, "
+                           "Diego Bartolom\u00E9, "
+                           "Elcorsico 28, "
+                           "Israel "
+                           "Jacquez, "
+                           "Jeff Greulich, "
+                           "Julien P, "
+                           "khalifax10, "
+                           "Mored4u, "
+                           "Munch, "
+                           "Oliver Stadler, "
+                           "rifter.");
     ImGui::Unindent();
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
