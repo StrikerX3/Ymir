@@ -1623,30 +1623,39 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
     case 0x179: break; // DMAC unused
 
     case 0x184: // INTC IPRA (bits 8-15)
+    {
         using enum InterruptSource;
         INTC.SetLevel(IRQ0, bit::extract<4, 7>(value));
         INTC.SetLevel(IRQ1, bit::extract<0, 3>(value));
         UpdateInterruptLevels<IRQ0, IRQ1>();
         break;
+    }
     case 0x185: // INTC IPRA (bits 0-7)
+    {
         using enum InterruptSource;
         INTC.SetLevel(IRQ2, bit::extract<4, 7>(value));
         INTC.SetLevel(IRQ3, bit::extract<0, 3>(value));
         UpdateInterruptLevels<IRQ2, IRQ3>();
         break;
+    }
     case 0x186: // INTC IPRB (bits 8-15)
+    {
         using enum InterruptSource;
         INTC.SetLevel(IRQ4, bit::extract<4, 7>(value));
         INTC.SetLevel(IRQ5, bit::extract<0, 3>(value));
         UpdateInterruptLevels<IRQ4, IRQ5, IRQ6, IRQ7>();
         break;
+    }
     case 0x187: // INTC IPRB (bits 0-7)
+    {
         using enum InterruptSource;
         INTC.SetLevel(IRQ6, bit::extract<4, 7>(value));
         INTC.SetLevel(IRQ7, bit::extract<0, 3>(value));
         UpdateInterruptLevels<IRQ4, IRQ5, IRQ6, IRQ7>();
         break;
+    }
     case 0x188: // INTC IPRC (bits 8-15)
+    {
         using enum InterruptSource;
         INTC.SetLevel(DMAC0_DEI0, bit::extract<4, 7>(value));
         INTC.SetLevel(DMAC1_DEI1, bit::extract<4, 7>(value));
@@ -1654,7 +1663,9 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         INTC.SetLevel(DMAC3_DEI3, bit::extract<0, 3>(value));
         UpdateInterruptLevels<DMAC0_DEI0, DMAC1_DEI1, DMAC2_DEI2, DMAC3_DEI3>();
         break;
+    }
     case 0x189: // INTC IPRC (bits 0-7)
+    {
         using enum InterruptSource;
         INTC.SetLevel(ITU0_IMIA0, bit::extract<4, 7>(value));
         INTC.SetLevel(ITU0_IMIB0, bit::extract<4, 7>(value));
@@ -1664,7 +1675,9 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         INTC.SetLevel(ITU1_OVI1, bit::extract<0, 3>(value));
         UpdateInterruptLevels<ITU0_IMIA0, ITU0_IMIB0, ITU0_OVI0, ITU1_IMIA1, ITU1_IMIB1, ITU1_OVI1>();
         break;
+    }
     case 0x18A: // INTC IPRD (bits 8-15)
+    {
         using enum InterruptSource;
         INTC.SetLevel(ITU2_IMIA2, bit::extract<4, 7>(value));
         INTC.SetLevel(ITU2_IMIB2, bit::extract<4, 7>(value));
@@ -1674,7 +1687,9 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         INTC.SetLevel(ITU3_OVI3, bit::extract<0, 3>(value));
         UpdateInterruptLevels<ITU2_IMIA2, ITU2_IMIB2, ITU2_OVI2, ITU3_IMIA3, ITU3_IMIB3, ITU3_OVI3>();
         break;
+    }
     case 0x18B: // INTC IPRD (bits 0-7)
+    {
         using enum InterruptSource;
         INTC.SetLevel(ITU4_IMIA4, bit::extract<4, 7>(value));
         INTC.SetLevel(ITU4_IMIB4, bit::extract<4, 7>(value));
@@ -1685,7 +1700,9 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         INTC.SetLevel(SCI0_TEI0, bit::extract<0, 3>(value));
         UpdateInterruptLevels<ITU4_IMIA4, ITU4_IMIB4, ITU4_OVI4, SCI0_ERI0, SCI0_RxI0, SCI0_TxI0, SCI0_TEI0>();
         break;
+    }
     case 0x18C: // INTC IPRE (bits 8-15)
+    {
         using enum InterruptSource;
         INTC.SetLevel(SCI1_ERI1, bit::extract<4, 7>(value));
         INTC.SetLevel(SCI1_RxI1, bit::extract<4, 7>(value));
@@ -1695,12 +1712,15 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
         INTC.SetLevel(AD_ITI, bit::extract<0, 3>(value));
         UpdateInterruptLevels<SCI1_ERI1, SCI1_RxI1, SCI1_TxI1, SCI1_TEI1, PRT_PEI, AD_ITI>();
         break;
+    }
     case 0x18D: // INTC IPRE (bits 0-7)
+    {
         using enum InterruptSource;
         INTC.SetLevel(WDT_ITI, bit::extract<4, 7>(value));
         INTC.SetLevel(REF_CMI, bit::extract<4, 7>(value));
         UpdateInterruptLevels<WDT_ITI, REF_CMI>();
         break;
+    }
     case 0x18E: INTC.WriteICR<false, true, poke>(value << 8u); break;
     case 0x18F: INTC.WriteICR<true, false, poke>(value); break;
 
@@ -1889,6 +1909,7 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
     case 0x178: break; // DMAC unused
 
     case 0x184: // INTC IPRA
+    {
         using enum InterruptSource;
         INTC.SetLevel(IRQ0, bit::extract<12, 15>(value));
         INTC.SetLevel(IRQ1, bit::extract<8, 11>(value));
@@ -1896,7 +1917,9 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
         INTC.SetLevel(IRQ3, bit::extract<0, 3>(value));
         UpdateInterruptLevels<IRQ0, IRQ1, IRQ2, IRQ3>();
         break;
+    }
     case 0x186: // INTC IPRB
+    {
         using enum InterruptSource;
         INTC.SetLevel(IRQ4, bit::extract<12, 15>(value));
         INTC.SetLevel(IRQ5, bit::extract<8, 11>(value));
@@ -1904,7 +1927,9 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
         INTC.SetLevel(IRQ7, bit::extract<0, 3>(value));
         UpdateInterruptLevels<IRQ4, IRQ5, IRQ6, IRQ7>();
         break;
+    }
     case 0x188: // INTC IPRC
+    {
         using enum InterruptSource;
         INTC.SetLevel(DMAC0_DEI0, bit::extract<12, 15>(value));
         INTC.SetLevel(DMAC1_DEI1, bit::extract<12, 15>(value));
@@ -1919,7 +1944,9 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
         UpdateInterruptLevels<DMAC0_DEI0, DMAC1_DEI1, DMAC2_DEI2, DMAC3_DEI3, ITU0_IMIA0, ITU0_IMIB0, ITU0_OVI0,
                               ITU1_IMIA1, ITU1_IMIB1, ITU1_OVI1>();
         break;
+    }
     case 0x18A: // INTC IPRD
+    {
         using enum InterruptSource;
         INTC.SetLevel(ITU2_IMIA2, bit::extract<12, 15>(value));
         INTC.SetLevel(ITU2_IMIB2, bit::extract<12, 15>(value));
@@ -1937,7 +1964,9 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
         UpdateInterruptLevels<ITU2_IMIA2, ITU2_IMIB2, ITU2_OVI2, ITU3_IMIA3, ITU3_IMIB3, ITU3_OVI3, ITU4_IMIA4,
                               ITU4_IMIB4, ITU4_OVI4, SCI0_ERI0, SCI0_RxI0, SCI0_TxI0, SCI0_TEI0>();
         break;
+    }
     case 0x18C: // INTC IPRE
+    {
         using enum InterruptSource;
         INTC.SetLevel(SCI1_ERI1, bit::extract<12, 15>(value));
         INTC.SetLevel(SCI1_RxI1, bit::extract<12, 15>(value));
@@ -1949,6 +1978,7 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
         INTC.SetLevel(REF_CMI, bit::extract<4, 7>(value));
         UpdateInterruptLevels<SCI1_ERI1, SCI1_RxI1, SCI1_TxI1, SCI1_TEI1, PRT_PEI, AD_ITI, WDT_ITI, REF_CMI>();
         break;
+    }
     case 0x18E: INTC.WriteICR<true, true, poke>(value); break;
 
     case 0x190: // UBC BARH
