@@ -3456,72 +3456,71 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
         }
 
         // NBG0-3
-        if (!rbg1Enabled) {
-            for (uint32 nbg = 0; nbg < 4; ++nbg) {
-                auto &bgParams = regs2.bgParams[nbg + 1];
-                bgParams.patNameAccess[bank] = false;
-                bgParams.charPatAccess[bank] = false;
+        for (uint32 nbg = 0; nbg < 4; ++nbg) {
+            auto &bgParams = regs2.bgParams[nbg + 1];
+            bgParams.patNameAccess[bank] = false;
+            bgParams.charPatAccess[bank] = false;
 
-                // Skip disabled NBGs
-                if (!regs2.bgEnabled[nbg]) {
-                    continue;
-                }
-                // Skip NBGs 2 and 3 if RBG1 is enabled
-                if (rbg1Enabled && bank >= 2u) {
-                    continue;
-                }
-                // Skip NBGs if RBG0 is enabled and the current bank is assigned to it
-                if (rbg0Enabled && rotDataBankSel != RotDataBankSel::Unused) {
-                    continue;
-                }
+            // Skip disabled NBGs
+            if (!regs2.bgEnabled[nbg]) {
+                continue;
+            }
+            // Skip NBGs 2 and 3 if RBG1 is enabled
+            if (rbg1Enabled && bank >= 2u) {
+                continue;
+            }
+            // Skip NBGs if RBG0 is enabled and the current bank is assigned to it
+            if (rbg0Enabled && rotDataBankSel != RotDataBankSel::Unused) {
+                continue;
+            }
 
-                // Determine how many character pattern accesses are needed for this NBG
+            // Determine how many character pattern accesses are needed for this NBG
 
-                // Start with a base count of 1
-                uint8 expectedCount = 1;
+            // Start with a base count of 1
+            uint8 expectedCount = 1;
 
-                // Apply ZMCTL modifiers
-                if ((nbg == 0 && regs2.ZMCTL.N0ZMQT) || (nbg == 1 && regs2.ZMCTL.N1ZMQT)) {
-                    expectedCount *= 4;
-                } else if ((nbg == 0 && regs2.ZMCTL.N0ZMHF) || (nbg == 1 && regs2.ZMCTL.N1ZMHF)) {
-                    expectedCount *= 2;
+            // Apply ZMCTL modifiers
+            // FIXME: Applying these disables background graphics in Baku Baku Animal - World Zookeeper
+            /*if ((nbg == 0 && regs2.ZMCTL.N0ZMQT) || (nbg == 1 && regs2.ZMCTL.N1ZMQT)) {
+                expectedCount *= 4;
+            } else if ((nbg == 0 && regs2.ZMCTL.N0ZMHF) || (nbg == 1 && regs2.ZMCTL.N1ZMHF)) {
+                expectedCount *= 2;
+            }*/
+
+            // Apply color format modifiers
+            switch (bgParams.colorFormat) {
+            case ColorFormat::Palette16: break;
+            case ColorFormat::Palette256: expectedCount *= 2; break;
+            case ColorFormat::Palette2048: expectedCount *= 4; break;
+            case ColorFormat::RGB555: expectedCount *= 4; break;
+            case ColorFormat::RGB888: expectedCount *= 8; break;
+            }
+
+            // Check for maximum 8 cycles on normal resolution, 4 cycles on high resolution/exclusive monitor modes
+            const uint32 max = hires ? 4 : 8;
+            if (expectedCount > max) [[unlikely]] {
+                continue;
+            }
+
+            // Check that the background has the required number of accesses
+            const uint8 numCPs = std::popcount(cp[nbg]);
+            if (numCPs < expectedCount) {
+                continue;
+            }
+            if constexpr (devlog::trace_enabled<grp::vdp2_regs>) {
+                if (numCPs > expectedCount) {
+                    devlog::trace<grp::vdp2_regs>("NBG{} has more CP accesses than needed ({} > {})", nbg, numCPs,
+                                                  expectedCount);
                 }
+            }
 
-                // Apply color format modifiers
-                switch (bgParams.colorFormat) {
-                case ColorFormat::Palette16: break;
-                case ColorFormat::Palette256: expectedCount *= 2; break;
-                case ColorFormat::Palette2048: expectedCount *= 4; break;
-                case ColorFormat::RGB555: expectedCount *= 4; break;
-                case ColorFormat::RGB888: expectedCount *= 8; break;
-                }
-
-                // Check for maximum 8 cycles on normal resolution, 4 cycles on high resolution/exclusive monitor modes
-                const uint32 max = hires ? 4 : 8;
-                if (expectedCount > max) [[unlikely]] {
-                    continue;
-                }
-
-                // Check that the background has the required number of accesses
-                const uint8 numCPs = std::popcount(cp[nbg]);
-                if (numCPs < expectedCount) {
-                    continue;
-                }
-                if constexpr (devlog::trace_enabled<grp::vdp2_regs>) {
-                    if (numCPs > expectedCount) {
-                        devlog::trace<grp::vdp2_regs>("NBG{} has more CP accesses than needed ({} > {})", nbg, numCPs,
-                                                      expectedCount);
-                    }
-                }
-
-                // Enable pattern name and character pattern accesses for the bank
-                for (uint32 index = 0; index < max; ++index) {
-                    const auto timing = regs2.cyclePatterns.timings[bank][index];
-                    if (timing == CyclePatterns::PatNameNBG0 + nbg) {
-                        bgParams.patNameAccess[bank] = true;
-                    } else if (timing == CyclePatterns::CharPatNBG0 + nbg) {
-                        bgParams.charPatAccess[bank] = true;
-                    }
+            // Enable pattern name and character pattern accesses for the bank
+            for (uint32 index = 0; index < max; ++index) {
+                const auto timing = regs2.cyclePatterns.timings[bank][index];
+                if (timing == CyclePatterns::PatNameNBG0 + nbg) {
+                    bgParams.patNameAccess[bank] = true;
+                } else if (timing == CyclePatterns::CharPatNBG0 + nbg) {
+                    bgParams.charPatAccess[bank] = true;
                 }
             }
         }

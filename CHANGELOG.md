@@ -19,6 +19,7 @@ Uses save state file version 10.
 - Updater: Detect nightly -> stable update when the current version matches the stable version.
 - VDP1: Reduce VBlank erase timing penalty to fix graphics artifacts in Battle Garegga's options menu. (#649)
 - VDP2: Apply VRAM bank data access shift to scroll BGs. Fixes shifted borders in World Heroes Perfect's demo sequence. (#643)
+- VDP2: Disable VRAM access restrictions based on ZMCTL parameters. Fixes missing background graphics in Baku Baku Animal - World Zookeeper. (#646)
 
 
 ## Version 0.2.0
