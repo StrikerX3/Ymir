@@ -283,47 +283,57 @@ void VDP2VRAMDelayView::Display() {
                     const auto &bgParams = regs2.bgParams[i + 1];
                     if (!bgParams.bitmap && bgParams.charPatDelay) {
                         ImGui::TextColored(colorBad, "yes");
-                    } else if (bgParams.bitmap) {
-                        std::vector<const char *> delayedBanks{};
-
-                        if (regs2.vramControl.partitionVRAMA) {
-                            if (bgParams.bitmapDataOffset[0] > 0 && bgParams.bitmapDataOffset[1] > 0) {
-                                delayedBanks.push_back("A0/1");
-                            } else if (bgParams.bitmapDataOffset[0] > 0) {
-                                delayedBanks.push_back("A0");
-                            } else if (bgParams.bitmapDataOffset[1] > 0) {
-                                delayedBanks.push_back("A1");
-                            }
-                        } else if (bgParams.bitmapDataOffset[0] > 0) {
-                            delayedBanks.push_back("A");
-                        }
-                        if (regs2.vramControl.partitionVRAMB) {
-                            if (bgParams.bitmapDataOffset[2] > 0 && bgParams.bitmapDataOffset[3] > 0) {
-                                delayedBanks.push_back("B0/1");
-                            } else if (bgParams.bitmapDataOffset[2] > 0) {
-                                delayedBanks.push_back("B0");
-                            } else if (bgParams.bitmapDataOffset[3] > 0) {
-                                delayedBanks.push_back("B1");
-                            }
-                        } else if (bgParams.bitmapDataOffset[2] > 0) {
-                            delayedBanks.push_back("B");
-                        }
-
-                        if (delayedBanks.empty()) {
-                            ImGui::TextColored(colorGood, "no");
-                        } else {
-                            bool first = true;
-                            for (const char *bank : delayedBanks) {
-                                if (first) {
-                                    first = false;
-                                } else {
-                                    ImGui::SameLine(0.0f, spaceWidth);
-                                }
-                                ImGui::TextColored(colorBad, "%s", bank);
-                            }
-                        }
                     } else {
                         ImGui::TextColored(colorGood, "no");
+                    }
+                }
+            }
+        }
+        ImGui::TableNextRow();
+        if (ImGui::TableNextColumn()) {
+            ImGui::TextUnformatted("Access shift?");
+        }
+        for (uint32 i = 0; i < 4; i++) {
+            if (ImGui::TableNextColumn()) {
+                if (regs2.bgEnabled[i]) {
+                    const auto &bgParams = regs2.bgParams[i + 1];
+                    std::vector<const char *> delayedBanks{};
+
+                    if (regs2.vramControl.partitionVRAMA) {
+                        if (bgParams.vramDataOffset[0] > 0 && bgParams.vramDataOffset[1] > 0) {
+                            delayedBanks.push_back("A0/1");
+                        } else if (bgParams.vramDataOffset[0] > 0) {
+                            delayedBanks.push_back("A0");
+                        } else if (bgParams.vramDataOffset[1] > 0) {
+                            delayedBanks.push_back("A1");
+                        }
+                    } else if (bgParams.vramDataOffset[0] > 0) {
+                        delayedBanks.push_back("A");
+                    }
+                    if (regs2.vramControl.partitionVRAMB) {
+                        if (bgParams.vramDataOffset[2] > 0 && bgParams.vramDataOffset[3] > 0) {
+                            delayedBanks.push_back("B0/1");
+                        } else if (bgParams.vramDataOffset[2] > 0) {
+                            delayedBanks.push_back("B0");
+                        } else if (bgParams.vramDataOffset[3] > 0) {
+                            delayedBanks.push_back("B1");
+                        }
+                    } else if (bgParams.vramDataOffset[2] > 0) {
+                        delayedBanks.push_back("B");
+                    }
+
+                    if (delayedBanks.empty()) {
+                        ImGui::TextColored(colorGood, "no");
+                    } else {
+                        bool first = true;
+                        for (const char *bank : delayedBanks) {
+                            if (first) {
+                                first = false;
+                            } else {
+                                ImGui::SameLine(0.0f, spaceWidth);
+                            }
+                            ImGui::TextColored(colorBad, "%s", bank);
+                        }
                     }
                 }
             }

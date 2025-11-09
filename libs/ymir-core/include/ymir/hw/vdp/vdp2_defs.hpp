@@ -158,7 +158,7 @@ struct alignas(128) BGParams {
         patNameAccess.fill(false);
         charPatAccess.fill(false);
         charPatDelay = false;
-        bitmapDataOffset.fill(0);
+        vramDataOffset.fill(0);
 
         verticalCellScrollEnable = false;
         lineScrollXEnable = false;
@@ -305,10 +305,9 @@ struct alignas(128) BGParams {
     // Derived from CYCxn, RAMCTL, ZMCTL and CHCTLA/CHCTLB.xxCHSZ
     bool charPatDelay;
 
-    // Address offset for bitmap data for this background on each VRAM bank caused by illegal VRAM access patterns.
-    // Only valid for bitmap backgrounds.
+    // Address offset for VRAM data for this background on each VRAM bank caused by illegal VRAM access patterns.
     // Derived from CYCxn, RAMCTL and ZMCTL
-    std::array<uint32, 4> bitmapDataOffset;
+    std::array<uint32, 4> vramDataOffset;
 
     // Whether to use the vertical cell scroll table in VRAM.
     // Only valid for NBG0 and NBG1.

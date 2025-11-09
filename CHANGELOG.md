@@ -9,6 +9,7 @@ Uses save state file version 10.
 ### New features and improvements
 
 - Debugger: Added `Dump memory region` button to the Memory Viewer to dump the currently selected region to a raw .bin file in the profile’s dump path.
+- Debugger: Display VRAM data access shifts separately from CP delays in the VDP2 VRAM access delay window and display them for scroll BGs as well.
 - Updater: Added compile-time flag `Ymir_ENABLE_UPDATE_CHECKS` to enable or disable the automatic update checker, including the onboarding process.
 
 ### Fixes
@@ -17,6 +18,7 @@ Uses save state file version 10.
 - Updater: Create `state/updates` folder before writing `.onboarded` file in case the user opts out of automatic update checks.
 - Updater: Detect nightly -> stable update when the current version matches the stable version.
 - VDP1: Reduce VBlank erase timing penalty to fix graphics artifacts in Battle Garegga's options menu. (#649)
+- VDP2: Apply VRAM bank data access shift to scroll BGs. Fixes shifted borders in World Heroes Perfect's demo sequence. (#643)
 
 
 ## Version 0.2.0

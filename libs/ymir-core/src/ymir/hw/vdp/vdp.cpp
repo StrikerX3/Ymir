@@ -3243,7 +3243,7 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
 
     // Clear bitmap delay flags
     for (uint32 bgIndex = 0; bgIndex < 4; ++bgIndex) {
-        regs2.bgParams[bgIndex + 1].bitmapDataOffset.fill(0);
+        regs2.bgParams[bgIndex + 1].vramDataOffset.fill(0);
     }
 
     // Build access pattern masks for NBG0-3 PNs and CPs.
@@ -3251,14 +3251,14 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
     std::array<uint8, 4> pn = {0, 0, 0, 0}; // pattern name access masks
     std::array<uint8, 4> cp = {0, 0, 0, 0}; // character pattern access masks
 
-    // First bitmap CP access timing slot per NBG. 0xFF means no accesses found.
-    std::array<uint8, 4> firstBmAccessTiming = {0xFF, 0xFF, 0xFF, 0xFF};
+    // First CP access timing slot per NBG. 0xFF means no accesses found.
+    std::array<uint8, 4> firstCPAccessTiming = {0xFF, 0xFF, 0xFF, 0xFF};
 
-    // First bitmap CP access VRAM chip per NBG. 0xFF means no accesses found.
-    std::array<uint8, 4> firstBmAccessVRAMIndex = {0xFF, 0xFF, 0xFF, 0xFF};
+    // First CP access VRAM chip per NBG. 0xFF means no accesses found.
+    std::array<uint8, 4> firstCPAccessVRAMIndex = {0xFF, 0xFF, 0xFF, 0xFF};
 
-    // First bitmap CP access found per NBG per bank.
-    std::array<std::array<bool, 4>, 4> firstBmAccessFound = {{
+    // First CP access found per NBG per bank.
+    std::array<std::array<bool, 4>, 4> firstCPAccessFound = {{
         {false, false, false, false},
         {false, false, false, false},
         {false, false, false, false},
@@ -3340,20 +3340,18 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // Cases #5 and #6 include more reads than necessary for the NBG, but because they all start on the same
                 // slot, no delay occurs.
 
-                // FIXME: seems to only apply to hi-res modes
-                if (hires) {
-                    auto &bgParams = regs2.bgParams[bgIndex + 1];
-                    if (bgParams.bitmap) {
-                        const uint8 vramIndex = bankIndex >> 1u;
-                        if (firstBmAccessTiming[bgIndex] == 0xFF) {
-                            firstBmAccessTiming[bgIndex] = i;
-                            firstBmAccessVRAMIndex[bgIndex] = vramIndex;
-                        } else if (!firstBmAccessFound[bgIndex][bankIndex] && i > firstBmAccessTiming[bgIndex] &&
-                                   vramIndex != firstBmAccessVRAMIndex[bgIndex]) {
-                            bgParams.bitmapDataOffset[bankIndex] = 8u;
-                        }
-                        firstBmAccessFound[bgIndex][bankIndex] = true;
+                // FIXME: bitmap delay seems to only apply to hi-res modes
+                auto &bgParams = regs2.bgParams[bgIndex + 1];
+                if (!bgParams.bitmap || hires) {
+                    const uint8 vramIndex = bankIndex >> 1u;
+                    if (firstCPAccessTiming[bgIndex] == 0xFF) {
+                        firstCPAccessTiming[bgIndex] = i;
+                        firstCPAccessVRAMIndex[bgIndex] = vramIndex;
+                    } else if (!firstCPAccessFound[bgIndex][bankIndex] && i > firstCPAccessTiming[bgIndex] &&
+                               vramIndex != firstCPAccessVRAMIndex[bgIndex]) {
+                        bgParams.vramDataOffset[bankIndex] = 8u;
                     }
+                    firstCPAccessFound[bgIndex][bankIndex] = true;
                 }
                 break;
             }
@@ -3534,14 +3532,14 @@ FORCE_INLINE void VDP::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
         for (uint32 i = 0; i < 5; i++) {
             regs2.bgParams[i].charPatAccess[1] = regs2.bgParams[i].charPatAccess[0];
             regs2.bgParams[i].patNameAccess[1] = regs2.bgParams[i].patNameAccess[0];
-            regs2.bgParams[i].bitmapDataOffset[1] = regs2.bgParams[i].bitmapDataOffset[0];
+            regs2.bgParams[i].vramDataOffset[1] = regs2.bgParams[i].vramDataOffset[0];
         }
     }
     if (!regs2.vramControl.partitionVRAMB) {
         for (uint32 i = 0; i < 5; i++) {
             regs2.bgParams[i].charPatAccess[3] = regs2.bgParams[i].charPatAccess[2];
             regs2.bgParams[i].patNameAccess[3] = regs2.bgParams[i].patNameAccess[2];
-            regs2.bgParams[i].bitmapDataOffset[3] = regs2.bgParams[i].bitmapDataOffset[2];
+            regs2.bgParams[i].vramDataOffset[3] = regs2.bgParams[i].vramDataOffset[2];
         }
     }
 
@@ -6091,6 +6089,11 @@ VDP::VDP2FetchScrollBGPixel(const BGParams &bgParams, std::span<const uint32> pa
     const uint32 plane = planeX + planeY * planeWidth;
     const uint32 pageBaseAddress = pageBaseAddresses[plane];
 
+    // HACK: apply data access shift here too
+    // Not entirely correct, but fixes problems with World Heroes Perfect's demo screen
+    const uint32 bank = (pageBaseAddress >> 17u) & 3u;
+    scrollX += bgParams.vramDataOffset[bank];
+
     // Determine page index from the scroll coordinates
     const uint32 pageX = bit::extract<9>(scrollX) & pageShiftH;
     const uint32 pageY = bit::extract<9>(scrollY) & pageShiftV;
@@ -6385,7 +6388,7 @@ FORCE_INLINE VDP::Pixel VDP::VDP2FetchBitmapPixel(const BGParams &bgParams, uint
             return;
         }
 
-        const uint32 offset = bgParams.bitmapDataOffset[bank];
+        const uint32 offset = bgParams.vramDataOffset[bank];
 
         if (vramFetcher.UpdateBitmapDataAddress(address)) {
             address += offset;
