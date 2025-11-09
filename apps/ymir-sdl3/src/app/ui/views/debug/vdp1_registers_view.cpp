@@ -47,7 +47,8 @@ void VDP1RegistersView::Display() {
     ImGui::Unindent();
     ImGui::Text("[FBCR.PTM] Plot trigger mode: %u", regs1.plotTrigger);
     ImGui::Text("[FBCR.EWDR] Erase write value: 0x%04X", regs1.eraseWriteValue);
-    ImGui::Text("[FBCR.EWDR] Erase window: %ux%u - %ux%u", regs1.eraseX1, regs1.eraseY1, regs1.eraseX3, regs1.eraseY3);
+    ImGui::Text("[FBCR.EWLR/EWRR] Erase window: %ux%u - %ux%u", regs1.eraseX1, regs1.eraseY1, regs1.eraseX3,
+                regs1.eraseY3);
     ImGui::Indent();
     {
         ImGui::Text("Latched erase write value: 0x%04X", probe.GetLatchedEraseWriteValue());
@@ -55,10 +56,10 @@ void VDP1RegistersView::Display() {
                     probe.GetLatchedEraseX3(), probe.GetLatchedEraseY3());
     }
     ImGui::Unindent();
+    checkbox("[FBCR.EOS] High-speed shrink even/odd coordinate select", regs1.evenOddCoordSelect);
 
     ImGui::Separator();
 
-    checkbox("[FBCR.EOS] High-speed shrink even/odd coordinate select", regs1.evenOddCoordSelect);
     checkbox("[EDSR.CEF] Current frame ended", regs1.currFrameEnded);
     checkbox("[EDSR.BEF] Previous frame ended", regs1.prevFrameEnded);
     ImGui::Text("[COPR] Current frame command address: 0x%05X", regs1.currCommandAddress);
