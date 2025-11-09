@@ -16,6 +16,7 @@ Uses save state file version 10.
 - Settings: Properly reload binds for "increase/decrease speed by 25%".
 - Updater: Create `state/updates` folder before writing `.onboarded` file in case the user opts out of automatic update checks.
 - Updater: Detect nightly -> stable update when the current version matches the stable version.
+- VDP1: Reduce VBlank erase timing penalty to fix graphics artifacts in Battle Garegga's options menu. (#649)
 
 
 ## Version 0.2.0
