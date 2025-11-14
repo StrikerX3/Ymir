@@ -15,7 +15,6 @@ VDP2DebugOverlayView::VDP2DebugOverlayView(SharedContext &context, vdp::VDP &vdp
     , m_vdp(vdp) {}
 
 void VDP2DebugOverlayView::Display() {
-    auto &probe = m_vdp.GetProbe();
     auto &overlay = m_vdp.vdp2DebugRenderOptions.overlay;
     using OverlayType = vdp::VDP::VDP2DebugRenderOptions::Overlay::Type;
 

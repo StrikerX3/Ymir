@@ -5,8 +5,6 @@
 
 #include <app/ui/widgets/audio_widgets.hpp>
 
-#include <app/debug/scsp_tracer.hpp>
-
 namespace app::ui {
 
 class SCSPOutputView {
@@ -17,7 +15,6 @@ public:
 
 private:
     SharedContext &m_context;
-    SCSPTracer &m_tracer;
 
     std::array<Sample, 2048> m_audioBuffer;
     std::array<widgets::StereoSample, 2048> m_waveform;

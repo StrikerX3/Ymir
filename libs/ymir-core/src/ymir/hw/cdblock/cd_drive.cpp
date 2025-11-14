@@ -708,7 +708,6 @@ FORCE_INLINE void CDDrive::OutputDriveStatus() {
         auto &session = m_disc.sessions.back();
         if (m_currFAD > session.endFrameAddress) {
             // Lead-out
-            const uint32 leadoutFAD = session.endFrameAddress + 1;
             m_status.subcodeQ = 0x01;
             m_status.trackNum = 0xAA;
             m_status.indexNum = 0x01;

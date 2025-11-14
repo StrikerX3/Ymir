@@ -21,10 +21,6 @@ void VDP2CRAMView::Display() {
 
     // TODO: selectable RGB 5:5:5/8:8:8 mode or follow CRAM mode (default)
 
-    ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-    const float hexCharWidth = ImGui::CalcTextSize("F").x;
-    ImGui::PopFont();
-
     static constexpr uint32 kNumCols = 32;
 
     const uint32 colorSize = useColor888 ? sizeof(uint32) : sizeof(uint16);

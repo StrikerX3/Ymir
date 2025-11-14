@@ -1146,9 +1146,6 @@ void VDP::BeginHPhaseRightBorder() {
     m_state.regs2.TVSTAT.HBLANK = 1;
     m_cbHBlankStateChange(true, m_state.regs2.TVSTAT.VBLANK);
 
-    const uint32 interlaced = m_state.regs2.TVMD.IsInterlaced();
-    const uint32 field = interlaced & m_state.regs2.TVSTAT.ODD;
-
     // Start erasing if we just entered VBlank IN
     if (m_state.regs2.VCNT == m_VTimings[m_VTimingField][static_cast<uint32>(VerticalPhase::Active)]) {
         devlog::trace<grp::intr>("## HBlank IN + VBlank IN  VBE={:d}", m_state.regs1.vblankErase);
@@ -2113,11 +2110,9 @@ bool VDP::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLin
     }
 
     const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
     auto &ctx = m_VDP1RenderContext;
 
     const uint32 charSizeH = lineParams.charSizeH;
-    const uint32 charSizeV = lineParams.charSizeV;
     const auto mode = lineParams.mode;
     const auto control = lineParams.control;
     if (mode.colorMode == 5) {
@@ -3668,7 +3663,6 @@ void VDP::VDP2DrawLine(uint32 y, bool altField) {
     const uint32 colorMode = regs2.vramControl.colorRAMMode;
     const bool rotate = regs1.fbRotEnable;
     const bool interlaced = regs2.TVMD.IsInterlaced();
-    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
 
     // Calculate window for sprite layer
     if (altField) {

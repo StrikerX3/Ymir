@@ -102,7 +102,7 @@ void SCUDSP::Run(uint64 cycles) {
         const DSPInstr instruction = nextInstr;
         nextInstr = programRAM[PC];
 
-        const bool doDMA = dmaRun;
+        // const bool doDMA = dmaRun;
         if (dmaRun) {
             dmaPC = PC;
             // HACK: This fixes Grandia FMVs... what the heck is this DMA doing on real hardware?!?

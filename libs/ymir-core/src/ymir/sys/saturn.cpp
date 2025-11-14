@@ -593,8 +593,6 @@ bool Saturn::Run() {
         // CD drive is ticked by the scheduler
     }
 
-    const auto &cc = GetClockRatios();
-
     // TODO: AdvanceSMPC(execCycles);
     /*const auto &clockRatios = GetClockRatios();
     const uint64 smpcScaledCycles = cycles * clockRatios.SMPCNum + m_smpcFracCycles;

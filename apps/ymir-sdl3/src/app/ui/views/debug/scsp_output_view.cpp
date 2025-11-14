@@ -3,8 +3,7 @@
 namespace app::ui {
 
 SCSPOutputView::SCSPOutputView(SharedContext &context)
-    : m_context(context)
-    , m_tracer(context.tracers.SCSP) {}
+    : m_context(context) {}
 
 void SCSPOutputView::Display(ImVec2 size) {
     m_context.audioSystem.Snapshot(m_audioBuffer);

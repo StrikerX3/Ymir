@@ -416,7 +416,7 @@ struct Sandbox {
 
         // bool swapped;
         uint32 texSize = polygonFillMode == 2 ? 8 : polygonFillMode == 3 ? 32 : 256;
-        uint32 texShift = polygonFillMode == 2 ? 13 : polygonFillMode == 3 ? 11 : 8;
+        // uint32 texShift = polygonFillMode == 2 ? 13 : polygonFillMode == 3 ? 11 : 8;
         QuadStepper quad{coordA, coordB, coordC, coordD};
         TextureStepper texVStepper;
         quad.SetupTexture(texVStepper, texSize, false);
@@ -1055,10 +1055,10 @@ static void runVDP1AccuracySandbox(std::filesystem::path testPath) {
                     b = 0xFF;
                 } else {
                     // Palette data
-                    const uint32 colorData = util::ReadBE<uint16>(&cram[(spriteData << 1u) & 0xFFE]);
-                    r = bit::extract<0, 4>(spriteData) << 3u;
-                    g = bit::extract<5, 9>(spriteData) << 3u;
-                    b = bit::extract<10, 14>(spriteData) << 3u;
+                    const uint16 colorData = util::ReadBE<uint16>(&cram[(spriteData << 1u) & 0xFFE]);
+                    r = bit::extract<0, 4>(colorData) << 3u;
+                    g = bit::extract<5, 9>(colorData) << 3u;
+                    b = bit::extract<10, 14>(colorData) << 3u;
                 }
                 finalFB[y * test.width + x] = (0xFF << 24u) | (b << 16u) | (g << 8u) | (r << 0u);
             }

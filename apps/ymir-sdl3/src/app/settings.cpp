@@ -1804,7 +1804,6 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
 
     using Mod = KeyModifier;
     using Key = KeyboardKey;
-    using GPBtn = GamepadButton;
 
     RebindContext rebindCtx{*this};
 

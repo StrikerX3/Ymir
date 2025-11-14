@@ -1487,7 +1487,7 @@ void App::RunEmulator() {
 
         auto registerDigitalStick = [&](input::Action action, bool sub /*false=main, true=sub*/, float x, float y) {
             inputContext.SetButtonHandler(
-                action, [=, this](void *context, const input::InputElement &element, bool actuated) {
+                action, [=](void *context, const input::InputElement &element, bool actuated) {
                     auto &input = *reinterpret_cast<SharedContext::MissionStickInput *>(context);
                     auto &analogInput = input.sticks[sub].analogStickInputs[element];
                     if (actuated) {

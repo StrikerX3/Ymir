@@ -1455,7 +1455,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x0B: // (DMA0CNT) Level 0 DMA Transfer Number (bits 0-7)
     {
         const uint32 index = 0;
-        auto &ch = m_dmaChannels[index];
         bit::deposit_into<0, 7>(m_dmaChannels[index].xferCount, value);
         break;
     }
@@ -1529,7 +1528,6 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x53: // (DMA2EN) Level 2 DMA Enable (bits 0-7)
     {
         const uint32 index = address >> 5u;
-        auto &ch = m_dmaChannels[index];
         if constexpr (!poke) {
             if (bit::test<0>(value)) {
                 TriggerImmediateDMA(index);

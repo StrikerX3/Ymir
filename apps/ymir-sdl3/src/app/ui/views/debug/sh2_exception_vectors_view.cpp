@@ -46,7 +46,6 @@ void SH2ExceptionVectorsView::Display() {
     ImGui::PushFont(m_context.fonts.monospace.regular, fontSize);
     const float hexCharWidth = ImGui::CalcTextSize("F").x;
     ImGui::PopFont();
-    const float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
     const float framePadding = ImGui::GetStyle().FramePadding.x;
     const float vecFieldWidth = framePadding * 2 + hexCharWidth * 8;
 
