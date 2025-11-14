@@ -27,6 +27,23 @@ Battle Arena Toshinden Remix
 Shichuu Suimei Pitagraph
   Sets up invalid CP accesses for NBG0 with 2x2 character patterns which causes them to be half-shifted forward.
 
+Lunar - Silver Star Story
+Shin Kaitei Gunkan - Koutetsu no Kodoku
+  Not exactly illegal, but these games change access cycle patterns mid-frame while playing FMVs.
+
+  In Shin Kaitei Gunkan, the image is drawn in NBG0 shifted up by 8 pixels in RGB 8:8:8 (bitmap) format.
+  VRAM banks A and B are not partitioned. The game sets up all 8 timing slots for a bank to either CP0 or SH2 access.
+
+  VRAM access cycle updates occur on these VCNTs:
+  - 121: change VRAM Bank A to SH2 access. At this point VDP2 should be reading from VRAM Bank B.
+  - 167: change VRAM Bank A to CP0 access and VRAM Bank B to SH2 access. Bitmap accesses are still allowed somehow.
+  - 213: change VRAM Bank B to CP0 access.
+
+  MSH2 watchpoints at 25F80010 and 25F80018 for VRAM access cycle updates.
+  MSH2 breakpoint at 6000840 for VBlank IN.
+
+  Lunar - Silver Star Story does something very similar.
+
 
 =======
 Context
