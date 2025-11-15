@@ -28,6 +28,7 @@ Shichuu Suimei Pitagraph
   Sets up invalid CP accesses for NBG0 with 2x2 character patterns which causes them to be half-shifted forward.
 
 Lunar - Silver Star Story
+Mechanical Violator Hakaider - Last Judgement
 Shin Kaitei Gunkan - Koutetsu no Kodoku
   Not exactly illegal, but these games change access cycle patterns mid-frame while playing FMVs.
 
@@ -42,7 +43,7 @@ Shin Kaitei Gunkan - Koutetsu no Kodoku
   MSH2 watchpoints at 25F80010 and 25F80018 for VRAM access cycle updates.
   MSH2 breakpoint at 6000840 for VBlank IN.
 
-  Lunar - Silver Star Story does something very similar.
+  Lunar - Silver Star Story and Mechanical Violator Hakaider - Last Judgement do something very similar.
 
 
 =======

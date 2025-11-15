@@ -18,7 +18,7 @@ Uses save state file version 10.
 - Updater: Create `state/updates` folder before writing `.onboarded` file in case the user opts out of automatic update checks.
 - Updater: Detect nightly -> stable update when the current version matches the stable version.
 - VDP1: Reduce VBlank erase timing penalty to fix graphics artifacts in Battle Garegga's options menu. (#649)
-- VDP2: Allow bitmap data access during SH-2 cycles. Fixes FMV flickering in Lunar - Silver Star Story and Shin Kaitei Gunkan - Koutetsu no Kodoku (#438, #446)
+- VDP2: Allow bitmap data access during SH-2 cycles. Fixes FMV flickering in Lunar - Silver Star Story, Shin Kaitei Gunkan, and Mechanical Violator Hakaider (#438, #446, #658)
 - VDP2: Apply VRAM bank data access shift to scroll BGs. Fixes shifted borders in World Heroes Perfect's demo sequence. (#643)
 - VDP2: Disable VRAM access restrictions based on ZMCTL parameters. Fixes missing background graphics in Baku Baku Animal - World Zookeeper. (#646)
 
