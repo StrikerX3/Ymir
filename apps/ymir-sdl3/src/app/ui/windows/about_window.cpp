@@ -650,6 +650,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Israel "
                            "Jacquez, "
                            "Jeff Greulich, "
+                           "Joek, "
                            "Julien P, "
                            "khalifax10, "
                            "Mored4u, "
