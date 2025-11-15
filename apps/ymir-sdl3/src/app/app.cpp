@@ -4678,6 +4678,7 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
     // Try to load disc image from specified path
     devlog::info<grp::base>("Loading disc image from {}", path);
     ymir::media::Disc disc{};
+    bool hasErrors = false;
     if (!ymir::media::LoadDisc(path, disc, m_context.settings.general.preloadDiscImagesToRAM,
                                [&](ymir::media::MessageType type, std::string message) {
                                    switch (type) {
@@ -4690,6 +4691,14 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
                                    case ymir::media::MessageType::Error:
                                        devlog::error<grp::media>("{}", message);
                                        if (showErrorModal) {
+                                           hasErrors = true;
+                                           OpenSimpleErrorModal(fmt::format(
+                                               "Could not load {} as a game disc image.\n\n{}", path, message));
+                                       }
+                                       break;
+                                   case ymir::media::MessageType::NotValid:
+                                       devlog::error<grp::media>("{}", message);
+                                       if (showErrorModal && !hasErrors) {
                                            OpenSimpleErrorModal(fmt::format(
                                                "Could not load {} as a game disc image.\n\n{}", path, message));
                                        }

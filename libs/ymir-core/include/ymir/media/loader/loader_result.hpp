@@ -8,6 +8,7 @@ namespace ymir::media {
 enum class MessageType {
     InvalidFormat, // Parser has not detected valid magic signature
     Error,         // Problem found parsing media; must be reported to the user
+    NotValid,      // None of the parsers matched the file format
     Debug,         // Debug messages, detailed parser logs
 };
 

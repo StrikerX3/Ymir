@@ -17,7 +17,8 @@ bool LoadDisc(std::filesystem::path path, Disc &disc, bool preloadToRAM, CbLoade
     }
 
     auto fail = [&] {
-        cbMsg(MessageType::Error, "Not a valid disc image format. Supported files are .CCD, .CHD, .CUE, .MDS and .ISO");
+        cbMsg(MessageType::NotValid,
+              "Not a valid disc image format. Supported files are .CCD, .CHD, .CUE, .MDS and .ISO");
         return false;
     };
 
