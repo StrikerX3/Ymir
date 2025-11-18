@@ -2449,10 +2449,6 @@ void App::RunEmulator() {
 
                     ImGui::Separator();
 
-                    ImGui::MenuItem("Backup memory manager", nullptr, &m_bupMgrWindow.Open);
-
-                    ImGui::Separator();
-
                     if (ImGui::MenuItem("Exit", "Alt+F4")) {
                         SDL_Event quitEvent{.type = SDL_EVENT_QUIT};
                         SDL_PushEvent(&quitEvent);
@@ -2556,6 +2552,7 @@ void App::RunEmulator() {
                         std::string hash = ToString(m_context.saturn.instance->GetDiscHash());
                         SDL_SetClipboardText(hash.c_str());
                     }
+                    ImGui::MenuItem("Backup memory manager", nullptr, &m_bupMgrWindow.Open);
 
                     ImGui::Separator();
 
