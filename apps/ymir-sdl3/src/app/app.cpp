@@ -2360,41 +2360,30 @@ void App::RunEmulator() {
 
                     ImGui::Separator();
 
-                    if (ImGui::BeginMenu("Save states")) {
-                        ImGui::BeginDisabled();
-                        ImGui::TextUnformatted("Click to load/select state");
-                        ImGui::TextUnformatted("Shift+Click to save state");
-                        ImGui::EndDisabled();
+                    // TODO: save state manager window to copy/move/swap/delete states
 
-                        ImGui::Separator();
-
+                    auto drawSaveStatesList = [&](bool save) {
                         // TODO: use context data to simplify save state actions
-                        // TODO: save state manager window to copy/move/swap/delete states
                         for (uint32 i = 0; i < m_context.saveStates.size(); ++i) {
                             const auto &state = m_context.saveStates[i];
+                            const auto shortcut =
+                                input::ToShortcut(inputContext, actions::save_states::GetSelectStateAction(i),
+                                                  (save ? actions::save_states::GetSaveStateAction(i)
+                                                        : actions::save_states::GetLoadStateAction(i)));
                             if (state.state) {
-                                const auto shortcut =
-                                    input::ToShortcut(inputContext, actions::save_states::GetSelectStateAction(i),
-                                                      actions::save_states::GetLoadStateAction(i),
-                                                      actions::save_states::GetSaveStateAction(i));
-
                                 if (ImGui::MenuItem(
                                         fmt::format("{}: {}", i, util::to_local_time(state.timestamp)).c_str(),
                                         shortcut.c_str(), m_context.currSaveStateSlot == i, true)) {
-                                    if (io.KeyShift) {
+                                    if (save) {
                                         SaveSaveStateSlot(i);
                                     } else {
                                         LoadSaveStateSlot(i);
                                     }
                                 }
                             } else {
-                                const auto shortcut =
-                                    input::ToShortcut(inputContext, actions::save_states::GetSelectStateAction(i),
-                                                      actions::save_states::GetSaveStateAction(i));
-
                                 if (ImGui::MenuItem(fmt::format("{}: (empty)", i).c_str(), shortcut.c_str(),
                                                     m_context.currSaveStateSlot == i, true)) {
-                                    if (io.KeyShift) {
+                                    if (save) {
                                         SaveSaveStateSlot(i);
                                     } else {
                                         SelectSaveStateSlot(i);
@@ -2402,9 +2391,9 @@ void App::RunEmulator() {
                                 }
                             }
                         }
+                    };
 
-                        ImGui::Separator();
-
+                    auto drawCommonSaveStatesSection = [&] {
                         if (ImGui::MenuItem("Clear all")) {
                             OpenGenericModal(
                                 "Clear all save states",
@@ -2424,13 +2413,25 @@ void App::RunEmulator() {
                                 },
                                 false);
                         }
-                        if (ImGui::MenuItem("Open save states directory")) {
-                            auto path = m_context.profile.GetPath(ProfilePath::SaveStates) /
-                                        ToString(m_context.saturn.instance->GetDiscHash());
+                    };
 
-                            SDL_OpenURL(fmt::format("file:///{}", path).c_str());
-                        }
+                    if (ImGui::BeginMenu("Load state")) {
+                        drawSaveStatesList(false);
+                        ImGui::Separator();
+                        drawCommonSaveStatesSection();
                         ImGui::EndMenu();
+                    }
+                    if (ImGui::BeginMenu("Save state")) {
+                        drawSaveStatesList(true);
+                        ImGui::Separator();
+                        drawCommonSaveStatesSection();
+                        ImGui::EndMenu();
+                    }
+                    if (ImGui::MenuItem("Open save states directory")) {
+                        auto path = m_context.profile.GetPath(ProfilePath::SaveStates) /
+                                    ToString(m_context.saturn.instance->GetDiscHash());
+
+                        SDL_OpenURL(fmt::format("file:///{}", path).c_str());
                     }
 
                     ImGui::Separator();
