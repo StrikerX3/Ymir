@@ -2367,9 +2367,8 @@ void App::RunEmulator() {
                         for (uint32 i = 0; i < m_context.saveStates.size(); ++i) {
                             const auto &state = m_context.saveStates[i];
                             const auto shortcut =
-                                input::ToShortcut(inputContext, actions::save_states::GetSelectStateAction(i),
-                                                  (save ? actions::save_states::GetSaveStateAction(i)
-                                                        : actions::save_states::GetLoadStateAction(i)));
+                                input::ToShortcut(inputContext, save ? actions::save_states::GetSaveStateAction(i)
+                                                                     : actions::save_states::GetLoadStateAction(i));
                             if (state.state) {
                                 if (ImGui::MenuItem(
                                         fmt::format("{}: {}", i, util::to_local_time(state.timestamp)).c_str(),
@@ -2382,7 +2381,7 @@ void App::RunEmulator() {
                                 }
                             } else {
                                 if (ImGui::MenuItem(fmt::format("{}: (empty)", i).c_str(), shortcut.c_str(),
-                                                    m_context.currSaveStateSlot == i, true)) {
+                                                    m_context.currSaveStateSlot == i, save)) {
                                     if (save) {
                                         SaveSaveStateSlot(i);
                                     } else {
