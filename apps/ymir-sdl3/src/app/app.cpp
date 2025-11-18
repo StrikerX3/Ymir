@@ -2436,6 +2436,13 @@ void App::RunEmulator() {
 
                     ImGui::Separator();
 
+                    if (ImGui::MenuItem("Take screenshot",
+                                        input::ToShortcut(inputContext, actions::general::TakeScreenshot).c_str())) {
+                        m_context.EnqueueEvent(events::gui::TakeScreenshot());
+                    }
+
+                    ImGui::Separator();
+
                     if (ImGui::MenuItem("Open profile directory")) {
                         SDL_OpenURL(fmt::format("file:///{}", m_context.profile.GetPath(ProfilePath::Root)).c_str());
                     }

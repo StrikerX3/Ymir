@@ -8,6 +8,7 @@ Uses save state file version 10.
 
 ### New features and improvements
 
+- App: Added "Take Screenshot" action to File menu.
 - Debugger: Added `Dump memory region` button to the Memory Viewer to dump the currently selected region to a raw .bin file in the profile’s dump path.
 - Debugger: Display VRAM data access shifts separately from CP delays in the VDP2 VRAM access delay window and display them for scroll BGs as well.
 - Save states: Separated save states menu into Load and Save to avoid confusion and simplify interactions.
