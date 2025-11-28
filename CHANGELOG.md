@@ -12,6 +12,7 @@ Uses save state file version 10.
 - App: Moved "Backup Memory Manager" action from File to System menu.
 - Debugger: Added `Dump memory region` button to the Memory Viewer to dump the currently selected region to a raw .bin file in the profile’s dump path.
 - Debugger: Display VRAM data access shifts separately from CP delays in the VDP2 VRAM access delay window and display them for scroll BGs as well.
+- Rewind: Reset rewind buffer on hard resets and whenever the CD Block LLE settings is changed.
 - Save states: Separated save states menu into Load and Save to avoid confusion and simplify interactions.
 - Updater: Added compile-time flag `Ymir_ENABLE_UPDATE_CHECKS` to enable or disable the automatic update checker, including the onboarding process.
 

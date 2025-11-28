@@ -3375,7 +3375,10 @@ void App::EmulatorThread() {
             using enum EmuEvent::Type;
             switch (evt.type) {
             case FactoryReset: m_context.saturn.instance->FactoryReset(); break;
-            case HardReset: m_context.saturn.instance->Reset(true); break;
+            case HardReset:
+                m_context.saturn.instance->Reset(true);
+                m_context.rewindBuffer.Reset();
+                break;
             case SoftReset: m_context.saturn.instance->Reset(false); break;
             case SetResetButton: m_context.saturn.instance->SMPC.SetResetButtonState(std::get<bool>(evt.value)); break;
 

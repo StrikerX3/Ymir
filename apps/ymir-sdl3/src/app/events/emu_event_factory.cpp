@@ -554,7 +554,10 @@ EmuEvent SetEmulateSH2Cache(bool enable) {
 }
 
 EmuEvent SetCDBlockLLE(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.saturn.instance->configuration.cdblock.useLLE = enable; });
+    return RunFunction([=](SharedContext &ctx) {
+        ctx.saturn.instance->configuration.cdblock.useLLE = enable;
+        ctx.rewindBuffer.Reset();
+    });
 }
 
 EmuEvent EnableThreadedVDP(bool enable) {
