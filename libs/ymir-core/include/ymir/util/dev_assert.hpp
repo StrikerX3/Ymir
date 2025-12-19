@@ -25,7 +25,14 @@ Development assertions must be enabled by defining the `Ymir_DEV_ASSERTIONS` mac
 */
 
 #if Ymir_DEV_ASSERTIONS
-    #if __has_builtin(__builtin_debugtrap)
+    // Workaround for MSVC C4067 warning - MSVC does not have __has_builtin
+    #if defined(__has_builtin)
+        #if __has_builtin(__builtin_debugtrap)
+            #define Ymir_DEV_ASSERT_USE_INTRINSIC
+        #endif
+    #endif
+    #if defined(Ymir_DEV_ASSERT_USE_INTRINSIC)
+        #undef Ymir_DEV_ASSERT_USE_INTRINSIC
         #define YMIR_DEV_ASSERT(cond)      \
             do {                           \
                 if (!(cond)) {             \
