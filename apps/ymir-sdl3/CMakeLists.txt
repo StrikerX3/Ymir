@@ -19,6 +19,11 @@ add_executable(ymir-sdl3
     src/app/settings.hpp
     src/app/shared_context.cpp
     src/app/shared_context.hpp
+    src/app/services/savestates/ISaveStateService.hpp
+    src/app/services/savestates/SaveStateService.cpp
+    src/app/services/savestates/SaveStateService.hpp
+    src/app/services/savestates/types.cpp
+    src/app/services/savestates/types.hpp
     src/app/stb_implementations.cpp
     src/app/toml_implementation.cpp
     src/app/update_checker.cpp

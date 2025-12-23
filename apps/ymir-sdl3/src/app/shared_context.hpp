@@ -23,6 +23,8 @@
 
 #include <ymir/hw/smpc/peripheral/peripheral_state_common.hpp>
 
+#include <app/services/savestates/SaveStateService.hpp>
+
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/event.hpp>
 
@@ -42,6 +44,16 @@
 #include <mutex>
 
 using MidiPortType = app::Settings::Audio::MidiPort::Type;
+
+// -----------------------------------------------------------------------------
+// deprecation helpers
+#if defined(__clang__) || defined(__GNUC__)
+    #define YMIR_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+    #define YMIR_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+    #define YMIR_DEPRECATED(msg)
+#endif
 
 // -----------------------------------------------------------------------------
 // Forward declarations
@@ -92,10 +104,60 @@ namespace media {
 
 } // namespace ymir
 
+namespace app::savestates {
+    struct ISaveStateService;
+    struct SaveState;
+    class SaveStateService;
+} // namespace app::savestates
+
 // -----------------------------------------------------------------------------
 // Implementation
 
 namespace app {
+
+// -----------------------------------------------------------------------------
+// Legacy save state shims forwarding to the new service
+
+struct SaveStatesCompat {
+    savestates::SaveStateService *impl = nullptr;
+
+    SaveStatesCompat() = default;
+    explicit SaveStatesCompat(savestates::SaveStateService &service)
+        : impl(&service) {
+    }
+
+    [[nodiscard]] std::size_t size() const noexcept {
+        return impl != nullptr ? impl->size() : 0;
+    }
+
+    savestates::SaveState &operator[](std::size_t slot) {
+        return impl->mutableSlots()[slot];
+    }
+
+    const savestates::SaveState &operator[](std::size_t slot) const {
+        return impl->slots()[slot];
+    }
+};
+
+struct CurrentSaveStateSlotCompat {
+    savestates::SaveStateService *impl = nullptr;
+
+    CurrentSaveStateSlotCompat() = default;
+    explicit CurrentSaveStateSlotCompat(savestates::SaveStateService &service)
+        : impl(&service) {
+    }
+
+    CurrentSaveStateSlotCompat &operator=(std::size_t slot) noexcept {
+        if (impl != nullptr) {
+            impl->setCurrentSlot(slot);
+        }
+        return *this;
+    }
+
+    operator std::size_t() const noexcept {
+        return impl != nullptr ? impl->currentSlot() : 0;
+    }
+};
 
 namespace grp {
 
@@ -480,13 +542,22 @@ struct SharedContext {
     std::filesystem::path iplRomPath;
     std::filesystem::path cdbRomPath;
 
-    struct SaveState {
-        std::unique_ptr<ymir::state::State> state;
-        std::chrono::system_clock::time_point timestamp;
-    };
+    savestates::SaveStateService saveStateService{};
+    savestates::ISaveStateService *_savesImpl = &saveStateService;
 
-    std::array<SaveState, 10> saveStates;
-    size_t currSaveStateSlot = 0;
+    // Old name alias (warn!)
+    using SaveState YMIR_DEPRECATED("Use app::savestates::SaveState") = app::savestates::SaveState;
+
+    // “Array size”
+    YMIR_DEPRECATED("Use ISaveStateService::size()")
+    std::size_t statesSize() const { return _savesImpl ? _savesImpl->size() : 0; }
+
+    // Legacy facade forwards to SaveStateService for compatibility
+    YMIR_DEPRECATED("Use app::savestates::SaveStateService")
+    SaveStatesCompat saveStates{saveStateService};
+
+    YMIR_DEPRECATED("Use ISaveStateService::currentSlot()/setCurrentSlot()")
+    CurrentSaveStateSlotCompat currSaveStateSlot{saveStateService};
 
     RewindBuffer rewindBuffer;
     bool rewinding = false;
@@ -512,7 +583,7 @@ struct SharedContext {
         std::mutex cart;
         std::mutex disc;
         std::mutex peripherals;
-        std::array<std::mutex, 10> saveStates;
+        std::array<std::mutex, savestates::SaveStateService::kSlots> saveStates;
         std::mutex romManager;
         std::mutex backupRAM;
         std::mutex messages;
