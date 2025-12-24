@@ -18,7 +18,7 @@ public:
 
     SaveStateService() = default;
 
-    [[nodiscard]] std::size_t size() const noexcept override { return slots_.size(); }
+    [[nodiscard]] std::size_t size() const noexcept override { return m_slots_.size(); }
 
     [[nodiscard]] std::optional<std::reference_wrapper<const SaveState>>
     peek(std::size_t slot) const noexcept override;
@@ -28,17 +28,17 @@ public:
 
     [[nodiscard]] std::vector<SaveStateSlotMeta> list() const override;
 
-    [[nodiscard]] std::size_t currentSlot() const noexcept override { return currentSlot_; }
+    [[nodiscard]] std::size_t currentSlot() const noexcept override { return m_currentSlot_; }
     void setCurrentSlot(std::size_t slot) noexcept override;
 
     // Compatibility helpers for legacy call sites.
-    [[nodiscard]] SlotArray &mutableSlots() noexcept { return slots_; }
-    [[nodiscard]] const SlotArray &slots() const noexcept { return slots_; }
-    [[nodiscard]] std::size_t &mutableCurrentSlot() noexcept { return currentSlot_; }
+    [[nodiscard]] SlotArray &mutableSlots() noexcept { return m_slots_; }
+    [[nodiscard]] const SlotArray &slots() const noexcept { return m_slots_; }
+    [[nodiscard]] std::size_t &mutableCurrentSlot() noexcept { return m_currentSlot_; }
 
 private:
-    SlotArray slots_{};
-    std::size_t currentSlot_{0};
+    SlotArray m_slots_{};
+    std::size_t m_currentSlot_{0};
 };
 
 } // namespace app::savestates
