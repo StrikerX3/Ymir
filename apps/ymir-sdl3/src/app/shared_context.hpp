@@ -127,15 +127,15 @@ struct SaveStatesCompat {
     }
 
     [[nodiscard]] std::size_t size() const noexcept {
-        return impl != nullptr ? impl->size() : 0;
+        return impl != nullptr ? impl->Size() : 0;
     }
 
     savestates::SaveState &operator[](std::size_t slot) {
-        return impl->mutableSlots()[slot];
+        return impl->MutableSlots()[slot];
     }
 
     const savestates::SaveState &operator[](std::size_t slot) const {
-        return impl->slots()[slot];
+        return impl->Slots()[slot];
     }
 };
 
@@ -149,13 +149,13 @@ struct CurrentSaveStateSlotCompat {
 
     CurrentSaveStateSlotCompat &operator=(std::size_t slot) noexcept {
         if (impl != nullptr) {
-            impl->setCurrentSlot(slot);
+            impl->SetCurrentSlot(slot);
         }
         return *this;
     }
 
     operator std::size_t() const noexcept {
-        return impl != nullptr ? impl->currentSlot() : 0;
+        return impl != nullptr ? impl->CurrentSlot() : 0;
     }
 };
 
@@ -549,14 +549,14 @@ struct SharedContext {
     using SaveState YMIR_DEPRECATED("Use app::savestates::SaveState") = app::savestates::SaveState;
 
     // “Array size”
-    YMIR_DEPRECATED("Use ISaveStateService::size()")
-    std::size_t statesSize() const { return _savesImpl ? _savesImpl->size() : 0; }
+    YMIR_DEPRECATED("Use ISaveStateService::Size()")
+    std::size_t statesSize() const { return _savesImpl ? _savesImpl->Size() : 0; }
 
     // Legacy facade forwards to SaveStateService for compatibility
     YMIR_DEPRECATED("Use app::savestates::SaveStateService")
     SaveStatesCompat saveStates{saveStateService};
 
-    YMIR_DEPRECATED("Use ISaveStateService::currentSlot()/setCurrentSlot()")
+    YMIR_DEPRECATED("Use ISaveStateService::CurrentSlot()/SetCurrentSlot()")
     CurrentSaveStateSlotCompat currSaveStateSlot{saveStateService};
 
     RewindBuffer rewindBuffer;

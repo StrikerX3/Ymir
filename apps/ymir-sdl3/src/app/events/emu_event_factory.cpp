@@ -4,6 +4,7 @@
 
 #include <app/shared_context.hpp>
 
+#include <memory>
 #include <ymir/sys/saturn.hpp>
 
 #include <util/rom_loader.hpp>
@@ -582,15 +583,23 @@ EmuEvent SetSCSPStepGranularity(uint32 granularity) {
 
 EmuEvent LoadState(uint32 slot) {
     return RunFunction([=](SharedContext &ctx) {
-        if (slot >= ctx.saveStates.size()) {
+
+        // grab the service as &saves and check for bounds
+        auto &saves = ctx.saveStateService;
+        if (slot >= saves.Size()) {
             return;
         }
-        if (!ctx.saveStates[slot].state) {
+
+        // sanity check: do slotState and underlying state exist?
+        auto slotState = saves.Peek(slot);
+        if (!slotState || !slotState->get().state) {
             ctx.DisplayMessage(fmt::format("Save state slot {} selected", slot + 1));
             return;
         }
 
-        auto &state = *ctx.saveStates[slot].state;
+        // grab the savestate
+        const auto &saveState = slotState->get();
+        auto &state = *saveState.state;
 
         // Sanity check: ensure that the disc hash matches
         {
@@ -704,17 +713,29 @@ EmuEvent LoadState(uint32 slot) {
 
 EmuEvent SaveState(uint32 slot) {
     return RunFunction([=](SharedContext &ctx) {
-        if (slot < ctx.saveStates.size()) {
-            {
-                std::unique_lock lock{ctx.locks.saveStates[slot]};
-                if (!ctx.saveStates[slot].state) {
-                    ctx.saveStates[slot].state = std::make_unique<state::State>();
-                }
-                ctx.saturn.instance->SaveState(*ctx.saveStates[slot].state);
-                ctx.saveStates[slot].timestamp = std::chrono::system_clock::now();
-            }
-            ctx.EnqueueEvent(events::gui::StateSaved(slot));
+
+        // grab the service and check bounds
+        auto &saves = ctx.saveStateService;
+        if (slot >= saves.Size()) {
+            return;
         }
+
+        {
+            // grab the lock and mutable slot
+            std::unique_lock lock{ctx.locks.saveStates[slot]};
+            auto &slotState = saves.MutableSlots()[slot];
+
+            // make new state if none present
+            if (!slotState.state) {
+                slotState.state = std::make_unique<state::State>();
+            }
+
+            // save state to selected slot and set timestamp
+            ctx.saturn.instance->SaveState(*slotState.state);
+            slotState.timestamp = std::chrono::system_clock::now();
+        }
+
+        ctx.EnqueueEvent(events::gui::StateSaved(slot));
     });
 }
 

@@ -18,23 +18,23 @@ public:
 
     SaveStateService() = default;
 
-    [[nodiscard]] std::size_t size() const noexcept override { return m_slots_.size(); }
+    [[nodiscard]] std::size_t Size() const noexcept override { return m_slots_.size(); }
 
     [[nodiscard]] std::optional<std::reference_wrapper<const SaveState>>
-    peek(std::size_t slot) const noexcept override;
+    Peek(std::size_t slot) const noexcept override;
 
-    bool set(std::size_t slot, SaveState&& s) override;
-    bool erase(std::size_t slot) override;
+    bool Set(std::size_t slot, SaveState&& s) override;
+    bool Erase(std::size_t slot) override;
 
-    [[nodiscard]] std::vector<SaveStateSlotMeta> list() const override;
+    [[nodiscard]] std::vector<SaveStateSlotMeta> List() const override;
 
-    [[nodiscard]] std::size_t currentSlot() const noexcept override { return m_currentSlot_; }
-    void setCurrentSlot(std::size_t slot) noexcept override;
+    [[nodiscard]] std::size_t CurrentSlot() const noexcept override { return m_currentSlot_; }
+    void SetCurrentSlot(std::size_t slot) noexcept override;
 
     // Compatibility helpers for legacy call sites.
-    [[nodiscard]] SlotArray &mutableSlots() noexcept { return m_slots_; }
-    [[nodiscard]] const SlotArray &slots() const noexcept { return m_slots_; }
-    [[nodiscard]] std::size_t &mutableCurrentSlot() noexcept { return m_currentSlot_; }
+    [[nodiscard]] SlotArray &MutableSlots() noexcept { return m_slots_; }
+    [[nodiscard]] const SlotArray &Slots() const noexcept { return m_slots_; }
+    [[nodiscard]] std::size_t &MutableCurrentSlot() noexcept { return m_currentSlot_; }
 
 private:
     SlotArray m_slots_{};
