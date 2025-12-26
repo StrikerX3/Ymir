@@ -1177,6 +1177,8 @@ private:
     void VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress);
 
 #undef TPL_TRAITS
+#undef TPL_LINE_TRAITS
+#undef TPL_DEINTERLACE
 
     // -------------------------------------------------------------------------
     // VDP2
