@@ -653,6 +653,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Joek, "
                            "Julien P, "
                            "khalifax10, "
+                           "Mario Fonseca, "
                            "Mored4u, "
                            "Munch, "
                            "Oliver Stadler, "

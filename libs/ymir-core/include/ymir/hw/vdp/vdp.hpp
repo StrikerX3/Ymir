@@ -265,7 +265,7 @@ private:
     uint32 m_VTimingField;
     uint16 m_VCounterSkip;
     uint64 m_VBlankEraseCyclesPerLine;        // cycles per line for VBlank erase
-    std::array<uint64, 2> m_VBlankEraseLines; // lines in VBlank erase
+    std::array<uint64, 2> m_VBlankEraseLines; // [even/odd] lines in VBlank erase
 
     // Moves to the next phase.
     void UpdatePhase();
@@ -1177,6 +1177,8 @@ private:
     void VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress);
 
 #undef TPL_TRAITS
+#undef TPL_LINE_TRAITS
+#undef TPL_DEINTERLACE
 
     // -------------------------------------------------------------------------
     // VDP2
