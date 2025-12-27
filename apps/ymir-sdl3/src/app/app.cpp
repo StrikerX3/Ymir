@@ -1054,10 +1054,10 @@ void App::RunEmulator() {
     // Save states
     {
         inputContext.SetTriggerHandler(actions::save_states::QuickLoadState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::LoadState(m_context.currSaveStateSlot));
+            m_context.EnqueueEvent(events::emu::LoadState(m_context.saveStateService.CurrentSlot()));
         });
         inputContext.SetTriggerHandler(actions::save_states::QuickSaveState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::SaveState(m_context.currSaveStateSlot));
+            m_context.EnqueueEvent(events::emu::SaveState(m_context.saveStateService.CurrentSlot()));
         });
 
         // Select state
@@ -2363,30 +2363,34 @@ void App::RunEmulator() {
                     // TODO: save state manager window to copy/move/swap/delete states
 
                     auto drawSaveStatesList = [&](bool save) {
-                        // TODO: use context data to simplify save state actions
-                        for (uint32 i = 0; i < m_context.saveStates.size(); ++i) {
-                            const auto &state = m_context.saveStates[i];
-                            const auto shortcut =
-                                input::ToShortcut(inputContext, save ? actions::save_states::GetSaveStateAction(i)
-                                                                     : actions::save_states::GetLoadStateAction(i));
-                            if (state.state) {
-                                if (ImGui::MenuItem(
-                                        fmt::format("{}: {}", i, util::to_local_time(state.timestamp)).c_str(),
-                                        shortcut.c_str(), m_context.currSaveStateSlot == i, true)) {
-                                    if (save) {
-                                        SaveSaveStateSlot(i);
-                                    } else {
-                                        LoadSaveStateSlot(i);
-                                    }
-                                }
-                            } else {
-                                if (ImGui::MenuItem(fmt::format("{}: (empty)", i).c_str(), shortcut.c_str(),
-                                                    m_context.currSaveStateSlot == i, save)) {
-                                    if (save) {
-                                        SaveSaveStateSlot(i);
-                                    } else {
-                                        SelectSaveStateSlot(i);
-                                    }
+                        // we now use the service metadata (slotMeta) for UI calls
+                        // that way actual slot data doesn't have to be interacted with
+
+                        // pull via List() + CurrentSlot() and build labels
+                        // that way via SaveStateSlotMeta and drive Save/Load/Select
+                        // -> use service apis without touching slots directly
+                        const auto slotMeta = m_context.saveStateService.List();
+                        const auto currentSlot = m_context.saveStateService.CurrentSlot();
+
+                        for (const auto &meta : slotMeta) {
+                            const auto shortcut = input::ToShortcut(
+                                inputContext,
+                                save ? actions::save_states::GetSaveStateAction(meta.slot)
+                                     : actions::save_states::GetLoadStateAction(meta.slot));
+
+                            const bool present = meta.present;
+                            const bool isSelected = currentSlot == static_cast<std::size_t>(meta.slot);
+                            const std::string label = present
+                                                          ? fmt::format("{}: {}", meta.slot, util::to_local_time(meta.ts))
+                                                          : fmt::format("{}: (empty)", meta.slot);
+
+                            if (ImGui::MenuItem(label.c_str(), shortcut.c_str(), isSelected, present || save)) {
+                                if (save) {
+                                    SaveSaveStateSlot(static_cast<std::size_t>(meta.slot));
+                                } else if (present) {
+                                    LoadSaveStateSlot(static_cast<std::size_t>(meta.slot));
+                                } else {
+                                    SelectSaveStateSlot(static_cast<std::size_t>(meta.slot));
                                 }
                             }
                         }
