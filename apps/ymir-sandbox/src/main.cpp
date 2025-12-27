@@ -1029,7 +1029,7 @@ static void runVDP1AccuracySandbox(std::filesystem::path testPath) {
 
         while (!renderDone) {
             const uint64 cycles = scheduler.NextCount();
-            vdp->Advance<false>(cycles);
+            vdp->Advance(cycles);
             scheduler.Advance(cycles);
         }
 

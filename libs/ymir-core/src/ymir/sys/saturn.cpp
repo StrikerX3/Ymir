@@ -584,7 +584,7 @@ bool Saturn::Run() {
             } while (execCycles < cycles);
         }
     }
-    VDP.Advance<debug>(execCycles);
+    VDP.Advance(execCycles);
 
     // SCSP+M68K and CD block are ticked by the scheduler
 
@@ -618,7 +618,7 @@ uint64 Saturn::StepMasterSH2Impl() {
     while (SCU.IsDMAActive()) {
         const uint64 cycles = 64;
         SCU.Advance<debug>(cycles);
-        VDP.Advance<debug>(cycles);
+        VDP.Advance(cycles);
         // SCSP+M68K and CD block are ticked by the scheduler
         if constexpr (cdblockLLE) {
             AdvanceSH1(cycles);
@@ -637,7 +637,7 @@ uint64 Saturn::StepMasterSH2Impl() {
             m_ssh2SpilloverCycles = slaveCycles - masterCycles;
         }
         SCU.Advance<debug>(masterCycles);
-        VDP.Advance<debug>(masterCycles);
+        VDP.Advance(masterCycles);
         // SCSP+M68K and CD block are ticked by the scheduler
         if constexpr (cdblockLLE) {
             AdvanceSH1(masterCycles);
@@ -660,7 +660,7 @@ uint64 Saturn::StepSlaveSH2Impl() {
     while (SCU.IsDMAActive()) {
         const uint64 cycles = 64;
         SCU.Advance<debug>(cycles);
-        VDP.Advance<debug>(cycles);
+        VDP.Advance(cycles);
         // SCSP+M68K and CD block are ticked by the scheduler
         if constexpr (cdblockLLE) {
             AdvanceSH1(cycles);
@@ -677,7 +677,7 @@ uint64 Saturn::StepSlaveSH2Impl() {
         const uint64 masterCycles = masterSH2.Advance<debug, enableSH2Cache>(slaveCycles, m_msh2SpilloverCycles);
         m_msh2SpilloverCycles = masterCycles - slaveCycles;
         SCU.Advance<debug>(slaveCycles);
-        VDP.Advance<debug>(slaveCycles);
+        VDP.Advance(slaveCycles);
         // SCSP+M68K and CD block are ticked by the scheduler
         if constexpr (cdblockLLE) {
             AdvanceSH1(slaveCycles);

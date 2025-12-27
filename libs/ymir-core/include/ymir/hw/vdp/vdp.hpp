@@ -57,7 +57,6 @@ public:
     void MapMemory(sys::SH2Bus &bus);
 
     // TODO: replace with scheduler events
-    template <bool debug>
     void Advance(uint64 cycles);
 
     // -------------------------------------------------------------------------

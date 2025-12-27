@@ -358,7 +358,6 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
         });
 }
 
-template <bool debug>
 void VDP::Advance(uint64 cycles) {
     if (!m_effectiveRenderVDP1InVDP2Thread) {
         if (m_VDP1RenderContext.rendering) {
@@ -383,9 +382,6 @@ void VDP::Advance(uint64 cycles) {
         }
     }
 }
-
-template void VDP::Advance<false>(uint64 cycles);
-template void VDP::Advance<true>(uint64 cycles);
 
 void VDP::DumpVDP1VRAM(std::ostream &out) const {
     out.write((const char *)m_state.VRAM1.data(), m_state.VRAM1.size());
