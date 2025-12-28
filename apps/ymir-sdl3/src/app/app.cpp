@@ -4542,7 +4542,6 @@ void App::ClearSaveStates() {
         std::unique_lock lock{m_context.locks.saveStates[slot]};
 
         auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
-        auto &saveStateSlot = m_context.saveStates[slot];
 
         saves.Erase(slot);
         std::filesystem::remove(statePath);
@@ -4551,28 +4550,33 @@ void App::ClearSaveStates() {
 }
 
 void App::LoadSaveStateSlot(size_t slot) {
-    m_context.currSaveStateSlot = std::min(slot, m_context.saveStates.size() - 1);
-    m_context.EnqueueEvent(events::emu::LoadState(m_context.currSaveStateSlot));
+    m_context.saveStateService.SetCurrentSlot(std::min(slot, m_context.saveStateService.Size() - 1));
+    m_context.EnqueueEvent(events::emu::LoadState(m_context.saveStateService.CurrentSlot()));
 }
 
 void App::SaveSaveStateSlot(size_t slot) {
-    m_context.currSaveStateSlot = std::min(slot, m_context.saveStates.size() - 1);
-    m_context.EnqueueEvent(events::emu::SaveState(m_context.currSaveStateSlot));
+    m_context.saveStateService.SetCurrentSlot(std::min(slot, m_context.saveStateService.Size() - 1));
+    m_context.EnqueueEvent(events::emu::SaveState(m_context.saveStateService.CurrentSlot()));
 }
 
 void App::SelectSaveStateSlot(size_t slot) {
-    m_context.currSaveStateSlot = std::min(slot, m_context.saveStates.size() - 1);
-    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_context.currSaveStateSlot + 1));
+    m_context.saveStateService.SetCurrentSlot(std::min(slot, m_context.saveStateService.Size() - 1));
+    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_context.saveStateService.CurrentSlot()));
 }
 
 void App::PersistSaveState(size_t slot) {
-    if (slot >= m_context.saveStates.size()) {
+    auto &saves = m_context.saveStateService;
+
+    if (slot >= saves.Size()) {
         return;
     }
 
     std::unique_lock lock{m_context.locks.saveStates[slot]};
-    if (m_context.saveStates[slot].state) {
-        auto &state = *m_context.saveStates[slot].state;
+
+    // ensure to not dereference empty slots
+    auto slotState = saves.Peek(slot);
+    if (slotState && slotState->get().state) {
+        auto &state = *slotState->get().state;
 
         // Create directory for this game's save states
         auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
