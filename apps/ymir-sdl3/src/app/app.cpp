@@ -158,7 +158,9 @@ static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args
 }
 
 App::App()
-    : m_systemStateWindow(m_context)
+    : m_saveStateService()
+    , m_context(m_saveStateService)
+    , m_systemStateWindow(m_context)
     , m_bupMgrWindow(m_context)
     , m_masterSH2WindowSet(m_context, true)
     , m_slaveSH2WindowSet(m_context, false)

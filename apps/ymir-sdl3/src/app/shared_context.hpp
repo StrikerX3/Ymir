@@ -542,8 +542,8 @@ struct SharedContext {
     std::filesystem::path iplRomPath;
     std::filesystem::path cdbRomPath;
 
-    savestates::SaveStateService saveStateService{};
-    savestates::ISaveStateService *_savesImpl = &saveStateService;
+    savestates::SaveStateService &saveStateService;
+    savestates::ISaveStateService *_savesImpl = nullptr;
 
     // Old name alias (warn!)
     using SaveState YMIR_DEPRECATED("Use app::savestates::SaveState") = app::savestates::SaveState;
@@ -554,10 +554,10 @@ struct SharedContext {
 
     // Legacy facade forwards to SaveStateService for compatibility
     YMIR_DEPRECATED("Use app::savestates::SaveStateService")
-    SaveStatesCompat saveStates{saveStateService};
+    SaveStatesCompat saveStates;
 
     YMIR_DEPRECATED("Use ISaveStateService::CurrentSlot()/SetCurrentSlot()")
-    CurrentSaveStateSlotCompat currSaveStateSlot{saveStateService};
+    CurrentSaveStateSlotCompat currSaveStateSlot;
 
     RewindBuffer rewindBuffer;
     bool rewinding = false;
@@ -693,7 +693,7 @@ struct SharedContext {
     // -----------------------------------------------------------------------------------------------------------------
     // Convenience methods
 
-    SharedContext();
+    explicit SharedContext(savestates::SaveStateService &saveStatesService);
     ~SharedContext();
 
     void DisplayMessage(std::string message) const {
