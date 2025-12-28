@@ -721,18 +721,21 @@ EmuEvent SaveState(uint32 slot) {
         }
 
         {
-            // grab the lock and mutable slot
+            // grab the lock and a new state
             auto lock = std::unique_lock{saves.SlotMutex(slot)};
-            auto &slotState = saves.MutableSlots()[slot];
+            savestates::SaveState slotState{};
 
-            // make new state if none present
-            if (!slotState.state) {
-                slotState.state = std::make_unique<state::State>();
-            }
+            // build new state logically 
+            // test if state is present and either clone or create a new one 
+            auto savePtr = saves.Peek(slot);
+            slotState.state = savePtr && savePtr->get().state
+                                   ? std::make_unique<state::State>(*savePtr->get().state)
+                                   : std::make_unique<state::State>();
 
             // save state to selected slot and set timestamp
             ctx.saturn.instance->SaveState(*slotState.state);
             slotState.timestamp = std::chrono::system_clock::now();
+            saves.Set(slot, std::move(slotState));
         }
 
         ctx.EnqueueEvent(events::gui::StateSaved(slot));
