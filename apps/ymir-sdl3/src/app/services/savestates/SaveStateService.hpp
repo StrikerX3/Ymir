@@ -7,6 +7,7 @@
 #include "types.hpp"
 
 #include <array>
+#include <mutex>
 #include <vector>
 
 namespace app::savestates {
@@ -36,9 +37,13 @@ public:
     [[nodiscard]] const SlotArray &Slots() const noexcept { return m_slots_; }
     [[nodiscard]] std::size_t &MutableCurrentSlot() noexcept { return m_currentSlot_; }
 
+    // controlled access to state locks 
+    [[nodiscard]] std::mutex &SlotMutex(std::size_t slot) noexcept { return m_saveStateLocks_[slot]; }
+
 private:
     SlotArray m_slots_{};
     std::size_t m_currentSlot_{0};
+    std::array<std::mutex, kSlots> m_saveStateLocks_{};
 };
 
 } // namespace app::savestates

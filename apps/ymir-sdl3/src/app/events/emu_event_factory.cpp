@@ -591,6 +591,7 @@ EmuEvent LoadState(uint32 slot) {
         }
 
         // sanity check: do slotState and underlying state exist?
+        auto lock = std::unique_lock{saves.SlotMutex(slot)};
         auto slotState = saves.Peek(slot);
         if (!slotState || !slotState->get().state) {
             ctx.DisplayMessage(fmt::format("Save state slot {} selected", slot + 1));
@@ -603,7 +604,6 @@ EmuEvent LoadState(uint32 slot) {
 
         // Sanity check: ensure that the disc hash matches
         {
-            std::unique_lock lock{ctx.locks.disc};
             if (!state.ValidateDiscHash(ctx.saturn.GetDiscHash())) {
                 devlog::warn<grp::base>("Save state disc hash mismatch; refusing to load save state");
                 return;
@@ -722,7 +722,7 @@ EmuEvent SaveState(uint32 slot) {
 
         {
             // grab the lock and mutable slot
-            std::unique_lock lock{ctx.locks.saveStates[slot]};
+            auto lock = std::unique_lock{saves.SlotMutex(slot)};
             auto &slotState = saves.MutableSlots()[slot];
 
             // make new state if none present
