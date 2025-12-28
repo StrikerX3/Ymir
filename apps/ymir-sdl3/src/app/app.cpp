@@ -79,6 +79,7 @@
 
 #include "actions.hpp"
 
+#include <cstddef>
 #include <ymir/ymir.hpp>
 
 #include <ymir/sys/saturn.hpp>
@@ -4533,12 +4534,17 @@ void App::ClearSaveStates() {
     auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
     auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
 
-    for (uint32 slot = 0; slot < m_context.saveStates.size(); slot++) {
+    auto &saves = m_context.saveStateService; 
+    const auto slotMeta = saves.List();
+
+    for (const auto &meta : slotMeta) {
+        const auto slot = static_cast<std::size_t>(meta.slot);
         std::unique_lock lock{m_context.locks.saveStates[slot]};
+
         auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
         auto &saveStateSlot = m_context.saveStates[slot];
-        saveStateSlot.state.reset();
-        saveStateSlot.timestamp = {};
+
+        saves.Erase(slot);
         std::filesystem::remove(statePath);
     }
     m_context.DisplayMessage("All save states cleared");
