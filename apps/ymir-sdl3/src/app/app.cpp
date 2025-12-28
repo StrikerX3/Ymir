@@ -4489,26 +4489,33 @@ void App::LoadSaveStates() {
     auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
     auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
 
-    for (uint32 slot = 0; slot < m_context.saveStates.size(); slot++) {
+    auto &saves = m_context.saveStateService;
+    const auto slotMeta = saves.List();
+
+    for (const auto &meta : slotMeta) {
+        const auto slot = static_cast<std::size_t>(meta.slot);
         std::unique_lock lock{m_context.locks.saveStates[slot]};
+
         auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
         std::ifstream in{statePath, std::ios::binary};
-        auto &saveStateSlot = m_context.saveStates[slot];
+
         if (in) {
+            savestates::SaveState slotState{};
             cereal::PortableBinaryInputArchive archive{in};
             try {
                 auto state = std::make_unique<ymir::state::State>();
                 archive(*state);
-                saveStateSlot.state.swap(state);
+                slotState.state.swap(state);
 
                 SDL_PathInfo pathInfo{};
                 if (SDL_GetPathInfo(fmt::format("{}", statePath).c_str(), &pathInfo)) {
                     const time_t time = SDL_NS_TO_SECONDS(pathInfo.modify_time);
                     const auto sysClockTime = std::chrono::system_clock::from_time_t(time);
-                    saveStateSlot.timestamp = sysClockTime;
+                    slotState.timestamp = sysClockTime;
                 } else {
-                    saveStateSlot.timestamp = std::chrono::system_clock::now();
+                    slotState.timestamp = std::chrono::system_clock::now();
                 }
+                saves.Set(slot, std::move(slotState));
             } catch (const cereal::Exception &e) {
                 devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
             } catch (const std::exception &e) {
@@ -4517,8 +4524,7 @@ void App::LoadSaveStates() {
                 devlog::error<grp::base>("Could not load save state from {}: unspecified error", statePath);
             }
         } else {
-            saveStateSlot.state.reset();
-            saveStateSlot.timestamp = {};
+            saves.Erase(slot);
         }
     }
 }
