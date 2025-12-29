@@ -14,10 +14,7 @@
 
 #include <util/file_loader.hpp>
 
-#include <fmt/std.h>
-
 #include <fstream>
-#include <iostream>
 
 using namespace ymir;
 
