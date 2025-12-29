@@ -14,7 +14,7 @@ namespace app::savestates {
 
 class SaveStateService final : public ISaveStateService {
 public:
-    static constexpr std::size_t kSlots = 10;
+    static constexpr std::size_t kSlots = ISaveStateService::kSlots;
     using SlotArray = std::array<SaveState, kSlots>;
 
     SaveStateService() = default;
@@ -37,8 +37,8 @@ public:
     [[nodiscard]] const SlotArray &Slots() const noexcept { return m_slots_; }
     [[nodiscard]] std::size_t &MutableCurrentSlot() noexcept { return m_currentSlot_; }
 
-    // controlled access to state locks 
-    [[nodiscard]] std::mutex &SlotMutex(std::size_t slot) noexcept { return m_saveStateLocks_[slot]; }
+    // controlled access to state locks
+    [[nodiscard]] std::mutex &SlotMutex(std::size_t slot) noexcept override { return m_saveStateLocks_[slot]; }
 
 private:
     SlotArray m_slots_{};

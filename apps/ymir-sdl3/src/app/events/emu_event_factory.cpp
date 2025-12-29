@@ -3,6 +3,7 @@
 #include "gui_event_factory.hpp"
 
 #include <app/shared_context.hpp>
+#include <app/services/savestates/types.hpp>
 
 #include <memory>
 #include <ymir/sys/saturn.hpp>

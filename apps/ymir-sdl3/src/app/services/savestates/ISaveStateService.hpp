@@ -3,9 +3,10 @@
 //
 
 #pragma once
-#include <optional>
 #include <functional>
 #include <cstddef>
+#include <mutex>
+#include <optional>
 #include <vector>
 
 namespace app::savestates {
@@ -15,6 +16,8 @@ struct SaveState;
 struct SaveStateSlotMeta;
 
 struct ISaveStateService {
+    static constexpr std::size_t kSlots = 10;
+
     virtual ~ISaveStateService() = default;
 
     // get size, but currently its static anyway
@@ -36,6 +39,9 @@ struct ISaveStateService {
     // current slot
     [[nodiscard]] virtual std::size_t CurrentSlot() const noexcept = 0;
     virtual void SetCurrentSlot(std::size_t slot) noexcept = 0;
+
+    // locking
+    virtual std::mutex &SlotMutex(std::size_t slot) noexcept = 0;
 };
 
 
