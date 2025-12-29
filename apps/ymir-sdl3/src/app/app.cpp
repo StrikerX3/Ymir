@@ -1057,10 +1057,10 @@ void App::RunEmulator() {
     // Save states
     {
         inputContext.SetTriggerHandler(actions::save_states::QuickLoadState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::LoadState(m_context.saveStateService.CurrentSlot()));
+            m_context.EnqueueEvent(events::emu::LoadState(m_saveStateService.CurrentSlot()));
         });
         inputContext.SetTriggerHandler(actions::save_states::QuickSaveState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::SaveState(m_context.saveStateService.CurrentSlot()));
+            m_context.EnqueueEvent(events::emu::SaveState(m_saveStateService.CurrentSlot()));
         });
 
         // Select state
@@ -2372,8 +2372,8 @@ void App::RunEmulator() {
                         // pull via List() + CurrentSlot() and build labels
                         // that way via SaveStateSlotMeta and drive Save/Load/Select
                         // -> use service apis without touching slots directly
-                        const auto slotMeta = m_context.saveStateService.List();
-                        const auto currentSlot = m_context.saveStateService.CurrentSlot();
+                        const auto slotMeta = m_saveStateService.List();
+                        const auto currentSlot = m_saveStateService.CurrentSlot();
 
                         for (const auto &meta : slotMeta) {
                             const auto shortcut = input::ToShortcut(
@@ -4492,12 +4492,12 @@ void App::LoadSaveStates() {
     auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
     auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
 
-    auto &saves = m_context.saveStateService;
+    auto &saves = m_saveStateService;
     const auto slotMeta = saves.List();
 
     for (const auto &meta : slotMeta) {
         const auto slot = static_cast<std::size_t>(meta.slot);
-        std::unique_lock lock{m_context.locks.saveStates[slot]};
+        auto lock = std::unique_lock{saves.SlotMutex(slot)}; 
 
         auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
         std::ifstream in{statePath, std::ios::binary};
@@ -4536,12 +4536,12 @@ void App::ClearSaveStates() {
     auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
     auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
 
-    auto &saves = m_context.saveStateService; 
+    auto &saves = m_saveStateService; 
     const auto slotMeta = saves.List();
 
     for (const auto &meta : slotMeta) {
         const auto slot = static_cast<std::size_t>(meta.slot);
-        std::unique_lock lock{m_context.locks.saveStates[slot]};
+        auto lock = std::unique_lock{saves.SlotMutex(slot)};
 
         auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
 
@@ -4552,28 +4552,28 @@ void App::ClearSaveStates() {
 }
 
 void App::LoadSaveStateSlot(size_t slot) {
-    m_context.saveStateService.SetCurrentSlot(std::min(slot, m_context.saveStateService.Size() - 1));
-    m_context.EnqueueEvent(events::emu::LoadState(m_context.saveStateService.CurrentSlot()));
+    m_saveStateService.SetCurrentSlot(std::min(slot, m_saveStateService.Size() - 1));
+    m_context.EnqueueEvent(events::emu::LoadState(m_saveStateService.CurrentSlot()));
 }
 
 void App::SaveSaveStateSlot(size_t slot) {
-    m_context.saveStateService.SetCurrentSlot(std::min(slot, m_context.saveStateService.Size() - 1));
-    m_context.EnqueueEvent(events::emu::SaveState(m_context.saveStateService.CurrentSlot()));
+    m_saveStateService.SetCurrentSlot(std::min(slot, m_saveStateService.Size() - 1));
+    m_context.EnqueueEvent(events::emu::SaveState(m_saveStateService.CurrentSlot()));
 }
 
 void App::SelectSaveStateSlot(size_t slot) {
-    m_context.saveStateService.SetCurrentSlot(std::min(slot, m_context.saveStateService.Size() - 1));
-    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_context.saveStateService.CurrentSlot()));
+    m_saveStateService.SetCurrentSlot(std::min(slot, m_saveStateService.Size() - 1));
+    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_saveStateService.CurrentSlot()));
 }
 
 void App::PersistSaveState(size_t slot) {
-    auto &saves = m_context.saveStateService;
+    auto &saves = m_saveStateService;
 
     if (slot >= saves.Size()) {
         return;
     }
 
-    std::unique_lock lock{m_context.locks.saveStates[slot]};
+    auto lock = std::unique_lock{saves.SlotMutex(slot)};
 
     // ensure to not dereference empty slots
     auto slotState = saves.Peek(slot);
