@@ -733,7 +733,12 @@ EmuEvent SaveState(uint32 slot) {
             // save state to selected slot and set timestamp
             ctx.saturn.instance->SaveState(*slotState.state);
             slotState.timestamp = std::chrono::system_clock::now();
-            saves.Set(slot, std::move(slotState));
+            const bool ok = saves.Set(slot, std::move(slotState));
+            // check for catastrophic OOB (should not happen)
+            if (!ok) {
+                devlog::warn<grp::base>("Could not set/save new save state for slot {}", slot);
+                return;
+            }
         }
 
         ctx.EnqueueEvent(events::gui::StateSaved(slot));

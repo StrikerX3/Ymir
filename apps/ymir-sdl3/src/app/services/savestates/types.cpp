@@ -3,7 +3,7 @@
 //
 
 #include "types.hpp"
-#include <ymir/state/state.hpp>
 
 using namespace app::savestates;
 SaveState::~SaveState() = default;
+// declare destructor in implementation

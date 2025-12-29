@@ -16,6 +16,7 @@ struct SaveState;
 struct SaveStateSlotMeta;
 
 struct ISaveStateService {
+    // static slot limit of ten slots for now
     static constexpr std::size_t kSlots = 10;
 
     virtual ~ISaveStateService() = default;

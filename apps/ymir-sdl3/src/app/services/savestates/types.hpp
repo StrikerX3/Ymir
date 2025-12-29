@@ -2,6 +2,19 @@
 // Created by Lennart Kotzur on 22.10.25.
 //
 
+// SaveStateService types declaration
+// --------
+// This was overall a major undertaking and much work just to break out
+// one service from the shared_context. Most of it was because it was
+// because it was the first time I did this, and because I wanted to do
+// it *right*; hence why a lot of thought went into how to modularize and
+// break up the existing context while exposing just a thin interface.
+// --------
+// The types declaration here simply describes the state data structure
+// as well as the associated metadata construct. This is so a thin view
+// of slot metadata can be constructed and used by UI code without touching
+// actual slot data
+
 #pragma once
 #include <chrono>
 #include <memory>
@@ -26,13 +39,6 @@ struct SaveState {
 
     ~SaveState();   // in types.cpp
 };
-
-// meta: array of states + current slot
-// -> moved into SaveStateService.hpp as private members
-// struct SaveStateMeta {
-//    std::array<SaveState, 10> saveStates;
-//    size_t currSaveStateSlot = 0;
-// };
 
 // meta: lightweight struct for info
 // without touching the state struct

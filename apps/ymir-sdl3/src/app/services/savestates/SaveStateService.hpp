@@ -15,7 +15,7 @@ namespace app::savestates {
 class SaveStateService final : public ISaveStateService {
 public:
     static constexpr std::size_t kSlots = ISaveStateService::kSlots;
-    using SlotArray = std::array<SaveState, kSlots>;
+    using SlotArray = std::array<SaveState, kSlots>;    // type alias for private member
 
     SaveStateService() = default;
 
@@ -31,11 +31,6 @@ public:
 
     [[nodiscard]] std::size_t CurrentSlot() const noexcept override { return m_currentSlot_; }
     void SetCurrentSlot(std::size_t slot) noexcept override;
-
-    // Compatibility helpers for legacy call sites.
-    [[nodiscard]] SlotArray &MutableSlots() noexcept { return m_slots_; }
-    [[nodiscard]] const SlotArray &Slots() const noexcept { return m_slots_; }
-    [[nodiscard]] std::size_t &MutableCurrentSlot() noexcept { return m_currentSlot_; }
 
     // controlled access to state locks
     [[nodiscard]] std::mutex &SlotMutex(std::size_t slot) noexcept override { return m_saveStateLocks_[slot]; }
