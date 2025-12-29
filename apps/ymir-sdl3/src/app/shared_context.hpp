@@ -21,9 +21,11 @@
 #include <app/events/emu_event.hpp>
 #include <app/events/gui_event.hpp>
 
-#include <ymir/hw/smpc/peripheral/peripheral_state_common.hpp>
-
 #include <app/services/savestates/ISaveStateService.hpp>
+
+#include <util/deprecation_helpers.hpp>
+
+#include <ymir/hw/smpc/peripheral/peripheral_state_common.hpp>
 
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/event.hpp>
@@ -44,16 +46,6 @@
 #include <mutex>
 
 using MidiPortType = app::Settings::Audio::MidiPort::Type;
-
-// -----------------------------------------------------------------------------
-// deprecation helpers
-#if defined(__clang__) || defined(__GNUC__)
-    #define YMIR_DEPRECATED(msg) __attribute__((deprecated(msg)))
-#elif defined(_MSC_VER)
-    #define YMIR_DEPRECATED(msg) __declspec(deprecated(msg))
-#else
-    #define YMIR_DEPRECATED(msg)
-#endif
 
 // -----------------------------------------------------------------------------
 // Forward declarations
