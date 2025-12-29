@@ -512,7 +512,6 @@ struct SharedContext {
     // - Cartridges
     // - Discs
     // - Peripherals
-    // - Save states
     // - ROM manager
     // - Backup memories
     // - Messages
@@ -523,7 +522,6 @@ struct SharedContext {
         std::mutex cart;
         std::mutex disc;
         std::mutex peripherals;
-        std::array<std::mutex, savestates::ISaveStateService::kSlots> saveStates;
         std::mutex romManager;
         std::mutex backupRAM;
         std::mutex messages;
