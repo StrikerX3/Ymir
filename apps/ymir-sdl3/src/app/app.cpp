@@ -2377,15 +2377,14 @@ void App::RunEmulator() {
 
                         for (const auto &meta : slotMeta) {
                             const auto shortcut = input::ToShortcut(
-                                inputContext,
-                                save ? actions::save_states::GetSaveStateAction(meta.slot)
-                                     : actions::save_states::GetLoadStateAction(meta.slot));
+                                inputContext, save ? actions::save_states::GetSaveStateAction(meta.slot)
+                                                   : actions::save_states::GetLoadStateAction(meta.slot));
 
                             const bool present = meta.present;
                             const bool isSelected = currentSlot == static_cast<std::size_t>(meta.slot);
-                            const std::string label = present
-                                                          ? fmt::format("{}: {}", meta.slot, util::to_local_time(meta.ts))
-                                                          : fmt::format("{}: (empty)", meta.slot);
+                            const std::string label =
+                                present ? fmt::format("{}: {}", meta.slot, util::to_local_time(meta.ts))
+                                        : fmt::format("{}: (empty)", meta.slot);
 
                             if (ImGui::MenuItem(label.c_str(), shortcut.c_str(), isSelected, present || save)) {
                                 if (save) {
@@ -4497,7 +4496,7 @@ void App::LoadSaveStates() {
 
     for (const auto &meta : slotMeta) {
         const auto slot = static_cast<std::size_t>(meta.slot);
-        auto lock = std::unique_lock{saves.SlotMutex(slot)}; 
+        auto lock = std::unique_lock{saves.SlotMutex(slot)};
 
         auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
         std::ifstream in{statePath, std::ios::binary};
@@ -4536,7 +4535,7 @@ void App::ClearSaveStates() {
     auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
     auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
 
-    auto &saves = m_saveStateService; 
+    auto &saves = m_saveStateService;
     const auto slotMeta = saves.List();
 
     for (const auto &meta : slotMeta) {
@@ -4563,7 +4562,7 @@ void App::SaveSaveStateSlot(size_t slot) {
 
 void App::SelectSaveStateSlot(size_t slot) {
     m_saveStateService.SetCurrentSlot(std::min(slot, m_saveStateService.Size() - 1));
-    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_saveStateService.CurrentSlot()));
+    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_saveStateService.CurrentSlot() + 1));
 }
 
 void App::PersistSaveState(size_t slot) {
