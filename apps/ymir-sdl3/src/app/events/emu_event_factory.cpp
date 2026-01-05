@@ -559,16 +559,16 @@ EmuEvent SetCDBlockLLE(bool enable) {
     });
 }
 
-EmuEvent EnableThreadedVDP(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedVDP = enable; });
+EmuEvent EnableThreadedVDP1(bool enable) {
+    return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedVDP1 = enable; });
+}
+
+EmuEvent EnableThreadedVDP2(bool enable) {
+    return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedVDP2 = enable; });
 }
 
 EmuEvent EnableThreadedDeinterlacer(bool enable) {
     return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedDeinterlacer = enable; });
-}
-
-EmuEvent IncludeVDP1InVDPRenderThread(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.settings.video.includeVDP1InRenderThread = enable; });
 }
 
 EmuEvent EnableThreadedSCSP(bool enable) {

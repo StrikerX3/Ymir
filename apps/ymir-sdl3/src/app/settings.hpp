@@ -407,9 +407,9 @@ struct Settings {
         util::Observable<bool> deinterlace;
         util::Observable<bool> transparentMeshes;
 
-        util::Observable<bool> threadedVDP;
+        util::Observable<bool> threadedVDP1;
+        util::Observable<bool> threadedVDP2;
         util::Observable<bool> threadedDeinterlacer;
-        util::Observable<bool> includeVDP1InRenderThread;
     } video;
 
     struct Audio {

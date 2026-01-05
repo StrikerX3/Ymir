@@ -990,7 +990,7 @@ static void runVDP1AccuracySandbox(std::filesystem::path testPath) {
         bool renderDone = false;
         ymir::core::Scheduler scheduler{};
         ymir::core::Configuration config{};
-        config.video.threadedVDP = false;
+        config.video.threadedVDP2 = false;
         config.system.videoStandard = ymir::core::config::sys::VideoStandard::NTSC;
         auto vdp = std::make_unique<ymir::vdp::VDP>(scheduler, config);
         vdp->SetVDP1DrawCallback({&renderDone, [](void *ctx) { *static_cast<bool *>(ctx) = true; }});

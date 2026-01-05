@@ -58,13 +58,11 @@ void TweaksSettingsView::Display() {
         // Video
 
         fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", settings.video.threadedVDP.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", settings.video.threadedVDP1.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", settings.video.threadedVDP2.Get()));
         fmt::format_to(
             inserter, "  - {}\n",
             checkbox("Use dedicated thread for deinterlaced rendering", settings.video.threadedDeinterlacer.Get()));
-        fmt::format_to(
-            inserter, "  - {}\n",
-            checkbox("Include VDP1 rendering in VDP2 renderer thread", settings.video.includeVDP1InRenderThread.Get()));
 
         // -------------------------------------------------------------------------------------------------------------
         // Audio
@@ -168,9 +166,9 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Recommended##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(false));
 
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
-        m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(false));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
@@ -191,9 +189,9 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Best accuracy##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(true));
 
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
-        m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(false));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(true));
 
         settings.system.emulateSH2Cache = true;
@@ -217,9 +215,9 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Best performance##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(false));
 
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
-        m_context.EnqueueEvent(events::emu::IncludeVDP1InVDPRenderThread(false));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;

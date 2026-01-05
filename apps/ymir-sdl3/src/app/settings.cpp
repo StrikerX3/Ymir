@@ -28,7 +28,7 @@ namespace app {
 // v3:
 // - Moved "Input.Port#.*Binds" to "Input.Port#.*.Binds" to make room for controller-specific settings
 // - Moved "OverrideUIScale" and "UIScale" from "Video" to "GUI"
-inline constexpr int kConfigVersion = 3;
+inline constexpr int kConfigVersion = 4;
 
 namespace grp {
 
@@ -741,9 +741,9 @@ void Settings::ResetToDefaults() {
     video.useFullRefreshRateWithVideoSync = false;
     video.deinterlace = false;
     video.transparentMeshes = false;
-    video.threadedVDP = true;
+    video.threadedVDP1 = true;
+    video.threadedVDP2 = true;
     video.threadedDeinterlacer = true;
-    video.includeVDP1InRenderThread = false;
 
     audio.volume = 0.8;
     audio.mute = false;
@@ -779,9 +779,9 @@ void Settings::BindConfiguration(ymir::core::Configuration &config) {
     system.rtc.virtHardResetStrategy.Observe([&](auto value) { config.rtc.virtHardResetStrategy = value; });
     system.rtc.virtHardResetTimestamp.Observe([&](auto value) { config.rtc.virtHardResetTimestamp = value; });
 
-    video.threadedVDP.Observe([&](auto value) { config.video.threadedVDP = value; });
+    video.threadedVDP1.Observe([&](auto value) { config.video.threadedVDP1 = value; });
+    video.threadedVDP2.Observe([&](auto value) { config.video.threadedVDP2 = value; });
     video.threadedDeinterlacer.Observe([&](auto value) { config.video.threadedDeinterlacer = value; });
-    video.includeVDP1InRenderThread.Observe([&](auto value) { config.video.includeVDP1InRenderThread = value; });
 
     audio.interpolation.Observe([&](auto value) { config.audio.interpolation = value; });
     audio.threadedSCSP.Observe([&](auto value) { config.audio.threadedSCSP = value; });
@@ -1132,9 +1132,14 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "DoubleClickToFullScreen", video.doubleClickToFullScreen);
         Parse(tblVideo, "UseFullRefreshRateWithVideoSync", video.useFullRefreshRateWithVideoSync);
 
-        Parse(tblVideo, "ThreadedVDP", video.threadedVDP);
+        if (configVersion <= 3) {
+            Parse(tblVideo, "ThreadedVDP", video.threadedVDP2);
+            Parse(tblVideo, "IncludeVDP1InRenderThread", video.threadedVDP1);
+        } else {
+            Parse(tblVideo, "ThreadedVDP1", video.threadedVDP1);
+            Parse(tblVideo, "ThreadedVDP2", video.threadedVDP2);
+        }
         Parse(tblVideo, "ThreadedDeinterlacer", video.threadedDeinterlacer);
-        Parse(tblVideo, "IncludeVDP1InRenderThread", video.includeVDP1InRenderThread);
         if (configVersion <= 2) {
             parseUIScaleOptions(tblVideo);
         }
@@ -1553,9 +1558,9 @@ SettingsSaveResult Settings::Save() {
             {"UseFullRefreshRateWithVideoSync", video.useFullRefreshRateWithVideoSync},
             {"Deinterlace", video.deinterlace.Get()},
             {"TransparentMeshes", video.transparentMeshes.Get()},
-            {"ThreadedVDP", video.threadedVDP.Get()},
+            {"ThreadedVDP1", video.threadedVDP1.Get()},
+            {"ThreadedVDP2", video.threadedVDP2.Get()},
             {"ThreadedDeinterlacer", video.threadedDeinterlacer.Get()},
-            {"IncludeVDP1InRenderThread", video.includeVDP1InRenderThread.Get()},
         }}},
 
         {"Audio", toml::table{{

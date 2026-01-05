@@ -26,9 +26,12 @@ namespace ymir::state {
 //   8 = 0.1.7
 //   9 = 0.1.8
 //  10 = 0.2.0
-inline constexpr uint32 kVersion = 10;
+//  11 = 0.2.1
+inline constexpr uint32 kVersion = 11;
 
 } // namespace ymir::state
+
+// -----------------------------------------------------------------------------
 
 CEREAL_CLASS_VERSION(ymir::state::State, ymir::state::kVersion);
 
@@ -514,6 +517,9 @@ void serialize(Archive &ar, VDPState::VDPRendererState &s, const uint32 version)
     // v4:
     // - New fields
     //   - vertCellScrollInc = sizeof(uint32)
+    // v10:
+    // - Removed fields
+    //   - bool vdp1Done
 
     serialize(ar, s.vdp1State, version);
     for (auto &state : s.normBGLayerStates) {
@@ -542,7 +548,10 @@ void serialize(Archive &ar, VDPState::VDPRendererState &s, const uint32 version)
         s.vertCellScrollInc = sizeof(uint32);
     }
     ar(s.displayFB);
-    ar(s.vdp1Done);
+    if (version <= 10) {
+        bool vdp1Done;
+        ar(vdp1Done);
+    }
 }
 
 template <class Archive>

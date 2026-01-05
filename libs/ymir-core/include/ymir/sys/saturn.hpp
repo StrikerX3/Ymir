@@ -327,8 +327,8 @@ private:
     /// Depends on debug tracing and SH-2 cache emulation settings.
     StepSH2Fn m_stepSSH2Fn;
 
-    /// @brief Updates pointers to the execution functions based on the current debug tracing and SH-2 cache emulation
-    /// settings.
+    /// @brief Updates pointers to the execution functions based on the current debug tracing, SH-2 cache emulation and
+    /// low-level CD Block emulation settings.
     void UpdateFunctionPointers();
 
     /// @brief Helper template to convert runtime parameters into compile-time constants for building function pointers.

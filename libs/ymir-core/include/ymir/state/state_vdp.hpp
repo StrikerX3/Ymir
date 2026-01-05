@@ -273,7 +273,6 @@ struct VDPState {
         uint32 vertCellScrollInc;
 
         uint8 displayFB;
-        bool vdp1Done;
     } renderer;
 
     bool displayEnabled;

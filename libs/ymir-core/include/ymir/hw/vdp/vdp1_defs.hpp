@@ -7,6 +7,8 @@
 
 #include <ymir/core/types.hpp>
 
+#include <ymir/util/inline.hpp>
+
 namespace ymir::vdp {
 
 // VDP1 command structure in VRAM
@@ -68,6 +70,10 @@ struct VDP1Command {
             uint16 skip : 1;
             uint16 end : 1;
         };
+
+        [[nodiscard]] FORCE_INLINE bool IsValid() const noexcept {
+            return static_cast<uint16>(command) <= 0xB;
+        }
     };
 
     // CMDPMOD

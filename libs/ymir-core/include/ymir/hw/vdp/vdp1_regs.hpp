@@ -12,6 +12,8 @@
 
 namespace ymir::vdp {
 
+inline constexpr uint32 kVDP1NoReturn = ~0u;
+
 struct VDP1Regs {
     VDP1Regs() {
         eraseWriteValue = 0;
@@ -43,7 +45,7 @@ struct VDP1Regs {
         currCommandAddress = 0;
         prevCommandAddress = 0;
 
-        returnAddress = ~0;
+        returnAddress = kVDP1NoReturn;
 
         fbParamsChanged = false;
 

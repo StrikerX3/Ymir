@@ -5,7 +5,7 @@ namespace ymir::core {
 void Configuration::NotifyObservers() {
     system.preferredRegionOrder.Notify();
 
-    video.threadedVDP.Notify();
+    video.threadedVDP2.Notify();
 
     audio.interpolation.Notify();
     audio.threadedSCSP.Notify();

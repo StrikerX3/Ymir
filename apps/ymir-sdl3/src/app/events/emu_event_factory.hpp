@@ -3,8 +3,8 @@
 #include <ymir/sys/backup_ram.hpp>
 #include <ymir/sys/clocks.hpp>
 
-#include <ymir/hw/smpc/peripheral/peripheral_defs.hpp>
 #include "app/ui/state/debug/memory_viewer_state.hpp"
+#include <ymir/hw/smpc/peripheral/peripheral_defs.hpp>
 
 #include "emu_event.hpp"
 
@@ -120,9 +120,9 @@ EmuEvent LoadInternalBackupMemory();
 EmuEvent SetEmulateSH2Cache(bool enable);
 EmuEvent SetCDBlockLLE(bool enable);
 
-EmuEvent EnableThreadedVDP(bool enable);
+EmuEvent EnableThreadedVDP1(bool enable);
+EmuEvent EnableThreadedVDP2(bool enable);
 EmuEvent EnableThreadedDeinterlacer(bool enable);
-EmuEvent IncludeVDP1InVDPRenderThread(bool enable);
 
 EmuEvent EnableThreadedSCSP(bool enable);
 EmuEvent SetSCSPStepGranularity(uint32 granularity);

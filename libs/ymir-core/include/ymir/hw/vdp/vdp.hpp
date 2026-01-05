@@ -160,8 +160,8 @@ private:
     // -------------------------------------------------------------------------
     // Configuration
 
-    void EnableThreadedVDP(bool enable);
-    void IncludeVDP1RenderInVDPThread(bool enable);
+    void EnableThreadedVDP1(bool enable);
+    void EnableThreadedVDP2(bool enable);
 
     // Hacky VDP1 command execution timing penalty accrued from external writes to VRAM
     // TODO: count pulled out of thin air
@@ -240,7 +240,7 @@ private:
     }
 
     FORCE_INLINE uint32 MapRendererCRAMAddress(uint32 address) const {
-        return kCRAMAddressMapping[m_renderingContext.vdp2.regs.vramControl.colorRAMMode >> 1][address & 0xFFF];
+        return kCRAMAddressMapping[m_vdp2RenderingContext.vdp2.regs.vramControl.colorRAMMode >> 1][address & 0xFFF];
     }
 
     template <mem_primitive T>
@@ -298,25 +298,164 @@ private:
 
     // TODO: split out rendering code
 
-    struct VDPRenderEvent {
+    struct ConcQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
+        static constexpr size_t BLOCK_SIZE = 64;
+        static constexpr size_t EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD = 64;
+        static constexpr std::uint32_t EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE = 512;
+        static constexpr int MAX_SEMA_SPINS = 20000;
+    };
+
+    struct VDP1RenderEvent {
+        enum class Type {
+            Reset,
+
+            SwapBuffers,
+            Command,
+
+            VRAMWriteByte,
+            VRAMWriteWord,
+            RegWrite,
+
+            PreSaveStateSync,
+            PostLoadStateSync,
+
+            Shutdown,
+        };
+
+        Type type;
+        union {
+            struct {
+                uint32 address;
+                VDP1Command::Control control;
+            } command;
+
+            struct {
+                uint32 address;
+                uint32 value;
+            } write;
+        };
+
+        static VDP1RenderEvent Reset() {
+            return {Type::Reset};
+        }
+
+        static VDP1RenderEvent SwapBuffers() {
+            return {Type::SwapBuffers};
+        }
+
+        static VDP1RenderEvent Command(uint32 address, VDP1Command::Control control) {
+            return {Type::Command, {.command = {.address = address, .control = control}}};
+        }
+
+        static VDP1RenderEvent VRAMWriteByte(uint32 address, uint8 value) {
+            return {Type::VRAMWriteByte, {.write = {.address = address, .value = value}}};
+        }
+
+        static VDP1RenderEvent VRAMWriteWord(uint32 address, uint16 value) {
+            return {Type::VRAMWriteWord, {.write = {.address = address, .value = value}}};
+        }
+
+        template <mem_primitive T>
+        static VDP1RenderEvent VRAMWrite(uint32 address, T value) {
+            static_assert(!std::is_same_v<T, uint32>, "unsupported write size");
+
+            if constexpr (std::is_same_v<T, uint8>) {
+                return VRAMWriteByte(address, value);
+            } else if constexpr (std::is_same_v<T, uint16>) {
+                return VRAMWriteWord(address, value);
+            }
+            util::unreachable();
+        }
+
+        static VDP1RenderEvent RegWrite(uint32 address, uint16 value) {
+            return {Type::RegWrite, {.write = {.address = address, .value = value}}};
+        }
+
+        static VDP1RenderEvent PreSaveStateSync() {
+            return {Type::PreSaveStateSync};
+        }
+
+        static VDP1RenderEvent PostLoadStateSync() {
+            return {Type::PostLoadStateSync};
+        }
+
+        static VDP1RenderEvent Shutdown() {
+            return {Type::Shutdown};
+        }
+    };
+
+    mutable struct VDP1RenderContext {
+        moodycamel::BlockingConcurrentQueue<VDP1RenderEvent, ConcQueueTraits> eventQueue;
+        moodycamel::ProducerToken pTok{eventQueue};
+        moodycamel::ConsumerToken cTok{eventQueue};
+
+        util::Event swapBuffersSignal{false};
+        util::Event preSaveSyncSignal{false};
+        util::Event postLoadSyncSignal{false};
+
+        std::array<VDP1RenderEvent, 64> pendingEvents;
+        size_t pendingEventsCount = 0;
+
+        struct VDP1 {
+            VDP1Regs regs;
+            alignas(16) std::array<uint8, kVDP1VRAMSize> VRAM;
+        } vdp1;
+
+        void Reset() {
+            vdp1.regs.Reset();
+            for (uint32 addr = 0; addr < vdp1.VRAM.size(); addr++) {
+                if ((addr & 0x1F) == 0) {
+                    vdp1.VRAM[addr] = 0x80;
+                } else if ((addr & 0x1F) == 1) {
+                    vdp1.VRAM[addr] = 0x00;
+                } else if ((addr & 2) == 2) {
+                    vdp1.VRAM[addr] = 0x55;
+                } else {
+                    vdp1.VRAM[addr] = 0xAA;
+                }
+            }
+        }
+
+        void EnqueueEvent(VDP1RenderEvent &&event) {
+            switch (event.type) {
+            case VDP1RenderEvent::Type::VRAMWriteByte:
+            case VDP1RenderEvent::Type::VRAMWriteWord:
+            case VDP1RenderEvent::Type::RegWrite:
+                // Batch VRAM and register writes to send in bulk
+                pendingEvents[pendingEventsCount++] = event;
+                if (pendingEventsCount == pendingEvents.size()) {
+                    eventQueue.enqueue_bulk(pTok, pendingEvents.begin(), pendingEventsCount);
+                    pendingEventsCount = 0;
+                }
+                break;
+            default:
+                // Send any pending writes before rendering
+                if (pendingEventsCount > 0) {
+                    eventQueue.enqueue_bulk(pTok, pendingEvents.begin(), pendingEventsCount);
+                    pendingEventsCount = 0;
+                }
+                eventQueue.enqueue(pTok, event);
+                break;
+            }
+        }
+
+        template <typename It>
+        size_t DequeueEvents(It first, size_t count) {
+            return eventQueue.wait_dequeue_bulk(cTok, first, count);
+        }
+    } m_vdp1RenderingContext;
+
+    struct VDP2RenderEvent {
         enum class Type {
             Reset,
             OddField,
             VDP1EraseFramebuffer,
             VDP1SwapFramebuffer,
-            VDP1BeginFrame,
-            // VDP1ProcessCommands,
 
             VDP2BeginFrame,
             VDP2UpdateEnabledBGs,
             VDP2DrawLine,
             VDP2EndFrame,
-
-            VDP1VRAMWriteByte,
-            VDP1VRAMWriteWord,
-            /*VDP1FBWriteByte,
-            VDP1FBWriteWord,*/
-            VDP1RegWrite,
 
             VDP2VRAMWriteByte,
             VDP2VRAMWriteWord,
@@ -326,9 +465,6 @@ private:
 
             PreSaveStateSync,
             PostLoadStateSync,
-            VDP1StateSync,
-
-            UpdateEffectiveRenderingFlags,
 
             Shutdown,
         };
@@ -353,92 +489,40 @@ private:
             } write;
         };
 
-        static VDPRenderEvent Reset() {
+        static VDP2RenderEvent Reset() {
             return {Type::Reset};
         }
 
-        static VDPRenderEvent OddField(bool odd) {
+        static VDP2RenderEvent OddField(bool odd) {
             return {Type::OddField, {.oddField = {.odd = odd}}};
         }
 
-        static VDPRenderEvent VDP1EraseFramebuffer() {
+        static VDP2RenderEvent VDP1EraseFramebuffer() {
             return {Type::VDP1EraseFramebuffer};
         }
 
-        static VDPRenderEvent VDP1SwapFramebuffer() {
+        static VDP2RenderEvent VDP1SwapFramebuffer() {
             return {Type::VDP1SwapFramebuffer};
         }
 
-        static VDPRenderEvent VDP1BeginFrame() {
-            return {Type::VDP1BeginFrame};
-        }
-
-        /*static VDP1RenderEvent VDP1ProcessCommands(uint64 steps) {
-            return {Type::VDP1ProcessCommands, {.processCommands = {.steps = steps}}};
-        }*/
-
-        static VDPRenderEvent VDP2BeginFrame() {
+        static VDP2RenderEvent VDP2BeginFrame() {
             return {Type::VDP2BeginFrame};
         }
 
-        static VDPRenderEvent VDP2UpdateEnabledBGs() {
+        static VDP2RenderEvent VDP2UpdateEnabledBGs() {
             return {Type::VDP2UpdateEnabledBGs};
         }
 
-        static VDPRenderEvent VDP2DrawLine(uint32 vcnt) {
+        static VDP2RenderEvent VDP2DrawLine(uint32 vcnt) {
             return {Type::VDP2DrawLine, {.drawLine = {.vcnt = vcnt}}};
         }
 
-        static VDPRenderEvent VDP2EndFrame() {
+        static VDP2RenderEvent VDP2EndFrame() {
             return {Type::VDP2EndFrame};
         }
 
         template <mem_primitive T>
-        static VDPRenderEvent VDP1VRAMWrite(uint32 address, T value) {
-            static_assert(!std::is_same_v<T, uint32>, "unsupported write size");
-
-            if constexpr (std::is_same_v<T, uint8>) {
-                return VDP1VRAMWriteByte(address, value);
-            } else if constexpr (std::is_same_v<T, uint16>) {
-                return VDP1VRAMWriteWord(address, value);
-            }
-            util::unreachable();
-        }
-
-        static VDPRenderEvent VDP1VRAMWriteByte(uint32 address, uint8 value) {
-            return {Type::VDP1VRAMWriteByte, {.write = {.address = address, .value = value}}};
-        }
-
-        static VDPRenderEvent VDP1VRAMWriteWord(uint32 address, uint16 value) {
-            return {Type::VDP1VRAMWriteWord, {.write = {.address = address, .value = value}}};
-        }
-
-        /*template <mem_primitive T>
-        static VDPRenderEvent VDP1FBWrite(uint32 address, T value) {
-            static_assert(!std::is_same_v<T, uint32>, "unsupported write size");
-
-            if constexpr (std::is_same_v<T, uint8>) {
-                return VDP1FBWriteByte(address, value);
-            } else if constexpr (std::is_same_v<T, uint16>) {
-                return VDP1FBWriteWord(address, value);
-            }
-            util::unreachable();
-        }
-
-        static VDPRenderEvent VDP1FBWriteByte(uint32 address, uint8 value) {
-            return {Type::VDP1FBWriteByte, {.write = {.address = address, .value = value}}};
-        }
-
-        static VDPRenderEvent VDP1FBWriteWord(uint32 address, uint16 value) {
-            return {Type::VDP1FBWriteWord, {.write = {.address = address, .value = value}}};
-        }*/
-
-        static VDPRenderEvent VDP1RegWrite(uint32 address, uint16 value) {
-            return {Type::VDP1RegWrite, {.write = {.address = address, .value = value}}};
-        }
-
-        template <mem_primitive T>
-        static VDPRenderEvent VDP2VRAMWrite(uint32 address, T value) {
+        static VDP2RenderEvent VDP2VRAMWrite(uint32 address, T value) {
             static_assert(!std::is_same_v<T, uint32>, "unsupported write size");
 
             if constexpr (std::is_same_v<T, uint8>) {
@@ -449,16 +533,16 @@ private:
             util::unreachable();
         }
 
-        static VDPRenderEvent VDP2VRAMWriteByte(uint32 address, uint8 value) {
+        static VDP2RenderEvent VDP2VRAMWriteByte(uint32 address, uint8 value) {
             return {Type::VDP2VRAMWriteByte, {.write = {.address = address, .value = value}}};
         }
 
-        static VDPRenderEvent VDP2VRAMWriteWord(uint32 address, uint16 value) {
+        static VDP2RenderEvent VDP2VRAMWriteWord(uint32 address, uint16 value) {
             return {Type::VDP2VRAMWriteWord, {.write = {.address = address, .value = value}}};
         }
 
         template <mem_primitive T>
-        static VDPRenderEvent VDP2CRAMWrite(uint32 address, T value) {
+        static VDP2RenderEvent VDP2CRAMWrite(uint32 address, T value) {
             static_assert(!std::is_same_v<T, uint32>, "unsupported write size");
 
             if constexpr (std::is_same_v<T, uint8>) {
@@ -469,48 +553,33 @@ private:
             util::unreachable();
         }
 
-        static VDPRenderEvent VDP2CRAMWriteByte(uint32 address, uint8 value) {
+        static VDP2RenderEvent VDP2CRAMWriteByte(uint32 address, uint8 value) {
             return {Type::VDP2CRAMWriteByte, {.write = {.address = address, .value = value}}};
         }
 
-        static VDPRenderEvent VDP2CRAMWriteWord(uint32 address, uint16 value) {
+        static VDP2RenderEvent VDP2CRAMWriteWord(uint32 address, uint16 value) {
             return {Type::VDP2CRAMWriteWord, {.write = {.address = address, .value = value}}};
         }
 
-        static VDPRenderEvent VDP2RegWrite(uint32 address, uint16 value) {
+        static VDP2RenderEvent VDP2RegWrite(uint32 address, uint16 value) {
             return {Type::VDP2RegWrite, {.write = {.address = address, .value = value}}};
         }
 
-        static VDPRenderEvent PreSaveStateSync() {
+        static VDP2RenderEvent PreSaveStateSync() {
             return {Type::PreSaveStateSync};
         }
 
-        static VDPRenderEvent PostLoadStateSync() {
+        static VDP2RenderEvent PostLoadStateSync() {
             return {Type::PostLoadStateSync};
         }
 
-        static VDPRenderEvent VDP1StateSync() {
-            return {Type::VDP1StateSync};
-        }
-
-        static VDPRenderEvent UpdateEffectiveRenderingFlags() {
-            return {Type::UpdateEffectiveRenderingFlags};
-        }
-
-        static VDPRenderEvent Shutdown() {
+        static VDP2RenderEvent Shutdown() {
             return {Type::Shutdown};
         }
     };
 
-    mutable struct VDPRenderContext {
-        struct QueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
-            static constexpr size_t BLOCK_SIZE = 64;
-            static constexpr size_t EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD = 64;
-            static constexpr std::uint32_t EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE = 512;
-            static constexpr int MAX_SEMA_SPINS = 20000;
-        };
-
-        moodycamel::BlockingConcurrentQueue<VDPRenderEvent, QueueTraits> eventQueue;
+    mutable struct VDP2RenderContext {
+        moodycamel::BlockingConcurrentQueue<VDP2RenderEvent, ConcQueueTraits> eventQueue;
         moodycamel::ProducerToken pTok{eventQueue};
         moodycamel::ConsumerToken cTok{eventQueue};
         util::Event renderFinishedSignal{false};
@@ -524,16 +593,8 @@ private:
         uint32 deinterlaceY;
         std::atomic_bool deinterlaceShutdown;
 
-        std::array<VDPRenderEvent, 64> pendingEvents;
+        std::array<VDP2RenderEvent, 64> pendingEvents;
         size_t pendingEventsCount = 0;
-
-        bool vdp1Done;
-
-        struct VDP1 {
-            VDP1Regs regs;
-            alignas(16) std::array<uint8, kVDP1VRAMSize> VRAM;
-            // alignas(16) std::array<SpriteFB, 2> spriteFB;
-        } vdp1;
 
         struct VDP2 {
             VDP2Regs regs;
@@ -548,39 +609,20 @@ private:
         uint8 displayFB;
 
         void Reset() {
-            vdp1.regs.Reset();
-            for (uint32 addr = 0; addr < vdp1.VRAM.size(); addr++) {
-                if ((addr & 0x1F) == 0) {
-                    vdp1.VRAM[addr] = 0x80;
-                } else if ((addr & 0x1F) == 1) {
-                    vdp1.VRAM[addr] = 0x00;
-                } else if ((addr & 2) == 2) {
-                    vdp1.VRAM[addr] = 0x55;
-                } else {
-                    vdp1.VRAM[addr] = 0xAA;
-                }
-            }
-            // vdp1.spriteFB[0].fill(0);
-            // vdp1.spriteFB[1].fill(0);
             vdp2.regs.Reset();
             vdp2.VRAM.fill(0);
             vdp2.CRAM.fill(0);
             vdp2.CRAMCache.fill({.u32 = 0});
             displayFB = 0;
-
-            vdp1Done = false;
         }
 
-        void EnqueueEvent(VDPRenderEvent &&event) {
+        void EnqueueEvent(VDP2RenderEvent &&event) {
             switch (event.type) {
-            case VDPRenderEvent::Type::VDP1VRAMWriteByte:
-            case VDPRenderEvent::Type::VDP1VRAMWriteWord:
-            case VDPRenderEvent::Type::VDP1RegWrite:
-            case VDPRenderEvent::Type::VDP2VRAMWriteByte:
-            case VDPRenderEvent::Type::VDP2VRAMWriteWord:
-            case VDPRenderEvent::Type::VDP2CRAMWriteByte:
-            case VDPRenderEvent::Type::VDP2CRAMWriteWord:
-            case VDPRenderEvent::Type::VDP2RegWrite:
+            case VDP2RenderEvent::Type::VDP2VRAMWriteByte:
+            case VDP2RenderEvent::Type::VDP2VRAMWriteWord:
+            case VDP2RenderEvent::Type::VDP2CRAMWriteByte:
+            case VDP2RenderEvent::Type::VDP2CRAMWriteWord:
+            case VDP2RenderEvent::Type::VDP2RegWrite:
                 // Batch VRAM, CRAM and register writes to send in bulk
                 pendingEvents[pendingEventsCount++] = event;
                 if (pendingEventsCount == pendingEvents.size()) {
@@ -603,21 +645,18 @@ private:
         size_t DequeueEvents(It first, size_t count) {
             return eventQueue.wait_dequeue_bulk(cTok, first, count);
         }
-    } m_renderingContext;
+    } m_vdp2RenderingContext;
 
-    std::thread m_VDPRenderThread;
-    std::thread m_VDPDeinterlaceRenderThread;
-    bool m_threadedVDPRendering = false;
-    bool m_renderVDP1OnVDP2Thread = false;
+    std::thread m_VDP1RenderThread;
+    bool m_threadedVDP1Rendering = false;
 
-    // Managed by the render thread.
-    // == m_threadedVDPRendering && m_renderVDP1OnVDP2Thread
-    bool m_effectiveRenderVDP1InVDP2Thread = false;
+    std::thread m_VDP2RenderThread;
+    std::thread m_VDP2DeinterlaceRenderThread;
+    bool m_threadedVDP2Rendering = false;
 
-    void UpdateEffectiveRenderingFlags();
-
-    void VDPRenderThread();
-    void VDPDeinterlaceRenderThread();
+    void VDP1RenderThread();
+    void VDP2RenderThread();
+    void VDP2DeinterlaceRenderThread();
 
     template <mem_primitive T>
     T VDP1ReadRendererVRAM(uint32 address);
@@ -658,20 +697,30 @@ private:
     alignas(16) std::array<SpriteFB, 2> m_altSpriteFB;
 
     using FnVDP1ProcessCommand = void (VDP::*)();
+    using FnVDP1HandleCommand = void (VDP::*)(uint32 cmdAddress, VDP1Command::Control control);
     using FnVDP2DrawLine = void (VDP::*)(uint32 y, bool altField);
 
     FnVDP1ProcessCommand m_fnVDP1ProcessCommand;
+    FnVDP1HandleCommand m_fnVDP1HandleCommand;
     FnVDP2DrawLine m_fnVDP2DrawLine;
 
-    // Updates the function pointers based on the rendering settings.
+    /// @brief Updates function pointers based on the current rendering settings.
     void UpdateFunctionPointers();
+
+    /// @brief Helper template to convert runtime parameters into compile-time constants for building function pointers.
+    template <bool... t_features>
+    void UpdateFunctionPointersTemplate(bool feature, auto... features);
+
+    /// @brief Terminal case for helper template.
+    template <bool... t_features>
+    void UpdateFunctionPointersTemplate();
 
     // -------------------------------------------------------------------------
     // VDP1
 
     // VDP1 renderer parameters and state
-    struct VDP1RenderContext {
-        VDP1RenderContext() {
+    struct VDP1RenderState {
+        VDP1RenderState() {
             Reset();
         }
 
@@ -736,7 +785,7 @@ private:
         // Used when transparent meshes are enabled.
         // Indexing: [altFB][drawFB]
         std::array<std::array<SpriteFB, 2>, 2> meshFB;
-    } m_VDP1RenderContext;
+    } m_VDP1RenderState;
 
     struct VDP1PixelParams {
         VDP1Command::DrawMode mode;
@@ -1162,6 +1211,9 @@ private:
                                          CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
 
     // Individual VDP1 command processors
+
+    uint64 VDP1CalcCommandTiming(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_Handle(uint32 cmdAddress, VDP1Command::Control control);
 
     TPL_TRAITS void VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control);
     TPL_TRAITS void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);
