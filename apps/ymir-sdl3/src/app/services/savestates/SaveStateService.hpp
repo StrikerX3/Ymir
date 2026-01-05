@@ -15,25 +15,28 @@ namespace app::savestates {
 class SaveStateService final : public ISaveStateService {
 public:
     static constexpr std::size_t kSlots = ISaveStateService::kSlots;
-    using SlotArray = std::array<SaveState, kSlots>;    // type alias for private member
+    using SlotArray = std::array<SaveState, kSlots>; // type alias for private member
 
     SaveStateService() = default;
 
-    [[nodiscard]] std::size_t Size() const noexcept override { return m_slots_.size(); }
+    [[nodiscard]] std::size_t Size() const noexcept override {
+        return m_slots_.size();
+    }
 
-    [[nodiscard]] std::optional<std::reference_wrapper<const SaveState>>
-    Peek(std::size_t slot) const noexcept override;
+    [[nodiscard]] std::optional<std::reference_wrapper<const SaveState>> Peek(std::size_t slot) const noexcept override;
 
-    bool Set(std::size_t slot, SaveState&& s) override;
+    bool Set(std::size_t slot, SaveState &&s) override;
     bool Erase(std::size_t slot) override;
 
     [[nodiscard]] std::vector<SaveStateSlotMeta> List() const override;
 
-    [[nodiscard]] std::size_t CurrentSlot() const noexcept override { return m_currentSlot_; }
+    [[nodiscard]] std::size_t CurrentSlot() const noexcept override {
+        return m_currentSlot_;
+    }
     void SetCurrentSlot(std::size_t slot) noexcept override;
 
     // controlled access to state locks
-    [[nodiscard]] std::mutex &SlotMutex(std::size_t slot) noexcept override { return m_saveStateLocks_[slot]; }
+    [[nodiscard]] std::mutex &SlotMutex(std::size_t slot) noexcept override;
 
 private:
     SlotArray m_slots_{};

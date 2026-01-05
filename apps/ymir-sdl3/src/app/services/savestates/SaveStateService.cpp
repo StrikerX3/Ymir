@@ -5,6 +5,8 @@
 // SaveStateService.cpp
 #include "SaveStateService.hpp"
 
+#include <cassert>
+
 namespace {
 bool InRange(std::size_t i, std::size_t n) {
     return i < n;
@@ -24,7 +26,7 @@ std::optional<std::reference_wrapper<const SaveState>> SaveStateService::Peek(st
     return std::cref(m_slots_[slot]);
 }
 
-bool SaveStateService::Set(std::size_t slot, SaveState&& s) {
+bool SaveStateService::Set(std::size_t slot, SaveState &&s) {
     if (!InRange(slot, m_slots_.size())) {
         return false;
     }
@@ -55,6 +57,11 @@ void SaveStateService::SetCurrentSlot(std::size_t slot) noexcept {
     if (InRange(slot, m_slots_.size())) {
         m_currentSlot_ = slot;
     }
+}
+
+[[nodiscard]] std::mutex &SaveStateService::SlotMutex(std::size_t slot) noexcept {
+    assert(InRange(slot, m_slots_.size()));
+    return m_saveStateLocks_[slot];
 }
 
 } // namespace app::savestates
