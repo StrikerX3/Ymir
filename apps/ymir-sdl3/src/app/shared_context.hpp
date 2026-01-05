@@ -21,6 +21,10 @@
 #include <app/events/emu_event.hpp>
 #include <app/events/gui_event.hpp>
 
+#include <app/services/savestates/ISaveStateService.hpp>
+
+#include <util/deprecation_helpers.hpp>
+
 #include <ymir/hw/smpc/peripheral/peripheral_state_common.hpp>
 
 #include <ymir/util/dev_log.hpp>
@@ -91,6 +95,11 @@ namespace media {
 } // namespace media
 
 } // namespace ymir
+
+namespace app::savestates {
+    struct ISaveStateService;
+    struct SaveState;
+} // namespace app::savestates
 
 // -----------------------------------------------------------------------------
 // Implementation
@@ -480,13 +489,7 @@ struct SharedContext {
     std::filesystem::path iplRomPath;
     std::filesystem::path cdbRomPath;
 
-    struct SaveState {
-        std::unique_ptr<ymir::state::State> state;
-        std::chrono::system_clock::time_point timestamp;
-    };
-
-    std::array<SaveState, 10> saveStates;
-    size_t currSaveStateSlot = 0;
+    savestates::ISaveStateService &saveStateService;
 
     RewindBuffer rewindBuffer;
     bool rewinding = false;
@@ -501,7 +504,6 @@ struct SharedContext {
     // - Cartridges
     // - Discs
     // - Peripherals
-    // - Save states
     // - ROM manager
     // - Backup memories
     // - Messages
@@ -512,7 +514,6 @@ struct SharedContext {
         std::mutex cart;
         std::mutex disc;
         std::mutex peripherals;
-        std::array<std::mutex, 10> saveStates;
         std::mutex romManager;
         std::mutex backupRAM;
         std::mutex messages;
@@ -622,7 +623,7 @@ struct SharedContext {
     // -----------------------------------------------------------------------------------------------------------------
     // Convenience methods
 
-    SharedContext();
+    explicit SharedContext(savestates::ISaveStateService &saveStatesService);
     ~SharedContext();
 
     void DisplayMessage(std::string message) const {

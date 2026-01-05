@@ -4,7 +4,8 @@
 
 namespace app {
 
-SharedContext::SharedContext() {
+SharedContext::SharedContext(savestates::ISaveStateService &saveStatesService)
+    : saveStateService(saveStatesService) {
     saturn.instance = std::make_unique<ymir::Saturn>();
 
     settings.BindConfiguration(saturn.instance->configuration);

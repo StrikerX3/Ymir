@@ -3,7 +3,9 @@
 #include "gui_event_factory.hpp"
 
 #include <app/shared_context.hpp>
+#include <app/services/savestates/types.hpp>
 
+#include <memory>
 #include <ymir/sys/saturn.hpp>
 
 #include <util/rom_loader.hpp>
@@ -12,10 +14,7 @@
 
 #include <util/file_loader.hpp>
 
-#include <fmt/std.h>
-
 #include <fstream>
-#include <iostream>
 
 using namespace ymir;
 
@@ -582,19 +581,27 @@ EmuEvent SetSCSPStepGranularity(uint32 granularity) {
 
 EmuEvent LoadState(uint32 slot) {
     return RunFunction([=](SharedContext &ctx) {
-        if (slot >= ctx.saveStates.size()) {
+
+        // grab the service as &saves and check for bounds
+        auto &saves = ctx.saveStateService;
+        if (slot >= saves.Size()) {
             return;
         }
-        if (!ctx.saveStates[slot].state) {
+
+        // sanity check: do slotState and underlying state exist?
+        auto lock = std::unique_lock{saves.SlotMutex(slot)};
+        auto slotState = saves.Peek(slot);
+        if (!slotState || !slotState->get().state) {
             ctx.DisplayMessage(fmt::format("Save state slot {} selected", slot + 1));
             return;
         }
 
-        auto &state = *ctx.saveStates[slot].state;
+        // grab the savestate
+        const auto &saveState = slotState->get();
+        auto &state = *saveState.state;
 
         // Sanity check: ensure that the disc hash matches
         {
-            std::unique_lock lock{ctx.locks.disc};
             if (!state.ValidateDiscHash(ctx.saturn.GetDiscHash())) {
                 devlog::warn<grp::base>("Save state disc hash mismatch; refusing to load save state");
                 return;
@@ -704,17 +711,37 @@ EmuEvent LoadState(uint32 slot) {
 
 EmuEvent SaveState(uint32 slot) {
     return RunFunction([=](SharedContext &ctx) {
-        if (slot < ctx.saveStates.size()) {
-            {
-                std::unique_lock lock{ctx.locks.saveStates[slot]};
-                if (!ctx.saveStates[slot].state) {
-                    ctx.saveStates[slot].state = std::make_unique<state::State>();
-                }
-                ctx.saturn.instance->SaveState(*ctx.saveStates[slot].state);
-                ctx.saveStates[slot].timestamp = std::chrono::system_clock::now();
-            }
-            ctx.EnqueueEvent(events::gui::StateSaved(slot));
+
+        // grab the service and check bounds
+        auto &saves = ctx.saveStateService;
+        if (slot >= saves.Size()) {
+            return;
         }
+
+        {
+            // grab the lock and a new state
+            auto lock = std::unique_lock{saves.SlotMutex(slot)};
+            savestates::SaveState slotState{};
+
+            // build new state logically 
+            // test if state is present and either clone or create a new one 
+            auto savePtr = saves.Peek(slot);
+            slotState.state = savePtr && savePtr->get().state
+                                   ? std::make_unique<state::State>(*savePtr->get().state)
+                                   : std::make_unique<state::State>();
+
+            // save state to selected slot and set timestamp
+            ctx.saturn.instance->SaveState(*slotState.state);
+            slotState.timestamp = std::chrono::system_clock::now();
+            const bool ok = saves.Set(slot, std::move(slotState));
+            // check for catastrophic OOB (should not happen)
+            if (!ok) {
+                devlog::warn<grp::base>("Could not set/save new save state for slot {}", slot);
+                return;
+            }
+        }
+
+        ctx.EnqueueEvent(events::gui::StateSaved(slot));
     });
 }
 
