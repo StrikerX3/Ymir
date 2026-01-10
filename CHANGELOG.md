@@ -20,7 +20,7 @@ Introduced save state file version 11.
 ### Fixes
 
 - Settings: Properly reload binds for "increase/decrease speed by 25%".
-- Updater: Create `state/updates` folder before writing `.onboarded` file in case the user opts out of automatic update checks.
+- Updater: Create `state/updates` folder before writing `.onboarded` file in case the user opts out of automatic update checks. Fixes update check onboarding popup always appearing on startup. (#708)
 - Updater: Detect nightly -> stable update when the current version matches the stable version.
 - VDP1: Reduce VBlank erase timing penalty to fix graphics artifacts in Battle Garegga's options menu. (#649)
 - VDP2: Allow bitmap data access during SH-2 cycles. Fixes FMV flickering in Lunar - Silver Star Story, Shin Kaitei Gunkan, and Mechanical Violator Hakaider (#438, #446, #658)
