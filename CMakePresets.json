@@ -92,7 +92,7 @@
       },
       "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-static-md",
+        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-avx2-static-md",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "Ymir_ENABLE_IPO": "OFF",

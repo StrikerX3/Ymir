@@ -11,6 +11,7 @@ Uses save state file version 11.
 
 ### Fixes
 
+- Build: Introduced separate x64-win-llvm toolchains for SSE2 and AVX2 support. Fixes Windows SSE2 builds requiring SSE4.2 instructions. (#713; thanks to @Wunkolo)
 
 
 ## Version 0.2.1
