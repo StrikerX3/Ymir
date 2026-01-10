@@ -15,7 +15,7 @@ Introduced save state file version 11.
 - Rewind: Reset rewind buffer on hard resets and whenever the CD Block LLE settings is changed.
 - Save states: Separated save states menu into Load and Save to avoid confusion and simplify interactions.
 - Updater: Added compile-time flag `Ymir_ENABLE_UPDATE_CHECKS` to enable or disable the automatic update checker, including the onboarding process.
-- VDP1: Reworked renderer code structure. Allows threading without affecting timings and paves way for other rendering backends.
+- VDP1: Reworked renderer code structure. Allows threading without affecting timings and paves way for other rendering backends. (#233)
 
 ### Fixes
 
