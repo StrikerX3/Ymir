@@ -150,6 +150,75 @@
       }
     },
     {
+      "name": "a64-Clang-Debug",
+      "displayName": "a64 Clang Debug",
+      "description": "Sets Ninja generator, Clang-CL compiler, a64 architecture, build and install directory, debug build type",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "arm64",
+        "strategy": "external"
+      },
+      "toolset": "ClangCL",
+      "environment": {
+        "CC": "clang-cl",
+        "CXX": "clang-cl"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows-static-md",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_AVX2": "OFF",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ],
+          "intelliSenseMode": "windows-clang-arm64"
+        }
+      }
+    },
+    {
+      "name": "a64-Clang-Release",
+      "displayName": "a64 Clang Release",
+      "description": "Sets Ninja generator, Clang-CL compiler, a64 architecture, build and install directory, release build type",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "arm64",
+        "strategy": "external"
+      },
+      "toolset": "ClangCL",
+      "environment": {
+        "CC": "clang-cl",
+        "CXX": "clang-cl"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows-static-md",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_EXTRA_INLINING": "OFF",
+        "Ymir_AVX2": "OFF",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ],
+          "intelliSenseMode": "windows-clang-arm64"
+        }
+      }
+    },
+    {
       "name": "x64-MSVC-Debug",
       "displayName": "x64 MSVC Debug",
       "description": "Sets Ninja generator, MSVC compiler, x64 architecture, build and install directory, debug build type",
