@@ -606,6 +606,12 @@ FORCE_INLINE void VDP::VDP2WriteReg(uint32 address, uint16 value) {
 }
 
 void VDP::SaveState(state::VDPState &state) const {
+    if (m_threadedVDP1Rendering) {
+        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::PreSaveStateSync());
+        m_vdp1RenderingContext.preSaveSyncSignal.Wait();
+        m_vdp1RenderingContext.preSaveSyncSignal.Reset();
+    }
+
     if (m_threadedVDP2Rendering) {
         m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::PreSaveStateSync());
         m_vdp2RenderingContext.preSaveSyncSignal.Wait();
@@ -701,6 +707,12 @@ void VDP::LoadState(const state::VDPState &state) {
         VDP2UpdateCRAMCache<uint16>(address);
     }
     VDP2UpdateEnabledBGs();
+
+    if (m_threadedVDP1Rendering) {
+        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::PostLoadStateSync());
+        m_vdp1RenderingContext.postLoadSyncSignal.Wait();
+        m_vdp1RenderingContext.postLoadSyncSignal.Reset();
+    }
 
     if (m_threadedVDP2Rendering) {
         m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::PostLoadStateSync());
