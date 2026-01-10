@@ -2,7 +2,7 @@
 
 ## Version 0.2.1
 
-In development.
+Release 2026-01-10.
 
 Introduced save state file version 11.
 
@@ -10,7 +10,7 @@ Introduced save state file version 11.
 
 - App: Added "Take Screenshot" action to File menu.
 - App: Moved "Backup Memory Manager" action from File to System menu.
-- Debugger: Added `Dump memory region` button to the Memory Viewer to dump the currently selected region to a raw .bin file in the profile’s dump path.
+- Debugger: Added `Dump memory region` button to the Memory Viewer to dump the currently selected region to a raw .bin file in the profile’s dump path. (#678; @mmkzer0)
 - Debugger: Display VRAM data access shifts separately from CP delays in the VDP2 VRAM access delay window and display them for scroll BGs as well.
 - Rewind: Reset rewind buffer on hard resets and whenever the CD Block LLE settings is changed.
 - Save states: Separated save states menu into Load and Save to avoid confusion and simplify interactions.
