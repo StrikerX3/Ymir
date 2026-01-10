@@ -1134,7 +1134,6 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
 
         if (configVersion <= 3) {
             Parse(tblVideo, "ThreadedVDP", video.threadedVDP2);
-            Parse(tblVideo, "IncludeVDP1InRenderThread", video.threadedVDP1);
         } else {
             Parse(tblVideo, "ThreadedVDP1", video.threadedVDP1);
             Parse(tblVideo, "ThreadedVDP2", video.threadedVDP2);
