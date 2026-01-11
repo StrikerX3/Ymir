@@ -81,9 +81,13 @@ void VideoSettingsView::Display() {
     MakeDirty(ImGui::Checkbox("Synchronize video in windowed mode", &settings.syncInWindowedMode));
     widgets::ExplanationTooltip(
         "When enabled, synchronizes GUI updates with emulator rendering while in windowed mode.\n"
-        "This greatly improves frame pacing but may reduce GUI performance.\n"
-        "\n"
-        "The video is always synchronized in full screen mode.",
+        "This greatly improves frame pacing but may reduce GUI performance.",
+        m_context.displayScale);
+
+    MakeDirty(ImGui::Checkbox("Synchronize video in full screen mode", &settings.syncInFullscreenMode));
+    widgets::ExplanationTooltip(
+        "When enabled, synchronizes GUI updates with emulator rendering while in full screenm mode.\n"
+        "This greatly improves frame pacing but may reduce GUI performance.",
         m_context.displayScale);
 
     MakeDirty(
@@ -94,10 +98,10 @@ void VideoSettingsView::Display() {
         "When disabled, the GUI frame rate will be limited to the emulator's target frame rate.\n"
         "Enabling this option can slightly reduce input latency on high refresh rate displays.\n"
         "\n"
-        "WARNING: Before enabling this option, disable the \"Synchronize video in windowed mode\" above and check if "
-        "the reported GUI frame rate matches your display's refresh rate. If it is capped to any value lower than your "
-        "display's refresh rate (e.g. 60 fps on a 120 Hz display), enabling this option will slow down emulation "
-        "significantly.",
+        "WARNING: Before enabling this option, disable the \"Synchronize video in windowed/full screen mode\" options "
+        "above and check if the reported GUI frame rate matches your display's refresh rate. If it is capped to any "
+        "value lower than your display's refresh rate (e.g. 60 fps on a 120 Hz display), enabling this option will "
+        "significantly slow down emulation.",
         m_context.displayScale);
 
     MakeDirty(ImGui::Checkbox("Reduce video latency on low refresh rate displays", &settings.reduceLatency));

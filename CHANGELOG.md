@@ -9,6 +9,7 @@ Uses save state file version 11.
 ### New features and improvements
 
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
+- Video: Add option to enable/disable video synchronization in full screen mode.
 
 ### Fixes
 

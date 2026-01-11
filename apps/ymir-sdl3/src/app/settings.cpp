@@ -735,6 +735,7 @@ void Settings::ResetToDefaults() {
     video.autoResizeWindow = false;
     video.displayVideoOutputInWindow = false;
     video.syncInWindowedMode = true;
+    video.syncInFullscreenMode = true;
     video.reduceLatency = true;
     video.fullScreen = false;
     video.doubleClickToFullScreen = false;
@@ -1127,6 +1128,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "AutoResizeWindow", video.autoResizeWindow);
         Parse(tblVideo, "DisplayVideoOutputInWindow", video.displayVideoOutputInWindow);
         Parse(tblVideo, "SyncInWindowedMode", video.syncInWindowedMode);
+        Parse(tblVideo, "SyncInFullscreenMode", video.syncInFullscreenMode);
         Parse(tblVideo, "ReduceLatency", video.reduceLatency);
         Parse(tblVideo, "FullScreen", video.fullScreen);
         Parse(tblVideo, "DoubleClickToFullScreen", video.doubleClickToFullScreen);
@@ -1551,6 +1553,7 @@ SettingsSaveResult Settings::Save() {
             {"AutoResizeWindow", video.autoResizeWindow},
             {"DisplayVideoOutputInWindow", video.displayVideoOutputInWindow},
             {"SyncInWindowedMode", video.syncInWindowedMode},
+            {"SyncInFullscreenMode", video.syncInFullscreenMode},
             {"ReduceLatency", video.reduceLatency},
             {"FullScreen", video.fullScreen.Get()},
             {"DoubleClickToFullScreen", video.doubleClickToFullScreen},

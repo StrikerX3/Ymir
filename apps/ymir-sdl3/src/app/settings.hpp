@@ -398,6 +398,7 @@ struct Settings {
         bool displayVideoOutputInWindow;
 
         bool syncInWindowedMode;
+        bool syncInFullscreenMode;
         bool reduceLatency;
 
         util::Observable<bool> fullScreen;

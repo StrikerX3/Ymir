@@ -502,7 +502,8 @@ void App::RunEmulator() {
     // Screen parameters
     auto &screen = m_context.screen;
 
-    screen.videoSync = m_context.settings.video.fullScreen || m_context.settings.video.syncInWindowedMode;
+    screen.videoSync = m_context.settings.video.fullScreen ? m_context.settings.video.syncInFullscreenMode
+                                                           : m_context.settings.video.syncInWindowedMode;
 
     m_context.settings.system.videoStandard.ObserveAndNotify([&](core::config::sys::VideoStandard standard) {
         if (standard == core::config::sys::VideoStandard::PAL) {
@@ -1693,7 +1694,8 @@ void App::RunEmulator() {
 
         // Use video sync if in full screen mode and not paused or fast-forwarding
         const bool fullScreen = m_context.settings.video.fullScreen;
-        const bool videoSync = fullScreen || m_context.settings.video.syncInWindowedMode;
+        const bool videoSync =
+            fullScreen ? m_context.settings.video.syncInFullscreenMode : m_context.settings.video.syncInWindowedMode;
         screen.videoSync = videoSync && !m_context.paused && m_context.emuSpeed.limitSpeed;
 
         const double frameIntervalAdjustFactor = 0.2; // how much adjustment is applied to the frame interval
