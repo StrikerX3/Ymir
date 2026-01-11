@@ -4430,18 +4430,18 @@ void App::LoadRecommendedCartridge() {
     devlog::info<grp::base>("Loading recommended game cartridge...");
 
     std::unique_lock lock{m_context.locks.cart};
-    using Cart = ymir::db::Cartridge;
-    switch (info->cartridge) {
-    case Cart::None: break;
-    case Cart::DRAM8Mbit: m_context.EnqueueEvent(events::emu::Insert8MbitDRAMCartridge()); break;
-    case Cart::DRAM32Mbit: m_context.EnqueueEvent(events::emu::Insert32MbitDRAMCartridge()); break;
-    case Cart::DRAM48Mbit: m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge()); break;
-    case Cart::ROM_KOF95: [[fallthrough]];
-    case Cart::ROM_Ultraman: //
+    using Flags = ymir::db::GameInfo::Flags;
+    switch (info->GetCartridge()) {
+    case Flags::Cart_None: break;
+    case Flags::Cart_DRAM8Mbit: m_context.EnqueueEvent(events::emu::Insert8MbitDRAMCartridge()); break;
+    case Flags::Cart_DRAM32Mbit: m_context.EnqueueEvent(events::emu::Insert32MbitDRAMCartridge()); break;
+    case Flags::Cart_DRAM48Mbit: m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge()); break;
+    case Flags::Cart_ROM_KOF95: [[fallthrough]];
+    case Flags::Cart_ROM_Ultraman: //
     {
         ScanROMCarts();
-        const auto expectedHash =
-            info->cartridge == Cart::ROM_KOF95 ? ymir::db::kKOF95ROMInfo.hash : ymir::db::kUltramanROMInfo.hash;
+        const auto expectedHash = info->GetCartridge() == Flags::Cart_ROM_KOF95 ? ymir::db::kKOF95ROMInfo.hash
+                                                                                : ymir::db::kUltramanROMInfo.hash;
         bool found = false;
         for (auto &[path, info] : m_context.romManager.GetROMCarts()) {
             if (info.hash == expectedHash) {
@@ -4464,7 +4464,7 @@ void App::LoadRecommendedCartridge() {
         }
         break;
     }
-    case Cart::BackupRAM: //
+    case Flags::Cart_BackupRAM: //
     {
         // TODO: centralize backup RAM image management tasks somewhere
         std::filesystem::path cartPath =

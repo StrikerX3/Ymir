@@ -372,7 +372,6 @@ void VDP::Advance(uint64 cycles) {
         }
 
         // HACK: slow down VDP1 commands to avoid freezes on Virtua Racing and Dragon Ball Z
-        // TODO: use this counter in the threaded renderer
         // TODO: proper cycle counting
         static constexpr uint64 kCyclesPerCommand = 500; // FIXME: pulled out of thin air
 

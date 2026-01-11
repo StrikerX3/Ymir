@@ -131,6 +131,13 @@ public:
 
     void UpdateClockRatios(const sys::ClockRatios &clockRatios);
 
+    /// @brief Configures the MC68EC000 CPU clock speed shift.
+    /// 0 means normal speed, 1 is double, 2 is quadruple, etc.
+    /// @param clockShift the shift to apply to the clock speed of the MC68EC000, between 0 to 4.
+    void SetCPUClockShift(uint64 clockShift) {
+        m_m68kClockShift = std::min(clockShift, 4ull);
+    }
+
     // Configures the SCSP step granularity in powers of two.
     // The value must be between 0 and 5, with:
     //   0 = step 32 slots (one sample) at a time (least granular, default)
@@ -197,6 +204,7 @@ private:
 
     m68k::MC68EC000 m_m68k;
     uint64 m_m68kSpilloverCycles;
+    uint64 m_m68kClockShift = 0ull;
     bool m_m68kEnabled;
 
     core::Scheduler &m_scheduler;

@@ -25,7 +25,8 @@ namespace settings::system {
                 gameInfo = db::GetGameInfo(disc.header.productNumber, ctx.saturn.GetDiscHash());
             }
         }
-        const bool forced = gameInfo != nullptr && gameInfo->sh2Cache;
+        const bool forced =
+            gameInfo != nullptr && BitmaskEnum(gameInfo->flags).AnyOf(db::GameInfo::Flags::ForceSH2Cache);
 
         bool emulateSH2Cache = ctx.settings.system.emulateSH2Cache || forced;
         if (forced) {

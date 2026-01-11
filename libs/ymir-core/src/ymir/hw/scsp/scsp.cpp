@@ -746,6 +746,7 @@ FORCE_INLINE void SCSP::TickSample() {
 
 FORCE_INLINE void SCSP::RunM68K(uint64 cycles) {
     if (m_m68kEnabled) {
+        cycles <<= m_m68kClockShift;
         uint64 cy = m_m68kSpilloverCycles;
         while (cy < cycles) {
             cy += m_m68k.Step();

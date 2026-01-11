@@ -395,6 +395,10 @@ private:
         UpdateSH2CacheEmulation(configuration.system.emulateSH2Cache);
     }
 
+    /// @brief Configures the clock rate of the MC68EC000.
+    /// @param fast `true` to double the clock rate, `false` for normal clock rate.
+    void ConfigureM68KSpeed(bool fast);
+
     // -------------------------------------------------------------------------
     // Global components and parameters
 
