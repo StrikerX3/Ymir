@@ -30,6 +30,7 @@
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/inline.hpp>
 
+#include <algorithm>
 #include <array>
 #include <iosfwd>
 #include <queue>
@@ -135,7 +136,7 @@ public:
     /// 0 means normal speed, 1 is double, 2 is quadruple, etc.
     /// @param clockShift the shift to apply to the clock speed of the MC68EC000, between 0 to 4.
     void SetCPUClockShift(uint64 clockShift) {
-        m_m68kClockShift = std::min(clockShift, 4ull);
+        m_m68kClockShift = std::min<uint64>(clockShift, 4);
     }
 
     // Configures the SCSP step granularity in powers of two.
