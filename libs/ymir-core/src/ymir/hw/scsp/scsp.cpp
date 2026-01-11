@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <limits>
 #include <ostream>
+#include <utility>
 
 using namespace ymir::m68k;
 
