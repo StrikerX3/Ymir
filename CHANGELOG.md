@@ -8,13 +8,14 @@ Uses save state file version 11.
 
 ### New features and improvements
 
-- GameDB: Add new flag to double the clock rate of the MC68EC000 to improve compatibility with some games.
+- GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 
 ### Fixes
 
 - Build: Introduced separate x64-win-llvm toolchains for SSE2 and AVX2 support. Fixes Windows SSE2 builds requiring SSE4.2 instructions. (#713; thanks to @Wunkolo)
 - GameDB: Double the MC68EC000 clock rate and force fast bus timings to fix crashes in Vampire Savior - The Lord of Vampire. (#699)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
+- VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 to fix garbled sprites. (#244)
 
 
 ## Version 0.2.1

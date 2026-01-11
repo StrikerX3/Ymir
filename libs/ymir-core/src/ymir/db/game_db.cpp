@@ -55,6 +55,8 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"MK-81304", {.flags = ForceSH2Cache}}, // Dark Savior (USA)
     {"T-5013H",  {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
     {"T-10621G", {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
+    
+    {"T-7029H-50", {.flags = StallVDP1OnVRAMWrites}}, // Mega Man X3 (Europe)
 };
 
 static const std::unordered_map<XXH128Hash, GameInfo> kGameInfosByHash = {

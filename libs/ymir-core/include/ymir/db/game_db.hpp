@@ -43,9 +43,10 @@ struct GameInfo {
 
         // Hacks
 
-        ForceSH2Cache = 1ull << 3ull,  ///< SH-2 cache emulation required for the game to work
-        FastBusTimings = 1ull << 4ull, ///< Fast bus timings required to fix stability issues
-        FastMC68EC000 = 1ull << 5ull,  ///< Overclocked MC68EC000 required to fix stability issues
+        ForceSH2Cache = 1ull << 3ull,         ///< SH-2 cache emulation required for the game to work
+        FastBusTimings = 1ull << 4ull,        ///< Fast bus timings required to fix stability issues
+        FastMC68EC000 = 1ull << 5ull,         ///< Overclocked MC68EC000 required to fix stability issues
+        StallVDP1OnVRAMWrites = 1ull << 6ull, ///< Stall/slow down VDP1 drawing on VDP1 VRAM writes
     };
 
     Flags flags = Flags::None;        ///< Game compatibility flags

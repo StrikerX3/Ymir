@@ -422,6 +422,9 @@ FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
     if (m_threadedVDP1Rendering) {
         m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::VRAMWrite<T>(address, value));
     }
+    if (m_stallVDP1OnVRAMWrites && m_VDP1RenderState.rendering) {
+        m_VDP1TimingPenaltyCycles += kVDP1TimingPenaltyPerWrite;
+    }
 }
 
 template <mem_primitive T>

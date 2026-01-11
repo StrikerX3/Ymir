@@ -285,6 +285,7 @@ void Saturn::LoadDisc(media::Disc &&disc) {
     ConfigureAccessCycles(hasFlag(db::GameInfo::Flags::FastBusTimings));
     ForceSH2CacheEmulation(hasFlag(db::GameInfo::Flags::ForceSH2Cache));
     SCSP.SetCPUClockShift(hasFlag(db::GameInfo::Flags::FastMC68EC000) ? 1 : 0);
+    VDP.SetStallVDP1OnVRAMWrites(hasFlag(db::GameInfo::Flags::StallVDP1OnVRAMWrites));
 }
 
 void Saturn::EjectDisc() {

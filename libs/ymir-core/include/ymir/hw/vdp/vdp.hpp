@@ -97,6 +97,15 @@ public:
         return m_transparentMeshes;
     }
 
+    // Enable or disable VDP1 drawing stall on VRAM writes.
+    void SetStallVDP1OnVRAMWrites(bool enable) {
+        m_stallVDP1OnVRAMWrites = enable;
+    }
+
+    bool IsStallVDP1OnVRAMWrites() const {
+        return m_stallVDP1OnVRAMWrites;
+    }
+
     void DumpVDP1VRAM(std::ostream &out) const;
     void DumpVDP2VRAM(std::ostream &out) const;
     void DumpVDP2CRAM(std::ostream &out) const;
@@ -167,6 +176,7 @@ private:
     // TODO: count pulled out of thin air
     static constexpr uint64 kVDP1TimingPenaltyPerWrite = 22;
     uint64 m_VDP1TimingPenaltyCycles; // accumulated cycle penalty
+    bool m_stallVDP1OnVRAMWrites = false;
 
     // -------------------------------------------------------------------------
     // Frontend callbacks
