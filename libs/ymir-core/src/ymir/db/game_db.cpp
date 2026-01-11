@@ -57,6 +57,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-10621G", {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
     
     {"T-7029H-50", {.flags = StallVDP1OnVRAMWrites}}, // Mega Man X3 (Europe)
+    {"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan)
 };
 
 static const std::unordered_map<XXH128Hash, GameInfo> kGameInfosByHash = {
