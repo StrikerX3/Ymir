@@ -16,23 +16,30 @@ Contains information about specific games that require special handling.
 
 namespace ymir::db {
 
+/// @brief Cartridge required to boot a game or to make certain functions work.
+enum class Cartridge : uint8 { None, DRAM8Mbit, DRAM32Mbit, DRAM48Mbit, ROM_KOF95, ROM_Ultraman, BackupRAM };
+
 /// @brief Information about a game in the database.
 struct GameInfo {
     /// @brief Required cartridge, tweaks and hacks needed to improve stability
     enum class Flags : uint64 {
         None = 0ull,
 
-        // Required cartridge
+        // Required cartridge. Must match the Cartridge enum.
+        Cart_SHIFT = 0ull,                  ///< Bit shift for cartridge options
+        Cart_MASK = 0b111ull << Cart_SHIFT, ///< Bitmask for cartridge options
 
-        Cart_None = 0ull << 0ull,         ///< No cartridge required
-        Cart_DRAM8Mbit = 1ull << 0ull,    ///< 8 Mbit DRAM cartridge required to boot
-        Cart_DRAM32Mbit = 2ull << 0ull,   ///< 16 Mbit DRAM cartridge required to boot
-        Cart_DRAM48Mbit = 3ull << 0ull,   ///< 32 Mbit DRAM cartridge required to boot
-        Cart_ROM_KOF95 = 4ull << 0ull,    ///< The King of Fighters '95 ROM cartridge required to boot
-        Cart_ROM_Ultraman = 5ull << 0ull, ///< Ultraman - Hikari no Kyojin Densetsu ROM cartridge required to boot
-        Cart_BackupRAM = 6ull << 0ull,    ///< Backup RAM cartridge required for some features
+#define CART_VAL(name) Cart_##name = static_cast<uint64>(Cartridge::name) << Cart_SHIFT
 
-        Cart_MASK = 0b111ull << 0ull, ///< Bitmask for cartridge options
+        CART_VAL(None),         ///< No cartridge required
+        CART_VAL(DRAM8Mbit),    ///< 8 Mbit DRAM cartridge required to boot
+        CART_VAL(DRAM32Mbit),   ///< 32 Mbit DRAM cartridge required to boot
+        CART_VAL(DRAM48Mbit),   ///< 48 Mbit DRAM cartridge required to boot
+        CART_VAL(ROM_KOF95),    ///< The King of Fighters '95 ROM cartridge required to boot
+        CART_VAL(ROM_Ultraman), ///< Ultraman - Hikari no Kyojin Densetsu ROM cartridge required to boot
+        CART_VAL(BackupRAM),    ///< Backup RAM cartridge required for some features
+
+#undef CART_VAL
 
         // Hacks
 
@@ -44,8 +51,8 @@ struct GameInfo {
     Flags flags = Flags::None;        ///< Game compatibility flags
     const char *cartReason = nullptr; ///< Text describing why the cartridge is required
 
-    Flags GetCartridge() const {
-        return static_cast<Flags>(static_cast<uint64>(flags) & static_cast<uint64>(Flags::Cart_MASK));
+    Cartridge GetCartridge() const {
+        return static_cast<Cartridge>(static_cast<uint64>(flags) & static_cast<uint64>(Flags::Cart_MASK));
     }
 };
 

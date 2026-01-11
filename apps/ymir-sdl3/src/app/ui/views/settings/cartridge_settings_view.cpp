@@ -112,12 +112,12 @@ void CartridgeSettingsView::Display() {
     if (gameInfo != nullptr) {
         cart::CartType wantedCartType;
         switch (gameInfo->GetCartridge()) {
-        case db::GameInfo::Flags::Cart_DRAM8Mbit: wantedCartType = cart::CartType::DRAM8Mbit; break;
-        case db::GameInfo::Flags::Cart_DRAM32Mbit: wantedCartType = cart::CartType::DRAM32Mbit; break;
-        case db::GameInfo::Flags::Cart_DRAM48Mbit: wantedCartType = cart::CartType::DRAM48Mbit; break;
-        case db::GameInfo::Flags::Cart_ROM_KOF95: wantedCartType = cart::CartType::ROM; break;
-        case db::GameInfo::Flags::Cart_ROM_Ultraman: wantedCartType = cart::CartType::ROM; break;
-        case db::GameInfo::Flags::Cart_BackupRAM: wantedCartType = cart::CartType::BackupMemory; break;
+        case db::Cartridge::DRAM8Mbit: wantedCartType = cart::CartType::DRAM8Mbit; break;
+        case db::Cartridge::DRAM32Mbit: wantedCartType = cart::CartType::DRAM32Mbit; break;
+        case db::Cartridge::DRAM48Mbit: wantedCartType = cart::CartType::DRAM48Mbit; break;
+        case db::Cartridge::ROM_KOF95: wantedCartType = cart::CartType::ROM; break;
+        case db::Cartridge::ROM_Ultraman: wantedCartType = cart::CartType::ROM; break;
+        case db::Cartridge::BackupRAM: wantedCartType = cart::CartType::BackupMemory; break;
         default: wantedCartType = cart::CartType::None; break;
         }
 
@@ -133,22 +133,22 @@ void CartridgeSettingsView::Display() {
             const auto color = m_context.colors.notice;
 
             switch (gameInfo->GetCartridge()) {
-            case db::GameInfo::Flags::Cart_DRAM8Mbit:
+            case db::Cartridge::DRAM8Mbit:
                 ImGui::TextColored(color, "The currently loaded game requires an 8 Mbit DRAM cartridge.");
                 break;
-            case db::GameInfo::Flags::Cart_DRAM32Mbit:
+            case db::Cartridge::DRAM32Mbit:
                 ImGui::TextColored(color, "The currently loaded game requires a 32 Mbit DRAM cartridge.");
                 break;
-            case db::GameInfo::Flags::Cart_DRAM48Mbit:
+            case db::Cartridge::DRAM48Mbit:
                 ImGui::TextColored(color, "The currently loaded game requires a 48 Mbit DRAM dev cartridge.");
                 break;
-            case db::GameInfo::Flags::Cart_ROM_KOF95:
+            case db::Cartridge::ROM_KOF95:
                 ImGui::TextColored(color, "The currently loaded game requires the King of Fighters '95 ROM cartridge.");
                 break;
-            case db::GameInfo::Flags::Cart_ROM_Ultraman:
+            case db::Cartridge::ROM_Ultraman:
                 ImGui::TextColored(color, "The currently loaded game requires the Ultraman ROM cartridge.");
                 break;
-            case db::GameInfo::Flags::Cart_BackupRAM:
+            case db::Cartridge::BackupRAM:
                 ImGui::TextColored(color, "A Backup RAM cartridge is recommended for this game.");
                 break;
             default: break;
