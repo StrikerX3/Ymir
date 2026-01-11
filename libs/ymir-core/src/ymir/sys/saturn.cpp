@@ -284,7 +284,7 @@ void Saturn::LoadDisc(media::Disc &&disc) {
     auto hasFlag = [&](db::GameInfo::Flags flag) { return info && BitmaskEnum(info->flags).AnyOf(flag); };
     ConfigureAccessCycles(hasFlag(db::GameInfo::Flags::FastBusTimings));
     ForceSH2CacheEmulation(hasFlag(db::GameInfo::Flags::ForceSH2Cache));
-    ConfigureM68KSpeed(hasFlag(db::GameInfo::Flags::FastMC68EC000));
+    SCSP.SetCPUClockShift(hasFlag(db::GameInfo::Flags::FastMC68EC000) ? 1 : 0);
 }
 
 void Saturn::EjectDisc() {
@@ -798,10 +798,6 @@ void Saturn::SetCDBlockLLE(bool enabled) {
         UpdateFunctionPointers();
         Reset(true);
     }
-}
-
-void Saturn::ConfigureM68KSpeed(bool fast) {
-    SCSP.SetCPUClockShift(fast ? 1 : 0);
 }
 
 // -----------------------------------------------------------------------------
