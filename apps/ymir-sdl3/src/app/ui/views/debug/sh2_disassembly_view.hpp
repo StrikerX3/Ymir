@@ -11,10 +11,14 @@ public:
     SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2);
 
     void Display();
+    void JumpTo(uint32 address);    // jump to address helper
 
 private:
     SharedContext &m_context;
     ymir::sh2::SH2 &m_sh2;
+
+    static constexpr uint32 kAddressMin = 0x00000000u;
+    static constexpr uint32 kAddressMax = 0x07FFFFFEu; // SH-2 main address space/range (even aligned)
 
     struct Colors {
 #define C(r, g, b) (r / 255.0f), (g / 255.0f), (b / 255.0f), 1.0f
@@ -102,6 +106,17 @@ private:
 
         bool colorizeMnemonicsByType = true;
     } m_settings;
+
+    // state struct used for scrollable disassembly view
+    // TODO: maybe move parts into m_settings?
+    struct State {
+        uint32 minAddress = kAddressMin;
+        uint32 maxAddress = kAddressMax;    // address range min:max
+        uint32 jumpAddress = 0;             // address to jump to, zero initialized
+        bool jumpRequested = false;         // jump request
+        bool followPC = true;               // follow PC
+        float lastScrollY = 0.0f;           // last scroll position
+    } m_state;
 };
 
 } // namespace app::ui

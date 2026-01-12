@@ -5,6 +5,9 @@
 
 #include <imgui.h>
 
+#include <cfloat>
+#include <cmath>
+
 using namespace ymir;
 
 namespace app::ui {
@@ -12,6 +15,16 @@ namespace app::ui {
 SH2DisassemblyView::SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2)
     : m_context(context)
     , m_sh2(sh2) {}
+
+// helper function to jump to a requested address in view
+void SH2DisassemblyView::JumpTo(uint32 address) {
+    // ensure to align and clamp address
+    const uint32 alignedAddress = address & ~1u;
+    const uint32 clampedAddress = std::clamp(alignedAddress, m_state.minAddress, m_state.maxAddress);
+    // write back clamped address and set jmp request
+    m_state.jumpAddress = clampedAddress;
+    m_state.jumpRequested = true;
+}
 
 void SH2DisassemblyView::Display() {
     if (ImGui::BeginMenuBar()) {
@@ -30,6 +43,11 @@ void SH2DisassemblyView::Display() {
 
             ImGui::MenuItem("Colorize mnemonics by type", nullptr, &m_settings.colorizeMnemonicsByType);
 
+            ImGui::Separator();
+            
+            // new toggle to follow pc
+            ImGui::MenuItem("Follow PC", nullptr, &m_state.followPC);
+
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -41,38 +59,92 @@ void SH2DisassemblyView::Display() {
     const float itemSpacing = ImGui::GetStyle().ItemSpacing.y;
     ImGui::PopFont();
 
-    ImDrawList *drawList = ImGui::GetWindowDrawList();
-
     auto availArea = ImGui::GetContentRegionAvail();
+    const float lineAdvance = std::round(lineHeight + itemSpacing);     // TODO: make this dynamic?
 
-    if (ImGui::BeginChild("##disasm", availArea, ImGuiChildFlags_None,
-                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
-        const uint32 lines = availArea.y / (lineHeight + itemSpacing) + 1;
+    if (ImGui::BeginChild("##disasm", availArea, ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar)) {
+        // get draw list pointer and viewport height
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
+        const float viewHeight = ImGui::GetContentRegionAvail().y;
         // TODO: branch arrows
         // TODO: cursor
 
         ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
         auto &probe = m_sh2.GetProbe();
-        const uint32 pc = probe.PC() & ~1;
-        const uint32 pr = probe.PR() & ~1;
-        const uint32 baseAddress = (pc - lines + 2) & ~1;
-        for (uint32 i = 0; i < lines; i++) {
-            const uint32 address = baseAddress + i * sizeof(uint16);
-            const uint16 prevOpcode = m_context.saturn.GetMainBus().Peek<uint16>(address - 2);
-            const uint16 opcode = m_context.saturn.GetMainBus().Peek<uint16>(address);
-            const sh2::DisassembledInstruction &prevDisasm = sh2::Disassemble(prevOpcode);
-            const sh2::DisassembledInstruction &disasm = sh2::Disassemble(opcode);
+        // peek pc and pr
+        const uint32 pc = probe.PC() & ~1u;
+        const uint32 pr = probe.PR() & ~1u;
 
-            const auto basePos = ImGui::GetCursorScreenPos();
-            ImGui::SetCursorScreenPos(ImVec2(basePos.x, basePos.y - itemSpacing));
-            ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, std::round(lineHeight + itemSpacing)));
-            const bool lineHovered = ImGui::IsItemHovered();
-            ImGui::SetCursorScreenPos(basePos);
+        // bool to see if user moved window scroll
+        const bool scrolledByUser = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
+                                    (ImGui::GetIO().MouseWheel != 0.0f ||
+                                     ImGui::IsMouseDragging(ImGuiMouseButton_Left));
+        // if user scrolled, don't follow pc
+        if (scrolledByUser) {
+            m_state.followPC = false;
+        }
+        // jump to pc if we follow
+        if (m_state.followPC) {
+            JumpTo(pc);
+        }
 
-            const bool isBreakpointSet = [&] {
-                std::unique_lock lock{m_context.locks.breakpoints};
-                return m_sh2.IsBreakpointSet(address);
-            }();
+        // this is absolute horror, why do lambdas exist
+        // have to clamp address, set line index, top/bottom lines, current scroll and bottom view
+        const auto applyJump = [&] {
+            const uint32 clampedAddress = std::clamp(m_state.jumpAddress, m_state.minAddress, m_state.maxAddress);
+            const uint32 lineIndex = (clampedAddress - m_state.minAddress) / sizeof(uint16);
+            const float lineTop = lineAdvance * static_cast<float>(lineIndex);
+            const float lineBottom = lineTop + lineHeight;
+            const float currentScroll = ImGui::GetScrollY();
+            const float viewBottom = currentScroll + viewHeight;
+
+            // Smoothly scroll toward centering the target line
+            // this looks horrendous, but it works
+            // TODO: make this better
+            const float targetY = lineTop - (viewHeight * 0.5f - lineAdvance * 0.5f);
+            const float clampedY = std::clamp(targetY, 0.0f, ImGui::GetScrollMaxY());
+            const float delta = clampedY - currentScroll;
+            const float absDelta = std::abs(delta);
+            const float stepFactor = absDelta > viewHeight ? 0.35f : 0.25f;
+            const float step = absDelta <= 1.0f ? delta : delta * stepFactor;
+            ImGui::SetScrollY(currentScroll + step);
+
+            // Continue requesting jumps until we're close enough.
+            m_state.jumpRequested = absDelta > 1.0f;
+        };
+
+        // jump to address on request
+        if (m_state.jumpRequested) {
+            applyJump();
+        }
+
+        // get total line count
+        const int totalLines =
+            static_cast<int>((m_state.maxAddress - m_state.minAddress) / sizeof(uint16)) + 1; // inclusive
+
+        // ...sigh, we need to clip the list or else alternating line colors clip into toolbar on top
+        // use a clipper so we only draw visible rows and keep background fills from bleeding outside the child area
+        ImGuiListClipper clipper;
+        clipper.Begin(totalLines, lineAdvance);
+        while (clipper.Step()) {
+            for (int lineIndex = clipper.DisplayStart; lineIndex < clipper.DisplayEnd; lineIndex++) {
+                const uint32 address = m_state.minAddress + static_cast<uint32>(lineIndex) * sizeof(uint16);
+                const uint32 prevAddress = address >= sizeof(uint16) ? address - sizeof(uint16) : address;
+                const uint16 prevOpcode = m_context.saturn.GetMainBus().Peek<uint16>(prevAddress);
+                const uint16 opcode = m_context.saturn.GetMainBus().Peek<uint16>(address);
+                const sh2::DisassembledInstruction &prevDisasm = sh2::Disassemble(prevOpcode);
+                const sh2::DisassembledInstruction &disasm = sh2::Disassemble(opcode);
+
+                const auto basePos = ImGui::GetCursorScreenPos();
+                // reserve vertical space for the line, then restore cursor to paint overlays/highlights at the top
+                ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, lineAdvance));
+                const bool lineHovered = ImGui::IsItemHovered();
+                ImGui::SetCursorScreenPos(basePos);
+
+                const bool isBreakpointSet = [&] {
+                    std::unique_lock lock{m_context.locks.breakpoints};
+                    return m_sh2.IsBreakpointSet(address);
+                }();
 
             auto toggleBreakpoint = [&] {
                 std::unique_lock lock{m_context.locks.breakpoints};
@@ -137,15 +209,16 @@ void SH2DisassemblyView::Display() {
                     color = m_colors.disasm.prBgColor;
                 } else if (isBreakpointSet) {
                     color = m_colors.disasm.bkptBgColor;
-                } else if (m_settings.altLineColors && (m_settings.altLineAddresses ? (address & 2) : (i & 1))) {
+                } else if (m_settings.altLineColors &&
+                           (m_settings.altLineAddresses ? (address & 2) : (lineIndex & 1))) {
                     color = m_colors.disasm.altLineBgColor;
                 }
                 if (color.w == 0.0f) {
                     return;
                 }
                 const ImVec2 size{ImGui::GetContentRegionAvail().x, lineHeight};
-                const ImVec2 rectPos{basePos.x, basePos.y - itemSpacing};
-                const ImVec2 rectEnd{basePos.x + size.x, basePos.y + size.y};
+                const ImVec2 rectPos{basePos.x, basePos.y};      // top-left corner of the current line
+                const ImVec2 rectEnd{basePos.x + size.x, basePos.y + size.y}; // bottom-right for highlight fill
                 if (filled) {
                     drawList->AddRectFilled(rectPos, rectEnd, ImGui::ColorConvertFloat4ToU32(color));
                 } else {
@@ -869,8 +942,10 @@ void SH2DisassemblyView::Display() {
                     ImGui::EndTooltip();
                 }
             }
+            }
         }
         ImGui::PopFont();
+        m_state.lastScrollY = ImGui::GetScrollY();
     }
     ImGui::EndChild();
 }
