@@ -283,8 +283,10 @@ enum MouseButton {
 enum class MouseAxis1D {
     None,
 
-    Vertical,
-    Horizontal,
+    VerticalRelative,
+    HorizontalRelative,
+    VerticalAbsolute,
+    HorizontalAbsolute,
     WheelVertical,
     WheelHorizontal,
 
@@ -295,7 +297,8 @@ enum class MouseAxis1D {
 enum class MouseAxis2D {
     None,
 
-    Mouse,
+    MouseRelative,
+    MouseAbsolute,
 
     _Count,
 };
@@ -444,6 +447,19 @@ bool IsBipolarAxis(MouseAxis1D axis);
 bool IsBipolarAxis(GamepadAxis1D axis);
 bool IsBipolarAxis(MouseAxis2D axis);
 bool IsBipolarAxis(GamepadAxis2D axis);
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Absolute / relative axis identification
+
+bool IsAbsoluteAxis(MouseAxis1D axis);
+bool IsAbsoluteAxis(GamepadAxis1D axis);
+bool IsAbsoluteAxis(MouseAxis2D axis);
+bool IsAbsoluteAxis(GamepadAxis2D axis);
+
+bool IsRelativeAxis(MouseAxis1D axis);
+bool IsRelativeAxis(GamepadAxis1D axis);
+bool IsRelativeAxis(MouseAxis2D axis);
+bool IsRelativeAxis(GamepadAxis2D axis);
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Axis converters between 1D and 2D

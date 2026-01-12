@@ -14,6 +14,10 @@ namespace ymir::smpc {
 /// @brief Type of callback invoked when the SMPC raises the SCU System Manager or PAD interrupt signals.
 using CBInterruptCallback = util::RequiredCallback<void()>;
 
+/// @brief Type of callback invoked when a peripheral raises the external latch signal with the corresponding port's
+/// EXLE flag enabled.
+using CBExternalLatch = util::RequiredCallback<void(uint16 x, uint16 y)>;
+
 /// @brief The subset of system operations used by the SMPC.
 class ISMPCOperations {
 public:

@@ -19,8 +19,11 @@ struct VDP2Regs {
         EXTEN.u16 = 0x0;
         HCNT = 0x0;
         VCNT = 0x0;
+        HCNTShift = 0;
+        HCNTMask = 0x3FE;
         VCNTShift = 0;
         VCNTSkip = 0;
+        VCNTLatch = 0x3FF;
         vramControl.Reset();
         VRSIZE.u16 = 0x0;
         cyclePatterns.Reset();
@@ -67,11 +70,12 @@ struct VDP2Regs {
         accessPatternsDirty = true;
     }
 
+    template <bool peek>
     uint16 Read(uint32 address) const {
         switch (address) {
         case 0x000: return ReadTVMD();
         case 0x002: return ReadEXTEN();
-        case 0x004: return ReadTVSTAT();
+        case 0x004: return ReadTVSTAT<peek>();
         case 0x006: return ReadVRSIZE();
         case 0x008: return ReadHCNT();
         case 0x00A: return ReadVCNT();
@@ -396,10 +400,15 @@ struct VDP2Regs {
     // 180004   TVSTAT  Screen Status (read-only)
     RegTVSTAT TVSTAT;
 
+    template <bool peek>
     FORCE_INLINE uint16 ReadTVSTAT() const {
         uint16 value = TVSTAT.u16;
         if (TVMD.IsInterlaced()) {
             value ^= 0x2; // for some reason ODD is read inverted
+        }
+        if constexpr (!peek) {
+            VCNTLatched = TVSTAT.EXLTFG;
+            TVSTAT.EXLTFG = 0;
         }
         return value;
     }
@@ -431,14 +440,16 @@ struct VDP2Regs {
     //     Hi-Res: bits 9-0
     //     Excl. Normal: bits 8-0 (no shift); HCT9 is invalid
     //     Excl. Hi-Res: bits 9-1 shifted right by 1; HCT9 is invalid
-    uint16 HCNT;
+    uint16 HCNT;      // Horizontal counter latched by external signal
+    uint16 HCNTShift; // Right-shift applied to HCNT<<1, derived from screen mode
+    uint16 HCNTMask;  // Mask applied to final HCNT, derived from screen mode
 
     FORCE_INLINE uint16 ReadHCNT() const {
         return HCNT;
     }
 
     FORCE_INLINE void WriteHCNT(uint16 value) {
-        HCNT = value & 0x3FF;
+        HCNT = (value >> HCNTShift) & HCNTMask;
     }
 
     // 18000A   VCNT    V Counter
@@ -454,11 +465,16 @@ struct VDP2Regs {
     //       bits 8-0 shifted left by 1
     //       bit 0 contains interlaced field (0=odd, 1=even)
     //     All other modes: bits 8-0 shifted left by 1; VCT0 is invalid
-    uint16 VCNT;
-    uint16 VCNTShift;
-    uint16 VCNTSkip;
+    uint16 VCNT;              // Current vertical counter
+    uint16 VCNTShift;         // Left-shift applied to VCNT, derived from screen mode
+    uint16 VCNTSkip;          // Value added to VCNT, derived from current display phase
+    uint16 VCNTLatch;         // Vertical counter latched by external signal
+    mutable bool VCNTLatched; // Whether the vertical counter is currently latched
 
     FORCE_INLINE uint16 ReadVCNT() const {
+        if (VCNTLatched) {
+            return VCNTLatch << VCNTShift;
+        }
         return (VCNT << VCNTShift) + VCNTSkip;
     }
 

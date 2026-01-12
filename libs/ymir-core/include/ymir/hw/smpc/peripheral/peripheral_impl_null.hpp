@@ -21,7 +21,7 @@ public:
 
     void Read(std::span<uint8> out) override {}
 
-    [[nodiscard]] uint8 WritePDR(uint8 ddr, uint8 value) override {
+    [[nodiscard]] uint8 WritePDR(uint8 ddr, uint8 value, bool exle) override {
         return 0;
     }
 };

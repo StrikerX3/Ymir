@@ -11,7 +11,8 @@ PeripheralConfigWindow::PeripheralConfigWindow(SharedContext &context)
     , m_controlPadView(context)
     , m_analogPadView(context)
     , m_arcadeRacerView(context)
-    , m_missionStickView(context) {}
+    , m_missionStickView(context)
+    , m_virtuaGunView(context) {}
 
 void PeripheralConfigWindow::Open(uint32 portIndex, uint32 slotIndex) {
     m_portIndex = std::min(portIndex, 1u);
@@ -52,6 +53,7 @@ void PeripheralConfigWindow::DrawContents() {
     case AnalogPad: m_analogPadView.Display(settings.analogPad, m_portIndex); break;
     case ArcadeRacer: m_arcadeRacerView.Display(settings.arcadeRacer, m_portIndex); break;
     case MissionStick: m_missionStickView.Display(settings.missionStick, m_portIndex); break;
+    case VirtuaGun: m_virtuaGunView.Display(settings.virtuaGun, m_portIndex); break;
     }
 }
 

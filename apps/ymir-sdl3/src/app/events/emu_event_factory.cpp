@@ -254,20 +254,15 @@ static void InsertPeripheral(peripheral::PeripheralType type, peripheral::Periph
     case ymir::peripheral::PeripheralType::AnalogPad: port.ConnectAnalogPad(); break;
     case ymir::peripheral::PeripheralType::ArcadeRacer: port.ConnectArcadeRacer(); break;
     case ymir::peripheral::PeripheralType::MissionStick: port.ConnectMissionStick(); break;
+    case ymir::peripheral::PeripheralType::VirtuaGun: port.ConnectVirtuaGun(); break;
     }
 }
 
-EmuEvent InsertPort1Peripheral(peripheral::PeripheralType type) {
+EmuEvent InsertPeripheral(uint32 port, ymir::peripheral::PeripheralType type) {
     return RunFunction([=](SharedContext &ctx) {
         std::unique_lock lock{ctx.locks.peripherals};
-        InsertPeripheral(type, ctx.saturn.instance->SMPC.GetPeripheralPort1());
-    });
-}
-
-EmuEvent InsertPort2Peripheral(peripheral::PeripheralType type) {
-    return RunFunction([=](SharedContext &ctx) {
-        std::unique_lock lock{ctx.locks.peripherals};
-        InsertPeripheral(type, ctx.saturn.instance->SMPC.GetPeripheralPort2());
+        InsertPeripheral(type, port == 0 ? ctx.saturn.instance->SMPC.GetPeripheralPort1()
+                                         : ctx.saturn.instance->SMPC.GetPeripheralPort2());
     });
 }
 

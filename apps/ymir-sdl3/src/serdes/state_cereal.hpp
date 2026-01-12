@@ -27,7 +27,8 @@ namespace ymir::state {
 //   9 = 0.1.8
 //  10 = 0.2.0
 //  11 = 0.2.1
-inline constexpr uint32 kVersion = 11;
+//  12 = 0.2.2
+inline constexpr uint32 kVersion = 12;
 
 } // namespace ymir::state
 
@@ -401,6 +402,10 @@ void serialize(Archive &ar, SMPCState::INTBACK &s) {
 
 template <class Archive>
 void serialize(Archive &ar, VDPState &s, const uint32 version) {
+    // v12:
+    // - New fields
+    //   - VDP2VCNTLatch = 0x3FF
+    //   - VDP2VCNTLatched = false
     // v9:
     // - New fields
     //   - enum VDPState::VerticalPhase: added VCounterSkip (= 5)
@@ -421,6 +426,12 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     } else {
         s.VDP1TimingPenalty = 0;
         s.VDP1FBCRChanged = false;
+    }
+    if (version >= 12) {
+        ar(s.VDP2VCNTLatch, s.VDP2VCNTLatched);
+    } else {
+        s.VDP2VCNTLatch = 0x3FF;
+        s.VDP2VCNTLatched = false;
     }
     serialize(ar, s.regs1, version);
     ar(s.regs2);

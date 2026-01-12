@@ -29,7 +29,7 @@ void ControlPad::Read(std::span<uint8> out) {
     out[1] = bit::extract<0, 7>(btnValue);
 }
 
-uint8 ControlPad::WritePDR(uint8 ddr, uint8 value) {
+uint8 ControlPad::WritePDR(uint8 ddr, uint8 value, bool exle) {
     const uint16 btnValue = static_cast<uint16>(m_report.buttons);
 
     switch (ddr & 0x7F) {

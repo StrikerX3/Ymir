@@ -213,12 +213,20 @@ int App::Run(const CommandLineOptions &options) {
         auto &inputSettings = m_context.settings.input;
         auto &inputContext = m_context.inputContext;
 
-        inputSettings.ports[0].type.Observe([&](ymir::peripheral::PeripheralType type) {
-            m_context.EnqueueEvent(events::emu::InsertPort1Peripheral(type));
-        });
-        inputSettings.ports[1].type.Observe([&](ymir::peripheral::PeripheralType type) {
-            m_context.EnqueueEvent(events::emu::InsertPort2Peripheral(type));
-        });
+        for (uint32 port = 0; port < 2; ++port) {
+            inputSettings.ports[port].type.Observe([&, port = port](ymir::peripheral::PeripheralType type) {
+                m_context.EnqueueEvent(events::emu::InsertPeripheral(port, type));
+                bool changed;
+                if (type == ymir::peripheral::PeripheralType::VirtuaGun) {
+                    changed = m_validPeripheralsForMouseCapture.insert(port).second;
+                } else {
+                    changed = m_validPeripheralsForMouseCapture.erase(port) > 0;
+                }
+                if (changed) {
+                    ReleaseAllMice();
+                }
+            });
+        }
         inputSettings.gamepad.lsDeadzone.Observe(inputContext.GamepadLSDeadzone);
         inputSettings.gamepad.rsDeadzone.Observe(inputContext.GamepadRSDeadzone);
         inputSettings.gamepad.analogToDigitalSensitivity.Observe(inputContext.GamepadAnalogToDigitalSens);
@@ -976,8 +984,10 @@ void App::RunEmulator() {
 
     // General
     {
-        inputContext.SetTriggerHandler(actions::general::OpenSettings,
-                                       [&](void *, const input::InputElement &) { m_settingsWindow.Open = true; });
+        inputContext.SetTriggerHandler(actions::general::OpenSettings, [&](void *, const input::InputElement &) {
+            m_settingsWindow.Open = true;
+            m_settingsWindow.RequestFocus();
+        });
         inputContext.SetTriggerHandler(actions::general::ToggleWindowedVideoOutput,
                                        [&](void *, const input::InputElement &) {
                                            m_context.settings.video.displayVideoOutputInWindow ^= true;
@@ -1580,6 +1590,103 @@ void App::RunEmulator() {
         registerModeSwitch(actions::mission_stick::SwitchMode);
     }
 
+    // Virtua Gun controller
+    {
+        using Button = peripheral::Button;
+
+        auto registerMoveButton = [&](input::Action action, float x, float y) {
+            inputContext.SetButtonHandler(action,
+                                          [=, this](void *context, const input::InputElement &element, bool actuated) {
+                                              auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                              auto &moveInput = input.otherInputs[element];
+                                              if (actuated) {
+                                                  moveInput.x = x;
+                                                  moveInput.y = y;
+                                              } else {
+                                                  moveInput.x = 0.0f;
+                                                  moveInput.y = 0.0f;
+                                              }
+                                              input.UpdateInputs();
+                                          });
+        };
+
+        inputContext.SetButtonHandler(actions::virtua_gun::Start,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                          input.start = actuated;
+                                      });
+
+        inputContext.SetButtonHandler(actions::virtua_gun::Trigger,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                          input.trigger = actuated;
+                                      });
+
+        inputContext.SetButtonHandler(actions::virtua_gun::Reload,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                          input.reload = actuated;
+                                      });
+
+        inputContext.SetAxis2DHandler(actions::virtua_gun::Move,
+                                      [this](void *context, const input::InputElement &element, float x, float y) {
+                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                          auto &moveInput = input.otherInputs[element];
+                                          moveInput.x = x;
+                                          moveInput.y = y;
+                                          input.UpdateInputs();
+                                      });
+
+        inputContext.SetTriggerHandler(actions::virtua_gun::Recenter,
+                                       [=, this](void *context, const input::InputElement &) {
+                                           auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                           input.SetPosition(m_context.screen.dCenterX, m_context.screen.dCenterY);
+                                       });
+        inputContext.SetButtonHandler(actions::virtua_gun::SpeedBoost,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                          input.speedBoost = actuated;
+                                      });
+        inputContext.SetTriggerHandler(actions::virtua_gun::SpeedToggle,
+                                       [=](void *context, const input::InputElement &) {
+                                           auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                           input.speedBoost ^= true;
+                                       });
+
+        inputContext.SetAxis2DHandler(actions::virtua_gun::MouseRelMove,
+                                      [this](void *context, const input::InputElement &element, float x, float y) {
+                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                          if (!input.mouseAbsolute) {
+                                              input.mouseInput.x += x;
+                                              input.mouseInput.y += y;
+                                              input.UpdateInputs();
+                                          }
+                                      });
+        inputContext.SetAxis2DHandler(actions::virtua_gun::MouseAbsMove,
+                                      [this](void *context, const input::InputElement &element, float x, float y) {
+                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
+                                          if (input.mouseAbsolute) {
+                                              input.mouseInput.x = x;
+                                              input.mouseInput.y = y;
+                                              input.UpdateInputs();
+                                          }
+                                      });
+
+        registerMoveButton(actions::virtua_gun::Up, 0.0f, -1.0f);
+        registerMoveButton(actions::virtua_gun::Down, 0.0f, +1.0f);
+        registerMoveButton(actions::virtua_gun::Left, -1.0f, 0.0f);
+        registerMoveButton(actions::virtua_gun::Right, +1.0f, 0.0f);
+
+        auto &inputSettings = m_context.settings.input;
+
+        for (int i = 0; i < 2; ++i) {
+            inputSettings.ports[i].virtuaGun.speed.Observe(m_context.virtuaGunInputs[i].speed);
+            inputSettings.ports[i].virtuaGun.speedBoostFactor.Observe(m_context.virtuaGunInputs[i].speedBoostFactor);
+        }
+        inputSettings.mouse.captureMode.ObserveAndNotify(
+            [&](Settings::Input::Mouse::CaptureMode) { ReleaseAllMice(); });
+    }
+
     RebindInputs();
 
     // ---------------------------------
@@ -1650,6 +1757,7 @@ void App::RunEmulator() {
 
     ReloadSDLGameControllerDatabases(false);
 
+    // Maps device IDs to player indices
     struct PlayerIndexMap {
         int GetPlayerIndex(uint32 id) const {
             if (m_playerIndices.contains(id)) {
@@ -1663,17 +1771,7 @@ void App::RunEmulator() {
             if (m_playerIndices.contains(id)) {
                 return m_playerIndices.at(id);
             }
-
-            int index = -1;
-            if (m_freePlayerIndices.empty()) {
-                index = m_playerIndices.size();
-            } else {
-                auto first = m_freePlayerIndices.begin();
-                index = *first;
-                m_freePlayerIndices.erase(first);
-            }
-            m_playerIndices[id] = index;
-            return index;
+            return AssignPlayerIndex(id);
         }
 
         int AssignPlayerIndex(uint32 id) {
@@ -1706,7 +1804,6 @@ void App::RunEmulator() {
     // We'll manage player indices manually instead.
     std::unordered_map<SDL_JoystickID, SDL_Gamepad *> gamepads{};
     PlayerIndexMap gamepadPlayerIndices;
-    PlayerIndexMap mousePlayerIndices;
 
     std::array<GUIEvent, 64> evts{};
 
@@ -1719,6 +1816,8 @@ void App::RunEmulator() {
 
     bool imguiWantedKeyboardInput = false;
     bool imguiWantedMouseInput = false;
+
+    auto prevTime = clk::now();
 
     while (true) {
         bool fitWindowToScreenNow = false;
@@ -1889,59 +1988,77 @@ void App::RunEmulator() {
                                                   input::SDL3ToKeyModifier(evt.key.mod), evt.key.down);
                 }
 
-                // Leave full screen when pressing Esc while not focused on ImGui windows
-                if (!io.WantCaptureKeyboard && evt.key.scancode == SDL_SCANCODE_ESCAPE && evt.key.down) {
-                    m_context.settings.video.fullScreen = false;
-                    m_context.settings.MakeDirty();
+                // Handle ESC key press actions
+                if (evt.key.scancode == SDL_SCANCODE_ESCAPE && evt.key.down) {
+                    // Leave full screen while not focused on ImGui windows
+                    if (!io.WantCaptureKeyboard && m_context.settings.video.fullScreen) {
+                        m_context.settings.video.fullScreen = false;
+                        m_context.settings.MakeDirty();
+                    }
+
+                    // Restore system mouse cursor and release captured mice
+                    ReleaseAllMice();
                 }
                 break;
 
             case SDL_EVENT_MOUSE_ADDED: //
             {
-                const int playerIndex = mousePlayerIndices.AssignPlayerIndex(evt.mdevice.which);
-                inputContext.ConnectMouse(playerIndex);
-                devlog::debug<grp::base>("Mouse {} added -> player index {}", evt.mdevice.which, playerIndex);
+                inputContext.ConnectMouse(evt.mdevice.which);
+                devlog::debug<grp::base>("Mouse {} added", evt.mdevice.which);
                 break;
             }
             case SDL_EVENT_MOUSE_REMOVED: //
             {
-                const int playerIndex = mousePlayerIndices.ReleasePlayerIndex(evt.mdevice.which);
-                inputContext.DisconnectMouse(playerIndex);
-                devlog::debug<grp::base>("Mouse {} removed -> player index {}", evt.mdevice.which, playerIndex);
+                inputContext.DisconnectMouse(evt.mdevice.which);
+                devlog::debug<grp::base>("Mouse {} removed", evt.mdevice.which);
+                ReleaseMouse(evt.mdevice.which);
                 break;
             }
             case SDL_EVENT_MOUSE_BUTTON_DOWN: [[fallthrough]];
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (!io.WantCaptureMouse) {
                     if (m_context.settings.video.doubleClickToFullScreen && evt.button.clicks % 2 == 0 &&
-                        evt.button.down) {
+                        evt.button.down && evt.button.button == SDL_BUTTON_LEFT) {
                         m_context.settings.video.fullScreen = !m_context.settings.video.fullScreen;
                         m_context.settings.MakeDirty();
                     }
                 }
                 if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    const int playerIndex = mousePlayerIndices.GetOrAssignPlayerIndex(evt.button.which);
-                    // TODO: evt.button.x, evt.button.y
-                    // TODO: maybe evt.button.clicks?
-                    inputContext.ProcessPrimitive(playerIndex, input::SDL3ToMouseButton(evt.button.button),
-                                                  evt.button.down);
+                    // Pen and touch inputs should be handled with their own events and input primitives
+                    if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                        // TODO: evt.button.x, evt.button.y
+                        // TODO: maybe evt.button.clicks?
+                        inputContext.ProcessPrimitive(evt.button.which, input::SDL3ToMouseButton(evt.button.button),
+                                                      evt.button.down);
+
+                        // Try capturing the mouse cursor
+                        if (evt.button.down && evt.button.button == SDL_BUTTON_LEFT) {
+                            ConnectMouseToPeripheral(evt.button.which);
+                        }
+                    }
                 }
                 break;
             case SDL_EVENT_MOUSE_MOTION:
                 if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    const int playerIndex = mousePlayerIndices.GetOrAssignPlayerIndex(evt.button.which);
-                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::Horizontal, evt.motion.xrel);
-                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::Vertical, evt.motion.yrel);
+                    // Pen and touch inputs should be handled with their own events and input primitives
+                    if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                        inputContext.ProcessPrimitive(evt.button.which, input::MouseAxis2D::MouseRelative,
+                                                      evt.motion.xrel, evt.motion.yrel);
+                        inputContext.ProcessPrimitive(evt.button.which, input::MouseAxis2D::MouseAbsolute, evt.motion.x,
+                                                      evt.motion.y);
+                    }
                 }
                 break;
             case SDL_EVENT_MOUSE_WHEEL:
                 if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    const int playerIndex = mousePlayerIndices.GetOrAssignPlayerIndex(evt.button.which);
-                    const float flippedFactor = evt.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
-                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::WheelHorizontal,
-                                                  evt.wheel.x * flippedFactor);
-                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::WheelVertical,
-                                                  evt.wheel.y * flippedFactor);
+                    // Pen and touch inputs should be handled with their own events and input primitives
+                    if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                        const float flippedFactor = evt.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
+                        inputContext.ProcessPrimitive(evt.button.which, input::MouseAxis1D::WheelHorizontal,
+                                                      evt.wheel.x * flippedFactor);
+                        inputContext.ProcessPrimitive(evt.button.which, input::MouseAxis1D::WheelVertical,
+                                                      evt.wheel.y * flippedFactor);
+                    }
                 }
                 break;
 
@@ -2046,6 +2163,7 @@ void App::RunEmulator() {
                         m_context.EnqueueEvent(events::emu::SetPaused(true));
                     }
                 }
+                ReleaseAllMice();
                 break;
 
             case SDL_EVENT_DROP_FILE: //
@@ -2234,8 +2352,11 @@ void App::RunEmulator() {
             }
         }
 
-        // Calculate performance and update title bar
         auto now = clk::now();
+        const auto timeDelta = now - prevTime;
+        prevTime = now;
+
+        // Calculate performance and update title bar
         {
             std::string fullGameTitle;
             {
@@ -2292,17 +2413,20 @@ void App::RunEmulator() {
             }
         }
 
+        UpdateTimeBasedInputs(std::chrono::duration<double>(timeDelta).count());
+
         const bool prevForceAspectRatio = m_context.settings.video.forceAspectRatio;
         const double prevForcedAspect = m_context.settings.video.forcedAspect;
 
-        // Hide mouse cursor if no interactions were made recently
+        // Hide mouse cursor if no interactions were made recently or if the mouse is captured
         const bool mouseMoved = io.MouseDelta.x != 0.0f && io.MouseDelta.y != 0.0f;
         const bool mouseDown =
             io.MouseDown[0] || io.MouseDown[1] || io.MouseDown[2] || io.MouseDown[3] || io.MouseDown[4];
         if (mouseMoved || mouseDown || io.WantCaptureMouse) {
             m_mouseHideTime = clk::now();
         }
-        const bool hideMouse = clk::now() >= m_mouseHideTime + 2s;
+        const bool hideMouse = (m_systemMouseCaptured && !io.WantCaptureMouse) || !m_capturedMice.empty() ||
+                               clk::now() >= m_mouseHideTime + 2s;
         if (hideMouse) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_None);
         }
@@ -2321,6 +2445,14 @@ void App::RunEmulator() {
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
+
+        // In PhysicalMouse mode, automatically release all mice if any ImGui window gains focus
+        // NOTE: ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow) cannot be used becaused the application always
+        // starts with main menu bar focused
+        if (m_context.settings.input.mouse.captureMode == Settings::Input::Mouse::CaptureMode::PhysicalMouse &&
+            io.WantCaptureKeyboard && (!m_capturedMice.empty() || m_mouseCaptureActive)) {
+            ReleaseAllMice();
+        }
 
         auto *viewport = ImGui::GetMainViewport();
 
@@ -2706,8 +2838,13 @@ void App::RunEmulator() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Settings")) {
-                    ImGui::MenuItem("Settings", input::ToShortcut(inputContext, actions::general::OpenSettings).c_str(),
-                                    &m_settingsWindow.Open);
+                    if (ImGui::MenuItem("Settings",
+                                        input::ToShortcut(inputContext, actions::general::OpenSettings).c_str(),
+                                        &m_settingsWindow.Open)) {
+                        if (m_settingsWindow.Open) {
+                            m_settingsWindow.RequestFocus();
+                        }
+                    }
                     ImGui::Separator();
                     if (ImGui::MenuItem("General")) {
                         m_settingsWindow.OpenTab(ui::SettingsTab::General);
@@ -2927,8 +3064,12 @@ void App::RunEmulator() {
                             (float)(int)(data->DesiredSize.x * aspectRatio) + ImGui::GetFrameHeightWithSpacing();
                     },
                     (void *)&aspectRatio);
-                if (ImGui::Begin(title.c_str(), &videoSettings.displayVideoOutputInWindow,
-                                 ImGuiWindowFlags_NoNavInputs)) {
+
+                ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoNavInputs;
+                if (m_systemMouseCaptured || HasValidPeripheralsForMouseCapture()) {
+                    windowFlags |= ImGuiWindowFlags_NoMouseInputs;
+                }
+                if (ImGui::Begin(title.c_str(), &videoSettings.displayVideoOutputInWindow, windowFlags)) {
                     const ImVec2 avail = ImGui::GetContentRegionAvail();
                     renderDispTexture(avail.x, avail.y);
 
@@ -2941,6 +3082,13 @@ void App::RunEmulator() {
                     const auto uv2 = ImVec2((float)screen.width / vdp::kMaxResH, 0);
                     const auto uv3 = ImVec2((float)screen.width / vdp::kMaxResH, (float)screen.height / vdp::kMaxResV);
                     const auto uv4 = ImVec2(0, (float)screen.height / vdp::kMaxResV);
+
+                    screen.scale =
+                        std::min((double)avail.x / (double)screen.width, (double)avail.y / (double)screen.height);
+                    screen.dCenterX = tl.x + avail.x * 0.5f;
+                    screen.dCenterY = tl.y + avail.y * 0.5f;
+                    screen.dSizeX = horzDisplay ? avail.x : avail.y;
+                    screen.dSizeY = horzDisplay ? avail.y : avail.x;
 
                     auto *drawList = ImGui::GetWindowDrawList();
                     switch (videoSettings.rotation) {
@@ -2959,10 +3107,18 @@ void App::RunEmulator() {
                         break;
                     }
 
+                    DrawInputs(drawList);
+
                     ImGui::Dummy(avail);
                 }
                 ImGui::End();
                 ImGui::PopStyleVar();
+            }
+
+            // Draw input cursors on background if not displaying screen in a window
+            if (!m_context.settings.video.displayVideoOutputInWindow) {
+                auto *drawList = ImGui::GetBackgroundDrawList();
+                DrawInputs(drawList);
             }
 
             // Draw windows and modals
@@ -3367,6 +3523,12 @@ void App::RunEmulator() {
                               .w = (float)scaledWidth,
                               .h = (float)scaledHeight};
             SDL_RenderTextureRotated(renderer, dispTexture, &srcRect, &dstRect, rotAngle, nullptr, SDL_FLIP_NONE);
+
+            screen.scale = scale;
+            screen.dCenterX = dstRect.x + dstRect.w * 0.5f;
+            screen.dCenterY = dstRect.y + dstRect.h * 0.5f;
+            screen.dSizeX = dstRect.w;
+            screen.dSizeY = dstRect.h;
         }
 
         screen.resolutionChanged = false;
@@ -3954,6 +4116,357 @@ void App::RebindInputs() {
     m_context.settings.RebindInputs();
 }
 
+void App::UpdateTimeBasedInputs(double timeDelta) {
+    // NOTE: this uses the previous frame's screen scale parameters
+    const auto &screen = m_context.screen;
+    const auto &videoSettings = m_context.settings.video;
+    double scale = screen.scale;
+    if (screen.doubleResH || screen.doubleResV) {
+        scale *= 2.0;
+    }
+
+    float sWidth = screen.dSizeX;
+    float sHeight = screen.dSizeY;
+
+    if (videoSettings.rotation == Settings::Video::DisplayRotation::_90CW ||
+        videoSettings.rotation == Settings::Video::DisplayRotation::_90CCW) {
+        std::swap(sWidth, sHeight);
+    }
+
+    float sLeft = screen.dCenterX - sWidth * 0.5f;
+    float sTop = screen.dCenterY - sHeight * 0.5f;
+    float sRight = sLeft + sWidth;
+    float sBottom = sTop + sHeight;
+
+    for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
+        auto &config = m_context.settings.input.ports[portIndex];
+
+        switch (config.type) {
+        case ymir::peripheral::PeripheralType::VirtuaGun: //
+        {
+            auto &input = m_context.virtuaGunInputs[portIndex];
+            if (input.init && screen.dSizeX > 1 && screen.dSizeY > 1) {
+                input.init = false;
+                input.SetPosition(screen.dCenterX, screen.dCenterY);
+            } else {
+                input.UpdatePosition(timeDelta, scale, sLeft, sTop, sRight, sBottom);
+            }
+            break;
+        }
+        default: break;
+        }
+    }
+}
+
+void App::DrawInputs(ImDrawList *drawList) {
+    const auto &screen = m_context.screen;
+
+    for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
+        auto &config = m_context.settings.input.ports[portIndex];
+
+        switch (config.type) {
+        case ymir::peripheral::PeripheralType::VirtuaGun: //
+        {
+            auto &input = m_context.virtuaGunInputs[portIndex];
+
+            const float radius = 15.0f * m_context.displayScale;
+            const float thickness = 5.0f * 0.5f * m_context.displayScale;
+            const float lineThickness = 1.5f * m_context.displayScale;
+            const float x = (int)input.posX + 0.5f;
+            const float y = (int)input.posY + 0.5f;
+            const ImU32 fillColor = 0xE0007FFF ^ (portIndex * 0x00FF00FF); // port 1 = orange, port 2 = light blue
+            const ImU32 lineColor = 0xFF000000;
+
+            ImVec2 points[] = {
+                {-thickness, -thickness}, {-radius, -thickness},    {-radius, +thickness},    {-thickness, +thickness},
+                {-thickness, +radius},    {+thickness, +radius},    {+thickness, +thickness}, {+radius, +thickness},
+                {+radius, -thickness},    {+thickness, -thickness}, {+thickness, -radius},    {-thickness, -radius},
+            };
+
+            // Rotate port 2 crosshairs 45 degrees
+            if (portIndex == 1) {
+                const float s = sin(std::numbers::pi * 0.25f);
+                const float c = cos(std::numbers::pi * 0.25f);
+                for (int i = 0; i < std::size(points); ++i) {
+                    const float rx = c * points[i].x - s * points[i].y;
+                    const float ry = s * points[i].x + c * points[i].y;
+                    points[i].x = rx;
+                    points[i].y = ry;
+                }
+            }
+            for (int i = 0; i < std::size(points); ++i) {
+                points[i].x += x;
+                points[i].y += y;
+            }
+
+            // TODO: use crosshair design from configuration
+            drawList->AddConvexPolyFilled(points, std::size(points), fillColor);
+            drawList->AddPolyline(points, std::size(points), lineColor, ImDrawFlags_Closed, lineThickness);
+            break;
+        }
+        default: break;
+        }
+    }
+}
+
+bool App::CaptureMouse(uint32 id, uint32 port) {
+    // Prevent capturing global mouse
+    if (id == 0) {
+        return false;
+    }
+
+    // Bail out if mouse is already bound to a peripheral
+    if (m_capturedMice.contains(id)) {
+        return false;
+    }
+
+    // Bind mouse to peripheral
+    m_capturedMice[id] = port;
+    const char *name = SDL_GetMouseNameForID(id);
+    if (name != nullptr) {
+        m_context.DisplayMessage(fmt::format("{} bound to {}", name, GetPeripheralName(port)));
+    } else {
+        m_context.DisplayMessage(fmt::format("Mouse {} bound to {}", id, GetPeripheralName(port)));
+    }
+    ConfigureMouseCapture();
+
+    m_mouseCaptureActive = false;
+
+    return true;
+}
+
+bool App::ReleaseMouse(uint32 id) {
+    // Prevent releasing global mouse
+    if (id == 0) {
+        return false;
+    }
+
+    // Bail out if mouse not bound to a peripheral
+    if (!m_capturedMice.contains(id)) {
+        return false;
+    }
+
+    // Release mouse
+    const uint32 port = m_capturedMice.at(id);
+    m_capturedMice.erase(id);
+
+    const char *name = SDL_GetMouseNameForID(id);
+    if (name != nullptr) {
+        m_context.DisplayMessage(fmt::format("{} released from {}", name, GetPeripheralName(port)));
+    } else {
+        m_context.DisplayMessage(fmt::format("Mouse {} released from {}", id, GetPeripheralName(port)));
+    }
+
+    if (m_capturedMice.empty()) {
+        m_context.DisplayMessage("Leaving mouse capture mode");
+    }
+
+    ConfigureMouseCapture();
+    (void)m_context.inputContext.UnmapMouseInputs(id);
+
+    return true;
+}
+
+bool App::CaptureSystemMouse(uint32 port) {
+    const bool captured = !m_systemMouseCaptured;
+    if (captured) {
+        m_context.DisplayMessage(fmt::format("Mouse cursor bound to {}", GetPeripheralName(port)));
+        m_context.DisplayMessage("Press ESC to release");
+        ConfigureMouseCapture();
+        m_systemMouseCaptured = true;
+        m_systemMousePeripheral = port;
+    }
+    return captured;
+}
+
+bool App::ReleaseSystemMouse() {
+    const bool released = m_systemMouseCaptured;
+    if (released) {
+        m_context.DisplayMessage(
+            fmt::format("Mouse cursor released from {}", GetPeripheralName(m_systemMousePeripheral)));
+        ConfigureMouseCapture();
+        m_systemMouseCaptured = false;
+        m_context.virtuaGunInputs[m_systemMousePeripheral].mouseAbsolute = false;
+        (void)m_context.inputContext.UnmapMouseInputs(0);
+    }
+    return released;
+}
+
+void App::ReleaseAllMice() {
+    bool released = m_mouseCaptureActive || m_systemMouseCaptured || !m_capturedMice.empty();
+
+    if (m_systemMouseCaptured) {
+        m_systemMouseCaptured = false;
+        (void)m_context.inputContext.UnmapMouseInputs(0);
+    }
+    for (auto [id, _] : m_capturedMice) {
+        (void)m_context.inputContext.UnmapMouseInputs(id);
+    }
+    m_capturedMice.clear();
+
+    m_mouseCaptureActive = false;
+
+    for (uint32 i = 0; i < 2; ++i) {
+        m_context.virtuaGunInputs[i].mouseAbsolute = false;
+    }
+
+    if (released) {
+        m_context.DisplayMessage("All mice released");
+        ConfigureMouseCapture();
+    }
+}
+
+void App::ConfigureMouseCapture() {
+    const bool grabSystemCursor = false; // TODO: pull from settings
+    const bool relativeMode = m_mouseCaptureActive || !m_capturedMice.empty();
+    const bool captured = (m_systemMouseCaptured && grabSystemCursor) || relativeMode;
+    const bool grabbed = captured && !relativeMode;
+    const bool wasRelativeMode = SDL_GetWindowRelativeMouseMode(m_context.screen.window);
+    SDL_SetWindowMouseGrab(m_context.screen.window, grabbed);
+    SDL_SetWindowRelativeMouseMode(m_context.screen.window, relativeMode);
+    if (captured) {
+        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+    } else {
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+    }
+
+    if (wasRelativeMode != relativeMode) {
+        if (relativeMode) {
+            m_context.DisplayMessage("Entering mouse capture mode");
+            m_context.DisplayMessage("Press ESC to release mice");
+        } else {
+            m_context.DisplayMessage("Leaving mouse capture mode");
+        }
+    }
+
+    devlog::debug<grp::base>("Mouse capture config: captured={} relative={} grab={}", captured, relativeMode, grabbed);
+}
+
+void App::ConnectMouseToPeripheral(uint32 id) {
+    using PeripheralType = ymir::peripheral::PeripheralType;
+    using CaptureMode = Settings::Input::Mouse::CaptureMode;
+
+    const CaptureMode captureMode = m_context.settings.input.mouse.captureMode;
+    // TODO: force PhysicalMouse mode if a Shuttle Mouse is connected to any port
+
+    // Bail out if mouse is already bound to a peripheral
+    if (captureMode == CaptureMode::SystemCursor && m_systemMouseCaptured) {
+        return;
+    }
+    if (captureMode == CaptureMode::PhysicalMouse && m_capturedMice.contains(id)) {
+        return;
+    }
+
+    if (captureMode == CaptureMode::SystemCursor) {
+        // Force global mouse ID when in system cursor capture mode
+        id = 0;
+    } else if (id == 0) {
+        // Engage mouse capture in physical mouse capture mode when using the global mouse ID
+        m_mouseCaptureActive = true;
+        ConfigureMouseCapture();
+        return;
+    }
+
+    const std::set<uint32> candidates = GetCandidatePeripheralsForMouseCapture();
+    if (candidates.empty()) {
+        return;
+    }
+
+    // TODO: allow user to pick port when there are multiple candidates
+    // - show a popup asking which one the player wants to bind to (or Cancel)
+    // - cancel popup:
+    //   - on ESC press
+    //   - if the app loses focus
+    //   - if mouse capture mode changes
+    //   - if the target mouse is removed
+    //   - if the valid controller list is changed
+    const uint32 port = *candidates.begin();
+    const PeripheralType type = m_context.settings.input.ports[port].type;
+    const bool isVirtuaGun = type == PeripheralType::VirtuaGun;
+    std::string periphName = GetPeripheralName(port);
+
+    assert(isVirtuaGun); // TODO: also allow Shuttle Mouse
+
+    const bool captured = [&] {
+        switch (captureMode) {
+        case CaptureMode::SystemCursor: return CaptureSystemMouse(port);
+        case CaptureMode::PhysicalMouse: return CaptureMouse(id, port);
+        }
+        return false;
+    }();
+
+    // Bind inputs
+    auto &inputCtx = m_context.inputContext;
+    if (type == PeripheralType::VirtuaGun) {
+        auto *actionCtx = &m_context.virtuaGunInputs[port];
+        if (captureMode == CaptureMode::PhysicalMouse) {
+            actionCtx->mouseAbsolute = false;
+            (void)inputCtx.MapAction({id, input::MouseAxis2D::MouseRelative}, actions::virtua_gun::MouseRelMove,
+                                     actionCtx);
+        } else {
+            actionCtx->mouseAbsolute = true;
+            (void)inputCtx.MapAction({0, input::MouseAxis2D::MouseAbsolute}, actions::virtua_gun::MouseAbsMove,
+                                     actionCtx);
+        }
+        // TODO: map inputs according to settings
+        (void)inputCtx.MapAction({id, input::MouseButton::Left}, actions::virtua_gun::Trigger, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Right}, actions::virtua_gun::Reload, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Middle}, actions::virtua_gun::Start, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Extra1}, actions::virtua_gun::Start, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Extra2}, actions::virtua_gun::Start, actionCtx);
+    }
+}
+
+bool App::HasValidPeripheralsForMouseCapture() const {
+    return !GetCandidatePeripheralsForMouseCapture().empty();
+}
+
+std::set<uint32> App::GetCandidatePeripheralsForMouseCapture() const {
+    std::set<uint32> candidates = m_validPeripheralsForMouseCapture;
+    for (auto [_, port] : m_capturedMice) {
+        candidates.erase(port);
+    }
+    if (m_systemMouseCaptured) {
+        candidates.erase(m_systemMousePeripheral);
+    }
+    return candidates;
+}
+
+std::string App::GetPeripheralName(uint32 port) const {
+    const ymir::peripheral::PeripheralType type = m_context.settings.input.ports[port].type;
+    return fmt::format("{} on port {}", ymir::peripheral::GetPeripheralName(type), port + 1);
+}
+
+std::pair<float, float> App::WindowToScreen(float x, float y) const {
+    const auto &screen = m_context.screen;
+
+    // Build 2D rotation matrix
+    float a, b, c, d;
+    switch (m_context.settings.video.rotation) {
+        using Rot = Settings::Video::DisplayRotation;
+    case Rot::Normal: a = +1.0f, b = 0.0f, c = 0.0f, d = +1.0f; break;
+    case Rot::_90CW: a = 0.0f, b = -1.0f, c = +1.0f, d = 0.0f; break;
+    case Rot::_180: a = -1.0f, b = 0.0f, c = 0.0f, d = -1.0f; break;
+    case Rot::_90CCW: a = 0.0f, b = +1.0f, c = -1.0f, d = 0.0f; break;
+    }
+
+    const float nx = x - screen.dCenterX;
+    const float ny = y - screen.dCenterY;
+
+    // Rotate window coordinates around center of screen
+    const float rx = nx * a + ny * c + screen.dCenterX;
+    const float ry = nx * b + ny * d + screen.dCenterY;
+
+    const float sCornerX = screen.dCenterX - screen.dSizeX * 0.5f;
+    const float sCornerY = screen.dCenterY - screen.dSizeY * 0.5f;
+
+    // Transform to screen space
+    float sx = (rx - sCornerX) * screen.width / screen.dSizeX;
+    float sy = (ry - sCornerY) * screen.height / screen.dSizeY;
+
+    return {sx, sy};
+}
+
 void App::RescaleUI(float displayScale) {
     if (m_context.settings.gui.overrideUIScale) {
         displayScale = m_context.settings.gui.uiScale;
@@ -4216,6 +4729,21 @@ void App::ReadPeripheral(ymir::peripheral::PeripheralReport &report) {
         specificReport.x2 = std::clamp(inputs.sticks[1].x * 128.0f + 128.0f, 0.0f, 255.0f);
         specificReport.y2 = std::clamp(inputs.sticks[1].y * 128.0f + 128.0f, 0.0f, 255.0f);
         specificReport.z2 = inputs.sticks[1].z * 255.0f;
+        break;
+    }
+    case ymir::peripheral::PeripheralType::VirtuaGun: //
+    {
+        const auto &inputs = m_context.virtuaGunInputs[port - 1];
+        const auto [sx, sy] = WindowToScreen(inputs.posX, inputs.posY);
+
+        // TODO: handle overlapping trigger+reload gracefully
+
+        auto &specificReport = report.report.virtuaGun;
+        specificReport.start = inputs.start;
+        specificReport.trigger = inputs.trigger;
+        specificReport.reload = inputs.reload;
+        specificReport.x = std::clamp<int>(sx, 1, m_context.screen.width - 1);
+        specificReport.y = std::clamp<int>(sy, 1, m_context.screen.height - 1);
         break;
     }
     default: break;

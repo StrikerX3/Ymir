@@ -30,7 +30,8 @@ namespace app {
 // - Moved "OverrideUIScale" and "UIScale" from "Video" to "GUI"
 // v4:
 // - Removed "Video.IncludeVDP1InRenderThread"
-// - Added "Video.ThreadedVDP1"
+// - Renamed "Video.ThreadedVDP" to "Video.ThreadedVDP2"
+// - Moved "Input.Gamepad*" to "Input.Gamepad.*"
 inline constexpr int kConfigVersion = 4;
 
 namespace grp {
@@ -139,6 +140,8 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, peripheral::Pe
             value = peripheral::PeripheralType::ArcadeRacer;
         } else if (*opt == "MissionStick"s) {
             value = peripheral::PeripheralType::MissionStick;
+        } else if (*opt == "VirtuaGun"s) {
+            value = peripheral::PeripheralType::VirtuaGun;
         }
     }
 }
@@ -150,6 +153,17 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, core::config::
             value = core::config::audio::SampleInterpolationMode::NearestNeighbor;
         } else if (*opt == "Linear"s) {
             value = core::config::audio::SampleInterpolationMode::Linear;
+        }
+    }
+}
+
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Input::Mouse::CaptureMode &value) {
+    value = Settings::Input::Mouse::CaptureMode::SystemCursor;
+    if (auto opt = node.value<std::string>()) {
+        if (*opt == "SystemCursor"s) {
+            value = Settings::Input::Mouse::CaptureMode::SystemCursor;
+        } else if (*opt == "PhysicalMouse"s) {
+            value = Settings::Input::Mouse::CaptureMode::PhysicalMouse;
         }
     }
 }
@@ -300,6 +314,7 @@ FORCE_INLINE static const char *ToTOML(const peripheral::PeripheralType value) {
     case peripheral::PeripheralType::AnalogPad: return "AnalogPad";
     case peripheral::PeripheralType::ArcadeRacer: return "ArcadeRacer";
     case peripheral::PeripheralType::MissionStick: return "MissionStick";
+    case peripheral::PeripheralType::VirtuaGun: return "VirtuaGun";
     }
 }
 
@@ -308,6 +323,14 @@ FORCE_INLINE static const char *ToTOML(const core::config::audio::SampleInterpol
     default: [[fallthrough]];
     case core::config::audio::SampleInterpolationMode::NearestNeighbor: return "Nearest";
     case core::config::audio::SampleInterpolationMode::Linear: return "Linear";
+    }
+}
+
+FORCE_INLINE static const char *ToTOML(const Settings::Input::Mouse::CaptureMode value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case Settings::Input::Mouse::CaptureMode::SystemCursor: return "SystemCursor";
+    case Settings::Input::Mouse::CaptureMode::PhysicalMouse: return "PhysicalMouse";
     }
 }
 
@@ -466,6 +489,7 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         m_analogPadInputs[i].context = &m_context.analogPadInputs[i];
         m_arcadeRacerInputs[i].context = &m_context.arcadeRacerInputs[i];
         m_missionStickInputs[i].context = &m_context.missionStickInputs[i];
+        m_virtuaGunInputs[i].context = &m_context.virtuaGunInputs[i];
     }
 
     mapInput(m_actionInputs, hotkeys.openSettings);
@@ -635,11 +659,27 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         mapInput(inputMap, binds.switchMode);
     };
 
+    // Virtua Gun
+    auto mapVirtuaGun = [&](InputMap &inputMap, Input::Port::VirtuaGun::Binds &binds) {
+        mapInput(inputMap, binds.start);
+        mapInput(inputMap, binds.trigger);
+        mapInput(inputMap, binds.reload);
+        mapInput(inputMap, binds.up);
+        mapInput(inputMap, binds.down);
+        mapInput(inputMap, binds.left);
+        mapInput(inputMap, binds.right);
+        mapInput(inputMap, binds.move);
+        mapInput(inputMap, binds.recenter);
+        mapInput(inputMap, binds.speedBoost);
+        mapInput(inputMap, binds.speedToggle);
+    };
+
     for (uint32 i = 0; i < 2; ++i) {
         mapControlPad(m_controlPadInputs[i], input.ports[i].controlPad.binds);
         mapAnalogPad(m_analogPadInputs[i], input.ports[i].analogPad.binds);
         mapArcadeRacer(m_arcadeRacerInputs[i], input.ports[i].arcadeRacer.binds);
         mapMissionStick(m_missionStickInputs[i], input.ports[i].missionStick.binds);
+        mapVirtuaGun(m_virtuaGunInputs[i], input.ports[i].virtuaGun.binds);
     }
 
     ResetToDefaults();
@@ -707,10 +747,15 @@ void Settings::ResetToDefaults() {
             (void)ResetBinds(port.analogPad.binds, true);
             (void)ResetBinds(port.arcadeRacer.binds, true);
             (void)ResetBinds(port.missionStick.binds, true);
+            (void)ResetBinds(port.virtuaGun.binds, true);
 
             port.arcadeRacer.sensitivity = kDefaultArcadeRacerSensitivity;
+            port.virtuaGun.speed = kDefaultVirtuaGunSpeed;
+            port.virtuaGun.speedBoostFactor = kDefaultVirtuaGunSpeedBoostFactor;
         }
     }
+
+    input.mouse.captureMode = Input::Mouse::CaptureMode::SystemCursor;
 
     input.gamepad.lsDeadzone = 0.15f;
     input.gamepad.rsDeadzone = 0.15f;
@@ -1062,16 +1107,21 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                     Parse(tblBinds, "SubThrottleMin", portSettings.missionStick.binds.subThrottleMin);
                     Parse(tblBinds, "SwitchMode", portSettings.missionStick.binds.switchMode);
                 };
+                auto parseVirtuaGunBinds = [&](auto &tblBinds) {
+                    Parse(tblBinds, "Start", portSettings.virtuaGun.binds.start);
+                    Parse(tblBinds, "Trigger", portSettings.virtuaGun.binds.trigger);
+                    Parse(tblBinds, "Reload", portSettings.virtuaGun.binds.reload);
+                    Parse(tblBinds, "Up", portSettings.virtuaGun.binds.up);
+                    Parse(tblBinds, "Down", portSettings.virtuaGun.binds.down);
+                    Parse(tblBinds, "Left", portSettings.virtuaGun.binds.left);
+                    Parse(tblBinds, "Right", portSettings.virtuaGun.binds.right);
+                    Parse(tblBinds, "Move", portSettings.virtuaGun.binds.move);
+                    Parse(tblBinds, "Recenter", portSettings.virtuaGun.binds.recenter);
+                    Parse(tblBinds, "SpeedBoost", portSettings.virtuaGun.binds.speedBoost);
+                    Parse(tblBinds, "SpeedToggle", portSettings.virtuaGun.binds.speedToggle);
+                };
 
-                if (configVersion <= 2) {
-                    const char *controlPadName = configVersion == 1 ? "StandardPadBinds" : "ControlPadBinds";
-                    if (auto tblBinds = tblPort[controlPadName]) {
-                        parseControlPadBinds(tblBinds);
-                    }
-                    if (auto tblBinds = tblPort["AnalogPadBinds"]) {
-                        parseAnalogPadBinds(tblBinds);
-                    }
-                } else {
+                if (configVersion >= 3) {
                     if (auto tblControlPad = tblPort["ControlPad"]) {
                         if (auto tblBinds = tblControlPad["Binds"]) {
                             parseControlPadBinds(tblBinds);
@@ -1096,15 +1146,48 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                             parseMissionStickBinds(tblBinds);
                         }
                     }
+                    if (auto tblVirtuaGun = tblPort["VirtuaGun"]) {
+                        if (auto tblBinds = tblVirtuaGun["Binds"]) {
+                            parseVirtuaGunBinds(tblBinds);
+                        }
+                        float speed, speedBoostFactor;
+                        Parse(tblVirtuaGun, "Speed", speed);
+                        Parse(tblVirtuaGun, "SpeedBoostFactor", speedBoostFactor);
+                        speed = std::clamp(speed, kMinVirtuaGunSpeed, kMaxVirtuaGunSpeed);
+                        speedBoostFactor =
+                            std::clamp(speedBoostFactor, kMinVirtuaGunSpeedBoostFactor, kMaxVirtuaGunSpeedBoostFactor);
+                        portSettings.virtuaGun.speed = speed;
+                        portSettings.virtuaGun.speedBoostFactor = speedBoostFactor;
+                    }
+                } else {
+                    const char *controlPadName = configVersion == 1 ? "StandardPadBinds" : "ControlPadBinds";
+                    if (auto tblBinds = tblPort[controlPadName]) {
+                        parseControlPadBinds(tblBinds);
+                    }
+                    if (auto tblBinds = tblPort["AnalogPadBinds"]) {
+                        parseAnalogPadBinds(tblBinds);
+                    }
                 }
             }
         };
         parsePort("Port1", input.ports[0]);
         parsePort("Port2", input.ports[1]);
 
-        Parse(tblInput, "GamepadLSDeadzone", input.gamepad.lsDeadzone);
-        Parse(tblInput, "GamepadRSDeadzone", input.gamepad.rsDeadzone);
-        Parse(tblInput, "GamepadAnalogToDigitalSensitivity", input.gamepad.analogToDigitalSensitivity);
+        if (auto tblMouse = tblInput["Mouse"]) {
+            Parse(tblMouse, "CaptureMode", input.mouse.captureMode);
+        }
+
+        if (configVersion >= 4) {
+            if (auto tblGamepad = tblInput["Gamepad"]) {
+                Parse(tblGamepad, "LSDeadzone", input.gamepad.lsDeadzone);
+                Parse(tblGamepad, "RSDeadzone", input.gamepad.rsDeadzone);
+                Parse(tblGamepad, "AnalogToDigitalSensitivity", input.gamepad.analogToDigitalSensitivity);
+            }
+        } else {
+            Parse(tblInput, "GamepadLSDeadzone", input.gamepad.lsDeadzone);
+            Parse(tblInput, "GamepadRSDeadzone", input.gamepad.rsDeadzone);
+            Parse(tblInput, "GamepadAnalogToDigitalSensitivity", input.gamepad.analogToDigitalSensitivity);
+        }
     }
 
     if (auto tblVideo = data["Video"]) {
@@ -1122,11 +1205,11 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "DoubleClickToFullScreen", video.doubleClickToFullScreen);
         Parse(tblVideo, "UseFullRefreshRateWithVideoSync", video.useFullRefreshRateWithVideoSync);
 
-        if (configVersion <= 3) {
-            Parse(tblVideo, "ThreadedVDP", video.threadedVDP2);
-        } else {
+        if (configVersion >= 4) {
             Parse(tblVideo, "ThreadedVDP1", video.threadedVDP1);
             Parse(tblVideo, "ThreadedVDP2", video.threadedVDP2);
+        } else {
+            Parse(tblVideo, "ThreadedVDP", video.threadedVDP2);
         }
         Parse(tblVideo, "ThreadedDeinterlacer", video.threadedDeinterlacer);
         if (configVersion <= 2) {
@@ -1291,6 +1374,23 @@ SettingsSaveResult Settings::Save() {
                     {"SwitchMode", ToTOML(port.missionStick.binds.switchMode)},
                 }}},
             }}},
+            {"VirtuaGun", toml::table{{
+                {"Binds", toml::table{{
+                    {"Start", ToTOML(port.virtuaGun.binds.start)},
+                    {"Trigger", ToTOML(port.virtuaGun.binds.trigger)},
+                    {"Reload", ToTOML(port.virtuaGun.binds.reload)},
+                    {"Up", ToTOML(port.virtuaGun.binds.up)},
+                    {"Down", ToTOML(port.virtuaGun.binds.down)},
+                    {"Left", ToTOML(port.virtuaGun.binds.left)},
+                    {"Right", ToTOML(port.virtuaGun.binds.right)},
+                    {"Move", ToTOML(port.virtuaGun.binds.move)},
+                    {"Recenter", ToTOML(port.virtuaGun.binds.recenter)},
+                    {"SpeedBoost", ToTOML(port.virtuaGun.binds.speedBoost)},
+                    {"SpeedToggle", ToTOML(port.virtuaGun.binds.speedToggle)},
+                }}},
+                {"Speed", port.virtuaGun.speed.Get()},
+                {"SpeedBoostFactor", port.virtuaGun.speedBoostFactor.Get()},
+            }}},
         }};
         // clang-format on
     };
@@ -1443,9 +1543,14 @@ SettingsSaveResult Settings::Save() {
         {"Input", toml::table{{
             {"Port1", makePortTable(0)},
             {"Port2", makePortTable(1)},
-            {"GamepadLSDeadzone", input.gamepad.lsDeadzone.Get()},
-            {"GamepadRSDeadzone", input.gamepad.rsDeadzone.Get()},
-            {"GamepadAnalogToDigitalSensitivity", input.gamepad.analogToDigitalSensitivity.Get()},
+            {"Mouse", toml::table{{
+                {"CaptureMode", ToTOML(input.mouse.captureMode)},
+            }}},
+            {"Gamepad", toml::table{{
+                {"LSDeadzone", input.gamepad.lsDeadzone.Get()},
+                {"RSDeadzone", input.gamepad.rsDeadzone.Get()},
+                {"AnalogToDigitalSensitivity", input.gamepad.analogToDigitalSensitivity.Get()},
+            }}},
         }}},
 
         {"Video", toml::table{{
@@ -1565,17 +1670,27 @@ void Settings::RebindInputs() {
                         }
                         break;
                     case input::Action::Kind::AbsoluteMonopolarAxis1D:
-                        if (!element.IsAxis1D() || !element.IsMonopolarAxis()) {
+                        if (!element.IsAxis1D() || !element.IsMonopolarAxis() || !element.IsAbsoluteAxis()) {
                             continue;
                         }
                         break;
                     case input::Action::Kind::AbsoluteBipolarAxis1D:
-                        if (!element.IsAxis1D() || !element.IsBipolarAxis()) {
+                        if (!element.IsAxis1D() || !element.IsBipolarAxis() || !element.IsAbsoluteAxis()) {
+                            continue;
+                        }
+                        break;
+                    case input::Action::Kind::RelativeBipolarAxis1D:
+                        if (!element.IsAxis1D() || !element.IsBipolarAxis() || !element.IsRelativeAxis()) {
                             continue;
                         }
                         break;
                     case input::Action::Kind::AbsoluteBipolarAxis2D:
-                        if (!element.IsAxis2D() || !element.IsBipolarAxis()) {
+                        if (!element.IsAxis2D() || !element.IsBipolarAxis() || !element.IsAbsoluteAxis()) {
+                            continue;
+                        }
+                        break;
+                    case input::Action::Kind::RelativeBipolarAxis2D:
+                        if (!element.IsAxis2D() || !element.IsBipolarAxis() || !element.IsRelativeAxis()) {
                             continue;
                         }
                         break;
@@ -1596,6 +1711,7 @@ void Settings::RebindInputs() {
         case peripheral::PeripheralType::AnalogPad: bindAll(m_analogPadInputs[i]); break;
         case peripheral::PeripheralType::ArcadeRacer: bindAll(m_arcadeRacerInputs[i]); break;
         case peripheral::PeripheralType::MissionStick: bindAll(m_missionStickInputs[i]); break;
+        case peripheral::PeripheralType::VirtuaGun: bindAll(m_virtuaGunInputs[i]); break;
         }
     }
 
@@ -1635,6 +1751,11 @@ std::optional<input::MappedAction> Settings::UnbindInput(const input::InputEleme
             break;
         case peripheral::PeripheralType::MissionStick:
             if (existingAction->context != &m_context.missionStickInputs[i]) {
+                return std::nullopt;
+            }
+            break;
+        case peripheral::PeripheralType::VirtuaGun:
+            if (existingAction->context != &m_context.virtuaGunInputs[i]) {
                 return std::nullopt;
             }
             break;
@@ -1693,6 +1814,7 @@ void Settings::SyncInputSettings() {
         case peripheral::PeripheralType::AnalogPad: sync(m_analogPadInputs[i]); break;
         case peripheral::PeripheralType::ArcadeRacer: sync(m_arcadeRacerInputs[i]); break;
         case peripheral::PeripheralType::MissionStick: sync(m_missionStickInputs[i]); break;
+        case peripheral::PeripheralType::VirtuaGun: sync(m_virtuaGunInputs[i]); break;
         }
     }
 }
@@ -2096,6 +2218,60 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Missio
     return rebindCtx.GetReplacedActions();
 }
 
+std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::VirtuaGun::Binds &binds, bool useDefaults) {
+    using namespace input;
+
+    using Key = KeyboardKey;
+    using GPBtn = GamepadButton;
+    using GPAxis2 = GamepadAxis2D;
+
+    RebindContext rebindCtx{*this};
+
+    if (!useDefaults) {
+        rebindCtx.Rebind(binds.start, {});
+        rebindCtx.Rebind(binds.trigger, {});
+        rebindCtx.Rebind(binds.reload, {});
+        rebindCtx.Rebind(binds.up, {});
+        rebindCtx.Rebind(binds.down, {});
+        rebindCtx.Rebind(binds.left, {});
+        rebindCtx.Rebind(binds.right, {});
+        rebindCtx.Rebind(binds.move, {});
+        rebindCtx.Rebind(binds.recenter, {});
+        rebindCtx.Rebind(binds.speedBoost, {});
+        rebindCtx.Rebind(binds.speedToggle, {});
+    } else if (&binds == &input.ports[0].virtuaGun.binds) {
+        // Default port 1 Virtua Gun controller inputs
+        rebindCtx.Rebind(binds.start, {{{Key::F}, {Key::G}, {Key::H}, {0, GPBtn::Start}}});
+        rebindCtx.Rebind(binds.trigger, {{{Key::J}, {0, GPBtn::A}}});
+        rebindCtx.Rebind(binds.reload, {{{Key::K}, {0, GPBtn::B}}});
+        rebindCtx.Rebind(binds.up, {{{Key::W}}});
+        rebindCtx.Rebind(binds.down, {{{Key::S}}});
+        rebindCtx.Rebind(binds.left, {{{Key::A}}});
+        rebindCtx.Rebind(binds.right, {{{Key::D}}});
+        rebindCtx.Rebind(binds.move, {{{0, GPAxis2::DPad}, {0, GPAxis2::LeftStick}}});
+        rebindCtx.Rebind(binds.recenter, {{{Key::R}, {0, GPBtn::LeftThumb}}});
+        rebindCtx.Rebind(binds.speedBoost, {{{Key::L}, {0, GPBtn::LeftBumper}}});
+        rebindCtx.Rebind(binds.speedToggle, {{{Key::O}, {0, GPBtn::LeftTrigger}}});
+    } else if (&binds == &input.ports[1].virtuaGun.binds) {
+        // Default port 2 Virtua Gun controller inputs
+        rebindCtx.Rebind(binds.start, {{{Key::KeyPadEnter}, {1, GPBtn::Start}}});
+        rebindCtx.Rebind(binds.trigger, {{{Key::KeyPad1}, {1, GPBtn::A}}});
+        rebindCtx.Rebind(binds.reload, {{{Key::KeyPad2}, {1, GPBtn::B}}});
+        rebindCtx.Rebind(binds.up, {{{Key::Up}, {Key::Home}}});
+        rebindCtx.Rebind(binds.down, {{{Key::Down}, {Key::End}}});
+        rebindCtx.Rebind(binds.left, {{{Key::Left}, {Key::Delete}}});
+        rebindCtx.Rebind(binds.right, {{{Key::Right}, {Key::PageDown}}});
+        rebindCtx.Rebind(binds.move, {{{1, GPAxis2::DPad}, {1, GPAxis2::LeftStick}}});
+        rebindCtx.Rebind(binds.recenter, {{{Key::KeyPad0}, {1, GPBtn::LeftThumb}}});
+        rebindCtx.Rebind(binds.speedBoost, {{{Key::KeyPad3}, {1, GPBtn::LeftBumper}}});
+        rebindCtx.Rebind(binds.speedToggle, {{{Key::KeyPad6}, {1, GPBtn::LeftTrigger}}});
+    }
+
+    RebindInputs();
+
+    return rebindCtx.GetReplacedActions();
+}
+
 Settings::InputMap &Settings::GetInputMapForContext(void *context) {
     for (uint32 i = 0; i < 2; ++i) {
         if (context == &m_context.controlPadInputs[i]) {
@@ -2109,6 +2285,9 @@ Settings::InputMap &Settings::GetInputMapForContext(void *context) {
         }
         if (context == &m_context.missionStickInputs[i]) {
             return m_missionStickInputs[i];
+        }
+        if (context == &m_context.virtuaGunInputs[i]) {
+            return m_virtuaGunInputs[i];
         }
     }
     // Hotkeys

@@ -2,6 +2,7 @@
 
 #include <fmt/format.h>
 
+#include <iterator>
 #include <unordered_map>
 
 #if defined(WIN32)
@@ -13,6 +14,8 @@
 #endif
 
 namespace app::input {
+
+// ---------------------------------------------------------------------------------------------------------------------
 
 bool IsMonopolarAxis(MouseAxis1D axis) {
     return false;
@@ -31,25 +34,63 @@ bool IsMonopolarAxis(GamepadAxis2D axis) {
 }
 
 bool IsBipolarAxis(MouseAxis1D axis) {
-    return !IsMonopolarAxis(axis);
+    return axis != MouseAxis1D::None && !IsMonopolarAxis(axis);
 }
 
 bool IsBipolarAxis(GamepadAxis1D axis) {
-    return !IsMonopolarAxis(axis);
+    return axis != GamepadAxis1D::None && !IsMonopolarAxis(axis);
 }
 
 bool IsBipolarAxis(MouseAxis2D axis) {
-    return !IsMonopolarAxis(axis);
+    return axis != MouseAxis2D::None && !IsMonopolarAxis(axis);
 }
 
 bool IsBipolarAxis(GamepadAxis2D axis) {
-    return !IsMonopolarAxis(axis);
+    return axis != GamepadAxis2D::None && !IsMonopolarAxis(axis);
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+bool IsAbsoluteAxis(MouseAxis1D axis) {
+    return axis == MouseAxis1D::HorizontalAbsolute || axis == MouseAxis1D::VerticalAbsolute;
+}
+
+bool IsAbsoluteAxis(GamepadAxis1D axis) {
+    return true;
+}
+
+bool IsAbsoluteAxis(MouseAxis2D axis) {
+    return axis == MouseAxis2D::MouseAbsolute;
+}
+
+bool IsAbsoluteAxis(GamepadAxis2D axis) {
+    return true;
+}
+
+bool IsRelativeAxis(MouseAxis1D axis) {
+    return axis != MouseAxis1D::None && !IsAbsoluteAxis(axis);
+}
+
+bool IsRelativeAxis(GamepadAxis1D axis) {
+    return axis != GamepadAxis1D::None && !IsAbsoluteAxis(axis);
+}
+
+bool IsRelativeAxis(MouseAxis2D axis) {
+    return axis != MouseAxis2D::None && !IsAbsoluteAxis(axis);
+}
+
+bool IsRelativeAxis(GamepadAxis2D axis) {
+    return axis != GamepadAxis2D::None && !IsAbsoluteAxis(axis);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 
 MouseAxis2D Get2DAxisFrom1DAxis(MouseAxis1D axis) {
     switch (axis) {
-    case MouseAxis1D::Horizontal: [[fallthrough]];
-    case MouseAxis1D::Vertical: return MouseAxis2D::Mouse;
+    case MouseAxis1D::HorizontalRelative: [[fallthrough]];
+    case MouseAxis1D::VerticalRelative: return MouseAxis2D::MouseRelative;
+    case MouseAxis1D::HorizontalAbsolute: [[fallthrough]];
+    case MouseAxis1D::VerticalAbsolute: return MouseAxis2D::MouseAbsolute;
     default: return MouseAxis2D::None;
     }
 }
@@ -68,7 +109,8 @@ GamepadAxis2D Get2DAxisFrom1DAxis(GamepadAxis1D axis) {
 
 MouseAxisPair Get1DAxesFrom2DAxis(MouseAxis2D axis) {
     switch (axis) {
-    case MouseAxis2D::Mouse: return {MouseAxis1D::Horizontal, MouseAxis1D::Vertical};
+    case MouseAxis2D::MouseRelative: return {MouseAxis1D::HorizontalRelative, MouseAxis1D::VerticalRelative};
+    case MouseAxis2D::MouseAbsolute: return {MouseAxis1D::HorizontalAbsolute, MouseAxis1D::VerticalAbsolute};
     default: return {MouseAxis1D::None, MouseAxis1D::None};
     }
 }
@@ -84,9 +126,11 @@ GamepadAxisPair Get1DAxesFrom2DAxis(GamepadAxis2D axis) {
 
 AxisDirection GetAxisDirection(MouseAxis1D axis) {
     switch (axis) {
-    case MouseAxis1D::Horizontal: [[fallthrough]];
+    case MouseAxis1D::HorizontalRelative: [[fallthrough]];
+    case MouseAxis1D::HorizontalAbsolute: [[fallthrough]];
     case MouseAxis1D::WheelHorizontal: return AxisDirection::Horizontal;
-    case MouseAxis1D::Vertical: [[fallthrough]];
+    case MouseAxis1D::VerticalRelative: [[fallthrough]];
+    case MouseAxis1D::VerticalAbsolute: [[fallthrough]];
     case MouseAxis1D::WheelVertical: return AxisDirection::Vertical;
     default: return AxisDirection::None;
     }
@@ -364,8 +408,10 @@ std::string_view ToHumanString(MouseButton btn) {
 
 std::string_view ToHumanString(MouseAxis1D axis) {
     switch (axis) {
-    case MouseAxis1D::Vertical: return "Y";
-    case MouseAxis1D::Horizontal: return "X";
+    case MouseAxis1D::VerticalRelative: return "Y";
+    case MouseAxis1D::HorizontalRelative: return "X";
+    case MouseAxis1D::VerticalAbsolute: return "Y";
+    case MouseAxis1D::HorizontalAbsolute: return "X";
     case MouseAxis1D::WheelVertical: return "Wheel Y";
     case MouseAxis1D::WheelHorizontal: return "Wheel X";
     default: return "Unknown";
@@ -374,7 +420,8 @@ std::string_view ToHumanString(MouseAxis1D axis) {
 
 std::string_view ToHumanString(MouseAxis2D axis) {
     switch (axis) {
-    case MouseAxis2D::Mouse: return "Mouse";
+    case MouseAxis2D::MouseRelative: return "Mouse";
+    case MouseAxis2D::MouseAbsolute: return "Mouse";
     default: return "Unknown";
     }
 }
@@ -747,8 +794,10 @@ std::string_view ToString(MouseButton btn) {
 
 std::string_view ToString(MouseAxis1D axis) {
     switch (axis) {
-    case MouseAxis1D::Vertical: return "MouseV";
-    case MouseAxis1D::Horizontal: return "MouseH";
+    case MouseAxis1D::VerticalRelative: return "MouseRelV";
+    case MouseAxis1D::HorizontalRelative: return "MouseRelH";
+    case MouseAxis1D::VerticalAbsolute: return "MouseAbsV";
+    case MouseAxis1D::HorizontalAbsolute: return "MouseAbsH";
     case MouseAxis1D::WheelVertical: return "MouseWheelV";
     case MouseAxis1D::WheelHorizontal: return "MouseWheelH";
     default: return "Unknown";
@@ -757,7 +806,8 @@ std::string_view ToString(MouseAxis1D axis) {
 
 std::string_view ToString(MouseAxis2D axis) {
     switch (axis) {
-    case MouseAxis2D::Mouse: return "Mouse";
+    case MouseAxis2D::MouseRelative: return "MouseRel";
+    case MouseAxis2D::MouseAbsolute: return "MouseAbs";
     default: return "Unknown";
     }
 }
@@ -1092,14 +1142,14 @@ static const std::unordered_map<std::string_view, MouseButton> kMouseButtons{
 };
 
 static const std::unordered_map<std::string_view, MouseAxis1D> kMouseAxes1D{
-    {"MouseV", MouseAxis1D::Vertical},
-    {"MouseH", MouseAxis1D::Horizontal},
-    {"MouseWheelV", MouseAxis1D::WheelVertical},
-    {"MouseWheelH", MouseAxis1D::WheelHorizontal},
+    {"MouseRelV", MouseAxis1D::VerticalRelative}, {"MouseRelH", MouseAxis1D::HorizontalRelative},
+    {"MouseAbsV", MouseAxis1D::VerticalAbsolute}, {"MouseAbsH", MouseAxis1D::HorizontalAbsolute},
+    {"MouseWheelV", MouseAxis1D::WheelVertical},  {"MouseWheelH", MouseAxis1D::WheelHorizontal},
 };
 
 static const std::unordered_map<std::string_view, MouseAxis2D> kMouseAxes2D{
-    {"Mouse", MouseAxis2D::Mouse},
+    {"MouseRel", MouseAxis2D::MouseRelative},
+    {"MouseAbs", MouseAxis2D::MouseAbsolute},
 };
 
 static const std::unordered_map<std::string_view, GamepadButton> kGamepadButtons{

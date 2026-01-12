@@ -69,7 +69,7 @@ void AnalogPad::Read(std::span<uint8> out) {
     }
 }
 
-uint8 AnalogPad::WritePDR(uint8 ddr, uint8 value) {
+uint8 AnalogPad::WritePDR(uint8 ddr, uint8 value, bool exle) {
     const auto btnValue = static_cast<uint16>(m_report.buttons);
 
     switch (ddr & 0x7F) {

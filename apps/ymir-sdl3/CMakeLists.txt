@@ -192,6 +192,8 @@ add_executable(ymir-sdl3
     src/app/ui/views/settings/system_settings_view.hpp
     src/app/ui/views/settings/video_settings_view.cpp
     src/app/ui/views/settings/video_settings_view.hpp
+    src/app/ui/views/settings/virtua_gun_config_view.cpp
+    src/app/ui/views/settings/virtua_gun_config_view.hpp
     src/app/ui/views/settings/tweaks_settings_view.cpp
     src/app/ui/views/settings/tweaks_settings_view.hpp
 

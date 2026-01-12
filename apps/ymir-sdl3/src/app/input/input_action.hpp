@@ -53,8 +53,14 @@ struct Action {
         // Synced to an absolute bipolar 1D axis.
         AbsoluteBipolarAxis1D,
 
+        // Synced to a relative bipolar 1D axis.
+        RelativeBipolarAxis1D,
+
         // Synced to an absolute bipolar 2D axis.
         AbsoluteBipolarAxis2D,
+
+        // Synced to a relative bipolar 2D axis.
+        RelativeBipolarAxis2D,
 
         // TODO: introduce relative bipolar 1D and 2D axes for mouse movement and mouse wheel
     };
@@ -82,8 +88,14 @@ struct Action {
     static constexpr Action AbsoluteBipolarAxis1D(uint32 id, const char *group, const char *name) {
         return {id, Kind::AbsoluteBipolarAxis1D, group, name};
     }
+    static constexpr Action RelativeBipolarAxis1D(uint32 id, const char *group, const char *name) {
+        return {id, Kind::RelativeBipolarAxis1D, group, name};
+    }
     static constexpr Action AbsoluteBipolarAxis2D(uint32 id, const char *group, const char *name) {
         return {id, Kind::AbsoluteBipolarAxis2D, group, name};
+    }
+    static constexpr Action RelativeBipolarAxis2D(uint32 id, const char *group, const char *name) {
+        return {id, Kind::RelativeBipolarAxis2D, group, name};
     }
 
     constexpr bool operator==(const Action &rhs) const {
