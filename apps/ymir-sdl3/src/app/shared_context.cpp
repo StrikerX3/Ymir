@@ -87,6 +87,13 @@ std::filesystem::path SharedContext::GetPerGameExternalBackupRAMPath(ymir::bup::
     return basePath / fmt::format("bup-ext-{}M-{}.bin", BupSizeToSize(bupSize) * 8 / 1024 / 1024, GetGameFileName());
 }
 
+SDL_DisplayID SharedContext::GetSelectedDisplay() const {
+    if (display.id != 0) {
+        return display.id;
+    }
+    return SDL_GetDisplayForWindow(screen.window);
+}
+
 ymir::sys::SystemMemory &SharedContext::SaturnContainer::GetSystemMemory() {
     return instance->mem;
 }

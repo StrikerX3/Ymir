@@ -196,6 +196,7 @@ int App::Run(const CommandLineOptions &options) {
     {
         auto &generalSettings = m_context.settings.general;
         auto &emuSpeed = m_context.emuSpeed;
+
         generalSettings.mainSpeedFactor.ObserveAndNotify([&](double value) {
             emuSpeed.speedFactors[0] = value;
             m_context.audioSystem.SetSync(emuSpeed.ShouldSyncToAudio());
@@ -235,7 +236,9 @@ int App::Run(const CommandLineOptions &options) {
     }
 
     {
-        m_context.settings.audio.midiInputPort.Observe([&](app::Settings::Audio::MidiPort value) {
+        auto &audioSettings = m_context.settings.audio;
+
+        audioSettings.midiInputPort.Observe([&](app::Settings::Audio::MidiPort value) {
             m_context.midi.midiInput->closePort();
 
             switch (value.type) {
@@ -266,7 +269,7 @@ int App::Run(const CommandLineOptions &options) {
             }
         });
 
-        m_context.settings.audio.midiOutputPort.Observe([&](app::Settings::Audio::MidiPort value) {
+        audioSettings.midiOutputPort.Observe([&](app::Settings::Audio::MidiPort value) {
             m_context.midi.midiOutput->closePort();
 
             switch (value.type) {
@@ -298,10 +301,14 @@ int App::Run(const CommandLineOptions &options) {
         });
     }
 
-    m_context.settings.video.deinterlace.Observe(
-        [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
-    m_context.settings.video.transparentMeshes.Observe(
-        [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
+    {
+        auto &videoSettings = m_context.settings.video;
+
+        videoSettings.deinterlace.Observe(
+            [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
+        videoSettings.transparentMeshes.Observe(
+            [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
+    }
 
     // Profile priority:
     // 1. -p option: force custom profile
@@ -572,6 +579,43 @@ void App::RunEmulator() {
     const ImGuiStyle &style = ImGui::GetStyle();
 
     // ---------------------------------
+    // Enumerate displays
+
+    {
+        int count = 0;
+        SDL_DisplayID *displays = SDL_GetDisplays(&count);
+        if (displays != nullptr) {
+            util::ScopeGuard sgFreeDisplays{[&] { SDL_free(displays); }};
+            for (SDL_DisplayID *currDisplay = displays; *currDisplay != 0; ++currDisplay) {
+                OnDisplayAdded(*currDisplay);
+            }
+        }
+
+        // Apply full screen display configuration
+        const auto &dispSettings = m_context.settings.video.fullScreenDisplay;
+        m_context.display.UseDisplay(dispSettings.name, dispSettings.bounds.x, dispSettings.bounds.y);
+
+        // Find best matching display mode and sanitize setting
+        auto &mode = m_context.settings.video.fullScreenMode;
+        const bool borderless = m_context.settings.video.borderlessFullScreen;
+        if (!borderless && mode.IsValid()) {
+            SDL_DisplayID displayID = m_context.GetSelectedDisplay();
+            SDL_DisplayMode closest;
+            if (SDL_GetClosestFullscreenDisplayMode(displayID, mode.width, mode.height, mode.refreshRate, true,
+                                                    &closest)) {
+                mode.width = closest.w;
+                mode.height = closest.h;
+                mode.pixelFormat = closest.format;
+                mode.refreshRate = closest.refresh_rate;
+                mode.pixelDensity = closest.pixel_density;
+                m_context.settings.MakeDirty();
+            } else {
+                mode = {};
+            }
+        }
+    }
+
+    // ---------------------------------
     // Create window
 
     // Apply command line override
@@ -698,10 +742,10 @@ void App::RunEmulator() {
     ScopeGuard sgDestroyRenderer{[&] { SDL_DestroyRenderer(m_context.screen.renderer); }};
     SDL_Renderer *renderer = m_context.screen.renderer;
 
-    m_context.settings.video.fullScreen.Observe([&](bool fullScreen) {
+    m_context.settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
         SDL_SetWindowFullscreen(screen.window, fullScreen);
-        SDL_SyncWindow(screen.window);
+        ApplyFullscreenMode();
     });
 
     // ---------------------------------
@@ -2215,6 +2259,17 @@ void App::RunEmulator() {
                 // evt.gsensor.data;
                 break;
 
+            case SDL_EVENT_QUIT: goto end_loop; break;
+
+            case SDL_EVENT_DISPLAY_ADDED: OnDisplayAdded(evt.display.displayID); break;
+            case SDL_EVENT_DISPLAY_REMOVED: OnDisplayRemoved(evt.display.displayID); break;
+
+            case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+                if (m_context.display.id == 0 && !fullScreen) {
+                    m_context.settings.video.fullScreenMode = {};
+                }
+                break;
+
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: [[fallthrough]];
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
                 if (!m_context.settings.gui.overrideUIScale) {
@@ -2226,7 +2281,6 @@ void App::RunEmulator() {
             case SDL_EVENT_WINDOW_RESIZED: [[fallthrough]];
             case SDL_EVENT_WINDOW_MOVED: PersistWindowGeometry(); break;
 
-            case SDL_EVENT_QUIT: goto end_loop; break;
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                 if (evt.window.windowID == SDL_GetWindowID(screen.window)) {
                     goto end_loop;
@@ -2317,6 +2371,7 @@ void App::RunEmulator() {
             case EvtType::SetProcessPriority: util::BoostCurrentProcessPriority(std::get<bool>(evt.value)); break;
 
             case EvtType::FitWindowToScreen: fitWindowToScreenNow = true; break;
+            case EvtType::ApplyFullscreenMode: ApplyFullscreenMode(); break;
 
             case EvtType::RebindInputs: RebindInputs(); break;
             case EvtType::ReloadGameControllerDatabase: ReloadSDLGameControllerDatabases(true); break;
@@ -4730,6 +4785,68 @@ void App::LoadFonts() {
     m_context.fonts.display = loadFont("ZenDots Regular", "fonts/ZenDots-Regular.ttf", false);
 
     io.FontDefault = m_context.fonts.sansSerif.regular;
+}
+
+void App::OnDisplayAdded(SDL_DisplayID id) {
+    auto &info = m_context.display.list[id];
+    info.name = SDL_GetDisplayName(id);
+    SDL_GetDisplayBounds(id, &info.bounds);
+    info.modes.clear();
+
+    devlog::info<grp::base>("Display {} ({}) added", id, info.name);
+
+    int modeCount = 0;
+    SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(id, &modeCount);
+    if (modes != nullptr) {
+        util::ScopeGuard sgFreeModes{[&] { SDL_free(modes); }};
+
+        info.modes.reserve(modeCount);
+        for (SDL_DisplayMode **currMode = modes; *currMode != nullptr; ++currMode) {
+            auto &mode = info.modes.emplace_back();
+            mode.width = (*currMode)->w;
+            mode.height = (*currMode)->h;
+            mode.pixelFormat = (*currMode)->format;
+            mode.refreshRate = (*currMode)->refresh_rate;
+            mode.pixelDensity = (*currMode)->pixel_density;
+        }
+    }
+}
+
+void App::OnDisplayRemoved(SDL_DisplayID id) {
+    if (auto it = m_context.display.list.find(id); it != m_context.display.list.end()) {
+        devlog::info<grp::base>("Display {} ({}) removed", id, it->second.name);
+        m_context.display.list.erase(it);
+    } else {
+        devlog::info<grp::base>("Display {} removed", id);
+    }
+}
+
+void App::ApplyFullscreenMode() const {
+    SDL_Window *window = m_context.screen.window;
+    SDL_DisplayID displayID = m_context.GetSelectedDisplay();
+    const auto &mode = m_context.settings.video.fullScreenMode;
+    const bool borderless = m_context.settings.video.borderlessFullScreen;
+    SDL_DisplayMode closest;
+    if (!borderless && !mode.IsValid()) {
+        // Use desktop resolution
+        const SDL_DisplayMode *desktopMode = SDL_GetDesktopDisplayMode(displayID);
+        SDL_SetWindowFullscreenMode(window, desktopMode);
+    } else if (!borderless && SDL_GetClosestFullscreenDisplayMode(displayID, mode.width, mode.height, mode.refreshRate,
+                                                                  true, &closest)) {
+        // Use exclusive display mode if found
+        SDL_SetWindowFullscreenMode(window, &closest);
+    } else {
+        // Use borderless full screen mode, or fallback to borderless if no valid exclusive mode found
+        if (m_context.settings.video.fullScreen && SDL_GetDisplayForWindow(window) != displayID) {
+            // Move window to new display if in fullscreen mode
+            SDL_Rect bounds;
+            SDL_GetDisplayBounds(displayID, &bounds);
+            SDL_SetWindowPosition(window, bounds.x, bounds.y);
+            SDL_SetWindowSize(window, bounds.w, bounds.h);
+        }
+        SDL_SetWindowFullscreenMode(window, nullptr);
+    }
+    SDL_SyncWindow(window);
 }
 
 void App::PersistWindowGeometry() {

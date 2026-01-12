@@ -15,6 +15,7 @@
 #include <app/profile.hpp>
 
 #include <app/actions.hpp>
+#include <app/display.hpp>
 
 #include <ymir/util/observable.hpp>
 
@@ -455,11 +456,22 @@ struct Settings {
 
         bool syncInWindowedMode;
         bool syncInFullscreenMode;
+        bool useFullRefreshRateWithVideoSync;
         bool reduceLatency;
 
         util::Observable<bool> fullScreen;
         bool doubleClickToFullScreen;
-        bool useFullRefreshRateWithVideoSync;
+
+        struct FullScreenDisplay {
+            std::string name; // empty = default display
+
+            struct Bounds {
+                int x, y;
+            } bounds;
+        } fullScreenDisplay;
+
+        display::DisplayMode fullScreenMode;
+        bool borderlessFullScreen;
 
         util::Observable<bool> deinterlace;
         util::Observable<bool> transparentMeshes;

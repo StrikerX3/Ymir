@@ -66,6 +66,7 @@ struct GUIEvent {
         SetProcessPriority,
 
         FitWindowToScreen,
+        ApplyFullscreenMode,
 
         RebindInputs,
         ReloadGameControllerDatabase,

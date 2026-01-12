@@ -78,6 +78,99 @@ void VideoSettingsView::Display() {
     widgets::ExplanationTooltip("This option will not work if you are using a Virtua Gun or Shuttle Mouse.",
                                 m_context.displayScale);
 
+    auto formatDisplay = [&](SDL_DisplayID id) -> std::string {
+        if (m_context.display.list.contains(id)) {
+            const auto &display = m_context.display.list.at(id);
+            return fmt::format("{} [{}x{}]", display.name, display.bounds.x, display.bounds.y);
+        }
+        const SDL_DisplayID currDisplayID = SDL_GetDisplayForWindow(m_context.screen.window);
+        SDL_Rect bounds{};
+        if (SDL_GetDisplayBounds(currDisplayID, &bounds)) {
+            return fmt::format("Current display - {} [{}x{}]", SDL_GetDisplayName(currDisplayID), bounds.x, bounds.y);
+        }
+        return fmt::format("Current display - {} [?x?]", SDL_GetDisplayName(currDisplayID));
+    };
+
+    auto formatMode = [&](const display::DisplayMode &mode) -> std::string {
+        if (mode.IsValid()) {
+            const auto *pixelFormat = SDL_GetPixelFormatDetails(mode.pixelFormat);
+            return fmt::format("{}x{} {}bpp {} Hz", mode.width, mode.height, pixelFormat->bits_per_pixel,
+                               mode.refreshRate);
+        }
+        const SDL_DisplayMode *desktopMode = SDL_GetDesktopDisplayMode(m_context.GetSelectedDisplay());
+        const SDL_PixelFormatDetails *pixelFormat = SDL_GetPixelFormatDetails(desktopMode->format);
+        return fmt::format("Desktop resolution - {}x{} {}bpp {} Hz", desktopMode->w, desktopMode->h,
+                           pixelFormat->bits_per_pixel, desktopMode->refresh_rate);
+    };
+
+    if (ImGui::BeginCombo("Display", formatDisplay(m_context.display.id).c_str())) {
+        auto entry = [&](SDL_DisplayID id) {
+            if (MakeDirty(ImGui::Selectable(formatDisplay(id).c_str(), m_context.display.id == id))) {
+                if (m_context.display.id != id) {
+                    m_context.display.id = id;
+
+                    const char *displayName = SDL_GetDisplayName(id);
+                    settings.fullScreenDisplay.name = displayName != nullptr ? displayName : "";
+                    SDL_Rect bounds{};
+                    if (SDL_GetDisplayBounds(id, &bounds)) {
+                        settings.fullScreenDisplay.bounds.x = bounds.x;
+                        settings.fullScreenDisplay.bounds.y = bounds.y;
+                    } else {
+                        settings.fullScreenDisplay.bounds.x = 0;
+                        settings.fullScreenDisplay.bounds.y = 0;
+                    }
+
+                    // Revert to desktop resolution when switching displays
+                    settings.fullScreenMode = {};
+
+                    m_context.EnqueueEvent(events::gui::ApplyFullscreenMode());
+                }
+            }
+        };
+
+        entry(0);
+        for (const auto &[id, _] : m_context.display.list) {
+            entry(id);
+        }
+        ImGui::EndCombo();
+    }
+
+    if (ImGui::BeginCombo("Full screen resolution",
+                          settings.borderlessFullScreen ? "Borderless full screen"
+                                                        : formatMode(settings.fullScreenMode).c_str(),
+                          ImGuiComboFlags_HeightLarge)) {
+        auto entry = [&](const display::DisplayMode &mode) {
+            if (MakeDirty(ImGui::Selectable(formatMode(mode).c_str(),
+                                            !settings.borderlessFullScreen && settings.fullScreenMode == mode))) {
+                if (settings.fullScreenMode != mode || settings.borderlessFullScreen) {
+                    settings.borderlessFullScreen = false;
+                    settings.fullScreenMode = mode;
+
+                    m_context.EnqueueEvent(events::gui::ApplyFullscreenMode());
+                }
+            }
+        };
+
+        if (MakeDirty(ImGui::Selectable("Borderless full screen", settings.borderlessFullScreen))) {
+            if (!settings.borderlessFullScreen) {
+                settings.borderlessFullScreen = true;
+                settings.fullScreenMode = {};
+
+                m_context.EnqueueEvent(events::gui::ApplyFullscreenMode());
+            }
+        }
+
+        entry({});
+
+        const SDL_DisplayID selectedDisplay =
+            m_context.display.id != 0 ? m_context.display.id : SDL_GetDisplayForWindow(m_context.screen.window);
+        const auto &info = m_context.display.list.at(selectedDisplay);
+        for (const auto &mode : info.modes) {
+            entry(mode);
+        }
+        ImGui::EndCombo();
+    }
+
     ImGui::Separator();
 
     MakeDirty(ImGui::Checkbox("Synchronize video in windowed mode", &settings.syncInWindowedMode));

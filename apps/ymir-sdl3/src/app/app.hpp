@@ -119,6 +119,11 @@ private:
     ImGuiStyle &ReloadStyle(float displayScale);
     void LoadFonts();
 
+    void OnDisplayAdded(SDL_DisplayID id);
+    void OnDisplayRemoved(SDL_DisplayID id);
+
+    void ApplyFullscreenMode() const;
+
     void PersistWindowGeometry();
 
     void LoadDebuggerState();

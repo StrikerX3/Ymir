@@ -204,6 +204,83 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Vide
     }
 }
 
+static const std::unordered_map<std::string_view, SDL_PixelFormat> kPixelFormats{
+    {"None", SDL_PIXELFORMAT_UNKNOWN},
+    {"Indexed1LSB", SDL_PIXELFORMAT_INDEX1LSB},
+    {"Indexed1MSB", SDL_PIXELFORMAT_INDEX1MSB},
+    {"Indexed2LSB", SDL_PIXELFORMAT_INDEX2LSB},
+    {"Indexed2MSB", SDL_PIXELFORMAT_INDEX2MSB},
+    {"Indexed4LSB", SDL_PIXELFORMAT_INDEX4LSB},
+    {"Indexed4MSB", SDL_PIXELFORMAT_INDEX4MSB},
+    {"Indexed8", SDL_PIXELFORMAT_INDEX8},
+    {"RGB332", SDL_PIXELFORMAT_RGB332},
+    {"XRGB4444", SDL_PIXELFORMAT_XRGB4444},
+    {"XBGR4444", SDL_PIXELFORMAT_XBGR4444},
+    {"XRGB1555", SDL_PIXELFORMAT_XRGB1555},
+    {"XBGR1555", SDL_PIXELFORMAT_XBGR1555},
+    {"ARGB4444", SDL_PIXELFORMAT_ARGB4444},
+    {"RGBA4444", SDL_PIXELFORMAT_RGBA4444},
+    {"ABGR4444", SDL_PIXELFORMAT_ABGR4444},
+    {"BGRA4444", SDL_PIXELFORMAT_BGRA4444},
+    {"ARGB1555", SDL_PIXELFORMAT_ARGB1555},
+    {"RGBA5551", SDL_PIXELFORMAT_RGBA5551},
+    {"ABGR1555", SDL_PIXELFORMAT_ABGR1555},
+    {"BGRA5551", SDL_PIXELFORMAT_BGRA5551},
+    {"RGB565", SDL_PIXELFORMAT_RGB565},
+    {"BGR565", SDL_PIXELFORMAT_BGR565},
+    {"RGB24", SDL_PIXELFORMAT_RGB24},
+    {"BGR24", SDL_PIXELFORMAT_BGR24},
+    {"XRGB8888", SDL_PIXELFORMAT_XRGB8888},
+    {"RGBX8888", SDL_PIXELFORMAT_RGBX8888},
+    {"XBGR8888", SDL_PIXELFORMAT_XBGR8888},
+    {"BGRX8888", SDL_PIXELFORMAT_BGRX8888},
+    {"ARGB8888", SDL_PIXELFORMAT_ARGB8888},
+    {"RGBA8888", SDL_PIXELFORMAT_RGBA8888},
+    {"ABGR8888", SDL_PIXELFORMAT_ABGR8888},
+    {"BGRA8888", SDL_PIXELFORMAT_BGRA8888},
+    {"XRGB2101010", SDL_PIXELFORMAT_XRGB2101010},
+    {"XBGR2101010", SDL_PIXELFORMAT_XBGR2101010},
+    {"ARGB2101010", SDL_PIXELFORMAT_ARGB2101010},
+    {"ABGR2101010", SDL_PIXELFORMAT_ABGR2101010},
+    {"RGB48", SDL_PIXELFORMAT_RGB48},
+    {"BGR48", SDL_PIXELFORMAT_BGR48},
+    {"RGBA64", SDL_PIXELFORMAT_RGBA64},
+    {"ARGB64", SDL_PIXELFORMAT_ARGB64},
+    {"BGRA64", SDL_PIXELFORMAT_BGRA64},
+    {"ABGR64", SDL_PIXELFORMAT_ABGR64},
+    {"RGB48Float", SDL_PIXELFORMAT_RGB48_FLOAT},
+    {"BGR48Float", SDL_PIXELFORMAT_BGR48_FLOAT},
+    {"RGBA64Float", SDL_PIXELFORMAT_RGBA64_FLOAT},
+    {"ARGB64Float", SDL_PIXELFORMAT_ARGB64_FLOAT},
+    {"BGRA64Float", SDL_PIXELFORMAT_BGRA64_FLOAT},
+    {"ABGR64Float", SDL_PIXELFORMAT_ABGR64_FLOAT},
+    {"RGB96Float", SDL_PIXELFORMAT_RGB96_FLOAT},
+    {"BGR96Float", SDL_PIXELFORMAT_BGR96_FLOAT},
+    {"RGBA128Float", SDL_PIXELFORMAT_RGBA128_FLOAT},
+    {"ARGB128Float", SDL_PIXELFORMAT_ARGB128_FLOAT},
+    {"BGRA128Float", SDL_PIXELFORMAT_BGRA128_FLOAT},
+    {"ABGR128Float", SDL_PIXELFORMAT_ABGR128_FLOAT},
+    {"YV12", SDL_PIXELFORMAT_YV12},
+    {"IYUV", SDL_PIXELFORMAT_IYUV},
+    {"YUY2", SDL_PIXELFORMAT_YUY2},
+    {"UYVY", SDL_PIXELFORMAT_UYVY},
+    {"YVYU", SDL_PIXELFORMAT_YVYU},
+    {"NV12", SDL_PIXELFORMAT_NV12},
+    {"NV21", SDL_PIXELFORMAT_NV21},
+    {"P010", SDL_PIXELFORMAT_P010},
+    {"ExternalOES", SDL_PIXELFORMAT_EXTERNAL_OES},
+    {"MJPG", SDL_PIXELFORMAT_MJPG},
+};
+
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, SDL_PixelFormat &value) {
+    value = SDL_PIXELFORMAT_UNKNOWN;
+    if (auto opt = node.value<std::string>()) {
+        if (kPixelFormats.contains(*opt)) {
+            value = kPixelFormats.at(*opt);
+        }
+    }
+}
+
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Audio::MidiPort::Type &value) {
     value = Settings::Audio::MidiPort::Type::None;
     if (auto opt = node.value<std::string>()) {
@@ -358,6 +435,77 @@ FORCE_INLINE static const char *ToTOML(const Settings::Video::DisplayRotation va
     case Settings::Video::DisplayRotation::_90CW: return "90CW";
     case Settings::Video::DisplayRotation::_180: return "180";
     case Settings::Video::DisplayRotation::_90CCW: return "90CCW";
+    }
+}
+
+FORCE_INLINE static const char *ToTOML(const SDL_PixelFormat value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case SDL_PIXELFORMAT_UNKNOWN: return "None";
+    case SDL_PIXELFORMAT_INDEX1LSB: return "Indexed1LSB";
+    case SDL_PIXELFORMAT_INDEX1MSB: return "Indexed1MSB";
+    case SDL_PIXELFORMAT_INDEX2LSB: return "Indexed2LSB";
+    case SDL_PIXELFORMAT_INDEX2MSB: return "Indexed2MSB";
+    case SDL_PIXELFORMAT_INDEX4LSB: return "Indexed4LSB";
+    case SDL_PIXELFORMAT_INDEX4MSB: return "Indexed4MSB";
+    case SDL_PIXELFORMAT_INDEX8: return "Indexed8";
+    case SDL_PIXELFORMAT_RGB332: return "RGB332";
+    case SDL_PIXELFORMAT_XRGB4444: return "XRGB4444";
+    case SDL_PIXELFORMAT_XBGR4444: return "XBGR4444";
+    case SDL_PIXELFORMAT_XRGB1555: return "XRGB1555";
+    case SDL_PIXELFORMAT_XBGR1555: return "XBGR1555";
+    case SDL_PIXELFORMAT_ARGB4444: return "ARGB4444";
+    case SDL_PIXELFORMAT_RGBA4444: return "RGBA4444";
+    case SDL_PIXELFORMAT_ABGR4444: return "ABGR4444";
+    case SDL_PIXELFORMAT_BGRA4444: return "BGRA4444";
+    case SDL_PIXELFORMAT_ARGB1555: return "ARGB1555";
+    case SDL_PIXELFORMAT_RGBA5551: return "RGBA5551";
+    case SDL_PIXELFORMAT_ABGR1555: return "ABGR1555";
+    case SDL_PIXELFORMAT_BGRA5551: return "BGRA5551";
+    case SDL_PIXELFORMAT_RGB565: return "RGB565";
+    case SDL_PIXELFORMAT_BGR565: return "BGR565";
+    case SDL_PIXELFORMAT_RGB24: return "RGB24";
+    case SDL_PIXELFORMAT_BGR24: return "BGR24";
+    case SDL_PIXELFORMAT_XRGB8888: return "XRGB8888";
+    case SDL_PIXELFORMAT_RGBX8888: return "RGBX8888";
+    case SDL_PIXELFORMAT_XBGR8888: return "XBGR8888";
+    case SDL_PIXELFORMAT_BGRX8888: return "BGRX8888";
+    case SDL_PIXELFORMAT_ARGB8888: return "ARGB8888";
+    case SDL_PIXELFORMAT_RGBA8888: return "RGBA8888";
+    case SDL_PIXELFORMAT_ABGR8888: return "ABGR8888";
+    case SDL_PIXELFORMAT_BGRA8888: return "BGRA8888";
+    case SDL_PIXELFORMAT_XRGB2101010: return "XRGB2101010";
+    case SDL_PIXELFORMAT_XBGR2101010: return "XBGR2101010";
+    case SDL_PIXELFORMAT_ARGB2101010: return "ARGB2101010";
+    case SDL_PIXELFORMAT_ABGR2101010: return "ABGR2101010";
+    case SDL_PIXELFORMAT_RGB48: return "RGB48";
+    case SDL_PIXELFORMAT_BGR48: return "BGR48";
+    case SDL_PIXELFORMAT_RGBA64: return "RGBA64";
+    case SDL_PIXELFORMAT_ARGB64: return "ARGB64";
+    case SDL_PIXELFORMAT_BGRA64: return "BGRA64";
+    case SDL_PIXELFORMAT_ABGR64: return "ABGR64";
+    case SDL_PIXELFORMAT_RGB48_FLOAT: return "RGB48Float";
+    case SDL_PIXELFORMAT_BGR48_FLOAT: return "BGR48Float";
+    case SDL_PIXELFORMAT_RGBA64_FLOAT: return "RGBA64Float";
+    case SDL_PIXELFORMAT_ARGB64_FLOAT: return "ARGB64Float";
+    case SDL_PIXELFORMAT_BGRA64_FLOAT: return "BGRA64Float";
+    case SDL_PIXELFORMAT_ABGR64_FLOAT: return "ABGR64Float";
+    case SDL_PIXELFORMAT_RGB96_FLOAT: return "RGB96Float";
+    case SDL_PIXELFORMAT_BGR96_FLOAT: return "BGR96Float";
+    case SDL_PIXELFORMAT_RGBA128_FLOAT: return "RGBA128Float";
+    case SDL_PIXELFORMAT_ARGB128_FLOAT: return "ARGB128Float";
+    case SDL_PIXELFORMAT_BGRA128_FLOAT: return "BGRA128Float";
+    case SDL_PIXELFORMAT_ABGR128_FLOAT: return "ABGR128Float";
+    case SDL_PIXELFORMAT_YV12: return "YV12";
+    case SDL_PIXELFORMAT_IYUV: return "IYUV";
+    case SDL_PIXELFORMAT_YUY2: return "YUY2";
+    case SDL_PIXELFORMAT_UYVY: return "UYVY";
+    case SDL_PIXELFORMAT_YVYU: return "YVYU";
+    case SDL_PIXELFORMAT_NV12: return "NV12";
+    case SDL_PIXELFORMAT_NV21: return "NV21";
+    case SDL_PIXELFORMAT_P010: return "P010";
+    case SDL_PIXELFORMAT_EXTERNAL_OES: return "ExternalOES";
+    case SDL_PIXELFORMAT_MJPG: return "MJPG";
     }
 }
 
@@ -847,10 +995,19 @@ void Settings::ResetToDefaults() {
     video.displayVideoOutputInWindow = false;
     video.syncInWindowedMode = true;
     video.syncInFullscreenMode = true;
+    video.useFullRefreshRateWithVideoSync = false;
     video.reduceLatency = true;
     video.fullScreen = false;
     video.doubleClickToFullScreen = false;
-    video.useFullRefreshRateWithVideoSync = false;
+    video.borderlessFullScreen = true;
+    video.fullScreenDisplay.name.clear();
+    video.fullScreenDisplay.bounds.x = 0;
+    video.fullScreenDisplay.bounds.y = 0;
+    video.fullScreenMode.width = 0;
+    video.fullScreenMode.height = 0;
+    video.fullScreenMode.pixelFormat = SDL_PIXELFORMAT_UNKNOWN;
+    video.fullScreenMode.refreshRate = 0.0f;
+    video.fullScreenMode.pixelDensity = 0.0f;
     video.deinterlace = false;
     video.transparentMeshes = false;
     video.threadedVDP1 = true;
@@ -1317,10 +1474,23 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "DisplayVideoOutputInWindow", video.displayVideoOutputInWindow);
         Parse(tblVideo, "SyncInWindowedMode", video.syncInWindowedMode);
         Parse(tblVideo, "SyncInFullscreenMode", video.syncInFullscreenMode);
+        Parse(tblVideo, "UseFullRefreshRateWithVideoSync", video.useFullRefreshRateWithVideoSync);
         Parse(tblVideo, "ReduceLatency", video.reduceLatency);
         Parse(tblVideo, "FullScreen", video.fullScreen);
         Parse(tblVideo, "DoubleClickToFullScreen", video.doubleClickToFullScreen);
-        Parse(tblVideo, "UseFullRefreshRateWithVideoSync", video.useFullRefreshRateWithVideoSync);
+        if (auto tblFullScreenDisplay = tblVideo["FullScreenDisplay"]) {
+            Parse(tblFullScreenDisplay, "Name", video.fullScreenDisplay.name);
+            Parse(tblFullScreenDisplay, "X", video.fullScreenDisplay.bounds.x);
+            Parse(tblFullScreenDisplay, "Y", video.fullScreenDisplay.bounds.y);
+        }
+        if (auto tblFullScreenMode = tblVideo["FullScreenMode"]) {
+            Parse(tblFullScreenMode, "Width", video.fullScreenMode.width);
+            Parse(tblFullScreenMode, "Height", video.fullScreenMode.height);
+            Parse(tblFullScreenMode, "PixelFormat", video.fullScreenMode.pixelFormat);
+            Parse(tblFullScreenMode, "RefreshRate", video.fullScreenMode.refreshRate);
+            Parse(tblFullScreenMode, "PixelDensity", video.fullScreenMode.pixelDensity);
+            Parse(tblFullScreenMode, "Borderless", video.borderlessFullScreen);
+        }
 
         if (configVersion >= 4) {
             Parse(tblVideo, "ThreadedVDP1", video.threadedVDP1);
@@ -1705,10 +1875,23 @@ SettingsSaveResult Settings::Save() {
             {"DisplayVideoOutputInWindow", video.displayVideoOutputInWindow},
             {"SyncInWindowedMode", video.syncInWindowedMode},
             {"SyncInFullscreenMode", video.syncInFullscreenMode},
+            {"UseFullRefreshRateWithVideoSync", video.useFullRefreshRateWithVideoSync},
             {"ReduceLatency", video.reduceLatency},
             {"FullScreen", video.fullScreen.Get()},
             {"DoubleClickToFullScreen", video.doubleClickToFullScreen},
-            {"UseFullRefreshRateWithVideoSync", video.useFullRefreshRateWithVideoSync},
+            {"FullScreenDisplay", toml::table{{
+                {"Name", video.fullScreenDisplay.name},
+                {"X", video.fullScreenDisplay.bounds.x},
+                {"Y", video.fullScreenDisplay.bounds.y},
+            }}},
+            {"FullScreenMode", toml::table{{
+                {"Width", video.fullScreenMode.width},
+                {"Height", video.fullScreenMode.height},
+                {"PixelFormat", ToTOML(video.fullScreenMode.pixelFormat)},
+                {"RefreshRate", video.fullScreenMode.refreshRate},
+                {"PixelDensity", video.fullScreenMode.pixelDensity},
+                {"Borderless", video.borderlessFullScreen},
+            }}},
             {"Deinterlace", video.deinterlace.Get()},
             {"TransparentMeshes", video.transparentMeshes.Get()},
             {"ThreadedVDP1", video.threadedVDP1.Get()},

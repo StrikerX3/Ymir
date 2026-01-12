@@ -1,6 +1,7 @@
 #pragma once
 
 #include <app/audio_system.hpp>
+#include <app/display.hpp>
 #include <app/message.hpp>
 #include <app/profile.hpp>
 #include <app/rewind_buffer.hpp>
@@ -43,6 +44,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 
 using MidiPortType = app::Settings::Audio::MidiPort::Type;
 
@@ -194,6 +196,50 @@ struct SharedContext {
     AudioSystem audioSystem;
 
     float displayScale = 1.0f;
+
+    struct DisplayInfo {
+        std::string name;
+        SDL_Rect bounds;
+        std::vector<display::DisplayMode> modes;
+    };
+
+    struct Display {
+        std::unordered_map<SDL_DisplayID, DisplayInfo> list;
+
+        SDL_DisplayID id = 0;
+
+        // Find and use closest display match
+        void UseDisplay(std::string_view name, int x, int y) {
+            // Empty name means default display (ID = 0)
+            if (name.empty()) {
+                id = 0;
+                return;
+            }
+
+            // Find best match from given parameters
+            SDL_DisplayID bestMatch = 0;
+            int bestMatchBoundsDist;
+            for (auto &[id, display] : list) {
+                if (name == display.name) {
+                    if (x == display.bounds.x && y == display.bounds.y) {
+                        // Found exact match
+                        this->id = id;
+                        return;
+                    }
+
+                    // Find closest match instead
+                    const int dx = x - display.bounds.x;
+                    const int dy = y - display.bounds.y;
+                    const int d = dx * dx + dy * dy;
+                    if (bestMatch == 0 || d < bestMatchBoundsDist) {
+                        bestMatch = id;
+                        bestMatchBoundsDist = d;
+                    }
+                }
+            }
+            id = bestMatch;
+        }
+    } display;
 
     struct Screen {
         Screen() {
@@ -773,6 +819,10 @@ struct SharedContext {
 
     std::filesystem::path GetInternalBackupRAMPath() const;
     std::filesystem::path GetPerGameExternalBackupRAMPath(ymir::bup::BackupMemorySize bupSize) const;
+
+    // Retrieves the current display if one is selected.
+    // Returns the primary display if the "current display" option is selected.
+    SDL_DisplayID GetSelectedDisplay() const;
 
     std::string GetMidiVirtualInputPortName() {
         return "Ymir Virtual MIDI Input";
