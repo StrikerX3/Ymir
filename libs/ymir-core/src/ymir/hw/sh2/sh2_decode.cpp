@@ -107,6 +107,14 @@ DecodeTable::DecodeTable() {
             mem.anyAccess = true;
         };
 
+        auto loadRmHi = [&](uint8 size) {
+            mem.second.type = DecodedMemAccesses::Type::AtReg;
+            mem.second.write = false;
+            mem.second.size = size;
+            mem.second.reg = bit::extract<8, 11>(instr);
+            mem.anyAccess = true;
+        };
+
         auto loadRn = [&](uint8 size) {
             mem.first.type = DecodedMemAccesses::Type::AtReg;
             mem.first.write = false;
@@ -216,6 +224,8 @@ DecodeTable::DecodeTable() {
         auto loadRm_B = [&] { loadRm(sizeof(uint8)); };
         auto loadRm_W = [&] { loadRm(sizeof(uint16)); };
         auto loadRm_L = [&] { loadRm(sizeof(uint32)); };
+
+        auto loadRmHi_L = [&] { loadRmHi(sizeof(uint32)); };
 
         auto storeRn_B = [&] { storeRn(sizeof(uint8)); };
         auto storeRn_W = [&] { storeRn(sizeof(uint16)); };
@@ -349,8 +359,8 @@ DecodeTable::DecodeTable() {
                 case 0x03: setOpcode(OpcodeType::STC_SR_M), decodeN(), storeMinusRn_L(); break;
                 case 0x04: setOpcode(OpcodeType::ROTL), decodeN(); break;
                 case 0x05: setOpcode(OpcodeType::ROTR), decodeN(); break;
-                case 0x06: setOpcode(OpcodeType::LDS_MACH_M), decodeM(), loadRm_L(); break;
-                case 0x07: setOpcode(OpcodeType::LDC_SR_M), decodeM(), loadRm_L(); break;
+                case 0x06: setOpcode(OpcodeType::LDS_MACH_M), decodeM(), loadRmHi_L(); break;
+                case 0x07: setOpcode(OpcodeType::LDC_SR_M), decodeM(), loadRmHi_L(); break;
                 case 0x08: setOpcode(OpcodeType::SHLL2), decodeN(); break;
                 case 0x09: setOpcode(OpcodeType::SHLR2), decodeN(); break;
                 case 0x0A: setOpcode(OpcodeType::LDS_MACH_R), decodeM(); break;
@@ -364,8 +374,8 @@ DecodeTable::DecodeTable() {
                 case 0x13: setOpcode(OpcodeType::STC_GBR_M), decodeN(), storeMinusRn_L(); break;
 
                 case 0x15: setOpcode(OpcodeType::CMP_PL), decodeN(); break;
-                case 0x16: setOpcode(OpcodeType::LDS_MACL_M), decodeM(), loadRm_L(); break;
-                case 0x17: setOpcode(OpcodeType::LDC_GBR_M), decodeM(), loadRm_L(); break;
+                case 0x16: setOpcode(OpcodeType::LDS_MACL_M), decodeM(), loadRmHi_L(); break;
+                case 0x17: setOpcode(OpcodeType::LDC_GBR_M), decodeM(), loadRmHi_L(); break;
                 case 0x18: setOpcode(OpcodeType::SHLL8), decodeN(); break;
                 case 0x19: setOpcode(OpcodeType::SHLR8), decodeN(); break;
                 case 0x1A: setOpcode(OpcodeType::LDS_MACL_R), decodeM(); break;
@@ -379,8 +389,8 @@ DecodeTable::DecodeTable() {
                 case 0x23: setOpcode(OpcodeType::STC_VBR_M), decodeN(), storeMinusRn_L(); break;
                 case 0x24: setOpcode(OpcodeType::ROTCL), decodeN(); break;
                 case 0x25: setOpcode(OpcodeType::ROTCR), decodeN(); break;
-                case 0x26: setOpcode(OpcodeType::LDS_PR_M), decodeM(), loadRm_L(); break;
-                case 0x27: setOpcode(OpcodeType::LDC_VBR_M), decodeM(), loadRm_L(); break;
+                case 0x26: setOpcode(OpcodeType::LDS_PR_M), decodeM(), loadRmHi_L(); break;
+                case 0x27: setOpcode(OpcodeType::LDC_VBR_M), decodeM(), loadRmHi_L(); break;
                 case 0x28: setOpcode(OpcodeType::SHLL16), decodeN(); break;
                 case 0x29: setOpcode(OpcodeType::SHLR16), decodeN(); break;
                 case 0x2A: setOpcode(OpcodeType::LDS_PR_R), decodeM(); break;
