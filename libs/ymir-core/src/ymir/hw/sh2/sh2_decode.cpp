@@ -207,7 +207,7 @@ DecodeTable::DecodeTable() {
 
         auto loadDispPC = [&](uint8 size) {
             mem.first.type = DecodedMemAccesses::Type::AtDispPC;
-            mem.first.write = true;
+            mem.first.write = false;
             mem.first.size = size;
             mem.first.disp = bit::extract<0, 7>(instr) * size + 4;
             mem.anyAccess = true;
