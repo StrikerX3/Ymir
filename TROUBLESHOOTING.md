@@ -27,19 +27,39 @@ Most people that ask about this have skipped the Welcome dialog explaining this 
 
 ## My controller doesn't work or some buttons don't respond
 
-Ymir currently works best with XInput controllers, that is, anything that behaves like an Xbox controller. Third-party controllers like 8bitdo sometimes offer a toggle or a way to enable XInput mode on their controllers which usually improves compatibility. There are plans to improve compatibility with these controllers in the future, but it's not high in the priority list.
+Ymir currently works best with XInput controllers, that is, anything that behaves like an Xbox controller. Third-party controllers like 8bitdo sometimes offer a toggle or a way to enable XInput mode on their controllers which usually improves compatibility.
+
+There are plans to improve compatibility with these controllers in the future, but it's not high in the priority list.
 
 
 ## Ymir runs too slowly
 
-Here are a few things you can try to improve performance, roughly in order of performance impact:
-- Stop any background programs you're running, including things like Rainmeter.
-- In the Debug menu, make sure tracing is disabled.
-- In Settings > CD Block, disable low-level emulation if the game doesn't require it to work properly.
-- In Settings > Tweaks, select the Best performance presets on both sections. This will change a few settings that may break compatibility with games, specifically the CD Block read speed.
-- In Settings > Video, disable "Synchronize video in windowed mode" and "Use full refresh rate when synchronizing video". These are known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
-- In Settings > Video, enable "Include VDP1 rendering in VDP2 renderer thread". Note that this can break a few games too.
-- In the Emulation menu, disable the Rewind Buffer.
+Here are a few things you can try to improve performance besides upgrading the CPU, roughly in order of performance impact:
+- Stop any background programs you're running, including things like Rainmeter. Some RGB tools are also known for being CPU hogs.
+- In the Debug menu, make sure tracing is disabled. (Shortcut is F11 by default.)
+- In Settings > General, check that the "Emulation speed" is set to "Primary" and it is at 100%. Press "Reset" to restore the default speed.
+- In Settings > CD Block, disable low-level emulation. Most games work fine without it.
+- In Settings > System, disable "Emulate SH-2 cache" if possible. Most games work fine without it.
+  - This option is force-enabled with a few select games.
+- In Settings > Audio, set "Emulation step granularity" to the minimum possible value of 0, all the way to the left: "Step size: 32 slots (1 sample)".
+- In Settings > Video:
+  - Disable "Synchronize video in windowed mode" and "Use full refresh rate when synchronizing video". These are known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
+  - Enable "Threaded VDP2 renderer".
+  - Enable "Use dedicated thread for deinterlaced rendering".
+  - Try enabling or disabling "Threaded VDP1 renderer".
+  - Disable the "Deinterlace video" enhancement.
+  - Disable the "Transparent meshes" enhancement.
+- In Settings > General:
+  - Disable the Rewind Buffer. (Shortcut is F8 by default.)
+    - You can also find this option in the Emulation menu.
+    - If you wish to use the Rewind Buffer, try lowering the compression level in Settings > General.
+  - Enable "Boost process priority".
+  - Enable "Boost emulator thread priority".
+- If you're experiencing stutters during gameplay:
+  - Use an uncompressed disc image (anything other than CHD).
+  - Load disc images from a fast local disk, preferably an SSD.
+  - Go to Settings > General and enable "Preload disc images to RAM". This will increase memory usage and hang the emulator for a while when loading discs, but should eliminate all stutters.
 - Use the AVX2 version if you can. If the emulator crashes right away, it's likely that your CPU doesn't support the instruction set, so you're stuck with the SSE2 version.
 
-If Ymir still runs too slowly after this, your CPU might be too slow for the emulator. It's known to run fine on CPUs that score around 1500 points on the [CPUBenchmark single thread test](<https://www.cpubenchmark.net/single-thread>), but I recommend CPUs that score 2000 points or higher. A quad core CPU or better will help with threaded VDP2 rendering, threaded deinterlace and the rewind buffer.
+If Ymir still runs poorly after trying these, your CPU might be too slow for the emulator. It's known to run fine on CPUs that score around 1500 points on the [CPUBenchmark single thread test](<https://www.cpubenchmark.net/single-thread>), but I recommend CPUs that score 2000 points or higher.
+A quad core CPU or better will help with threaded VDP1/VDP2 rendering, threaded deinterlace and the rewind buffer.
