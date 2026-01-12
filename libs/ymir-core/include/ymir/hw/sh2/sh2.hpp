@@ -195,7 +195,7 @@ public:
 
     // Returns the the watchpoint flags for the given address.
     FORCE_INLINE debug::WatchpointFlags GetWatchpointFlags(uint32 address) const {
-        return const_cast<SH2 *>(this)->GetWatchpointFlags(address);
+        return static_cast<debug::WatchpointFlags *>(m_watchpoints.Get())[address];
     }
 
     // Adds watchpoints to the specified address.
