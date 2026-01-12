@@ -59,6 +59,10 @@
     <binary>ymir-sdl3</binary>
   </provides>
   <releases>
+    <release version="0.2.2" date="20XX-XX-XX">
+      <description/>
+      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.2.2</url>
+    </release>
     <release version="0.2.1" date="2026-01-10">
       <description/>
       <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.2.1</url>
