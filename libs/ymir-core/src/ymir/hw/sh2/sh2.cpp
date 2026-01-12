@@ -1852,7 +1852,7 @@ void SH2::RecalcInterrupts() {
 // Debugger
 
 FORCE_INLINE bool SH2::CheckBreakpoint() {
-    if (m_breakpoints.contains(PC)) {
+    if (IsBreakpointSet(PC)) {
         m_debugBreakMgr->SignalDebugBreak(debug::DebugBreakInfo::SH2Breakpoint(IsMaster(), PC));
         return true;
     }
@@ -1860,7 +1860,7 @@ FORCE_INLINE bool SH2::CheckBreakpoint() {
 }
 
 FORCE_INLINE bool SH2::CheckWatchpoints(const DecodedMemAccesses &mem) {
-    if (m_watchpoints.empty() || !mem.anyAccess) {
+    if (!mem.anyAccess) {
         return false;
     }
     const bool wtpt1 = CheckWatchpoint(mem.first);
@@ -1882,7 +1882,8 @@ FORCE_INLINE bool SH2::CheckWatchpoint(const DecodedMemAccesses::Access &access)
     case AccType::AtDispPC: address = (PC & ~(access.size - 1)) + access.disp; break;
     }
 
-    if (!m_watchpoints.contains(address)) {
+    const auto wtptFlags = GetWatchpointFlags(address);
+    if (wtptFlags == debug::WatchpointFlags::None) {
         return false;
     }
 
@@ -1894,7 +1895,7 @@ FORCE_INLINE bool SH2::CheckWatchpoint(const DecodedMemAccesses::Access &access)
     default: return false; // should never happen
     }
 
-    if (BitmaskEnum(m_watchpoints.at(address)).AnyOf(flags)) {
+    if (BitmaskEnum(wtptFlags).AnyOf(flags)) {
         m_debugBreakMgr->SignalDebugBreak(
             debug::DebugBreakInfo::SH2Watchpoint(IsMaster(), access.write, access.size, address, PC));
         return true;

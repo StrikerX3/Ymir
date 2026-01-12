@@ -204,6 +204,7 @@ add_library(ymir-core
     include/ymir/util/thread_name.hpp
     include/ymir/util/type_traits_ex.hpp
     include/ymir/util/unreachable.hpp
+    include/ymir/util/virtual_memory.hpp
 
 
     src/ymir/ymir.cpp
@@ -278,6 +279,7 @@ add_library(ymir-core
     src/ymir/util/event.cpp
     src/ymir/util/process.cpp
     src/ymir/util/thread_name.cpp
+    src/ymir/util/virtual_memory.cpp
 )
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
