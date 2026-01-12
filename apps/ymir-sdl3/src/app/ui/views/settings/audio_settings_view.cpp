@@ -57,6 +57,8 @@ void AudioSettingsView::Display() {
         supportsVirtual = true;
     }
 
+    ImGui::Text("Using %s MIDI API.", RtMidi::getApiDisplayName(api).c_str());
+
     // INPUT PORTS
 
     const std::string inputPortName = m_context.GetMidiInputPortName();

@@ -10,10 +10,16 @@ SharedContext::SharedContext(savestates::ISaveStateService &saveStatesService)
 
     settings.BindConfiguration(saturn.instance->configuration);
 
-    static constexpr auto kRtMidiAPI = RtMidi::Api::UNSPECIFIED;
+    auto makeRtMidi = []<typename T>(const char *name) {
+        try {
+            return std::make_unique<T>(RtMidi::Api::UNSPECIFIED, name);
+        } catch (const RtMidiError &) {
+            return std::make_unique<T>(RtMidi::Api::RTMIDI_DUMMY, name);
+        }
+    };
 
-    midi.midiInput = std::make_unique<RtMidiIn>(kRtMidiAPI, "Ymir MIDI input client");
-    midi.midiOutput = std::make_unique<RtMidiOut>(kRtMidiAPI, "Ymir MIDI output client");
+    midi.midiInput = makeRtMidi.operator()<RtMidiIn>("Ymir MIDI input client");
+    midi.midiOutput = makeRtMidi.operator()<RtMidiOut>("Ymir MIDI output client");
     midi.midiInput->ignoreTypes(false, false, false);
 }
 

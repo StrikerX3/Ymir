@@ -97,8 +97,8 @@ namespace media {
 } // namespace ymir
 
 namespace app::savestates {
-    struct ISaveStateService;
-    struct SaveState;
+struct ISaveStateService;
+struct SaveState;
 } // namespace app::savestates
 
 // -----------------------------------------------------------------------------
