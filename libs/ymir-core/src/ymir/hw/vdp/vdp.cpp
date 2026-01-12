@@ -3983,7 +3983,7 @@ FORCE_INLINE void VDP::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
     }
 
     // Palette data
-    const SpriteData spriteData = VDP2FetchSpriteData(spriteFB, spriteFBOffset);
+    const SpriteData spriteData = VDP2FetchSpriteData<applyMesh>(spriteFB, spriteFBOffset);
 
     // Handle sprite window
     if (params.useSpriteWindow && params.spriteWindowEnabled &&
@@ -6602,23 +6602,6 @@ FORCE_INLINE Color888 VDP::VDP2FetchCRAMColor(uint32 cramOffset, uint32 colorInd
     }
 }
 
-FLATTEN FORCE_INLINE SpriteData VDP::VDP2FetchSpriteData(const SpriteFB &fb, uint32 fbOffset) {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-
-    const uint8 type = regs2.spriteParams.type;
-    if (type < 8) {
-        return VDP2FetchWordSpriteData(fb, fbOffset * sizeof(uint16), type);
-    } else {
-        // Adjust the offset if VDP1 used 16-bit data.
-        // The majority of games actually set these two parameters properly, but there's *always* an exception...
-        if (!regs1.pixel8Bits) {
-            fbOffset = fbOffset * sizeof(uint16) + 1;
-        }
-        return VDP2FetchByteSpriteData(fb, fbOffset, type);
-    }
-}
-
 // Determines the type of sprite data (if any) based on color data.
 //
 // colorData is the raw color data.
@@ -6638,15 +6621,35 @@ FORCE_INLINE static SpriteData::Special GetSpecialPattern(uint16 rawData) {
     }
 }
 
-FORCE_INLINE SpriteData VDP::VDP2FetchWordSpriteData(const SpriteFB &fb, uint32 fbOffset, uint8 type) {
-    assert(type < 8);
+template <bool applyMesh>
+FLATTEN FORCE_INLINE SpriteData VDP::VDP2FetchSpriteData(const SpriteFB &fb, uint32 fbOffset) {
+    const VDP1Regs &regs1 = VDP1GetRegs();
+    const VDP2Regs &regs2 = VDP2GetRegs();
 
-    const VDP2Regs &regs = VDP2GetRegs();
+    // Adjust offset based on VDP1 data size.
+    // The majority of games actually set the sprite readout size to match the VDP1 sprite data size, but there's
+    // *always* an exception...
+    // 8-bit VDP1 data vs. 16-bit readout: NBA Live 98
+    // 16-bit VDP1 data vs. 8-bit readout: I Love Donald Duck
+    const uint8 type = regs2.spriteParams.type;
+    uint16 rawData;
+    if (regs1.pixel8Bits) {
+        rawData = fb[fbOffset & 0x3FFFF];
+        if (type < 8 && (!applyMesh || rawData != 0)) {
+            rawData |= 0xFF00;
+        }
+    } else {
+        fbOffset *= sizeof(uint16);
+        if (type >= 8) {
+            ++fbOffset;
+        }
+        rawData = util::ReadBE<uint16>(&fb[fbOffset & 0x3FFFE]);
+    }
 
-    const uint16 rawData = util::ReadBE<uint16>(&fb[fbOffset & 0x3FFFE]);
+    // Sprite types 0-7 are 16-bit, 8-15 are 8-bit
 
     SpriteData data{};
-    switch (regs.spriteParams.type) {
+    switch (regs2.spriteParams.type) {
     case 0x0:
         data.colorData = bit::extract<0, 10>(rawData);
         data.colorCalcRatio = bit::extract<11, 13>(rawData);
@@ -6708,19 +6711,7 @@ FORCE_INLINE SpriteData VDP::VDP2FetchWordSpriteData(const SpriteFB &fb, uint32 
         data.shadowOrWindow = bit::test<15>(rawData);
         data.special = GetSpecialPattern<8>(rawData);
         break;
-    }
-    return data;
-}
 
-FORCE_INLINE SpriteData VDP::VDP2FetchByteSpriteData(const SpriteFB &fb, uint32 fbOffset, uint8 type) {
-    assert(type >= 8);
-
-    const VDP2Regs &regs = VDP2GetRegs();
-
-    const uint8 rawData = fb[fbOffset & 0x3FFFF];
-
-    SpriteData data{};
-    switch (regs.spriteParams.type) {
     case 0x8:
         data.colorData = bit::extract<0, 6>(rawData);
         data.priority = bit::extract<7>(rawData);

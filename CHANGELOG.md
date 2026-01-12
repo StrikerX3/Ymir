@@ -21,6 +21,7 @@ Uses save state file version 11.
 - SH2: Fix `ldc/lds @Rm` decoding from the wrong position for watchpoints.
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
+- VDP2: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
 
 
 ## Version 0.2.1

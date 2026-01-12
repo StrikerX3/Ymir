@@ -1593,21 +1593,11 @@ private:
     //
     // fb is the VDP1 framebuffer to read sprite data from.
     // fbOffset is the offset into the framebuffer (in bytes) where the sprite data is located.
+    //
+    // applyMesh determines if the pixel to be fetched is a transparent mesh pixel (true) or a regular sprite layer
+    // pixel (false).
+    template <bool applyMesh>
     SpriteData VDP2FetchSpriteData(const SpriteFB &fb, uint32 fbOffset);
-
-    // Fetches 16-bit sprite data based on the current sprite mode.
-    //
-    // fb is the VDP1 framebuffer to read sprite data from.
-    // fbOffset is the offset into the framebuffer (in bytes) where the sprite data is located.
-    // type is the sprite type (between 0 and 7).
-    SpriteData VDP2FetchWordSpriteData(const SpriteFB &fb, uint32 fbOffset, uint8 type);
-
-    // Fetches 8-bit sprite data based on the current sprite mode.
-    //
-    // fb is the VDP1 framebuffer to read sprite data from.
-    // fbOffset is the offset into the framebuffer (in bytes) where the sprite data is located.
-    // type is the sprite type (between 8 and 15).
-    SpriteData VDP2FetchByteSpriteData(const SpriteFB &fb, uint32 fbOffset, uint8 type);
 
     // Retrieves the Y display coordinate based on the current interlace mode.
     //
