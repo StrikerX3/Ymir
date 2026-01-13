@@ -520,6 +520,7 @@ struct SharedContext {
         std::mutex breakpoints;
         std::mutex watchpoints;
         std::mutex updates;
+        std::mutex targetUpdate;
     } locks;
 
     struct State {

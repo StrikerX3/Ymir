@@ -3635,7 +3635,10 @@ void App::UpdateCheckerThread() {
         const auto mode = m_updateCheckMode;
         const bool showMessages = mode == UpdateCheckMode::OnlineNoCache;
         m_context.updates.inProgress = true;
-        m_context.targetUpdate = std::nullopt;
+        {
+            std::unique_lock lock{m_context.locks.targetUpdate};
+            m_context.targetUpdate = std::nullopt;
+        }
 
         if (showMessages) {
             m_context.DisplayMessage("Checking for updates...");
@@ -3681,12 +3684,14 @@ void App::UpdateCheckerThread() {
             }();
 
             if (isUpdateAvailable) {
+                std::unique_lock lock{m_context.locks.targetUpdate};
                 m_context.targetUpdate = {.info = stableResult.updateInfo, .channel = ReleaseChannel::Stable};
             }
         }
 
         // Check nightly update if requested
         if (m_context.settings.general.includeNightlyBuilds && nightlyResult) {
+            std::unique_lock lock{m_context.locks.targetUpdate};
             const bool isUpdateAvailable = [&] {
                 // If both stable and nightly are the same version, the stable version is more up-to-date.
                 // In theory there shouldn't be any nightly builds of a certain version after it is released.
@@ -3728,6 +3733,7 @@ void App::UpdateCheckerThread() {
             }
         }
 
+        std::unique_lock lock{m_context.locks.targetUpdate};
         if (m_context.targetUpdate) {
             m_context.DisplayMessage(
                 fmt::format("Update to v{} ({} channel) available", m_context.targetUpdate->info.version.to_string(),

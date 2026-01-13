@@ -13,9 +13,12 @@ UpdateWindow::UpdateWindow(SharedContext &context)
 
 void UpdateWindow::PrepareWindow() {
     // Close window if no updates are actually available
-    if (!m_context.targetUpdate) {
-        Open = false;
-        return;
+    {
+        std::unique_lock lock{m_context.locks.targetUpdate};
+        if (!m_context.targetUpdate) {
+            Open = false;
+            return;
+        }
     }
 
     auto *vp = ImGui::GetMainViewport();
@@ -24,16 +27,20 @@ void UpdateWindow::PrepareWindow() {
 }
 
 void UpdateWindow::DrawContents() {
-    assert(m_context.targetUpdate.has_value());
-
-    auto &info = m_context.targetUpdate->info;
-
     ImGui::TextUnformatted("A new version of Ymir is available.");
     ImGui::TextUnformatted("Current version: " Ymir_VERSION);
     ImGui::TextUnformatted("New version: ");
     ImGui::SameLine(0, 0);
-    ImGui::TextLinkOpenURL(info.version.to_string().c_str(), info.downloadURL.c_str());
-    ImGui::TextLinkOpenURL("Release notes", info.releaseNotesURL.c_str());
+    {
+        std::unique_lock lock{m_context.locks.targetUpdate};
+        if (m_context.targetUpdate) {
+            auto &info = m_context.targetUpdate->info;
+            ImGui::TextLinkOpenURL(info.version.to_string().c_str(), info.downloadURL.c_str());
+            ImGui::TextLinkOpenURL("Release notes", info.releaseNotesURL.c_str());
+        } else {
+            ImGui::TextUnformatted("Retrieving...");
+        }
+    }
 
     ImGui::Separator();
     if (ImGui::Button("Close")) {
