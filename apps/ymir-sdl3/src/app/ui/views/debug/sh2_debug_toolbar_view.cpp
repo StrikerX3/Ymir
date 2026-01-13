@@ -106,6 +106,29 @@ void SH2DebugToolbarView::Display() {
             m_context.saturn.SetSlaveSH2Enabled(slaveSH2Enabled);
         }
     }
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_CENTER_FOCUS_WEAK "##follow_pc_toggle")) {
+        // TODO: enqueue follow PC toggle once implemented
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Follow PC");
+        ImGui::EndTooltip();
+    }
+
+    // TODO: add "dump disasm range" icon button
+    // - toggling opens imgui window
+    // - input for start:end range in hex
+    // - dump button enqueues EmuEvent to dump to text in dumpPath
+    // ImGui::SameLine -> if (Button){} toggle window -> ExplanationTooltip
+    // ImGui::SameLine();
+
+    //if (ImGui::Button()) {
+        // TODO: enqueue disasm dump event here once that is implemented
+    //}
+    //if (ImGui::BeginItemTooltip()) {
+    //    ImGui::TextUnformatted("Dump Disasm Range");
+    //    ImGui::EndTooltip();
+    //}
 
     ImGui::SameLine();
     if (!m_context.saturn.IsDebugTracingEnabled()) {

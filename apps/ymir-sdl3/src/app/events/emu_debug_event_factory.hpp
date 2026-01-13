@@ -6,7 +6,6 @@
 
 #include "emu_event.hpp"
 
-#include <set>
 
 namespace app::events::emu::debug {
 
@@ -15,6 +14,9 @@ EmuEvent ExecuteSH2Division(bool master, bool div64);
 EmuEvent WriteMainMemory(uint32 address, uint8 value, bool enableSideEffects);
 EmuEvent WriteSH1Memory(uint32 address, uint8 value, bool enableSideEffects);
 EmuEvent WriteSH2Memory(uint32 address, uint8 value, bool enableSideEffects, bool master, bool bypassCache);
+
+// TODO: validate new EmuEvent in cpp implementation
+EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master);
 
 EmuEvent AddSH2Breakpoint(bool master, uint32 address);
 EmuEvent RemoveSH2Breakpoint(bool master, uint32 address);
