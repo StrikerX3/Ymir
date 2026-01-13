@@ -79,7 +79,7 @@ C6  I PC6/AN6
 C7  I PC7/AN7
 
 Notes:
-- A/D converted is never used, so all Port C pins remain as PC0-PC7
+- A/D converter is never used, so all Port C pins remain as PC0-PC7
 - Pins without description are not connected (NC)
 
 

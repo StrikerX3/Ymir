@@ -27,7 +27,7 @@ Relevant VDP1 registers:
 
   Swap simply flips the draw/display framebuffer selector.
   Erase is cycle-counted and writes one 16-bit value every 8 cycles.
-    When done during the display period, it never writes to current VCNT and beyond.
+    When done during the display period, it avoids writing to the current scanline or beyond.
     When done during VBlank, no Y coordinate restriction applies.
 
   VBE=1 is processed at the first HBlank of the VBlank period and lasts until the next VBlank OUT.
