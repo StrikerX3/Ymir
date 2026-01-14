@@ -658,7 +658,8 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Mored4u, "
                            "Munch, "
                            "Oliver Stadler, "
-                           "rifter.");
+                           "rifter, "
+                           "Zrat.");
     ImGui::Unindent();
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
