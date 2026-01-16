@@ -6,6 +6,10 @@ on:
       dev-build:
         required: true
         type: boolean
+      debug-symbols:
+        required: false
+        default: false
+        type: boolean
       build-version:
         required: false
         default: ""
@@ -25,6 +29,10 @@ on:
     inputs:
       dev-build:
         required: true
+        type: boolean
+      debug-symbols:
+        required: false
+        default: false
         type: boolean
       build-version:
         required: false
@@ -80,7 +88,8 @@ jobs:
       fail-fast: false
 
       matrix:
-        build_type: [Release]
+        build_type:
+          - ${{ inputs.debug-symbols && 'RelWithDebInfo' || 'Release' }}
         # Notes about compilers:
         # - MSVC (cl) produces much slower code and takes a long time to complete the LTO step
         c_compiler: [clang] # [clang, cl]
@@ -119,6 +128,7 @@ jobs:
           export BUILD_VERSION=${{ needs.get-project-version.outputs.project-version }}
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
           echo "ymir-artifact-name=ymir-windows-${{ matrix.architecture.name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ymir-debug-symbols-name=dbgsym-ymir-windows-${{ matrix.architecture.name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Configure MSVC
         if: ${{ matrix.c_compiler == 'cl' }}
@@ -222,6 +232,13 @@ jobs:
           name: ${{ steps.strings.outputs.ymir-artifact-name }}
           path: ${{ steps.strings.outputs.ymir-artifact-name }}.zip
 
+      - name: Upload debug symbols
+        if: ${{ inputs.debug-symbols }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.strings.outputs.ymir-debug-symbols-name }}
+          path: build/apps/ymir-sdl3/ymir-sdl3.pdb
+
   build-linux:
     name: linux-${{ matrix.compiler }}-${{ matrix.architecture.name }}
     runs-on: ${{ matrix.architecture.runner }}
@@ -231,7 +248,8 @@ jobs:
       fail-fast: false
 
       matrix:
-        build_type: [Release]
+        build_type:
+          - ${{ inputs.debug-symbols && 'RelWithDebInfo' || 'Release' }}
         # Notes about compilers:
         # - GCC (gcc) gets stuck building sh2.cpp (didn't finish after 12+ hours)
         compiler: [clang] # [clang, gcc]
@@ -380,7 +398,8 @@ jobs:
       fail-fast: false
 
       matrix:
-        build_type: [Release]
+        build_type:
+          - ${{ inputs.debug-symbols && 'RelWithDebInfo' || 'Release' }}
         arch:
           - name: "x64"
             isa_name: "x86_64"

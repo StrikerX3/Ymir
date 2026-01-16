@@ -26,6 +26,7 @@ jobs:
     needs: [parse-version]
     with:
       dev-build: false
+      debug-symbols: false
       build-version: ${{ needs.parse-version.outputs.build-version }}
       prerelease-version: ${{ needs.parse-version.outputs.prerelease-version }}
 

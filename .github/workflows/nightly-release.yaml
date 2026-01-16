@@ -60,6 +60,7 @@ jobs:
     needs: [commit-sha]
     with:
       dev-build: true
+      debug-symbols: true
       build-version: ${{ needs.commit-sha.outputs.build-version }}
 
   release:
