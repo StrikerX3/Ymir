@@ -91,6 +91,11 @@ Ymir can load game disc images from MAME CHD, BIN+CUE, IMG+CCD, MDF+MDS or ISO f
 When using low level CD block emulation (LLE), Ymir also requires the CD block ROM to be placed in `roms\cdb`.
 
 
+## Troubleshooting
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if the emulator crashes or misbehaves.
+
+
 ## Compiling
 
 See [COMPILING.md](COMPILING.md).

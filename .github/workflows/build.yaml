@@ -224,7 +224,7 @@ jobs:
           Copy-Item -Path ".\LICENSE"                                         -Destination "$licensesDir\Ymir-LICENSE"
           Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"              -Destination "$licensesDir\SDL_GameControllerDB-LICENSE"
           Copy-Item -Path "${{ github.workspace }}\gcdb\gamecontrollerdb.txt" -Destination ".\gamecontrollerdb.txt"
-          Compress-Archive -Path "README.md","CHANGELOG.md","gamecontrollerdb.txt","$licensesDir/","build/apps/ymir-sdl3/ymir-sdl3.exe" -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
+          Compress-Archive -Path "README.md","CHANGELOG.md","TROUBLESHOOTING.md","gamecontrollerdb.txt","$licensesDir/","build/apps/ymir-sdl3/ymir-sdl3.exe" -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
 
       - name: Upload Ymir artifact
         uses: actions/upload-artifact@v4
@@ -381,7 +381,7 @@ jobs:
           cp -f LICENSE                                           licenses/Ymir-LICENSE
           cp -f ${{ github.workspace }}/gcdb/LICENSE              licenses/SDL_GameControllerDB-LICENSE
           cp -f ${{ github.workspace }}/gcdb/gamecontrollerdb.txt gamecontrollerdb.txt
-          tar cJvfh ${{ steps.strings.outputs.ymir-artifact-name }}.tar.xz README.md CHANGELOG.md gamecontrollerdb.txt licenses/ -C build/apps/ymir-sdl3 ymir-sdl3
+          tar cJvfh ${{ steps.strings.outputs.ymir-artifact-name }}.tar.xz README.md CHANGELOG.md TROUBLESHOOTING.md gamecontrollerdb.txt licenses/ -C build/apps/ymir-sdl3 ymir-sdl3
 
       - name: Upload Ymir artifact
         uses: actions/upload-artifact@v4
@@ -510,7 +510,7 @@ jobs:
           cp -f LICENSE                                           licenses/Ymir-LICENSE
           cp -f ${{ github.workspace }}/gcdb/LICENSE              licenses/SDL_GameControllerDB-LICENSE
           cp -f ${{ github.workspace }}/gcdb/gamecontrollerdb.txt gamecontrollerdb.txt
-          zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip licenses README.md CHANGELOG.md gamecontrollerdb.txt
+          zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip licenses README.md CHANGELOG.md TROUBLESHOOTING.md gamecontrollerdb.txt
           cd ${{ github.workspace }}/build/apps/ymir-sdl3/
           zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip ymir-sdl3.app
 
