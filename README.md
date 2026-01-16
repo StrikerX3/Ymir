@@ -10,6 +10,10 @@ Find the official compatibility list [here](https://docs.google.com/spreadsheets
 
 Grab the latest release: [stable](https://github.com/StrikerX3/Ymir/releases/latest), [nightly](https://github.com/StrikerX3/Ymir/releases/latest-nightly).
 
+> [!IMPORTANT]
+> Windows users: install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)) before running the emulator.
+> This is **mandatory** to avoid crashes on startup.
+
 <div class="grid" markdown>
   <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/cd-player.png"/>
   <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/sonic-r.png"/>
