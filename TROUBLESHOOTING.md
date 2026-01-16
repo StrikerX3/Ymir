@@ -2,19 +2,21 @@
 
 ## Ymir fails to launch or crashes right away
 
-1. Make sure to download a version compatible with your CPU. The AVX2 version requires newer, usually more powerful CPUs, so if you have a Core i3 or i5 from older generations (3xxx or less), a Pentium or a Celeron, the first thing to try is to test the SSE2 version instead.
-2. For Windows users: install the [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)) before launching Ymir. Installing other software might replace important system files with older versions that are incompatible with the emulator.
-3. Ymir specifically requires the default audio output device to be present upon startup. If you set your headphones as the default device, make sure they're plugged in before launching the emulator.
+- Make sure to download a version compatible with your CPU. The AVX2 version requires newer, usually more powerful CPUs, so if you have a Core i3 or i5 from older generations (3xxx or less), a Pentium or a Celeron, the first thing to try is to test the SSE2 version instead.
+- For Windows users: install the [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)) before launching Ymir. Installing other software might replace important system files with older versions that are incompatible with the emulator.
+- Ymir specifically requires the default audio output device to be present upon startup. If you set your headphones as the default device, make sure they're plugged in before launching the emulator.
 
 
 ## Ymir crashes with a big "fatal error" popup
 
-If you're on Windows:
+You encountered a critical bug in the application. The best course of action is to collect a memory dump which can pinpoint the exact piece of code that caused the problem.
+
+If you're on Windows, follow these steps to collect and share a minidump:
 1. Make sure you're using the [latest nightly build](https://github.com/StrikerX3/Ymir/releases/tag/latest-nightly). These instructions only work with the nightly builds as they include debug symbols, while stable releases do not.
-2. Leave the popup open.
+2. Leave the fatal error popup open.
 3. Download ProcDump: https://learn.microsoft.com/en-us/sysinternals/downloads/procdump.
 4. Open a Command Prompt window (cmd.exe) and run `procdump ymir-sdl3.exe`.
-5. Open the folder from which you ran the command. There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
+5. Open the folder from which you ran the command (you can run `start .` from the Command Prompt to open an Explorer window on that directory). There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
    - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml).
 
 
@@ -36,29 +38,29 @@ There are plans to improve compatibility with these controllers in the future, b
 
 Here are a few things you can try to improve performance besides upgrading the CPU, roughly in order of performance impact:
 - Stop any background programs you're running, including things like Rainmeter. Some RGB tools are also known for being CPU hogs.
-- In the Debug menu, make sure tracing is disabled. (Shortcut is F11 by default.)
-- In Settings > General, check that the "Emulation speed" is set to "Primary" and it is at 100%. Press "Reset" to restore the default speed.
-- In Settings > CD Block, disable low-level emulation. Most games work fine without it.
-- In Settings > System, disable "Emulate SH-2 cache" if possible. Most games work fine without it.
+- In the **Debug** menu, make sure tracing is disabled. (Shortcut is F11 by default.)
+- In **Settings > General**, check that the **Emulation speed** is set to **Primary** and it is at 100%. Press **Reset** to restore the default speed.
+- In **Settings > CD Block**, disable low-level emulation. Most games work fine without it.
+- In **Settings > System**, disable **Emulate SH-2 cache** if possible. Most games work fine without it.
   - This option is force-enabled with a few select games.
-- In Settings > Audio, set "Emulation step granularity" to the minimum possible value of 0, all the way to the left: "Step size: 32 slots (1 sample)".
-- In Settings > Video:
-  - Disable "Synchronize video in windowed mode" and "Use full refresh rate when synchronizing video". These are known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
-  - Enable "Threaded VDP2 renderer".
-  - Enable "Use dedicated thread for deinterlaced rendering".
-  - Try enabling or disabling "Threaded VDP1 renderer".
-  - Disable the "Deinterlace video" enhancement.
-  - Disable the "Transparent meshes" enhancement.
-- In Settings > General:
-  - Disable the Rewind Buffer. (Shortcut is F8 by default.)
-    - You can also find this option in the Emulation menu.
-    - If you wish to use the Rewind Buffer, try lowering the compression level in Settings > General.
-  - Enable "Boost process priority".
-  - Enable "Boost emulator thread priority".
+- In **Settings > Audio**, set **Emulation step granularity** to the minimum possible value of **0**, all the way to the left. It should read **Step size: 32 slots (1 sample)**.
+- In **Settings > Video**:
+  - Disable **Synchronize video in windowed mode** and **Use full refresh rate when synchronizing video**. These are known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
+  - Enable **Threaded VDP2 renderer**.
+  - Enable **Use dedicated thread for deinterlaced rendering**.
+  - Try enabling or disabling **Threaded VDP1 renderer**.
+  - Disable the **Deinterlace video** enhancement.
+  - Disable the **Transparent meshes** enhancement.
+- In **Settings > General**:
+  - Disable the **Rewind Buffer**. (Shortcut is F8 by default.)
+    - You can also find this option in the **Emulation** menu.
+    - If you wish to use the Rewind Buffer, try lowering the **Compression level** in **Settings > General**. This will increase memory usage.
+  - Enable **Boost process priority**.
+  - Enable **Boost emulator thread priority**.
 - If you're experiencing stutters during gameplay:
   - Use an uncompressed disc image (anything other than CHD).
   - Load disc images from a fast local disk, preferably an SSD.
-  - Go to Settings > General and enable "Preload disc images to RAM". This will increase memory usage and hang the emulator for a while when loading discs, but should eliminate all stutters.
+  - Go to **Settings > General** and enable **Preload disc images to RAM**. This will increase memory usage and hang the emulator for a while when loading discs, but should eliminate all stutters.
 - Use the AVX2 version if you can. If the emulator crashes right away, it's likely that your CPU doesn't support the instruction set, so you're stuck with the SSE2 version.
 
 If Ymir still runs poorly after trying these, your CPU might be too slow for the emulator. It's known to run fine on CPUs that score around 1500 points on the [CPUBenchmark single thread test](<https://www.cpubenchmark.net/single-thread>), but I recommend CPUs that score 2000 points or higher.
