@@ -7,22 +7,22 @@
 3. Ymir specifically requires the default audio output device to be present upon startup. If you set your headphones as the default device, make sure they're plugged in before launching the emulator.
 
 
+## Ymir crashes with a big "fatal error" popup
+
+If you're on Windows:
+1. Make sure you're using the [latest nightly build](https://github.com/StrikerX3/Ymir/releases/tag/latest-nightly). These instructions only work with the nightly builds as they include debug symbols, while stable releases do not.
+2. Leave the popup open.
+3. Download ProcDump: https://learn.microsoft.com/en-us/sysinternals/downloads/procdump.
+4. Open a Command Prompt window (cmd.exe) and run `procdump ymir-sdl3.exe`.
+5. Open the folder from which you ran the command. There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
+   - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml).
+
+
 ## "No IPL ROM found" message when loading any game
 
 IPL ROM is the Saturn BIOS ROM, which is required for Ymir to work. You need to place it in the `<profile>/roms/ipl` directory. The emulator will automatically detect and load the file as soon as you place it in the directory.
 
 Most people that ask about this have skipped the Welcome dialog explaining this step. The Welcome screen also includes a clickable link for the path and will go away on its own as soon as a valid IPL ROM is placed in the directory. Remember: read *everything*!
-
-
-## Ymir crashes with a big "fatal error" popup
-
-If you're on Windows:
-1. Make sure you're using the [latest nightly build](https://github.com/StrikerX3/Ymir/releases/tag/latest-nightly)
-2. Leave the popup open
-3. Download ProcDump: https://learn.microsoft.com/en-us/sysinternals/downloads/procdump
-4. Open a Command Prompt window (cmd.exe) and run `procdump ymir-sdl3.exe`
-5. Open the folder from which you ran the command. There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
-   - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml)
 
 
 ## My controller doesn't work or some buttons don't respond
