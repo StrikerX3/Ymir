@@ -58,6 +58,13 @@ public:
 
     void UseDebugBreakManager(debug::DebugBreakManager *mgr) {
         m_debugBreakMgr = mgr;
+        if (mgr != nullptr) {
+            m_breakpoints.Allocate(kBreakpointMapSize);
+            m_watchpoints.Allocate(kWatchpointMapSize);
+        } else {
+            m_breakpoints.Free();
+            m_watchpoints.Free();
+        }
     }
 
     void MapMemory(sys::SH2Bus &bus);
@@ -843,8 +850,8 @@ private:
     static constexpr size_t kBreakpointMapSize = kAddressSpaceSize / kInstructionSize / kBitsPerByte;
     static constexpr size_t kWatchpointMapSize = kAddressSpaceSize; // only 6 bits per byte are used
 
-    util::VirtualMemory m_breakpoints{kBreakpointMapSize};
-    util::VirtualMemory m_watchpoints{kWatchpointMapSize};
+    util::VirtualMemory m_breakpoints;
+    util::VirtualMemory m_watchpoints;
 
     // These help track what breakpoints and watchpoints are set for fast clears.
     std::set<uint32> m_breakpointSet;

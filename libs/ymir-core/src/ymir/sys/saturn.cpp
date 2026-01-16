@@ -129,9 +129,6 @@ Saturn::Saturn()
     m_system.AddClockSpeedChangeCallback(CDDrive.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(CDBlock.CbClockSpeedChange);
 
-    masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
-    slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
-
     mem.MapMemory(mainBus);
     masterSH2.MapMemory(mainBus);
     slaveSH2.MapMemory(mainBus);
@@ -390,6 +387,13 @@ void Saturn::EnableDebugTracing(bool enable) {
     m_systemFeatures.enableDebugTracing = enable;
     UpdateFunctionPointers();
     SCSP.SetDebugTracing(enable);
+    if (enable) {
+        masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
+        slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
+    } else {
+        masterSH2.UseDebugBreakManager(nullptr);
+        slaveSH2.UseDebugBreakManager(nullptr);
+    }
 }
 
 void Saturn::SaveState(state::State &state) const {

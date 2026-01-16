@@ -15,9 +15,13 @@ namespace util {
 /// @brief Holds a block of virtual memory.
 class VirtualMemory {
 public:
+    /// @brief Constructs an unallocated block of virtual memory.
+    VirtualMemory();
+
     /// @brief Constructs a block of virtual memory of the specified size.
     /// @param[in] size the size of the virtual memory block in bytes.
     VirtualMemory(size_t size);
+
     VirtualMemory(const VirtualMemory &) = delete;
     VirtualMemory(VirtualMemory &&rhs);
     ~VirtualMemory();
@@ -29,8 +33,16 @@ public:
         return *this;
     }
 
+    /// @brief Allocates a block of virtual memory of the specified size
+    /// @param[in] size the size of the virtual memory block in bytes.
+    /// @return a pointers to the allocated memory. `nullptr` if the allocation failed.
+    void *Allocate(size_t size);
+
+    /// @brief Frees the block of virtual memory.
+    void Free();
+
     /// @brief Retrieves a pointer to the managed block of virtual memory.
-    /// @return a pointer to the block of virtual memory. `nullptr` if the allocation failed.
+    /// @return a pointer to the block of virtual memory. `nullptr` if not allocated or the allocation failed.
     FORCE_INLINE void *Get() const {
         return m_mem;
     }
@@ -39,7 +51,7 @@ private:
     void *m_mem = nullptr;
     size_t m_size = 0;
 
-    void Map();
+    void Map(size_t size);
     void Unmap();
 
     struct Internal;

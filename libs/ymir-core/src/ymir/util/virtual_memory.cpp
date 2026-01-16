@@ -24,10 +24,13 @@ struct VirtualMemory::Internal {
 #endif
 };
 
+VirtualMemory::VirtualMemory()
+    : m_internal(std::make_unique<Internal>()) {}
+
 VirtualMemory::VirtualMemory(size_t size)
     : m_size(size)
     , m_internal(std::make_unique<Internal>()) {
-    Map();
+    Map(size);
 }
 
 VirtualMemory::VirtualMemory(VirtualMemory &&rhs) {
@@ -35,26 +38,43 @@ VirtualMemory::VirtualMemory(VirtualMemory &&rhs) {
 }
 
 VirtualMemory::~VirtualMemory() {
-    Unmap();
+    Free();
 }
 
-void VirtualMemory::Map() {
+void *VirtualMemory::Allocate(size_t size) {
+    Free();
+    Map(size);
+    return m_mem;
+}
+
+void VirtualMemory::Free() {
+    if (m_mem != nullptr) {
+        Unmap();
+        m_mem = nullptr;
+    }
+}
+
+void VirtualMemory::Map(size_t size) {
 #ifdef WIN32
-    m_internal->hSection = CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
-                                              bit::extract<32, 63>(m_size), bit::extract<0, 31>(m_size), nullptr);
-    m_mem = MapViewOfFile(m_internal->hSection, FILE_MAP_ALL_ACCESS, 0, 0, m_size);
+    m_internal->hSection = CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, bit::extract<32, 63>(size),
+                                              bit::extract<0, 31>(size), nullptr);
+    m_mem = MapViewOfFile(m_internal->hSection, FILE_MAP_ALL_ACCESS, 0, 0, size);
 #else // POSIX
-    m_mem = mmap(NULL, m_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    m_mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, -1, 0);
 #endif
+    m_size = size;
 }
 
 void VirtualMemory::Unmap() {
 #ifdef WIN32
     UnmapViewOfFile(m_mem);
     CloseHandle(m_internal->hSection);
+    m_internal->hSection = INVALID_HANDLE_VALUE;
 #else // POSIX
     munmap(m_mem, m_size);
 #endif
+    m_mem = nullptr;
+    m_size = 0;
 }
 
 } // namespace util
