@@ -19,6 +19,34 @@ If you're on Windows, follow these steps to collect and share a minidump:
 5. Open the folder from which you ran the command (you can run `start .` from the Command Prompt to open an Explorer window on that directory). There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
    - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml).
 
+On Linux or macOS:
+1. Enable core dumps temporarily (if you haven't already enabled them system-wide):
+    ```sh
+    ulimit -c unlimited
+    ```
+2. Run the emulator from the same shell session.
+3. When the crash occurs, open a new shell and collect the dump:
+    1. Find the PID of the process:
+        Linux-only:
+        ```sh
+        pgrep ymir-sdl3
+        ```
+        or (Linux or macOS):
+        ```sh
+        ps a | grep ymir-sdl3
+        ```
+    2. Generate the core dump:
+        Linux-only:
+        ```sh
+        gcore -o ymir.dmp <pid>
+        ```
+        or (Linux or macOS):
+        ```sh
+        kill -6 <PID>
+        ```
+        NOTE: `kill -6` sends a `SIGABRT` signal to the process, causing the core dump to be saved to the default core dumps location in your system.
+    3. Compress and upload the dump file.
+
 
 ## "No IPL ROM found" message when loading any game
 
