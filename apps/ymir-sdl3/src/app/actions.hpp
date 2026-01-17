@@ -2,87 +2,86 @@
 
 #include <app/input/input_action.hpp>
 
+// Note to developers: yes, this could be a single macro, but if you do that your IDE won't autocomplete the functions
+#define DEF_ACTION(name) inline constexpr auto name = input::Action
+#define ACTION_ID __LINE__
+
 namespace app::actions {
 
 namespace general {
 
-    inline constexpr auto OpenSettings = input::Action::Trigger(__LINE__, "General", "Open settings");
-    inline constexpr auto ToggleWindowedVideoOutput =
-        input::Action::Trigger(__LINE__, "General", "Toggle windowed video output");
-    inline constexpr auto ToggleFullScreen = input::Action::Trigger(__LINE__, "General", "Toggle full screen");
-    inline constexpr auto TakeScreenshot = input::Action::Trigger(__LINE__, "General", "Take screenshot");
-    inline constexpr auto ExitApp = input::Action::ComboTrigger(__LINE__, "General", "Exit application");
+    DEF_ACTION(OpenSettings)::Trigger(ACTION_ID, "General", "Open settings");
+    DEF_ACTION(ToggleWindowedVideoOutput)::Trigger(ACTION_ID, "General", "Toggle windowed video output");
+    DEF_ACTION(ToggleFullScreen)::Trigger(ACTION_ID, "General", "Toggle full screen");
+    DEF_ACTION(TakeScreenshot)::Trigger(ACTION_ID, "General", "Take screenshot");
+    DEF_ACTION(ExitApp)::ComboTrigger(ACTION_ID, "General", "Exit application");
 
 } // namespace general
 
 namespace view {
 
-    inline constexpr auto ToggleFrameRateOSD = input::Action::Trigger(__LINE__, "View", "Toggle frame rate OSD");
-    inline constexpr auto NextFrameRateOSDPos =
-        input::Action::Trigger(__LINE__, "View", "Next frame rate OSD position");
-    inline constexpr auto PrevFrameRateOSDPos =
-        input::Action::Trigger(__LINE__, "View", "Previous frame rate OSD position");
+    DEF_ACTION(ToggleFrameRateOSD)::Trigger(ACTION_ID, "View", "Toggle frame rate OSD");
+    DEF_ACTION(NextFrameRateOSDPos)::Trigger(ACTION_ID, "View", "Next frame rate OSD position");
+    DEF_ACTION(PrevFrameRateOSDPos)::Trigger(ACTION_ID, "View", "Previous frame rate OSD position");
 
-    inline constexpr auto RotateScreenCW = input::Action::Trigger(__LINE__, "View", "Rotate screen clockwise");
-    inline constexpr auto RotateScreenCCW = input::Action::Trigger(__LINE__, "View", "Rotate screen counterclockwise");
+    DEF_ACTION(RotateScreenCW)::Trigger(ACTION_ID, "View", "Rotate screen clockwise");
+    DEF_ACTION(RotateScreenCCW)::Trigger(ACTION_ID, "View", "Rotate screen counterclockwise");
 
 } // namespace view
 
 namespace audio {
 
-    inline constexpr auto ToggleMute = input::Action::Trigger(__LINE__, "Audio", "Toggle mute");
-    inline constexpr auto IncreaseVolume =
-        input::Action::RepeatableTrigger(__LINE__, "Audio", "Increase volume by 10%");
-    inline constexpr auto DecreaseVolume =
-        input::Action::RepeatableTrigger(__LINE__, "Audio", "Decrease volume by 10%");
+    DEF_ACTION(ToggleMute)::Trigger(ACTION_ID, "Audio", "Toggle mute");
+    DEF_ACTION(IncreaseVolume)::RepeatableTrigger(ACTION_ID, "Audio", "Increase volume by 10%");
+    DEF_ACTION(DecreaseVolume)::RepeatableTrigger(ACTION_ID, "Audio", "Decrease volume by 10%");
 
 } // namespace audio
 
 namespace cd_drive {
 
-    inline constexpr auto LoadDisc = input::Action::Trigger(__LINE__, "CD drive", "Load disc");
-    inline constexpr auto EjectDisc = input::Action::Trigger(__LINE__, "CD drive", "Eject disc");
-    inline constexpr auto OpenCloseTray = input::Action::Trigger(__LINE__, "CD drive", "Open/close tray");
+    DEF_ACTION(LoadDisc)::Trigger(ACTION_ID, "CD drive", "Load disc");
+    DEF_ACTION(EjectDisc)::Trigger(ACTION_ID, "CD drive", "Eject disc");
+    DEF_ACTION(OpenCloseTray)::Trigger(ACTION_ID, "CD drive", "Open/close tray");
 
 } // namespace cd_drive
 
 namespace save_states {
 
-    inline constexpr auto QuickLoadState = input::Action::Trigger(__LINE__, "Save states", "Quick load state");
-    inline constexpr auto QuickSaveState = input::Action::Trigger(__LINE__, "Save states", "Quick save state");
+    DEF_ACTION(QuickLoadState)::Trigger(ACTION_ID, "Save states", "Quick load state");
+    DEF_ACTION(QuickSaveState)::Trigger(ACTION_ID, "Save states", "Quick save state");
 
-    inline constexpr auto SelectState1 = input::Action::Trigger(__LINE__, "Save states", "Select state 1");
-    inline constexpr auto SelectState2 = input::Action::Trigger(__LINE__, "Save states", "Select state 2");
-    inline constexpr auto SelectState3 = input::Action::Trigger(__LINE__, "Save states", "Select state 3");
-    inline constexpr auto SelectState4 = input::Action::Trigger(__LINE__, "Save states", "Select state 4");
-    inline constexpr auto SelectState5 = input::Action::Trigger(__LINE__, "Save states", "Select state 5");
-    inline constexpr auto SelectState6 = input::Action::Trigger(__LINE__, "Save states", "Select state 6");
-    inline constexpr auto SelectState7 = input::Action::Trigger(__LINE__, "Save states", "Select state 7");
-    inline constexpr auto SelectState8 = input::Action::Trigger(__LINE__, "Save states", "Select state 8");
-    inline constexpr auto SelectState9 = input::Action::Trigger(__LINE__, "Save states", "Select state 9");
-    inline constexpr auto SelectState10 = input::Action::Trigger(__LINE__, "Save states", "Select state 10");
+    DEF_ACTION(SelectState1)::Trigger(ACTION_ID, "Save states", "Select state 1");
+    DEF_ACTION(SelectState2)::Trigger(ACTION_ID, "Save states", "Select state 2");
+    DEF_ACTION(SelectState3)::Trigger(ACTION_ID, "Save states", "Select state 3");
+    DEF_ACTION(SelectState4)::Trigger(ACTION_ID, "Save states", "Select state 4");
+    DEF_ACTION(SelectState5)::Trigger(ACTION_ID, "Save states", "Select state 5");
+    DEF_ACTION(SelectState6)::Trigger(ACTION_ID, "Save states", "Select state 6");
+    DEF_ACTION(SelectState7)::Trigger(ACTION_ID, "Save states", "Select state 7");
+    DEF_ACTION(SelectState8)::Trigger(ACTION_ID, "Save states", "Select state 8");
+    DEF_ACTION(SelectState9)::Trigger(ACTION_ID, "Save states", "Select state 9");
+    DEF_ACTION(SelectState10)::Trigger(ACTION_ID, "Save states", "Select state 10");
 
-    inline constexpr auto LoadState1 = input::Action::Trigger(__LINE__, "Save states", "Load state 1");
-    inline constexpr auto LoadState2 = input::Action::Trigger(__LINE__, "Save states", "Load state 2");
-    inline constexpr auto LoadState3 = input::Action::Trigger(__LINE__, "Save states", "Load state 3");
-    inline constexpr auto LoadState4 = input::Action::Trigger(__LINE__, "Save states", "Load state 4");
-    inline constexpr auto LoadState5 = input::Action::Trigger(__LINE__, "Save states", "Load state 5");
-    inline constexpr auto LoadState6 = input::Action::Trigger(__LINE__, "Save states", "Load state 6");
-    inline constexpr auto LoadState7 = input::Action::Trigger(__LINE__, "Save states", "Load state 7");
-    inline constexpr auto LoadState8 = input::Action::Trigger(__LINE__, "Save states", "Load state 8");
-    inline constexpr auto LoadState9 = input::Action::Trigger(__LINE__, "Save states", "Load state 9");
-    inline constexpr auto LoadState10 = input::Action::Trigger(__LINE__, "Save states", "Load state 10");
+    DEF_ACTION(LoadState1)::Trigger(ACTION_ID, "Save states", "Load state 1");
+    DEF_ACTION(LoadState2)::Trigger(ACTION_ID, "Save states", "Load state 2");
+    DEF_ACTION(LoadState3)::Trigger(ACTION_ID, "Save states", "Load state 3");
+    DEF_ACTION(LoadState4)::Trigger(ACTION_ID, "Save states", "Load state 4");
+    DEF_ACTION(LoadState5)::Trigger(ACTION_ID, "Save states", "Load state 5");
+    DEF_ACTION(LoadState6)::Trigger(ACTION_ID, "Save states", "Load state 6");
+    DEF_ACTION(LoadState7)::Trigger(ACTION_ID, "Save states", "Load state 7");
+    DEF_ACTION(LoadState8)::Trigger(ACTION_ID, "Save states", "Load state 8");
+    DEF_ACTION(LoadState9)::Trigger(ACTION_ID, "Save states", "Load state 9");
+    DEF_ACTION(LoadState10)::Trigger(ACTION_ID, "Save states", "Load state 10");
 
-    inline constexpr auto SaveState1 = input::Action::Trigger(__LINE__, "Save states", "Save state 1");
-    inline constexpr auto SaveState2 = input::Action::Trigger(__LINE__, "Save states", "Save state 2");
-    inline constexpr auto SaveState3 = input::Action::Trigger(__LINE__, "Save states", "Save state 3");
-    inline constexpr auto SaveState4 = input::Action::Trigger(__LINE__, "Save states", "Save state 4");
-    inline constexpr auto SaveState5 = input::Action::Trigger(__LINE__, "Save states", "Save state 5");
-    inline constexpr auto SaveState6 = input::Action::Trigger(__LINE__, "Save states", "Save state 6");
-    inline constexpr auto SaveState7 = input::Action::Trigger(__LINE__, "Save states", "Save state 7");
-    inline constexpr auto SaveState8 = input::Action::Trigger(__LINE__, "Save states", "Save state 8");
-    inline constexpr auto SaveState9 = input::Action::Trigger(__LINE__, "Save states", "Save state 9");
-    inline constexpr auto SaveState10 = input::Action::Trigger(__LINE__, "Save states", "Save state 10");
+    DEF_ACTION(SaveState1)::Trigger(ACTION_ID, "Save states", "Save state 1");
+    DEF_ACTION(SaveState2)::Trigger(ACTION_ID, "Save states", "Save state 2");
+    DEF_ACTION(SaveState3)::Trigger(ACTION_ID, "Save states", "Save state 3");
+    DEF_ACTION(SaveState4)::Trigger(ACTION_ID, "Save states", "Save state 4");
+    DEF_ACTION(SaveState5)::Trigger(ACTION_ID, "Save states", "Save state 5");
+    DEF_ACTION(SaveState6)::Trigger(ACTION_ID, "Save states", "Save state 6");
+    DEF_ACTION(SaveState7)::Trigger(ACTION_ID, "Save states", "Save state 7");
+    DEF_ACTION(SaveState8)::Trigger(ACTION_ID, "Save states", "Save state 8");
+    DEF_ACTION(SaveState9)::Trigger(ACTION_ID, "Save states", "Save state 9");
+    DEF_ACTION(SaveState10)::Trigger(ACTION_ID, "Save states", "Save state 10");
 
     inline const input::Action &GetSelectStateAction(uint32 index) {
         switch (index) {
@@ -136,148 +135,134 @@ namespace save_states {
 
 namespace sys {
 
-    inline constexpr auto HardReset = input::Action::Trigger(__LINE__, "System", "Hard reset");
-    inline constexpr auto SoftReset = input::Action::Trigger(__LINE__, "System", "Soft reset");
-    inline constexpr auto ResetButton = input::Action::Button(__LINE__, "System", "Reset button");
+    DEF_ACTION(HardReset)::Trigger(ACTION_ID, "System", "Hard reset");
+    DEF_ACTION(SoftReset)::Trigger(ACTION_ID, "System", "Soft reset");
+    DEF_ACTION(ResetButton)::Button(ACTION_ID, "System", "Reset button");
 
 } // namespace sys
 
 namespace emu {
 
-    inline constexpr auto TurboSpeed = input::Action::Button(__LINE__, "Emulation", "Turbo speed");
-    inline constexpr auto TurboSpeedHold = input::Action::Trigger(__LINE__, "Emulation", "Turbo speed (hold)");
-    inline constexpr auto ToggleAlternateSpeed =
-        input::Action::Trigger(__LINE__, "Emulation", "Toggle alternate speed");
-    inline constexpr auto IncreaseSpeed =
-        input::Action::RepeatableTrigger(__LINE__, "Emulation", "Increase speed by 5%");
-    inline constexpr auto DecreaseSpeed =
-        input::Action::RepeatableTrigger(__LINE__, "Emulation", "Decrease speed by 5%");
-    inline constexpr auto IncreaseSpeedLarge =
-        input::Action::RepeatableTrigger(__LINE__, "Emulation", "Increase speed by 25%");
-    inline constexpr auto DecreaseSpeedLarge =
-        input::Action::RepeatableTrigger(__LINE__, "Emulation", "Decrease speed by 25%");
-    inline constexpr auto ResetSpeed = input::Action::Trigger(__LINE__, "Emulation", "Reset speed");
+    DEF_ACTION(TurboSpeed)::Button(ACTION_ID, "Emulation", "Turbo speed");
+    DEF_ACTION(TurboSpeedHold)::Trigger(ACTION_ID, "Emulation", "Turbo speed (hold)");
+    DEF_ACTION(ToggleAlternateSpeed)::Trigger(ACTION_ID, "Emulation", "Toggle alternate speed");
+    DEF_ACTION(IncreaseSpeed)::RepeatableTrigger(ACTION_ID, "Emulation", "Increase speed by 5%");
+    DEF_ACTION(DecreaseSpeed)::RepeatableTrigger(ACTION_ID, "Emulation", "Decrease speed by 5%");
+    DEF_ACTION(IncreaseSpeedLarge)::RepeatableTrigger(ACTION_ID, "Emulation", "Increase speed by 25%");
+    DEF_ACTION(DecreaseSpeedLarge)::RepeatableTrigger(ACTION_ID, "Emulation", "Decrease speed by 25%");
+    DEF_ACTION(ResetSpeed)::Trigger(ACTION_ID, "Emulation", "Reset speed");
 
-    inline constexpr auto PauseResume = input::Action::Trigger(__LINE__, "Emulation", "Pause/resume");
-    inline constexpr auto ForwardFrameStep =
-        input::Action::RepeatableTrigger(__LINE__, "Emulation", "Forward frame step");
-    inline constexpr auto ReverseFrameStep =
-        input::Action::RepeatableTrigger(__LINE__, "Emulation", "Reverse frame step");
-    inline constexpr auto Rewind = input::Action::Button(__LINE__, "Emulation", "Rewind");
+    DEF_ACTION(PauseResume)::Trigger(ACTION_ID, "Emulation", "Pause/resume");
+    DEF_ACTION(ForwardFrameStep)::RepeatableTrigger(ACTION_ID, "Emulation", "Forward frame step");
+    DEF_ACTION(ReverseFrameStep)::RepeatableTrigger(ACTION_ID, "Emulation", "Reverse frame step");
+    DEF_ACTION(Rewind)::Button(ACTION_ID, "Emulation", "Rewind");
 
-    inline constexpr auto ToggleRewindBuffer = input::Action::Trigger(__LINE__, "Emulation", "Toggle rewind buffer");
+    DEF_ACTION(ToggleRewindBuffer)::Trigger(ACTION_ID, "Emulation", "Toggle rewind buffer");
 
 } // namespace emu
 
 namespace dbg {
 
-    inline constexpr auto ToggleDebugTrace = input::Action::Trigger(__LINE__, "Debugger", "Toggle tracing");
-    inline constexpr auto DumpMemory = input::Action::Trigger(__LINE__, "Debugger", "Dump all memory");
+    DEF_ACTION(ToggleDebugTrace)::Trigger(ACTION_ID, "Debugger", "Toggle tracing");
+    DEF_ACTION(DumpMemory)::Trigger(ACTION_ID, "Debugger", "Dump all memory");
 
 } // namespace dbg
 
 namespace control_pad {
 
-    inline constexpr auto A = input::Action::Button(__LINE__, "Saturn Control Pad", "A");
-    inline constexpr auto B = input::Action::Button(__LINE__, "Saturn Control Pad", "B");
-    inline constexpr auto C = input::Action::Button(__LINE__, "Saturn Control Pad", "C");
-    inline constexpr auto X = input::Action::Button(__LINE__, "Saturn Control Pad", "X");
-    inline constexpr auto Y = input::Action::Button(__LINE__, "Saturn Control Pad", "Y");
-    inline constexpr auto Z = input::Action::Button(__LINE__, "Saturn Control Pad", "Z");
-    inline constexpr auto L = input::Action::Button(__LINE__, "Saturn Control Pad", "L");
-    inline constexpr auto R = input::Action::Button(__LINE__, "Saturn Control Pad", "R");
-    inline constexpr auto Start = input::Action::Button(__LINE__, "Saturn Control Pad", "Start");
-    inline constexpr auto Up = input::Action::Button(__LINE__, "Saturn Control Pad", "Up");
-    inline constexpr auto Down = input::Action::Button(__LINE__, "Saturn Control Pad", "Down");
-    inline constexpr auto Left = input::Action::Button(__LINE__, "Saturn Control Pad", "Left");
-    inline constexpr auto Right = input::Action::Button(__LINE__, "Saturn Control Pad", "Right");
-    inline constexpr auto DPad = input::Action::AbsoluteBipolarAxis2D(__LINE__, "Saturn Control Pad", "D-Pad axis");
+    DEF_ACTION(A)::Button(ACTION_ID, "Saturn Control Pad", "A");
+    DEF_ACTION(B)::Button(ACTION_ID, "Saturn Control Pad", "B");
+    DEF_ACTION(C)::Button(ACTION_ID, "Saturn Control Pad", "C");
+    DEF_ACTION(X)::Button(ACTION_ID, "Saturn Control Pad", "X");
+    DEF_ACTION(Y)::Button(ACTION_ID, "Saturn Control Pad", "Y");
+    DEF_ACTION(Z)::Button(ACTION_ID, "Saturn Control Pad", "Z");
+    DEF_ACTION(L)::Button(ACTION_ID, "Saturn Control Pad", "L");
+    DEF_ACTION(R)::Button(ACTION_ID, "Saturn Control Pad", "R");
+    DEF_ACTION(Start)::Button(ACTION_ID, "Saturn Control Pad", "Start");
+    DEF_ACTION(Up)::Button(ACTION_ID, "Saturn Control Pad", "Up");
+    DEF_ACTION(Down)::Button(ACTION_ID, "Saturn Control Pad", "Down");
+    DEF_ACTION(Left)::Button(ACTION_ID, "Saturn Control Pad", "Left");
+    DEF_ACTION(Right)::Button(ACTION_ID, "Saturn Control Pad", "Right");
+    DEF_ACTION(DPad)::AbsoluteBipolarAxis2D(ACTION_ID, "Saturn Control Pad", "D-Pad axis");
 
 } // namespace control_pad
 
 namespace analog_pad {
 
-    inline constexpr auto A = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "A");
-    inline constexpr auto B = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "B");
-    inline constexpr auto C = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "C");
-    inline constexpr auto X = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "X");
-    inline constexpr auto Y = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "Y");
-    inline constexpr auto Z = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "Z");
-    inline constexpr auto L = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "L");
-    inline constexpr auto R = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "R");
-    inline constexpr auto Start = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "Start");
-    inline constexpr auto Up = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "Up");
-    inline constexpr auto Down = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "Down");
-    inline constexpr auto Left = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "Left");
-    inline constexpr auto Right = input::Action::Button(__LINE__, "Saturn 3D Control Pad", "Right");
-    inline constexpr auto DPad = input::Action::AbsoluteBipolarAxis2D(__LINE__, "Saturn 3D Control Pad", "D-Pad axis");
-    inline constexpr auto AnalogStick =
-        input::Action::AbsoluteBipolarAxis2D(__LINE__, "Saturn 3D Control Pad", "Analog stick");
-    inline constexpr auto AnalogL =
-        input::Action::AbsoluteMonopolarAxis1D(__LINE__, "Saturn 3D Control Pad", "Analog L");
-    inline constexpr auto AnalogR =
-        input::Action::AbsoluteMonopolarAxis1D(__LINE__, "Saturn 3D Control Pad", "Analog R");
-    inline constexpr auto SwitchMode = input::Action::Trigger(__LINE__, "Saturn 3D Control Pad", "Switch mode");
+    DEF_ACTION(A)::Button(ACTION_ID, "Saturn 3D Control Pad", "A");
+    DEF_ACTION(B)::Button(ACTION_ID, "Saturn 3D Control Pad", "B");
+    DEF_ACTION(C)::Button(ACTION_ID, "Saturn 3D Control Pad", "C");
+    DEF_ACTION(X)::Button(ACTION_ID, "Saturn 3D Control Pad", "X");
+    DEF_ACTION(Y)::Button(ACTION_ID, "Saturn 3D Control Pad", "Y");
+    DEF_ACTION(Z)::Button(ACTION_ID, "Saturn 3D Control Pad", "Z");
+    DEF_ACTION(L)::Button(ACTION_ID, "Saturn 3D Control Pad", "L");
+    DEF_ACTION(R)::Button(ACTION_ID, "Saturn 3D Control Pad", "R");
+    DEF_ACTION(Start)::Button(ACTION_ID, "Saturn 3D Control Pad", "Start");
+    DEF_ACTION(Up)::Button(ACTION_ID, "Saturn 3D Control Pad", "Up");
+    DEF_ACTION(Down)::Button(ACTION_ID, "Saturn 3D Control Pad", "Down");
+    DEF_ACTION(Left)::Button(ACTION_ID, "Saturn 3D Control Pad", "Left");
+    DEF_ACTION(Right)::Button(ACTION_ID, "Saturn 3D Control Pad", "Right");
+    DEF_ACTION(DPad)::AbsoluteBipolarAxis2D(ACTION_ID, "Saturn 3D Control Pad", "D-Pad axis");
+    DEF_ACTION(AnalogStick)::AbsoluteBipolarAxis2D(ACTION_ID, "Saturn 3D Control Pad", "Analog stick");
+    DEF_ACTION(AnalogL)::AbsoluteMonopolarAxis1D(ACTION_ID, "Saturn 3D Control Pad", "Analog L");
+    DEF_ACTION(AnalogR)::AbsoluteMonopolarAxis1D(ACTION_ID, "Saturn 3D Control Pad", "Analog R");
+    DEF_ACTION(SwitchMode)::Trigger(ACTION_ID, "Saturn 3D Control Pad", "Switch mode");
 
 } // namespace analog_pad
 
 namespace arcade_racer {
 
-    inline constexpr auto A = input::Action::Button(__LINE__, "Arcade Racer", "A");
-    inline constexpr auto B = input::Action::Button(__LINE__, "Arcade Racer", "B");
-    inline constexpr auto C = input::Action::Button(__LINE__, "Arcade Racer", "C");
-    inline constexpr auto X = input::Action::Button(__LINE__, "Arcade Racer", "X");
-    inline constexpr auto Y = input::Action::Button(__LINE__, "Arcade Racer", "Y");
-    inline constexpr auto Z = input::Action::Button(__LINE__, "Arcade Racer", "Z");
-    inline constexpr auto Start = input::Action::Button(__LINE__, "Arcade Racer", "Start");
-    inline constexpr auto GearUp = input::Action::Button(__LINE__, "Arcade Racer", "Gear up");
-    inline constexpr auto GearDown = input::Action::Button(__LINE__, "Arcade Racer", "Gear down");
-    inline constexpr auto WheelLeft = input::Action::Button(__LINE__, "Arcade Racer", "Wheel left");
-    inline constexpr auto WheelRight = input::Action::Button(__LINE__, "Arcade Racer", "Wheel right");
-    inline constexpr auto AnalogWheel =
-        input::Action::AbsoluteBipolarAxis1D(__LINE__, "Arcade Racer", "Wheel (analog)");
+    DEF_ACTION(A)::Button(ACTION_ID, "Arcade Racer", "A");
+    DEF_ACTION(B)::Button(ACTION_ID, "Arcade Racer", "B");
+    DEF_ACTION(C)::Button(ACTION_ID, "Arcade Racer", "C");
+    DEF_ACTION(X)::Button(ACTION_ID, "Arcade Racer", "X");
+    DEF_ACTION(Y)::Button(ACTION_ID, "Arcade Racer", "Y");
+    DEF_ACTION(Z)::Button(ACTION_ID, "Arcade Racer", "Z");
+    DEF_ACTION(Start)::Button(ACTION_ID, "Arcade Racer", "Start");
+    DEF_ACTION(GearUp)::Button(ACTION_ID, "Arcade Racer", "Gear up");
+    DEF_ACTION(GearDown)::Button(ACTION_ID, "Arcade Racer", "Gear down");
+    DEF_ACTION(WheelLeft)::Button(ACTION_ID, "Arcade Racer", "Wheel left");
+    DEF_ACTION(WheelRight)::Button(ACTION_ID, "Arcade Racer", "Wheel right");
+    DEF_ACTION(AnalogWheel)::AbsoluteBipolarAxis1D(ACTION_ID, "Arcade Racer", "Wheel (analog)");
 
 } // namespace arcade_racer
 
 namespace mission_stick {
 
-    inline constexpr auto A = input::Action::Button(__LINE__, "Mission Stick", "A");
-    inline constexpr auto B = input::Action::Button(__LINE__, "Mission Stick", "B");
-    inline constexpr auto C = input::Action::Button(__LINE__, "Mission Stick", "C");
-    inline constexpr auto X = input::Action::Button(__LINE__, "Mission Stick", "X");
-    inline constexpr auto Y = input::Action::Button(__LINE__, "Mission Stick", "Y");
-    inline constexpr auto Z = input::Action::Button(__LINE__, "Mission Stick", "Z");
-    inline constexpr auto L = input::Action::Button(__LINE__, "Mission Stick", "L");
-    inline constexpr auto R = input::Action::Button(__LINE__, "Mission Stick", "R");
-    inline constexpr auto Start = input::Action::Button(__LINE__, "Mission Stick", "Start");
-    inline constexpr auto MainUp = input::Action::Button(__LINE__, "Mission Stick", "Main stick up");
-    inline constexpr auto MainDown = input::Action::Button(__LINE__, "Mission Stick", "Main stick down");
-    inline constexpr auto MainLeft = input::Action::Button(__LINE__, "Mission Stick", "Main stick left");
-    inline constexpr auto MainRight = input::Action::Button(__LINE__, "Mission Stick", "Main stick right");
-    inline constexpr auto MainStick = input::Action::AbsoluteBipolarAxis2D(__LINE__, "Mission Stick", "Main stick");
-    inline constexpr auto MainThrottle =
-        input::Action::AbsoluteMonopolarAxis1D(__LINE__, "Mission Stick", "Main throttle");
-    inline constexpr auto MainThrottleUp =
-        input::Action::RepeatableTrigger(__LINE__, "Mission Stick", "Main throttle up");
-    inline constexpr auto MainThrottleDown =
-        input::Action::RepeatableTrigger(__LINE__, "Mission Stick", "Main throttle down");
-    inline constexpr auto MainThrottleMax = input::Action::Trigger(__LINE__, "Mission Stick", "Main throttle max");
-    inline constexpr auto MainThrottleMin = input::Action::Trigger(__LINE__, "Mission Stick", "Main throttle min");
-    inline constexpr auto SubUp = input::Action::Button(__LINE__, "Mission Stick", "Sub stick up");
-    inline constexpr auto SubDown = input::Action::Button(__LINE__, "Mission Stick", "Sub stick down");
-    inline constexpr auto SubLeft = input::Action::Button(__LINE__, "Mission Stick", "Sub stick left");
-    inline constexpr auto SubRight = input::Action::Button(__LINE__, "Mission Stick", "Sub stick right");
-    inline constexpr auto SubStick = input::Action::AbsoluteBipolarAxis2D(__LINE__, "Mission Stick", "Sub stick");
-    inline constexpr auto SubThrottle =
-        input::Action::AbsoluteMonopolarAxis1D(__LINE__, "Mission Stick", "Sub throttle");
-    inline constexpr auto SubThrottleUp =
-        input::Action::RepeatableTrigger(__LINE__, "Mission Stick", "Sub throttle up");
-    inline constexpr auto SubThrottleDown =
-        input::Action::RepeatableTrigger(__LINE__, "Mission Stick", "Sub throttle down");
-    inline constexpr auto SubThrottleMax = input::Action::Trigger(__LINE__, "Mission Stick", "Sub throttle max");
-    inline constexpr auto SubThrottleMin = input::Action::Trigger(__LINE__, "Mission Stick", "Sub throttle min");
-    inline constexpr auto SwitchMode = input::Action::Trigger(__LINE__, "Mission Stick", "Switch mode");
+    DEF_ACTION(A)::Button(ACTION_ID, "Mission Stick", "A");
+    DEF_ACTION(B)::Button(ACTION_ID, "Mission Stick", "B");
+    DEF_ACTION(C)::Button(ACTION_ID, "Mission Stick", "C");
+    DEF_ACTION(X)::Button(ACTION_ID, "Mission Stick", "X");
+    DEF_ACTION(Y)::Button(ACTION_ID, "Mission Stick", "Y");
+    DEF_ACTION(Z)::Button(ACTION_ID, "Mission Stick", "Z");
+    DEF_ACTION(L)::Button(ACTION_ID, "Mission Stick", "L");
+    DEF_ACTION(R)::Button(ACTION_ID, "Mission Stick", "R");
+    DEF_ACTION(Start)::Button(ACTION_ID, "Mission Stick", "Start");
+    DEF_ACTION(MainUp)::Button(ACTION_ID, "Mission Stick", "Main stick up");
+    DEF_ACTION(MainDown)::Button(ACTION_ID, "Mission Stick", "Main stick down");
+    DEF_ACTION(MainLeft)::Button(ACTION_ID, "Mission Stick", "Main stick left");
+    DEF_ACTION(MainRight)::Button(ACTION_ID, "Mission Stick", "Main stick right");
+    DEF_ACTION(MainStick)::AbsoluteBipolarAxis2D(ACTION_ID, "Mission Stick", "Main stick");
+    DEF_ACTION(MainThrottle)::AbsoluteMonopolarAxis1D(ACTION_ID, "Mission Stick", "Main throttle");
+    DEF_ACTION(MainThrottleUp)::RepeatableTrigger(ACTION_ID, "Mission Stick", "Main throttle up");
+    DEF_ACTION(MainThrottleDown)::RepeatableTrigger(ACTION_ID, "Mission Stick", "Main throttle down");
+    DEF_ACTION(MainThrottleMax)::Trigger(ACTION_ID, "Mission Stick", "Main throttle max");
+    DEF_ACTION(MainThrottleMin)::Trigger(ACTION_ID, "Mission Stick", "Main throttle min");
+    DEF_ACTION(SubUp)::Button(ACTION_ID, "Mission Stick", "Sub stick up");
+    DEF_ACTION(SubDown)::Button(ACTION_ID, "Mission Stick", "Sub stick down");
+    DEF_ACTION(SubLeft)::Button(ACTION_ID, "Mission Stick", "Sub stick left");
+    DEF_ACTION(SubRight)::Button(ACTION_ID, "Mission Stick", "Sub stick right");
+    DEF_ACTION(SubStick)::AbsoluteBipolarAxis2D(ACTION_ID, "Mission Stick", "Sub stick");
+    DEF_ACTION(SubThrottle)::AbsoluteMonopolarAxis1D(ACTION_ID, "Mission Stick", "Sub throttle");
+    DEF_ACTION(SubThrottleUp)::RepeatableTrigger(ACTION_ID, "Mission Stick", "Sub throttle up");
+    DEF_ACTION(SubThrottleDown)::RepeatableTrigger(ACTION_ID, "Mission Stick", "Sub throttle down");
+    DEF_ACTION(SubThrottleMax)::Trigger(ACTION_ID, "Mission Stick", "Sub throttle max");
+    DEF_ACTION(SubThrottleMin)::Trigger(ACTION_ID, "Mission Stick", "Sub throttle min");
+    DEF_ACTION(SwitchMode)::Trigger(ACTION_ID, "Mission Stick", "Switch mode");
 
 } // namespace mission_stick
 
 } // namespace app::actions
+
+#undef DEF_ACTION
+#undef ACTION_ID
