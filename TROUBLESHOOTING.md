@@ -65,21 +65,22 @@ Most people that ask about this have skipped the Welcome dialog explaining this 
 
 Ymir currently works best with XInput controllers, that is, anything that behaves like an Xbox controller. Third-party controllers like 8bitdo sometimes offer a toggle or a way to enable XInput mode on their controllers which usually improves compatibility.
 
-There are plans to improve compatibility with these controllers in the future, but it's not high in the priority list.
+There are plans to improve compatibility with other controllers in the future, but it's not high in the priority list.
 
 
 ## Ymir runs too slowly
 
 Here are a few things you can try to improve performance besides upgrading the CPU, roughly in order of performance impact:
 - Stop any background programs you're running, including things like Rainmeter. Some RGB tools are also known for being CPU hogs.
-- In the **Debug** menu, make sure tracing is disabled. (Shortcut is F11 by default.)
-- In **Settings > General**, check that the **Emulation speed** is set to **Primary** and it is at 100%. Press **Reset** to restore the default speed.
-- In **Settings > CD Block**, disable low-level emulation. Most games work fine without it.
+- In the **Debug** menu, make sure **Enable tracing** is disabled. (Shortcut is F11 by default.)
+- In **Settings > General**, check that the **Emulation speed** is set to **Primary** and it is at **100%**. Press **Reset** to restore the default speed.
+- In **Settings > CD Block**, disable **Use low level CD Block emulation**. Most games work fine without it.
 - In **Settings > System**, disable **Emulate SH-2 cache** if possible. Most games work fine without it.
   - This option is force-enabled with a few select games.
 - In **Settings > Audio**, set **Emulation step granularity** to the minimum possible value of **0**, all the way to the left. It should read **Step size: 32 slots (1 sample)**.
 - In **Settings > Video**:
-  - Disable **Synchronize video in windowed mode** and **Use full refresh rate when synchronizing video**. These are known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
+  - Disable **Use full refresh rate when synchronizing video**. This is known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
+  - Disable **Synchronize video in windowed mode** and/or **Synchronize video in full screen mode**.
   - Enable **Threaded VDP2 renderer**.
   - Enable **Use dedicated thread for deinterlaced rendering**.
   - Try enabling or disabling **Threaded VDP1 renderer**.
