@@ -41,9 +41,21 @@ public:
     /// @brief Frees the block of virtual memory.
     void Free();
 
+    /// @brief Determines if the memory is allocated.
+    /// @return `true` is the virtual memory is allocated
+    bool IsAllocated() const {
+        return m_mem != nullptr;
+    }
+
+    /// @brief Retrieves the allocated memory size.
+    /// @return the size of the virtual memory block in bytes. 0 if not allocated.
+    size_t GetAllocatedSize() const {
+        return m_size;
+    }
+
     /// @brief Retrieves a pointer to the managed block of virtual memory.
     /// @return a pointer to the block of virtual memory. `nullptr` if not allocated or the allocation failed.
-    FORCE_INLINE void *Get() const {
+    FORCE_INLINE void *GetMemory() const {
         return m_mem;
     }
 

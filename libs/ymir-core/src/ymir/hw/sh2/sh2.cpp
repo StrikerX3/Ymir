@@ -1852,7 +1852,7 @@ void SH2::RecalcInterrupts() {
 // Debugger
 
 FORCE_INLINE bool SH2::CheckBreakpoint() {
-    if (IsBreakpointSet(PC)) {
+    if (IsBreakpointSetInBitmap(PC)) {
         m_debugBreakMgr->SignalDebugBreak(debug::DebugBreakInfo::SH2Breakpoint(IsMaster(), PC));
         return true;
     }

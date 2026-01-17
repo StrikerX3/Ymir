@@ -61,6 +61,8 @@ public:
         if (mgr != nullptr) {
             m_breakpoints.Allocate(kBreakpointMapSize);
             m_watchpoints.Allocate(kWatchpointMapSize);
+            ReapplyBreakpoints();
+            ReapplyWatchpoints();
         } else {
             m_breakpoints.Free();
             m_watchpoints.Free();
@@ -118,16 +120,17 @@ public:
 
     // --- Breakpoints
 
+private:
     // Returns a reference to the portion of the breakpoint bitmap containing the given address.
     FORCE_INLINE uint64 &BreakpointBitmapChunkRef(uint32 address) {
         address >>= 7u; // 1 bit for halfword alignment, 6 bits for 64-bit addressing
-        return static_cast<uint64 *>(m_breakpoints.Get())[address];
+        return static_cast<uint64 *>(m_breakpoints.GetMemory())[address];
     }
 
     // Returns the portion of the breakpoint bitmap containing the given address.
     FORCE_INLINE uint64 GetBreakpointBitmapChunk(uint32 address) const {
         address >>= 7u; // 1 bit for halfword alignment, 6 bits for 64-bit addressing
-        return static_cast<uint64 *>(m_breakpoints.Get())[address];
+        return static_cast<uint64 *>(m_breakpoints.GetMemory())[address];
     }
 
     // Builds a value containing the breakpoint bitmap bit for the given address.
@@ -135,11 +138,14 @@ public:
         return 1ull << ((address >> 1u) & 63u);
     }
 
+public:
     // Adds the specified address to the set of breakpoints.
     // The address is force-aligned to word boundaries.
     // Returns `true` if the breakpoint was added, `false` if it already exists.
     bool AddBreakpoint(uint32 address) {
-        BreakpointBitmapChunkRef(address) |= MakeBreakpointBit(address);
+        if (m_breakpoints.IsAllocated()) {
+            BreakpointBitmapChunkRef(address) |= MakeBreakpointBit(address);
+        }
         return m_breakpointSet.insert(address & ~1u).second;
     }
 
@@ -147,7 +153,9 @@ public:
     // The address is force-aligned to word boundaries.
     // Returns `true` if the breakpoint was removed, `false` if it did not exist.
     bool RemoveBreakpoint(uint32 address) {
-        BreakpointBitmapChunkRef(address) &= ~MakeBreakpointBit(address);
+        if (m_breakpoints.IsAllocated()) {
+            BreakpointBitmapChunkRef(address) &= ~MakeBreakpointBit(address);
+        }
         return m_breakpointSet.erase(address & ~1u);
     }
 
@@ -155,7 +163,9 @@ public:
     // The address is force-aligned to word boundaries.
     // Returns `true` if the breakpoint was added, `false` if it was removed.
     bool ToggleBreakpoint(uint32 address) {
-        BreakpointBitmapChunkRef(address) ^= MakeBreakpointBit(address);
+        if (m_breakpoints.IsAllocated()) {
+            BreakpointBitmapChunkRef(address) ^= MakeBreakpointBit(address);
+        }
         address &= ~1u;
         const bool result = m_breakpointSet.insert(address).second;
         if (!result) {
@@ -166,8 +176,10 @@ public:
 
     // Clears all breakpoints.
     void ClearBreakpoints() {
-        for (uint32 address : m_breakpointSet) {
-            BreakpointBitmapChunkRef(address) &= ~MakeBreakpointBit(address);
+        if (m_breakpoints.IsAllocated()) {
+            for (uint32 address : m_breakpointSet) {
+                BreakpointBitmapChunkRef(address) &= ~MakeBreakpointBit(address);
+            }
         }
         m_breakpointSet.clear();
     }
@@ -187,29 +199,52 @@ public:
         }
     }
 
-    // Determines if the specified address has a breakpoint set.
+    // Determines if a breakpoint is set at specified address.
     // The address is force-aligned to word boundaries.
     FORCE_INLINE bool IsBreakpointSet(uint32 address) const {
+        return m_breakpointSet.contains(address & ~1);
+    }
+
+private:
+    // Determines if a breakpoint is set at specified address using the fast bitmap.
+    // The address is force-aligned to word boundaries.
+    // Must only be invoked if the bitmap is allocated.
+    FORCE_INLINE bool IsBreakpointSetInBitmap(uint32 address) const {
         return GetBreakpointBitmapChunk(address) & MakeBreakpointBit(address);
+    }
+
+    // Reapplies the breakpoints from the set into the bitmap.
+    // Should be used after reallocating the bitmap.
+    FORCE_INLINE void ReapplyBreakpoints() {
+        if (!m_breakpoints.IsAllocated()) {
+            return;
+        }
+        for (auto address : m_breakpointSet) {
+            AddBreakpoint(address);
+        }
     }
 
     // --- Watchpoints
 
+private:
     // Returns a reference to the watchpoint flags for the given address.
     FORCE_INLINE debug::WatchpointFlags &WatchpointFlagsRef(uint32 address) {
-        return static_cast<debug::WatchpointFlags *>(m_watchpoints.Get())[address];
+        return static_cast<debug::WatchpointFlags *>(m_watchpoints.GetMemory())[address];
     }
 
     // Returns the the watchpoint flags for the given address.
     FORCE_INLINE debug::WatchpointFlags GetWatchpointFlags(uint32 address) const {
-        return static_cast<debug::WatchpointFlags *>(m_watchpoints.Get())[address];
+        return static_cast<debug::WatchpointFlags *>(m_watchpoints.GetMemory())[address];
     }
 
+public:
     // Adds watchpoints to the specified address.
     // Watchpoints set at misaligned addresses will not trigger.
     // e.g. longword-sized watchpoint with address & 3 != 0
     void AddWatchpoint(uint32 address, debug::WatchpointFlags flags) {
-        WatchpointFlagsRef(address) |= flags;
+        if (m_watchpoints.IsAllocated()) {
+            WatchpointFlagsRef(address) |= flags;
+        }
         if (flags != debug::WatchpointFlags::None) {
             m_watchpointSet[address] |= flags;
         }
@@ -217,7 +252,9 @@ public:
 
     // Removes watchpoints from the specified address.
     void RemoveWatchpoint(uint32 address, debug::WatchpointFlags flags) {
-        WatchpointFlagsRef(address) &= ~flags;
+        if (m_watchpoints.IsAllocated()) {
+            WatchpointFlagsRef(address) &= ~flags;
+        }
         if (!m_watchpointSet.contains(address)) {
             return;
         }
@@ -230,23 +267,41 @@ public:
 
     // Clears all watchpoints at the specified address.
     void ClearWatchpointsAt(uint32 address) {
-        WatchpointFlagsRef(address) = debug::WatchpointFlags::None;
+        if (m_watchpoints.IsAllocated()) {
+            WatchpointFlagsRef(address) = debug::WatchpointFlags::None;
+        }
         m_watchpointSet.erase(address);
     }
 
     // Clears all watchpoints.
     void ClearWatchpoints() {
-        for (auto [address, _] : m_watchpointSet) {
-            WatchpointFlagsRef(address) = debug::WatchpointFlags::None;
+        if (m_watchpoints.IsAllocated()) {
+            for (auto [address, _] : m_watchpointSet) {
+                WatchpointFlagsRef(address) = debug::WatchpointFlags::None;
+            }
         }
         m_watchpointSet.clear();
     }
 
     // Retrieves configured watchpoints for the specified address.
     FORCE_INLINE debug::WatchpointFlags GetWatchpoint(uint32 address) const {
-        return GetWatchpointFlags(address);
+        auto it = m_watchpointSet.find(address);
+        return it != m_watchpointSet.cend() ? it->second : debug::WatchpointFlags::None;
     }
 
+private:
+    // Reapplies the watchpoints from the set into the memory map.
+    // Should be used after reallocating the memory map.
+    FORCE_INLINE void ReapplyWatchpoints() {
+        if (!m_watchpoints.IsAllocated()) {
+            return;
+        }
+        for (auto &[address, flags] : m_watchpointSet) {
+            AddWatchpoint(address, flags);
+        }
+    }
+
+public:
     // Retrieves all watchpoints set in this SH-2.
     const std::map<uint32, debug::WatchpointFlags> &GetWatchpoints() const {
         return m_watchpointSet;
