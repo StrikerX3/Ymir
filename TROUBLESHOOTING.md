@@ -27,6 +27,7 @@ On Linux, macOS or FreeBSD:
 2. Run the emulator from the same shell session.
 3. When the crash occurs, open a new shell and collect the dump:
     1. Find the PID of the process:
+
         Linux and FreeBSD:
         ```sh
         pgrep ymir-sdl3
@@ -36,6 +37,7 @@ On Linux, macOS or FreeBSD:
         ps a | grep ymir-sdl3
         ```
     2. Generate the core dump:
+
         Linux-only:
         ```sh
         gcore -o ymir.dmp <pid>
