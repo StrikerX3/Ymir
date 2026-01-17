@@ -7,8 +7,7 @@
 
 namespace app::input {
 
-// Identifies actions within an input context. Apps can use any mapping scheme they wish for actions.
-// 4 billion different actions should be more than enough for any kind of app.
+// Identifies actions within an input context.
 //
 // Any number of input elements can be mapped to a given action.
 struct Action {
