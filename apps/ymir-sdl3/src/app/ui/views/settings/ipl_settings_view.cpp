@@ -211,6 +211,22 @@ void IPLSettingsView::Display() {
 
     ImGui::Separator();
 
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Preferred system variant");
+    ImGui::SameLine();
+    if (ImGui::BeginCombo("##variant", GetVariantName(settings.variant), ImGuiComboFlags_WidthFitPreview)) {
+        for (int i = 0; i <= 4; ++i) {
+            const auto variant = static_cast<db::SystemVariant>(i);
+            if (MakeDirty(ImGui::Selectable(GetVariantName(variant), variant == settings.variant))) {
+                settings.variant = variant;
+                m_context.EnqueueEvent(events::gui::ReloadIPLROM());
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    ImGui::Separator();
+
     if (MakeDirty(ImGui::Checkbox("Override IPL ROM", &settings.overrideImage))) {
         if (settings.overrideImage && !settings.path.empty()) {
             m_context.EnqueueEvent(events::gui::ReloadIPLROM());

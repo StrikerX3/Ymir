@@ -4270,8 +4270,7 @@ std::filesystem::path App::GetIPLROMPath() {
 
     // Auto-select ROM from IPL ROM manager based on preferred system variant and area code
 
-    // TODO: make this configurable
-    ymir::db::SystemVariant preferredVariant = ymir::db::SystemVariant::Saturn;
+    ymir::db::SystemVariant preferredVariant = m_context.settings.system.ipl.variant;
 
     // SMPC area codes:
     //   0x1  J  Domestic NTSC        Japan
@@ -4303,6 +4302,7 @@ std::filesystem::path App::GetIPLROMPath() {
     // Try to find exact match
     // Keep a region-free fallback in case there isn't a perfect match
     std::filesystem::path regionFreeMatch = "";
+    std::filesystem::path variantMatch = "";
     std::filesystem::path firstMatch = "";
     for (auto &[path, info] : m_context.romManager.GetIPLROMs()) {
         if (info.info == nullptr) {
@@ -4311,12 +4311,12 @@ std::filesystem::path App::GetIPLROMPath() {
         if (firstMatch.empty()) {
             firstMatch = path;
         }
-        if (info.info->variant == preferredVariant) {
+        if (preferredVariant == ymir::db::SystemVariant::None || info.info->variant == preferredVariant) {
             if (info.info->region == preferredRegion) {
                 devlog::info<grp::base>("Using auto-detected IPL ROM");
                 return path;
-            } else if (info.info->region == ymir::db::SystemRegion::RegionFree && regionFreeMatch.empty()) {
-                regionFreeMatch = path;
+            } else {
+                variantMatch = path;
             }
         }
     }
@@ -4327,8 +4327,12 @@ std::filesystem::path App::GetIPLROMPath() {
         devlog::info<grp::base>("Using auto-detected region-free IPL ROM");
         return regionFreeMatch;
     }
-
-    // Return whatever is available
+    
+    //Fallback top variant match if found
+    if(!variantMatch.empty()){
+        devlog::info<grp::base>("Using auto-detected variant IPL ROM with mismatched region");
+        return variantMatch;
+    }
     return firstMatch;
 }
 
