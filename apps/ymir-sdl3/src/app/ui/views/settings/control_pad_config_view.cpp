@@ -38,7 +38,7 @@ void ControlPadConfigView::Display(Settings::Input::Port::ControlPad &controller
             }
             for (uint32 i = 0; i < input::kNumBindsPerInput; i++) {
                 if (ImGui::TableNextColumn()) {
-                    m_inputCaptureWidget.DrawInputBindButton(bind, i, false, &m_context.controlPadInputs[portIndex]);
+                    m_inputCaptureWidget.DrawInputBindButton(bind, i, &m_context.controlPadInputs[portIndex]);
                 }
             }
         };

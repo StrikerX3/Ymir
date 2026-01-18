@@ -39,7 +39,7 @@ void HotkeysSettingsView::Display() {
             }
             for (uint32 i = 0; i < input::kNumBindsPerInput; i++) {
                 if (ImGui::TableNextColumn()) {
-                    m_inputCaptureWidget.DrawInputBindButton(bind, i, false, nullptr);
+                    m_inputCaptureWidget.DrawInputBindButton(bind, i, nullptr);
                 }
             }
         };
