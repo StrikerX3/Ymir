@@ -604,6 +604,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "bsdcode, "
                            "Citrodata, "
                            "floreal, "
+                           "Fueziwa, "
                            "GlaireDaggers, "
                            "lvsweat, "
                            "mmkzer0, "
