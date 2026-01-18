@@ -1271,7 +1271,7 @@ void App::RunEmulator() {
                         dpadInput.x = x;
                         dpadInput.y = y;
                     } else {
-                        dpadInput.x = 0;
+                        dpadInput.x = 0.0f;
                         dpadInput.y = 0.0f;
                     }
                     input.UpdateDPad(m_context.settings.input.gamepad.analogToDigitalSensitivity);
@@ -1329,7 +1329,7 @@ void App::RunEmulator() {
                         dpadInput.x = x;
                         dpadInput.y = y;
                     } else {
-                        dpadInput.x = 0;
+                        dpadInput.x = 0.0f;
                         dpadInput.y = 0.0f;
                     }
                     input.UpdateDPad(m_context.settings.input.gamepad.analogToDigitalSensitivity);
@@ -1499,7 +1499,7 @@ void App::RunEmulator() {
                         analogInput.x = x;
                         analogInput.y = y;
                     } else {
-                        analogInput.x = 0;
+                        analogInput.x = 0.0f;
                         analogInput.y = 0.0f;
                     }
                     input.UpdateAnalogStick(sub);
