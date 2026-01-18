@@ -8,7 +8,8 @@ InputCaptureWidget::InputCaptureWidget(SharedContext &context, UnboundActionsWid
     : m_context(context)
     , m_unboundActionsWidget(unboundActionsWidget) {}
 
-void InputCaptureWidget::DrawInputBindButton(input::InputBind &bind, size_t elementIndex, void *context) {
+void InputCaptureWidget::DrawInputBindButton(input::InputBind &bind, size_t elementIndex, bool acceptMouse,
+                                             void *context) {
     const std::string bindStr = input::ToHumanString(bind.elements[elementIndex]);
     const std::string label = fmt::format("{}##bind_{}_{}", bindStr, elementIndex, bind.action.id);
     const float availWidth = ImGui::GetContentRegionAvail().x;
@@ -17,14 +18,16 @@ void InputCaptureWidget::DrawInputBindButton(input::InputBind &bind, size_t elem
     if (ImGui::Button(label.c_str(), ImVec2(availWidth, 0))) {
         ImGui::OpenPopup("input_capture");
         m_capturing = true;
+
+        using enum input::Action::Kind;
         switch (bind.action.kind) {
-        case input::Action::Kind::Trigger: [[fallthrough]];
-        case input::Action::Kind::RepeatableTrigger: CaptureTrigger(bind, elementIndex, context); break;
-        case input::Action::Kind::ComboTrigger: CaptureComboTrigger(bind, elementIndex, context); break;
-        case input::Action::Kind::Button: CaptureButton(bind, elementIndex, context); break;
-        case input::Action::Kind::AbsoluteMonopolarAxis1D: CaptureAxis1D(bind, elementIndex, context, false); break;
-        case input::Action::Kind::AbsoluteBipolarAxis1D: CaptureAxis1D(bind, elementIndex, context, true); break;
-        case input::Action::Kind::AbsoluteBipolarAxis2D: CaptureAxis2D(bind, elementIndex, context); break;
+        case Trigger: [[fallthrough]];
+        case RepeatableTrigger: CaptureTrigger(bind, elementIndex, acceptMouse, context); break;
+        case ComboTrigger: CaptureComboTrigger(bind, elementIndex, context); break;
+        case Button: CaptureButton(bind, elementIndex, acceptMouse, context); break;
+        case AbsoluteMonopolarAxis1D: CaptureAxis1D(bind, elementIndex, acceptMouse, context, false); break;
+        case AbsoluteBipolarAxis1D: CaptureAxis1D(bind, elementIndex, acceptMouse, context, true); break;
+        case AbsoluteBipolarAxis2D: CaptureAxis2D(bind, elementIndex, acceptMouse, context); break;
         }
     }
 
@@ -43,32 +46,52 @@ void InputCaptureWidget::DrawCapturePopup() {
             m_closePopup = false;
             ImGui::CloseCurrentPopup();
         }
+
+        using enum input::Action::Kind;
         switch (m_kind) {
-        case input::Action::Kind::Trigger: [[fallthrough]];
-        case input::Action::Kind::RepeatableTrigger: [[fallthrough]];
-        case input::Action::Kind::Button:
-            ImGui::TextUnformatted("Press any key or gamepad button to map it.\n\n"
-                                   "Press Escape or click outside of this popup to cancel.");
+        case Trigger: [[fallthrough]];
+        case RepeatableTrigger: [[fallthrough]];
+        case Button:
+            ImGui::TextUnformatted(m_acceptMouse ? "Press any key, mouse button or gamepad button to map it.\n\n"
+                                                   "Press Escape to cancel."
+
+                                                 : "Press any key or gamepad button to map it.\n\n"
+                                                   "Press Escape or click outside of this popup to cancel.");
             break;
-        case input::Action::Kind::ComboTrigger:
+        case ComboTrigger:
             ImGui::TextUnformatted("Press any key combo with at least one modifier key to map it.\n\n"
                                    "Press Escape or click outside of this popup to cancel.");
             break;
-        case input::Action::Kind::AbsoluteMonopolarAxis1D:
-            ImGui::TextUnformatted("Move any one-dimensional monopolar axis such as analog triggers to map it.\n\n"
-                                   "Press Escape or click outside of this popup to cancel.");
-            break;
-        case input::Action::Kind::AbsoluteBipolarAxis1D:
-            ImGui::TextUnformatted("Move any one-dimensional bipolar axis such as analog wheels or one direction of an "
-                                   "analog stick to map it.\n\n"
-                                   "Press Escape or click outside of this popup to cancel.");
-            break;
-        case input::Action::Kind::AbsoluteBipolarAxis2D:
+        case AbsoluteMonopolarAxis1D:
             ImGui::TextUnformatted(
-                "Move any two-dimensional bipolar axis such as analog sticks or D-Pads to map it.\n\n"
-                "Press Escape or click outside of this popup to cancel.");
+                m_acceptMouse
+                    ? "Move any one-dimensional monopolar axis such as analog triggers or mouse wheel to map it.\n\n"
+                      "Press Escape to cancel."
+
+                    : "Move any one-dimensional monopolar axis such as analog triggers to map it.\n\n"
+                      "Press Escape or click outside of this popup to cancel.");
+            break;
+        case AbsoluteBipolarAxis1D:
+            ImGui::TextUnformatted(
+                m_acceptMouse ? "Move any one-dimensional bipolar axis such as analog wheels, mouse wheel or one "
+                                "direction of a mouse or an analog stick to map it.\n\n"
+                                "Press Escape to cancel."
+
+                              : "Move any one-dimensional bipolar axis such as analog wheels or one direction of an "
+                                "analog stick to map it.\n\n"
+                                "Press Escape or click outside of this popup to cancel.");
+            break;
+        case AbsoluteBipolarAxis2D:
+            ImGui::TextUnformatted(
+                m_acceptMouse
+                    ? "Move any two-dimensional bipolar axis such as mice, analog sticks or D-Pads to map it.\n\n"
+                      "Press Escape to cancel."
+
+                    : "Move any two-dimensional bipolar axis such as analog sticks or D-Pads to map it.\n\n"
+                      "Press Escape or click outside of this popup to cancel.");
             break;
         }
+
         ImGui::EndPopup();
     } else if (m_capturing) {
         m_context.inputContext.CancelCapture();
@@ -76,8 +99,9 @@ void InputCaptureWidget::DrawCapturePopup() {
     }
 }
 
-void InputCaptureWidget::CaptureButton(input::InputBind &bind, size_t elementIndex, void *context) {
+void InputCaptureWidget::CaptureButton(input::InputBind &bind, size_t elementIndex, bool acceptMouse, void *context) {
     m_kind = input::Action::Kind::Button;
+    m_acceptMouse = acceptMouse;
     m_context.inputContext.Capture([=, this, &bind](const input::InputEvent &event) -> bool {
         if (!event.element.IsButton()) {
             return false;
@@ -85,6 +109,11 @@ void InputCaptureWidget::CaptureButton(input::InputBind &bind, size_t elementInd
 
         // Ignore released presses
         if (!event.buttonPressed) {
+            return false;
+        }
+
+        // Filter out mouse inputs if requested
+        if (!m_acceptMouse && event.element.IsMouse()) {
             return false;
         }
 
@@ -113,12 +142,19 @@ void InputCaptureWidget::CaptureButton(input::InputBind &bind, size_t elementInd
     });
 }
 
-void InputCaptureWidget::CaptureTrigger(input::InputBind &bind, size_t elementIndex, void *context) {
+void InputCaptureWidget::CaptureTrigger(input::InputBind &bind, size_t elementIndex, bool acceptMouse, void *context) {
     m_kind = input::Action::Kind::Trigger;
+    m_acceptMouse = acceptMouse;
     m_context.inputContext.Capture([=, this, &bind](const input::InputEvent &event) -> bool {
         if (!event.element.IsButton()) {
             return false;
         }
+
+        // Filter out mouse inputs if requested
+        if (!m_acceptMouse && event.element.IsMouse()) {
+            return false;
+        }
+
         if (event.element.type == input::InputElement::Type::KeyCombo) {
             if (event.element.keyCombo.key == input::KeyboardKey::None) {
                 // Map key modifier combos without a key press when releasing the keys
@@ -161,8 +197,10 @@ void InputCaptureWidget::CaptureComboTrigger(input::InputBind &bind, size_t elem
     });
 }
 
-void InputCaptureWidget::CaptureAxis1D(input::InputBind &bind, size_t elementIndex, void *context, bool bipolar) {
+void InputCaptureWidget::CaptureAxis1D(input::InputBind &bind, size_t elementIndex, bool acceptMouse, void *context,
+                                       bool bipolar) {
     m_kind = bipolar ? input::Action::Kind::AbsoluteBipolarAxis1D : input::Action::Kind::AbsoluteMonopolarAxis1D;
+    m_acceptMouse = acceptMouse;
     m_context.inputContext.Capture([=, this, &bind](const input::InputEvent &event) -> bool {
         if (!event.element.IsAxis1D()) {
             return false;
@@ -170,6 +208,13 @@ void InputCaptureWidget::CaptureAxis1D(input::InputBind &bind, size_t elementInd
         if (event.element.IsBipolarAxis() != bipolar) {
             return false;
         }
+
+        // Filter out mouse inputs if requested
+        if (!m_acceptMouse && event.element.IsMouse()) {
+            return false;
+        }
+
+        // TODO: require minimum mouse travel from origin point to map mouse axis
         if (std::abs(event.axis1DValue) < 0.5f) {
             return false;
         }
@@ -179,8 +224,9 @@ void InputCaptureWidget::CaptureAxis1D(input::InputBind &bind, size_t elementInd
     });
 }
 
-void InputCaptureWidget::CaptureAxis2D(input::InputBind &bind, size_t elementIndex, void *context) {
+void InputCaptureWidget::CaptureAxis2D(input::InputBind &bind, size_t elementIndex, bool acceptMouse, void *context) {
     m_kind = input::Action::Kind::AbsoluteBipolarAxis2D;
+    m_acceptMouse = acceptMouse;
     m_context.inputContext.Capture([=, this, &bind](const input::InputEvent &event) -> bool {
         if (!event.element.IsAxis2D()) {
             return false;
@@ -188,6 +234,13 @@ void InputCaptureWidget::CaptureAxis2D(input::InputBind &bind, size_t elementInd
         if (!event.element.IsBipolarAxis()) {
             return false;
         }
+
+        // Filter out mouse inputs if requested
+        if (!m_acceptMouse && event.element.IsMouse()) {
+            return false;
+        }
+
+        // TODO: require minimum mouse travel from origin point to map mouse axis
         const float d = event.axis2D.x * event.axis2D.x + event.axis2D.y * event.axis2D.y;
         if (d < 0.5f * 0.5f) {
             return false;

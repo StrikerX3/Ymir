@@ -8,14 +8,6 @@ namespace app::input {
 
 InputContext::InputContext() {
     m_keyStates.fill(false);
-    m_mouseButtonStates.fill(false);
-    m_gamepadButtonStates.clear();
-
-    m_mouseAxes1D.fill({});
-    m_gamepadAxes1D.clear();
-
-    m_mouseAxes2D.fill({});
-    m_gamepadAxes2D.clear();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -63,12 +55,32 @@ void InputContext::ProcessPrimitive(KeyboardKey key, KeyModifier modifiers, bool
     ProcessEvent({.element = {KeyCombo{modifiers, key}}, .buttonPressed = pressed}, changed);
 }
 
-void InputContext::ProcessPrimitive(MouseButton button, bool pressed) {
+void InputContext::ProcessPrimitive(uint32 id, MouseButton button, bool pressed) {
     const auto index = static_cast<size_t>(button);
-    if (m_mouseButtonStates[index] != pressed) {
-        m_mouseButtonStates[index] = pressed;
-        ProcessEvent({.element = {MouseCombo{m_currModifiers, button}}, .buttonPressed = pressed});
+    if (m_mouseButtonStates[id][index] != pressed) {
+        m_mouseButtonStates[id][index] = pressed;
+        ProcessEvent({.element = {id, MouseCombo{m_currModifiers, button}}, .buttonPressed = pressed});
     }
+}
+
+void InputContext::ProcessPrimitive(uint32 id, MouseAxis1D axis, float value) {
+    const MouseAxis2D axis2D = Get2DAxisFrom1DAxis(axis);
+    const auto index1D = static_cast<size_t>(axis);
+
+    m_mouseAxes1D[id][index1D].value = value;
+    m_mouseAxes1D[id][index1D].changed = true;
+
+    if (axis2D != MouseAxis2D::None) {
+        const auto index2D = static_cast<size_t>(axis2D);
+        if (GetAxisDirection(axis) == AxisDirection::Horizontal) {
+            m_mouseAxes2D[id][index2D].x = value;
+        } else {
+            m_mouseAxes2D[id][index2D].y = value;
+        }
+        m_mouseAxes2D[id][index2D].changed = true;
+    }
+
+    m_axesDirty = true;
 }
 
 void InputContext::ProcessPrimitive(uint32 id, GamepadButton button, bool pressed) {
@@ -86,26 +98,6 @@ void InputContext::ProcessPrimitive(uint32 id, GamepadButton button, bool presse
         default: break;
         }
     }
-}
-
-void InputContext::ProcessPrimitive(MouseAxis1D axis, float value) {
-    const MouseAxis2D axis2D = Get2DAxisFrom1DAxis(axis);
-    const auto index1D = static_cast<size_t>(axis);
-
-    m_mouseAxes1D[index1D].value = value;
-    m_mouseAxes1D[index1D].changed = true;
-
-    if (axis2D != MouseAxis2D::None) {
-        const auto index2D = static_cast<size_t>(axis2D);
-        if (GetAxisDirection(axis) == AxisDirection::Horizontal) {
-            m_mouseAxes2D[index2D].x = value;
-        } else {
-            m_mouseAxes2D[index2D].y = value;
-        }
-        m_mouseAxes2D[index2D].changed = true;
-    }
-
-    m_axesDirty = true;
 }
 
 void InputContext::ProcessPrimitive(uint32 id, GamepadAxis1D axis, float value) {
@@ -128,6 +120,15 @@ void InputContext::ProcessPrimitive(uint32 id, GamepadAxis1D axis, float value) 
     m_axesDirty = true;
 }
 
+void InputContext::ConnectMouse(uint32 id) {
+    m_connectedMice.insert(id);
+}
+
+void InputContext::DisconnectMouse(uint32 id) {
+    ResetMouseInputs(id);
+    m_connectedMice.erase(id);
+}
+
 void InputContext::ConnectGamepad(uint32 id) {
     m_connectedGamepads.insert(id);
 }
@@ -143,25 +144,28 @@ void InputContext::ProcessAxes() {
     }
     m_axesDirty = false;
 
-    for (size_t i = 0; i < m_mouseAxes1D.size(); ++i) {
-        const auto axis = static_cast<MouseAxis1D>(i);
-        Axis1D &state = m_mouseAxes1D[i];
-        if (!state.changed) {
-            continue;
+    for (auto &[id, axes] : m_mouseAxes1D) {
+        for (size_t i = 0; i < axes.size(); ++i) {
+            const auto axis = static_cast<MouseAxis1D>(i);
+            Axis1D &state = axes[i];
+            if (!state.changed) {
+                continue;
+            }
+            state.changed = false;
+            ProcessEvent({.element = {id, axis}, .axis1DValue = state.value});
         }
-        state.changed = false;
-        ProcessEvent({.element = {axis}, .axis1DValue = state.value});
     }
-    for (size_t i = 0; i < m_mouseAxes2D.size(); ++i) {
-        const auto axis = static_cast<MouseAxis2D>(i);
-        Axis2D &state = m_mouseAxes2D[i];
-        if (!state.changed) {
-            continue;
+    for (auto &[id, axes] : m_mouseAxes2D) {
+        for (size_t i = 0; i < axes.size(); ++i) {
+            const auto axis = static_cast<MouseAxis2D>(i);
+            Axis2D &state = axes[i];
+            if (!state.changed) {
+                continue;
+            }
+            state.changed = false;
+            ProcessEvent({.element = {id, axis}, .axis2D = {.x = state.x, .y = state.y}});
         }
-        state.changed = false;
-        ProcessEvent({.element = {axis}, .axis2D = {.x = state.x, .y = state.y}});
     }
-
     for (auto &[id, axes] : m_gamepadAxes1D) {
         for (size_t i = 0; i < axes.size(); ++i) {
             const auto axis = static_cast<GamepadAxis1D>(i);
@@ -263,22 +267,66 @@ void InputContext::ResetAllKeyboardInputs() {
         }
     }
     if (m_currModifiers != KeyModifier::None) {
-        for (size_t i = 0; i < m_mouseButtonStates.size(); ++i) {
-            if (m_mouseButtonStates[i]) {
-                const auto button = static_cast<MouseButton>(i);
-                ResetInput(MouseCombo{m_currModifiers, button});
+        for (auto &[id, buttons] : m_mouseButtonStates) {
+            for (size_t i = 0; i < buttons.size(); ++i) {
+                if (buttons[i]) {
+                    const auto button = static_cast<MouseButton>(i);
+                    ResetInput({id, MouseCombo{m_currModifiers, button}});
+                }
             }
         }
     }
     m_currModifiers = KeyModifier::None;
 }
 
+void InputContext::ResetMouseInputs(uint32 id) {
+    m_mouseButtonStates[id].fill(false);
+    for (uint32 i = 0; i < static_cast<uint32>(MouseButton::_Count); ++i) {
+        const auto button = static_cast<MouseButton>(i);
+        ResetInput({id, button});
+    }
+
+    auto &axes1D = m_mouseAxes1D[id];
+    for (uint32 i = 0; i < axes1D.size(); ++i) {
+        auto &axis = axes1D[i];
+        axis.value = 0.0f;
+        ResetInput({id, static_cast<MouseAxis1D>(i)});
+    }
+
+    auto &axes2D = m_mouseAxes2D[id];
+    for (uint32 i = 0; i < axes2D.size(); ++i) {
+        auto &axis = axes2D[i];
+        axis.x = 0.0f;
+        axis.y = 0.0f;
+        ResetInput({id, static_cast<MouseAxis2D>(i)});
+    }
+}
+
 void InputContext::ResetAllMouseInputs() {
     for (size_t i = 0; i < m_mouseButtonStates.size(); ++i) {
-        if (m_mouseButtonStates[i]) {
-            m_mouseButtonStates[i] = false;
-            const auto button = static_cast<MouseButton>(i);
-            ResetInput(MouseCombo{m_currModifiers, button});
+        for (auto &[id, buttons] : m_mouseButtonStates) {
+            if (buttons[i]) {
+                buttons[i] = false;
+                const auto button = static_cast<MouseButton>(i);
+                ResetInput({id, MouseCombo{m_currModifiers, button}});
+            }
+        }
+    }
+
+    for (auto &[id, axes] : m_mouseAxes1D) {
+        for (uint32 i = 0; i < axes.size(); ++i) {
+            auto &axis = axes[i];
+            axis.value = 0.0f;
+            ResetInput({id, static_cast<MouseAxis1D>(i)});
+        }
+    }
+
+    for (auto &[id, axes] : m_mouseAxes2D) {
+        for (uint32 i = 0; i < axes.size(); ++i) {
+            auto &axis = axes[i];
+            axis.x = 0.0f;
+            axis.y = 0.0f;
+            ResetInput({id, static_cast<MouseAxis2D>(i)});
         }
     }
 }
@@ -355,12 +403,20 @@ std::set<uint32> InputContext::GetConnectedGamepads() const {
     return m_connectedGamepads;
 }
 
+std::set<uint32> InputContext::GetConnectedMice() const {
+    return m_connectedMice;
+}
+
 bool InputContext::IsPressed(KeyboardKey key) const {
     return m_keyStates[static_cast<size_t>(key)];
 }
 
-bool InputContext::IsPressed(MouseButton button) const {
-    return m_mouseButtonStates[static_cast<size_t>(button)];
+bool InputContext::IsPressed(uint32 id, MouseButton button) const {
+    if (m_mouseButtonStates.contains(id)) {
+        return m_mouseButtonStates.at(id)[static_cast<size_t>(button)];
+    } else {
+        return false;
+    }
 }
 
 bool InputContext::IsPressed(uint32 id, GamepadButton button) const {
@@ -371,8 +427,12 @@ bool InputContext::IsPressed(uint32 id, GamepadButton button) const {
     }
 }
 
-float InputContext::GetAxis1D(MouseAxis1D axis) const {
-    return m_mouseAxes1D[static_cast<size_t>(axis)].value;
+float InputContext::GetAxis1D(uint32 id, MouseAxis1D axis) const {
+    if (m_mouseAxes1D.contains(id)) {
+        return m_mouseAxes1D.at(id)[static_cast<size_t>(axis)].value;
+    } else {
+        return 0.0f;
+    }
 }
 
 float InputContext::GetAxis1D(uint32 id, GamepadAxis1D axis) const {
@@ -383,9 +443,13 @@ float InputContext::GetAxis1D(uint32 id, GamepadAxis1D axis) const {
     }
 }
 
-Axis2DValue InputContext::GetAxis2D(MouseAxis2D axis) const {
-    const auto &value = m_mouseAxes2D[static_cast<size_t>(axis)];
-    return {value.x, value.y};
+Axis2DValue InputContext::GetAxis2D(uint32 id, MouseAxis2D axis) const {
+    if (m_mouseAxes2D.contains(id)) {
+        const auto &value = m_mouseAxes2D.at(id)[static_cast<size_t>(axis)];
+        return {value.x, value.y};
+    } else {
+        return {0.0f, 0.0f};
+    }
 }
 
 Axis2DValue InputContext::GetAxis2D(uint32 id, GamepadAxis2D axis) const {
@@ -412,13 +476,13 @@ void InputContext::ProcessEvent(const InputEvent &event, bool changed) {
     if (changed && ((event.element.type == InputElement::Type::KeyCombo &&
                      event.element.keyCombo.modifiers != KeyModifier::None) ||
                     (event.element.type == InputElement::Type::MouseCombo &&
-                     event.element.mouseCombo.modifiers != KeyModifier::None))) {
+                     event.element.mouseCombo.mouseCombo.modifiers != KeyModifier::None))) {
 
         InputElement element = event.element;
         if (event.element.type == InputElement::Type::KeyCombo) {
             element.keyCombo.modifiers = KeyModifier::None;
         } else { // InputElement::Type::MouseCombo
-            element.mouseCombo.modifiers = KeyModifier::None;
+            element.mouseCombo.mouseCombo.modifiers = KeyModifier::None;
         }
 
         ProcessButtonAction(element, event.buttonPressed);
@@ -445,7 +509,7 @@ void InputContext::ProcessEvent(const InputEvent &event, bool changed) {
                 handler->second(action->second.context, event.element, event.axis1DValue);
             }
             break;
-        case InputElement::Type::MouseAxis2D: [[fallthrough]];
+        case InputElement::Type::MouseAxis2D:
         case InputElement::Type::GamepadAxis2D:
             if (auto handler = m_axis2DHandlers.find(action->second.action); handler != m_axis2DHandlers.end()) {
                 handler->second(action->second.context, event.element, event.axis2D.x, event.axis2D.y);

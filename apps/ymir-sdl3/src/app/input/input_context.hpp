@@ -71,19 +71,25 @@ public:
 
     // Processes a keyboard primitive.
     void ProcessPrimitive(KeyboardKey key, KeyModifier modifiers, bool pressed);
+
     // Processes a mouse button primitive.
-    void ProcessPrimitive(MouseButton button, bool pressed);
+    void ProcessPrimitive(uint32 id, MouseButton button, bool pressed);
+    // Processes an 1D mouse axis primitive.
+    void ProcessPrimitive(uint32 id, MouseAxis1D axis, float value);
+
     // Processes a gamepad button primitive.
     void ProcessPrimitive(uint32 id, GamepadButton button, bool pressed);
-
-    // Processes an 1D mouse axis primitive.
-    void ProcessPrimitive(MouseAxis1D axis, float value);
     // Processes an 1D gamepad axis primitive.
     void ProcessPrimitive(uint32 id, GamepadAxis1D axis, float value);
 
+    // Adds the specified mouse to the connected list.
+    void ConnectMouse(uint32 id);
+    // Removes the specified mouse from the connected list and resets all of its inputs.
+    void DisconnectMouse(uint32 id);
+
     // Adds the specified gamepad to the connected list.
     void ConnectGamepad(uint32 id);
-    // Removes the specified gamepad from the connected list.
+    // Removes the specified gamepad from the connected list and resets all of its inputs.
     void DisconnectGamepad(uint32 id);
 
     // Processes all updated axes.
@@ -95,6 +101,11 @@ public:
     // Resets all keyboard inputs.
     // Useful when the application loses focus.
     void ResetAllKeyboardInputs();
+
+    // Resets all inputs of the specified mouse.
+    // Useful when the application loses focus.
+    // Automatically invoked when a mouse is disconnected.
+    void ResetMouseInputs(uint32 id);
 
     // Resets all mouse inputs.
     // Useful when the application loses focus.
@@ -125,15 +136,16 @@ public:
     // Input state queries
 
     std::set<uint32> GetConnectedGamepads() const;
+    std::set<uint32> GetConnectedMice() const;
 
     bool IsPressed(KeyboardKey key) const;
-    bool IsPressed(MouseButton button) const;
+    bool IsPressed(uint32 id, MouseButton button) const;
     bool IsPressed(uint32 id, GamepadButton button) const;
 
-    float GetAxis1D(MouseAxis1D axis) const;
+    float GetAxis1D(uint32 id, MouseAxis1D axis) const;
     float GetAxis1D(uint32 id, GamepadAxis1D axis) const;
 
-    Axis2DValue GetAxis2D(MouseAxis2D axis) const;
+    Axis2DValue GetAxis2D(uint32 id, MouseAxis2D axis) const;
     Axis2DValue GetAxis2D(uint32 id, GamepadAxis2D axis) const;
 
 private:
@@ -224,18 +236,19 @@ private:
     KeyModifier m_currModifiers = KeyModifier::None;
 
     std::array<bool, static_cast<size_t>(KeyboardKey::_Count)> m_keyStates;
-    std::array<bool, static_cast<size_t>(MouseButton::_Count)> m_mouseButtonStates;
+    std::unordered_map<uint32, std::array<bool, static_cast<size_t>(MouseButton::_Count)>> m_mouseButtonStates;
     std::unordered_map<uint32, std::array<bool, static_cast<size_t>(GamepadButton::_Count)>> m_gamepadButtonStates;
 
-    std::set<uint32> m_connectedGamepads;
-
-    bool m_axesDirty = false;
-
-    std::array<Axis1D, static_cast<size_t>(MouseAxis1D::_Count)> m_mouseAxes1D;
+    std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(MouseAxis1D::_Count)>> m_mouseAxes1D;
     std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(GamepadAxis1D::_Count)>> m_gamepadAxes1D;
 
-    std::array<Axis2D, static_cast<size_t>(MouseAxis2D::_Count)> m_mouseAxes2D;
+    std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(MouseAxis2D::_Count)>> m_mouseAxes2D;
     std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(GamepadAxis2D::_Count)>> m_gamepadAxes2D;
+
+    std::set<uint32> m_connectedGamepads;
+    std::set<uint32> m_connectedMice;
+
+    bool m_axesDirty = false;
 
     // -----------------------------------------------------------------------------------------------------------------
     // Element-action mappings

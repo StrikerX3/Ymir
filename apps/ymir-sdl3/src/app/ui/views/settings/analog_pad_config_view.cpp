@@ -49,7 +49,7 @@ void AnalogPadConfigView::Display(Settings::Input::Port::AnalogPad &controllerSe
             }
             for (uint32 i = 0; i < input::kNumBindsPerInput; i++) {
                 if (ImGui::TableNextColumn()) {
-                    m_inputCaptureWidget.DrawInputBindButton(bind, i, &m_context.analogPadInputs[portIndex]);
+                    m_inputCaptureWidget.DrawInputBindButton(bind, i, false, &m_context.analogPadInputs[portIndex]);
                 }
             }
         };

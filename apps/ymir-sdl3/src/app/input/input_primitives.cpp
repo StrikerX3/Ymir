@@ -352,11 +352,11 @@ std::string_view ToHumanString(KeyboardKey key) {
 
 std::string_view ToHumanString(MouseButton btn) {
     switch (btn) {
-    case MouseButton::Left: return "Left Mouse Button";
-    case MouseButton::Right: return "Right Mouse Button";
-    case MouseButton::Middle: return "Middle Mouse Button";
-    case MouseButton::Extra1: return "Mouse Button 4";
-    case MouseButton::Extra2: return "Mouse Button 5";
+    case MouseButton::Left: return "Left";
+    case MouseButton::Right: return "Right";
+    case MouseButton::Middle: return "Middle";
+    case MouseButton::Extra1: return "Button 4";
+    case MouseButton::Extra2: return "Button 5";
 
     default: return "Unknown";
     }
@@ -364,10 +364,10 @@ std::string_view ToHumanString(MouseButton btn) {
 
 std::string_view ToHumanString(MouseAxis1D axis) {
     switch (axis) {
-    case MouseAxis1D::Vertical: return "Mouse Y";
-    case MouseAxis1D::Horizontal: return "Mouse X";
-    case MouseAxis1D::WheelVertical: return "Mouse Wheel Y";
-    case MouseAxis1D::WheelHorizontal: return "Mouse Wheel X";
+    case MouseAxis1D::Vertical: return "Y";
+    case MouseAxis1D::Horizontal: return "X";
+    case MouseAxis1D::WheelVertical: return "Wheel Y";
+    case MouseAxis1D::WheelHorizontal: return "Wheel X";
     default: return "Unknown";
     }
 }

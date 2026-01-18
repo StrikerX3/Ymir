@@ -1647,33 +1647,63 @@ void App::RunEmulator() {
 
     ReloadSDLGameControllerDatabases(false);
 
-    // Track connected gamepads and player indices
+    struct PlayerIndexMap {
+        int GetPlayerIndex(uint32 id) const {
+            if (m_playerIndices.contains(id)) {
+                return m_playerIndices.at(id);
+            } else {
+                return -1;
+            }
+        }
+
+        int GetOrAssignPlayerIndex(uint32 id) {
+            if (m_playerIndices.contains(id)) {
+                return m_playerIndices.at(id);
+            }
+
+            int index = -1;
+            if (m_freePlayerIndices.empty()) {
+                index = m_playerIndices.size();
+            } else {
+                auto first = m_freePlayerIndices.begin();
+                index = *first;
+                m_freePlayerIndices.erase(first);
+            }
+            m_playerIndices[id] = index;
+            return index;
+        }
+
+        int AssignPlayerIndex(uint32 id) {
+            int index = -1;
+            if (m_freePlayerIndices.empty()) {
+                index = m_playerIndices.size();
+            } else {
+                auto first = m_freePlayerIndices.begin();
+                index = *first;
+                m_freePlayerIndices.erase(first);
+            }
+            m_playerIndices[id] = index;
+            return index;
+        }
+
+        int ReleasePlayerIndex(uint32 id) {
+            int index = GetPlayerIndex(id);
+            m_playerIndices.erase(id);
+            m_freePlayerIndices.insert(index);
+            return index;
+        }
+
+    private:
+        std::unordered_map<uint32, int> m_playerIndices{};
+        std::set<int> m_freePlayerIndices;
+    };
+
+    // Track connected gamepads and mice and assigned player indices
     // NOTE: SDL3 has a bug with Windows raw input where new controllers are always assigned to player index 0.
     // We'll manage player indices manually instead.
     std::unordered_map<SDL_JoystickID, SDL_Gamepad *> gamepads{};
-    std::unordered_map<SDL_JoystickID, int> gamepadPlayerIndexes{};
-    std::set<int> freePlayerIndices;
-    auto getGamepadPlayerIndex = [&](SDL_JoystickID id) {
-        if (gamepadPlayerIndexes.contains(id)) {
-            return gamepadPlayerIndexes.at(id);
-        } else {
-            return -1;
-        }
-    };
-    auto getFreePlayerIndex = [&]() -> int {
-        if (freePlayerIndices.empty()) {
-            return gamepadPlayerIndexes.size();
-        } else {
-            auto first = freePlayerIndices.begin();
-            int index = *first;
-            freePlayerIndices.erase(first);
-            return index;
-        }
-    };
-    auto addFreePlayerIndex = [&](int free) {
-        // This should always succeed
-        assert(freePlayerIndices.insert(free).second);
-    };
+    PlayerIndexMap gamepadPlayerIndices;
+    PlayerIndexMap mousePlayerIndices;
 
     std::array<GUIEvent, 64> evts{};
 
@@ -1863,12 +1893,20 @@ void App::RunEmulator() {
                 }
                 break;
 
-            case SDL_EVENT_MOUSE_ADDED: [[fallthrough]];
-            case SDL_EVENT_MOUSE_REMOVED:
-                // TODO: handle these
-                // evt.mdevice.type;
-                // evt.mdevice.which;
+            case SDL_EVENT_MOUSE_ADDED: //
+            {
+                const int playerIndex = mousePlayerIndices.AssignPlayerIndex(evt.mdevice.which);
+                inputContext.ConnectMouse(playerIndex);
+                devlog::debug<grp::base>("Mouse {} added -> player index {}", evt.mdevice.which, playerIndex);
                 break;
+            }
+            case SDL_EVENT_MOUSE_REMOVED: //
+            {
+                const int playerIndex = mousePlayerIndices.ReleasePlayerIndex(evt.mdevice.which);
+                inputContext.DisconnectMouse(playerIndex);
+                devlog::debug<grp::base>("Mouse {} removed -> player index {}", evt.mdevice.which, playerIndex);
+                break;
+            }
             case SDL_EVENT_MOUSE_BUTTON_DOWN: [[fallthrough]];
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (!io.WantCaptureMouse) {
@@ -1878,28 +1916,30 @@ void App::RunEmulator() {
                         m_context.settings.MakeDirty();
                     }
                 }
-                /*if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    // TODO: consider supporting multiple mice (evt.button.which)
-                    // TODO: evt.button.clicks?
-                    // TODO: evt.button.x, evt.button.y?
-                    // TODO: key modifiers
-                    inputContext.ProcessPrimitive(input::SDL3ToMouseButton(evt.button.button), evt.button.down);
-                }*/
+                if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
+                    const int playerIndex = mousePlayerIndices.GetOrAssignPlayerIndex(evt.button.which);
+                    // TODO: evt.button.x, evt.button.y
+                    // TODO: maybe evt.button.clicks?
+                    inputContext.ProcessPrimitive(playerIndex, input::SDL3ToMouseButton(evt.button.button),
+                                                  evt.button.down);
+                }
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                /*if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    // TODO: handle these
-                    // TODO: consider supporting multiple mice (evt.motion.which)
-                    // inputContext.ProcessMouseMotionEvent(evt.motion.xrel, evt.motion.yrel);
-                }*/
+                if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
+                    const int playerIndex = mousePlayerIndices.GetOrAssignPlayerIndex(evt.button.which);
+                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::Horizontal, evt.motion.xrel);
+                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::Vertical, evt.motion.yrel);
+                }
                 break;
             case SDL_EVENT_MOUSE_WHEEL:
-                /*if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    // TODO: handle these
-                    // TODO: consider supporting multiple mice (evt.wheel.which)
-                    // const float flippedFactor = evt.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
-                    // inputContext.ProcessMouseMotionEvent(evt.wheel.x * flippedFactor, evt.wheel.y * flippedFactor);
-                }*/
+                if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
+                    const int playerIndex = mousePlayerIndices.GetOrAssignPlayerIndex(evt.button.which);
+                    const float flippedFactor = evt.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
+                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::WheelHorizontal,
+                                                  evt.wheel.x * flippedFactor);
+                    inputContext.ProcessPrimitive(playerIndex, input::MouseAxis1D::WheelVertical,
+                                                  evt.wheel.y * flippedFactor);
+                }
                 break;
 
             case SDL_EVENT_GAMEPAD_ADDED: //
@@ -1907,24 +1947,21 @@ void App::RunEmulator() {
                 SDL_Gamepad *gamepad = SDL_OpenGamepad(evt.gdevice.which);
                 if (gamepad != nullptr) {
                     // const int playerIndex = SDL_GetGamepadPlayerIndex(gamepad);
-                    const int playerIndex = getFreePlayerIndex();
-                    gamepadPlayerIndexes[evt.gdevice.which] = playerIndex;
+                    const int playerIndex = gamepadPlayerIndices.AssignPlayerIndex(evt.gdevice.which);
                     gamepads[evt.gdevice.which] = gamepad;
-                    devlog::debug<grp::base>("Gamepad {} added -> player index {}", evt.gdevice.which, playerIndex);
                     inputContext.ConnectGamepad(playerIndex);
+                    devlog::debug<grp::base>("Gamepad {} added -> player index {}", evt.gdevice.which, playerIndex);
                 }
                 break;
             }
             case SDL_EVENT_GAMEPAD_REMOVED: //
             {
                 if (gamepads.contains(evt.gdevice.which)) {
-                    const int playerIndex = gamepadPlayerIndexes[evt.gdevice.which];
-                    devlog::debug<grp::base>("Gamepad {} removed -> player index {}", evt.gdevice.which, playerIndex);
+                    const int playerIndex = gamepadPlayerIndices.ReleasePlayerIndex(evt.gdevice.which);
                     SDL_CloseGamepad(gamepads.at(evt.gdevice.which));
-                    gamepadPlayerIndexes.erase(evt.gdevice.which);
-                    addFreePlayerIndex(playerIndex);
                     inputContext.DisconnectGamepad(playerIndex);
                     gamepads.erase(evt.gdevice.which);
+                    devlog::debug<grp::base>("Gamepad {} removed -> player index {}", evt.gdevice.which, playerIndex);
                 } else {
                     devlog::warn<grp::base>("Gamepad {} removed, but it was not open!", evt.gdevice.which);
                 }
@@ -1939,7 +1976,7 @@ void App::RunEmulator() {
                 break;
             case SDL_EVENT_GAMEPAD_AXIS_MOTION: //
             {
-                const int playerIndex = getGamepadPlayerIndex(evt.gaxis.which);
+                const int playerIndex = gamepadPlayerIndices.GetPlayerIndex(evt.gaxis.which);
                 const float value = evt.gaxis.value < 0 ? evt.gaxis.value / 32768.0f : evt.gaxis.value / 32767.0f;
                 inputContext.ProcessPrimitive(playerIndex, input::SDL3ToGamepadAxis1D((SDL_GamepadAxis)evt.gaxis.axis),
                                               value);
@@ -1948,7 +1985,7 @@ void App::RunEmulator() {
             case SDL_EVENT_GAMEPAD_BUTTON_DOWN: [[fallthrough]];
             case SDL_EVENT_GAMEPAD_BUTTON_UP: //
             {
-                const int playerIndex = getGamepadPlayerIndex(evt.gbutton.which);
+                const int playerIndex = gamepadPlayerIndices.GetPlayerIndex(evt.gbutton.which);
                 inputContext.ProcessPrimitive(
                     playerIndex, input::SDL3ToGamepadButton((SDL_GamepadButton)evt.gbutton.button), evt.gbutton.down);
                 break;
@@ -4327,12 +4364,13 @@ std::filesystem::path App::GetIPLROMPath() {
         devlog::info<grp::base>("Using auto-detected region-free IPL ROM");
         return regionFreeMatch;
     }
-    
-    //Fallback top variant match if found
-    if(!variantMatch.empty()){
+
+    // Fallback to variant match if found
+    if (!variantMatch.empty()) {
         devlog::info<grp::base>("Using auto-detected variant IPL ROM with mismatched region");
         return variantMatch;
     }
+
     return firstMatch;
 }
 

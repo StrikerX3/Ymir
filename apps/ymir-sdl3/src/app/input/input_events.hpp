@@ -12,26 +12,33 @@ struct InputElement {
         None,
         KeyCombo,
         MouseCombo,
-        GamepadButton,
         MouseAxis1D,
         MouseAxis2D,
+        GamepadButton,
         GamepadAxis1D,
         GamepadAxis2D,
     };
     Type type = Type::None;
 
-    struct GamepadButtonEvent {
+    struct MouseComboEvent {
         uint32 id;
-        GamepadButton button;
-        constexpr bool operator==(const GamepadButtonEvent &rhs) const = default;
+        MouseCombo mouseCombo;
+        constexpr bool operator==(const MouseComboEvent &rhs) const = default;
     };
     struct MouseAxis1DEvent {
+        uint32 id;
         MouseAxis1D axis;
         constexpr bool operator==(const MouseAxis1DEvent &rhs) const = default;
     };
     struct MouseAxis2DEvent {
+        uint32 id;
         MouseAxis2D axis;
         constexpr bool operator==(const MouseAxis2DEvent &rhs) const = default;
+    };
+    struct GamepadButtonEvent {
+        uint32 id;
+        GamepadButton button;
+        constexpr bool operator==(const GamepadButtonEvent &rhs) const = default;
     };
     struct GamepadAxis1DEvent {
         uint32 id;
@@ -46,10 +53,10 @@ struct InputElement {
 
     union {
         KeyCombo keyCombo;
-        MouseCombo mouseCombo;
-        GamepadButtonEvent gamepadButton;
+        MouseComboEvent mouseCombo;
         MouseAxis1DEvent mouseAxis1D;
         MouseAxis2DEvent mouseAxis2D;
+        GamepadButtonEvent gamepadButton;
         GamepadAxis1DEvent gamepadAxis1D;
         GamepadAxis2DEvent gamepadAxis2D;
     };
@@ -61,21 +68,21 @@ struct InputElement {
         : type(Type::KeyCombo)
         , keyCombo(keyCombo) {}
 
-    InputElement(MouseCombo mouseCombo)
+    InputElement(uint32 id, MouseCombo mouseCombo)
         : type(Type::MouseCombo)
-        , mouseCombo(mouseCombo) {}
+        , mouseCombo{.id = id, .mouseCombo = mouseCombo} {}
+
+    InputElement(uint32 id, MouseAxis1D axis)
+        : type(Type::MouseAxis1D)
+        , mouseAxis1D{.id = id, .axis = axis} {}
+
+    InputElement(uint32 id, MouseAxis2D axis)
+        : type(Type::MouseAxis2D)
+        , mouseAxis2D{.id = id, .axis = axis} {}
 
     InputElement(uint32 id, GamepadButton button)
         : type(Type::GamepadButton)
         , gamepadButton{.id = id, .button = button} {}
-
-    InputElement(MouseAxis1D axis)
-        : type(Type::MouseAxis1D)
-        , mouseAxis1D{.axis = axis} {}
-
-    InputElement(MouseAxis2D axis)
-        : type(Type::MouseAxis2D)
-        , mouseAxis2D{.axis = axis} {}
 
     InputElement(uint32 id, GamepadAxis1D axis)
         : type(Type::GamepadAxis1D)
@@ -84,6 +91,18 @@ struct InputElement {
     InputElement(uint32 id, GamepadAxis2D axis)
         : type(Type::GamepadAxis2D)
         , gamepadAxis2D{.id = id, .axis = axis} {}
+
+    bool IsKeyboard() const {
+        return type == Type::KeyCombo;
+    }
+
+    bool IsMouse() const {
+        return type == Type::MouseCombo || type == Type::MouseAxis1D || type == Type::MouseAxis2D;
+    }
+
+    bool IsGamepad() const {
+        return type == Type::GamepadButton || type == Type::GamepadAxis1D || type == Type::GamepadAxis2D;
+    }
 
     bool IsButton() const {
         return type == Type::KeyCombo || type == Type::MouseCombo || type == Type::GamepadButton;
@@ -125,9 +144,9 @@ struct InputElement {
         case Type::None: return true;
         case Type::KeyCombo: return keyCombo == rhs.keyCombo;
         case Type::MouseCombo: return mouseCombo == rhs.mouseCombo;
-        case Type::GamepadButton: return gamepadButton == rhs.gamepadButton;
         case Type::MouseAxis1D: return mouseAxis1D == rhs.mouseAxis1D;
         case Type::MouseAxis2D: return mouseAxis2D == rhs.mouseAxis2D;
+        case Type::GamepadButton: return gamepadButton == rhs.gamepadButton;
         case Type::GamepadAxis1D: return gamepadAxis1D == rhs.gamepadAxis1D;
         case Type::GamepadAxis2D: return gamepadAxis2D == rhs.gamepadAxis2D;
         default: return false;
@@ -177,25 +196,32 @@ struct std::hash<app::input::InputElement> {
         case Type::None: hash = 0; break;
         case Type::KeyCombo:
             hash ^= std::hash<uint8>{}(static_cast<uint8>(e.keyCombo.key));
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.keyCombo.modifiers)) << 1ull;
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.keyCombo.modifiers));
             break;
         case Type::MouseCombo:
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseCombo.button));
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseCombo.modifiers)) << 1ull;
+            hash ^= std::hash<uint32>{}(e.mouseCombo.id);
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseCombo.mouseCombo.button));
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseCombo.mouseCombo.modifiers));
+            break;
+        case Type::MouseAxis1D:
+            hash ^= std::hash<uint32>{}(e.mouseAxis1D.id);
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseAxis1D.axis));
+            break;
+        case Type::MouseAxis2D:
+            hash ^= std::hash<uint32>{}(e.mouseAxis2D.id);
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseAxis2D.axis));
             break;
         case Type::GamepadButton:
             hash ^= std::hash<uint32>{}(e.gamepadButton.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadButton.button)) << 1ull;
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadButton.button));
             break;
-        case Type::MouseAxis1D: hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseAxis1D.axis)); break;
-        case Type::MouseAxis2D: hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseAxis2D.axis)); break;
         case Type::GamepadAxis1D:
             hash ^= std::hash<uint32>{}(e.gamepadAxis1D.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadAxis1D.axis)) << 1ull;
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadAxis1D.axis));
             break;
         case Type::GamepadAxis2D:
             hash ^= std::hash<uint32>{}(e.gamepadAxis2D.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadAxis2D.axis)) << 1ull;
+            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadAxis2D.axis));
             break;
         }
         return hash;
