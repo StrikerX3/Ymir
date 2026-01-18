@@ -236,17 +236,17 @@ private:
     KeyModifier m_currModifiers = KeyModifier::None;
 
     std::array<bool, static_cast<size_t>(KeyboardKey::_Count)> m_keyStates;
-    std::unordered_map<uint32, std::array<bool, static_cast<size_t>(MouseButton::_Count)>> m_mouseButtonStates;
+
     std::unordered_map<uint32, std::array<bool, static_cast<size_t>(GamepadButton::_Count)>> m_gamepadButtonStates;
-
-    std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(MouseAxis1D::_Count)>> m_mouseAxes1D;
     std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(GamepadAxis1D::_Count)>> m_gamepadAxes1D;
-
-    std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(MouseAxis2D::_Count)>> m_mouseAxes2D;
     std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(GamepadAxis2D::_Count)>> m_gamepadAxes2D;
 
-    std::set<uint32> m_connectedGamepads;
+    std::unordered_map<uint32, std::array<bool, static_cast<size_t>(MouseButton::_Count)>> m_mouseButtonStates;
+    std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(MouseAxis1D::_Count)>> m_mouseAxes1D;
+    std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(MouseAxis2D::_Count)>> m_mouseAxes2D;
+
     std::set<uint32> m_connectedMice;
+    std::set<uint32> m_connectedGamepads;
 
     bool m_axesDirty = false;
 
