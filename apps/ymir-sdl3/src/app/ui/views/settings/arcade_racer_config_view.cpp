@@ -26,8 +26,9 @@ void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controll
         m_context.displayScale);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1.0f);
-    if (m_context.settings.MakeDirty(
-            ImGui::SliderFloat("##wheel_sens", &sensitivity, 0.2f, 2.0f, "%.02f", ImGuiSliderFlags_AlwaysClamp))) {
+    if (m_context.settings.MakeDirty(ImGui::SliderFloat("##wheel_sens", &sensitivity, kMinArcadeRacerSensitivity,
+                                                        kMaxArcadeRacerSensitivity, "%.02f",
+                                                        ImGuiSliderFlags_AlwaysClamp))) {
         controllerSettings.sensitivity = sensitivity;
     }
 

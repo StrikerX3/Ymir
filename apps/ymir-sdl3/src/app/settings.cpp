@@ -708,7 +708,7 @@ void Settings::ResetToDefaults() {
             (void)ResetBinds(port.arcadeRacer.binds, true);
             (void)ResetBinds(port.missionStick.binds, true);
 
-            port.arcadeRacer.sensitivity = 0.5f;
+            port.arcadeRacer.sensitivity = kDefaultArcadeRacerSensitivity;
         }
     }
 
@@ -1088,7 +1088,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                         }
                         float sensitivity;
                         Parse(tblArcadeRacer, "Sensitivity", sensitivity);
-                        sensitivity = std::clamp(sensitivity, 0.2f, 2.0f);
+                        sensitivity = std::clamp(sensitivity, kMinArcadeRacerSensitivity, kMaxArcadeRacerSensitivity);
                         portSettings.arcadeRacer.sensitivity = sensitivity;
                     }
                     if (auto tblMissionStick = tblPort["MissionStick"]) {

@@ -35,6 +35,10 @@ namespace app {
 inline constexpr std::string_view kSettingsFile = "Ymir.toml";
 inline constexpr std::string_view kGameControllerDBFile = "gamecontrollerdb.txt";
 
+inline constexpr float kMinArcadeRacerSensitivity = 0.2f;
+inline constexpr float kMaxArcadeRacerSensitivity = 2.0f;
+inline constexpr float kDefaultArcadeRacerSensitivity = 0.5f;
+
 struct SettingsLoadResult {
     enum class Type { Success, TOMLParseError, UnsupportedConfigVersion };
 
