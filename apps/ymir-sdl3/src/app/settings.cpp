@@ -28,6 +28,9 @@ namespace app {
 // v3:
 // - Moved "Input.Port#.*Binds" to "Input.Port#.*.Binds" to make room for controller-specific settings
 // - Moved "OverrideUIScale" and "UIScale" from "Video" to "GUI"
+// v4:
+// - Removed "Video.IncludeVDP1InRenderThread"
+// - Added "Video.ThreadedVDP1"
 inline constexpr int kConfigVersion = 4;
 
 namespace grp {
