@@ -214,13 +214,15 @@ void IPLSettingsView::Display() {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Preferred system variant");
     ImGui::SameLine();
-    const char* variants[] = {"Saturn", "Hi-Saturn", "V-Saturn", "Dev Kit"};
-    int currentVariant = static_cast<int>(settings.variant) - 1;
-    if (currentVariant < 0) currentVariant = 0;
-    if (ImGui::Combo("##variant", &currentVariant, variants, 4)) {
-        settings.variant = static_cast<db::SystemVariant>(currentVariant + 1);
-        m_context.EnqueueEvent(events::gui::ReloadIPLROM());
-        m_context.settings.MakeDirty();
+    if (ImGui::BeginCombo("##variant", GetVariantName(settings.variant), ImGuiComboFlags_WidthFitPreview)) {
+        for (int i = 0; i <= 4; ++i) {
+            const auto variant = static_cast<db::SystemVariant>(i);
+            if (MakeDirty(ImGui::Selectable(GetVariantName(variant), variant == settings.variant))) {
+                settings.variant = variant;
+                m_context.EnqueueEvent(events::gui::ReloadIPLROM());
+            }
+        }
+        ImGui::EndCombo();
     }
 
     ImGui::Separator();
