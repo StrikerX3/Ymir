@@ -4311,7 +4311,7 @@ std::filesystem::path App::GetIPLROMPath() {
         if (firstMatch.empty()) {
             firstMatch = path;
         }
-        if (preferredVariant == ymir::db::SystemVariant::None || info::info->variant == preferredVariant) {
+        if (preferredVariant == ymir::db::SystemVariant::None || info.info->variant == preferredVariant) {
             if (info.info->region == preferredRegion) {
                 devlog::info<grp::base>("Using auto-detected IPL ROM");
                 return path;
