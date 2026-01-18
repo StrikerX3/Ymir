@@ -211,7 +211,8 @@ void IPLSettingsView::Display() {
 
     ImGui::Separator();
 
-    ImGui::TextUnformatted("Preferred System Variant");
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Preferred system variant");
     ImGui::SameLine();
     const char* variants[] = {"Saturn", "Hi-Saturn", "V-Saturn", "Dev Kit"};
     int currentVariant = static_cast<int>(settings.variant) - 1;
