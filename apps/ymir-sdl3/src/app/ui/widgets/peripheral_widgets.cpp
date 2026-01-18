@@ -15,7 +15,7 @@ bool PeripheralSelector(SharedContext &ctx, uint32 portIndex) {
     auto &smpc = ctx.saturn.GetSMPC();
     auto &port = isPort1 ? smpc.GetPeripheralPort1() : smpc.GetPeripheralPort2();
     auto &periph = port.GetPeripheral();
-    auto &settings = isPort1 ? ctx.settings.input.port1 : ctx.settings.input.port2;
+    auto &settings = ctx.settings.input.ports[portIndex - 1];
     const bool isNone = periph.GetType() == peripheral::PeripheralType::None;
 
     bool changed = false;

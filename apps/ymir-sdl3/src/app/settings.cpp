@@ -19,8 +19,8 @@ using namespace ymir;
 
 namespace app {
 
-// Increment this version and implement a new LoadV# when making breaking changes to the settings file structure.
-// Existing versions should convert old formats on a best-effort basis.
+// Increment this version when making breaking changes to the settings file structure.
+// The loader should convert old file formats on a best-effort basis.
 //
 // Change history:
 // v2:
@@ -461,17 +461,12 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         map.map[bind.action].insert(&bind);
     };
 
-    m_port1ControlPadInputs.context = &m_context.controlPadInputs[0];
-    m_port2ControlPadInputs.context = &m_context.controlPadInputs[1];
-
-    m_port1AnalogPadInputs.context = &m_context.analogPadInputs[0];
-    m_port2AnalogPadInputs.context = &m_context.analogPadInputs[1];
-
-    m_port1ArcadeRacerInputs.context = &m_context.arcadeRacerInputs[0];
-    m_port2ArcadeRacerInputs.context = &m_context.arcadeRacerInputs[1];
-
-    m_port1MissionStickInputs.context = &m_context.missionStickInputs[0];
-    m_port2MissionStickInputs.context = &m_context.missionStickInputs[1];
+    for (uint32 i = 0; i < 2; ++i) {
+        m_controlPadInputs[i].context = &m_context.controlPadInputs[i];
+        m_analogPadInputs[i].context = &m_context.analogPadInputs[i];
+        m_arcadeRacerInputs[i].context = &m_context.arcadeRacerInputs[i];
+        m_missionStickInputs[i].context = &m_context.missionStickInputs[i];
+    }
 
     mapInput(m_actionInputs, hotkeys.openSettings);
     mapInput(m_actionInputs, hotkeys.toggleWindowedVideoOutput);
@@ -640,17 +635,12 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         mapInput(inputMap, binds.switchMode);
     };
 
-    mapControlPad(m_port1ControlPadInputs, input.port1.controlPad.binds);
-    mapControlPad(m_port2ControlPadInputs, input.port2.controlPad.binds);
-
-    mapAnalogPad(m_port1AnalogPadInputs, input.port1.analogPad.binds);
-    mapAnalogPad(m_port2AnalogPadInputs, input.port2.analogPad.binds);
-
-    mapArcadeRacer(m_port1ArcadeRacerInputs, input.port1.arcadeRacer.binds);
-    mapArcadeRacer(m_port2ArcadeRacerInputs, input.port2.arcadeRacer.binds);
-
-    mapMissionStick(m_port1MissionStickInputs, input.port1.missionStick.binds);
-    mapMissionStick(m_port2MissionStickInputs, input.port2.missionStick.binds);
+    for (uint32 i = 0; i < 2; ++i) {
+        mapControlPad(m_controlPadInputs[i], input.ports[i].controlPad.binds);
+        mapAnalogPad(m_analogPadInputs[i], input.ports[i].analogPad.binds);
+        mapArcadeRacer(m_arcadeRacerInputs[i], input.ports[i].arcadeRacer.binds);
+        mapMissionStick(m_missionStickInputs[i], input.ports[i].missionStick.binds);
+    }
 
     ResetToDefaults();
 }
@@ -706,25 +696,20 @@ void Settings::ResetToDefaults() {
 
     {
         using PeriphType = peripheral::PeripheralType;
-        input.port1.type = PeriphType::ControlPad;
-        input.port2.type = PeriphType::None;
+        input.ports[0].type = PeriphType::ControlPad;
+        input.ports[1].type = PeriphType::None;
 
         (void)ResetHotkeys();
 
-        (void)ResetBinds(input.port1.controlPad.binds, true);
-        (void)ResetBinds(input.port2.controlPad.binds, true);
+        for (uint32 i = 0; i < 2; ++i) {
+            auto &port = input.ports[i];
+            (void)ResetBinds(port.controlPad.binds, true);
+            (void)ResetBinds(port.analogPad.binds, true);
+            (void)ResetBinds(port.arcadeRacer.binds, true);
+            (void)ResetBinds(port.missionStick.binds, true);
 
-        (void)ResetBinds(input.port1.analogPad.binds, true);
-        (void)ResetBinds(input.port2.analogPad.binds, true);
-
-        (void)ResetBinds(input.port1.arcadeRacer.binds, true);
-        (void)ResetBinds(input.port2.arcadeRacer.binds, true);
-
-        (void)ResetBinds(input.port1.missionStick.binds, true);
-        (void)ResetBinds(input.port2.missionStick.binds, true);
-
-        input.port1.arcadeRacer.sensitivity = 0.5f;
-        input.port2.arcadeRacer.sensitivity = 0.5f;
+            port.arcadeRacer.sensitivity = 0.5f;
+        }
     }
 
     input.gamepad.lsDeadzone = 0.15f;
@@ -1114,8 +1099,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                 }
             }
         };
-        parsePort("Port1", input.port1);
-        parsePort("Port2", input.port2);
+        parsePort("Port1", input.ports[0]);
+        parsePort("Port2", input.ports[1]);
 
         Parse(tblInput, "GamepadLSDeadzone", input.gamepad.lsDeadzone);
         Parse(tblInput, "GamepadRSDeadzone", input.gamepad.rsDeadzone);
@@ -1208,6 +1193,107 @@ SettingsSaveResult Settings::Save() {
     if (path.empty()) {
         path = kSettingsFile;
     }
+
+    auto makePortTable = [&](uint32 portIndex) {
+        auto &port = input.ports[portIndex];
+
+        // clang-format off
+        return toml::table{{
+            {"PeripheralType", ToTOML(port.type)},
+            {"ControlPad", toml::table{{
+                {"Binds", toml::table{{
+                    {"A", ToTOML(port.controlPad.binds.a)},
+                    {"B", ToTOML(port.controlPad.binds.b)},
+                    {"C", ToTOML(port.controlPad.binds.c)},
+                    {"X", ToTOML(port.controlPad.binds.x)},
+                    {"Y", ToTOML(port.controlPad.binds.y)},
+                    {"Z", ToTOML(port.controlPad.binds.z)},
+                    {"L", ToTOML(port.controlPad.binds.l)},
+                    {"R", ToTOML(port.controlPad.binds.r)},
+                    {"Start", ToTOML(port.controlPad.binds.start)},
+                    {"Up", ToTOML(port.controlPad.binds.up)},
+                    {"Down", ToTOML(port.controlPad.binds.down)},
+                    {"Left", ToTOML(port.controlPad.binds.left)},
+                    {"Right", ToTOML(port.controlPad.binds.right)},
+                    {"DPad", ToTOML(port.controlPad.binds.dpad)},
+                }}},
+            }}},
+            {"AnalogPad", toml::table{{
+                {"Binds", toml::table{{
+                    {"A", ToTOML(port.analogPad.binds.a)},
+                    {"B", ToTOML(port.analogPad.binds.b)},
+                    {"C", ToTOML(port.analogPad.binds.c)},
+                    {"X", ToTOML(port.analogPad.binds.x)},
+                    {"Y", ToTOML(port.analogPad.binds.y)},
+                    {"Z", ToTOML(port.analogPad.binds.z)},
+                    {"L", ToTOML(port.analogPad.binds.l)},
+                    {"R", ToTOML(port.analogPad.binds.r)},
+                    {"Start", ToTOML(port.analogPad.binds.start)},
+                    {"Up", ToTOML(port.analogPad.binds.up)},
+                    {"Down", ToTOML(port.analogPad.binds.down)},
+                    {"Left", ToTOML(port.analogPad.binds.left)},
+                    {"Right", ToTOML(port.analogPad.binds.right)},
+                    {"DPad", ToTOML(port.analogPad.binds.dpad)},
+                    {"AnalogStick", ToTOML(port.analogPad.binds.analogStick)},
+                    {"AnalogL", ToTOML(port.analogPad.binds.analogL)},
+                    {"AnalogR", ToTOML(port.analogPad.binds.analogR)},
+                    {"SwitchMode", ToTOML(port.analogPad.binds.switchMode)},
+                }}},
+            }}},
+            {"ArcadeRacer", toml::table{{
+                {"Binds", toml::table{{
+                    {"A", ToTOML(port.arcadeRacer.binds.a)},
+                    {"B", ToTOML(port.arcadeRacer.binds.b)},
+                    {"C", ToTOML(port.arcadeRacer.binds.c)},
+                    {"X", ToTOML(port.arcadeRacer.binds.x)},
+                    {"Y", ToTOML(port.arcadeRacer.binds.y)},
+                    {"Z", ToTOML(port.arcadeRacer.binds.z)},
+                    {"Start", ToTOML(port.arcadeRacer.binds.start)},
+                    {"Up", ToTOML(port.arcadeRacer.binds.gearUp)},
+                    {"Down", ToTOML(port.arcadeRacer.binds.gearDown)},
+                    {"WheelLeft", ToTOML(port.arcadeRacer.binds.wheelLeft)},
+                    {"WheelRight", ToTOML(port.arcadeRacer.binds.wheelRight)},
+                    {"Wheel", ToTOML(port.arcadeRacer.binds.wheel)},
+                }}},
+                {"Sensitivity", port.arcadeRacer.sensitivity.Get()},
+            }}},
+            {"MissionStick", toml::table{{
+                {"Binds", toml::table{{
+                    {"A", ToTOML(port.missionStick.binds.a)},
+                    {"B", ToTOML(port.missionStick.binds.b)},
+                    {"C", ToTOML(port.missionStick.binds.c)},
+                    {"X", ToTOML(port.missionStick.binds.x)},
+                    {"Y", ToTOML(port.missionStick.binds.y)},
+                    {"Z", ToTOML(port.missionStick.binds.z)},
+                    {"L", ToTOML(port.missionStick.binds.l)},
+                    {"R", ToTOML(port.missionStick.binds.r)},
+                    {"Start", ToTOML(port.missionStick.binds.start)},
+                    {"MainUp", ToTOML(port.missionStick.binds.mainUp)},
+                    {"MainDown", ToTOML(port.missionStick.binds.mainDown)},
+                    {"MainLeft", ToTOML(port.missionStick.binds.mainLeft)},
+                    {"MainRight", ToTOML(port.missionStick.binds.mainRight)},
+                    {"MainStick", ToTOML(port.missionStick.binds.mainStick)},
+                    {"MainThrottle", ToTOML(port.missionStick.binds.mainThrottle)},
+                    {"MainThrottleUp", ToTOML(port.missionStick.binds.mainThrottleUp)},
+                    {"MainThrottleDown", ToTOML(port.missionStick.binds.mainThrottleDown)},
+                    {"MainThrottleMax", ToTOML(port.missionStick.binds.mainThrottleMax)},
+                    {"MainThrottleMin", ToTOML(port.missionStick.binds.mainThrottleMin)},
+                    {"SubUp", ToTOML(port.missionStick.binds.subUp)},
+                    {"SubDown", ToTOML(port.missionStick.binds.subDown)},
+                    {"SubLeft", ToTOML(port.missionStick.binds.subLeft)},
+                    {"SubRight", ToTOML(port.missionStick.binds.subRight)},
+                    {"SubStick", ToTOML(port.missionStick.binds.subStick)},
+                    {"SubThrottle", ToTOML(port.missionStick.binds.subThrottle)},
+                    {"SubThrottleUp", ToTOML(port.missionStick.binds.subThrottleUp)},
+                    {"SubThrottleDown", ToTOML(port.missionStick.binds.subThrottleDown)},
+                    {"SubThrottleMax", ToTOML(port.missionStick.binds.subThrottleMax)},
+                    {"SubThrottleMin", ToTOML(port.missionStick.binds.subThrottleMin)},
+                    {"SwitchMode", ToTOML(port.missionStick.binds.switchMode)},
+                }}},
+            }}},
+        }};
+        // clang-format on
+    };
 
     // clang-format off
     auto tbl = toml::table{{
@@ -1355,194 +1441,8 @@ SettingsSaveResult Settings::Save() {
         }}},
 
         {"Input", toml::table{{
-            {"Port1", toml::table{{
-                {"PeripheralType", ToTOML(input.port1.type)},
-                {"ControlPad", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port1.controlPad.binds.a)},
-                        {"B", ToTOML(input.port1.controlPad.binds.b)},
-                        {"C", ToTOML(input.port1.controlPad.binds.c)},
-                        {"X", ToTOML(input.port1.controlPad.binds.x)},
-                        {"Y", ToTOML(input.port1.controlPad.binds.y)},
-                        {"Z", ToTOML(input.port1.controlPad.binds.z)},
-                        {"L", ToTOML(input.port1.controlPad.binds.l)},
-                        {"R", ToTOML(input.port1.controlPad.binds.r)},
-                        {"Start", ToTOML(input.port1.controlPad.binds.start)},
-                        {"Up", ToTOML(input.port1.controlPad.binds.up)},
-                        {"Down", ToTOML(input.port1.controlPad.binds.down)},
-                        {"Left", ToTOML(input.port1.controlPad.binds.left)},
-                        {"Right", ToTOML(input.port1.controlPad.binds.right)},
-                        {"DPad", ToTOML(input.port1.controlPad.binds.dpad)},
-                    }}},
-                }}},
-                {"AnalogPad", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port1.analogPad.binds.a)},
-                        {"B", ToTOML(input.port1.analogPad.binds.b)},
-                        {"C", ToTOML(input.port1.analogPad.binds.c)},
-                        {"X", ToTOML(input.port1.analogPad.binds.x)},
-                        {"Y", ToTOML(input.port1.analogPad.binds.y)},
-                        {"Z", ToTOML(input.port1.analogPad.binds.z)},
-                        {"L", ToTOML(input.port1.analogPad.binds.l)},
-                        {"R", ToTOML(input.port1.analogPad.binds.r)},
-                        {"Start", ToTOML(input.port1.analogPad.binds.start)},
-                        {"Up", ToTOML(input.port1.analogPad.binds.up)},
-                        {"Down", ToTOML(input.port1.analogPad.binds.down)},
-                        {"Left", ToTOML(input.port1.analogPad.binds.left)},
-                        {"Right", ToTOML(input.port1.analogPad.binds.right)},
-                        {"DPad", ToTOML(input.port1.analogPad.binds.dpad)},
-                        {"AnalogStick", ToTOML(input.port1.analogPad.binds.analogStick)},
-                        {"AnalogL", ToTOML(input.port1.analogPad.binds.analogL)},
-                        {"AnalogR", ToTOML(input.port1.analogPad.binds.analogR)},
-                        {"SwitchMode", ToTOML(input.port1.analogPad.binds.switchMode)},
-                    }}},
-                }}},
-                {"ArcadeRacer", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port1.arcadeRacer.binds.a)},
-                        {"B", ToTOML(input.port1.arcadeRacer.binds.b)},
-                        {"C", ToTOML(input.port1.arcadeRacer.binds.c)},
-                        {"X", ToTOML(input.port1.arcadeRacer.binds.x)},
-                        {"Y", ToTOML(input.port1.arcadeRacer.binds.y)},
-                        {"Z", ToTOML(input.port1.arcadeRacer.binds.z)},
-                        {"Start", ToTOML(input.port1.arcadeRacer.binds.start)},
-                        {"Up", ToTOML(input.port1.arcadeRacer.binds.gearUp)},
-                        {"Down", ToTOML(input.port1.arcadeRacer.binds.gearDown)},
-                        {"WheelLeft", ToTOML(input.port1.arcadeRacer.binds.wheelLeft)},
-                        {"WheelRight", ToTOML(input.port1.arcadeRacer.binds.wheelRight)},
-                        {"Wheel", ToTOML(input.port1.arcadeRacer.binds.wheel)},
-                    }}},
-                    {"Sensitivity", input.port1.arcadeRacer.sensitivity.Get()},
-                }}},
-                {"MissionStick", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port1.missionStick.binds.a)},
-                        {"B", ToTOML(input.port1.missionStick.binds.b)},
-                        {"C", ToTOML(input.port1.missionStick.binds.c)},
-                        {"X", ToTOML(input.port1.missionStick.binds.x)},
-                        {"Y", ToTOML(input.port1.missionStick.binds.y)},
-                        {"Z", ToTOML(input.port1.missionStick.binds.z)},
-                        {"L", ToTOML(input.port1.missionStick.binds.l)},
-                        {"R", ToTOML(input.port1.missionStick.binds.r)},
-                        {"Start", ToTOML(input.port1.missionStick.binds.start)},
-                        {"MainUp", ToTOML(input.port1.missionStick.binds.mainUp)},
-                        {"MainDown", ToTOML(input.port1.missionStick.binds.mainDown)},
-                        {"MainLeft", ToTOML(input.port1.missionStick.binds.mainLeft)},
-                        {"MainRight", ToTOML(input.port1.missionStick.binds.mainRight)},
-                        {"MainStick", ToTOML(input.port1.missionStick.binds.mainStick)},
-                        {"MainThrottle", ToTOML(input.port1.missionStick.binds.mainThrottle)},
-                        {"MainThrottleUp", ToTOML(input.port1.missionStick.binds.mainThrottleUp)},
-                        {"MainThrottleDown", ToTOML(input.port1.missionStick.binds.mainThrottleDown)},
-                        {"MainThrottleMax", ToTOML(input.port1.missionStick.binds.mainThrottleMax)},
-                        {"MainThrottleMin", ToTOML(input.port1.missionStick.binds.mainThrottleMin)},
-                        {"SubUp", ToTOML(input.port1.missionStick.binds.subUp)},
-                        {"SubDown", ToTOML(input.port1.missionStick.binds.subDown)},
-                        {"SubLeft", ToTOML(input.port1.missionStick.binds.subLeft)},
-                        {"SubRight", ToTOML(input.port1.missionStick.binds.subRight)},
-                        {"SubStick", ToTOML(input.port1.missionStick.binds.subStick)},
-                        {"SubThrottle", ToTOML(input.port1.missionStick.binds.subThrottle)},
-                        {"SubThrottleUp", ToTOML(input.port1.missionStick.binds.subThrottleUp)},
-                        {"SubThrottleDown", ToTOML(input.port1.missionStick.binds.subThrottleDown)},
-                        {"SubThrottleMax", ToTOML(input.port1.missionStick.binds.subThrottleMax)},
-                        {"SubThrottleMin", ToTOML(input.port1.missionStick.binds.subThrottleMin)},
-                        {"SwitchMode", ToTOML(input.port1.missionStick.binds.switchMode)},
-                    }}},
-                }}},
-            }}},
-            {"Port2", toml::table{{
-                {"PeripheralType", ToTOML(input.port2.type)},
-                {"ControlPad", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port2.controlPad.binds.a)},
-                        {"B", ToTOML(input.port2.controlPad.binds.b)},
-                        {"C", ToTOML(input.port2.controlPad.binds.c)},
-                        {"X", ToTOML(input.port2.controlPad.binds.x)},
-                        {"Y", ToTOML(input.port2.controlPad.binds.y)},
-                        {"Z", ToTOML(input.port2.controlPad.binds.z)},
-                        {"L", ToTOML(input.port2.controlPad.binds.l)},
-                        {"R", ToTOML(input.port2.controlPad.binds.r)},
-                        {"Start", ToTOML(input.port2.controlPad.binds.start)},
-                        {"Up", ToTOML(input.port2.controlPad.binds.up)},
-                        {"Down", ToTOML(input.port2.controlPad.binds.down)},
-                        {"Left", ToTOML(input.port2.controlPad.binds.left)},
-                        {"Right", ToTOML(input.port2.controlPad.binds.right)},
-                        {"DPad", ToTOML(input.port2.controlPad.binds.dpad)},
-                    }}},
-                }}},
-                {"AnalogPad", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port2.analogPad.binds.a)},
-                        {"B", ToTOML(input.port2.analogPad.binds.b)},
-                        {"C", ToTOML(input.port2.analogPad.binds.c)},
-                        {"X", ToTOML(input.port2.analogPad.binds.x)},
-                        {"Y", ToTOML(input.port2.analogPad.binds.y)},
-                        {"Z", ToTOML(input.port2.analogPad.binds.z)},
-                        {"L", ToTOML(input.port2.analogPad.binds.l)},
-                        {"R", ToTOML(input.port2.analogPad.binds.r)},
-                        {"Start", ToTOML(input.port2.analogPad.binds.start)},
-                        {"Up", ToTOML(input.port2.analogPad.binds.up)},
-                        {"Down", ToTOML(input.port2.analogPad.binds.down)},
-                        {"Left", ToTOML(input.port2.analogPad.binds.left)},
-                        {"Right", ToTOML(input.port2.analogPad.binds.right)},
-                        {"DPad", ToTOML(input.port2.analogPad.binds.dpad)},
-                        {"AnalogStick", ToTOML(input.port2.analogPad.binds.analogStick)},
-                        {"AnalogL", ToTOML(input.port2.analogPad.binds.analogL)},
-                        {"AnalogR", ToTOML(input.port2.analogPad.binds.analogR)},
-                        {"SwitchMode", ToTOML(input.port2.analogPad.binds.switchMode)},
-                    }}},
-                }}},
-                {"ArcadeRacer", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port2.arcadeRacer.binds.a)},
-                        {"B", ToTOML(input.port2.arcadeRacer.binds.b)},
-                        {"C", ToTOML(input.port2.arcadeRacer.binds.c)},
-                        {"X", ToTOML(input.port2.arcadeRacer.binds.x)},
-                        {"Y", ToTOML(input.port2.arcadeRacer.binds.y)},
-                        {"Z", ToTOML(input.port2.arcadeRacer.binds.z)},
-                        {"Start", ToTOML(input.port2.arcadeRacer.binds.start)},
-                        {"Up", ToTOML(input.port2.arcadeRacer.binds.gearUp)},
-                        {"Down", ToTOML(input.port2.arcadeRacer.binds.gearDown)},
-                        {"WheelLeft", ToTOML(input.port2.arcadeRacer.binds.wheelLeft)},
-                        {"WheelRight", ToTOML(input.port2.arcadeRacer.binds.wheelRight)},
-                        {"Wheel", ToTOML(input.port2.arcadeRacer.binds.wheel)},
-                    }}},
-                    {"Sensitivity", input.port2.arcadeRacer.sensitivity.Get()},
-                }}},
-                {"MissionStick", toml::table{{
-                    {"Binds", toml::table{{
-                        {"A", ToTOML(input.port2.missionStick.binds.a)},
-                        {"B", ToTOML(input.port2.missionStick.binds.b)},
-                        {"C", ToTOML(input.port2.missionStick.binds.c)},
-                        {"X", ToTOML(input.port2.missionStick.binds.x)},
-                        {"Y", ToTOML(input.port2.missionStick.binds.y)},
-                        {"Z", ToTOML(input.port2.missionStick.binds.z)},
-                        {"L", ToTOML(input.port2.missionStick.binds.l)},
-                        {"R", ToTOML(input.port2.missionStick.binds.r)},
-                        {"Start", ToTOML(input.port2.missionStick.binds.start)},
-                        {"MainUp", ToTOML(input.port2.missionStick.binds.mainUp)},
-                        {"MainDown", ToTOML(input.port2.missionStick.binds.mainDown)},
-                        {"MainLeft", ToTOML(input.port2.missionStick.binds.mainLeft)},
-                        {"MainRight", ToTOML(input.port2.missionStick.binds.mainRight)},
-                        {"MainStick", ToTOML(input.port2.missionStick.binds.mainStick)},
-                        {"MainThrottle", ToTOML(input.port2.missionStick.binds.mainThrottle)},
-                        {"MainThrottleUp", ToTOML(input.port2.missionStick.binds.mainThrottleUp)},
-                        {"MainThrottleDown", ToTOML(input.port2.missionStick.binds.mainThrottleDown)},
-                        {"MainThrottleMax", ToTOML(input.port2.missionStick.binds.mainThrottleMax)},
-                        {"MainThrottleMin", ToTOML(input.port2.missionStick.binds.mainThrottleMin)},
-                        {"SubUp", ToTOML(input.port2.missionStick.binds.subUp)},
-                        {"SubDown", ToTOML(input.port2.missionStick.binds.subDown)},
-                        {"SubLeft", ToTOML(input.port2.missionStick.binds.subLeft)},
-                        {"SubRight", ToTOML(input.port2.missionStick.binds.subRight)},
-                        {"SubStick", ToTOML(input.port2.missionStick.binds.subStick)},
-                        {"SubThrottle", ToTOML(input.port2.missionStick.binds.subThrottle)},
-                        {"SubThrottleUp", ToTOML(input.port2.missionStick.binds.subThrottleUp)},
-                        {"SubThrottleDown", ToTOML(input.port2.missionStick.binds.subThrottleDown)},
-                        {"SubThrottleMax", ToTOML(input.port2.missionStick.binds.subThrottleMax)},
-                        {"SubThrottleMin", ToTOML(input.port2.missionStick.binds.subThrottleMin)},
-                        {"SwitchMode", ToTOML(input.port2.missionStick.binds.switchMode)},
-                    }}},
-                }}},
-            }}},
+            {"Port1", makePortTable(0)},
+            {"Port2", makePortTable(1)},
             {"GamepadLSDeadzone", input.gamepad.lsDeadzone.Get()},
             {"GamepadRSDeadzone", input.gamepad.rsDeadzone.Get()},
             {"GamepadAnalogToDigitalSensitivity", input.gamepad.analogToDigitalSensitivity.Get()},
@@ -1689,20 +1589,14 @@ void Settings::RebindInputs() {
 
     bindAll(m_actionInputs);
 
-    switch (m_context.settings.input.port1.type) {
-    case peripheral::PeripheralType::None: break;
-    case peripheral::PeripheralType::ControlPad: bindAll(m_port1ControlPadInputs); break;
-    case peripheral::PeripheralType::AnalogPad: bindAll(m_port1AnalogPadInputs); break;
-    case peripheral::PeripheralType::ArcadeRacer: bindAll(m_port1ArcadeRacerInputs); break;
-    case peripheral::PeripheralType::MissionStick: bindAll(m_port1MissionStickInputs); break;
-    }
-
-    switch (m_context.settings.input.port2.type) {
-    case peripheral::PeripheralType::None: break;
-    case peripheral::PeripheralType::ControlPad: bindAll(m_port2ControlPadInputs); break;
-    case peripheral::PeripheralType::AnalogPad: bindAll(m_port2AnalogPadInputs); break;
-    case peripheral::PeripheralType::ArcadeRacer: bindAll(m_port2ArcadeRacerInputs); break;
-    case peripheral::PeripheralType::MissionStick: bindAll(m_port2MissionStickInputs); break;
+    for (uint32 i = 0; i < 2; ++i) {
+        switch (m_context.settings.input.ports[i].type) {
+        case peripheral::PeripheralType::None: break;
+        case peripheral::PeripheralType::ControlPad: bindAll(m_controlPadInputs[i]); break;
+        case peripheral::PeripheralType::AnalogPad: bindAll(m_analogPadInputs[i]); break;
+        case peripheral::PeripheralType::ArcadeRacer: bindAll(m_arcadeRacerInputs[i]); break;
+        case peripheral::PeripheralType::MissionStick: bindAll(m_missionStickInputs[i]); break;
+        }
     }
 
     SyncInputSettings();
@@ -1721,30 +1615,30 @@ std::optional<input::MappedAction> Settings::UnbindInput(const input::InputEleme
     }
 
     // In case the action belongs to a controller, make sure it is actually connected before removing the bind
-    if (existingAction->context == &m_context.controlPadInputs[0] &&
-        m_context.settings.input.port1.type != peripheral::PeripheralType::ControlPad) {
-        return std::nullopt;
-    } else if (existingAction->context == &m_context.controlPadInputs[1] &&
-               m_context.settings.input.port2.type != peripheral::PeripheralType::ControlPad) {
-        return std::nullopt;
-    } else if (existingAction->context == &m_context.analogPadInputs[0] &&
-               m_context.settings.input.port1.type != peripheral::PeripheralType::AnalogPad) {
-        return std::nullopt;
-    } else if (existingAction->context == &m_context.analogPadInputs[1] &&
-               m_context.settings.input.port2.type != peripheral::PeripheralType::AnalogPad) {
-        return std::nullopt;
-    } else if (existingAction->context == &m_context.arcadeRacerInputs[0] &&
-               m_context.settings.input.port1.type != peripheral::PeripheralType::ArcadeRacer) {
-        return std::nullopt;
-    } else if (existingAction->context == &m_context.arcadeRacerInputs[1] &&
-               m_context.settings.input.port2.type != peripheral::PeripheralType::ArcadeRacer) {
-        return std::nullopt;
-    } else if (existingAction->context == &m_context.missionStickInputs[0] &&
-               m_context.settings.input.port1.type != peripheral::PeripheralType::MissionStick) {
-        return std::nullopt;
-    } else if (existingAction->context == &m_context.missionStickInputs[1] &&
-               m_context.settings.input.port2.type != peripheral::PeripheralType::MissionStick) {
-        return std::nullopt;
+    for (uint32 i = 0; i < 2; ++i) {
+        switch (m_context.settings.input.ports[i].type) {
+        case peripheral::PeripheralType::None: break;
+        case peripheral::PeripheralType::ControlPad:
+            if (existingAction->context != &m_context.controlPadInputs[i]) {
+                return std::nullopt;
+            }
+            break;
+        case peripheral::PeripheralType::AnalogPad:
+            if (existingAction->context != &m_context.analogPadInputs[i]) {
+                return std::nullopt;
+            }
+            break;
+        case peripheral::PeripheralType::ArcadeRacer:
+            if (existingAction->context != &m_context.arcadeRacerInputs[i]) {
+                return std::nullopt;
+            }
+            break;
+        case peripheral::PeripheralType::MissionStick:
+            if (existingAction->context != &m_context.missionStickInputs[i]) {
+                return std::nullopt;
+            }
+            break;
+        }
     }
 
     // Unmap the input from the context.
@@ -1792,20 +1686,14 @@ void Settings::SyncInputSettings() {
 
     sync(m_actionInputs);
 
-    switch (m_context.settings.input.port1.type) {
-    case peripheral::PeripheralType::None: break;
-    case peripheral::PeripheralType::ControlPad: sync(m_port1ControlPadInputs); break;
-    case peripheral::PeripheralType::AnalogPad: sync(m_port1AnalogPadInputs); break;
-    case peripheral::PeripheralType::ArcadeRacer: sync(m_port1ArcadeRacerInputs); break;
-    case peripheral::PeripheralType::MissionStick: sync(m_port1MissionStickInputs); break;
-    }
-
-    switch (m_context.settings.input.port2.type) {
-    case peripheral::PeripheralType::None: break;
-    case peripheral::PeripheralType::ControlPad: sync(m_port2ControlPadInputs); break;
-    case peripheral::PeripheralType::AnalogPad: sync(m_port2AnalogPadInputs); break;
-    case peripheral::PeripheralType::ArcadeRacer: sync(m_port2ArcadeRacerInputs); break;
-    case peripheral::PeripheralType::MissionStick: sync(m_port2MissionStickInputs); break;
+    for (uint32 i = 0; i < 2; ++i) {
+        switch (m_context.settings.input.ports[i].type) {
+        case peripheral::PeripheralType::None: break;
+        case peripheral::PeripheralType::ControlPad: sync(m_controlPadInputs[i]); break;
+        case peripheral::PeripheralType::AnalogPad: sync(m_analogPadInputs[i]); break;
+        case peripheral::PeripheralType::ArcadeRacer: sync(m_arcadeRacerInputs[i]); break;
+        case peripheral::PeripheralType::MissionStick: sync(m_missionStickInputs[i]); break;
+        }
     }
 }
 
@@ -1923,7 +1811,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Contro
         rebindCtx.Rebind(binds.left, {});
         rebindCtx.Rebind(binds.right, {});
         rebindCtx.Rebind(binds.dpad, {});
-    } else if (&binds == &input.port1.controlPad.binds) {
+    } else if (&binds == &input.ports[0].controlPad.binds) {
         // Default port 1 Control Pad controller inputs
         rebindCtx.Rebind(binds.a, {{{Key::J}, {0, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{Key::K}, {0, GPBtn::A}}});
@@ -1939,7 +1827,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Contro
         rebindCtx.Rebind(binds.left, {{{Key::A}}});
         rebindCtx.Rebind(binds.right, {{{Key::D}}});
         rebindCtx.Rebind(binds.dpad, {{{0, GPAxis2::DPad}, {0, GPAxis2::LeftStick}}});
-    } else if (&binds == &input.port2.controlPad.binds) {
+    } else if (&binds == &input.ports[1].controlPad.binds) {
         // Default port 2 Control Pad controller inputs
         rebindCtx.Rebind(binds.a, {{{Key::KeyPad1}, {1, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{Key::KeyPad2}, {1, GPBtn::A}}});
@@ -1992,7 +1880,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Analog
         rebindCtx.Rebind(binds.analogL, {});
         rebindCtx.Rebind(binds.analogR, {});
         rebindCtx.Rebind(binds.switchMode, {});
-    } else if (&binds == &input.port1.analogPad.binds) {
+    } else if (&binds == &input.ports[0].analogPad.binds) {
         // Default port 1 Control Pad controller inputs
         rebindCtx.Rebind(binds.a, {{{Key::J}, {0, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{Key::K}, {0, GPBtn::A}}});
@@ -2012,7 +1900,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Analog
         rebindCtx.Rebind(binds.analogL, {{{0, GPAxis1::LeftTrigger}}});
         rebindCtx.Rebind(binds.analogR, {{{0, GPAxis1::RightTrigger}}});
         rebindCtx.Rebind(binds.switchMode, {{KeyCombo{KeyMod::Control, Key::B}, {0, GPBtn::LeftThumb}}});
-    } else if (&binds == &input.port2.analogPad.binds) {
+    } else if (&binds == &input.ports[1].analogPad.binds) {
         // Default port 2 Control Pad controller inputs
         rebindCtx.Rebind(binds.a, {{{Key::KeyPad1}, {1, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{Key::KeyPad2}, {1, GPBtn::A}}});
@@ -2061,7 +1949,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Arcade
         rebindCtx.Rebind(binds.wheelLeft, {});
         rebindCtx.Rebind(binds.wheelRight, {});
         rebindCtx.Rebind(binds.wheel, {});
-    } else if (&binds == &input.port1.arcadeRacer.binds) {
+    } else if (&binds == &input.ports[0].arcadeRacer.binds) {
         // Default port 1 Arcade Racer controller inputs
         rebindCtx.Rebind(binds.a, {{{Key::J}, {0, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{Key::K}, {0, GPBtn::A}}});
@@ -2075,7 +1963,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Arcade
         rebindCtx.Rebind(binds.wheelLeft, {{{Key::A}}});
         rebindCtx.Rebind(binds.wheelRight, {{{Key::D}}});
         rebindCtx.Rebind(binds.wheel, {{{0, GPAxis1::LeftStickX}}});
-    } else if (&binds == &input.port2.arcadeRacer.binds) {
+    } else if (&binds == &input.ports[1].arcadeRacer.binds) {
         // Default port 2 Arcade Racer controller inputs
         rebindCtx.Rebind(binds.a, {{{Key::KeyPad1}, {1, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{Key::KeyPad2}, {1, GPBtn::A}}});
@@ -2137,7 +2025,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Missio
         rebindCtx.Rebind(binds.subThrottleMax, {});
         rebindCtx.Rebind(binds.subThrottleMin, {});
         rebindCtx.Rebind(binds.switchMode, {});
-    } else if (&binds == &input.port1.missionStick.binds) {
+    } else if (&binds == &input.ports[0].missionStick.binds) {
         // Default port 1 Mission Stick controller inputs
         rebindCtx.Rebind(binds.a, {{{Key::X}, {0, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{Key::C}, {0, GPBtn::A}}});
@@ -2169,7 +2057,7 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Missio
         rebindCtx.Rebind(binds.subThrottleMax, {{KeyCombo{KeyMod::Shift, Key::Y}}});
         rebindCtx.Rebind(binds.subThrottleMin, {{KeyCombo{KeyMod::Shift, Key::H}}});
         rebindCtx.Rebind(binds.switchMode, {{KeyCombo{KeyMod::Control, Key::B}, {0, GPBtn::Back}}});
-    } else if (&binds == &input.port2.missionStick.binds) {
+    } else if (&binds == &input.ports[1].missionStick.binds) {
         // Default port 2 Mission Stick controller inputs
         rebindCtx.Rebind(binds.a, {{{1, GPBtn::X}}});
         rebindCtx.Rebind(binds.b, {{{1, GPBtn::A}}});
@@ -2209,26 +2097,22 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Missio
 }
 
 Settings::InputMap &Settings::GetInputMapForContext(void *context) {
-    if (context == &m_context.controlPadInputs[0]) {
-        return m_port1ControlPadInputs;
-    } else if (context == &m_context.controlPadInputs[1]) {
-        return m_port2ControlPadInputs;
-    } else if (context == &m_context.analogPadInputs[0]) {
-        return m_port1AnalogPadInputs;
-    } else if (context == &m_context.analogPadInputs[1]) {
-        return m_port2AnalogPadInputs;
-    } else if (context == &m_context.arcadeRacerInputs[0]) {
-        return m_port1ArcadeRacerInputs;
-    } else if (context == &m_context.arcadeRacerInputs[1]) {
-        return m_port2ArcadeRacerInputs;
-    } else if (context == &m_context.missionStickInputs[0]) {
-        return m_port1MissionStickInputs;
-    } else if (context == &m_context.missionStickInputs[1]) {
-        return m_port2MissionStickInputs;
-    } else {
-        // Hotkeys
-        return m_actionInputs;
+    for (uint32 i = 0; i < 2; ++i) {
+        if (context == &m_context.controlPadInputs[i]) {
+            return m_controlPadInputs[i];
+        }
+        if (context == &m_context.analogPadInputs[i]) {
+            return m_analogPadInputs[i];
+        }
+        if (context == &m_context.arcadeRacerInputs[i]) {
+            return m_arcadeRacerInputs[i];
+        }
+        if (context == &m_context.missionStickInputs[i]) {
+            return m_missionStickInputs[i];
+        }
     }
+    // Hotkeys
+    return m_actionInputs;
 }
 
 std::filesystem::path Settings::Proximate(ProfilePath base, std::filesystem::path path) const {

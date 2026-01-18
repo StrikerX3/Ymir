@@ -375,8 +375,7 @@ struct Settings {
                 } binds;
             } missionStick;
         };
-        Port port1;
-        Port port2;
+        std::array<Port, 2> ports;
 
         struct Gamepad {
             util::Observable<float> lsDeadzone;
@@ -515,14 +514,10 @@ private:
     };
 
     InputMap m_actionInputs;
-    InputMap m_port1ControlPadInputs;
-    InputMap m_port2ControlPadInputs;
-    InputMap m_port1AnalogPadInputs;
-    InputMap m_port2AnalogPadInputs;
-    InputMap m_port1ArcadeRacerInputs;
-    InputMap m_port2ArcadeRacerInputs;
-    InputMap m_port1MissionStickInputs;
-    InputMap m_port2MissionStickInputs;
+    std::array<InputMap, 2> m_controlPadInputs;
+    std::array<InputMap, 2> m_analogPadInputs;
+    std::array<InputMap, 2> m_arcadeRacerInputs;
+    std::array<InputMap, 2> m_missionStickInputs;
 
     InputMap &GetInputMapForContext(void *context);
 

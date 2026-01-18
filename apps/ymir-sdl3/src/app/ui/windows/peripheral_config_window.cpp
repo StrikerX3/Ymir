@@ -43,7 +43,7 @@ void PeripheralConfigWindow::DrawContents() {
     auto &port = m_portIndex == 0 ? smpc.GetPeripheralPort1() : smpc.GetPeripheralPort2();
     auto &periph = port.GetPeripheral(/* TODO: m_slotIndex */);
 
-    auto &settings = m_portIndex == 0 ? m_context.settings.input.port1 : m_context.settings.input.port2;
+    auto &settings = m_context.settings.input.ports[m_portIndex];
 
     switch (periph.GetType()) {
         using enum peripheral::PeripheralType;

@@ -211,10 +211,10 @@ int App::Run(const CommandLineOptions &options) {
         auto &inputSettings = m_context.settings.input;
         auto &inputContext = m_context.inputContext;
 
-        inputSettings.port1.type.Observe([&](ymir::peripheral::PeripheralType type) {
+        inputSettings.ports[0].type.Observe([&](ymir::peripheral::PeripheralType type) {
             m_context.EnqueueEvent(events::emu::InsertPort1Peripheral(type));
         });
-        inputSettings.port2.type.Observe([&](ymir::peripheral::PeripheralType type) {
+        inputSettings.ports[1].type.Observe([&](ymir::peripheral::PeripheralType type) {
             m_context.EnqueueEvent(events::emu::InsertPort2Peripheral(type));
         });
         inputSettings.gamepad.lsDeadzone.Observe(inputContext.GamepadLSDeadzone);
@@ -1470,8 +1470,9 @@ void App::RunEmulator() {
             };
         };
 
-        m_context.settings.input.port1.arcadeRacer.sensitivity.ObserveAndNotify(makeSensObserver(0));
-        m_context.settings.input.port2.arcadeRacer.sensitivity.ObserveAndNotify(makeSensObserver(1));
+        for (int i = 0; i < 2; ++i) {
+            m_context.settings.input.ports[i].arcadeRacer.sensitivity.ObserveAndNotify(makeSensObserver(i));
+        }
     }
 
     // Mission Stick controller
