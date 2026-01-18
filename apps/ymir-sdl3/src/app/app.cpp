@@ -4270,8 +4270,7 @@ std::filesystem::path App::GetIPLROMPath() {
 
     // Auto-select ROM from IPL ROM manager based on preferred system variant and area code
 
-    // TODO: make this configurable
-    ymir::db::SystemVariant preferredVariant = ymir::db::SystemVariant::Saturn;
+    ymir::db::SystemVariant preferredVariant = m_context.settings.system.ipl.variant;
 
     // SMPC area codes:
     //   0x1  J  Domestic NTSC        Japan

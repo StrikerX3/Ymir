@@ -211,6 +211,19 @@ void IPLSettingsView::Display() {
 
     ImGui::Separator();
 
+    ImGui::TextUnformatted("Preferred System Variant");
+    ImGui::SameLine();
+    const char* variants[] = {"Saturn", "Hi-Saturn", "V-Saturn", "Dev Kit"};
+    int currentVariant = static_cast<int>(settings.variant) - 1;
+    if (currentVariant < 0) currentVariant = 0;
+    if (ImGui::Combo("##variant", &currentVariant, variants, 4)) {
+        settings.variant = static_cast<db::SystemVariant>(currentVariant + 1);
+        m_context.EnqueueEvent(events::gui::ReloadIPLROM());
+        m_context.settings.MakeDirty();
+    }
+
+    ImGui::Separator();
+
     if (MakeDirty(ImGui::Checkbox("Override IPL ROM", &settings.overrideImage))) {
         if (settings.overrideImage && !settings.path.empty()) {
             m_context.EnqueueEvent(events::gui::ReloadIPLROM());
