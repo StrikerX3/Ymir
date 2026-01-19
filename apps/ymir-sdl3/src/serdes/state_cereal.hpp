@@ -1619,7 +1619,8 @@ void serialize(Archive &ar, State &s, const uint32 version) {
 
     // Reject version 0 and future versions
     if (version == 0 || version > kVersion) {
-        return;
+        throw cereal::Exception(
+            fmt::format("Save state version is higher than supported ({} > {})", version, kVersion));
     }
 
     auto magic = [&](auto expected) {
