@@ -1,5 +1,7 @@
 #include "sh2_debug_toolbar_view.hpp"
 
+#include "sh2_disassembly_view.hpp"
+
 #include <ymir/hw/sh2/sh2.hpp>
 
 #include <app/events/emu_event_factory.hpp>
@@ -15,9 +17,10 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2)
+SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2, SH2DisassemblyView &disasmView)
     : m_context(context)
     , m_sh2(sh2)
+    , m_disasmView(disasmView)
     , m_disasmDumpView(context, sh2) {}
 
 void SH2DebugToolbarView::Display() {
@@ -109,7 +112,7 @@ void SH2DebugToolbarView::Display() {
     }
     ImGui::SameLine();
     if (ImGui::Button(ICON_MS_CENTER_FOCUS_WEAK "##follow_pc_toggle")) {
-        // TODO: enqueue follow PC toggle once implemented
+        m_disasmView.SetFollowPCEnabled(!m_disasmView.IsFollowPCEnabled());
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Follow PC");

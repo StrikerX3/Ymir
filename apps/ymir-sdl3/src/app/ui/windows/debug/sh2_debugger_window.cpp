@@ -14,9 +14,9 @@ namespace app::ui {
 
 SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master)
     : SH2WindowBase(context, master)
-    , m_toolbarView(context, m_sh2)
-    , m_regsView(context, m_sh2)
-    , m_disasmView(context, m_sh2) {
+    , m_disasmView(context, m_sh2)
+    , m_toolbarView(context, m_sh2, m_disasmView)
+    , m_regsView(context, m_sh2) {
 
     m_windowConfig.name = fmt::format("{}SH2 debugger", master ? 'M' : 'S');
     m_windowConfig.flags = ImGuiWindowFlags_MenuBar;

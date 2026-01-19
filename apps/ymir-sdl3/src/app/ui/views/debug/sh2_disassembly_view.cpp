@@ -26,6 +26,19 @@ void SH2DisassemblyView::JumpTo(uint32 address) {
     m_state.jumpRequested = true;
 }
 
+bool SH2DisassemblyView::IsFollowPCEnabled() const {
+    return m_state.followPC;
+}
+
+void SH2DisassemblyView::SetFollowPCEnabled(bool enabled) {
+    m_state.followPC = enabled;
+    if (enabled) {
+        JumpTo(m_sh2.GetProbe().PC());
+    } else {
+        m_state.jumpRequested = false;
+    }
+}
+
 void SH2DisassemblyView::Display() {
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("View")) {

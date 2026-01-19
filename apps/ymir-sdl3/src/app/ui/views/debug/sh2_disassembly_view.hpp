@@ -11,7 +11,9 @@ public:
     SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2);
 
     void Display();
-    void JumpTo(uint32 address);    // jump to address helper
+    void JumpTo(uint32 address);
+    bool IsFollowPCEnabled() const;
+    void SetFollowPCEnabled(bool enabled);
 
 private:
     SharedContext &m_context;
