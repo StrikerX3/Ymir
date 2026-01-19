@@ -96,39 +96,35 @@ void SH2DisassemblyView::Display() {
         if (scrolledByUser) {
             m_state.followPC = false;
         }
-        // jump to pc if we follow
-        if (m_state.followPC) {
-            JumpTo(pc);
-        }
-
-        // this is absolute horror, why do lambdas exist
-        // have to clamp address, set line index, top/bottom lines, current scroll and bottom view
-        const auto applyJump = [&] {
-            const uint32 clampedAddress = std::clamp(m_state.jumpAddress, m_state.minAddress, m_state.maxAddress);
+        const auto scrollToAddress = [&](uint32 targetAddress, bool continuousFollow) {
+            const uint32 clampedAddress = std::clamp(targetAddress, m_state.minAddress, m_state.maxAddress);
             const uint32 lineIndex = (clampedAddress - m_state.minAddress) / sizeof(uint16);
             const float lineTop = lineAdvance * static_cast<float>(lineIndex);
-            const float lineBottom = lineTop + lineHeight;
             const float currentScroll = ImGui::GetScrollY();
-            const float viewBottom = currentScroll + viewHeight;
 
-            // Smoothly scroll toward centering the target line
-            // this looks horrendous, but it works
-            // TODO: make this better
-            const float targetY = lineTop - (viewHeight * 0.5f - lineAdvance * 0.5f);
+            // Smoothly scroll toward centering the target line.
+            const float lineCenter = lineTop + lineAdvance * 0.5f;
+            const float targetY = lineCenter - viewHeight * 0.5f;
             const float clampedY = std::clamp(targetY, 0.0f, ImGui::GetScrollMaxY());
             const float delta = clampedY - currentScroll;
             const float absDelta = std::abs(delta);
-            const float stepFactor = absDelta > viewHeight ? 0.35f : 0.25f;
-            const float step = absDelta <= 1.0f ? delta : delta * stepFactor;
-            ImGui::SetScrollY(currentScroll + step);
-
-            // Continue requesting jumps until we're close enough.
-            m_state.jumpRequested = absDelta > 1.0f;
+            if (continuousFollow) {
+                const float alpha = std::clamp(ImGui::GetIO().DeltaTime * 12.0f, 0.05f, 1.0f);
+                ImGui::SetScrollY(currentScroll + delta * alpha);
+                m_state.jumpRequested = false;
+            } else {
+                const float stepFactor = absDelta > viewHeight ? 0.35f : 0.25f;
+                const float step = absDelta <= 1.0f ? delta : delta * stepFactor;
+                ImGui::SetScrollY(currentScroll + step);
+                m_state.jumpRequested = absDelta > 1.0f;
+            }
         };
 
-        // jump to address on request
-        if (m_state.jumpRequested) {
-            applyJump();
+        // jump to pc if we follow
+        if (m_state.followPC) {
+            scrollToAddress(pc, true);
+        } else if (m_state.jumpRequested) {
+            scrollToAddress(m_state.jumpAddress, false);
         }
 
         // get total line count

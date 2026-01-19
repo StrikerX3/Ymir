@@ -23,6 +23,7 @@ private:
     uint32 m_endAddress = 0;
     bool m_keepOpen = false;
     bool m_binDump = false;
+    bool m_disasmDump = true;
     std::string m_errorMessage;
 
     void ResetRangeFromPC();

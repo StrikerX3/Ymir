@@ -52,6 +52,7 @@ void SH2DisasmDumpView::Display() {
 
     ImGui::Checkbox("Keep open", &m_keepOpen);
     ImGui::Checkbox("Binary dump", &m_binDump);
+    ImGui::Checkbox("Disasm dump", &m_disasmDump);
 
     if (!m_errorMessage.empty()) {
         ImGui::TextColored(m_context.colors.warn, "%s", m_errorMessage.c_str());
@@ -66,7 +67,7 @@ void SH2DisasmDumpView::Display() {
             m_startAddress = start;
             m_endAddress = end;
             m_errorMessage.clear();
-            m_context.EnqueueEvent(events::emu::debug::DumpDisasmView(start, end, m_sh2.IsMaster(), m_binDump));
+            m_context.EnqueueEvent(events::emu::debug::DumpDisasmView(start, end, m_sh2.IsMaster(), m_disasmDump, m_binDump));
             if (!m_keepOpen) {
                 ImGui::CloseCurrentPopup();
             }
