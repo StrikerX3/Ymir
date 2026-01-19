@@ -76,7 +76,7 @@ EmuEvent WriteSH2Memory(uint32 address, uint8 value, bool enableSideEffects, boo
 }
 
 // event to output specified disasm view into a formatted output
-EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master) {
+EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool binaryDump) {
     return RunFunction([=](SharedContext &ctx) {
         // adress space ranges
         constexpr uint32 kAddrMin = 0x00000000u;
@@ -294,6 +294,31 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master) {
         }
 
         ctx.DisplayMessage(fmt::format("{}SH2 disassembly written to {}", (master ? "M" : "S"), outPath));
+
+        if (binaryDump) {
+            // get path for binary dump
+            const auto binOutPath =
+                dumpPath / fmt::format("{}sh2-disasm-bindump_{:08X}_{:08X}.bin", sh2Prefix, rangeStart, rangeEnd);
+            // get bin output file stream
+            std::ofstream out{binOutPath, std::ios::binary | std::ios::trunc};
+            if (!out) {
+                devlog::warn<grp::base>("Failed to open disassembly bin dump file {}", binOutPath);
+                ctx.DisplayMessage("Failed to open disassembly bin dump file");
+                return;
+            }
+
+            for (uint32 addr = rangeStart;; addr += sizeof(uint16)) {
+                // fetch opcode from bus
+                const uint16 opcode = bus.Peek<uint16>(addr);
+                // write to output
+                const uint8 bytes[2] = {static_cast<uint8>(opcode >> 8u), static_cast<uint8>(opcode & 0xFFu)};
+                out.write(reinterpret_cast<const char *>(bytes), sizeof(bytes));
+                if (addr >= rangeEnd) {
+                    break;
+                }
+            }
+            ctx.DisplayMessage(fmt::format("{}SH2 bin dump written to {}", (master ? "M" : "S"), binOutPath));
+        }
     });
 }
 

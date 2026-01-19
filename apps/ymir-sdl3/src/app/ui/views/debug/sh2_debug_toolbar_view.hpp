@@ -1,6 +1,7 @@
 #pragma once
 
 #include <app/shared_context.hpp>
+#include <app/ui/views/debug/sh2_disasm_dump_view.hpp>
 
 namespace app::ui {
 
@@ -13,6 +14,7 @@ public:
 private:
     SharedContext &m_context;
     ymir::sh2::SH2 &m_sh2;
+    SH2DisasmDumpView m_disasmDumpView;
 };
 
 } // namespace app::ui

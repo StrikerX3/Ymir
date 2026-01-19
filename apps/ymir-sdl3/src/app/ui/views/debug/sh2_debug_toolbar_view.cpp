@@ -17,7 +17,8 @@ namespace app::ui {
 
 SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2)
     : m_context(context)
-    , m_sh2(sh2) {}
+    , m_sh2(sh2)
+    , m_disasmDumpView(context, sh2) {}
 
 void SH2DebugToolbarView::Display() {
     ImGui::BeginGroup();
@@ -115,20 +116,15 @@ void SH2DebugToolbarView::Display() {
         ImGui::EndTooltip();
     }
 
-    // TODO: add "dump disasm range" icon button
-    // - toggling opens imgui window
-    // - input for start:end range in hex
-    // - dump button enqueues EmuEvent to dump to text in dumpPath
-    // ImGui::SameLine -> if (Button){} toggle window -> ExplanationTooltip
-    // ImGui::SameLine();
-
-    //if (ImGui::Button()) {
-        // TODO: enqueue disasm dump event here once that is implemented
-    //}
-    //if (ImGui::BeginItemTooltip()) {
-    //    ImGui::TextUnformatted("Dump Disasm Range");
-    //    ImGui::EndTooltip();
-    //}
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_FILE_DOWNLOAD "##dump_disasm_range")) {
+        m_disasmDumpView.OpenPopup();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Dump Disasm Range");
+        ImGui::EndTooltip();
+    }
+    m_disasmDumpView.Display();
 
     ImGui::SameLine();
     if (!m_context.saturn.IsDebugTracingEnabled()) {
