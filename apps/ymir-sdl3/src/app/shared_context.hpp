@@ -21,9 +21,8 @@
 #include <app/events/emu_event.hpp>
 #include <app/events/gui_event.hpp>
 
-#include <app/services/savestates/ISaveStateService.hpp>
-
 #include <util/deprecation_helpers.hpp>
+#include <util/service_locator.hpp>
 
 #include <ymir/hw/smpc/peripheral/peripheral_state_common.hpp>
 
@@ -96,11 +95,6 @@ namespace media {
 
 } // namespace ymir
 
-namespace app::savestates {
-struct ISaveStateService;
-struct SaveState;
-} // namespace app::savestates
-
 // -----------------------------------------------------------------------------
 // Implementation
 
@@ -134,6 +128,8 @@ namespace grp {
 } // namespace grp
 
 struct SharedContext {
+    util::ServiceLocator serviceLocator;
+
     struct SaturnContainer {
         std::unique_ptr<ymir::Saturn> instance;
 
@@ -489,8 +485,6 @@ struct SharedContext {
     std::filesystem::path iplRomPath;
     std::filesystem::path cdbRomPath;
 
-    savestates::ISaveStateService &saveStateService;
-
     RewindBuffer rewindBuffer;
     bool rewinding = false;
 
@@ -624,7 +618,7 @@ struct SharedContext {
     // -----------------------------------------------------------------------------------------------------------------
     // Convenience methods
 
-    explicit SharedContext(savestates::ISaveStateService &saveStatesService);
+    explicit SharedContext();
     ~SharedContext();
 
     void DisplayMessage(std::string message) const {

@@ -159,7 +159,6 @@ static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args
 
 App::App()
     : m_saveStateService()
-    , m_context(m_saveStateService)
     , m_systemStateWindow(m_context)
     , m_bupMgrWindow(m_context)
     , m_masterSH2WindowSet(m_context, true)
@@ -174,6 +173,9 @@ App::App()
     , m_aboutWindow(m_context)
     , m_updateOnboardingWindow(m_context)
     , m_updateWindow(m_context) {
+
+    // Register services
+    m_context.serviceLocator.Register(m_saveStateService);
 
     // Preinitialize some memory viewers
     for (int i = 0; i < 8; i++) {

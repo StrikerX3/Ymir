@@ -19,7 +19,6 @@ add_executable(ymir-sdl3
     src/app/settings.hpp
     src/app/shared_context.cpp
     src/app/shared_context.hpp
-    src/app/services/savestates/ISaveStateService.hpp
     src/app/services/savestates/SaveStateService.cpp
     src/app/services/savestates/SaveStateService.hpp
     src/app/services/savestates/types.cpp
@@ -326,6 +325,7 @@ add_executable(ymir-sdl3
     src/util/rom_loader.cpp
     src/util/rom_loader.hpp
     src/util/sdl_file_dialog.hpp
+    src/util/service_locator.hpp
     src/util/std_lib.cpp
     src/util/std_lib.hpp
 )

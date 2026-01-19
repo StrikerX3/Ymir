@@ -50,7 +50,7 @@ public:
 private:
     CommandLineOptions m_options;
 
-    savestates::SaveStateService m_saveStateService;
+    services::SaveStateService m_saveStateService;
     SharedContext m_context;
     SDL_PropertiesID m_fileDialogProps;
 
