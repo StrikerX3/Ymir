@@ -11,6 +11,7 @@ Uses save state file version 11.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - MIDI: Force RtMidi to use dummy API if it fails to initialize, allowing Ymir to run without MIDI drivers.
+- System: You can now select a preferred system variant (Saturn, HiSaturn, V-Saturn or Dev Kit) and Ymir will automatically pick a matching IPL ROM. (#637, #725; @Fueziwa)
 - Video: Add option to enable/disable video synchronization in full screen mode.
 
 ### Fixes
