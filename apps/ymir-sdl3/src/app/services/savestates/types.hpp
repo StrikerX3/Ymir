@@ -28,6 +28,10 @@ struct SaveState {
     std::unique_ptr<ymir::state::State> state;
     std::chrono::system_clock::time_point timestamp{};
 
+    // Per-slot undo: stores previous state before last overwrite
+    std::unique_ptr<ymir::state::State> undoState;
+    std::chrono::system_clock::time_point undoTimestamp{};
+
     // unique ptr means that a state can be moved or move-created,
     // but cannot and should not be copyable;
     // destructor not inlined

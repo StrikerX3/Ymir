@@ -1134,6 +1134,14 @@ void App::RunEmulator() {
                                        [&](void *, const input::InputElement &) { SaveSaveStateSlot(8); });
         inputContext.SetTriggerHandler(actions::save_states::SaveState10,
                                        [&](void *, const input::InputElement &) { SaveSaveStateSlot(9); });
+
+        // Undo save/load state
+        inputContext.SetTriggerHandler(actions::save_states::UndoSaveState, [&](void *, const input::InputElement &) {
+            m_context.EnqueueEvent(events::emu::UndoSaveState());
+        });
+        inputContext.SetTriggerHandler(actions::save_states::UndoLoadState, [&](void *, const input::InputElement &) {
+            m_context.EnqueueEvent(events::emu::UndoLoadState());
+        });
     }
 
     // System
@@ -2473,6 +2481,21 @@ void App::RunEmulator() {
                         ImGui::Separator();
                         drawCommonSaveStatesSection();
                         ImGui::EndMenu();
+                    }
+                    {
+                        auto &saves = m_context.serviceLocator.GetRequired<services::SaveStateService>();
+                        if (ImGui::MenuItem(
+                                "Undo save state",
+                                input::ToShortcut(inputContext, actions::save_states::UndoSaveState).c_str(),
+                                false, saves.CanUndoSave())) {
+                            m_context.EnqueueEvent(events::emu::UndoSaveState());
+                        }
+                    }
+                    if (ImGui::MenuItem(
+                            "Undo load state",
+                            input::ToShortcut(inputContext, actions::save_states::UndoLoadState).c_str(),
+                            false, m_context.canUndoLoad)) {
+                        m_context.EnqueueEvent(events::emu::UndoLoadState());
                     }
                     if (ImGui::MenuItem("Open save states directory")) {
                         auto path = m_context.profile.GetPath(ProfilePath::SaveStates) /

@@ -46,9 +46,17 @@ public:
     // controlled access to state locks
     [[nodiscard]] std::mutex &SlotMutex(std::size_t slot) noexcept;
 
+    // Undo save state support
+    [[nodiscard]] bool CanUndoSave(std::size_t slot) const noexcept;
+    [[nodiscard]] bool CanUndoSave() const noexcept; // uses last saved slot
+    bool UndoSave(std::size_t slot);
+    [[nodiscard]] std::optional<std::size_t> GetLastSavedSlot() const noexcept;
+    void SetLastSavedSlot(std::size_t slot) noexcept;
+
 private:
     SlotArray m_slots_{};
     std::size_t m_currentSlot_{0};
+    std::optional<std::size_t> m_lastSavedSlot_{};
     std::array<std::mutex, kSlots> m_saveStateLocks_{};
 };
 

@@ -276,6 +276,9 @@ struct Settings {
             input::InputBind save8{actions::save_states::SaveState8};
             input::InputBind save9{actions::save_states::SaveState9};
             input::InputBind save10{actions::save_states::SaveState10};
+
+            input::InputBind undoSave{actions::save_states::UndoSaveState};
+            input::InputBind undoLoad{actions::save_states::UndoLoadState};
         } saveStates;
     } hotkeys;
 

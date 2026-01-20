@@ -545,6 +545,9 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.saveStates.save9);
     mapInput(m_actionInputs, hotkeys.saveStates.save10);
 
+    mapInput(m_actionInputs, hotkeys.saveStates.undoSave);
+    mapInput(m_actionInputs, hotkeys.saveStates.undoLoad);
+
     // Saturn Control Pad
     auto mapControlPad = [&](InputMap &inputMap, Input::Port::ControlPad::Binds &binds) {
         mapInput(inputMap, binds.a);
@@ -972,6 +975,9 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
             Parse(tblSaveStates, "SaveState8", hotkeys.saveStates.save8);
             Parse(tblSaveStates, "SaveState9", hotkeys.saveStates.save9);
             Parse(tblSaveStates, "SaveState10", hotkeys.saveStates.save10);
+
+            Parse(tblSaveStates, "UndoSaveState", hotkeys.saveStates.undoSave);
+            Parse(tblSaveStates, "UndoLoadState", hotkeys.saveStates.undoLoad);
         }
     }
 
@@ -1437,6 +1443,9 @@ SettingsSaveResult Settings::Save() {
                 {"SaveState8", ToTOML(hotkeys.saveStates.save8)},
                 {"SaveState9", ToTOML(hotkeys.saveStates.save9)},
                 {"SaveState10", ToTOML(hotkeys.saveStates.save10)},
+
+                {"UndoSaveState", ToTOML(hotkeys.saveStates.undoSave)},
+                {"UndoLoadState", ToTOML(hotkeys.saveStates.undoLoad)},
             }}},
         }}},
 

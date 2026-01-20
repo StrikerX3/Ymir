@@ -123,6 +123,9 @@ void HotkeysSettingsView::Display() {
         drawRow(hotkeys.saveStates.save9);
         drawRow(hotkeys.saveStates.save10);
 
+        drawRow(hotkeys.saveStates.undoSave);
+        drawRow(hotkeys.saveStates.undoLoad);
+
         m_inputCaptureWidget.DrawCapturePopup();
 
         ImGui::EndTable();

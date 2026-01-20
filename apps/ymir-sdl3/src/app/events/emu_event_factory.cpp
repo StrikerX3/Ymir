@@ -689,6 +689,13 @@ EmuEvent LoadState(uint32 slot) {
 
         // At this point the ROMs have been loaded and validated
 
+        // Cache current emulator state for undo before loading
+        if (!ctx.undoLoadState) {
+            ctx.undoLoadState = std::make_unique<state::State>();
+        }
+        ctx.saturn.instance->SaveState(*ctx.undoLoadState);
+        ctx.canUndoLoad = true;
+
         if (ctx.saturn.instance->LoadState(state, true)) {
             // Now that the save state has been succesfully loaded, load the ROMs
             if (iplROMData) {
@@ -705,6 +712,8 @@ EmuEvent LoadState(uint32 slot) {
             ctx.EnqueueEvent(events::gui::StateLoaded(slot));
         } else {
             devlog::warn<grp::base>("Failed to load save state");
+            // Clear undo state since load failed
+            ctx.canUndoLoad = false;
         }
     });
 }
@@ -724,9 +733,16 @@ EmuEvent SaveState(uint32 slot) {
 
             // build new state logically
             // test if state is present and either clone or create a new one
+            // Cache existing state for undo before overwriting
             auto savePtr = saves.Peek(slot);
-            slotState.state = savePtr && savePtr->get().state ? std::make_unique<state::State>(*savePtr->get().state)
-                                                              : std::make_unique<state::State>();
+            if (savePtr && savePtr->get().state) {
+                // Move current state to undo storage
+                slotState.undoState = std::make_unique<state::State>(*savePtr->get().state);
+                slotState.undoTimestamp = savePtr->get().timestamp;
+            }
+
+            // build new state
+            slotState.state = std::make_unique<state::State>();
 
             // save state to selected slot and set timestamp
             ctx.saturn.instance->SaveState(*slotState.state);
@@ -737,9 +753,49 @@ EmuEvent SaveState(uint32 slot) {
                 devlog::warn<grp::base>("Could not set/save new save state for slot {}", slot);
                 return;
             }
+
+            // Track which slot was last saved for undo
+            saves.SetLastSavedSlot(slot);
         }
 
         ctx.EnqueueEvent(events::gui::StateSaved(slot));
+    });
+}
+
+EmuEvent UndoSaveState() {
+    return RunFunction([](SharedContext &ctx) {
+        auto &saves = ctx.serviceLocator.GetRequired<services::SaveStateService>();
+        
+        auto lastSlot = saves.GetLastSavedSlot();
+        if (!lastSlot.has_value()) {
+            ctx.DisplayMessage("No save state to undo");
+            return;
+        }
+
+        auto slot = *lastSlot;
+        auto lock = std::unique_lock{saves.SlotMutex(slot)};
+        if (saves.UndoSave(slot)) {
+            ctx.DisplayMessage(fmt::format("Undid save state in slot {}", slot + 1));
+            ctx.EnqueueEvent(events::gui::StateSaved(static_cast<uint32>(slot)));
+        } else {
+            ctx.DisplayMessage("No save state to undo");
+        }
+    });
+}
+
+EmuEvent UndoLoadState() {
+    return RunFunction([](SharedContext &ctx) {
+        if (!ctx.canUndoLoad || !ctx.undoLoadState) {
+            ctx.DisplayMessage("No load state to undo");
+            return;
+        }
+
+        if (ctx.saturn.instance->LoadState(*ctx.undoLoadState, true)) {
+            ctx.DisplayMessage("Undid load state");
+            ctx.canUndoLoad = false;
+        } else {
+            devlog::warn<grp::base>("Failed to undo load state");
+        }
     });
 }
 

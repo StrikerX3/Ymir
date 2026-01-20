@@ -67,4 +67,41 @@ void SaveStateService::SetCurrentSlot(std::size_t slot) noexcept {
     return m_saveStateLocks_[slot];
 }
 
+bool SaveStateService::CanUndoSave(std::size_t slot) const noexcept {
+    if (!InRange(slot, m_slots_.size())) {
+        return false;
+    }
+    return m_slots_[slot].undoState != nullptr;
+}
+
+bool SaveStateService::CanUndoSave() const noexcept {
+    if (!m_lastSavedSlot_.has_value()) {
+        return false;
+    }
+    return CanUndoSave(*m_lastSavedSlot_);
+}
+
+bool SaveStateService::UndoSave(std::size_t slot) {
+    if (!CanUndoSave(slot)) {
+        return false;
+    }
+    // Swap current state with undo state
+    std::swap(m_slots_[slot].state, m_slots_[slot].undoState);
+    std::swap(m_slots_[slot].timestamp, m_slots_[slot].undoTimestamp);
+    // Clear undo after use
+    m_slots_[slot].undoState.reset();
+    m_lastSavedSlot_.reset();
+    return true;
+}
+
+std::optional<std::size_t> SaveStateService::GetLastSavedSlot() const noexcept {
+    return m_lastSavedSlot_;
+}
+
+void SaveStateService::SetLastSavedSlot(std::size_t slot) noexcept {
+    if (InRange(slot, m_slots_.size())) {
+        m_lastSavedSlot_ = slot;
+    }
+}
+
 } // namespace app::services

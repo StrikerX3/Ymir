@@ -488,6 +488,10 @@ struct SharedContext {
     RewindBuffer rewindBuffer;
     bool rewinding = false;
 
+    // Undo load state support - stores the emulator state before loading
+    std::unique_ptr<ymir::state::State> undoLoadState{};
+    bool canUndoLoad = false;
+
     struct Midi {
         std::unique_ptr<RtMidiIn> midiInput;
         std::unique_ptr<RtMidiOut> midiOutput;
