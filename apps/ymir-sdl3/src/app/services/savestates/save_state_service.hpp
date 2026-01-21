@@ -24,11 +24,9 @@ public:
         return m_slots_.size();
     }
 
-    // read-only slot access w/o remove or copy
-    // we wrap a const reference to avoid copying
-    // unique ptr contents
-    [[nodiscard]] std::optional<std::reference_wrapper<const savestates::SaveState>>
-    Peek(std::size_t slot) const noexcept;
+    // slot access returning mutable pointer for efficient state operations
+    // returns nullptr when slot is empty or out of range
+    [[nodiscard]] savestates::SaveState *Peek(std::size_t slot) noexcept;
 
     // mutators (replace/update slot explicitly)
     bool Set(std::size_t slot, savestates::SaveState &&s);

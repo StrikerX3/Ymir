@@ -18,15 +18,15 @@ using namespace app::savestates;
 
 namespace app::services {
 
-std::optional<std::reference_wrapper<const SaveState>> SaveStateService::Peek(std::size_t slot) const noexcept {
+SaveState *SaveStateService::Peek(std::size_t slot) noexcept {
     if (!InRange(slot, m_slots_.size())) {
-        return std::nullopt;
+        return nullptr;
     }
     if (!m_slots_[slot].state) {
-        return std::nullopt;
+        return nullptr;
     }
 
-    return std::cref(m_slots_[slot]);
+    return &m_slots_[slot];
 }
 
 bool SaveStateService::Set(std::size_t slot, SaveState &&s) {

@@ -590,15 +590,14 @@ EmuEvent LoadState(uint32 slot) {
 
         // sanity check: do slotState and underlying state exist?
         auto lock = std::unique_lock{saves.SlotMutex(slot)};
-        auto slotState = saves.Peek(slot);
-        if (!slotState || !slotState->get().state) {
+        auto *slotState = saves.Peek(slot);
+        if (!slotState || !slotState->state) {
             ctx.DisplayMessage(fmt::format("Save state slot {} selected", slot + 1));
             return;
         }
 
         // grab the savestate
-        const auto &saveState = slotState->get();
-        auto &state = *saveState.state;
+        auto &state = *slotState->state;
 
         // Sanity check: ensure that the disc hash matches
         {
@@ -732,17 +731,19 @@ EmuEvent SaveState(uint32 slot) {
             savestates::SaveState slotState{};
 
             // build new state logically
-            // test if state is present and either clone or create a new one
+            // test if state is present and either swap or create a new one
             // Cache existing state for undo before overwriting
-            auto savePtr = saves.Peek(slot);
-            if (savePtr && savePtr->get().state) {
+            auto *savePtr = saves.Peek(slot);
+            if (savePtr && savePtr->state) {
                 // Move current state to undo storage
-                slotState.undoState = std::make_unique<state::State>(*savePtr->get().state);
-                slotState.undoTimestamp = savePtr->get().timestamp;
+                slotState.undoState.swap(savePtr->state);
+                slotState.undoTimestamp = savePtr->timestamp;
             }
 
-            // build new state
-            slotState.state = std::make_unique<state::State>();
+            // build new state if needed
+            if (!slotState.state) {
+                slotState.state = std::make_unique<state::State>();
+            }
 
             // save state to selected slot and set timestamp
             ctx.saturn.instance->SaveState(*slotState.state);

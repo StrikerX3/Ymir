@@ -4651,9 +4651,9 @@ void App::PersistSaveState(size_t slot) {
     auto lock = std::unique_lock{saves.SlotMutex(slot)};
 
     // ensure to not dereference empty slots
-    auto slotState = saves.Peek(slot);
-    if (slotState && slotState->get().state) {
-        auto &state = *slotState->get().state;
+    auto *slotState = saves.Peek(slot);
+    if (slotState && slotState->state) {
+        auto &state = *slotState->state;
 
         // Create directory for this game's save states
         auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
