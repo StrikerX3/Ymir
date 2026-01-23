@@ -1,8 +1,8 @@
 [submodule "vendor/mio"]
 	path = vendor/mio
 	url = https://github.com/StrikerX3/mio.git
-[submodule "vendor/concurrentqueue"]
-	path = vendor/concurrentqueue
+[submodule "vendor/concurrentqueue/concurrentqueue"]
+	path = vendor/concurrentqueue/concurrentqueue
 	url = https://github.com/cameron314/concurrentqueue.git
 [submodule "vendor/imgui/imgui"]
 	path = vendor/imgui/imgui
@@ -14,8 +14,8 @@
 [submodule "vendor/lz4/lz4"]
 	path = vendor/lz4/lz4
 	url = https://github.com/lz4/lz4.git
-[submodule "vendor/libchdr"]
-	path = vendor/libchdr
+[submodule "vendor/libchdr/libchdr"]
+	path = vendor/libchdr/libchdr
 	url = https://github.com/rtissera/libchdr.git
 [submodule "vcpkg"]
 	path = vcpkg
