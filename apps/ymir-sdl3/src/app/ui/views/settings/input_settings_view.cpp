@@ -68,19 +68,21 @@ void InputSettingsView::Display() {
         "This mode gives the smoothest experience - you simply point the cursor at the display and click to shoot. "
         "The cursor is still free to interact with the user interface.\n"
         "\n"
-        "To bind a controller to the mouse, click the screen and choose the controller to bind to. If there is only "
-        "one controller, it will be automatically bound when clicking.\n"
-        "You cannot bind the mouse to more than one controller in this mode. To switch controllers, press ESC, click "
-        "the screen, then select the desired controller.\n"
+        "To bind a controller to the mouse, click the screen. The first available controller will be bound. You cannot "
+        "bind the mouse to more than one controller in this mode." /*\n"
         "\n"
         "This mode only works with Virtua Gun controllers. If any other controller that uses mouse inputs is connected "
-        "to any port, the mode selection is ignored and mouse capture behaves as if using the Physical mouse mode.");
+        "to any port, the mode selection is ignored and mouse capture behaves as if using the Physical mouse mode."*/);
     ImGui::SameLine();
     mouseCaptureModeRadio(
         "Physical mouse", Settings::Input::Mouse::CaptureMode::PhysicalMouse,
         "Binds a physical mouse to a Virtua Gun controller.\n"
         "\n"
         "This mode allows you to simultaneously bind multiple mice to many controllers.\n"
+        "\n"
+        "To bind controllers, first you must capture the mouse cursor by clicking the display with any mouse. While in "
+        "this mode, click with the mice you wish to bind to controllers. The first available controller will be bound "
+        "to each mouse.\n"
         "\n"
         "While any mouse is captured, the system cursor will be completely disabled. You can press ESC to release all "
         "mice and regain control of the system cursor.\n"
