@@ -75,6 +75,8 @@ void VideoSettingsView::Display() {
     }
 
     MakeDirty(ImGui::Checkbox("Double-click to toggle full screen", &settings.doubleClickToFullScreen));
+    widgets::ExplanationTooltip("This option will not work if you are using a Virtua Gun or Shuttle Mouse.",
+                                m_context.displayScale);
 
     ImGui::Separator();
 

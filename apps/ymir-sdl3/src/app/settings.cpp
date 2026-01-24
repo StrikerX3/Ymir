@@ -604,7 +604,6 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.saveStates.save9);
     mapInput(m_actionInputs, hotkeys.saveStates.save10);
 
-    // Saturn Control Pad
     auto mapControlPad = [&](InputMap &inputMap, Input::Port::ControlPad::Binds &binds) {
         mapInput(inputMap, binds.a);
         mapInput(inputMap, binds.b);
@@ -622,7 +621,6 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         mapInput(inputMap, binds.dpad);
     };
 
-    // Saturn 3D Control Pad
     auto mapAnalogPad = [&](InputMap &inputMap, Input::Port::AnalogPad::Binds &binds) {
         mapInput(inputMap, binds.a);
         mapInput(inputMap, binds.b);
@@ -644,7 +642,6 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         mapInput(inputMap, binds.switchMode);
     };
 
-    // Arcade Racer
     auto mapArcadeRacer = [&](InputMap &inputMap, Input::Port::ArcadeRacer::Binds &binds) {
         mapInput(inputMap, binds.a);
         mapInput(inputMap, binds.b);
@@ -660,7 +657,6 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         mapInput(inputMap, binds.wheel);
     };
 
-    // Mission Stick
     auto mapMissionStick = [&](InputMap &inputMap, Input::Port::MissionStick::Binds &binds) {
         mapInput(inputMap, binds.a);
         mapInput(inputMap, binds.b);
@@ -694,7 +690,6 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         mapInput(inputMap, binds.switchMode);
     };
 
-    // Virtua Gun
     auto mapVirtuaGun = [&](InputMap &inputMap, Input::Port::VirtuaGun::Binds &binds) {
         mapInput(inputMap, binds.start);
         mapInput(inputMap, binds.trigger);

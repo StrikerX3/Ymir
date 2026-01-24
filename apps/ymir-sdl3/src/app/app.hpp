@@ -107,6 +107,7 @@ private:
     void ReleaseAllMice();
     void ConfigureMouseCapture();
     void ConnectMouseToPeripheral(uint32 id);
+    bool IsMouseCaptured() const;
 
     bool HasValidPeripheralsForMouseCapture() const;
     std::set<uint32> GetCandidatePeripheralsForMouseCapture() const;

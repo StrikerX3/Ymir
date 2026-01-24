@@ -1593,8 +1593,6 @@ void App::RunEmulator() {
 
     // Virtua Gun controller
     {
-        using Button = peripheral::Button;
-
         auto registerMoveButton = [&](input::Action action, float x, float y) {
             inputContext.SetButtonHandler(action,
                                           [=, this](void *context, const input::InputElement &element, bool actuated) {
@@ -2018,7 +2016,8 @@ void App::RunEmulator() {
             case SDL_EVENT_MOUSE_BUTTON_DOWN: [[fallthrough]];
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (!io.WantCaptureMouse) {
-                    if (m_context.settings.video.doubleClickToFullScreen && evt.button.clicks % 2 == 0 &&
+                    if (!IsMouseCaptured() && !HasValidPeripheralsForMouseCapture() &&
+                        m_context.settings.video.doubleClickToFullScreen && evt.button.clicks % 2 == 0 &&
                         evt.button.down && evt.button.button == SDL_BUTTON_LEFT) {
                         m_context.settings.video.fullScreen = !m_context.settings.video.fullScreen;
                         m_context.settings.MakeDirty();
@@ -4338,6 +4337,13 @@ void App::ConnectMouseToPeripheral(uint32 id) {
         return;
     }
 
+    // Build list of candidate peripherals.
+    // Bail out if none are available.
+    const std::set<uint32> candidates = GetCandidatePeripheralsForMouseCapture();
+    if (candidates.empty()) {
+        return;
+    }
+
     if (captureMode == CaptureMode::SystemCursor) {
         // Force global mouse ID when in system cursor capture mode
         id = 0;
@@ -4345,11 +4351,6 @@ void App::ConnectMouseToPeripheral(uint32 id) {
         // Engage mouse capture in physical mouse capture mode when using the global mouse ID
         m_mouseCaptureActive = true;
         ConfigureMouseCapture();
-        return;
-    }
-
-    const std::set<uint32> candidates = GetCandidatePeripheralsForMouseCapture();
-    if (candidates.empty()) {
         return;
     }
 
@@ -4396,6 +4397,10 @@ void App::ConnectMouseToPeripheral(uint32 id) {
         (void)inputCtx.MapAction({id, input::MouseButton::Extra1}, actions::virtua_gun::Start, actionCtx);
         (void)inputCtx.MapAction({id, input::MouseButton::Extra2}, actions::virtua_gun::Start, actionCtx);
     }
+}
+
+bool App::IsMouseCaptured() const {
+    return m_systemMouseCaptured || !m_capturedMice.empty();
 }
 
 bool App::HasValidPeripheralsForMouseCapture() const {
