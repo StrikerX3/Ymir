@@ -59,7 +59,7 @@ void InputSettingsView::Display() {
     };
 
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Capture mode");
+    ImGui::TextUnformatted("Capture mode:");
     ImGui::SameLine();
     mouseCaptureModeRadio(
         "System cursor", Settings::Input::Mouse::CaptureMode::SystemCursor,

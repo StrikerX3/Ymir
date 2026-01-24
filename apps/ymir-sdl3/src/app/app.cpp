@@ -100,6 +100,7 @@
 #include <app/ui/fonts/IconsMaterialSymbols.h>
 
 #include <app/ui/widgets/cartridge_widgets.hpp>
+#include <app/ui/widgets/input_widgets.hpp>
 #include <app/ui/widgets/savestate_widgets.hpp>
 #include <app/ui/widgets/settings_widgets.hpp>
 #include <app/ui/widgets/system_widgets.hpp>
@@ -4168,40 +4169,20 @@ void App::DrawInputs(ImDrawList *drawList) {
         case ymir::peripheral::PeripheralType::VirtuaGun: //
         {
             auto &input = m_context.virtuaGunInputs[portIndex];
+            auto &xhair = config.virtuaGun.crosshair;
 
-            const float radius = 15.0f * m_context.displayScale;
-            const float thickness = 5.0f * 0.5f * m_context.displayScale;
-            const float lineThickness = 1.5f * m_context.displayScale;
-            const float x = (int)input.posX + 0.5f;
-            const float y = (int)input.posY + 0.5f;
-            const ImU32 fillColor = 0xE0007FFF ^ (portIndex * 0x00FF00FF); // port 1 = orange, port 2 = light blue
-            const ImU32 lineColor = 0xFF000000;
+            const ui::widgets::CrosshairParams params{
+                .color = {xhair.color[0], xhair.color[1], xhair.color[2], xhair.color[3]},
+                .radius = xhair.radius,
+                .thickness = xhair.thickness,
+                .rotation = xhair.rotation,
 
-            ImVec2 points[] = {
-                {-thickness, -thickness}, {-radius, -thickness},    {-radius, +thickness},    {-thickness, +thickness},
-                {-thickness, +radius},    {+thickness, +radius},    {+thickness, +thickness}, {+radius, +thickness},
-                {+radius, -thickness},    {+thickness, -thickness}, {+thickness, -radius},    {-thickness, -radius},
+                .strokeColor = {xhair.strokeColor[0], xhair.strokeColor[1], xhair.strokeColor[2], xhair.strokeColor[3]},
+                .strokeThickness = xhair.strokeThickness,
+
+                .displayScale = m_context.displayScale,
             };
-
-            // Rotate port 2 crosshairs 45 degrees
-            if (portIndex == 1) {
-                const float s = sin(std::numbers::pi * 0.25f);
-                const float c = cos(std::numbers::pi * 0.25f);
-                for (int i = 0; i < std::size(points); ++i) {
-                    const float rx = c * points[i].x - s * points[i].y;
-                    const float ry = s * points[i].x + c * points[i].y;
-                    points[i].x = rx;
-                    points[i].y = ry;
-                }
-            }
-            for (int i = 0; i < std::size(points); ++i) {
-                points[i].x += x;
-                points[i].y += y;
-            }
-
-            // TODO: use crosshair design from configuration
-            drawList->AddConvexPolyFilled(points, std::size(points), fillColor);
-            drawList->AddPolyline(points, std::size(points), lineColor, ImDrawFlags_Closed, lineThickness);
+            ui::widgets::Crosshair(drawList, params, {input.posX, input.posY});
             break;
         }
         default: break;

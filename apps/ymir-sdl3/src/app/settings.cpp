@@ -13,6 +13,7 @@
 #include <util/math.hpp>
 
 #include <cassert>
+#include <concepts>
 
 using namespace std::literals;
 using namespace ymir;
@@ -414,6 +415,21 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *na
     }
 }
 
+template <typename T, size_t N>
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *name, std::array<T, N> &value) {
+    if (toml::array *arr = node[name].as_array()) {
+        value.fill({});
+        for (size_t i = 0; toml::node &node : *arr) {
+            toml::node_view view{node};
+            Parse(view, value[i]);
+            ++i;
+            if (i >= value.size()) {
+                break;
+            }
+        }
+    }
+}
+
 template <typename T>
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *name, std::vector<T> &value) {
     if (toml::array *arr = node[name].as_array()) {
@@ -453,6 +469,16 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *na
 // -------------------------------------------------------------------------------------------------
 // Value-to-string converters
 
+template <std::integral T>
+FORCE_INLINE static T ToTOML(T value) {
+    return value;
+}
+
+template <std::floating_point T>
+FORCE_INLINE static T ToTOML(T value) {
+    return value;
+}
+
 // Creates a TOML array with valid entries (skips Nones).
 FORCE_INLINE static toml::array ToTOML(const input::InputBind &value) {
     toml::array out{};
@@ -460,6 +486,15 @@ FORCE_INLINE static toml::array ToTOML(const input::InputBind &value) {
         if (element.type != input::InputElement::Type::None) {
             out.push_back(input::ToString(element));
         }
+    }
+    return out;
+}
+
+template <typename T, size_t N>
+FORCE_INLINE static toml::array ToTOML(const std::array<T, N> &value) {
+    toml::array out{};
+    for (auto &item : value) {
+        out.push_back(ToTOML(item));
     }
     return out;
 }
@@ -739,6 +774,8 @@ void Settings::ResetToDefaults() {
         input.ports[0].type = PeriphType::ControlPad;
         input.ports[1].type = PeriphType::None;
 
+        using namespace app::config_defaults::input;
+
         (void)ResetHotkeys();
 
         for (uint32 i = 0; i < 2; ++i) {
@@ -749,9 +786,16 @@ void Settings::ResetToDefaults() {
             (void)ResetBinds(port.missionStick.binds, true);
             (void)ResetBinds(port.virtuaGun.binds, true);
 
-            port.arcadeRacer.sensitivity = kDefaultArcadeRacerSensitivity;
-            port.virtuaGun.speed = kDefaultVirtuaGunSpeed;
-            port.virtuaGun.speedBoostFactor = kDefaultVirtuaGunSpeedBoostFactor;
+            port.arcadeRacer.sensitivity = arcade_racer::kDefaultSensitivity;
+
+            port.virtuaGun.speed = virtua_gun::kDefaultSpeed;
+            port.virtuaGun.speedBoostFactor = virtua_gun::kDefaultSpeedBoostFactor;
+            port.virtuaGun.crosshair.color = virtua_gun::crosshair::kDefaultColor[i];
+            port.virtuaGun.crosshair.radius = virtua_gun::crosshair::kDefaultRadius[i];
+            port.virtuaGun.crosshair.thickness = virtua_gun::crosshair::kDefaultThickness[i];
+            port.virtuaGun.crosshair.rotation = virtua_gun::crosshair::kDefaultRotation[i];
+            port.virtuaGun.crosshair.strokeColor = virtua_gun::crosshair::kDefaultStrokeColor[i];
+            port.virtuaGun.crosshair.strokeThickness = virtua_gun::crosshair::kDefaultStrokeThickness[i];
         }
     }
 
@@ -1133,12 +1177,13 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                         }
                     }
                     if (auto tblArcadeRacer = tblPort["ArcadeRacer"]) {
+                        using namespace app::config_defaults::input::arcade_racer;
                         if (auto tblBinds = tblArcadeRacer["Binds"]) {
                             parseArcadeRacerBinds(tblBinds);
                         }
                         float sensitivity;
                         Parse(tblArcadeRacer, "Sensitivity", sensitivity);
-                        sensitivity = std::clamp(sensitivity, kMinArcadeRacerSensitivity, kMaxArcadeRacerSensitivity);
+                        sensitivity = std::clamp(sensitivity, kMinSensitivity, kMaxSensitivity);
                         portSettings.arcadeRacer.sensitivity = sensitivity;
                     }
                     if (auto tblMissionStick = tblPort["MissionStick"]) {
@@ -1147,17 +1192,32 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                         }
                     }
                     if (auto tblVirtuaGun = tblPort["VirtuaGun"]) {
+                        using namespace app::config_defaults::input::virtua_gun;
+                        auto &virtuaGun = portSettings.virtuaGun;
+
                         if (auto tblBinds = tblVirtuaGun["Binds"]) {
                             parseVirtuaGunBinds(tblBinds);
+                        }
+                        if (auto tblCrosshair = tblVirtuaGun["Crosshair"]) {
+                            using namespace crosshair;
+                            auto &xhair = virtuaGun.crosshair;
+                            Parse(tblCrosshair, "Color", xhair.color);
+                            Parse(tblCrosshair, "Radius", xhair.radius);
+                            Parse(tblCrosshair, "Thickness", xhair.thickness);
+                            Parse(tblCrosshair, "Rotation", xhair.rotation);
+                            Parse(tblCrosshair, "StrokeColor", xhair.strokeColor);
+                            Parse(tblCrosshair, "StrokeThickness", xhair.strokeThickness);
+                            xhair.radius = std::clamp<float>(xhair.radius, kMinRadius, kMaxRadius);
+                            xhair.thickness = std::clamp<float>(xhair.thickness, kMinThickness, kMaxThickness);
+                            xhair.strokeThickness =
+                                std::clamp<float>(xhair.strokeThickness, kMinStrokeThickness, kMaxStrokeThickness);
                         }
                         float speed, speedBoostFactor;
                         Parse(tblVirtuaGun, "Speed", speed);
                         Parse(tblVirtuaGun, "SpeedBoostFactor", speedBoostFactor);
-                        speed = std::clamp(speed, kMinVirtuaGunSpeed, kMaxVirtuaGunSpeed);
-                        speedBoostFactor =
-                            std::clamp(speedBoostFactor, kMinVirtuaGunSpeedBoostFactor, kMaxVirtuaGunSpeedBoostFactor);
-                        portSettings.virtuaGun.speed = speed;
-                        portSettings.virtuaGun.speedBoostFactor = speedBoostFactor;
+                        virtuaGun.speed = std::clamp(speed, kMinSpeed, kMaxSpeed);
+                        virtuaGun.speedBoostFactor =
+                            std::clamp(speedBoostFactor, kMinSpeedBoostFactor, kMaxSpeedBoostFactor);
                     }
                 } else {
                     const char *controlPadName = configVersion == 1 ? "StandardPadBinds" : "ControlPadBinds";
@@ -1387,6 +1447,14 @@ SettingsSaveResult Settings::Save() {
                     {"Recenter", ToTOML(port.virtuaGun.binds.recenter)},
                     {"SpeedBoost", ToTOML(port.virtuaGun.binds.speedBoost)},
                     {"SpeedToggle", ToTOML(port.virtuaGun.binds.speedToggle)},
+                }}},
+                {"Crosshair", toml::table{{
+                    {"Color", ToTOML(port.virtuaGun.crosshair.color)},
+                    {"Radius", port.virtuaGun.crosshair.radius},
+                    {"Thickness", port.virtuaGun.crosshair.thickness},
+                    {"Rotation", port.virtuaGun.crosshair.rotation},
+                    {"StrokeColor", ToTOML(port.virtuaGun.crosshair.strokeColor)},
+                    {"StrokeThickness", port.virtuaGun.crosshair.strokeThickness},
                 }}},
                 {"Speed", port.virtuaGun.speed.Get()},
                 {"SpeedBoostFactor", port.virtuaGun.speedBoostFactor.Get()},

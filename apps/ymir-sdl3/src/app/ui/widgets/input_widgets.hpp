@@ -6,6 +6,8 @@
 
 #include <app/ui/widgets/unbound_actions_widget.hpp>
 
+#include <imgui.h>
+
 namespace app::ui::widgets {
 
 class InputCaptureWidget {
@@ -36,5 +38,19 @@ private:
     void MakeDirty();
     bool MakeDirty(bool value);
 };
+
+struct CrosshairParams {
+    ImVec4 color;
+    float radius;    // in pixels (relative to 100% display scale)
+    float thickness; // in percent of radius; min 1px
+    float rotation;  // in degrees
+
+    ImVec4 strokeColor;
+    float strokeThickness; // in percent of radius; min 1px
+
+    float displayScale;
+};
+
+void Crosshair(ImDrawList *drawList, const CrosshairParams &params, ImVec2 pos);
 
 } // namespace app::ui::widgets

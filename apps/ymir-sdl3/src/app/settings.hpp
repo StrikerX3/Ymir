@@ -18,6 +18,8 @@
 
 #include <ymir/util/observable.hpp>
 
+#include "settings_defaults.hpp"
+
 #include <fmt/format.h>
 #include <fmt/std.h>
 #include <toml++/toml.hpp>
@@ -34,18 +36,6 @@ namespace app {
 
 inline constexpr std::string_view kSettingsFile = "Ymir.toml";
 inline constexpr std::string_view kGameControllerDBFile = "gamecontrollerdb.txt";
-
-inline constexpr float kMinArcadeRacerSensitivity = 0.2f;
-inline constexpr float kMaxArcadeRacerSensitivity = 2.0f;
-inline constexpr float kDefaultArcadeRacerSensitivity = 0.5f;
-
-inline constexpr float kMinVirtuaGunSpeed = 50.0f;
-inline constexpr float kMaxVirtuaGunSpeed = 500.0f;
-inline constexpr float kDefaultVirtuaGunSpeed = 200.0f;
-
-inline constexpr float kMinVirtuaGunSpeedBoostFactor = 1.5f;
-inline constexpr float kMaxVirtuaGunSpeedBoostFactor = 4.0f;
-inline constexpr float kDefaultVirtuaGunSpeedBoostFactor = 2.0f;
 
 struct SettingsLoadResult {
     enum class Type { Success, TOMLParseError, UnsupportedConfigVersion };
@@ -404,6 +394,16 @@ struct Settings {
 
                 util::Observable<float> speed;
                 util::Observable<float> speedBoostFactor;
+
+                struct Crosshair {
+                    std::array<float, 4> color; // R,G,B,A
+                    float radius;
+                    float thickness;
+                    float rotation;
+
+                    std::array<float, 4> strokeColor; // R,G,B,A
+                    float strokeThickness;
+                } crosshair;
             } virtuaGun;
         };
         std::array<Port, 2> ports;
