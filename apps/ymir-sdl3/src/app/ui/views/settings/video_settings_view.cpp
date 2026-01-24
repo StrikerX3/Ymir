@@ -88,7 +88,7 @@ void VideoSettingsView::Display() {
 
     MakeDirty(ImGui::Checkbox("Synchronize video in full screen mode", &settings.syncInFullscreenMode));
     widgets::ExplanationTooltip(
-        "When enabled, synchronizes GUI updates with emulator rendering while in full screenm mode.\n"
+        "When enabled, synchronizes GUI updates with emulator rendering while in full screen mode.\n"
         "This greatly improves frame pacing but may reduce GUI performance.",
         m_context.displayScale);
 
