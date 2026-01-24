@@ -213,17 +213,17 @@ jobs:
               Copy-Item $_.FullName $dest -Force
             }
 
-          Copy-Item -Path ".\apps\ymir-sdl3\res\licenses\*"                   -Destination "$licensesDir\"  -Recurse
-          Copy-Item -Path ".\vendor\concurrentqueue\LICENSE.md"               -Destination "$licensesDir\concurrentqueue-LICENSE.md"
-          Copy-Item -Path ".\vendor\imgui\imgui\LICENSE.txt"                  -Destination "$licensesDir\imgui-LICENSE.txt"
-          Copy-Item -Path ".\vendor\libchdr\LICENSE.txt"                      -Destination "$licensesDir\libchdr-LICENSE.txt"
-          Copy-Item -Path ".\vendor\libchdr\deps\lzma-24.05\LICENSE"          -Destination "$licensesDir\lzma-LICENSE"
-          Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                      -Destination "$licensesDir\lz4-LICENSE"
-          Copy-Item -Path ".\vendor\mio\LICENSE"                              -Destination "$licensesDir\mio-LICENSE"
-          Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                    -Destination "$licensesDir\xxHash-LICENSE"
-          Copy-Item -Path ".\LICENSE"                                         -Destination "$licensesDir\Ymir-LICENSE"
-          Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"              -Destination "$licensesDir\SDL_GameControllerDB-LICENSE"
-          Copy-Item -Path "${{ github.workspace }}\gcdb\gamecontrollerdb.txt" -Destination ".\gamecontrollerdb.txt"
+          Copy-Item -Path ".\apps\ymir-sdl3\res\licenses\*"                     -Destination "$licensesDir\"  -Recurse
+          Copy-Item -Path ".\vendor\concurrentqueue\concurrentqueue\LICENSE.md" -Destination "$licensesDir\concurrentqueue-LICENSE.md"
+          Copy-Item -Path ".\vendor\imgui\imgui\LICENSE.txt"                    -Destination "$licensesDir\imgui-LICENSE.txt"
+          Copy-Item -Path ".\vendor\libchdr\libchdr\LICENSE.txt"                -Destination "$licensesDir\libchdr-LICENSE.txt"
+          Copy-Item -Path ".\vendor\libchdr\libchdr\deps\lzma-24.05\LICENSE"    -Destination "$licensesDir\lzma-LICENSE"
+          Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                        -Destination "$licensesDir\lz4-LICENSE"
+          Copy-Item -Path ".\vendor\mio\LICENSE"                                -Destination "$licensesDir\mio-LICENSE"
+          Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                      -Destination "$licensesDir\xxHash-LICENSE"
+          Copy-Item -Path ".\LICENSE"                                           -Destination "$licensesDir\Ymir-LICENSE"
+          Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"                -Destination "$licensesDir\SDL_GameControllerDB-LICENSE"
+          Copy-Item -Path "${{ github.workspace }}\gcdb\gamecontrollerdb.txt"   -Destination ".\gamecontrollerdb.txt"
           Compress-Archive -Path "README.md","CHANGELOG.md","TROUBLESHOOTING.md","gamecontrollerdb.txt","$licensesDir/","build/apps/ymir-sdl3/ymir-sdl3.exe" -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
 
       - name: Upload Ymir artifact
@@ -371,10 +371,10 @@ jobs:
             cp "$file" "licenses/${port}-LICENSE.txt"
           done
           cp -Rf apps/ymir-sdl3/res/licenses/*                    ./licenses/
-          cp -f vendor/concurrentqueue/LICENSE.md                 licenses/concurrentqueue-LICENSE.md
+          cp -f vendor/concurrentqueue/concurrentqueue/LICENSE.md licenses/concurrentqueue-LICENSE.md
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
-          cp -f vendor/libchdr/LICENSE.txt                        licenses/libchdr-LICENSE.txt
-          cp -f vendor/libchdr/deps/lzma-24.05/LICENSE            licenses/lzma-LICENSE
+          cp -f vendor/libchdr/libchdr/LICENSE.txt                licenses/libchdr-LICENSE.txt
+          cp -f vendor/libchdr/libchdr/deps/lzma-24.05/LICENSE    licenses/lzma-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
@@ -500,10 +500,10 @@ jobs:
             cp "$file" "licenses/${port}-LICENSE.txt"
           done
           cp -Rf apps/ymir-sdl3/res/licenses/*                    ./licenses/
-          cp -f vendor/concurrentqueue/LICENSE.md                 licenses/concurrentqueue-LICENSE.md
+          cp -f vendor/concurrentqueue/concurrentqueue/LICENSE.md licenses/concurrentqueue-LICENSE.md
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
-          cp -f vendor/libchdr/LICENSE.txt                        licenses/libchdr-LICENSE.txt
-          cp -f vendor/libchdr/deps/lzma-24.05/LICENSE            licenses/lzma-LICENSE
+          cp -f vendor/libchdr/libchdr/LICENSE.txt                licenses/libchdr-LICENSE.txt
+          cp -f vendor/libchdr/libchdr/deps/lzma-24.05/LICENSE    licenses/lzma-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
