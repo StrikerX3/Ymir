@@ -173,6 +173,7 @@ jobs:
           -DYmir_ENABLE_UPDATE_CHECKS=ON
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
+          -DYmir_ENABLE_TESTS=OFF  # FIXME: Catch2 integration still isn't working
           -DYmir_EXTRA_INLINING=ON
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
@@ -251,7 +252,7 @@ jobs:
         build_type:
           - ${{ inputs.debug-symbols && 'RelWithDebInfo' || 'Release' }}
         # Notes about compilers:
-        # - GCC (gcc) gets stuck building sh2.cpp (didn't finish after 12+ hours)
+        # - GCC (gcc) produces much slower code and takes a long time to complete the LTO step
         compiler: [clang] # [clang, gcc]
         architecture:
           - name: "x86_64-SSE2"
@@ -337,6 +338,7 @@ jobs:
           -DYmir_ENABLE_UPDATE_CHECKS=ON
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
+          -DYmir_ENABLE_TESTS=OFF  # FIXME: Catch2 integration still isn't working
           -DYmir_EXTRA_INLINING=ON
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
@@ -467,6 +469,7 @@ jobs:
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
           -DYmir_EXTRA_INLINING=ON
+          -DYmir_ENABLE_TESTS=OFF  # FIXME: Catch2 integration still isn't working
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
           -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
