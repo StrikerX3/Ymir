@@ -13,8 +13,6 @@ void VirtuaGunConfigView::Display(Settings::Input::Port::VirtuaGun &controllerSe
 
     using namespace app::config_defaults::input::virtua_gun;
 
-    // TODO: configurable mouse inputs
-
     // -------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
@@ -195,8 +193,7 @@ void VirtuaGunConfigView::Display(Settings::Input::Port::VirtuaGun &controllerSe
 
     ImGui::TextUnformatted("Left-click a button to assign a hotkey. Right-click to clear.");
     m_unboundActionsWidget.Display();
-    if (ImGui::BeginTable("hotkeys", 1 + input::kNumBindsPerInput,
-                          ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_ScrollY)) {
+    if (ImGui::BeginTable("hotkeys", 1 + input::kNumBindsPerInput, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("Button", ImGuiTableColumnFlags_WidthFixed, 90.0f * m_context.displayScale);
         for (size_t i = 0; i < input::kNumBindsPerInput; i++) {
             ImGui::TableSetupColumn(fmt::format("Hotkey {}", i + 1).c_str(), ImGuiTableColumnFlags_WidthStretch, 1.0f);
@@ -229,6 +226,33 @@ void VirtuaGunConfigView::Display(Settings::Input::Port::VirtuaGun &controllerSe
         drawRow(binds.speedToggle);
 
         m_inputCaptureWidget.DrawCapturePopup();
+
+        ImGui::EndTable();
+    }
+
+    // -------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Mouse binds");
+    ImGui::PopFont();
+
+    // TODO: configurable mouse inputs
+    ImGui::TextUnformatted("Mouse inputs are bound as follows:");
+
+    if (ImGui::BeginTable("mouse_hotkeys", 2, ImGuiTableFlags_SizingFixedFit)) {
+        auto drawRow = [&](const char *name, const char *button) {
+            ImGui::TableNextRow();
+            if (ImGui::TableNextColumn()) {
+                ImGui::TextUnformatted(name);
+            }
+            if (ImGui::TableNextColumn()) {
+                ImGui::TextUnformatted(button);
+            }
+        };
+
+        drawRow("Trigger", "Left button");
+        drawRow("Reload", "Right button");
+        drawRow("Start", "Middle button");
 
         ImGui::EndTable();
     }
