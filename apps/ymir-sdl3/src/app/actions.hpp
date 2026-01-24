@@ -282,6 +282,25 @@ namespace virtua_gun {
 
 } // namespace virtua_gun
 
+namespace shuttle_mouse {
+
+    DEF_ACTION(Start)::Button(ACTION_ID, "Shuttle Mouse", "Start");
+    DEF_ACTION(Left)::Button(ACTION_ID, "Shuttle Mouse", "Left button");
+    DEF_ACTION(Middle)::Button(ACTION_ID, "Shuttle Mouse", "Middle button");
+    DEF_ACTION(Right)::Button(ACTION_ID, "Shuttle Mouse", "Right button");
+    DEF_ACTION(MoveUp)::Button(ACTION_ID, "Shuttle Mouse", "Move up");
+    DEF_ACTION(MoveDown)::Button(ACTION_ID, "Shuttle Mouse", "Move down");
+    DEF_ACTION(MoveLeft)::Button(ACTION_ID, "Shuttle Mouse", "Move left");
+    DEF_ACTION(MoveRight)::Button(ACTION_ID, "Shuttle Mouse", "Move right");
+    DEF_ACTION(Move)::RelativeBipolarAxis2D(ACTION_ID, "Shuttle Mouse", "Move axis");
+    DEF_ACTION(SpeedBoost)::Button(ACTION_ID, "Shuttle Mouse", "Speed boost");
+    DEF_ACTION(SpeedToggle)::Trigger(ACTION_ID, "Shuttle Mouse", "Speed toggle");
+
+    // Hidden actions
+    DEF_ACTION(MouseRelMove)::RelativeBipolarAxis2D(ACTION_ID, "Shuttle Mouse", "Move (relative mouse)");
+
+} // namespace shuttle_mouse
+
 } // namespace app::actions
 
 #undef DEF_ACTION

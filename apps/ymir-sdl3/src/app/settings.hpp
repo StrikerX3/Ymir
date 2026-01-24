@@ -405,6 +405,26 @@ struct Settings {
                     float strokeThickness;
                 } crosshair;
             } virtuaGun;
+
+            struct ShuttleMouse {
+                struct Binds {
+                    input::InputBind start{actions::shuttle_mouse::Start};
+                    input::InputBind left{actions::shuttle_mouse::Left};
+                    input::InputBind middle{actions::shuttle_mouse::Middle};
+                    input::InputBind right{actions::shuttle_mouse::Right};
+                    input::InputBind moveUp{actions::shuttle_mouse::MoveUp};
+                    input::InputBind moveDown{actions::shuttle_mouse::MoveDown};
+                    input::InputBind moveLeft{actions::shuttle_mouse::MoveLeft};
+                    input::InputBind moveRight{actions::shuttle_mouse::MoveRight};
+                    input::InputBind move{actions::shuttle_mouse::Move};
+                    input::InputBind speedBoost{actions::shuttle_mouse::SpeedBoost};
+                    input::InputBind speedToggle{actions::shuttle_mouse::SpeedToggle};
+                } binds;
+
+                util::Observable<float> speed;
+                util::Observable<float> speedBoostFactor;
+                float sensitivity;
+            } shuttleMouse;
         };
         std::array<Port, 2> ports;
 
@@ -545,6 +565,12 @@ struct Settings {
     [[nodiscard]] std::unordered_set<input::MappedAction> ResetBinds(Input::Port::VirtuaGun::Binds &binds,
                                                                      bool useDefaults);
 
+    // Restores all default input binds for the specified Shuttle Mouse controller.
+    // Returns all unbound actions.
+    // If useDefaults is true, restores the default binds, otherwise all binds are cleared.
+    [[nodiscard]] std::unordered_set<input::MappedAction> ResetBinds(Input::Port::ShuttleMouse::Binds &binds,
+                                                                     bool useDefaults);
+
 private:
     SharedContext &m_context;
 
@@ -562,6 +588,7 @@ private:
     std::array<InputMap, 2> m_arcadeRacerInputs;
     std::array<InputMap, 2> m_missionStickInputs;
     std::array<InputMap, 2> m_virtuaGunInputs;
+    std::array<InputMap, 2> m_shuttleMouseInputs;
 
     InputMap &GetInputMapForContext(void *context);
 

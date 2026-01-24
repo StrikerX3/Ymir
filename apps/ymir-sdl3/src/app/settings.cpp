@@ -143,6 +143,8 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, peripheral::Pe
             value = peripheral::PeripheralType::MissionStick;
         } else if (*opt == "VirtuaGun"s) {
             value = peripheral::PeripheralType::VirtuaGun;
+        } else if (*opt == "ShuttleMouse"s) {
+            value = peripheral::PeripheralType::ShuttleMouse;
         }
     }
 }
@@ -316,6 +318,7 @@ FORCE_INLINE static const char *ToTOML(const peripheral::PeripheralType value) {
     case peripheral::PeripheralType::ArcadeRacer: return "ArcadeRacer";
     case peripheral::PeripheralType::MissionStick: return "MissionStick";
     case peripheral::PeripheralType::VirtuaGun: return "VirtuaGun";
+    case peripheral::PeripheralType::ShuttleMouse: return "ShuttleMouse";
     }
 }
 
@@ -525,6 +528,7 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         m_arcadeRacerInputs[i].context = &m_context.arcadeRacerInputs[i];
         m_missionStickInputs[i].context = &m_context.missionStickInputs[i];
         m_virtuaGunInputs[i].context = &m_context.virtuaGunInputs[i];
+        m_shuttleMouseInputs[i].context = &m_context.shuttleMouseInputs[i];
     }
 
     mapInput(m_actionInputs, hotkeys.openSettings);
@@ -704,12 +708,27 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
         mapInput(inputMap, binds.speedToggle);
     };
 
+    auto mapShuttleMouse = [&](InputMap &inputMap, Input::Port::ShuttleMouse::Binds &binds) {
+        mapInput(inputMap, binds.start);
+        mapInput(inputMap, binds.left);
+        mapInput(inputMap, binds.middle);
+        mapInput(inputMap, binds.right);
+        mapInput(inputMap, binds.moveUp);
+        mapInput(inputMap, binds.moveDown);
+        mapInput(inputMap, binds.moveLeft);
+        mapInput(inputMap, binds.moveRight);
+        mapInput(inputMap, binds.move);
+        mapInput(inputMap, binds.speedBoost);
+        mapInput(inputMap, binds.speedToggle);
+    };
+
     for (uint32 i = 0; i < 2; ++i) {
         mapControlPad(m_controlPadInputs[i], input.ports[i].controlPad.binds);
         mapAnalogPad(m_analogPadInputs[i], input.ports[i].analogPad.binds);
         mapArcadeRacer(m_arcadeRacerInputs[i], input.ports[i].arcadeRacer.binds);
         mapMissionStick(m_missionStickInputs[i], input.ports[i].missionStick.binds);
         mapVirtuaGun(m_virtuaGunInputs[i], input.ports[i].virtuaGun.binds);
+        mapShuttleMouse(m_shuttleMouseInputs[i], input.ports[i].shuttleMouse.binds);
     }
 
     ResetToDefaults();
@@ -780,6 +799,7 @@ void Settings::ResetToDefaults() {
             (void)ResetBinds(port.arcadeRacer.binds, true);
             (void)ResetBinds(port.missionStick.binds, true);
             (void)ResetBinds(port.virtuaGun.binds, true);
+            (void)ResetBinds(port.shuttleMouse.binds, true);
 
             port.arcadeRacer.sensitivity = arcade_racer::kDefaultSensitivity;
 
@@ -791,6 +811,9 @@ void Settings::ResetToDefaults() {
             port.virtuaGun.crosshair.rotation = virtua_gun::crosshair::kDefaultRotation[i];
             port.virtuaGun.crosshair.strokeColor = virtua_gun::crosshair::kDefaultStrokeColor[i];
             port.virtuaGun.crosshair.strokeThickness = virtua_gun::crosshair::kDefaultStrokeThickness[i];
+
+            port.shuttleMouse.speed = shuttle_mouse::kDefaultSpeed;
+            port.shuttleMouse.speedBoostFactor = shuttle_mouse::kDefaultSpeedBoostFactor;
         }
     }
 
@@ -1159,6 +1182,19 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                     Parse(tblBinds, "SpeedBoost", portSettings.virtuaGun.binds.speedBoost);
                     Parse(tblBinds, "SpeedToggle", portSettings.virtuaGun.binds.speedToggle);
                 };
+                auto parseShuttleMouseBinds = [&](auto &tblBinds) {
+                    Parse(tblBinds, "Start", portSettings.shuttleMouse.binds.start);
+                    Parse(tblBinds, "Left", portSettings.shuttleMouse.binds.left);
+                    Parse(tblBinds, "Middle", portSettings.shuttleMouse.binds.middle);
+                    Parse(tblBinds, "Right", portSettings.shuttleMouse.binds.right);
+                    Parse(tblBinds, "MoveUp", portSettings.shuttleMouse.binds.moveUp);
+                    Parse(tblBinds, "MoveDown", portSettings.shuttleMouse.binds.moveDown);
+                    Parse(tblBinds, "MoveLeft", portSettings.shuttleMouse.binds.moveLeft);
+                    Parse(tblBinds, "MoveRight", portSettings.shuttleMouse.binds.moveRight);
+                    Parse(tblBinds, "Move", portSettings.shuttleMouse.binds.move);
+                    Parse(tblBinds, "SpeedBoost", portSettings.shuttleMouse.binds.speedBoost);
+                    Parse(tblBinds, "SpeedToggle", portSettings.shuttleMouse.binds.speedToggle);
+                };
 
                 if (configVersion >= 3) {
                     if (auto tblControlPad = tblPort["ControlPad"]) {
@@ -1212,6 +1248,20 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                         Parse(tblVirtuaGun, "SpeedBoostFactor", speedBoostFactor);
                         virtuaGun.speed = std::clamp(speed, kMinSpeed, kMaxSpeed);
                         virtuaGun.speedBoostFactor =
+                            std::clamp(speedBoostFactor, kMinSpeedBoostFactor, kMaxSpeedBoostFactor);
+                    }
+                    if (auto tblShuttleMouse = tblPort["ShuttleMouse"]) {
+                        using namespace app::config_defaults::input::shuttle_mouse;
+                        auto &shuttleMouse = portSettings.shuttleMouse;
+
+                        if (auto tblBinds = tblShuttleMouse["Binds"]) {
+                            parseShuttleMouseBinds(tblBinds);
+                        }
+                        float speed, speedBoostFactor;
+                        Parse(tblShuttleMouse, "Speed", speed);
+                        Parse(tblShuttleMouse, "SpeedBoostFactor", speedBoostFactor);
+                        shuttleMouse.speed = std::clamp(speed, kMinSpeed, kMaxSpeed);
+                        shuttleMouse.speedBoostFactor =
                             std::clamp(speedBoostFactor, kMinSpeedBoostFactor, kMaxSpeedBoostFactor);
                     }
                 } else {
@@ -1453,6 +1503,23 @@ SettingsSaveResult Settings::Save() {
                 }}},
                 {"Speed", port.virtuaGun.speed.Get()},
                 {"SpeedBoostFactor", port.virtuaGun.speedBoostFactor.Get()},
+            }}},
+            {"ShuttleMouse", toml::table{{
+                {"Binds", toml::table{{
+                    {"Start", ToTOML(port.shuttleMouse.binds.start)},
+                    {"Left", ToTOML(port.shuttleMouse.binds.left)},
+                    {"Middle", ToTOML(port.shuttleMouse.binds.middle)},
+                    {"Right", ToTOML(port.shuttleMouse.binds.right)},
+                    {"MoveUp", ToTOML(port.shuttleMouse.binds.moveUp)},
+                    {"MoveDown", ToTOML(port.shuttleMouse.binds.moveDown)},
+                    {"MoveLeft", ToTOML(port.shuttleMouse.binds.moveLeft)},
+                    {"MoveRight", ToTOML(port.shuttleMouse.binds.moveRight)},
+                    {"Move", ToTOML(port.shuttleMouse.binds.move)},
+                    {"SpeedBoost", ToTOML(port.shuttleMouse.binds.speedBoost)},
+                    {"SpeedToggle", ToTOML(port.shuttleMouse.binds.speedToggle)},
+                }}},
+                {"Speed", port.shuttleMouse.speed.Get()},
+                {"SpeedBoostFactor", port.shuttleMouse.speedBoostFactor.Get()},
             }}},
         }};
         // clang-format on
@@ -1775,6 +1842,7 @@ void Settings::RebindInputs() {
         case peripheral::PeripheralType::ArcadeRacer: bindAll(m_arcadeRacerInputs[i]); break;
         case peripheral::PeripheralType::MissionStick: bindAll(m_missionStickInputs[i]); break;
         case peripheral::PeripheralType::VirtuaGun: bindAll(m_virtuaGunInputs[i]); break;
+        case peripheral::PeripheralType::ShuttleMouse: bindAll(m_shuttleMouseInputs[i]); break;
         }
     }
 
@@ -1819,6 +1887,11 @@ std::optional<input::MappedAction> Settings::UnbindInput(const input::InputEleme
             break;
         case peripheral::PeripheralType::VirtuaGun:
             if (existingAction->context != &m_context.virtuaGunInputs[i]) {
+                return std::nullopt;
+            }
+            break;
+        case peripheral::PeripheralType::ShuttleMouse:
+            if (existingAction->context != &m_context.shuttleMouseInputs[i]) {
                 return std::nullopt;
             }
             break;
@@ -1878,6 +1951,7 @@ void Settings::SyncInputSettings() {
         case peripheral::PeripheralType::ArcadeRacer: sync(m_arcadeRacerInputs[i]); break;
         case peripheral::PeripheralType::MissionStick: sync(m_missionStickInputs[i]); break;
         case peripheral::PeripheralType::VirtuaGun: sync(m_virtuaGunInputs[i]); break;
+        case peripheral::PeripheralType::ShuttleMouse: sync(m_shuttleMouseInputs[i]); break;
         }
     }
 }
@@ -2335,6 +2409,61 @@ std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::Virtua
     return rebindCtx.GetReplacedActions();
 }
 
+std::unordered_set<input::MappedAction> Settings::ResetBinds(Input::Port::ShuttleMouse::Binds &binds,
+                                                             bool useDefaults) {
+    using namespace input;
+
+    using Key = KeyboardKey;
+    using GPBtn = GamepadButton;
+    using GPAxis2 = GamepadAxis2D;
+
+    RebindContext rebindCtx{*this};
+
+    if (!useDefaults) {
+        rebindCtx.Rebind(binds.start, {});
+        rebindCtx.Rebind(binds.left, {});
+        rebindCtx.Rebind(binds.middle, {});
+        rebindCtx.Rebind(binds.right, {});
+        rebindCtx.Rebind(binds.moveUp, {});
+        rebindCtx.Rebind(binds.moveDown, {});
+        rebindCtx.Rebind(binds.moveLeft, {});
+        rebindCtx.Rebind(binds.moveRight, {});
+        rebindCtx.Rebind(binds.move, {});
+        rebindCtx.Rebind(binds.speedBoost, {});
+        rebindCtx.Rebind(binds.speedToggle, {});
+    } else if (&binds == &input.ports[0].shuttleMouse.binds) {
+        // Default port 1 Shuttle Mouse controller inputs
+        rebindCtx.Rebind(binds.start, {{{Key::F}, {Key::G}, {Key::H}, {0, GPBtn::Start}}});
+        rebindCtx.Rebind(binds.left, {{{Key::J}, {0, GPBtn::A}}});
+        rebindCtx.Rebind(binds.middle, {{{Key::K}, {0, GPBtn::X}}});
+        rebindCtx.Rebind(binds.right, {{{Key::L}, {0, GPBtn::B}}});
+        rebindCtx.Rebind(binds.moveUp, {{{Key::W}}});
+        rebindCtx.Rebind(binds.moveDown, {{{Key::S}}});
+        rebindCtx.Rebind(binds.moveLeft, {{{Key::A}}});
+        rebindCtx.Rebind(binds.moveRight, {{{Key::D}}});
+        rebindCtx.Rebind(binds.move, {{{0, GPAxis2::DPad}, {0, GPAxis2::LeftStick}}});
+        rebindCtx.Rebind(binds.speedBoost, {{{Key::C}, {0, GPBtn::LeftBumper}}});
+        rebindCtx.Rebind(binds.speedToggle, {{{Key::V}, {0, GPBtn::LeftTrigger}}});
+    } else if (&binds == &input.ports[1].shuttleMouse.binds) {
+        // Default port 2 Shuttle Mouse controller inputs
+        rebindCtx.Rebind(binds.start, {{{Key::KeyPadEnter}, {1, GPBtn::Start}}});
+        rebindCtx.Rebind(binds.left, {{{Key::KeyPad1}, {1, GPBtn::A}}});
+        rebindCtx.Rebind(binds.middle, {{{Key::KeyPad2}, {1, GPBtn::X}}});
+        rebindCtx.Rebind(binds.right, {{{Key::KeyPad3}, {1, GPBtn::B}}});
+        rebindCtx.Rebind(binds.moveUp, {{{Key::Up}, {Key::Home}}});
+        rebindCtx.Rebind(binds.moveDown, {{{Key::Down}, {Key::End}}});
+        rebindCtx.Rebind(binds.moveLeft, {{{Key::Left}, {Key::Delete}}});
+        rebindCtx.Rebind(binds.moveRight, {{{Key::Right}, {Key::PageDown}}});
+        rebindCtx.Rebind(binds.move, {{{1, GPAxis2::DPad}, {1, GPAxis2::LeftStick}}});
+        rebindCtx.Rebind(binds.speedBoost, {{{Key::KeyPad0}, {1, GPBtn::LeftBumper}}});
+        rebindCtx.Rebind(binds.speedToggle, {{{Key::KeyPadPeriod}, {1, GPBtn::LeftTrigger}}});
+    }
+
+    RebindInputs();
+
+    return rebindCtx.GetReplacedActions();
+}
+
 Settings::InputMap &Settings::GetInputMapForContext(void *context) {
     for (uint32 i = 0; i < 2; ++i) {
         if (context == &m_context.controlPadInputs[i]) {
@@ -2351,6 +2480,9 @@ Settings::InputMap &Settings::GetInputMapForContext(void *context) {
         }
         if (context == &m_context.virtuaGunInputs[i]) {
             return m_virtuaGunInputs[i];
+        }
+        if (context == &m_context.shuttleMouseInputs[i]) {
+            return m_shuttleMouseInputs[i];
         }
     }
     // Hotkeys

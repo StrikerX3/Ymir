@@ -10,7 +10,7 @@
 namespace ymir::peripheral {
 
 /// @brief Peripheral type enumeration.
-enum class PeripheralType { None, ControlPad, AnalogPad, ArcadeRacer, MissionStick, VirtuaGun };
+enum class PeripheralType { None, ControlPad, AnalogPad, ArcadeRacer, MissionStick, VirtuaGun, ShuttleMouse };
 
 /// @brief Retrieves the name of a given peripheral type.
 /// @param[in] type the peripheral type
@@ -23,14 +23,15 @@ inline std::string_view GetPeripheralName(PeripheralType type) {
     case PeripheralType::ArcadeRacer: return "Arcade Racer";
     case PeripheralType::MissionStick: return "Mission Stick";
     case PeripheralType::VirtuaGun: return "Virtua Gun";
+    case PeripheralType::ShuttleMouse: return "Shuttle Mouse";
     default: return "Invalid";
     }
 }
 
 /// @brief All supported peripheral types.
-inline constexpr PeripheralType kTypes[] = {PeripheralType::None,         PeripheralType::ControlPad,
-                                            PeripheralType::AnalogPad,    PeripheralType::ArcadeRacer,
-                                            PeripheralType::MissionStick, PeripheralType::VirtuaGun};
+inline constexpr PeripheralType kTypes[] = {
+    PeripheralType::None,         PeripheralType::ControlPad, PeripheralType::AnalogPad,   PeripheralType::ArcadeRacer,
+    PeripheralType::MissionStick, PeripheralType::VirtuaGun,  PeripheralType::ShuttleMouse};
 
 // Forward declarations of concrete peripheral implementations.
 // See the peripheral_impl_* headers.
@@ -41,6 +42,7 @@ class AnalogPad;
 class ArcadeRacerPeripheral;
 class MissionStickPeripheral;
 class VirtuaGunPeripheral;
+class ShuttleMousePeripheral;
 
 namespace detail {
 
@@ -83,6 +85,12 @@ namespace detail {
     template <>
     struct PeripheralTypeMeta<PeripheralType::VirtuaGun> {
         using type = VirtuaGunPeripheral;
+    };
+
+    /// @brief Metadata about the Shuttle Mouse.
+    template <>
+    struct PeripheralTypeMeta<PeripheralType::ShuttleMouse> {
+        using type = ShuttleMousePeripheral;
     };
 
     /// @brief Retrieves the class type of the given `PeripheralType`.

@@ -6,6 +6,7 @@
 #include "peripheral_impl_control_pad.hpp"
 #include "peripheral_impl_mission_stick.hpp"
 #include "peripheral_impl_null.hpp"
+#include "peripheral_impl_shuttle_mouse.hpp"
 #include "peripheral_impl_virtua_gun.hpp"
 
 #include <ymir/core/types.hpp>
@@ -56,6 +57,10 @@ public:
 
     VirtuaGun *ConnectVirtuaGun() {
         return ConnectPeripheral<VirtuaGun>(m_cbPeripheralReport);
+    }
+
+    ShuttleMouse *ConnectShuttleMouse() {
+        return ConnectPeripheral<ShuttleMouse>(m_cbPeripheralReport);
     }
 
     void DisconnectPeripherals() {

@@ -542,11 +542,56 @@ struct SharedContext {
         }
     };
 
+    struct ShuttleMouseInput {
+        bool start = false;
+        bool left = false;
+        bool middle = false;
+        bool right = false;
+
+        // Accumulated movement inputs.
+        float inputX = 0.0f;
+        float inputY = 0.0f;
+
+        // Cursor movement speed (in screen-space pixels per second).
+        float speed = 200.0f;
+        bool speedBoost = false;
+        float speedBoostFactor = 2.0f;
+
+        Input2D relInput{0.0f, 0.0f};
+        std::unordered_map<input::InputElement, Input2D> otherInputs;
+
+        void UpdateInputs() {
+            inputX = 0.0f;
+            inputY = 0.0f;
+
+            // Aggregate all inputs
+            for (auto &[_, input] : otherInputs) {
+                inputX += input.x;
+                inputY += input.y;
+            }
+
+            // Clamp to -1.0..1.0
+            inputX = std::clamp(inputX, -1.0f, 1.0f);
+            inputY = std::clamp(inputY, -1.0f, 1.0f);
+
+            // Apply speed boost
+            if (speedBoost) {
+                inputX *= speedBoostFactor;
+                inputY *= speedBoostFactor;
+            }
+
+            // Compute final inputs
+            inputX = inputX * speed + relInput.x;
+            inputY = inputY * speed + relInput.y;
+        }
+    };
+
     std::array<ControlPadInput, 2> controlPadInputs;
     std::array<AnalogPadInput, 2> analogPadInputs;
     std::array<ArcadeRacerInput, 2> arcadeRacerInputs;
     std::array<MissionStickInput, 2> missionStickInputs;
     std::array<VirtuaGunInput, 2> virtuaGunInputs;
+    std::array<ShuttleMouseInput, 2> shuttleMouseInputs;
 
     int gameControllerDBCount = 0;
 

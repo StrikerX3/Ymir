@@ -31,12 +31,16 @@ void UnboundActionsWidget::Display() {
             } else if (action.context == &m_context.controlPadInputs[0] ||
                        action.context == &m_context.analogPadInputs[0] ||
                        action.context == &m_context.arcadeRacerInputs[0] ||
-                       action.context == &m_context.missionStickInputs[0]) {
+                       action.context == &m_context.missionStickInputs[0] ||
+                       action.context == &m_context.virtuaGunInputs[0] ||
+                       action.context == &m_context.shuttleMouseInputs[0]) {
                 category = "Peripheral port 1";
             } else if (action.context == &m_context.controlPadInputs[1] ||
                        action.context == &m_context.analogPadInputs[1] ||
                        action.context == &m_context.arcadeRacerInputs[1] ||
-                       action.context == &m_context.missionStickInputs[1]) {
+                       action.context == &m_context.missionStickInputs[1] ||
+                       action.context == &m_context.virtuaGunInputs[1] ||
+                       action.context == &m_context.shuttleMouseInputs[1]) {
                 category = "Peripheral port 2";
             } else {
                 category = "Unknown";

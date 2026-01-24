@@ -47,6 +47,16 @@ struct VirtuaGunReport {
     uint16 y;     ///< Y coordinate (0xFFFF = off-screen).
 };
 
+/// @brief Shuttle Mouse report data.
+struct ShuttleMouseReport {
+    bool start;  ///< Start button (`true`=pressed).
+    bool left;   ///< Left button (`true`=pressed).
+    bool middle; ///< Middle button (`true`=pressed).
+    bool right;  ///< Right button (`true`=pressed).
+    sint16 x;    ///< X movement (-256=left .. 0 .. right=255). Out of range values trigger X over.
+    sint16 y;    ///< Y movement (-256=up .. 0 .. down=255). Out of range values trigger Y over.
+};
+
 /// @brief A report to be filled when a peripheral is read.
 struct PeripheralReport {
     /// @brief The peripheral type being read.
@@ -78,6 +88,11 @@ struct PeripheralReport {
         ///
         /// Valid when `type` is `PeripheralType::VirtuaGun`.
         VirtuaGunReport virtuaGun;
+
+        /// @brief Shuttle Mouse report data.
+        ///
+        /// Valid when `type` is `PeripheralType::ShuttleMouse`.
+        ShuttleMouseReport shuttleMouse;
     } report;
 };
 

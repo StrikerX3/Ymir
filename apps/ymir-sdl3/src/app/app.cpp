@@ -1682,9 +1682,94 @@ void App::RunEmulator() {
             inputSettings.ports[i].virtuaGun.speed.Observe(m_context.virtuaGunInputs[i].speed);
             inputSettings.ports[i].virtuaGun.speedBoostFactor.Observe(m_context.virtuaGunInputs[i].speedBoostFactor);
         }
-        inputSettings.mouse.captureMode.ObserveAndNotify(
-            [&](Settings::Input::Mouse::CaptureMode) { ReleaseAllMice(); });
     }
+
+    // Shuttle Mouse controller
+    {
+        auto registerMoveButton = [&](input::Action action, float x, float y) {
+            inputContext.SetButtonHandler(
+                action, [=, this](void *context, const input::InputElement &element, bool actuated) {
+                    auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                    auto &moveInput = input.otherInputs[element];
+                    if (actuated) {
+                        moveInput.x = x;
+                        moveInput.y = y;
+                    } else {
+                        moveInput.x = 0.0f;
+                        moveInput.y = 0.0f;
+                    }
+                    input.UpdateInputs();
+                });
+        };
+
+        inputContext.SetButtonHandler(actions::shuttle_mouse::Start,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                          input.start = actuated;
+                                      });
+
+        inputContext.SetButtonHandler(actions::shuttle_mouse::Left,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                          input.left = actuated;
+                                      });
+
+        inputContext.SetButtonHandler(actions::shuttle_mouse::Middle,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                          input.middle = actuated;
+                                      });
+
+        inputContext.SetButtonHandler(actions::shuttle_mouse::Right,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                          input.right = actuated;
+                                      });
+
+        inputContext.SetAxis2DHandler(actions::shuttle_mouse::Move,
+                                      [this](void *context, const input::InputElement &element, float x, float y) {
+                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                          auto &moveInput = input.otherInputs[element];
+                                          moveInput.x = x;
+                                          moveInput.y = y;
+                                          input.UpdateInputs();
+                                      });
+
+        inputContext.SetButtonHandler(actions::shuttle_mouse::SpeedBoost,
+                                      [=](void *context, const input::InputElement &, bool actuated) {
+                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                          input.speedBoost = actuated;
+                                      });
+        inputContext.SetTriggerHandler(actions::shuttle_mouse::SpeedToggle,
+                                       [=](void *context, const input::InputElement &) {
+                                           auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                           input.speedBoost ^= true;
+                                       });
+
+        inputContext.SetAxis2DHandler(actions::shuttle_mouse::MouseRelMove,
+                                      [this](void *context, const input::InputElement &element, float x, float y) {
+                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
+                                          input.relInput.x += x;
+                                          input.relInput.y += y;
+                                          input.UpdateInputs();
+                                      });
+
+        registerMoveButton(actions::shuttle_mouse::MoveUp, 0.0f, -1.0f);
+        registerMoveButton(actions::shuttle_mouse::MoveDown, 0.0f, +1.0f);
+        registerMoveButton(actions::shuttle_mouse::MoveLeft, -1.0f, 0.0f);
+        registerMoveButton(actions::shuttle_mouse::MoveRight, +1.0f, 0.0f);
+
+        auto &inputSettings = m_context.settings.input;
+
+        for (int i = 0; i < 2; ++i) {
+            inputSettings.ports[i].shuttleMouse.speed.Observe(m_context.shuttleMouseInputs[i].speed);
+            inputSettings.ports[i].shuttleMouse.speedBoostFactor.Observe(
+                m_context.shuttleMouseInputs[i].speedBoostFactor);
+        }
+    }
+
+    m_context.settings.input.mouse.captureMode.ObserveAndNotify(
+        [&](Settings::Input::Mouse::CaptureMode) { ReleaseAllMice(); });
 
     RebindInputs();
 
@@ -4730,6 +4815,20 @@ void App::ReadPeripheral(ymir::peripheral::PeripheralReport &report) {
         specificReport.reload = inputs.reload;
         specificReport.x = std::clamp<int>(sx, 1, m_context.screen.width - 1);
         specificReport.y = std::clamp<int>(sy, 1, m_context.screen.height - 1);
+        break;
+    }
+    case ymir::peripheral::PeripheralType::ShuttleMouse: //
+    {
+        static constexpr float kMin = std::numeric_limits<sint16>::min();
+        static constexpr float kMax = std::numeric_limits<sint16>::max();
+        const auto &inputs = m_context.shuttleMouseInputs[port - 1];
+        auto &specificReport = report.report.shuttleMouse;
+        specificReport.start = inputs.start;
+        specificReport.left = inputs.left;
+        specificReport.middle = inputs.middle;
+        specificReport.right = inputs.right;
+        specificReport.x = std::clamp<float>(inputs.inputX, kMin, kMax);
+        specificReport.y = std::clamp<float>(inputs.inputY, kMin, kMax);
         break;
     }
     default: break;
