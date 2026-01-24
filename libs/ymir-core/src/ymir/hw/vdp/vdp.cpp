@@ -6483,10 +6483,12 @@ FORCE_INLINE VDP::Pixel VDP::VDP2FetchCharacterPixel(const BGParams &bgParams, C
     if (bgParams.priorityMode == PriorityMode::PerCharacter) {
         pixel.priority &= ~1;
         pixel.priority |= (uint8)ch.specPriority;
-    } else if (bgParams.priorityMode == PriorityMode::PerDot && ch.specPriority) {
+    } else if (bgParams.priorityMode == PriorityMode::PerDot) {
+        pixel.priority &= ~1;
         if constexpr (IsPaletteColorFormat(colorFormat)) {
-            pixel.priority &= ~1;
-            pixel.priority |= static_cast<uint8>(specFuncCode.colorMatches[colorData]);
+            if (ch.specPriority) {
+                pixel.priority |= static_cast<uint8>(specFuncCode.colorMatches[colorData]);
+            }
         }
     }
 
