@@ -423,7 +423,7 @@ struct Settings {
 
                 util::Observable<float> speed;
                 util::Observable<float> speedBoostFactor;
-                float sensitivity;
+                util::Observable<float> sensitivity;
             } shuttleMouse;
         };
         std::array<Port, 2> ports;

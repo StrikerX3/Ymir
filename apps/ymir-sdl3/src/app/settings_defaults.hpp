@@ -53,6 +53,10 @@ namespace input {
         inline constexpr float kMinSpeedBoostFactor = 1.5f;
         inline constexpr float kMaxSpeedBoostFactor = 4.0f;
         inline constexpr float kDefaultSpeedBoostFactor = 2.0f;
+
+        inline constexpr float kMinSensitivity = 0.5f;
+        inline constexpr float kMaxSensitivity = 10.0f;
+        inline constexpr float kDefaultSensitivity = 4.0f;
     } // namespace shuttle_mouse
 
 } // namespace input

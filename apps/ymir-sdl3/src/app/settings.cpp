@@ -20,6 +20,9 @@ using namespace ymir;
 
 namespace app {
 
+template <typename T>
+concept arithmetic_type = std::integral<T> || std::floating_point<T>;
+
 // Increment this version when making breaking changes to the settings file structure.
 // The loader should convert old file formats on a best-effort basis.
 //
@@ -412,6 +415,15 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *na
     Parse(view, value);
 }
 
+template <arithmetic_type T>
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *name, T &value, T defaultValue,
+                               T minValue, T maxValue) {
+    toml::node_view view{node[name]};
+    value = defaultValue;
+    Parse(view, value);
+    value = std::clamp<T>(value, minValue, maxValue);
+}
+
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *name, std::filesystem::path &value) {
     if (auto opt = node[name].value<std::filesystem::path::string_type>()) {
         value = *opt;
@@ -451,6 +463,14 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *na
     value = wrappedValue;
 }
 
+template <arithmetic_type T>
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *name, util::Observable<T> &value,
+                               T defaultValue, T minValue, T maxValue) {
+    T wrappedValue = value.Get();
+    Parse(node, name, wrappedValue, defaultValue, minValue, maxValue);
+    value = wrappedValue;
+}
+
 // Reads until the InputElementArray is full or runs out of entries, skipping all invalid and "None" entries.
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *name, input::InputBind &value) {
     if (toml::array *arr = node[name].as_array()) {
@@ -472,12 +492,7 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, const char *na
 // -------------------------------------------------------------------------------------------------
 // Value-to-string converters
 
-template <std::integral T>
-FORCE_INLINE static T ToTOML(T value) {
-    return value;
-}
-
-template <std::floating_point T>
+template <arithmetic_type T>
 FORCE_INLINE static T ToTOML(T value) {
     return value;
 }
@@ -814,6 +829,7 @@ void Settings::ResetToDefaults() {
 
             port.shuttleMouse.speed = shuttle_mouse::kDefaultSpeed;
             port.shuttleMouse.speedBoostFactor = shuttle_mouse::kDefaultSpeedBoostFactor;
+            port.shuttleMouse.sensitivity = shuttle_mouse::kDefaultSensitivity;
         }
     }
 
@@ -1083,7 +1099,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
     }
 
     if (auto tblInput = data["Input"]) {
-        auto parsePort = [&](const char *name, Input::Port &portSettings) {
+        auto parsePort = [&](const char *name, uint32 portIndex) {
+            Input::Port &portSettings = input.ports[portIndex];
             if (auto tblPort = tblInput[name]) {
                 Parse(tblPort, "PeripheralType", portSettings.type);
 
@@ -1212,10 +1229,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                         if (auto tblBinds = tblArcadeRacer["Binds"]) {
                             parseArcadeRacerBinds(tblBinds);
                         }
-                        float sensitivity;
-                        Parse(tblArcadeRacer, "Sensitivity", sensitivity);
-                        sensitivity = std::clamp(sensitivity, kMinSensitivity, kMaxSensitivity);
-                        portSettings.arcadeRacer.sensitivity = sensitivity;
+                        Parse(tblArcadeRacer, "Sensitivity", portSettings.arcadeRacer.sensitivity, kDefaultSensitivity,
+                              kMinSensitivity, kMaxSensitivity);
                     }
                     if (auto tblMissionStick = tblPort["MissionStick"]) {
                         if (auto tblBinds = tblMissionStick["Binds"]) {
@@ -1233,22 +1248,19 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                             using namespace crosshair;
                             auto &xhair = virtuaGun.crosshair;
                             Parse(tblCrosshair, "Color", xhair.color);
-                            Parse(tblCrosshair, "Radius", xhair.radius);
-                            Parse(tblCrosshair, "Thickness", xhair.thickness);
+                            Parse(tblCrosshair, "Radius", xhair.radius, kDefaultRadius[portIndex], kMinRadius,
+                                  kMaxRadius);
+                            Parse(tblCrosshair, "Thickness", xhair.thickness, kDefaultThickness[portIndex],
+                                  kMinThickness, kMaxThickness);
                             Parse(tblCrosshair, "Rotation", xhair.rotation);
                             Parse(tblCrosshair, "StrokeColor", xhair.strokeColor);
-                            Parse(tblCrosshair, "StrokeThickness", xhair.strokeThickness);
-                            xhair.radius = std::clamp<float>(xhair.radius, kMinRadius, kMaxRadius);
-                            xhair.thickness = std::clamp<float>(xhair.thickness, kMinThickness, kMaxThickness);
-                            xhair.strokeThickness =
-                                std::clamp<float>(xhair.strokeThickness, kMinStrokeThickness, kMaxStrokeThickness);
+                            Parse(tblCrosshair, "StrokeThickness", xhair.strokeThickness,
+                                  kDefaultStrokeThickness[portIndex], kMinStrokeThickness, kMaxStrokeThickness);
                         }
-                        float speed, speedBoostFactor;
-                        Parse(tblVirtuaGun, "Speed", speed);
-                        Parse(tblVirtuaGun, "SpeedBoostFactor", speedBoostFactor);
-                        virtuaGun.speed = std::clamp(speed, kMinSpeed, kMaxSpeed);
-                        virtuaGun.speedBoostFactor =
-                            std::clamp(speedBoostFactor, kMinSpeedBoostFactor, kMaxSpeedBoostFactor);
+
+                        Parse(tblVirtuaGun, "Speed", virtuaGun.speed, kDefaultSpeed, kMinSpeed, kMaxSpeed);
+                        Parse(tblVirtuaGun, "SpeedBoostFactor", virtuaGun.speedBoostFactor, kDefaultSpeedBoostFactor,
+                              kMinSpeedBoostFactor, kMaxSpeedBoostFactor);
                     }
                     if (auto tblShuttleMouse = tblPort["ShuttleMouse"]) {
                         using namespace app::config_defaults::input::shuttle_mouse;
@@ -1257,12 +1269,12 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                         if (auto tblBinds = tblShuttleMouse["Binds"]) {
                             parseShuttleMouseBinds(tblBinds);
                         }
-                        float speed, speedBoostFactor;
-                        Parse(tblShuttleMouse, "Speed", speed);
-                        Parse(tblShuttleMouse, "SpeedBoostFactor", speedBoostFactor);
-                        shuttleMouse.speed = std::clamp(speed, kMinSpeed, kMaxSpeed);
-                        shuttleMouse.speedBoostFactor =
-                            std::clamp(speedBoostFactor, kMinSpeedBoostFactor, kMaxSpeedBoostFactor);
+
+                        Parse(tblShuttleMouse, "Speed", shuttleMouse.speed, kDefaultSpeed, kMinSpeed, kMaxSpeed);
+                        Parse(tblShuttleMouse, "SpeedBoostFactor", shuttleMouse.speedBoostFactor,
+                              kDefaultSpeedBoostFactor, kMinSpeedBoostFactor, kMaxSpeedBoostFactor);
+                        Parse(tblShuttleMouse, "Sensitivity", shuttleMouse.sensitivity, kDefaultSensitivity,
+                              kMinSensitivity, kMaxSensitivity);
                     }
                 } else {
                     const char *controlPadName = configVersion == 1 ? "StandardPadBinds" : "ControlPadBinds";
@@ -1275,8 +1287,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                 }
             }
         };
-        parsePort("Port1", input.ports[0]);
-        parsePort("Port2", input.ports[1]);
+        parsePort("Port1", 0);
+        parsePort("Port2", 1);
 
         if (auto tblMouse = tblInput["Mouse"]) {
             Parse(tblMouse, "CaptureMode", input.mouse.captureMode);
@@ -1520,6 +1532,7 @@ SettingsSaveResult Settings::Save() {
                 }}},
                 {"Speed", port.shuttleMouse.speed.Get()},
                 {"SpeedBoostFactor", port.shuttleMouse.speedBoostFactor.Get()},
+                {"Sensitivity", port.shuttleMouse.sensitivity.Get()},
             }}},
         }};
         // clang-format on

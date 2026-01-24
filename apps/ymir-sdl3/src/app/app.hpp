@@ -97,7 +97,7 @@ private:
     void CheckForUpdates(bool skipCache);
 
     void RebindInputs();
-    void UpdateTimeBasedInputs(double timeDelta);
+    void UpdateInputs(double timeDelta);
     void DrawInputs(ImDrawList *drawList);
 
     bool CaptureMouse(uint32 id, uint32 port);

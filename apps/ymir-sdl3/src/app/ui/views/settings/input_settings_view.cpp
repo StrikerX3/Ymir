@@ -69,10 +69,10 @@ void InputSettingsView::Display() {
         "The cursor is still free to interact with the user interface.\n"
         "\n"
         "To bind a controller to the mouse, click the screen. The first available controller will be bound. You cannot "
-        "bind the mouse to more than one controller in this mode." /*\n"
+        "bind the mouse to more than one controller in this mode.\n"
         "\n"
-        "This mode only works with Virtua Gun controllers. If any other controller that uses mouse inputs is connected "
-        "to any port, the mode selection is ignored and mouse capture behaves as if using the Physical mouse mode."*/);
+        "This mode only works with Virtua Gun controllers. If a Shuttle Mouse is connected to any port, the mode "
+        "selection is ignored and mouse capture behaves as if using the Physical mouse mode.");
     ImGui::SameLine();
     mouseCaptureModeRadio(
         "Physical mouse", Settings::Input::Mouse::CaptureMode::PhysicalMouse,

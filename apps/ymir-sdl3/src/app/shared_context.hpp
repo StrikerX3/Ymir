@@ -556,6 +556,7 @@ struct SharedContext {
         float speed = 200.0f;
         bool speedBoost = false;
         float speedBoostFactor = 2.0f;
+        float relInputSensitivity = 2.0f;
 
         Input2D relInput{0.0f, 0.0f};
         std::unordered_map<input::InputElement, Input2D> otherInputs;
@@ -581,8 +582,11 @@ struct SharedContext {
             }
 
             // Compute final inputs
-            inputX = inputX * speed + relInput.x;
-            inputY = inputY * speed + relInput.y;
+            inputX = inputX * speed + relInput.x * relInputSensitivity;
+            inputY = inputY * speed + relInput.y * relInputSensitivity;
+
+            // Reset relative inputs
+            relInput.x = relInput.y = 0.0f;
         }
     };
 

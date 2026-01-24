@@ -21,6 +21,7 @@ void ShuttleMouseConfigView::Display(Settings::Input::Port::ShuttleMouse &contro
     if (ImGui::Button("Restore defaults##speed")) {
         controllerSettings.speed = kDefaultSpeed;
         controllerSettings.speedBoostFactor = kDefaultSpeedBoostFactor;
+        controllerSettings.sensitivity = kDefaultSensitivity;
         MakeDirty();
     }
 
@@ -32,6 +33,11 @@ void ShuttleMouseConfigView::Display(Settings::Input::Port::ShuttleMouse &contro
     if (MakeDirty(ImGui::SliderFloat("Speed boost factor", &speedBoostFactor, kMinSpeedBoostFactor * 100.0f,
                                      kMaxSpeedBoostFactor * 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp))) {
         controllerSettings.speedBoostFactor = speedBoostFactor / 100.0f;
+    }
+    float sensitivity = controllerSettings.sensitivity.Get();
+    if (MakeDirty(ImGui::SliderFloat("Mouse sensitivity", &sensitivity, kMinSensitivity, kMaxSensitivity, "%.2fx",
+                                     ImGuiSliderFlags_AlwaysClamp))) {
+        controllerSettings.sensitivity = sensitivity;
     }
 
     // -------------------------------------------------------------------------

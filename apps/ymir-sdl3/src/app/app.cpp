@@ -218,7 +218,8 @@ int App::Run(const CommandLineOptions &options) {
             inputSettings.ports[port].type.Observe([&, port = port](ymir::peripheral::PeripheralType type) {
                 m_context.EnqueueEvent(events::emu::InsertPeripheral(port, type));
                 bool changed;
-                if (type == ymir::peripheral::PeripheralType::VirtuaGun) {
+                if (type == ymir::peripheral::PeripheralType::VirtuaGun ||
+                    type == ymir::peripheral::PeripheralType::ShuttleMouse) {
                     changed = m_validPeripheralsForMouseCapture.insert(port).second;
                 } else {
                     changed = m_validPeripheralsForMouseCapture.erase(port) > 0;
@@ -1698,7 +1699,6 @@ void App::RunEmulator() {
                         moveInput.x = 0.0f;
                         moveInput.y = 0.0f;
                     }
-                    input.UpdateInputs();
                 });
         };
 
@@ -1732,7 +1732,6 @@ void App::RunEmulator() {
                                           auto &moveInput = input.otherInputs[element];
                                           moveInput.x = x;
                                           moveInput.y = y;
-                                          input.UpdateInputs();
                                       });
 
         inputContext.SetButtonHandler(actions::shuttle_mouse::SpeedBoost,
@@ -1751,7 +1750,6 @@ void App::RunEmulator() {
                                           auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
                                           input.relInput.x += x;
                                           input.relInput.y += y;
-                                          input.UpdateInputs();
                                       });
 
         registerMoveButton(actions::shuttle_mouse::MoveUp, 0.0f, -1.0f);
@@ -1762,9 +1760,11 @@ void App::RunEmulator() {
         auto &inputSettings = m_context.settings.input;
 
         for (int i = 0; i < 2; ++i) {
-            inputSettings.ports[i].shuttleMouse.speed.Observe(m_context.shuttleMouseInputs[i].speed);
-            inputSettings.ports[i].shuttleMouse.speedBoostFactor.Observe(
-                m_context.shuttleMouseInputs[i].speedBoostFactor);
+            auto &settings = inputSettings.ports[i].shuttleMouse;
+            auto &input = m_context.shuttleMouseInputs[i];
+            settings.speed.Observe(input.speed);
+            settings.speedBoostFactor.Observe(input.speedBoostFactor);
+            settings.sensitivity.Observe(input.relInputSensitivity);
         }
     }
 
@@ -2498,7 +2498,7 @@ void App::RunEmulator() {
             }
         }
 
-        UpdateTimeBasedInputs(std::chrono::duration<double>(timeDelta).count());
+        UpdateInputs(std::chrono::duration<double>(timeDelta).count());
 
         const bool prevForceAspectRatio = m_context.settings.video.forceAspectRatio;
         const double prevForcedAspect = m_context.settings.video.forcedAspect;
@@ -4201,7 +4201,7 @@ void App::RebindInputs() {
     m_context.settings.RebindInputs();
 }
 
-void App::UpdateTimeBasedInputs(double timeDelta) {
+void App::UpdateInputs(double timeDelta) {
     // NOTE: this uses the previous frame's screen scale parameters
     const auto &screen = m_context.screen;
     const auto &videoSettings = m_context.settings.video;
@@ -4226,9 +4226,7 @@ void App::UpdateTimeBasedInputs(double timeDelta) {
     for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
         auto &config = m_context.settings.input.ports[portIndex];
 
-        switch (config.type) {
-        case ymir::peripheral::PeripheralType::VirtuaGun: //
-        {
+        if (config.type == ymir::peripheral::PeripheralType::VirtuaGun) {
             auto &input = m_context.virtuaGunInputs[portIndex];
             if (input.init && screen.dSizeX > 1 && screen.dSizeY > 1) {
                 input.init = false;
@@ -4236,9 +4234,9 @@ void App::UpdateTimeBasedInputs(double timeDelta) {
             } else {
                 input.UpdatePosition(timeDelta, scale, sLeft, sTop, sRight, sBottom);
             }
-            break;
-        }
-        default: break;
+        } else if (config.type == ymir::peripheral::PeripheralType::ShuttleMouse) {
+            auto &input = m_context.shuttleMouseInputs[portIndex];
+            input.UpdateInputs();
         }
     }
 }
@@ -4249,9 +4247,7 @@ void App::DrawInputs(ImDrawList *drawList) {
     for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
         auto &config = m_context.settings.input.ports[portIndex];
 
-        switch (config.type) {
-        case ymir::peripheral::PeripheralType::VirtuaGun: //
-        {
+        if (config.type == ymir::peripheral::PeripheralType::VirtuaGun) {
             auto &input = m_context.virtuaGunInputs[portIndex];
             auto &xhair = config.virtuaGun.crosshair;
 
@@ -4267,9 +4263,6 @@ void App::DrawInputs(ImDrawList *drawList) {
                 .displayScale = m_context.displayScale,
             };
             ui::widgets::Crosshair(drawList, params, {input.posX, input.posY});
-            break;
-        }
-        default: break;
         }
     }
 }
@@ -4411,21 +4404,28 @@ void App::ConnectMouseToPeripheral(uint32 id) {
     using PeripheralType = ymir::peripheral::PeripheralType;
     using CaptureMode = Settings::Input::Mouse::CaptureMode;
 
-    const CaptureMode captureMode = m_context.settings.input.mouse.captureMode;
-    // TODO: force PhysicalMouse mode if a Shuttle Mouse is connected to any port
+    // Build list of candidate peripherals.
+    // Bail out if none are available.
+    const std::set<uint32> candidates = GetCandidatePeripheralsForMouseCapture();
+    if (candidates.empty()) {
+        return;
+    }
+
+    CaptureMode captureMode = m_context.settings.input.mouse.captureMode;
+
+    // Force PhysicalMouse mode if a Shuttle Mouse is connected to any port
+    for (uint32 port : candidates) {
+        if (m_context.settings.input.ports[port].type == PeripheralType::ShuttleMouse) {
+            captureMode = CaptureMode::PhysicalMouse;
+            break;
+        }
+    }
 
     // Bail out if mouse is already bound to a peripheral
     if (captureMode == CaptureMode::SystemCursor && m_systemMouseCaptured) {
         return;
     }
     if (captureMode == CaptureMode::PhysicalMouse && m_capturedMice.contains(id)) {
-        return;
-    }
-
-    // Build list of candidate peripherals.
-    // Bail out if none are available.
-    const std::set<uint32> candidates = GetCandidatePeripheralsForMouseCapture();
-    if (candidates.empty()) {
         return;
     }
 
@@ -4449,10 +4449,9 @@ void App::ConnectMouseToPeripheral(uint32 id) {
     //   - if the valid controller list is changed
     const uint32 port = *candidates.begin();
     const PeripheralType type = m_context.settings.input.ports[port].type;
-    const bool isVirtuaGun = type == PeripheralType::VirtuaGun;
     std::string periphName = GetPeripheralName(port);
 
-    assert(isVirtuaGun); // TODO: also allow Shuttle Mouse
+    assert(type == PeripheralType::VirtuaGun || type == PeripheralType::ShuttleMouse);
 
     const bool captured = [&] {
         switch (captureMode) {
@@ -4481,6 +4480,17 @@ void App::ConnectMouseToPeripheral(uint32 id) {
         (void)inputCtx.MapAction({id, input::MouseButton::Middle}, actions::virtua_gun::Start, actionCtx);
         (void)inputCtx.MapAction({id, input::MouseButton::Extra1}, actions::virtua_gun::Start, actionCtx);
         (void)inputCtx.MapAction({id, input::MouseButton::Extra2}, actions::virtua_gun::Start, actionCtx);
+    } else if (type == PeripheralType::ShuttleMouse) {
+        assert(captureMode == CaptureMode::PhysicalMouse);
+
+        auto *actionCtx = &m_context.shuttleMouseInputs[port];
+        (void)inputCtx.MapAction({id, input::MouseAxis2D::MouseRelative}, actions::shuttle_mouse::MouseRelMove,
+                                 actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Left}, actions::shuttle_mouse::Left, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Right}, actions::shuttle_mouse::Right, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Middle}, actions::shuttle_mouse::Middle, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Extra1}, actions::shuttle_mouse::Start, actionCtx);
+        (void)inputCtx.MapAction({id, input::MouseButton::Extra2}, actions::shuttle_mouse::Start, actionCtx);
     }
 }
 
