@@ -115,7 +115,7 @@ Saturn::Saturn()
     SCU.MapCallbacks(masterSH2.CbExtIntr, slaveSH2.CbExtIntr);
     VDP.MapCallbacks(SCU.CbHBlankStateChange, SCU.CbVBlankStateChange, SCU.CbTriggerSpriteDrawEnd,
                      SMPC.CbTriggerOptimizedINTBACKRead, SMPC.CbTriggerVBlankIN);
-    SMPC.MapCallbacks(SCU.CbTriggerSystemManager, SCU.CbTriggerPad);
+    SMPC.MapCallbacks(SCU.CbTriggerSystemManager, SCU.CbTriggerPad, VDP.CbExternalLatch);
     SCSP.MapCallbacks(SCU.CbTriggerSoundRequest);
     SH1.SetSCI0Callbacks(CDDrive.CbSerialRx, CDDrive.CbSerialTx);
     CDDrive.MapCallbacks(SH1.CbSetCOMSYNCn, SH1.CbSetCOMREQn, SH1.CbCDBDataSector, SCSP.CbCDDASector,

@@ -17,6 +17,10 @@ InputSettingsView::InputSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void InputSettingsView::Display() {
+    auto &settings = m_context.settings.input;
+
+    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+
     if (ImGui::BeginTable("periph_ports", 2, ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_BordersInnerV)) {
         ImGui::TableNextRow();
         if (ImGui::TableNextColumn()) {
@@ -43,10 +47,58 @@ void InputSettingsView::Display() {
     // -------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
-    ImGui::SeparatorText("Gamepads");
+    ImGui::SeparatorText("Mouse");
     ImGui::PopFont();
 
-    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+    auto mouseCaptureModeRadio = [&](const char *name, Settings::Input::Mouse::CaptureMode value,
+                                     const char *explanation) {
+        if (MakeDirty(ImGui::RadioButton(name, settings.mouse.captureMode == value))) {
+            settings.mouse.captureMode = value;
+        }
+        widgets::ExplanationTooltip(explanation, m_context.displayScale);
+    };
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Capture mode:");
+    ImGui::SameLine();
+    mouseCaptureModeRadio(
+        "System cursor", Settings::Input::Mouse::CaptureMode::SystemCursor,
+        "Binds the system mouse cursor to a single Virtua Gun controller.\n"
+        "\n"
+        "This mode gives the smoothest experience - you simply point the cursor at the display and click to shoot. "
+        "The cursor is still free to interact with the user interface.\n"
+        "\n"
+        "To bind a controller to the mouse, click the screen. The first available controller will be bound. You cannot "
+        "bind the mouse to more than one controller in this mode.\n"
+        "\n"
+        "This mode only works with Virtua Gun controllers. If a Shuttle Mouse is connected to any port, the mode "
+        "selection is ignored and mouse capture behaves as if using the Physical mouse mode.");
+    ImGui::SameLine();
+    mouseCaptureModeRadio(
+        "Physical mouse", Settings::Input::Mouse::CaptureMode::PhysicalMouse,
+        "Binds a physical mouse to a Virtua Gun controller.\n"
+        "\n"
+        "This mode allows you to simultaneously bind multiple mice to many controllers.\n"
+        "\n"
+        "To bind controllers, first you must capture the mouse cursor by clicking the display with any mouse. While in "
+        "this mode, click with the mice you wish to bind to controllers. The first available controller will be bound "
+        "to each mouse.\n"
+        "\n"
+        "While any mouse is captured, the system cursor will be completely disabled. You can press ESC to release all "
+        "mice and regain control of the system cursor.\n"
+        "The system cursor is reenabled if Ymir loses focus or a window is opened by other means, such as opening the "
+        "Settings window with the shortcut or triggering a debugger breakpoint.");
+
+    // TODO: lock mouse cursor to screen area in system cursor mode
+    // - also update App::ConfigureMouseCapture()
+
+    // TODO: preferred device capture order
+
+    // -------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Gamepads");
+    ImGui::PopFont();
 
     if (m_context.gameControllerDBCount == 0) {
         ImGui::TextUnformatted("Game controller database not found or empty");
@@ -71,8 +123,6 @@ void InputSettingsView::Display() {
     if (ImGui::Button("Reload database")) {
         m_context.EnqueueEvent(events::gui::ReloadGameControllerDatabase());
     }
-
-    auto &settings = m_context.settings.input;
 
     if (ImGui::BeginTable("input_settings", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("left", ImGuiTableColumnFlags_WidthFixed);

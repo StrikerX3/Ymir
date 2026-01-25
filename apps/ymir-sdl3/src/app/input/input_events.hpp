@@ -136,6 +136,26 @@ struct InputElement {
         }
     }
 
+    bool IsAbsoluteAxis() const {
+        switch (type) {
+        case Type::MouseAxis1D: return input::IsAbsoluteAxis(mouseAxis1D.axis);
+        case Type::MouseAxis2D: return input::IsAbsoluteAxis(mouseAxis2D.axis);
+        case Type::GamepadAxis1D: return input::IsAbsoluteAxis(gamepadAxis1D.axis);
+        case Type::GamepadAxis2D: return input::IsAbsoluteAxis(gamepadAxis2D.axis);
+        default: return false;
+        }
+    }
+
+    bool IsRelativeAxis() const {
+        switch (type) {
+        case Type::MouseAxis1D: return input::IsRelativeAxis(mouseAxis1D.axis);
+        case Type::MouseAxis2D: return input::IsRelativeAxis(mouseAxis2D.axis);
+        case Type::GamepadAxis1D: return input::IsRelativeAxis(gamepadAxis1D.axis);
+        case Type::GamepadAxis2D: return input::IsRelativeAxis(gamepadAxis2D.axis);
+        default: return false;
+        }
+    }
+
     constexpr bool operator==(const InputElement &rhs) const {
         if (type != rhs.type) {
             return false;

@@ -73,9 +73,14 @@ public:
     void ProcessPrimitive(KeyboardKey key, KeyModifier modifiers, bool pressed);
 
     // Processes a mouse button primitive.
+    // ID=0 is treated as the global mouse.
     void ProcessPrimitive(uint32 id, MouseButton button, bool pressed);
     // Processes an 1D mouse axis primitive.
+    // ID=0 is treated as the global mouse.
     void ProcessPrimitive(uint32 id, MouseAxis1D axis, float value);
+    // Processes a 2D mouse axis primitive.
+    // ID=0 is treated as the global mouse.
+    void ProcessPrimitive(uint32 id, MouseAxis2D axis, float x, float y);
 
     // Processes a gamepad button primitive.
     void ProcessPrimitive(uint32 id, GamepadButton button, bool pressed);
@@ -189,6 +194,10 @@ public:
     // Returns the previously mapped action, if any.
     [[nodiscard]] std::optional<MappedAction> UnmapInput(InputElement element);
 
+    // Unmaps all actions bound to a mouse.
+    // Returns the previously mapped actions, if any.
+    [[nodiscard]] std::unordered_set<MappedAction> UnmapMouseInputs(uint32 id);
+
     // Clears all action mappings.
     void UnmapAllActions();
 
@@ -237,13 +246,13 @@ private:
 
     std::array<bool, static_cast<size_t>(KeyboardKey::_Count)> m_keyStates;
 
-    std::unordered_map<uint32, std::array<bool, static_cast<size_t>(GamepadButton::_Count)>> m_gamepadButtonStates;
-    std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(GamepadAxis1D::_Count)>> m_gamepadAxes1D;
-    std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(GamepadAxis2D::_Count)>> m_gamepadAxes2D;
-
     std::unordered_map<uint32, std::array<bool, static_cast<size_t>(MouseButton::_Count)>> m_mouseButtonStates;
     std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(MouseAxis1D::_Count)>> m_mouseAxes1D;
     std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(MouseAxis2D::_Count)>> m_mouseAxes2D;
+
+    std::unordered_map<uint32, std::array<bool, static_cast<size_t>(GamepadButton::_Count)>> m_gamepadButtonStates;
+    std::unordered_map<uint32, std::array<Axis1D, static_cast<size_t>(GamepadAxis1D::_Count)>> m_gamepadAxes1D;
+    std::unordered_map<uint32, std::array<Axis2D, static_cast<size_t>(GamepadAxis2D::_Count)>> m_gamepadAxes2D;
 
     std::set<uint32> m_connectedMice;
     std::set<uint32> m_connectedGamepads;

@@ -1021,7 +1021,7 @@ union RegTVSTAT {
         uint16 VBLANK : 1;
         uint16 _rsvd4_7 : 4;
         uint16 EXSYFG : 1;
-        uint16 EXLTFG : 1;
+        mutable uint16 EXLTFG : 1; // cleared on reads
         uint16 _rsvd10_15 : 6;
     };
 };

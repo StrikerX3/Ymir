@@ -72,7 +72,7 @@ struct VDPState {
 
         state.regs2.TVMD = regs2.ReadTVMD();
         state.regs2.EXTEN = regs2.ReadEXTEN();
-        state.regs2.TVSTAT = regs2.ReadTVSTAT();
+        state.regs2.TVSTAT = regs2.ReadTVSTAT<true>();
         state.regs2.VRSIZE = regs2.ReadVRSIZE();
         state.regs2.HCNT = regs2.ReadHCNT();
         state.regs2.VCNT = regs2.ReadVCNT();
@@ -212,6 +212,9 @@ struct VDPState {
         state.regs2.COBR = regs2.ReadCOBR();
         state.regs2.COBG = regs2.ReadCOBG();
         state.regs2.COBB = regs2.ReadCOBB();
+
+        state.VDP2VCNTLatch = regs2.VCNTLatch;
+        state.VDP2VCNTLatched = regs2.VCNTLatched;
 
         switch (HPhase) {
         default:
@@ -416,6 +419,9 @@ struct VDPState {
         regs2.WriteCOBR(state.regs2.COBR);
         regs2.WriteCOBG(state.regs2.COBG);
         regs2.WriteCOBB(state.regs2.COBB);
+
+        regs2.VCNTLatch = state.VDP2VCNTLatch;
+        regs2.VCNTLatched = state.VDP2VCNTLatched;
 
         regs2.accessPatternsDirty = true;
 

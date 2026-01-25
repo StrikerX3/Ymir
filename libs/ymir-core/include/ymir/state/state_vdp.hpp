@@ -18,6 +18,9 @@ struct VDPState {
     uint64 VDP1TimingPenalty;
     bool VDP1FBCRChanged;
 
+    uint16 VDP2VCNTLatch;
+    bool VDP2VCNTLatched;
+
     struct VDP1RegsState {
         uint16 TVMR;
         uint16 FBCR;

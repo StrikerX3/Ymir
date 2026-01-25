@@ -265,6 +265,45 @@ namespace mission_stick {
 
 } // namespace mission_stick
 
+namespace virtua_gun {
+
+    DEF_ACTION(Start)::Button(ACTION_ID, "Virtua Gun", "Start");
+    DEF_ACTION(Trigger)::Button(ACTION_ID, "Virtua Gun", "Trigger");
+    DEF_ACTION(Reload)::Button(ACTION_ID, "Virtua Gun", "Reload");
+    DEF_ACTION(Up)::Button(ACTION_ID, "Virtua Gun", "Move up");
+    DEF_ACTION(Down)::Button(ACTION_ID, "Virtua Gun", "Move down");
+    DEF_ACTION(Left)::Button(ACTION_ID, "Virtua Gun", "Move left");
+    DEF_ACTION(Right)::Button(ACTION_ID, "Virtua Gun", "Move right");
+    DEF_ACTION(Move)::AbsoluteBipolarAxis2D(ACTION_ID, "Virtua Gun", "Move axis");
+    DEF_ACTION(Recenter)::Trigger(ACTION_ID, "Virtua Gun", "Recenter");
+    DEF_ACTION(SpeedBoost)::Button(ACTION_ID, "Virtua Gun", "Speed boost");
+    DEF_ACTION(SpeedToggle)::Trigger(ACTION_ID, "Virtua Gun", "Speed toggle");
+
+    // Hidden actions
+    DEF_ACTION(MouseRelMove)::RelativeBipolarAxis2D(ACTION_ID, "Virtua Gun", "Move (relative mouse)");
+    DEF_ACTION(MouseAbsMove)::AbsoluteBipolarAxis2D(ACTION_ID, "Virtua Gun", "Move (absolute mouse)");
+
+} // namespace virtua_gun
+
+namespace shuttle_mouse {
+
+    DEF_ACTION(Start)::Button(ACTION_ID, "Shuttle Mouse", "Start");
+    DEF_ACTION(Left)::Button(ACTION_ID, "Shuttle Mouse", "Left button");
+    DEF_ACTION(Middle)::Button(ACTION_ID, "Shuttle Mouse", "Middle button");
+    DEF_ACTION(Right)::Button(ACTION_ID, "Shuttle Mouse", "Right button");
+    DEF_ACTION(MoveUp)::Button(ACTION_ID, "Shuttle Mouse", "Move up");
+    DEF_ACTION(MoveDown)::Button(ACTION_ID, "Shuttle Mouse", "Move down");
+    DEF_ACTION(MoveLeft)::Button(ACTION_ID, "Shuttle Mouse", "Move left");
+    DEF_ACTION(MoveRight)::Button(ACTION_ID, "Shuttle Mouse", "Move right");
+    DEF_ACTION(Move)::RelativeBipolarAxis2D(ACTION_ID, "Shuttle Mouse", "Move axis");
+    DEF_ACTION(SpeedBoost)::Button(ACTION_ID, "Shuttle Mouse", "Speed boost");
+    DEF_ACTION(SpeedToggle)::Trigger(ACTION_ID, "Shuttle Mouse", "Speed toggle");
+
+    // Hidden actions
+    DEF_ACTION(MouseRelMove)::RelativeBipolarAxis2D(ACTION_ID, "Shuttle Mouse", "Move (relative mouse)");
+
+} // namespace shuttle_mouse
+
 } // namespace app::actions
 
 #undef DEF_ACTION

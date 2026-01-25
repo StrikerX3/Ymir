@@ -6,6 +6,8 @@
 #include "peripheral_impl_control_pad.hpp"
 #include "peripheral_impl_mission_stick.hpp"
 #include "peripheral_impl_null.hpp"
+#include "peripheral_impl_shuttle_mouse.hpp"
+#include "peripheral_impl_virtua_gun.hpp"
 
 #include <ymir/core/types.hpp>
 
@@ -53,6 +55,14 @@ public:
         return ConnectPeripheral<MissionStick>(m_cbPeripheralReport);
     }
 
+    VirtuaGun *ConnectVirtuaGun() {
+        return ConnectPeripheral<VirtuaGun>(m_cbPeripheralReport);
+    }
+
+    ShuttleMouse *ConnectShuttleMouse() {
+        return ConnectPeripheral<ShuttleMouse>(m_cbPeripheralReport);
+    }
+
     void DisconnectPeripherals() {
         ConnectPeripheral<NullPeripheral>();
     }
@@ -84,30 +94,45 @@ private:
     uint32 UpdateInputs() const {
         if (m_peripheral->IsConnected()) {
             m_peripheral->UpdateInputs();
-            return 2 + m_peripheral->GetReportLength();
-        } else {
-            return 1;
+            if (m_peripheral->GetType() != PeripheralType::VirtuaGun) {
+                return 2 + m_peripheral->GetReportLength();
+            }
         }
+        return 1;
     }
 
     void Read(std::span<uint8> out) const {
-        if (m_peripheral->IsConnected() && out.size() <= 15) {
-            // TODO: support multi-tap
-            // TODO: support report lengths longer than 15
-            // [0] 0xF1 -> 7-4 = F=no multitap/device directly connected; 3-0 = 1 device
-            // [1] 0xIN -> 7-4 = I=control pad ID; 3-0 = N data bytes
-            // [2..N]   -> peripheral-specific report
-            out[0] = 0xF1;
-            out[1] = (m_peripheral->GetTypeCode() << 4u) | m_peripheral->GetReportLength();
-            m_peripheral->Read(out.subspan(2));
-        } else {
-            // [0] 0xF0 -> 7-4 = F=no multitap/device directly connected; 3-0 = 0 devices
-            out[0] = 0xF0;
+        if (m_peripheral->IsConnected()) {
+            if (m_peripheral->GetType() == PeripheralType::VirtuaGun) {
+                // [0] 0xA0 -> 7-4 = A=6Player connected; 3-0 = 0 connectors
+                out[0] = 0xA0;
+                return;
+            }
+            if (out.size() <= 15) {
+                // TODO: support multi-tap
+                // TODO: support report lengths longer than 15
+                // [0] 0xF1 -> 7-4 = F=no multitap/device directly connected; 3-0 = 1 device
+                // [1] 0xIN -> 7-4 = I=control pad ID; 3-0 = N data bytes
+                // [2..N]   -> peripheral-specific report
+                out[0] = 0xF1;
+                out[1] = (m_peripheral->GetTypeCode() << 4u) | m_peripheral->GetReportLength();
+                m_peripheral->Read(out.subspan(2));
+                return;
+            }
         }
+
+        // Nothing connected, or report is too long
+
+        // [0] 0xF0 -> 7-4 = F=no multitap/device directly connected; 3-0 = 0 devices
+        out[0] = 0xF0;
     }
 
-    uint8 WritePDR(uint8 ddr, uint8 value) {
-        return m_peripheral->WritePDR(ddr, value);
+    uint8 WritePDR(uint8 ddr, uint8 value, bool exle) {
+        return m_peripheral->WritePDR(ddr, value, exle);
+    }
+
+    bool GetExternalLatchCoordinates(uint16 &x, uint16 &y) const {
+        return m_peripheral->GetExternalLatchCoordinates(x, y);
     }
 };
 

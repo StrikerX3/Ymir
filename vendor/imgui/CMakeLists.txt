@@ -14,9 +14,9 @@ add_library(imgui
 
 	imgui/backends/imgui_impl_sdl3.cpp
 	imgui/backends/imgui_impl_sdl3.h
-	imgui/backends/imgui_impl_sdlgpu3.cpp
-	imgui/backends/imgui_impl_sdlgpu3.h
-	imgui/backends/imgui_impl_sdlgpu3_shaders.h
+	#imgui/backends/imgui_impl_sdlgpu3.cpp
+	#imgui/backends/imgui_impl_sdlgpu3.h
+	#imgui/backends/imgui_impl_sdlgpu3_shaders.h
 	imgui/backends/imgui_impl_sdlrenderer3.cpp
 	imgui/backends/imgui_impl_sdlrenderer3.h
 	# TODO: add other backends as needed

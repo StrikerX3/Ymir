@@ -583,12 +583,15 @@ FORCE_INLINE void SMPC::WritePDR1(uint8 value) {
     if constexpr (poke) {
         PDR1 = value;
     } else {
-        const uint8 prevPDR1 = PDR1;
         m_port1.UpdateInputs();
-        PDR1 = m_port1.WritePDR(DDR1, value);
-        if (m_extLatchEnable1 && bit::test<6>((prevPDR1 ^ PDR1) & DDR1)) {
-            m_cbPadInterruptCallback();
+        if (m_extLatchEnable1 && !bit::test<6>(PDR1 | DDR1)) {
+            uint16 x, y;
+            if (m_port1.GetExternalLatchCoordinates(x, y)) {
+                m_cbPadInterruptCallback();
+                m_cbExternalLatch(x, y);
+            }
         }
+        PDR1 = m_port1.WritePDR(DDR1, value, m_extLatchEnable1);
     }
 }
 
@@ -597,12 +600,15 @@ FORCE_INLINE void SMPC::WritePDR2(uint8 value) {
     if constexpr (poke) {
         PDR2 = value;
     } else {
-        const uint8 prevPDR2 = PDR2;
         m_port2.UpdateInputs();
-        PDR2 = m_port2.WritePDR(DDR2, value);
-        if (m_extLatchEnable2 && bit::test<6>((prevPDR2 ^ PDR2) & DDR2)) {
-            m_cbPadInterruptCallback();
+        if (m_extLatchEnable2 && !bit::test<6>(PDR2 | DDR2)) {
+            uint16 x, y;
+            if (m_port2.GetExternalLatchCoordinates(x, y)) {
+                m_cbPadInterruptCallback();
+                m_cbExternalLatch(x, y);
+            }
         }
+        PDR2 = m_port2.WritePDR(DDR2, value, m_extLatchEnable2);
     }
 }
 

@@ -12,6 +12,8 @@ ArcadeRacerConfigView::ArcadeRacerConfigView(SharedContext &context)
     , m_unboundActionsWidget(context) {}
 
 void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controllerSettings, uint32 portIndex) {
+    using namespace app::config_defaults::input::arcade_racer;
+
     auto &binds = controllerSettings.binds;
     float sensitivity = controllerSettings.sensitivity;
     ImGui::AlignTextToFramePadding();
@@ -26,9 +28,8 @@ void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controll
         m_context.displayScale);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1.0f);
-    if (m_context.settings.MakeDirty(ImGui::SliderFloat("##wheel_sens", &sensitivity, kMinArcadeRacerSensitivity,
-                                                        kMaxArcadeRacerSensitivity, "%.02f",
-                                                        ImGuiSliderFlags_AlwaysClamp))) {
+    if (m_context.settings.MakeDirty(ImGui::SliderFloat("##wheel_sens", &sensitivity, kMinSensitivity, kMaxSensitivity,
+                                                        "%.02f", ImGuiSliderFlags_AlwaysClamp))) {
         controllerSettings.sensitivity = sensitivity;
     }
 

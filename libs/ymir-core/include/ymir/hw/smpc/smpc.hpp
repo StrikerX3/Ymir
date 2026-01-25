@@ -2,7 +2,6 @@
 
 #include "peripheral/peripheral_port.hpp"
 #include "rtc.hpp"
-#include "smpc_internal_callbacks.hpp"
 
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
@@ -27,9 +26,11 @@ public:
     void Reset(bool hard);
     void FactoryReset();
 
-    void MapCallbacks(CBInterruptCallback smCallback, CBInterruptCallback padCallback) {
+    void MapCallbacks(CBInterruptCallback smCallback, CBInterruptCallback padCallback,
+                      CBExternalLatch extLatchCallback) {
         m_cbSystemManagerInterruptCallback = smCallback;
         m_cbPadInterruptCallback = padCallback;
+        m_cbExternalLatch = extLatchCallback;
     }
 
     void MapMemory(sys::SH2Bus &bus);
@@ -108,6 +109,7 @@ private:
 
     CBInterruptCallback m_cbSystemManagerInterruptCallback;
     CBInterruptCallback m_cbPadInterruptCallback;
+    CBExternalLatch m_cbExternalLatch;
 
     ISMPCOperations &m_smpcOps;
     core::Scheduler &m_scheduler;
@@ -197,8 +199,8 @@ private:
 
     uint8 PDR1;
     uint8 PDR2;
-    uint8 DDR1;
-    uint8 DDR2;
+    uint8 DDR1; // 0=input, 1=output
+    uint8 DDR2; // 0=input, 1=output
 
     uint8 m_busValue;
 

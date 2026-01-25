@@ -213,6 +213,12 @@ struct SharedContext {
         uint32 scaleY;
         uint32 fbScale = 1;
 
+        double scale = 1.0;             // final computed display scale
+        int dCenterX = 0, dCenterY = 0; // display position (center) on window
+        int dSizeX = 1, dSizeY = 1;     // display size on window
+        bool doubleResH = false;
+        bool doubleResV = false;
+
         // Hacky garbage to help automatically resize window on resolution changes
         bool resolutionChanged = false;
         uint32 prevWidth;
@@ -220,20 +226,20 @@ struct SharedContext {
         uint32 prevScaleX;
         uint32 prevScaleY;
 
-        void SetResolution(uint32 width, uint32 height) {
-            const bool doubleResH = width >= 640;
-            const bool doubleResV = height >= 400;
+        void SetResolution(uint32 newWidth, uint32 newHeight) {
+            doubleResH = newWidth >= 640;
+            doubleResV = newHeight >= 400;
 
-            this->prevWidth = this->width;
-            this->prevHeight = this->height;
-            this->prevScaleX = this->scaleX;
-            this->prevScaleY = this->scaleY;
+            prevWidth = width;
+            prevHeight = height;
+            prevScaleX = scaleX;
+            prevScaleY = scaleY;
 
-            this->width = width;
-            this->height = height;
-            this->scaleX = doubleResV && !doubleResH ? 2 : 1;
-            this->scaleY = doubleResH && !doubleResV ? 2 : 1;
-            this->resolutionChanged = true;
+            width = newWidth;
+            height = newHeight;
+            scaleX = doubleResV && !doubleResH ? 2 : 1;
+            scaleY = doubleResH && !doubleResV ? 2 : 1;
+            resolutionChanged = true;
         }
 
         // Staging framebuffers -- emu renders to one, GUI copies to other
@@ -458,10 +464,138 @@ struct SharedContext {
             stick.z = std::clamp(stick.z, 0.0f, 1.0f);
         }
     };
+
+    struct VirtuaGunInput {
+        bool start = false;
+        bool trigger = false;
+        bool reload = false;
+
+        // Accumulated movement inputs.
+        float inputX = 0.0f;
+        float inputY = 0.0f;
+
+        // Cursor movement speed (in screen-space pixels per second).
+        float speed = 200.0f;
+        bool speedBoost = false;
+        float speedBoostFactor = 2.0f;
+
+        // Whether to treat mouse inputs as absolute or relative.
+        bool mouseAbsolute = false;
+        bool prevMouseAbsolute = false;
+
+        Input2D mouseInput{0.0f, 0.0f};
+        std::unordered_map<input::InputElement, Input2D> otherInputs;
+
+        // Current window-space coordinates. 0x0 = top-left of window.
+        // Floating-point to account for sensitivity/acceleration.
+        float posX = 0.0f;
+        float posY = 0.0f;
+
+        // Initialize (recenter) window-space coordinates?
+        bool init = true;
+
+        void UpdateInputs() {
+            inputX = 0.0f;
+            inputY = 0.0f;
+
+            // Ignore relative inputs in absolute mouse mode
+            if (mouseAbsolute) {
+                return;
+            }
+
+            // Aggregate all inputs
+            for (auto &[_, input] : otherInputs) {
+                inputX += input.x;
+                inputY += input.y;
+            }
+
+            // Clamp to -1.0..1.0
+            inputX = std::clamp(inputX, -1.0f, 1.0f);
+            inputY = std::clamp(inputY, -1.0f, 1.0f);
+        }
+
+        void SetPosition(float x, float y) {
+            if (!mouseAbsolute) {
+                posX = x;
+                posY = y;
+            }
+        }
+
+        // Increment position by the accumulated movement inputs and clamp to the given area.
+        void UpdatePosition(float timeDelta, float screenScale, float left, float top, float right, float bottom) {
+            if (prevMouseAbsolute && !mouseAbsolute) {
+                mouseInput.x = mouseInput.y = 0.0f;
+            }
+            prevMouseAbsolute = mouseAbsolute;
+
+            if (mouseAbsolute) {
+                posX = mouseInput.x = std::clamp<float>(mouseInput.x, left, right);
+                posY = mouseInput.y = std::clamp<float>(mouseInput.y, top, bottom);
+            } else {
+                const float factor = timeDelta * screenScale * speed * (speedBoost ? speedBoostFactor : 1.0f);
+                posX += inputX * factor + mouseInput.x;
+                posY += inputY * factor + mouseInput.y;
+                posX = std::clamp<float>(posX, left, right);
+                posY = std::clamp<float>(posY, top, bottom);
+                mouseInput.x = mouseInput.y = 0.0f;
+            }
+        }
+    };
+
+    struct ShuttleMouseInput {
+        bool start = false;
+        bool left = false;
+        bool middle = false;
+        bool right = false;
+
+        // Accumulated movement inputs.
+        float inputX = 0.0f;
+        float inputY = 0.0f;
+
+        // Cursor movement speed (in screen-space pixels per second).
+        float speed = 200.0f;
+        bool speedBoost = false;
+        float speedBoostFactor = 2.0f;
+        float relInputSensitivity = 2.0f;
+
+        Input2D relInput{0.0f, 0.0f};
+        std::unordered_map<input::InputElement, Input2D> otherInputs;
+
+        void UpdateInputs() {
+            inputX = 0.0f;
+            inputY = 0.0f;
+
+            // Aggregate all inputs
+            for (auto &[_, input] : otherInputs) {
+                inputX += input.x;
+                inputY += input.y;
+            }
+
+            // Clamp to -1.0..1.0
+            inputX = std::clamp(inputX, -1.0f, 1.0f);
+            inputY = std::clamp(inputY, -1.0f, 1.0f);
+
+            // Apply speed boost
+            if (speedBoost) {
+                inputX *= speedBoostFactor;
+                inputY *= speedBoostFactor;
+            }
+
+            // Compute final inputs
+            inputX = inputX * speed + relInput.x * relInputSensitivity;
+            inputY = inputY * speed + relInput.y * relInputSensitivity;
+
+            // Reset relative inputs
+            relInput.x = relInput.y = 0.0f;
+        }
+    };
+
     std::array<ControlPadInput, 2> controlPadInputs;
     std::array<AnalogPadInput, 2> analogPadInputs;
     std::array<ArcadeRacerInput, 2> arcadeRacerInputs;
     std::array<MissionStickInput, 2> missionStickInputs;
+    std::array<VirtuaGunInput, 2> virtuaGunInputs;
+    std::array<ShuttleMouseInput, 2> shuttleMouseInputs;
 
     int gameControllerDBCount = 0;
 

@@ -333,10 +333,10 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
             devlog::debug<grp::vdp1_regs>("Illegal 8-bit VDP2 register read from {:05X}", address);
             return 0;
         },
-        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP2ReadReg(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP2ReadReg<false>(address); },
         [](uint32 address, void *ctx) -> uint32 {
-            uint32 value = cast(ctx).VDP2ReadReg(address + 0) << 16u;
-            value |= cast(ctx).VDP2ReadReg(address + 2) << 0u;
+            uint32 value = cast(ctx).VDP2ReadReg<false>(address + 0) << 16u;
+            value |= cast(ctx).VDP2ReadReg<false>(address + 2) << 0u;
             return value;
         },
         [](uint32 address, uint8 value, void * /*ctx*/) {
@@ -352,11 +352,17 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
     bus.MapSideEffectFree(
         0x5F8'0000, 0x5FB'FFFF, this,
         [](uint32 address, void *ctx) -> uint8 {
-            const uint16 value = cast(ctx).VDP2ReadReg(address & ~1);
+            const uint16 value = cast(ctx).VDP2ReadReg<true>(address & ~1);
             return value >> ((~address & 1) * 8u);
         },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP2ReadReg<true>(address); },
+        [](uint32 address, void *ctx) -> uint32 {
+            uint32 value = cast(ctx).VDP2ReadReg<true>(address + 0) << 16u;
+            value |= cast(ctx).VDP2ReadReg<true>(address + 2) << 0u;
+            return value;
+        },
         [](uint32 address, uint8 value, void *ctx) {
-            uint16 currValue = cast(ctx).VDP2ReadReg(address & ~1);
+            uint16 currValue = cast(ctx).VDP2ReadReg<true>(address & ~1);
             const uint16 shift = (~address & 1) * 8u;
             const uint16 mask = ~(0xFF << shift);
             currValue = (currValue & mask) | (value << shift);
@@ -549,9 +555,10 @@ FORCE_INLINE void VDP::VDP2WriteCRAM(uint32 address, T value) {
     }
 }
 
+template <bool peek>
 FORCE_INLINE uint16 VDP::VDP2ReadReg(uint32 address) const {
     address &= 0x1FF;
-    return m_state.regs2.Read(address);
+    return m_state.regs2.Read<peek>(address);
 }
 
 FORCE_INLINE void VDP::VDP2WriteReg(uint32 address, uint16 value) {
@@ -964,6 +971,16 @@ void VDP::UpdateResolution() {
         {352, 22, 26, 24},  // {352, 374, 400, 424}, // Exclusive Hi-Res Graphic B (wild guess)
     }};
     m_HTimings = hTimings[m_state.regs2.TVMD.HRESOn];
+
+    // Derive right shift amount to be applied to HCNT<<1
+    m_state.regs2.HCNTShift = m_state.regs2.TVMD.HRESOn <= 1   ? 1  // Normal modes: HCNT << 1
+                              : m_state.regs2.TVMD.HRESOn >= 6 ? 2  // Excl. Hi-Res: HCNT >> 1
+                                                               : 0; // Other modes:  HCNT unchanged
+
+    // Derive HCNT mask to be applied to (HCNT<<1) >> HCNTShift
+    m_state.regs2.HCNTMask = m_state.regs2.TVMD.HRESOn <= 1   ? 0x3FE  // Normal modes:  HCT0 invalid
+                             : m_state.regs2.TVMD.HRESOn >= 6 ? 0x1FF  // Any Exclusive: HCT9 invalid
+                                                              : 0x3FF; // Other modes:   HCNT unchanged
 
     // Vertical phase timings (to reach):
     //   BBd = Bottom Border
@@ -6284,13 +6301,22 @@ FORCE_INLINE VDP::Character VDP::VDP2FetchTwoWordCharacter(const BGParams &bgPar
     return ch;
 }
 
+void VDP::ExternalLatch(uint16 x, uint16 y) {
+    if (m_state.regs2.EXTEN.EXLTEN) {
+        // TODO: why do we need to tweak the coords here? And why shift by 2 instead of 1?
+        m_state.regs2.WriteHCNT((x + 64u) << 2u);
+        m_state.regs2.VCNTLatch = y + 16u;
+        m_state.regs2.TVSTAT.EXLTFG = x < m_HRes && y < m_VRes;
+    }
+}
+
 template <bool fourCellChar, bool largePalette, bool extChar>
 FORCE_INLINE VDP::Character VDP::VDP2FetchOneWordCharacter(const BGParams &bgParams, uint32 pageBaseAddress,
                                                            uint32 charIndex) {
     // Contents of 1 word character patterns vary based on Character Size, Character Color Count and Auxiliary Mode:
     //     Character Size        = CHCTLA/CHCTLB.xxCHSZ  = !fourCellChar = !FCC
     //     Character Color Count = CHCTLA/CHCTLB.xxCHCNn = largePalette  = LP
-    //     Auxiliary Mode        = PNCN0/PNCR.xxCNSM     = extChar      = EC
+    //     Auxiliary Mode        = PNCN0/PNCR.xxCNSM     = extChar       = EC
     //             ---------------- Character data ----------------    Supplement in Pattern Name Control Register
     // FCC LP  EC  |15 14 13 12 11 10 9  8  7  6  5  4  3  2  1  0|    | 9  8  7  6  5  4  3  2  1  0|
     //  F   F   F  |palnum 3-0 |VF|HF| character number 9-0       |    |PR|CC| PN 6-4 |charnum 14-10 |
@@ -6457,10 +6483,12 @@ FORCE_INLINE VDP::Pixel VDP::VDP2FetchCharacterPixel(const BGParams &bgParams, C
     if (bgParams.priorityMode == PriorityMode::PerCharacter) {
         pixel.priority &= ~1;
         pixel.priority |= (uint8)ch.specPriority;
-    } else if (bgParams.priorityMode == PriorityMode::PerDot && ch.specPriority) {
+    } else if (bgParams.priorityMode == PriorityMode::PerDot) {
+        pixel.priority &= ~1;
         if constexpr (IsPaletteColorFormat(colorFormat)) {
-            pixel.priority &= ~1;
-            pixel.priority |= static_cast<uint8>(specFuncCode.colorMatches[colorData]);
+            if (ch.specPriority) {
+                pixel.priority |= static_cast<uint8>(specFuncCode.colorMatches[colorData]);
+            }
         }
     }
 

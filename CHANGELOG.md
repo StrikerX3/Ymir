@@ -4,13 +4,20 @@
 
 In development.
 
-Uses save state file version 11.
+Introduced save state file version 12.
 
 ### New features and improvements
 
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
+- Input: Added support for mouse events.
+- Input: Implemented two mouse capture modes:
+    - System mouse: binds the system mouse cursor to a single peripheral. Mouse cursor is still available to interact with the GUI.
+    - Physical mouse: binds one or more mice to different peripherals. Disables the system cursor while any mice is bound.
+- Input: Implemented Shuttle Mouse peripheral. (#32)
+- Input: Implemented Virtua Gun peripheral. (#33)
 - MIDI: Force RtMidi to use dummy API if it fails to initialize, allowing Ymir to run without MIDI drivers.
+- System: You can now select a preferred system variant (Saturn, HiSaturn, V-Saturn or Dev Kit) and Ymir will automatically pick a matching IPL ROM. (#637, #725; @Fueziwa)
 - Video: Add option to enable/disable video synchronization in full screen mode.
 
 ### Fixes
@@ -22,6 +29,7 @@ Uses save state file version 11.
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
 - VDP2: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
+- VDP2: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 
 
 ## Version 0.2.1

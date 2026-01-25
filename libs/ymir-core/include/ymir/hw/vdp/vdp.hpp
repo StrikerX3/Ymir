@@ -19,6 +19,8 @@
 
 #include <ymir/state/state_vdp.hpp>
 
+#include <ymir/hw/smpc/smpc_internal_callbacks.hpp>
+
 #include <ymir/hw/hw_defs.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -226,6 +228,7 @@ private:
     template <mem_primitive T, bool poke>
     void VDP2WriteCRAM(uint32 address, T value);
 
+    template <bool peek>
     uint16 VDP2ReadReg(uint32 address) const;
     void VDP2WriteReg(uint32 address, uint16 value);
 
@@ -1606,6 +1609,15 @@ private:
     // deinterlace determines whether to deinterlace video output
     template <bool deinterlace>
     uint32 VDP2GetY(uint32 y) const;
+
+    // -------------------------------------------------------------------------
+    // Callbacks
+
+private:
+    void ExternalLatch(uint16 x, uint16 y);
+
+public:
+    const smpc::CBExternalLatch CbExternalLatch = util::MakeClassMemberRequiredCallback<&VDP::ExternalLatch>(this);
 
 public:
     // -------------------------------------------------------------------------

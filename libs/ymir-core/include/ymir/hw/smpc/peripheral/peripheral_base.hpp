@@ -72,8 +72,17 @@ public:
     /// @brief Performs low-level access to the peripheral.
     /// @param[in] ddr the value of the DDR register (direction bits)
     /// @param[in] value the value to write
+    /// @param[in] exle the state of the port's EXLE bit
     /// @return the response data
-    virtual uint8 WritePDR(uint8 ddr, uint8 value) = 0;
+    virtual uint8 WritePDR(uint8 ddr, uint8 value, bool exle) = 0;
+
+    /// @brief Retrieves the screen coordinates for the external latch signal.
+    /// @param[out] x the horizontal coordinate
+    /// @param[out] y the vertical coordinate
+    /// @return `true` if the coordinates were retrieved, `false` otherwise
+    virtual bool GetExternalLatchCoordinates(uint16 &x, uint16 &y) {
+        return false;
+    }
 
 private:
     const PeripheralType m_type;

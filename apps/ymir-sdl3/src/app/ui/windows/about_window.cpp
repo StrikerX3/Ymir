@@ -24,29 +24,31 @@
 #include <semver.hpp>
 #include <toml++/toml.hpp>
 #include <xxhash.h>
+#include <zlib.h>
+#include <zstd.h>
 
 #define _STR_IMPL(x) #x
 #define _STR(x) _STR_IMPL(x)
+#define _SEMVER_STR(major, minor, patch) _STR(major.minor.patch)
+
 #define BROTLI_VERSION "1.1.0" // Not exported
 #define CEREAL_VERSION "1.3.2" // Not exported
 #define CMRC_VERSION "2.0.0"   // Not exported
-#define CURL_VERSION _STR(LIBCURL_VERSION_MAJOR) "." _STR(LIBCURL_VERSION_MINOR) "." _STR(LIBCURL_VERSION_PATCH)
-#define CXXOPTS_VERSION _STR(CXXOPTS__VERSION_MAJOR) "." _STR(CXXOPTS__VERSION_MINOR) "." _STR(CXXOPTS__VERSION_PATCH)
+#define CURL_VERSION _SEMVER_STR(LIBCURL_VERSION_MAJOR, LIBCURL_VERSION_MINOR, LIBCURL_VERSION_PATCH)
+#define CXXOPTS_VERSION _SEMVER_STR(CXXOPTS__VERSION_MAJOR, CXXOPTS__VERSION_MINOR, CXXOPTS__VERSION_PATCH)
 #define DATE_VERSION "3.0.4" // Not exported
 #define IMGUI_VERSION_FULL IMGUI_VERSION " (" _STR(IMGUI_VERSION_NUM) ")"
 #define LZMA_VERSION "24.05" // Private dependency of libchdr
 #define MIO_VERSION "1.1.0"  // Not exported
 #define NLOHMANN_JSON_VERSION \
-    _STR(NLOHMANN_JSON_VERSION_MAJOR) "." _STR(NLOHMANN_JSON_VERSION_MINOR) "." _STR(NLOHMANN_JSON_VERSION_PATCH)
-#define SDL_VERSION_STR _STR(SDL_MAJOR_VERSION) "." _STR(SDL_MINOR_VERSION) "." _STR(SDL_MICRO_VERSION)
-#define SEMVER_VERSION _STR(SEMVER_VERSION_MAJOR) "." _STR(SEMVER_VERSION_MINOR) "." _STR(SEMVER_VERSION_PATCH)
+    _SEMVER_STR(NLOHMANN_JSON_VERSION_MAJOR, NLOHMANN_JSON_VERSION_MINOR, NLOHMANN_JSON_VERSION_PATCH)
+#define SDL_VERSION_STR _SEMVER_STR(SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION)
+#define SEMVER_VERSION _SEMVER_STR(SEMVER_VERSION_MAJOR, SEMVER_VERSION_MINOR, SEMVER_VERSION_PATCH)
 #define STB_IMAGE_VERSION "2.30"       // Not exported
 #define STB_IMAGE_WRITE_VERSION "1.16" // Not exported
 #define MC_CONCQUEUE_VERSION "1.0.4"   // Not exported
-#define TOMLPP_VERSION _STR(TOML_LIB_MAJOR) "." _STR(TOML_LIB_MINOR) "." _STR(TOML_LIB_PATCH)
-#define XXHASH_VERSION _STR(XXH_VERSION_MAJOR) "." _STR(XXH_VERSION_MINOR) "." _STR(XXH_VERSION_RELEASE)
-#define ZLIB_VERSION "1.3.1" // Private dependency of libchdr
-#define ZSTD_VERSION "1.5.6" // Private dependency of libchdr
+#define TOMLPP_VERSION _SEMVER_STR(TOML_LIB_MAJOR, TOML_LIB_MINOR, TOML_LIB_PATCH)
+#define XXHASH_VERSION _SEMVER_STR(XXH_VERSION_MAJOR, XXH_VERSION_MINOR, XXH_VERSION_RELEASE)
 
 static const std::string fmtVersion = std::to_string(FMT_VERSION / 10000) + "." +
                                       std::to_string(FMT_VERSION / 100 % 100) + "." + std::to_string(FMT_VERSION % 100);
@@ -124,7 +126,7 @@ static const struct {
     {.name = "toml++",                        .version = TOMLPP_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/marzer/tomlplusplus" ,        .licenseURL = "https://github.com/marzer/tomlplusplus/blob/master/LICENSE",             .homeURL = "https://marzer.github.io/tomlplusplus/"},
     {.name = "xxHash",                        .version = XXHASH_VERSION,             .license = licenseBSD2,          .repoURL = "https://github.com/Cyan4973/xxHash",             .licenseURL = "https://github.com/Cyan4973/xxHash/blob/dev/LICENSE",                    .homeURL = "https://xxhash.com/"},
     {.name = "zlib",                          .version = ZLIB_VERSION,               .license = licenseZlib,          .repoURL = "https://github.com/madler/zlib",                 .licenseURL = "https://github.com/madler/zlib/blob/develop/LICENSE",                    .homeURL = "https://zlib.net/"},
-    {.name = "zstd",                          .version = ZSTD_VERSION,               .license = licenseBSD3,          .repoURL = "https://github.com/facebook/zstd",               .licenseURL = "https://github.com/facebook/zstd/blob/dev/LICENSE",                      .homeURL = "http://www.zstd.net/"},
+    {.name = "zstd",                          .version = ZSTD_VERSION_STRING,        .license = licenseBSD3,          .repoURL = "https://github.com/facebook/zstd",               .licenseURL = "https://github.com/facebook/zstd/blob/dev/LICENSE",                      .homeURL = "http://www.zstd.net/"},
 };
 
 

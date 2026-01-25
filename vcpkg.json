@@ -42,6 +42,8 @@
       "platform": "!windows"
     },
     "stb",
-    "tomlplusplus"
+    "tomlplusplus",
+    "zlib",
+    "zstd"
   ]
 }

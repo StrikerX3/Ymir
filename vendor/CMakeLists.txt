@@ -15,14 +15,6 @@
 #
 # --------------------------------------------------------------------------------------------------
 
-## Helper function to silence messages from noisy subprojects
-function(add_subdirectory_quiet DIR)
-    set(PREV_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})
-    set(CMAKE_MESSAGE_LOG_LEVEL ERROR)
-    add_subdirectory(${DIR} EXCLUDE_FROM_ALL)
-    set(CMAKE_MESSAGE_LOG_LEVEL ${PREV_CMAKE_MESSAGE_LOG_LEVEL})
-endfunction()
-
 message(STATUS "Adding vendored libraries")
 
 # mio - https://github.com/vimpunk/mio
@@ -56,19 +48,15 @@ add_subdirectory(lz4 EXCLUDE_FROM_ALL)
 # libchdr - https://github.com/rtissera/libchdr
 # - Not available as a vcpkg port
 message(STATUS "==> libchdr")
-set(BUILD_FUZZER OFF)
 add_subdirectory(libchdr)
 
 # Place vendored library projects under a Vendored folder in Visual Studio solutions
 if (MSVC)
-    set_target_properties(chdr-benchmark PROPERTIES FOLDER Vendored)
     set_target_properties(chdr-static PROPERTIES FOLDER Vendored)
     set_target_properties(imgui PROPERTIES FOLDER Vendored)
-    set_target_properties(libzstd_static PROPERTIES FOLDER Vendored)
     set_target_properties(lz4 PROPERTIES FOLDER Vendored)
     set_target_properties(lzma PROPERTIES FOLDER Vendored)
     set_target_properties(xxHash PROPERTIES FOLDER Vendored)
-    set_target_properties(zlibstatic PROPERTIES FOLDER Vendored)
 endif ()
 
 message(STATUS "Done adding vendored libraries")

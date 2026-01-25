@@ -113,6 +113,8 @@ add_library(ymir-core
     include/ymir/hw/smpc/peripheral/peripheral_impl_arcade_racer.hpp
     include/ymir/hw/smpc/peripheral/peripheral_impl_control_pad.hpp
     include/ymir/hw/smpc/peripheral/peripheral_impl_mission_stick.hpp
+    include/ymir/hw/smpc/peripheral/peripheral_impl_shuttle_mouse.hpp
+    include/ymir/hw/smpc/peripheral/peripheral_impl_virtua_gun.hpp
     include/ymir/hw/smpc/peripheral/peripheral_impl_null.hpp
     include/ymir/hw/smpc/peripheral/peripheral_port.hpp
     include/ymir/hw/smpc/peripheral/peripheral_report.hpp
@@ -247,6 +249,8 @@ add_library(ymir-core
     src/ymir/hw/smpc/peripheral/peripheral_impl_arcade_racer.cpp
     src/ymir/hw/smpc/peripheral/peripheral_impl_control_pad.cpp
     src/ymir/hw/smpc/peripheral/peripheral_impl_mission_stick.cpp
+    src/ymir/hw/smpc/peripheral/peripheral_impl_shuttle_mouse.cpp
+    src/ymir/hw/smpc/peripheral/peripheral_impl_virtua_gun.cpp
 
     src/ymir/hw/sh1/sh1.cpp
     src/ymir/hw/sh1/sh1_decode.cpp
@@ -338,9 +342,11 @@ target_precompile_headers(ymir-core
         "$<$<COMPILE_LANGUAGE:CXX>:<memory$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<mutex$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<new$<ANGLE-R>>"
+        "$<$<COMPILE_LANGUAGE:CXX>:<numbers$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<numeric$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<optional$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<queue$<ANGLE-R>>"
+        "$<$<COMPILE_LANGUAGE:CXX>:<random$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<set$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<span$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<sstream$<ANGLE-R>>"

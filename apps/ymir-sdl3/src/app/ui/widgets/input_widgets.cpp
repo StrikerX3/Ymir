@@ -2,6 +2,11 @@
 
 #include <app/events/gui_event_factory.hpp>
 
+#include <app/settings_defaults.hpp>
+
+#include <algorithm>
+#include <numbers>
+
 namespace app::ui::widgets {
 
 InputCaptureWidget::InputCaptureWidget(SharedContext &context, UnboundActionsWidget &unboundActionsWidget)
@@ -25,8 +30,10 @@ void InputCaptureWidget::DrawInputBindButton(input::InputBind &bind, size_t elem
         case ComboTrigger: CaptureComboTrigger(bind, elementIndex, context); break;
         case Button: CaptureButton(bind, elementIndex, context); break;
         case AbsoluteMonopolarAxis1D: CaptureAxis1D(bind, elementIndex, context, false); break;
-        case AbsoluteBipolarAxis1D: CaptureAxis1D(bind, elementIndex, context, true); break;
-        case AbsoluteBipolarAxis2D: CaptureAxis2D(bind, elementIndex, context); break;
+        case AbsoluteBipolarAxis1D: [[fallthrough]];
+        case RelativeBipolarAxis1D: CaptureAxis1D(bind, elementIndex, context, true); break;
+        case AbsoluteBipolarAxis2D: [[fallthrough]];
+        case RelativeBipolarAxis2D: CaptureAxis2D(bind, elementIndex, context); break;
         }
     }
 
@@ -62,12 +69,14 @@ void InputCaptureWidget::DrawCapturePopup() {
             ImGui::TextUnformatted("Move any one-dimensional monopolar axis such as analog triggers to map it.\n\n"
                                    "Press Escape or click outside of this popup to cancel.");
             break;
-        case AbsoluteBipolarAxis1D:
+        case AbsoluteBipolarAxis1D: [[fallthrough]];
+        case RelativeBipolarAxis1D:
             ImGui::TextUnformatted("Move any one-dimensional bipolar axis such as analog wheels or one direction of an "
                                    "analog stick to map it.\n\n"
                                    "Press Escape or click outside of this popup to cancel.");
             break;
-        case AbsoluteBipolarAxis2D:
+        case AbsoluteBipolarAxis2D: [[fallthrough]];
+        case RelativeBipolarAxis2D:
             ImGui::TextUnformatted(
                 "Move any two-dimensional bipolar axis such as analog sticks or D-Pads to map it.\n\n"
                 "Press Escape or click outside of this popup to cancel.");
@@ -250,6 +259,54 @@ bool InputCaptureWidget::MakeDirty(bool value) {
         MakeDirty();
     }
     return value;
+}
+
+void Crosshair(ImDrawList *drawList, const CrosshairParams &params, ImVec2 pos) {
+    const float x = (int)pos.x + 0.5f;
+    const float y = (int)pos.y + 0.5f;
+
+    using namespace app::config_defaults::input::virtua_gun::crosshair;
+
+    const float baseRadius = std::clamp<float>(params.radius, kMinRadius, kMaxRadius);
+    const float baseThickness = std::clamp<float>(params.thickness, kMinThickness, kMaxThickness) * baseRadius;
+    const float baseStrokeThickness =
+        std::clamp<float>(params.strokeThickness, kMinStrokeThickness, kMaxStrokeThickness) * baseThickness;
+    const float scale = params.displayScale;
+
+    const ImU32 color = ImGui::ColorConvertFloat4ToU32(params.color);
+    const float radius = baseRadius * scale;
+    const float thickness = std::max<float>(baseThickness, 2.0f) * 0.5f * scale;
+
+    const ImU32 strokeColor = ImGui::ColorConvertFloat4ToU32(params.strokeColor);
+    const float strokeThickness = std::max<float>(baseStrokeThickness, 1.0f) * scale;
+
+    ImVec2 points[] = {
+        {-thickness, -thickness}, {-radius, -thickness},    {-radius, +thickness},    {-thickness, +thickness},
+        {-thickness, +radius},    {+thickness, +radius},    {+thickness, +thickness}, {+radius, +thickness},
+        {+radius, -thickness},    {+thickness, -thickness}, {+thickness, -radius},    {-thickness, -radius},
+    };
+
+    // Rotate around center
+    if (params.rotation != 0.0f) {
+        static constexpr auto kToRadians = std::numbers::pi / 180.0;
+        const float s = sin(params.rotation * kToRadians);
+        const float c = cos(params.rotation * kToRadians);
+        for (int i = 0; i < std::size(points); ++i) {
+            const float rx = c * points[i].x - s * points[i].y;
+            const float ry = s * points[i].x + c * points[i].y;
+            points[i].x = rx;
+            points[i].y = ry;
+        }
+    }
+
+    // Translate
+    for (int i = 0; i < std::size(points); ++i) {
+        points[i].x += x;
+        points[i].y += y;
+    }
+
+    drawList->AddConvexPolyFilled(points, std::size(points), color);
+    drawList->AddPolyline(points, std::size(points), strokeColor, ImDrawFlags_Closed, strokeThickness);
 }
 
 } // namespace app::ui::widgets
