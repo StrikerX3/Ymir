@@ -173,7 +173,7 @@ jobs:
           -DYmir_ENABLE_UPDATE_CHECKS=ON
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
-          -DYmir_ENABLE_TESTS=OFF  # FIXME: Catch2 integration still isn't working
+          -DYmir_ENABLE_TESTS=OFF
           -DYmir_EXTRA_INLINING=ON
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
@@ -338,7 +338,7 @@ jobs:
           -DYmir_ENABLE_UPDATE_CHECKS=ON
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
-          -DYmir_ENABLE_TESTS=OFF  # FIXME: Catch2 integration still isn't working
+          -DYmir_ENABLE_TESTS=OFF
           -DYmir_EXTRA_INLINING=ON
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
@@ -469,7 +469,7 @@ jobs:
           -DYmir_ENABLE_SANDBOX=OFF
           -DYmir_ENABLE_YMDASM=OFF
           -DYmir_EXTRA_INLINING=ON
-          -DYmir_ENABLE_TESTS=OFF  # FIXME: Catch2 integration still isn't working
+          -DYmir_ENABLE_TESTS=OFF
           -DYmir_VERSION_PRERELEASE=${{ inputs.prerelease-version }}
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
           -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
