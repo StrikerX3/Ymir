@@ -109,8 +109,37 @@ void SH2DisassemblyView::Display() {
             const float delta = clampedY - currentScroll;
             const float absDelta = std::abs(delta);
             if (continuousFollow) {
-                const float alpha = std::clamp(ImGui::GetIO().DeltaTime * 12.0f, 0.05f, 1.0f);
-                ImGui::SetScrollY(currentScroll + delta * alpha);
+                // Continuous follow: instant jump if far away; otherwise keep the line within
+                // a small margin and ease toward it with a capped per-frame step
+                const float currentCenter = currentScroll + viewHeight * 0.5f;
+                const float lineDelta = (lineCenter - currentCenter) / lineAdvance;
+                const float absLineDelta = std::abs(lineDelta);
+                const float viewTop = currentScroll;
+                const float viewBottom = currentScroll + viewHeight;
+                const bool lineOutOfView = lineTop < viewTop || (lineTop + lineAdvance) > viewBottom;
+                constexpr float kFollowMarginLines = 3.0f;
+                constexpr float kInstantJumpLines = 64.0f;
+
+                if (absLineDelta >= kInstantJumpLines) {
+                    ImGui::SetScrollY(clampedY);
+                    m_state.jumpRequested = false;
+                    return;
+                }
+
+                const float marginLines = lineOutOfView ? 0.0f : kFollowMarginLines;
+                if (absLineDelta <= marginLines) {
+                    m_state.jumpRequested = false;
+                    return;
+                }
+
+                const float desiredDeltaLines = absLineDelta - marginLines;
+                const float desiredDelta = std::copysign(desiredDeltaLines * lineAdvance, lineDelta);
+                const float desiredScroll = std::clamp(currentScroll + desiredDelta, 0.0f, ImGui::GetScrollMaxY());
+                const float adjustedDelta = desiredScroll - currentScroll;
+                const float maxStepLines = std::clamp(absLineDelta * 0.6f, 6.0f, 24.0f);
+                const float maxStep = lineAdvance * maxStepLines;
+                const float step = std::clamp(adjustedDelta, -maxStep, maxStep);
+                ImGui::SetScrollY(currentScroll + step);
                 m_state.jumpRequested = false;
             } else {
                 const float stepFactor = absDelta > viewHeight ? 0.35f : 0.25f;
