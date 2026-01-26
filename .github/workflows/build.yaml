@@ -515,6 +515,7 @@ jobs:
           cp -f ${{ github.workspace }}/gcdb/gamecontrollerdb.txt gamecontrollerdb.txt
           zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip licenses README.md CHANGELOG.md TROUBLESHOOTING.md gamecontrollerdb.txt
           cd ${{ github.workspace }}/build/apps/ymir-sdl3/
+          codesign --force --deep --sign - ymir-sdl3.app
           zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip ymir-sdl3.app -x "ymir-sdl3.app/Contents/MacOS/ymir-sdl3-*"
 
       - name: Upload Ymir artifact
