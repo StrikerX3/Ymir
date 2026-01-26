@@ -755,7 +755,7 @@ void App::RunEmulator() {
     // - The framebuffer texture containing the Saturn framebuffer, updated on every frame
     // - The display texture, rendered to the screen
     // The scaling technique used here is a combination of nearest and linear interpolations to make the uninterpolated
-    // pixels look great at any scale. It consists of rendering the framebuffer texture into the display texture using
+    // pixels look sharp at any scale. It consists of rendering the framebuffer texture into the display texture using
     // nearest interpolation with an integer scale, then rendering the display texture onto the screen with linear
     // interpolation.
 
@@ -1952,7 +1952,7 @@ void App::RunEmulator() {
         bool forceScreenScale = false;
         int forcedScreenScale = 1;
 
-        // Use video sync if in full screen mode and not paused or fast-forwarding
+        // Configure video sync
         const bool fullScreen = m_context.settings.video.fullScreen;
         const bool videoSync =
             fullScreen ? m_context.settings.video.syncInFullscreenMode : m_context.settings.video.syncInWindowedMode;
@@ -2129,19 +2129,19 @@ void App::RunEmulator() {
                 }
                 break;
 
-            case SDL_EVENT_MOUSE_ADDED: //
-            {
-                inputContext.ConnectMouse(evt.mdevice.which);
-                devlog::debug<grp::base>("Mouse {} added", evt.mdevice.which);
+            case SDL_EVENT_MOUSE_ADDED:
+                if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                    inputContext.ConnectMouse(evt.mdevice.which);
+                    devlog::debug<grp::base>("Mouse {} added", evt.mdevice.which);
+                }
                 break;
-            }
-            case SDL_EVENT_MOUSE_REMOVED: //
-            {
-                inputContext.DisconnectMouse(evt.mdevice.which);
-                devlog::debug<grp::base>("Mouse {} removed", evt.mdevice.which);
-                ReleaseMouse(evt.mdevice.which);
+            case SDL_EVENT_MOUSE_REMOVED:
+                if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                    inputContext.DisconnectMouse(evt.mdevice.which);
+                    devlog::debug<grp::base>("Mouse {} removed", evt.mdevice.which);
+                    ReleaseMouse(evt.mdevice.which);
+                }
                 break;
-            }
             case SDL_EVENT_MOUSE_BUTTON_DOWN: [[fallthrough]];
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (!io.WantCaptureMouse) {
@@ -2153,7 +2153,6 @@ void App::RunEmulator() {
                     }
                 }
                 if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    // Pen and touch inputs should be handled with their own events and input primitives
                     if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
                         // TODO: evt.button.x, evt.button.y
                         // TODO: maybe evt.button.clicks?
@@ -2168,9 +2167,8 @@ void App::RunEmulator() {
                 }
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    // Pen and touch inputs should be handled with their own events and input primitives
-                    if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                    if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
                         inputContext.ProcessPrimitive(evt.button.which, input::MouseAxis2D::MouseRelative,
                                                       evt.motion.xrel, evt.motion.yrel);
                         inputContext.ProcessPrimitive(evt.button.which, input::MouseAxis2D::MouseAbsolute, evt.motion.x,
@@ -2179,9 +2177,8 @@ void App::RunEmulator() {
                 }
                 break;
             case SDL_EVENT_MOUSE_WHEEL:
-                if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
-                    // Pen and touch inputs should be handled with their own events and input primitives
-                    if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
+                    if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
                         const float flippedFactor = evt.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1.0f : 1.0f;
                         inputContext.ProcessPrimitive(evt.button.which, input::MouseAxis1D::WheelHorizontal,
                                                       evt.wheel.x * flippedFactor);
