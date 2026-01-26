@@ -24,7 +24,7 @@ namespace bit {
 /// @return `true` if `value` is a power of two
 template <std::unsigned_integral T>
 [[nodiscard]] FORCE_INLINE constexpr bool is_power_of_two(T value) noexcept {
-    return value != 0 && (value & (value - 1)) == 0;
+    return std::popcount(value) == 1;
 }
 
 /// @brief Returns the next power of two not less than `value`.
@@ -33,21 +33,7 @@ template <std::unsigned_integral T>
 /// @return `value` rounded up to the next power of two
 template <std::unsigned_integral T>
 [[nodiscard]] FORCE_INLINE constexpr T next_power_of_two(T value) noexcept {
-    value--;
-    value |= value >> 1u;
-    value |= value >> 2u;
-    value |= value >> 4u;
-    if constexpr (sizeof(T) > 1) {
-        value |= value >> 8u;
-    }
-    if constexpr (sizeof(T) > 2) {
-        value |= value >> 16u;
-    }
-    if constexpr (sizeof(T) > 4) {
-        value |= value >> 32ull;
-    }
-    value++;
-    return value;
+    return std::bit_ceil(value);
 }
 
 /// @brief Sign-extends a `B`-bit integer from the least significant bits of `value`.
