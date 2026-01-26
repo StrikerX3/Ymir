@@ -24,6 +24,8 @@ Introduced save state file version 12.
 ### Fixes
 
 - Build: Introduced separate x64-win-llvm toolchains for SSE2 and AVX2 support. Fixes Windows SSE2 builds requiring SSE4.2 instructions. (#713; thanks to @Wunkolo)
+- Build: Perform ad-hoc signature on macOS binaries to work around the "damaged" app warning. (#698; thanks to @Wunkolo)
+- Build: Remove duplicate binary from macOS packages.
 - GameDB: Double the MC68EC000 clock rate and force fast bus timings to fix crashes in Vampire Savior - The Lord of Vampire. (#699)
 - SH2: Fix `@(disp.PC)` loads being decoded as stores for watchpoints.
 - SH2: Fix `ldc/lds @Rm` decoding from the wrong position for watchpoints.
