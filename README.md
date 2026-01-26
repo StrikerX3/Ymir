@@ -57,8 +57,10 @@ The program accepts command-line arguments. Invoke `ymir-sdl3 --help` to list th
 ```
 Ymir - Sega Saturn emulator
 Usage:
-  Ymir [OPTION...] positional parameters
+  Ymir [OPTION...] path to disc image
 
+  -d, --disc arg     Path to Saturn disc image (.ccd, .chd, .cue, .iso,
+                     .mds)
   -p, --profile arg  Path to profile directory
   -u, --user         Force user profile
   -h, --help         Display help text
@@ -69,6 +71,8 @@ Usage:
 ```
 
 The options are case-sensitive -- lowercase `-p` sets the profile path, uppercase `-P` makes the emulator start paused.
+
+Pass a path to a valid Saturn disc image as an argument to `ymir-sdl3` to launch the emulator with the disc. `-d`/`--disc` is optional.
 
 Use `-p <profile-path>` to point to a separate set of configuration and state files, useful if you wish to have different user profiles (hence the name).
 

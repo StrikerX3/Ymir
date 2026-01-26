@@ -33,6 +33,8 @@ int main(int argc, char **argv) {
     options.add_options()("E,exceptions", "Capture all unhandled exceptions",
                           cxxopts::value(enableAllExceptions)->default_value("false"));
     options.parse_positional({"disc"});
+    options.positional_help("path to disc image");
+    options.show_positional_help();
 
     try {
         auto result = options.parse(argc, argv);
