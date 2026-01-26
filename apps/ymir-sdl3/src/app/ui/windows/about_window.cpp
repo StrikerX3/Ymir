@@ -614,6 +614,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "lvsweat, "
                            "mmkzer0, "
                            "ronan22, "
+                           "SternXD, "
                            "tegaidogun, "
                            "tordona, "
                            "Wunkolo.");
@@ -634,10 +635,12 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Jano, "
                            "Katanchiro, "
                            "Lordus, "
+                           "Reaven, "
                            "sasori95 / Immersion95, "
                            "secreto7, "
                            "Silanda, "
                            "Sorer, "
+                           "SternXD, "
                            "TheCoolPup, "
                            "waspennator, "
                            "Zet-sensei.");
@@ -654,8 +657,8 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Derek Fagan, "
                            "Diego Bartolom\u00E9, "
                            "Elcorsico 28, "
-                           "Israel "
-                           "Jacquez, "
+                           "Giovani Avelar, "
+                           "Israel Jacquez, "
                            "Jeff Greulich, "
                            "Joek, "
                            "Julien P, "
@@ -665,6 +668,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Munch, "
                            "Oliver Stadler, "
                            "rifter, "
+                           "TheCoolPup, "
                            "Zrat.");
     ImGui::Unindent();
 
