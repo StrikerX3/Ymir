@@ -11,7 +11,7 @@ Introduced save state file version 12.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - Input: Added support for mouse events.
-- Input: Implemented two mouse capture modes:
+- Input: Mouse capture support for light gun and mouse peripherals, supporting these modes:
     - System mouse: binds the system mouse cursor to a single peripheral. Mouse cursor is still available to interact with the GUI.
     - Physical mouse: binds one or more mice to different peripherals. Disables the system cursor while any mice is bound.
 - Input: Implemented Shuttle Mouse peripheral. (#32)
