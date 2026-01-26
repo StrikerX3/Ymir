@@ -407,13 +407,11 @@ endif()
 
 ## Apply performance options
 if (Ymir_AVX2)
-    target_compile_definitions(ymir-core PUBLIC ${PROJECT_NAME}_AVX2=1)
+    target_compile_definitions(ymir-core PUBLIC Ymir_AVX2=1)
     if (MSVC)
         target_compile_options(ymir-core PUBLIC "/arch:AVX2")
     else ()
-        target_compile_options(ymir-core PUBLIC "-mavx2")
-        target_compile_options(ymir-core PUBLIC "-mfma")
-        target_compile_options(ymir-core PUBLIC "-mbmi")
+        target_compile_options(ymir-core PUBLIC "-mavx2" "-mfma" "-mpopcnt" "-mlzcnt" "-mbmi" "-mbmi2")
     endif ()
 endif ()
 
