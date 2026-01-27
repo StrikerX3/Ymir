@@ -143,7 +143,11 @@ void VideoSettingsView::Display() {
         ImGui::EndCombo();
     }
     widgets::ExplanationTooltip(
-        "Selects a display to use when switching to full screen mode.\n"
+        "Selects the display to use when switching to full screen mode.\n"
+        "\n"
+        "The numbers in [brackets] indicate the display's virtual position in multi-monitor systems. [0x0] is your "
+        "primary display.\n"
+        "\n"
         "The \"Current display\" option causes Ymir to go full screen on the display where the window is located at.",
         m_context.displayScale);
 
@@ -183,8 +187,11 @@ void VideoSettingsView::Display() {
         ImGui::EndCombo();
     }
     widgets::ExplanationTooltip("Selects the resolution to use when switching to full screen mode.\n"
+                                "\n"
+                                "All options besides \"Borderless full screen\" are exclusive modes.\n"
+                                "\n"
                                 "This option is reset when the display is changed or removed, or while using the "
-                                "\"Current display\" mode and moving the window across different displays.",
+                                "current display and moving the window across different displays.",
                                 m_context.displayScale);
 
     ImGui::Separator();
