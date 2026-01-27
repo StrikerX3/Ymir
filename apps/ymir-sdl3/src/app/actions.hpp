@@ -131,8 +131,8 @@ namespace save_states {
         }
     }
 
-    inline constexpr auto UndoSaveState = input::Action::Trigger(0x003040, "Save states", "Undo save state");
-    inline constexpr auto UndoLoadState = input::Action::Trigger(0x003041, "Save states", "Undo load state");
+    DEF_ACTION(UndoSaveState)::Trigger(ACTION_ID, "Save states", "Undo save state");
+    DEF_ACTION(UndoLoadState)::Trigger(ACTION_ID, "Save states", "Undo load state");
 
 } // namespace save_states
 
