@@ -471,7 +471,7 @@ FORCE_INLINE static const char *ToTOML(const gfx::Backend value) {
 #ifdef YMIR_PLATFORM_HAS_VULKAN
     case gfx::Backend::Vulkan: return "Vulkan";
 #endif
-#if YMIR_PLATFORM_HAS_OPENGL
+#ifdef YMIR_PLATFORM_HAS_OPENGL
     case gfx::Backend::OpenGL: return "OpenGL";
 #endif
     }
