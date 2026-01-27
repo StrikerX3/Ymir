@@ -28,17 +28,22 @@ In order to run the emulator, set up a loop that processes application events an
 run the emulator for a single frame.
 
 The emulator core makes no attempt to pace execution to realtime speed - it's up to the frontend to implement some rate
-control method. If no such method is used, it will run as fast as your CPU allows.
+control method. If no such method is used, it will run as fast as your CPU allows. For example, you can use a blocking
+ring buffer with the audio callback function to implement a simple audio sync mechanism that will pace the frames based
+on how fast the audio buffer is drained by the sound driver.
 
 You can configure several parameters of the emulator core through `ymir::Saturn::configuration`.
 
 
 
-@subsection loading_contents Loading IPL ROMs, discs, backup memory and cartridges
+@subsection loading_contents Loading IPL and CD Block ROMs, discs, backup memory and cartridges
 
 Use `ymir::Saturn::LoadIPL` to copy an IPL ROM image into the emulator. By default, the emulator will use a simple
 do-nothing image that puts the master SH-2 into an infinite loop and immediately returns from all exceptions. The IPL
 ROM is accessible through the `ymir::Saturn::mem` member, in `ymir::sys::SystemMemory::IPL`.
+
+CD Block ROMs (required for low level emulation) can be loaded directly into the SH-1's internal ROM area with
+`ymir::sh1::SH1::LoadROM`. By default it also uses the same do-nothing image used with the SH-2s.
 
 To load discs, you will need to use the media loader library included with the emulator core in media/loader/loader.hpp.
 The header is automatically included with ymir.hpp. Use `ymir::media::LoadDisc` to load a disc into an
@@ -81,8 +86,8 @@ method will return a valid pointer to the specialized controller instance which 
 peripheral. `nullptr` indicates failure to instantiate the object or to attach the peripheral due to incompatibility
 with other connected peripherals (e.g. you cannot use the Virtua Gun with a multi-tap adapter).
 
-@note The emulator currently only supports attaching a single Saturn Control Pad to the ports. More types of peripherals
-(including multi-tap) are planned.
+@note The emulator currently only supports attaching a single peripheral to each port. Multi-tap and other types of
+peripherals are planned.
 
 Use `ymir::peripheral::PeripheralPort::DisconnectPeripherals()` to disconnect all peripherals connected to the port. Be
 careful: any existing pointers to previously connected peripherals will become invalid. The same applies when replacing
@@ -149,7 +154,7 @@ Use `ymir::scsp::SCSP::SetSampleCallback` to bind this callback.
 You can run the emulator core without providing video and audio callbacks (headless mode). It will work fine, but you
 won't receive video frames or audio samples.
 
-All callbacks are invoked from inside the emulator core deep within the RunFrame() call stack, so if you're running it
+All callbacks are invoked from inside the emulator core deep within the `RunFrame()` call stack, so if you're running it
 on a dedicated thread you need to make sure to sync/mutex updates coming from the callbacks into the GUI/main thread.
 
 
@@ -206,8 +211,6 @@ instance.
 
 
 @subsection debugging Debugging
-
-@note The debugger is a work in progress and in a flow state. Expect things to change dramatically.
 
 The debugger framework provides two major components: the *probes* and the *tracers*. You can also use `ymir::sys::Bus`
 objects to directly read or write memory.
@@ -268,5 +271,5 @@ you plan to run it in a dedicated thread.
 As noted above, the input, video and audio callbacks as well as debug tracers are invoked from the emulator thread.
 Provide proper synchronization between the emulator thread and the main/GUI thread when handling these events.
 
-The VDP renderer may optionally run in its own thread. It is thread-safe within the core.
+The VDP1 and VDP2 renderers may optionally run in their own threads. They are thread-safe within the core.
 */

@@ -97,6 +97,9 @@
 @namespace ymir::scu
 @brief Sega Saturn SCU (System Control Unit) emulation.
 
+@namespace ymir::sh1
+@brief Hitachi SH7034 (SH-1) CPU emulation.
+
 @namespace ymir::sh2
 @brief Hitachi SH7095 (SH-2) CPU emulation.
 
