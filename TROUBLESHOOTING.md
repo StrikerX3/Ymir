@@ -98,5 +98,7 @@ Here are a few things you can try to improve performance besides upgrading the C
   - Go to **Settings > General** and enable **Preload disc images to RAM**. This will increase memory usage and hang the emulator for a while when loading discs, but should eliminate all stutters.
 - Use the AVX2 version if you can. If the emulator crashes right away, it's likely that your CPU doesn't support the instruction set, so you're stuck with the SSE2 version.
 
+- Linux: If not working promptly, use ```steam-run ./ymir-sdl3``` to start the program.
+
 If Ymir still runs poorly after trying these, your CPU might be too slow for the emulator. It's known to run fine on CPUs that score around 1500 points on the [CPUBenchmark single thread test](<https://www.cpubenchmark.net/single-thread>), but I recommend CPUs that score 2000 points or higher.
 A quad core CPU or better will help with threaded VDP1/VDP2 rendering, threaded deinterlace and the rewind buffer.
