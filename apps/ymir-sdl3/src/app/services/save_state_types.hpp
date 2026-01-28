@@ -23,36 +23,32 @@
 
 namespace app::savestates {
 
-// actual state with unique ptr to state and timestamp
-struct SaveState {
-    std::unique_ptr<ymir::state::State> state;
+/// @brief A single save state entry with a timestamp.
+struct Entry {
+    std::unique_ptr<ymir::state::State> state{};
     std::chrono::system_clock::time_point timestamp{};
-
-    // Per-slot undo: stores previous state before last overwrite
-    std::unique_ptr<ymir::state::State> undoState;
-    std::chrono::system_clock::time_point undoTimestamp{};
-
-    // unique ptr means that a state can be moved or move-created,
-    // but cannot and should not be copyable;
-    // destructor not inlined
-    SaveState() = default;
-    SaveState(SaveState&&) noexcept = default;
-    SaveState& operator = (SaveState&&) noexcept = default;
-    SaveState(const SaveState&) = delete;
-    SaveState& operator = (const SaveState&) = delete;
-
-    ~SaveState();   // in types.cpp
 };
 
-// meta: lightweight struct for info
-// without touching the state struct
-struct SaveStateSlotMeta {
-    int slot{};
+/// @brief A save state slot, containing a primary and a backup state entry.
+struct Slot {
+    Entry primary{};
+    Entry backup{}; // for undo
+
+    /// @brief Determines if there is a valid save state in this slot.
+    /// @return `true` if there is a save state, `false` if not.
+    bool IsValid() const {
+        return static_cast<bool>(primary.state);
+    }
+};
+
+/// @brief Lightweight struct for save state slot info without touching the state struct.
+struct SlotMeta {
+    size_t index{};
     bool present{};
+    size_t backupCount{};
     std::chrono::system_clock::time_point ts{};
 };
 
-
-}   // namespace app::savestates;
+} // namespace app::savestates
 
 // YMIR_TYPES_HPP

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.hpp"
+#include "graphics_types.hpp"
 
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_video.h>

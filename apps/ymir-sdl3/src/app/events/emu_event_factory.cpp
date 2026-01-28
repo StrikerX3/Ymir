@@ -4,7 +4,7 @@
 
 #include <app/shared_context.hpp>
 
-#include <app/services/savestates/save_state_service.hpp>
+#include <app/services/save_state_service.hpp>
 
 #include <memory>
 #include <ymir/sys/saturn.hpp>
@@ -576,31 +576,30 @@ EmuEvent SetSCSPStepGranularity(uint32 granularity) {
     return RunFunction([=](SharedContext &ctx) { ctx.saturn.instance->SCSP.SetStepGranularity(granularity); });
 }
 
-EmuEvent LoadState(uint32 slot) {
+EmuEvent LoadState(uint32 slotIndex) {
     return RunFunction([=](SharedContext &ctx) {
-        // grab the service and check for bounds
+        // Grab the service and check for bounds
         auto &saves = ctx.serviceLocator.GetRequired<services::SaveStateService>();
-        if (slot >= saves.Size()) {
+        if (!saves.IsValidIndex(slotIndex)) {
             return;
         }
 
-        // sanity check: do slotState and underlying state exist?
-        auto lock = std::unique_lock{saves.SlotMutex(slot)};
-        auto *slotState = saves.Peek(slot);
-        if (!slotState || !slotState->state) {
-            ctx.DisplayMessage(fmt::format("Save state slot {} selected", slot + 1));
+        // Sanity check: do entry and underlying state exist?
+        auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
+        const auto *slot = saves.Peek(slotIndex);
+        assert(slot != nullptr); // slot index out of range
+        if (!slot->IsValid()) {
+            ctx.DisplayMessage(fmt::format("Save state slot {} selected", slotIndex + 1));
             return;
         }
 
-        // grab the savestate
-        auto &state = *slotState->state;
+        // Grab the savestate
+        const auto &state = *slot->primary.state;
 
         // Sanity check: ensure that the disc hash matches
-        {
-            if (!state.ValidateDiscHash(ctx.saturn.GetDiscHash())) {
-                devlog::warn<grp::base>("Save state disc hash mismatch; refusing to load save state");
-                return;
-            }
+        if (!state.ValidateDiscHash(ctx.saturn.GetDiscHash())) {
+            devlog::warn<grp::base>("Save state disc hash mismatch; refusing to load save state");
+            return;
         }
 
         // Check for IPL and CD block ROM mismatches and locate and load matching ROMs if possible.
@@ -685,11 +684,8 @@ EmuEvent LoadState(uint32 slot) {
         // At this point the ROMs have been loaded and validated
 
         // Cache current emulator state for undo before loading
-        if (!ctx.undoLoadState) {
-            ctx.undoLoadState = std::make_unique<state::State>();
-        }
-        ctx.saturn.instance->SaveState(*ctx.undoLoadState);
-        ctx.canUndoLoad = true;
+        auto undoLoadState = std::make_unique<state::State>();
+        ctx.saturn.instance->SaveState(*undoLoadState);
 
         if (ctx.saturn.instance->LoadState(state, true)) {
             // Now that the save state has been succesfully loaded, load the ROMs
@@ -704,76 +700,49 @@ EmuEvent LoadState(uint32 slot) {
                 ctx.DisplayMessage(fmt::format("CD block ROM used by save state loaded from {}", ctx.cdbRomPath));
             }
 
-            ctx.EnqueueEvent(events::gui::StateLoaded(slot));
+            // Update the undo load state
+            saves.PushUndoLoadState(std::move(undoLoadState));
+
+            ctx.EnqueueEvent(events::gui::StateLoaded(slotIndex));
         } else {
             devlog::warn<grp::base>("Failed to load save state");
-            // Clear undo state since load failed
-            ctx.canUndoLoad = false;
         }
     });
 }
 
-EmuEvent SaveState(uint32 slot) {
+EmuEvent SaveState(uint32 slotIndex) {
     return RunFunction([=](SharedContext &ctx) {
-        // grab the service and check bounds
+        // Grab the service and check bounds
         auto &saves = ctx.serviceLocator.GetRequired<services::SaveStateService>();
-        if (slot >= saves.Size()) {
+        if (!saves.IsValidIndex(slotIndex)) {
             return;
         }
 
         {
-            // grab the lock and a new state
-            auto lock = std::unique_lock{saves.SlotMutex(slot)};
-            savestates::SaveState slotState{};
+            auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
 
-            // build new state logically
-            // test if state is present and either swap or create a new one
-            // Cache existing state for undo before overwriting
-            auto *savePtr = saves.Peek(slot);
-            if (savePtr && savePtr->state) {
-                // Move current state to undo storage
-                slotState.undoState.swap(savePtr->state);
-                slotState.undoTimestamp = savePtr->timestamp;
-            }
+            // Make room in save state slot
+            auto *slot = saves.Push(slotIndex);
+            assert(slot != nullptr); // slot index out of range
 
-            // build new state if needed
-            if (!slotState.state) {
-                slotState.state = std::make_unique<state::State>();
-            }
-
-            // save state to selected slot and set timestamp
-            ctx.saturn.instance->SaveState(*slotState.state);
-            slotState.timestamp = std::chrono::system_clock::now();
-            const bool ok = saves.Set(slot, std::move(slotState));
-            // check for catastrophic OOB (should not happen)
-            if (!ok) {
-                devlog::warn<grp::base>("Could not set/save new save state for slot {}", slot);
-                return;
-            }
-
-            // Track which slot was last saved for undo
-            saves.SetLastSavedSlot(slot);
+            // Save to selected slot and set timestamp
+            ctx.saturn.instance->SaveState(*slot->state);
+            slot->timestamp = std::chrono::system_clock::now();
         }
 
-        ctx.EnqueueEvent(events::gui::StateSaved(slot));
+        ctx.EnqueueEvent(events::gui::StateSaved(slotIndex));
     });
 }
 
 EmuEvent UndoSaveState() {
     return RunFunction([](SharedContext &ctx) {
         auto &saves = ctx.serviceLocator.GetRequired<services::SaveStateService>();
-        
-        auto lastSlot = saves.GetLastSavedSlot();
-        if (!lastSlot.has_value()) {
-            ctx.DisplayMessage("No save state to undo");
-            return;
-        }
 
-        auto slot = *lastSlot;
-        auto lock = std::unique_lock{saves.SlotMutex(slot)};
-        if (saves.UndoSave(slot)) {
-            ctx.DisplayMessage(fmt::format("Undid save state in slot {}", slot + 1));
-            ctx.EnqueueEvent(events::gui::StateSaved(static_cast<uint32>(slot)));
+        const auto slotIndex = saves.CurrentSlot();
+        auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
+        if (saves.Pop(slotIndex)) {
+            ctx.DisplayMessage(fmt::format("Undid save state in slot {}", slotIndex + 1));
+            ctx.EnqueueEvent(events::gui::StateSaved(static_cast<uint32>(slotIndex)));
         } else {
             ctx.DisplayMessage("No save state to undo");
         }
@@ -782,14 +751,14 @@ EmuEvent UndoSaveState() {
 
 EmuEvent UndoLoadState() {
     return RunFunction([](SharedContext &ctx) {
-        if (!ctx.canUndoLoad || !ctx.undoLoadState) {
+        auto &saves = ctx.serviceLocator.GetRequired<services::SaveStateService>();
+        if (!saves.CanUndoLoadState()) {
             ctx.DisplayMessage("No load state to undo");
             return;
         }
 
-        if (ctx.saturn.instance->LoadState(*ctx.undoLoadState, true)) {
+        if (ctx.saturn.instance->LoadState(*saves.PopUndoLoadState(), true)) {
             ctx.DisplayMessage("Undid load state");
-            ctx.canUndoLoad = false;
         } else {
             devlog::warn<grp::base>("Failed to undo load state");
         }

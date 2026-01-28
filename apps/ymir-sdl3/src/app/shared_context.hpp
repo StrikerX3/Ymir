@@ -9,7 +9,7 @@
 #include <app/settings.hpp>
 #include <app/update_checker.hpp>
 
-#include <app/services/graphics/types.hpp>
+#include <app/services/graphics_types.hpp>
 
 #include <app/input/input_context.hpp>
 #include <app/input/input_utils.hpp>
@@ -680,10 +680,6 @@ struct SharedContext {
 
     RewindBuffer rewindBuffer;
     bool rewinding = false;
-
-    // Undo load state support - stores the emulator state before loading
-    std::unique_ptr<ymir::state::State> undoLoadState{};
-    bool canUndoLoad = false;
 
     struct Midi {
         std::unique_ptr<util::IRtMidiIn> input;

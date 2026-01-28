@@ -2720,33 +2720,36 @@ void App::RunEmulator() {
                     // TODO: save state manager window to copy/move/swap/delete states
 
                     auto drawSaveStatesList = [&](bool save) {
-                        // we now use the service metadata (slotMeta) for UI calls
-                        // that way actual slot data doesn't have to be interacted with
-
-                        // pull via List() + CurrentSlot() and build labels
-                        // that way via SaveStateSlotMeta and drive Save/Load/Select
-                        // -> use service apis without touching slots directly
-                        const auto slotMeta = m_saveStateService.List();
                         const auto currentSlot = m_saveStateService.CurrentSlot();
 
-                        for (const auto &meta : slotMeta) {
+                        for (const auto &slotMeta : m_saveStateService.List()) {
+                            const auto slotIndex = slotMeta.index;
                             const auto shortcut = input::ToShortcut(
-                                inputContext, save ? actions::save_states::GetSaveStateAction(meta.slot)
-                                                   : actions::save_states::GetLoadStateAction(meta.slot));
+                                inputContext, save ? actions::save_states::GetSaveStateAction(slotIndex)
+                                                   : actions::save_states::GetLoadStateAction(slotIndex));
 
-                            const bool present = meta.present;
-                            const bool isSelected = currentSlot == static_cast<std::size_t>(meta.slot);
-                            const std::string label =
-                                present ? fmt::format("{}: {}", meta.slot, util::to_local_time(meta.ts))
-                                        : fmt::format("{}: (empty)", meta.slot);
+                            const bool present = slotMeta.present;
+                            const size_t backups = slotMeta.backupCount;
+                            const bool isSelected = currentSlot == slotIndex;
+                            const auto label = [&]() -> std::string {
+                                if (!present) {
+                                    return fmt::format("{}: (empty)", slotIndex);
+                                }
+                                const auto localTime = util::to_local_time(slotMeta.ts);
+                                if (backups == 0) {
+                                    return fmt::format("{}: {}", slotIndex, localTime);
+                                }
+                                const char *undoText = backups > 1 ? "undos" : "undo";
+                                return fmt::format("{}: {} ({} {})", slotIndex, localTime, backups, undoText);
+                            }();
 
                             if (ImGui::MenuItem(label.c_str(), shortcut.c_str(), isSelected, present || save)) {
                                 if (save) {
-                                    SaveSaveStateSlot(static_cast<std::size_t>(meta.slot));
+                                    SaveSaveStateSlot(slotIndex);
                                 } else if (present) {
-                                    LoadSaveStateSlot(static_cast<std::size_t>(meta.slot));
+                                    LoadSaveStateSlot(slotIndex);
                                 } else {
-                                    SelectSaveStateSlot(static_cast<std::size_t>(meta.slot));
+                                    SelectSaveStateSlot(slotIndex);
                                 }
                             }
                         }
@@ -2790,16 +2793,16 @@ void App::RunEmulator() {
                         auto &saves = m_context.serviceLocator.GetRequired<services::SaveStateService>();
                         if (ImGui::MenuItem(
                                 "Undo save state",
-                                input::ToShortcut(inputContext, actions::save_states::UndoSaveState).c_str(),
-                                false, saves.CanUndoSave())) {
+                                input::ToShortcut(inputContext, actions::save_states::UndoSaveState).c_str(), false,
+                                saves.GetCurrentSlotBackupStatesCount() > 0)) {
                             m_context.EnqueueEvent(events::emu::UndoSaveState());
                         }
-                    }
-                    if (ImGui::MenuItem(
-                            "Undo load state",
-                            input::ToShortcut(inputContext, actions::save_states::UndoLoadState).c_str(),
-                            false, m_context.canUndoLoad)) {
-                        m_context.EnqueueEvent(events::emu::UndoLoadState());
+                        if (ImGui::MenuItem(
+                                "Undo load state",
+                                input::ToShortcut(inputContext, actions::save_states::UndoLoadState).c_str(), false,
+                                saves.CanUndoLoadState())) {
+                            m_context.EnqueueEvent(events::emu::UndoLoadState());
+                        }
                     }
                     if (ImGui::MenuItem("Open save states directory")) {
                         auto path = m_context.profile.GetPath(ProfilePath::SaveStates) /
@@ -5345,41 +5348,46 @@ void App::LoadSaveStates() {
     auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
 
     auto &saves = m_saveStateService;
-    const auto slotMeta = saves.List();
+    for (const auto &slotMeta : saves.List()) {
+        auto load = [&](savestates::Entry &entry, std::string name) {
+            auto statePath = gameStatesPath / name;
+            std::ifstream in{statePath, std::ios::binary};
 
-    for (const auto &meta : slotMeta) {
-        const auto slot = static_cast<std::size_t>(meta.slot);
-        auto lock = std::unique_lock{saves.SlotMutex(slot)};
+            if (in) {
+                cereal::PortableBinaryInputArchive archive{in};
+                try {
+                    auto state = std::make_unique<ymir::state::State>();
+                    archive(*state);
+                    entry.state.swap(state);
 
-        auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
-        std::ifstream in{statePath, std::ios::binary};
-
-        if (in) {
-            savestates::SaveState slotState{};
-            cereal::PortableBinaryInputArchive archive{in};
-            try {
-                auto state = std::make_unique<ymir::state::State>();
-                archive(*state);
-                slotState.state.swap(state);
-
-                SDL_PathInfo pathInfo{};
-                if (SDL_GetPathInfo(fmt::format("{}", statePath).c_str(), &pathInfo)) {
-                    const time_t time = SDL_NS_TO_SECONDS(pathInfo.modify_time);
-                    const auto sysClockTime = std::chrono::system_clock::from_time_t(time);
-                    slotState.timestamp = sysClockTime;
-                } else {
-                    slotState.timestamp = std::chrono::system_clock::now();
+                    SDL_PathInfo pathInfo{};
+                    if (SDL_GetPathInfo(fmt::format("{}", statePath).c_str(), &pathInfo)) {
+                        const time_t time = SDL_NS_TO_SECONDS(pathInfo.modify_time);
+                        const auto sysClockTime = std::chrono::system_clock::from_time_t(time);
+                        entry.timestamp = sysClockTime;
+                    } else {
+                        entry.timestamp = std::chrono::system_clock::now();
+                    }
+                } catch (const cereal::Exception &e) {
+                    devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
+                } catch (const std::exception &e) {
+                    devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
+                } catch (...) {
+                    devlog::error<grp::base>("Could not load save state from {}: unspecified error", statePath);
                 }
-                saves.Set(slot, std::move(slotState));
-            } catch (const cereal::Exception &e) {
-                devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
-            } catch (const std::exception &e) {
-                devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
-            } catch (...) {
-                devlog::error<grp::base>("Could not load save state from {}: unspecified error", statePath);
             }
+        };
+
+        const auto slotIndex = static_cast<std::size_t>(slotMeta.index);
+        auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
+
+        savestates::Slot state{};
+        load(state.primary, fmt::format("{}.savestate", slotIndex));
+        if (state.IsValid()) {
+            load(state.backup, fmt::format("{}-1.savestate", slotIndex));
+            saves.Set(slotIndex, std::move(state));
         } else {
-            saves.Erase(slot);
+            saves.Erase(slotIndex);
         }
     }
 }
@@ -5389,63 +5397,69 @@ void App::ClearSaveStates() {
     auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
 
     auto &saves = m_saveStateService;
-    const auto slotMeta = saves.List();
 
-    for (const auto &meta : slotMeta) {
-        const auto slot = static_cast<std::size_t>(meta.slot);
-        auto lock = std::unique_lock{saves.SlotMutex(slot)};
+    for (const auto &slotMeta : saves.List()) {
+        const auto slotIndex = slotMeta.index;
+        {
+            auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
+            saves.Erase(slotIndex);
+        }
 
-        auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
-
-        saves.Erase(slot);
-        std::filesystem::remove(statePath);
+        std::filesystem::remove(gameStatesPath / fmt::format("{}.savestate", slotIndex));
+        std::filesystem::remove(gameStatesPath / fmt::format("{}-1.savestate", slotIndex));
     }
     m_context.DisplayMessage("All save states cleared");
 }
 
-void App::LoadSaveStateSlot(size_t slot) {
-    m_saveStateService.SetCurrentSlot(std::min(slot, m_saveStateService.Size() - 1));
+void App::LoadSaveStateSlot(size_t slotIndex) {
+    m_saveStateService.SetCurrentSlot(slotIndex);
     m_context.EnqueueEvent(events::emu::LoadState(m_saveStateService.CurrentSlot()));
 }
 
-void App::SaveSaveStateSlot(size_t slot) {
-    m_saveStateService.SetCurrentSlot(std::min(slot, m_saveStateService.Size() - 1));
+void App::SaveSaveStateSlot(size_t slotIndex) {
+    m_saveStateService.SetCurrentSlot(slotIndex);
     m_context.EnqueueEvent(events::emu::SaveState(m_saveStateService.CurrentSlot()));
 }
 
-void App::SelectSaveStateSlot(size_t slot) {
-    m_saveStateService.SetCurrentSlot(std::min(slot, m_saveStateService.Size() - 1));
+void App::SelectSaveStateSlot(size_t slotIndex) {
+    m_saveStateService.SetCurrentSlot(slotIndex);
     m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_saveStateService.CurrentSlot() + 1));
 }
 
-void App::PersistSaveState(size_t slot) {
+void App::PersistSaveState(size_t slotIndex) {
     auto &saves = m_saveStateService;
 
-    if (slot >= saves.Size()) {
+    if (!saves.IsValidIndex(slotIndex)) {
         return;
     }
 
-    auto lock = std::unique_lock{saves.SlotMutex(slot)};
+    auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
 
     // ensure to not dereference empty slots
-    auto *slotState = saves.Peek(slot);
-    if (slotState && slotState->state) {
-        auto &state = *slotState->state;
+    auto *slot = saves.Peek(slotIndex);
+    if (slot) {
+        auto save = [&](const std::unique_ptr<ymir::state::State> &state, std::string name) {
+            if (state) {
+                // Create directory for this game's save states
+                auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
+                auto gameStatesPath = basePath / ymir::ToString(state->discHash);
+                std::filesystem::create_directories(gameStatesPath);
 
-        // Create directory for this game's save states
-        auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-        auto gameStatesPath = basePath / ymir::ToString(state.discHash);
-        std::filesystem::create_directories(gameStatesPath);
+                // Write save state
+                auto statePath = gameStatesPath / name;
+                std::ofstream out{statePath, std::ios::binary};
+                cereal::PortableBinaryOutputArchive archive{out};
+                archive(*state);
+            }
+            return state.get() != nullptr;
+        };
 
-        // Write save state
-        auto statePath = gameStatesPath / fmt::format("{}.savestate", slot);
-        std::ofstream out{statePath, std::ios::binary};
-        cereal::PortableBinaryOutputArchive archive{out};
-        archive(state);
-
-        WriteSaveStateMeta();
-
-        m_context.DisplayMessage(fmt::format("State {} saved", slot + 1));
+        if (slot->IsValid()) {
+            save(slot->primary.state, fmt::format("{}.savestate", slotIndex));
+            save(slot->backup.state, fmt::format("{}-1.savestate", slotIndex));
+            WriteSaveStateMeta();
+            m_context.DisplayMessage(fmt::format("State {} saved", slotIndex + 1));
+        }
     }
 }
 

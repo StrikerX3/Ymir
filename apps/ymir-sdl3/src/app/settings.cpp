@@ -820,8 +820,8 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.saveStates.save9);
     mapInput(m_actionInputs, hotkeys.saveStates.save10);
 
-    mapInput(m_actionInputs, hotkeys.saveStates.undoSave);
     mapInput(m_actionInputs, hotkeys.saveStates.undoLoad);
+    mapInput(m_actionInputs, hotkeys.saveStates.undoSave);
 
     auto mapControlPad = [&](InputMap &inputMap, Input::Port::ControlPad::Binds &binds) {
         mapInput(inputMap, binds.a);
@@ -1306,8 +1306,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
             Parse(tblSaveStates, "SaveState9", hotkeys.saveStates.save9);
             Parse(tblSaveStates, "SaveState10", hotkeys.saveStates.save10);
 
-            Parse(tblSaveStates, "UndoSaveState", hotkeys.saveStates.undoSave);
             Parse(tblSaveStates, "UndoLoadState", hotkeys.saveStates.undoLoad);
+            Parse(tblSaveStates, "UndoSaveState", hotkeys.saveStates.undoSave);
         }
     }
 
@@ -1908,8 +1908,8 @@ SettingsSaveResult Settings::Save() {
                 {"SaveState9", ToTOML(hotkeys.saveStates.save9)},
                 {"SaveState10", ToTOML(hotkeys.saveStates.save10)},
 
-                {"UndoSaveState", ToTOML(hotkeys.saveStates.undoSave)},
                 {"UndoLoadState", ToTOML(hotkeys.saveStates.undoLoad)},
+                {"UndoSaveState", ToTOML(hotkeys.saveStates.undoSave)},
             }}},
         }}},
 
@@ -2297,6 +2297,9 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
     rebindCtx.Rebind(hotkeys.saveStates.save8, {KeyCombo{Mod::Shift, Key::Alpha8}});
     rebindCtx.Rebind(hotkeys.saveStates.save9, {KeyCombo{Mod::Shift, Key::Alpha9}});
     rebindCtx.Rebind(hotkeys.saveStates.save10, {KeyCombo{Mod::Shift, Key::Alpha0}});
+
+    rebindCtx.Rebind(hotkeys.saveStates.undoLoad, {KeyCombo{Mod::Shift, Key::F3}});
+    rebindCtx.Rebind(hotkeys.saveStates.undoSave, {KeyCombo{Mod::Shift, Key::F2}});
 
     RebindInputs();
 

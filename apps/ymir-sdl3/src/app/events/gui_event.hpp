@@ -2,7 +2,7 @@
 
 #include <app/input/input_action.hpp>
 #include <app/input/input_events.hpp>
-#include <app/services/graphics/types.hpp>
+#include <app/services/graphics_types.hpp>
 #include <app/ui/defs/settings_defs.hpp>
 
 #include <filesystem>

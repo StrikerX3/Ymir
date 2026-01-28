@@ -126,8 +126,8 @@ EmuEvent EnableThreadedDeinterlacer(bool enable);
 EmuEvent EnableThreadedSCSP(bool enable);
 EmuEvent SetSCSPStepGranularity(uint32 granularity);
 
-EmuEvent LoadState(uint32 slot);
-EmuEvent SaveState(uint32 slot);
+EmuEvent LoadState(uint32 slotIndex);
+EmuEvent SaveState(uint32 slotIndex);
 EmuEvent UndoSaveState();
 EmuEvent UndoLoadState();
 

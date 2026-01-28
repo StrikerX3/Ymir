@@ -131,8 +131,8 @@ namespace save_states {
         }
     }
 
-    DEF_ACTION(UndoSaveState)::Trigger(ACTION_ID, "Save states", "Undo save state");
     DEF_ACTION(UndoLoadState)::Trigger(ACTION_ID, "Save states", "Undo load state");
+    DEF_ACTION(UndoSaveState)::Trigger(ACTION_ID, "Save states", "Undo save state");
 
 } // namespace save_states
 

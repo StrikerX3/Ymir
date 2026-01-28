@@ -60,13 +60,12 @@ add_executable(ymir-sdl3
     src/app/input/input_primitives.hpp
     src/app/input/input_utils.hpp
 
-    src/app/services/graphics/graphics_service.cpp
-    src/app/services/graphics/graphics_service.hpp
-    src/app/services/graphics/types.hpp
-    src/app/services/savestates/save_state_service.cpp
-    src/app/services/savestates/save_state_service.hpp
-    src/app/services/savestates/types.cpp
-    src/app/services/savestates/types.hpp
+    src/app/services/graphics_service.cpp
+    src/app/services/graphics_service.hpp
+    src/app/services/graphics_types.hpp
+    src/app/services/save_state_service.cpp
+    src/app/services/save_state_service.hpp
+    src/app/services/save_state_types.hpp
 
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp

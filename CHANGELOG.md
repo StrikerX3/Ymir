@@ -17,6 +17,8 @@ Introduced save state file version 12.
 - Input: Implemented Shuttle Mouse peripheral. (#32)
 - Input: Implemented Virtua Gun peripheral. (#33)
 - MIDI: Force RtMidi to use dummy API if it fails to initialize, allowing Ymir to run without MIDI drivers.
+- Save states: Added actions to undo a save state and restore an undone save state. (#700, #727; @Fueziwa)
+- Save states: Store one extra save state per slot for undo. (#700, #727; @Fueziwa)
 - System: You can now select a preferred system variant (Saturn, HiSaturn, V-Saturn or Dev Kit) and Ymir will automatically pick a matching IPL ROM. (#637, #725; @Fueziwa)
 - Video: Add option to enable/disable video synchronization in full screen mode.
 - Video: Allow selecting full screen resolution and target display. (#705)

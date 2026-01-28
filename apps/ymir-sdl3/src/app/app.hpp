@@ -4,8 +4,8 @@
 
 #include "shared_context.hpp"
 
-#include "services/graphics/graphics_service.hpp"
-#include "services/savestates/save_state_service.hpp"
+#include "services/graphics_service.hpp"
+#include "services/save_state_service.hpp"
 
 #include "ui/windows/about_window.hpp"
 #include "ui/windows/backup_ram_manager_window.hpp"
@@ -151,10 +151,10 @@ private:
 
     void LoadSaveStates();
     void ClearSaveStates();
-    void LoadSaveStateSlot(size_t slot);
-    void SaveSaveStateSlot(size_t slot);
-    void SelectSaveStateSlot(size_t slot);
-    void PersistSaveState(size_t slot);
+    void LoadSaveStateSlot(size_t slotIndex);
+    void SaveSaveStateSlot(size_t slotIndex);
+    void SelectSaveStateSlot(size_t slotIndex);
+    void PersistSaveState(size_t slotIndex);
     void WriteSaveStateMeta();
 
     void EnableRewindBuffer(bool enable);

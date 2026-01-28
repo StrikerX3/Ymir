@@ -5,7 +5,7 @@
 #include <util/std_lib.hpp>
 #include <ymir/util/compiler_info.hpp>
 
-#include <app/services/graphics/graphics_service.hpp>
+#include <app/services/graphics_service.hpp>
 
 #include <app/ui/fonts/IconsMaterialSymbols.h>
 
