@@ -11,7 +11,9 @@
 
 You encountered a critical bug in the application. The best course of action is to collect a memory dump which can pinpoint the exact piece of code that caused the problem.
 
-If you're on Windows, follow these steps to collect and share a minidump:
+### Windows
+
+Follow these steps to collect and share a minidump:
 1. Make sure you're using the [latest nightly build](https://github.com/StrikerX3/Ymir/releases/tag/latest-nightly). These instructions only work with the nightly builds as they include debug symbols, while stable releases do not.
 2. Leave the fatal error popup open.
 3. Download ProcDump: https://learn.microsoft.com/en-us/sysinternals/downloads/procdump.
@@ -19,7 +21,9 @@ If you're on Windows, follow these steps to collect and share a minidump:
 5. Open the folder from which you ran the command (you can run `start .` from the Command Prompt to open an Explorer window on that directory). There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
    - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml).
 
-On Linux, macOS or FreeBSD:
+
+### Linux, macOS, FreeBSD
+
 1. Enable core dumps temporarily (if you haven't already enabled them system-wide):
     ```sh
     ulimit -c unlimited
@@ -28,25 +32,24 @@ On Linux, macOS or FreeBSD:
 3. When the crash occurs, open a new shell and collect the dump:
     1. Find the PID of the process:
 
-        Linux and FreeBSD:
         ```sh
         pgrep ymir-sdl3
         ```
-        or (Linux, macOS or FreeBSD):
+        or:
         ```sh
         ps a | grep ymir-sdl3
         ```
     2. Generate the core dump:
 
-        Linux-only:
+        Linux:
         ```sh
         gcore -o ymir.dmp <pid>
         ```
-        FreeBSD-only:
+        FreeBSD:
         ```sh
         gcore -c ymir.dmp <pid>
         ```
-        or (Linux, macOS or FreeBSD):
+        or:
         ```sh
         kill -6 <PID>
         ```
