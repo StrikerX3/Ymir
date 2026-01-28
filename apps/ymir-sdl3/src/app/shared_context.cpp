@@ -4,6 +4,9 @@
 
 #include <ymir/util/scope_guard.hpp>
 
+#include <unordered_set>
+#include <vector>
+
 namespace app {
 
 SharedContext::SharedContext() {
@@ -11,16 +14,27 @@ SharedContext::SharedContext() {
 
     settings.BindConfiguration(saturn.instance->configuration);
 
-    auto makeRtMidi = []<typename T>(const char *name) {
-        try {
-            return std::make_unique<T>(RtMidi::Api::UNSPECIFIED, name);
-        } catch (const RtMidiError &) {
-            return std::make_unique<T>(RtMidi::Api::RTMIDI_DUMMY, name);
+    std::vector<RtMidi::Api> apis{};
+    std::unordered_set<RtMidi::Api> failedAPIs{};
+    RtMidi::getCompiledApi(apis);
+    fmt::println("{}", apis.size());
+    auto makeRtMidi = [&]<typename T>(const char *name) -> std::unique_ptr<T> {
+        for (auto api : apis) {
+            if (failedAPIs.contains(api)) {
+                continue;
+            }
+            try {
+                return std::make_unique<T>(api, name);
+            } catch (const RtMidiError &) {
+                // just ignore it and try the next API
+                failedAPIs.insert(api);
+            }
         }
+        return {};
     };
 
-    midi.input = makeRtMidi.operator()<RtMidiIn>("Ymir MIDI input client");
-    midi.output = makeRtMidi.operator()<RtMidiOut>("Ymir MIDI output client");
+    midi.input = util::WrapRtMidi(makeRtMidi.operator()<RtMidiIn>("Ymir MIDI input client"));
+    midi.output = util::WrapRtMidi(makeRtMidi.operator()<RtMidiOut>("Ymir MIDI output client"));
     midi.input->ignoreTypes(false, false, false);
 }
 

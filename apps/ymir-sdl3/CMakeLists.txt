@@ -16,6 +16,7 @@ add_executable(ymir-sdl3
     src/app/rewind_buffer.hpp
     src/app/rom_manager.cpp
     src/app/rom_manager.hpp
+    src/app/rtmidi_wrapper.hpp
     src/app/settings.cpp
     src/app/settings.hpp
     src/app/settings_defaults.hpp

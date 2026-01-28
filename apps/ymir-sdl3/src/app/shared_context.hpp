@@ -682,8 +682,8 @@ struct SharedContext {
     bool rewinding = false;
 
     struct Midi {
-        std::unique_ptr<RtMidiIn> input;
-        std::unique_ptr<RtMidiOut> output;
+        std::unique_ptr<util::IRtMidiIn> input;
+        std::unique_ptr<util::IRtMidiOut> output;
     } midi;
 
     // Certain GUI interactions require synchronization with the emulator thread, especially when dealing with
