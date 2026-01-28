@@ -128,5 +128,7 @@ EmuEvent SetSCSPStepGranularity(uint32 granularity);
 
 EmuEvent LoadState(uint32 slot);
 EmuEvent SaveState(uint32 slot);
+EmuEvent UndoSaveState();
+EmuEvent UndoLoadState();
 
 } // namespace app::events::emu
