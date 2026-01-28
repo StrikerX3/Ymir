@@ -63,6 +63,11 @@ public:
     /// @return a pointer to `SDL_Texture`, or `nullptr` if the handle is invalid or the texture was not created.
     SDL_Texture *GetSDLTexture(gfx::TextureHandle handle) const;
 
+    /// @brief Destroys a managed texture.
+    /// @param[in] handle the texture handle
+    /// @return `true` if the texture was destroyed, `false` if it wasn't registered.
+    bool DestroyTexture(gfx::TextureHandle handle);
+
 private:
     struct TextureParams {
         SDL_Texture *texture = nullptr;

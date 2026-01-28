@@ -90,6 +90,15 @@ SDL_Texture *GraphicsService::GetSDLTexture(TextureHandle handle) const {
     return nullptr;
 }
 
+bool GraphicsService::DestroyTexture(gfx::TextureHandle handle) {
+    if (auto it = m_textures.find(handle); it != m_textures.end()) {
+        SDL_DestroyTexture(it->second.texture);
+        m_textures.erase(it);
+        return true;
+    }
+    return false;
+}
+
 TextureHandle GraphicsService::GetNextTextureHandle() {
     if (m_textures.size() == std::numeric_limits<uint32>::max() - 1) {
         // Exhausted handles; should never happen
