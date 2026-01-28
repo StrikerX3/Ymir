@@ -19,9 +19,9 @@ SharedContext::SharedContext() {
         }
     };
 
-    midi.midiInput = makeRtMidi.operator()<RtMidiIn>("Ymir MIDI input client");
-    midi.midiOutput = makeRtMidi.operator()<RtMidiOut>("Ymir MIDI output client");
-    midi.midiInput->ignoreTypes(false, false, false);
+    midi.input = makeRtMidi.operator()<RtMidiIn>("Ymir MIDI input client");
+    midi.output = makeRtMidi.operator()<RtMidiOut>("Ymir MIDI output client");
+    midi.input->ignoreTypes(false, false, false);
 }
 
 SharedContext::~SharedContext() = default;

@@ -319,7 +319,7 @@ void AboutWindow::DrawAboutTab() {
 
     const char *audioDriver = SDL_GetCurrentAudioDriver();
     ImGui::Text("Using %s audio driver.", AudioDriverToHumanReadableString(audioDriver));
-    ImGui::Text("Using %s MIDI API.", RtMidi::getApiDisplayName(m_context.midi.midiInput->getCurrentApi()).c_str());
+    ImGui::Text("Using %s MIDI API.", RtMidi::getApiDisplayName(m_context.midi.input->getCurrentApi()).c_str());
 
     ImGui::NewLine();
     ImGui::TextUnformatted("Licensed under ");

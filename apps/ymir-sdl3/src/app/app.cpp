@@ -240,7 +240,7 @@ int App::Run(const CommandLineOptions &options) {
         auto &audioSettings = m_context.settings.audio;
 
         audioSettings.midiInputPort.Observe([&](app::Settings::Audio::MidiPort value) {
-            m_context.midi.midiInput->closePort();
+            m_context.midi.input->closePort();
 
             switch (value.type) {
             case MidiPortType::Normal: {
@@ -249,7 +249,7 @@ int App::Run(const CommandLineOptions &options) {
                     devlog::error<grp::base>("Failed opening MIDI input port: no port named {}", value.id);
                 } else {
                     try {
-                        m_context.midi.midiInput->openPort(portNumber);
+                        m_context.midi.input->openPort(portNumber);
                         devlog::debug<grp::base>("Opened MIDI input port {}", value.id);
                     } catch (RtMidiError &error) {
                         devlog::error<grp::base>("Failed opening MIDI input port {}: {}", portNumber,
@@ -260,7 +260,7 @@ int App::Run(const CommandLineOptions &options) {
             }
             case MidiPortType::Virtual:
                 try {
-                    m_context.midi.midiInput->openVirtualPort(m_context.GetMidiVirtualInputPortName());
+                    m_context.midi.input->openVirtualPort(m_context.GetMidiVirtualInputPortName());
                     devlog::debug<grp::base>("Opened virtual MIDI input port");
                 } catch (RtMidiError &error) {
                     devlog::error<grp::base>("Failed opening virtual MIDI input port: {}", error.getMessage());
@@ -271,7 +271,7 @@ int App::Run(const CommandLineOptions &options) {
         });
 
         audioSettings.midiOutputPort.Observe([&](app::Settings::Audio::MidiPort value) {
-            m_context.midi.midiOutput->closePort();
+            m_context.midi.output->closePort();
 
             switch (value.type) {
             case MidiPortType::Normal: {
@@ -280,7 +280,7 @@ int App::Run(const CommandLineOptions &options) {
                     devlog::error<grp::base>("Failed opening MIDI output port: no port named {}", value.id);
                 } else {
                     try {
-                        m_context.midi.midiOutput->openPort(portNumber);
+                        m_context.midi.output->openPort(portNumber);
                         devlog::debug<grp::base>("Opened MIDI output port {}", value.id);
                     } catch (RtMidiError &error) {
                         devlog::error<grp::base>("Failed opening MIDI output port {}: {}", portNumber,
@@ -291,7 +291,7 @@ int App::Run(const CommandLineOptions &options) {
             }
             case MidiPortType::Virtual:
                 try {
-                    m_context.midi.midiOutput->openVirtualPort(m_context.GetMidiVirtualOutputPortName());
+                    m_context.midi.output->openVirtualPort(m_context.GetMidiVirtualOutputPortName());
                     devlog::debug<grp::base>("Opened virtual MIDI output port");
                 } catch (RtMidiError &error) {
                     devlog::error<grp::base>("Failed opening virtual MIDI output port: {}", error.getMessage());
@@ -1005,7 +1005,7 @@ void App::RunEmulator() {
          [](sint16 left, sint16 right, void *ctx) { static_cast<AudioSystem *>(ctx)->ReceiveSample(left, right); }});
 
     m_context.saturn.instance->SCSP.SetSendMidiOutputCallback(
-        {&m_context.midi.midiOutput, [](std::span<uint8> payload, void *ctx) {
+        {&m_context.midi.output, [](std::span<uint8> payload, void *ctx) {
              try {
                  auto &ptr = *static_cast<std::unique_ptr<RtMidiOut> *>(ctx);
                  ptr->sendMessage(payload.data(), payload.size());
@@ -1017,9 +1017,9 @@ void App::RunEmulator() {
     // ---------------------------------
     // MIDI setup
 
-    m_context.midi.midiInput->setCallback(OnMidiInputReceived, this);
+    m_context.midi.input->setCallback(OnMidiInputReceived, this);
 
-    const std::string midi_api = m_context.midi.midiInput->getApiName(m_context.midi.midiInput->getCurrentApi());
+    const std::string midi_api = m_context.midi.input->getApiName(m_context.midi.input->getCurrentApi());
     devlog::info<grp::base>("Using MIDI backend: {}", midi_api);
 
     // ---------------------------------

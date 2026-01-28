@@ -38,7 +38,7 @@
 
 #include <blockingconcurrentqueue.h>
 
-#include <rtmidi/RtMidi.h>
+#include "rtmidi_wrapper.hpp"
 
 #include <array>
 #include <chrono>
@@ -682,8 +682,8 @@ struct SharedContext {
     bool rewinding = false;
 
     struct Midi {
-        std::unique_ptr<RtMidiIn> midiInput;
-        std::unique_ptr<RtMidiOut> midiOutput;
+        std::unique_ptr<RtMidiIn> input;
+        std::unique_ptr<RtMidiOut> output;
     } midi;
 
     // Certain GUI interactions require synchronization with the emulator thread, especially when dealing with
@@ -878,9 +878,9 @@ struct SharedContext {
     }
 
     int FindInputPortByName(std::string name) {
-        unsigned int portCount = midi.midiInput->getPortCount();
+        unsigned int portCount = midi.input->getPortCount();
         for (unsigned int i = 0; i < portCount; i++) {
-            if (midi.midiInput->getPortName(i) == name) {
+            if (midi.input->getPortName(i) == name) {
                 return i;
             }
         }
@@ -889,9 +889,9 @@ struct SharedContext {
     }
 
     int FindOutputPortByName(std::string name) {
-        unsigned int portCount = midi.midiOutput->getPortCount();
+        unsigned int portCount = midi.output->getPortCount();
         for (unsigned int i = 0; i < portCount; i++) {
-            if (midi.midiOutput->getPortName(i) == name) {
+            if (midi.output->getPortName(i) == name) {
                 return i;
             }
         }
