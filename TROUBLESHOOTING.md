@@ -83,12 +83,10 @@ There are plans to improve compatibility with other controllers in the future, b
 
 ## Game discs don't load with the Flatpak release
 
-Flatpak uses sandboxing and restricts access to the file system by default. Ymir 0.2.1 and later grant access to your home directory, but earlier versions didn't grant any additional permissions.
-
-If you're still unable to load disc images:
+Flatpak uses sandboxing and restricts access to the file system by default. Ymir's package doesn't grant any filesystem permissions beyond the defaults, so you'll need to manually grant access:
 1. In **Flatseal**, find *Ymir*.
 2. In the **Filesystem** section, do either of these:
-   - **(Recommended)** Add a new entry in **Other files** and type the directory where you store your disc images (e.g. `~/Roms/Saturn`).
+   - **(Recommended)** Add a new entry in **Other files** and type the directory where you store your disc images (e.g. `~/Roms/Saturn`). Consider using read-only mode (suffix the path with `:ro`, e.g. `~/Roms/Saturn:ro`) as Ymir doesn't write to disc images.
    - **(Less secure)** Enable **All user files** if your ROMs live in your home directory.
 
 
