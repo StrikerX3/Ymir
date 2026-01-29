@@ -115,11 +115,6 @@ Notes:
 - By default vcpkg and CMake will use the stripped-down LLVM toolchain instead of
   the previously installed complete toolchain. Therefore it is necessary to set
   the `CXX` and `CC` environment variables to the correct compilers.
-- The dependency RtMidi will be build with ALSA support if the `alsa-libs` package
-  is installed on the build host. In this case Ymir will fail to start because RtMidi
-  tries to access `/dev/snd/seq` which isn't available on FreeBSD out-of-the box.
-  Either ensure `alsa-libs` isn't installed when building, or install the `alsa-seq-server`
-  package and start its service.
 
 Pass additional `-D<option>=<value>` parameters to tune the build. See the [Build configuration](#build-configuration) section above for details.
 
