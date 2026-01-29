@@ -121,8 +121,8 @@ For typical Linux systems:
 - The system needs to provide an XDG-compliant desktop environment for file and folder selection dialogs. Without it, your only option to load discs is by dragging files onto the window or launching the emulator with a disc path via the command line.
 - Ymir needs access to the filesystem to load game discs. The Flatpak release in particular is prone to causing problems due to its sandboxing rules.
 - The ALSA driver (if present) must be set up correctly for the emulator to launch. Some systems or setups have broken ALSA drivers or incorrect file access permissions causing the application to crash.
+- Some SDL3 crashes can be worked around by launching the application with the `SDL_AUDIODRIVER` environment variable set to `alsa`.
 
 If you're using a Linux distribution that deviates too much from a typical Debian/Fedora/Arch setup, you'll likely encounter various issues launching or using the emulator.
-- Some SDL3 crashes can be worked around by launching the application with the `SDL_AUDIODRIVER` environment variable set to `alsa`.
 - If you're on NixOS, try using `steam-run` to launch the emulator.
 - If you encounter any issues not listed here, you're on your own. Feel free to open a PR to include new troubleshooting instructions here!
