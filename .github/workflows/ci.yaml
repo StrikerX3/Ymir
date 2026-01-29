@@ -196,18 +196,18 @@ jobs:
         env:
           CXX: clang++21
           CC: clang21
-          PKG_CONFIG_PATH: ${{ github.workspace }}/vcpkg/packages/sdl3_${{ matrix.arch.name }}-freebsd/libdata/pkgconfig
         with:
           operating_system: freebsd
           architecture: ${{ matrix.arch.name }}
           version: '14.3'
-          environment_variables: CXX CC PKG_CONFIG_PATH
+          environment_variables: CXX CC
           run: |
             sudo pkg upgrade -y
             sudo pkg install -y cmake evdev-proto git gmake libX11 libXcursor libXext \
-              libXfixes libXi libXrandr libXrender libXScrnSaver libglvnd libinotify \
-              llvm21 ninja patchelf pkgconf python3 vulkan-loader zip
+              libXfixes libXi libXrandr libXrender libXScrnSaver libXtst libglvnd \
+              libinotify llvm21 ninja patchelf pkgconf python3 vulkan-loader zip
 
+            git apply --directory=vcpkg ${{ github.workspace  }}/cmake/fix_freebsd_vcpkg_ninja.patch
             ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
 
             cmake -B ${{ steps.strings.outputs.build-output-dir }} \
