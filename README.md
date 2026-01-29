@@ -105,11 +105,12 @@ When using low level CD block emulation (LLE), Ymir also requires the CD block R
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if the emulator crashes or misbehaves.
 
-Please note that the author (@StrikerX3) works primarily with Windows and Linux systems and only provides support for other platforms on a best-effort basis.
-For Linux specifically, only the .tar.xz package on Ubuntu (both native and under WSL) is officially supported by the author.
-If you use custom-built Linux systems or anything that deviates too much from the norm, you're most likely on your own.
-
-The project relies on community support for other Linux packages, macOS and FreeBSD.
+> [!NOTE]
+> The author (@StrikerX3) works primarily with Windows and Linux systems and only provides support for other platforms on a best-effort basis.
+> For Linux specifically, only the .tar.xz package on Ubuntu (both native and under WSL) is officially supported by the author.
+> If you use custom-built Linux systems or anything that deviates too much from the norm, you're most likely on your own.
+>
+> The project relies on community support for other Linux packages, macOS and FreeBSD.
 
 
 ## Compiling

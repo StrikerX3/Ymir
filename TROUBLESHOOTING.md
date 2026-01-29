@@ -1,24 +1,35 @@
-# Common troubleshooting steps
+# Troubleshooting
 
-## Ymir fails to launch or crashes right away
+First and most important: make sure you're using the [latest version](https://github.com/StrikerX3/Ymir/releases/latest) or give the [nightly build](https://github.com/StrikerX3/Ymir/releases/latest-nightly) a try. There's a good chance your issue has already been solved in a recent update.
 
+Also check for [open issues](https://github.com/StrikerX3/Ymir/issues) on the GitHub repository. Use the search bar! Remove the `state:open` to also list closed issues -- those may include tips and hints that could help fix your problem.
+
+If those didn't help, follow the instructions below.
+
+
+## Ymir fails to launch, crashes right away or displays a big "fatal error" popup
+
+Windows users: install the [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)) before launching Ymir. Installing other software might replace important system files with older versions that are incompatible with the emulator. As stated in the [README](README.md), this is **mandatory** to prevent early crashes.
+
+If the emulator is crashing early:
 - Make sure to download a version compatible with your CPU. The AVX2 version requires newer, usually more powerful CPUs, so if you have a Core i3 or i5 from older generations (3xxx or less), a Pentium or a Celeron, the first thing to try is to test the SSE2 version instead.
-- For Windows users: install the [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)) before launching Ymir. Installing other software might replace important system files with older versions that are incompatible with the emulator.
-- Ymir specifically requires the default audio output device to be present upon startup. If you set your headphones as the default device, make sure they're plugged in before launching the emulator.
+- Ymir specifically requires the default audio output device to be present upon startup. If you set your headphones as the default device, ensure they're plugged in before launching the emulator.
 
+If you get the "fatal error" popup, you encountered a critical bug in the application. The best course of action is to collect a memory dump which can pinpoint the exact piece of code that caused the problem.
 
-## Ymir crashes with a big "fatal error" popup
-
-You encountered a critical bug in the application. The best course of action is to collect a memory dump which can pinpoint the exact piece of code that caused the problem.
+> [!IMPORTANT]
+> To collect a memory dump, you **must use a nightly build** as they include debug symbols needed to make these dumps useful.
+>
+> While sharing the dump, **mention the full Ymir version string** (copied from the Help > About window) and **whether you're using the SSE2, AVX2 or ARM64/NEON version**.
+>
+> When you encounter a fatal error, **leave the popup open** as you follow the instructions for your operating system below.
 
 ### Windows
 
 Follow these steps to collect and share a minidump:
-1. Make sure you're using the [latest nightly build](https://github.com/StrikerX3/Ymir/releases/tag/latest-nightly). These instructions only work with the nightly builds as they include debug symbols, while stable releases do not.
-2. Leave the fatal error popup open.
-3. Download ProcDump: https://learn.microsoft.com/en-us/sysinternals/downloads/procdump.
-4. Open a Command Prompt window (cmd.exe) and run `procdump ymir-sdl3.exe`.
-5. Open the folder from which you ran the command (you can run `start .` from the Command Prompt to open an Explorer window on that directory). There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
+1. Download ProcDump: https://learn.microsoft.com/en-us/sysinternals/downloads/procdump.
+2. Open a Command Prompt window (cmd.exe) and run `procdump ymir-sdl3.exe`.
+3. Open the folder from which you ran the command (you can run `start .` from the Command Prompt to open an Explorer window on that directory). There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
    - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml).
 
 ### Linux, macOS, FreeBSD
@@ -60,7 +71,7 @@ Follow these steps to collect and share a minidump:
 
 IPL ROM is the Saturn BIOS ROM, which is required for Ymir to work. You need to place it in the `<profile>/roms/ipl` directory. The emulator will automatically detect and load the file as soon as you place it in the directory.
 
-Most people that ask about this have skipped the Welcome dialog explaining this step. The Welcome screen also includes a clickable link for the path and will go away on its own as soon as a valid IPL ROM is placed in the directory. Remember: read *everything*!
+Most people that ask about this have skipped the Welcome dialog explaining this step. The Welcome screen also includes a clickable link for the path and will go away on its own as soon as a valid IPL ROM is placed in the directory. Remember: **read *everything***!
 
 
 ## My controller doesn't work or some buttons don't respond
@@ -93,7 +104,7 @@ Here are a few things you can try to improve performance besides upgrading the C
 - In **Settings > Audio**, set **Emulation step granularity** to the minimum possible value of **0**, all the way to the left. It should read **Step size: 32 slots (1 sample)**.
 - In **Settings > Video**:
   - Disable **Use full refresh rate when synchronizing video**. This is known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
-  - Disable **Synchronize video in windowed mode** and/or **Synchronize video in full screen mode**.
+  - Disable **Synchronize video in windowed mode** and/or **Synchronize video in full screen mode**. These also tend to cause performance issues with mismatched refresh rate reports.
   - Enable **Threaded VDP2 renderer**.
   - Enable **Use dedicated thread for deinterlaced rendering**.
   - Try enabling or disabling **Threaded VDP1 renderer**.
@@ -125,4 +136,4 @@ For typical Linux systems:
 
 If you're using a Linux distribution that deviates too much from a typical Debian/Fedora/Arch setup, you'll likely encounter various issues launching or using the emulator.
 - If you're on NixOS, try using `steam-run` to launch the emulator.
-- If you encounter any issues not listed here, you're on your own. Feel free to open a PR to include new troubleshooting instructions here!
+- If you encounter any issues not listed here, you're on your own. Feel free to open a PR to include new troubleshooting instructions for fellow Linux users here!
