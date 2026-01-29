@@ -207,11 +207,11 @@ void GeneralSettingsView::Display() {
                                 "nearest neighbor interpolation to preserve the raw framebuffer data.",
                                 m_context.displayScale);
 
+    const std::filesystem::path screenshotsPath = m_context.profile.GetPath(ProfilePath::Screenshots);
     ImGui::TextUnformatted("Screenshots are saved to ");
     ImGui::SameLine(0, 0);
-    if (ImGui::TextLink(fmt::format("{}", m_context.profile.GetPath(ProfilePath::Screenshots)).c_str())) {
-        auto path = m_context.profile.GetPath(ProfilePath::Screenshots);
-        SDL_OpenURL(fmt::format("file:///{}", path).c_str());
+    if (ImGui::TextLink(fmt::format("{}", screenshotsPath).c_str())) {
+        SDL_OpenURL(fmt::format("file:///{}", screenshotsPath).c_str());
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -243,6 +243,13 @@ void GeneralSettingsView::Display() {
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Profile paths");
     ImGui::PopFont();
+
+    const std::filesystem::path profileRoot = m_context.profile.GetPath(ProfilePath::Root);
+    ImGui::TextUnformatted("Current profile located at ");
+    ImGui::SameLine(0, 0);
+    if (ImGui::TextLink(fmt::format("{}", profileRoot).c_str())) {
+        SDL_OpenURL(fmt::format("file:///{}", profileRoot).c_str());
+    }
 
     ImGui::TextUnformatted("Override profile paths");
 
