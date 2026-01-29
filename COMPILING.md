@@ -97,6 +97,12 @@ Notes:
   prior to version 21 for ARM64 builds on FreeBSD. Therefore it is necessary to install
   and use at least `llvm21` for ARM64.
 
+Patch build:
+
+```sh
+git apply --directory=vcpkg cmake/fix_freebsd_vcpkg_ninja.patch
+```
+
 Configure build:
 
 ```sh
