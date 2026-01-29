@@ -85,7 +85,7 @@ Install required packages:
 
 ```sh
 pkg install cmake evdev-proto git gmake libX11 libXcursor libXext libXfixes libXi \
-    libXrandr libXrender libXScrnSaver libglvnd libinotify llvm19 ninja patchelf \
+    libXrandr libXrender libXScrnSaver libXtst libglvnd libinotify llvm19 ninja patchelf \
     pkgconf python3 vulkan-loader zip
 ```
 
@@ -108,7 +108,6 @@ Configure build:
 ```sh
 CXX=clang++19 \
 CC=clang19 \
-PKG_CONFIG_PATH=$PWD/vcpkg/packages/sdl3_x64-freebsd/libdata/pkgconfig \
 cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake
 ```
 
@@ -116,9 +115,6 @@ Notes:
 - By default vcpkg and CMake will use the stripped-down LLVM toolchain instead of
   the previously installed complete toolchain. Therefore it is necessary to set
   the `CXX` and `CC` environment variables to the correct compilers.
-- For some unknown reason vcpkg fails to locate the `sdl3.pc` file from its packages.
-  Therefore it is necessary to add the absolute path to the `pkgconfig` directory
-  to the `PKG_CONFIG_PATH` environment variable.
 - The dependency RtMidi will be build with ALSA support if the `alsa-libs` package
   is installed on the build host. In this case Ymir will fail to start because RtMidi
   tries to access `/dev/snd/seq` which isn't available on FreeBSD out-of-the box.
