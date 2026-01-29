@@ -21,7 +21,6 @@ Follow these steps to collect and share a minidump:
 5. Open the folder from which you ran the command (you can run `start .` from the Command Prompt to open an Explorer window on that directory). There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
    - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml).
 
-
 ### Linux, macOS, FreeBSD
 
 1. Enable core dumps temporarily (if you haven't already enabled them system-wide):
@@ -114,3 +113,16 @@ Here are a few things you can try to improve performance besides upgrading the C
 
 If Ymir still runs poorly after trying these, your CPU might be too slow for the emulator. It's known to run fine on CPUs that score around 1500 points on the [CPUBenchmark single thread test](<https://www.cpubenchmark.net/single-thread>), but I recommend CPUs that score 2000 points or higher.
 A quad core CPU or better will help with threaded VDP1/VDP2 rendering, threaded deinterlace and the rewind buffer.
+
+
+## General issues on Linux
+
+For typical Linux systems:
+- The system needs to provide an XDG-compliant desktop environment for file and folder selection dialogs. Without it, your only option to load discs is by dragging files onto the window or launching the emulator with a disc path via the command line.
+- Ymir needs access to the filesystem to load game discs. The Flatpak release in particular is prone to causing problems due to its sandboxing rules.
+- The ALSA driver (if present) must be set up correctly for the emulator to launch. Some systems or setups have broken ALSA drivers or incorrect file access permissions causing the application to crash.
+
+If you're using a Linux distribution that deviates too much from a typical Debian/Fedora/Arch setup, you'll likely encounter various issues launching or using the emulator.
+- Some SDL3 crashes can be worked around by launching the application with the `SDL_AUDIODRIVER` environment variable set to `alsa`.
+- If you're on NixOS, try using `steam-run` to launch the emulator.
+- If you encounter any issues not listed here, you're on your own. Feel free to open a PR to include new troubleshooting instructions here!

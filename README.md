@@ -43,7 +43,7 @@ Grab the latest release: [stable](https://github.com/StrikerX3/Ymir/releases/lat
 - Optional low level CD block emulation
 - A work-in-progress feature-rich debugger
 
-Ymir runs on Windows 10 or later, macOS 13 (Ventura) or later, most modern Linux distributions and FreeBSD, and supports x86-64 (Intel, AMD) and ARM CPUs.
+Ymir runs on Windows 10 or later, macOS 13 (Ventura) or later, most modern and popular Linux distributions and FreeBSD, and supports x86-64 (Intel, AMD) and ARM CPUs.
 
 
 ## Usage
@@ -105,13 +105,16 @@ When using low level CD block emulation (LLE), Ymir also requires the CD block R
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if the emulator crashes or misbehaves.
 
+Please note that the author (@StrikerX3) works primarily with Windows and Linux systems and only provides support for other platforms on a best-effort basis.
+For Linux specifically, only the .tar.xz package on Ubuntu (both native and under WSL) is officially supported by the author.
+If you use custom-built Linux systems or anything that deviates too much from the norm, you're most likely on your own.
+
+The project relies on community support for other Linux packages, macOS and FreeBSD.
+
 
 ## Compiling
 
 See [COMPILING.md](COMPILING.md).
-
-Please note that the author (@StrikerX3) works primarily with Windows and Linux systems and only provides support for other platforms on a best-effort basis.
-For Linux specifically, only the .tar.xz package is officially supported by the author. The project relies on community support for other packages and platforms.
 
 
 ## Support my work
