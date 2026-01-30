@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore: &ignored-paths
+      - '**/*.md'
+      - 'docs/**'
   pull_request:
+    paths-ignore: *ignored-paths
 
 env:
   USERNAME: StrikerX3
