@@ -24,17 +24,21 @@ StdioSuppressor::StdioSuppressor(FILE *file)
 
     fflush(file);
     m_fd_prev = dup(fileno(file));
+    if (m_fd_prev > 0) {
 #ifdef _WIN32
-    freopen_s(&file, kNullFile, "w", file);
+        freopen_s(&file, kNullFile, "w", file);
 #else
-    freopen(kNullFile, "w", file);
+        freopen(kNullFile, "w", file);
 #endif
+    }
 }
 
 StdioSuppressor::~StdioSuppressor() {
     fflush(m_file);
-    dup2(m_fd_prev, fileno(m_file));
-    close(m_fd_prev);
+    if (m_fd_prev > 0) {
+        dup2(m_fd_prev, fileno(m_file));
+        close(m_fd_prev);
+    }
 }
 
 } // namespace util
