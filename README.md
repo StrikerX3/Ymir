@@ -15,6 +15,8 @@ Grab the latest release: [stable](https://github.com/StrikerX3/Ymir/releases/lat
 > This is **mandatory** to avoid crashes on startup.
 >
 > macOS users: follow [these instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac) to allow Ymir to run on your system. Ymir is signed with an ad-hoc certificate, flagging it as unverified.
+>
+> Linux users: if you installed the Flatpak version, make sure to grant it permission to access the filesystem or your disc images won't load properly.
 
 <div class="grid" markdown>
   <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/cd-player.png"/>
