@@ -127,7 +127,6 @@ add_library(ymir-core
     include/ymir/hw/vdp/vdp_state.hpp
     include/ymir/hw/vdp/vdp1_defs.hpp
     include/ymir/hw/vdp/vdp1_regs.hpp
-    include/ymir/hw/vdp/vdp1_steppers.hpp
     include/ymir/hw/vdp/vdp2_defs.hpp
     include/ymir/hw/vdp/vdp2_regs.hpp
 
@@ -136,6 +135,8 @@ add_library(ymir-core
     include/ymir/hw/vdp/renderer/vdp_renderer_defs.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
+
+    include/ymir/hw/vdp/renderer/sw/vdp1_steppers.hpp
 
     include/ymir/media/cdrom_crc.hpp
     include/ymir/media/disc.hpp
