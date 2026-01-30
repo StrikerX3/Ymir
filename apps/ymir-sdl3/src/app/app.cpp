@@ -5580,6 +5580,42 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
     // Try to load disc image from specified path
     devlog::info<grp::base>("Loading disc image from {}", path);
     ymir::media::Disc disc{};
+
+    auto showError = [&](std::string message) {
+        OpenGenericModal("Error", [=, this] {
+            ImGui::TextUnformatted(fmt::format("Could not load {} as a game disc image.", path).c_str());
+            ImGui::NewLine();
+            ImGui::TextUnformatted(message.c_str());
+#ifdef __linux__
+            // Check if we're running inside Flatpak's sandbox and warn user about filesystem permissions
+            if (getenv("FLATPAK_ID") != nullptr) {
+                ImGui::Separator();
+                ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+                ImGui::TextColored(m_context.colors.notice, "Flatpak restricts access to the filesystem by default.");
+                ImGui::TextColored(m_context.colors.notice,
+                                   "You must manually grant Ymir permission to access the directory.");
+                ImGui::PopFont();
+                ImGui::TextUnformatted(
+                    "You can ignore this error if you already granted permission to read the files.\n"
+                    "In this case, the image is probably invalid or unsupported by Ymir.");
+                ImGui::NewLine();
+                ImGui::TextUnformatted("Learn more about Flatpak's sandbox system:");
+                ImGui::Bullet();
+                ImGui::TextLinkOpenURL("Flatpak - Sandbox permissions",
+                                       R"(https://docs.flatpak.org/en/latest/sandbox-permissions.html)");
+                ImGui::Bullet();
+                ImGui::TextLinkOpenURL("Flatseal - Filesystem permissions",
+                                       R"(https://github.com/tchx84/Flatseal/blob/master/DOCUMENTATION.md#filesystem)");
+                ImGui::Bullet();
+                ImGui::TextLinkOpenURL(
+                    "How to configure Ymir using Flatseal",
+                    R"(https://github.com/StrikerX3/Ymir/blob/main/TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release)");
+            }
+#endif
+            ImGui::Separator();
+        });
+    };
+
     bool hasErrors = false;
     if (!ymir::media::LoadDisc(path, disc, m_context.settings.general.preloadDiscImagesToRAM,
                                [&](ymir::media::MessageType type, std::string message) {
@@ -5594,15 +5630,13 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
                                        devlog::error<grp::media>("{}", message);
                                        if (showErrorModal) {
                                            hasErrors = true;
-                                           OpenSimpleErrorModal(fmt::format(
-                                               "Could not load {} as a game disc image.\n\n{}", path, message));
+                                           showError(message);
                                        }
                                        break;
                                    case ymir::media::MessageType::NotValid:
                                        devlog::error<grp::media>("{}", message);
                                        if (showErrorModal && !hasErrors) {
-                                           OpenSimpleErrorModal(fmt::format(
-                                               "Could not load {} as a game disc image.\n\n{}", path, message));
+                                           showError(message);
                                        }
                                        break;
                                    default: break;
