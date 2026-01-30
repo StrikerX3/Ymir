@@ -8,6 +8,7 @@ Introduced save state file version 12.
 
 ### New features and improvements
 
+- App: Check for profile at the executable location. (#706)
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - Input: Added support for mouse events.

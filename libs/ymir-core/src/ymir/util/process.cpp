@@ -47,7 +47,7 @@ std::filesystem::path GetCurrentProcessExecutablePath() {
     ssize_t size = readlink("/proc/self/exe", pathStr, PATH_MAX);
     path = std::string(pathStr, (size > 0) ? size : 0);
 #endif
-    return path.parent_path();
+    return path;
 }
 
 void BoostCurrentProcessPriority(bool boost) {

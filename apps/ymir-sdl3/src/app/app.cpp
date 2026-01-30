@@ -314,9 +314,10 @@ int App::Run(const CommandLineOptions &options) {
     // Profile priority:
     // 1. -p option: force custom profile
     // 2. -u option: force user profile, e.g. ${HOME}/.local/share/StrikerX3/Ymir on Unix
-    // 3. portable profile (=current dir), if it contains the settings file
-    // 4. user profile, if it contains the settings file
-    // 5. show dialog to choose "installed" or "portable" mode
+    // 3. portable profile from current dir, if it contains the settings file
+    // 4. portable profile from executable dir, if it contains the settings file
+    // 5. user profile, if it contains the settings file
+    // 6. show dialog to choose "installed" or "portable" mode
     if (!options.profilePath.empty()) {
         m_context.profile.UseProfilePath(options.profilePath);
     } else if (options.forceUserProfile) {
@@ -327,6 +328,12 @@ int App::Run(const CommandLineOptions &options) {
         m_context.profile.UsePortableProfilePath();
         hasSettingsFile =
             std::filesystem::is_regular_file(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile);
+
+        if (!hasSettingsFile) {
+            m_context.profile.UseExecutableProfilePath();
+            hasSettingsFile =
+                std::filesystem::is_regular_file(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile);
+        }
 
         if (!hasSettingsFile) {
             m_context.profile.UseUserProfilePath();

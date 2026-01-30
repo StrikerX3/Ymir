@@ -1,5 +1,7 @@
 #include "profile.hpp"
 
+#include <ymir/util/process.hpp>
+
 #include <SDL3/SDL_filesystem.h>
 
 #include <string>
@@ -38,12 +40,20 @@ std::filesystem::path Profile::GetPortableProfilePath() {
     return std::u8string{path.begin(), path.end()};
 }
 
+std::filesystem::path Profile::GetExecutableProfilePath() {
+    return util::GetCurrentProcessExecutablePath().parent_path();
+}
+
 void Profile::UseUserProfilePath() {
     m_profilePath = GetUserProfilePath();
 }
 
 void Profile::UsePortableProfilePath() {
     m_profilePath = GetPortableProfilePath();
+}
+
+void Profile::UseExecutableProfilePath() {
+    m_profilePath = GetExecutableProfilePath();
 }
 
 void Profile::UseProfilePath(std::filesystem::path path) {

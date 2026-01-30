@@ -31,11 +31,17 @@ public:
     // Retrieves the current working directory (aka "portable profile path").
     static std::filesystem::path GetPortableProfilePath();
 
+    // Retrieves the directory where the executable is located at (aka "executable profile path").
+    static std::filesystem::path GetExecutableProfilePath();
+
     // Uses the OS's standard user profile path.
     void UseUserProfilePath();
 
     // Uses the current working directory as the profile path.
     void UsePortableProfilePath();
+
+    // Uses the executable directory as the profile path.
+    void UseExecutableProfilePath();
 
     // Uses the specified profile path.
     void UseProfilePath(std::filesystem::path path);
