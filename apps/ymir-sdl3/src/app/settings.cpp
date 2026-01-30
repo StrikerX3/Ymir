@@ -1046,7 +1046,7 @@ void Settings::ResetToDefaults() {
     video.rotation = Video::DisplayRotation::Normal;
     video.autoResizeWindow = false;
     video.displayVideoOutputInWindow = false;
-    video.syncInWindowedMode = true;
+    video.syncInWindowedMode = false;
     video.syncInFullscreenMode = true;
     video.useFullRefreshRateWithVideoSync = false;
     video.reduceLatency = true;
