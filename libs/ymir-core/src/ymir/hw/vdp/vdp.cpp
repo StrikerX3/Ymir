@@ -91,7 +91,8 @@ namespace grp {
 } // namespace grp
 
 VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
-    : m_scheduler(scheduler) {
+    : m_renderer(std::make_unique<SoftwareVDPRenderer>())
+    , m_scheduler(scheduler) {
 
     config.system.videoStandard.Observe([&](VideoStandard videoStandard) { SetVideoStandard(videoStandard); });
     config.video.threadedVDP1.Observe([&](bool value) { EnableThreadedVDP1(value); });

@@ -23,6 +23,8 @@
 
 #include <ymir/hw/hw_defs.hpp>
 
+#include "renderer/vdp_renderer.hpp"
+
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/event.hpp>
@@ -149,6 +151,8 @@ public:
 
 private:
     VDPState m_state;
+
+    std::unique_ptr<IVDPRenderer> m_renderer;
 
     // Cached CRAM colors converted from RGB555 to RGB888.
     // Only valid when color RAM mode is one of the RGB555 modes.

@@ -131,6 +131,12 @@ add_library(ymir-core
     include/ymir/hw/vdp/vdp2_defs.hpp
     include/ymir/hw/vdp/vdp2_regs.hpp
 
+    include/ymir/hw/vdp/renderer/vdp_renderer.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_base.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_defs.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
+
     include/ymir/media/cdrom_crc.hpp
     include/ymir/media/disc.hpp
     include/ymir/media/filesystem.hpp
@@ -261,6 +267,9 @@ add_library(ymir-core
     src/ymir/hw/sh2/sh2_disasm.cpp
 
     src/ymir/hw/vdp/vdp.cpp
+
+    src/ymir/hw/vdp/renderer/vdp_renderer_null.cpp
+    src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
 
     src/ymir/media/cdrom_crc.cpp
     src/ymir/media/filesystem.cpp
