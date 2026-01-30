@@ -5,6 +5,8 @@
     #include <fileapi.h>
 #endif
 
+#include <SDL3/SDL_video.h>
+
 namespace util::os {
 
 void ConfigureWindowDecorations(SDL_Window *window) {
