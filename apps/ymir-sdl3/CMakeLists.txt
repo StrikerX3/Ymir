@@ -336,6 +336,8 @@ add_executable(ymir-sdl3
     src/util/rom_loader.hpp
     src/util/sdl_file_dialog.hpp
     src/util/service_locator.hpp
+    src/util/stdio_suppress.cpp
+    src/util/stdio_suppress.hpp
     src/util/std_lib.cpp
     src/util/std_lib.hpp
 )
