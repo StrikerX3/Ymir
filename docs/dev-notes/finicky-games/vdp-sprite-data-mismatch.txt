@@ -11,3 +11,6 @@ No games so far have done the opposite.
 
 Sega Ages - I Love Mickey Mouse - Fushigi no Oshiro Daibouken & I Love Donald Duck - Georgia Ou no Hihou
   Both games set up VDP1 to render sprites with 16-bit data and VDP2 to use sprite data type 8 (an 8-bit format).
+
+NBA Live 98
+  Sets up VDP1 to render sprites with 8-bit data and VDP2 to use sprite data type 1 (a 16-bit format).
