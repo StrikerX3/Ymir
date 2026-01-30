@@ -10,7 +10,7 @@
 #include "vdp_callbacks.hpp"
 #include "vdp_internal_callbacks.hpp"
 
-#include "slope.hpp"
+#include "vdp1_steppers.hpp"
 
 #include <ymir/core/configuration.hpp>
 #include <ymir/core/scheduler.hpp>

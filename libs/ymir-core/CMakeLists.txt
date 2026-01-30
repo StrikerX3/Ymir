@@ -120,7 +120,6 @@ add_library(ymir-core
     include/ymir/hw/smpc/peripheral/peripheral_report.hpp
     include/ymir/hw/smpc/peripheral/peripheral_state_common.hpp
 
-    include/ymir/hw/vdp/slope.hpp
     include/ymir/hw/vdp/vdp.hpp
     include/ymir/hw/vdp/vdp_callbacks.hpp
     include/ymir/hw/vdp/vdp_defs.hpp
@@ -128,6 +127,7 @@ add_library(ymir-core
     include/ymir/hw/vdp/vdp_state.hpp
     include/ymir/hw/vdp/vdp1_defs.hpp
     include/ymir/hw/vdp/vdp1_regs.hpp
+    include/ymir/hw/vdp/vdp1_steppers.hpp
     include/ymir/hw/vdp/vdp2_defs.hpp
     include/ymir/hw/vdp/vdp2_regs.hpp
 
