@@ -402,10 +402,17 @@ void serialize(Archive &ar, SMPCState::INTBACK &s) {
 
 template <class Archive>
 void serialize(Archive &ar, VDPState &s, const uint32 version) {
+    // VDPState
+    // --------
     // v12:
     // - New fields
     //   - VDP2VCNTLatch = 0x3FF
     //   - VDP2VCNTLatched = false
+    // - Removed fields
+    //   - VDP1TimingPenalty -> moved to VDP1State
+    //   - VDP1FBCRChanged -> moved to VDP1RegsState
+    //   - displayEnabled -> moved to regs2.displayEnabledLatch
+    //   - borderColorMode -> moved to regs2.borderColorModeLatch
     // v9:
     // - New fields
     //   - enum VDPState::VerticalPhase: added VCounterSkip (= 5)
@@ -418,23 +425,153 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     // v6:
     // - Removed fields
     //   - uint16 VCounter -> moved to regs2.VCNT
+    //
+    // VDP1State
+    // -------------
+    // - Struct created
+    //
+    // VDP1RegsState
+    // -------------
+    // v12:
+    // - Added fields
+    //   - FBCRChanged = handled in VDPState serializer
+    //   - eraseWriteValueLatch = handled in VDPState serializer
+    //   - eraseX1Latch, eraseY1Latch = handled in VDPState serializer
+    //   - eraseX3Latch, eraseY3Latch = handled in VDPState serializer
+    // v9:
+    // - Removed fields
+    //   - bool manualSwap
+    //   - bool manualErase
+    //
+    // VDP2RegsState
+    // -------------
+    // v12:
+    // - Added fields
+    //   - VCNTLatch -> moved from VDPState::VDP2VCNTLatch
+    //   - VCNTLatched -> moved from VDPState::VDP2VCNTLatched
+    //
+    // VDPRendererState
+    // ----------------
+    // v12:
+    // - New fields
+    //   - vdp1State = new struct
+    // - Removed fields
+    //   - VDP1TimingPenalty -> moved to vdp1State as timingPenalty
+    //   - VDP1FBCRChanged -> moved to regs1 as FBCRChanged
+    // v7:
+    // - New fields
+    //   - vramFetchers = (default values)
+    // v4:
+    // - New fields
+    //   - vertCellScrollInc = sizeof(uint32)
+    // v10:
+    // - Removed fields
+    //   - bool vdp1Done
+    //
+    // VDPRendererState::VDP1RenderState
+    // ---------------------------------
+    // v12:
+    // - Removed fields
+    //   - rendering -> moved to vdp1State.drawing
+    //   - doDisplayErase -> moved to vdp1State.doDisplayErase
+    //   - doVBlankErase -> moved to vdp1State.doVBlankErase
+    //   - cycleCount -> moved to vdp1State.cycleCount
+    //   - cyclesSpent -> moved to vdp1State.cyclesSpent
+    //   - eraseWriteValue -> moved to regs1.eraseWriteValueLatch
+    //   - eraseX1, eraseY1 -> moved to regs1.eraseX1Latch, regs1.eraseY1Latch
+    //   - eraseX3, eraseY3 -> moved to regs1.eraseX3Latch, regs1.eraseY3Latch
+    // v9:
+    // - New fields
+    //   - doubleV = 0
+    //   - cyclesSpent = 0
+    //   - doVBlankErase = true when erase && VBE=1, otherwise false
+    //   - eraseWriteValue = EWDR
+    //   - eraseX1, eraseY1 = EWLR
+    //   - eraseX3, eraseY3 = EWRR
+    //   - meshFB = filled with zeros
+    // - Changed fields
+    //   - erase -> doDisplayErase = true when erase && VBE=0, otherwise false
+    // v5:
+    // - New fields
+    //   - erase = false
 
     ar(s.VRAM1, s.VRAM2, s.CRAM, s.spriteFB, s.displayFB);
     if (version >= 7) {
-        ar(s.VDP1TimingPenalty);
-        ar(s.VDP1FBCRChanged);
+        ar(s.vdp1State.timingPenalty);
+        ar(s.regs1.FBCRChanged);
     } else {
-        s.VDP1TimingPenalty = 0;
-        s.VDP1FBCRChanged = false;
+        s.vdp1State.timingPenalty = 0;
+        s.regs1.FBCRChanged = false;
     }
     if (version >= 12) {
-        ar(s.VDP2VCNTLatch, s.VDP2VCNTLatched);
+        ar(s.regs2.VCNTLatch, s.regs2.VCNTLatched);
     } else {
-        s.VDP2VCNTLatch = 0x3FF;
-        s.VDP2VCNTLatched = false;
+        s.regs2.VCNTLatch = 0x3FF;
+        s.regs2.VCNTLatched = false;
     }
-    serialize(ar, s.regs1, version);
-    ar(s.regs2);
+
+    // -------------------------------------------------------------------------
+
+    {
+        auto &rs = s.regs1;
+        ar(rs.TVMR, rs.FBCR, rs.PTMR);
+        ar(rs.EWDR, rs.EWLR, rs.EWRR, rs.EDSR);
+        ar(rs.LOPR, rs.COPR);
+        ar(rs.MODR);
+        if (version < 9) {
+            bool dummy;
+            ar(dummy /*manualSwap*/, dummy /*manualErase*/);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+
+    {
+        auto &rs = s.regs2;
+        ar(rs.TVMD, rs.EXTEN, rs.TVSTAT, rs.VRSIZE, rs.HCNT, rs.VCNT, rs.RAMCTL);
+        ar(rs.CYCA0L, rs.CYCA0U, rs.CYCA1L, rs.CYCA1U, rs.CYCB0L, rs.CYCB0U, rs.CYCB1L, rs.CYCB1U);
+        ar(rs.BGON);
+        ar(rs.MZCTL);
+        ar(rs.SFSEL, rs.SFCODE);
+        ar(rs.CHCTLA, rs.CHCTLB);
+        ar(rs.BMPNA, rs.BMPNB);
+        ar(rs.PNCNA, rs.PNCNB, rs.PNCNC, rs.PNCND, rs.PNCR);
+        ar(rs.PLSZ);
+        ar(rs.MPOFN, rs.MPOFR);
+        ar(rs.MPABN0, rs.MPCDN0, rs.MPABN1, rs.MPCDN1, rs.MPABN2, rs.MPCDN2, rs.MPABN3, rs.MPCDN3);
+        ar(rs.MPABRA, rs.MPCDRA, rs.MPEFRA, rs.MPGHRA, rs.MPIJRA, rs.MPKLRA, rs.MPMNRA, rs.MPOPRA);
+        ar(rs.MPABRB, rs.MPCDRB, rs.MPEFRB, rs.MPGHRB, rs.MPIJRB, rs.MPKLRB, rs.MPMNRB, rs.MPOPRB);
+        ar(rs.SCXIN0, rs.SCXDN0, rs.SCYIN0, rs.SCYDN0, rs.ZMXIN0, rs.ZMXDN0, rs.ZMYIN0, rs.ZMYDN0);
+        ar(rs.SCXIN1, rs.SCXDN1, rs.SCYIN1, rs.SCYDN1, rs.ZMXIN1, rs.ZMXDN1, rs.ZMYIN1, rs.ZMYDN1);
+        ar(rs.SCXIN2, rs.SCYIN2);
+        ar(rs.SCXIN3, rs.SCYIN3);
+        ar(rs.ZMCTL, rs.SCRCTL);
+        ar(rs.VCSTAU, rs.VCSTAL);
+        ar(rs.LSTA0U, rs.LSTA0L, rs.LSTA1U, rs.LSTA1L);
+        ar(rs.LCTAU, rs.LCTAL);
+        ar(rs.BKTAU, rs.BKTAL);
+        ar(rs.RPMD, rs.RPRCTL, rs.KTCTL, rs.KTAOF);
+        ar(rs.OVPNRA, rs.OVPNRB);
+        ar(rs.RPTAU, rs.RPTAL);
+        ar(rs.WPSX0, rs.WPSY0, rs.WPEX0, rs.WPEY0);
+        ar(rs.WPSX1, rs.WPSY1, rs.WPEX1, rs.WPEY1);
+        ar(rs.WCTLA, rs.WCTLB, rs.WCTLC, rs.WCTLD);
+        ar(rs.LWTA0U, rs.LWTA0L, rs.LWTA1U, rs.LWTA1L);
+        ar(rs.SPCTL, rs.SDCTL);
+        ar(rs.CRAOFA, rs.CRAOFB);
+        ar(rs.LNCLEN);
+        ar(rs.SFPRMD);
+        ar(rs.CCCTL, rs.SFCCMD);
+        ar(rs.PRISA, rs.PRISB, rs.PRISC, rs.PRISD, rs.PRINA, rs.PRINB, rs.PRIR);
+        ar(rs.CCRSA, rs.CCRSB, rs.CCRSC, rs.CCRSD, rs.CCRNA, rs.CCRNB, rs.CCRR);
+        ar(rs.CCRLB);
+        ar(rs.CLOFEN, rs.CLOFSL);
+        ar(rs.COAR, rs.COAG, rs.COAB);
+        ar(rs.COBR, rs.COBG, rs.COBB);
+    }
+
+    // -------------------------------------------------------------------------
+
     ar(s.HPhase, s.VPhase);
     if (version < 6) {
         uint16 VCounter;
@@ -477,199 +614,111 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
         default: break;
         }
     }
-    serialize(ar, s.renderer, version);
-    if (version >= 9) {
-        ar(s.displayEnabled, s.borderColorMode);
-    } else {
-        s.displayEnabled = bit::test<15>(s.regs2.TVMD);
-        s.borderColorMode = bit::test<8>(s.regs2.TVMD);
-    }
 
-    if (version < 4) {
-        // Compensate for the removal of SCXIN/SCYIN from fracScrollX/Y
-        s.renderer.normBGLayerStates[0].fracScrollX -= (s.regs2.SCXIN0 << 8u) | (s.regs2.SCXDN0 >> 8u);
-        s.renderer.normBGLayerStates[1].fracScrollX -= (s.regs2.SCXIN1 << 8u) | (s.regs2.SCXDN1 >> 8u);
-        s.renderer.normBGLayerStates[2].fracScrollX -= (s.regs2.SCXIN2 << 8u);
-        s.renderer.normBGLayerStates[3].fracScrollX -= (s.regs2.SCXIN3 << 8u);
+    // -------------------------------------------------------------------------
 
-        s.renderer.normBGLayerStates[0].fracScrollY -= (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
-        s.renderer.normBGLayerStates[1].fracScrollY -= (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
-        s.renderer.normBGLayerStates[2].fracScrollY -= (s.regs2.SCYIN2 << 8u);
-        s.renderer.normBGLayerStates[3].fracScrollY -= (s.regs2.SCYIN3 << 8u);
-    }
-    if (version < 7) {
-        // Compensate for the lack of scrollAmountV in earlier versions
-        s.renderer.normBGLayerStates[0].scrollAmountV = (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
-        s.renderer.normBGLayerStates[1].scrollAmountV = (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
-        s.renderer.normBGLayerStates[2].scrollAmountV = (s.regs2.SCYIN2 << 8u);
-        s.renderer.normBGLayerStates[3].scrollAmountV = (s.regs2.SCYIN3 << 8u);
-    }
-    if (version < 9) {
-        // Convert old "erase" value into new doDisplayErase and doVBlankErase flags
-        const bool erase = s.renderer.vdp1State.doDisplayErase;
-        const bool vbe = bit::test<3>(s.regs1.TVMR);
-        s.renderer.vdp1State.doDisplayErase &= !vbe;
-        s.renderer.vdp1State.doVBlankErase = erase && vbe;
+    {
+        auto &rs = s.renderer;
+        ar(rs.vdp1State.sysClipH, rs.vdp1State.sysClipV);
+        if (version >= 9) {
+            ar(rs.vdp1State.doubleV);
+        } else {
+            rs.vdp1State.doubleV = 0;
+        }
+        ar(rs.vdp1State.userClipX0, rs.vdp1State.userClipY0, rs.vdp1State.userClipX1, rs.vdp1State.userClipY1);
+        ar(rs.vdp1State.localCoordX, rs.vdp1State.localCoordY);
+        ar(s.vdp1State.drawing);
+        ar(s.vdp1State.doDisplayErase);
+        if (version >= 9) {
+            ar(s.vdp1State.doVBlankErase);
+            ar(s.regs1.eraseWriteValueLatch);
+            ar(s.regs1.eraseX1Latch, s.regs1.eraseX3Latch);
+            ar(s.regs1.eraseY1Latch, s.regs1.eraseY3Latch);
+        } else {
+            // Convert old "erase" value into new doDisplayErase and doVBlankErase flags
+            const bool erase = s.vdp1State.doDisplayErase;
+            const bool vbe = bit::test<3>(s.regs1.TVMR);
+            s.vdp1State.doDisplayErase &= !vbe;
+            s.vdp1State.doVBlankErase = erase && vbe;
 
-        // Copy VDP1 register values to latched registers
-        s.renderer.vdp1State.eraseWriteValue = s.regs1.EWDR;
-        s.renderer.vdp1State.eraseX1 = bit::extract<9, 14>(s.regs1.EWLR) << 3;
-        s.renderer.vdp1State.eraseY1 = bit::extract<0, 8>(s.regs1.EWLR);
-        s.renderer.vdp1State.eraseX3 = bit::extract<9, 15>(s.regs1.EWRR) << 3;
-        s.renderer.vdp1State.eraseY3 = bit::extract<0, 8>(s.regs1.EWRR);
-    }
-}
+            // Copy VDP1 register values to latched registers
+            s.regs1.eraseWriteValueLatch = s.regs1.EWDR;
+            s.regs1.eraseX1Latch = bit::extract<9, 14>(s.regs1.EWLR) << 3;
+            s.regs1.eraseY1Latch = bit::extract<0, 8>(s.regs1.EWLR);
+            s.regs1.eraseX3Latch = bit::extract<9, 15>(s.regs1.EWRR) << 3;
+            s.regs1.eraseY3Latch = bit::extract<0, 8>(s.regs1.EWRR);
+        }
+        ar(s.vdp1State.cycleCount);
+        if (version >= 9) {
+            ar(s.vdp1State.cyclesSpent);
+            ar(rs.vdp1State.meshFB);
+        } else {
+            s.vdp1State.cyclesSpent = 0;
+            rs.vdp1State.meshFB[0][0].fill(0);
+            rs.vdp1State.meshFB[0][1].fill(0);
+            rs.vdp1State.meshFB[1][0].fill(0);
+            rs.vdp1State.meshFB[1][1].fill(0);
+        }
 
-template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState &s, const uint32 version) {
-    // v7:
-    // - New fields
-    //   - vramFetchers = (default values)
-    // v4:
-    // - New fields
-    //   - vertCellScrollInc = sizeof(uint32)
-    // v10:
-    // - Removed fields
-    //   - bool vdp1Done
-
-    serialize(ar, s.vdp1State, version);
-    for (auto &state : s.normBGLayerStates) {
-        serialize(ar, state, version);
-    }
-    for (auto &state : s.rotParamStates) {
-        serialize(ar, state, version);
-    }
-    ar(s.lineBackLayerState);
-    if (version >= 7) {
-        for (auto &fieldFetchers : s.vramFetchers) {
-            for (auto &fetcher : fieldFetchers) {
-                serialize(ar, fetcher, version);
+        for (auto &state : rs.normBGLayerStates) {
+            serialize(ar, state, version);
+        }
+        for (auto &state : rs.rotParamStates) {
+            serialize(ar, state, version);
+        }
+        ar(rs.lineBackLayerState);
+        if (version >= 7) {
+            for (auto &fieldFetchers : rs.vramFetchers) {
+                for (auto &fetcher : fieldFetchers) {
+                    serialize(ar, fetcher, version);
+                }
+            }
+        } else {
+            for (auto &fieldFetchers : rs.vramFetchers) {
+                for (auto &fetcher : fieldFetchers) {
+                    fetcher = {};
+                }
             }
         }
-    } else {
-        for (auto &fieldFetchers : s.vramFetchers) {
-            for (auto &fetcher : fieldFetchers) {
-                fetcher = {};
-            }
+        if (version >= 4) {
+            ar(rs.vertCellScrollInc);
+        } else {
+            rs.vertCellScrollInc = sizeof(uint32);
+        }
+        ar(rs.displayFB);
+        if (version <= 10) {
+            bool vdp1Done;
+            ar(vdp1Done);
+        }
+
+        if (version < 4) {
+            // Compensate for the removal of SCXIN/SCYIN from fracScrollX/Y
+            rs.normBGLayerStates[0].fracScrollX -= (s.regs2.SCXIN0 << 8u) | (s.regs2.SCXDN0 >> 8u);
+            rs.normBGLayerStates[1].fracScrollX -= (s.regs2.SCXIN1 << 8u) | (s.regs2.SCXDN1 >> 8u);
+            rs.normBGLayerStates[2].fracScrollX -= (s.regs2.SCXIN2 << 8u);
+            rs.normBGLayerStates[3].fracScrollX -= (s.regs2.SCXIN3 << 8u);
+
+            rs.normBGLayerStates[0].fracScrollY -= (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
+            rs.normBGLayerStates[1].fracScrollY -= (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
+            rs.normBGLayerStates[2].fracScrollY -= (s.regs2.SCYIN2 << 8u);
+            rs.normBGLayerStates[3].fracScrollY -= (s.regs2.SCYIN3 << 8u);
+        }
+        if (version < 7) {
+            // Compensate for the lack of scrollAmountV in earlier versions
+            rs.normBGLayerStates[0].scrollAmountV = (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
+            rs.normBGLayerStates[1].scrollAmountV = (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
+            rs.normBGLayerStates[2].scrollAmountV = (s.regs2.SCYIN2 << 8u);
+            rs.normBGLayerStates[3].scrollAmountV = (s.regs2.SCYIN3 << 8u);
         }
     }
-    if (version >= 4) {
-        ar(s.vertCellScrollInc);
-    } else {
-        s.vertCellScrollInc = sizeof(uint32);
-    }
-    ar(s.displayFB);
-    if (version <= 10) {
-        bool vdp1Done;
-        ar(vdp1Done);
-    }
-}
 
-template <class Archive>
-void serialize(Archive &ar, VDPState::VDP1RegsState &s, const uint32 version) {
-    // v9:
-    // - Removed fields
-    //   - bool manualSwap
-    //   - bool manualErase
+    // -------------------------------------------------------------------------
 
-    ar(s.TVMR, s.FBCR, s.PTMR);
-    ar(s.EWDR, s.EWLR, s.EWRR, s.EDSR);
-    ar(s.LOPR, s.COPR);
-    ar(s.MODR);
-    if (version < 9) {
-        bool dummy;
-        ar(dummy /*manualSwap*/, dummy /*manualErase*/);
-    }
-}
-
-template <class Archive>
-void serialize(Archive &ar, VDPState::VDP2RegsState &s) {
-    ar(s.TVMD, s.EXTEN, s.TVSTAT, s.VRSIZE, s.HCNT, s.VCNT, s.RAMCTL);
-    ar(s.CYCA0L, s.CYCA0U, s.CYCA1L, s.CYCA1U, s.CYCB0L, s.CYCB0U, s.CYCB1L, s.CYCB1U);
-    ar(s.BGON);
-    ar(s.MZCTL);
-    ar(s.SFSEL, s.SFCODE);
-    ar(s.CHCTLA, s.CHCTLB);
-    ar(s.BMPNA, s.BMPNB);
-    ar(s.PNCNA, s.PNCNB, s.PNCNC, s.PNCND, s.PNCR);
-    ar(s.PLSZ);
-    ar(s.MPOFN, s.MPOFR);
-    ar(s.MPABN0, s.MPCDN0, s.MPABN1, s.MPCDN1, s.MPABN2, s.MPCDN2, s.MPABN3, s.MPCDN3);
-    ar(s.MPABRA, s.MPCDRA, s.MPEFRA, s.MPGHRA, s.MPIJRA, s.MPKLRA, s.MPMNRA, s.MPOPRA);
-    ar(s.MPABRB, s.MPCDRB, s.MPEFRB, s.MPGHRB, s.MPIJRB, s.MPKLRB, s.MPMNRB, s.MPOPRB);
-    ar(s.SCXIN0, s.SCXDN0, s.SCYIN0, s.SCYDN0, s.ZMXIN0, s.ZMXDN0, s.ZMYIN0, s.ZMYDN0);
-    ar(s.SCXIN1, s.SCXDN1, s.SCYIN1, s.SCYDN1, s.ZMXIN1, s.ZMXDN1, s.ZMYIN1, s.ZMYDN1);
-    ar(s.SCXIN2, s.SCYIN2);
-    ar(s.SCXIN3, s.SCYIN3);
-    ar(s.ZMCTL, s.SCRCTL);
-    ar(s.VCSTAU, s.VCSTAL);
-    ar(s.LSTA0U, s.LSTA0L, s.LSTA1U, s.LSTA1L);
-    ar(s.LCTAU, s.LCTAL);
-    ar(s.BKTAU, s.BKTAL);
-    ar(s.RPMD, s.RPRCTL, s.KTCTL, s.KTAOF);
-    ar(s.OVPNRA, s.OVPNRB);
-    ar(s.RPTAU, s.RPTAL);
-    ar(s.WPSX0, s.WPSY0, s.WPEX0, s.WPEY0);
-    ar(s.WPSX1, s.WPSY1, s.WPEX1, s.WPEY1);
-    ar(s.WCTLA, s.WCTLB, s.WCTLC, s.WCTLD);
-    ar(s.LWTA0U, s.LWTA0L, s.LWTA1U, s.LWTA1L);
-    ar(s.SPCTL, s.SDCTL);
-    ar(s.CRAOFA, s.CRAOFB);
-    ar(s.LNCLEN);
-    ar(s.SFPRMD);
-    ar(s.CCCTL, s.SFCCMD);
-    ar(s.PRISA, s.PRISB, s.PRISC, s.PRISD, s.PRINA, s.PRINB, s.PRIR);
-    ar(s.CCRSA, s.CCRSB, s.CCRSC, s.CCRSD, s.CCRNA, s.CCRNB, s.CCRR);
-    ar(s.CCRLB);
-    ar(s.CLOFEN, s.CLOFSL);
-    ar(s.COAR, s.COAG, s.COAB);
-    ar(s.COBR, s.COBG, s.COBB);
-}
-
-template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState::VDP1RenderState &s, const uint32 version) {
-    // v9:
-    // - New fields
-    //   - doubleV = 0
-    //   - cyclesSpent = 0
-    //   - doVBlankErase = true when erase && VBE=1, otherwise false
-    //   - eraseWriteValue = EWDR
-    //   - eraseX1, eraseY1 = EWLR
-    //   - eraseX3, eraseY3 = EWRR
-    //   - meshFB = filled with zeros
-    // - Changed fields
-    //   - erase -> doDisplayErase = true when erase && VBE=0, otherwise false
-    // v5:
-    // - New fields
-    //   - erase = false
-
-    ar(s.sysClipH, s.sysClipV);
     if (version >= 9) {
-        ar(s.doubleV);
+        ar(s.regs2.displayEnabledLatch, s.regs2.borderColorModeLatch);
     } else {
-        s.doubleV = 0;
-    }
-    ar(s.userClipX0, s.userClipY0, s.userClipX1, s.userClipY1);
-    ar(s.localCoordX, s.localCoordY);
-    ar(s.rendering);
-    ar(s.doDisplayErase);
-    if (version >= 9) {
-        ar(s.doVBlankErase);
-        ar(s.eraseWriteValue);
-        ar(s.eraseX1, s.eraseX3);
-        ar(s.eraseY1, s.eraseY3);
-        // Default values for versions < 9 handled in the VDPState serializer
-    }
-    ar(s.cycleCount);
-    if (version >= 9) {
-        ar(s.cyclesSpent);
-        ar(s.meshFB);
-    } else {
-        s.cyclesSpent = 0;
-        s.meshFB[0][0].fill(0);
-        s.meshFB[0][1].fill(0);
-        s.meshFB[1][0].fill(0);
-        s.meshFB[1][1].fill(0);
+        s.regs2.displayEnabledLatch = bit::test<15>(s.regs2.TVMD);
+        s.regs2.borderColorModeLatch = bit::test<8>(s.regs2.TVMD);
     }
 }
 

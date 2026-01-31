@@ -15,6 +15,8 @@ namespace ymir::vdp {
 struct VDP2Regs {
     void Reset() {
         TVMD.u16 = 0x0;
+        displayEnabledLatch = false;
+        borderColorModeLatch = false;
         TVSTAT.u16 &= ~0xFFFE; // Preserve PAL flag
         EXTEN.u16 = 0x0;
         HCNT = 0x0;
@@ -374,6 +376,13 @@ struct VDP2Regs {
 
     // 180000   TVMD    TV Screen Mode
     RegTVMD TVMD;
+    bool displayEnabledLatch;  // Latched TVMD.DISP
+    bool borderColorModeLatch; // Latched TVMD.BDCLMD
+
+    FORCE_INLINE void LatchTVMD() {
+        displayEnabledLatch = TVMD.DISP;
+        borderColorModeLatch = TVMD.BDCLMD;
+    }
 
     FORCE_INLINE uint16 ReadTVMD() const {
         return TVMD.u16;
