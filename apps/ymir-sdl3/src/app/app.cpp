@@ -406,15 +406,13 @@ int App::Run(const CommandLineOptions &options) {
         }
     }
 
-    {
-        auto result = m_context.settings.Load(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile);
-        if (!result) {
-            devlog::warn<grp::base>("Failed to load settings: {}", result.string());
-        }
+    // TODO: allow overriding configuration from CommandLineOptions without modifying the underlying values
+
+    if (auto result = m_context.settings.Load(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile); !result) {
+        devlog::warn<grp::base>("Failed to load settings: {}", result.string());
     }
     util::ScopeGuard sgSaveSettings{[&] {
-        auto result = m_context.settings.Save();
-        if (!result) {
+        if (auto result = m_context.settings.Save(); !result) {
             devlog::warn<grp::base>("Failed to save settings: {}", result.string());
         }
     }};
@@ -429,14 +427,10 @@ int App::Run(const CommandLineOptions &options) {
 
     devlog::debug<grp::base>("Profile directory: {}", m_context.profile.GetPath(ProfilePath::Root));
 
+    // Apply settings
     m_context.saturn.instance->UsePreferredRegion();
-
     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
-
     EnableRewindBuffer(m_context.settings.general.enableRewindBuffer);
-
-    // TODO: allow overriding configuration from CommandLineOptions without modifying the underlying values
-
     util::BoostCurrentProcessPriority(m_context.settings.general.boostProcessPriority);
 
     // Load recent discs list.
