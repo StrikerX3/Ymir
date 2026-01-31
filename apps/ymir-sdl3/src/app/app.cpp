@@ -318,30 +318,47 @@ int App::Run(const CommandLineOptions &options) {
     // 4. portable profile from executable dir, if it contains the settings file
     // 5. user profile, if it contains the settings file
     // 6. show dialog to choose "installed" or "portable" mode
+    // NOTE: Under Flatpak, portable profile isn't allowed; installed profile is forced
     if (!options.profilePath.empty()) {
+        // -p option
         m_context.profile.UseProfilePath(options.profilePath);
     } else if (options.forceUserProfile) {
+        // -u option
         m_context.profile.UseUserProfilePath();
     } else {
-        bool hasSettingsFile;
+        bool hasSettingsFile = false;
 
-        m_context.profile.UsePortableProfilePath();
-        hasSettingsFile =
-            std::filesystem::is_regular_file(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile);
+#ifdef __linux__
+        // Force "installed" mode under Flatpak
+        if (getenv("FLATPAK_ID") != nullptr) {
+            m_context.profile.UseUserProfilePath();
+            hasSettingsFile = true; // skips all checks below
+        }
+#endif
+
+        // portable profile from current dir
+        if (!hasSettingsFile) {
+            m_context.profile.UsePortableProfilePath();
+            hasSettingsFile =
+                std::filesystem::is_regular_file(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile);
+        }
 
         if (!hasSettingsFile) {
+            // portable profile from executable dir
             m_context.profile.UseExecutableProfilePath();
             hasSettingsFile =
                 std::filesystem::is_regular_file(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile);
         }
 
         if (!hasSettingsFile) {
+            // "installed" mode profile
             m_context.profile.UseUserProfilePath();
             hasSettingsFile =
                 std::filesystem::is_regular_file(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile);
         }
 
         if (!hasSettingsFile) {
+            // ask user between "installed" and "portable" modes
             auto userPath = Profile::GetUserProfilePath();
             auto portablePath = Profile::GetPortableProfilePath();
 
