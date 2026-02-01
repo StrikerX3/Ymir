@@ -2751,14 +2751,14 @@ void App::RunEmulator() {
                             const bool isSelected = currentSlot == slotIndex;
                             const auto label = [&]() -> std::string {
                                 if (!present) {
-                                    return fmt::format("{}: (empty)", slotIndex);
+                                    return fmt::format("{}: (empty)", slotIndex + 1);
                                 }
                                 const auto localTime = util::to_local_time(slotMeta.ts);
                                 if (backups == 0) {
-                                    return fmt::format("{}: {}", slotIndex, localTime);
+                                    return fmt::format("{}: {}", slotIndex + 1, localTime);
                                 }
                                 const char *undoText = backups > 1 ? "undos" : "undo";
-                                return fmt::format("{}: {} ({} {})", slotIndex, localTime, backups, undoText);
+                                return fmt::format("{}: {} ({} {})", slotIndex + 1, localTime, backups, undoText);
                             }();
 
                             if (ImGui::MenuItem(label.c_str(), shortcut.c_str(), isSelected, present || save)) {
