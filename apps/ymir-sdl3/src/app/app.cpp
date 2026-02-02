@@ -1025,7 +1025,7 @@ void App::RunEmulator() {
     m_context.saturn.instance->SCSP.SetSendMidiOutputCallback(
         {&m_context.midi.output, [](std::span<uint8> payload, void *ctx) {
              try {
-                 auto &ptr = *static_cast<std::unique_ptr<RtMidiOut> *>(ctx);
+                 auto &ptr = *static_cast<std::unique_ptr<IRtMidiOut> *>(ctx);
                  ptr->sendMessage(payload.data(), payload.size());
              } catch (RtMidiError &error) {
                  devlog::error<grp::base>("Failed to send MIDI output message: {}", error.getMessage());
