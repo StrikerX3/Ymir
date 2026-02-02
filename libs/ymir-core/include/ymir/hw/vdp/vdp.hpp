@@ -36,6 +36,7 @@
 
 #include <array>
 #include <iosfwd>
+#include <memory>
 #include <span>
 #include <thread>
 

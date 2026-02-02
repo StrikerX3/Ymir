@@ -1,20 +1,8 @@
 #include <ymir/hw/vdp/vdp.hpp>
 
 #include <ymir/util/bit_ops.hpp>
-#include <ymir/util/constexpr_for.hpp>
 #include <ymir/util/dev_log.hpp>
-#include <ymir/util/scope_guard.hpp>
 #include <ymir/util/thread_name.hpp>
-#include <ymir/util/unreachable.hpp>
-
-#include <cassert>
-#include <limits>
-
-#if defined(_M_X64) || defined(__x86_64__)
-    #include <immintrin.h>
-#elif defined(_M_ARM64) || defined(__aarch64__)
-    #include <arm_neon.h>
-#endif
 
 namespace ymir::vdp {
 

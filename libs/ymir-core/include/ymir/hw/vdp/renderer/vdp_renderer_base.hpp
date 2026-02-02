@@ -11,7 +11,9 @@
 
 #include <ymir/util/inline.hpp>
 
+#include <array>
 #include <ostream>
+#include <string_view>
 
 namespace ymir::vdp {
 
