@@ -898,7 +898,7 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup framebuffer and render callbacks
 
-    m_context.saturn.instance->VDP.SetRenderCallback(
+    m_context.saturn.instance->VDP.SetSoftwareRenderCallback(
         {&m_context, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
              auto &sharedCtx = *static_cast<SharedContext *>(ctx);
              auto &screen = sharedCtx.screen;

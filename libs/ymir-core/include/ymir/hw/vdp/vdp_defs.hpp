@@ -40,6 +40,23 @@ using SpriteFB = std::array<uint8, kVDP1FramebufferRAMSize>;
 inline constexpr uint64 kVDP1CycleBudgetPerFrame = 595000; // rough estimate for 8-bit fillrate per frame
 
 // -----------------------------------------------------------------------------
+// VDP2
+
+// RAMCTL.CRMD modes 2 and 3 shuffle address bits as follows:
+//   11 10 09 08 07 06 05 04 03 02 01 00 -- input
+//   01 11 10 09 08 07 06 05 04 03 02 00 -- output
+// In short, bits 11-02 are shifted right and bit 01 is shifted to the top.
+// This results in the lower 2 bytes of every longword to be stored at 000..3FF and the upper 2 bytes at 400..7FF.
+inline constexpr auto kVDP2CRAMAddressMapping = [] {
+    std::array<std::array<uint32, kVDP2CRAMSize>, 2> addrs{};
+    for (uint32 addr = 0; addr < kVDP2CRAMSize; addr++) {
+        addrs[0][addr] = addr;
+        addrs[1][addr] = (bit::extract<1>(addr) << 11u) | (bit::extract<2, 11>(addr) << 1u) | bit::extract<0>(addr);
+    }
+    return addrs;
+}();
+
+// -----------------------------------------------------------------------------
 // Colors
 
 union Color555 {

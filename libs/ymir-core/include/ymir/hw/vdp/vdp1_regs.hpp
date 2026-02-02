@@ -16,12 +16,6 @@ inline constexpr uint32 kVDP1NoReturn = ~0u;
 
 struct VDP1Regs {
     VDP1Regs() {
-        eraseWriteValue = 0;
-        eraseX1 = 0;
-        eraseY1 = 0;
-        eraseX3 = 0;
-        eraseY3 = 0;
-
         Reset();
     }
 
@@ -154,14 +148,14 @@ struct VDP1Regs {
 
     // Value written to erased parts of the framebuffer.
     // Derived from EWDR
-    uint16 eraseWriteValue;
+    uint16 eraseWriteValue = 0u;
 
     // Erase window coordinates
     // Derived from EWLR and EWRR
-    uint16 eraseX1; // Erase window top-left X coordinate
-    uint16 eraseY1; // Erase window top-left Y coordinate
-    uint16 eraseX3; // Erase window bottom-right X coordinate
-    uint16 eraseY3; // Erase window bottom-right Y coordinate
+    uint16 eraseX1 = 0u; // Erase window top-left X coordinate
+    uint16 eraseY1 = 0u; // Erase window top-left Y coordinate
+    uint16 eraseX3 = 0u; // Erase window bottom-right X coordinate
+    uint16 eraseY3 = 0u; // Erase window bottom-right Y coordinate
 
     // Whether the drawing end command was fetched on the current and previous frames.
     // Used in EDSR
@@ -179,6 +173,19 @@ struct VDP1Regs {
 
     // Whether FCM or FCT have been written to.
     bool fbParamsChanged;
+
+    // Latched erase parameters
+    uint16 eraseWriteValueLatch = 0u;            // 16-bit write value
+    uint16 eraseX1Latch = 0u, eraseY1Latch = 0u; // Top-left erase region coordinates
+    uint16 eraseX3Latch = 0u, eraseY3Latch = 0u; // Bottom-right erase region coordinates
+
+    void LatchEraseParameters() {
+        eraseWriteValueLatch = eraseWriteValue;
+        eraseX1Latch = eraseX1;
+        eraseY1Latch = eraseY1;
+        eraseX3Latch = eraseX3;
+        eraseY3Latch = eraseY3;
+    }
 
     void UpdateTVMR() {
         static constexpr uint32 kSizesH[] = {512, 1024, 512, 512, 512, 512, 512, 512};

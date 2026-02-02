@@ -51,11 +51,17 @@ EmuEvent SetAreaCode(uint8 areaCode) {
 }
 
 EmuEvent SetDeinterlace(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.saturn.instance->VDP.SetDeinterlaceRender(enable); });
+    return RunFunction([=](SharedContext &ctx) {
+        ctx.saturn.instance->VDP.ModifyEnhancements(
+            [&](vdp::config::Enhancements &enhancements) { enhancements.deinterlace = enable; });
+    });
 }
 
 EmuEvent SetTransparentMeshes(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.saturn.instance->VDP.SetTransparentMeshes(enable); });
+    return RunFunction([=](SharedContext &ctx) {
+        ctx.saturn.instance->VDP.ModifyEnhancements(
+            [&](vdp::config::Enhancements &enhancements) { enhancements.transparentMeshes = enable; });
+    });
 }
 
 EmuEvent SetDebugTrace(bool enable) {

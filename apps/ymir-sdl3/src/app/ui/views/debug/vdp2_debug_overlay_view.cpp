@@ -16,7 +16,7 @@ VDP2DebugOverlayView::VDP2DebugOverlayView(SharedContext &context, vdp::VDP &vdp
 
 void VDP2DebugOverlayView::Display() {
     auto &overlay = m_vdp.vdp2DebugRenderOptions.overlay;
-    using OverlayType = vdp::VDP::VDP2DebugRenderOptions::Overlay::Type;
+    using OverlayType = vdp::config::VDP2DebugRender::Overlay::Type;
 
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
@@ -49,9 +49,9 @@ void VDP2DebugOverlayView::Display() {
 
     // TODO: enqueue events
     // TODO: persist parameters
-    ImGui::Checkbox("Enable debug rendering", &m_vdp.vdp2DebugRenderOptions.enable);
+    ImGui::Checkbox("Enable debug rendering", &m_vdp.vdp2DebugRenderOptions.overlay.enable);
 
-    if (!m_vdp.vdp2DebugRenderOptions.enable) {
+    if (!m_vdp.vdp2DebugRenderOptions.overlay.enable) {
         ImGui::BeginDisabled();
     }
 
@@ -221,7 +221,7 @@ void VDP2DebugOverlayView::Display() {
     }
     ImGui::Unindent();
 
-    if (!m_vdp.vdp2DebugRenderOptions.enable) {
+    if (!m_vdp.vdp2DebugRenderOptions.overlay.enable) {
         ImGui::EndDisabled();
     }
 

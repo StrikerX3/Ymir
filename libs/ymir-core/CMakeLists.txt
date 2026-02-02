@@ -120,9 +120,9 @@ add_library(ymir-core
     include/ymir/hw/smpc/peripheral/peripheral_report.hpp
     include/ymir/hw/smpc/peripheral/peripheral_state_common.hpp
 
-    include/ymir/hw/vdp/slope.hpp
     include/ymir/hw/vdp/vdp.hpp
     include/ymir/hw/vdp/vdp_callbacks.hpp
+    include/ymir/hw/vdp/vdp_configs.hpp
     include/ymir/hw/vdp/vdp_defs.hpp
     include/ymir/hw/vdp/vdp_internal_callbacks.hpp
     include/ymir/hw/vdp/vdp_state.hpp
@@ -130,6 +130,14 @@ add_library(ymir-core
     include/ymir/hw/vdp/vdp1_regs.hpp
     include/ymir/hw/vdp/vdp2_defs.hpp
     include/ymir/hw/vdp/vdp2_regs.hpp
+
+    include/ymir/hw/vdp/renderer/vdp_renderer.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_base.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_defs.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
+
+    include/ymir/hw/vdp/renderer/sw/vdp1_steppers.hpp
 
     include/ymir/media/cdrom_crc.hpp
     include/ymir/media/disc.hpp
@@ -262,6 +270,8 @@ add_library(ymir-core
 
     src/ymir/hw/vdp/vdp.cpp
 
+    src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
+
     src/ymir/media/cdrom_crc.cpp
     src/ymir/media/filesystem.cpp
     src/ymir/media/saturn_header.cpp
@@ -284,7 +294,7 @@ add_library(ymir-core
     src/ymir/util/process.cpp
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
-)
+ "src/ymir/hw/vdp/renderer/vdp_renderer_base.cpp")
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
                       VERSION ${Ymir_core_VERSION}
