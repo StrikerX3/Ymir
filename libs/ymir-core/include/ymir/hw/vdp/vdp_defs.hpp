@@ -37,8 +37,6 @@ inline constexpr uint32 kMaxResV = 512; // Maximum vertical resolution
 
 using SpriteFB = std::array<uint8, kVDP1FramebufferRAMSize>;
 
-inline constexpr uint64 kVDP1CycleBudgetPerFrame = 595000; // rough estimate for 8-bit fillrate per frame
-
 // -----------------------------------------------------------------------------
 // VDP2
 

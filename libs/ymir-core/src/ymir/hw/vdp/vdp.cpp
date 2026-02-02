@@ -291,22 +291,45 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
 
 void VDP::Advance(uint64 cycles) {
     if (m_VDP1State.drawing) {
-        if (cycles <= m_VDP1TimingPenaltyCycles) {
-            m_VDP1TimingPenaltyCycles -= cycles;
+        // HACK: give VDP1 way more cycles than needed to compensate for some optimizations not accounted for in VDP
+        // cost estimations
+        // TODO: include cycle counts for:
+        // - gouraud shading
+        // - transparent sprites
+        // - different costs for each command (untextured polygons are cheaper, for instance)
+        // TODO: pixel- and texel-level cycle counting
+        // - VRAM access penalties (for Mega Man X3)
+        // - high-speed shrink, end codes, user clipping (all of these reduce costs)
+        cycles <<= 2;
+
+        if (cycles <= m_VDP1State.spilloverCycles) {
+            // Not enough cycles to cover the overspending from last iteration.
+            m_VDP1State.spilloverCycles -= cycles;
             return;
         }
 
-        // HACK: slow down VDP1 commands to avoid freezes on Virtua Racing and Dragon Ball Z
-        // TODO: proper cycle counting
-        static constexpr uint64 kCyclesPerCommand = 500; // FIXME: pulled out of thin air
+        // Apply timing penalty
+        if (m_VDP1TimingPenaltyCycles > 0) {
+            if (cycles <= m_VDP1TimingPenaltyCycles) {
+                m_VDP1TimingPenaltyCycles -= cycles;
+                return;
+            } else {
+                cycles -= m_VDP1TimingPenaltyCycles;
+                m_VDP1TimingPenaltyCycles = 0;
+            }
+        }
 
-        m_VDP1State.cycleCount += cycles - m_VDP1TimingPenaltyCycles;
-        const uint64 steps = m_VDP1State.cycleCount / kCyclesPerCommand;
-        m_VDP1State.cycleCount %= kCyclesPerCommand;
-        m_VDP1TimingPenaltyCycles = 0;
-
-        for (uint64 i = 0; i < steps; i++) {
-            VDP1ProcessCommand();
+        // Our budget is however many cycles we've been requested to run minus the spillover from a previous command.
+        uint64 cycleBudget = cycles - m_VDP1State.spilloverCycles;
+        while (cycleBudget > 0 && m_VDP1State.drawing) {
+            const uint64 cyclesSpent = VDP1ProcessCommand();
+            if (cyclesSpent >= cycleBudget) {
+                // Spent all available cycles.
+                // Store excess cycles spent to deduct from next iterations.
+                m_VDP1State.spilloverCycles = cyclesSpent - cycleBudget;
+                break;
+            }
+            cycleBudget -= cyclesSpent;
         }
     }
 }
@@ -471,8 +494,7 @@ void VDP::SaveState(state::VDPState &state) const {
     state.vdp1State.drawing = m_VDP1State.drawing;
     state.vdp1State.doDisplayErase = m_VDP1State.doDisplayErase;
     state.vdp1State.doVBlankErase = m_VDP1State.doVBlankErase;
-    state.vdp1State.cycleCount = m_VDP1State.cycleCount;
-    state.vdp1State.cyclesSpent = m_VDP1State.cyclesSpent;
+    state.vdp1State.spilloverCycles = m_VDP1State.spilloverCycles;
     state.vdp1State.timingPenalty = m_VDP1TimingPenaltyCycles;
 
     state.renderer.displayFB = m_state.displayFB;
@@ -497,8 +519,7 @@ void VDP::LoadState(const state::VDPState &state) {
     m_VDP1State.drawing = state.vdp1State.drawing;
     m_VDP1State.doDisplayErase = state.vdp1State.doDisplayErase;
     m_VDP1State.doVBlankErase = state.vdp1State.doVBlankErase;
-    m_VDP1State.cycleCount = state.vdp1State.cycleCount;
-    m_VDP1State.cyclesSpent = state.vdp1State.cyclesSpent;
+    m_VDP1State.spilloverCycles = state.vdp1State.spilloverCycles;
     m_VDP1TimingPenaltyCycles = state.vdp1State.timingPenalty;
 
     m_state.displayFB = state.renderer.displayFB;
@@ -843,9 +864,6 @@ void VDP::BeginHPhaseLeftBorder() {
         // Clear manual erase/swap trigger
         m_state.regs1.fbParamsChanged = false;
 
-        // Reset cycles spent by VDP1 this frame
-        m_VDP1State.cyclesSpent = 0;
-
         // End VBlank erase if in progress
         if (m_VDP1State.doVBlankErase) {
             m_renderer->VDP1EraseFramebuffer(m_VBlankEraseCyclesPerLine * m_VBlankEraseLines[m_VTimingField]);
@@ -986,20 +1004,18 @@ void VDP::VDP1EndFrame() {
     m_renderer->VDP1EndFrame();
 }
 
-void VDP::VDP1ProcessCommand() {
+uint64 VDP::VDP1ProcessCommand() {
     if (!m_VDP1State.drawing) {
-        return;
-    }
-    if (m_VDP1State.cyclesSpent >= kVDP1CycleBudgetPerFrame) {
-        return;
+        return 0;
     }
 
-    auto &cmdAddress = m_state.regs1.currCommandAddress;
+    uint64 cycles = 0;
 
+    uint32 &cmdAddress = m_state.regs1.currCommandAddress;
     const VDP1Command::Control control{.u16 = VDP1ReadVRAM<uint16>(cmdAddress)};
 
     // Every command costs 16 cycles to fetch, even if skipped
-    m_VDP1State.cyclesSpent += 16;
+    cycles += 16;
 
     devlog::trace<grp::vdp1_cmd>("Processing command {:04X} @ {:05X}", control.u16, cmdAddress);
     if (control.end) [[unlikely]] {
@@ -1009,16 +1025,15 @@ void VDP::VDP1ProcessCommand() {
         if (!control.IsValid()) [[unlikely]] {
             devlog::debug<grp::vdp1_cmd>("Invalid command {:X}; aborting", static_cast<uint16>(control.command));
             VDP1EndFrame();
-            return;
+            return cycles;
         }
         m_renderer->VDP1ExecuteCommand(cmdAddress, control);
-        m_VDP1State.cyclesSpent += VDP1CalcCommandTiming(cmdAddress, control);
+        cycles += VDP1CalcCommandTiming(cmdAddress, control);
     }
 
     // Go to the next command
-
+    using enum VDP1Command::JumpType;
     switch (control.jumpMode) {
-        using enum VDP1Command::JumpType;
     case Next: cmdAddress += 0x20; break;
     case Assign:
         cmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
@@ -1028,7 +1043,7 @@ void VDP::VDP1ProcessCommand() {
         if (cmdAddress == 0) {
             devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
             VDP1EndFrame();
-            return;
+            return cycles;
         }
         break;
     case Call:
@@ -1051,6 +1066,8 @@ void VDP::VDP1ProcessCommand() {
         break;
     }
     cmdAddress &= 0x7FFFF;
+
+    return cycles;
 }
 
 FORCE_INLINE uint64 VDP::VDP1CalcCommandTiming(uint32 cmdAddress, VDP1Command::Control control) {

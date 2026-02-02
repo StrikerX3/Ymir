@@ -21,8 +21,7 @@ struct VDPState {
         bool doDisplayErase;
         bool doVBlankErase;
 
-        uint64 cycleCount;
-        uint64 cyclesSpent;
+        uint64 spilloverCycles;
         uint64 timingPenalty;
     } vdp1State;
 

@@ -475,8 +475,7 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     //   - rendering -> moved to vdp1State.drawing
     //   - doDisplayErase -> moved to vdp1State.doDisplayErase
     //   - doVBlankErase -> moved to vdp1State.doVBlankErase
-    //   - cycleCount -> moved to vdp1State.cycleCount
-    //   - cyclesSpent -> moved to vdp1State.cyclesSpent
+    //   - cycleCount, cyclesSpent -> replaced with vdp1State.spilloverCycles
     //   - eraseWriteValue -> moved to regs1.eraseWriteValueLatch
     //   - eraseX1, eraseY1 -> moved to regs1.eraseX1Latch, regs1.eraseY1Latch
     //   - eraseX3, eraseY3 -> moved to regs1.eraseX3Latch, regs1.eraseY3Latch
@@ -648,12 +647,21 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
             s.regs1.eraseX3Latch = bit::extract<9, 15>(s.regs1.EWRR) << 3;
             s.regs1.eraseY3Latch = bit::extract<0, 8>(s.regs1.EWRR);
         }
-        ar(s.vdp1State.cycleCount);
+        if (version >= 12) {
+            ar(s.vdp1State.spilloverCycles);
+        } else {
+            // Old cycleCount and cyclesSpent can't be neatly converted into the new spilloverCycles
+            s.vdp1State.spilloverCycles = 0;
+            uint64 cycleCount;
+            ar(cycleCount);
+            if (version >= 9) {
+                uint64 cyclesSpent;
+                ar(cyclesSpent);
+            }
+        }
         if (version >= 9) {
-            ar(s.vdp1State.cyclesSpent);
             ar(rs.vdp1State.meshFB);
         } else {
-            s.vdp1State.cyclesSpent = 0;
             rs.vdp1State.meshFB[0][0].fill(0);
             rs.vdp1State.meshFB[0][1].fill(0);
             rs.vdp1State.meshFB[1][0].fill(0);

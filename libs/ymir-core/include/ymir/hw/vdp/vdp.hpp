@@ -308,8 +308,7 @@ private:
             drawing = false;
             doDisplayErase = false;
             doVBlankErase = false;
-            cycleCount = 0;
-            cyclesSpent = 0;
+            spilloverCycles = 0;
         }
 
         // Is the VDP1 currently drawing?
@@ -318,19 +317,15 @@ private:
         bool doDisplayErase; // Erase scheduled for display period
         bool doVBlankErase;  // Erase scheduled for VBlank period
 
-        // Command processing cycle counter
-        uint64 cycleCount;
-
-        // Cycle spent on pixel rendering on this frame.
-        // This is a stopgap solution for games that horrendously abuse the VDP1 until proper cycle counting and
-        // rendering continuation is implemented.
-        uint64 cyclesSpent;
+        // Command processing cycles spilled over from previous executions.
+        // Deducted from future executions to compensate for overshooting the target cycle count.
+        uint64 spilloverCycles;
     } m_VDP1State;
 
     void VDP1SwapFramebuffer();
     void VDP1BeginFrame();
     void VDP1EndFrame();
-    void VDP1ProcessCommand();
+    uint64 VDP1ProcessCommand();
     uint64 VDP1CalcCommandTiming(uint32 cmdAddress, VDP1Command::Control control);
 
     // -------------------------------------------------------------------------
