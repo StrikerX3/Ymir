@@ -50,12 +50,15 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-16804G", {.flags = Cart_BackupRAM, .cartReason = "Required for saving games"}},   // Dezaemon 2 (Japan)
     {"GS-9197",  {.flags = Cart_BackupRAM, .cartReason = "Required for saving replays"}}, // Sega Ages - Galaxy Force II (Japan)
 
-    {"MK-81019", {.flags = ForceSH2Cache}}, // Astal (USA)
     {"GS-9019",  {.flags = ForceSH2Cache}}, // Astal (Japan)
+    {"MK-81019", {.flags = ForceSH2Cache}}, // Astal (USA)
     {"MK-81304", {.flags = ForceSH2Cache}}, // Dark Savior (USA)
     {"T-5013H",  {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
     {"T-10621G", {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
     
+    {"MK-81804", {.flags = FastBusTimings}}, // Deep Fear (Europe, USA)
+    {"GS-9189",  {.flags = FastBusTimings}}, // Deep Fear (Japan)
+
     {"T-7029H-50", {.flags = StallVDP1OnVRAMWrites}}, // Mega Man X3 (Europe)
     {"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan)
 };
