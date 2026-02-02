@@ -10,13 +10,15 @@
       <li>Load games from MAME CHD, BIN+CUE, IMG+CCD, MDF+MDS or ISO files</li>
       <li>Automatic IPL (BIOS) ROM detection</li>
       <li>Automatic region switching</li>
-      <li>Up to two players with standard Control Pads or 3D Control Pads on both ports (more to come)</li>
+      <li>Up to two players with a variety of controllers on both ports</li>
       <li>Fully customizable keybindings</li>
       <li>Backup RAM, DRAM and ROM cartridges (more to come)</li>
       <li>Integrated backup memory manager to import and export saves, and transfer between internal and cartridge RAM</li>
-      <li>Save states</li>
+      <li>Forwards-compatible save states</li>
       <li>Rewinding (up to one minute at 60 fps), turbo speed, frame step (forwards and backwards)</li>
       <li>Full screen mode with VRR support and low input lag</li>
+      <li>Graphics enhancements such as optional deinterlaced/progressive rendering of high resolution modes and transparent mesh polygon rendering</li>
+      <li>Optional low level CD block emulation</li>
       <li>A work-in-progress feature-rich debugger</li>
     </ul>
   </description>
@@ -59,9 +61,9 @@
     <binary>ymir-sdl3</binary>
   </provides>
   <releases>
-    <release version="0.2.2" date="20XX-XX-XX">
+    <release version="0.3.0" date="20XX-XX-XX">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.2.2</url>
+      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.3.0</url>
     </release>
     <release version="0.2.1" date="2026-01-10">
       <description/>
