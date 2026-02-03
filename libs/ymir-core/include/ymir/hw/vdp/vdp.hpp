@@ -114,6 +114,15 @@ public:
         return renderer;
     }
 
+#ifdef YMIR_HAS_D3D11
+    /// @brief Switches to the Direct3D 11 renderer.
+    /// @param[in] device the `ID3D11Device` instance to use
+    /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
+    Direct3D11VDPRenderer *UseDirect3D11VDPRenderer(ID3D11Device *device) {
+        return UseRenderer<Direct3D11VDPRenderer>(m_state, vdp2DebugRenderOptions, device);
+    }
+#endif
+
     /// @brief Retrieves the enhancements configured for this VDP instance.
     /// @return the current enhancements configuration
     const config::Enhancements &GetEnhancements() const {
