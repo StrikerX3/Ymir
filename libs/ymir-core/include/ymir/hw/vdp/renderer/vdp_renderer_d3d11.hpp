@@ -1,0 +1,96 @@
+#pragma once
+
+#include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
+
+#include <ymir/hw/vdp/vdp_state.hpp>
+
+// -----------------------------------------------------------------------------
+// Forward declarations
+
+struct ID3D11Device;
+
+// -----------------------------------------------------------------------------
+
+namespace ymir::vdp {
+
+class Direct3D11VDPRenderer : public IVDPRenderer {
+public:
+    /// @brief Creates a new Direct3D 11 VDP renderer using the given device.
+    /// @param[in] vdp2DebugRenderOptions a reference to the VDP2 debug rendering options
+    /// @param[in] device a pointer to a Direct3D 11 device to use for rendering
+    Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions, ID3D11Device *device);
+    ~Direct3D11VDPRenderer();
+
+    // -------------------------------------------------------------------------
+    // Basics
+
+protected:
+    void ResetImpl(bool hard) override;
+
+public:
+    // -------------------------------------------------------------------------
+    // Configuration
+
+    void ConfigureEnhancements(const config::Enhancements &enhancements) override;
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void PreSaveStateSync() override;
+    void PostLoadStateSync() override;
+
+    void SaveState(state::VDPState::VDPRendererState &state) override;
+    bool ValidateState(const state::VDPState::VDPRendererState &state) const override;
+    void LoadState(const state::VDPState::VDPRendererState &state) override;
+
+    // -------------------------------------------------------------------------
+    // VDP1 memory and register writes
+
+    void VDP1WriteVRAM(uint32 address, uint8 value) override;
+    void VDP1WriteVRAM(uint32 address, uint16 value) override;
+    void VDP1WriteFB(uint32 address, uint8 value) override;
+    void VDP1WriteFB(uint32 address, uint16 value) override;
+    void VDP1WriteReg(uint32 address, uint16 value) override;
+
+    // -------------------------------------------------------------------------
+    // VDP2 memory and register writes
+
+    void VDP2WriteVRAM(uint32 address, uint8 value) override;
+    void VDP2WriteVRAM(uint32 address, uint16 value) override;
+    void VDP2WriteCRAM(uint32 address, uint8 value) override;
+    void VDP2WriteCRAM(uint32 address, uint16 value) override;
+    void VDP2WriteReg(uint32 address, uint16 value) override;
+
+    // -------------------------------------------------------------------------
+    // Debugger
+
+    void UpdateEnabledLayers() override;
+
+    // -------------------------------------------------------------------------
+    // Utilities
+
+    void DumpExtraVDP1Framebuffers(std::ostream &out) const override;
+
+    // -------------------------------------------------------------------------
+    // Rendering process
+
+    void VDP1EraseFramebuffer(uint64 cycles) override;
+    void VDP1SwapFramebuffer() override;
+    void VDP1BeginFrame() override;
+    void VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Control control) override;
+    void VDP1EndFrame() override;
+
+    void VDP2SetResolution(uint32 h, uint32 v, bool exclusive) override;
+    void VDP2SetField(bool odd) override;
+    void VDP2LatchTVMD() override;
+    void VDP2BeginFrame() override;
+    void VDP2RenderLine(uint32 y) override;
+    void VDP2EndFrame() override;
+
+private:
+    VDPState &m_state;
+    config::VDP2DebugRender &m_vdp2DebugRenderOptions;
+    ID3D11Device *m_device;
+};
+
+} // namespace ymir::vdp

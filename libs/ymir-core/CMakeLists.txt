@@ -296,6 +296,17 @@ add_library(ymir-core
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
 )
+
+if (WIN32)
+    target_sources(ymir-core PRIVATE
+        include/ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp
+        
+        src/ymir/hw/vdp/renderer/vdp_renderer_d3d11.cpp
+    )
+    target_link_libraries(ymir-core PRIVATE "d3dcompiler.lib" "dxguid.lib")
+    target_compile_definitions(ymir-core PUBLIC "YMIR_HAS_D3D11=1")
+endif ()
+
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
                       VERSION ${Ymir_core_VERSION}
