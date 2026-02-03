@@ -74,28 +74,27 @@ public:
     }
 
     // -------------------------------------------------------------------------
-    // Frontend callbacks
+    // Configuration
 
-    // TODO: split callback in two:
-    // - logical VDP2 frame complete (stored here)
-    // - software renderer framebuffer callback (stored in the software renderer)
-    void SetSoftwareRenderCallback(CBFrameComplete callback) {
-        m_cbFrameComplete = callback;
+    /// @brief Configures the software renderer frame callback to use whenever the software renderer is in use.
+    ///
+    /// @param[in] callback the callback to register
+    void SetSoftwareRenderCallback(CBSoftwareFrameComplete callback) {
         if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
-            swRenderer->SetRenderCallback(m_cbFrameComplete);
+            // Apply directly to renderer
+            swRenderer->SwCallbacks.FrameComplete = callback;
+        } else {
+            // Remember for next instantiation.
+            m_swRendererCallbacks.FrameComplete = callback;
         }
     }
 
-    void SetVDP1DrawCallback(CBVDP1DrawFinished callback) {
-        m_cbVDP1DrawFinished = callback;
+    /// @brief Retrieves a reference to the current VDP renderer.
+    /// @return a reference to the current VDP renderer instance, guaranteed to be valid
+    IVDPRenderer &GetRenderer() {
+        assert(m_renderer.get() != nullptr); // should always be valid
+        return *m_renderer;
     }
-
-    void SetVDP1FramebufferSwapCallback(CBVDP1FramebufferSwap callback) {
-        m_cbVDP1FramebufferSwap = callback;
-    }
-
-    // -------------------------------------------------------------------------
-    // Configuration
 
     /// @brief Switches to the null renderer.
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
@@ -107,11 +106,12 @@ public:
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
     SoftwareVDPRenderer *UseSoftwareRenderer() {
         auto *renderer = UseRenderer<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions);
-        renderer->SetRenderCallback(m_cbFrameComplete);
-        renderer->ConfigureEnhancements(m_enhancements);
-        renderer->EnableThreadedVDP1(m_config.video.threadedVDP1);
-        renderer->EnableThreadedVDP2(m_config.video.threadedVDP2);
-        renderer->EnableThreadedDeinterlacer(m_config.video.threadedDeinterlacer);
+        if (renderer != nullptr) {
+            renderer->ConfigureEnhancements(m_enhancements);
+            renderer->EnableThreadedVDP1(m_config.video.threadedVDP1);
+            renderer->EnableThreadedVDP2(m_config.video.threadedVDP2);
+            renderer->EnableThreadedDeinterlacer(m_config.video.threadedDeinterlacer);
+        }
         return renderer;
     }
 
@@ -184,10 +184,38 @@ private:
 
     std::unique_ptr<IVDPRenderer> m_renderer;
 
+    /// @brief Attempts to replaces the renderer with an instance of the given renderer.
+    ///
+    /// This method copies over the callbacks from the current to the new renderer, including software renderer
+    /// callbacks via `m_swRendererCallbacks`. This is for convenience, as it allows the frontend to configure these
+    /// callbacks only once to be reused across all renderers.
+    ///
+    /// The callbacks are stored directly in the renderers for performance.
+    ///
+    /// Returns `nullptr` if the renderer fails to instantiate.
+    ///
+    /// @tparam T the renderer types
+    /// @tparam ...Args argument types for the constructor
+    /// @param[in] ...args arguments for the constructor
+    /// @return a pointer to the newly created renderer, or `nullptr` it if failed to instantiate
     template <typename T, typename... Args>
         requires std::derived_from<T, IVDPRenderer>
     T *UseRenderer(Args &&...args) {
         T *renderer = new T(std::forward<Args>(args)...);
+        if (renderer == nullptr) {
+            return nullptr;
+        }
+
+        const config::RendererCallbacks callbacks = m_renderer->Callbacks;
+        if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
+            m_swRendererCallbacks = swRenderer->SwCallbacks;
+        }
+
+        renderer->Callbacks = callbacks;
+        if constexpr (std::is_same_v<T, SoftwareVDPRenderer>) {
+            renderer->SwCallbacks = m_swRendererCallbacks;
+        }
+
         m_renderer.reset(renderer);
         return renderer;
     }
@@ -212,23 +240,8 @@ private:
     // Current enhancements configuration.
     config::Enhancements m_enhancements;
 
-    // Hacky VDP1 command execution timing penalty accrued from external writes to VRAM
-    // TODO: count pulled out of thin air
-    static constexpr uint64 kVDP1TimingPenaltyPerWrite = 22;
-    uint64 m_VDP1TimingPenaltyCycles; // accumulated cycle penalty
-    bool m_stallVDP1OnVRAMWrites = false;
-
-    // -------------------------------------------------------------------------
-    // Frontend callbacks
-
-    // Invoked when the VDP1 finishes drawing a frame.
-    CBVDP1DrawFinished m_cbVDP1DrawFinished;
-
-    // Invoked when the VDP1 swaps framebuffers.
-    CBVDP1FramebufferSwap m_cbVDP1FramebufferSwap;
-
-    // Invoked when the renderer finishes drawing a frame.
-    CBFrameComplete m_cbFrameComplete;
+    /// @brief The current softwarre renderer callbacks configuration.
+    SoftwareRendererCallbacks m_swRendererCallbacks;
 
     // -------------------------------------------------------------------------
     // VDP1 memory/register access
@@ -346,6 +359,12 @@ private:
         // Deducted from future executions to compensate for overshooting the target cycle count.
         uint64 spilloverCycles;
     } m_VDP1State;
+
+    // Hacky VDP1 command execution timing penalty accrued from external writes to VRAM
+    // TODO: count pulled out of thin air
+    static constexpr uint64 kVDP1TimingPenaltyPerWrite = 22;
+    uint64 m_VDP1TimingPenaltyCycles; // accumulated cycle penalty
+    bool m_stallVDP1OnVRAMWrites = false;
 
     void VDP1SwapFramebuffer();
     void VDP1BeginFrame();

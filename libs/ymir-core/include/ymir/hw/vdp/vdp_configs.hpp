@@ -5,6 +5,7 @@
 @brief VDP1/2 configuration definitions.
 */
 
+#include <ymir/hw/vdp/vdp_callbacks.hpp>
 #include <ymir/hw/vdp/vdp_defs.hpp>
 
 #include <ymir/core/types.hpp>
@@ -133,6 +134,18 @@ struct VDP2DebugRender {
     /// [5] -           NBG3        NBG3        NBG3
     /// ```
     std::array<bool, 6> enabledLayers;
+};
+
+/// @brief Frontend renderer callbacks.
+struct RendererCallbacks {
+    // Invoked when the VDP1 finishes drawing a frame.
+    CBVDP1DrawFinished VDP1DrawFinished;
+
+    // Invoked when the VDP1 swaps framebuffers.
+    CBVDP1FramebufferSwap VDP1FramebufferSwap;
+
+    // Invoked when the VDP2 finishes drawing a frame.
+    CBVDP2DrawFinished VDP2DrawFinished;
 };
 
 } // namespace ymir::vdp::config

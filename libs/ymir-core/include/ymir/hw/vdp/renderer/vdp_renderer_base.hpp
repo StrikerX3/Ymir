@@ -3,6 +3,7 @@
 #include "vdp_renderer_defs.hpp"
 
 #include <ymir/hw/vdp/vdp1_defs.hpp>
+#include <ymir/hw/vdp/vdp_callbacks.hpp>
 #include <ymir/hw/vdp/vdp_configs.hpp>
 
 #include <ymir/state/state_vdp.hpp>
@@ -45,6 +46,9 @@ public:
     /// @brief Applies the enhancements configuration to this renderer.
     /// @param[in] enhancements the enhancements configuration to apply
     virtual void ConfigureEnhancements(const config::Enhancements &enhancements) = 0;
+
+    /// @brief Renderer callback functions. Automatically configured by the VDP when a new renderer is created.
+    config::RendererCallbacks Callbacks;
 
     // -------------------------------------------------------------------------
     // Save states

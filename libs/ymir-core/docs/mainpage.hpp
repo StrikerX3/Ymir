@@ -109,35 +109,69 @@ Use `ymir::peripheral::PeripheralPort::SetPeripheralReportCallback` to bind the 
 
 
 
-@subsection video_audio Receiving video frames and audio samples
+@subsection video_renderer Configuring video renderers
+
+The `ymir::vdp::VDP` class uses a renderer (a concrete subtype of `ymir::vdp::IVDPRenderer`) to draw frames. Ymir
+currently supports these rendering backends:
+- **Null** (`ymir::vdp::NullVDPRenderer`): renders nothing, but invokes all standard renderer callbacks.
+- **Software** (`ymir::vdp::SoftwareVDPRenderer`): CPU-only renderer. Can use dedicated threads or run directly in the
+emulator thread. Requires additional callback configuration to receive the framebuffer data.
+
+Renderers can be selected through one of the `Use*Renderer()` methods in `ymir::vdp::VDP`. The methods return a pointer
+to the concrete renderer instance, allowing you to perform additional configuration if necessary.
+
+You can get the current renderer instance with `ymir::vdp::VDP::GetRenderer()`, which always returns a valid reference
+to a `ymir::vdp::IVDPRenderer`. Use `ymir::vdp::IVDPRenderer::GetType()` to determine its type, or cast it to a concrete
+type with `ymir::vdp::IVDPRenderer::As<ymir::vdp::VDPRendererType>()` which returns a valid pointer if the renderer
+matches the given type or `nullptr` otherwise.
+
+All renderer callbacks (including renderer-specific callbacks) are preserved when switching renderers.
+
+
+
+@subsection recv_video_audio Receiving video frames and audio samples
 
 In order to receive video and audio, you must configure callbacks in `ymir::vdp::VDP` and `ymir::scsp::SCSP`, accessible
 through `ymir::Saturn::VDP` and `ymir::Saturn::SCSP`.
 
-The VDP invokes the frame completed callback once a frame finishes rendering (as soon as it enters the VBlank area).
-The callback signature is:
+Video callbacks are defined in `ymir::vdp::config::RendererCallbacks` which can be accessed directly from the renderer
+instance obtained with `ymir::vdp::VDP::GetRenderer()` via the field `ymir::vdp::IVDPRenderer::Callbacks`.
+
+The software renderer defines additional callbacks in `ymir::vdp::SoftwareRendererCallbacks`. These can be configured in
+`ymir::vdp::SoftwareVDPRenderer::SwCallbacks` but can also be configured directly in the `ymir::vdp::VDP` instance for
+convenience, which avoids the need to type-checking and casting.
+
+All renderers invoke the VDP1 and VDP2 frame complete callbacks when their respective frames are finished. The VDP1
+frame complete callback is invoked whenever a framebuffer swap occurs, while the VDP2 frame complete callback is invoked
+when entering the VBlank phase. Both callbacks have the following signature:
 
 ```cpp
-void FrameCompleteCallback(uint32 *fb, uint32 width, uint32 height, void *userContext)
+void FrameComplete(void *userContext)
+```
+
+where
+- `userContext` is a user-provided context pointer
+
+Both callbacks must be set directly in the renderer instance. They only need to be set once; they are transferred over
+to new renderer instances when switching renderers.
+
+The software VDP renderer additionally invokes the frame completed callback once a frame finishes rendering immediately
+after the VDP2 frame finished callback. The callback signature is:
+
+```cpp
+void SoftwareFrame(uint32 *fb, uint32 width, uint32 height, void *userContext)
 ```
 
 where:
 - `fb` is a pointer to the rendered framebuffer in little-endian XBGR8888 format (`..BBGGRR`)
 - `width` and `height` specify the dimensions of the framebuffer
+- `userContext` is a user-provided context pointer
 
-Use `ymir::vdp::VDP::SetRenderCallback` to bind this callback.
+Use `ymir::vdp::VDP::SetSoftwareRenderCallback` to bind this callback, or set it directly in the software renderer
+instance. As with the frame finished callbacks, this callback is transferred to new software renderer instances.
 
 @note The most significant byte of the framebuffer data is set to 0xFF for convenience, so that it is fully opaque in
 case your framebuffer texture has an alpha channel (ABGR8888 format).
-
-Additionally, you can specify a VDP1 frame completed callback in order to count VDP1 frames. This callback has the
-following signature:
-
-```cpp
-void VDP1FrameCompleteCallback(void *userContext)
-```
-
-Use `ymir::vdp::VDP::SetVDP1Callback` to bind this callback.
 
 The SCSP invokes the sample callback on every sample (signed 16-bit PCM, stereo, 44100 Hz).
 The callback signature is:
@@ -146,16 +180,20 @@ The callback signature is:
 void SCSPSampleCallback(sint16 left, sint16 right, void *userContext)
 ```
 
-where `left` and `right` are the samples for the respective channels.
-You'll probably want to accumulate those samples into a ring buffer before sending them to the audio system.
+where:
+- `left` and `right` are the samples for the respective channels
+- `userContext` is a user-provided context pointer
+
+You probably want to accumulate those samples into a ring buffer before sending them to the audio system.
 
 Use `ymir::scsp::SCSP::SetSampleCallback` to bind this callback.
 
 You can run the emulator core without providing video and audio callbacks (headless mode). It will work fine, but you
-won't receive video frames or audio samples.
+won't receive video frames or audio samples. For optimal performance in this scenario, use the null VDP renderer.
 
 All callbacks are invoked from inside the emulator core deep within the `RunFrame()` call stack, so if you're running it
 on a dedicated thread you need to make sure to sync/mutex updates coming from the callbacks into the GUI/main thread.
+The VDP renderers may invoke their callbacks from different threads which are synchronized with the emulator thread.
 
 
 

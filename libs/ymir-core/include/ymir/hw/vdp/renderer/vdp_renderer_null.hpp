@@ -65,17 +65,23 @@ public:
     // Rendering process
 
     void VDP1EraseFramebuffer(uint64 cycles) override {}
-    void VDP1SwapFramebuffer() override {}
+    void VDP1SwapFramebuffer() override {
+        Callbacks.VDP1FramebufferSwap();
+    }
     void VDP1BeginFrame() override {}
     void VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Control control) override {}
-    void VDP1EndFrame() override {}
+    void VDP1EndFrame() override {
+        Callbacks.VDP1DrawFinished();
+    }
 
     void VDP2SetResolution(uint32 h, uint32 v, bool exclusive) override {}
     void VDP2SetField(bool odd) override {}
     void VDP2LatchTVMD() override {}
     void VDP2BeginFrame() override {}
     void VDP2RenderLine(uint32 y) override {}
-    void VDP2EndFrame() override {}
+    void VDP2EndFrame() override {
+        Callbacks.VDP2DrawFinished();
+    }
 };
 
 } // namespace ymir::vdp

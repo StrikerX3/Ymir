@@ -981,8 +981,6 @@ void VDP::VDP1SwapFramebuffer() {
 
     m_state.displayFB ^= 1;
 
-    m_cbVDP1FramebufferSwap();
-
     if (bit::test<1>(m_state.regs1.plotTrigger)) {
         VDP1BeginFrame();
     }
@@ -1015,7 +1013,6 @@ void VDP::VDP1EndFrame() {
 
     m_state.regs1.currFrameEnded = true;
     m_cbTriggerSpriteDrawEnd();
-    m_cbVDP1DrawFinished();
 
     m_renderer->VDP1EndFrame();
 }

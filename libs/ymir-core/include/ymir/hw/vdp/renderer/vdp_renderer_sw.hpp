@@ -27,6 +27,16 @@
 
 namespace ymir::vdp {
 
+// Invoked when the software VDP2 renderer finishes rendering a frame.
+// Framebuffer data is in little-endian XRGB8888 format.
+using CBSoftwareFrameComplete = util::OptionalCallback<void(uint32 *fb, uint32 width, uint32 height)>;
+
+/// @brief Callbacks specific to the software VDP renderer.
+struct SoftwareRendererCallbacks {
+    /// @brief Software frame complete callback, invoked when a framebuffer is ready to be copied to the frontend.
+    CBSoftwareFrameComplete FrameComplete;
+};
+
 class SoftwareVDPRenderer : public IVDPRenderer {
 public:
     SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions);
@@ -44,11 +54,8 @@ public:
 
     void ConfigureEnhancements(const config::Enhancements &enhancements) override;
 
-    /// @brief Configures the VDP2 frame complete callback.
-    /// @param[in] callback the callback to use
-    void SetRenderCallback(CBFrameComplete callback) {
-        m_cbFrameComplete = callback;
-    }
+    /// @brief Software renderer callbacks.
+    SoftwareRendererCallbacks SwCallbacks;
 
     /// @brief Enables or disables a dedicated thread to render VDP1 graphics.
     /// @param[in] enable `true` to render VDP1 in a dedicated thread, `false` to render on the caller thread.
@@ -155,10 +162,7 @@ private:
     alignas(16) std::array<std::array<SpriteFB, 2>, 2> m_meshFB;
 
     // -------------------------------------------------------------------------
-    // Frontend callbacks
-
-    // Invoked when the renderer finishes drawing a frame.
-    CBFrameComplete m_cbFrameComplete;
+    // Threading
 
     struct ConcQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
         static constexpr size_t BLOCK_SIZE = 64;
@@ -532,6 +536,9 @@ private:
 
     Color888 VDP2ReadRendererColor5to8(uint32 address) const;
 
+    // -------------------------------------------------------------------------
+    // Configuration
+
     // Local copy of the current VDP enhancements configuration.
     config::Enhancements m_enhancements;
 
@@ -615,6 +622,66 @@ private:
         const GouraudStepper *gouraudLeft;
         const GouraudStepper *gouraudRight;
     };
+
+    // Retrieves the current set of VDP1 registers.
+    VDP1Regs &VDP1GetRegs();
+
+    // Retrieves the current set of VDP1 registers.
+    const VDP1Regs &VDP1GetRegs() const;
+
+    // Retrieves the current index of the VDP1 display framebuffer.
+    uint8 VDP1GetDisplayFBIndex() const;
+
+    // Erases the current VDP1 display framebuffer.
+    template <bool countCycles>
+    void VDP1DoEraseFramebuffer(uint64 cycles = ~0ull);
+
+#define TPL_TRAITS template <bool deinterlace, bool transparentMeshes>
+#define TPL_LINE_TRAITS template <bool antiAlias, bool deinterlace, bool transparentMeshes>
+#define TPL_DEINTERLACE template <bool deinterlace>
+
+    // Processes a single commmand from the VDP1 command table.
+    TPL_DEINTERLACE bool VDP1IsPixelClipped(CoordS32 coord, bool userClippingEnable, bool clippingMode) const;
+
+    TPL_DEINTERLACE bool VDP1IsPixelUserClipped(CoordS32 coord) const;
+    TPL_DEINTERLACE bool VDP1IsPixelSystemClipped(CoordS32 coord) const;
+    TPL_DEINTERLACE bool VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2) const;
+    TPL_DEINTERLACE bool VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coord3,
+                                                 CoordS32 coord4) const;
+
+    // Plotting functions.
+    // Should return true if at least one pixel of the line is inside the system + user clipping areas, regardless of
+    // transparency, mesh, end codes, etc.
+
+    TPL_TRAITS bool VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams);
+    TPL_LINE_TRAITS bool VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams);
+    TPL_TRAITS bool VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams);
+    TPL_TRAITS void VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Control control, VDP1Command::Size size,
+                                         CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
+
+    // Individual VDP1 command processors
+
+    uint64 VDP1CalcCommandTiming(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_Handle(uint32 cmdAddress, VDP1Command::Control control);
+
+    TPL_TRAITS void VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control);
+
+    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control);
+
+    void VDP1Cmd_SetSystemClipping(uint32 cmdAddress);
+    void VDP1Cmd_SetUserClipping(uint32 cmdAddress);
+    void VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress);
+
+#undef TPL_TRAITS
+#undef TPL_LINE_TRAITS
+#undef TPL_DEINTERLACE
+
+    // -------------------------------------------------------------------------
+    // VDP2 rendering
 
     // Character modes, a combination of Character Size from the Character Control Register (CHCTLA-B) and Character
     // Number Supplement from the Pattern Name Control Register (PNCN0-3/PNCR)
@@ -827,66 +894,6 @@ private:
 
     // Current display framebuffer.
     std::array<uint32, kMaxResH * kMaxResV> m_framebuffer;
-
-    // Retrieves the current set of VDP1 registers.
-    VDP1Regs &VDP1GetRegs();
-
-    // Retrieves the current set of VDP1 registers.
-    const VDP1Regs &VDP1GetRegs() const;
-
-    // Retrieves the current index of the VDP1 display framebuffer.
-    uint8 VDP1GetDisplayFBIndex() const;
-
-    // Erases the current VDP1 display framebuffer.
-    template <bool countCycles>
-    void VDP1DoEraseFramebuffer(uint64 cycles = ~0ull);
-
-#define TPL_TRAITS template <bool deinterlace, bool transparentMeshes>
-#define TPL_LINE_TRAITS template <bool antiAlias, bool deinterlace, bool transparentMeshes>
-#define TPL_DEINTERLACE template <bool deinterlace>
-
-    // Processes a single commmand from the VDP1 command table.
-    TPL_DEINTERLACE bool VDP1IsPixelClipped(CoordS32 coord, bool userClippingEnable, bool clippingMode) const;
-
-    TPL_DEINTERLACE bool VDP1IsPixelUserClipped(CoordS32 coord) const;
-    TPL_DEINTERLACE bool VDP1IsPixelSystemClipped(CoordS32 coord) const;
-    TPL_DEINTERLACE bool VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2) const;
-    TPL_DEINTERLACE bool VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coord2, CoordS32 coord3,
-                                                 CoordS32 coord4) const;
-
-    // Plotting functions.
-    // Should return true if at least one pixel of the line is inside the system + user clipping areas, regardless of
-    // transparency, mesh, end codes, etc.
-
-    TPL_TRAITS bool VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams);
-    TPL_LINE_TRAITS bool VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams);
-    TPL_TRAITS bool VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams);
-    TPL_TRAITS void VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Control control, VDP1Command::Size size,
-                                         CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
-
-    // Individual VDP1 command processors
-
-    uint64 VDP1CalcCommandTiming(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_Handle(uint32 cmdAddress, VDP1Command::Control control);
-
-    TPL_TRAITS void VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control);
-
-    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control);
-
-    void VDP1Cmd_SetSystemClipping(uint32 cmdAddress);
-    void VDP1Cmd_SetUserClipping(uint32 cmdAddress);
-    void VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress);
-
-#undef TPL_TRAITS
-#undef TPL_LINE_TRAITS
-#undef TPL_DEINTERLACE
-
-    // -------------------------------------------------------------------------
-    // VDP2
 
     // Retrieves the current set of VDP2 registers.
     VDP2Regs &VDP2GetRegs();

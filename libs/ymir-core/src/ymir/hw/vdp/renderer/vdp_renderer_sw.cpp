@@ -516,6 +516,8 @@ void SoftwareVDPRenderer::VDP1SwapFramebuffer() {
         m_vdp1RenderingContext.swapBuffersSignal.Wait();
         m_vdp1RenderingContext.swapBuffersSignal.Reset();
     }
+
+    Callbacks.VDP1FramebufferSwap();
 }
 
 void SoftwareVDPRenderer::VDP1BeginFrame() {
@@ -534,7 +536,9 @@ void SoftwareVDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Con
     }
 }
 
-void SoftwareVDPRenderer::VDP1EndFrame() {}
+void SoftwareVDPRenderer::VDP1EndFrame() {
+    Callbacks.VDP1DrawFinished();
+}
 
 void SoftwareVDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive) {
     m_HRes = h;
@@ -590,7 +594,8 @@ void SoftwareVDPRenderer::VDP2EndFrame() {
         m_vdp2RenderingContext.renderFinishedSignal.Wait();
         m_vdp2RenderingContext.renderFinishedSignal.Reset();
     }
-    m_cbFrameComplete(m_framebuffer.data(), m_HRes, m_VRes);
+    Callbacks.VDP2DrawFinished();
+    SwCallbacks.FrameComplete(m_framebuffer.data(), m_HRes, m_VRes);
 }
 
 // -----------------------------------------------------------------------------

@@ -898,70 +898,80 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup framebuffer and render callbacks
 
-    m_context.saturn.instance->VDP.SetSoftwareRenderCallback(
-        {&m_context, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
-             auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-             auto &screen = sharedCtx.screen;
-             if (width != screen.width || height != screen.height) {
-                 screen.SetResolution(width, height);
-             }
-             ++screen.VDP2Frames;
+    {
+        auto &vdp = m_context.saturn.instance->VDP;
+        auto &renderer = vdp.GetRenderer();
+        auto &callbacks = renderer.Callbacks;
 
-             if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
-                 screen.frameRequestEvent.Wait();
-                 screen.frameRequestEvent.Reset();
-             }
-             if (sharedCtx.settings.video.reduceLatency || !screen.updated || screen.videoSync) {
-                 std::unique_lock lock{screen.mtxFramebuffer};
-                 std::copy_n(fb, width * height, screen.framebuffers[0].data());
-                 screen.updated = true;
-                 if (screen.videoSync) {
-                     screen.frameReadyEvent.Set();
+        callbacks.VDP1DrawFinished = {&m_context, [](void *ctx) {
+                                          auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                                          auto &screen = sharedCtx.screen;
+                                          ++screen.VDP1DrawCalls;
+                                      }};
+
+        callbacks.VDP1FramebufferSwap = {&m_context, [](void *ctx) {
+                                             auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                                             auto &screen = sharedCtx.screen;
+                                             ++screen.VDP1Frames;
+                                         }};
+
+        callbacks.VDP2DrawFinished = {&m_context, [](void *ctx) {
+                                          auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                                          auto &screen = sharedCtx.screen;
+                                          ++screen.VDP2Frames;
+                                      }};
+
+        vdp.SetSoftwareRenderCallback(
+            {&m_context, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
+                 auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                 auto &screen = sharedCtx.screen;
+                 if (width != screen.width || height != screen.height) {
+                     screen.SetResolution(width, height);
                  }
-             }
 
-             // Limit emulation speed if requested and not using video sync.
-             // When video sync is enabled, frame pacing is done by the GUI thread.
-             if (sharedCtx.emuSpeed.limitSpeed && !screen.videoSync &&
-                 sharedCtx.emuSpeed.GetCurrentSpeedFactor() != 1.0) {
-
-                 const auto frameInterval = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                     screen.frameInterval / sharedCtx.emuSpeed.GetCurrentSpeedFactor());
-
-                 // Sleep until 1ms before the next frame presentation time, then spin wait for the deadline.
-                 // Skip waiting if the frame target is too far into the future.
-                 auto now = clk::now();
-                 if (now < screen.nextEmuFrameTarget + frameInterval) {
-                     if (now < screen.nextEmuFrameTarget - 1ms) {
-                         std::this_thread::sleep_until(screen.nextEmuFrameTarget - 1ms);
+                 if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
+                     screen.frameRequestEvent.Wait();
+                     screen.frameRequestEvent.Reset();
+                 }
+                 if (sharedCtx.settings.video.reduceLatency || !screen.updated || screen.videoSync) {
+                     std::unique_lock lock{screen.mtxFramebuffer};
+                     std::copy_n(fb, width * height, screen.framebuffers[0].data());
+                     screen.updated = true;
+                     if (screen.videoSync) {
+                         screen.frameReadyEvent.Set();
                      }
-                     while (clk::now() < screen.nextEmuFrameTarget) {
+                 }
+
+                 // Limit emulation speed if requested and not using video sync.
+                 // When video sync is enabled, frame pacing is done by the GUI thread.
+                 if (sharedCtx.emuSpeed.limitSpeed && !screen.videoSync &&
+                     sharedCtx.emuSpeed.GetCurrentSpeedFactor() != 1.0) {
+
+                     const auto frameInterval = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                         screen.frameInterval / sharedCtx.emuSpeed.GetCurrentSpeedFactor());
+
+                     // Sleep until 1ms before the next frame presentation time, then spin wait for the deadline.
+                     // Skip waiting if the frame target is too far into the future.
+                     auto now = clk::now();
+                     if (now < screen.nextEmuFrameTarget + frameInterval) {
+                         if (now < screen.nextEmuFrameTarget - 1ms) {
+                             std::this_thread::sleep_until(screen.nextEmuFrameTarget - 1ms);
+                         }
+                         while (clk::now() < screen.nextEmuFrameTarget) {
+                         }
+                     }
+
+                     now = clk::now();
+                     if (now > screen.nextEmuFrameTarget + frameInterval) {
+                         // The delay was too long for some reason; set next frame target time relative to now
+                         screen.nextEmuFrameTarget = now + frameInterval;
+                     } else {
+                         // The delay was on time; increment by the interval
+                         screen.nextEmuFrameTarget += frameInterval;
                      }
                  }
-
-                 now = clk::now();
-                 if (now > screen.nextEmuFrameTarget + frameInterval) {
-                     // The delay was too long for some reason; set next frame target time relative to now
-                     screen.nextEmuFrameTarget = now + frameInterval;
-                 } else {
-                     // The delay was on time; increment by the interval
-                     screen.nextEmuFrameTarget += frameInterval;
-                 }
-             }
-         }});
-
-    m_context.saturn.instance->VDP.SetVDP1DrawCallback({&m_context, [](void *ctx) {
-                                                            auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-                                                            auto &screen = sharedCtx.screen;
-                                                            ++screen.VDP1DrawCalls;
-                                                        }});
-
-    m_context.saturn.instance->VDP.SetVDP1FramebufferSwapCallback({&m_context, [](void *ctx) {
-                                                                       auto &sharedCtx =
-                                                                           *static_cast<SharedContext *>(ctx);
-                                                                       auto &screen = sharedCtx.screen;
-                                                                       ++screen.VDP1Frames;
-                                                                   }});
+             }});
+    }
 
     // ---------------------------------
     // Initialize audio system
