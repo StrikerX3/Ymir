@@ -39,6 +39,7 @@
 #include <memory>
 #include <span>
 #include <thread>
+#include <utility>
 
 namespace ymir::vdp {
 
@@ -96,9 +97,23 @@ public:
     // -------------------------------------------------------------------------
     // Configuration
 
-    // TODO: switch renderer
-    // - sync state when attached
-    // - frontend must reconfigure software render callback and graphics enhancements
+    /// @brief Switches to the null renderer.
+    /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
+    NullVDPRenderer *UseNullRenderer() {
+        return UseRenderer<NullVDPRenderer>();
+    }
+
+    /// @brief Switches to the software renderer.
+    /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
+    SoftwareVDPRenderer *UseSoftwareRenderer() {
+        auto *renderer = UseRenderer<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions);
+        renderer->SetRenderCallback(m_cbFrameComplete);
+        renderer->ConfigureEnhancements(m_enhancements);
+        renderer->EnableThreadedVDP1(m_config.video.threadedVDP1);
+        renderer->EnableThreadedVDP2(m_config.video.threadedVDP2);
+        renderer->EnableThreadedDeinterlacer(m_config.video.threadedDeinterlacer);
+        return renderer;
+    }
 
     /// @brief Retrieves the enhancements configured for this VDP instance.
     /// @return the current enhancements configuration
@@ -165,7 +180,17 @@ public:
 private:
     VDPState m_state;
 
+    core::Configuration &m_config;
+
     std::unique_ptr<IVDPRenderer> m_renderer;
+
+    template <typename T, typename... Args>
+        requires std::derived_from<T, IVDPRenderer>
+    T *UseRenderer(Args &&...args) {
+        T *renderer = new T(std::forward<Args>(args)...);
+        m_renderer.reset(renderer);
+        return renderer;
+    }
 
     CBHBlankStateChange m_cbHBlankStateChange;
     CBVBlankStateChange m_cbVBlankStateChange;

@@ -69,10 +69,26 @@ namespace grp {
 } // namespace grp
 
 VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
-    : m_renderer(std::make_unique<SoftwareVDPRenderer>(m_state, config, vdp2DebugRenderOptions))
+    : m_renderer(std::make_unique<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions))
+    , m_config(config)
     , m_scheduler(scheduler) {
 
-    config.system.videoStandard.Observe([&](VideoStandard videoStandard) { SetVideoStandard(videoStandard); });
+    config.system.videoStandard.Observe([this](VideoStandard videoStandard) { SetVideoStandard(videoStandard); });
+    config.video.threadedVDP1.Observe([this](bool value) {
+        if (auto *renderer = m_renderer->As<VDPRendererType::Software>()) {
+            renderer->EnableThreadedVDP1(value);
+        }
+    });
+    config.video.threadedVDP2.Observe([this](bool value) {
+        if (auto *renderer = m_renderer->As<VDPRendererType::Software>()) {
+            renderer->EnableThreadedVDP2(value);
+        }
+    });
+    config.video.threadedDeinterlacer.Observe([this](bool value) {
+        if (auto *renderer = m_renderer->As<VDPRendererType::Software>()) {
+            renderer->EnableThreadedDeinterlacer(value);
+        }
+    });
 
     m_phaseUpdateEvent = scheduler.RegisterEvent(core::events::VDPPhase, this, OnPhaseUpdateEvent);
 

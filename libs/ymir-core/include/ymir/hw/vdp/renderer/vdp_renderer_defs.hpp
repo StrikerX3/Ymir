@@ -27,7 +27,7 @@ inline std::string_view GetRendererName(VDPRendererType type) {
 inline constexpr VDPRendererType kTypes[] = {VDPRendererType::Null, VDPRendererType::Software};
 
 // Forward declarations of concrete VDP renderer implementations.
-// See the vdp_renderer_* headers under their dedicated subfolders.
+// See the vdp_renderer_* headers.
 
 class NullVDPRenderer;
 class SoftwareVDPRenderer;

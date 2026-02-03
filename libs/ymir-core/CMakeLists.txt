@@ -270,6 +270,7 @@ add_library(ymir-core
 
     src/ymir/hw/vdp/vdp.cpp
 
+    src/ymir/hw/vdp/renderer/vdp_renderer_base.cpp
     src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
 
     src/ymir/media/cdrom_crc.cpp
@@ -294,7 +295,7 @@ add_library(ymir-core
     src/ymir/util/process.cpp
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
- "src/ymir/hw/vdp/renderer/vdp_renderer_base.cpp")
+)
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
                       VERSION ${Ymir_core_VERSION}

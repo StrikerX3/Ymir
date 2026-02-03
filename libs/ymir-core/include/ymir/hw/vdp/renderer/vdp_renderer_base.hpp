@@ -20,9 +20,8 @@ namespace ymir::vdp {
 /// @brief Interface for VDP1 and VDP2 renderers.
 class IVDPRenderer {
 public:
-    IVDPRenderer(VDPRendererType type, config::VDP2DebugRender &vdp2DebugRenderOptions)
-        : m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
-        , m_type(type) {}
+    IVDPRenderer(VDPRendererType type)
+        : m_type(type) {}
 
     virtual ~IVDPRenderer() = default;
 
@@ -235,8 +234,6 @@ public:
     }
 
 protected:
-    config::VDP2DebugRender &m_vdp2DebugRenderOptions;
-
     /// @brief Layer states for NBGs 0-3.
     std::array<NormBGLayerState, 4> m_normBGLayerStates;
 

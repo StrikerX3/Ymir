@@ -15,7 +15,6 @@
 #include <ymir/util/event.hpp>
 #include <ymir/util/inline.hpp>
 
-#include <ymir/core/configuration.hpp>
 #include <ymir/core/types.hpp>
 
 #include <blockingconcurrentqueue.h>
@@ -30,7 +29,7 @@ namespace ymir::vdp {
 
 class SoftwareVDPRenderer : public IVDPRenderer {
 public:
-    SoftwareVDPRenderer(VDPState &state, core::Configuration &config, config::VDP2DebugRender &vdp2DebugRenderOptions);
+    SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions);
     ~SoftwareVDPRenderer();
 
     // -------------------------------------------------------------------------
@@ -44,6 +43,26 @@ public:
     // Configuration
 
     void ConfigureEnhancements(const config::Enhancements &enhancements) override;
+
+    /// @brief Configures the VDP2 frame complete callback.
+    /// @param[in] callback the callback to use
+    void SetRenderCallback(CBFrameComplete callback) {
+        m_cbFrameComplete = callback;
+    }
+
+    /// @brief Enables or disables a dedicated thread to render VDP1 graphics.
+    /// @param[in] enable `true` to render VDP1 in a dedicated thread, `false` to render on the caller thread.
+    void EnableThreadedVDP1(bool enable);
+
+    /// @brief Enables or disables a dedicated thread to render VDP2 graphics.
+    /// @param[in] enable `true` to render VDP2 in a dedicated thread, `false` to render on the caller thread.
+    void EnableThreadedVDP2(bool enable);
+
+    /// @brief Enables or disables a dedicated thread to render deinterlaced graphics.
+    /// @param[in] enable `true` to use a dedicated thread for the deinterlacer, `false` to render on the VDP2 thread.
+    void EnableThreadedDeinterlacer(bool enable) {
+        m_threadedDeinterlacer = enable;
+    }
 
     // -------------------------------------------------------------------------
     // Save states
@@ -115,25 +134,9 @@ public:
 
     void DumpExtraVDP1Framebuffers(std::ostream &out) const override;
 
-    // -------------------------------------------------------------------------
-    // Configuration
-
-    /// @brief Configures the VDP2 frame complete callback.
-    /// @param[in] callback the callback to use
-    void SetRenderCallback(CBFrameComplete callback) {
-        m_cbFrameComplete = callback;
-    }
-
-    /// @brief Enables or disables a dedicated thread to render VDP1 graphics.
-    /// @param[in] enable `true` to render VDP1 in a dedicated thread, `false` to render on the caller thread.
-    void EnableThreadedVDP1(bool enable);
-
-    /// @brief Enables or disables a dedicated thread to render VDP2 graphics.
-    /// @param[in] enable `true` to render VDP2 in a dedicated thread, `false` to render on the caller thread.
-    void EnableThreadedVDP2(bool enable);
-
 private:
     VDPState &m_state;
+    config::VDP2DebugRender &m_vdp2DebugRenderOptions;
 
     uint32 m_HRes;
     uint32 m_VRes;

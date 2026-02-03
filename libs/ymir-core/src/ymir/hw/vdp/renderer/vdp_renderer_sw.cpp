@@ -57,14 +57,10 @@ namespace grp {
 
 } // namespace grp
 
-SoftwareVDPRenderer::SoftwareVDPRenderer(VDPState &state, core::Configuration &config,
-                                         config::VDP2DebugRender &vdp2DebugRenderOptions)
-    : IVDPRenderer(VDPRendererType::Software, vdp2DebugRenderOptions)
-    , m_state(state) {
-
-    config.video.threadedVDP1.Observe([&](bool value) { EnableThreadedVDP1(value); });
-    config.video.threadedVDP2.Observe([&](bool value) { EnableThreadedVDP2(value); });
-    config.video.threadedDeinterlacer.Observe([&](bool value) { m_threadedDeinterlacer = value; });
+SoftwareVDPRenderer::SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions)
+    : IVDPRenderer(VDPRendererType::Software)
+    , m_state(state)
+    , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions) {
 
     UpdateFunctionPointers();
 
@@ -126,6 +122,79 @@ void SoftwareVDPRenderer::ResetImpl(bool hard) {
 void SoftwareVDPRenderer::ConfigureEnhancements(const config::Enhancements &enhancements) {
     m_enhancements = enhancements;
     UpdateFunctionPointers();
+}
+
+// -----------------------------------------------------------------------------
+// Configuration
+
+void SoftwareVDPRenderer::EnableThreadedVDP1(bool enable) {
+    if (m_threadedVDP1Rendering == enable) {
+        return;
+    }
+
+    devlog::debug<grp::vdp1>("{} threaded VDP1 rendering", (enable ? "Enabling" : "Disabling"));
+
+    m_threadedVDP1Rendering = enable;
+    if (enable) {
+        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::PostLoadStateSync());
+        m_VDP1RenderThread = std::thread{[&] { VDP1RenderThread(); }};
+        m_vdp1RenderingContext.postLoadSyncSignal.Wait();
+        m_vdp1RenderingContext.postLoadSyncSignal.Reset();
+    } else {
+        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::Shutdown());
+        if (m_VDP1RenderThread.joinable()) {
+            m_VDP1RenderThread.join();
+        }
+
+        VDP1RenderEvent dummy{};
+        while (m_vdp1RenderingContext.eventQueue.try_dequeue(dummy)) {
+        }
+    }
+}
+
+void SoftwareVDPRenderer::EnableThreadedVDP2(bool enable) {
+    if (m_threadedVDP2Rendering == enable) {
+        return;
+    }
+
+    devlog::debug<grp::vdp2>("{} threaded VDP2 rendering", (enable ? "Enabling" : "Disabling"));
+
+    m_threadedVDP2Rendering = enable;
+    if (enable) {
+        m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::PostLoadStateSync());
+        m_VDP2RenderThread = std::thread{[&] { VDP2RenderThread(); }};
+        m_VDP2DeinterlaceRenderThread = std::thread{[&] { VDP2DeinterlaceRenderThread(); }};
+        m_vdp2RenderingContext.postLoadSyncSignal.Wait();
+        m_vdp2RenderingContext.postLoadSyncSignal.Reset();
+    } else {
+        m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::Shutdown());
+        if (m_VDP2RenderThread.joinable()) {
+            m_VDP2RenderThread.join();
+        }
+        if (m_VDP2DeinterlaceRenderThread.joinable()) {
+            m_VDP2DeinterlaceRenderThread.join();
+        }
+
+        VDP2RenderEvent dummy{};
+        while (m_vdp2RenderingContext.eventQueue.try_dequeue(dummy)) {
+        }
+    }
+}
+
+void SoftwareVDPRenderer::UpdateFunctionPointers() {
+    UpdateFunctionPointersTemplate(m_enhancements.deinterlace, m_enhancements.transparentMeshes);
+}
+
+template <bool... t_features>
+void SoftwareVDPRenderer::UpdateFunctionPointersTemplate(bool feature, auto... features) {
+    feature ? UpdateFunctionPointersTemplate<t_features..., true>(features...)
+            : UpdateFunctionPointersTemplate<t_features..., false>(features...);
+}
+
+template <bool... t_features>
+void SoftwareVDPRenderer::UpdateFunctionPointersTemplate() {
+    m_fnVDP1HandleCommand = &SoftwareVDPRenderer::VDP1Cmd_Handle<t_features...>;
+    m_fnVDP2DrawLine = &SoftwareVDPRenderer::VDP2DrawLine<t_features...>;
 }
 
 // -----------------------------------------------------------------------------
@@ -543,79 +612,6 @@ void SoftwareVDPRenderer::DumpExtraVDP1Framebuffers(std::ostream &out) const {
         out.write((const char *)m_meshFB[1][drawFB].data(), m_meshFB[1][drawFB].size());
         out.write((const char *)m_meshFB[1][dispFB].data(), m_meshFB[1][dispFB].size());
     }
-}
-
-// -----------------------------------------------------------------------------
-// Configuration
-
-void SoftwareVDPRenderer::EnableThreadedVDP1(bool enable) {
-    if (m_threadedVDP1Rendering == enable) {
-        return;
-    }
-
-    devlog::debug<grp::vdp1>("{} threaded VDP1 rendering", (enable ? "Enabling" : "Disabling"));
-
-    m_threadedVDP1Rendering = enable;
-    if (enable) {
-        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::PostLoadStateSync());
-        m_VDP1RenderThread = std::thread{[&] { VDP1RenderThread(); }};
-        m_vdp1RenderingContext.postLoadSyncSignal.Wait();
-        m_vdp1RenderingContext.postLoadSyncSignal.Reset();
-    } else {
-        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::Shutdown());
-        if (m_VDP1RenderThread.joinable()) {
-            m_VDP1RenderThread.join();
-        }
-
-        VDP1RenderEvent dummy{};
-        while (m_vdp1RenderingContext.eventQueue.try_dequeue(dummy)) {
-        }
-    }
-}
-
-void SoftwareVDPRenderer::EnableThreadedVDP2(bool enable) {
-    if (m_threadedVDP2Rendering == enable) {
-        return;
-    }
-
-    devlog::debug<grp::vdp2>("{} threaded VDP2 rendering", (enable ? "Enabling" : "Disabling"));
-
-    m_threadedVDP2Rendering = enable;
-    if (enable) {
-        m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::PostLoadStateSync());
-        m_VDP2RenderThread = std::thread{[&] { VDP2RenderThread(); }};
-        m_VDP2DeinterlaceRenderThread = std::thread{[&] { VDP2DeinterlaceRenderThread(); }};
-        m_vdp2RenderingContext.postLoadSyncSignal.Wait();
-        m_vdp2RenderingContext.postLoadSyncSignal.Reset();
-    } else {
-        m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::Shutdown());
-        if (m_VDP2RenderThread.joinable()) {
-            m_VDP2RenderThread.join();
-        }
-        if (m_VDP2DeinterlaceRenderThread.joinable()) {
-            m_VDP2DeinterlaceRenderThread.join();
-        }
-
-        VDP2RenderEvent dummy{};
-        while (m_vdp2RenderingContext.eventQueue.try_dequeue(dummy)) {
-        }
-    }
-}
-
-void SoftwareVDPRenderer::UpdateFunctionPointers() {
-    UpdateFunctionPointersTemplate(m_enhancements.deinterlace, m_enhancements.transparentMeshes);
-}
-
-template <bool... t_features>
-void SoftwareVDPRenderer::UpdateFunctionPointersTemplate(bool feature, auto... features) {
-    feature ? UpdateFunctionPointersTemplate<t_features..., true>(features...)
-            : UpdateFunctionPointersTemplate<t_features..., false>(features...);
-}
-
-template <bool... t_features>
-void SoftwareVDPRenderer::UpdateFunctionPointersTemplate() {
-    m_fnVDP1HandleCommand = &SoftwareVDPRenderer::VDP1Cmd_Handle<t_features...>;
-    m_fnVDP2DrawLine = &SoftwareVDPRenderer::VDP2DrawLine<t_features...>;
 }
 
 // -----------------------------------------------------------------------------

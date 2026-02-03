@@ -6,8 +6,8 @@ namespace ymir::vdp {
 
 class NullVDPRenderer : public IVDPRenderer {
 public:
-    NullVDPRenderer(config::VDP2DebugRender &vdp2DebugRenderOptions)
-        : IVDPRenderer(VDPRendererType::Null, vdp2DebugRenderOptions) {}
+    NullVDPRenderer()
+        : IVDPRenderer(VDPRendererType::Null) {}
 
     // -------------------------------------------------------------------------
     // Basics
