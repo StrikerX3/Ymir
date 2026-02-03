@@ -2012,6 +2012,17 @@ void App::RunEmulator() {
 
     std::array<GUIEvent, 64> evts{};
 
+    // TODO(d3d11): configure this when hardware rendering is enabled with D3D11 backend
+    /*{
+        SDL_PropertiesID props = SDL_GetRendererProperties(m_graphicsService.GetRenderer());
+        ScopeGuard sgDestroyProps{[&] { SDL_DestroyProperties(props); }};
+        auto *device =
+            static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
+        if (device != nullptr) {
+            m_context.saturn.instance->VDP.UseDirect3D11VDPRenderer(device);
+        }
+    }*/
+
 #if Ymir_ENABLE_IMGUI_DEMO
     bool showImGuiDemoWindow = false;
 #endif
