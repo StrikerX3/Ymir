@@ -107,7 +107,6 @@ public:
     SoftwareVDPRenderer *UseSoftwareRenderer() {
         auto *renderer = UseRenderer<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions);
         if (renderer != nullptr) {
-            renderer->ConfigureEnhancements(m_enhancements);
             renderer->EnableThreadedVDP1(m_config.video.threadedVDP1);
             renderer->EnableThreadedVDP2(m_config.video.threadedVDP2);
             renderer->EnableThreadedDeinterlacer(m_config.video.threadedDeinterlacer);
@@ -192,6 +191,8 @@ private:
     ///
     /// The callbacks are stored directly in the renderers for performance.
     ///
+    /// This method also configures the enhancements on the new renderer.
+    ///
     /// Returns `nullptr` if the renderer fails to instantiate.
     ///
     /// @tparam T the renderer types
@@ -215,6 +216,7 @@ private:
         if constexpr (std::is_same_v<T, SoftwareVDPRenderer>) {
             renderer->SwCallbacks = m_swRendererCallbacks;
         }
+        renderer->ConfigureEnhancements(m_enhancements);
 
         m_renderer.reset(renderer);
         return renderer;
