@@ -142,6 +142,18 @@ private:
     uint32 m_VRes;
     bool m_exclusiveMonitor;
 
+    // Complementary (alternate) VDP1 framebuffers, for deinterlaced rendering.
+    // When deinterlace mode is enabled, if the system is using double-density interlace, this buffer will contain the
+    // field lines complementary to the standard VDP1 framebuffer memory (e.g. while displaying odd lines, this buffer
+    // contains even lines).
+    // VDP2 rendering will combine both buffers to draw a full-resolution progressive image in one go.
+    alignas(16) std::array<SpriteFB, 2> m_altSpriteFB;
+
+    // Transparent mesh sprite framebuffer.
+    // Used when transparent meshes are enabled.
+    // Indexing: [altFB][drawFB]
+    alignas(16) std::array<std::array<SpriteFB, 2>, 2> m_meshFB;
+
     // -------------------------------------------------------------------------
     // Frontend callbacks
 
@@ -525,18 +537,6 @@ private:
 
     // Runs the deinterlacer in a dedicated thread.
     bool m_threadedDeinterlacer = false;
-
-    // Complementary (alternate) VDP1 framebuffers, for deinterlaced rendering.
-    // When deinterlace mode is enabled, if the system is using double-density interlace, this buffer will contain the
-    // field lines complementary to the standard VDP1 framebuffer memory (e.g. while displaying odd lines, this buffer
-    // contains even lines).
-    // VDP2 rendering will combine both buffers to draw a full-resolution progressive image in one go.
-    alignas(16) std::array<SpriteFB, 2> m_altSpriteFB;
-
-    // Transparent mesh sprite framebuffer.
-    // Used when transparent meshes are enabled.
-    // Indexing: [altFB][drawFB]
-    alignas(16) std::array<std::array<SpriteFB, 2>, 2> m_meshFB;
 
     using FnVDP1ProcessCommand = void (SoftwareVDPRenderer::*)();
     using FnVDP1HandleCommand = void (SoftwareVDPRenderer::*)(uint32 cmdAddress, VDP1Command::Control control);

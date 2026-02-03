@@ -115,6 +115,14 @@ void SoftwareVDPRenderer::ResetImpl(bool hard) {
     for (auto &state : m_rotParamLineStates) {
         state.Reset();
     }
+    for (auto &fb : m_altSpriteFB) {
+        fb.fill(0);
+    }
+    for (auto &altFB : m_meshFB) {
+        for (auto &fb : altFB) {
+            fb.fill(0);
+        }
+    }
 
     VDP2UpdateEnabledBGs();
 }
