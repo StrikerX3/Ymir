@@ -114,7 +114,7 @@ public:
         return renderer;
     }
 
-#ifdef YMIR_HAS_D3D11
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
     /// @brief Switches to the Direct3D 11 renderer.
     /// @param[in] device the `ID3D11Device` instance to use
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate

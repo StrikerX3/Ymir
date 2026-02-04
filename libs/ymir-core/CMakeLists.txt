@@ -297,15 +297,29 @@ add_library(ymir-core
     src/ymir/util/virtual_memory.cpp
 )
 
+## Add graphics APIs
 if (WIN32)
     target_sources(ymir-core PRIVATE
         include/ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp
         
         src/ymir/hw/vdp/renderer/vdp_renderer_d3d11.cpp
     )
-    target_link_libraries(ymir-core PRIVATE "d3dcompiler.lib" "dxguid.lib")
-    target_compile_definitions(ymir-core PUBLIC "YMIR_HAS_D3D11=1")
+    target_link_libraries(ymir-core PRIVATE "d3d11.lib" "d3dcompiler.lib" "dxguid.lib")
+    target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_DIRECT3D=1")
 endif ()
+
+if (APPLE)
+    # TODO: add Metal sources and libraries
+    target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_METAL=1")
+endif ()
+
+# TODO: check if Vulkan is actually supported by the target platform
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_VULKAN=1")
+
+# SDL Renderer forces OpenGL to an ancient version.
+# Leave it out for now until we replace SDL Renderer with our own graphics platform.
+#target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_OPENGL=1")
+
 
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES

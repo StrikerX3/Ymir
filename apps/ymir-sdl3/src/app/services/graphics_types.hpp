@@ -8,21 +8,6 @@
 
 namespace app::gfx {
 
-#ifdef _WIN32
-    #define YMIR_PLATFORM_HAS_DIRECT3D
-#endif
-
-#ifdef __APPLE__
-    #define YMIR_PLATFORM_HAS_METAL
-#endif
-
-#define YMIR_PLATFORM_HAS_VULKAN
-
-// OpenGL is offered as a fallback option only, not recommended
-#if !defined(__APPLE__) && !defined(_WIN32)
-    #define YMIR_PLATFORM_HAS_OPENGL
-#endif
-
 /// @brief Graphics backend options.
 enum class Backend {
     Default,
