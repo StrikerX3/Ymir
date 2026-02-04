@@ -540,6 +540,8 @@ void SoftwareVDPRenderer::VDP1EndFrame() {
     Callbacks.VDP1DrawFinished();
 }
 
+// -----------------------------------------------------------------------------
+
 void SoftwareVDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive) {
     m_HRes = h;
     m_VRes = v;
