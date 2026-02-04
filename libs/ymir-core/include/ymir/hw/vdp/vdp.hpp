@@ -215,6 +215,9 @@ private:
         if (renderer == nullptr) {
             return nullptr;
         }
+        if (!renderer->IsValid()) {
+            return nullptr;
+        }
 
         const config::RendererCallbacks callbacks = m_renderer->Callbacks;
         if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {

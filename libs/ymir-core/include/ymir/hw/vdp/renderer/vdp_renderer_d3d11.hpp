@@ -4,6 +4,8 @@
 
 #include <ymir/hw/vdp/vdp_state.hpp>
 
+#include <memory>
+
 // -----------------------------------------------------------------------------
 // Forward declarations
 
@@ -13,6 +15,10 @@ struct ID3D11Device;
 
 namespace ymir::vdp {
 
+/// @brief A VDP renderer using Direct3D 11.
+/// Requires a valid `ID3D11Device *` that has been created with support for deferred contexts.
+/// The device must remain valid for the lifetime of the renderer. If the `ID3DDevice11` needs to be recreated or
+/// destroyed, the renderer must be destroyed first.
 class Direct3D11VDPRenderer : public IVDPRenderer {
 public:
     /// @brief Creates a new Direct3D 11 VDP renderer using the given device.
@@ -23,6 +29,8 @@ public:
 
     // -------------------------------------------------------------------------
     // Basics
+
+    bool IsValid() const override;
 
 protected:
     void ResetImpl(bool hard) override;
@@ -91,6 +99,11 @@ private:
     VDPState &m_state;
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     ID3D11Device *m_device;
+
+    struct Context;
+    std::unique_ptr<Context> m_context;
+
+    bool m_valid = false;
 };
 
 } // namespace ymir::vdp

@@ -29,6 +29,11 @@ public:
     // -------------------------------------------------------------------------
     // Basics
 
+    /// @brief Determines if the necessary resources for this VDP renderer have been created successfully, allowing the
+    /// renderer to be used normally.
+    /// @return `true` if the renderer is valid, `false` if it failed to create.
+    virtual bool IsValid() const = 0;
+
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     void Reset(bool hard);
