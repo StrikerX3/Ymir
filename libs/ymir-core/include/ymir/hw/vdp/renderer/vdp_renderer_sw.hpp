@@ -45,6 +45,10 @@ public:
     // -------------------------------------------------------------------------
     // Basics
 
+    bool IsValid() const override {
+        return true;
+    }
+
 protected:
     void ResetImpl(bool hard) override;
 

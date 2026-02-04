@@ -1,15 +1,40 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp>
 
+#include <ymir/util/inline.hpp>
+
 #include <d3d11.h>
 
 namespace ymir::vdp {
+
+FORCE_INLINE static void SafeRelease(IUnknown *object) {
+    if (object != nullptr) {
+        object->Release();
+    }
+}
+
+struct Direct3D11VDPRenderer::Context {
+    ~Context() {
+        SafeRelease(immediateCtx);
+        SafeRelease(deferredCtx);
+    }
+
+    ID3D11DeviceContext *immediateCtx = nullptr;
+    ID3D11DeviceContext *deferredCtx = nullptr;
+};
 
 Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
                                              ID3D11Device *device)
     : IVDPRenderer(VDPRendererType::Direct3D11)
     , m_state(state)
     , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
-    , m_device(device) {
+    , m_device(device)
+    , m_context(std::make_unique<Context>()) {
+
+    m_device->GetImmediateContext(&m_context->immediateCtx);
+    HRESULT hr = m_device->CreateDeferredContext(0, &m_context->deferredCtx);
+    if (FAILED(hr)) {
+        return;
+    }
 
     // TODO: create resources
     // - deferred context
@@ -24,6 +49,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     //   - VDP2 VRAM
     //   - VDP2 CRAM (or precomputed colors)
     // TODO: figure out how to handle mid-frame VRAM writes
+
+    m_valid = true; // TODO: only set to true if all resources have been created
 }
 
 Direct3D11VDPRenderer::~Direct3D11VDPRenderer() {
@@ -32,6 +59,10 @@ Direct3D11VDPRenderer::~Direct3D11VDPRenderer() {
 
 // -----------------------------------------------------------------------------
 // Basics
+
+bool Direct3D11VDPRenderer::IsValid() const {
+    return m_valid;
+}
 
 void Direct3D11VDPRenderer::ResetImpl(bool hard) {}
 
@@ -137,9 +168,21 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
 }
 
 void Direct3D11VDPRenderer::VDP2EndFrame() {
-    // TODO: generate command list for frame
-    // TODO: submit deferred context to be executed in the immmediate context on the main thread
-    // - define callback for this
+    // TODO: generate command list for frame:
+    //    ID3D11CommandList *commandList = nullptr;
+    //    HRESULT hr = m_context->deferredCtx->FinishCommandList(FALSE, &commandList);
+    //    if (FAILED(hr)) {
+    //        return;
+    //    }
+
+    // TODO: submit command list to be executed in the immmediate context on the main thread
+    // - send an opaque callable via callback that does this:
+    //    // might have to pass TRUE here if SDL_FlushRenderer() isn't enough
+    //    m_context->immediateCtx->ExecuteCommandList(commandList, FALSE);
+    //    commandList->Release();
+    // - frontend should enqueue it for execution by the GUI thread
+    //   - invoke SDL_FlushRenderer before the opaque callable
+
     Callbacks.VDP2DrawFinished();
 }
 
