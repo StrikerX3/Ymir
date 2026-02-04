@@ -13,7 +13,7 @@ namespace ymir::vdp {
 enum class VDPRendererType {
     Null,
     Software,
-#ifdef YMIR_HAS_D3D11
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
     Direct3D11,
 #endif
 };
@@ -25,7 +25,7 @@ inline std::string_view GetRendererName(VDPRendererType type) {
     switch (type) {
     case VDPRendererType::Null: return "Null";
     case VDPRendererType::Software: return "Software";
-#ifdef YMIR_HAS_D3D11
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
     case VDPRendererType::Direct3D11: return "Direct3D 11";
 #endif
     default: return "Invalid";
@@ -36,7 +36,7 @@ inline std::string_view GetRendererName(VDPRendererType type) {
 inline constexpr VDPRendererType kRendererTypes[] = {
     VDPRendererType::Null,
     VDPRendererType::Software,
-#ifdef YMIR_HAS_D3D11
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
     VDPRendererType::Direct3D11,
 #endif
 };
@@ -46,7 +46,7 @@ inline constexpr VDPRendererType kRendererTypes[] = {
 
 class NullVDPRenderer;
 class SoftwareVDPRenderer;
-#ifdef YMIR_HAS_D3D11
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
 class Direct3D11VDPRenderer;
 #endif
 
@@ -69,7 +69,7 @@ namespace detail {
         using type = SoftwareVDPRenderer;
     };
 
-#ifdef YMIR_HAS_D3D11
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
     /// @brief Metadata about the Direct3D 11 VDP renderer.
     template <>
     struct VDPRendererTypeMeta<VDPRendererType::Direct3D11> {
