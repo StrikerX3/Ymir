@@ -206,12 +206,6 @@ llvm-profdata merge \
   "$PWD/build-pgo-gen/pgo-profdata"/*.profraw
 ```
 
-If `llvm-profdata` is on your PATH, you can also run:
-
-```sh
-cmake --build build-pgo-gen --target ymir-pgo-merge
-```
-
 Build using the merged profile:
 
 Linux
