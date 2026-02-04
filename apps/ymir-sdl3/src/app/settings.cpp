@@ -2092,7 +2092,7 @@ void Settings::RebindInputs() {
     bindAll(m_actionInputs);
 
     for (uint32 i = 0; i < 2; ++i) {
-        switch (m_context.settings.input.ports[i].type) {
+        switch (input.ports[i].type) {
         case peripheral::PeripheralType::None: break;
         case peripheral::PeripheralType::ControlPad: bindAll(m_controlPadInputs[i]); break;
         case peripheral::PeripheralType::AnalogPad: bindAll(m_analogPadInputs[i]); break;
@@ -2120,7 +2120,7 @@ std::optional<input::MappedAction> Settings::UnbindInput(const input::InputEleme
 
     // In case the action belongs to a controller, make sure it is actually connected before removing the bind
     for (uint32 i = 0; i < 2; ++i) {
-        switch (m_context.settings.input.ports[i].type) {
+        switch (input.ports[i].type) {
         case peripheral::PeripheralType::None: break;
         case peripheral::PeripheralType::ControlPad:
             if (existingAction->context != &m_context.controlPadInputs[i]) {
@@ -2201,7 +2201,7 @@ void Settings::SyncInputSettings() {
     sync(m_actionInputs);
 
     for (uint32 i = 0; i < 2; ++i) {
-        switch (m_context.settings.input.ports[i].type) {
+        switch (input.ports[i].type) {
         case peripheral::PeripheralType::None: break;
         case peripheral::PeripheralType::ControlPad: sync(m_controlPadInputs[i]); break;
         case peripheral::PeripheralType::AnalogPad: sync(m_analogPadInputs[i]); break;
