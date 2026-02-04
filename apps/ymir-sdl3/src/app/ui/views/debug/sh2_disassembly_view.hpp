@@ -109,16 +109,22 @@ private:
         bool colorizeMnemonicsByType = true;
     } m_settings;
 
-    // state struct used for scrollable disassembly view
-    // TODO: maybe move parts into m_settings?
+    // State struct used for scrollable disassembly view
     struct State {
         uint32 minAddress = kAddressMin;
-        uint32 maxAddress = kAddressMax;    // address range min:max
-        uint32 jumpAddress = 0;             // address to jump to, zero initialized
-        bool jumpRequested = false;         // jump request
-        bool followPC = true;               // follow PC
-        float lastScrollY = 0.0f;           // last scroll position
+        uint32 maxAddress = kAddressMax; // address range min:max
+        uint32 jumpAddress = 0;          // address to jump to
+        bool jumpRequested = false;      // pending jump request
+        bool followPC = true;            // auto-follow PC toggle
     } m_state;
+
+    // Cached line height, computed dynamically from font size
+    float m_lineAdvance = 0.0f;
+
+    // Scrolls the disassembly view to center the given address.
+    // smoothFollow: true for continuous PC tracking (smooth local, snappy far)
+    //               false for explicit JumpTo requests (always smooth)
+    void ScrollToAddress(uint32 targetAddress, float viewHeight, bool smoothFollow);
 };
 
 } // namespace app::ui

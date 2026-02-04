@@ -8,6 +8,7 @@
 #include <ymir/hw/sh2/sh2.hpp>
 #include <ymir/hw/sh2/sh2_disasm.hpp>
 #include <ymir/hw/vdp/vdp.hpp>
+#include <ymir/media/disc.hpp>
 #include <ymir/sys/bus.hpp>
 #include <ymir/util/dev_log.hpp>
 
@@ -84,7 +85,7 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
             return;
         }
 
-        // adress space ranges
+        // address space ranges
         constexpr uint32 kAddrMin = 0x00000000u;
         constexpr uint32 kAddrMax = 0x07FFFFFEu;
 
@@ -114,8 +115,43 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
             return;
         }
 
-        // add prefix for msh-2/ssh-2 
+        // add prefix for msh-2/ssh-2
         const char sh2Prefix = master ? 'm' : 's';
+
+        // sanitize string for safe filesystem use
+        auto sanitizeFilename = [](std::string_view input, size_t maxLen = 32) -> std::string {
+            std::string result;
+            result.reserve(std::min(input.size(), maxLen));
+            for (char c : input) {
+                if (result.size() >= maxLen)
+                    break;
+                if (std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-') {
+                    result += c;
+                } else if (!result.empty() && result.back() != '_') {
+                    result += '_';
+                }
+            }
+            while (!result.empty() && result.back() == '_') {
+                result.pop_back();
+            }
+            return result.empty() ? "Unknown" : result;
+        };
+
+        // extract game identification from disc header
+        std::string productNumber;
+        std::string gameTitle;
+        {
+            std::unique_lock lock{ctx.locks.disc};
+            const auto &disc = ctx.saturn.GetDisc();
+            productNumber = sanitizeFilename(disc.header.productNumber, 16);
+            gameTitle = sanitizeFilename(disc.header.gameTitle, 32);
+        }
+        if (productNumber.empty() || productNumber == "Unknown") {
+            productNumber = "NoDisc";
+        }
+        if (gameTitle.empty() || gameTitle == "Unknown") {
+            gameTitle = "NoGame";
+        }
 
         // switch mnemonic to string view
         auto mnemonicToString = [](ymir::sh2::Mnemonic m) -> std::string_view {
@@ -206,46 +242,27 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
             using ymir::sh2::Operand;
             using ymir::sh2::OperandSize;
             switch (op.type) {
-            case Operand::Type::Imm: 
-                return fmt::format("#0x{:X}", static_cast<uint32>(op.immDisp));
-            case Operand::Type::Rn: 
-                return fmt::format("r{}", op.reg);
-            case Operand::Type::AtRn: 
-                return fmt::format("@r{}", op.reg);
-            case Operand::Type::AtRnPlus: 
-                return fmt::format("@r{}+", op.reg);
-            case Operand::Type::AtMinusRn: 
-                return fmt::format("@-r{}", op.reg);
-            case Operand::Type::AtDispRn: 
-                return fmt::format("@(0x{:X}, r{})", static_cast<uint32>(op.immDisp), op.reg);
-            case Operand::Type::AtR0Rn: 
-                return fmt::format("@(r0, r{})", op.reg);
-            case Operand::Type::AtDispGBR:
-                return fmt::format("@(0x{:X}, gbr)", static_cast<uint32>(op.immDisp));
-            case Operand::Type::AtR0GBR: 
-                return "@(r0, gbr)";
-            case Operand::Type::AtDispPC:
-                return fmt::format("@(0x{:X})", static_cast<uint32>(address + op.immDisp));
+            case Operand::Type::Imm: return fmt::format("#0x{:X}", static_cast<uint32>(op.immDisp));
+            case Operand::Type::Rn: return fmt::format("r{}", op.reg);
+            case Operand::Type::AtRn: return fmt::format("@r{}", op.reg);
+            case Operand::Type::AtRnPlus: return fmt::format("@r{}+", op.reg);
+            case Operand::Type::AtMinusRn: return fmt::format("@-r{}", op.reg);
+            case Operand::Type::AtDispRn: return fmt::format("@(0x{:X}, r{})", static_cast<uint32>(op.immDisp), op.reg);
+            case Operand::Type::AtR0Rn: return fmt::format("@(r0, r{})", op.reg);
+            case Operand::Type::AtDispGBR: return fmt::format("@(0x{:X}, gbr)", static_cast<uint32>(op.immDisp));
+            case Operand::Type::AtR0GBR: return "@(r0, gbr)";
+            case Operand::Type::AtDispPC: return fmt::format("@(0x{:X})", static_cast<uint32>(address + op.immDisp));
             case Operand::Type::AtDispPCWordAlign:
                 return fmt::format("@(0x{:X})", static_cast<uint32>((address & ~3u) + op.immDisp));
-            case Operand::Type::AtRnPC: 
-                return fmt::format("@r{}+pc", op.reg);
-            case Operand::Type::DispPC: 
-                return fmt::format("0x{:X}", static_cast<uint32>(address + op.immDisp));
-            case Operand::Type::RnPC: 
-                return fmt::format("r{}+pc", op.reg);
-            case Operand::Type::SR: 
-                return "sr";
-            case Operand::Type::GBR: 
-                return "gbr";
-            case Operand::Type::VBR: 
-                return "vbr";
-            case Operand::Type::MACH: 
-                return "mach";
-            case Operand::Type::MACL: 
-                return "macl";
-            case Operand::Type::PR: 
-                return "pr";
+            case Operand::Type::AtRnPC: return fmt::format("@r{}+pc", op.reg);
+            case Operand::Type::DispPC: return fmt::format("0x{:X}", static_cast<uint32>(address + op.immDisp));
+            case Operand::Type::RnPC: return fmt::format("r{}+pc", op.reg);
+            case Operand::Type::SR: return "sr";
+            case Operand::Type::GBR: return "gbr";
+            case Operand::Type::VBR: return "vbr";
+            case Operand::Type::MACH: return "mach";
+            case Operand::Type::MACL: return "macl";
+            case Operand::Type::PR: return "pr";
             default: return {};
             }
         };
@@ -253,14 +270,14 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
         // switch instruction to string (...more of the same)
         auto instrToString = [&](uint32 address, uint16 opcode, const ymir::sh2::DisassembledInstruction &instr) {
             std::string line = fmt::format("{:08X}: {:04X} {}", address, opcode, mnemonicToString(instr.mnemonic));
-            // operand size 
+            // operand size
             switch (instr.opSize) {
             case ymir::sh2::OperandSize::Byte: line += ".b"; break;
             case ymir::sh2::OperandSize::Word: line += ".w"; break;
             case ymir::sh2::OperandSize::Long: line += ".l"; break;
             default: break;
             }
-            
+
             // handle op1 and op2 -> string
             std::string op1Str = opToString(address, instr.op1);
             std::string op2Str = opToString(address, instr.op2);
@@ -280,8 +297,8 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
 
         // disasm dump guard
         if (disasmDump) {
-            const auto outPath =
-                dumpPath / fmt::format("{}sh2-disasm_{:08X}_{:08X}.txt", sh2Prefix, rangeStart, rangeEnd);
+            const auto outPath = dumpPath / fmt::format("{}sh2-disasm_{:08X}_{:08X}_{}_{}.txt", sh2Prefix, rangeStart,
+                                                        rangeEnd, productNumber, gameTitle);
 
             // get disasm output file stream
             std::ofstream out{outPath, std::ios::trunc};
@@ -307,12 +324,11 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
             ctx.DisplayMessage(fmt::format("{}SH2 disassembly written to {}", (master ? "M" : "S"), outPath));
         }
 
-        
-
+        // bin dump guard
         if (binaryDump) {
             // get path for binary dump
-            const auto outPath =
-                dumpPath / fmt::format("{}sh2-disasm-bindump_{:08X}_{:08X}.bin", sh2Prefix, rangeStart, rangeEnd);
+            const auto outPath = dumpPath / fmt::format("{}sh2-disasm-bindump_{:08X}_{:08X}_{}_{}.bin", sh2Prefix,
+                                                        rangeStart, rangeEnd, productNumber, gameTitle);
 
             // get bin output file stream
             std::ofstream out{outPath, std::ios::binary | std::ios::trunc};
@@ -333,7 +349,7 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
                     break;
                 }
             }
-            
+
             ctx.DisplayMessage(fmt::format("{}SH2 bin dump written to {}", (master ? "M" : "S"), outPath));
         }
     });
