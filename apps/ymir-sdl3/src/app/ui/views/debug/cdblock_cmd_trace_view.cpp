@@ -1,5 +1,7 @@
 #include "cdblock_cmd_trace_view.hpp"
 
+#include <app/settings.hpp>
+
 namespace app::ui {
 
 static ImVec4 MakeColorFromU8(uint8 value) {
@@ -16,6 +18,8 @@ CDBlockCommandTraceView::CDBlockCommandTraceView(SharedContext &context)
     , m_tracer(context.tracers.CDBlock) {}
 
 void CDBlockCommandTraceView::Display() {
+    const auto &settings = m_context.serviceLocator.GetRequired<Settings>();
+
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
     const float hexCharWidth = ImGui::CalcTextSize("F").x;
@@ -34,7 +38,7 @@ void CDBlockCommandTraceView::Display() {
     if (ImGui::Button("Clear")) {
         m_tracer.ClearCommands();
     }
-    if (m_context.settings.cdblock.useLLE) {
+    if (settings.cdblock.useLLE) {
         ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
         ImGui::TextColored(m_context.colors.notice,
                            "CD Block LLE is enabled. Commands will be traced to the YGR command trace window instead.");

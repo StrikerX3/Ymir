@@ -10,8 +10,10 @@ HotkeysSettingsView::HotkeysSettingsView(SharedContext &context)
     , m_unboundActionsWidget(context) {}
 
 void HotkeysSettingsView::Display() {
+    auto &settings = GetSettings();
+
     if (ImGui::Button("Restore defaults")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetHotkeys());
+        m_unboundActionsWidget.Capture(settings.ResetHotkeys());
         MakeDirty();
     }
 
@@ -44,7 +46,7 @@ void HotkeysSettingsView::Display() {
             }
         };
 
-        auto &hotkeys = m_context.settings.hotkeys;
+        auto &hotkeys = settings.hotkeys;
 
         drawRow(hotkeys.openSettings);
         drawRow(hotkeys.toggleWindowedVideoOutput);

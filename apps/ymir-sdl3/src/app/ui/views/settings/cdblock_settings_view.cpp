@@ -56,7 +56,7 @@ void CDBlockSettingsView::Display() {
         }
     }
 
-    auto &settings = m_context.settings.cdblock;
+    auto &settings = GetSettings().cdblock;
 
     int index = 0;
     if (ImGui::BeginTable("cdb_roms", 3,
@@ -134,7 +134,7 @@ void CDBlockSettingsView::Display() {
                     settings.romPath = cdbROM.path;
                     if (!settings.romPath.empty()) {
                         m_context.EnqueueEvent(events::gui::ReloadCDBlockROM());
-                        m_context.settings.MakeDirty();
+                        MakeDirty();
                     }
                 }
             }
@@ -149,7 +149,7 @@ void CDBlockSettingsView::Display() {
     if (MakeDirty(ImGui::Checkbox("Override CD block ROM", &settings.overrideROM))) {
         if (settings.overrideROM && !settings.romPath.empty()) {
             m_context.EnqueueEvent(events::gui::ReloadCDBlockROM());
-            m_context.settings.MakeDirty();
+            MakeDirty();
         }
     }
 
@@ -179,7 +179,7 @@ void CDBlockSettingsView::Display() {
     if (ImGui::Button("Reload")) {
         if (!settings.romPath.empty()) {
             m_context.EnqueueEvent(events::gui::ReloadCDBlockROM());
-            m_context.settings.MakeDirty();
+            MakeDirty();
         }
     }
     if (!settings.overrideROM) {

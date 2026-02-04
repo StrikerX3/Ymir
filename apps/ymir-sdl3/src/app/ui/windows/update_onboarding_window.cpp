@@ -1,5 +1,7 @@
 #include "update_onboarding_window.hpp"
 
+#include <app/settings.hpp>
+
 #include <app/ui/widgets/common_widgets.hpp>
 
 #include <app/events/gui_event_factory.hpp>
@@ -7,6 +9,8 @@
 #include <util/os_features.hpp>
 
 #include <ymir/version.hpp>
+
+#include <fstream>
 
 namespace app::ui {
 
@@ -53,8 +57,9 @@ void UpdateOnboardingWindow::DrawContents() {
 
         util::os::SetFileHidden(onboardedPath, true);
 
-        m_context.settings.general.checkForUpdates = m_checkForUpdates;
-        m_context.settings.general.includeNightlyBuilds = m_includeNightlyBuilds;
+        auto &settings = m_context.serviceLocator.GetRequired<Settings>();
+        settings.general.checkForUpdates = m_checkForUpdates;
+        settings.general.includeNightlyBuilds = m_includeNightlyBuilds;
         if (m_checkForUpdates) {
             m_context.EnqueueEvent(events::gui::CheckForUpdates());
         }

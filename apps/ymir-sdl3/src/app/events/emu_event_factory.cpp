@@ -276,8 +276,8 @@ EmuEvent InsertPeripheral(uint32 port, ymir::peripheral::PeripheralType type) {
 EmuEvent InsertBackupMemoryCartridge(std::filesystem::path path) {
     return RunFunction([=](SharedContext &ctx) {
         // Prevent loading the internal backup RAM file as backup memory cartridge
-        if (std::filesystem::absolute(path) ==
-            std::filesystem::absolute(ctx.settings.system.internalBackupRAMImagePath)) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        if (std::filesystem::absolute(path) == std::filesystem::absolute(settings.system.internalBackupRAMImagePath)) {
             ctx.EnqueueEvent(events::gui::ShowError(fmt::format(
                 "Failed to load external backup memory: file {} is already in use as internal backup memory", path)));
             return;
@@ -290,8 +290,8 @@ EmuEvent InsertBackupMemoryCartridge(std::filesystem::path path) {
         case bup::BackupMemoryImageLoadResult::Success: //
         {
             auto *cart = ctx.saturn.instance->InsertCartridge<cart::BackupMemoryCartridge>(std::move(bupMem));
-            ctx.settings.cartridge.backupRAM.capacity = SizeToCapacity(cart->GetBackupMemory().Size());
-            ctx.settings.cartridge.backupRAM.imagePath = path;
+            settings.cartridge.backupRAM.capacity = SizeToCapacity(cart->GetBackupMemory().Size());
+            settings.cartridge.backupRAM.imagePath = path;
             devlog::info<grp::base>("External backup memory cartridge loaded from {}", path);
             break;
         }
@@ -374,9 +374,10 @@ EmuEvent InsertCartridgeFromSettings() {
     return RunFunction([](SharedContext &ctx) {
         std::unique_lock lock{ctx.locks.cart};
 
-        auto &settings = ctx.settings.cartridge;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &cartSettings = settings.cartridge;
 
-        switch (settings.type) {
+        switch (cartSettings.type) {
         case Settings::Cartridge::Type::None:
             ctx.saturn.instance->RemoveCartridge();
             devlog::info<grp::base>("Cartridge removed");
@@ -384,19 +385,19 @@ EmuEvent InsertCartridgeFromSettings() {
 
         case Settings::Cartridge::Type::BackupRAM: {
             // Prevent loading the internal backup RAM file as backup memory cartridge
-            if (std::filesystem::absolute(settings.backupRAM.imagePath) ==
-                std::filesystem::absolute(ctx.settings.system.internalBackupRAMImagePath)) {
+            if (std::filesystem::absolute(cartSettings.backupRAM.imagePath) ==
+                std::filesystem::absolute(settings.system.internalBackupRAMImagePath)) {
                 ctx.EnqueueEvent(events::gui::ShowError(fmt::format(
                     "Failed to load external backup memory: file {} is already in use as internal backup memory",
-                    settings.backupRAM.imagePath)));
+                    cartSettings.backupRAM.imagePath)));
                 return;
             }
 
             // Use default path for specified size
-            if (settings.backupRAM.imagePath.empty()) {
-                settings.backupRAM.imagePath =
+            if (cartSettings.backupRAM.imagePath.empty()) {
+                cartSettings.backupRAM.imagePath =
                     ctx.profile.GetPath(ProfilePath::PersistentState) /
-                    fmt::format("bup-ext-{}M.bin", CapacityToSize(settings.backupRAM.capacity) * 8 / 1024 / 1024);
+                    fmt::format("bup-ext-{}M.bin", CapacityToSize(cartSettings.backupRAM.capacity) * 8 / 1024 / 1024);
             }
 
             // If a backup RAM cartridge is inserted, remove it first to unlock the file and reinsert the previous
@@ -416,7 +417,7 @@ EmuEvent InsertCartridgeFromSettings() {
             }};
             if (auto *cart = ctx.saturn.instance->GetCartridge().As<cart::CartType::BackupMemory>()) {
                 prevPath = cart->GetBackupMemory().GetPath();
-                if (prevPath == settings.backupRAM.imagePath) {
+                if (prevPath == cartSettings.backupRAM.imagePath) {
                     ctx.saturn.instance->RemoveCartridge();
                 } else {
                     sgReinsertOnFailure.Cancel();
@@ -427,15 +428,16 @@ EmuEvent InsertCartridgeFromSettings() {
 
             std::error_code error{};
             bup::BackupMemory bupMem{};
-            bupMem.CreateFrom(settings.backupRAM.imagePath, CapacityToBupSize(settings.backupRAM.capacity), error);
+            bupMem.CreateFrom(cartSettings.backupRAM.imagePath, CapacityToBupSize(cartSettings.backupRAM.capacity),
+                              error);
             if (error) {
                 devlog::info<grp::base>("Failed to insert {} backup RAM cartridge from {}: {}",
-                                        BupCapacityShortName(settings.backupRAM.capacity), settings.backupRAM.imagePath,
-                                        error.message());
+                                        BupCapacityShortName(cartSettings.backupRAM.capacity),
+                                        cartSettings.backupRAM.imagePath, error.message());
             } else {
                 devlog::info<grp::base>("{} backup RAM cartridge inserted with image from {}",
-                                        BupCapacityShortName(settings.backupRAM.capacity),
-                                        settings.backupRAM.imagePath);
+                                        BupCapacityShortName(cartSettings.backupRAM.capacity),
+                                        cartSettings.backupRAM.imagePath);
                 ctx.saturn.instance->InsertCartridge<cart::BackupMemoryCartridge>(std::move(bupMem));
 
                 // If the cartridge was successfully inserted, we don't need to reinsert the previous cartridge
@@ -444,7 +446,7 @@ EmuEvent InsertCartridgeFromSettings() {
             break;
         }
         case Settings::Cartridge::Type::DRAM:
-            switch (settings.dram.capacity) {
+            switch (cartSettings.dram.capacity) {
             case Settings::Cartridge::DRAM::Capacity::_48Mbit:
                 ctx.saturn.instance->InsertCartridge<cart::DRAM48MbitCartridge>();
                 devlog::info<grp::base>("48 Mbit DRAM dev cartridge inserted");
@@ -464,12 +466,12 @@ EmuEvent InsertCartridgeFromSettings() {
             // TODO: deduplicate code
 
             // Don't even bother if no path was specified
-            if (settings.rom.imagePath.empty()) {
+            if (cartSettings.rom.imagePath.empty()) {
                 break;
             }
 
             std::error_code error{};
-            std::vector<uint8> rom = util::LoadFile(settings.rom.imagePath, error);
+            std::vector<uint8> rom = util::LoadFile(cartSettings.rom.imagePath, error);
 
             // Check for file system errors
             if (error) {
@@ -498,7 +500,8 @@ EmuEvent InsertCartridgeFromSettings() {
             // Insert cartridge
             cart::ROMCartridge *cart = ctx.saturn.instance->InsertCartridge<cart::ROMCartridge>();
             if (cart != nullptr) {
-                devlog::info<grp::base>("16 Mbit ROM cartridge inserted with image from {}", settings.rom.imagePath);
+                devlog::info<grp::base>("16 Mbit ROM cartridge inserted with image from {}",
+                                        cartSettings.rom.imagePath);
                 cart->LoadROM(rom);
             }
             break;
@@ -563,19 +566,31 @@ EmuEvent SetCDBlockLLE(bool enable) {
 }
 
 EmuEvent EnableThreadedVDP1(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedVDP1 = enable; });
+    return RunFunction([=](SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        settings.video.threadedVDP1 = enable;
+    });
 }
 
 EmuEvent EnableThreadedVDP2(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedVDP2 = enable; });
+    return RunFunction([=](SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        settings.video.threadedVDP2 = enable;
+    });
 }
 
 EmuEvent EnableThreadedDeinterlacer(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.settings.video.threadedDeinterlacer = enable; });
+    return RunFunction([=](SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        settings.video.threadedDeinterlacer = enable;
+    });
 }
 
 EmuEvent EnableThreadedSCSP(bool enable) {
-    return RunFunction([=](SharedContext &ctx) { ctx.settings.audio.threadedSCSP = enable; });
+    return RunFunction([=](SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        settings.audio.threadedSCSP = enable;
+    });
 }
 
 EmuEvent SetSCSPStepGranularity(uint32 granularity) {

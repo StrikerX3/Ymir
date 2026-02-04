@@ -6,7 +6,6 @@
 #include <app/profile.hpp>
 #include <app/rewind_buffer.hpp>
 #include <app/rom_manager.hpp>
-#include <app/settings.hpp>
 #include <app/update_checker.hpp>
 
 #include <app/services/graphics_types.hpp>
@@ -29,6 +28,8 @@
 
 #include <ymir/hw/smpc/peripheral/peripheral_state_common.hpp>
 
+#include <ymir/core/configuration.hpp>
+
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/event.hpp>
 
@@ -38,8 +39,6 @@
 
 #include <blockingconcurrentqueue.h>
 
-#include "rtmidi_wrapper.hpp"
-
 #include <array>
 #include <chrono>
 #include <deque>
@@ -47,8 +46,6 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
-
-using MidiPortType = app::Settings::Audio::MidiPort::Type;
 
 // -----------------------------------------------------------------------------
 // Forward declarations
@@ -659,7 +656,6 @@ struct SharedContext {
     int gameControllerDBCount = 0;
 
     Profile profile;
-    Settings settings{*this};
     UpdateChecker updateChecker;
 
     struct Updates {
@@ -680,11 +676,6 @@ struct SharedContext {
 
     RewindBuffer rewindBuffer;
     bool rewinding = false;
-
-    struct Midi {
-        std::unique_ptr<util::IRtMidiIn> input;
-        std::unique_ptr<util::IRtMidiOut> output;
-    } midi;
 
     // Certain GUI interactions require synchronization with the emulator thread, especially when dealing with
     // dynamically allocated objects:
@@ -836,68 +827,6 @@ struct SharedContext {
     // Retrieves the current display if one is selected.
     // Returns the primary display if the "current display" option is selected.
     SDL_DisplayID GetSelectedDisplay() const;
-
-    std::string GetMidiVirtualInputPortName() {
-        return "Ymir Virtual MIDI Input";
-    }
-
-    std::string GetMidiVirtualOutputPortName() {
-        return "Ymir Virtual MIDI Output";
-    }
-
-    std::string GetMidiInputPortName() {
-        switch (settings.audio.midiInputPort.Get().type) {
-        case MidiPortType::None: {
-            return "None";
-        }
-        case MidiPortType::Normal: {
-            return settings.audio.midiInputPort.Get().id;
-        }
-        case MidiPortType::Virtual: {
-            return GetMidiVirtualInputPortName();
-        }
-        }
-
-        return {};
-    }
-
-    std::string GetMidiOutputPortName() {
-        switch (settings.audio.midiOutputPort.Get().type) {
-        case MidiPortType::None: {
-            return "None";
-        }
-        case MidiPortType::Normal: {
-            return settings.audio.midiOutputPort.Get().id;
-        }
-        case MidiPortType::Virtual: {
-            return GetMidiVirtualInputPortName();
-        }
-        }
-
-        return {};
-    }
-
-    int FindInputPortByName(std::string name) {
-        unsigned int portCount = midi.input->getPortCount();
-        for (unsigned int i = 0; i < portCount; i++) {
-            if (midi.input->getPortName(i) == name) {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    int FindOutputPortByName(std::string name) {
-        unsigned int portCount = midi.output->getPortCount();
-        for (unsigned int i = 0; i < portCount; i++) {
-            if (midi.output->getPortName(i) == name) {
-                return i;
-            }
-        }
-
-        return -1;
-    }
 };
 
 } // namespace app

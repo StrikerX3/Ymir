@@ -2,6 +2,7 @@
 
 #include <app/events/gui_event_factory.hpp>
 
+#include <app/settings.hpp>
 #include <app/settings_defaults.hpp>
 
 #include <algorithm>
@@ -17,6 +18,7 @@ void InputCaptureWidget::DrawInputBindButton(input::InputBind &bind, size_t elem
     const std::string bindStr = input::ToHumanString(bind.elements[elementIndex]);
     const std::string label = fmt::format("{}##bind_{}_{}", bindStr, elementIndex, bind.action.id);
     const float availWidth = ImGui::GetContentRegionAvail().x;
+    auto &settings = m_context.serviceLocator.GetRequired<Settings>();
 
     // Left-click engages bind mode
     if (ImGui::Button(label.c_str(), ImVec2(availWidth, 0))) {
@@ -38,7 +40,7 @@ void InputCaptureWidget::DrawInputBindButton(input::InputBind &bind, size_t elem
     }
 
     // Right-click erases a bind
-    if (MakeDirty(ImGui::IsItemClicked(ImGuiMouseButton_Right))) {
+    if (settings.MakeDirty(ImGui::IsItemClicked(ImGuiMouseButton_Right))) {
         m_context.inputContext.CancelCapture();
         m_capturing = false;
         bind.elements[elementIndex] = {};
@@ -123,9 +125,10 @@ void InputCaptureWidget::CaptureButton(input::InputBind &bind, size_t elementInd
             return true;
         }
 
+        auto &settings = m_context.serviceLocator.GetRequired<Settings>();
         bind.elements[elementIndex] = event.element;
-        MakeDirty();
-        m_unboundActionsWidget.Capture(m_context.settings.UnbindInput(event.element));
+        settings.MakeDirty();
+        m_unboundActionsWidget.Capture(settings.UnbindInput(event.element));
         m_context.EnqueueEvent(events::gui::RebindInputs());
         m_closePopup = true;
         return true;
@@ -243,22 +246,12 @@ void InputCaptureWidget::BindInput(input::InputBind &bind, size_t elementIndex, 
         return;
     }
 
+    auto &settings = m_context.serviceLocator.GetRequired<Settings>();
     bind.elements[elementIndex] = event.element;
-    MakeDirty();
-    m_unboundActionsWidget.Capture(m_context.settings.UnbindInput(event.element));
+    settings.MakeDirty();
+    m_unboundActionsWidget.Capture(settings.UnbindInput(event.element));
     m_context.EnqueueEvent(events::gui::RebindInputs());
     m_closePopup = true;
-}
-
-void InputCaptureWidget::MakeDirty() {
-    m_context.settings.MakeDirty();
-}
-
-bool InputCaptureWidget::MakeDirty(bool value) {
-    if (value) {
-        MakeDirty();
-    }
-    return value;
 }
 
 void Crosshair(ImDrawList *drawList, const CrosshairParams &params, ImVec2 pos) {

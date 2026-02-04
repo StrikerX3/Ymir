@@ -32,7 +32,7 @@ SystemSettingsView::SystemSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void SystemSettingsView::Display() {
-    auto &settings = m_context.settings.system;
+    auto &settings = GetSettings().system;
 
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     const float itemSpacingWidth = ImGui::GetStyle().ItemSpacing.x;
@@ -313,7 +313,7 @@ void SystemSettingsView::ProcessLoadBackupImageError(void *userdata, const char 
 }
 
 void SystemSettingsView::LoadBackupImage(std::filesystem::path file) {
-    auto &settings = m_context.settings.system;
+    auto &settings = GetSettings().system;
 
     if (std::filesystem::is_regular_file(file)) {
         // The user selected an existing image. Make sure it's a proper internal backup image.

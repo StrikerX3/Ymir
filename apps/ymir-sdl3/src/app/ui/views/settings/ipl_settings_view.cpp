@@ -40,7 +40,7 @@ IPLSettingsView::IPLSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void IPLSettingsView::Display() {
-    auto &settings = m_context.settings.system.ipl;
+    auto &settings = GetSettings().system.ipl;
 
     ImGui::TextUnformatted("NOTE: Changing any of these options will cause a hard reset");
 
@@ -199,7 +199,7 @@ void IPLSettingsView::Display() {
                     settings.path = iplRom.path;
                     if (!settings.path.empty()) {
                         m_context.EnqueueEvent(events::gui::ReloadIPLROM());
-                        m_context.settings.MakeDirty();
+                        MakeDirty();
                     }
                 }
             }
@@ -230,7 +230,7 @@ void IPLSettingsView::Display() {
     if (MakeDirty(ImGui::Checkbox("Override IPL ROM", &settings.overrideImage))) {
         if (settings.overrideImage && !settings.path.empty()) {
             m_context.EnqueueEvent(events::gui::ReloadIPLROM());
-            m_context.settings.MakeDirty();
+            MakeDirty();
         }
     }
 
@@ -260,7 +260,7 @@ void IPLSettingsView::Display() {
     if (ImGui::Button("Reload")) {
         if (!settings.path.empty()) {
             m_context.EnqueueEvent(events::gui::ReloadIPLROM());
-            m_context.settings.MakeDirty();
+            MakeDirty();
         }
     }
     if (!settings.overrideImage) {

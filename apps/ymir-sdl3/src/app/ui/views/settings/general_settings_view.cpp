@@ -20,7 +20,7 @@ GeneralSettingsView::GeneralSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void GeneralSettingsView::Display() {
-    auto &settings = m_context.settings.general;
+    auto &settings = GetSettings().general;
     auto &profile = m_context.profile;
 
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;

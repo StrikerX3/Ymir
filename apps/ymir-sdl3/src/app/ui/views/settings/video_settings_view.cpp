@@ -11,7 +11,7 @@ VideoSettingsView::VideoSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void VideoSettingsView::Display() {
-    auto &settings = m_context.settings.video;
+    auto &settings = GetSettings().video;
 
     // -----------------------------------------------------------------------------------------------------------------
 

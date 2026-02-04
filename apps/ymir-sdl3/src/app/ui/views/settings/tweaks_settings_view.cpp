@@ -28,7 +28,7 @@ void TweaksSettingsView::Display() {
     {
         auto checkbox = [](const char *name, bool value) { return fmt::format("[{}] {}", (value ? 'x' : ' '), name); };
 
-        auto &settings = m_context.settings;
+        auto &settings = GetSettings();
 
         fmt::memory_buffer buf{};
         auto inserter = std::back_inserter(buf);
@@ -104,7 +104,7 @@ void TweaksSettingsView::Display() {
 }
 
 void TweaksSettingsView::DisplayEnhancements() {
-    auto &settings = m_context.settings;
+    auto &settings = GetSettings();
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.xlarge);
     ImGui::SeparatorText("Enhancements");
@@ -154,7 +154,7 @@ void TweaksSettingsView::DisplayEnhancements() {
 }
 
 void TweaksSettingsView::DisplayAccuracyOptions() {
-    auto &settings = m_context.settings;
+    auto &settings = GetSettings();
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.xlarge);
     ImGui::SeparatorText("Accuracy");

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <app/settings.hpp>
 #include <app/shared_context.hpp>
 
 namespace app::ui {
@@ -16,6 +17,10 @@ protected:
     // Makes the settings dirty if the given value is true and returns the value.
     // Useful to inline with interactible ImGui widgets.
     bool MakeDirty(bool value);
+
+    // Retrieves a reference to the Settings object.
+    Settings &GetSettings();
+    const Settings &GetSettings() const;
 
 protected:
     SharedContext &m_context;

@@ -2,6 +2,8 @@
 
 #include "common_widgets.hpp"
 
+#include <app/settings.hpp>
+
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 
@@ -29,13 +31,14 @@ namespace settings::system {
         const bool forced =
             gameInfo != nullptr && BitmaskEnum(gameInfo->flags).AnyOf(db::GameInfo::Flags::ForceSH2Cache);
 
-        bool emulateSH2Cache = ctx.settings.system.emulateSH2Cache || forced;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        bool emulateSH2Cache = settings.system.emulateSH2Cache || forced;
         if (forced) {
             ImGui::BeginDisabled();
         }
-        if (ctx.settings.MakeDirty(ImGui::Checkbox("Emulate SH-2 cache", &emulateSH2Cache))) {
+        if (settings.MakeDirty(ImGui::Checkbox("Emulate SH-2 cache", &emulateSH2Cache))) {
             ctx.EnqueueEvent(events::emu::SetEmulateSH2Cache(emulateSH2Cache));
-            ctx.settings.system.emulateSH2Cache = emulateSH2Cache;
+            settings.system.emulateSH2Cache = emulateSH2Cache;
         }
         widgets::ExplanationTooltip("Enables emulation of the SH-2 cache.\n"
                                     "A few games require this to work properly.\n"
@@ -54,7 +57,8 @@ namespace settings::system {
 namespace settings::video {
 
     void GraphicsBackendCombo(SharedContext &ctx) {
-        auto &settings = ctx.settings.video;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &videoSettings = settings.video;
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted("Graphics backend:");
         widgets::ExplanationTooltip("Select the graphics API used to render the GUI.\n"
@@ -64,11 +68,11 @@ namespace settings::video {
                                     "this option automatically reverts to the last working backend option.",
                                     ctx.displayScale);
         ImGui::SameLine();
-        if (ImGui::BeginCombo("##graphics_backend", gfx::GraphicsBackendName(settings.graphicsBackend),
+        if (ImGui::BeginCombo("##graphics_backend", gfx::GraphicsBackendName(videoSettings.graphicsBackend),
                               ImGuiComboFlags_HeightLarge | ImGuiComboFlags_WidthFitPreview)) {
             auto item = [&](gfx::Backend backend) {
-                if (ctx.settings.MakeDirty(
-                        ImGui::Selectable(gfx::GraphicsBackendName(backend), settings.graphicsBackend == backend))) {
+                if (settings.MakeDirty(ImGui::Selectable(gfx::GraphicsBackendName(backend),
+                                                         videoSettings.graphicsBackend == backend))) {
                     ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend));
                 }
             };
@@ -80,7 +84,8 @@ namespace settings::video {
     }
 
     void DisplayRotation(SharedContext &ctx, bool newLine) {
-        auto &settings = ctx.settings.video;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &videoSettings = settings.video;
         ImGui::PushID("##disp_rot");
         using Rot = Settings::Video::DisplayRotation;
         ImGui::AlignTextToFramePadding();
@@ -89,8 +94,8 @@ namespace settings::video {
             if (sameLine) {
                 ImGui::SameLine();
             }
-            if (ctx.settings.MakeDirty(ImGui::RadioButton(name, settings.rotation == value))) {
-                settings.rotation = value;
+            if (settings.MakeDirty(ImGui::RadioButton(name, videoSettings.rotation == value))) {
+                videoSettings.rotation = value;
             }
         };
         option("Normal", Rot::Normal, !newLine);
@@ -101,10 +106,11 @@ namespace settings::video {
     }
 
     void Deinterlace(SharedContext &ctx) {
-        auto &settings = ctx.settings.video;
-        bool deinterlace = settings.deinterlace.Get();
-        if (ctx.settings.MakeDirty(ImGui::Checkbox("Deinterlace video", &deinterlace))) {
-            settings.deinterlace = deinterlace;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &videoSettings = settings.video;
+        bool deinterlace = videoSettings.deinterlace.Get();
+        if (settings.MakeDirty(ImGui::Checkbox("Deinterlace video", &deinterlace))) {
+            videoSettings.deinterlace = deinterlace;
         }
         widgets::ExplanationTooltip(
             "When enabled, interlaced high-resolution modes will be rendered in progressive mode.\n"
@@ -122,10 +128,11 @@ namespace settings::video {
     }
 
     void TransparentMeshes(SharedContext &ctx) {
-        auto &settings = ctx.settings.video;
-        bool transparentMeshes = settings.transparentMeshes.Get();
-        if (ctx.settings.MakeDirty(ImGui::Checkbox("Transparent meshes", &transparentMeshes))) {
-            settings.transparentMeshes = transparentMeshes;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &videoSettings = settings.video;
+        bool transparentMeshes = videoSettings.transparentMeshes.Get();
+        if (settings.MakeDirty(ImGui::Checkbox("Transparent meshes", &transparentMeshes))) {
+            videoSettings.transparentMeshes = transparentMeshes;
         }
         widgets::ExplanationTooltip(
             "When enabled, meshes (checkerboard patterns) will be rendered as transparent polygons instead.",
@@ -133,8 +140,9 @@ namespace settings::video {
     }
 
     void ThreadedVDP(SharedContext &ctx) {
-        bool threadedVDP1 = ctx.settings.video.threadedVDP1;
-        if (ctx.settings.MakeDirty(ImGui::Checkbox("Threaded VDP1 renderer", &threadedVDP1))) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        bool threadedVDP1 = settings.video.threadedVDP1;
+        if (settings.MakeDirty(ImGui::Checkbox("Threaded VDP1 renderer", &threadedVDP1))) {
             ctx.EnqueueEvent(events::emu::EnableThreadedVDP1(threadedVDP1));
         }
         widgets::ExplanationTooltip("Runs the software VDP1 renderer in a dedicated thread.\n"
@@ -142,8 +150,8 @@ namespace settings::video {
                                     "When disabled, VDP1 rendering is done on the emulator thread.",
                                     ctx.displayScale);
 
-        bool threadedVDP2 = ctx.settings.video.threadedVDP2;
-        if (ctx.settings.MakeDirty(ImGui::Checkbox("Threaded VDP2 renderer", &threadedVDP2))) {
+        bool threadedVDP2 = settings.video.threadedVDP2;
+        if (settings.MakeDirty(ImGui::Checkbox("Threaded VDP2 renderer", &threadedVDP2))) {
             ctx.EnqueueEvent(events::emu::EnableThreadedVDP2(threadedVDP2));
         }
         widgets::ExplanationTooltip(
@@ -160,8 +168,8 @@ namespace settings::video {
                 ImGui::BeginDisabled();
             }
 
-            bool threadedDeinterlacer = ctx.settings.video.threadedDeinterlacer;
-            if (ctx.settings.MakeDirty(
+            bool threadedDeinterlacer = settings.video.threadedDeinterlacer;
+            if (settings.MakeDirty(
                     ImGui::Checkbox("Use dedicated thread for deinterlaced rendering", &threadedDeinterlacer))) {
                 ctx.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(threadedDeinterlacer));
             }
@@ -186,15 +194,16 @@ namespace settings::video {
 namespace settings::audio {
 
     void InterpolationMode(SharedContext &ctx) {
-        auto &config = ctx.settings.audio;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &audioSettings = settings.audio;
 
         using InterpMode = ymir::core::config::audio::SampleInterpolationMode;
 
         auto interpOption = [&](const char *name, InterpMode mode) {
             const std::string label = fmt::format("{}##sample_interp", name);
             ImGui::SameLine();
-            if (ctx.settings.MakeDirty(ImGui::RadioButton(label.c_str(), config.interpolation == mode))) {
-                config.interpolation = mode;
+            if (settings.MakeDirty(ImGui::RadioButton(label.c_str(), audioSettings.interpolation == mode))) {
+                audioSettings.interpolation = mode;
             }
         };
 
@@ -214,8 +223,9 @@ namespace settings::audio {
     }
 
     void StepGranularity(SharedContext &ctx) {
-        auto &settings = ctx.settings.audio;
-        int stepGranularity = settings.stepGranularity;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &audioSettings = settings.audio;
+        int stepGranularity = audioSettings.stepGranularity;
 
         if (ImGui::BeginTable("scsp_step_granularity", 2, ImGuiTableFlags_SizingStretchProp)) {
             ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 200.0f * ctx.displayScale);
@@ -240,9 +250,9 @@ namespace settings::audio {
             }
             if (ImGui::TableNextColumn()) {
                 ImGui::SetNextItemWidth(-1.0f);
-                if (ctx.settings.MakeDirty(ImGui::SliderInt("##scsp_step_granularity", &stepGranularity, 0, 5, "%d",
-                                                            ImGuiSliderFlags_AlwaysClamp))) {
-                    settings.stepGranularity = stepGranularity;
+                if (settings.MakeDirty(ImGui::SliderInt("##scsp_step_granularity", &stepGranularity, 0, 5, "%d",
+                                                        ImGuiSliderFlags_AlwaysClamp))) {
+                    audioSettings.stepGranularity = stepGranularity;
                 }
             }
             ImGui::TableNextRow();
@@ -303,9 +313,10 @@ namespace settings::audio {
 namespace settings::cdblock {
 
     void CDReadSpeed(SharedContext &ctx) {
-        auto &config = ctx.settings.cdblock;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &cdblockSettings = settings.cdblock;
 
-        if (ctx.settings.cdblock.useLLE) {
+        if (settings.cdblock.useLLE) {
             ImGui::BeginDisabled();
         }
         ImGui::AlignTextToFramePadding();
@@ -321,20 +332,21 @@ namespace settings::cdblock {
         ImGui::SetNextItemWidth(-1.0f);
         static constexpr uint8 kMinReadSpeed = 2u;
         static constexpr uint8 kMaxReadSpeed = 200u;
-        uint8 readSpeed = config.readSpeedFactor;
-        if (ctx.settings.MakeDirty(ImGui::SliderScalar("##read_speed", ImGuiDataType_U8, &readSpeed, &kMinReadSpeed,
-                                                       &kMaxReadSpeed, "%ux", ImGuiSliderFlags_AlwaysClamp))) {
-            config.readSpeedFactor = readSpeed;
+        uint8 readSpeed = cdblockSettings.readSpeedFactor;
+        if (settings.MakeDirty(ImGui::SliderScalar("##read_speed", ImGuiDataType_U8, &readSpeed, &kMinReadSpeed,
+                                                   &kMaxReadSpeed, "%ux", ImGuiSliderFlags_AlwaysClamp))) {
+            cdblockSettings.readSpeedFactor = readSpeed;
         }
-        if (ctx.settings.cdblock.useLLE) {
+        if (settings.cdblock.useLLE) {
             ImGui::EndDisabled();
         }
     }
 
     void CDBlockLLE(SharedContext &ctx) {
-        auto &config = ctx.settings.cdblock;
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &cdblockSettings = settings.cdblock;
 
-        bool useLLE = config.useLLE;
+        bool useLLE = cdblockSettings.useLLE;
 
         bool hasROMs;
         {
@@ -344,8 +356,8 @@ namespace settings::cdblock {
         if (!hasROMs) {
             ImGui::BeginDisabled();
         }
-        if (ctx.settings.MakeDirty(ImGui::Checkbox("Use low level CD Block emulation", &useLLE))) {
-            config.useLLE = useLLE;
+        if (settings.MakeDirty(ImGui::Checkbox("Use low level CD Block emulation", &useLLE))) {
+            cdblockSettings.useLLE = useLLE;
         }
         widgets::ExplanationTooltip("Choose between high or low level CD Block emulation.\n"
                                     "High level emulation is faster, but has lower compatibility.\n"

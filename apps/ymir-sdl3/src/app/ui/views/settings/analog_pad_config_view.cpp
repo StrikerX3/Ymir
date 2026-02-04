@@ -8,6 +8,7 @@ AnalogPadConfigView::AnalogPadConfigView(SharedContext &context)
     , m_unboundActionsWidget(context) {}
 
 void AnalogPadConfigView::Display(Settings::Input::Port::AnalogPad &controllerSettings, uint32 portIndex) {
+    auto &settings = GetSettings();
     auto &binds = controllerSettings.binds;
 
     ImGui::AlignTextToFramePadding();
@@ -22,12 +23,12 @@ void AnalogPadConfigView::Display(Settings::Input::Port::AnalogPad &controllerSe
     }
 
     if (ImGui::Button("Restore defaults")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, true));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, true));
         MakeDirty();
     }
     ImGui::SameLine();
     if (ImGui::Button("Clear all")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, false));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, false));
         MakeDirty();
     }
 

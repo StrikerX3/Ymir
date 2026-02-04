@@ -14,6 +14,7 @@ ArcadeRacerConfigView::ArcadeRacerConfigView(SharedContext &context)
 void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controllerSettings, uint32 portIndex) {
     using namespace app::config_defaults::input::arcade_racer;
 
+    auto &settings = GetSettings();
     auto &binds = controllerSettings.binds;
     float sensitivity = controllerSettings.sensitivity;
     ImGui::AlignTextToFramePadding();
@@ -28,8 +29,8 @@ void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controll
         m_context.displayScale);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1.0f);
-    if (m_context.settings.MakeDirty(ImGui::SliderFloat("##wheel_sens", &sensitivity, kMinSensitivity, kMaxSensitivity,
-                                                        "%.02f", ImGuiSliderFlags_AlwaysClamp))) {
+    if (MakeDirty(ImGui::SliderFloat("##wheel_sens", &sensitivity, kMinSensitivity, kMaxSensitivity, "%.02f",
+                                     ImGuiSliderFlags_AlwaysClamp))) {
         controllerSettings.sensitivity = sensitivity;
     }
 
@@ -138,12 +139,12 @@ void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controll
     ImGui::Separator();
 
     if (ImGui::Button("Restore default binds")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, true));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, true));
         MakeDirty();
     }
     ImGui::SameLine();
     if (ImGui::Button("Clear all binds")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, false));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, false));
         MakeDirty();
     }
 

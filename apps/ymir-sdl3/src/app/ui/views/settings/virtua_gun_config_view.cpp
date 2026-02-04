@@ -8,6 +8,7 @@ VirtuaGunConfigView::VirtuaGunConfigView(SharedContext &context)
     , m_unboundActionsWidget(context) {}
 
 void VirtuaGunConfigView::Display(Settings::Input::Port::VirtuaGun &controllerSettings, uint32 portIndex) {
+    auto &settings = GetSettings();
     auto &binds = controllerSettings.binds;
     auto &xhair = controllerSettings.crosshair;
 
@@ -182,12 +183,12 @@ void VirtuaGunConfigView::Display(Settings::Input::Port::VirtuaGun &controllerSe
     ImGui::PopFont();
 
     if (ImGui::Button("Restore defaults##binds")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, true));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, true));
         MakeDirty();
     }
     ImGui::SameLine();
     if (ImGui::Button("Clear all")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, false));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, false));
         MakeDirty();
     }
 

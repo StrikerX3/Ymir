@@ -2,6 +2,8 @@
 
 #include <app/events/gui_event_factory.hpp>
 
+#include <app/settings.hpp>
+
 #include <ymir/hw/smpc/smpc.hpp>
 
 using namespace ymir;
@@ -15,7 +17,7 @@ bool PeripheralSelector(SharedContext &ctx, uint32 portIndex) {
     auto &smpc = ctx.saturn.GetSMPC();
     auto &port = isPort1 ? smpc.GetPeripheralPort1() : smpc.GetPeripheralPort2();
     auto &periph = port.GetPeripheral();
-    auto &settings = ctx.settings.input.ports[portIndex - 1];
+    auto &settings = ctx.serviceLocator.GetRequired<Settings>().input.ports[portIndex - 1];
     const bool isNone = periph.GetType() == peripheral::PeripheralType::None;
 
     bool changed = false;

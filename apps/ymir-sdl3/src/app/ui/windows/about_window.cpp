@@ -6,6 +6,7 @@
 #include <ymir/util/compiler_info.hpp>
 
 #include <app/services/graphics_service.hpp>
+#include <app/services/midi_service.hpp>
 
 #include <app/ui/fonts/IconsMaterialSymbols.h>
 
@@ -247,7 +248,8 @@ void AboutWindow::DrawContents() {
 void AboutWindow::DrawAboutTab() {
     ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x);
 
-    auto &graphicsService = m_context.serviceLocator.GetRequired<services::GraphicsService>();
+    const auto &midiService = m_context.serviceLocator.GetRequired<services::MIDIService>();
+    const auto &graphicsService = m_context.serviceLocator.GetRequired<services::GraphicsService>();
     SDL_Texture *texture = graphicsService.GetSDLTexture(m_context.images.ymirLogo.texture);
     ImGui::Image((ImTextureID)texture, ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale,
                                               m_context.images.ymirLogo.size.y * m_context.displayScale));
@@ -319,7 +321,7 @@ void AboutWindow::DrawAboutTab() {
 
     const char *audioDriver = SDL_GetCurrentAudioDriver();
     ImGui::Text("Using %s audio driver.", AudioDriverToHumanReadableString(audioDriver));
-    ImGui::Text("Using %s MIDI API.", RtMidi::getApiDisplayName(m_context.midi.input->getCurrentApi()).c_str());
+    ImGui::Text("Using %s MIDI API.", RtMidi::getApiDisplayName(midiService.GetInput()->getCurrentApi()).c_str());
 
     ImGui::NewLine();
     ImGui::TextUnformatted("Licensed under ");

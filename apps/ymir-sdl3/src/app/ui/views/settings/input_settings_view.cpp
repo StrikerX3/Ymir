@@ -17,7 +17,7 @@ InputSettingsView::InputSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void InputSettingsView::Display() {
-    auto &settings = m_context.settings.input;
+    auto &settings = GetSettings().input;
 
     ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
 

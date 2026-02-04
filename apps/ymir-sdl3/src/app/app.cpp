@@ -160,6 +160,8 @@ static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args
 
 App::App()
     : m_saveStateService()
+    , m_midiService(m_context.serviceLocator)
+    , m_settings(m_context)
     , m_systemStateWindow(m_context)
     , m_bupMgrWindow(m_context)
     , m_masterSH2WindowSet(m_context, true)
@@ -178,6 +180,10 @@ App::App()
     // Register services
     m_context.serviceLocator.Register(m_graphicsService);
     m_context.serviceLocator.Register(m_saveStateService);
+    m_context.serviceLocator.Register(m_midiService);
+    m_context.serviceLocator.Register(m_settings);
+
+    m_settings.BindConfiguration(m_context.saturn.instance->configuration);
 
     // Preinitialize some memory viewers
     for (int i = 0; i < 8; i++) {
@@ -194,8 +200,10 @@ int App::Run(const CommandLineOptions &options) {
 
     m_options = options;
 
+    auto &settings = m_settings;
+
     {
-        auto &generalSettings = m_context.settings.general;
+        auto &generalSettings = settings.general;
         auto &emuSpeed = m_context.emuSpeed;
 
         generalSettings.mainSpeedFactor.ObserveAndNotify([&](double value) {
@@ -213,7 +221,7 @@ int App::Run(const CommandLineOptions &options) {
     }
 
     {
-        auto &inputSettings = m_context.settings.input;
+        auto &inputSettings = settings.input;
         auto &inputContext = m_context.inputContext;
 
         for (uint32 port = 0; port < 2; ++port) {
@@ -237,19 +245,20 @@ int App::Run(const CommandLineOptions &options) {
     }
 
     {
-        auto &audioSettings = m_context.settings.audio;
+        auto &audioSettings = settings.audio;
 
         audioSettings.midiInputPort.Observe([&](app::Settings::Audio::MidiPort value) {
-            m_context.midi.input->closePort();
+            auto *input = m_midiService.GetInput();
+            input->closePort();
 
             switch (value.type) {
             case MidiPortType::Normal: {
-                int portNumber = m_context.FindInputPortByName(value.id);
+                int portNumber = m_midiService.FindInputPortByName(value.id);
                 if (portNumber == -1) {
                     devlog::error<grp::base>("Failed opening MIDI input port: no port named {}", value.id);
                 } else {
                     try {
-                        m_context.midi.input->openPort(portNumber);
+                        input->openPort(portNumber);
                         devlog::debug<grp::base>("Opened MIDI input port {}", value.id);
                     } catch (RtMidiError &error) {
                         devlog::error<grp::base>("Failed opening MIDI input port {}: {}", portNumber,
@@ -260,7 +269,7 @@ int App::Run(const CommandLineOptions &options) {
             }
             case MidiPortType::Virtual:
                 try {
-                    m_context.midi.input->openVirtualPort(m_context.GetMidiVirtualInputPortName());
+                    input->openVirtualPort(m_midiService.GetMidiVirtualInputPortName());
                     devlog::debug<grp::base>("Opened virtual MIDI input port");
                 } catch (RtMidiError &error) {
                     devlog::error<grp::base>("Failed opening virtual MIDI input port: {}", error.getMessage());
@@ -271,16 +280,17 @@ int App::Run(const CommandLineOptions &options) {
         });
 
         audioSettings.midiOutputPort.Observe([&](app::Settings::Audio::MidiPort value) {
-            m_context.midi.output->closePort();
+            auto *output = m_midiService.GetOutput();
+            output->closePort();
 
             switch (value.type) {
             case MidiPortType::Normal: {
-                int portNumber = m_context.FindOutputPortByName(value.id);
+                int portNumber = m_midiService.FindOutputPortByName(value.id);
                 if (portNumber == -1) {
                     devlog::error<grp::base>("Failed opening MIDI output port: no port named {}", value.id);
                 } else {
                     try {
-                        m_context.midi.output->openPort(portNumber);
+                        output->openPort(portNumber);
                         devlog::debug<grp::base>("Opened MIDI output port {}", value.id);
                     } catch (RtMidiError &error) {
                         devlog::error<grp::base>("Failed opening MIDI output port {}: {}", portNumber,
@@ -291,7 +301,7 @@ int App::Run(const CommandLineOptions &options) {
             }
             case MidiPortType::Virtual:
                 try {
-                    m_context.midi.output->openVirtualPort(m_context.GetMidiVirtualOutputPortName());
+                    output->openVirtualPort(m_midiService.GetMidiVirtualOutputPortName());
                     devlog::debug<grp::base>("Opened virtual MIDI output port");
                 } catch (RtMidiError &error) {
                     devlog::error<grp::base>("Failed opening virtual MIDI output port: {}", error.getMessage());
@@ -303,7 +313,7 @@ int App::Run(const CommandLineOptions &options) {
     }
 
     {
-        auto &videoSettings = m_context.settings.video;
+        auto &videoSettings = settings.video;
 
         videoSettings.deinterlace.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
@@ -408,11 +418,11 @@ int App::Run(const CommandLineOptions &options) {
 
     // TODO: allow overriding configuration from CommandLineOptions without modifying the underlying values
 
-    if (auto result = m_context.settings.Load(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile); !result) {
+    if (auto result = settings.Load(m_context.profile.GetPath(ProfilePath::Root) / kSettingsFile); !result) {
         devlog::warn<grp::base>("Failed to load settings: {}", result.string());
     }
     util::ScopeGuard sgSaveSettings{[&] {
-        if (auto result = m_context.settings.Save(); !result) {
+        if (auto result = settings.Save(); !result) {
             devlog::warn<grp::base>("Failed to save settings: {}", result.string());
         }
     }};
@@ -430,8 +440,8 @@ int App::Run(const CommandLineOptions &options) {
     // Apply settings
     m_context.saturn.instance->UsePreferredRegion();
     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
-    EnableRewindBuffer(m_context.settings.general.enableRewindBuffer);
-    util::BoostCurrentProcessPriority(m_context.settings.general.boostProcessPriority);
+    EnableRewindBuffer(settings.general.enableRewindBuffer);
+    util::BoostCurrentProcessPriority(settings.general.boostProcessPriority);
 
     // Load recent discs list.
     // Must be done before LoadDiscImage because it saves the recent list to the file.
@@ -441,7 +451,7 @@ int App::Run(const CommandLineOptions &options) {
     if (!options.gameDiscPath.empty()) {
         // This also inserts the game-specific cartridges or the one configured by the user in Settings > Cartridge
         LoadDiscImage(options.gameDiscPath, false);
-    } else if (m_context.settings.general.rememberLastLoadedDisc && !m_context.state.recentDiscs.empty()) {
+    } else if (settings.general.rememberLastLoadedDisc && !m_context.state.recentDiscs.empty()) {
         LoadDiscImage(m_context.state.recentDiscs[0], false);
     } else {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
@@ -463,7 +473,7 @@ int App::Run(const CommandLineOptions &options) {
     // Load CD Block ROM
     ScanCDBlockROMs();
     auto cdbLoadResult = LoadCDBlockROM();
-    if (!cdbLoadResult.succeeded && m_context.settings.cdblock.useLLE) {
+    if (!cdbLoadResult.succeeded && settings.cdblock.useLLE) {
         OpenSimpleErrorModal(fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
     }
 
@@ -497,6 +507,8 @@ void App::RunEmulator() {
 
     lsn::CScopedNoSubnormals snsNoSubnormals{};
 
+    auto &settings = m_settings;
+
     {
         const auto updatesPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
 
@@ -510,7 +522,7 @@ void App::RunEmulator() {
 #endif
 
         // Start update checker thread and fire update check immediately if configured to do so
-        if (Ymir_ENABLE_UPDATE_CHECKS && m_context.settings.general.checkForUpdates) {
+        if (Ymir_ENABLE_UPDATE_CHECKS && settings.general.checkForUpdates) {
             CheckForUpdates(false);
         } else {
             // Load cached results if available
@@ -540,10 +552,10 @@ void App::RunEmulator() {
     // Screen parameters
     auto &screen = m_context.screen;
 
-    screen.videoSync = m_context.settings.video.fullScreen ? m_context.settings.video.syncInFullscreenMode
-                                                           : m_context.settings.video.syncInWindowedMode;
+    screen.videoSync =
+        settings.video.fullScreen ? settings.video.syncInFullscreenMode : settings.video.syncInWindowedMode;
 
-    m_context.settings.system.videoStandard.ObserveAndNotify([&](core::config::sys::VideoStandard standard) {
+    settings.system.videoStandard.ObserveAndNotify([&](core::config::sys::VideoStandard standard) {
         if (standard == core::config::sys::VideoStandard::PAL) {
             screen.frameInterval =
                 std::chrono::duration_cast<clk::duration>(std::chrono::duration<double>(sys::kPALFrameInterval));
@@ -585,13 +597,13 @@ void App::RunEmulator() {
     bool rescaleUIPending = false;
     RescaleUI(SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
     {
-        auto &guiSettings = m_context.settings.gui;
+        auto &guiSettings = settings.gui;
 
         // Observe changes to the UI scale options at this point to avoid "destroying"
         guiSettings.overrideUIScale.Observe([&](bool) { rescaleUIPending = true; });
         guiSettings.uiScale.Observe([&](double) { rescaleUIPending = true; });
 
-        m_context.settings.video.deinterlace.Observe(
+        settings.video.deinterlace.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
     }
 
@@ -611,12 +623,12 @@ void App::RunEmulator() {
         }
 
         // Apply full screen display configuration
-        const auto &dispSettings = m_context.settings.video.fullScreenDisplay;
+        const auto &dispSettings = settings.video.fullScreenDisplay;
         m_context.display.UseDisplay(dispSettings.name, dispSettings.bounds.x, dispSettings.bounds.y);
 
         // Find best matching display mode and sanitize setting
-        auto &mode = m_context.settings.video.fullScreenMode;
-        const bool borderless = m_context.settings.video.borderlessFullScreen;
+        auto &mode = settings.video.fullScreenMode;
+        const bool borderless = settings.video.borderlessFullScreen;
         if (!borderless && mode.IsValid()) {
             SDL_DisplayID displayID = m_context.GetSelectedDisplay();
             SDL_DisplayMode closest;
@@ -627,7 +639,7 @@ void App::RunEmulator() {
                 mode.pixelFormat = closest.format;
                 mode.refreshRate = closest.refresh_rate;
                 mode.pixelDensity = closest.pixel_density;
-                m_context.settings.MakeDirty();
+                settings.MakeDirty();
             } else {
                 mode = {};
             }
@@ -639,7 +651,7 @@ void App::RunEmulator() {
 
     // Apply command line override
     if (m_options.fullScreen) {
-        m_context.settings.video.fullScreen = true;
+        settings.video.fullScreen = true;
     }
 
     SDL_PropertiesID windowProps = SDL_CreateProperties();
@@ -655,7 +667,7 @@ void App::RunEmulator() {
         int windowWidth, windowHeight;
 
         // Try loading persistent window geometry if available
-        if (m_context.settings.gui.rememberWindowGeometry) {
+        if (settings.gui.rememberWindowGeometry) {
             std::ifstream in{m_context.profile.GetPath(ProfilePath::PersistentState) / "window.txt"};
             in >> windowX >> windowY >> windowWidth >> windowHeight;
             if (in) {
@@ -668,7 +680,7 @@ void App::RunEmulator() {
             // This is equivalent to ImGui::GetFrameHeight() without requiring a window
             const float menuBarHeight = (16.0f + style.FramePadding.y * 2.0f) * m_context.displayScale;
 
-            const auto &videoSettings = m_context.settings.video;
+            const auto &videoSettings = settings.video;
             const bool forceAspectRatio = videoSettings.forceAspectRatio;
             const double forcedAspect = videoSettings.forcedAspect;
             const bool horzDisplay = videoSettings.rotation == Settings::Video::DisplayRotation::Normal ||
@@ -722,8 +734,7 @@ void App::RunEmulator() {
         SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_X_NUMBER, windowX);
         SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_Y_NUMBER, windowY);
         SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);
-        SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN,
-                              m_context.settings.video.fullScreen);
+        SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, settings.video.fullScreen);
     }
 
     screen.window = SDL_CreateWindowWithProperties(windowProps);
@@ -738,7 +749,7 @@ void App::RunEmulator() {
     }};
     util::os::ConfigureWindowDecorations(screen.window);
 
-    m_context.settings.video.fullScreen.Observe([&](bool fullScreen) {
+    settings.video.fullScreen.Observe([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
         SDL_SetWindowFullscreen(screen.window, fullScreen);
         SDL_SyncWindow(screen.window);
@@ -749,7 +760,7 @@ void App::RunEmulator() {
 
     int vsync = 1;
     {
-        gfx::Backend &graphicsBackend = m_context.settings.video.graphicsBackend;
+        gfx::Backend &graphicsBackend = settings.video.graphicsBackend;
         SDL_Renderer *renderer = m_graphicsService.CreateRenderer(graphicsBackend, screen.window, vsync);
         if (renderer == nullptr) {
             // If not using the default renderer option, try the default and reset configuration
@@ -757,7 +768,7 @@ void App::RunEmulator() {
                 m_context.DisplayMessage(fmt::format("Could not create {} renderer. Reverting to default API.",
                                                      gfx::GraphicsBackendName(graphicsBackend)));
                 graphicsBackend = gfx::Backend::Default;
-                m_context.settings.MakeDirty();
+                settings.MakeDirty();
 
                 renderer = m_graphicsService.CreateRenderer(gfx::Backend::Default, screen.window, vsync);
             }
@@ -768,7 +779,7 @@ void App::RunEmulator() {
         }
     }
 
-    m_context.settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
+    settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
         SDL_SetWindowFullscreen(screen.window, fullScreen);
         ApplyFullscreenMode();
@@ -810,7 +821,7 @@ void App::RunEmulator() {
     }
 
     auto renderDispTexture = [&](double targetWidth, double targetHeight) {
-        auto &videoSettings = m_context.settings.video;
+        auto &videoSettings = settings.video;
         const bool forceAspectRatio = videoSettings.forceAspectRatio;
         const double forcedAspect = videoSettings.forcedAspect;
         const double dispWidth = (forceAspectRatio ? screen.height * forcedAspect : screen.width) / screen.scaleY;
@@ -922,9 +933,11 @@ void App::RunEmulator() {
                                       }};
 
         vdp.SetSoftwareRenderCallback(
-            {&m_context, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
-                 auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+            {this, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
+                 auto &app = *static_cast<App *>(ctx);
+                 auto &sharedCtx = app.m_context;
                  auto &screen = sharedCtx.screen;
+                 auto &settings = app.m_settings;
                  if (width != screen.width || height != screen.height) {
                      screen.SetResolution(width, height);
                  }
@@ -933,7 +946,7 @@ void App::RunEmulator() {
                      screen.frameRequestEvent.Wait();
                      screen.frameRequestEvent.Reset();
                  }
-                 if (sharedCtx.settings.video.reduceLatency || !screen.updated || screen.videoSync) {
+                 if (settings.video.reduceLatency || !screen.updated || screen.videoSync) {
                      std::unique_lock lock{screen.mtxFramebuffer};
                      std::copy_n(fb, width * height, screen.framebuffers[0].data());
                      screen.updated = true;
@@ -988,10 +1001,10 @@ void App::RunEmulator() {
     ScopeGuard sgDeinitAudio{[&] { m_context.audioSystem.Deinit(); }};
 
     // Connect gain and mute to settings
-    m_context.settings.audio.volume.ObserveAndNotify([&](float volume) { m_context.audioSystem.SetGain(volume); });
-    m_context.settings.audio.mute.ObserveAndNotify([&](bool mute) { m_context.audioSystem.SetMute(mute); });
+    settings.audio.volume.ObserveAndNotify([&](float volume) { m_context.audioSystem.SetGain(volume); });
+    settings.audio.mute.ObserveAndNotify([&](bool mute) { m_context.audioSystem.SetMute(mute); });
 
-    m_context.settings.audio.stepGranularity.ObserveAndNotify(
+    settings.audio.stepGranularity.ObserveAndNotify(
         [&](uint32 granularity) { m_context.EnqueueEvent(events::emu::SetSCSPStepGranularity(granularity)); });
 
     if (m_context.audioSystem.Start()) {
@@ -1033,10 +1046,10 @@ void App::RunEmulator() {
          [](sint16 left, sint16 right, void *ctx) { static_cast<AudioSystem *>(ctx)->ReceiveSample(left, right); }});
 
     m_context.saturn.instance->SCSP.SetSendMidiOutputCallback(
-        {&m_context.midi.output, [](std::span<uint8> payload, void *ctx) {
+        {&m_midiService, [](std::span<uint8> payload, void *ctx) {
              try {
-                 auto &ptr = *static_cast<std::unique_ptr<IRtMidiOut> *>(ctx);
-                 ptr->sendMessage(payload.data(), payload.size());
+                 auto &svc = *static_cast<services::MIDIService *>(ctx);
+                 svc.GetOutput()->sendMessage(payload.data(), payload.size());
              } catch (RtMidiError &error) {
                  devlog::error<grp::base>("Failed to send MIDI output message: {}", error.getMessage());
              }
@@ -1045,10 +1058,13 @@ void App::RunEmulator() {
     // ---------------------------------
     // MIDI setup
 
-    m_context.midi.input->setCallback(OnMidiInputReceived, this);
+    {
+        auto *input = m_midiService.GetInput();
+        input->setCallback(OnMidiInputReceived, this);
 
-    const std::string midi_api = m_context.midi.input->getApiName(m_context.midi.input->getCurrentApi());
-    devlog::info<grp::base>("Using MIDI backend: {}", midi_api);
+        const std::string api = input->getApiName(input->getCurrentApi());
+        devlog::info<grp::base>("Using MIDI backend: {}", api);
+    }
 
     // ---------------------------------
     // File dialogs
@@ -1087,13 +1103,13 @@ void App::RunEmulator() {
         });
         inputContext.SetTriggerHandler(actions::general::ToggleWindowedVideoOutput,
                                        [&](void *, const input::InputElement &) {
-                                           m_context.settings.video.displayVideoOutputInWindow ^= true;
+                                           settings.video.displayVideoOutputInWindow ^= true;
                                            ImGui::SetNextFrameWantCaptureKeyboard(false);
                                            ImGui::SetNextFrameWantCaptureMouse(false);
                                        });
         inputContext.SetTriggerHandler(actions::general::ToggleFullScreen, [&](void *, const input::InputElement &) {
-            m_context.settings.video.fullScreen = !m_context.settings.video.fullScreen;
-            m_context.settings.MakeDirty();
+            settings.video.fullScreen = !settings.video.fullScreen;
+            settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::general::TakeScreenshot, [&](void *, const input::InputElement &) {
             m_context.EnqueueEvent(events::gui::TakeScreenshot());
@@ -1107,48 +1123,48 @@ void App::RunEmulator() {
     // View
     {
         inputContext.SetTriggerHandler(actions::view::ToggleFrameRateOSD, [&](void *, const input::InputElement &) {
-            m_context.settings.gui.showFrameRateOSD = !m_context.settings.gui.showFrameRateOSD;
-            m_context.settings.MakeDirty();
+            settings.gui.showFrameRateOSD = !settings.gui.showFrameRateOSD;
+            settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::view::NextFrameRateOSDPos, [&](void *, const input::InputElement &) {
-            const uint32 pos = static_cast<uint32>(m_context.settings.gui.frameRateOSDPosition);
+            const uint32 pos = static_cast<uint32>(settings.gui.frameRateOSDPosition);
             const uint32 nextPos = pos >= 3 ? 0 : pos + 1;
-            m_context.settings.gui.frameRateOSDPosition = static_cast<Settings::GUI::FrameRateOSDPosition>(nextPos);
-            m_context.settings.MakeDirty();
+            settings.gui.frameRateOSDPosition = static_cast<Settings::GUI::FrameRateOSDPosition>(nextPos);
+            settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::view::PrevFrameRateOSDPos, [&](void *, const input::InputElement &) {
-            const uint32 pos = static_cast<uint32>(m_context.settings.gui.frameRateOSDPosition);
+            const uint32 pos = static_cast<uint32>(settings.gui.frameRateOSDPosition);
             const uint32 prevPos = pos == 0 ? 3 : pos - 1;
-            m_context.settings.gui.frameRateOSDPosition = static_cast<Settings::GUI::FrameRateOSDPosition>(prevPos);
-            m_context.settings.MakeDirty();
+            settings.gui.frameRateOSDPosition = static_cast<Settings::GUI::FrameRateOSDPosition>(prevPos);
+            settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::view::RotateScreenCW, [&](void *, const input::InputElement &) {
-            const uint32 rot = static_cast<uint32>(m_context.settings.video.rotation);
+            const uint32 rot = static_cast<uint32>(settings.video.rotation);
             const uint32 nextRot = rot >= 3 ? 0 : rot + 1;
-            m_context.settings.video.rotation = static_cast<Settings::Video::DisplayRotation>(nextRot);
-            m_context.settings.MakeDirty();
+            settings.video.rotation = static_cast<Settings::Video::DisplayRotation>(nextRot);
+            settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::view::RotateScreenCCW, [&](void *, const input::InputElement &) {
-            const uint32 rot = static_cast<uint32>(m_context.settings.video.rotation);
+            const uint32 rot = static_cast<uint32>(settings.video.rotation);
             const uint32 prevRot = rot == 0 ? 3 : rot - 1;
-            m_context.settings.video.rotation = static_cast<Settings::Video::DisplayRotation>(prevRot);
-            m_context.settings.MakeDirty();
+            settings.video.rotation = static_cast<Settings::Video::DisplayRotation>(prevRot);
+            settings.MakeDirty();
         });
     }
 
     // Audio
     {
         inputContext.SetTriggerHandler(actions::audio::ToggleMute, [&](void *, const input::InputElement &) {
-            m_context.settings.audio.mute = !m_context.settings.audio.mute;
-            m_context.settings.MakeDirty();
+            settings.audio.mute = !settings.audio.mute;
+            settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::audio::IncreaseVolume, [&](void *, const input::InputElement &) {
-            m_context.settings.audio.volume = std::min(m_context.settings.audio.volume + 0.1f, 1.0f);
-            m_context.settings.MakeDirty();
+            settings.audio.volume = std::min(settings.audio.volume + 0.1f, 1.0f);
+            settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::audio::DecreaseVolume, [&](void *, const input::InputElement &) {
-            m_context.settings.audio.volume = std::max(m_context.settings.audio.volume - 0.1f, 0.0f);
-            m_context.settings.MakeDirty();
+            settings.audio.volume = std::max(settings.audio.volume - 0.1f, 0.0f);
+            settings.MakeDirty();
         });
     }
 
@@ -1277,57 +1293,57 @@ void App::RunEmulator() {
             m_context.audioSystem.SetSync(m_context.emuSpeed.ShouldSyncToAudio());
         });
         inputContext.SetTriggerHandler(actions::emu::ToggleAlternateSpeed, [&](void *, const input::InputElement &) {
-            auto &settings = m_context.settings.general;
-            settings.useAltSpeed = !settings.useAltSpeed;
-            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
-            m_context.settings.MakeDirty();
+            auto &general = settings.general;
+            general.useAltSpeed = !general.useAltSpeed;
+            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
+            settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("Using {} emulation speed: {:.0f}%",
-                                                 (settings.useAltSpeed.Get() ? "alternate" : "primary"),
+                                                 (general.useAltSpeed.Get() ? "alternate" : "primary"),
                                                  speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::IncreaseSpeed, [&](void *, const input::InputElement &) {
-            auto &settings = m_context.settings.general;
-            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            auto &general = settings.general;
+            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
             speed = std::min(util::RoundToMultiple(speed + 0.05, 0.05), 5.0);
-            m_context.settings.MakeDirty();
+            settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed increased to {:.0f}%",
-                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
                                                  speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::DecreaseSpeed, [&](void *, const input::InputElement &) {
-            auto &settings = m_context.settings.general;
-            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            auto &general = settings.general;
+            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
             speed = std::max(util::RoundToMultiple(speed - 0.05, 0.05), 0.1);
-            m_context.settings.MakeDirty();
+            settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed decreased to {:.0f}%",
-                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
                                                  speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::IncreaseSpeedLarge, [&](void *, const input::InputElement &) {
-            auto &settings = m_context.settings.general;
-            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            auto &general = settings.general;
+            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
             speed = std::min(util::RoundToMultiple(speed + 0.25, 0.05), 5.0);
-            m_context.settings.MakeDirty();
+            settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed increased to {:.0f}%",
-                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
                                                  speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::DecreaseSpeedLarge, [&](void *, const input::InputElement &) {
-            auto &settings = m_context.settings.general;
-            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
+            auto &general = settings.general;
+            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
             speed = std::max(util::RoundToMultiple(speed - 0.25, 0.05), 0.1);
-            m_context.settings.MakeDirty();
+            settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed decreased to {:.0f}%",
-                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
                                                  speed.Get() * 100.0));
         });
         inputContext.SetTriggerHandler(actions::emu::ResetSpeed, [&](void *, const input::InputElement &) {
-            auto &settings = m_context.settings.general;
-            auto &speed = settings.useAltSpeed.Get() ? settings.altSpeedFactor : settings.mainSpeedFactor;
-            speed = settings.useAltSpeed.Get() ? 0.5 : 1.0;
-            m_context.settings.MakeDirty();
+            auto &general = settings.general;
+            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
+            speed = general.useAltSpeed.Get() ? 0.5 : 1.0;
+            settings.MakeDirty();
             m_context.DisplayMessage(fmt::format("{} emulation speed reset to {:.0f}%",
-                                                 (settings.useAltSpeed.Get() ? "Alternate" : "Primary"),
+                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
                                                  speed.Get() * 100.0));
         });
 
@@ -1381,7 +1397,7 @@ void App::RunEmulator() {
 
         auto registerDPadButton = [&](input::Action action, float x, float y) {
             inputContext.SetButtonHandler(
-                action, [=, this](void *context, const input::InputElement &element, bool actuated) {
+                action, [=, this, &settings](void *context, const input::InputElement &element, bool actuated) {
                     auto &input = *reinterpret_cast<SharedContext::ControlPadInput *>(context);
                     auto &dpadInput = input.dpad2DInputs[element];
                     if (actuated) {
@@ -1391,18 +1407,18 @@ void App::RunEmulator() {
                         dpadInput.x = 0.0f;
                         dpadInput.y = 0.0f;
                     }
-                    input.UpdateDPad(m_context.settings.input.gamepad.analogToDigitalSensitivity);
+                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
                 });
         };
 
         auto registerDPad2DAxis = [&](input::Action action) {
             inputContext.SetAxis2DHandler(
-                action, [this](void *context, const input::InputElement &element, float x, float y) {
+                action, [this, &settings](void *context, const input::InputElement &element, float x, float y) {
                     auto &input = *reinterpret_cast<SharedContext::ControlPadInput *>(context);
                     auto &dpadInput = input.dpad2DInputs[element];
                     dpadInput.x = x;
                     dpadInput.y = y;
-                    input.UpdateDPad(m_context.settings.input.gamepad.analogToDigitalSensitivity);
+                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
                 });
         };
 
@@ -1439,7 +1455,7 @@ void App::RunEmulator() {
 
         auto registerDPadButton = [&](input::Action action, float x, float y) {
             inputContext.SetButtonHandler(
-                action, [=, this](void *context, const input::InputElement &element, bool actuated) {
+                action, [=, this, &settings](void *context, const input::InputElement &element, bool actuated) {
                     auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
                     auto &dpadInput = input.dpad2DInputs[element];
                     if (actuated) {
@@ -1449,18 +1465,18 @@ void App::RunEmulator() {
                         dpadInput.x = 0.0f;
                         dpadInput.y = 0.0f;
                     }
-                    input.UpdateDPad(m_context.settings.input.gamepad.analogToDigitalSensitivity);
+                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
                 });
         };
 
         auto registerDPad2DAxis = [&](input::Action action) {
             inputContext.SetAxis2DHandler(
-                action, [this](void *context, const input::InputElement &element, float x, float y) {
+                action, [this, &settings](void *context, const input::InputElement &element, float x, float y) {
                     auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
                     auto &dpadInput = input.dpad2DInputs[element];
                     dpadInput.x = x;
                     dpadInput.y = y;
-                    input.UpdateDPad(m_context.settings.input.gamepad.analogToDigitalSensitivity);
+                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
                 });
         };
 
@@ -1588,7 +1604,7 @@ void App::RunEmulator() {
         };
 
         for (int i = 0; i < 2; ++i) {
-            m_context.settings.input.ports[i].arcadeRacer.sensitivity.ObserveAndNotify(makeSensObserver(i));
+            settings.input.ports[i].arcadeRacer.sensitivity.ObserveAndNotify(makeSensObserver(i));
         }
     }
 
@@ -1780,7 +1796,7 @@ void App::RunEmulator() {
         registerMoveButton(actions::virtua_gun::Left, -1.0f, 0.0f);
         registerMoveButton(actions::virtua_gun::Right, +1.0f, 0.0f);
 
-        auto &inputSettings = m_context.settings.input;
+        auto &inputSettings = settings.input;
 
         for (int i = 0; i < 2; ++i) {
             inputSettings.ports[i].virtuaGun.speed.Observe(m_context.virtuaGunInputs[i].speed);
@@ -1860,7 +1876,7 @@ void App::RunEmulator() {
         registerMoveButton(actions::shuttle_mouse::MoveLeft, -1.0f, 0.0f);
         registerMoveButton(actions::shuttle_mouse::MoveRight, +1.0f, 0.0f);
 
-        auto &inputSettings = m_context.settings.input;
+        auto &inputSettings = settings.input;
 
         for (int i = 0; i < 2; ++i) {
             auto &settings = inputSettings.ports[i].shuttleMouse;
@@ -1871,8 +1887,7 @@ void App::RunEmulator() {
         }
     }
 
-    m_context.settings.input.mouse.captureMode.ObserveAndNotify(
-        [&](Settings::Input::Mouse::CaptureMode) { ReleaseAllMice(); });
+    settings.input.mouse.captureMode.ObserveAndNotify([&](Settings::Input::Mouse::CaptureMode) { ReleaseAllMice(); });
 
     RebindInputs();
 
@@ -2012,9 +2027,8 @@ void App::RunEmulator() {
         int forcedScreenScale = 1;
 
         // Configure video sync
-        const bool fullScreen = m_context.settings.video.fullScreen;
-        const bool videoSync =
-            fullScreen ? m_context.settings.video.syncInFullscreenMode : m_context.settings.video.syncInWindowedMode;
+        const bool fullScreen = settings.video.fullScreen;
+        const bool videoSync = fullScreen ? settings.video.syncInFullscreenMode : settings.video.syncInWindowedMode;
         screen.videoSync = videoSync && !m_context.paused && m_context.emuSpeed.limitSpeed;
 
         const double frameIntervalAdjustFactor = 0.2; // how much adjustment is applied to the frame interval
@@ -2057,7 +2071,7 @@ void App::RunEmulator() {
 
             double maxFrameRate = baseFrameRate;
 
-            if (m_context.settings.video.useFullRefreshRateWithVideoSync) {
+            if (settings.video.useFullRefreshRateWithVideoSync) {
                 // Use display refresh rate if requested
                 const SDL_DisplayMode *dispMode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(screen.window));
                 if (dispMode != nullptr && dispMode->refresh_rate != 0.0f) {
@@ -2178,9 +2192,9 @@ void App::RunEmulator() {
                 // Handle ESC key press actions
                 if (evt.key.scancode == SDL_SCANCODE_ESCAPE && evt.key.down) {
                     // Leave full screen while not focused on ImGui windows
-                    if (!io.WantCaptureKeyboard && m_context.settings.video.fullScreen) {
-                        m_context.settings.video.fullScreen = false;
-                        m_context.settings.MakeDirty();
+                    if (!io.WantCaptureKeyboard && settings.video.fullScreen) {
+                        settings.video.fullScreen = false;
+                        settings.MakeDirty();
                     }
 
                     // Restore system mouse cursor and release captured mice
@@ -2205,10 +2219,10 @@ void App::RunEmulator() {
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (!io.WantCaptureMouse) {
                     if (!IsMouseCaptured() && !HasValidPeripheralsForMouseCapture() &&
-                        m_context.settings.video.doubleClickToFullScreen && evt.button.clicks % 2 == 0 &&
-                        evt.button.down && evt.button.button == SDL_BUTTON_LEFT) {
-                        m_context.settings.video.fullScreen = !m_context.settings.video.fullScreen;
-                        m_context.settings.MakeDirty();
+                        settings.video.doubleClickToFullScreen && evt.button.clicks % 2 == 0 && evt.button.down &&
+                        evt.button.button == SDL_BUTTON_LEFT) {
+                        settings.video.fullScreen = !settings.video.fullScreen;
+                        settings.MakeDirty();
                     }
                 }
                 if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
@@ -2322,13 +2336,13 @@ void App::RunEmulator() {
 
             case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
                 if (m_context.display.id == 0 && !fullScreen) {
-                    m_context.settings.video.fullScreenMode = {};
+                    settings.video.fullScreenMode = {};
                 }
                 break;
 
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: [[fallthrough]];
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
-                if (!m_context.settings.gui.overrideUIScale) {
+                if (!settings.gui.overrideUIScale) {
                     const float windowScale = SDL_GetWindowDisplayScale(screen.window);
                     RescaleUI(windowScale);
                     PersistWindowGeometry();
@@ -2344,7 +2358,7 @@ void App::RunEmulator() {
                 break;
 
             case SDL_EVENT_WINDOW_FOCUS_GAINED:
-                if (m_context.settings.general.pauseWhenUnfocused) {
+                if (settings.general.pauseWhenUnfocused) {
                     if (m_context.paused && pausedByLostFocus) {
                         m_context.EnqueueEvent(events::emu::SetPaused(false));
                     }
@@ -2352,7 +2366,7 @@ void App::RunEmulator() {
                 }
                 break;
             case SDL_EVENT_WINDOW_FOCUS_LOST:
-                if (m_context.settings.general.pauseWhenUnfocused) {
+                if (settings.general.pauseWhenUnfocused) {
                     if (!m_context.paused) {
                         pausedByLostFocus = true;
                         m_context.EnqueueEvent(events::emu::SetPaused(true));
@@ -2427,15 +2441,15 @@ void App::RunEmulator() {
             case EvtType::SetProcessPriority: util::BoostCurrentProcessPriority(std::get<bool>(evt.value)); break;
             case EvtType::SwitchGraphicsBackend: //
             {
-                auto prevBackend = m_context.settings.video.graphicsBackend;
+                auto prevBackend = settings.video.graphicsBackend;
                 auto backend = std::get<gfx::Backend>(evt.value);
                 ImGui_ImplSDLRenderer3_Shutdown();
                 ImGui_ImplSDL3_Shutdown();
 
                 // TODO: recreate window when switching back from OpenGL to another API
                 if (m_graphicsService.CreateRenderer(backend, screen.window, vsync)) {
-                    m_context.settings.video.graphicsBackend = backend;
-                    m_context.settings.MakeDirty();
+                    settings.video.graphicsBackend = backend;
+                    settings.MakeDirty();
                 } else {
                     m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
                                                          gfx::GraphicsBackendName(backend), SDL_GetError()));
@@ -2463,9 +2477,9 @@ void App::RunEmulator() {
                 auto path = std::get<std::filesystem::path>(evt.value);
                 auto result = util::LoadIPLROM(path, *m_context.saturn.instance);
                 if (result.succeeded) {
-                    if (m_context.settings.system.ipl.path != path) {
-                        m_context.settings.system.ipl.path = path;
-                        m_context.settings.MakeDirty();
+                    if (settings.system.ipl.path != path) {
+                        settings.system.ipl.path = path;
+                        settings.MakeDirty();
                         m_context.EnqueueEvent(events::emu::HardReset());
                     }
                 } else {
@@ -2490,14 +2504,14 @@ void App::RunEmulator() {
                 auto path = std::get<std::filesystem::path>(evt.value);
                 auto result = util::LoadCDBlockROM(path, *m_context.saturn.instance);
                 if (result.succeeded) {
-                    if (m_context.settings.cdblock.romPath != path) {
-                        m_context.settings.cdblock.romPath = path;
-                        m_context.settings.MakeDirty();
-                        if (m_context.settings.cdblock.useLLE) {
+                    if (settings.cdblock.romPath != path) {
+                        settings.cdblock.romPath = path;
+                        settings.MakeDirty();
+                        if (settings.cdblock.useLLE) {
                             m_context.EnqueueEvent(events::emu::HardReset());
                         }
                     }
-                } else if (m_context.settings.cdblock.useLLE) {
+                } else if (settings.cdblock.useLLE) {
                     OpenSimpleErrorModal(
                         fmt::format("Failed to load CD block ROM from \"{}\": {}", path, result.errorMessage));
                 }
@@ -2506,7 +2520,7 @@ void App::RunEmulator() {
             case EvtType::ReloadCDBlockROM: //
             {
                 util::ROMLoadResult result = LoadCDBlockROM();
-                if (m_context.settings.cdblock.useLLE) {
+                if (settings.cdblock.useLLE) {
                     if (result.succeeded) {
                         m_context.EnqueueEvent(events::emu::HardReset());
                     } else {
@@ -2526,7 +2540,7 @@ void App::RunEmulator() {
                 std::copy_n(screen.framebuffers[1].begin(), ss.fb.size(), ss.fb.begin());
                 ss.fbScaleX = screen.scaleX;
                 ss.fbScaleY = screen.scaleY;
-                ss.ssScale = m_context.settings.general.screenshotScale;
+                ss.ssScale = settings.general.screenshotScale;
                 ss.timestamp = std::chrono::system_clock::now();
                 {
                     std::unique_lock lock{m_screenshotQueueMtx};
@@ -2623,8 +2637,8 @@ void App::RunEmulator() {
 
         UpdateInputs(std::chrono::duration<double>(timeDelta).count());
 
-        const bool prevForceAspectRatio = m_context.settings.video.forceAspectRatio;
-        const double prevForcedAspect = m_context.settings.video.forcedAspect;
+        const bool prevForceAspectRatio = settings.video.forceAspectRatio;
+        const double prevForcedAspect = settings.video.forcedAspect;
 
         // Hide mouse cursor if no interactions were made recently or if the mouse is captured
         const bool mouseMoved = io.MouseDelta.x != 0.0f && io.MouseDelta.y != 0.0f;
@@ -2657,7 +2671,7 @@ void App::RunEmulator() {
         // In PhysicalMouse mode, automatically release all mice if any ImGui window gains focus
         // NOTE: ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow) cannot be used becaused the application always
         // starts with main menu bar focused
-        if (m_context.settings.input.mouse.captureMode == Settings::Input::Mouse::CaptureMode::PhysicalMouse &&
+        if (settings.input.mouse.captureMode == Settings::Input::Mouse::CaptureMode::PhysicalMouse &&
             io.WantCaptureKeyboard && (!m_capturedMice.empty() || m_mouseCaptureActive)) {
             ReleaseAllMice();
         }
@@ -2861,37 +2875,37 @@ void App::RunEmulator() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("View")) {
-                    auto &videoSettings = m_context.settings.video;
+                    auto &videoSettings = settings.video;
                     ImGui::MenuItem("Force integer scaling", nullptr, &videoSettings.forceIntegerScaling);
                     ImGui::MenuItem("Force aspect ratio", nullptr, &videoSettings.forceAspectRatio);
                     if (ImGui::SmallButton("4:3")) {
                         videoSettings.forcedAspect = 4.0 / 3.0;
-                        m_context.settings.MakeDirty();
+                        settings.MakeDirty();
                     }
                     ImGui::SameLine();
                     if (ImGui::SmallButton("3:2")) {
                         videoSettings.forcedAspect = 3.0 / 2.0;
-                        m_context.settings.MakeDirty();
+                        settings.MakeDirty();
                     }
                     ImGui::SameLine();
                     if (ImGui::SmallButton("16:10")) {
                         videoSettings.forcedAspect = 16.0 / 10.0;
-                        m_context.settings.MakeDirty();
+                        settings.MakeDirty();
                     }
                     ImGui::SameLine();
                     if (ImGui::SmallButton("16:9")) {
                         videoSettings.forcedAspect = 16.0 / 9.0;
-                        m_context.settings.MakeDirty();
+                        settings.MakeDirty();
                     }
 
                     ui::widgets::settings::video::DisplayRotation(m_context, true);
 
-                    bool fullScreen = m_context.settings.video.fullScreen.Get();
+                    bool fullScreen = settings.video.fullScreen.Get();
                     if (ImGui::MenuItem("Full screen",
                                         input::ToShortcut(inputContext, actions::general::ToggleFullScreen).c_str(),
                                         &fullScreen)) {
                         videoSettings.fullScreen = fullScreen;
-                        m_context.settings.MakeDirty();
+                        settings.MakeDirty();
                     }
 
                     ImGui::Separator();
@@ -2905,8 +2919,7 @@ void App::RunEmulator() {
                                         !videoSettings.displayVideoOutputInWindow)) {
                         fitWindowToScreenNow = true;
                     }
-                    ImGui::MenuItem("Remember window geometry", nullptr,
-                                    &m_context.settings.gui.rememberWindowGeometry);
+                    ImGui::MenuItem("Remember window geometry", nullptr, &settings.gui.rememberWindowGeometry);
                     if (fullScreen) {
                         ImGui::BeginDisabled();
                     }
@@ -2946,7 +2959,7 @@ void App::RunEmulator() {
                             input::ToShortcut(inputContext, actions::general::ToggleWindowedVideoOutput).c_str(),
                             &videoSettings.displayVideoOutputInWindow)) {
                         fitWindowToScreenNow = true;
-                        m_context.settings.MakeDirty();
+                        settings.MakeDirty();
                     }
                     ImGui::EndMenu();
                 }
@@ -3039,7 +3052,7 @@ void App::RunEmulator() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Emulation")) {
-                    bool rewindEnabled = m_context.settings.general.enableRewindBuffer;
+                    bool rewindEnabled = settings.general.enableRewindBuffer;
 
                     if (ImGui::MenuItem("Pause/resume",
                                         input::ToShortcut(inputContext, actions::emu::PauseResume).c_str())) {
@@ -3265,7 +3278,7 @@ void App::RunEmulator() {
             }
             ImGui::End();*/
 
-            auto &videoSettings = m_context.settings.video;
+            auto &videoSettings = settings.video;
 
             // Draw video output as a window
             if (videoSettings.displayVideoOutputInWindow) {
@@ -3343,7 +3356,7 @@ void App::RunEmulator() {
             }
 
             // Draw input cursors on background if not displaying screen in a window
-            if (!m_context.settings.video.displayVideoOutputInWindow) {
+            if (!settings.video.displayVideoOutputInWindow) {
                 auto *drawList = ImGui::GetBackgroundDrawList();
                 DrawInputs(drawList);
             }
@@ -3429,7 +3442,7 @@ void App::RunEmulator() {
                     const float speedFactor = m_context.emuSpeed.GetCurrentSpeedFactor();
                     const bool slomo = m_context.emuSpeed.limitSpeed && speedFactor < 1.0;
                     if (!m_context.emuSpeed.limitSpeed ||
-                        (speedFactor != 1.0 && m_context.settings.gui.showSpeedIndicatorForAllSpeeds)) {
+                        (speedFactor != 1.0 && settings.gui.showSpeedIndicatorForAllSpeeds)) {
 
                         const std::string speed =
                             m_context.emuSpeed.limitSpeed
@@ -3481,7 +3494,7 @@ void App::RunEmulator() {
             }
 
             // Draw frame rate counters
-            if (m_context.settings.gui.showFrameRateOSD) {
+            if (settings.gui.showFrameRateOSD) {
                 std::string speedStr =
                     m_context.paused ? "paused"
                     : m_context.emuSpeed.limitSpeed
@@ -3503,7 +3516,7 @@ void App::RunEmulator() {
 
                 auto *drawList = ImGui::GetBackgroundDrawList();
                 bool top, left;
-                switch (m_context.settings.gui.frameRateOSDPosition) {
+                switch (settings.gui.frameRateOSDPosition) {
                 case Settings::GUI::FrameRateOSDPosition::TopLeft:
                     top = true;
                     left = true;
@@ -3552,7 +3565,7 @@ void App::RunEmulator() {
             }
 
             // Draw messages
-            if (m_context.settings.gui.showMessages) {
+            if (settings.gui.showMessages) {
                 auto *drawList = ImGui::GetForegroundDrawList();
                 float messageX = viewport->WorkPos.x + style.FramePadding.x + style.ItemSpacing.x;
                 float messageY = viewport->WorkPos.y + style.FramePadding.y + style.ItemSpacing.y;
@@ -3617,8 +3630,8 @@ void App::RunEmulator() {
         SDL_RenderClear(renderer);
 
         // Draw Saturn screen
-        if (!m_context.settings.video.displayVideoOutputInWindow) {
-            const auto &videoSettings = m_context.settings.video;
+        if (!settings.video.displayVideoOutputInWindow) {
+            const auto &videoSettings = settings.video;
             const bool forceAspectRatio = videoSettings.forceAspectRatio;
             const double forcedAspect = videoSettings.forcedAspect;
             const bool aspectRatioChanged = forceAspectRatio && forcedAspect != prevForcedAspect;
@@ -3785,7 +3798,7 @@ void App::RunEmulator() {
             io.WantSaveIniSettings = false;
         }
 
-        m_context.settings.CheckDirty();
+        settings.CheckDirty();
         CheckDebuggerStateDirty();
     }
 
@@ -3795,8 +3808,11 @@ end_loop:; // the semicolon is not a typo!
 }
 
 void App::EmulatorThread() {
+    auto &settings = m_settings;
+
     util::SetCurrentThreadName("Emulator thread");
-    util::BoostCurrentThreadPriority(m_context.settings.general.boostEmuThreadPriority);
+    util::BoostCurrentThreadPriority(settings.general.boostEmuThreadPriority);
+
     lsn::CScopedNoSubnormals snsNoSubnormals{};
 
     enum class StepAction { Noop, RunFrame, FrameStep, StepMSH2, StepSSH2 };
@@ -3890,7 +3906,7 @@ void App::EmulatorThread() {
                 std::unique_lock lock{m_context.locks.disc};
                 m_context.saturn.instance->EjectDisc();
                 m_context.state.loadedDiscImagePath.clear();
-                if (m_context.settings.system.internalBackupRAMPerGame) {
+                if (settings.system.internalBackupRAMPerGame) {
                     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
                 }
                 m_context.DisplayMessage("Disc ejected");
@@ -4122,7 +4138,7 @@ void App::UpdateCheckerThread() {
         }
 
         // Check nightly update if requested
-        if (m_context.settings.general.includeNightlyBuilds && nightlyResult) {
+        if (m_settings.general.includeNightlyBuilds && nightlyResult) {
             std::unique_lock lock{m_context.locks.targetUpdate};
             const bool isUpdateAvailable = [&] {
                 // If both stable and nightly are the same version, the stable version is more up-to-date.
@@ -4306,8 +4322,9 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
             romSelectResult.hasResult = true;
             romSelectResult.result = util::LoadIPLROM(romSelectResult.path, *m_context.saturn.instance);
             if (romSelectResult.result.succeeded) {
-                m_context.settings.system.ipl.overrideImage = true;
-                m_context.settings.system.ipl.path = romSelectResult.path;
+                auto &settings = m_settings;
+                settings.system.ipl.overrideImage = true;
+                settings.system.ipl.path = romSelectResult.path;
                 LoadIPLROM();
                 m_closeGenericModal = true;
             }
@@ -4344,13 +4361,14 @@ void App::CheckForUpdates(bool skipCache) {
 }
 
 void App::RebindInputs() {
-    m_context.settings.RebindInputs();
+    m_settings.RebindInputs();
 }
 
 void App::UpdateInputs(double timeDelta) {
     // NOTE: this uses the previous frame's screen scale parameters
+    const auto &settings = m_settings;
     const auto &screen = m_context.screen;
-    const auto &videoSettings = m_context.settings.video;
+    const auto &videoSettings = settings.video;
     double scale = screen.scale;
     if (screen.doubleResH || screen.doubleResV) {
         scale *= 2.0;
@@ -4370,7 +4388,7 @@ void App::UpdateInputs(double timeDelta) {
     float sBottom = sTop + sHeight;
 
     for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
-        auto &config = m_context.settings.input.ports[portIndex];
+        auto &config = settings.input.ports[portIndex];
 
         if (config.type == ymir::peripheral::PeripheralType::VirtuaGun) {
             auto &input = m_context.virtuaGunInputs[portIndex];
@@ -4388,10 +4406,11 @@ void App::UpdateInputs(double timeDelta) {
 }
 
 void App::DrawInputs(ImDrawList *drawList) {
+    const auto &settings = m_settings;
     const auto &screen = m_context.screen;
 
     for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
-        auto &config = m_context.settings.input.ports[portIndex];
+        const auto &config = settings.input.ports[portIndex];
 
         if (config.type == ymir::peripheral::PeripheralType::VirtuaGun) {
             auto &input = m_context.virtuaGunInputs[portIndex];
@@ -4557,11 +4576,12 @@ void App::ConnectMouseToPeripheral(uint32 id) {
         return;
     }
 
-    CaptureMode captureMode = m_context.settings.input.mouse.captureMode;
+    const auto &settings = m_settings;
+    CaptureMode captureMode = settings.input.mouse.captureMode;
 
     // Force PhysicalMouse mode if a Shuttle Mouse is connected to any port
     for (uint32 port : candidates) {
-        if (m_context.settings.input.ports[port].type == PeripheralType::ShuttleMouse) {
+        if (settings.input.ports[port].type == PeripheralType::ShuttleMouse) {
             captureMode = CaptureMode::PhysicalMouse;
             break;
         }
@@ -4594,7 +4614,7 @@ void App::ConnectMouseToPeripheral(uint32 id) {
     //   - if the target mouse is removed
     //   - if the valid controller list is changed
     const uint32 port = *candidates.begin();
-    const PeripheralType type = m_context.settings.input.ports[port].type;
+    const PeripheralType type = settings.input.ports[port].type;
     std::string periphName = GetPeripheralName(port);
 
     assert(type == PeripheralType::VirtuaGun || type == PeripheralType::ShuttleMouse);
@@ -4660,16 +4680,18 @@ std::set<uint32> App::GetCandidatePeripheralsForMouseCapture() const {
 }
 
 std::string App::GetPeripheralName(uint32 port) const {
-    const ymir::peripheral::PeripheralType type = m_context.settings.input.ports[port].type;
+    const auto &settings = m_settings;
+    const ymir::peripheral::PeripheralType type = settings.input.ports[port].type;
     return fmt::format("{} on port {}", ymir::peripheral::GetPeripheralName(type), port + 1);
 }
 
 std::pair<float, float> App::WindowToScreen(float x, float y) const {
+    const auto &settings = m_settings;
     const auto &screen = m_context.screen;
 
     // Build 2D rotation matrix
     float a, b, c, d;
-    switch (m_context.settings.video.rotation) {
+    switch (settings.video.rotation) {
         using Rot = Settings::Video::DisplayRotation;
     case Rot::Normal: a = +1.0f, b = 0.0f, c = 0.0f, d = +1.0f; break;
     case Rot::_90CW: a = 0.0f, b = -1.0f, c = +1.0f, d = 0.0f; break;
@@ -4695,8 +4717,9 @@ std::pair<float, float> App::WindowToScreen(float x, float y) const {
 }
 
 void App::RescaleUI(float displayScale) {
-    if (m_context.settings.gui.overrideUIScale) {
-        displayScale = m_context.settings.gui.uiScale;
+    const auto &settings = m_settings;
+    if (settings.gui.overrideUIScale) {
+        displayScale = settings.gui.uiScale;
     }
     devlog::info<grp::base>("Window DPI scaling: {:.1f}%", displayScale * 100.0f);
 
@@ -4915,8 +4938,9 @@ void App::OnDisplayRemoved(SDL_DisplayID id) {
 void App::ApplyFullscreenMode() const {
     SDL_Window *window = m_context.screen.window;
     SDL_DisplayID displayID = m_context.GetSelectedDisplay();
-    const auto &mode = m_context.settings.video.fullScreenMode;
-    const bool borderless = m_context.settings.video.borderlessFullScreen;
+    const auto &settings = m_settings;
+    const auto &mode = settings.video.fullScreenMode;
+    const bool borderless = settings.video.borderlessFullScreen;
     SDL_DisplayMode closest;
     if (!borderless && !mode.IsValid()) {
         // Use desktop resolution
@@ -4928,7 +4952,7 @@ void App::ApplyFullscreenMode() const {
         SDL_SetWindowFullscreenMode(window, &closest);
     } else {
         // Use borderless full screen mode, or fallback to borderless if no valid exclusive mode found
-        if (m_context.settings.video.fullScreen && SDL_GetDisplayForWindow(window) != displayID) {
+        if (settings.video.fullScreen && SDL_GetDisplayForWindow(window) != displayID) {
             // Move window to new display if in fullscreen mode
             SDL_Rect bounds;
             SDL_GetDisplayBounds(displayID, &bounds);
@@ -4941,7 +4965,8 @@ void App::ApplyFullscreenMode() const {
 }
 
 void App::PersistWindowGeometry() {
-    if (m_context.settings.gui.rememberWindowGeometry) {
+    const auto &settings = m_settings;
+    if (settings.gui.rememberWindowGeometry) {
         int wx, wy, ww, wh;
         const bool posOK = SDL_GetWindowPosition(m_context.screen.window, &wx, &wy);
         const bool sizeOK = SDL_GetWindowSize(m_context.screen.window, &ww, &wh);
@@ -5133,15 +5158,17 @@ util::ROMLoadResult App::LoadIPLROM() {
 }
 
 std::filesystem::path App::GetIPLROMPath() {
+    const auto &settings = m_settings;
+
     // Load from settings if override is enabled
-    if (m_context.settings.system.ipl.overrideImage && !m_context.settings.system.ipl.path.empty()) {
+    if (settings.system.ipl.overrideImage && !settings.system.ipl.path.empty()) {
         devlog::info<grp::base>("Using IPL ROM overridden by settings");
-        return m_context.settings.system.ipl.path;
+        return settings.system.ipl.path;
     }
 
     // Auto-select ROM from IPL ROM manager based on preferred system variant and area code
 
-    ymir::db::SystemVariant preferredVariant = m_context.settings.system.ipl.variant;
+    ymir::db::SystemVariant preferredVariant = settings.system.ipl.variant;
 
     // SMPC area codes:
     //   0x1  J  Domestic NTSC        Japan
@@ -5233,11 +5260,13 @@ void App::ScanCDBlockROMs() {
 }
 
 util::ROMLoadResult App::LoadCDBlockROM() {
+    auto &settings = m_settings;
+
     std::filesystem::path romPath = GetCDBlockROMPath();
     if (romPath.empty()) {
         devlog::warn<grp::base>("No CD Block ROM found");
-        if (m_context.settings.cdblock.useLLE) {
-            m_context.settings.cdblock.useLLE = false;
+        if (settings.cdblock.useLLE) {
+            settings.cdblock.useLLE = false;
             m_context.DisplayMessage("Low level CD block emulation disabled: no ROMs found");
         }
         return util::ROMLoadResult::Fail("No CD Block ROM found");
@@ -5255,13 +5284,15 @@ util::ROMLoadResult App::LoadCDBlockROM() {
 }
 
 std::filesystem::path App::GetCDBlockROMPath() {
+    auto &settings = m_settings;
+
     // Load from settings if override is enabled
-    if (m_context.settings.cdblock.overrideROM && !m_context.settings.cdblock.romPath.empty()) {
-        if (std::filesystem::is_regular_file(m_context.settings.cdblock.romPath)) {
+    if (settings.cdblock.overrideROM && !settings.cdblock.romPath.empty()) {
+        if (std::filesystem::is_regular_file(settings.cdblock.romPath)) {
             devlog::info<grp::base>("Using CD Block ROM overridden by settings");
-            return m_context.settings.cdblock.romPath;
+            return settings.cdblock.romPath;
         }
-        m_context.settings.cdblock.romPath = "";
+        settings.cdblock.romPath = "";
     }
 
     // Use first available match otherwise
@@ -5563,9 +5594,10 @@ void App::EnableRewindBuffer(bool enable) {
 }
 
 void App::ToggleRewindBuffer() {
-    m_context.settings.general.enableRewindBuffer ^= true;
-    m_context.settings.MakeDirty();
-    EnableRewindBuffer(m_context.settings.general.enableRewindBuffer);
+    auto &settings = m_settings;
+    settings.general.enableRewindBuffer ^= true;
+    settings.MakeDirty();
+    EnableRewindBuffer(settings.general.enableRewindBuffer);
 }
 
 void App::OpenLoadDiscDialog() {
@@ -5598,6 +5630,8 @@ void App::ProcessOpenDiscImageFileDialogSelection(const char *const *filelist, i
 }
 
 bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
+    auto &settings = m_settings;
+
     // Try to load disc image from specified path
     devlog::info<grp::base>("Loading disc image from {}", path);
     ymir::media::Disc disc{};
@@ -5638,7 +5672,7 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
     };
 
     bool hasErrors = false;
-    if (!ymir::media::LoadDisc(path, disc, m_context.settings.general.preloadDiscImagesToRAM,
+    if (!ymir::media::LoadDisc(path, disc, settings.general.preloadDiscImagesToRAM,
                                [&](ymir::media::MessageType type, std::string message) {
                                    switch (type) {
                                    case ymir::media::MessageType::InvalidFormat:
@@ -5673,13 +5707,13 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
         std::unique_lock lock{m_context.locks.disc};
         m_context.saturn.instance->LoadDisc(std::move(disc));
         if (m_context.saturn.GetConfiguration().system.autodetectRegion) {
-            m_context.settings.system.videoStandard = m_context.saturn.GetConfiguration().system.videoStandard.Get();
-            m_context.settings.MakeDirty();
+            settings.system.videoStandard = m_context.saturn.GetConfiguration().system.videoStandard.Get();
+            settings.MakeDirty();
         }
     }
 
     // Load new internal backup memory image if using per-game images
-    if (m_context.settings.system.internalBackupRAMPerGame) {
+    if (settings.system.internalBackupRAMPerGame) {
         m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
     }
 
@@ -5701,7 +5735,7 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
     SaveRecentDiscs();
 
     // Load cartridge
-    if (m_context.settings.cartridge.autoLoadGameCarts) {
+    if (settings.cartridge.autoLoadGameCarts) {
         LoadRecommendedCartridge();
     } else {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
@@ -5780,7 +5814,8 @@ void App::OpenROMCartFileDialog() {
         {.name = "All files (*.*)", .pattern = "*"},
     };
 
-    std::filesystem::path defaultPath = m_context.settings.cartridge.rom.imagePath;
+    const auto &settings = m_settings;
+    std::filesystem::path defaultPath = settings.cartridge.rom.imagePath;
 
     InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, "Load 16 Mbit ROM cartridge image", (void *)kFileFilters,
                      std::size(kFileFilters), false, fmt::format("{}", defaultPath).c_str(), this,

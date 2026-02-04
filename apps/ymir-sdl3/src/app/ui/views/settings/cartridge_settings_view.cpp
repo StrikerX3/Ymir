@@ -41,7 +41,7 @@ CartridgeSettingsView::CartridgeSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void CartridgeSettingsView::Display() {
-    auto &settings = m_context.settings.cartridge;
+    auto &settings = GetSettings().cartridge;
 
     static constexpr Settings::Cartridge::Type kCartTypes[] = {
         Settings::Cartridge::Type::None,
@@ -176,7 +176,7 @@ void CartridgeSettingsView::Display() {
 }
 
 void CartridgeSettingsView::DrawBackupRAMSettings() {
-    auto &settings = m_context.settings.cartridge.backupRAM;
+    auto &settings = GetSettings().cartridge.backupRAM;
 
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     const float itemSpacingWidth = ImGui::GetStyle().ItemSpacing.x;
@@ -249,7 +249,7 @@ void CartridgeSettingsView::DrawBackupRAMSettings() {
 }
 
 void CartridgeSettingsView::DrawDRAMSettings() {
-    auto &settings = m_context.settings.cartridge.dram;
+    auto &settings = GetSettings().cartridge.dram;
 
     using DRAMCap = Settings::Cartridge::DRAM::Capacity;
 
@@ -270,7 +270,7 @@ void CartridgeSettingsView::DrawDRAMSettings() {
 }
 
 void CartridgeSettingsView::DrawROMSettings() {
-    auto &settings = m_context.settings.cartridge.rom;
+    auto &settings = GetSettings().cartridge.rom;
 
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     const float itemSpacingWidth = ImGui::GetStyle().ItemSpacing.x;
@@ -308,7 +308,7 @@ void CartridgeSettingsView::ProcessLoadBackupImageError(void *userdata, const ch
 }
 
 void CartridgeSettingsView::LoadBackupImage(std::filesystem::path file) {
-    auto &settings = m_context.settings.cartridge.backupRAM;
+    auto &settings = GetSettings().cartridge.backupRAM;
 
     // TODO: rework this entire process
     // - everything here should be done by the emulator event
@@ -379,7 +379,7 @@ void CartridgeSettingsView::ProcessLoadROMImageError(void *userdata, const char 
 }
 
 void CartridgeSettingsView::LoadROMImage(std::filesystem::path file) {
-    auto &settings = m_context.settings.cartridge.rom;
+    auto &settings = GetSettings().cartridge.rom;
 
     // TODO: rework this entire process
     // - everything here should be done by the emulator event

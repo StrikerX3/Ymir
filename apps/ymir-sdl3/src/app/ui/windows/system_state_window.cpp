@@ -34,6 +34,8 @@ void SystemStateWindow::PrepareWindow() {
 }
 
 void SystemStateWindow::DrawContents() {
+    const auto &settings = m_context.serviceLocator.GetRequired<Settings>();
+
     ImGui::BeginGroup();
 
     ImGui::SeparatorText("SMPC Parameters");
@@ -45,7 +47,7 @@ void SystemStateWindow::DrawContents() {
     DrawClocks();
 
     ImGui::SeparatorText("CD drive");
-    if (m_context.settings.cdblock.useLLE) {
+    if (settings.cdblock.useLLE) {
         DrawCDDrive();
     } else {
         DrawCDBlock();

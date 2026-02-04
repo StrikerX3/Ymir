@@ -6,7 +6,7 @@ SettingsViewBase::SettingsViewBase(SharedContext &context)
     : m_context(context) {}
 
 void SettingsViewBase::MakeDirty() {
-    m_context.settings.MakeDirty();
+    GetSettings().MakeDirty();
 }
 
 bool SettingsViewBase::MakeDirty(bool value) {
@@ -14,6 +14,14 @@ bool SettingsViewBase::MakeDirty(bool value) {
         MakeDirty();
     }
     return value;
+}
+
+Settings &SettingsViewBase::GetSettings() {
+    return m_context.serviceLocator.GetRequired<Settings>();
+}
+
+const Settings &SettingsViewBase::GetSettings() const {
+    return m_context.serviceLocator.GetRequired<Settings>();
 }
 
 } // namespace app::ui

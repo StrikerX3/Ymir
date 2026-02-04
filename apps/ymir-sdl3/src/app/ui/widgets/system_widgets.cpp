@@ -14,12 +14,13 @@ namespace app::ui::widgets {
 
 bool VideoStandardSelector(SharedContext &ctx) {
     bool changed = false;
-    core::config::sys::VideoStandard videoStandard = ctx.settings.system.videoStandard;
+    auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+    core::config::sys::VideoStandard videoStandard = settings.system.videoStandard;
     auto option = [&](const char *name, core::config::sys::VideoStandard value) {
         if (ImGui::RadioButton(name, videoStandard == value)) {
             ctx.EnqueueEvent(events::emu::SetVideoStandard(value));
-            ctx.settings.system.videoStandard = value;
-            ctx.settings.MakeDirty();
+            settings.system.videoStandard = value;
+            settings.MakeDirty();
             changed = true;
         }
     };

@@ -2,9 +2,11 @@
 
 #include "cmdline_opts.hpp"
 
+#include "settings.hpp"
 #include "shared_context.hpp"
 
 #include "services/graphics_service.hpp"
+#include "services/midi_service.hpp"
 #include "services/save_state_service.hpp"
 
 #include "ui/windows/about_window.hpp"
@@ -55,9 +57,12 @@ public:
 private:
     CommandLineOptions m_options;
 
+    SharedContext m_context;
     services::GraphicsService m_graphicsService;
     services::SaveStateService m_saveStateService;
-    SharedContext m_context;
+    services::MIDIService m_midiService;
+    Settings m_settings;
+
     SDL_PropertiesID m_fileDialogProps;
 
     std::thread m_emuThread;

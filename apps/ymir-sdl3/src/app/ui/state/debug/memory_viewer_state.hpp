@@ -1,5 +1,6 @@
 #pragma once
 
+#include <app/settings.hpp>
 #include <app/shared_context.hpp>
 
 #include <app/events/emu_debug_event_factory.hpp>
@@ -191,7 +192,8 @@ namespace regions {
     }
 
     inline void SH2CachedAreaParams(MemoryViewerState *state) {
-        const bool emulateSH2Cache = state->sharedCtx.settings.system.emulateSH2Cache;
+        const auto &settings = state->sharedCtx.serviceLocator.GetRequired<Settings>();
+        const bool emulateSH2Cache = settings.system.emulateSH2Cache;
         ImGui::SameLine();
         if (!emulateSH2Cache) {
             ImGui::BeginDisabled();

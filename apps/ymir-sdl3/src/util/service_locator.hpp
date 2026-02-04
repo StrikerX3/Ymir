@@ -51,12 +51,39 @@ public:
         }
     }
 
+    /// @brief Attempts to retrieve a pointer to the given service.
+    /// Returns `nullptr` if the service was not registered.
+    /// @tparam TService the service type
+    /// @return a pointer to the service, or `nullptr` if it wasn't registered
+    template <typename TService>
+    TService *Get() const {
+        auto it = m_services.find(typeid(TService));
+        if (it != m_services.end()) {
+            return static_cast<TService *>(it->second);
+        } else {
+            return nullptr;
+        }
+    }
+
     /// @brief Attempts to retrieve a required service.
     /// Throws ServiceNotFoundError<TService> if the service was not registered.
     /// @tparam TService the service type
     /// @return a reference to the registered service
     template <typename TService>
     TService &GetRequired() {
+        TService *service = Get<TService>();
+        if (service == nullptr) {
+            throw ServiceNotFoundError<TService>();
+        }
+        return *service;
+    }
+
+    /// @brief Attempts to retrieve a required service.
+    /// Throws ServiceNotFoundError<TService> if the service was not registered.
+    /// @tparam TService the service type
+    /// @return a reference to the registered service
+    template <typename TService>
+    const TService &GetRequired() const {
         TService *service = Get<TService>();
         if (service == nullptr) {
             throw ServiceNotFoundError<TService>();

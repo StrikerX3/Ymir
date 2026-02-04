@@ -1,5 +1,7 @@
 #include "cdblock_ygr_cmd_trace_view.hpp"
 
+#include <app/settings.hpp>
+
 #include <ymir/util/bit_ops.hpp>
 
 namespace app::ui {
@@ -18,6 +20,8 @@ YGRCommandTraceView::YGRCommandTraceView(SharedContext &context)
     , m_tracer(context.tracers.YGR) {}
 
 void YGRCommandTraceView::Display() {
+    const auto &settings = m_context.serviceLocator.GetRequired<Settings>();
+
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
     const float hexCharWidth = ImGui::CalcTextSize("F").x;
@@ -36,7 +40,7 @@ void YGRCommandTraceView::Display() {
     if (ImGui::Button("Clear")) {
         m_tracer.ClearCommands();
     }
-    if (!m_context.settings.cdblock.useLLE) {
+    if (!settings.cdblock.useLLE) {
         ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
         ImGui::TextColored(
             m_context.colors.notice,

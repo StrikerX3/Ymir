@@ -16,7 +16,6 @@ add_executable(ymir-sdl3
     src/app/rewind_buffer.hpp
     src/app/rom_manager.cpp
     src/app/rom_manager.hpp
-    src/app/rtmidi_wrapper.hpp
     src/app/settings.cpp
     src/app/settings.hpp
     src/app/settings_defaults.hpp
@@ -63,6 +62,9 @@ add_executable(ymir-sdl3
     src/app/services/graphics_service.cpp
     src/app/services/graphics_service.hpp
     src/app/services/graphics_types.hpp
+    src/app/services/midi_service.cpp
+    src/app/services/midi_service.hpp
+    src/app/services/midi_types.hpp
     src/app/services/save_state_service.cpp
     src/app/services/save_state_service.hpp
     src/app/services/save_state_types.hpp

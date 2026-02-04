@@ -34,9 +34,6 @@ private:
     void CaptureAxis2D(input::InputBind &bind, size_t elementIndex, void *context);
 
     void BindInput(input::InputBind &bind, size_t elementIndex, void *context, const input::InputEvent &event);
-
-    void MakeDirty();
-    bool MakeDirty(bool value);
 };
 
 struct CrosshairParams {

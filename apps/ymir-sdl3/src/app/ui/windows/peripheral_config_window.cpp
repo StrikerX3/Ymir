@@ -1,5 +1,7 @@
 #include "peripheral_config_window.hpp"
 
+#include <app/settings.hpp>
+
 #include <ymir/hw/smpc/smpc.hpp>
 
 using namespace ymir;
@@ -45,7 +47,7 @@ void PeripheralConfigWindow::DrawContents() {
     auto &port = m_portIndex == 0 ? smpc.GetPeripheralPort1() : smpc.GetPeripheralPort2();
     auto &periph = port.GetPeripheral(/* TODO: m_slotIndex */);
 
-    auto &settings = m_context.settings.input.ports[m_portIndex];
+    auto &settings = m_context.serviceLocator.GetRequired<Settings>().input.ports[m_portIndex];
 
     switch (periph.GetType()) {
         using enum peripheral::PeripheralType;

@@ -8,6 +8,7 @@ MissionStickConfigView::MissionStickConfigView(SharedContext &context)
     , m_unboundActionsWidget(context) {}
 
 void MissionStickConfigView::Display(Settings::Input::Port::MissionStick &controllerSettings, uint32 portIndex) {
+    auto &settings = GetSettings();
     auto &binds = controllerSettings.binds;
 
     ImGui::AlignTextToFramePadding();
@@ -22,12 +23,12 @@ void MissionStickConfigView::Display(Settings::Input::Port::MissionStick &contro
     }
 
     if (ImGui::Button("Restore defaults")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, true));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, true));
         MakeDirty();
     }
     ImGui::SameLine();
     if (ImGui::Button("Clear all")) {
-        m_unboundActionsWidget.Capture(m_context.settings.ResetBinds(binds, false));
+        m_unboundActionsWidget.Capture(settings.ResetBinds(binds, false));
         MakeDirty();
     }
 
