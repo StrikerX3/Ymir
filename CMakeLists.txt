@@ -103,6 +103,10 @@ endif ()
 ## Include third-party libraries
 add_subdirectory(vendor)
 
+## Configure PGO (apply after vendor so third-party libs don't inherit flags)
+include(cmake/PGO.cmake)
+ymir_configure_pgo()
+
 ## Include project libraries and apps
 add_subdirectory(libs)
 add_subdirectory(apps)

@@ -34,6 +34,9 @@ You can tune the build with following CMake options:
 - `Ymir_ENABLE_IMGUI_DEMO` (`BOOL`): Enables the ImGui demo window, useful as a reference when developing new UI elements. Enabled by default.
 - `Ymir_ENABLE_UPDATE_CHECKS` (`BOOL`): Enables automatic update checks and onboarding process. Enabled by default.
 - `Ymir_EXTRA_INLINING` (`BOOL`): Enables more aggressive inlining, which slows down the build in exchange for better runtime performance. Disabled by default.
+- `Ymir_PGO` (`STRING`): PGO mode. Valid values are `OFF`, `GENERATE`, `USE`. Defaults to `OFF`.
+- `Ymir_PGO_DIR` (`PATH`): Directory where PGO profile data is written. Defaults to `${CMAKE_BINARY_DIR}/pgo-profdata`.
+- `Ymir_PGO_PROFDATA` (`FILEPATH`): Merged LLVM PGO profile data path. Defaults to `${Ymir_PGO_DIR}/ymir.profdata`.
 
 For a Release build, you might want to disable the devlog and ImGui demo window and enable extra inlining to maximize performance and reduce the binary size.
 
@@ -152,4 +155,98 @@ cmake --build build --parallel
 After building, you will find the .app bundle at:
 ```sh
 build/apps/ymir-sdl3/ymir-sdl3.app
+```
+
+
+## Profile Guided Optimization (PGO)
+
+PGO is supported for Clang/AppleClang and GCC (MSVC PGO may be added in future releases).
+Use a two-phase build: first generate profile data, then rebuild using that data.
+
+### Clang / AppleClang
+
+Generate an instrumented build:
+
+Linux
+```sh
+cmake -S . -B build-pgo-gen -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake \
+  -DYmir_PGO=GENERATE
+cmake --build build-pgo-gen --parallel
+```
+
+MacOS
+```sh
+cmake -S . -B build-pgo-gen -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE="$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+  -DYmir_PGO=GENERATE
+cmake --build build-pgo-gen --parallel
+```
+
+Run a representative workload and emit `.profraw` into the PGO directory:
+
+```sh
+export LLVM_PROFILE_FILE="$PWD/build-pgo-gen/pgo-profdata/ymir_%p.profraw"
+./build-pgo-gen/apps/ymir-sdl3/ymir-sdl3
+```
+
+Merge the raw profiles using the CMake target:
+
+```sh
+cmake --build build-pgo-gen --target ymir-pgo-merge
+```
+
+Or manually with `llvm-profdata`:
+
+```sh
+llvm-profdata merge \
+  -o "$PWD/build-pgo-gen/pgo-profdata/ymir.profdata" \
+  "$PWD/build-pgo-gen/pgo-profdata"/*.profraw
+```
+
+Build using the merged profile:
+
+Linux
+```sh
+cmake -S . -B build-pgo-use -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DYmir_PGO=USE \
+  -DYmir_PGO_PROFDATA="$PWD/build-pgo-gen/pgo-profdata/ymir.profdata"
+cmake --build build-pgo-use --parallel
+```
+
+Mac
+```sh
+cmake -S . -B build-pgo-use -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE="$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+  -DYmir_PGO=USE \
+  -DYmir_PGO_PROFDATA="$PWD/build-pgo-gen/pgo-profdata/ymir.profdata"
+cmake --build build-pgo-use --parallel
+```
+
+### GCC
+
+Generate an instrumented build:
+
+```sh
+cmake -S . -B build-pgo-gen -DCMAKE_BUILD_TYPE=Release -DYmir_PGO=GENERATE
+cmake --build build-pgo-gen --parallel
+```
+
+Run a representative workload to emit `.gcda` data into `build-pgo-gen/pgo-profdata/gcc`:
+
+```sh
+./build-pgo-gen/apps/ymir-sdl3/ymir-sdl3
+```
+
+Profiles will appear in the subdirectory tree, not flat.
+
+Build using the generated profiles (point the use build at the generate build directory):
+
+```sh
+cmake -S . -B build-pgo-use -DCMAKE_BUILD_TYPE=Release \
+  -DYmir_PGO=USE \
+  -DYmir_PGO_DIR="$PWD/build-pgo-gen/pgo-profdata"
+cmake --build build-pgo-use --parallel
 ```
