@@ -10,6 +10,7 @@
 // Forward declarations
 
 struct ID3D11Device;
+struct ID3D11Texture2D;
 
 // -----------------------------------------------------------------------------
 
@@ -26,6 +27,10 @@ public:
     /// @param[in] device a pointer to a Direct3D 11 device to use for rendering
     Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions, ID3D11Device *device);
     ~Direct3D11VDPRenderer();
+
+    /// @brief Retrieves a pointer to the `ID3D11Texture2D` containing the composited VDP2 output.
+    /// @return a pointer to the rendered display texture
+    ID3D11Texture2D *GetVDP2OutputTexture() const;
 
     // -------------------------------------------------------------------------
     // Basics
