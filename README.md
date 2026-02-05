@@ -63,15 +63,17 @@ Ymir - Sega Saturn emulator
 Usage:
   Ymir [OPTION...] path to disc image
 
-  -d, --disc arg     Path to Saturn disc image (.ccd, .chd, .cue, .iso,
-                     .mds)
-  -p, --profile arg  Path to profile directory
-  -u, --user         Force user profile
-  -h, --help         Display help text
-  -f, --fullscreen   Start in fullscreen mode
-  -P, --paused       Start paused
-  -D, --debug        Start with debug tracing enabled
-  -E, --exceptions   Capture all unhandled exceptions
+  -d, --disc arg      Path to Saturn disc image (.ccd, .chd, .cue, .iso, 
+                      .mds)
+  -p, --profile arg   Path to profile directory
+  -u, --user          Force user profile
+  -h, --help          Display help text
+  -f, --fullscreen    Start in fullscreen mode
+  -P, --paused        Start paused
+  -F, --fast-forward  Start in fast-forward mode
+  -D, --debug         Start with debug tracing enabled
+  -E, --exceptions    Capture all unhandled exceptions
+
 ```
 
 The options are case-sensitive -- lowercase `-p` sets the profile path, uppercase `-P` makes the emulator start paused.
@@ -85,6 +87,8 @@ The `-u` option forces usage of the OS's user profile folder (e.g. `C:\Users\<us
 `-f` forces the emulator to start in fullscreen mode, ignoring the preference in Ymir.toml.
 
 `-D` starts the emulator with debug tracing enabled.
+
+`-F` starts the emulator in fast-forward mode.
 
 `-E` captures all unhandled exceptions, which can be useful to troubleshoot crashes or failure to start the emulator.
 

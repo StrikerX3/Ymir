@@ -1924,6 +1924,9 @@ void App::RunEmulator() {
     // ---------------------------------
     // Main emulator loop
 
+    m_context.emuSpeed.limitSpeed = !m_options.startFastForward;
+    m_context.audioSystem.SetSync(m_context.emuSpeed.ShouldSyncToAudio());
+
     m_context.saturn.instance->Reset(true);
 
     auto t = clk::now();

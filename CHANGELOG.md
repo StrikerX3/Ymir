@@ -8,8 +8,9 @@ Introduced save state file version 12.
 
 ### New features and improvements
 
-- App: Check for profile at the executable location. (#706)
+- App: Add command line option `-F`/`--fast-forward` to launch the emulator in fast-forward mode.
 - App: Always use installed mode under Flatpak.
+- App: Check for profile at the executable location. (#706)
 - App: Warn users about Flatpak filesystem permissions if the app is running in its sandbox and a disc image fails to load.
 - Build: Support Profile-Guided Optimization (PGO) builds. (#742; @mmkzer0)
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.

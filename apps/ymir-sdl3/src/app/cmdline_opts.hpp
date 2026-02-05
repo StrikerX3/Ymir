@@ -10,6 +10,7 @@ struct CommandLineOptions {
     bool forceUserProfile;
     bool fullScreen;
     bool startPaused;
+    bool startFastForward;
     bool enableDebugTracing;
 };
 
