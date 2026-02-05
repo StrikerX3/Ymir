@@ -113,6 +113,29 @@
       }
     },
     {
+      "name": "x64-Clang-Release-Dist-AVX2-PGO-Generate",
+      "displayName": "x64 Clang Release/Dist AVX2 PGO (Generate)",
+      "inherits": [ "x64-Clang-Release-Dist-AVX2" ],
+      "cacheVariables": {
+        "Ymir_ENABLE_IPO": "ON",
+        "Ymir_PGO": "GENERATE",
+        "Ymir_PGO_DIR": "${sourceDir}/out/pgo-profdata/windows/x86_64-AVX2"
+      },
+      "environment": {
+        "LLVM_PROFILE_FILE": "${sourceDir}/out/pgo-profdata/windows/x86_64-AVX2/ymir_%p.profraw"
+      }
+    },
+    {
+      "name": "x64-Clang-Release-Dist-AVX2-PGO-Use",
+      "displayName": "x64 Clang Release/Dist AVX2 PGO (Use)",
+      "inherits": [ "x64-Clang-Release-Dist-AVX2" ],
+      "cacheVariables": {
+        "Ymir_ENABLE_IPO": "ON",
+        "Ymir_PGO": "USE",
+        "Ymir_PGO_DIR": "${sourceDir}/out/pgo-profdata/windows/x86_64-AVX2"
+      }
+    },
+    {
       "name": "x64-Clang-Release-Dist-SSE2",
       "displayName": "x64 Clang Release/Dist SSE2",
       "description": "Sets Ninja generator, Clang-CL compiler, x64 architecture, build and install directory, distribution release build type",
@@ -147,6 +170,29 @@
           ],
           "intelliSenseMode": "windows-clang-x64"
         }
+      }
+    },
+    {
+      "name": "x64-Clang-Release-Dist-SSE2-PGO-Generate",
+      "displayName": "x64 Clang Release/Dist SSE2 PGO (Generate)",
+      "inherits": [ "x64-Clang-Release-Dist-SSE2" ],
+      "cacheVariables": {
+        "Ymir_ENABLE_IPO": "ON",
+        "Ymir_PGO": "GENERATE",
+        "Ymir_PGO_DIR": "${sourceDir}/out/pgo-profdata/windows/x86_64-SSE2"
+      },
+      "environment": {
+        "LLVM_PROFILE_FILE": "${sourceDir}/out/pgo-profdata/windows/x86_64-SSE2/ymir_%p.profraw"
+      }
+    },
+    {
+      "name": "x64-Clang-Release-Dist-SSE2-PGO-Use",
+      "displayName": "x64 Clang Release/Dist SSE2 PGO (Use)",
+      "inherits": [ "x64-Clang-Release-Dist-SSE2" ],
+      "cacheVariables": {
+        "Ymir_ENABLE_IPO": "ON",
+        "Ymir_PGO": "USE",
+        "Ymir_PGO_DIR": "${sourceDir}/out/pgo-profdata/windows/x86_64-SSE2"
       }
     },
     {
