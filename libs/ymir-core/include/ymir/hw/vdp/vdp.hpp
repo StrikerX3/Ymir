@@ -89,11 +89,67 @@ public:
         }
     }
 
+    /// @brief Configures the callback to invoke immediately before executing command lists in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwarePreExecuteCommandListCallback(CBHardwarePreExecuteCommandList callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.PreExecuteCommandList = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.PreExecuteCommandList = callback;
+        }
+    }
+
+    /// @brief Configures the callback to invoke immediately after executing command lists in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwarePostExecuteCommandListCallback(CBHardwarePostExecuteCommandList callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.PostExecuteCommandList = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.PostExecuteCommandList = callback;
+        }
+    }
+
     /// @brief Retrieves a reference to the current VDP renderer.
     /// @return a reference to the current VDP renderer instance, guaranteed to be valid
     IVDPRenderer &GetRenderer() {
         assert(m_renderer.get() != nullptr); // should always be valid
         return *m_renderer;
+    }
+
+    /// @brief If the current renderer has the specified `VDPRendererType`, returns a pointer to it cast to the
+    /// corresponding concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    template <VDPRendererType type>
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *GetRendererAs() {
+        return m_renderer->As<type>();
+    }
+
+    /// @brief If the current renderer has the specified `VDPRendererType`, returns a pointer to it cast to the
+    /// corresponding concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    template <VDPRendererType type>
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *GetRendererAs() const {
+        return const_cast<VDP *>(this)->GetRendererAs<type>();
+    }
+
+    /// @brief If the current renderer is a hardware renderer, returns a `HardwareVDPRendererBase *` to it.
+    /// Returns `nullptr` otherwise.
+    /// @return a pointer to the hardware renderer, or `nullptr` if it is not a hardware renderer.
+    HardwareVDPRendererBase *GetHardwareRenderer() {
+        assert(m_renderer.get() != nullptr); // should always be valid
+        return m_renderer->AsHardwareRenderer();
     }
 
     /// @brief Switches to the null renderer.
@@ -117,9 +173,11 @@ public:
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
     /// @brief Switches to the Direct3D 11 renderer.
     /// @param[in] device the `ID3D11Device` instance to use
+    /// @param[in] restoreState whether to restore the D3D11 context state after executing command lists. This parameter
+    /// is passed directly to `ID3D11Context::ExecuteCommandList`.
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
-    Direct3D11VDPRenderer *UseDirect3D11VDPRenderer(ID3D11Device *device) {
-        return UseRenderer<Direct3D11VDPRenderer>(m_state, vdp2DebugRenderOptions, device);
+    Direct3D11VDPRenderer *UseDirect3D11VDPRenderer(ID3D11Device *device, bool restoreState) {
+        return UseRenderer<Direct3D11VDPRenderer>(m_state, vdp2DebugRenderOptions, device, restoreState);
     }
 #endif
 
@@ -195,8 +253,8 @@ private:
     /// @brief Attempts to replaces the renderer with an instance of the given renderer.
     ///
     /// This method copies over the callbacks from the current to the new renderer, including software renderer
-    /// callbacks via `m_swRendererCallbacks`. This is for convenience, as it allows the frontend to configure these
-    /// callbacks only once to be reused across all renderers.
+    /// callbacks via `m_swRendererCallbacks` and hardware renderers via `m_hwRendererCallbacks`. This is for
+    /// convenience, as it allows the frontend to configure these callbacks only once to be reused across all renderers.
     ///
     /// The callbacks are stored directly in the renderers for performance.
     ///
@@ -222,11 +280,16 @@ private:
         const config::RendererCallbacks callbacks = m_renderer->Callbacks;
         if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
             m_swRendererCallbacks = swRenderer->SwCallbacks;
+        } else if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            m_hwRendererCallbacks = hwRenderer->HwCallbacks;
         }
 
         renderer->Callbacks = callbacks;
         if constexpr (std::is_same_v<T, SoftwareVDPRenderer>) {
             renderer->SwCallbacks = m_swRendererCallbacks;
+        }
+        if constexpr (std::is_base_of_v<HardwareVDPRendererBase, T>) {
+            renderer->HwCallbacks = m_hwRendererCallbacks;
         }
         renderer->ConfigureEnhancements(m_enhancements);
 
@@ -254,8 +317,11 @@ private:
     // Current enhancements configuration.
     config::Enhancements m_enhancements;
 
-    /// @brief The current softwarre renderer callbacks configuration.
+    /// @brief The current software renderer callbacks configuration.
     SoftwareRendererCallbacks m_swRendererCallbacks;
+
+    /// @brief The current hardware renderer callbacks configuration.
+    HardwareRendererCallbacks m_hwRendererCallbacks;
 
     // -------------------------------------------------------------------------
     // VDP1 memory/register access

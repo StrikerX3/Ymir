@@ -46,6 +46,7 @@ inline constexpr VDPRendererType kRendererTypes[] = {
 
 class NullVDPRenderer;
 class SoftwareVDPRenderer;
+class HardwareVDPRendererBase;
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
 class Direct3D11VDPRenderer;
 #endif
