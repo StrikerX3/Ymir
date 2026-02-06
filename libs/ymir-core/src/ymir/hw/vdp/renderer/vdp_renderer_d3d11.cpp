@@ -1,10 +1,34 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp>
 
 #include <ymir/util/inline.hpp>
+#include <ymir/util/scope_guard.hpp>
 
 #include <d3d11.h>
+#include <d3dcompiler.h>
+
+#include <mutex>
+#include <string_view>
 
 namespace ymir::vdp {
+
+/// @brief Simple identity/passthrough vertex shader.
+static constexpr std::string_view kVSIdentity = R"(
+struct VS_INPUT {
+    float3 Position : POSITION;
+    float2 TexCoord : TEXCOORD0;
+};
+
+struct PS_INPUT {
+    float4 Position : SV_POSITION;
+    float2 TexCoord : TEXCOORD0;
+};
+
+PS_INPUT main(VS_INPUT input) {
+    PS_INPUT output;
+    output.Position = float4(input.Position, 1.0f);
+    output.TexCoord = input.TexCoord;
+    return output;
+})";
 
 FORCE_INLINE static void SafeRelease(IUnknown *object) {
     if (object != nullptr) {
@@ -16,12 +40,19 @@ struct Direct3D11VDPRenderer::Context {
     ~Context() {
         SafeRelease(immediateCtx);
         SafeRelease(deferredCtx);
+        SafeRelease(vsIdentity);
         SafeRelease(texVDP2Output);
         SafeRelease(psVDP2Compose);
+        {
+            std::unique_lock lock{mtxCmdList};
+            SafeRelease(cmdList);
+        }
     }
 
     ID3D11DeviceContext *immediateCtx = nullptr;
     ID3D11DeviceContext *deferredCtx = nullptr;
+
+    ID3D11VertexShader *vsIdentity = nullptr; //< Identity/passthrough vertex shader, required to run pixel shaders
 
     // VDP1 rendering process idea:
     // - batch polygons
@@ -58,16 +89,20 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Texture2D *texVDP2Output = nullptr;   //< Framebuffer output texture
     ID3D11PixelShader *psVDP2Compose = nullptr; //< VDP2 compositor pixel shader
+
+    std::mutex mtxCmdList{};
+    ID3D11CommandList *cmdList = nullptr; //< Command list for the current frame
 };
 
 // -----------------------------------------------------------------------------
 
 Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
-                                             ID3D11Device *device)
-    : IVDPRenderer(VDPRendererType::Direct3D11)
+                                             ID3D11Device *device, bool restoreState)
+    : HardwareVDPRendererBase(VDPRendererType::Direct3D11)
     , m_state(state)
     , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
     , m_device(device)
+    , m_restoreState(restoreState)
     , m_context(std::make_unique<Context>()) {
 
     // TODO: consider using WIL
@@ -78,10 +113,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
 
+    // TODO: replace magic constants
+    static constexpr std::array<uint32, 320 * 224> kBlank{};
+
+    // TODO: probably don't need UAVs for this
     D3D11_TEXTURE2D_DESC texVDP2OutputDesc{
-        .Width = 320,
-        .Height = 224,
-        .MipLevels = 0,
+        .Width = 320,  // TODO: replace magic constants
+        .Height = 224, // TODO: replace magic constants
+        .MipLevels = 1,
         .ArraySize = 1,
         .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
         .SampleDesc = {.Count = 1, .Quality = 0},
@@ -90,15 +129,54 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         .CPUAccessFlags = 0,
         .MiscFlags = 0,
     };
-    if (HRESULT hr = m_device->CreateTexture2D(&texVDP2OutputDesc, nullptr, &m_context->texVDP2Output); FAILED(hr)) {
+    D3D11_SUBRESOURCE_DATA texVDP2OutputData{
+        .pSysMem = kBlank.data(),
+        .SysMemPitch = 320 * sizeof(uint32),
+        .SysMemSlicePitch = 0,
+    };
+    if (HRESULT hr = m_device->CreateTexture2D(&texVDP2OutputDesc, &texVDP2OutputData, &m_context->texVDP2Output);
+        FAILED(hr)) {
         return;
+    }
+
+    {
+        ID3DBlob *shaderBlob = nullptr;
+        ID3DBlob *shaderErrors = nullptr;
+        util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
+        util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
+
+        // TODO: shader cache (singleton/global)
+        if (HRESULT hr = D3DCompile(kVSIdentity.data(), kVSIdentity.size(), NULL, NULL, NULL, "main", "vs_5_0",
+                                    D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
+            FAILED(hr)) {
+            if (shaderErrors != nullptr) {
+                // TODO: report errors
+                // (const char *)shaderErrors->GetBufferPointer()
+            }
+            return;
+        }
+
+        if (HRESULT hr = device->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), NULL,
+                                                    &m_context->vsIdentity);
+            FAILED(hr)) {
+            return;
+        }
     }
 
     m_valid = true;
 }
 
-Direct3D11VDPRenderer::~Direct3D11VDPRenderer() {
-    // TODO: destroy resources
+Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
+
+bool Direct3D11VDPRenderer::ExecutePendingCommandList() {
+    std::unique_lock lock{m_context->mtxCmdList};
+    if (m_context->cmdList == nullptr) {
+        return false;
+    }
+    m_context->immediateCtx->ExecuteCommandList(m_context->cmdList, m_restoreState);
+    m_context->cmdList->Release();
+    m_context->cmdList = nullptr;
+    return true;
 }
 
 ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {
@@ -219,20 +297,24 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
 }
 
 void Direct3D11VDPRenderer::VDP2EndFrame() {
-    // TODO: generate command list for frame:
-    //    ID3D11CommandList *commandList = nullptr;
-    //    HRESULT hr = m_context->deferredCtx->FinishCommandList(FALSE, &commandList);
-    //    if (FAILED(hr)) {
-    //        return;
-    //    }
+    // Generate command list for frame
+    auto *ctx = m_context->deferredCtx;
+    static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr};
+    // ctx->VSSetShaderResources(0, 1, kNullSRVs);
+    // ctx->VSSetShader(m_context->vsIdentity, nullptr, 0);
+    // ctx->PSSetShaderResources(0, 1, kNullSRVs);
+    // ctx->PSSetShader(nullptr, nullptr, 0);
+    ID3D11CommandList *commandList = nullptr;
+    if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
+        return;
+    }
 
-    // TODO: submit command list to be executed in the immmediate context on the main thread
-    // - send an opaque callable via callback that does this:
-    //    // might have to pass TRUE here if SDL_FlushRenderer() isn't enough
-    //    m_context->immediateCtx->ExecuteCommandList(commandList, FALSE);
-    //    commandList->Release();
-    // - frontend should enqueue it for execution by the GUI thread
-    //   - invoke SDL_FlushRenderer before the opaque callable
+    // Replace pending command list
+    {
+        std::unique_lock lock{m_context->mtxCmdList};
+        SafeRelease(m_context->cmdList);
+        m_context->cmdList = commandList;
+    }
 
     Callbacks.VDP2DrawFinished();
 }
