@@ -34,6 +34,10 @@ public:
     /// @return `true` if the renderer is valid, `false` if it failed to create.
     virtual bool IsValid() const = 0;
 
+    /// @brief Determines if this is a hardware renderer.
+    /// @return `true` if this is a hardware renderer, `false` if software or null renderer.
+    virtual bool IsHardwareRenderer() const = 0;
+
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     void Reset(bool hard);
@@ -200,8 +204,8 @@ public:
     // -------------------------------------------------------------------------
     // Type casting and information
 
-    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to the corresponding concrete type.
-    /// Returns `nullptr` otherwise.
+    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to a pointer to the corresponding
+    /// concrete type. Returns `nullptr` otherwise.
     ///
     /// @tparam type the type to cast as
     /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
@@ -215,19 +219,33 @@ public:
         }
     }
 
-    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to the corresponding concrete type.
-    /// Returns `nullptr` otherwise.
+    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to a pointer to the corresponding
+    /// concrete type. Returns `nullptr` otherwise.
     ///
     /// @tparam type the type to cast as
     /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
     /// `nullptr` if this renderer's type doesn't match.
     template <VDPRendererType type>
-    FORCE_INLINE const typename detail::VDPRendererType_t<type> *As() const {
-        if (m_type == type) {
-            return static_cast<detail::VDPRendererType_t<type> *>(this);
-        } else {
-            return nullptr;
-        }
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *As() const {
+        return const_cast<IVDPRenderer *>(this)->As<type>();
+    }
+
+    /// @brief If this renderer object is a hardware renderer, casts it to `HardwareVDPRendererBase *`.
+    /// Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    HardwareVDPRendererBase *AsHardwareRenderer();
+
+    /// @brief If this renderer object is a hardware renderer, casts it to `HardwareVDPRendererBase *`.
+    /// concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    HardwareVDPRendererBase *AsHardwareRenderer() const {
+        return const_cast<IVDPRenderer *>(this)->AsHardwareRenderer();
     }
 
     /// @brief Retrieves a human-readable name for this renderer.

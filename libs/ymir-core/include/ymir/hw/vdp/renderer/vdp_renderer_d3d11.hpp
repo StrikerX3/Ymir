@@ -1,8 +1,10 @@
 #pragma once
 
-#include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
+#include <ymir/hw/vdp/renderer/vdp_renderer_hw_base.hpp>
 
 #include <ymir/hw/vdp/vdp_state.hpp>
+
+#include <ymir/util/callback.hpp>
 
 #include <memory>
 
@@ -11,6 +13,8 @@
 
 struct ID3D11Device;
 struct ID3D11Texture2D;
+struct ID3D11CommandList;
+struct ID3D11DeviceContext;
 
 // -----------------------------------------------------------------------------
 
@@ -20,13 +24,21 @@ namespace ymir::vdp {
 /// Requires a valid `ID3D11Device *` that has been created with support for deferred contexts.
 /// The device must remain valid for the lifetime of the renderer. If the `ID3DDevice11` needs to be recreated or
 /// destroyed, the renderer must be destroyed first.
-class Direct3D11VDPRenderer : public IVDPRenderer {
+class Direct3D11VDPRenderer : public HardwareVDPRendererBase {
 public:
     /// @brief Creates a new Direct3D 11 VDP renderer using the given device.
     /// @param[in] vdp2DebugRenderOptions a reference to the VDP2 debug rendering options
     /// @param[in] device a pointer to a Direct3D 11 device to use for rendering
-    Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions, ID3D11Device *device);
+    /// @param[in] restoreState whether to restore the D3D11 context state after executing command lists. This parameter
+    /// is passed directly to `ID3D11Context::ExecuteCommandList`.
+    Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions, ID3D11Device *device,
+                          bool restoreState);
     ~Direct3D11VDPRenderer();
+
+    // -------------------------------------------------------------------------
+    // Hardware rendering
+
+    bool ExecutePendingCommandList() override;
 
     /// @brief Retrieves a pointer to the `ID3D11Texture2D` containing the composited VDP2 output.
     /// @return a pointer to the rendered display texture
@@ -104,6 +116,8 @@ private:
     VDPState &m_state;
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     ID3D11Device *m_device;
+
+    bool m_restoreState;
 
     struct Context;
     std::unique_ptr<Context> m_context;

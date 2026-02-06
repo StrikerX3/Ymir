@@ -760,6 +760,10 @@ void App::RunEmulator() {
 
     int vsync = 1;
     {
+#if YMIR_PLATFORM_HAS_DIRECT3D
+        // TODO(d3d11): enable this conditionally
+        SDL_SetHint(SDL_HINT_RENDER_DIRECT3D11_DEBUG, "1");
+#endif
         gfx::Backend &graphicsBackend = settings.video.graphicsBackend;
         SDL_Renderer *renderer = m_graphicsService.CreateRenderer(graphicsBackend, screen.window, vsync);
         if (renderer == nullptr) {
@@ -984,6 +988,15 @@ void App::RunEmulator() {
                      }
                  }
              }});
+
+        vdp.SetHardwarePreExecuteCommandListCallback({&m_graphicsService, [](void *ctx) {
+                                                          auto &graphicsService =
+                                                              *static_cast<services::GraphicsService *>(ctx);
+                                                          SDL_Renderer *renderer = graphicsService.GetRenderer();
+                                                          if (renderer != nullptr) {
+                                                              SDL_FlushRenderer(renderer);
+                                                          }
+                                                      }});
     }
 
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
@@ -994,7 +1007,7 @@ void App::RunEmulator() {
         auto *device =
             static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
         if (device != nullptr) {
-            m_context.saturn.instance->VDP.UseDirect3D11VDPRenderer(device);
+            auto *renderer = m_context.saturn.instance->VDP.UseDirect3D11VDPRenderer(device, true);
         }
     }
 #endif
@@ -3645,6 +3658,16 @@ void App::RunEmulator() {
         const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
         SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
         SDL_RenderClear(renderer);
+
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+        // Process pending D3D11 command list if present
+        {
+            auto &vdp = m_context.saturn.instance->VDP;
+            if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
+                hwrenderer->ExecutePendingCommandList();
+            }
+        }
+#endif
 
         // Draw Saturn screen
         if (!settings.video.displayVideoOutputInWindow) {

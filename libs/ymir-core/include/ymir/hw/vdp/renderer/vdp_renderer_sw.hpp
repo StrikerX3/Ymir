@@ -49,6 +49,10 @@ public:
         return true;
     }
 
+    bool IsHardwareRenderer() const override {
+        return false;
+    }
+
 protected:
     void ResetImpl(bool hard) override;
 

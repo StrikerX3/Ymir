@@ -1,5 +1,7 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
+#include <ymir/hw/vdp/renderer/vdp_renderer_hw_base.hpp>
+
 namespace ymir::vdp {
 
 void IVDPRenderer::Reset(bool hard) {
@@ -16,6 +18,13 @@ void IVDPRenderer::Reset(bool hard) {
     m_lineBackLayerState.Reset();
 
     ResetImpl(hard);
+}
+
+HardwareVDPRendererBase *IVDPRenderer::AsHardwareRenderer() {
+    if (IsHardwareRenderer()) {
+        return static_cast<HardwareVDPRendererBase *>(this);
+    }
+    return nullptr;
 }
 
 } // namespace ymir::vdp
