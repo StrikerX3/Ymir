@@ -304,6 +304,8 @@ if (WIN32)
         include/ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp
         
         src/ymir/hw/vdp/renderer/vdp_renderer_d3d11.cpp
+        
+        src/ymir/hw/vdp/renderer/d3d11/d3d11_utils.hpp
     )
     target_link_libraries(ymir-core PRIVATE "d3d11.lib" "d3dcompiler.lib" "dxguid.lib")
     target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_DIRECT3D=1")
