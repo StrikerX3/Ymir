@@ -3,6 +3,7 @@
 #include <ymir/util/inline.hpp>
 #include <ymir/util/scope_guard.hpp>
 
+#include "d3d11/d3d11_shader_cache.hpp"
 #include "d3d11/d3d11_utils.hpp"
 
 #include <d3d11.h>
@@ -21,10 +22,9 @@ namespace ymir::vdp {
 
 auto embedfs = cmrc::Ymir_core_rc::get_filesystem();
 
-FORCE_INLINE static void SafeRelease(IUnknown *object) {
-    if (object != nullptr) {
-        object->Release();
-    }
+static std::string_view GetEmbedFSFile(const std::string &path) {
+    cmrc::file contents = embedfs.open(path);
+    return {contents.begin(), contents.end()};
 }
 
 using Color = std::array<float, 4>;
@@ -46,16 +46,16 @@ struct alignas(16) Consts {
 
 struct Direct3D11VDPRenderer::Context {
     ~Context() {
-        SafeRelease(immediateCtx);
-        SafeRelease(deferredCtx);
-        SafeRelease(vsIdentity);
-        SafeRelease(texVDP2Output);
-        SafeRelease(srvVDP2Output);
-        SafeRelease(psVDP2Compose);
-        SafeRelease(csTest);
+        d3dutil::SafeRelease(immediateCtx);
+        d3dutil::SafeRelease(deferredCtx);
+        d3dutil::SafeRelease(vsIdentity);
+        d3dutil::SafeRelease(texVDP2Output);
+        d3dutil::SafeRelease(srvVDP2Output);
+        d3dutil::SafeRelease(psVDP2Compose);
+        d3dutil::SafeRelease(csTest);
         {
             std::unique_lock lock{mtxCmdList};
-            SafeRelease(cmdList);
+            d3dutil::SafeRelease(cmdList);
         }
     }
 
@@ -156,82 +156,26 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
 
-    {
-        ID3DBlob *shaderBlob = nullptr;
-        ID3DBlob *shaderErrors = nullptr;
-        util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
-        util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
+    auto &shaderCache = d3dutil::D3DShaderCache::Instance(true);
 
-        cmrc::file shaderCode = embedfs.open("d3d11/vs_identity.hlsl");
-
-        // TODO: shader cache (singleton/global)
-        if (HRESULT hr = D3DCompile(shaderCode.cbegin(), shaderCode.size(), NULL, NULL, NULL, "VSMain", "vs_5_0",
-                                    D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
-            FAILED(hr)) {
-            if (shaderErrors != nullptr) {
-                // TODO: report errors
-                // (const char *)shaderErrors->GetBufferPointer()
-            }
-            return;
-        }
-
-        if (HRESULT hr = device->CreateVertexShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), NULL,
-                                                    &m_context->vsIdentity);
-            FAILED(hr)) {
-            return;
-        }
+    m_context->vsIdentity =
+        shaderCache.GetVertexShader(device, GetEmbedFSFile("d3d11/vs_identity.hlsl"), "VSMain", nullptr);
+    if (m_context->vsIdentity == nullptr) {
+        // TODO: report errors
+        return;
     }
 
-    {
-        ID3DBlob *shaderBlob = nullptr;
-        ID3DBlob *shaderErrors = nullptr;
-        util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
-        util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
-
-        cmrc::file shaderCode = embedfs.open("d3d11/ps_vdp2_compose.hlsl");
-
-        // TODO: shader cache (singleton/global)
-        if (HRESULT hr = D3DCompile(shaderCode.cbegin(), shaderCode.size(), NULL, NULL, NULL, "PSMain", "ps_5_0",
-                                    D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
-            FAILED(hr)) {
-            if (shaderErrors != nullptr) {
-                // TODO: report errors
-                // (const char *)shaderErrors->GetBufferPointer()
-            }
-            return;
-        }
-
-        if (HRESULT hr = device->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), NULL,
-                                                   &m_context->psVDP2Compose);
-            FAILED(hr)) {
-            return;
-        }
+    m_context->psVDP2Compose =
+        shaderCache.GetPixelShader(device, GetEmbedFSFile("d3d11/ps_vdp2_compose.hlsl"), "PSMain", nullptr);
+    if (m_context->psVDP2Compose == nullptr) {
+        // TODO: report errors
+        return;
     }
 
-    {
-        ID3DBlob *shaderBlob = nullptr;
-        ID3DBlob *shaderErrors = nullptr;
-        util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
-        util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
-
-        cmrc::file shaderCode = embedfs.open("d3d11/cs_test.hlsl");
-
-        // TODO: shader cache (singleton/global)
-        if (HRESULT hr = D3DCompile(shaderCode.cbegin(), shaderCode.size(), NULL, NULL, NULL, "CSMain", "cs_5_0",
-                                    D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
-            FAILED(hr)) {
-            if (shaderErrors != nullptr) {
-                // TODO: report errors
-                // (const char *)shaderErrors->GetBufferPointer()
-            }
-            return;
-        }
-
-        if (HRESULT hr = device->CreateComputeShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), NULL,
-                                                     &m_context->csTest);
-            FAILED(hr)) {
-            return;
-        }
+    m_context->csTest = shaderCache.GetComputeShader(device, GetEmbedFSFile("d3d11/cs_test.hlsl"), "CSMain", nullptr);
+    if (m_context->csTest == nullptr) {
+        // TODO: report errors
+        return;
     }
 
     D3D11_SHADER_RESOURCE_VIEW_DESC texVDP2OutputSRVDesc{
@@ -468,7 +412,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     // Replace pending command list
     {
         std::unique_lock lock{m_context->mtxCmdList};
-        SafeRelease(m_context->cmdList);
+        d3dutil::SafeRelease(m_context->cmdList);
         m_context->cmdList = commandList;
     }
     HwCallbacks.CommandListReady();
