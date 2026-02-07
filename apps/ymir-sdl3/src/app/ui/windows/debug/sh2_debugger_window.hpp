@@ -20,9 +20,9 @@ protected:
     void DrawContents() override;
 
 private:
+    SH2DisassemblyView m_disasmView;
     SH2DebugToolbarView m_toolbarView;
     SH2RegistersView m_regsView;
-    SH2DisassemblyView m_disasmView;
 };
 
 } // namespace app::ui

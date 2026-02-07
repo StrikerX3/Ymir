@@ -1,5 +1,7 @@
 #include "sh2_debug_toolbar_view.hpp"
 
+#include "sh2_disassembly_view.hpp"
+
 #include <ymir/hw/sh2/sh2.hpp>
 
 #include <app/events/emu_event_factory.hpp>
@@ -15,9 +17,11 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2)
+SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2, SH2DisassemblyView &disasmView)
     : m_context(context)
-    , m_sh2(sh2) {}
+    , m_sh2(sh2)
+    , m_disasmView(disasmView)
+    , m_disasmDumpView(context, sh2) {}
 
 void SH2DebugToolbarView::Display() {
     ImGui::BeginGroup();
@@ -106,6 +110,24 @@ void SH2DebugToolbarView::Display() {
             m_context.saturn.SetSlaveSH2Enabled(slaveSH2Enabled);
         }
     }
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_CENTER_FOCUS_WEAK "##follow_pc_toggle")) {
+        m_disasmView.SetFollowPCEnabled(!m_disasmView.IsFollowPCEnabled());
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Follow PC");
+        ImGui::EndTooltip();
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_FILE_DOWNLOAD "##dump_disasm_range")) {
+        m_disasmDumpView.OpenPopup();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Dump Disasm Range");
+        ImGui::EndTooltip();
+    }
+    m_disasmDumpView.Display();
 
     ImGui::SameLine();
     if (!m_context.saturn.IsDebugTracingEnabled()) {

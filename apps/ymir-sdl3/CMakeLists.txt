@@ -127,6 +127,8 @@ add_executable(ymir-sdl3
     src/app/ui/views/debug/sh2_cache_register_view.hpp
     src/app/ui/views/debug/sh2_debug_toolbar_view.cpp
     src/app/ui/views/debug/sh2_debug_toolbar_view.hpp
+    src/app/ui/views/debug/sh2_disasm_dump_view.cpp
+    src/app/ui/views/debug/sh2_disasm_dump_view.hpp
     src/app/ui/views/debug/sh2_disassembly_view.cpp
     src/app/ui/views/debug/sh2_disassembly_view.hpp
     src/app/ui/views/debug/sh2_divu_registers_view.cpp

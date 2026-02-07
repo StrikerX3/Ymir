@@ -11,10 +11,16 @@ public:
     SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2);
 
     void Display();
+    void JumpTo(uint32 address);
+    bool IsFollowPCEnabled() const;
+    void SetFollowPCEnabled(bool enabled);
 
 private:
     SharedContext &m_context;
     ymir::sh2::SH2 &m_sh2;
+
+    static constexpr uint32 kAddressMin = 0x00000000u;
+    static constexpr uint32 kAddressMax = 0xFFFFFFFEu; // Full 32-bit SH-2 address space (even aligned)
 
     struct Colors {
 #define C(r, g, b) (r / 255.0f), (g / 255.0f), (b / 255.0f), 1.0f
@@ -102,6 +108,23 @@ private:
 
         bool colorizeMnemonicsByType = true;
     } m_settings;
+
+    // State struct used for scrollable disassembly view
+    struct State {
+        uint32 minAddress = kAddressMin;
+        uint32 maxAddress = kAddressMax; // address range min:max
+        uint32 jumpAddress = 0;          // address to jump to
+        bool jumpRequested = false;      // pending jump request
+        bool followPC = true;            // auto-follow PC toggle
+    } m_state;
+
+    // Cached line height, computed dynamically from font size
+    float m_lineAdvance = 0.0f;
+
+    // Scrolls the disassembly view to center the given address.
+    // smoothFollow: true for continuous PC tracking (smooth local, snappy far)
+    //               false for explicit JumpTo requests (always smooth)
+    void ScrollToAddress(uint32 targetAddress, float viewHeight, bool smoothFollow);
 };
 
 } // namespace app::ui
