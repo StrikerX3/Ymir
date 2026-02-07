@@ -173,9 +173,11 @@ bool Direct3D11VDPRenderer::ExecutePendingCommandList() {
     if (m_context->cmdList == nullptr) {
         return false;
     }
+    HwCallbacks.PreExecuteCommandList();
     m_context->immediateCtx->ExecuteCommandList(m_context->cmdList, m_restoreState);
     m_context->cmdList->Release();
     m_context->cmdList = nullptr;
+    HwCallbacks.PostExecuteCommandList();
     return true;
 }
 
