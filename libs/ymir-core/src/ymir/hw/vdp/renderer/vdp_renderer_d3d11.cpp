@@ -356,6 +356,7 @@ void Direct3D11VDPRenderer::VDP1EndFrame() {
 
 void Direct3D11VDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive) {
     // TODO: resize VDP2 framebuffer texture as needed
+    Callbacks.VDP2ResolutionChanged(h, v);
 }
 
 void Direct3D11VDPRenderer::VDP2SetField(bool odd) {}

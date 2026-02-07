@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+@file
+@brief VDP1 and VDP2 renderer implementation using Direct3D 11.
+
+Requires Shader Model 5.0 and an `ID3D11Device` instance with deferred context support.
+*/
+
 #include <ymir/hw/vdp/renderer/vdp_renderer_hw_base.hpp>
 
 #include <ymir/hw/vdp/vdp_state.hpp>
