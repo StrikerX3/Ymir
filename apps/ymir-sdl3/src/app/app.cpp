@@ -789,6 +789,22 @@ void App::RunEmulator() {
         ApplyFullscreenMode();
     });
 
+    auto &vdp = m_context.saturn.instance->VDP;
+
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+    // TODO(d3d11): configure this when hardware rendering is enabled with D3D11 backend
+    {
+        SDL_PropertiesID props = SDL_GetRendererProperties(m_graphicsService.GetRenderer());
+        ScopeGuard sgDestroyProps{[&] { SDL_DestroyProperties(props); }};
+        auto *device =
+            static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
+        if (device != nullptr) {
+            auto *renderer = vdp.UseDirect3D11VDPRenderer(device, true);
+        }
+    }
+#endif
+    ScopeGuard sgReleaseVDPRenderer{[&] { vdp.UseNullRenderer(); }};
+
     // ---------------------------------
     // Create textures to render on
 
@@ -800,8 +816,8 @@ void App::RunEmulator() {
     // nearest interpolation with an integer scale, then rendering the display texture onto the screen with linear
     // interpolation.
 
-    // Framebuffer texture
-    const gfx::TextureHandle fbTexture =
+    // Software framebuffer texture
+    const gfx::TextureHandle swFbTexture =
         m_graphicsService.CreateTexture(SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_STREAMING, vdp::kMaxResH,
                                         vdp::kMaxResV, [&](SDL_Texture *tex, bool recreated) {
                                             SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
@@ -809,10 +825,35 @@ void App::RunEmulator() {
                                                 screen.CopyFramebufferToTexture(tex);
                                             }
                                         });
-    if (fbTexture == gfx::kInvalidTextureHandle) {
-        ShowStartupFailure("Failed to create framebuffer texture: {}", SDL_GetError());
+    if (swFbTexture == gfx::kInvalidTextureHandle) {
+        ShowStartupFailure("Failed to create software framebuffer texture: {}", SDL_GetError());
         return;
     };
+
+    // Hardware framebuffer texture
+    // TODO: manage with GraphicsService - bind as is, don't recreate
+    SDL_Texture *hwFbTexture = nullptr;
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+    // TODO(d3d11): configure this when hardware rendering is enabled with D3D11 backend
+    if (auto *d3d11Renderer = vdp.GetRendererAs<vdp::VDPRendererType::Direct3D11>()) {
+        SDL_PropertiesID texProps = SDL_CreateProperties();
+        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, vdp::kMaxResH);
+        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, vdp::kMaxResV);
+        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_ABGR8888);
+        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STATIC);
+        SDL_SetPointerProperty(texProps, SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER,
+                               d3d11Renderer->GetVDP2OutputTexture());
+        hwFbTexture = SDL_CreateTextureWithProperties(m_graphicsService.GetRenderer(), texProps);
+        if (hwFbTexture == nullptr) {
+            ShowStartupFailure("Could not create SDL texture from D3D11 texture: %s", SDL_GetError());
+            return;
+        }
+        SDL_SetTextureScaleMode(hwFbTexture, SDL_SCALEMODE_NEAREST);
+    }
+    ScopeGuard sgDestroySDLTexture{[&] { SDL_DestroyTexture(hwFbTexture); }};
+#endif
+
+    // TODO: gfx::TextureHandle fbTexture = <select between swFbTexture and hwFbTexture>;
 
     // Display texture, containing the scaled framebuffer to be displayed on the screen
     const gfx::TextureHandle dispTexture = m_graphicsService.CreateTexture(
@@ -838,7 +879,8 @@ void App::RunEmulator() {
         SDL_Renderer *renderer = m_graphicsService.GetRenderer();
 
         assert(m_graphicsService.IsTextureHandleValid(dispTexture));
-        assert(m_graphicsService.IsTextureHandleValid(fbTexture));
+        // TODO: assert(m_graphicsService.IsTextureHandleValid(fbTexture));
+        assert(hwFbTexture != nullptr || m_graphicsService.IsTextureHandleValid(swFbTexture));
         assert(renderer != nullptr);
 
         // Recreate render target texture if scale changed
@@ -861,7 +903,12 @@ void App::RunEmulator() {
                           .h = (float)screen.height * screen.fbScale};
 
         SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
-        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(fbTexture), &srcRect, &dstRect);
+        // TODO: SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(fbTexture), &srcRect, &dstRect);
+        if (hwFbTexture != nullptr) {
+            SDL_RenderTexture(renderer, hwFbTexture, &srcRect, &dstRect);
+        } else {
+            SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(swFbTexture), &srcRect, &dstRect);
+        }
 
         // Restore render target
         SDL_SetRenderTarget(renderer, prevRenderTarget);
@@ -913,105 +960,119 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup framebuffer and render callbacks
 
-    auto &vdp = m_context.saturn.instance->VDP;
     {
         auto &renderer = vdp.GetRenderer();
         auto &callbacks = renderer.Callbacks;
 
-        callbacks.VDP1DrawFinished = {&m_context, [](void *ctx) {
-                                          auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-                                          auto &screen = sharedCtx.screen;
-                                          ++screen.VDP1DrawCalls;
-                                      }};
+        callbacks.VDP1DrawFinished = {
+            &m_context,
+            [](void *ctx) {
+                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                auto &screen = sharedCtx.screen;
+                ++screen.VDP1DrawCalls;
+            },
+        };
 
-        callbacks.VDP1FramebufferSwap = {&m_context, [](void *ctx) {
-                                             auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-                                             auto &screen = sharedCtx.screen;
-                                             ++screen.VDP1Frames;
-                                         }};
+        callbacks.VDP1FramebufferSwap = {
+            &m_context,
+            [](void *ctx) {
+                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                auto &screen = sharedCtx.screen;
+                ++screen.VDP1Frames;
+            },
+        };
 
-        callbacks.VDP2DrawFinished = {&m_context, [](void *ctx) {
-                                          auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-                                          auto &screen = sharedCtx.screen;
-                                          ++screen.VDP2Frames;
-                                      }};
+        callbacks.VDP2DrawFinished = {
+            &m_context,
+            [](void *ctx) {
+                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                auto &screen = sharedCtx.screen;
+                ++screen.VDP2Frames;
 
-        vdp.SetSoftwareRenderCallback(
-            {this, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
-                 auto &app = *static_cast<App *>(ctx);
-                 auto &sharedCtx = app.m_context;
-                 auto &screen = sharedCtx.screen;
-                 auto &settings = app.m_settings;
-                 if (width != screen.width || height != screen.height) {
-                     screen.SetResolution(width, height);
-                 }
+                // Limit emulation speed if requested and not using video sync.
+                // When video sync is enabled, frame pacing is done by the GUI thread.
+                if (sharedCtx.emuSpeed.limitSpeed && !screen.videoSync &&
+                    sharedCtx.emuSpeed.GetCurrentSpeedFactor() != 1.0) {
 
-                 if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
-                     screen.frameRequestEvent.Wait();
-                     screen.frameRequestEvent.Reset();
-                 }
-                 if (settings.video.reduceLatency || !screen.updated || screen.videoSync) {
-                     std::unique_lock lock{screen.mtxFramebuffer};
-                     std::copy_n(fb, width * height, screen.framebuffers[0].data());
-                     screen.updated = true;
-                     if (screen.videoSync) {
-                         screen.frameReadyEvent.Set();
-                     }
-                 }
+                    const auto frameInterval = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        screen.frameInterval / sharedCtx.emuSpeed.GetCurrentSpeedFactor());
 
-                 // Limit emulation speed if requested and not using video sync.
-                 // When video sync is enabled, frame pacing is done by the GUI thread.
-                 if (sharedCtx.emuSpeed.limitSpeed && !screen.videoSync &&
-                     sharedCtx.emuSpeed.GetCurrentSpeedFactor() != 1.0) {
+                    // Sleep until 1ms before the next frame presentation time, then spin wait for the deadline.
+                    // Skip waiting if the frame target is too far into the future.
+                    auto now = clk::now();
+                    if (now < screen.nextEmuFrameTarget + frameInterval) {
+                        if (now < screen.nextEmuFrameTarget - 1ms) {
+                            std::this_thread::sleep_until(screen.nextEmuFrameTarget - 1ms);
+                        }
+                        while (clk::now() < screen.nextEmuFrameTarget) {
+                        }
+                    }
 
-                     const auto frameInterval = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                         screen.frameInterval / sharedCtx.emuSpeed.GetCurrentSpeedFactor());
+                    now = clk::now();
+                    if (now > screen.nextEmuFrameTarget + frameInterval) {
+                        // The delay was too long for some reason; set next frame target time relative to now
+                        screen.nextEmuFrameTarget = now + frameInterval;
+                    } else {
+                        // The delay was on time; increment by the interval
+                        screen.nextEmuFrameTarget += frameInterval;
+                    }
+                }
+            },
+        };
 
-                     // Sleep until 1ms before the next frame presentation time, then spin wait for the deadline.
-                     // Skip waiting if the frame target is too far into the future.
-                     auto now = clk::now();
-                     if (now < screen.nextEmuFrameTarget + frameInterval) {
-                         if (now < screen.nextEmuFrameTarget - 1ms) {
-                             std::this_thread::sleep_until(screen.nextEmuFrameTarget - 1ms);
-                         }
-                         while (clk::now() < screen.nextEmuFrameTarget) {
-                         }
-                     }
+        vdp.SetSoftwareRenderCallback({
+            this,
+            [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
+                auto &app = *static_cast<App *>(ctx);
+                auto &sharedCtx = app.m_context;
+                auto &screen = sharedCtx.screen;
+                auto &settings = app.m_settings;
+                if (width != screen.width || height != screen.height) {
+                    screen.SetResolution(width, height);
+                }
 
-                     now = clk::now();
-                     if (now > screen.nextEmuFrameTarget + frameInterval) {
-                         // The delay was too long for some reason; set next frame target time relative to now
-                         screen.nextEmuFrameTarget = now + frameInterval;
-                     } else {
-                         // The delay was on time; increment by the interval
-                         screen.nextEmuFrameTarget += frameInterval;
-                     }
-                 }
-             }});
+                if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
+                    screen.frameRequestEvent.Wait();
+                    screen.frameRequestEvent.Reset();
+                }
+                if (settings.video.reduceLatency || !screen.updated || screen.videoSync) {
+                    std::unique_lock lock{screen.mtxFramebuffer};
+                    std::copy_n(fb, width * height, screen.framebuffers[0].data());
+                    screen.updated = true;
+                    if (screen.videoSync) {
+                        screen.frameReadyEvent.Set();
+                    }
+                }
+            },
+        });
 
-        vdp.SetHardwarePreExecuteCommandListCallback({&m_graphicsService, [](void *ctx) {
-                                                          auto &graphicsService =
-                                                              *static_cast<services::GraphicsService *>(ctx);
-                                                          SDL_Renderer *renderer = graphicsService.GetRenderer();
-                                                          if (renderer != nullptr) {
-                                                              SDL_FlushRenderer(renderer);
-                                                          }
-                                                      }});
+        vdp.SetHardwareCommandListReadyCallback({
+            this,
+            [](void *ctx) {
+                auto &app = *static_cast<App *>(ctx);
+                auto &sharedCtx = app.m_context;
+                auto &screen = sharedCtx.screen;
+                if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
+                    screen.frameRequestEvent.Wait();
+                    screen.frameRequestEvent.Reset();
+                }
+                if (screen.videoSync) {
+                    screen.frameReadyEvent.Set();
+                }
+            },
+        });
+
+        vdp.SetHardwarePreExecuteCommandListCallback({
+            &m_graphicsService,
+            [](void *ctx) {
+                auto &graphicsService = *static_cast<services::GraphicsService *>(ctx);
+                SDL_Renderer *renderer = graphicsService.GetRenderer();
+                if (renderer != nullptr) {
+                    SDL_FlushRenderer(renderer);
+                }
+            },
+        });
     }
-
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
-    // TODO(d3d11): configure this when hardware rendering is enabled with D3D11 backend
-    {
-        SDL_PropertiesID props = SDL_GetRendererProperties(m_graphicsService.GetRenderer());
-        ScopeGuard sgDestroyProps{[&] { SDL_DestroyProperties(props); }};
-        auto *device =
-            static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
-        if (device != nullptr) {
-            auto *renderer = vdp.UseDirect3D11VDPRenderer(device, true);
-        }
-    }
-#endif
-    ScopeGuard sgReleaseVDPRenderer{[&] { vdp.UseNullRenderer(); }};
 
     // ---------------------------------
     // Initialize audio system
@@ -2590,7 +2651,9 @@ void App::RunEmulator() {
         }
 
         // Update display
-        if (screen.updated || screen.videoSync) {
+        if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
+            hwrenderer->ExecutePendingCommandList();
+        } else if (screen.updated || screen.videoSync) {
             if (screen.videoSync && screen.expectFrame && !m_context.paused) {
                 screen.frameReadyEvent.Wait();
                 screen.frameReadyEvent.Reset();
@@ -2601,7 +2664,9 @@ void App::RunEmulator() {
                 std::unique_lock lock{screen.mtxFramebuffer};
                 screen.framebuffers[1] = screen.framebuffers[0];
             }
-            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(fbTexture));
+
+            // Update framebuffer texture
+            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(swFbTexture));
         }
 
         auto now = clk::now();
@@ -3657,11 +3722,6 @@ void App::RunEmulator() {
         const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
         SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
         SDL_RenderClear(renderer);
-
-        // Process pending command list if present
-        if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
-            hwrenderer->ExecutePendingCommandList();
-        }
 
         // Draw Saturn screen
         if (!settings.video.displayVideoOutputInWindow) {

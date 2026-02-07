@@ -6,6 +6,9 @@
 
 namespace ymir::vdp {
 
+/// @brief Type of callback invoked when a command list is ready to be processed.
+using CBHardwareCommandListReady = util::OptionalCallback<void()>;
+
 /// @brief Type of callback invoked immediately before executing a command list, if one is pending.
 /// Can be used to setup the graphics system, flush commands, preserve state, etc.
 using CBHardwarePreExecuteCommandList = util::OptionalCallback<void()>;
@@ -16,6 +19,7 @@ using CBHardwarePostExecuteCommandList = util::OptionalCallback<void()>;
 
 /// @brief Callbacks specific to hardware VDP renderers.
 struct HardwareRendererCallbacks {
+    CBHardwareCommandListReady CommandListReady;
     CBHardwarePreExecuteCommandList PreExecuteCommandList;
     CBHardwarePostExecuteCommandList PostExecuteCommandList;
 };
