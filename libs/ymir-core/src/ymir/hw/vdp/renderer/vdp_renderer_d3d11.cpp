@@ -7,28 +7,111 @@
 #include <d3dcompiler.h>
 
 #include <mutex>
+#include <numbers> // for testing only
 #include <string_view>
+
+namespace util {
+
+template <UINT N>
+inline void SetDebugName(_In_ ID3D11DeviceChild *deviceResource, _In_z_ const char (&debugName)[N]) {
+    if (deviceResource != nullptr) {
+        deviceResource->SetPrivateData(::WKPDID_D3DDebugObjectName, N - 1, debugName);
+    }
+}
+
+} // namespace util
 
 namespace ymir::vdp {
 
 /// @brief Simple identity/passthrough vertex shader.
-static constexpr std::string_view kVSIdentity = R"(
-struct VS_INPUT {
-    float3 Position : POSITION;
-    float2 TexCoord : TEXCOORD0;
+static constexpr std::string_view kVSIdentity =
+    R"(
+struct VSInput {
+    float3 pos : POSITION;
+    float2 texCoord : TEXCOORD0;
 };
 
-struct PS_INPUT {
-    float4 Position : SV_POSITION;
-    float2 TexCoord : TEXCOORD0;
+struct PSInput {
+    float4 pos : SV_POSITION;
+    float2 texCoord : TEXCOORD0;
 };
 
-PS_INPUT main(VS_INPUT input) {
-    PS_INPUT output;
-    output.Position = float4(input.Position, 1.0f);
-    output.TexCoord = input.TexCoord;
+PSInput main(VSInput input) {
+    PSInput output;
+    output.pos = float4(input.pos, 1.0f);
+    output.texCoord = input.texCoord;
     return output;
-})";
+}
+)";
+
+static constexpr std::string_view kPSVDP2Compose =
+    R"(
+struct PSInput {
+    float4 pos : SV_POSITION;
+    float2 texCoord : TEXCOORD0;
+};
+
+float4 main(PSInput input) : SV_Target0 {
+    return float4(input.texCoord, 0.0f, 1.0f);
+}
+)";
+
+static constexpr std::string_view kComputeProgram =
+    R"(
+RWTexture2D<float4> textureOut;
+cbuffer Consts : register(b0) {
+    float4 colors[256];
+    double4 rect;
+    uint vertLinePos;
+};
+
+static const float k = 0.003125; // 1/320
+
+float4 calc(double2 pos) {
+    double dx, dy;
+    double p, q;
+    double x, y, xnew, ynew, d = 0; // use double to avoid precision limit for a bit longer while going deeper in the fractal
+    uint iter = 0;
+    dx = rect[2] - rect[0];
+    dy = rect[3] - rect[1];
+    p = rect[0] + pos.x * k * dx;
+    q = rect[1] + pos.y * k * dy;
+    x = p;
+    y = q;
+    while (iter < 255 && d < 4) {
+        xnew = x * x - y * y + p;
+        ynew = 2 * x * y + q;
+        x = xnew;
+        y = ynew;
+        d = x * x + y * y;
+        iter++;
+    }
+    return colors[iter];
+}
+
+/*static const uint2 samples = uint2(2, 2);
+
+[numthreads(16,16,1)]
+void main(uint3 id : SV_DispatchThreadID) {
+    float4 colorOut = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    for (int y = 0; y < samples.x; y++) {
+        for (int x = 0; x < samples.y; x++) {
+            double2 coord = double2(x, y);
+            colorOut = colorOut + calc(double2(id.xy) + coord/samples);
+        }
+    }
+    textureOut[id.xy] = colorOut / samples.x / samples.y;
+}*/
+
+[numthreads(16,16,1)]
+void main(uint3 id : SV_DispatchThreadID) {
+    if (id.x == vertLinePos) {
+        textureOut[id.xy] = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    } else {
+        textureOut[id.xy] = calc(double2(id.xy));
+    }
+}
+)";
 
 FORCE_INLINE static void SafeRelease(IUnknown *object) {
     if (object != nullptr) {
@@ -36,13 +119,32 @@ FORCE_INLINE static void SafeRelease(IUnknown *object) {
     }
 }
 
+using Color = std::array<float, 4>;
+using Colors = std::array<Color, 256>;
+struct alignas(16) Consts {
+    Colors colors = [] {
+        Colors colors{};
+        for (int i = 0; auto &color : colors) {
+            const float t = i / 255.0f * std::numbers::pi * 2.0f;
+            color = {sinf(t), sinf(t + 0.3f), sinf(t + 0.6f), 1.0f};
+            ++i;
+        }
+        colors.back() = {0.0f, 0.0f, 0.0f, 1.0f};
+        return colors;
+    }();
+    std::array<double, 4> rect = {-3.0f, -1.5f, 1.0f, 2.5f};
+    uint32 vertLinePos = 0;
+};
+
 struct Direct3D11VDPRenderer::Context {
     ~Context() {
         SafeRelease(immediateCtx);
         SafeRelease(deferredCtx);
         SafeRelease(vsIdentity);
         SafeRelease(texVDP2Output);
+        SafeRelease(srvVDP2Output);
         SafeRelease(psVDP2Compose);
+        SafeRelease(csTest);
         {
             std::unique_lock lock{mtxCmdList};
             SafeRelease(cmdList);
@@ -87,8 +189,16 @@ struct Direct3D11VDPRenderer::Context {
     // TODO: figure out how to handle mid-frame VDP1 VRAM writes
     // TODO: figure out how to handle mid-frame VDP2 VRAM/CRAM writes
 
-    ID3D11Texture2D *texVDP2Output = nullptr;   //< Framebuffer output texture
-    ID3D11PixelShader *psVDP2Compose = nullptr; //< VDP2 compositor pixel shader
+    ID3D11Texture2D *texVDP2Output = nullptr;          //< Framebuffer output texture
+    ID3D11ShaderResourceView *srvVDP2Output = nullptr; //< SRV for framebuffer output texture
+    ID3D11PixelShader *psVDP2Compose = nullptr;        //< VDP2 compositor pixel shader
+
+    // ---- test stuff ----
+    ID3D11ComputeShader *csTest = nullptr;        //< Test compute shader
+    ID3D11UnorderedAccessView *uavTest = nullptr; //< UAV for test compute shader
+    ID3D11Buffer *bufTest = nullptr;              //< Constant buffer for test compute shader
+    Consts consts{};                              //< Constant values
+    // ---- test stuff ----
 
     std::mutex mtxCmdList{};
     ID3D11CommandList *cmdList = nullptr; //< Command list for the current frame
@@ -113,13 +223,12 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
 
-    // TODO: replace magic constants
-    static constexpr std::array<uint32, 320 * 224> kBlank{};
+    static constexpr std::array<uint32, vdp::kMaxResH * vdp::kMaxResV> kBlank{};
 
     // TODO: probably don't need UAVs for this
     D3D11_TEXTURE2D_DESC texVDP2OutputDesc{
-        .Width = 320,  // TODO: replace magic constants
-        .Height = 224, // TODO: replace magic constants
+        .Width = vdp::kMaxResH,
+        .Height = vdp::kMaxResV,
         .MipLevels = 1,
         .ArraySize = 1,
         .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -163,6 +272,107 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         }
     }
 
+    {
+        ID3DBlob *shaderBlob = nullptr;
+        ID3DBlob *shaderErrors = nullptr;
+        util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
+        util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
+
+        // TODO: shader cache (singleton/global)
+        if (HRESULT hr = D3DCompile(kPSVDP2Compose.data(), kPSVDP2Compose.size(), NULL, NULL, NULL, "main", "ps_5_0",
+                                    D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
+            FAILED(hr)) {
+            if (shaderErrors != nullptr) {
+                // TODO: report errors
+                // (const char *)shaderErrors->GetBufferPointer()
+            }
+            return;
+        }
+
+        if (HRESULT hr = device->CreatePixelShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), NULL,
+                                                   &m_context->psVDP2Compose);
+            FAILED(hr)) {
+            return;
+        }
+    }
+
+    {
+        ID3DBlob *shaderBlob = nullptr;
+        ID3DBlob *shaderErrors = nullptr;
+        util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
+        util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
+
+        // TODO: shader cache (singleton/global)
+        if (HRESULT hr = D3DCompile(kComputeProgram.data(), kComputeProgram.size(), NULL, NULL, NULL, "main", "cs_5_0",
+                                    D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
+            FAILED(hr)) {
+            if (shaderErrors != nullptr) {
+                // TODO: report errors
+                // (const char *)shaderErrors->GetBufferPointer()
+            }
+            return;
+        }
+
+        if (HRESULT hr = device->CreateComputeShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), NULL,
+                                                     &m_context->csTest);
+            FAILED(hr)) {
+            return;
+        }
+    }
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC texVDP2OutputSRVDesc{
+        .Format = texVDP2OutputDesc.Format,
+        .ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D,
+        .Texture2D =
+            {
+                .MostDetailedMip = 0,
+                .MipLevels = UINT(-1),
+            },
+    };
+    if (HRESULT hr = device->CreateShaderResourceView(m_context->texVDP2Output, &texVDP2OutputSRVDesc,
+                                                      &m_context->srvVDP2Output);
+        FAILED(hr)) {
+        return;
+    }
+
+    D3D11_UNORDERED_ACCESS_VIEW_DESC texVDP2OutputUAVDesc{
+        .Format = texVDP2OutputDesc.Format,
+        .ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
+        .Texture2D = {.MipSlice = 0},
+    };
+    if (HRESULT hr =
+            device->CreateUnorderedAccessView(m_context->texVDP2Output, &texVDP2OutputUAVDesc, &m_context->uavTest);
+        FAILED(hr)) {
+        return;
+    }
+
+    D3D11_BUFFER_DESC bufferDesc{
+        .ByteWidth = sizeof(m_context->consts),
+        .Usage = D3D11_USAGE_DYNAMIC,
+        .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
+        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+        .MiscFlags = 0,
+        .StructureByteStride = 0,
+    };
+    D3D11_SUBRESOURCE_DATA bufferInitData{
+        .pSysMem = &m_context->consts,
+        .SysMemPitch = 0,
+        .SysMemSlicePitch = 0,
+    };
+    if (HRESULT hr = device->CreateBuffer(&bufferDesc, &bufferInitData, &m_context->bufTest); FAILED(hr)) {
+        return;
+    }
+
+    util::SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
+    util::SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
+    util::SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
+    util::SetDebugName(m_context->srvVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
+    util::SetDebugName(m_context->psVDP2Compose, "[Ymir D3D11] VDP2 framebuffer pixel shader");
+    util::SetDebugName(m_context->csTest, "[Ymir D3D11] Test compute shader");
+    util::SetDebugName(m_context->uavTest, "[Ymir D3D11] Test UAV");
+    util::SetDebugName(m_context->bufTest, "[Ymir D3D11] Test constant buffer");
+    util::SetDebugName(m_context->cmdList, "[Ymir D3D11] Command list");
+
     m_valid = true;
 }
 
@@ -180,9 +390,9 @@ bool Direct3D11VDPRenderer::ExecutePendingCommandList() {
     }
     HwCallbacks.PreExecuteCommandList();
     m_context->immediateCtx->ExecuteCommandList(cmdList, m_restoreState);
+    HwCallbacks.PostExecuteCommandList();
     cmdList->Release();
     cmdList = nullptr;
-    HwCallbacks.PostExecuteCommandList();
     return true;
 }
 
@@ -306,11 +516,37 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
 void Direct3D11VDPRenderer::VDP2EndFrame() {
     // Generate command list for frame
     auto *ctx = m_context->deferredCtx;
+
     static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr};
-    // ctx->VSSetShaderResources(0, 1, kNullSRVs);
-    // ctx->VSSetShader(m_context->vsIdentity, nullptr, 0);
-    // ctx->PSSetShaderResources(0, 1, kNullSRVs);
-    // ctx->PSSetShader(nullptr, nullptr, 0);
+    static constexpr ID3D11UnorderedAccessView *kNullUAVs[1] = {nullptr};
+
+    /*ctx->VSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
+    ctx->VSSetShader(m_context->vsIdentity, nullptr, 0);
+
+    ID3D11ShaderResourceView *psSRVs[] = {m_context->srvVDP2Output};
+    ctx->PSSetShaderResources(0, std::size(psSRVs), psSRVs);
+    ctx->PSSetShader(m_context->psVDP2Compose, nullptr, 0);*/
+
+    m_context->consts.vertLinePos = (m_context->consts.vertLinePos + 1) % 320;
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    ctx->Map(m_context->bufTest, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->consts, sizeof(m_context->consts));
+    ctx->Unmap(m_context->bufTest, 0);
+
+    ctx->VSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
+    ctx->VSSetShader(m_context->vsIdentity, nullptr, 0);
+
+    ctx->PSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
+    ctx->PSSetShader(nullptr, nullptr, 0);
+
+    ctx->CSSetConstantBuffers(0, 1, &m_context->bufTest);
+    ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavTest, nullptr);
+    ctx->CSSetShader(m_context->csTest, nullptr, 0);
+
+    ctx->Dispatch(320 / 16, 224 / 16, 1);
+
+    ctx->CSSetUnorderedAccessViews(0, 1, kNullUAVs, NULL);
+
     ID3D11CommandList *commandList = nullptr;
     if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
         return;
@@ -322,6 +558,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
         SafeRelease(m_context->cmdList);
         m_context->cmdList = commandList;
     }
+    HwCallbacks.CommandListReady();
 
     Callbacks.VDP2DrawFinished();
 }

@@ -89,6 +89,19 @@ public:
         }
     }
 
+    /// @brief Configures the callback to invoke when command lists are ready in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwareCommandListReadyCallback(CBHardwareCommandListReady callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.CommandListReady = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.CommandListReady = callback;
+        }
+    }
+
     /// @brief Configures the callback to invoke immediately before executing command lists in hardware renderers.
     ///
     /// @param[in] callback the callback to register
