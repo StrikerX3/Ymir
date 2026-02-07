@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+@file
+@brief Defines `IVDPRenderer`, the base class for VDP1 and VDP2 renderers.
+*/
+
 #include "vdp_renderer_defs.hpp"
 
 #include <ymir/hw/vdp/vdp1_defs.hpp>
@@ -45,6 +50,7 @@ public:
 protected:
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// Invoked by calls to `Reset(bool)`.
+    ///
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     virtual void ResetImpl(bool hard) = 0;
 

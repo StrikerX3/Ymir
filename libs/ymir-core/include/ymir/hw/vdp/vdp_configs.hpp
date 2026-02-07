@@ -138,13 +138,16 @@ struct VDP2DebugRender {
 
 /// @brief Frontend renderer callbacks.
 struct RendererCallbacks {
-    // Invoked when the VDP1 finishes drawing a frame.
+    /// @brief Invoked when the VDP1 finishes drawing a frame.
     CBVDP1DrawFinished VDP1DrawFinished;
 
-    // Invoked when the VDP1 swaps framebuffers.
+    /// @brief Invoked when the VDP1 swaps framebuffers.
     CBVDP1FramebufferSwap VDP1FramebufferSwap;
 
-    // Invoked when the VDP2 finishes drawing a frame.
+    /// @brief Invoked when the VDP2 resolution is changed.
+    CBVDP2ResolutionChanged VDP2ResolutionChanged;
+
+    /// @brief Invoked when the VDP2 finishes drawing a frame.
     CBVDP2DrawFinished VDP2DrawFinished;
 };
 

@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+@file
+@brief Null VDP1 and VDP2 renderer implementation.
+
+Does nothing, but invokes all standard renderer callbacks at appropriate times.
+*/
+
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
 namespace ymir::vdp {
@@ -82,7 +89,9 @@ public:
         Callbacks.VDP1DrawFinished();
     }
 
-    void VDP2SetResolution(uint32 h, uint32 v, bool exclusive) override {}
+    void VDP2SetResolution(uint32 h, uint32 v, bool exclusive) override {
+        Callbacks.VDP2ResolutionChanged(h, v);
+    }
     void VDP2SetField(bool odd) override {}
     void VDP2LatchTVMD() override {}
     void VDP2BeginFrame() override {}

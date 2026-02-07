@@ -982,6 +982,14 @@ void App::RunEmulator() {
             },
         };
 
+        callbacks.VDP2ResolutionChanged = {&m_context, [](uint32 width, uint32 height, void *ctx) {
+                                               auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                                               auto &screen = sharedCtx.screen;
+                                               if (width != screen.width || height != screen.height) {
+                                                   screen.SetResolution(width, height);
+                                               }
+                                           }};
+
         callbacks.VDP2DrawFinished = {
             &m_context,
             [](void *ctx) {

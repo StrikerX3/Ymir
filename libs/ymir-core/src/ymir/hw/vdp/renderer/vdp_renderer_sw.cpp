@@ -546,6 +546,7 @@ void SoftwareVDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive) 
     m_HRes = h;
     m_VRes = v;
     m_exclusiveMonitor = exclusive;
+    m_resolutionChanged = true;
 
     // Clear framebuffer to avoid artifacts when switching modes
     uint32 color = 0xFF000000;
@@ -595,6 +596,10 @@ void SoftwareVDPRenderer::VDP2EndFrame() {
         m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::VDP2EndFrame());
         m_vdp2RenderingContext.renderFinishedSignal.Wait();
         m_vdp2RenderingContext.renderFinishedSignal.Reset();
+    }
+    if (m_resolutionChanged) {
+        m_resolutionChanged = false;
+        Callbacks.VDP2ResolutionChanged(m_HRes, m_VRes);
     }
     Callbacks.VDP2DrawFinished();
     SwCallbacks.FrameComplete(m_framebuffer.data(), m_HRes, m_VRes);

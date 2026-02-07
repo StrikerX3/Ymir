@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+@file
+@brief Software VDP1 and VDP2 renderer implementation.
+*/
+
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
 #include <ymir/hw/vdp/vdp1_regs.hpp>
@@ -27,8 +32,12 @@
 
 namespace ymir::vdp {
 
-// Invoked when the software VDP2 renderer finishes rendering a frame.
-// Framebuffer data is in little-endian XRGB8888 format.
+/// @brief Invoked when the software VDP2 renderer finishes rendering a frame.
+/// Framebuffer data is in little-endian XRGB8888 format.
+///
+/// @param[in] fb a pointer to the framebuffer data
+/// @param[in] width the width of the framebuffer (in pixels)
+/// @param[in] height the height of the framebuffer (in pixels)
 using CBSoftwareFrameComplete = util::OptionalCallback<void(uint32 *fb, uint32 width, uint32 height)>;
 
 /// @brief Callbacks specific to the software VDP renderer.
@@ -156,6 +165,7 @@ private:
     uint32 m_HRes;
     uint32 m_VRes;
     bool m_exclusiveMonitor;
+    bool m_resolutionChanged = false;
 
     // Complementary (alternate) VDP1 framebuffers, for deinterlaced rendering.
     // When deinterlace mode is enabled, if the system is using double-density interlace, this buffer will contain the

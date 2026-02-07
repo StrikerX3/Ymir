@@ -129,6 +129,19 @@ matches the given type or `nullptr` otherwise.
 
 All renderer callbacks (including renderer-specific callbacks) are preserved when switching renderers.
 
+All renderers (including the null renderer) invoke the `ymir::vdp::config::RendererCallbacks::VDP2ResolutionChanged`
+callback whenever the VDP2 resolution is changed. It has the following signature:
+
+```cpp
+void VDP2ResolutionChanged(uint32 width, uint32 height, void *userContext)
+```
+
+where:
+- `width` and `height` specify the dimensions of the framebuffer
+- `userContext` is a user-provided context pointer
+
+This callback must be registered by the frontend in order to adjust the screen size.
+
 
 
 @subsection sw_renderer Software renderer
@@ -151,6 +164,9 @@ where:
 - `fb` is a pointer to the rendered framebuffer in little-endian XBGR8888 format (`..BBGGRR`)
 - `width` and `height` specify the dimensions of the framebuffer
 - `userContext` is a user-provided context pointer
+
+The dimensions are passed in for convenience. They will always match the latest resolution received by the VDP2
+resolution changed callback.
 
 Use `ymir::vdp::VDP::SetSoftwareRenderCallback` to bind this callback, or set it directly in the software renderer
 instance.
