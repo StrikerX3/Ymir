@@ -89,6 +89,19 @@ void SH2DisassemblyView::Display() {
         const uint32 pc = probe.PC() & ~1u;
         const uint32 pr = probe.PR() & ~1u;
 
+        // Update view window dynamically around PC to keep clipper manageable
+        // Use ±1MB window (0x100000 bytes = ~512K instructions)
+        constexpr uint32 kWindowRadius = 0x100000u;
+        const uint32 windowMin = (pc >= kWindowRadius) ? (pc - kWindowRadius) & ~1u : kAddressMin;
+        const uint32 windowMax = (pc <= kAddressMax - kWindowRadius) ? ((pc + kWindowRadius) & ~1u) : kAddressMax;
+
+        // Update range if PC moved outside current window or first frame
+        if (pc < m_state.minAddress || pc > m_state.maxAddress ||
+            (m_state.minAddress == kAddressMin && m_state.maxAddress == kAddressMax)) {
+            m_state.minAddress = windowMin;
+            m_state.maxAddress = windowMax;
+        }
+
         // Detect user scroll to disable auto-follow
         const float scrollDelta = ImGui::GetIO().MouseWheel;
         if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && std::abs(scrollDelta) > 0.1f) {
@@ -102,13 +115,12 @@ void SH2DisassemblyView::Display() {
             ScrollToAddress(m_state.jumpAddress, viewHeight, false);
         }
 
-        const int totalLines =
-            static_cast<int>((m_state.maxAddress - m_state.minAddress) / sizeof(uint16)) + 1; // inclusive
+        const uint32 totalLines = (m_state.maxAddress - m_state.minAddress) / sizeof(uint16) + 1; // inclusive
 
         // ...sigh, we need to clip the list or else alternating line colors clip into toolbar on top
         // use a clipper so we only draw visible rows and keep background fills from bleeding outside the child area
         ImGuiListClipper clipper;
-        clipper.Begin(totalLines, m_lineAdvance);
+        clipper.Begin(static_cast<int>(totalLines), m_lineAdvance);
         while (clipper.Step()) {
             for (int lineIndex = clipper.DisplayStart; lineIndex < clipper.DisplayEnd; lineIndex++) {
                 const uint32 address = m_state.minAddress + static_cast<uint32>(lineIndex) * sizeof(uint16);

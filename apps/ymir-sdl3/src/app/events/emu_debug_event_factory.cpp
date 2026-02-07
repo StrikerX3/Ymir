@@ -87,7 +87,7 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
 
         // address space ranges
         constexpr uint32 kAddrMin = 0x00000000u;
-        constexpr uint32 kAddrMax = 0x07FFFFFEu;
+        constexpr uint32 kAddrMax = 0xFFFFFFFEu;
 
         // align addresses
         uint32 rangeStart = start & ~1u;

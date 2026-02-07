@@ -20,7 +20,7 @@ private:
     ymir::sh2::SH2 &m_sh2;
 
     static constexpr uint32 kAddressMin = 0x00000000u;
-    static constexpr uint32 kAddressMax = 0x07FFFFFEu; // SH-2 main address space/range (even aligned)
+    static constexpr uint32 kAddressMax = 0xFFFFFFFEu; // Full 32-bit SH-2 address space (even aligned)
 
     struct Colors {
 #define C(r, g, b) (r / 255.0f), (g / 255.0f), (b / 255.0f), 1.0f
