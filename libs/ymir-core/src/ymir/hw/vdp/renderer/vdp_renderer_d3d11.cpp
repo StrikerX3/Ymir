@@ -8,101 +8,18 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
+#include <cmrc/cmrc.hpp>
+
+#include <cassert>
 #include <mutex>
 #include <numbers> // for testing only
 #include <string_view>
 
+CMRC_DECLARE(Ymir_core_rc);
+
 namespace ymir::vdp {
 
-/// @brief Simple identity/passthrough vertex shader.
-static constexpr std::string_view kVSIdentity =
-    R"(
-struct VSInput {
-    float3 pos : POSITION;
-    float2 texCoord : TEXCOORD0;
-};
-
-struct PSInput {
-    float4 pos : SV_POSITION;
-    float2 texCoord : TEXCOORD0;
-};
-
-PSInput main(VSInput input) {
-    PSInput output;
-    output.pos = float4(input.pos, 1.0f);
-    output.texCoord = input.texCoord;
-    return output;
-}
-)";
-
-static constexpr std::string_view kPSVDP2Compose =
-    R"(
-struct PSInput {
-    float4 pos : SV_POSITION;
-    float2 texCoord : TEXCOORD0;
-};
-
-float4 main(PSInput input) : SV_Target0 {
-    return float4(input.texCoord, 0.0f, 1.0f);
-}
-)";
-
-static constexpr std::string_view kComputeProgram =
-    R"(
-RWTexture2D<float4> textureOut;
-cbuffer Consts : register(b0) {
-    float4 colors[256];
-    double4 rect;
-    uint vertLinePos;
-};
-
-static const float k = 0.003125; // 1/320
-
-float4 calc(double2 pos) {
-    double dx, dy;
-    double p, q;
-    double x, y, xnew, ynew, d = 0; // use double to avoid precision limit for a bit longer while going deeper in the fractal
-    uint iter = 0;
-    dx = rect[2] - rect[0];
-    dy = rect[3] - rect[1];
-    p = rect[0] + pos.x * k * dx;
-    q = rect[1] + pos.y * k * dy;
-    x = p;
-    y = q;
-    while (iter < 255 && d < 4) {
-        xnew = x * x - y * y + p;
-        ynew = 2 * x * y + q;
-        x = xnew;
-        y = ynew;
-        d = x * x + y * y;
-        iter++;
-    }
-    return colors[iter];
-}
-
-/*static const uint2 samples = uint2(2, 2);
-
-[numthreads(16,16,1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    float4 colorOut = float4(0.0f, 0.0f, 0.0f, 0.0f);
-    for (int y = 0; y < samples.x; y++) {
-        for (int x = 0; x < samples.y; x++) {
-            double2 coord = double2(x, y);
-            colorOut = colorOut + calc(double2(id.xy) + coord/samples);
-        }
-    }
-    textureOut[id.xy] = colorOut / samples.x / samples.y;
-}*/
-
-[numthreads(16,16,1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    if (id.x == vertLinePos) {
-        textureOut[id.xy] = float4(1.0f, 1.0f, 1.0f, 1.0f);
-    } else {
-        textureOut[id.xy] = calc(double2(id.xy));
-    }
-}
-)";
+auto embedfs = cmrc::Ymir_core_rc::get_filesystem();
 
 FORCE_INLINE static void SafeRelease(IUnknown *object) {
     if (object != nullptr) {
@@ -245,8 +162,10 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
         util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
 
+        cmrc::file shaderCode = embedfs.open("d3d11/vs_identity.hlsl");
+
         // TODO: shader cache (singleton/global)
-        if (HRESULT hr = D3DCompile(kVSIdentity.data(), kVSIdentity.size(), NULL, NULL, NULL, "main", "vs_5_0",
+        if (HRESULT hr = D3DCompile(shaderCode.cbegin(), shaderCode.size(), NULL, NULL, NULL, "VSMain", "vs_5_0",
                                     D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
             FAILED(hr)) {
             if (shaderErrors != nullptr) {
@@ -269,8 +188,10 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
         util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
 
+        cmrc::file shaderCode = embedfs.open("d3d11/ps_vdp2_compose.hlsl");
+
         // TODO: shader cache (singleton/global)
-        if (HRESULT hr = D3DCompile(kPSVDP2Compose.data(), kPSVDP2Compose.size(), NULL, NULL, NULL, "main", "ps_5_0",
+        if (HRESULT hr = D3DCompile(shaderCode.cbegin(), shaderCode.size(), NULL, NULL, NULL, "PSMain", "ps_5_0",
                                     D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
             FAILED(hr)) {
             if (shaderErrors != nullptr) {
@@ -293,8 +214,10 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         util::ScopeGuard sgReleaseShaderBlob{[&] { SafeRelease(shaderBlob); }};
         util::ScopeGuard sgReleaseShaderErrors{[&] { SafeRelease(shaderErrors); }};
 
+        cmrc::file shaderCode = embedfs.open("d3d11/cs_test.hlsl");
+
         // TODO: shader cache (singleton/global)
-        if (HRESULT hr = D3DCompile(kComputeProgram.data(), kComputeProgram.size(), NULL, NULL, NULL, "main", "cs_5_0",
+        if (HRESULT hr = D3DCompile(shaderCode.cbegin(), shaderCode.size(), NULL, NULL, NULL, "CSMain", "cs_5_0",
                                     D3DCOMPILE_DEBUG | D3DCOMPILE_ENABLE_STRICTNESS, 0, &shaderBlob, &shaderErrors);
             FAILED(hr)) {
             if (shaderErrors != nullptr) {
