@@ -913,8 +913,8 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup framebuffer and render callbacks
 
+    auto &vdp = m_context.saturn.instance->VDP;
     {
-        auto &vdp = m_context.saturn.instance->VDP;
         auto &renderer = vdp.GetRenderer();
         auto &callbacks = renderer.Callbacks;
 
@@ -1007,11 +1007,11 @@ void App::RunEmulator() {
         auto *device =
             static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
         if (device != nullptr) {
-            auto *renderer = m_context.saturn.instance->VDP.UseDirect3D11VDPRenderer(device, true);
+            auto *renderer = vdp.UseDirect3D11VDPRenderer(device, true);
         }
     }
 #endif
-    ScopeGuard sgReleaseVDPRenderer{[&] { m_context.saturn.instance->VDP.UseNullRenderer(); }};
+    ScopeGuard sgReleaseVDPRenderer{[&] { vdp.UseNullRenderer(); }};
 
     // ---------------------------------
     // Initialize audio system
@@ -3217,7 +3217,6 @@ void App::RunEmulator() {
                     }
 
                     if (ImGui::BeginMenu("VDP")) {
-                        auto &vdp = m_context.saturn.instance->VDP;
                         auto layerMenuItem = [&](const char *name, vdp::Layer layer) {
                             const bool enabled = vdp.IsLayerEnabled(layer);
                             if (ImGui::MenuItem(name, nullptr, enabled)) {
@@ -3659,15 +3658,10 @@ void App::RunEmulator() {
         SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
         SDL_RenderClear(renderer);
 
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
-        // Process pending D3D11 command list if present
-        {
-            auto &vdp = m_context.saturn.instance->VDP;
-            if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
-                hwrenderer->ExecutePendingCommandList();
-            }
+        // Process pending command list if present
+        if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
+            hwrenderer->ExecutePendingCommandList();
         }
-#endif
 
         // Draw Saturn screen
         if (!settings.video.displayVideoOutputInWindow) {
