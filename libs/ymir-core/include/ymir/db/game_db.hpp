@@ -64,6 +64,7 @@ struct GameInfo {
 /// The product code is prioritized.
 ///
 /// @param[in] productCode the product code to check
+/// @param[in] hash the disc hash to check
 /// @return a pointer to `GameInfo` containing information about the game, or `nullptr` if no matching information was
 /// found
 const GameInfo *GetGameInfo(std::string_view productCode, XXH128Hash hash);

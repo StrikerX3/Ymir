@@ -16,7 +16,7 @@ Development assertions must be enabled by defining the `Ymir_DEV_ASSERTIONS` mac
 /**
 @def YMIR_DEV_ASSERT
 @brief Performs a development-time assertion, breaking into the debugger if the condition fails.
-@param[in] condition the condition to check
+@param[in] cond the condition to check
 */
 
 /**
