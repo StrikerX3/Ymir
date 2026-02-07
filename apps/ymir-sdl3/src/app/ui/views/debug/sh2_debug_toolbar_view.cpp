@@ -1,6 +1,6 @@
 #include "sh2_debug_toolbar_view.hpp"
 
-#include "sh2_disassembly_view.hpp"
+#include "sh2_debugger_model.hpp"
 
 #include <ymir/hw/sh2/sh2.hpp>
 
@@ -17,10 +17,10 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2, SH2DisassemblyView &disasmView)
+SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2, SH2DebuggerModel &model)
     : m_context(context)
     , m_sh2(sh2)
-    , m_disasmView(disasmView)
+    , m_model(model)
     , m_disasmDumpView(context, sh2) {}
 
 void SH2DebugToolbarView::Display() {
@@ -112,7 +112,7 @@ void SH2DebugToolbarView::Display() {
     }
     ImGui::SameLine();
     if (ImGui::Button(ICON_MS_CENTER_FOCUS_WEAK "##follow_pc_toggle")) {
-        m_disasmView.SetFollowPCEnabled(!m_disasmView.IsFollowPCEnabled());
+        m_model.followPC = !m_model.followPC;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Follow PC");

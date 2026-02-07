@@ -14,8 +14,8 @@ namespace app::ui {
 
 SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master)
     : SH2WindowBase(context, master)
-    , m_disasmView(context, m_sh2)
-    , m_toolbarView(context, m_sh2, m_disasmView)
+    , m_disasmView(context, m_sh2, m_debuggerModel)
+    , m_toolbarView(context, m_sh2, m_debuggerModel)
     , m_regsView(context, m_sh2) {
 
     m_windowConfig.name = fmt::format("{}SH2 debugger", master ? 'M' : 'S');

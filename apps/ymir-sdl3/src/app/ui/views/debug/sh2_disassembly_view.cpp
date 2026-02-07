@@ -12,31 +12,19 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2DisassemblyView::SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2)
+SH2DisassemblyView::SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2, SH2DebuggerModel &model)
     : m_context(context)
-    , m_sh2(sh2) {}
+    , m_sh2(sh2)
+    , m_model(model) {}
 
 // helper function to jump to a requested address in view
 void SH2DisassemblyView::JumpTo(uint32 address) {
     // ensure to align and clamp address
     const uint32 alignedAddress = address & ~1u;
-    const uint32 clampedAddress = std::clamp(alignedAddress, m_state.minAddress, m_state.maxAddress);
+    const uint32 clampedAddress = std::clamp(alignedAddress, m_viewState.minAddress, m_viewState.maxAddress);
     // write back clamped address and set jmp request
-    m_state.jumpAddress = clampedAddress;
-    m_state.jumpRequested = true;
-}
-
-bool SH2DisassemblyView::IsFollowPCEnabled() const {
-    return m_state.followPC;
-}
-
-void SH2DisassemblyView::SetFollowPCEnabled(bool enabled) {
-    m_state.followPC = enabled;
-    if (enabled) {
-        JumpTo(m_sh2.GetProbe().PC());
-    } else {
-        m_state.jumpRequested = false;
-    }
+    m_model.jumpAddress = clampedAddress;
+    m_model.jumpRequested = true;
 }
 
 void SH2DisassemblyView::Display() {
@@ -59,7 +47,7 @@ void SH2DisassemblyView::Display() {
             ImGui::Separator();
 
             // new toggle to follow pc
-            ImGui::MenuItem("Follow PC", nullptr, &m_state.followPC);
+            ImGui::MenuItem("Follow PC", nullptr, &m_model.followPC);
 
             ImGui::EndMenu();
         }
@@ -96,26 +84,26 @@ void SH2DisassemblyView::Display() {
         const uint32 windowMax = (pc <= kAddressMax - kWindowRadius) ? ((pc + kWindowRadius) & ~1u) : kAddressMax;
 
         // Update range if PC moved outside current window or first frame
-        if (pc < m_state.minAddress || pc > m_state.maxAddress ||
-            (m_state.minAddress == kAddressMin && m_state.maxAddress == kAddressMax)) {
-            m_state.minAddress = windowMin;
-            m_state.maxAddress = windowMax;
+        if (pc < m_viewState.minAddress || pc > m_viewState.maxAddress ||
+            (m_viewState.minAddress == kAddressMin && m_viewState.maxAddress == kAddressMax)) {
+            m_viewState.minAddress = windowMin;
+            m_viewState.maxAddress = windowMax;
         }
 
         // Detect user scroll to disable auto-follow
         const float scrollDelta = ImGui::GetIO().MouseWheel;
         if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && std::abs(scrollDelta) > 0.1f) {
-            m_state.followPC = false;
+            m_model.followPC = false;
         }
 
         // Handle scrolling to PC or jump address
-        if (m_state.followPC) {
+        if (m_model.followPC) {
             ScrollToAddress(pc, viewHeight, true);
-        } else if (m_state.jumpRequested) {
-            ScrollToAddress(m_state.jumpAddress, viewHeight, false);
+        } else if (m_model.jumpRequested) {
+            ScrollToAddress(m_model.jumpAddress, viewHeight, false);
         }
 
-        const uint32 totalLines = (m_state.maxAddress - m_state.minAddress) / sizeof(uint16) + 1; // inclusive
+        const uint32 totalLines = (m_viewState.maxAddress - m_viewState.minAddress) / sizeof(uint16) + 1; // inclusive
 
         // ...sigh, we need to clip the list or else alternating line colors clip into toolbar on top
         // use a clipper so we only draw visible rows and keep background fills from bleeding outside the child area
@@ -123,7 +111,7 @@ void SH2DisassemblyView::Display() {
         clipper.Begin(static_cast<int>(totalLines), m_lineAdvance);
         while (clipper.Step()) {
             for (int lineIndex = clipper.DisplayStart; lineIndex < clipper.DisplayEnd; lineIndex++) {
-                const uint32 address = m_state.minAddress + static_cast<uint32>(lineIndex) * sizeof(uint16);
+                const uint32 address = m_viewState.minAddress + static_cast<uint32>(lineIndex) * sizeof(uint16);
                 const uint32 prevAddress = address >= sizeof(uint16) ? address - sizeof(uint16) : address;
                 const uint16 prevOpcode = m_context.saturn.GetMainBus().Peek<uint16>(prevAddress);
                 const uint16 opcode = m_context.saturn.GetMainBus().Peek<uint16>(address);
@@ -951,8 +939,8 @@ void SH2DisassemblyView::Display() {
 }
 
 void SH2DisassemblyView::ScrollToAddress(uint32 targetAddress, float viewHeight, bool smoothFollow) {
-    const uint32 clampedAddress = std::clamp(targetAddress, m_state.minAddress, m_state.maxAddress);
-    const uint32 lineIndex = (clampedAddress - m_state.minAddress) / sizeof(uint16);
+    const uint32 clampedAddress = std::clamp(targetAddress, m_viewState.minAddress, m_viewState.maxAddress);
+    const uint32 lineIndex = (clampedAddress - m_viewState.minAddress) / sizeof(uint16);
     const float lineTop = m_lineAdvance * static_cast<float>(lineIndex);
     const float currentScroll = ImGui::GetScrollY();
 
@@ -971,30 +959,30 @@ void SH2DisassemblyView::ScrollToAddress(uint32 targetAddress, float viewHeight,
 
         // Check if line is outside the comfortable zone
         if (linePositionInView >= topMargin && linePositionInView <= bottomMargin) {
-            m_state.jumpRequested = false;
+            m_model.jumpRequested = false;
             return;
         }
 
         // Instant jump if very far away (snappy for large PC jumps)
         if (absDistance > viewHeight * 2.0f) {
             ImGui::SetScrollY(clampedY);
-            m_state.jumpRequested = false;
+            m_model.jumpRequested = false;
             return;
         }
 
         // Smooth scroll toward target
         const float step = distance * 0.3f;
         ImGui::SetScrollY(currentScroll + step);
-        m_state.jumpRequested = false;
+        m_model.jumpRequested = false;
     } else {
         // Jump mode (explicit JumpTo request): smooth scroll to exact center
         if (absDistance <= 1.0f) {
             ImGui::SetScrollY(clampedY);
-            m_state.jumpRequested = false;
+            m_model.jumpRequested = false;
         } else {
             const float step = distance * 0.25f;
             ImGui::SetScrollY(currentScroll + step);
-            m_state.jumpRequested = true;
+            m_model.jumpRequested = true;
         }
     }
 }

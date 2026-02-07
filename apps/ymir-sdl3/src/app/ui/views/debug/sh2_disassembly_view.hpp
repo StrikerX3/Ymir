@@ -1,6 +1,7 @@
 #pragma once
 
 #include <app/shared_context.hpp>
+#include <app/ui/views/debug/sh2_debugger_model.hpp>
 
 #include <imgui.h>
 
@@ -8,16 +9,15 @@ namespace app::ui {
 
 class SH2DisassemblyView {
 public:
-    SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2);
+    SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2, SH2DebuggerModel &model);
 
     void Display();
     void JumpTo(uint32 address);
-    bool IsFollowPCEnabled() const;
-    void SetFollowPCEnabled(bool enabled);
 
 private:
     SharedContext &m_context;
     ymir::sh2::SH2 &m_sh2;
+    SH2DebuggerModel &m_model;
 
     static constexpr uint32 kAddressMin = 0x00000000u;
     static constexpr uint32 kAddressMax = 0xFFFFFFFEu; // Full 32-bit SH-2 address space (even aligned)
@@ -109,14 +109,11 @@ private:
         bool colorizeMnemonicsByType = true;
     } m_settings;
 
-    // State struct used for scrollable disassembly view
-    struct State {
+    // View-local state for scrollable disassembly view
+    struct ViewState {
         uint32 minAddress = kAddressMin;
         uint32 maxAddress = kAddressMax; // address range min:max
-        uint32 jumpAddress = 0;          // address to jump to
-        bool jumpRequested = false;      // pending jump request
-        bool followPC = true;            // auto-follow PC toggle
-    } m_state;
+    } m_viewState;
 
     // Cached line height, computed dynamically from font size
     float m_lineAdvance = 0.0f;
