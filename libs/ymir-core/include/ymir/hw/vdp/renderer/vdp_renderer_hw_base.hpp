@@ -46,9 +46,7 @@ public:
     // -------------------------------------------------------------------------
     // Hardware rendering
 
-    /// @brief Executes the latest pending command list if available in the immediate context of the `ID3D11Device`
-    /// bound to this renderer.
-    ///
+    /// @brief Executes the latest pending command list if available.
     /// @return `true` if a command list was processed, `false` otherwise.
     virtual bool ExecutePendingCommandList() = 0;
 };
