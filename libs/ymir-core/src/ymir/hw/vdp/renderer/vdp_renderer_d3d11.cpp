@@ -169,14 +169,19 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
 bool Direct3D11VDPRenderer::ExecutePendingCommandList() {
-    std::unique_lock lock{m_context->mtxCmdList};
-    if (m_context->cmdList == nullptr) {
-        return false;
+    ID3D11CommandList *cmdList;
+    {
+        std::unique_lock lock{m_context->mtxCmdList};
+        if (m_context->cmdList == nullptr) {
+            return false;
+        }
+        cmdList = m_context->cmdList;
+        m_context->cmdList = nullptr;
     }
     HwCallbacks.PreExecuteCommandList();
-    m_context->immediateCtx->ExecuteCommandList(m_context->cmdList, m_restoreState);
-    m_context->cmdList->Release();
-    m_context->cmdList = nullptr;
+    m_context->immediateCtx->ExecuteCommandList(cmdList, m_restoreState);
+    cmdList->Release();
+    cmdList = nullptr;
     HwCallbacks.PostExecuteCommandList();
     return true;
 }
