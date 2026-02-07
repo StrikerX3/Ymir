@@ -20,8 +20,6 @@ Requires Shader Model 5.0 and an `ID3D11Device` instance with deferred context s
 
 struct ID3D11Device;
 struct ID3D11Texture2D;
-struct ID3D11CommandList;
-struct ID3D11DeviceContext;
 
 // -----------------------------------------------------------------------------
 
@@ -34,6 +32,7 @@ namespace ymir::vdp {
 class Direct3D11VDPRenderer : public HardwareVDPRendererBase {
 public:
     /// @brief Creates a new Direct3D 11 VDP renderer using the given device.
+    /// @param[in] state a reference to the VDP state
     /// @param[in] vdp2DebugRenderOptions a reference to the VDP2 debug rendering options
     /// @param[in] device a pointer to a Direct3D 11 device to use for rendering
     /// @param[in] restoreState whether to restore the D3D11 context state after executing command lists. This parameter

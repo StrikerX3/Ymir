@@ -138,7 +138,7 @@ template <std::size_t start, std::size_t end = start, std::integral T, std::inte
 /// @tparam end the most significant bit of the range to extract.
 /// @tparam T the type of `base`
 /// @tparam TV the type of `value`
-/// @param[in,out] base the value to deposit bits into
+/// @param[in,out] dest the value to deposit bits into
 /// @param[in] value the value to extract bits from
 template <std::size_t start, std::size_t end = start, std::integral T, std::integral TV = T>
 FORCE_INLINE constexpr void deposit_into(T &dest, TV value) noexcept {

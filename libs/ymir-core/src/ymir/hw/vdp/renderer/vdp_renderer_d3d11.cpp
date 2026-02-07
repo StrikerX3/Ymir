@@ -359,9 +359,13 @@ void Direct3D11VDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive
     Callbacks.VDP2ResolutionChanged(h, v);
 }
 
-void Direct3D11VDPRenderer::VDP2SetField(bool odd) {}
+void Direct3D11VDPRenderer::VDP2SetField(bool odd) {
+    // Nothing to do. We're using the main VDP2 state for this.
+}
 
-void Direct3D11VDPRenderer::VDP2LatchTVMD() {}
+void Direct3D11VDPRenderer::VDP2LatchTVMD() {
+    // Nothing to do. We're using the main VDP2 state for this.
+}
 
 void Direct3D11VDPRenderer::VDP2BeginFrame() {
     // TODO: initialize VDP2 frame
