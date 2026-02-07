@@ -3,23 +3,14 @@
 #include <ymir/util/inline.hpp>
 #include <ymir/util/scope_guard.hpp>
 
+#include "d3d11/d3d11_utils.hpp"
+
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
 #include <mutex>
 #include <numbers> // for testing only
 #include <string_view>
-
-namespace util {
-
-template <UINT N>
-inline void SetDebugName(_In_ ID3D11DeviceChild *deviceResource, _In_z_ const char (&debugName)[N]) {
-    if (deviceResource != nullptr) {
-        deviceResource->SetPrivateData(::WKPDID_D3DDebugObjectName, N - 1, debugName);
-    }
-}
-
-} // namespace util
 
 namespace ymir::vdp {
 
@@ -363,15 +354,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
 
-    util::SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
-    util::SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
-    util::SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
-    util::SetDebugName(m_context->srvVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
-    util::SetDebugName(m_context->psVDP2Compose, "[Ymir D3D11] VDP2 framebuffer pixel shader");
-    util::SetDebugName(m_context->csTest, "[Ymir D3D11] Test compute shader");
-    util::SetDebugName(m_context->uavTest, "[Ymir D3D11] Test UAV");
-    util::SetDebugName(m_context->bufTest, "[Ymir D3D11] Test constant buffer");
-    util::SetDebugName(m_context->cmdList, "[Ymir D3D11] Command list");
+    d3dutil::SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
+    d3dutil::SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
+    d3dutil::SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
+    d3dutil::SetDebugName(m_context->srvVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
+    d3dutil::SetDebugName(m_context->psVDP2Compose, "[Ymir D3D11] VDP2 framebuffer pixel shader");
+    d3dutil::SetDebugName(m_context->csTest, "[Ymir D3D11] Test compute shader");
+    d3dutil::SetDebugName(m_context->uavTest, "[Ymir D3D11] Test UAV");
+    d3dutil::SetDebugName(m_context->bufTest, "[Ymir D3D11] Test constant buffer");
+    d3dutil::SetDebugName(m_context->cmdList, "[Ymir D3D11] Command list");
 
     m_valid = true;
 }
@@ -390,7 +381,6 @@ bool Direct3D11VDPRenderer::ExecutePendingCommandList() {
     }
     HwCallbacks.PreExecuteCommandList();
     m_context->immediateCtx->ExecuteCommandList(cmdList, m_restoreState);
-    HwCallbacks.PostExecuteCommandList();
     cmdList->Release();
     cmdList = nullptr;
     return true;

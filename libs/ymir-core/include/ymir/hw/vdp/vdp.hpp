@@ -115,19 +115,6 @@ public:
         }
     }
 
-    /// @brief Configures the callback to invoke immediately after executing command lists in hardware renderers.
-    ///
-    /// @param[in] callback the callback to register
-    void SetHardwarePostExecuteCommandListCallback(CBHardwarePostExecuteCommandList callback) {
-        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
-            // Apply directly to renderer
-            hwRenderer->HwCallbacks.PostExecuteCommandList = callback;
-        } else {
-            // Remember for next instantiation.
-            m_hwRendererCallbacks.PostExecuteCommandList = callback;
-        }
-    }
-
     /// @brief Retrieves a reference to the current VDP renderer.
     /// @return a reference to the current VDP renderer instance, guaranteed to be valid
     IVDPRenderer &GetRenderer() {
@@ -189,7 +176,7 @@ public:
     /// @param[in] restoreState whether to restore the D3D11 context state after executing command lists. This parameter
     /// is passed directly to `ID3D11Context::ExecuteCommandList`.
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
-    Direct3D11VDPRenderer *UseDirect3D11VDPRenderer(ID3D11Device *device, bool restoreState) {
+    Direct3D11VDPRenderer *UseDirect3D11Renderer(ID3D11Device *device, bool restoreState) {
         return UseRenderer<Direct3D11VDPRenderer>(m_state, vdp2DebugRenderOptions, device, restoreState);
     }
 #endif
