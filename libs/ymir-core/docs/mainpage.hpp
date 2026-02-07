@@ -366,9 +366,8 @@ cannot normally be done through simple memory reads and writes such as directly 
 arrays or CD Block buffers. Not even `Peek`/`Poke` on `ymir::sys::Bus` can reach that far.
 
 @a Tracers are integrated into the components themselves in order to capture events as the emulator executes. The
-application must implement the provided interfaces in @link libs/ymir-core/include/ymir/debug ymir/debug @endlink then
-attach tracer instances to the components with their `UseTracer()` methods to receive events as they occur while the
-emulator is running.
+application must implement the provided interfaces in libs/ymir-core/include/ymir/debug then attach tracer instances to
+the components with their `UseTracer()` methods to receive events as they occur while the emulator is running.
 
 Some tracers require you to run the emulator in *debug tracing mode*. Call `ymir::Saturn::EnableDebugTracing` on the
 `Saturn` instance with `true` then attach the tracers. There's no need to reset or reinitialize the emulator core to
