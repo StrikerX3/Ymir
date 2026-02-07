@@ -207,6 +207,7 @@ add_library(ymir-core
     include/ymir/util/dev_log.hpp
     include/ymir/util/event.hpp
     include/ymir/util/function_info.hpp
+    include/ymir/util/hashing.hpp
     include/ymir/util/inline.hpp
     include/ymir/util/lsn_denormals.hpp
     include/ymir/util/process.hpp
