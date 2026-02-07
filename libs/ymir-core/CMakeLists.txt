@@ -298,8 +298,9 @@ add_library(ymir-core
     src/ymir/util/virtual_memory.cpp
 )
 
-## Add graphics APIs
+## Add graphics APIs and resources
 if (WIN32)
+    ## Direct3D 11 and 12 on Windows
     target_sources(ymir-core PRIVATE
         include/ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp
         
@@ -309,6 +310,12 @@ if (WIN32)
     )
     target_link_libraries(ymir-core PRIVATE "d3d11.lib" "d3dcompiler.lib" "dxguid.lib")
     target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_DIRECT3D=1")
+
+    list(APPEND YMIR_CORE_RESOURCES
+        res/embed/d3d11/cs_test.hlsl
+        res/embed/d3d11/vs_identity.hlsl
+        res/embed/d3d11/ps_vdp2_compose.hlsl
+    )
 endif ()
 
 if (APPLE)
@@ -338,6 +345,7 @@ find_package(fmt CONFIG REQUIRED)
 
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
+    ymir-core::rc
     fmt::fmt
     mio
     concurrentqueue
@@ -350,6 +358,15 @@ if (WIN32)
         synchronization
     )
 endif ()
+
+## Create embedded resource library
+cmrc_add_resource_library(ymir-core-rc
+    ALIAS ymir-core::rc
+    NAMESPACE Ymir_core_rc
+    WHENCE res/embed
+
+    ${YMIR_CORE_RESOURCES}
+)
 
 
 # Build precompiled header
@@ -462,4 +479,5 @@ endif ()
 if (MSVC)
     vs_set_filters(TARGET ymir-core)
     set_target_properties(ymir-core PROPERTIES FOLDER "Ymir")
+    set_target_properties(ymir-core-rc PROPERTIES FOLDER "Ymir")
 endif ()
