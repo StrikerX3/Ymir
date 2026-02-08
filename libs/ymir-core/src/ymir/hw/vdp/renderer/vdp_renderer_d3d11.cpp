@@ -355,6 +355,8 @@ void Direct3D11VDPRenderer::VDP1EndFrame() {
 // -----------------------------------------------------------------------------
 
 void Direct3D11VDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive) {
+    m_HRes = h;
+    m_VRes = v;
     // TODO: resize VDP2 framebuffer texture as needed
     Callbacks.VDP2ResolutionChanged(h, v);
 }
@@ -389,7 +391,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     ctx->PSSetShaderResources(0, std::size(psSRVs), psSRVs);
     ctx->PSSetShader(m_context->psVDP2Compose, nullptr, 0);*/
 
-    m_context->consts.vertLinePos = (m_context->consts.vertLinePos + 1) % 320;
+    m_context->consts.vertLinePos = (m_context->consts.vertLinePos + 1) % m_HRes;
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     ctx->Map(m_context->bufTest, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     memcpy(mappedResource.pData, &m_context->consts, sizeof(m_context->consts));
@@ -405,7 +407,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavTest, nullptr);
     ctx->CSSetShader(m_context->csTest, nullptr, 0);
 
-    ctx->Dispatch(320 / 16, 224 / 16, 1);
+    ctx->Dispatch(m_HRes / 16, m_VRes / 16, 1);
 
     ctx->CSSetUnorderedAccessViews(0, 1, kNullUAVs, NULL);
 
