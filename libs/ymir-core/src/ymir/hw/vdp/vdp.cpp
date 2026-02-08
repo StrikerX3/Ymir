@@ -69,7 +69,7 @@ namespace grp {
 } // namespace grp
 
 VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
-    : m_renderer(std::make_unique<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions))
+    : m_renderer(std::make_unique<NullVDPRenderer>())
     , m_config(config)
     , m_scheduler(scheduler) {
 
@@ -93,6 +93,8 @@ VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
     m_phaseUpdateEvent = scheduler.RegisterEvent(core::events::VDPPhase, this, OnPhaseUpdateEvent);
 
     Reset(true);
+
+    UseSoftwareRenderer();
 }
 
 VDP::~VDP() = default;
