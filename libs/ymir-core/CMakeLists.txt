@@ -316,8 +316,9 @@ if (WIN32)
 
     list(APPEND YMIR_CORE_RESOURCES
         res/embed/d3d11/cs_test.hlsl
-        res/embed/d3d11/vs_identity.hlsl
+        res/embed/d3d11/cs_vdp2_bgs.hlsl
         res/embed/d3d11/ps_vdp2_compose.hlsl
+        res/embed/d3d11/vs_identity.hlsl
     )
 endif ()
 
