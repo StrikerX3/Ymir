@@ -89,8 +89,8 @@ SoftwareVDPRenderer::~SoftwareVDPRenderer() {
 // Basics
 
 void SoftwareVDPRenderer::ResetImpl(bool hard) {
-    m_HRes = 320;
-    m_VRes = 224;
+    m_HRes = vdp::kDefaultResH;
+    m_VRes = vdp::kDefaultResV;
     m_exclusiveMonitor = false;
 
     if (hard) {

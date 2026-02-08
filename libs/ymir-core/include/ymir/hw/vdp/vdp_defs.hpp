@@ -29,6 +29,12 @@ inline constexpr std::size_t kVDP2CRAMSize = 4_KiB;
 // -----------------------------------------------------------------------------
 // Common constants
 
+inline constexpr uint32 kDefaultResH = 320; // Default/initial horizontal resolution
+inline constexpr uint32 kDefaultResV = 224; // Default/initial vertical resolution
+
+inline constexpr uint32 kMinResH = 320; // Minimum horizontal resolution
+inline constexpr uint32 kMinResV = 224; // Minimum vertical resolution
+
 inline constexpr uint32 kMaxResH = 704; // Maximum horizontal resolution
 inline constexpr uint32 kMaxResV = 512; // Maximum vertical resolution
 
