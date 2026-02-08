@@ -292,6 +292,8 @@ private:
             renderer->HwCallbacks = m_hwRendererCallbacks;
         }
         renderer->ConfigureEnhancements(m_enhancements);
+        renderer->VDP2SetResolution(m_HRes, m_VRes, m_exclusiveMonitor);
+        renderer->VDP2SetField(m_state.regs2.TVSTAT.ODD);
 
         m_renderer.reset(renderer);
         return renderer;
