@@ -242,7 +242,7 @@ struct SharedContext {
 
     struct Screen {
         Screen() {
-            SetResolution(320, 224);
+            SetResolution(ymir::vdp::kDefaultResH, ymir::vdp::kDefaultResV);
             prevWidth = width;
             prevHeight = height;
             prevScaleX = scaleX;

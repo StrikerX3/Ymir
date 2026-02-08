@@ -3398,7 +3398,8 @@ void App::RunEmulator() {
 
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
                 ImGui::SetNextWindowSizeConstraints(
-                    (horzDisplay ? ImVec2(320, 224) : ImVec2(224, 320)), ImVec2(FLT_MAX, FLT_MAX),
+                    (horzDisplay ? ImVec2(vdp::kMinResH, vdp::kMinResV) : ImVec2(vdp::kMinResV, vdp::kMinResH)),
+                    ImVec2(FLT_MAX, FLT_MAX),
                     [](ImGuiSizeCallbackData *data) {
                         double aspectRatio = *(double *)data->UserData;
                         data->DesiredSize.y =
