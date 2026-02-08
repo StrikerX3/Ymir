@@ -129,6 +129,8 @@ private:
     std::unique_ptr<Context> m_context;
 
     bool m_valid = false;
+    uint32 m_HRes = vdp::kDefaultResH;
+    uint32 m_VRes = vdp::kDefaultResV;
 };
 
 } // namespace ymir::vdp
