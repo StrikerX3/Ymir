@@ -49,6 +49,10 @@ struct Direct3D11VDPRenderer::Context {
         d3dutil::SafeRelease(immediateCtx);
         d3dutil::SafeRelease(deferredCtx);
         d3dutil::SafeRelease(vsIdentity);
+        d3dutil::SafeRelease(texVDP2BGs);
+        d3dutil::SafeRelease(uavVDP2BGs);
+        d3dutil::SafeRelease(srvVDP2BGs);
+        d3dutil::SafeRelease(csVDP2BGs);
         d3dutil::SafeRelease(texVDP2Output);
         d3dutil::SafeRelease(srvVDP2Output);
         d3dutil::SafeRelease(psVDP2Compose);
@@ -68,8 +72,10 @@ struct Direct3D11VDPRenderer::Context {
     // - batch polygons
     // - render polygons with compute shader individually, parallelized into separate textures or Z slices of 3D texture
     // - merge rendered polygons with pixel shader into draw framebuffer (+ draw transparent mesh buffer if enabled)
+    // TODO: figure out how to handle VDP1 framebuffer writes from SH2
+    // TODO: figure out how to handle mid-frame VDP1 VRAM writes
 
-    // TODO: VDP1 VRAM buffer
+    // TODO: VDP1 VRAM buffer (ByteAddressBuffer?)
     // TODO: VDP1 framebuffer RAM buffer
     // TODO: VDP1 registers structured buffer array (per polygon)
     // TODO: VDP1 polygon 2D texture array/3D texture + UAVs + SRVs
@@ -85,17 +91,16 @@ struct Direct3D11VDPRenderer::Context {
     // - at the end of the frame:
     //   - render all active NBGs and RBGs with shaders into their respective textures, parallelized by tiles
     //   - render final framebuffer image with compositor pixel shader, merging VDP1 + transparent mesh + NBGs + RBGs
+    // TODO: figure out how to handle mid-frame VDP2 VRAM/CRAM writes
 
     // TODO: VDP2 registers structured buffer array (per scanline)
     // TODO: VDP2 VRAM buffer
     // TODO: VDP2 CRAM buffer (maybe precomputed colors?)
-    // TODO: NBG0-3, RBG0-1 textures + UAV? + SRV
-    // TODO: NBG compute/pixel(?) shader
-    // TODO: RBG compute/pixel(?) shader
 
-    // TODO: figure out how to handle VDP1 framebuffer writes from SH2
-    // TODO: figure out how to handle mid-frame VDP1 VRAM writes
-    // TODO: figure out how to handle mid-frame VDP2 VRAM/CRAM writes
+    ID3D11Texture2D *texVDP2BGs = nullptr;           //< NBG0-3, RBG0-1 textures (in that order)
+    ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG texture array
+    ID3D11ShaderResourceView *srvVDP2BGs = nullptr;  //< SRV for NBG/RBG texture array
+    ID3D11ComputeShader *csVDP2BGs = nullptr;        //< NBG/RBG compute shader
 
     ID3D11Texture2D *texVDP2Output = nullptr;          //< Framebuffer output texture
     ID3D11ShaderResourceView *srvVDP2Output = nullptr; //< SRV for framebuffer output texture
@@ -126,15 +131,91 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // TODO: consider using WIL
     // - https://github.com/microsoft/wil
 
+    auto &shaderCache = d3dutil::D3DShaderCache::Instance(true);
+
+    D3D11_TEXTURE2D_DESC texDesc{};
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+    D3D11_BUFFER_DESC bufferDesc{};
+
+    // -------------------------------------------------------------------------
+    // Device contexts
+
     m_device->GetImmediateContext(&m_context->immediateCtx);
     if (HRESULT hr = m_device->CreateDeferredContext(0, &m_context->deferredCtx); FAILED(hr)) {
+        // TODO: report error
         return;
     }
 
-    static constexpr std::array<uint32, vdp::kMaxResH * vdp::kMaxResV> kBlank{};
+    // -------------------------------------------------------------------------
+    // Textures, SRVs and UAVs
 
-    // TODO: probably don't need UAVs for this
-    D3D11_TEXTURE2D_DESC texVDP2OutputDesc{
+    static constexpr std::array<uint32, vdp::kMaxResH * vdp::kMaxResV> kBlankFramebuffer{};
+
+    std::array<D3D11_SUBRESOURCE_DATA, 6> texVDP2BGsData{};
+    texVDP2BGsData.fill({
+        .pSysMem = kBlankFramebuffer.data(),
+        .SysMemPitch = vdp::kMaxResH * sizeof(uint32),
+        .SysMemSlicePitch = 0,
+    });
+    texDesc = {
+        .Width = vdp::kMaxResH,
+        .Height = vdp::kMaxResV,
+        .MipLevels = 1,
+        .ArraySize = 6, // NBG0-3, RBG0-1
+        .Format = DXGI_FORMAT_R8G8B8A8_UNORM,
+        .SampleDesc = {.Count = 1, .Quality = 0},
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0,
+    };
+    if (HRESULT hr = m_device->CreateTexture2D(&texDesc, texVDP2BGsData.data(), &m_context->texVDP2BGs); FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    srvDesc = {
+        .Format = texDesc.Format,
+        .ViewDimension = D3D_SRV_DIMENSION_TEXTURE2DARRAY,
+        .Texture2DArray =
+            {
+                .MostDetailedMip = 0,
+                .MipLevels = UINT(-1),
+                .FirstArraySlice = 0,
+                .ArraySize = texDesc.ArraySize,
+            },
+    };
+    if (HRESULT hr = device->CreateShaderResourceView(m_context->texVDP2BGs, &srvDesc, &m_context->srvVDP2BGs);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    uavDesc = {
+        .Format = texDesc.Format,
+        .ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY,
+        .Texture2DArray =
+            {
+                .MipSlice = 0,
+                .FirstArraySlice = 0,
+                .ArraySize = texDesc.ArraySize,
+            },
+    };
+    if (HRESULT hr = device->CreateUnorderedAccessView(m_context->texVDP2BGs, &uavDesc, &m_context->uavVDP2BGs);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    // ---------------------------------
+
+    D3D11_SUBRESOURCE_DATA texVDP2OutputData{
+        .pSysMem = kBlankFramebuffer.data(),
+        .SysMemPitch = vdp::kMaxResH * sizeof(uint32),
+        .SysMemSlicePitch = 0,
+    };
+    texDesc = {
         .Width = vdp::kMaxResH,
         .Height = vdp::kMaxResV,
         .MipLevels = 1,
@@ -146,40 +227,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         .CPUAccessFlags = 0,
         .MiscFlags = 0,
     };
-    D3D11_SUBRESOURCE_DATA texVDP2OutputData{
-        .pSysMem = kBlank.data(),
-        .SysMemPitch = 320 * sizeof(uint32),
-        .SysMemSlicePitch = 0,
-    };
-    if (HRESULT hr = m_device->CreateTexture2D(&texVDP2OutputDesc, &texVDP2OutputData, &m_context->texVDP2Output);
-        FAILED(hr)) {
+    if (HRESULT hr = m_device->CreateTexture2D(&texDesc, &texVDP2OutputData, &m_context->texVDP2Output); FAILED(hr)) {
+        // TODO: report error
         return;
     }
 
-    auto &shaderCache = d3dutil::D3DShaderCache::Instance(true);
-
-    m_context->vsIdentity =
-        shaderCache.GetVertexShader(device, GetEmbedFSFile("d3d11/vs_identity.hlsl"), "VSMain", nullptr);
-    if (m_context->vsIdentity == nullptr) {
-        // TODO: report errors
-        return;
-    }
-
-    m_context->psVDP2Compose =
-        shaderCache.GetPixelShader(device, GetEmbedFSFile("d3d11/ps_vdp2_compose.hlsl"), "PSMain", nullptr);
-    if (m_context->psVDP2Compose == nullptr) {
-        // TODO: report errors
-        return;
-    }
-
-    m_context->csTest = shaderCache.GetComputeShader(device, GetEmbedFSFile("d3d11/cs_test.hlsl"), "CSMain", nullptr);
-    if (m_context->csTest == nullptr) {
-        // TODO: report errors
-        return;
-    }
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC texVDP2OutputSRVDesc{
-        .Format = texVDP2OutputDesc.Format,
+    // TODO: this might not be needed
+    srvDesc = {
+        .Format = texDesc.Format,
         .ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D,
         .Texture2D =
             {
@@ -187,24 +242,27 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
                 .MipLevels = UINT(-1),
             },
     };
-    if (HRESULT hr = device->CreateShaderResourceView(m_context->texVDP2Output, &texVDP2OutputSRVDesc,
-                                                      &m_context->srvVDP2Output);
+    if (HRESULT hr = device->CreateShaderResourceView(m_context->texVDP2Output, &srvDesc, &m_context->srvVDP2Output);
         FAILED(hr)) {
+        // TODO: report error
         return;
     }
 
-    D3D11_UNORDERED_ACCESS_VIEW_DESC texVDP2OutputUAVDesc{
-        .Format = texVDP2OutputDesc.Format,
+    uavDesc = {
+        .Format = texDesc.Format,
         .ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
         .Texture2D = {.MipSlice = 0},
     };
-    if (HRESULT hr =
-            device->CreateUnorderedAccessView(m_context->texVDP2Output, &texVDP2OutputUAVDesc, &m_context->uavTest);
+    if (HRESULT hr = device->CreateUnorderedAccessView(m_context->texVDP2Output, &uavDesc, &m_context->uavTest);
         FAILED(hr)) {
+        // TODO: report error
         return;
     }
 
-    D3D11_BUFFER_DESC bufferDesc{
+    // -------------------------------------------------------------------------
+    // Buffers
+
+    bufferDesc = {
         .ByteWidth = sizeof(m_context->consts),
         .Usage = D3D11_USAGE_DYNAMIC,
         .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
@@ -218,11 +276,52 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         .SysMemSlicePitch = 0,
     };
     if (HRESULT hr = device->CreateBuffer(&bufferDesc, &bufferInitData, &m_context->bufTest); FAILED(hr)) {
+        // TODO: report error
         return;
     }
 
+    // -------------------------------------------------------------------------
+    // Shaders
+
+    auto makeVS = [&](ID3D11VertexShader *&out, const char *path) -> bool {
+        out = shaderCache.GetVertexShader(device, GetEmbedFSFile(path), "VSMain", nullptr);
+        return out != nullptr;
+    };
+    auto makePS = [&](ID3D11PixelShader *&out, const char *path) -> bool {
+        out = shaderCache.GetPixelShader(device, GetEmbedFSFile(path), "PSMain", nullptr);
+        return out != nullptr;
+    };
+    auto makeCS = [&](ID3D11ComputeShader *&out, const char *path) -> bool {
+        out = shaderCache.GetComputeShader(device, GetEmbedFSFile(path), "CSMain", nullptr);
+        return out != nullptr;
+    };
+
+    if (!makeVS(m_context->vsIdentity, "d3d11/vs_identity.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    if (!makePS(m_context->psVDP2Compose, "d3d11/ps_vdp2_compose.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    if (!makeCS(m_context->csVDP2BGs, "d3d11/cs_vdp2_bgs.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    if (!makeCS(m_context->csTest, "d3d11/cs_test.hlsl")) {
+        // TODO: report error
+        return;
+    }
+
+    // -------------------------------------------------------------------------
+    // Debug names
+
     d3dutil::SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
     d3dutil::SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
+    d3dutil::SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG texture array");
+    d3dutil::SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
+    d3dutil::SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
+    d3dutil::SetDebugName(m_context->csVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG compute shader");
     d3dutil::SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
     d3dutil::SetDebugName(m_context->srvVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
     d3dutil::SetDebugName(m_context->psVDP2Compose, "[Ymir D3D11] VDP2 framebuffer pixel shader");
@@ -402,6 +501,11 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
 
     ctx->PSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
     ctx->PSSetShader(nullptr, nullptr, 0);
+
+    ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavVDP2BGs, nullptr);
+    ctx->CSSetShader(m_context->csVDP2BGs, nullptr, 0);
+
+    ctx->Dispatch(m_HRes / 32, m_VRes / 16, 6);
 
     ctx->CSSetConstantBuffers(0, 1, &m_context->bufTest);
     ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavTest, nullptr);
