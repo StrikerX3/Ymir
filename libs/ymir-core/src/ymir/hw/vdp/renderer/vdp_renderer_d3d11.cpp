@@ -570,74 +570,63 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     // TODO: store registers and VRAM writes, cache textures, etc.
     for (uint32 i = 0; i < 4; ++i) {
         const auto &bgParams = m_state.regs2.bgParams[i + 1];
-        if (bgParams.bitmap) {
-            // TODO: get bitmap fields
-            state.nbgParams[i][0] =                                  //
-                0                                                    //
-                | (bgParams.mosaicEnable << 6)                       // 1 bit
-                | (bgParams.enableTransparency << 7)                 // 1 bit
-                | (bgParams.cramOffset /*already shifted to 8*/)     // 3 bits
-                | (static_cast<uint32>(bgParams.colorFormat) << 11)  // 3 bits
-                | (bgParams.priorityNumber << 14)                    // 3 bits
-                | (static_cast<uint32>(bgParams.priorityMode) << 17) // 2 bits
-                | (bgParams.supplBitmapPalNum << (24 - 4))           // 3 bits
-                | (bgParams.supplBitmapSpecialColorCalc << 27)       // 1 bit
-                | (bgParams.supplBitmapSpecialPriority << 28)        // 1 bit
-                | (true /* TODO: bg enable */ << 30)                 // 1 bit
-                | (bgParams.bitmap << 31)                            // 1 bit
-                ;
 
-            state.nbgParams[i][1] =                                         //
-                0                                                           //
-                | (bgParams.charPatAccess[0] << 0)                          // 1 bit
-                | (bgParams.charPatAccess[1] << 1)                          // 1 bit
-                | (bgParams.charPatAccess[2] << 2)                          // 1 bit
-                | (bgParams.charPatAccess[3] << 3)                          // 1 bit
-                | (bgParams.charPatDelay << 8)                              // 1 bit
-                | (static_cast<uint32>(bgParams.specialColorCalcMode) << 9) // 2 bit
-                | (bgParams.specialFunctionSelect << 11)                    // 1 bit
-                | (bgParams.colorCalcRatio << 12)                           // 1 bit
+        // TODO: compute accesses
+        // TODO: compute BG enable flags
+
+        const uint32 supplPalNum = bgParams.bitmap ? bgParams.supplBitmapPalNum : bgParams.supplScrollPalNum;
+        const uint32 supplSpecColorCalc =
+            bgParams.bitmap ? bgParams.supplBitmapSpecialColorCalc : bgParams.supplScrollSpecialColorCalc;
+        const uint32 supplSpecPriority =
+            bgParams.bitmap ? bgParams.supplBitmapSpecialPriority : bgParams.supplScrollSpecialPriority;
+
+        state.nbgParams[i][0] =                                          //
+            0                                                            //
+            | ((true || bgParams.charPatAccess[0]) << 0)                 // 0
+            | ((true || bgParams.charPatAccess[1]) << 1)                 // 1
+            | ((true || bgParams.charPatAccess[2]) << 2)                 // 2
+            | ((true || bgParams.charPatAccess[3]) << 3)                 // 3
+            | (bgParams.charPatDelay << 4)                               // 4
+            | (bgParams.mosaicEnable << 5)                               // 5
+            | (bgParams.enableTransparency << 6)                         // 6
+            | (bgParams.colorCalcEnable << 7)                            // 7
+            | (bgParams.cramOffset /*already shifted to 8*/)             // 8-10
+            | (static_cast<uint32>(bgParams.colorFormat) << 11)          // 11-13
+            | (static_cast<uint32>(bgParams.specialColorCalcMode) << 14) // 14-15
+            | (bgParams.specialFunctionSelect << 16)                     // 16
+            | (bgParams.priorityNumber << 17)                            // 17-19
+            | (static_cast<uint32>(bgParams.priorityMode) << 20)         // 20-21
+            | (supplPalNum << (22 - 4) /*shifted up by 4*/)              // 22-24
+            | (supplSpecColorCalc << 25)                                 // 25
+            | (supplSpecPriority << 26)                                  // 26
+            /* unused */                                                 // 27-29
+            | (true /* TODO: bg enable */ << 30)                         // 30
+            | (bgParams.bitmap << 31)                                    // 31
+            ;
+
+        if (bgParams.bitmap) {
+            state.nbgParams[i][1] =                     //
+                0                                       //
+                | (bit::extract<1>(bgParams.bmsz) << 0) // 0
+                | (bit::extract<0>(bgParams.bmsz) << 1) // 1
                 ;
         } else {
-            state.nbgParams[i][0] =                                  //
-                0                                                    //
-                | bgParams.pageShiftH                                // 1 bit
-                | (bgParams.pageShiftV << 1)                         // 1 bit
-                | (bgParams.extChar << 2)                            // 1 bit
-                | (bgParams.twoWordChar << 3)                        // 1 bit
-                | (bgParams.cellSizeShift << 4)                      // 1 bit
-                | (bgParams.verticalCellScrollEnable << 5)           // 1 bit
-                | (bgParams.mosaicEnable << 6)                       // 1 bit
-                | (bgParams.enableTransparency << 7)                 // 1 bit
-                | (bgParams.cramOffset /*already shifted to 8*/)     // 3 bits
-                | (static_cast<uint32>(bgParams.colorFormat) << 11)  // 3 bits
-                | (bgParams.priorityNumber << 14)                    // 3 bits
-                | (static_cast<uint32>(bgParams.priorityMode) << 17) // 2 bits
-                | (bgParams.supplScrollCharNum << 19)                // 5 bits
-                | (bgParams.supplScrollPalNum << (24 - 4))           // 3 bits
-                | (bgParams.supplScrollSpecialColorCalc << 27)       // 1 bit
-                | (bgParams.supplScrollSpecialPriority << 28)        // 1 bit
-                | (true /* TODO: bg enable */ << 30)                 // 1 bit
-                | (bgParams.bitmap << 31)                            // 1 bit
-                ;
-
-            // TODO: compute accesses
-            state.nbgParams[i][1] =                                         //
-                0                                                           //
-                | ((true || bgParams.charPatAccess[0]) << 0)                // 1 bit
-                | ((true || bgParams.charPatAccess[1]) << 1)                // 1 bit
-                | ((true || bgParams.charPatAccess[2]) << 2)                // 1 bit
-                | ((true || bgParams.charPatAccess[3]) << 3)                // 1 bit
-                | ((true || bgParams.patNameAccess[0]) << 4)                // 1 bit
-                | ((true || bgParams.patNameAccess[1]) << 5)                // 1 bit
-                | ((true || bgParams.patNameAccess[2]) << 6)                // 1 bit
-                | ((true || bgParams.patNameAccess[3]) << 7)                // 1 bit
-                | (bgParams.charPatDelay << 8)                              // 1 bit
-                | (static_cast<uint32>(bgParams.specialColorCalcMode) << 9) // 2 bit
-                | (bgParams.specialFunctionSelect << 11)                    // 1 bit
-                | (bgParams.colorCalcRatio << 12)                           // 1 bit
+            state.nbgParams[i][1] =                          //
+                0                                            //
+                | ((true || bgParams.patNameAccess[0]) << 0) // 0
+                | ((true || bgParams.patNameAccess[1]) << 1) // 1
+                | ((true || bgParams.patNameAccess[2]) << 2) // 2
+                | ((true || bgParams.patNameAccess[3]) << 3) // 3
+                | (bgParams.pageShiftH << 4)                 // 4
+                | (bgParams.pageShiftV << 5)                 // 5
+                | (bgParams.extChar << 6)                    // 6
+                | (bgParams.twoWordChar << 7)                // 7
+                | (bgParams.cellSizeShift << 8)              // 8
+                | (bgParams.verticalCellScrollEnable << 9)   // 9
+                | (bgParams.supplScrollCharNum << 10)        // 10-14
                 ;
         }
+
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
     }
     // TODO: calculate RBG page base addresses

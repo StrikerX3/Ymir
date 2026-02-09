@@ -6,61 +6,52 @@ struct VDP2Regs {
     //     2  Exclusive monitor mode   0=normal; 1=exclusive
     uint4 displayParams;
     
-    // NBG properties for scroll BGs:
-    // Entry 0
-    // bits   use
-    //     0  Horizontal page size shift
-    //     1  Vertical page size shift
-    //     2  Extended character number     0=10 bits; 1=12 bits, no H/V flip
-    //     3  Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
-    //     4  Cell size shift               0=1x1 characters; 1=2x2 characters
-    //     5  Vertical cell scroll enable   0=disable; 1=enable
-    //     6  Mosaic enable                 0=disable; 1=enable
-    //     7  Transparency enable           0=disable; 1=enable
-    //  8-10  CRAM offset
-    // 11-13  Color format                  0=pal16; 1=pal256; 2=pal2048; 3=rgb555; 4=rgb888; other values not used
-    // 14-16  Priority number
-    // 17-18  Priority mode                 0=per screen; 1=per character; 2=per dot; 3=invalid/unused
-    // 19-23  Supplementary character number
-    // 24-26  Supplementary palette number
-    //    27  Supplementary color calculation bit
-    //    28  Supplementary special priority bit
-    //    30  Background enabled            0=disable; 1=enable
-    //    31  Background type (= 0)         0=scroll; 1=bitmap
-    //
-    // Entry 1
+    // NBG properties:
+    // Entry 0 - common properties
     // bits   use
     //   0-3  Character pattern access per bank
-    //   4-7  Pattern name access per bank
-    //     8  Character pattern delay
-    //  9-10  Special color calculation mode  0=per screen; 1=per character; 2=per dot; 3=color data MSB
-    //    11  Special function select       0=A; 1=B
-    //    12  Color calculation enable      0=disable; 1=enable
-    //
-    //
-    // NBG properties for bitmap BGs:
-    // Entry 0
-    // bits   use
-    //     6  Mosaic enable                 0=disable; 1=enable
-    //     7  Transparency enable           0=disable; 1=enable
+    //     4  Character pattern delay
+    //     5  Mosaic enable                   0=disable; 1=enable
+    //     6  Transparency enable             0=disable; 1=enable
+    //     7  Color calculation enable        0=disable; 1=enable
     //  8-10  CRAM offset
-    // 11-13  Color format                  0=pal16; 1=pal256; 2=pal2048; 3=rgb555; 4=rgb888; other values not used
-    // 14-16  Priority number
-    // 17-18  Priority mode                 0=per screen; 1=per character; 2=per dot; 3=invalid/unused
-    // 24-26  Supplementary palette number
-    //    27  Supplementary color calculation bit
-    //    28  Supplementary special priority bit
-    //    30  Background enabled            0=disable; 1=enable
-    //    31  Background type (= 1)         0=scroll; 1=bitmap
+    // 11-13  Color format                    0=pal16; 1=pal256; 2=pal2048; 3=rgb555; 4=rgb888; other values not used
+    // 14-15  Special color calculation mode  0=per screen; 1=per character; 2=per dot; 3=color data MSB
+    //    16  Special function select         0=A; 1=B
+    // 17-19  Priority number
+    // 20-21  Priority mode                   0=per screen; 1=per character; 2=per dot; 3=invalid/unused
+    // 22-24  Supplementary palette number
+    //    25  Supplementary special color calculation bit
+    //    26  Supplementary special priority bit
+    // 27-29  -
+    //    30  Background enabled              0=disable; 1=enable
+    //    31  Background type (= 0)           0=scroll; 1=bitmap
     //
-    // Entry 1
+    // Entry 1 - type-specific parameters -- scroll BGs
     // bits   use
-    //   0-3  Character pattern access per bank
-    //     8  Character pattern delay
-    //  9-10  Special color calculation mode  0=per screen; 1=per character; 2=per dot; 3=color data MSB
-    //    11  Special function select       0=A; 1=B
-    //    12  Color calculation enable      0=disable; 1=enable
+    //   0-3  Pattern name access per bank
+    //     4* Horizontal page size shift
+    //     5* Vertical page size shift
+    //     6* Extended character number     0=10 bits; 1=12 bits, no H/V flip
+    //     7* Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
+    //     8* Character cell size           0=1x1 cell; 1=2x2 cells
+    //     9* Vertical cell scroll enable   0=disable; 1=enable  (NBG0 and NBG1 only)
+    // 10-14* Supplementary character number
+    // 15-31  -
+    //
+    // Entry 1 - type-specific parameters -- bitmap BGs
+    // bits   use
+    //     0  Horizontal bitmap size shift (512 << x)
+    //     1  Vertical bitmap size shift (256 << x)
+    //  2-31  -
     uint nbgParams[4][2];
+    
+    // TODO: NBG scroll amounts (H/V)
+    // TODO: NBG scroll increments (H/V)
+    // TODO: NBG bitmap base address
+    // TODO: NBG VRAM data offsets (4 banks)
+    // TODO: NBG line scroll enable + offset tables (X/Y)
+    // TODO: Special function codes table (for per-dot special color calculations)
     
     uint nbgPageBaseAddresses[4][4]; // [NBG0-3][plane A-D]
     uint rbgPageBaseAddresses[2][16]; // [RBG0-1][plane A-P]
@@ -142,7 +133,7 @@ uint GetY(uint y) {
 static const Character kBlankCharacter = (Character) 0;
 
 Character FetchTwoWordCharacter(uint nbgParams[2], uint pageAddress, uint charIndex) {
-    const uint patNameAccess = (nbgParams[1] >> 4) & 0xF;
+    const uint patNameAccess = nbgParams[1] & 0xF;
     const uint charAddress = pageAddress + charIndex * 4;
     const uint charBank = (charAddress >> 17) & 3;
  
@@ -165,20 +156,20 @@ Character FetchTwoWordCharacter(uint nbgParams[2], uint pageAddress, uint charIn
 Character FetchOneWordCharacter(uint nbgParams[2], uint pageAddress, uint charIndex) {
     const uint charAddress = pageAddress + charIndex * 2;
     const uint charBank = (charAddress >> 17) & 3;
-    const uint patNameAccess = (nbgParams[1] >> 4) & 0xF;
+    const uint patNameAccess = nbgParams[1] & 0xF;
     if (((patNameAccess >> charBank) & 1) == 0) {
         return kBlankCharacter;
     }
     
     const uint charData = ReadVRAM16(charAddress);
 
-    const bool extChar = (nbgParams[0] >> 2) & 1;
-    const bool cellSizeShift = (nbgParams[0] >> 4) & 1;
+    const uint supplScrollCharNum = (nbgParams[1] >> 10) & 0x1F;
+    const uint supplScrollPalNum = (nbgParams[0] >> 22) & 7;
+    const bool supplScrollSpecialColorCalc = (nbgParams[0] >> 25) & 1;
+    const bool supplScrollSpecialPriority = (nbgParams[0] >> 26) & 1;
+    const bool extChar = (nbgParams[1] >> 6) & 1;
+    const bool cellSizeShift = (nbgParams[1] >> 8) & 1;
     const uint colorFormat = (nbgParams[0] >> 11) & 7;
-    const uint supplScrollCharNum = (nbgParams[0] >> 19) & 0x1F;
-    const uint supplScrollPalNum = (nbgParams[0] >> 24) & 7;
-    const bool supplScrollSpecialColorCalc = (nbgParams[0] >> 27) & 1;
-    const bool supplScrollSpecialPriority = (nbgParams[0] >> 28) & 1;
     
     // Character number bit range from the 1-word character pattern data (charData)
     const uint baseCharNumMask = extChar ? 0xFFF : 0x3FF;
@@ -211,13 +202,13 @@ Character FetchOneWordCharacter(uint nbgParams[2], uint pageAddress, uint charIn
 }
 
 uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint cellIndex) {
-    const bool cellSizeShift = (nbgParams[0] >> 4) & 1;
-    const bool enableTransparency = (nbgParams[0] >> 7) & 1;
+    const bool cellSizeShift = (nbgParams[1] >> 8) & 1;
+    const bool enableTransparency = (nbgParams[0] >> 6) & 1;
     const uint cramOffset = nbgParams[0] & 0x700;
     const uint colorFormat = (nbgParams[0] >> 11) & 7;
-    const uint bgPriorityNum = (nbgParams[0] >> 14) & 7;
-    const uint bgPriorityMode = (nbgParams[0] >> 17) & 3;
-    const uint charPatAccess = nbgParams[1] & 0xF;
+    const uint bgPriorityNum = (nbgParams[0] >> 17) & 7;
+    const uint bgPriorityMode = (nbgParams[0] >> 20) & 3;
+    const uint charPatAccess = nbgParams[0] & 0xF;
 
     if (ch.flipH) {
         dotPos.x ^= 7;
@@ -307,11 +298,11 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
     const VDP2Regs regs = vdp2regs[pos.y];
     const uint nbgParams[2] = regs.nbgParams[index];
     
-    const uint2 pageShift = uint2(nbgParams[0] & 1, (nbgParams[0] >> 1) & 1);
-    const bool twoWordChar = (nbgParams[0] >> 3) & 1;
-    const bool cellSizeShift = (nbgParams[0] >> 4) & 1;
-    const bool vertCellScrollEnable = (nbgParams[0] >> 5) & 1;
-    const bool mosaicEnable = (nbgParams[0] >> 6) & 1;
+    const uint2 pageShift = uint2((nbgParams[1] >> 4) & 1, (nbgParams[1] >> 5) & 1);
+    const bool twoWordChar = (nbgParams[1] >> 7) & 1;
+    const bool cellSizeShift = (nbgParams[1] >> 8) & 1;
+    const bool vertCellScrollEnable = (nbgParams[1] >> 9) & 1;
+    const bool mosaicEnable = (nbgParams[0] >> 5) & 1;
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
     
     const uint2 scrollPos = uint2(pos.x, GetY(pos.y)); // TODO: apply scroll values, mosaic, line screen/vertical cell scroll, etc.
