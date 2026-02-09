@@ -583,8 +583,7 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
                 | (bgParams.supplBitmapPalNum << (24 - 4))           // 3 bits
                 | (bgParams.supplBitmapSpecialColorCalc << 27)       // 1 bit
                 | (bgParams.supplBitmapSpecialPriority << 28)        // 1 bit
-                | (bgParams.specialFunctionSelect << 29)             // 1 bit
-                | (bgParams.colorCalcRatio << 30)                    // 1 bit
+                | (true /* TODO: bg enable */ << 30)                 // 1 bit
                 | (bgParams.bitmap << 31)                            // 1 bit
                 ;
 
@@ -596,6 +595,8 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
                 | (bgParams.charPatAccess[3] << 3)                          // 1 bit
                 | (bgParams.charPatDelay << 8)                              // 1 bit
                 | (static_cast<uint32>(bgParams.specialColorCalcMode) << 9) // 2 bit
+                | (bgParams.specialFunctionSelect << 11)                    // 1 bit
+                | (bgParams.colorCalcRatio << 12)                           // 1 bit
                 ;
         } else {
             state.nbgParams[i][0] =                                  //
@@ -616,6 +617,7 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
                 | (bgParams.supplScrollPalNum << (24 - 4))           // 3 bits
                 | (bgParams.supplScrollSpecialColorCalc << 27)       // 1 bit
                 | (bgParams.supplScrollSpecialPriority << 28)        // 1 bit
+                | (true /* TODO: bg enable */ << 30)                 // 1 bit
                 | (bgParams.bitmap << 31)                            // 1 bit
                 ;
 
@@ -632,6 +634,8 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
                 | ((true || bgParams.patNameAccess[3]) << 7)                // 1 bit
                 | (bgParams.charPatDelay << 8)                              // 1 bit
                 | (static_cast<uint32>(bgParams.specialColorCalcMode) << 9) // 2 bit
+                | (bgParams.specialFunctionSelect << 11)                    // 1 bit
+                | (bgParams.colorCalcRatio << 12)                           // 1 bit
                 ;
         }
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;

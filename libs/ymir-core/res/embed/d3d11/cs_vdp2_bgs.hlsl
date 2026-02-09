@@ -7,6 +7,7 @@ struct VDP2Regs {
     uint4 displayParams;
     
     // NBG properties for scroll BGs:
+    // Entry 0
     // bits   use
     //     0  Horizontal page size shift
     //     1  Vertical page size shift
@@ -24,18 +25,21 @@ struct VDP2Regs {
     // 24-26  Supplementary palette number
     //    27  Supplementary color calculation bit
     //    28  Supplementary special priority bit
-    //    29  Special function select       0=A; 1=B
-    //    30  Color calculation enable      0=disable; 1=enable
+    //    30  Background enabled            0=disable; 1=enable
     //    31  Background type (= 0)         0=scroll; 1=bitmap
     //
+    // Entry 1
     // bits   use
     //   0-3  Character pattern access per bank
     //   4-7  Pattern name access per bank
     //     8  Character pattern delay
     //  9-10  Special color calculation mode  0=per screen; 1=per character; 2=per dot; 3=color data MSB
+    //    11  Special function select       0=A; 1=B
+    //    12  Color calculation enable      0=disable; 1=enable
     //
     //
     // NBG properties for bitmap BGs:
+    // Entry 0
     // bits   use
     //     6  Mosaic enable                 0=disable; 1=enable
     //     7  Transparency enable           0=disable; 1=enable
@@ -46,7 +50,16 @@ struct VDP2Regs {
     // 24-26  Supplementary palette number
     //    27  Supplementary color calculation bit
     //    28  Supplementary special priority bit
+    //    30  Background enabled            0=disable; 1=enable
     //    31  Background type (= 1)         0=scroll; 1=bitmap
+    //
+    // Entry 1
+    // bits   use
+    //   0-3  Character pattern access per bank
+    //     8  Character pattern delay
+    //  9-10  Special color calculation mode  0=per screen; 1=per character; 2=per dot; 3=color data MSB
+    //    11  Special function select       0=A; 1=B
+    //    12  Color calculation enable      0=disable; 1=enable
     uint nbgParams[4][2];
     
     uint nbgPageBaseAddresses[4][4]; // [NBG0-3][plane A-D]
@@ -97,6 +110,24 @@ uint ByteSwap32(uint val) {
            ((val << 24) & 0xFF000000);
 }
 
+uint ReadVRAM4(uint address, uint nibble) {
+    return (vram.Load(address & ~3) >> ((address & 3) * 8 + nibble * 4)) & 0xF;
+}
+
+uint ReadVRAM8(uint address) {
+    return vram.Load(address & ~3) >> ((address & 3) * 8) & 0xFF;
+}
+
+// Expects address to be 16-bit-aligned
+uint ReadVRAM16(uint address) {
+    return ByteSwap16(vram.Load(address & ~3) >> ((address & 2) * 8));
+}
+
+// Expects address to be 32-bit-aligned
+uint ReadVRAM32(uint address) {
+    return ByteSwap32(vram.Load(address));
+}
+
 uint GetY(uint y) {
     const bool interlaced = vdp2regs[y].displayParams.x & 1;
     const bool odd = (vdp2regs[y].displayParams.x >> 1) & 1;
@@ -108,115 +139,86 @@ uint GetY(uint y) {
     }
 }
 
-uint4 DrawScrollNBG(uint2 pos, uint index) {
-    const VDP2Regs regs = vdp2regs[pos.y];
-    const uint nbgParams0 = regs.nbgParams[index][0];
-    const uint nbgParams1 = regs.nbgParams[index][1];
-    
-    const uint2 pageShift = uint2(nbgParams0 & 1, (nbgParams0 >> 1) & 1);
-    const bool extChar = (nbgParams0 >> 2) & 1;
-    const bool twoWordChar = (nbgParams0 >> 3) & 1;
-    const bool cellSizeShift = (nbgParams0 >> 4) & 1;
-    const bool vertCellScrollEnable = (nbgParams0 >> 5) & 1;
-    const bool mosiacEnable = (nbgParams0 >> 6) & 1;
-    const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
-    const bool enableTransparency = (nbgParams0 >> 7) & 1;
-    const uint cramOffset = nbgParams0 & 0x700;
-    const uint colorFormat = (nbgParams0 >> 11) & 7;
-    const uint bgPriorityNum = (nbgParams0 >> 14) & 7;
-    const uint bgPriorityMode = (nbgParams0 >> 17) & 3;
-    const uint supplScrollCharNum = (nbgParams0 >> 19) & 0x1F;
-    const uint supplScrollPalNum = (nbgParams0 >> 24) & 7;
-    const bool supplScrollSpecialColorCalc = (nbgParams0 >> 27) & 1;
-    const bool supplScrollSpecialPriority = (nbgParams0 >> 28) & 1;
-    
-    const uint charPatAccess = nbgParams1 & 0xF;
-    const uint patNameAccess = (nbgParams1 >> 4) & 0xF;
+static const Character kBlankCharacter = (Character) 0;
 
-    const uint2 scrollPos = uint2(pos.x, GetY(pos.y)); // TODO: apply scroll values, mosaic, line screen/vertical cell scroll, etc.
-  
-    const uint2 planePos = (scrollPos >> (pageShift + 9)) & 1;
-    const uint plane = planePos.x | (planePos.y << 1);
-    const uint pageBaseAddress = regs.nbgPageBaseAddresses[index][plane];
-    
-    // TODO: apply data access shift hack here
-    
-    const uint2 pagePos = (scrollPos >> 9) & pageShift;
-    const uint page = pagePos.x + (pagePos.y << 1);
-    const uint pageOffset = page << pageSize;
-
-    const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
-    const uint charIndex = charPatPos.x + (charPatPos.y << (6 - cellSizeShift));
-    
-    const uint2 cellPos = (scrollPos >> 3) & cellSizeShift;
-    uint cellIndex = cellPos.x + (cellPos.y << 1);
-
-    uint2 dotPos = scrollPos & 7;
-    
-    Character ch;
-    
-    if (twoWordChar) {
-        const uint charAddress = pageBaseAddress + charIndex * 4;
-        const uint charBank = (charAddress >> 17) & 3;
-        if ((patNameAccess >> charBank) & 1) {
-            const uint charData = ByteSwap32(vram.Load(charAddress));
-
-            ch.charNum = charData & 0x7FFF;
-            ch.palNum = (charData >> 16) & 0x7F;
-            ch.specColorCalc = (charData >> 28) & 1;
-            ch.specPriority = (charData >> 29) & 1;
-            ch.flipH = (charData >> 30) & 1;
-            ch.flipV = (charData >> 31) & 1;
-        } else {
-            ch.charNum = 0;
-            ch.palNum = 0;
-            ch.specColorCalc = false;
-            ch.specPriority = false;
-            ch.flipH = false;
-            ch.flipV = false;
-        }
-    } else {
-        const uint charAddress = pageBaseAddress + charIndex * 2;
-        const uint charBank = (charAddress >> 17) & 3;
-        if ((patNameAccess >> charBank) & 1) {
-            const uint charData = ByteSwap16(vram.Load(charAddress & ~3) >> ((charAddress & 2) * 8));
-
-            // Character number bit range from the 1-word character pattern data (charData)
-            const uint baseCharNumMask = extChar ? 0xFFF : 0x3FF;
-            const uint baseCharNumPos = 2 * cellSizeShift;
-
-            // Upper character number bit range from the supplementary character number (bgParams.supplCharNum)
-            const uint supplCharNumStart = 2 * cellSizeShift + 2 * extChar;
-            const uint supplCharNumMask = 0xF >> supplCharNumStart;
-            const uint supplCharNumPos = 10 + supplCharNumStart;
-            // The lower bits are always in range 0..1 and only used if cellSizeShift == true
-
-            const uint baseCharNum = charData & baseCharNumMask;
-            const uint supplCharNum = (supplScrollCharNum >> supplCharNumStart) & supplCharNumMask;
-
-            ch.charNum = (baseCharNum << baseCharNumPos) | (supplCharNum << supplCharNumPos);
-            if (cellSizeShift) {
-                ch.charNum |= supplScrollCharNum & 3;
-            }
-            if (colorFormat != kColorFormatPalette16) {
-                ch.palNum = ((charData >> 12) & 7) << 4;
-            } else {
-                ch.palNum = ((charData >> 12) & 0xF) | (supplScrollPalNum << 4);
-            }
-            ch.specColorCalc = supplScrollSpecialColorCalc;
-            ch.specPriority = supplScrollSpecialPriority;
-            ch.flipH = !extChar && ((charData >> 10) & 1);
-            ch.flipV = !extChar && ((charData >> 11) & 1);
-        } else {
-            ch.charNum = 0;
-            ch.palNum = 0;
-            ch.specColorCalc = false;
-            ch.specPriority = false;
-            ch.flipH = false;
-            ch.flipV = false;
-        }
+Character FetchTwoWordCharacter(uint nbgParams[2], uint pageAddress, uint charIndex) {
+    const uint patNameAccess = (nbgParams[1] >> 4) & 0xF;
+    const uint charAddress = pageAddress + charIndex * 4;
+    const uint charBank = (charAddress >> 17) & 3;
+ 
+    if (((patNameAccess >> charBank) & 1) == 0) {
+        return kBlankCharacter;
     }
     
+    const uint charData = ReadVRAM32(charAddress);
+
+    Character ch;
+    ch.charNum = charData & 0x7FFF;
+    ch.palNum = (charData >> 16) & 0x7F;
+    ch.specColorCalc = (charData >> 28) & 1;
+    ch.specPriority = (charData >> 29) & 1;
+    ch.flipH = (charData >> 30) & 1;
+    ch.flipV = (charData >> 31) & 1;
+    return ch;
+}
+
+Character FetchOneWordCharacter(uint nbgParams[2], uint pageAddress, uint charIndex) {
+    const uint charAddress = pageAddress + charIndex * 2;
+    const uint charBank = (charAddress >> 17) & 3;
+    const uint patNameAccess = (nbgParams[1] >> 4) & 0xF;
+    if (((patNameAccess >> charBank) & 1) == 0) {
+        return kBlankCharacter;
+    }
+    
+    const uint charData = ReadVRAM16(charAddress);
+
+    const bool extChar = (nbgParams[0] >> 2) & 1;
+    const bool cellSizeShift = (nbgParams[0] >> 4) & 1;
+    const uint colorFormat = (nbgParams[0] >> 11) & 7;
+    const uint supplScrollCharNum = (nbgParams[0] >> 19) & 0x1F;
+    const uint supplScrollPalNum = (nbgParams[0] >> 24) & 7;
+    const bool supplScrollSpecialColorCalc = (nbgParams[0] >> 27) & 1;
+    const bool supplScrollSpecialPriority = (nbgParams[0] >> 28) & 1;
+    
+    // Character number bit range from the 1-word character pattern data (charData)
+    const uint baseCharNumMask = extChar ? 0xFFF : 0x3FF;
+    const uint baseCharNumPos = 2 * cellSizeShift;
+
+    // Upper character number bit range from the supplementary character number (bgParams.supplCharNum)
+    const uint supplCharNumStart = 2 * cellSizeShift + 2 * extChar;
+    const uint supplCharNumMask = 0xF >> supplCharNumStart;
+    const uint supplCharNumPos = 10 + supplCharNumStart;
+    // The lower bits are always in range 0..1 and only used if cellSizeShift == true
+
+    const uint baseCharNum = charData & baseCharNumMask;
+    const uint supplCharNum = (supplScrollCharNum >> supplCharNumStart) & supplCharNumMask;
+
+    Character ch;
+    ch.charNum = (baseCharNum << baseCharNumPos) | (supplCharNum << supplCharNumPos);
+    if (cellSizeShift) {
+        ch.charNum |= supplScrollCharNum & 3;
+    }
+    if (colorFormat != kColorFormatPalette16) {
+        ch.palNum = ((charData >> 12) & 7) << 4;
+    } else {
+        ch.palNum = ((charData >> 12) & 0xF) | (supplScrollPalNum << 4);
+    }
+    ch.specColorCalc = supplScrollSpecialColorCalc;
+    ch.specPriority = supplScrollSpecialPriority;
+    ch.flipH = !extChar && ((charData >> 10) & 1);
+    ch.flipV = !extChar && ((charData >> 11) & 1);
+    return ch;
+}
+
+uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint cellIndex) {
+    const bool cellSizeShift = (nbgParams[0] >> 4) & 1;
+    const bool enableTransparency = (nbgParams[0] >> 7) & 1;
+    const uint cramOffset = nbgParams[0] & 0x700;
+    const uint colorFormat = (nbgParams[0] >> 11) & 7;
+    const uint bgPriorityNum = (nbgParams[0] >> 14) & 7;
+    const uint bgPriorityMode = (nbgParams[0] >> 17) & 3;
+    const uint charPatAccess = nbgParams[1] & 0xF;
+
     if (ch.flipH) {
         dotPos.x ^= 7;
         if (cellSizeShift > 0) {
@@ -249,7 +251,7 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
         const uint dotAddress = cellAddress + (dotOffset >> 1);
         const uint dotBank = (dotAddress >> 17) & 3;
         if ((charPatAccess >> dotBank) & 1) {
-            dotData = (vram.Load(dotAddress & ~3) >> ((dotAddress & 3) * 8 + (~dotPos.x & 1) * 4)) & 0xF;
+            dotData = ReadVRAM4(dotAddress, ~dotPos.x & 1);
         } else {
             dotData = 0;
         }
@@ -259,7 +261,7 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
         const uint dotAddress = cellAddress + dotOffset;
         const uint dotBank = (dotAddress >> 17) & 3;
         if ((charPatAccess >> dotBank) & 1) {
-            dotData = (vram.Load(dotAddress & ~3) >> ((dotAddress & 3) * 8)) & 0xFF;
+            dotData = ReadVRAM8(dotAddress);
         } else {
             dotData = 0;
         }
@@ -299,6 +301,48 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
     const bool transparent = enableTransparency && dotData == 0;
     const bool specialColorCalc = false; // TODO: getSpecialColorCalcFlag
     return uint4(color, (transparent << 7) | (specialColorCalc << 6) | priority);
+}
+
+uint4 DrawScrollNBG(uint2 pos, uint index) {
+    const VDP2Regs regs = vdp2regs[pos.y];
+    const uint nbgParams[2] = regs.nbgParams[index];
+    
+    const uint2 pageShift = uint2(nbgParams[0] & 1, (nbgParams[0] >> 1) & 1);
+    const bool twoWordChar = (nbgParams[0] >> 3) & 1;
+    const bool cellSizeShift = (nbgParams[0] >> 4) & 1;
+    const bool vertCellScrollEnable = (nbgParams[0] >> 5) & 1;
+    const bool mosaicEnable = (nbgParams[0] >> 6) & 1;
+    const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
+    
+    const uint2 scrollPos = uint2(pos.x, GetY(pos.y)); // TODO: apply scroll values, mosaic, line screen/vertical cell scroll, etc.
+  
+    const uint2 planePos = (scrollPos >> (pageShift + 9)) & 1;
+    const uint plane = planePos.x | (planePos.y << 1);
+    const uint pageBaseAddress = regs.nbgPageBaseAddresses[index][plane];
+    
+    // TODO: apply data access shift hack here
+    
+    const uint2 pagePos = (scrollPos >> 9) & pageShift;
+    const uint page = pagePos.x + (pagePos.y << 1);
+    const uint pageOffset = page << pageSize;
+    const uint pageAddress = pageBaseAddress + pageOffset;
+
+    const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
+    const uint charIndex = charPatPos.x + (charPatPos.y << (6 - cellSizeShift));
+    
+    const uint2 cellPos = (scrollPos >> 3) & cellSizeShift;
+    uint cellIndex = cellPos.x + (cellPos.y << 1);
+
+    uint2 dotPos = scrollPos & 7;
+    
+    Character ch;
+    if (twoWordChar) {
+        ch = FetchTwoWordCharacter(nbgParams, pageAddress, charIndex);
+    } else {
+        ch = FetchOneWordCharacter(nbgParams, pageAddress, charIndex);
+    }
+    
+    return FetchCharacterPixel(nbgParams, ch, dotPos, cellIndex);
 }
 
 uint4 DrawBitmapNBG(uint2 pos, uint index) {
