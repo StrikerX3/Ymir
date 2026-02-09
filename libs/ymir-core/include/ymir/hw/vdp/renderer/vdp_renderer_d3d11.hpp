@@ -25,6 +25,8 @@ struct ID3D11Texture2D;
 
 namespace ymir::vdp {
 
+using D3DColor = std::array<uint8, 4>;
+
 /// @brief A VDP renderer using Direct3D 11.
 /// Requires a valid `ID3D11Device *` that has been created with support for deferred contexts.
 /// The device must remain valid for the lifetime of the renderer. If the `ID3DDevice11` needs to be recreated or
@@ -131,6 +133,8 @@ private:
     bool m_valid = false;
     uint32 m_HRes = vdp::kDefaultResH;
     uint32 m_VRes = vdp::kDefaultResV;
+    bool m_exclusiveMonitor = false;
+    std::array<D3DColor, vdp::kVDP2CRAMSize / sizeof(uint16)> m_CRAMCache;
 };
 
 } // namespace ymir::vdp

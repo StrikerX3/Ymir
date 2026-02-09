@@ -799,7 +799,7 @@ void App::RunEmulator() {
         auto *device =
             static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
         if (device != nullptr) {
-            auto *renderer = vdp.UseDirect3D11Renderer(device, true);
+            /*auto *renderer = */ vdp.UseDirect3D11Renderer(device, true);
         }
     }
 #endif

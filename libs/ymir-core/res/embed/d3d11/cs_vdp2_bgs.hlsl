@@ -1,24 +1,328 @@
-RWTexture2DArray<float4> textureOut;
+struct VDP2Regs {
+    // Display parameters:
+    // bits   use
+    //     0  Interlaced
+    //     1  Field                    0=even; 1=odd
+    //     2  Exclusive monitor mode   0=normal; 1=exclusive
+    uint4 displayParams;
+    
+    // NBG properties for scroll BGs:
+    // bits   use
+    //     0  Horizontal page size shift
+    //     1  Vertical page size shift
+    //     2  Extended character number     0=10 bits; 1=12 bits, no H/V flip
+    //     3  Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
+    //     4  Cell size shift               0=1x1 characters; 1=2x2 characters
+    //     5  Vertical cell scroll enable   0=disable; 1=enable
+    //     6  Mosaic enable                 0=disable; 1=enable
+    //     7  Transparency enable           0=disable; 1=enable
+    //  8-10  CRAM offset
+    // 11-13  Color format                  0=pal16; 1=pal256; 2=pal2048; 3=rgb555; 4=rgb888; other values not used
+    // 14-16  Priority number
+    // 17-18  Priority mode                 0=per screen; 1=per character; 2=per dot; 3=invalid/unused
+    // 19-23  Supplementary character number
+    // 24-26  Supplementary palette number
+    //    27  Supplementary color calculation bit
+    //    28  Supplementary special priority bit
+    //    29  Special function select       0=A; 1=B
+    //    30  Color calculation enable      0=disable; 1=enable
+    //    31  Background type (= 0)         0=scroll; 1=bitmap
+    //
+    // bits   use
+    //   0-3  Character pattern access per bank
+    //   4-7  Pattern name access per bank
+    //     8  Character pattern delay
+    //  9-10  Special color calculation mode  0=per screen; 1=per character; 2=per dot; 3=color data MSB
+    //
+    //
+    // NBG properties for bitmap BGs:
+    // bits   use
+    //     6  Mosaic enable                 0=disable; 1=enable
+    //     7  Transparency enable           0=disable; 1=enable
+    //  8-10  CRAM offset
+    // 11-13  Color format                  0=pal16; 1=pal256; 2=pal2048; 3=rgb555; 4=rgb888; other values not used
+    // 14-16  Priority number
+    // 17-18  Priority mode                 0=per screen; 1=per character; 2=per dot; 3=invalid/unused
+    // 24-26  Supplementary palette number
+    //    27  Supplementary color calculation bit
+    //    28  Supplementary special priority bit
+    //    31  Background type (= 1)         0=scroll; 1=bitmap
+    uint nbgParams[4][2];
+    
+    uint nbgPageBaseAddresses[4][4]; // [NBG0-3][plane A-D]
+    uint rbgPageBaseAddresses[2][16]; // [RBG0-1][plane A-P]
+};
 
-float4 DrawNBG(uint index)
-{
-    return float4(0.0f, index * 0.3333333333f, 1.0f, 1.0f);
+ByteAddressBuffer vram : register(t0);
+StructuredBuffer<uint> cram : register(t1);
+StructuredBuffer<VDP2Regs> vdp2regs : register(t2);
+RWTexture2DArray<uint4> textureOut : register(u0);
+
+// The alpha channel of the output is used for pixel attributes as follows:
+// bits  use
+//  0-3  Priority (0 to 7)
+//    6  Special color calculation flag
+//    7  Transparent flag (0=opaque, 1=transparent)
+
+static const uint kColorFormatPalette16 = 0;
+static const uint kColorFormatPalette256 = 1;
+static const uint kColorFormatPalette2048 = 2;
+static const uint kColorFormatRGB555 = 3;
+static const uint kColorFormatRGB888 = 4;
+
+static const uint kPriorityModeScreen = 0;
+static const uint kPriorityModeCharacter = 1;
+static const uint kPriorityModeDot = 2;
+
+static const uint kPageSizes[2][2] = { { 13, 14 }, { 11, 12 } };
+
+struct Character {
+    uint charNum;
+    uint palNum;
+    bool specColorCalc;
+    bool specPriority;
+    bool flipH;
+    bool flipV;
+};
+
+uint ByteSwap16(uint val) {
+    return ((val >> 8) & 0x00FF) |
+           ((val << 8) & 0xFF00);
 }
 
-float4 DrawRBG(uint index)
-{
-    return float4(index * 1.0f, 0.0f, 1.0f, 1.0f);
+uint ByteSwap32(uint val) {
+    return ((val >> 24) & 0x000000FF) |
+           ((val >> 8) & 0x0000FF00) |
+           ((val << 8) & 0x00FF0000) |
+           ((val << 24) & 0xFF000000);
+}
+
+uint GetY(uint y) {
+    const bool interlaced = vdp2regs[y].displayParams.x & 1;
+    const bool odd = (vdp2regs[y].displayParams.x >> 1) & 1;
+    const bool exclusiveMonitor = (vdp2regs[y].displayParams.x >> 2) & 1;
+    if (interlaced && !exclusiveMonitor) {
+        return (y << 1) | (odd /* TODO & !deinterlace */);
+    } else {
+        return y;
+    }
+}
+
+uint4 DrawScrollNBG(uint2 pos, uint index) {
+    const VDP2Regs regs = vdp2regs[pos.y];
+    const uint nbgParams0 = regs.nbgParams[index][0];
+    const uint nbgParams1 = regs.nbgParams[index][1];
+    
+    const uint2 pageShift = uint2(nbgParams0 & 1, (nbgParams0 >> 1) & 1);
+    const bool extChar = (nbgParams0 >> 2) & 1;
+    const bool twoWordChar = (nbgParams0 >> 3) & 1;
+    const bool cellSizeShift = (nbgParams0 >> 4) & 1;
+    const bool vertCellScrollEnable = (nbgParams0 >> 5) & 1;
+    const bool mosiacEnable = (nbgParams0 >> 6) & 1;
+    const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
+    const bool enableTransparency = (nbgParams0 >> 7) & 1;
+    const uint cramOffset = nbgParams0 & 0x700;
+    const uint colorFormat = (nbgParams0 >> 11) & 7;
+    const uint bgPriorityNum = (nbgParams0 >> 14) & 7;
+    const uint bgPriorityMode = (nbgParams0 >> 17) & 3;
+    const uint supplScrollCharNum = (nbgParams0 >> 19) & 0x1F;
+    const uint supplScrollPalNum = (nbgParams0 >> 24) & 7;
+    const bool supplScrollSpecialColorCalc = (nbgParams0 >> 27) & 1;
+    const bool supplScrollSpecialPriority = (nbgParams0 >> 28) & 1;
+    
+    const uint charPatAccess = nbgParams1 & 0xF;
+    const uint patNameAccess = (nbgParams1 >> 4) & 0xF;
+
+    const uint2 scrollPos = uint2(pos.x, GetY(pos.y)); // TODO: apply scroll values, mosaic, line screen/vertical cell scroll, etc.
+  
+    const uint2 planePos = (scrollPos >> (pageShift + 9)) & 1;
+    const uint plane = planePos.x | (planePos.y << 1);
+    const uint pageBaseAddress = regs.nbgPageBaseAddresses[index][plane];
+    
+    // TODO: apply data access shift hack here
+    
+    const uint2 pagePos = (scrollPos >> 9) & pageShift;
+    const uint page = pagePos.x + (pagePos.y << 1);
+    const uint pageOffset = page << pageSize;
+
+    const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
+    const uint charIndex = charPatPos.x + (charPatPos.y << (6 - cellSizeShift));
+    
+    const uint2 cellPos = (scrollPos >> 3) & cellSizeShift;
+    uint cellIndex = cellPos.x + (cellPos.y << 1);
+
+    uint2 dotPos = scrollPos & 7;
+    
+    Character ch;
+    
+    if (twoWordChar) {
+        const uint charAddress = pageBaseAddress + charIndex * 4;
+        const uint charBank = (charAddress >> 17) & 3;
+        if ((patNameAccess >> charBank) & 1) {
+            const uint charData = ByteSwap32(vram.Load(charAddress));
+
+            ch.charNum = charData & 0x7FFF;
+            ch.palNum = (charData >> 16) & 0x7F;
+            ch.specColorCalc = (charData >> 28) & 1;
+            ch.specPriority = (charData >> 29) & 1;
+            ch.flipH = (charData >> 30) & 1;
+            ch.flipV = (charData >> 31) & 1;
+        } else {
+            ch.charNum = 0;
+            ch.palNum = 0;
+            ch.specColorCalc = false;
+            ch.specPriority = false;
+            ch.flipH = false;
+            ch.flipV = false;
+        }
+    } else {
+        const uint charAddress = pageBaseAddress + charIndex * 2;
+        const uint charBank = (charAddress >> 17) & 3;
+        if ((patNameAccess >> charBank) & 1) {
+            const uint charData = ByteSwap16(vram.Load(charAddress & ~3) >> ((charAddress & 2) * 8));
+
+            // Character number bit range from the 1-word character pattern data (charData)
+            const uint baseCharNumMask = extChar ? 0xFFF : 0x3FF;
+            const uint baseCharNumPos = 2 * cellSizeShift;
+
+            // Upper character number bit range from the supplementary character number (bgParams.supplCharNum)
+            const uint supplCharNumStart = 2 * cellSizeShift + 2 * extChar;
+            const uint supplCharNumMask = 0xF >> supplCharNumStart;
+            const uint supplCharNumPos = 10 + supplCharNumStart;
+            // The lower bits are always in range 0..1 and only used if cellSizeShift == true
+
+            const uint baseCharNum = charData & baseCharNumMask;
+            const uint supplCharNum = (supplScrollCharNum >> supplCharNumStart) & supplCharNumMask;
+
+            ch.charNum = (baseCharNum << baseCharNumPos) | (supplCharNum << supplCharNumPos);
+            if (cellSizeShift) {
+                ch.charNum |= supplScrollCharNum & 3;
+            }
+            if (colorFormat != kColorFormatPalette16) {
+                ch.palNum = ((charData >> 12) & 7) << 4;
+            } else {
+                ch.palNum = ((charData >> 12) & 0xF) | (supplScrollPalNum << 4);
+            }
+            ch.specColorCalc = supplScrollSpecialColorCalc;
+            ch.specPriority = supplScrollSpecialPriority;
+            ch.flipH = !extChar && ((charData >> 10) & 1);
+            ch.flipV = !extChar && ((charData >> 11) & 1);
+        } else {
+            ch.charNum = 0;
+            ch.palNum = 0;
+            ch.specColorCalc = false;
+            ch.specPriority = false;
+            ch.flipH = false;
+            ch.flipV = false;
+        }
+    }
+    
+    if (ch.flipH) {
+        dotPos.x ^= 7;
+        if (cellSizeShift > 0) {
+            cellIndex ^= 1;
+        }
+    }
+    if (ch.flipV) {
+        dotPos.y ^= 7;
+        if (cellSizeShift > 0) {
+            cellIndex ^= 2;
+        }
+    }
+        
+    // Adjust cell index based on color format
+    if (colorFormat == kColorFormatRGB888) {
+        cellIndex <<= 3;
+    } else if (colorFormat == kColorFormatRGB555) {
+        cellIndex <<= 2;
+    } else if (colorFormat != kColorFormatPalette16) {
+        cellIndex <<= 1;
+    }
+
+    const uint cellAddress = (ch.charNum + cellIndex) << 5;
+    const uint dotOffset = dotPos.x + (dotPos.y << 3);
+    
+    uint dotData;
+    uint colorIndex;
+    uint colorData;
+    if (colorFormat == kColorFormatPalette16) {
+        const uint dotAddress = cellAddress + (dotOffset >> 1);
+        const uint dotBank = (dotAddress >> 17) & 3;
+        if ((charPatAccess >> dotBank) & 1) {
+            dotData = (vram.Load(dotAddress & ~3) >> ((dotAddress & 3) * 8 + (~dotPos.x & 1) * 4)) & 0xF;
+        } else {
+            dotData = 0;
+        }
+        colorIndex = (ch.palNum << 4) | dotData;
+        colorData = (dotData >> 1) & 7;
+    } else if (colorFormat == kColorFormatPalette256) {
+        const uint dotAddress = cellAddress + dotOffset;
+        const uint dotBank = (dotAddress >> 17) & 3;
+        if ((charPatAccess >> dotBank) & 1) {
+            dotData = (vram.Load(dotAddress & ~3) >> ((dotAddress & 3) * 8)) & 0xFF;
+        } else {
+            dotData = 0;
+        }
+        colorIndex = ((ch.palNum & 0x70) << 4) | dotData;
+        colorData = (dotData >> 1) & 7;
+    }
+    // TODO: handle kColorFormatPalette2048
+    // TODO: handle kColorFormatRGB555
+    // TODO: handle kColorFormatRGB888
+    else {
+        colorIndex = 0;
+        colorData = 0;
+        dotData = 0;
+    }
+    
+    uint priority = bgPriorityNum;
+    if (bgPriorityMode == kPriorityModeCharacter) {
+        priority &= ~1;
+        priority |= ch.specPriority;
+    } else if (bgPriorityMode == kPriorityModeDot) {
+        priority &= ~1;
+        if (colorFormat <= 2) {
+            if (ch.specPriority) {
+                // TODO: priority |= specFuncCode.colorMatches[colorData];
+            }
+        }
+    }
+    
+    // TODO: CRAM mode, affects cramAddress mask
+    // mode 0: mask=0x3FF
+    // mode 1: mask=0x7FF
+    // mode 2: mask=0x3FF
+    // mode 3: mask=0x3FF
+    const uint cramAddress = (cramOffset + colorIndex) & 0x7FF;
+    const uint cramValue = cram[cramAddress];
+    const uint3 color = uint3(cramValue & 0xFF, (cramValue >> 8) & 0xFF, (cramValue >> 16) & 0xFF);
+    const bool transparent = enableTransparency && dotData == 0;
+    const bool specialColorCalc = false; // TODO: getSpecialColorCalcFlag
+    return uint4(color, (transparent << 7) | (specialColorCalc << 6) | priority);
+}
+
+uint4 DrawBitmapNBG(uint2 pos, uint index) {
+    // TODO: implement
+    return uint4(0, 0, 0, 128);
+}
+
+uint4 DrawNBG(uint2 pos, uint index) {
+    const VDP2Regs regs = vdp2regs[pos.y];
+    const uint nbgParams0 = regs.nbgParams[index][0];
+    const bool bitmap = (nbgParams0 >> 31) & 1;
+    
+    return bitmap ? DrawBitmapNBG(pos, index) : DrawScrollNBG(pos, index);
+}
+
+uint4 DrawRBG(uint2 pos, uint index) {
+    return uint4(index * 255, pos.x, pos.y, 255);
 }
 
 [numthreads(32, 16, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID)
-{
-    if (id.z < 4)
-    {
-        textureOut[id] = DrawNBG(id.z);
-    }
-    else
-    {
-        textureOut[id] = DrawRBG(id.z - 4);
+void CSMain(uint3 id : SV_DispatchThreadID) {
+    if (id.z < 4) {
+        textureOut[uint3(id.x, GetY(id.y), id.z)] = DrawNBG(id.xy, id.z);
+    } else {
+        textureOut[id] = DrawRBG(id.xy, id.z - 4);
     }
 }
