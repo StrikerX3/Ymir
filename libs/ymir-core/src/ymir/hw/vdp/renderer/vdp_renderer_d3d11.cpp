@@ -573,21 +573,22 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
 }
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
+    VDP2Regs &regs2 = m_state.regs2;
+    VDP2CalcAccessPatterns(regs2);
+
     auto &state = m_context->vdp2States[y];
 
-    state.displayParams[0] =                  //
-        0                                     //
-        | (m_state.regs2.TVMD.IsInterlaced()) // 1 bit
-        | (m_state.regs2.TVSTAT.ODD << 1)     // 1 bit
-        | (m_exclusiveMonitor << 2)           // 1 bit
+    state.displayParams[0] =          //
+        0                             //
+        | (regs2.TVMD.IsInterlaced()) // 0
+        | (regs2.TVSTAT.ODD << 1)     // 1
+        | (m_exclusiveMonitor << 2)   // 2
         ;
 
     // TODO: store registers and VRAM writes, cache textures, etc.
     for (uint32 i = 0; i < 4; ++i) {
-        const auto &bgParams = m_state.regs2.bgParams[i + 1];
+        const auto &bgParams = regs2.bgParams[i + 1];
 
-        // TODO: compute accesses
-        // TODO: compute BG enable flags
         // TODO: make this more nicely structured with bitfields and unions
 
         const uint32 supplPalNum = bgParams.bitmap ? bgParams.supplBitmapPalNum : bgParams.supplScrollPalNum;
@@ -598,10 +599,10 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
 
         state.nbgParams[i][0] =                                          //
             0                                                            //
-            | ((true || bgParams.charPatAccess[0]) << 0)                 // 0
-            | ((true || bgParams.charPatAccess[1]) << 1)                 // 1
-            | ((true || bgParams.charPatAccess[2]) << 2)                 // 2
-            | ((true || bgParams.charPatAccess[3]) << 3)                 // 3
+            | (bgParams.charPatAccess[0] << 0)                           // 0
+            | (bgParams.charPatAccess[1] << 1)                           // 1
+            | (bgParams.charPatAccess[2] << 2)                           // 2
+            | (bgParams.charPatAccess[3] << 3)                           // 3
             | (bgParams.charPatDelay << 4)                               // 4
             | (bgParams.mosaicEnable << 5)                               // 5
             | (bgParams.enableTransparency << 6)                         // 6
@@ -627,19 +628,19 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
                 | (bit::extract<0>(bgParams.bmsz) << 1) // 1
                 ;
         } else {
-            state.nbgParams[i][1] =                          //
-                0                                            //
-                | ((true || bgParams.patNameAccess[0]) << 0) // 0
-                | ((true || bgParams.patNameAccess[1]) << 1) // 1
-                | ((true || bgParams.patNameAccess[2]) << 2) // 2
-                | ((true || bgParams.patNameAccess[3]) << 3) // 3
-                | (bgParams.pageShiftH << 4)                 // 4
-                | (bgParams.pageShiftV << 5)                 // 5
-                | (bgParams.extChar << 6)                    // 6
-                | (bgParams.twoWordChar << 7)                // 7
-                | (bgParams.cellSizeShift << 8)              // 8
-                | (bgParams.verticalCellScrollEnable << 9)   // 9
-                | (bgParams.supplScrollCharNum << 10)        // 10-14
+            state.nbgParams[i][1] =                        //
+                0                                          //
+                | (bgParams.patNameAccess[0] << 0)         // 0
+                | (bgParams.patNameAccess[1] << 1)         // 1
+                | (bgParams.patNameAccess[2] << 2)         // 2
+                | (bgParams.patNameAccess[3] << 3)         // 3
+                | (bgParams.pageShiftH << 4)               // 4
+                | (bgParams.pageShiftV << 5)               // 5
+                | (bgParams.extChar << 6)                  // 6
+                | (bgParams.twoWordChar << 7)              // 7
+                | (bgParams.cellSizeShift << 8)            // 8
+                | (bgParams.verticalCellScrollEnable << 9) // 9
+                | (bgParams.supplScrollCharNum << 10)      // 10-14
                 ;
         }
 

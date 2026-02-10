@@ -896,10 +896,6 @@ private:
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     alignas(16) std::array<std::array<bool, kMaxResH>, 2> m_colorCalcWindow;
 
-    // Vertical cell scroll increment.
-    // Based on CYCA0/A1/B0/B1 parameters.
-    uint32 m_vertCellScrollInc;
-
     // Current display framebuffer.
     std::array<uint32, kMaxResH * kMaxResV> m_framebuffer;
 
@@ -975,11 +971,6 @@ private:
     template <bool altField, bool logicOR, bool hasSpriteWindow>
     void VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWindow> &windowSet,
                              const std::array<WindowParams, 2> &windowParams, std::span<bool> windowState);
-
-    // Computes the access patterns for NBGs and RBGs.
-    //
-    // regs2 is a reference to the set of VDP2 registers to use as reference
-    void VDP2CalcAccessPatterns(VDP2Regs &regs2);
 
     // Prepares the specified VDP2 scanline for rendering.
     //

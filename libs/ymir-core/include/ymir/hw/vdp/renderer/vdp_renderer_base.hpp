@@ -280,6 +280,10 @@ protected:
     /// Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
 
+    // Vertical cell scroll increment.
+    // Based on CYCA0/A1/B0/B1 parameters.
+    uint32 m_vertCellScrollInc;
+
     /// @brief Layer enable state based on BGON and other factors.
     /// ```
     ///     RBG0+RBG1   RBG0        RBG1        no RBGs
@@ -291,6 +295,10 @@ protected:
     /// [5] -           NBG3        NBG3        NBG3
     /// ```
     std::array<bool, 6> m_layerEnabled;
+
+    /// @brief Computes the access patterns for NBGs and RBGs.
+    /// @param[in] regs2 the VDP2 register state to update
+    void VDP2CalcAccessPatterns(VDP2Regs &regs2);
 
     /// @brief Updates the background enable states in `m_layerEnabled`.
     /// @param[in] regs2 the VDP2 register state to use
