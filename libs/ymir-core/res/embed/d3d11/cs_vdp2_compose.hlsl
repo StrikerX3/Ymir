@@ -1,7 +1,7 @@
 Texture2DArray<uint4> textureBGs : register(t0);
 RWTexture2D<float4> textureOut : register(u0);
 
-[numthreads(32, 16, 1)]
+[numthreads(32, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     // TODO: compose image
     // The alpha channel of the BG textures contains pixel attributes:
