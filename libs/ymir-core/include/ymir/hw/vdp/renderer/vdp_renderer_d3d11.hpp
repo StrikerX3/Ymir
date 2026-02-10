@@ -124,10 +124,16 @@ private:
     VDPState &m_state;
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     ID3D11Device *m_device;
+    bool m_restoreState;
 
+    /// @brief Convenience method that invokes `IVDPRenderer::VDP2UpdateEnabledBGs(...)` with the correct parameters.
     void VDP2UpdateEnabledBGs();
 
-    bool m_restoreState;
+    /// @brief Renders lines [`m_nextY`..`y`] and updates `m_nextY` to point to the next scanline.
+    /// @param[in] y the bottommost line to render
+    void VDP2RenderLines(uint32 y);
+
+    uint32 m_nextY;
 
     struct Context;
     std::unique_ptr<Context> m_context;

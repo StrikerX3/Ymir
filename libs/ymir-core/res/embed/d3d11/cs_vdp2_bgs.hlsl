@@ -1,49 +1,11 @@
-struct VDP2Regs {
-    // Display parameters:
-    // bits   use
-    //     0  Interlaced
-    //     1  Field                    0=even; 1=odd
-    //     2  Exclusive monitor mode   0=normal; 1=exclusive
-    uint4 displayParams;
-    
-    // NBG properties:
-    // Entry 0 - common properties
-    // bits   use
-    //   0-3  Character pattern access per bank
-    //     4  Character pattern delay
-    //     5  Mosaic enable                   0=disable; 1=enable
-    //     6  Transparency enable             0=disable; 1=enable
-    //     7  Color calculation enable        0=disable; 1=enable
-    //  8-10  CRAM offset
-    // 11-13  Color format                    0=pal16; 1=pal256; 2=pal2048; 3=rgb555; 4=rgb888; other values not used
-    // 14-15  Special color calculation mode  0=per screen; 1=per character; 2=per dot; 3=color data MSB
-    //    16  Special function select         0=A; 1=B
-    // 17-19  Priority number
-    // 20-21  Priority mode                   0=per screen; 1=per character; 2=per dot; 3=invalid/unused
-    // 22-24  Supplementary palette number
-    //    25  Supplementary special color calculation bit
-    //    26  Supplementary special priority bit
-    // 27-29  -
-    //    30  Background enabled              0=disable; 1=enable
-    //    31  Background type (= 0)           0=scroll; 1=bitmap
-    //
-    // Entry 1 - type-specific parameters -- scroll BGs
-    // bits   use
-    //   0-3  Pattern name access per bank
-    //     4  Horizontal page size shift
-    //     5  Vertical page size shift
-    //     6  Extended character number     0=10 bits; 1=12 bits, no H/V flip
-    //     7  Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
-    //     8  Character cell size           0=1x1 cell; 1=2x2 cells
-    //     9  Vertical cell scroll enable   0=disable; 1=enable  (NBG0 and NBG1 only)
-    // 10-14  Supplementary character number
-    // 15-31  -
-    //
-    // Entry 1 - type-specific parameters -- bitmap BGs
-    // bits   use
-    //     0  Horizontal bitmap size shift (512 << x)
-    //     1  Vertical bitmap size shift (256 << x)
-    //  2-31  -
+struct Config {
+    uint displayParams;
+    uint startY;
+    uint2 _padding;
+};
+
+struct VDP2RenderState {
+    Config config;
     uint nbgParams[4][2];
     
     // TODO: NBG scroll amounts (H/V)
@@ -59,7 +21,7 @@ struct VDP2Regs {
 
 ByteAddressBuffer vram : register(t0);
 StructuredBuffer<uint> cram : register(t1);
-StructuredBuffer<VDP2Regs> vdp2regs : register(t2);
+StructuredBuffer<VDP2RenderState> renderState : register(t2);
 RWTexture2DArray<uint4> textureOut : register(u0);
 
 // The alpha channel of the output is used for pixel attributes as follows:
@@ -119,9 +81,9 @@ uint ReadVRAM32(uint address) {
 }
 
 uint GetY(uint y) {
-    const bool interlaced = vdp2regs[y].displayParams.x & 1;
-    const bool odd = (vdp2regs[y].displayParams.x >> 1) & 1;
-    const bool exclusiveMonitor = (vdp2regs[y].displayParams.x >> 2) & 1;
+    const bool interlaced = renderState[0].config.displayParams & 1;
+    const bool odd = (renderState[0].config.displayParams >> 1) & 1;
+    const bool exclusiveMonitor = (renderState[0].config.displayParams >> 2) & 1;
     if (interlaced && !exclusiveMonitor) {
         return (y << 1) | (odd /* TODO & !deinterlace */);
     } else {
@@ -294,8 +256,8 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
 }
 
 uint4 DrawScrollNBG(uint2 pos, uint index) {
-    const VDP2Regs regs = vdp2regs[pos.y];
-    const uint nbgParams[2] = regs.nbgParams[index];
+    const VDP2RenderState state = renderState[0];
+    const uint nbgParams[2] = state.nbgParams[index];
     
     const uint2 pageShift = uint2((nbgParams[1] >> 4) & 1, (nbgParams[1] >> 5) & 1);
     const bool twoWordChar = (nbgParams[1] >> 7) & 1;
@@ -308,7 +270,7 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
   
     const uint2 planePos = (scrollPos >> (pageShift + 9)) & 1;
     const uint plane = planePos.x | (planePos.y << 1);
-    const uint pageBaseAddress = regs.nbgPageBaseAddresses[index][plane];
+    const uint pageBaseAddress = state.nbgPageBaseAddresses[index][plane];
     
     // TODO: apply data access shift hack here
     
@@ -341,8 +303,8 @@ uint4 DrawBitmapNBG(uint2 pos, uint index) {
 }
 
 uint4 DrawNBG(uint2 pos, uint index) {
-    const VDP2Regs regs = vdp2regs[pos.y];
-    const uint nbgParams0 = regs.nbgParams[index][0];
+    const VDP2RenderState state = renderState[0];
+    const uint nbgParams0 = state.nbgParams[index][0];
     const bool enabled = (nbgParams0 >> 30) & 1;
     if (!enabled) {
         return uint4(0, 0, 0, 128);
@@ -357,11 +319,12 @@ uint4 DrawRBG(uint2 pos, uint index) {
     return uint4(index * 255, pos.x, pos.y, 255);
 }
 
-[numthreads(32, 16, 1)]
+[numthreads(32, 1, 6)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
+    const uint2 drawCoord = id.xy + uint2(0, renderState[0].config.startY);
     if (id.z < 4) {
-        textureOut[uint3(id.x, GetY(id.y), id.z)] = DrawNBG(id.xy, id.z);
+        textureOut[uint3(id.x, GetY(id.y), id.z)] = DrawNBG(drawCoord, id.z);
     } else {
-        textureOut[id] = DrawRBG(id.xy, id.z - 4);
+        textureOut[id] = DrawRBG(drawCoord, id.z - 4);
     }
 }

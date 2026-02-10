@@ -27,10 +27,70 @@ static std::string_view GetEmbedFSFile(const std::string &path) {
     return {contents.begin(), contents.end()};
 }
 
-// VDP2 registers per scanline
-struct alignas(16) D3D11VDP2Regs {
-    std::array<uint32, 4> displayParams; // plus padding
-    std::array<std::array<uint32, 2>, 4> nbgParams;
+struct alignas(16) VDP2RenderConfig {
+    struct DisplayParams {
+        uint32 interlaced : 1;       //     0  Interlaced
+        uint32 oddField : 1;         //     1  Field                    0=even; 1=odd
+        uint32 exclusiveMonitor : 1; //     2  Exclusive monitor mode   0=normal; 1=exclusive
+    } displayParams;
+    uint32 startY; // Top Y coordinate of target rendering area
+};
+
+struct NBGRenderParams {
+    // Entry 0 - common properties
+    struct Common {                    //  bits  use
+        uint32 charPatAccess : 4;      //   0-3  Character pattern access per bank
+        uint32 charPatDelay : 1;       //     4  Character pattern delay
+        uint32 mosaicEnable : 1;       //     5  Mosaic enable                   0=disable; 1=enable
+        uint32 transparencyEnable : 1; //     6  Transparency enable             0=disable; 1=enable
+        uint32 colorCalcEnable : 1;    //     7  Color calculation enable        0=disable; 1=enable
+        uint32 cramOffset : 3;         //  8-10  CRAM offset
+        uint32 colorFormat : 3;        // 11-13  Color format
+                                       //          0 =   16-color palette   3 = RGB 5:5:5
+                                       //          1 =  256-color palette   4 = RGB 8:8:8
+                                       //          2 = 2048-color palette   (other values invalid/unused)
+        uint32 specColorCalcMode : 2;  // 14-15  Special color calculation mode
+                                       //          0 = per screen      2 = per dot
+                                       //          1 = per character   3 = color data MSB
+        uint32 specFuncSelect : 1;     //    16  Special function select         0=A; 1=B
+        uint32 priorityNumber : 3;     // 17-19  Priority number
+        uint32 priorityMode : 2;       // 20-21  Priority mode
+                                       //          0 = per screen      2 = per dot
+                                       //          1 = per character   3 = invalid/unused
+        uint32 supplPalNum : 3;        // 22-24  Supplementary palette number
+        uint32 supplColorCalcBit : 1;  //    25  Supplementary special color calculation bit
+        uint32 supplSpecPrioBit : 1;   //    26  Supplementary special priority bit
+        uint32 : 3;                    // 27-29  -
+        uint32 enabled : 1;            //    30  Background enabled              0=disable; 1=enable
+        uint32 bitmap : 1;             //    31  Background type (= 0)           0=scroll; 1=bitmap
+    } common;
+    static_assert(sizeof(Common) == sizeof(uint32));
+
+    // Entry 1 - type-specific parameters
+    union TypeSpecific {
+        struct Scroll {                //  bits  use
+            uint32 patNameAccess : 4;  //   0-3  Pattern name access per bank
+            uint32 pageShiftH : 1;     //     4  Horizontal page size shift
+            uint32 pageShiftV : 1;     //     5  Vertical page size shift
+            uint32 extChar : 1;        //     6  Extended character number     0=10 bits; 1=12 bits, no H/V flip
+            uint32 twoWordChar : 1;    //     7  Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
+            uint32 cellSizeShift : 1;  //     8  Character cell size           0=1x1 cell; 1=2x2 cells
+            uint32 vertCellScroll : 1; //     9  Vertical cell scroll enable   0=disable; 1=enable  (NBG0 and NBG1 only)
+            uint32 supplCharNum : 5;   // 10-14  Supplementary character number
+        } scroll;
+
+        struct Bitmap {             //  bits  use
+            uint32 bitmapSizeH : 1; //     0  Horizontal bitmap size shift (512 << x)
+            uint32 bitmapSizeV : 1; //     1  Vertical bitmap size shift (256 << x)
+                                    //  2-31  -
+        } bitmap;
+    } typeSpecific;
+    static_assert(sizeof(TypeSpecific) == sizeof(uint32));
+};
+
+struct alignas(16) VDP2RenderState {
+    VDP2RenderConfig config;
+    std::array<NBGRenderParams, 4> nbgParams;
     std::array<std::array<uint32, 4>, 4> nbgPageBaseAddresses;
     std::array<std::array<uint32, 16>, 2> rbgPageBaseAddresses;
 };
@@ -47,8 +107,8 @@ struct Direct3D11VDPRenderer::Context {
         d3dutil::SafeRelease(srvVDP2VRAM);
         d3dutil::SafeRelease(bufVDP2CRAM);
         d3dutil::SafeRelease(srvVDP2CRAM);
-        d3dutil::SafeRelease(bufVDP2Regs);
-        d3dutil::SafeRelease(srvVDP2Regs);
+        d3dutil::SafeRelease(bufVDP2RenderState);
+        d3dutil::SafeRelease(srvVDP2RenderState);
         d3dutil::SafeRelease(texVDP2BGs);
         d3dutil::SafeRelease(uavVDP2BGs);
         d3dutil::SafeRelease(srvVDP2BGs);
@@ -90,22 +150,18 @@ struct Direct3D11VDPRenderer::Context {
     // - at the end of the frame:
     //   - render all active NBGs and RBGs with shaders into their respective textures, parallelized by tiles
     //   - render final framebuffer image with compositor pixel shader, merging VDP1 + transparent mesh + NBGs + RBGs
-    // TODO: figure out how to handle mid-frame VDP2 VRAM/CRAM writes
-    // - possible solution:
-    //   - track VRAM, CRAM and register changes
-    //     - use dirty bitmaps for VRAM and CRAM
-    //       - find reasonable block sizes... maybe 16 KB for VRAM and 512 entries for CRAM?
-    //     - use simple dirty flag for registers
-    //     - update subresource regions as needed
-    //       - if two or more contiguous blocks are modified, update them all in one go
-    //       - if the whole region is modified, use Map/Unmap instead
-    //   - modify rendering to run "up to line Y"
-    //     - VDP2BeginFrame resets the nextY counter to 0
-    //     - the new function dispatches compute rendering for [nextY..currY], sets nextY = currY+1
-    //     - no need to store register states per scanline
-    //     - pass the Y range to the shader as constants
-    //     - might have to reduce thread group Y size to 1
-    //       - or compile two versions of the shader with different Y group sizes and use whichever fits best
+    // TODO: handle mid-frame VDP2 VRAM/CRAM writes
+    // - track VRAM, CRAM and register changes
+    //   - use dirty bitmaps for VRAM and CRAM
+    //     - find reasonable block sizes... maybe 16 KB for VRAM and 512 entries for CRAM?
+    //   - update subresource regions as needed
+    //     - if two or more contiguous blocks are modified, update them all in one go
+    //     - if the whole region is modified, use Map/Unmap instead
+    // - use simple dirty flag for render state
+    //   - modify only what's needed on the CPU side (in response to register writes)
+    //   - set dirty flag
+    //   - upload entire render state in one go
+    // - if anything is changed (registers or VRAM), invoke VDP2RenderLines(y) in VDP2RenderLine(...)
 
     ID3D11Buffer *bufVDP2VRAM = nullptr;             //< VDP2 VRAM buffer
     ID3D11ShaderResourceView *srvVDP2VRAM = nullptr; //< SRV for VDP2 VRAM buffer
@@ -115,9 +171,9 @@ struct Direct3D11VDPRenderer::Context {
 
     // TODO: VDP2 CRAM buffer (maybe precomputed colors?)
 
-    ID3D11Buffer *bufVDP2Regs = nullptr;             //< VDP2 state (registers) per scanline
-    ID3D11ShaderResourceView *srvVDP2Regs = nullptr; //< SRV for VDP2 state
-    std::array<D3D11VDP2Regs, 256> vdp2States{};     //< CPU-side VDP2 state array
+    ID3D11Buffer *bufVDP2RenderState = nullptr;             //< VDP2 render state
+    ID3D11ShaderResourceView *srvVDP2RenderState = nullptr; //< SRV for VDP2 render state
+    VDP2RenderState cpuVDP2RenderState{};                   //< CPU-side VDP2 render state
 
     ID3D11Texture2D *texVDP2BGs = nullptr;           //< NBG0-3, RBG0-1 textures (in that order)
     ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG texture array
@@ -335,19 +391,19 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // ---------------------------------
 
     bufferDesc = {
-        .ByteWidth = sizeof(m_context->vdp2States),
+        .ByteWidth = sizeof(m_context->cpuVDP2RenderState),
         .Usage = D3D11_USAGE_DYNAMIC,
         .BindFlags = D3D11_BIND_SHADER_RESOURCE,
         .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
         .MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
-        .StructureByteStride = sizeof(D3D11VDP2Regs),
+        .StructureByteStride = sizeof(VDP2RenderState),
     };
     bufferInitData = {
-        .pSysMem = m_context->vdp2States.data(),
+        .pSysMem = &m_context->cpuVDP2RenderState,
         .SysMemPitch = 0,
         .SysMemSlicePitch = 0,
     };
-    if (HRESULT hr = device->CreateBuffer(&bufferDesc, &bufferInitData, &m_context->bufVDP2Regs); FAILED(hr)) {
+    if (HRESULT hr = device->CreateBuffer(&bufferDesc, &bufferInitData, &m_context->bufVDP2RenderState); FAILED(hr)) {
         // TODO: report error
         return;
     }
@@ -358,10 +414,11 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         .Buffer =
             {
                 .FirstElement = 0,
-                .NumElements = (UINT)m_context->vdp2States.size(),
+                .NumElements = 1,
             },
     };
-    if (HRESULT hr = device->CreateShaderResourceView(m_context->bufVDP2Regs, &srvDesc, &m_context->srvVDP2Regs);
+    if (HRESULT hr =
+            device->CreateShaderResourceView(m_context->bufVDP2RenderState, &srvDesc, &m_context->srvVDP2RenderState);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -405,7 +462,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     d3dutil::SetDebugName(m_context->srvVDP2VRAM, "[Ymir D3D11] VDP2 VRAM SRV");
     d3dutil::SetDebugName(m_context->bufVDP2CRAM, "[Ymir D3D11] VDP2 CRAM buffer");
     d3dutil::SetDebugName(m_context->srvVDP2CRAM, "[Ymir D3D11] VDP2 CRAM SRV");
-    d3dutil::SetDebugName(m_context->bufVDP2Regs, "[Ymir D3D11] VDP2 registers buffer");
+    d3dutil::SetDebugName(m_context->bufVDP2RenderState, "[Ymir D3D11] VDP2 render state buffer");
+    d3dutil::SetDebugName(m_context->srvVDP2RenderState, "[Ymir D3D11] VDP2 render state SRV");
     d3dutil::SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG texture array");
     d3dutil::SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
     d3dutil::SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
@@ -450,6 +508,7 @@ bool Direct3D11VDPRenderer::IsValid() const {
 
 void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     VDP2UpdateEnabledBGs();
+    m_nextY = 0;
 }
 
 // -----------------------------------------------------------------------------
@@ -570,78 +629,61 @@ void Direct3D11VDPRenderer::VDP2LatchTVMD() {
 
 void Direct3D11VDPRenderer::VDP2BeginFrame() {
     // TODO: initialize VDP2 frame
+    m_nextY = 0;
 }
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     VDP2Regs &regs2 = m_state.regs2;
     VDP2CalcAccessPatterns(regs2);
 
-    auto &state = m_context->vdp2States[y];
+    auto &state = m_context->cpuVDP2RenderState;
 
-    state.displayParams[0] =          //
-        0                             //
-        | (regs2.TVMD.IsInterlaced()) // 0
-        | (regs2.TVSTAT.ODD << 1)     // 1
-        | (m_exclusiveMonitor << 2)   // 2
-        ;
+    state.config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
+    state.config.displayParams.oddField = regs2.TVSTAT.ODD;
+    state.config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
 
+    // TODO: update in response to register writes only
     // TODO: store registers and VRAM writes, cache textures, etc.
     for (uint32 i = 0; i < 4; ++i) {
         const auto &bgParams = regs2.bgParams[i + 1];
+        auto &stateParams = state.nbgParams[i];
 
-        // TODO: make this more nicely structured with bitfields and unions
-
-        const uint32 supplPalNum = bgParams.bitmap ? bgParams.supplBitmapPalNum : bgParams.supplScrollPalNum;
-        const uint32 supplSpecColorCalc =
+        auto &commonParams = stateParams.common;
+        commonParams.charPatAccess = (bgParams.charPatAccess[0] << 0) | (bgParams.charPatAccess[1] << 1) |
+                                     (bgParams.charPatAccess[2] << 2) | (bgParams.charPatAccess[3] << 3);
+        commonParams.charPatDelay = bgParams.charPatDelay;
+        commonParams.mosaicEnable = bgParams.mosaicEnable;
+        commonParams.transparencyEnable = bgParams.enableTransparency;
+        commonParams.colorCalcEnable = bgParams.colorCalcEnable;
+        commonParams.cramOffset = bgParams.cramOffset >> 8;
+        commonParams.colorFormat = static_cast<uint32>(bgParams.colorFormat);
+        commonParams.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
+        commonParams.specFuncSelect = bgParams.specialFunctionSelect;
+        commonParams.priorityNumber = bgParams.priorityNumber;
+        commonParams.priorityMode = static_cast<uint32>(bgParams.priorityMode);
+        commonParams.supplPalNum = bgParams.bitmap ? bgParams.supplBitmapPalNum : bgParams.supplScrollPalNum;
+        commonParams.supplColorCalcBit =
             bgParams.bitmap ? bgParams.supplBitmapSpecialColorCalc : bgParams.supplScrollSpecialColorCalc;
-        const uint32 supplSpecPriority =
+        commonParams.supplSpecPrioBit =
             bgParams.bitmap ? bgParams.supplBitmapSpecialPriority : bgParams.supplScrollSpecialPriority;
-
-        state.nbgParams[i][0] =                                          //
-            0                                                            //
-            | (bgParams.charPatAccess[0] << 0)                           // 0
-            | (bgParams.charPatAccess[1] << 1)                           // 1
-            | (bgParams.charPatAccess[2] << 2)                           // 2
-            | (bgParams.charPatAccess[3] << 3)                           // 3
-            | (bgParams.charPatDelay << 4)                               // 4
-            | (bgParams.mosaicEnable << 5)                               // 5
-            | (bgParams.enableTransparency << 6)                         // 6
-            | (bgParams.colorCalcEnable << 7)                            // 7
-            | (bgParams.cramOffset /*already shifted to 8*/)             // 8-10
-            | (static_cast<uint32>(bgParams.colorFormat) << 11)          // 11-13
-            | (static_cast<uint32>(bgParams.specialColorCalcMode) << 14) // 14-15
-            | (bgParams.specialFunctionSelect << 16)                     // 16
-            | (bgParams.priorityNumber << 17)                            // 17-19
-            | (static_cast<uint32>(bgParams.priorityMode) << 20)         // 20-21
-            | (supplPalNum << (22 - 4) /*shifted up by 4*/)              // 22-24
-            | (supplSpecColorCalc << 25)                                 // 25
-            | (supplSpecPriority << 26)                                  // 26
-            /* unused */                                                 // 27-29
-            | (m_layerEnabled[i + 2] << 30)                              // 30
-            | (bgParams.bitmap << 31)                                    // 31
-            ;
+        commonParams.enabled = m_layerEnabled[i + 2];
+        commonParams.bitmap = bgParams.bitmap;
 
         if (bgParams.bitmap) {
-            state.nbgParams[i][1] =                     //
-                0                                       //
-                | (bit::extract<1>(bgParams.bmsz) << 0) // 0
-                | (bit::extract<0>(bgParams.bmsz) << 1) // 1
-                ;
+            auto &bitmapParams = stateParams.typeSpecific.bitmap;
+            bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
+            bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
         } else {
-            state.nbgParams[i][1] =                        //
-                0                                          //
-                | (bgParams.patNameAccess[0] << 0)         // 0
-                | (bgParams.patNameAccess[1] << 1)         // 1
-                | (bgParams.patNameAccess[2] << 2)         // 2
-                | (bgParams.patNameAccess[3] << 3)         // 3
-                | (bgParams.pageShiftH << 4)               // 4
-                | (bgParams.pageShiftV << 5)               // 5
-                | (bgParams.extChar << 6)                  // 6
-                | (bgParams.twoWordChar << 7)              // 7
-                | (bgParams.cellSizeShift << 8)            // 8
-                | (bgParams.verticalCellScrollEnable << 9) // 9
-                | (bgParams.supplScrollCharNum << 10)      // 10-14
-                ;
+            auto &scrollParams = stateParams.typeSpecific.scroll;
+            scrollParams.patNameAccess = (bgParams.patNameAccess[0] << 0) | (bgParams.patNameAccess[1] << 1) |
+                                         (bgParams.patNameAccess[2] << 2) | (bgParams.patNameAccess[3] << 3);
+            scrollParams.pageShiftH = bgParams.pageShiftH;
+            scrollParams.pageShiftV = bgParams.pageShiftV;
+            scrollParams.extChar = bgParams.extChar;
+            scrollParams.twoWordChar = bgParams.twoWordChar;
+            scrollParams.cellSizeShift = bgParams.cellSizeShift;
+            scrollParams.vertCellScroll = bgParams.verticalCellScrollEnable;
+            scrollParams.supplCharNum = bgParams.supplScrollCharNum;
         }
 
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
@@ -651,16 +693,48 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
 }
 
 void Direct3D11VDPRenderer::VDP2EndFrame() {
+    VDP2RenderLines(m_VRes - 1);
+
+    auto *ctx = m_context->deferredCtx;
+
+    // Cleanup
+    static constexpr ID3D11UnorderedAccessView *kNullUAVs[] = {nullptr};
+    ctx->CSSetUnorderedAccessViews(0, std::size(kNullUAVs), kNullUAVs, NULL);
+    static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr, nullptr, nullptr};
+    ctx->CSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
+
+    ID3D11CommandList *commandList = nullptr;
+    if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
+        return;
+    }
+
+    // Replace pending command list
+    {
+        std::unique_lock lock{m_context->mtxCmdList};
+        d3dutil::SafeRelease(m_context->cmdList);
+        m_context->cmdList = commandList;
+    }
+    HwCallbacks.CommandListReady();
+
+    Callbacks.VDP2DrawFinished();
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
+    IVDPRenderer::VDP2UpdateEnabledBGs(m_state.regs2, m_vdp2DebugRenderOptions);
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderLines(uint32 y) {
     // Generate command list for frame
     auto *ctx = m_context->deferredCtx;
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
 
-    /*ctx->VSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
+    static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr};
+    ctx->VSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
     ctx->VSSetShader(m_context->vsIdentity, nullptr, 0);
 
     ctx->PSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
-    ctx->PSSetShader(nullptr, nullptr, 0);*/
+    ctx->PSSetShader(nullptr, nullptr, 0);
 
     // Update VDP2 VRAM
     // TODO: update only what's necessary
@@ -669,6 +743,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     ctx->Unmap(m_context->bufVDP2VRAM, 0);
 
     // Update VDP2 CRAM
+    // TODO: update only what's necessary
     switch (m_state.regs2.vramControl.colorRAMMode) {
     case 0:
         for (uint32 i = 0; i < 1024; ++i) {
@@ -702,57 +777,36 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
         }
         break;
     }
-    // TODO: update only what's necessary
     ctx->Map(m_context->bufVDP2CRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     memcpy(mappedResource.pData, m_CRAMCache.data(), sizeof(m_CRAMCache));
     ctx->Unmap(m_context->bufVDP2CRAM, 0);
 
-    // Update VDP2 registers
-    ctx->Map(m_context->bufVDP2Regs, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, m_context->vdp2States.data(), sizeof(m_context->vdp2States));
-    ctx->Unmap(m_context->bufVDP2Regs, 0);
+    // Update VDP2 rendering state
+    // TODO: update only what's necessary
+    m_context->cpuVDP2RenderState.config.startY = m_nextY;
+    ctx->Map(m_context->bufVDP2RenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderState, sizeof(m_context->cpuVDP2RenderState));
+    ctx->Unmap(m_context->bufVDP2RenderState, 0);
 
     const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
     const uint32 vresShift = interlaced ? 1 : 0;
 
     // Draw NBGs and RBGs
-    ID3D11ShaderResourceView *srvs[] = {m_context->srvVDP2VRAM, m_context->srvVDP2CRAM, m_context->srvVDP2Regs};
+    ID3D11ShaderResourceView *srvs[] = {m_context->srvVDP2VRAM, m_context->srvVDP2CRAM, m_context->srvVDP2RenderState};
     ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavVDP2BGs, nullptr);
     ctx->CSSetShaderResources(0, std::size(srvs), srvs);
     ctx->CSSetShader(m_context->csVDP2BGs, nullptr, 0);
-    ctx->Dispatch(m_HRes / 32, (m_VRes >> vresShift) / 16, 6);
+    ctx->Dispatch(m_HRes / 32, (m_VRes >> vresShift), 1);
 
     // Compose final image
     ID3D11ShaderResourceView *srvsCompose[] = {m_context->srvVDP2BGs, nullptr, nullptr};
     ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavVDP2Output, nullptr);
     ctx->CSSetShaderResources(0, std::size(srvsCompose), srvsCompose);
     ctx->CSSetShader(m_context->csVDP2Compose, nullptr, 0);
-    ctx->Dispatch(m_HRes / 32, m_VRes / 16, 6);
+    ctx->Dispatch(m_HRes / 32, m_VRes, 1);
 
-    // Cleanup
-    std::fill(std::begin(srvs), std::end(srvs), nullptr);
-    static constexpr ID3D11UnorderedAccessView *kNullUAVs[] = {nullptr};
-    ctx->CSSetUnorderedAccessViews(0, std::size(kNullUAVs), kNullUAVs, NULL);
-    ctx->CSSetShaderResources(0, std::size(srvs), srvs);
-
-    ID3D11CommandList *commandList = nullptr;
-    if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
-        return;
-    }
-
-    // Replace pending command list
-    {
-        std::unique_lock lock{m_context->mtxCmdList};
-        d3dutil::SafeRelease(m_context->cmdList);
-        m_context->cmdList = commandList;
-    }
-    HwCallbacks.CommandListReady();
-
-    Callbacks.VDP2DrawFinished();
-}
-
-FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
-    IVDPRenderer::VDP2UpdateEnabledBGs(m_state.regs2, m_vdp2DebugRenderOptions);
+    // Update next Y render target
+    m_nextY = y + 1;
 }
 
 } // namespace ymir::vdp
