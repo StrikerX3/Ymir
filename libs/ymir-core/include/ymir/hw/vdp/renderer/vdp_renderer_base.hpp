@@ -7,9 +7,9 @@
 
 #include "vdp_renderer_defs.hpp"
 
-#include <ymir/hw/vdp/vdp1_defs.hpp>
 #include <ymir/hw/vdp/vdp_callbacks.hpp>
 #include <ymir/hw/vdp/vdp_configs.hpp>
+#include <ymir/hw/vdp/vdp_state.hpp>
 
 #include <ymir/state/state_vdp.hpp>
 
@@ -276,9 +276,26 @@ protected:
     /// @brief State for the line color and back screens.
     LineBackLayerState m_lineBackLayerState;
 
-    // VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
-    // Entry [0] is primary and [1] is alternate field for deinterlacing.
+    /// @brief VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
+    /// Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
+
+    /// @brief Layer enable state based on BGON and other factors.
+    /// ```
+    ///     RBG0+RBG1   RBG0        RBG1        no RBGs
+    /// [0] Sprite      Sprite      Sprite      Sprite
+    /// [1] RBG0        RBG0        -           -
+    /// [2] RBG1        NBG0        RBG1        NBG0
+    /// [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+    /// [4] -           NBG2        NBG2        NBG2
+    /// [5] -           NBG3        NBG3        NBG3
+    /// ```
+    std::array<bool, 6> m_layerEnabled;
+
+    /// @brief Updates the background enable states in `m_layerEnabled`.
+    /// @param[in] regs2 the VDP2 register state to use
+    /// @param[in] debugRenderOpts the VDP2 debug rendering options to use
+    void VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts);
 
 private:
     const VDPRendererType m_type;

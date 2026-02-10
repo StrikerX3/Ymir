@@ -100,11 +100,12 @@ struct Direct3D11VDPRenderer::Context {
     //       - if two or more contiguous blocks are modified, update them all in one go
     //       - if the whole region is modified, use Map/Unmap instead
     //   - modify rendering to run "up to line Y"
-    //     - VDP2BeginFrame resets the last Y counter
-    //     - the new function dispatches compute rendering for prevY..currY
+    //     - VDP2BeginFrame resets the nextY counter to 0
+    //     - the new function dispatches compute rendering for [nextY..currY], sets nextY = currY+1
     //     - no need to store register states per scanline
     //     - pass the Y range to the shader as constants
     //     - might have to reduce thread group Y size to 1
+    //       - or compile two versions of the shader with different Y group sizes and use whichever fits best
 
     ID3D11Buffer *bufVDP2VRAM = nullptr;             //< VDP2 VRAM buffer
     ID3D11ShaderResourceView *srvVDP2VRAM = nullptr; //< SRV for VDP2 VRAM buffer
@@ -447,7 +448,9 @@ bool Direct3D11VDPRenderer::IsValid() const {
     return m_valid;
 }
 
-void Direct3D11VDPRenderer::ResetImpl(bool hard) {}
+void Direct3D11VDPRenderer::ResetImpl(bool hard) {
+    VDP2UpdateEnabledBGs();
+}
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -459,7 +462,9 @@ void Direct3D11VDPRenderer::ConfigureEnhancements(const config::Enhancements &en
 
 void Direct3D11VDPRenderer::PreSaveStateSync() {}
 
-void Direct3D11VDPRenderer::PostLoadStateSync() {}
+void Direct3D11VDPRenderer::PostLoadStateSync() {
+    VDP2UpdateEnabledBGs();
+}
 
 void Direct3D11VDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {}
 
@@ -493,12 +498,22 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {}
 
 void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {}
 
-void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {}
+void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
+    switch (address) {
+    case 0x020: [[fallthrough]]; // BGON
+    case 0x028: [[fallthrough]]; // CHCTLA
+    case 0x02A:                  // CHCTLB
+        VDP2UpdateEnabledBGs();
+        break;
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Debugger
 
-void Direct3D11VDPRenderer::UpdateEnabledLayers() {}
+void Direct3D11VDPRenderer::UpdateEnabledLayers() {
+    VDP2UpdateEnabledBGs();
+}
 
 // -----------------------------------------------------------------------------
 // Utilities
@@ -573,6 +588,7 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
 
         // TODO: compute accesses
         // TODO: compute BG enable flags
+        // TODO: make this more nicely structured with bitfields and unions
 
         const uint32 supplPalNum = bgParams.bitmap ? bgParams.supplBitmapPalNum : bgParams.supplScrollPalNum;
         const uint32 supplSpecColorCalc =
@@ -600,7 +616,7 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
             | (supplSpecColorCalc << 25)                                 // 25
             | (supplSpecPriority << 26)                                  // 26
             /* unused */                                                 // 27-29
-            | (true /* TODO: bg enable */ << 30)                         // 30
+            | (m_layerEnabled[i + 2] << 30)                              // 30
             | (bgParams.bitmap << 31)                                    // 31
             ;
 
@@ -732,6 +748,10 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     HwCallbacks.CommandListReady();
 
     Callbacks.VDP2DrawFinished();
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
+    IVDPRenderer::VDP2UpdateEnabledBGs(m_state.regs2, m_vdp2DebugRenderOptions);
 }
 
 } // namespace ymir::vdp

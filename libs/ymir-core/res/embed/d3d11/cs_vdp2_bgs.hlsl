@@ -30,13 +30,13 @@ struct VDP2Regs {
     // Entry 1 - type-specific parameters -- scroll BGs
     // bits   use
     //   0-3  Pattern name access per bank
-    //     4* Horizontal page size shift
-    //     5* Vertical page size shift
-    //     6* Extended character number     0=10 bits; 1=12 bits, no H/V flip
-    //     7* Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
-    //     8* Character cell size           0=1x1 cell; 1=2x2 cells
-    //     9* Vertical cell scroll enable   0=disable; 1=enable  (NBG0 and NBG1 only)
-    // 10-14* Supplementary character number
+    //     4  Horizontal page size shift
+    //     5  Vertical page size shift
+    //     6  Extended character number     0=10 bits; 1=12 bits, no H/V flip
+    //     7  Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
+    //     8  Character cell size           0=1x1 cell; 1=2x2 cells
+    //     9  Vertical cell scroll enable   0=disable; 1=enable  (NBG0 and NBG1 only)
+    // 10-14  Supplementary character number
     // 15-31  -
     //
     // Entry 1 - type-specific parameters -- bitmap BGs
@@ -109,7 +109,6 @@ uint ReadVRAM8(uint address) {
     return vram.Load(address & ~3) >> ((address & 3) * 8) & 0xFF;
 }
 
-// Expects address to be 16-bit-aligned
 uint ReadVRAM16(uint address) {
     return ByteSwap16(vram.Load(address & ~3) >> ((address & 2) * 8));
 }
@@ -344,6 +343,11 @@ uint4 DrawBitmapNBG(uint2 pos, uint index) {
 uint4 DrawNBG(uint2 pos, uint index) {
     const VDP2Regs regs = vdp2regs[pos.y];
     const uint nbgParams0 = regs.nbgParams[index][0];
+    const bool enabled = (nbgParams0 >> 30) & 1;
+    if (!enabled) {
+        return uint4(0, 0, 0, 128);
+    }
+    
     const bool bitmap = (nbgParams0 >> 31) & 1;
     
     return bitmap ? DrawBitmapNBG(pos, index) : DrawScrollNBG(pos, index);

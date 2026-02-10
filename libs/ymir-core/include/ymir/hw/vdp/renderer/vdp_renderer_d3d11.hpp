@@ -125,6 +125,8 @@ private:
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     ID3D11Device *m_device;
 
+    void VDP2UpdateEnabledBGs();
+
     bool m_restoreState;
 
     struct Context;
