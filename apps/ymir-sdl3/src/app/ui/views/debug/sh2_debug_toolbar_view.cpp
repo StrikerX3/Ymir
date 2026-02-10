@@ -13,6 +13,8 @@
 
 #include <imgui.h>
 
+#include <cstdint>
+
 using namespace ymir;
 
 namespace app::ui {
@@ -148,6 +150,23 @@ void SH2DebugToolbarView::Display() {
     }
     widgets::ExplanationTooltip("Whether the CPU is in standby or sleep mode due to executing the SLEEP instruction.",
                                 m_context.displayScale);
+
+    // Input field to jump to address
+    static uint32_t jumpAddress = 0;
+    ImGui::SetNextItemWidth(100.0f * m_context.displayScale); // Width for 8 hex digits
+    ImGui::InputScalar("##jump_address", ImGuiDataType_U32, &jumpAddress, nullptr, nullptr, "%08X",
+                       ImGuiInputTextFlags_CharsHexadecimal);
+    ImGui::SameLine();
+    if (ImGui::Button("Jump")) {
+        constexpr uint32_t kSH2AddrMin = 0x00000000u;
+        constexpr uint32_t kSH2AddrMax = 0xFFFFFFFEu;
+        // ensure to clamp to valid SH2 address range (even addresses)
+        jumpAddress = (std::clamp<uint32_t>(jumpAddress, kSH2AddrMin, kSH2AddrMax) & ~1u);
+        m_model.jumpAddress = jumpAddress;
+        m_model.jumpRequested = true;
+        m_model.recenterWindow = true; // One-shot: request window recenter
+        m_model.followPC = false;
+    }
 
     ImGui::EndGroup();
 }

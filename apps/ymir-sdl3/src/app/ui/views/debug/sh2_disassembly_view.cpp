@@ -4,6 +4,7 @@
 #include <ymir/hw/sh2/sh2_disasm.hpp>
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <cfloat>
 #include <cmath>
@@ -77,29 +78,66 @@ void SH2DisassemblyView::Display() {
         const uint32 pc = probe.PC() & ~1u;
         const uint32 pr = probe.PR() & ~1u;
 
-        // Update view window dynamically around PC to keep clipper manageable
+        // Update view window dynamically around PC or jump target to keep clipper manageable
         // Use ±1MB window (0x100000 bytes = ~512K instructions)
         constexpr uint32 kWindowRadius = 0x100000u;
-        const uint32 windowMin = (pc >= kWindowRadius) ? (pc - kWindowRadius) & ~1u : kAddressMin;
-        const uint32 windowMax = (pc <= kAddressMax - kWindowRadius) ? ((pc + kWindowRadius) & ~1u) : kAddressMax;
 
-        // Update range if PC moved outside current window or first frame
-        if (pc < m_viewState.minAddress || pc > m_viewState.maxAddress ||
-            (m_viewState.minAddress == kAddressMin && m_viewState.maxAddress == kAddressMax)) {
+        // Determine if we should recenter the window this frame
+        bool shouldRecenter = false;
+        uint32 centerAddress = pc;
+
+        if (m_model.recenterWindow) {
+            // One-shot: recenter on jump target
+            shouldRecenter = true;
+            centerAddress = m_model.jumpAddress;
+        } else if (m_model.followPC) {
+            // Following PC: only recenter if PC moved outside current window
+            if (pc < m_viewState.minAddress || pc > m_viewState.maxAddress ||
+                (m_viewState.minAddress == kAddressMin && m_viewState.maxAddress == kAddressMax)) {
+                shouldRecenter = true;
+                centerAddress = pc;
+            }
+        }
+        // Else: free browsing mode, don't recenter
+
+        // Update range only if recentering is needed
+        if (shouldRecenter) {
+            const uint32 windowMin =
+                (centerAddress >= kWindowRadius) ? (centerAddress - kWindowRadius) & ~1u : kAddressMin;
+            const uint32 windowMax =
+                (centerAddress <= kAddressMax - kWindowRadius) ? ((centerAddress + kWindowRadius) & ~1u) : kAddressMax;
+
             m_viewState.minAddress = windowMin;
             m_viewState.maxAddress = windowMax;
+            m_viewState.rangeChanged = true;
+        } else {
+            m_viewState.rangeChanged = false;
         }
 
-        // Detect user scroll to disable auto-follow
+        // Clear one-shot recenter flag after use
+        m_model.recenterWindow = false;
+
+        // Detect user scroll (wheel or scrollbar drag) to disable auto-follow and cancel jump animation
         const float scrollDelta = ImGui::GetIO().MouseWheel;
-        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && std::abs(scrollDelta) > 0.1f) {
+        const bool wheelScroll =
+            ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && std::abs(scrollDelta) > 0.1f;
+        const bool scrollbarDrag = ImGui::GetCurrentContext()->ActiveId == ImGui::GetCurrentWindow()->GetID("#SCROLLY");
+        if (wheelScroll || scrollbarDrag) {
             m_model.followPC = false;
+            m_model.jumpRequested = false;
         }
 
-        // Handle scrolling to PC or jump address
-        if (m_model.followPC) {
+        // If range changed during jump, snap immediately to avoid clipper desync
+        if (m_viewState.rangeChanged && m_model.jumpRequested) {
+            const uint32 lineIndex = (m_model.jumpAddress - m_viewState.minAddress) / sizeof(uint16);
+            const float targetY = m_lineAdvance * static_cast<float>(lineIndex) - viewHeight * 0.5f;
+            ImGui::SetScrollY(std::max(0.0f, targetY));
+            m_model.jumpRequested = false; // Jump complete
+        } else if (m_model.followPC) {
+            // Handle scrolling to PC
             ScrollToAddress(pc, viewHeight, true);
         } else if (m_model.jumpRequested) {
+            // Handle scrolling to jump address
             ScrollToAddress(m_model.jumpAddress, viewHeight, false);
         }
 

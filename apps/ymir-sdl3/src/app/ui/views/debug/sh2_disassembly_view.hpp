@@ -113,6 +113,7 @@ private:
     struct ViewState {
         uint32 minAddress = kAddressMin;
         uint32 maxAddress = kAddressMax; // address range min:max
+        bool rangeChanged = false;       // true if range updated this frame
     } m_viewState;
 
     // Cached line height, computed dynamically from font size
