@@ -273,6 +273,7 @@ add_library(ymir-core
     src/ymir/hw/vdp/vdp.cpp
 
     src/ymir/hw/vdp/renderer/vdp_renderer_base.cpp
+    src/ymir/hw/vdp/renderer/vdp_renderer_hw_base.cpp
     src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
 
     src/ymir/media/cdrom_crc.cpp
