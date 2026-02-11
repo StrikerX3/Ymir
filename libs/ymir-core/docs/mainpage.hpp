@@ -186,28 +186,22 @@ multithreading or minimum shader model version.
 Hardware renderers build command lists that must be executed on the thread where graphics is managed (typically the main
 or GUI thread) by invoking `ymir::vdp::HardwareVDPRendererBase::ExecutePendingCommandList()` at an appropriate time in
 the thread, which will execute the latest pending command list if one is available. The application may have to flush
-graphics state prior to executing the command lists. This can be easily achieved with the pre-execution callback that is
-invoked immediately before a command list is executed, if one is available:
+graphics state prior to executing the command lists or may wish to compute statistics on everry command list executed.
+This can be easily achieved with the pre- and post-execution callbacks that are invoked immediately before and after a
+command list is executed:
 
 ```cpp
 void PreExecuteCommandList(void *userContext)
-```
-
-This callback is invoked in the same thread that invokes `ExecutePendingCommandList()` and can be configured through the
-VDP with `ymir::vdp::VDP::SetHardwarePreExecuteCommandListCallback(ymir::vdp::CBHardwarePreExecuteCommandList callback)`
-or directly in the hardware renderer instance in the `ymir::vdp::HardwareVDPRendererBase::HwCallbacks` field.
-
-The `ExecutePendingCommandList()` function returns `true` if a command list was processed. With that, you can use the
-following idiom if you need to perform additional logic after processing a commmand list:
-
-```cpp
-if (vdpRenderer->ExecutePendingCommandList()) {
-    // Perform additional logic
-}
+void PostExecuteCommandList(void *userContext)
 ```
 
 where
 - `userContext` is a user-provided context pointer
+
+These callbacks are invoked in the same thread that invokes `ExecutePendingCommandList()` and can be configured in the
+VDP with `ymir::vdp::VDP::SetHardwarePreExecuteCommandListCallback(ymir::vdp::CBHardwarePreExecuteCommandList callback)`
+and `ymir::vdp::VDP::SetHardwarePostExecuteCommandListCallback(ymir::vdp::CBHardwarePostExecuteCommandList callback)`
+or directly in the hardware renderer instance in the `ymir::vdp::HardwareVDPRendererBase::HwCallbacks` field.
 
 Whenever a command list is prepared, the hardware renderer invokes another callback function to notify the frontend. The
 callback signature is:

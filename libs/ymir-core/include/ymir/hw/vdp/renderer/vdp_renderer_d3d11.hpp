@@ -46,7 +46,7 @@ public:
     // -------------------------------------------------------------------------
     // Hardware rendering
 
-    bool ExecutePendingCommandList() override;
+    void ExecutePendingCommandList() override;
 
     /// @brief Retrieves a pointer to the `ID3D11Texture2D` containing the composited VDP2 output.
     /// @return a pointer to the rendered display texture
@@ -133,11 +133,26 @@ private:
     /// and updates dirty flags as needed.
     void VDP2CalcAccessPatterns();
 
-    /// @brief Renders lines [`m_nextY`..`y`] and updates `m_nextY` to point to the next scanline.
+    /// @brief Renders NBG/RBG lines [`m_nextVDP2BGY`..`y`] and updates `m_nextVDP2BGY` to point to the next scanline.
     /// @param[in] y the bottommost line to render
-    void VDP2RenderLines(uint32 y);
+    void VDP2RenderBGLines(uint32 y);
 
-    uint32 m_nextY;
+    /// @brief Composes VDP2 lines [`m_nextVDP2ComposeY`..`y`] and updates `m_nextVDP2ComposeY` to point to the next
+    /// scanline.
+    /// @param[in] y the bottommost line to render
+    void VDP2ComposeLines(uint32 y);
+
+    /// @brief Updates VDP2 VRAM if dirty.
+    void VDP2UpdateVRAM();
+
+    /// @brief Updates VDP2 CRAM if dirty.
+    void VDP2UpdateCRAM();
+
+    /// @brief Updates the VDP2 render state if dirty.
+    void VDP2UpdateRenderState();
+
+    uint32 m_nextVDP2BGY;
+    uint32 m_nextVDP2ComposeY;
 
     struct Context;
     std::unique_ptr<Context> m_context;
