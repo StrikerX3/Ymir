@@ -89,7 +89,6 @@ struct NBGRenderParams {
 };
 
 struct alignas(16) VDP2RenderState {
-    VDP2RenderConfig config;
     std::array<NBGRenderParams, 4> nbgParams;
     std::array<std::array<uint32, 4>, 4> nbgPageBaseAddresses;
     std::array<std::array<uint32, 16>, 2> rbgPageBaseAddresses;
@@ -97,6 +96,12 @@ struct alignas(16) VDP2RenderState {
 
 // -----------------------------------------------------------------------------
 // Renderer context
+
+struct VRAMWrite {
+    uint32 address;
+    uint16 value;
+    bool word; // false = 8-bit, true = 16-bit
+};
 
 struct Direct3D11VDPRenderer::Context {
     ~Context() {
@@ -109,6 +114,7 @@ struct Direct3D11VDPRenderer::Context {
         d3dutil::SafeRelease(srvVDP2CRAM);
         d3dutil::SafeRelease(bufVDP2RenderState);
         d3dutil::SafeRelease(srvVDP2RenderState);
+        d3dutil::SafeRelease(cbufVDP2RenderConfig);
         d3dutil::SafeRelease(texVDP2BGs);
         d3dutil::SafeRelease(uavVDP2BGs);
         d3dutil::SafeRelease(srvVDP2BGs);
@@ -129,7 +135,7 @@ struct Direct3D11VDPRenderer::Context {
 
     // VDP1 rendering process idea:
     // - batch polygons
-    // - render polygons with compute shader individually, parallelized into separate textures or Z slices of 3D texture
+    // - render polygons with compute shader individually, parallelized into separate textures
     // - merge rendered polygons with pixel shader into draw framebuffer (+ draw transparent mesh buffer if enabled)
     // TODO: figure out how to handle VDP1 framebuffer writes from SH2
     // TODO: figure out how to handle mid-frame VDP1 VRAM writes
@@ -137,7 +143,7 @@ struct Direct3D11VDPRenderer::Context {
     // TODO: VDP1 VRAM buffer (ByteAddressBuffer?)
     // TODO: VDP1 framebuffer RAM buffer
     // TODO: VDP1 registers structured buffer array (per polygon)
-    // TODO: VDP1 polygon 2D texture array/3D texture + UAVs + SRVs
+    // TODO: VDP1 polygon 2D texture array + UAVs + SRVs
     // TODO: VDP1 framebuffer 2D textures + SRVs
     // TODO: VDP1 transparent meshes 2D textures + SRVs
     // TODO: VDP1 polygon compute shader (one thread per polygon in a batch)
@@ -145,35 +151,21 @@ struct Direct3D11VDPRenderer::Context {
 
     // -------------------------------------------------------------------------
 
-    // VDP2 rendering process idea:
-    // - accumulate register states per scanline
-    // - at the end of the frame:
-    //   - render all active NBGs and RBGs with shaders into their respective textures, parallelized by tiles
-    //   - render final framebuffer image with compositor pixel shader, merging VDP1 + transparent mesh + NBGs + RBGs
-    // TODO: handle mid-frame VDP2 VRAM/CRAM writes
-    // - track VRAM, CRAM and register changes
-    //   - use dirty bitmaps for VRAM and CRAM
-    //     - find reasonable block sizes... maybe 16 KB for VRAM and 512 entries for CRAM?
-    //   - update subresource regions as needed
-    //     - if two or more contiguous blocks are modified, update them all in one go
-    //     - if the whole region is modified, use Map/Unmap instead
-    // - use simple dirty flag for render state
-    //   - modify only what's needed on the CPU side (in response to register writes)
-    //   - set dirty flag
-    //   - upload entire render state in one go
-    // - if anything is changed (registers or VRAM), invoke VDP2RenderLines(y) in VDP2RenderLine(...)
-
     ID3D11Buffer *bufVDP2VRAM = nullptr;             //< VDP2 VRAM buffer
     ID3D11ShaderResourceView *srvVDP2VRAM = nullptr; //< SRV for VDP2 VRAM buffer
+    bool dirtyVDP2VRAM = true;                       //< Dirty flag VDP2 VRAM
 
     ID3D11Buffer *bufVDP2CRAM = nullptr;             //< VDP2 CRAM buffer
     ID3D11ShaderResourceView *srvVDP2CRAM = nullptr; //< SRV for VDP2 CRAM buffer
+    bool dirtyVDP2CRAM = true;                       //< Dirty flag for VDP2 CRAM
 
-    // TODO: VDP2 CRAM buffer (maybe precomputed colors?)
-
-    ID3D11Buffer *bufVDP2RenderState = nullptr;             //< VDP2 render state
+    ID3D11Buffer *bufVDP2RenderState = nullptr;             //< VDP2 render state structured buffer
     ID3D11ShaderResourceView *srvVDP2RenderState = nullptr; //< SRV for VDP2 render state
     VDP2RenderState cpuVDP2RenderState{};                   //< CPU-side VDP2 render state
+    bool dirtyVDP2RenderState = true;                       //< Dirty flag VDP2 render state
+
+    ID3D11Buffer *cbufVDP2RenderConfig = nullptr; //< VDP2 rendering configuration constant buffer
+    VDP2RenderConfig cpuVDP2RenderConfig{};       //< CPU-side VDP2 rendering configuration
 
     ID3D11Texture2D *texVDP2BGs = nullptr;           //< NBG0-3, RBG0-1 textures (in that order)
     ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG texture array
@@ -185,7 +177,7 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ComputeShader *csVDP2Compose = nullptr;       //< VDP2 compositor computeshader
 
     std::mutex mtxCmdList{};
-    ID3D11CommandList *cmdList = nullptr; //< Command list for the current frame
+    ID3D11CommandList *cmdList = nullptr; //< Pending command list for the latest frame
 };
 
 // -----------------------------------------------------------------------------
@@ -424,6 +416,26 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
 
+    // ---------------------------------
+
+    bufferDesc = {
+        .ByteWidth = sizeof(m_context->cpuVDP2RenderConfig),
+        .Usage = D3D11_USAGE_DYNAMIC,
+        .BindFlags = D3D11_BIND_CONSTANT_BUFFER,
+        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+        .MiscFlags = 0,
+        .StructureByteStride = 0,
+    };
+    bufferInitData = {
+        .pSysMem = &m_context->cpuVDP2RenderConfig,
+        .SysMemPitch = 0,
+        .SysMemSlicePitch = 0,
+    };
+    if (HRESULT hr = device->CreateBuffer(&bufferDesc, &bufferInitData, &m_context->cbufVDP2RenderConfig); FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
     // -------------------------------------------------------------------------
     // Shaders
 
@@ -509,6 +521,9 @@ bool Direct3D11VDPRenderer::IsValid() const {
 void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     VDP2UpdateEnabledBGs();
     m_nextY = 0;
+    m_context->dirtyVDP2VRAM = true;
+    m_context->dirtyVDP2CRAM = true;
+    m_context->dirtyVDP2RenderState = true;
 }
 
 // -----------------------------------------------------------------------------
@@ -549,16 +564,31 @@ void Direct3D11VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {}
 // -----------------------------------------------------------------------------
 // VDP2 memory and register writes
 
-void Direct3D11VDPRenderer::VDP2WriteVRAM(uint32 address, uint8 value) {}
+void Direct3D11VDPRenderer::VDP2WriteVRAM(uint32 address, uint8 value) {
+    m_context->dirtyVDP2VRAM = true;
+}
 
-void Direct3D11VDPRenderer::VDP2WriteVRAM(uint32 address, uint16 value) {}
+void Direct3D11VDPRenderer::VDP2WriteVRAM(uint32 address, uint16 value) {
+    // The address is always word-aligned, so the value will never straddle two pages
+    m_context->dirtyVDP2VRAM = true;
+}
 
-void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {}
+void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
+    m_context->dirtyVDP2CRAM = true;
+}
 
-void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {}
+void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
+    m_context->dirtyVDP2CRAM = true;
+}
 
 void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
+    m_context->dirtyVDP2RenderState = true;
+
+    // TODO: handle other register updates here
     switch (address) {
+    case 0x00E: // RAMCTL
+        m_context->dirtyVDP2CRAM = true;
+        break;
     case 0x020: [[fallthrough]]; // BGON
     case 0x028: [[fallthrough]]; // CHCTLA
     case 0x02A:                  // CHCTLB
@@ -598,7 +628,7 @@ void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::C
     // TODO: execute the command
     // - adjust clipping / submit polygon to a batch
     // - when a batch is full:
-    //   - submit for rendering with compute shader into an array of staging textures or a 3D texture
+    //   - submit for rendering with compute shader into an array of staging textures
     //     - texture size = VDP1 framebuffer size
     //     - each polygon must be drawn in a single thread, but multiple polygons can be rendered in parallel
     //   - merge them into the final VDP1 framebuffer in order
@@ -615,7 +645,6 @@ void Direct3D11VDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive
     m_HRes = h;
     m_VRes = v;
     m_exclusiveMonitor = exclusive;
-    // TODO: resize VDP2 framebuffer texture as needed
     Callbacks.VDP2ResolutionChanged(h, v);
 }
 
@@ -633,67 +662,30 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
 }
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
-    VDP2Regs &regs2 = m_state.regs2;
-    VDP2CalcAccessPatterns(regs2);
+    VDP2CalcAccessPatterns();
 
-    auto &state = m_context->cpuVDP2RenderState;
+    // TODO: move all of this to a thread to reduce impact on the emulator thread
+    // - need to manually update a copy of the VDP state using an event queue like the threaded software renderer
 
-    state.config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
-    state.config.displayParams.oddField = regs2.TVSTAT.ODD;
-    state.config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
-
-    // TODO: update in response to register writes only
-    // TODO: store registers and VRAM writes, cache textures, etc.
-    for (uint32 i = 0; i < 4; ++i) {
-        const auto &bgParams = regs2.bgParams[i + 1];
-        auto &stateParams = state.nbgParams[i];
-
-        auto &commonParams = stateParams.common;
-        commonParams.charPatAccess = (bgParams.charPatAccess[0] << 0) | (bgParams.charPatAccess[1] << 1) |
-                                     (bgParams.charPatAccess[2] << 2) | (bgParams.charPatAccess[3] << 3);
-        commonParams.charPatDelay = bgParams.charPatDelay;
-        commonParams.mosaicEnable = bgParams.mosaicEnable;
-        commonParams.transparencyEnable = bgParams.enableTransparency;
-        commonParams.colorCalcEnable = bgParams.colorCalcEnable;
-        commonParams.cramOffset = bgParams.cramOffset >> 8;
-        commonParams.colorFormat = static_cast<uint32>(bgParams.colorFormat);
-        commonParams.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
-        commonParams.specFuncSelect = bgParams.specialFunctionSelect;
-        commonParams.priorityNumber = bgParams.priorityNumber;
-        commonParams.priorityMode = static_cast<uint32>(bgParams.priorityMode);
-        commonParams.supplPalNum = bgParams.bitmap ? bgParams.supplBitmapPalNum : bgParams.supplScrollPalNum;
-        commonParams.supplColorCalcBit =
-            bgParams.bitmap ? bgParams.supplBitmapSpecialColorCalc : bgParams.supplScrollSpecialColorCalc;
-        commonParams.supplSpecPrioBit =
-            bgParams.bitmap ? bgParams.supplBitmapSpecialPriority : bgParams.supplScrollSpecialPriority;
-        commonParams.enabled = m_layerEnabled[i + 2];
-        commonParams.bitmap = bgParams.bitmap;
-
-        if (bgParams.bitmap) {
-            auto &bitmapParams = stateParams.typeSpecific.bitmap;
-            bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
-            bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
-        } else {
-            auto &scrollParams = stateParams.typeSpecific.scroll;
-            scrollParams.patNameAccess = (bgParams.patNameAccess[0] << 0) | (bgParams.patNameAccess[1] << 1) |
-                                         (bgParams.patNameAccess[2] << 2) | (bgParams.patNameAccess[3] << 3);
-            scrollParams.pageShiftH = bgParams.pageShiftH;
-            scrollParams.pageShiftV = bgParams.pageShiftV;
-            scrollParams.extChar = bgParams.extChar;
-            scrollParams.twoWordChar = bgParams.twoWordChar;
-            scrollParams.cellSizeShift = bgParams.cellSizeShift;
-            scrollParams.vertCellScroll = bgParams.verticalCellScrollEnable;
-            scrollParams.supplCharNum = bgParams.supplScrollCharNum;
-        }
-
-        state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
+    // FIXME: optimize VRAM updates somehow
+    // - main issue: Map() must be used with D3D11_MAP_WRITE_DISCARD which reallocates the whole buffer
+    //   - this is *slow* with a 512 KiB buffer, especially when it's changed 200+ times a frame (thanks Grandia!)
+    // - alternatives:
+    //   - split the VRAM buffer into smaller chunks that can be mapped individually and deal with the split in HLSL
+    //   - use a small staging buffer + CopySubresourceRegion in conjunction with a dirty bitmap
+    //     - also try changing the VRAM buffer usage from DYNAMIC to DEFAULT
+    //       - prevents Map() + memcpy to copy the whole VRAM, but can be done in chunks or with a big staging buffer
+    // - once done, reenable the dirty VRAM check below
+    // - might have to do the same trick with CRAM changes
+    if (/*m_context->dirtyVDP2VRAM ||*/ m_context->dirtyVDP2CRAM || m_context->dirtyVDP2RenderState) {
+        VDP2RenderLines(y);
     }
-    // TODO: calculate RBG page base addresses
-    // - extract shared code from the software renderer
 }
 
 void Direct3D11VDPRenderer::VDP2EndFrame() {
-    VDP2RenderLines(m_VRes - 1);
+    const bool vShift = m_state.regs2.TVMD.IsInterlaced() ? 1u : 0u;
+    const uint32 vres = m_VRes >> vShift;
+    VDP2RenderLines(vres - 1);
 
     auto *ctx = m_context->deferredCtx;
 
@@ -702,6 +694,8 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     ctx->CSSetUnorderedAccessViews(0, std::size(kNullUAVs), kNullUAVs, NULL);
     static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr, nullptr, nullptr};
     ctx->CSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
+    static constexpr ID3D11Buffer *kNullBuffers[] = {nullptr};
+    ctx->CSSetConstantBuffers(0, std::size(kNullBuffers), kNullBuffers);
 
     ID3D11CommandList *commandList = nullptr;
     if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
@@ -721,9 +715,106 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
     IVDPRenderer::VDP2UpdateEnabledBGs(m_state.regs2, m_vdp2DebugRenderOptions);
+
+    auto &state = m_context->cpuVDP2RenderState;
+    for (uint32 i = 0; i < 4; ++i) {
+        state.nbgParams[i].common.enabled = m_layerEnabled[i + 2];
+    }
+
+    m_context->dirtyVDP2RenderState = true;
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
+    const bool dirty = m_state.regs2.accessPatternsDirty;
+    IVDPRenderer::VDP2CalcAccessPatterns(m_state.regs2);
+    if (!dirty) {
+        return;
+    }
+
+    const VDP2Regs &regs2 = m_state.regs2;
+    auto &state = m_context->cpuVDP2RenderState;
+    for (uint32 i = 0; i < 4; ++i) {
+        const auto &bgParams = regs2.bgParams[i + 1];
+        auto &stateParams = state.nbgParams[i];
+
+        auto &commonParams = stateParams.common;
+        commonParams.charPatAccess = (bgParams.charPatAccess[0] << 0) | (bgParams.charPatAccess[1] << 1) |
+                                     (bgParams.charPatAccess[2] << 2) | (bgParams.charPatAccess[3] << 3);
+        commonParams.charPatDelay = bgParams.charPatDelay;
+
+        if (!bgParams.bitmap) {
+            auto &scrollParams = stateParams.typeSpecific.scroll;
+            scrollParams.patNameAccess = (bgParams.patNameAccess[0] << 0) | (bgParams.patNameAccess[1] << 1) |
+                                         (bgParams.patNameAccess[2] << 2) | (bgParams.patNameAccess[3] << 3);
+        }
+    }
+
+    m_context->dirtyVDP2RenderState = true;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderLines(uint32 y) {
+    // Bail out if there's nothing to render
+    if (y < m_nextY) {
+        return;
+    }
+
+    // ----------------------
+
+    const VDP2Regs &regs2 = m_state.regs2;
+    auto &state = m_context->cpuVDP2RenderState;
+    auto &config = m_context->cpuVDP2RenderConfig;
+
+    config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
+    config.displayParams.oddField = regs2.TVSTAT.ODD;
+    config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
+
+    // TODO: update these in response to register writes
+    for (uint32 i = 0; i < 4; ++i) {
+        const auto &bgParams = regs2.bgParams[i + 1];
+        auto &stateParams = state.nbgParams[i];
+
+        auto &commonParams = stateParams.common;
+        commonParams.mosaicEnable = bgParams.mosaicEnable;
+        commonParams.transparencyEnable = bgParams.enableTransparency;
+        commonParams.colorCalcEnable = bgParams.colorCalcEnable;
+        commonParams.cramOffset = bgParams.cramOffset >> 8;
+        commonParams.colorFormat = static_cast<uint32>(bgParams.colorFormat);
+        commonParams.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
+        commonParams.specFuncSelect = bgParams.specialFunctionSelect;
+        commonParams.priorityNumber = bgParams.priorityNumber;
+        commonParams.priorityMode = static_cast<uint32>(bgParams.priorityMode);
+        commonParams.bitmap = bgParams.bitmap;
+
+        if (bgParams.bitmap) {
+            commonParams.supplPalNum = bgParams.supplBitmapPalNum;
+            commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
+            commonParams.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
+
+            auto &bitmapParams = stateParams.typeSpecific.bitmap;
+            bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
+            bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
+        } else {
+            commonParams.supplPalNum = bgParams.supplScrollPalNum;
+            commonParams.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
+            commonParams.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
+
+            auto &scrollParams = stateParams.typeSpecific.scroll;
+            scrollParams.pageShiftH = bgParams.pageShiftH;
+            scrollParams.pageShiftV = bgParams.pageShiftV;
+            scrollParams.extChar = bgParams.extChar;
+            scrollParams.twoWordChar = bgParams.twoWordChar;
+            scrollParams.cellSizeShift = bgParams.cellSizeShift;
+            scrollParams.vertCellScroll = bgParams.verticalCellScrollEnable;
+            scrollParams.supplCharNum = bgParams.supplScrollCharNum;
+        }
+
+        state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
+    }
+    // TODO: calculate RBG page base addresses
+    // - extract shared code from the software renderer
+
+    // ----------------------
+
     // Generate command list for frame
     auto *ctx = m_context->deferredCtx;
 
@@ -738,72 +829,100 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderLines(uint32 y) {
 
     // Update VDP2 VRAM
     // TODO: update only what's necessary
-    ctx->Map(m_context->bufVDP2VRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, m_state.VRAM2.data(), vdp::kVDP2VRAMSize);
-    ctx->Unmap(m_context->bufVDP2VRAM, 0);
+    if (m_context->dirtyVDP2VRAM) {
+        m_context->dirtyVDP2VRAM = false;
+        HRESULT hr = ctx->Map(m_context->bufVDP2VRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+        memcpy(mappedResource.pData, m_state.VRAM2.data(), m_state.VRAM2.size());
+        ctx->Unmap(m_context->bufVDP2VRAM, 0);
+    }
 
     // Update VDP2 CRAM
     // TODO: update only what's necessary
-    switch (m_state.regs2.vramControl.colorRAMMode) {
-    case 0:
-        for (uint32 i = 0; i < 1024; ++i) {
-            const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
-            const Color555 color5{.u16 = value};
-            const Color888 color8 = ConvertRGB555to888(color5);
-            m_CRAMCache[i][0] = color8.r;
-            m_CRAMCache[i][1] = color8.g;
-            m_CRAMCache[i][2] = color8.b;
+    if (m_context->dirtyVDP2CRAM) {
+        m_context->dirtyVDP2CRAM = false;
+
+        switch (m_state.regs2.vramControl.colorRAMMode) {
+        case 0:
+            for (uint32 i = 0; i < 1024; ++i) {
+                const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
+                const Color555 color5{.u16 = value};
+                const Color888 color8 = ConvertRGB555to888(color5);
+                m_CRAMCache[i][0] = color8.r;
+                m_CRAMCache[i][1] = color8.g;
+                m_CRAMCache[i][2] = color8.b;
+            }
+            break;
+        case 1:
+            for (uint32 i = 0; i < 2048; ++i) {
+                const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
+                const Color555 color5{.u16 = value};
+                const Color888 color8 = ConvertRGB555to888(color5);
+                m_CRAMCache[i][0] = color8.r;
+                m_CRAMCache[i][1] = color8.g;
+                m_CRAMCache[i][2] = color8.b;
+            }
+            break;
+        case 2: [[fallthrough]];
+        case 3: [[fallthrough]];
+        default:
+            for (uint32 i = 0; i < 1024; ++i) {
+                const uint32 value = util::ReadBE<uint32>(&m_state.CRAM[i * sizeof(uint32)]);
+                const Color888 color8{.u32 = value};
+                m_CRAMCache[i][0] = color8.r;
+                m_CRAMCache[i][1] = color8.g;
+                m_CRAMCache[i][2] = color8.b;
+            }
+            break;
         }
-        break;
-    case 1:
-        for (uint32 i = 0; i < 2048; ++i) {
-            const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
-            const Color555 color5{.u16 = value};
-            const Color888 color8 = ConvertRGB555to888(color5);
-            m_CRAMCache[i][0] = color8.r;
-            m_CRAMCache[i][1] = color8.g;
-            m_CRAMCache[i][2] = color8.b;
-        }
-        break;
-    case 2: [[fallthrough]];
-    case 3: [[fallthrough]];
-    default:
-        for (uint32 i = 0; i < 1024; ++i) {
-            const uint32 value = util::ReadBE<uint32>(&m_state.CRAM[i * sizeof(uint32)]);
-            const Color888 color8{.u32 = value};
-            m_CRAMCache[i][0] = color8.r;
-            m_CRAMCache[i][1] = color8.g;
-            m_CRAMCache[i][2] = color8.b;
-        }
-        break;
+
+        ctx->Map(m_context->bufVDP2CRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+        memcpy(mappedResource.pData, m_CRAMCache.data(), sizeof(m_CRAMCache));
+        ctx->Unmap(m_context->bufVDP2CRAM, 0);
     }
-    ctx->Map(m_context->bufVDP2CRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, m_CRAMCache.data(), sizeof(m_CRAMCache));
-    ctx->Unmap(m_context->bufVDP2CRAM, 0);
 
     // Update VDP2 rendering state
-    // TODO: update only what's necessary
-    m_context->cpuVDP2RenderState.config.startY = m_nextY;
-    ctx->Map(m_context->bufVDP2RenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderState, sizeof(m_context->cpuVDP2RenderState));
-    ctx->Unmap(m_context->bufVDP2RenderState, 0);
+    if (m_context->dirtyVDP2RenderState) {
+        m_context->dirtyVDP2RenderState = false;
+        ctx->Map(m_context->bufVDP2RenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+        memcpy(mappedResource.pData, &m_context->cpuVDP2RenderState, sizeof(m_context->cpuVDP2RenderState));
+        ctx->Unmap(m_context->bufVDP2RenderState, 0);
+    }
 
-    const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
-    const uint32 vresShift = interlaced ? 1 : 0;
+    // Update VDP2 rendering configuration
+    m_context->cpuVDP2RenderConfig.startY = m_nextY;
+    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
+    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
+
+    const uint32 numLines = y - m_nextY + 1;
+
+    // TODO: resource management
 
     // Draw NBGs and RBGs
     ID3D11ShaderResourceView *srvs[] = {m_context->srvVDP2VRAM, m_context->srvVDP2CRAM, m_context->srvVDP2RenderState};
+    ctx->CSSetConstantBuffers(0, 1, &m_context->cbufVDP2RenderConfig);
     ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavVDP2BGs, nullptr);
     ctx->CSSetShaderResources(0, std::size(srvs), srvs);
     ctx->CSSetShader(m_context->csVDP2BGs, nullptr, 0);
-    ctx->Dispatch(m_HRes / 32, (m_VRes >> vresShift), 1);
+    ctx->Dispatch(m_HRes / 32, numLines, 1);
 
     // Compose final image
-    ID3D11ShaderResourceView *srvsCompose[] = {m_context->srvVDP2BGs, nullptr, nullptr};
+    srvs[0] = m_context->srvVDP2BGs;
+    srvs[1] = nullptr;
+    srvs[2] = nullptr;
+    // (reuse constant buffer)
     ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavVDP2Output, nullptr);
-    ctx->CSSetShaderResources(0, std::size(srvsCompose), srvsCompose);
+    ctx->CSSetShaderResources(0, std::size(srvs), srvs);
     ctx->CSSetShader(m_context->csVDP2Compose, nullptr, 0);
-    ctx->Dispatch(m_HRes / 32, m_VRes, 1);
+    ctx->Dispatch(m_HRes / 32, numLines, 1);
+
+    // Cleanup
+    {
+        static constexpr ID3D11UnorderedAccessView *kNullUAVs[] = {nullptr};
+        ctx->CSSetUnorderedAccessViews(0, std::size(kNullUAVs), kNullUAVs, NULL);
+        static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr, nullptr, nullptr};
+        ctx->CSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
+    }
 
     // Update next Y render target
     m_nextY = y + 1;

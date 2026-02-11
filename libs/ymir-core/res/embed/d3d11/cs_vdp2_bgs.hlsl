@@ -4,8 +4,11 @@ struct Config {
     uint2 _padding;
 };
 
-struct VDP2RenderState {
+cbuffer Config : register(b0) {
     Config config;
+}
+
+struct VDP2RenderState {
     uint nbgParams[4][2];
     
     // TODO: NBG scroll amounts (H/V)
@@ -81,9 +84,9 @@ uint ReadVRAM32(uint address) {
 }
 
 uint GetY(uint y) {
-    const bool interlaced = renderState[0].config.displayParams & 1;
-    const bool odd = (renderState[0].config.displayParams >> 1) & 1;
-    const bool exclusiveMonitor = (renderState[0].config.displayParams >> 2) & 1;
+    const bool interlaced = config.displayParams & 1;
+    const bool odd = (config.displayParams >> 1) & 1;
+    const bool exclusiveMonitor = (config.displayParams >> 2) & 1;
     if (interlaced && !exclusiveMonitor) {
         return (y << 1) | (odd /* TODO & !deinterlace */);
     } else {
@@ -321,10 +324,11 @@ uint4 DrawRBG(uint2 pos, uint index) {
 
 [numthreads(32, 1, 6)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = id.xy + uint2(0, renderState[0].config.startY);
+    const uint2 drawCoord = id.xy + uint2(0, config.startY);
+    const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z);
     if (id.z < 4) {
-        textureOut[uint3(id.x, GetY(id.y), id.z)] = DrawNBG(drawCoord, id.z);
+        textureOut[outCoord] = DrawNBG(drawCoord, id.z);
     } else {
-        textureOut[id] = DrawRBG(drawCoord, id.z - 4);
+        textureOut[outCoord] = DrawRBG(drawCoord, id.z - 4);
     }
 }
