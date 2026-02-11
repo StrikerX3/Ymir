@@ -101,9 +101,7 @@ ID3DBlob *D3DShaderCache::GetOrCompileShader(ShaderType type, std::string_view c
     static constexpr UINT kDebugFlags =
         D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_DEBUG | D3DCOMPILE_DEBUG_NAME_FOR_SOURCE;
 
-    // TODO: debug flag
-    const bool debug = true;
-    UINT flags = debug ? kDebugFlags : kNormalFlags;
+    UINT flags = m_debug ? kDebugFlags : kNormalFlags;
 
     if (HRESULT hr = D3DCompile(code.data(), code.size(), NULL, macros, NULL, entrypoint.data(),
                                 GetShaderTargetForType(type), flags, 0, &blob, &errors);

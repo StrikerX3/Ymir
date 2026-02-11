@@ -9,12 +9,15 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
+#include <fmt/format.h>
+
 #include <cmrc/cmrc.hpp>
 
 #include <cassert>
 #include <mutex>
-#include <numbers> // for testing only
 #include <string_view>
+#include <utility>
+#include <vector>
 
 CMRC_DECLARE(Ymir_core_rc);
 
@@ -97,11 +100,8 @@ struct alignas(16) VDP2RenderState {
 // -----------------------------------------------------------------------------
 // Renderer context
 
-struct VRAMWrite {
-    uint32 address;
-    uint16 value;
-    bool word; // false = 8-bit, true = 16-bit
-};
+static constexpr uint32 kVDP2VRAMPageBits = 12;
+static constexpr uint32 kVDP2VRAMPages = vdp::kVDP2VRAMSize >> kVDP2VRAMPageBits;
 
 struct Direct3D11VDPRenderer::Context {
     ~Context() {
@@ -110,6 +110,7 @@ struct Direct3D11VDPRenderer::Context {
         d3dutil::SafeRelease(vsIdentity);
         d3dutil::SafeRelease(bufVDP2VRAM);
         d3dutil::SafeRelease(srvVDP2VRAM);
+        d3dutil::SafeRelease(bufVDP2VRAMPages);
         d3dutil::SafeRelease(bufVDP2CRAM);
         d3dutil::SafeRelease(srvVDP2CRAM);
         d3dutil::SafeRelease(bufVDP2RenderState);
@@ -124,7 +125,9 @@ struct Direct3D11VDPRenderer::Context {
         d3dutil::SafeRelease(csVDP2Compose);
         {
             std::unique_lock lock{mtxCmdList};
-            d3dutil::SafeRelease(cmdList);
+            for (ID3D11CommandList *cmdList : cmdListQueue) {
+                d3dutil::SafeRelease(cmdList);
+            }
         }
     }
 
@@ -132,6 +135,9 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11DeviceContext *deferredCtx = nullptr;
 
     ID3D11VertexShader *vsIdentity = nullptr; //< Identity/passthrough vertex shader, required to run pixel shaders
+
+    // TODO: consider using WIL
+    // - https://github.com/microsoft/wil
 
     // VDP1 rendering process idea:
     // - batch polygons
@@ -151,9 +157,10 @@ struct Direct3D11VDPRenderer::Context {
 
     // -------------------------------------------------------------------------
 
-    ID3D11Buffer *bufVDP2VRAM = nullptr;             //< VDP2 VRAM buffer
-    ID3D11ShaderResourceView *srvVDP2VRAM = nullptr; //< SRV for VDP2 VRAM buffer
-    bool dirtyVDP2VRAM = true;                       //< Dirty flag VDP2 VRAM
+    ID3D11Buffer *bufVDP2VRAM = nullptr;                              //< VDP2 VRAM buffer
+    ID3D11ShaderResourceView *srvVDP2VRAM = nullptr;                  //< SRV for VDP2 VRAM buffer
+    d3dutil::DirtyBitmap<kVDP2VRAMPages> dirtyVDP2VRAM = {};          //< Dirty bitmap for VDP2 VRAM
+    std::array<ID3D11Buffer *, kVDP2VRAMPages> bufVDP2VRAMPages = {}; //< VDP2 VRAM page buffers
 
     ID3D11Buffer *bufVDP2CRAM = nullptr;             //< VDP2 CRAM buffer
     ID3D11ShaderResourceView *srvVDP2CRAM = nullptr; //< SRV for VDP2 CRAM buffer
@@ -177,7 +184,137 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ComputeShader *csVDP2Compose = nullptr;       //< VDP2 compositor computeshader
 
     std::mutex mtxCmdList{};
-    ID3D11CommandList *cmdList = nullptr; //< Pending command list for the latest frame
+    std::vector<ID3D11CommandList *> cmdListQueue; //< Pending command list queue
+
+    // -------------------------------------------------------------------------
+    // Resource management
+
+    void VSSetConstantBuffers(std::initializer_list<ID3D11Buffer *> bufs) {
+        SetConstantBuffers(bufs, m_resVS.cbufs);
+    }
+
+    void VSSetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> uavs) {
+        SetUnorderedAccessViews(uavs, m_resVS.uavs);
+    }
+
+    void VSSetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> srvs) {
+        SetShaderResources(srvs, m_resVS.srvs);
+    }
+
+    void VSSetShader(ID3D11VertexShader *shader) {
+        if (shader != m_curVS) {
+            m_curVS = shader;
+            deferredCtx->VSSetShader(shader, nullptr, 0);
+        }
+    }
+
+    void PSSetConstantBuffers(std::initializer_list<ID3D11Buffer *> bufs) {
+        SetConstantBuffers(bufs, m_resPS.cbufs);
+    }
+
+    void PSSetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> uavs) {
+        SetUnorderedAccessViews(uavs, m_resPS.uavs);
+    }
+
+    void PSSetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> srvs) {
+        SetShaderResources(srvs, m_resPS.srvs);
+    }
+
+    void PSSetShader(ID3D11PixelShader *shader) {
+        if (shader != m_curPS) {
+            m_curPS = shader;
+            deferredCtx->PSSetShader(shader, nullptr, 0);
+        }
+    }
+
+    void CSSetConstantBuffers(std::initializer_list<ID3D11Buffer *> bufs) {
+        SetConstantBuffers(bufs, m_resCS.cbufs);
+    }
+
+    void CSSetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> uavs) {
+        SetUnorderedAccessViews(uavs, m_resCS.uavs);
+    }
+
+    void CSSetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> srvs) {
+        SetShaderResources(srvs, m_resCS.srvs);
+    }
+
+    void CSSetShader(ID3D11ComputeShader *shader) {
+        if (shader != m_curCS) {
+            m_curCS = shader;
+            deferredCtx->CSSetShader(shader, nullptr, 0);
+        }
+    }
+
+    void ResetResources() {
+        m_resVS.Reset();
+        m_resPS.Reset();
+        m_resCS.Reset();
+        m_curVS = nullptr;
+        m_curPS = nullptr;
+        m_curCS = nullptr;
+    }
+
+private:
+    struct Resources {
+        void Reset() {
+            cbufs.clear();
+            srvs.clear();
+            uavs.clear();
+        }
+
+        std::vector<ID3D11Buffer *> cbufs;
+        std::vector<ID3D11ShaderResourceView *> srvs;
+        std::vector<ID3D11UnorderedAccessView *> uavs;
+    };
+
+    template <typename T>
+    bool UpdateResources(std::initializer_list<T *> src, std::vector<T *> &dst) {
+        if (!dst.empty() && dst.size() == src.size() && std::equal(src.begin(), src.end(), dst.begin())) {
+            return false;
+        }
+        if (src.size() > dst.size()) {
+            dst.resize(src.size());
+        }
+        std::copy(src.begin(), src.end(), dst.begin());
+        if (src.size() < dst.size()) {
+            std::fill(dst.begin() + src.size(), dst.end(), nullptr);
+        }
+        return true;
+    }
+
+    void SetConstantBuffers(std::initializer_list<ID3D11Buffer *> src, std::vector<ID3D11Buffer *> &dst) {
+        if (!UpdateResources(src, dst)) {
+            return;
+        }
+        deferredCtx->CSSetConstantBuffers(0, dst.size(), dst.data());
+        dst.resize(src.size());
+    }
+
+    void SetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> src,
+                                 std::vector<ID3D11UnorderedAccessView *> &dst) {
+        if (!UpdateResources(src, dst)) {
+            return;
+        }
+        deferredCtx->CSSetUnorderedAccessViews(0, dst.size(), dst.data(), nullptr);
+        dst.resize(src.size());
+    }
+
+    void SetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> src,
+                            std::vector<ID3D11ShaderResourceView *> &dst) {
+        if (!UpdateResources(src, dst)) {
+            return;
+        }
+        deferredCtx->CSSetShaderResources(0, dst.size(), dst.data());
+        dst.resize(src.size());
+    }
+
+    Resources m_resVS;
+    ID3D11VertexShader *m_curVS = nullptr;
+    Resources m_resPS;
+    ID3D11PixelShader *m_curPS = nullptr;
+    Resources m_resCS;
+    ID3D11ComputeShader *m_curCS = nullptr;
 };
 
 // -----------------------------------------------------------------------------
@@ -192,10 +329,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     , m_restoreState(restoreState)
     , m_context(std::make_unique<Context>()) {
 
-    // TODO: consider using WIL
-    // - https://github.com/microsoft/wil
-
-    auto &shaderCache = d3dutil::D3DShaderCache::Instance(true);
+    auto &shaderCache = d3dutil::D3DShaderCache::Instance(false);
 
     D3D11_TEXTURE2D_DESC texDesc{};
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -313,9 +447,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
     bufferDesc = {
         .ByteWidth = vdp::kVDP2VRAMSize,
-        .Usage = D3D11_USAGE_DYNAMIC,
+        .Usage = D3D11_USAGE_DEFAULT,
         .BindFlags = D3D11_BIND_SHADER_RESOURCE,
-        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+        .CPUAccessFlags = 0,
         .MiscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS,
         .StructureByteStride = 0,
     };
@@ -343,6 +477,23 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         FAILED(hr)) {
         // TODO: report error
         return;
+    }
+
+    // ---------------------------------
+
+    bufferDesc = {
+        .ByteWidth = 1u << kVDP2VRAMPageBits,
+        .Usage = D3D11_USAGE_DYNAMIC,
+        .BindFlags = D3D11_BIND_SHADER_RESOURCE,
+        .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+        .MiscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS,
+        .StructureByteStride = 0,
+    };
+    for (auto &buf : m_context->bufVDP2VRAMPages) {
+        if (HRESULT hr = device->CreateBuffer(&bufferDesc, nullptr, &buf); FAILED(hr)) {
+            // TODO: report error
+            return;
+        }
     }
 
     // ---------------------------------
@@ -472,39 +623,40 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     d3dutil::SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
     d3dutil::SetDebugName(m_context->bufVDP2VRAM, "[Ymir D3D11] VDP2 VRAM buffer");
     d3dutil::SetDebugName(m_context->srvVDP2VRAM, "[Ymir D3D11] VDP2 VRAM SRV");
+    for (uint32 i = 0; auto *buf : m_context->bufVDP2VRAMPages) {
+        d3dutil::SetDebugName(buf, fmt::format("[Ymir D3D11] VDP2 VRAM page buffer #{}", i));
+        ++i;
+    }
     d3dutil::SetDebugName(m_context->bufVDP2CRAM, "[Ymir D3D11] VDP2 CRAM buffer");
     d3dutil::SetDebugName(m_context->srvVDP2CRAM, "[Ymir D3D11] VDP2 CRAM SRV");
     d3dutil::SetDebugName(m_context->bufVDP2RenderState, "[Ymir D3D11] VDP2 render state buffer");
     d3dutil::SetDebugName(m_context->srvVDP2RenderState, "[Ymir D3D11] VDP2 render state SRV");
+    d3dutil::SetDebugName(m_context->cbufVDP2RenderConfig, "[Ymir D3D11] VDP2 rendering configuration constant buffer");
     d3dutil::SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG texture array");
-    d3dutil::SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
     d3dutil::SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
+    d3dutil::SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
     d3dutil::SetDebugName(m_context->csVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG compute shader");
     d3dutil::SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
     d3dutil::SetDebugName(m_context->uavVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
     d3dutil::SetDebugName(m_context->csVDP2Compose, "[Ymir D3D11] VDP2 framebuffer compute shader");
-    d3dutil::SetDebugName(m_context->cmdList, "[Ymir D3D11] Command list");
 
     m_valid = true;
 }
 
 Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
-bool Direct3D11VDPRenderer::ExecutePendingCommandList() {
-    ID3D11CommandList *cmdList;
-    {
-        std::unique_lock lock{m_context->mtxCmdList};
-        if (m_context->cmdList == nullptr) {
-            return false;
-        }
-        cmdList = m_context->cmdList;
-        m_context->cmdList = nullptr;
+void Direct3D11VDPRenderer::ExecutePendingCommandList() {
+    std::unique_lock lock{m_context->mtxCmdList};
+    if (m_context->cmdListQueue.empty()) {
+        return;
     }
-    HwCallbacks.PreExecuteCommandList();
-    m_context->immediateCtx->ExecuteCommandList(cmdList, m_restoreState);
-    cmdList->Release();
-    cmdList = nullptr;
-    return true;
+    for (ID3D11CommandList *cmdList : m_context->cmdListQueue) {
+        HwCallbacks.PreExecuteCommandList();
+        m_context->immediateCtx->ExecuteCommandList(cmdList, m_restoreState);
+        cmdList->Release();
+        HwCallbacks.PostExecuteCommandList();
+    }
+    m_context->cmdListQueue.clear();
 }
 
 ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {
@@ -520,10 +672,12 @@ bool Direct3D11VDPRenderer::IsValid() const {
 
 void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     VDP2UpdateEnabledBGs();
-    m_nextY = 0;
-    m_context->dirtyVDP2VRAM = true;
+    m_nextVDP2BGY = 0;
+    m_nextVDP2ComposeY = 0;
+    m_context->dirtyVDP2VRAM.SetAll();
     m_context->dirtyVDP2CRAM = true;
     m_context->dirtyVDP2RenderState = true;
+    m_context->ResetResources();
 }
 
 // -----------------------------------------------------------------------------
@@ -565,12 +719,12 @@ void Direct3D11VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {}
 // VDP2 memory and register writes
 
 void Direct3D11VDPRenderer::VDP2WriteVRAM(uint32 address, uint8 value) {
-    m_context->dirtyVDP2VRAM = true;
+    m_context->dirtyVDP2VRAM.Set(address >> kVDP2VRAMPageBits);
 }
 
 void Direct3D11VDPRenderer::VDP2WriteVRAM(uint32 address, uint16 value) {
     // The address is always word-aligned, so the value will never straddle two pages
-    m_context->dirtyVDP2VRAM = true;
+    m_context->dirtyVDP2VRAM.Set(address >> kVDP2VRAMPageBits);
 }
 
 void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
@@ -611,6 +765,9 @@ void Direct3D11VDPRenderer::DumpExtraVDP1Framebuffers(std::ostream &out) const {
 
 // -----------------------------------------------------------------------------
 // Rendering process
+
+// TODO: move all of this to a thread to reduce impact on the emulator thread
+// - need to manually update a copy of the VDP state using an event queue like the threaded software renderer
 
 void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {}
 
@@ -658,56 +815,56 @@ void Direct3D11VDPRenderer::VDP2LatchTVMD() {
 
 void Direct3D11VDPRenderer::VDP2BeginFrame() {
     // TODO: initialize VDP2 frame
-    m_nextY = 0;
+    m_nextVDP2BGY = 0;
+    m_nextVDP2ComposeY = 0;
+
+    m_context->ResetResources();
+
+    m_context->VSSetShaderResources({});
+    m_context->VSSetShader(m_context->vsIdentity);
+
+    m_context->PSSetShaderResources({});
+    m_context->PSSetShader(nullptr);
 }
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     VDP2CalcAccessPatterns();
 
-    // TODO: move all of this to a thread to reduce impact on the emulator thread
-    // - need to manually update a copy of the VDP state using an event queue like the threaded software renderer
-
-    // FIXME: optimize VRAM updates somehow
-    // - main issue: Map() must be used with D3D11_MAP_WRITE_DISCARD which reallocates the whole buffer
-    //   - this is *slow* with a 512 KiB buffer, especially when it's changed 200+ times a frame (thanks Grandia!)
-    // - alternatives:
-    //   - split the VRAM buffer into smaller chunks that can be mapped individually and deal with the split in HLSL
-    //   - use a small staging buffer + CopySubresourceRegion in conjunction with a dirty bitmap
-    //     - also try changing the VRAM buffer usage from DYNAMIC to DEFAULT
-    //       - prevents Map() + memcpy to copy the whole VRAM, but can be done in chunks or with a big staging buffer
-    // - once done, reenable the dirty VRAM check below
-    // - might have to do the same trick with CRAM changes
-    if (/*m_context->dirtyVDP2VRAM ||*/ m_context->dirtyVDP2CRAM || m_context->dirtyVDP2RenderState) {
-        VDP2RenderLines(y);
+    const bool renderBGs = m_context->dirtyVDP2VRAM || m_context->dirtyVDP2CRAM || m_context->dirtyVDP2RenderState;
+    const bool compose = m_context->dirtyVDP2RenderState;
+    if (renderBGs) {
+        VDP2RenderBGLines(y);
+    }
+    if (compose) {
+        VDP2ComposeLines(y);
     }
 }
 
 void Direct3D11VDPRenderer::VDP2EndFrame() {
     const bool vShift = m_state.regs2.TVMD.IsInterlaced() ? 1u : 0u;
     const uint32 vres = m_VRes >> vShift;
-    VDP2RenderLines(vres - 1);
+    VDP2RenderBGLines(vres - 1);
+    VDP2ComposeLines(m_VRes - 1);
 
     auto *ctx = m_context->deferredCtx;
 
     // Cleanup
-    static constexpr ID3D11UnorderedAccessView *kNullUAVs[] = {nullptr};
-    ctx->CSSetUnorderedAccessViews(0, std::size(kNullUAVs), kNullUAVs, NULL);
-    static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr, nullptr, nullptr};
-    ctx->CSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
-    static constexpr ID3D11Buffer *kNullBuffers[] = {nullptr};
-    ctx->CSSetConstantBuffers(0, std::size(kNullBuffers), kNullBuffers);
+    m_context->CSSetUnorderedAccessViews({});
+    m_context->CSSetShaderResources({});
+    m_context->CSSetConstantBuffers({});
 
     ID3D11CommandList *commandList = nullptr;
     if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
         return;
     }
+    d3dutil::SetDebugName(commandList, "[Ymir D3D11] Command list");
 
-    // Replace pending command list
+    // Append to pending command list queue
     {
         std::unique_lock lock{m_context->mtxCmdList};
-        d3dutil::SafeRelease(m_context->cmdList);
-        m_context->cmdList = commandList;
+        m_context->cmdListQueue.push_back(commandList);
     }
+
     HwCallbacks.CommandListReady();
 
     Callbacks.VDP2DrawFinished();
@@ -752,21 +909,168 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
     m_context->dirtyVDP2RenderState = true;
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderLines(uint32 y) {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     // Bail out if there's nothing to render
-    if (y < m_nextY) {
+    if (y < m_nextVDP2BGY) {
         return;
     }
 
     // ----------------------
 
+    auto *ctx = m_context->deferredCtx;
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+
+    VDP2UpdateVRAM();
+    VDP2UpdateCRAM();
+    VDP2UpdateRenderState();
+
+    // Update VDP2 rendering configuration
     const VDP2Regs &regs2 = m_state.regs2;
-    auto &state = m_context->cpuVDP2RenderState;
     auto &config = m_context->cpuVDP2RenderConfig;
 
     config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
     config.displayParams.oddField = regs2.TVSTAT.ODD;
     config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
+
+    m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY;
+    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
+    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
+
+    // Determine how many lines to draw and update next scanline counter
+    const uint32 numLines = y - m_nextVDP2BGY + 1;
+    m_nextVDP2BGY = y + 1;
+
+    // Draw NBGs and RBGs
+    m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    m_context->CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CRAM, m_context->srvVDP2RenderState});
+    m_context->CSSetUnorderedAccessViews({m_context->uavVDP2BGs});
+    m_context->CSSetShader(m_context->csVDP2BGs);
+    ctx->Dispatch(m_HRes / 32, numLines, 1);
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
+    // Bail out if there's nothing to render
+    if (y < m_nextVDP2ComposeY) {
+        return;
+    }
+
+    // ----------------------
+
+    auto *ctx = m_context->deferredCtx;
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+
+    VDP2UpdateRenderState();
+
+    // Update VDP2 rendering configuration
+    const VDP2Regs &regs2 = m_state.regs2;
+    auto &config = m_context->cpuVDP2RenderConfig;
+
+    config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
+    config.displayParams.oddField = regs2.TVSTAT.ODD;
+    config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
+
+    m_context->cpuVDP2RenderConfig.startY = m_nextVDP2ComposeY;
+    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
+    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
+
+    // Determine how many lines to draw and update next scanline counter
+    const uint32 numLines = y - m_nextVDP2ComposeY + 1;
+    m_nextVDP2ComposeY = y + 1;
+
+    // Compose final image
+    m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    m_context->CSSetUnorderedAccessViews({m_context->uavVDP2Output});
+    m_context->CSSetShaderResources({m_context->srvVDP2BGs});
+    m_context->CSSetShader(m_context->csVDP2Compose);
+    ctx->Dispatch(m_HRes / 32, numLines, 1);
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {
+    if (!m_context->dirtyVDP2VRAM) {
+        return;
+    }
+
+    auto *ctx = m_context->deferredCtx;
+
+    m_context->dirtyVDP2VRAM.Process([&](uint64 offset, uint64 count) {
+        uint32 vramOffset = offset << kVDP2VRAMPageBits;
+        static constexpr uint32 kBufSize = 1u << kVDP2VRAMPageBits;
+        static constexpr D3D11_BOX kSrcBox{0, 0, 0, kBufSize, 1, 1};
+        // TODO: coalesce larger segments by using larger staging buffers
+        while (count > 0) {
+            ID3D11Buffer *bufStaging = m_context->bufVDP2VRAMPages[offset];
+            ++offset;
+            --count;
+
+            D3D11_MAPPED_SUBRESOURCE mappedResource;
+            HRESULT hr = ctx->Map(bufStaging, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+            memcpy(mappedResource.pData, &m_state.VRAM2[vramOffset], kBufSize);
+            ctx->Unmap(bufStaging, 0);
+            ctx->CopySubresourceRegion(m_context->bufVDP2VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
+            vramOffset += kBufSize;
+        }
+    });
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
+    if (!m_context->dirtyVDP2CRAM) {
+        return;
+    }
+    m_context->dirtyVDP2CRAM = false;
+
+    auto *ctx = m_context->deferredCtx;
+
+    // TODO: consider updating on writes to CRAM and changes to color RAM mode register
+    switch (m_state.regs2.vramControl.colorRAMMode) {
+    case 0:
+        for (uint32 i = 0; i < 1024; ++i) {
+            const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
+            const Color555 color5{.u16 = value};
+            const Color888 color8 = ConvertRGB555to888(color5);
+            m_CRAMCache[i][0] = color8.r;
+            m_CRAMCache[i][1] = color8.g;
+            m_CRAMCache[i][2] = color8.b;
+        }
+        break;
+    case 1:
+        for (uint32 i = 0; i < 2048; ++i) {
+            const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
+            const Color555 color5{.u16 = value};
+            const Color888 color8 = ConvertRGB555to888(color5);
+            m_CRAMCache[i][0] = color8.r;
+            m_CRAMCache[i][1] = color8.g;
+            m_CRAMCache[i][2] = color8.b;
+        }
+        break;
+    case 2: [[fallthrough]];
+    case 3: [[fallthrough]];
+    default:
+        for (uint32 i = 0; i < 1024; ++i) {
+            const uint32 value = util::ReadBE<uint32>(&m_state.CRAM[i * sizeof(uint32)]);
+            const Color888 color8{.u32 = value};
+            m_CRAMCache[i][0] = color8.r;
+            m_CRAMCache[i][1] = color8.g;
+            m_CRAMCache[i][2] = color8.b;
+        }
+        break;
+    }
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    ctx->Map(m_context->bufVDP2CRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, m_CRAMCache.data(), sizeof(m_CRAMCache));
+    ctx->Unmap(m_context->bufVDP2CRAM, 0);
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
+    if (!m_context->dirtyVDP2RenderState) {
+        return;
+    }
+    m_context->dirtyVDP2RenderState = false;
+
+    const VDP2Regs &regs2 = m_state.regs2;
+    auto &state = m_context->cpuVDP2RenderState;
 
     // TODO: update these in response to register writes
     for (uint32 i = 0; i < 4; ++i) {
@@ -813,119 +1117,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderLines(uint32 y) {
     // TODO: calculate RBG page base addresses
     // - extract shared code from the software renderer
 
-    // ----------------------
-
-    // Generate command list for frame
     auto *ctx = m_context->deferredCtx;
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
-
-    static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr};
-    ctx->VSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
-    ctx->VSSetShader(m_context->vsIdentity, nullptr, 0);
-
-    ctx->PSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
-    ctx->PSSetShader(nullptr, nullptr, 0);
-
-    // Update VDP2 VRAM
-    // TODO: update only what's necessary
-    if (m_context->dirtyVDP2VRAM) {
-        m_context->dirtyVDP2VRAM = false;
-        HRESULT hr = ctx->Map(m_context->bufVDP2VRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-        memcpy(mappedResource.pData, m_state.VRAM2.data(), m_state.VRAM2.size());
-        ctx->Unmap(m_context->bufVDP2VRAM, 0);
-    }
-
-    // Update VDP2 CRAM
-    // TODO: update only what's necessary
-    if (m_context->dirtyVDP2CRAM) {
-        m_context->dirtyVDP2CRAM = false;
-
-        switch (m_state.regs2.vramControl.colorRAMMode) {
-        case 0:
-            for (uint32 i = 0; i < 1024; ++i) {
-                const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
-                const Color555 color5{.u16 = value};
-                const Color888 color8 = ConvertRGB555to888(color5);
-                m_CRAMCache[i][0] = color8.r;
-                m_CRAMCache[i][1] = color8.g;
-                m_CRAMCache[i][2] = color8.b;
-            }
-            break;
-        case 1:
-            for (uint32 i = 0; i < 2048; ++i) {
-                const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
-                const Color555 color5{.u16 = value};
-                const Color888 color8 = ConvertRGB555to888(color5);
-                m_CRAMCache[i][0] = color8.r;
-                m_CRAMCache[i][1] = color8.g;
-                m_CRAMCache[i][2] = color8.b;
-            }
-            break;
-        case 2: [[fallthrough]];
-        case 3: [[fallthrough]];
-        default:
-            for (uint32 i = 0; i < 1024; ++i) {
-                const uint32 value = util::ReadBE<uint32>(&m_state.CRAM[i * sizeof(uint32)]);
-                const Color888 color8{.u32 = value};
-                m_CRAMCache[i][0] = color8.r;
-                m_CRAMCache[i][1] = color8.g;
-                m_CRAMCache[i][2] = color8.b;
-            }
-            break;
-        }
-
-        ctx->Map(m_context->bufVDP2CRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-        memcpy(mappedResource.pData, m_CRAMCache.data(), sizeof(m_CRAMCache));
-        ctx->Unmap(m_context->bufVDP2CRAM, 0);
-    }
-
-    // Update VDP2 rendering state
-    if (m_context->dirtyVDP2RenderState) {
-        m_context->dirtyVDP2RenderState = false;
-        ctx->Map(m_context->bufVDP2RenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-        memcpy(mappedResource.pData, &m_context->cpuVDP2RenderState, sizeof(m_context->cpuVDP2RenderState));
-        ctx->Unmap(m_context->bufVDP2RenderState, 0);
-    }
-
-    // Update VDP2 rendering configuration
-    m_context->cpuVDP2RenderConfig.startY = m_nextY;
-    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
-    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
-
-    const uint32 numLines = y - m_nextY + 1;
-
-    // TODO: resource management
-
-    // Draw NBGs and RBGs
-    ID3D11ShaderResourceView *srvs[] = {m_context->srvVDP2VRAM, m_context->srvVDP2CRAM, m_context->srvVDP2RenderState};
-    ctx->CSSetConstantBuffers(0, 1, &m_context->cbufVDP2RenderConfig);
-    ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavVDP2BGs, nullptr);
-    ctx->CSSetShaderResources(0, std::size(srvs), srvs);
-    ctx->CSSetShader(m_context->csVDP2BGs, nullptr, 0);
-    ctx->Dispatch(m_HRes / 32, numLines, 1);
-
-    // Compose final image
-    srvs[0] = m_context->srvVDP2BGs;
-    srvs[1] = nullptr;
-    srvs[2] = nullptr;
-    // (reuse constant buffer)
-    ctx->CSSetUnorderedAccessViews(0, 1, &m_context->uavVDP2Output, nullptr);
-    ctx->CSSetShaderResources(0, std::size(srvs), srvs);
-    ctx->CSSetShader(m_context->csVDP2Compose, nullptr, 0);
-    ctx->Dispatch(m_HRes / 32, numLines, 1);
-
-    // Cleanup
-    {
-        static constexpr ID3D11UnorderedAccessView *kNullUAVs[] = {nullptr};
-        ctx->CSSetUnorderedAccessViews(0, std::size(kNullUAVs), kNullUAVs, NULL);
-        static constexpr ID3D11ShaderResourceView *kNullSRVs[] = {nullptr, nullptr, nullptr};
-        ctx->CSSetShaderResources(0, std::size(kNullSRVs), kNullSRVs);
-    }
-
-    // Update next Y render target
-    m_nextY = y + 1;
+    ctx->Map(m_context->bufVDP2RenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderState, sizeof(m_context->cpuVDP2RenderState));
+    ctx->Unmap(m_context->bufVDP2RenderState, 0);
 }
 
 } // namespace ymir::vdp
