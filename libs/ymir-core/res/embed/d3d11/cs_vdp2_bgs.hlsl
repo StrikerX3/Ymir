@@ -45,6 +45,8 @@ static const uint kPriorityModeDot = 2;
 
 static const uint kPageSizes[2][2] = { { 13, 14 }, { 11, 12 } };
 
+static const uint kCRAMAddressMask = ((config.displayParams >> 3) & 3) == 1 ? 0x7FF : 0x3FF;
+
 struct Character {
     uint charNum;
     uint palNum;
@@ -245,12 +247,7 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
         }
     }
     
-    // TODO: CRAM mode, affects cramAddress mask
-    // mode 0: mask=0x3FF
-    // mode 1: mask=0x7FF
-    // mode 2: mask=0x3FF
-    // mode 3: mask=0x3FF
-    const uint cramAddress = (cramOffset + colorIndex) & 0x7FF;
+    const uint cramAddress = (cramOffset + colorIndex) & kCRAMAddressMask;
     const uint cramValue = cram[cramAddress];
     const uint3 color = uint3(cramValue & 0xFF, (cramValue >> 8) & 0xFF, (cramValue >> 16) & 0xFF);
     const bool transparent = enableTransparency && dotData == 0;
