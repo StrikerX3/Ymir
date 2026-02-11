@@ -35,6 +35,11 @@ struct alignas(16) VDP2RenderConfig {
         uint32 interlaced : 1;       //     0  Interlaced
         uint32 oddField : 1;         //     1  Field                    0=even; 1=odd
         uint32 exclusiveMonitor : 1; //     2  Exclusive monitor mode   0=normal; 1=exclusive
+        uint32 colorRAMMode : 2;     //   3-4  Color RAM mode
+                                     //          0 = RGB 5:5:5, 1024 words
+                                     //          1 = RGB 5:5:5, 2048 words
+                                     //          2 = RGB 8:8:8, 1024 words
+                                     //          3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
     } displayParams;
     uint32 startY; // Top Y coordinate of target rendering area
 };
@@ -924,18 +929,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     VDP2UpdateCRAM();
     VDP2UpdateRenderState();
 
-    // Update VDP2 rendering configuration
-    const VDP2Regs &regs2 = m_state.regs2;
-    auto &config = m_context->cpuVDP2RenderConfig;
-
-    config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
-    config.displayParams.oddField = regs2.TVSTAT.ODD;
-    config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
-
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY;
-    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
-    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
+    VDP2UpdateRenderConfig();
 
     // Determine how many lines to draw and update next scanline counter
     const uint32 numLines = y - m_nextVDP2BGY + 1;
@@ -962,18 +957,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
 
     VDP2UpdateRenderState();
 
-    // Update VDP2 rendering configuration
-    const VDP2Regs &regs2 = m_state.regs2;
-    auto &config = m_context->cpuVDP2RenderConfig;
-
-    config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
-    config.displayParams.oddField = regs2.TVSTAT.ODD;
-    config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
-
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2ComposeY;
-    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
-    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
+    VDP2UpdateRenderConfig();
 
     // Determine how many lines to draw and update next scanline counter
     const uint32 numLines = y - m_nextVDP2ComposeY + 1;
@@ -1123,6 +1108,23 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
     ctx->Map(m_context->bufVDP2RenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     memcpy(mappedResource.pData, &m_context->cpuVDP2RenderState, sizeof(m_context->cpuVDP2RenderState));
     ctx->Unmap(m_context->bufVDP2RenderState, 0);
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
+    const VDP2Regs &regs2 = m_state.regs2;
+    auto &config = m_context->cpuVDP2RenderConfig;
+
+    config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
+    config.displayParams.oddField = regs2.TVSTAT.ODD;
+    config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
+    config.displayParams.colorRAMMode = regs2.vramControl.colorRAMMode;
+
+    auto *ctx = m_context->deferredCtx;
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
+    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
 }
 
 } // namespace ymir::vdp

@@ -151,6 +151,9 @@ private:
     /// @brief Updates the VDP2 render state if dirty.
     void VDP2UpdateRenderState();
 
+    /// @brief Updates the VDP2 rendering configuration constants.
+    void VDP2UpdateRenderConfig();
+
     uint32 m_nextVDP2BGY;
     uint32 m_nextVDP2ComposeY;
 
