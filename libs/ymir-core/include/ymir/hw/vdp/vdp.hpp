@@ -115,6 +115,19 @@ public:
         }
     }
 
+    /// @brief Configures the callback to invoke immediately after executing command lists in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwarePostExecuteCommandListCallback(CBHardwarePostExecuteCommandList callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.PostExecuteCommandList = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.PostExecuteCommandList = callback;
+        }
+    }
+
     /// @brief Retrieves a reference to the current VDP renderer.
     /// @return a reference to the current VDP renderer instance, guaranteed to be valid
     IVDPRenderer &GetRenderer() {

@@ -10,10 +10,15 @@ namespace ymir::vdp {
 /// This callback is invoked by the emulator or renderer thread.
 using CBHardwareCommandListReady = util::OptionalCallback<void()>;
 
-/// @brief Type of callback invoked immediately before executing a command list, if one is pending.
+/// @brief Type of callback invoked immediately before executing a command list.
 /// Can be used to setup the graphics system, flush commands, preserve state, etc.
 /// This callback is invoked in the same thread that invokes `ExecutePendingCommandList()`.
 using CBHardwarePreExecuteCommandList = util::OptionalCallback<void()>;
+
+/// @brief Type of callback invoked immediately after executing a command list.
+/// Can be used to cleanup resources, restore state, measure time, etc.
+/// This callback is invoked in the same thread that invokes `ExecutePendingCommandList()`.
+using CBHardwarePostExecuteCommandList = util::OptionalCallback<void()>;
 
 /// @brief Callbacks specific to hardware VDP renderers.
 struct HardwareRendererCallbacks {
@@ -24,6 +29,10 @@ struct HardwareRendererCallbacks {
     /// @brief Callback invoked before a command list is processed. This callback is invoked by the same thread that
     /// invokes `HardwareVDPRendererBase::ExecutePendingCommandList()`.
     CBHardwarePreExecuteCommandList PreExecuteCommandList;
+
+    /// @brief Callback invoked after a command list is processed. This callback is invoked by the same thread that
+    /// invokes `HardwareVDPRendererBase::ExecutePendingCommandList()`.
+    CBHardwarePostExecuteCommandList PostExecuteCommandList;
 };
 
 // -----------------------------------------------------------------------------
@@ -53,15 +62,11 @@ public:
     // -------------------------------------------------------------------------
     // Hardware rendering
 
-    /// @brief Executes the latest pending command list if available.
+    /// @brief Executes all pending command lists.
     ///
-    /// If the `HwCallbacks.PreExecuteCommandList` callback is set, it will be invoked prior to executing the command
-    /// list. The callback is not invoked if there is no pending command list to execute.
-    ///
-    /// You can conditionally run logic after processing the command list by using the return value of this function.
-    ///
-    /// @return `true` if a command list was processed, `false` otherwise.
-    virtual bool ExecutePendingCommandList() = 0;
+    /// The `HwCallbacks.PreExecuteCommandList` and `HwCallbacks.PostExecuteCommandList` callbacks are invoked before
+    /// and after executing each command list.
+    virtual void ExecutePendingCommandList() = 0;
 };
 
 } // namespace ymir::vdp
