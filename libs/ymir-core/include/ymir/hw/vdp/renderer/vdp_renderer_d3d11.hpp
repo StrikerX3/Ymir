@@ -129,6 +129,10 @@ private:
     /// @brief Convenience method that invokes `IVDPRenderer::VDP2UpdateEnabledBGs(...)` with the correct parameters.
     void VDP2UpdateEnabledBGs();
 
+    /// @brief Convenience method that invokes `IVDPRenderer::VDP2CalcAccessPatterns(...)` with the correct parameters
+    /// and updates dirty flags as needed.
+    void VDP2CalcAccessPatterns();
+
     /// @brief Renders lines [`m_nextY`..`y`] and updates `m_nextY` to point to the next scanline.
     /// @param[in] y the bottommost line to render
     void VDP2RenderLines(uint32 y);
