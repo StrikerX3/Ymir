@@ -11,15 +11,15 @@ cbuffer Config : register(b0) {
 struct VDP2RenderState {
     uint nbgParams[4][2];
     
-    // TODO: NBG scroll amounts (H/V)
-    // TODO: NBG scroll increments (H/V)
-    // TODO: NBG bitmap base address
+    uint2 nbgScrollAmount[4];
+    uint2 nbgScrollInc[4];
+
     // TODO: NBG VRAM data offsets (4 banks)
     // TODO: NBG line scroll enable + offset tables (X/Y)
     // TODO: Special function codes table (for per-dot special color calculations)
     
-    uint nbgPageBaseAddresses[4][4]; // [NBG0-3][plane A-D]
-    uint rbgPageBaseAddresses[2][16]; // [RBG0-1][plane A-P]
+    uint nbgPageBaseAddresses[4][4];
+    uint rbgPageBaseAddresses[2][16];
 };
 
 ByteAddressBuffer vram : register(t0);
@@ -398,7 +398,12 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
     const bool mosaicEnable = (nbgParams[0] >> 5) & 1;
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
     
-    const uint2 scrollPos = uint2(pos.x, GetY(pos.y)); // TODO: apply scroll values, mosaic, line screen/vertical cell scroll, etc.
+    pos.y = GetY(pos.y);
+    
+    const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
+    // TODO: mosaic, line screen scroll, vertical cell scroll, data access delays, etc.
+    
+    const uint2 scrollPos = fracScrollPos >> 8;
   
     const uint2 planePos = (scrollPos >> (pageShift + 9)) & 1;
     const uint plane = planePos.x | (planePos.y << 1);

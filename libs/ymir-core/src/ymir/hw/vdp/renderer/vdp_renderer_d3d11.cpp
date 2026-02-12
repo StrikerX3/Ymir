@@ -1027,6 +1027,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
             scrollParams.supplCharNum = bgParams.supplScrollCharNum;
         }
 
+        state.nbgScrollAmount[i].x = bgParams.scrollAmountH;
+        state.nbgScrollAmount[i].y = bgParams.scrollAmountV;
+        state.nbgScrollInc[i].x = bgParams.scrollIncH;
+        state.nbgScrollInc[i].y = bgParams.scrollIncV;
+
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
     }
     // TODO: calculate RBG page base addresses
