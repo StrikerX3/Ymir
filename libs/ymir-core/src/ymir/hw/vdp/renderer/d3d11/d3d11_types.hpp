@@ -6,6 +6,14 @@
 
 namespace ymir::vdp {
 
+union D3DUint2 {
+    std::array<uint32, 2> array;
+    struct {
+        uint32 x, y;
+    };
+};
+static_assert(sizeof(D3DUint2) == sizeof(uint32) * 2);
+
 struct alignas(16) VDP2RenderConfig {
     struct DisplayParams {           //  bits  use
         uint32 interlaced : 1;       //     0  Interlaced
@@ -75,8 +83,12 @@ struct NBGRenderParams {
 
 struct alignas(16) VDP2RenderState {
     std::array<NBGRenderParams, 4> nbgParams;
-    std::array<std::array<uint32, 4>, 4> nbgPageBaseAddresses;
-    std::array<std::array<uint32, 16>, 2> rbgPageBaseAddresses;
+
+    std::array<D3DUint2, 4> nbgScrollAmount; // 11.8 fixed-point
+    std::array<D3DUint2, 4> nbgScrollInc;    // 11.8 fixed-point
+
+    std::array<std::array<uint32, 4>, 4> nbgPageBaseAddresses;  // [NBG0-3][plane A-D]
+    std::array<std::array<uint32, 16>, 2> rbgPageBaseAddresses; // [RBG0-1][plane A-P]
 };
 
 } // namespace ymir::vdp
