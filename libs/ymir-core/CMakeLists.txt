@@ -310,6 +310,7 @@ if (WIN32)
         
         src/ymir/hw/vdp/renderer/d3d11/d3d11_shader_cache.cpp
         src/ymir/hw/vdp/renderer/d3d11/d3d11_shader_cache.hpp
+        src/ymir/hw/vdp/renderer/d3d11/d3d11_types.hpp
         src/ymir/hw/vdp/renderer/d3d11/d3d11_utils.hpp
     )
     target_link_libraries(ymir-core PRIVATE "d3d11.lib" "d3dcompiler.lib" "dxguid.lib")
