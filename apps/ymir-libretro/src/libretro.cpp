@@ -12,6 +12,7 @@
 #include <ymir/hw/cart/cart.hpp>
 #include <ymir/db/game_db.hpp>
 #include <ymir/db/rom_cart_db.hpp>
+#include <ymir/sys/backup_ram.hpp>
 #include <ymir/sys/clocks.hpp>
 #include <ymir/sys/memory_defs.hpp>
 
@@ -1029,6 +1030,16 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     descs[1].select = 0x0FF00000;
     struct retro_memory_map mmap = { descs, 2 };
     core.env_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmap);
+
+    // Initialize internal backup RAM in memory so the BIOS finds a valid
+    // header during boot.  Save data is managed by RetroArch via .srm files;
+    // the in-memory buffer is populated from core.save_ram on the first
+    // retro_run call and synced back on retro_unload_game.
+    {
+        ymir::bup::BackupMemory bup;
+        bup.CreateInMemory(ymir::bup::BackupMemorySize::_256Kbit);
+        core.saturn->mem.SetInternalBackupRAM(std::move(bup));
+    }
 
     // Load SMPC persistent data (RTC, language, area code) before hard reset
     if (!core.save_dir.empty()) {

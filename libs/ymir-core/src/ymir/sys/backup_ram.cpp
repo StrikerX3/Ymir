@@ -46,6 +46,8 @@ BackupMemoryImageLoadResult BackupMemory::LoadFrom(const std::filesystem::path &
     if (error) {
         return BackupMemoryImageLoadResult::FilesystemError;
     }
+    m_data = reinterpret_cast<uint8_t *>(m_backupRAM.data());
+    m_dataSize = m_backupRAM.size();
 
     m_addressShift = CheckInterleaved() ? 1u : 0u;
 
@@ -54,7 +56,7 @@ BackupMemoryImageLoadResult BackupMemory::LoadFrom(const std::filesystem::path &
     BackupMemorySize size{};
     for (uint32 i = 0; i < std::size(kSizes); i++) {
         // Check for double size in case the image is interleaved
-        if (m_backupRAM.size() == (kSizes[i] << m_addressShift)) {
+        if (m_dataSize == (kSizes[i] << m_addressShift)) {
             valid = true;
             size = static_cast<BackupMemorySize>(i);
             break;
@@ -68,7 +70,7 @@ BackupMemoryImageLoadResult BackupMemory::LoadFrom(const std::filesystem::path &
 
     // Update parameters
     m_headerValid = CheckHeader();
-    m_addressMask = m_backupRAM.size() - 1u;
+    m_addressMask = m_dataSize - 1u;
     m_blockSize = kBlockSizes[static_cast<size_t>(size)];
     m_blockBitmap.resize(GetTotalBlocks() / 64u);
 
@@ -111,10 +113,12 @@ void BackupMemory::CreateFrom(const std::filesystem::path &path, BackupMemorySiz
     if (error) {
         return;
     }
+    m_data = reinterpret_cast<uint8_t *>(m_backupRAM.data());
+    m_dataSize = m_backupRAM.size();
 
     // Update parameters
     m_addressShift = CheckInterleaved() ? 1u : 0u;
-    m_addressMask = m_backupRAM.size() - 1u;
+    m_addressMask = m_dataSize - 1u;
     m_blockSize = kBlockSizes[static_cast<size_t>(size)];
     m_blockBitmap.resize(GetTotalBlocks() / 64u);
 
@@ -132,6 +136,26 @@ void BackupMemory::CreateFrom(const std::filesystem::path &path, BackupMemorySiz
     RebuildFileList(true);
 
     m_path = path;
+}
+
+void BackupMemory::CreateInMemory(BackupMemorySize size) {
+    const size_t sz = kSizes[static_cast<size_t>(size)];
+
+    m_memoryBuffer.resize(sz);
+    m_data = m_memoryBuffer.data();
+    m_dataSize = sz;
+
+    m_addressShift = 0;
+    m_addressMask = m_dataSize - 1u;
+    m_blockSize = kBlockSizes[static_cast<size_t>(size)];
+    m_blockBitmap.resize(GetTotalBlocks() / 64u);
+
+    m_headerValid = CheckHeader();
+    if (!m_headerValid) {
+        Format();
+    }
+
+    RebuildFileList(true);
 }
 
 bool BackupMemory::CopyFrom(const IBackupMemory &backupRAM) {
@@ -193,7 +217,7 @@ bool BackupMemory::IsHeaderValid() const {
 }
 
 uint32 BackupMemory::Size() const {
-    return m_backupRAM.size() >> m_addressShift;
+    return m_dataSize >> m_addressShift;
 }
 
 uint32 BackupMemory::GetBlockSize() const {
@@ -245,8 +269,8 @@ void BackupMemory::Format() {
 
     // Fill even bytes with FFs if the file is interleaved
     if (m_addressShift > 0) {
-        for (uint32 i = 0; i < m_backupRAM.size(); i += 2) {
-            m_backupRAM[i] = 0xFF;
+        for (size_t i = 0; i < m_dataSize; i += 2) {
+            m_data[i] = 0xFF;
         }
     }
 
@@ -545,8 +569,8 @@ void BackupMemory::RebuildFileList(bool force) const {
 
 bool BackupMemory::CheckInterleaved() const {
     // Checks if the image is in interleaved format: FF xx FF xx FF xx ...
-    for (uint32 i = 0; i < m_backupRAM.size(); i += 2) {
-        if (static_cast<uint8>(m_backupRAM[i]) != 0xFFu) {
+    for (size_t i = 0; i < m_dataSize; i += 2) {
+        if (m_data[i] != 0xFFu) {
             return false;
         }
     }
@@ -678,7 +702,7 @@ FORCE_INLINE uint8 BackupMemory::DataReadByte(uint32 address) const {
     if (m_addressMask != 0) {
         address <<= m_addressShift;
         address |= m_addressShift;
-        return m_backupRAM[address & m_addressMask];
+        return m_data[address & m_addressMask];
     } else {
         return 0xFFu;
     }
@@ -715,7 +739,7 @@ FORCE_INLINE void BackupMemory::DataWriteByte(uint32 address, uint8 value) {
     if (m_addressMask != 0) {
         address <<= m_addressShift;
         address |= m_addressShift;
-        m_backupRAM[address & m_addressMask] = value;
+        m_data[address & m_addressMask] = value;
         m_dirty = true;
     }
 }

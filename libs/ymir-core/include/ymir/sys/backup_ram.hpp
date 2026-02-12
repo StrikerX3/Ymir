@@ -46,6 +46,10 @@ public:
     // `error` will contain any error that occurs while loading or manipulating the file.
     void CreateFrom(const std::filesystem::path &path, BackupMemorySize size, std::error_code &error);
 
+    // Creates an in-memory backup memory with the given size, not backed by a file.
+    // The memory is formatted if it does not contain a valid backup memory header.
+    void CreateInMemory(BackupMemorySize size);
+
     bool CopyFrom(const IBackupMemory &backupRAM) final;
 
     std::filesystem::path GetPath() const final;
@@ -88,6 +92,9 @@ private:
     // - memory-mapped file (mio::mmap_sink)
     // - memory-mapped copy-on-write file (mio::mmap_cow_sink)
     mio::mmap_sink m_backupRAM;
+    std::vector<uint8_t> m_memoryBuffer;
+    uint8_t *m_data = nullptr;
+    size_t m_dataSize = 0;
 
     std::filesystem::path m_path;
 
