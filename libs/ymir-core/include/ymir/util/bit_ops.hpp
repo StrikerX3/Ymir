@@ -43,11 +43,13 @@ template <std::unsigned_integral T>
 /// @return the signed version of the value, sign-extended from `B` bits to the bit width of `T`
 template <unsigned B, std::integral T>
 [[nodiscard]] FORCE_INLINE constexpr auto sign_extend(T value) noexcept {
+    static_assert(B > 0, "cannot extract zero bits out of a value");
+    static_assert(B <= sizeof(T) * CHAR_BIT, "B is too large for the given type");
     using ST = std::make_signed_t<T>;
-    struct {
-        ST x : B;
-    } s{static_cast<ST>(value)};
-    return s.x;
+    ST signedValue = value;
+    signedValue <<= sizeof(T) * CHAR_BIT - B;
+    signedValue >>= sizeof(T) * CHAR_BIT - B;
+    return signedValue;
 }
 
 /// @brief Tests if the bit at `pos` is set in `value`.
