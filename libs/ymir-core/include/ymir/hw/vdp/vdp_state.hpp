@@ -582,6 +582,12 @@ struct VDPState {
 
     template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
     FORCE_INLINE T VDP2ReadCRAM(uint32 address, TMemFn &&memFn = DefaultMemFn) const {
+        if constexpr (std::is_same_v<T, uint32>) {
+            uint32 value = VDP2ReadCRAM<uint16>(address + 0) << 16u;
+            value |= VDP2ReadCRAM<uint16>(address + 2) << 0u;
+            memFn(address, value);
+            return value;
+        }
         address = MapVDP2CRAMAddress<T>(address);
         const T value = util::ReadBE<T>(&CRAM[address]);
         memFn(address, value);
