@@ -71,13 +71,6 @@ libretro-build-windows-x64:
     - .core-defs
   image: $CI_SERVER_HOST:5050/libretro-infrastructure/libretro-build-mxe-win-cross-cores:gcc12
 
-# Windows 32-bit
-libretro-build-windows-i686:
-  extends:
-    - .libretro-windows-cmake-x86
-    - .core-defs
-  image: $CI_SERVER_HOST:5050/libretro-infrastructure/libretro-build-mxe-win-cross-cores:gcc12
-
 # Linux 64-bit
 libretro-build-linux-x64:
   extends:
@@ -90,6 +83,8 @@ libretro-build-linux-x64:
 
 # MacOS 64-bit
 libretro-build-osx-x64:
+  tags:
+    - mac-apple-silicon
   extends:
     - .libretro-osx-cmake-x86_64
     - .core-defs
@@ -103,14 +98,6 @@ libretro-build-osx-arm64:
     - .core-defs
 
 ################################### CELLULAR #################################
-# Android ARMv7a
-android-armeabi-v7a:
-  extends:
-    - .libretro-android-cmake-armeabi-v7a
-    - .core-defs
-  variables:
-    NDK_ROOT: /android-sdk-linux/ndk/26.2.11394342
-
 # Android ARMv8a
 android-arm64-v8a:
   extends:
@@ -123,14 +110,6 @@ android-arm64-v8a:
 android-x86_64:
   extends:
     - .libretro-android-cmake-x86_64
-    - .core-defs
-  variables:
-    NDK_ROOT: /android-sdk-linux/ndk/26.2.11394342
-
-# Android 32-bit x86
-android-x86:
-  extends:
-    - .libretro-android-cmake-x86
     - .core-defs
   variables:
     NDK_ROOT: /android-sdk-linux/ndk/26.2.11394342
