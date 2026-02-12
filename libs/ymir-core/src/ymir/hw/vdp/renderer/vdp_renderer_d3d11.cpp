@@ -87,10 +87,11 @@ struct NBGRenderParams {
             uint32 supplCharNum : 5;   // 10-14  Supplementary character number
         } scroll;
 
-        struct Bitmap {             //  bits  use
-            uint32 bitmapSizeH : 1; //     0  Horizontal bitmap size shift (512 << x)
-            uint32 bitmapSizeV : 1; //     1  Vertical bitmap size shift (256 << x)
-                                    //  2-31  -
+        struct Bitmap {                   //  bits  use
+            uint32 bitmapSizeH : 1;       //     0  Horizontal bitmap size shift (512 << x)
+            uint32 bitmapSizeV : 1;       //     1  Vertical bitmap size shift (256 << x)
+            uint32 bitmapBaseAddress : 3; //   2-4  Bitmap base address (x << 17)
+                                          //  5-31  -
         } bitmap;
     } typeSpecific;
     static_assert(sizeof(TypeSpecific) == sizeof(uint32));
@@ -1011,7 +1012,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
     switch (m_state.regs2.vramControl.colorRAMMode) {
     case 0:
         for (uint32 i = 0; i < 1024; ++i) {
-            const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
+            const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
             const Color555 color5{.u16 = value};
             const Color888 color8 = ConvertRGB555to888(color5);
             m_CRAMCache[i][0] = color8.r;
@@ -1021,7 +1022,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
         break;
     case 1:
         for (uint32 i = 0; i < 2048; ++i) {
-            const uint16 value = util::ReadBE<uint16>(&m_state.CRAM[i * sizeof(uint16)]);
+            const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
             const Color555 color5{.u16 = value};
             const Color888 color8 = ConvertRGB555to888(color5);
             m_CRAMCache[i][0] = color8.r;
@@ -1033,7 +1034,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
     case 3: [[fallthrough]];
     default:
         for (uint32 i = 0; i < 1024; ++i) {
-            const uint32 value = util::ReadBE<uint32>(&m_state.CRAM[i * sizeof(uint32)]);
+            const auto value = m_state.VDP2ReadCRAM<uint32>(i * sizeof(uint32));
             const Color888 color8{.u32 = value};
             m_CRAMCache[i][0] = color8.r;
             m_CRAMCache[i][1] = color8.g;
@@ -1075,15 +1076,16 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         commonParams.bitmap = bgParams.bitmap;
 
         if (bgParams.bitmap) {
-            commonParams.supplPalNum = bgParams.supplBitmapPalNum;
+            commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 4u;
             commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
             commonParams.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
 
             auto &bitmapParams = stateParams.typeSpecific.bitmap;
             bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
             bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
+            bitmapParams.bitmapBaseAddress = bgParams.bitmapBaseAddress >> 17u;
         } else {
-            commonParams.supplPalNum = bgParams.supplScrollPalNum;
+            commonParams.supplPalNum = bgParams.supplScrollPalNum >> 4u;
             commonParams.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
             commonParams.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
 

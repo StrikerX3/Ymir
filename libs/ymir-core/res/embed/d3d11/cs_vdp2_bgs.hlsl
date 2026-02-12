@@ -154,7 +154,7 @@ Character FetchOneWordCharacter(uint nbgParams[2], uint pageAddress, uint charIn
     const uint charData = ReadVRAM16(charAddress);
 
     const uint supplScrollCharNum = (nbgParams[1] >> 10) & 0x1F;
-    const uint supplScrollPalNum = (nbgParams[0] >> 22) & 7;
+    const uint supplScrollPalNum = ((nbgParams[0] >> 22) & 7) << 4;
     const bool supplScrollSpecialColorCalc = (nbgParams[0] >> 25) & 1;
     const bool supplScrollSpecialPriority = (nbgParams[0] >> 26) & 1;
     const bool extChar = (nbgParams[1] >> 6) & 1;
@@ -310,9 +310,9 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
 
     const uint2 dotPos = scrollPos & uint2(bitmapSizeH - 1, bitmapSizeV - 1);
     const uint dotOffset = dotPos.x + dotPos.y * bitmapSizeH;
-    const uint palNum = (nbgParams[0] >> 22) & 7;
+    const uint palNum = ((nbgParams[0] >> 22) & 7) << 4;
     
-    const uint bitmapBaseAddress = 0; // TODO: retrieve from registers
+    const uint bitmapBaseAddress = ((nbgParams[1] >> 2) & 7) << 17;
  
     uint colorData;
     uint4 color;
