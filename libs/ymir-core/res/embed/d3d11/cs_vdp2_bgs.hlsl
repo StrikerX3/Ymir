@@ -440,7 +440,10 @@ uint4 DrawBitmapNBG(uint2 pos, uint index) {
   
     // TODO: compute/check window
     
-    const uint2 scrollPos = uint2(pos.x, GetY(pos.y)); // TODO: apply scroll values, mosaic, line screen/vertical cell scroll, etc.
+    const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
+    // TODO: mosaic, line screen scroll, vertical cell scroll, data access delays, etc.
+    
+    const uint2 scrollPos = fracScrollPos >> 8;
   
     return FetchBitmapPixel(nbgParams, scrollPos);
 }
