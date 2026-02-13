@@ -4,6 +4,13 @@ struct Config {
     uint2 _padding;
 };
 
+struct Window {
+    uint2 start;
+    uint2 end;
+    uint lineWindowTableAddress;
+    bool lineWindowTableEnable;
+};
+
 cbuffer Config : register(b0) {
     Config config;
 }
@@ -23,9 +30,12 @@ struct VDP2RenderState {
     // TODO: Rotation parameters A and B
     // TODO: Common rotation parameters - table address, mode, windows
     // TODO: Sprite layer parameters
-    // TODO: Window 0 and 1 parameters
+
+    Window windows[2];
 
     uint specialFunctionCodes;
+    
+    uint3 _padding;
 };
 
 ByteAddressBuffer vram : register(t0);
@@ -34,11 +44,8 @@ StructuredBuffer<VDP2RenderState> renderState : register(t2);
 
 RWTexture2DArray<uint4> textureOut : register(u0);
 
-// The alpha channel of the output is used for pixel attributes as follows:
-// bits  use
-//  0-3  Priority (0 to 7)
-//    6  Special color calculation flag
-//    7  Transparent flag (0=opaque, 1=transparent)
+static const uint kWindowLogicOR = 0;
+static const uint kWindowLogicAND = 1;
 
 static const uint kColorFormatPalette16 = 0;
 static const uint kColorFormatPalette256 = 1;
@@ -69,6 +76,7 @@ struct Character {
 };
 
 static const Character kBlankCharacter = (Character) 0;
+static const uint4 kTransparentPixel = uint4(0, 0, 0, 128);
 
 uint ByteSwap16(uint val) {
     return ((val >> 8) & 0x00FF) |
@@ -132,6 +140,81 @@ uint4 Color888(uint val32) {
         (val32 >> 16) & 0xFF,
         (val32 >> 31) & 1
     );
+}
+
+bool InsideWindow(Window window, bool invert, uint2 pos) {
+    const bool hiResH = (config.displayParams >> 5) & 1;
+    
+    int2 start = window.start;
+    int2 end = window.end;
+    
+    // Read line window if enabled
+    if (window.lineWindowTableEnable) {
+        const uint address = window.lineWindowTableAddress + pos.y * 4;
+        start.x = ReadVRAM16(address + 0);
+        end.x = ReadVRAM16(address + 2);
+    }
+    
+    // Some games set out-of-range window parameters and expect them to work.
+    // It seems like window coordinates should be signed...
+    //
+    // Panzer Dragoon 2 Zwei:
+    //   0000 to FFFE -> empty window
+    //   FFFE to 02C0 -> full line
+    //
+    // Panzer Dragoon Saga:
+    //   0000 to FFFF -> empty window
+    //
+    // Snatcher:
+    //   FFFC to 0286 -> full line
+    //
+    // Handle these cases here
+    if (start.x < 0) {
+        start.x = 0;
+    }
+    if (end.x < 0) {
+        if (start.x >= end.x) {
+            start.x = 0x3FF;
+        }
+        end.x = 0;
+    }
+    
+    // For normal screen modes, X coordinates don't use bit 0
+    if (hiResH == 0) {
+        start.x >>= 1;
+        end.x >>= 1;
+    }
+    
+    const bool inside = pos >= start && pos <= end;
+    return inside != invert;
+}
+
+bool InsideWindows(uint4 nbgParams, uint2 pos) {
+    const Window windows[2] = renderState[0].windows;
+    const bool window0Enable = (nbgParams.x >> 13) & 1;
+    const bool window0Invert = (nbgParams.x >> 14) & 1;
+    const bool window1Enable = (nbgParams.x >> 15) & 1;
+    const bool window1Invert = (nbgParams.x >> 16) & 1;
+    const bool spriteWindowEnable = (nbgParams.x >> 17) & 1;
+    // TODO: const bool spriteWindowInvert = (nbgParams.x >> 18) & 1;
+    const bool windowLogic = (nbgParams.x >> 19) & 1;
+    
+    // If no windows are enabled, consider the pixel outside of windows
+    if (!window0Enable && !window1Enable && !spriteWindowEnable) {
+        return false;
+    }
+    
+    const bool insideW0 = window0Enable && InsideWindow(windows[0], window0Invert, pos);
+    const bool insideW1 = window1Enable && InsideWindow(windows[1], window1Invert, pos);
+    const bool insideSW = spriteWindowEnable && false; // TODO: InsideSpriteWindow(...);
+    
+    if (windowLogic == kWindowLogicAND) {
+        return insideW0 && insideW1 /*&& insideSW*/;
+    } else {
+        return insideW0 || insideW1 /*|| insideSW*/;
+    }
+    
+    return false;
 }
 
 bool IsSpecialColorCalcMatch(uint4 nbgParams, uint specColorCode) {
@@ -357,15 +440,10 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
 uint4 DrawScrollNBG(uint2 pos, uint index) {
     const VDP2RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
-    
-    // TODO: compute/check window
-    // const bool window0Enable = (nbgParams.x >> 13) & 1;
-    // const bool window0Invert = (nbgParams.x >> 14) & 1;
-    // const bool window1Enable = (nbgParams.x >> 15) & 1;
-    // const bool window1Invert = (nbgParams.x >> 16) & 1;
-    // const bool spriteWindowEnable = (nbgParams.x >> 17) & 1;
-    // const bool spriteWindowInvert = (nbgParams.x >> 18) & 1;
-    // const bool windowLogic = (nbgParams.x >> 19) & 1;
+
+    if (InsideWindows(nbgParams, pos)) {
+        return kTransparentPixel;
+    }
   
     const uint2 pageShift = uint2((nbgParams.w >> 4) & 1, (nbgParams.w >> 5) & 1);
     const bool twoWordChar = (nbgParams.w >> 7) & 1;
@@ -425,14 +503,9 @@ uint4 DrawBitmapNBG(uint2 pos, uint index) {
     const VDP2RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
   
-    // TODO: compute/check window
-    // const bool window0Enable = (nbgParams.x >> 13) & 1;
-    // const bool window0Invert = (nbgParams.x >> 14) & 1;
-    // const bool window1Enable = (nbgParams.x >> 15) & 1;
-    // const bool window1Invert = (nbgParams.x >> 16) & 1;
-    // const bool spriteWindowEnable = (nbgParams.x >> 17) & 1;
-    // const bool spriteWindowInvert = (nbgParams.x >> 18) & 1;
-    // const bool windowLogic = (nbgParams.x >> 19) & 1;
+    if (InsideWindows(nbgParams, pos)) {
+        return kTransparentPixel;
+    }
     
     const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
  
@@ -459,7 +532,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
     
     const bool enabled = (nbgParams.x >> 30) & 1;
     if (!enabled) {
-        return uint4(0, 0, 0, 128);
+        return kTransparentPixel;
     }
     
     const bool bitmap = (nbgParams.x >> 31) & 1;
@@ -469,6 +542,12 @@ uint4 DrawNBG(uint2 pos, uint index) {
 uint4 DrawRBG(uint2 pos, uint index) {
     return uint4(index * 255, pos.x, pos.y, 255);
 }
+
+// The alpha channel of the output is used for pixel attributes as follows:
+// bits  use
+//  0-3  Priority (0 to 7)
+//    6  Special color calculation flag
+//    7  Transparent flag (0=opaque, 1=transparent)
 
 [numthreads(32, 1, 6)]
 void CSMain(uint3 id : SV_DispatchThreadID) {

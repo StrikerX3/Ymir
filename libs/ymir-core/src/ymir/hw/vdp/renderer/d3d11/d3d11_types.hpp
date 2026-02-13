@@ -26,6 +26,7 @@ struct alignas(16) VDP2RenderConfig {
                                       //          1 = RGB 5:5:5, 2048 words
                                       //          2 = RGB 8:8:8, 1024 words
                                       //          3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
+        D3DUint hiResH : 1;           //     5  Horizontal resolution    0=320/352; 1=640/704
     } displayParams;
     D3DUint startY; // Top Y coordinate of target rendering area
 };
@@ -104,6 +105,13 @@ struct NBGRenderParams {
 };
 static_assert(sizeof(NBGRenderParams) == sizeof(D3DUint) * 4);
 
+struct WindowRenderParams {
+    D3DUint2 start;
+    D3DUint2 end;
+    D3DUint lineWindowTableAddress;
+    bool lineWindowTableEnable;
+};
+
 struct alignas(16) VDP2RenderState {
     std::array<NBGRenderParams, 4> nbgParams;
 
@@ -112,6 +120,8 @@ struct alignas(16) VDP2RenderState {
 
     std::array<std::array<D3DUint, 4>, 4> nbgPageBaseAddresses;  // [NBG0-3][plane A-D]
     std::array<std::array<D3DUint, 16>, 2> rbgPageBaseAddresses; // [RBG0-1][plane A-P]
+
+    std::array<WindowRenderParams, 2> windows; // Window 0 and 1
 
     D3DUint specialFunctionCodes; //  bits  use
                                   //   0-7  Special function code A
