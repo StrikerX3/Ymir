@@ -3354,6 +3354,8 @@ struct VDP2Regs {
     // Derived from CCTL, CCRNA/B, CCRR and CCRLB
     ColorCalcParams colorCalcParams;
 
+    // Special function codes A and B.
+    // Derived from SFCODE
     std::array<SpecialFunctionCodes, 2> specialFunctionCodes;
 
     // Enables transparent shadow sprites.
