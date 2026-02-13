@@ -23,8 +23,6 @@ struct VDP2RenderState {
     // TODO: Rotation parameters A and B
     // TODO: Common rotation parameters - table address, mode, windows
     // TODO: Sprite layer parameters
-    // TODO: Line screen parameters
-    // TODO: Back screen parameters
     // TODO: Window 0 and 1 parameters
 
     uint specialFunctionCodes;
@@ -173,7 +171,7 @@ Character FetchTwoWordCharacter(uint4 nbgParams, uint pageAddress, uint charInde
 
     Character ch;
     ch.charNum = charData & 0x7FFF;
-    ch.palNum = (charData >> 16) & 0x7F;
+    ch.palNum = ((charData >> 16) & 0x7F) << 4;
     ch.specColorCalc = (charData >> 28) & 1;
     ch.specPriority = (charData >> 29) & 1;
     ch.flipH = (charData >> 30) & 1;
@@ -218,9 +216,9 @@ Character FetchOneWordCharacter(uint4 nbgParams, uint pageAddress, uint charInde
         ch.charNum |= supplScrollCharNum & 3;
     }
     if (colorFormat != kColorFormatPalette16) {
-        ch.palNum = ((charData >> 12) & 7) << 4;
+        ch.palNum = ((charData >> 12) & 7) << 8;
     } else {
-        ch.palNum = ((charData >> 12) & 0xF) | (supplScrollPalNum << 4);
+        ch.palNum = (((charData >> 12) & 0xF) | (supplScrollPalNum << 4)) << 4;
     }
     ch.specColorCalc = supplScrollSpecialColorCalc;
     ch.specPriority = supplScrollSpecialPriority;
@@ -271,7 +269,7 @@ uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cell
         const uint dotAddress = cellAddress + (dotOffset >> 1);
         const uint dotBank = (dotAddress >> 17) & 3;
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM4(dotAddress, ~dotPos.x & 1) : 0;
-        const uint colorIndex = (ch.palNum << 4) | dotData;
+        const uint colorIndex = ch.palNum | dotData;
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && dotData == 0;
@@ -281,7 +279,7 @@ uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cell
         const uint dotAddress = cellAddress + dotOffset;
         const uint dotBank = (dotAddress >> 17) & 3;
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM8(dotAddress) : 0;
-        const uint colorIndex = ((ch.palNum & 0x70) << 4) | dotData;
+        const uint colorIndex = (ch.palNum & 0x70) | dotData;
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && dotData == 0;
@@ -326,10 +324,8 @@ uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cell
         priority |= ch.specPriority;
     } else if (bgPriorityMode == kPriorityModeDot) {
         priority &= ~1;
-        if (colorFormat <= 2) {
-            if (ch.specPriority) {
-                // TODO: priority |= specFuncCode.colorMatches[colorData];
-            }
+        if (ch.specPriority && colorFormat < kColorFormatRGB555) {
+            priority |= IsSpecialColorCalcMatch(nbgParams, colorData);
         }
     }
     
@@ -349,7 +345,7 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
 
     const uint2 dotPos = scrollPos & uint2(bitmapSizeH - 1, bitmapSizeV - 1);
     const uint dotOffset = dotPos.x + dotPos.y * bitmapSizeH;
-    const uint palNum = ((nbgParams.x >> 22) & 7) << 4;
+    const uint palNum = ((nbgParams.x >> 22) & 7) << 8;
     
     const uint bitmapBaseAddress = ((nbgParams.w >> 2) & 7) << 17;
  
@@ -384,7 +380,7 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
         const uint colorIndex = dotData & 0x7FF;
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
-        transparent = enableTransparency && dotData == 0;
+        transparent = enableTransparency && (dotData & 0x7FF) == 0;
         specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, color.a);
 
     } else if (colorFormat == kColorFormatRGB555) {
@@ -415,9 +411,11 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
     if (bgPriorityMode == kPriorityModeCharacter) {
         priority &= ~1;
         priority |= supplBitmapSpecPriority;
-    } else if (bgPriorityMode == kPriorityModeDot && supplBitmapSpecPriority && colorFormat < kColorFormatRGB555) {
+    } else if (bgPriorityMode == kPriorityModeDot) {
         priority &= ~1;
-        priority |= IsSpecialColorCalcMatch(nbgParams, colorData);
+        if (supplBitmapSpecPriority && colorFormat < kColorFormatRGB555) {
+            priority |= IsSpecialColorCalcMatch(nbgParams, colorData);
+        }
     }
     
     return uint4(color.xyz, (transparent << 7) | (specialColorCalc << 6) | priority);

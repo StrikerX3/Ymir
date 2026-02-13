@@ -1039,7 +1039,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
 
         if (bgParams.bitmap) {
-            commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 4u;
+            commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
             commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
             commonParams.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
 
