@@ -90,7 +90,7 @@ namespace detail {
 /// @brief Describes a Pattern Name Data entry - parameters for a character or tile.
 struct Character {
     uint16 charNum = 0;         // Character number, 15 bits
-    uint8 palNum = 0;           // Palette number, 7 bits
+    uint16 palNum = 0;          // Palette number, 7 bits (shifted left by 4 for optimized rendering performance)
     bool specColorCalc = false; // Special color calculation
     bool specPriority = false;  // Special priority
     bool flipH = false;         // Horizontal flip
