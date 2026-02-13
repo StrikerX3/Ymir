@@ -822,6 +822,10 @@ void serialize(Archive &ar, VDPState::VDPRendererState::Character &s) {
 
 template <class Archive>
 void serialize(Archive &ar, VDPState::VDPRendererState::VRAMFetcherState &s, const uint32 version) {
+    // v12:
+    // - Renamed fields
+    //   - bitmapData -> charData
+    //   - bitmapDataAddress -> charDataAddress
     // v10:
     // - New fields
     //   - lastCellX = 0
@@ -833,14 +837,14 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VRAMFetcherState &s, con
         if (version >= 10) {
             ar(s.lastCellX);
         }
-        ar(s.bitmapData, s.bitmapDataAddress);
+        ar(s.charData, s.charDataAddress);
         ar(s.lastVCellScroll);
     } else {
         s.currChar = {};
         s.nextChar = {};
         s.lastCharIndex = 0xFFFFFFFF;
-        s.bitmapData.fill(0);
-        s.bitmapDataAddress = 0xFFFFFFFF;
+        s.charData.fill(0);
+        s.charDataAddress = 0xFFFFFFFF;
         s.lastVCellScroll = 0;
     }
 }

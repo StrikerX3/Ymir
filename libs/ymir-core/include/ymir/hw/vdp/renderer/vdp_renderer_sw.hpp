@@ -1209,27 +1209,45 @@ private:
     // Fetches a pixel in the specified cell in a 2x2 character pattern.
     //
     // cramOffset is the base CRAM offset computed from CRAOFA/CRAOFB.xxCAOSn and vramControl.colorRAMMode.
-    // ch is the character's parameters.
+    // vramFetcher is the corresponding background layer's VRAM fetcher.
     // dotCoord specify the coordinates of the pixel within the cell, ranging from 0 to 7.
     // cellIndex is the index of the cell in the character pattern, ranging from 0 to 3.
     //
     // colorFormat is the value of CHCTLA/CHCTLB.xxCHCNn.
     // colorMode is the CRAM color mode.
     template <ColorFormat colorFormat, uint32 colorMode>
-    Pixel VDP2FetchCharacterPixel(const BGParams &bgParams, Character ch, CoordU32 dotCoord, uint32 cellIndex);
+    Pixel VDP2FetchCharacterPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, CoordU32 dotCoord,
+                                  uint32 cellIndex);
 
     // Fetches a bitmap pixel at the given coordinates.
     //
     // bgParams contains the parameters for the BG to draw.
-    // dotCoord specify the coordinates of the pixel within the bitmap.
     // vramFetcher is the corresponding background layer's VRAM fetcher.
+    // bitmapBaseAddress is the base address of bitmap data.
+    // dotCoord specify the coordinates of the pixel within the bitmap.
     //
     // colorFormat is the color format for pixel data.
-    // bitmapBaseAddress is the base address of bitmap data.
     // colorMode is the CRAM color mode.
     template <ColorFormat colorFormat, uint32 colorMode>
-    Pixel VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitmapBaseAddress, CoordU32 dotCoord,
-                               VRAMFetcher &vramFetcher);
+    Pixel VDP2FetchBitmapPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 bitmapBaseAddress,
+                               CoordU32 dotCoord);
+
+    // Fetches a pixel from VRAM.
+    //
+    // bgParams contains the parameters for the BG to draw.
+    // vramFetcher is the corresponding background layer's VRAM fetcher.
+    // baseAddress is the base address of pixel data.
+    // linePitch is the number of bytes per row of pixel data.
+    // dotCoord specify the coordinates of the pixel within the cell, ranging from 0 to 7, or bitmap picture.
+    // palNum is the palette number from the character data or supplementary bitmap register.
+    // specColorCalc is the special color calculation bit from the character data or supplementary bitmap register.
+    // specPriority is the special priority bit from the character data or supplementary bitmap register.
+    //
+    // colorFormat is the color format for pixel data.
+    // colorMode is the CRAM color mode.
+    template <ColorFormat colorFormat, uint32 colorMode>
+    Pixel VDP2FetchPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 baseAddress, uint32 linePitch,
+                         CoordU32 dotCoord, uint32 palNum, bool specColorCalc, bool specPriority);
 
     // Fetches a color from CRAM using the current color mode specified by vramControl.colorRAMMode.
     //

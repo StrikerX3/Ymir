@@ -108,16 +108,16 @@ struct VRAMFetcher {
         nextChar = {};
         lastCharIndex = 0xFFFFFFFF;
 
-        bitmapData.fill(0);
-        bitmapDataAddress = 0xFFFFFFFF;
+        charData.fill(0);
+        charDataAddress = 0xFFFFFFFF;
 
         lastVCellScroll = 0xFFFFFFFF;
     }
 
-    bool UpdateBitmapDataAddress(uint32 address) {
+    bool UpdateCharacterDataAddress(uint32 address) {
         address &= ~7;
-        if (address != bitmapDataAddress) {
-            bitmapDataAddress = address;
+        if (address != charDataAddress) {
+            charDataAddress = address;
             return true;
         }
         return false;
@@ -129,9 +129,9 @@ struct VRAMFetcher {
     uint32 lastCharIndex;
     uint8 lastCellX;
 
-    // Bitmap data (for bitmap BGs)
-    alignas(uint64) std::array<uint8, 8> bitmapData;
-    uint32 bitmapDataAddress;
+    // Character data (scroll and bitmap BGs)
+    alignas(uint64) std::array<uint8, 8> charData;
+    uint32 charDataAddress;
 
     // Vertical cell scroll data
     uint32 lastVCellScroll;

@@ -227,14 +227,90 @@ Character FetchOneWordCharacter(uint4 nbgParams, uint pageAddress, uint charInde
     return ch;
 }
 
-uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cellIndex) {
-    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
-    const bool enableTransparency = (nbgParams.x >> 28) & 1;
-    const uint cramOffset = nbgParams.x & 0x700;
+uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch, uint palNum, bool specColorCalc, uint specPriority) {
+    const uint charPatAccess = nbgParams.x & 0xF;
     const uint colorFormat = (nbgParams.x >> 11) & 7;
+    const uint cramOffset = nbgParams.x & 0x700;
     const uint bgPriorityNum = (nbgParams.x >> 17) & 7;
     const uint bgPriorityMode = (nbgParams.x >> 20) & 3;
-    const uint charPatAccess = nbgParams.x & 0xF;
+    const bool enableTransparency = (nbgParams.x >> 28) & 1;
+  
+    const uint dotOffset = dotPos.x + dotPos.y * linePitch;
+    
+    uint colorData;
+    uint4 outColor;
+    bool outTransparent;
+    bool outSpecColorCalc;
+    if (colorFormat == kColorFormatPalette16) {
+        const uint dotAddress = baseAddress + (dotOffset >> 1);
+        const uint dotBank = (dotAddress >> 17) & 3;
+        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM4(dotAddress, ~dotPos.x & 1) : 0;
+        const uint colorIndex = palNum | dotData;
+        colorData = (dotData >> 1) & 7;
+        outColor = FetchCRAMColor(cramOffset, colorIndex);
+        outTransparent = enableTransparency && dotData == 0;
+        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, outColor.a);
+
+    } else if (colorFormat == kColorFormatPalette256) {
+        const uint dotAddress = baseAddress + dotOffset;
+        const uint dotBank = (dotAddress >> 17) & 3;
+        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM8(dotAddress) : 0;
+        const uint colorIndex = (palNum & 0x700) | dotData;
+        colorData = (dotData >> 1) & 7;
+        outColor = FetchCRAMColor(cramOffset, colorIndex);
+        outTransparent = enableTransparency && dotData == 0;
+        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, outColor.a);
+
+    } else if (colorFormat == kColorFormatPalette2048) {
+        const uint dotAddress = baseAddress + (dotOffset << 1);
+        const uint dotBank = (dotAddress >> 17) & 3;
+        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
+        const uint colorIndex = dotData & 0x7FF;
+        colorData = (dotData >> 1) & 7;
+        outColor = FetchCRAMColor(cramOffset, colorIndex);
+        outTransparent = enableTransparency && (dotData & 0x7FF) == 0;
+        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, outColor.a);
+
+    } else if (colorFormat == kColorFormatRGB555) {
+        const uint dotAddress = baseAddress + (dotOffset << 1);
+        const uint dotBank = (dotAddress >> 17) & 3;
+        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
+        outColor = Color555(dotData);
+        outTransparent = enableTransparency && outColor.w == 0;
+        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
+
+    } else if (colorFormat == kColorFormatRGB888) {
+        const uint dotAddress = baseAddress + (dotOffset << 2);
+        const uint dotBank = (dotAddress >> 17) & 3;
+        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM32(dotAddress) : 0;
+        outColor = Color888(dotData);
+        outTransparent = enableTransparency && outColor.w == 0;
+        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
+
+    } else {
+        colorData = 0;
+        outColor = uint4(0, 0, 0, 0);
+        outTransparent = true;
+        outSpecColorCalc = false;
+    }
+    
+    uint outPriority = bgPriorityNum;
+    if (bgPriorityMode == kPriorityModeCharacter) {
+        outPriority &= ~1;
+        outPriority |= specPriority;
+    } else if (bgPriorityMode == kPriorityModeDot) {
+        outPriority &= ~1;
+        if (specPriority && colorFormat < kColorFormatRGB555) {
+            outPriority |= IsSpecialColorCalcMatch(nbgParams, colorData);
+        }
+    }
+    
+    return uint4(outColor.xyz, (outTransparent << 7) | (outSpecColorCalc << 6) | outPriority);
+}
+
+uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cellIndex) {
+    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
+    const uint colorFormat = (nbgParams.x >> 11) & 7;
 
     if (ch.flipH) {
         dotPos.x ^= 7;
@@ -258,168 +334,24 @@ uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cell
         cellIndex <<= 1;
     }
 
-    const uint cellAddress = (ch.charNum + cellIndex) << 5;
-    const uint dotOffset = dotPos.x + (dotPos.y << 3);
+    const uint baseAddress = (ch.charNum + cellIndex) << 5;
+    const bool specColorCalc = ch.specColorCalc;
+    const uint specPriority = ch.specPriority;
 
-    uint colorData;
-    uint4 color;
-    bool transparent;
-    bool specialColorCalc;
-    if (colorFormat == kColorFormatPalette16) {
-        const uint dotAddress = cellAddress + (dotOffset >> 1);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM4(dotAddress, ~dotPos.x & 1) : 0;
-        const uint colorIndex = ch.palNum | dotData;
-        colorData = (dotData >> 1) & 7;
-        color = FetchCRAMColor(cramOffset, colorIndex);
-        transparent = enableTransparency && dotData == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, ch.specColorCalc, color.a);
-
-    } else if (colorFormat == kColorFormatPalette256) {
-        const uint dotAddress = cellAddress + dotOffset;
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM8(dotAddress) : 0;
-        const uint colorIndex = (ch.palNum & 0x70) | dotData;
-        colorData = (dotData >> 1) & 7;
-        color = FetchCRAMColor(cramOffset, colorIndex);
-        transparent = enableTransparency && dotData == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, ch.specColorCalc, color.a);
-
-    } else if (colorFormat == kColorFormatPalette2048) {
-        const uint dotAddress = cellAddress + (dotOffset << 1);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
-        const uint colorIndex = dotData & 0x7FF;
-        colorData = (dotData >> 1) & 7;
-        color = FetchCRAMColor(cramOffset, colorIndex);
-        transparent = enableTransparency && (dotData & 0x7FF) == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, ch.specColorCalc, color.a);
-
-    } else if (colorFormat == kColorFormatRGB555) {
-        const uint dotAddress = cellAddress + (dotOffset << 1);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
-        color = Color555(dotData);
-        transparent = enableTransparency && color.w == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, ch.specColorCalc, true);
-
-    } else if (colorFormat == kColorFormatRGB888) {
-        const uint dotAddress = cellAddress + (dotOffset << 2);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM32(dotAddress) : 0;
-        color = Color888(dotData);
-        transparent = enableTransparency && color.w == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, ch.specColorCalc, true);
-
-    } else {
-        colorData = 0;
-        color = uint4(0, 0, 0, 0);
-        transparent = true;
-        specialColorCalc = false;
-    }
-    
-    uint priority = bgPriorityNum;
-    if (bgPriorityMode == kPriorityModeCharacter) {
-        priority &= ~1;
-        priority |= ch.specPriority;
-    } else if (bgPriorityMode == kPriorityModeDot) {
-        priority &= ~1;
-        if (ch.specPriority && colorFormat < kColorFormatRGB555) {
-            priority |= IsSpecialColorCalcMatch(nbgParams, colorData);
-        }
-    }
-    
-    return uint4(color.xyz, (transparent << 7) | (specialColorCalc << 6) | priority);
+    return FetchPixel(nbgParams, baseAddress, dotPos, 8, ch.palNum, specColorCalc, specPriority);
 }
 
 uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
-    const bool enableTransparency = (nbgParams.x >> 28) & 1;
-    const uint colorFormat = (nbgParams.x >> 11) & 7;
-    const uint cramOffset = nbgParams.x & 0x700;
-    const uint bgPriorityNum = (nbgParams.x >> 17) & 7;
-    const uint bgPriorityMode = (nbgParams.x >> 20) & 3;
-    const bool specColorCalc = (nbgParams.x >> 25) & 1;
-    const uint charPatAccess = nbgParams.x & 0xF;
     const uint bitmapSizeH = 512 << (nbgParams.w & 1);
     const uint bitmapSizeV = 256 << ((nbgParams.w >> 1) & 1);
 
     const uint2 dotPos = scrollPos & uint2(bitmapSizeH - 1, bitmapSizeV - 1);
-    const uint dotOffset = dotPos.x + dotPos.y * bitmapSizeH;
+    const uint baseAddress = ((nbgParams.w >> 2) & 7) << 17;
     const uint palNum = ((nbgParams.x >> 22) & 7) << 8;
-    
-    const uint bitmapBaseAddress = ((nbgParams.w >> 2) & 7) << 17;
+    const bool specColorCalc = (nbgParams.x >> 25) & 1;
+    const uint specPriority = (nbgParams.x >> 26) & 1;
  
-    uint colorData;
-    uint4 color;
-    bool transparent;
-    bool specialColorCalc;
-    if (colorFormat == kColorFormatPalette16) {
-        const uint dotAddress = bitmapBaseAddress + (dotOffset >> 1);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM4(dotAddress, ~dotPos.x & 1) : 0;
-        const uint colorIndex = palNum | dotData;
-        colorData = (dotData >> 1) & 7;
-        color = FetchCRAMColor(cramOffset, colorIndex);
-        transparent = enableTransparency && dotData == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, color.a);
-
-    } else if (colorFormat == kColorFormatPalette256) {
-        const uint dotAddress = bitmapBaseAddress + dotOffset;
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM8(dotAddress) : 0;
-        const uint colorIndex = palNum | dotData;
-        colorData = (dotData >> 1) & 7;
-        color = FetchCRAMColor(cramOffset, colorIndex);
-        transparent = enableTransparency && dotData == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, color.a);
-
-    } else if (colorFormat == kColorFormatPalette2048) {
-        const uint dotAddress = bitmapBaseAddress + (dotOffset << 1);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
-        const uint colorIndex = dotData & 0x7FF;
-        colorData = (dotData >> 1) & 7;
-        color = FetchCRAMColor(cramOffset, colorIndex);
-        transparent = enableTransparency && (dotData & 0x7FF) == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, color.a);
-
-    } else if (colorFormat == kColorFormatRGB555) {
-        const uint dotAddress = bitmapBaseAddress + (dotOffset << 1);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
-        color = Color555(dotData);
-        transparent = enableTransparency && color.w == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
-
-    } else if (colorFormat == kColorFormatRGB888) {
-        const uint dotAddress = bitmapBaseAddress + (dotOffset << 2);
-        const uint dotBank = (dotAddress >> 17) & 3;
-        const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM32(dotAddress) : 0;
-        color = Color888(dotData);
-        transparent = enableTransparency && color.w == 0;
-        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
-
-    } else {
-        colorData = 0;
-        color = uint4(0, 0, 0, 0);
-        transparent = true;
-        specialColorCalc = false;
-    }
-    
-    const uint supplBitmapSpecPriority = (nbgParams.x >> 26) & 1;
-    uint priority = bgPriorityNum;
-    if (bgPriorityMode == kPriorityModeCharacter) {
-        priority &= ~1;
-        priority |= supplBitmapSpecPriority;
-    } else if (bgPriorityMode == kPriorityModeDot) {
-        priority &= ~1;
-        if (supplBitmapSpecPriority && colorFormat < kColorFormatRGB555) {
-            priority |= IsSpecialColorCalcMatch(nbgParams, colorData);
-        }
-    }
-    
-    return uint4(color.xyz, (transparent << 7) | (specialColorCalc << 6) | priority);
-
+    return FetchPixel(nbgParams, baseAddress, dotPos, bitmapSizeH, palNum, specColorCalc, specPriority);
 }
 
 uint4 DrawScrollNBG(uint2 pos, uint index) {

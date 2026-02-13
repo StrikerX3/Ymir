@@ -266,8 +266,8 @@ struct VDPState {
             Character nextChar;
             uint32 lastCharIndex;
             uint8 lastCellX;
-            alignas(uint64) std::array<uint8, 8> bitmapData;
-            uint32 bitmapDataAddress;
+            alignas(uint64) std::array<uint8, 8> charData;
+            uint32 charDataAddress;
             uint32 lastVCellScroll;
         };
 

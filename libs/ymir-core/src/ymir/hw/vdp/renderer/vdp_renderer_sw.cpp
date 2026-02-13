@@ -297,8 +297,8 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
             copyChar(state.vramFetchers[i][j].nextChar, m_vramFetchers[i][j].nextChar);
             state.vramFetchers[i][j].lastCharIndex = m_vramFetchers[i][j].lastCharIndex;
             state.vramFetchers[i][j].lastCellX = m_vramFetchers[i][j].lastCellX;
-            state.vramFetchers[i][j].bitmapData = m_vramFetchers[i][j].bitmapData;
-            state.vramFetchers[i][j].bitmapDataAddress = m_vramFetchers[i][j].bitmapDataAddress;
+            state.vramFetchers[i][j].charData = m_vramFetchers[i][j].charData;
+            state.vramFetchers[i][j].charDataAddress = m_vramFetchers[i][j].charDataAddress;
             state.vramFetchers[i][j].lastVCellScroll = m_vramFetchers[i][j].lastVCellScroll;
         }
     }
@@ -358,8 +358,8 @@ void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &sta
             copyChar(m_vramFetchers[i][j].nextChar, state.vramFetchers[i][j].nextChar);
             m_vramFetchers[i][j].lastCharIndex = state.vramFetchers[i][j].lastCharIndex;
             m_vramFetchers[i][j].lastCellX = state.vramFetchers[i][j].lastCellX;
-            m_vramFetchers[i][j].bitmapData = state.vramFetchers[i][j].bitmapData;
-            m_vramFetchers[i][j].bitmapDataAddress = state.vramFetchers[i][j].bitmapDataAddress;
+            m_vramFetchers[i][j].charData = state.vramFetchers[i][j].charData;
+            m_vramFetchers[i][j].charDataAddress = state.vramFetchers[i][j].charDataAddress;
             m_vramFetchers[i][j].lastVCellScroll = state.vramFetchers[i][j].lastVCellScroll;
         }
     }
@@ -2362,9 +2362,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2PrepareLine(uint32 y) {
 
     for (auto &field : m_vramFetchers) {
         for (auto &fetcher : field) {
-            fetcher.lastCharIndex = 0xFFFFFFFF;     // force-fetch first character
-            fetcher.lastCellX = 0xFF;               // align 2x2 char fetcher
-            fetcher.bitmapDataAddress = 0xFFFFFFFF; // force-fetch first bitmap chunk
+            fetcher.lastCharIndex = 0xFFFFFFFF;   // force-fetch first character
+            fetcher.lastCellX = 0xFF;             // align 2x2 char fetcher
+            fetcher.charDataAddress = 0xFFFFFFFF; // force-fetch first character data chunk
         }
     }
 }
@@ -4340,8 +4340,8 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel
-            const Pixel pixel = VDP2FetchBitmapPixel<colorFormat, colorMode>(bgParams, bgParams.bitmapBaseAddress,
-                                                                             scrollCoord, vramFetcher);
+            const Pixel pixel = VDP2FetchBitmapPixel<colorFormat, colorMode>(bgParams, vramFetcher,
+                                                                             bgParams.bitmapBaseAddress, scrollCoord);
             layerState.pixels.SetPixel(x, pixel);
         }
 
@@ -4437,13 +4437,13 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
             static constexpr bool extChar = charMode == CharacterMode::OneWordExtended;
 
             const uint16 charData = rotParams.screenOverPatternName;
-            const Character ch = VDP2ExtractOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, charData);
+            vramFetcher.currChar = VDP2ExtractOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, charData);
 
             const uint32 dotX = bit::extract<0, 2>(scrollX);
             const uint32 dotY = bit::extract<0, 2>(scrollY);
             const CoordU32 dotCoord{dotX, dotY};
 
-            const Pixel pixel = VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, ch, dotCoord, 0);
+            const Pixel pixel = VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, vramFetcher, dotCoord, 0);
             if (!doubleResH || !windowState[xx]) {
                 layerState.pixels.SetPixel(xx, pixel);
             }
@@ -4511,7 +4511,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const BGP
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
             const Pixel pixel = VDP2FetchBitmapPixel<colorFormat, colorMode>(
-                bgParams, rotParams.bitmapBaseAddress, scrollCoord, m_vramFetchers[altField][rotParamSelector + 4]);
+                bgParams, m_vramFetchers[altField][rotParamSelector + 4], rotParams.bitmapBaseAddress, scrollCoord);
             if (!doubleResH || !windowState[xx]) {
                 layerState.pixels.SetPixel(xx, pixel);
             }
@@ -4907,7 +4907,7 @@ SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, std::span<
     }
 
     // Fetch pixel using character data
-    return VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, vramFetcher.currChar, dotCoord, cellIndex);
+    return VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, vramFetcher, dotCoord, cellIndex);
 }
 
 FORCE_INLINE Character SoftwareVDPRenderer::VDP2FetchTwoWordCharacter(const BGParams &bgParams, uint32 pageBaseAddress,
@@ -4994,29 +4994,25 @@ FORCE_INLINE Character SoftwareVDPRenderer::VDP2ExtractOneWordCharacter(const BG
 }
 
 template <ColorFormat colorFormat, uint32 colorMode>
-FORCE_INLINE SoftwareVDPRenderer::Pixel SoftwareVDPRenderer::VDP2FetchCharacterPixel(const BGParams &bgParams,
-                                                                                     Character ch, CoordU32 dotCoord,
-                                                                                     uint32 cellIndex) {
+FORCE_INLINE SoftwareVDPRenderer::Pixel
+SoftwareVDPRenderer::VDP2FetchCharacterPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, CoordU32 dotCoord,
+                                             uint32 cellIndex) {
     static_assert(static_cast<uint32>(colorFormat) <= 4, "Invalid xxCHCN value");
 
-    const VDP2Regs &regs = VDP2GetRegs();
+    assert(dotCoord.x() < 8);
+    assert(dotCoord.y() < 8);
 
-    Pixel pixel{};
-
-    auto [dotX, dotY] = dotCoord;
-
-    assert(dotX < 8);
-    assert(dotY < 8);
+    const Character ch = vramFetcher.currChar;
 
     // Flip dot coordinates if requested
     if (ch.flipH) {
-        dotX ^= 7;
+        dotCoord.x() ^= 7;
         if (bgParams.cellSizeShift > 0) {
             cellIndex ^= 1;
         }
     }
     if (ch.flipV) {
-        dotY ^= 7;
+        dotCoord.y() ^= 7;
         if (bgParams.cellSizeShift > 0) {
             cellIndex ^= 2;
         }
@@ -5033,7 +5029,53 @@ FORCE_INLINE SoftwareVDPRenderer::Pixel SoftwareVDPRenderer::VDP2FetchCharacterP
 
     // Cell addressing uses a fixed offset of 32 bytes
     const uint32 cellAddress = (ch.charNum + cellIndex) * 0x20;
-    const uint32 dotOffset = dotX + dotY * 8;
+
+    return VDP2FetchPixel<colorFormat, colorMode>(bgParams, vramFetcher, cellAddress, 8, dotCoord, ch.palNum,
+                                                  ch.specColorCalc, ch.specPriority);
+}
+
+template <ColorFormat colorFormat, uint32 colorMode>
+FORCE_INLINE SoftwareVDPRenderer::Pixel
+SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 bitmapBaseAddress,
+                                          CoordU32 dotCoord) {
+    static_assert(static_cast<uint32>(colorFormat) <= 4, "Invalid xxCHCN value");
+
+    // Bitmap data wraps around infinitely
+    dotCoord.x() &= bgParams.bitmapSizeH - 1;
+    dotCoord.y() &= bgParams.bitmapSizeV - 1;
+
+    // Bitmap addressing uses a fixed offset of 0x20000 bytes which is precalculated when MPOFN/MPOFR is written to
+
+    return VDP2FetchPixel<colorFormat, colorMode>(
+        bgParams, vramFetcher, bitmapBaseAddress, bgParams.bitmapSizeH, dotCoord, bgParams.supplBitmapPalNum,
+        bgParams.supplBitmapSpecialColorCalc, bgParams.supplBitmapSpecialPriority);
+}
+
+template <ColorFormat colorFormat, uint32 colorMode>
+FORCE_INLINE SoftwareVDPRenderer::Pixel
+SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 baseAddress,
+                                    uint32 linePitch, CoordU32 dotCoord, uint32 palNum, bool specColorCalc,
+                                    bool specPriority) {
+    const VDP2Regs &regs = VDP2GetRegs();
+
+    const auto [dotX, dotY] = dotCoord;
+    const uint32 dotOffset = dotX + dotY * linePitch;
+
+    auto fetchCharData = [&](uint32 address) {
+        const uint32 bank = (address >> 17u) & 3u;
+        if (!bgParams.charPatAccess[bank]) {
+            vramFetcher.charData.fill(0);
+            return;
+        }
+
+        if (vramFetcher.UpdateCharacterDataAddress(address)) {
+            address += bgParams.vramDataOffset[bank];
+
+            // TODO: handle VRSIZE.VRAMSZ
+            auto &vram = VDP2GetRendererVRAM();
+            std::copy_n(&vram[address & 0x7FFF8], 8, vramFetcher.charData.begin());
+        }
+    };
 
     // Determine special color calculation flag
     const auto &specFuncCode = regs.specialFunctionCodes[bgParams.specialFunctionSelect];
@@ -5041,140 +5083,20 @@ FORCE_INLINE SoftwareVDPRenderer::Pixel SoftwareVDPRenderer::VDP2FetchCharacterP
         using enum SpecialColorCalcMode;
         switch (bgParams.specialColorCalcMode) {
         case PerScreen: return bgParams.colorCalcEnable;
-        case PerCharacter: return bgParams.colorCalcEnable && ch.specColorCalc;
-        case PerDot: return bgParams.colorCalcEnable && ch.specColorCalc && specFuncCode.colorMatches[specColorCode];
+        case PerCharacter: return bgParams.colorCalcEnable && specColorCalc;
+        case PerDot: return bgParams.colorCalcEnable && specColorCalc && specFuncCode.colorMatches[specColorCode];
         case ColorDataMSB: return bgParams.colorCalcEnable && colorMSB;
         }
         util::unreachable();
     };
 
-    // Fetch color and determine transparency.
-    // Also determine special color calculation flag if using per-dot or color data MSB.
-    uint8 colorData;
-    if constexpr (colorFormat == ColorFormat::Palette16) {
-        const uint32 dotAddress = cellAddress + (dotOffset >> 1u);
-        const uint32 dotBank = (dotAddress >> 17u) & 3u;
-        const uint8 dotData = bgParams.charPatAccess[dotBank]
-                                  ? ((VDP2ReadRendererVRAM<uint8>(dotAddress) >> ((~dotX & 1) * 4)) & 0xF)
-                                  : 0x0;
-        const uint32 colorIndex = ch.palNum | dotData;
-        colorData = bit::extract<1, 3>(dotData);
-        pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
-        pixel.transparent = bgParams.enableTransparency && dotData == 0;
-        pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
-
-    } else if constexpr (colorFormat == ColorFormat::Palette256) {
-        const uint32 dotAddress = cellAddress + dotOffset;
-        const uint32 dotBank = (dotAddress >> 17u) & 3u;
-        const uint8 dotData = bgParams.charPatAccess[dotBank] ? VDP2ReadRendererVRAM<uint8>(dotAddress) : 0x00;
-        const uint32 colorIndex = (ch.palNum & 0x700) | dotData;
-        colorData = bit::extract<1, 3>(dotData);
-        pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
-        pixel.transparent = bgParams.enableTransparency && dotData == 0;
-        pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
-
-    } else if constexpr (colorFormat == ColorFormat::Palette2048) {
-        const uint32 dotAddress = cellAddress + dotOffset * sizeof(uint16);
-        const uint32 dotBank = (dotAddress >> 17u) & 3u;
-        const uint16 dotData = bgParams.charPatAccess[dotBank] ? VDP2ReadRendererVRAM<uint16>(dotAddress) : 0x0000;
-        const uint32 colorIndex = dotData & 0x7FF;
-        colorData = bit::extract<1, 3>(dotData);
-        pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
-        pixel.transparent = bgParams.enableTransparency && (dotData & 0x7FF) == 0;
-        pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
-
-    } else if constexpr (colorFormat == ColorFormat::RGB555) {
-        const uint32 dotAddress = cellAddress + dotOffset * sizeof(uint16);
-        const uint32 dotBank = (dotAddress >> 17u) & 3u;
-        const uint16 dotData = bgParams.charPatAccess[dotBank] ? VDP2ReadRendererVRAM<uint16>(dotAddress) : 0x0000;
-        pixel.color = ConvertRGB555to888(Color555{.u16 = dotData});
-        pixel.transparent = bgParams.enableTransparency && bit::extract<15>(dotData) == 0;
-        pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
-
-    } else if constexpr (colorFormat == ColorFormat::RGB888) {
-        const uint32 dotAddress = cellAddress + dotOffset * sizeof(uint32);
-        const uint32 dotBank = (dotAddress >> 17u) & 3u;
-        const uint32 dotData = bgParams.charPatAccess[dotBank] ? VDP2ReadRendererVRAM<uint32>(dotAddress) : 0x00000000;
-        pixel.color.u32 = dotData;
-        pixel.transparent = bgParams.enableTransparency && bit::extract<31>(dotData) == 0;
-        pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
-    }
-
-    // Compute priority
-    pixel.priority = bgParams.priorityNumber;
-    if (bgParams.priorityMode == PriorityMode::PerCharacter) {
-        pixel.priority &= ~1;
-        pixel.priority |= (uint8)ch.specPriority;
-    } else if (bgParams.priorityMode == PriorityMode::PerDot) {
-        pixel.priority &= ~1;
-        if constexpr (IsPaletteColorFormat(colorFormat)) {
-            if (ch.specPriority) {
-                pixel.priority |= static_cast<uint8>(specFuncCode.colorMatches[colorData]);
-            }
-        }
-    }
-
-    return pixel;
-}
-
-template <ColorFormat colorFormat, uint32 colorMode>
-FORCE_INLINE SoftwareVDPRenderer::Pixel
-SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitmapBaseAddress, CoordU32 dotCoord,
-                                          VRAMFetcher &vramFetcher) {
-    static_assert(static_cast<uint32>(colorFormat) <= 4, "Invalid xxCHCN value");
-
-    const VDP2Regs &regs = VDP2GetRegs();
-
+    // Fetch color and determine transparency and special color calculation flag
     Pixel pixel{};
-
-    auto [dotX, dotY] = dotCoord;
-
-    // Bitmap data wraps around infinitely
-    dotX &= bgParams.bitmapSizeH - 1;
-    dotY &= bgParams.bitmapSizeV - 1;
-
-    // Bitmap addressing uses a fixed offset of 0x20000 bytes which is precalculated when MPOFN/MPOFR is written to
-    const uint32 dotOffset = dotX + dotY * bgParams.bitmapSizeH;
-    const uint32 palNum = bgParams.supplBitmapPalNum;
-
-    // Determine special color calculation flag
-    const auto &specFuncCode = regs.specialFunctionCodes[bgParams.specialFunctionSelect];
-    auto getSpecialColorCalcFlag = [&](uint8 specColorCode, bool colorDataMSB) {
-        using enum SpecialColorCalcMode;
-        switch (bgParams.specialColorCalcMode) {
-        case PerScreen: return bgParams.colorCalcEnable;
-        case PerCharacter: return bgParams.colorCalcEnable && bgParams.supplBitmapSpecialColorCalc;
-        case PerDot:
-            return bgParams.colorCalcEnable && bgParams.supplBitmapSpecialColorCalc &&
-                   specFuncCode.colorMatches[specColorCode];
-        case ColorDataMSB: return bgParams.colorCalcEnable && colorDataMSB;
-        }
-        util::unreachable();
-    };
-
-    auto fetchBitmapData = [&](uint32 address) {
-        const uint32 bank = (address >> 17u) & 3u;
-        if (!bgParams.charPatAccess[bank]) {
-            vramFetcher.bitmapData.fill(0);
-            return;
-        }
-
-        const uint32 offset = bgParams.vramDataOffset[bank];
-
-        if (vramFetcher.UpdateBitmapDataAddress(address)) {
-            address += offset;
-
-            // TODO: handle VRSIZE.VRAMSZ
-            auto &vram = VDP2GetRendererVRAM();
-            std::copy_n(&vram[address & 0x7FFF8], 8, vramFetcher.bitmapData.begin());
-        }
-    };
-
     uint8 colorData;
     if constexpr (colorFormat == ColorFormat::Palette16) {
-        const uint32 dotAddress = bitmapBaseAddress + (dotOffset >> 1u);
-        fetchBitmapData(dotAddress);
-        const uint8 dotData = (vramFetcher.bitmapData[dotAddress & 7] >> ((~dotX & 1) * 4)) & 0xF;
+        const uint32 dotAddress = baseAddress + (dotOffset >> 1u);
+        fetchCharData(dotAddress);
+        const uint8 dotData = (vramFetcher.charData[dotAddress & 7] >> ((~dotX & 1) * 4)) & 0xF;
         const uint32 colorIndex = palNum | dotData;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
@@ -5182,19 +5104,19 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitma
         pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
 
     } else if constexpr (colorFormat == ColorFormat::Palette256) {
-        const uint32 dotAddress = bitmapBaseAddress + dotOffset;
-        fetchBitmapData(dotAddress);
-        const uint8 dotData = vramFetcher.bitmapData[dotAddress & 7];
-        const uint32 colorIndex = palNum | dotData;
+        const uint32 dotAddress = baseAddress + dotOffset;
+        fetchCharData(dotAddress);
+        const uint8 dotData = vramFetcher.charData[dotAddress & 7];
+        const uint32 colorIndex = (palNum & 0x700) | dotData;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
         pixel.transparent = bgParams.enableTransparency && dotData == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
 
     } else if constexpr (colorFormat == ColorFormat::Palette2048) {
-        const uint32 dotAddress = bitmapBaseAddress + dotOffset * sizeof(uint16);
-        fetchBitmapData(dotAddress);
-        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.bitmapData[dotAddress & 6]);
+        const uint32 dotAddress = baseAddress + dotOffset * sizeof(uint16);
+        fetchCharData(dotAddress);
+        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.charData[dotAddress & 6]);
         const uint32 colorIndex = dotData & 0x7FF;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
@@ -5202,17 +5124,17 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitma
         pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
 
     } else if constexpr (colorFormat == ColorFormat::RGB555) {
-        const uint32 dotAddress = bitmapBaseAddress + dotOffset * sizeof(uint16);
-        fetchBitmapData(dotAddress);
-        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.bitmapData[dotAddress & 6]);
+        const uint32 dotAddress = baseAddress + dotOffset * sizeof(uint16);
+        fetchCharData(dotAddress);
+        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.charData[dotAddress & 6]);
         pixel.color = ConvertRGB555to888(Color555{.u16 = dotData});
         pixel.transparent = bgParams.enableTransparency && bit::extract<15>(dotData) == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
 
     } else if constexpr (colorFormat == ColorFormat::RGB888) {
-        const uint32 dotAddress = bitmapBaseAddress + dotOffset * sizeof(uint32);
-        fetchBitmapData(dotAddress);
-        const uint32 dotData = util::ReadBE<uint32>(&vramFetcher.bitmapData[dotAddress & 4]);
+        const uint32 dotAddress = baseAddress + dotOffset * sizeof(uint32);
+        fetchCharData(dotAddress);
+        const uint32 dotData = util::ReadBE<uint32>(&vramFetcher.charData[dotAddress & 4]);
         pixel.color.u32 = dotData;
         pixel.transparent = bgParams.enableTransparency && bit::extract<31>(dotData) == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
@@ -5222,11 +5144,11 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitma
     pixel.priority = bgParams.priorityNumber;
     if (bgParams.priorityMode == PriorityMode::PerCharacter) {
         pixel.priority &= ~1;
-        pixel.priority |= (uint8)bgParams.supplBitmapSpecialPriority;
+        pixel.priority |= (uint8)specPriority;
     } else if (bgParams.priorityMode == PriorityMode::PerDot) {
         pixel.priority &= ~1;
         if constexpr (IsPaletteColorFormat(colorFormat)) {
-            if (bgParams.supplBitmapSpecialPriority) {
+            if (specPriority) {
                 pixel.priority |= static_cast<uint8>(specFuncCode.colorMatches[colorData]);
             }
         }
