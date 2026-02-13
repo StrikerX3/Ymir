@@ -33,6 +33,7 @@ struct VDP2RenderState {
 ByteAddressBuffer vram : register(t0);
 StructuredBuffer<uint> cram : register(t1);
 StructuredBuffer<VDP2RenderState> renderState : register(t2);
+
 RWTexture2DArray<uint4> textureOut : register(u0);
 
 // The alpha channel of the output is used for pixel attributes as follows:
@@ -68,6 +69,8 @@ struct Character {
     bool flipH;
     bool flipV;
 };
+
+static const Character kBlankCharacter = (Character) 0;
 
 uint ByteSwap16(uint val) {
     return ((val >> 8) & 0x00FF) |
@@ -109,8 +112,6 @@ uint GetY(uint y) {
     }
 }
 
-static const Character kBlankCharacter = (Character) 0;
-
 uint4 FetchCRAMColor(uint cramOffset, uint colorIndex) {
     const uint cramAddress = (cramOffset + colorIndex) & kCRAMAddressMask;
     const uint cramValue = cram[cramAddress];
@@ -135,6 +136,11 @@ uint4 Color888(uint val32) {
     );
 }
 
+bool IsSpecialColorCalcMatch(uint4 nbgParams, uint specColorCode) {
+    const uint specFuncSelect = (nbgParams.x >> 16) & 1;
+    return (renderState[0].specialFunctionCodes >> (specFuncSelect * 8 + specColorCode)) & 1;
+}
+
 bool GetSpecialColorCalcFlag(uint4 nbgParams, uint specColorCode, bool specColorCalc, bool colorMSB) {
     const bool colorCalcEnable = (nbgParams.x >> 29) & 1;
     if (!colorCalcEnable) {
@@ -148,8 +154,7 @@ bool GetSpecialColorCalcFlag(uint4 nbgParams, uint specColorCode, bool specColor
         case kSpecColorCalcModeCharacter:
             return specColorCalc;
         case kSpecColorCalcModeDot:
-            const uint specFuncSelect = (nbgParams.x >> 16) & 1;
-            return specColorCalc && ((renderState[0].specialFunctionCodes >> (specFuncSelect * 8 + specColorCode)) & 1);
+            return specColorCalc && IsSpecialColorCalcMatch(nbgParams, specColorCode);
         case kSpecColorCalcModeColorMSB:
             return colorMSB;
     }
@@ -348,8 +353,6 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
     
     const uint bitmapBaseAddress = ((nbgParams.w >> 2) & 7) << 17;
  
-    // case PerCharacter: return ... && bgParams.supplBitmapSpecialColorCalc;
-    
     uint colorData;
     uint4 color;
     bool transparent;
@@ -414,7 +417,7 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
         priority |= supplBitmapSpecPriority;
     } else if (bgPriorityMode == kPriorityModeDot && supplBitmapSpecPriority && colorFormat < kColorFormatRGB555) {
         priority &= ~1;
-        // TODO: priority |= specFuncCode.colorMatches[colorData];
+        priority |= IsSpecialColorCalcMatch(nbgParams, colorData);
     }
     
     return uint4(color.xyz, (transparent << 7) | (specialColorCalc << 6) | priority);
