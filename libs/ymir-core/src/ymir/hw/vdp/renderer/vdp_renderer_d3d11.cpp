@@ -468,7 +468,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // ---------------------------------
 
     bufferDesc = {
-        .ByteWidth = sizeof(m_context->cpuVDP2RenderState),
+        .ByteWidth = sizeof(VDP2RenderState),
         .Usage = D3D11_USAGE_DYNAMIC,
         .BindFlags = D3D11_BIND_SHADER_RESOURCE,
         .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
@@ -1067,12 +1067,21 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         state.nbgScrollInc[i].y = bgParams.scrollIncV;
 
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
-
-        state.specialFunctionCodes = GatherBits(regs2.specialFunctionCodes[0].colorMatches) |
-                                     (GatherBits(regs2.specialFunctionCodes[0].colorMatches) << 8u);
     }
     // TODO: calculate RBG page base addresses
     // - extract shared code from the software renderer
+
+    for (uint32 i = 0; i < 2; ++i) {
+        state.windows[i].start.x = regs2.windowParams[i].startX;
+        state.windows[i].start.y = regs2.windowParams[i].startY;
+        state.windows[i].end.x = regs2.windowParams[i].endX;
+        state.windows[i].end.y = regs2.windowParams[i].endY;
+        state.windows[i].lineWindowTableAddress = regs2.windowParams[i].lineWindowTableAddress;
+        state.windows[i].lineWindowTableEnable = regs2.windowParams[i].lineWindowTableEnable;
+    }
+
+    state.specialFunctionCodes = GatherBits(regs2.specialFunctionCodes[0].colorMatches) |
+                                 (GatherBits(regs2.specialFunctionCodes[0].colorMatches) << 8u);
 
     auto *ctx = m_context->deferredCtx;
 
@@ -1090,6 +1099,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.oddField = regs2.TVSTAT.ODD;
     config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
     config.displayParams.colorRAMMode = regs2.vramControl.colorRAMMode;
+    config.displayParams.hiResH = bit::test<1>(regs2.TVMD.HRESOn);
 
     auto *ctx = m_context->deferredCtx;
 
