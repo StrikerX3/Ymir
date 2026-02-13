@@ -304,6 +304,9 @@ static struct {
     // Device type per port
     unsigned port_device[2] = {RETRO_DEVICE_JOYPAD, RETRO_DEVICE_JOYPAD};
 
+    // CD block LLE
+    bool cdblock_rom_loaded = false;
+
     // Multi-disc state
     std::vector<std::string> disc_paths;
     unsigned disc_index = 0;
@@ -520,7 +523,14 @@ static void apply_core_options() {
     if (!cd_speed.empty())
         config.cdblock.readSpeedFactor = static_cast<uint8_t>(std::stoi(cd_speed));
 
-    config.cdblock.useLLE = (get_variable("ymir_cdblock_lle") == "enabled");
+    if (get_variable("ymir_cdblock_lle") == "enabled") {
+        if (core.cdblock_rom_loaded)
+            config.cdblock.useLLE = true;
+        else
+            LOG(RETRO_LOG_WARN, "[Ymir] CD Block LLE requires a ROM in system/cdb/; falling back to HLE\n");
+    } else {
+        config.cdblock.useLLE = false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -551,6 +561,39 @@ static bool load_bios() {
 
     LOG(RETRO_LOG_ERROR, "[Ymir] No Saturn BIOS found in system directory.\n");
     LOG(RETRO_LOG_ERROR, "[Ymir] Looked for: sega_101.bin, mpr-17933.bin, saturn_bios.bin\n");
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// CD block ROM loading
+// ---------------------------------------------------------------------------
+
+static bool load_cdblock_rom() {
+    auto cdb_dir = std::filesystem::path(core.system_dir) / "cdb";
+    std::error_code ec;
+    if (!std::filesystem::is_directory(cdb_dir, ec))
+        return false;
+
+    for (auto &entry : std::filesystem::directory_iterator(cdb_dir, ec)) {
+        if (!entry.is_regular_file())
+            continue;
+        auto size = entry.file_size(ec);
+        if (ec || size != ymir::sh1::kROMSize)
+            continue;
+
+        std::ifstream file(entry.path(), std::ios::binary);
+        if (!file)
+            continue;
+
+        std::array<uint8_t, ymir::sh1::kROMSize> rom{};
+        file.read(reinterpret_cast<char *>(rom.data()), rom.size());
+        if (!file)
+            continue;
+
+        core.saturn->LoadCDBlockROM(std::span<uint8_t, ymir::sh1::kROMSize>(rom));
+        LOG(RETRO_LOG_INFO, "[Ymir] Loaded CD block ROM: %s\n", entry.path().filename().c_str());
+        return true;
+    }
     return false;
 }
 
@@ -951,6 +994,9 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     // Load BIOS
     if (!load_bios())
         return false;
+
+    // Load CD block ROM for LLE (optional)
+    core.cdblock_rom_loaded = load_cdblock_rom();
 
     // Register video callback
     core.saturn->VDP.SetSoftwareRenderCallback({on_frame_complete});
