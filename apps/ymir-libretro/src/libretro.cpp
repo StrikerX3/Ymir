@@ -364,14 +364,14 @@ static ymir::peripheral::Button read_saturn_buttons(unsigned port) {
     check(RETRO_DEVICE_ID_JOYPAD_LEFT, Button::Left);
     check(RETRO_DEVICE_ID_JOYPAD_RIGHT, Button::Right);
     check(RETRO_DEVICE_ID_JOYPAD_START, Button::Start);
-    check(RETRO_DEVICE_ID_JOYPAD_A, Button::A);
-    check(RETRO_DEVICE_ID_JOYPAD_B, Button::B);
-    check(RETRO_DEVICE_ID_JOYPAD_X, Button::X);
-    check(RETRO_DEVICE_ID_JOYPAD_Y, Button::Y);
-    check(RETRO_DEVICE_ID_JOYPAD_L, Button::L);
-    check(RETRO_DEVICE_ID_JOYPAD_R, Button::R);
-    check(RETRO_DEVICE_ID_JOYPAD_R2, Button::C);
-    check(RETRO_DEVICE_ID_JOYPAD_L2, Button::Z);
+    check(RETRO_DEVICE_ID_JOYPAD_A, Button::B);
+    check(RETRO_DEVICE_ID_JOYPAD_B, Button::A);
+    check(RETRO_DEVICE_ID_JOYPAD_X, Button::Y);
+    check(RETRO_DEVICE_ID_JOYPAD_Y, Button::X);
+    check(RETRO_DEVICE_ID_JOYPAD_L, Button::Z);
+    check(RETRO_DEVICE_ID_JOYPAD_R, Button::C);
+    check(RETRO_DEVICE_ID_JOYPAD_R2, Button::R);
+    check(RETRO_DEVICE_ID_JOYPAD_L2, Button::L);
     return buttons;
 }
 
@@ -843,14 +843,14 @@ RETRO_API void retro_set_environment(retro_environment_t cb) {
 #define DESC(port, id, name) {port, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_##id, name}
         DESC(0, UP, "D-Pad Up"), DESC(0, DOWN, "D-Pad Down"),
         DESC(0, LEFT, "D-Pad Left"), DESC(0, RIGHT, "D-Pad Right"),
-        DESC(0, A, "A"), DESC(0, B, "B"), DESC(0, R2, "C"),
-        DESC(0, X, "X"), DESC(0, Y, "Y"), DESC(0, L2, "Z"),
-        DESC(0, L, "L"), DESC(0, R, "R"), DESC(0, START, "Start"),
+        DESC(0, A, "B"), DESC(0, B, "A"), DESC(0, R, "C"),
+        DESC(0, X, "Y"), DESC(0, Y, "X"), DESC(0, L, "Z"),
+        DESC(0, L2, "L"), DESC(0, R2, "R"), DESC(0, START, "Start"),
         DESC(1, UP, "D-Pad Up"), DESC(1, DOWN, "D-Pad Down"),
         DESC(1, LEFT, "D-Pad Left"), DESC(1, RIGHT, "D-Pad Right"),
-        DESC(1, A, "A"), DESC(1, B, "B"), DESC(1, R2, "C"),
-        DESC(1, X, "X"), DESC(1, Y, "Y"), DESC(1, L2, "Z"),
-        DESC(1, L, "L"), DESC(1, R, "R"), DESC(1, START, "Start"),
+        DESC(1, A, "B"), DESC(1, B, "A"), DESC(1, R, "C"),
+        DESC(1, X, "Y"), DESC(1, Y, "X"), DESC(1, L, "Z"),
+        DESC(1, L2, "L"), DESC(1, R2, "R"), DESC(1, START, "Start"),
 #undef DESC
         {0, 0, 0, 0, nullptr},
     };
