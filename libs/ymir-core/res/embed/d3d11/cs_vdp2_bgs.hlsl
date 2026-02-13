@@ -9,17 +9,25 @@ cbuffer Config : register(b0) {
 }
 
 struct VDP2RenderState {
-    uint nbgParams[4][2];
+    uint4 nbgParams[4];
     
     uint2 nbgScrollAmount[4];
     uint2 nbgScrollInc[4];
-
-    // TODO: NBG VRAM data offsets (4 banks)
-    // TODO: NBG line scroll enable + offset tables (X/Y)
-    // TODO: Special function codes table (for per-dot special color calculations)
     
     uint nbgPageBaseAddresses[4][4];
     uint rbgPageBaseAddresses[2][16];
+
+    // TODO: NBG line scroll offset tables (X/Y) (or addresses to read from VRAM)
+    // TODO: Vertical cell scroll table base address
+    // TODO: Mosaic sizes (X/Y)
+    // TODO: Rotation parameters A and B
+    // TODO: Common rotation parameters - table address, mode, windows
+    // TODO: Sprite layer parameters
+    // TODO: Line screen parameters
+    // TODO: Back screen parameters
+    // TODO: Window 0 and 1 parameters
+
+    uint specialFunctionCodes;
 };
 
 ByteAddressBuffer vram : register(t0);
@@ -42,6 +50,11 @@ static const uint kColorFormatRGB888 = 4;
 static const uint kPriorityModeScreen = 0;
 static const uint kPriorityModeCharacter = 1;
 static const uint kPriorityModeDot = 2;
+
+static const uint kSpecColorCalcModeScreen = 0;
+static const uint kSpecColorCalcModeCharacter = 1;
+static const uint kSpecColorCalcModeDot = 2;
+static const uint kSpecColorCalcModeColorMSB = 3;
 
 static const uint kPageSizes[2][2] = { { 13, 14 }, { 11, 12 } };
 
@@ -122,8 +135,28 @@ uint4 Color888(uint val32) {
     );
 }
 
-Character FetchTwoWordCharacter(uint nbgParams[2], uint pageAddress, uint charIndex) {
-    const uint patNameAccess = nbgParams[1] & 0xF;
+bool GetSpecialColorCalcFlag(uint4 nbgParams, uint specColorCode, bool specColorCalc, bool colorMSB) {
+    const bool colorCalcEnable = (nbgParams.x >> 29) & 1;
+    if (!colorCalcEnable) {
+        return false;
+    }
+    
+    const uint specColorCalcMode = (nbgParams.x >> 14) & 3;
+    switch (specColorCalcMode) {
+        case kSpecColorCalcModeScreen:
+            return colorCalcEnable;
+        case kSpecColorCalcModeCharacter:
+            return specColorCalc;
+        case kSpecColorCalcModeDot:
+            const uint specFuncSelect = (nbgParams.x >> 16) & 1;
+            return specColorCalc && ((renderState[0].specialFunctionCodes >> (specFuncSelect * 8 + specColorCode)) & 1);
+        case kSpecColorCalcModeColorMSB:
+            return colorMSB;
+    }
+}
+
+Character FetchTwoWordCharacter(uint4 nbgParams, uint pageAddress, uint charIndex) {
+    const uint patNameAccess = nbgParams.w & 0xF;
     const uint charAddress = pageAddress + charIndex * 4;
     const uint charBank = (charAddress >> 17) & 3;
  
@@ -143,23 +176,23 @@ Character FetchTwoWordCharacter(uint nbgParams[2], uint pageAddress, uint charIn
     return ch;
 }
 
-Character FetchOneWordCharacter(uint nbgParams[2], uint pageAddress, uint charIndex) {
+Character FetchOneWordCharacter(uint4 nbgParams, uint pageAddress, uint charIndex) {
     const uint charAddress = pageAddress + charIndex * 2;
     const uint charBank = (charAddress >> 17) & 3;
-    const uint patNameAccess = nbgParams[1] & 0xF;
+    const uint patNameAccess = nbgParams.w & 0xF;
     if (((patNameAccess >> charBank) & 1) == 0) {
         return kBlankCharacter;
     }
     
     const uint charData = ReadVRAM16(charAddress);
 
-    const uint supplScrollCharNum = (nbgParams[1] >> 10) & 0x1F;
-    const uint supplScrollPalNum = ((nbgParams[0] >> 22) & 7) << 4;
-    const bool supplScrollSpecialColorCalc = (nbgParams[0] >> 25) & 1;
-    const bool supplScrollSpecialPriority = (nbgParams[0] >> 26) & 1;
-    const bool extChar = (nbgParams[1] >> 6) & 1;
-    const bool cellSizeShift = (nbgParams[1] >> 8) & 1;
-    const uint colorFormat = (nbgParams[0] >> 11) & 7;
+    const uint supplScrollCharNum = (nbgParams.w >> 9) & 0x1F;
+    const uint supplScrollPalNum = ((nbgParams.x >> 22) & 7) << 4;
+    const bool supplScrollSpecialColorCalc = (nbgParams.x >> 25) & 1;
+    const bool supplScrollSpecialPriority = (nbgParams.x >> 26) & 1;
+    const bool extChar = (nbgParams.w >> 6) & 1;
+    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
+    const uint colorFormat = (nbgParams.x >> 11) & 7;
     
     // Character number bit range from the 1-word character pattern data (charData)
     const uint baseCharNumMask = extChar ? 0xFFF : 0x3FF;
@@ -191,14 +224,14 @@ Character FetchOneWordCharacter(uint nbgParams[2], uint pageAddress, uint charIn
     return ch;
 }
 
-uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint cellIndex) {
-    const bool cellSizeShift = (nbgParams[1] >> 8) & 1;
-    const bool enableTransparency = (nbgParams[0] >> 6) & 1;
-    const uint cramOffset = nbgParams[0] & 0x700;
-    const uint colorFormat = (nbgParams[0] >> 11) & 7;
-    const uint bgPriorityNum = (nbgParams[0] >> 17) & 7;
-    const uint bgPriorityMode = (nbgParams[0] >> 20) & 3;
-    const uint charPatAccess = nbgParams[0] & 0xF;
+uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cellIndex) {
+    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
+    const bool enableTransparency = (nbgParams.x >> 28) & 1;
+    const uint cramOffset = nbgParams.x & 0x700;
+    const uint colorFormat = (nbgParams.x >> 11) & 7;
+    const uint bgPriorityNum = (nbgParams.x >> 17) & 7;
+    const uint bgPriorityMode = (nbgParams.x >> 20) & 3;
+    const uint charPatAccess = nbgParams.x & 0xF;
 
     if (ch.flipH) {
         dotPos.x ^= 7;
@@ -224,7 +257,7 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
 
     const uint cellAddress = (ch.charNum + cellIndex) << 5;
     const uint dotOffset = dotPos.x + (dotPos.y << 3);
-    
+
     uint colorData;
     uint4 color;
     bool transparent;
@@ -237,7 +270,7 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && dotData == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(colorData, pixel.color.msb)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, ch.specColorCalc, color.a);
 
     } else if (colorFormat == kColorFormatPalette256) {
         const uint dotAddress = cellAddress + dotOffset;
@@ -247,7 +280,7 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && dotData == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(colorData, pixel.color.msb)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, ch.specColorCalc, color.a);
 
     } else if (colorFormat == kColorFormatPalette2048) {
         const uint dotAddress = cellAddress + (dotOffset << 1);
@@ -257,7 +290,7 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && (dotData & 0x7FF) == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(colorData, pixel.color.msb)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, ch.specColorCalc, color.a);
 
     } else if (colorFormat == kColorFormatRGB555) {
         const uint dotAddress = cellAddress + (dotOffset << 1);
@@ -265,7 +298,7 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
         color = Color555(dotData);
         transparent = enableTransparency && color.w == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(0b111, true)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, ch.specColorCalc, true);
 
     } else if (colorFormat == kColorFormatRGB888) {
         const uint dotAddress = cellAddress + (dotOffset << 2);
@@ -273,7 +306,7 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM32(dotAddress) : 0;
         color = Color888(dotData);
         transparent = enableTransparency && color.w == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(0b111, true)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, ch.specColorCalc, true);
 
     } else {
         colorData = 0;
@@ -298,22 +331,25 @@ uint4 FetchCharacterPixel(uint nbgParams[2], Character ch, uint2 dotPos, uint ce
     return uint4(color.xyz, (transparent << 7) | (specialColorCalc << 6) | priority);
 }
 
-uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
-    const bool enableTransparency = (nbgParams[0] >> 6) & 1;
-    const uint colorFormat = (nbgParams[0] >> 11) & 7;
-    const uint cramOffset = nbgParams[0] & 0x700;
-    const uint bgPriorityNum = (nbgParams[0] >> 17) & 7;
-    const uint bgPriorityMode = (nbgParams[0] >> 20) & 3;
-    const uint charPatAccess = nbgParams[0] & 0xF;
-    const uint bitmapSizeH = 512 << (nbgParams[1] & 1);
-    const uint bitmapSizeV = 256 << ((nbgParams[1] >> 1) & 1);
+uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
+    const bool enableTransparency = (nbgParams.x >> 28) & 1;
+    const uint colorFormat = (nbgParams.x >> 11) & 7;
+    const uint cramOffset = nbgParams.x & 0x700;
+    const uint bgPriorityNum = (nbgParams.x >> 17) & 7;
+    const uint bgPriorityMode = (nbgParams.x >> 20) & 3;
+    const bool specColorCalc = (nbgParams.x >> 25) & 1;
+    const uint charPatAccess = nbgParams.x & 0xF;
+    const uint bitmapSizeH = 512 << (nbgParams.w & 1);
+    const uint bitmapSizeV = 256 << ((nbgParams.w >> 1) & 1);
 
     const uint2 dotPos = scrollPos & uint2(bitmapSizeH - 1, bitmapSizeV - 1);
     const uint dotOffset = dotPos.x + dotPos.y * bitmapSizeH;
-    const uint palNum = ((nbgParams[0] >> 22) & 7) << 4;
+    const uint palNum = ((nbgParams.x >> 22) & 7) << 4;
     
-    const uint bitmapBaseAddress = ((nbgParams[1] >> 2) & 7) << 17;
+    const uint bitmapBaseAddress = ((nbgParams.w >> 2) & 7) << 17;
  
+    // case PerCharacter: return ... && bgParams.supplBitmapSpecialColorCalc;
+    
     uint colorData;
     uint4 color;
     bool transparent;
@@ -326,7 +362,7 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && dotData == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(colorData, colorMSB)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, color.a);
 
     } else if (colorFormat == kColorFormatPalette256) {
         const uint dotAddress = bitmapBaseAddress + dotOffset;
@@ -336,7 +372,7 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && dotData == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(colorData, colorMSB)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, color.a);
 
     } else if (colorFormat == kColorFormatPalette2048) {
         const uint dotAddress = bitmapBaseAddress + (dotOffset << 1);
@@ -346,7 +382,7 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
         colorData = (dotData >> 1) & 7;
         color = FetchCRAMColor(cramOffset, colorIndex);
         transparent = enableTransparency && dotData == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(colorData, colorMSB)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, color.a);
 
     } else if (colorFormat == kColorFormatRGB555) {
         const uint dotAddress = bitmapBaseAddress + (dotOffset << 1);
@@ -354,7 +390,7 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
         color = Color555(dotData);
         transparent = enableTransparency && color.w == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(0b111, true)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
 
     } else if (colorFormat == kColorFormatRGB888) {
         const uint dotAddress = bitmapBaseAddress + (dotOffset << 2);
@@ -362,7 +398,7 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM32(dotAddress) : 0;
         color = Color888(dotData);
         transparent = enableTransparency && color.w == 0;
-        specialColorCalc = false; // TODO: getSpecialColorCalcFlag(0b111, true)
+        specialColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
 
     } else {
         colorData = 0;
@@ -371,7 +407,7 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
         specialColorCalc = false;
     }
     
-    const uint supplBitmapSpecPriority = (nbgParams[0] >> 26) & 1;
+    const uint supplBitmapSpecPriority = (nbgParams.x >> 26) & 1;
     uint priority = bgPriorityNum;
     if (bgPriorityMode == kPriorityModeCharacter) {
         priority &= ~1;
@@ -387,21 +423,37 @@ uint4 FetchBitmapPixel(uint nbgParams[2], uint2 scrollPos) {
 
 uint4 DrawScrollNBG(uint2 pos, uint index) {
     const VDP2RenderState state = renderState[0];
-    const uint nbgParams[2] = state.nbgParams[index];
+    const uint4 nbgParams = state.nbgParams[index];
     
     // TODO: compute/check window
-    
-    const uint2 pageShift = uint2((nbgParams[1] >> 4) & 1, (nbgParams[1] >> 5) & 1);
-    const bool twoWordChar = (nbgParams[1] >> 7) & 1;
-    const bool cellSizeShift = (nbgParams[1] >> 8) & 1;
-    const bool vertCellScrollEnable = (nbgParams[1] >> 9) & 1;
-    const bool mosaicEnable = (nbgParams[0] >> 5) & 1;
+    // const bool window0Enable = (nbgParams.x >> 13) & 1;
+    // const bool window0Invert = (nbgParams.x >> 14) & 1;
+    // const bool window1Enable = (nbgParams.x >> 15) & 1;
+    // const bool window1Invert = (nbgParams.x >> 16) & 1;
+    // const bool spriteWindowEnable = (nbgParams.x >> 17) & 1;
+    // const bool spriteWindowInvert = (nbgParams.x >> 18) & 1;
+    // const bool windowLogic = (nbgParams.x >> 19) & 1;
+  
+    const uint2 pageShift = uint2((nbgParams.w >> 4) & 1, (nbgParams.w >> 5) & 1);
+    const bool twoWordChar = (nbgParams.w >> 7) & 1;
+    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
     
     pos.y = GetY(pos.y);
     
     const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
+
     // TODO: mosaic, line screen scroll, vertical cell scroll, data access delays, etc.
+    // const bool lineZoomEnable = nbgParams.y & 1;
+    // const bool lineScrollXEnable = (nbgParams.y >> 1) & 1;
+    // const bool lineScrollYEnable = (nbgParams.y >> 2) & 1;
+    // const uint lineScrollInterval = 1 << ((nbgParams.y >> 3) & 3);
+    // const uint lineScrollTableAddress = ((nbgParams.y >> 5) & 7) << 17;
+    // const bool vertCellScrollEnable = (nbgParams.y >> 8) & 1;
+    // const bool vertCellScrollDelay = (nbgParams.y >> 9) & 1;
+    // const uint vertCellScrollOffset = ((nbgParams.y >> 10) & 1) << 2;
+    // const bool vertCellScrollRepeat = (nbgParams.y >> 11) & 1;
+    // const bool mosaicEnable = (nbgParams.x >> 12) & 1;
     
     const uint2 scrollPos = fracScrollPos >> 8;
   
@@ -410,6 +462,8 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
     const uint pageBaseAddress = state.nbgPageBaseAddresses[index][plane];
     
     // TODO: apply data access shift hack here
+    // const uint bank = (pageBaseAddress >> 17) & 3;
+    // const uint vramAccessOffset = ((nbgParams.x >> (4 + bank)) & 1) << 3;
     
     const uint2 pagePos = (scrollPos >> 9) & pageShift;
     const uint page = pagePos.x + (pagePos.y << 1);
@@ -436,13 +490,31 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
 
 uint4 DrawBitmapNBG(uint2 pos, uint index) {
     const VDP2RenderState state = renderState[0];
-    const uint nbgParams[2] = state.nbgParams[index];
+    const uint4 nbgParams = state.nbgParams[index];
   
     // TODO: compute/check window
+    // const bool window0Enable = (nbgParams.x >> 13) & 1;
+    // const bool window0Invert = (nbgParams.x >> 14) & 1;
+    // const bool window1Enable = (nbgParams.x >> 15) & 1;
+    // const bool window1Invert = (nbgParams.x >> 16) & 1;
+    // const bool spriteWindowEnable = (nbgParams.x >> 17) & 1;
+    // const bool spriteWindowInvert = (nbgParams.x >> 18) & 1;
+    // const bool windowLogic = (nbgParams.x >> 19) & 1;
     
     const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
+ 
     // TODO: mosaic, line screen scroll, vertical cell scroll, data access delays, etc.
-    
+    // const bool lineZoomEnable = nbgParams.y & 1;
+    // const bool lineScrollXEnable = (nbgParams.y >> 1) & 1;
+    // const bool lineScrollYEnable = (nbgParams.y >> 2) & 1;
+    // const uint lineScrollInterval = 1 << ((nbgParams.y >> 3) & 3);
+    // const uint lineScrollTableAddress = ((nbgParams.y >> 5) & 7) << 17;
+    // const bool vertCellScrollEnable = (nbgParams.y >> 8) & 1;
+    // const bool vertCellScrollDelay = (nbgParams.y >> 9) & 1;
+    // const uint vertCellScrollOffset = ((nbgParams.y >> 10) & 1) << 2;
+    // const bool vertCellScrollRepeat = (nbgParams.y >> 11) & 1;
+    // const bool mosaicEnable = (nbgParams.x >> 12) & 1;
+ 
     const uint2 scrollPos = fracScrollPos >> 8;
   
     return FetchBitmapPixel(nbgParams, scrollPos);
@@ -450,14 +522,14 @@ uint4 DrawBitmapNBG(uint2 pos, uint index) {
 
 uint4 DrawNBG(uint2 pos, uint index) {
     const VDP2RenderState state = renderState[0];
-    const uint nbgParams0 = state.nbgParams[index][0];
-    const bool enabled = (nbgParams0 >> 30) & 1;
+    const uint4 nbgParams = state.nbgParams[index];
+    
+    const bool enabled = (nbgParams.x >> 30) & 1;
     if (!enabled) {
         return uint4(0, 0, 0, 128);
     }
     
-    const bool bitmap = (nbgParams0 >> 31) & 1;
-    
+    const bool bitmap = (nbgParams.x >> 31) & 1;
     return bitmap ? DrawBitmapNBG(pos, index) : DrawScrollNBG(pos, index);
 }
 
