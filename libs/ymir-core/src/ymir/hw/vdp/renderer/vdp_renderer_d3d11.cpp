@@ -815,6 +815,24 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
     m_context->dirtyVDP2RenderState = true;
 }
 
+template <size_t N>
+FORCE_INLINE static uint32 GatherBits(const std::array<bool, N> &arr) {
+    uint32 bits = 0u;
+    for (uint32 i = 0; i < N; ++i) {
+        bits |= static_cast<uint32>(arr[i]) << i;
+    }
+    return bits;
+}
+
+template <uint32 bitPos, size_t N>
+FORCE_INLINE static std::array<bool, N> ExtractArrayBits(const std::array<uint32, N> &arr) {
+    std::array<bool, N> bits;
+    for (uint32 i = 0; i < N; ++i) {
+        bits[i] = bit::test<bitPos>(arr[i]);
+    }
+    return bits;
+};
+
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
     const bool dirty = m_state.regs2.accessPatternsDirty;
     IVDPRenderer::VDP2CalcAccessPatterns(m_state.regs2);
@@ -826,17 +844,20 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
     auto &state = m_context->cpuVDP2RenderState;
     for (uint32 i = 0; i < 4; ++i) {
         const auto &bgParams = regs2.bgParams[i + 1];
-        auto &stateParams = state.nbgParams[i];
+        const NormBGLayerState &bgState = m_normBGLayerStates[i];
+        auto &renderParams = state.nbgParams[i];
 
-        auto &commonParams = stateParams.common;
-        commonParams.charPatAccess = (bgParams.charPatAccess[0] << 0) | (bgParams.charPatAccess[1] << 1) |
-                                     (bgParams.charPatAccess[2] << 2) | (bgParams.charPatAccess[3] << 3);
+        auto &commonParams = renderParams.common;
+        commonParams.charPatAccess = GatherBits(bgParams.charPatAccess);
         commonParams.charPatDelay = bgParams.charPatDelay;
+        commonParams.vramAccessOffset = GatherBits(ExtractArrayBits<3>(bgParams.vramDataOffset));
+        commonParams.vertCellScrollDelay = bgState.vertCellScrollDelay;
+        commonParams.vertCellScrollOffset = bgState.vertCellScrollOffset;
+        commonParams.vertCellScrollRepeat = bgState.vertCellScrollRepeat;
 
         if (!bgParams.bitmap) {
-            auto &scrollParams = stateParams.typeSpecific.scroll;
-            scrollParams.patNameAccess = (bgParams.patNameAccess[0] << 0) | (bgParams.patNameAccess[1] << 1) |
-                                         (bgParams.patNameAccess[2] << 2) | (bgParams.patNameAccess[3] << 3);
+            auto &scrollParams = renderParams.typeSpecific.scroll;
+            scrollParams.patNameAccess = GatherBits(bgParams.patNameAccess);
         }
     }
 
@@ -988,14 +1009,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
 
     // TODO: update these in response to register writes
     for (uint32 i = 0; i < 4; ++i) {
-        const auto &bgParams = regs2.bgParams[i + 1];
-        auto &stateParams = state.nbgParams[i];
+        const BGParams &bgParams = regs2.bgParams[i + 1];
+        NBGRenderParams &renderParams = state.nbgParams[i];
 
-        auto &commonParams = stateParams.common;
-        commonParams.mosaicEnable = bgParams.mosaicEnable;
+        auto &commonParams = renderParams.common;
         commonParams.transparencyEnable = bgParams.enableTransparency;
         commonParams.colorCalcEnable = bgParams.colorCalcEnable;
-        commonParams.cramOffset = bgParams.cramOffset >> 8;
+        commonParams.cramOffset = bgParams.cramOffset >> 8u;
         commonParams.colorFormat = static_cast<uint32>(bgParams.colorFormat);
         commonParams.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
         commonParams.specFuncSelect = bgParams.specialFunctionSelect;
@@ -1003,12 +1023,27 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         commonParams.priorityMode = static_cast<uint32>(bgParams.priorityMode);
         commonParams.bitmap = bgParams.bitmap;
 
+        commonParams.lineZoomEnable = bgParams.lineZoomEnable;
+        commonParams.lineScrollXEnable = bgParams.lineScrollXEnable;
+        commonParams.lineScrollYEnable = bgParams.lineScrollYEnable;
+        commonParams.lineScrollInterval = bgParams.lineScrollInterval;
+        commonParams.lineScrollTableAddress = bgParams.lineScrollTableAddress >> 17u;
+        commonParams.vertCellScrollEnable = bgParams.verticalCellScrollEnable;
+        commonParams.mosaicEnable = bgParams.mosaicEnable;
+        commonParams.window0Enable = bgParams.windowSet.enabled[0];
+        commonParams.window0Invert = bgParams.windowSet.inverted[0];
+        commonParams.window1Enable = bgParams.windowSet.enabled[1];
+        commonParams.window1Invert = bgParams.windowSet.inverted[1];
+        commonParams.spriteWindowEnable = bgParams.windowSet.enabled[2];
+        commonParams.spriteWindowInvert = bgParams.windowSet.inverted[2];
+        commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
+
         if (bgParams.bitmap) {
             commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 4u;
             commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
             commonParams.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
 
-            auto &bitmapParams = stateParams.typeSpecific.bitmap;
+            auto &bitmapParams = renderParams.typeSpecific.bitmap;
             bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
             bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
             bitmapParams.bitmapBaseAddress = bgParams.bitmapBaseAddress >> 17u;
@@ -1017,13 +1052,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
             commonParams.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
             commonParams.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
 
-            auto &scrollParams = stateParams.typeSpecific.scroll;
+            auto &scrollParams = renderParams.typeSpecific.scroll;
             scrollParams.pageShiftH = bgParams.pageShiftH;
             scrollParams.pageShiftV = bgParams.pageShiftV;
             scrollParams.extChar = bgParams.extChar;
             scrollParams.twoWordChar = bgParams.twoWordChar;
             scrollParams.cellSizeShift = bgParams.cellSizeShift;
-            scrollParams.vertCellScroll = bgParams.verticalCellScrollEnable;
             scrollParams.supplCharNum = bgParams.supplScrollCharNum;
         }
 
