@@ -1069,11 +1069,9 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     descs[0].ptr   = core.saturn->mem.WRAMLow.data();
     descs[0].start = 0x00200000;
     descs[0].len   = core.saturn->mem.WRAMLow.size();
-    descs[0].select = 0x0FF00000;
     descs[1].ptr   = core.saturn->mem.WRAMHigh.data();
     descs[1].start = 0x06000000;
     descs[1].len   = core.saturn->mem.WRAMHigh.size();
-    descs[1].select = 0x0FF00000;
     struct retro_memory_map mmap = { descs, 2 };
     core.env_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmap);
 
@@ -1252,8 +1250,6 @@ RETRO_API void *retro_get_memory_data(unsigned id) {
     switch (id & RETRO_MEMORY_MASK) {
     case RETRO_MEMORY_SAVE_RAM:
         return core.save_ram.data();
-    case RETRO_MEMORY_SYSTEM_RAM:
-        return core.saturn ? core.saturn->mem.WRAMLow.data() : nullptr;
     default:
         return nullptr;
     }
@@ -1263,8 +1259,6 @@ RETRO_API size_t retro_get_memory_size(unsigned id) {
     switch (id & RETRO_MEMORY_MASK) {
     case RETRO_MEMORY_SAVE_RAM:
         return core.save_ram.size();
-    case RETRO_MEMORY_SYSTEM_RAM:
-        return core.saturn ? core.saturn->mem.WRAMLow.size() + core.saturn->mem.WRAMHigh.size() : 0;
     default:
         return 0;
     }
