@@ -1067,6 +1067,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         state.nbgScrollInc[i].y = bgParams.scrollIncV;
 
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
+
+        state.specialFunctionCodes = GatherBits(regs2.specialFunctionCodes[0].colorMatches) |
+                                     (GatherBits(regs2.specialFunctionCodes[0].colorMatches) << 8u);
     }
     // TODO: calculate RBG page base addresses
     // - extract shared code from the software renderer
