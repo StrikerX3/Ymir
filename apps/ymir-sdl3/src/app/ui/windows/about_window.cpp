@@ -5,6 +5,8 @@
 #include <util/std_lib.hpp>
 #include <ymir/util/compiler_info.hpp>
 
+#include <ymir/hw/vdp/vdp.hpp>
+
 #include <app/services/graphics_service.hpp>
 #include <app/services/midi_service.hpp>
 
@@ -317,7 +319,11 @@ void AboutWindow::DrawAboutTab() {
         graphicsBackendName = RendererToHumanReadableString(rendererName);
     }
     ImGui::Text("Using %s graphics backend for GUI rendering.", graphicsBackendName);
-    ImGui::TextUnformatted("Using software VDP1/VDP2 renderer.");
+    const auto &vdp = m_context.saturn.GetVDP();
+    {
+        std::unique_lock lock{m_context.locks.renderer};
+        ImGui::Text("Using %s VDP1/VDP2 renderer.", vdp.GetRenderer().GetName().data());
+    }
 
     const char *audioDriver = SDL_GetCurrentAudioDriver();
     ImGui::Text("Using %s audio driver.", AudioDriverToHumanReadableString(audioDriver));
