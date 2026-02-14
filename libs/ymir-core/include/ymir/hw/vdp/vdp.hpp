@@ -135,6 +135,12 @@ public:
         return *m_renderer;
     }
 
+    /// @brief Retrieves a reference to the current VDP renderer.
+    /// @return a reference to the current VDP renderer instance, guaranteed to be valid
+    const IVDPRenderer &GetRenderer() const {
+        return const_cast<VDP *>(this)->GetRenderer();
+    }
+
     /// @brief If the current renderer has the specified `VDPRendererType`, returns a pointer to it cast to the
     /// corresponding concrete type. Returns `nullptr` otherwise.
     ///
