@@ -8,12 +8,13 @@
 #include <mio/mmap.hpp>
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <vector>
 
 namespace ymir::bup {
 
-enum class BackupMemoryImageLoadResult { Success, FilesystemError, InvalidSize };
+enum class BackupMemoryImageLoadResult { Success, FilesystemError, InvalidSize, OutOfMemoryError };
 
 class BackupMemory final : public IBackupMemory {
 public:
@@ -27,6 +28,7 @@ public:
     // The image is not modified in any way.
     //
     // `path` is the path to the backup memory file to create.
+    // `copyOnWrite` indicates if the file should be mapped in copy-on-write mode (preserves original file contents).
     // `error` will contain any error that occurs while loading or manipulating the file.
     //
     // Returns BackupMemoryImageLoadResult::Success if the image was loaded successfully.
@@ -34,7 +36,8 @@ public:
     // `error` will contain the error.
     // Returns BackupMemoryImageLoadResult::InvalidSize if the image size doesn't match any of the valid sizes.
     // `error` is not modified in this case.
-    BackupMemoryImageLoadResult LoadFrom(const std::filesystem::path &path, std::error_code &error);
+    // Returns BackupMemoryImageLoadResult::OutOfMemoryError if there was not enough memory to allocate the file.
+    BackupMemoryImageLoadResult LoadFrom(const std::filesystem::path &path, bool copyOnWrite, std::error_code &error);
 
     // Creates or replaces a backup memory file at the specified path with the given size.
     // If the file does not exist, it is created with the given size.
@@ -42,10 +45,18 @@ public:
     // If the file had to be created, resized or did not contain a valid backup memory, it is formatted.
     //
     // `path` is the path to the backup memory file to create.
+    // `copyOnWrite` indicates if the file should be mapped in copy-on-write mode (preserves original file contents).
     // `size` is the total backup memory size.
     // `error` will contain any error that occurs while loading or manipulating the file.
-    void CreateFrom(const std::filesystem::path &path, BackupMemorySize size, std::error_code &error);
+    void CreateFrom(const std::filesystem::path &path, bool copyOnWrite, std::error_code &error, BackupMemorySize size);
 
+    // Creates an in-memory backup memory with the given size, not backed by a file.
+    // The memory is formatted if it does not contain a valid backup memory header.
+    void CreateInMemory(BackupMemorySize size);
+
+    // Copies the contents of the given backup memory into this instance, replacing all existing files.
+    // Returns `true` if the copy succeeded, `false` if the source backup RAM is too large to fit.
+    // If failed, the current contents are preserved.
     bool CopyFrom(const IBackupMemory &backupRAM) final;
 
     std::filesystem::path GetPath() const final;
@@ -83,11 +94,84 @@ public:
     bool Delete(std::string_view filename) final;
 
 private:
-    // TODO: support three types
-    // - in-memory (std::vector)
-    // - memory-mapped file (mio::mmap_sink)
-    // - memory-mapped copy-on-write file (mio::mmap_cow_sink)
-    mio::mmap_sink m_backupRAM;
+    /// @brief Base class for backup RAM data containers.
+    struct Container {
+        virtual ~Container() = default;
+
+        /// @brief Retrieves a writable pointer to the backup RAM data.
+        /// @return a writable pointer to the backup RAM data
+        virtual uint8 *Data() const = 0;
+
+        /// @brief Retrieves the size of the backup RAM data.
+        /// @return the size of the backup RAM data
+        virtual size_t Size() const = 0;
+    };
+
+    /// @brief An in-memory backup RAM data container not backed by any file.
+    struct InMemoryContainer : public Container {
+        InMemoryContainer(size_t size) {
+            m_data.resize(size);
+        }
+
+        uint8 *Data() const override {
+            return m_data.data();
+        }
+        size_t Size() const override {
+            return m_data.size();
+        }
+
+    private:
+        mutable std::vector<uint8> m_data;
+    };
+
+    /// @brief A backup RAM data container backed by a memory-mapped file.
+    /// Changes made to the backup memory are written to the file.
+    struct MemoryMappedFileContainer : public Container {
+        MemoryMappedFileContainer(mio::mmap_sink &&sink)
+            : m_sink(std::move(sink)) {}
+
+        uint8 *Data() const override {
+            return reinterpret_cast<uint8 *>(m_sink.data());
+        }
+        size_t Size() const override {
+            return m_sink.size();
+        }
+
+    private:
+        mutable mio::mmap_sink m_sink;
+    };
+
+    /// @brief A backup RAM data container backed by a copy-on-write memory-mapped file.
+    /// Changes made to the backup memory are kept in memory.
+    struct MemoryMappedCoWFileContainer : public Container {
+        MemoryMappedCoWFileContainer(mio::mmap_cow_sink &&sink)
+            : m_sink(std::move(sink)) {}
+
+        uint8 *Data() const override {
+            return reinterpret_cast<uint8 *>(m_sink.data());
+        }
+        size_t Size() const override {
+            return m_sink.size();
+        }
+
+    private:
+        mutable mio::mmap_cow_sink m_sink;
+    };
+
+    // Attempts to memory-map the specified file.
+    // If failed, returns an empty unique_ptr and fills in the error code.
+
+    /// @brief Attempts to memory-map the specified file.
+    /// If failed, returns an empty `unique_ptr` and fills in the error code.
+    ///
+    /// @param[in] path the path to the backup memory file to create
+    /// @param[in] copyOnWrite indicates if the file should be mapped in copy-on-write mode
+    /// @param[out] error outputs a file system error if any is encountered
+    /// @return a pointer to the memory-mapped file container for the backup RAM; empty if failed.
+    static std::unique_ptr<Container> MemoryMapFile(const std::filesystem::path &path, bool copyOnWrite,
+                                                    std::error_code &error);
+
+    std::unique_ptr<Container> m_backupRAM;
 
     std::filesystem::path m_path;
 
@@ -129,8 +213,8 @@ private:
     void RebuildFileList(bool force = false);
     void RebuildFileList(bool force = false) const;
 
-    // Checks if the backup image is interleaved.
-    bool CheckInterleaved() const;
+    // Checks if the backup image in the given container is interleaved.
+    [[nodiscard]] static bool CheckInterleaved(Container &container);
 
     // Checks if the header is valid.
     bool CheckHeader() const;

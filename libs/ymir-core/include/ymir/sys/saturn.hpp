@@ -95,8 +95,9 @@ struct Saturn {
     /// `error` will contain the filesystem error if the image failed to load.
     ///
     /// @param[in] path the path of the internal backup memory image to load
+    /// @param[in] copyOnWrite whether to map the file in copy-on-write mode, preserving its contents on the disk
     /// @param[out] error receives the filesystem error in case the image fails to load
-    void LoadInternalBackupMemoryImage(std::filesystem::path path, std::error_code &error);
+    void LoadInternalBackupMemoryImage(std::filesystem::path path, bool copyOnWrite, std::error_code &error);
 
     /// @brief Retrieves the IPL ROM hash code.
     /// @return the hash code of the currently loaded IPL ROM image
