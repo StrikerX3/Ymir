@@ -28,6 +28,8 @@ Clang is the preferred compiler for it's multiplatform support and excellent cod
 You can tune the build with following CMake options:
 
 - `Ymir_AVX2` (`BOOL`): Set to `ON` to use AVX2 extensions (on x86_64 platforms only). `OFF` uses the platform's default instruction set, typically SSE2. ARM64 platforms will always use NEON. Disabled by default.
+- `Ymir_ENABLE_SDL3_APP` (`BOOL`): Includes the SDL3 frontend in the build. Enabled by default if this is the top level CMake project.
+- `Ymir_ENABLE_LIBRETRO` (`BOOL`): Includes the libretro core in the build. Disabled by default.
 - `Ymir_ENABLE_TESTS` (`BOOL`): Includes the unit test project in the build. Enabled by default if this is the top level CMake project.
 - `Ymir_ENABLE_SANDBOX` (`BOOL`): Includes the sandbox project in the build. Enabled by default if this is the top level CMake project.
 - `Ymir_ENABLE_YMDASM` (`BOOL`): Includes the disassembly tool project in the build. Enabled by default if this is the top level CMake project.
