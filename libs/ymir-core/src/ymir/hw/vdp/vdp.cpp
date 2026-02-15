@@ -427,8 +427,13 @@ FORCE_INLINE void VDP::VDP1WriteReg(uint32 address, uint16 value) {
                     VDP1BeginFrame();
 
                     // HACK: insert a delay to dodge some timing issues with games that trigger drawing too early
-                    // (e.g.: Fighter's History Dynamite, Cyberbots - Fullmetal Madness)
-                    m_VDP1TimingPenaltyCycles += 1500;
+                    // Games known to require this hack:
+                    // - Fighter's History Dynamite
+                    // - Cyberbots - Fullmetal Madness
+                    // - Earthworm Jim 2
+                    if (m_state.VPhase != VerticalPhase::Active) {
+                        m_VDP1TimingPenaltyCycles += 25000;
+                    }
                 }
                 break;
             case 0x0C: // ENDR
