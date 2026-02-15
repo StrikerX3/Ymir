@@ -864,7 +864,7 @@ template <mem_primitive T, bool peek>
 }
 
 template <bool peek>
-FORCE_INLINE uint8 SH2::OnChipRegReadByte(uint32 address) {
+FORCE_INLINE_EX uint8 SH2::OnChipRegReadByte(uint32 address) {
     if (address >= 0x100) {
         if constexpr (peek) {
             const uint16 value = OnChipRegReadWord<true>(address & ~1);
@@ -985,7 +985,7 @@ FORCE_INLINE uint8 SH2::OnChipRegReadByte(uint32 address) {
 }
 
 template <bool peek>
-FORCE_INLINE uint16 SH2::OnChipRegReadWord(uint32 address) {
+FORCE_INLINE_EX uint16 SH2::OnChipRegReadWord(uint32 address) {
     if (address < 0x100) {
         switch (address) {
         case 0x82: [[fallthrough]];
@@ -1019,7 +1019,7 @@ FORCE_INLINE uint16 SH2::OnChipRegReadWord(uint32 address) {
 }
 
 template <bool peek>
-FORCE_INLINE uint32 SH2::OnChipRegReadLong(uint32 address) {
+FORCE_INLINE_EX uint32 SH2::OnChipRegReadLong(uint32 address) {
     if (address < 0x100) {
         if constexpr (peek) {
             uint32 value = OnChipRegReadWord<true>(address & ~3) << 16u;
@@ -1106,7 +1106,7 @@ template <mem_primitive T, bool poke, bool debug, bool enableCache>
 }
 
 template <bool poke, bool debug, bool enableCache>
-FORCE_INLINE void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
+FORCE_INLINE_EX void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
     if (address >= 0x100) {
         if constexpr (poke) {
             uint16 currValue = OnChipRegReadWord<true>(address & ~1);
@@ -1277,7 +1277,7 @@ FORCE_INLINE void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
 }
 
 template <bool poke, bool debug, bool enableCache>
-FORCE_INLINE void SH2::OnChipRegWriteWord(uint32 address, uint16 value) {
+FORCE_INLINE_EX void SH2::OnChipRegWriteWord(uint32 address, uint16 value) {
     switch (address) {
     case 0x60:
     case 0x61:
@@ -1379,7 +1379,7 @@ FORCE_INLINE void SH2::OnChipRegWriteWord(uint32 address, uint16 value) {
 }
 
 template <bool poke, bool debug, bool enableCache>
-FORCE_INLINE void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
+FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
     if (address < 0x100) {
         if constexpr (poke) {
             OnChipRegWriteWord<true, debug, enableCache>(address + 0, value >> 16u);
