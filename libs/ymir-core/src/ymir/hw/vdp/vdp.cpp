@@ -318,12 +318,6 @@ void VDP::Advance(uint64 cycles) {
         // - high-speed shrink, end codes, user clipping (all of these reduce costs)
         cycles <<= 2;
 
-        if (cycles <= m_VDP1State.spilloverCycles) {
-            // Not enough cycles to cover the overspending from last iteration.
-            m_VDP1State.spilloverCycles -= cycles;
-            return;
-        }
-
         // Apply timing penalty
         if (m_VDP1TimingPenaltyCycles > 0) {
             if (cycles <= m_VDP1TimingPenaltyCycles) {
@@ -333,6 +327,13 @@ void VDP::Advance(uint64 cycles) {
                 cycles -= m_VDP1TimingPenaltyCycles;
                 m_VDP1TimingPenaltyCycles = 0;
             }
+        }
+
+        // Compensate spillover cycles
+        if (cycles <= m_VDP1State.spilloverCycles) {
+            // Not enough cycles to cover the overspending from last iteration.
+            m_VDP1State.spilloverCycles -= cycles;
+            return;
         }
 
         // Our budget is however many cycles we've been requested to run minus the spillover from a previous command.
