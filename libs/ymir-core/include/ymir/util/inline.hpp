@@ -11,7 +11,7 @@ This header defines the following macros:
 
 The `FORCE_INLINE_EX` and `FLATTEN_EX` are meant to be used in functions that heavily slow down compilation if inlined
 or flattened. If `Ymir_EXTRA_INLINING` is defined, the macros behave exactly like their non-`EX` counterparts, otherwise
-they do nothing.
+they do nothing. This only has an effect with Clang as the other compilers tend to choke on heavy inlining.
 
 In Debug builds, these macros have no effect in order to not disrupt the debugging experience. The inline macros can be
 disabled by defining `Ymir_DISABLE_FORCE_INLINE`. `Ymir_EXTRA_INLINING` has no effect in debug builds.
@@ -76,7 +76,7 @@ For use with functions that heavily impact build times.
     #define FLATTEN
 #endif
 
-#if Ymir_EXTRA_INLINING
+#if Ymir_EXTRA_INLINING && defined(__clang__)
     #define FORCE_INLINE_EX FORCE_INLINE
     #define FLATTEN_EX FLATTEN
 #else

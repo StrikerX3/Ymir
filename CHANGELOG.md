@@ -40,6 +40,7 @@ Introduced save state file version 12.
 - MIDI: Defend against crashes when the library fails to initialize.
 - SH2: Fix `@(disp.PC)` loads being decoded as stores for watchpoints.
 - SH2: Fix `ldc/lds @Rm` decoding from the wrong position for watchpoints.
+- VDP1: Increase PTM=1 drawing delay and apply it only during VBlank. Fixes flickering graphics on Earthworm Jim 2. (#745)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
 - VDP1: Rework cycle counting method and increase cycle budget per frame. Fixes slowdowns in Road Rash and graphics glitches in multiple games, including Virtua Cop and Burning Rangers. (#704, #721, #722)
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)

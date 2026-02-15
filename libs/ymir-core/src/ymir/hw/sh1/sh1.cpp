@@ -704,7 +704,7 @@ template <mem_primitive T, bool peek>
 }
 
 template <bool peek>
-FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
+FORCE_INLINE_EX uint8 SH1::OnChipRegReadByte(uint32 address) {
     switch (address) {
     case 0x0C0: return SCI.channels[0].ReadSMR();
     case 0x0C1: return SCI.channels[0].ReadBRR();
@@ -1076,7 +1076,7 @@ FORCE_INLINE uint8 SH1::OnChipRegReadByte(uint32 address) {
 }
 
 template <bool peek>
-FORCE_INLINE uint16 SH1::OnChipRegReadWord(uint32 address) {
+FORCE_INLINE_EX uint16 SH1::OnChipRegReadWord(uint32 address) {
     switch (address) {
     case 0x0E0: return AD.ReadADDR<peek>(0);
     case 0x0E2: return AD.ReadADDR<peek>(1);
@@ -1271,7 +1271,7 @@ FORCE_INLINE uint16 SH1::OnChipRegReadWord(uint32 address) {
 }
 
 template <bool peek>
-FORCE_INLINE uint32 SH1::OnChipRegReadLong(uint32 address) {
+FORCE_INLINE_EX uint32 SH1::OnChipRegReadLong(uint32 address) {
     switch (address) {
     case 0x0C0: return 0; // SCI disallows 32-bit reads
     case 0x0C4: return 0; // SCI disallows 32-bit reads
@@ -1329,7 +1329,7 @@ template <mem_primitive T, bool poke>
 }
 
 template <bool poke>
-FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
+FORCE_INLINE_EX void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
     switch (address) {
     case 0x0C0: SCI.channels[0].WriteSMR(value); break;
     case 0x0C1: SCI.channels[0].WriteBRR(value); break;
@@ -1808,7 +1808,7 @@ FORCE_INLINE void SH1::OnChipRegWriteByte(uint32 address, uint8 value) {
 }
 
 template <bool poke>
-FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
+FORCE_INLINE_EX void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
     switch (address) {
     case 0x0E0: AD.WriteADDR<poke>(0, value); break; // A/D ADDRAH/L is read-only
     case 0x0E2: AD.WriteADDR<poke>(1, value); break; // A/D ADDRBH/L is read-only
@@ -2062,7 +2062,7 @@ FORCE_INLINE void SH1::OnChipRegWriteWord(uint32 address, uint16 value) {
 }
 
 template <bool poke>
-FORCE_INLINE void SH1::OnChipRegWriteLong(uint32 address, uint32 value) {
+FORCE_INLINE_EX void SH1::OnChipRegWriteLong(uint32 address, uint32 value) {
     switch (address) {
     case 0x0C0: break; // SCI disallows 32-bit writes
     case 0x0C4: break; // SCI disallows 32-bit writes
