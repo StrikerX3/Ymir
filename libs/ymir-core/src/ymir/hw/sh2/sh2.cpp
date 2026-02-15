@@ -985,7 +985,7 @@ FORCE_INLINE uint8 SH2::OnChipRegReadByte(uint32 address) {
 }
 
 template <bool peek>
-inline uint16 SH2::OnChipRegReadWord(uint32 address) {
+FORCE_INLINE uint16 SH2::OnChipRegReadWord(uint32 address) {
     if (address < 0x100) {
         switch (address) {
         case 0x82: [[fallthrough]];
@@ -1277,7 +1277,7 @@ FORCE_INLINE void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
 }
 
 template <bool poke, bool debug, bool enableCache>
-inline void SH2::OnChipRegWriteWord(uint32 address, uint16 value) {
+FORCE_INLINE void SH2::OnChipRegWriteWord(uint32 address, uint16 value) {
     switch (address) {
     case 0x60:
     case 0x61:
