@@ -285,7 +285,7 @@ EmuEvent InsertBackupMemoryCartridge(std::filesystem::path path) {
 
         std::error_code error{};
         bup::BackupMemory bupMem{};
-        const auto result = bupMem.LoadFrom(path, error);
+        const auto result = bupMem.LoadFrom(path, false, error);
         switch (result) {
         case bup::BackupMemoryImageLoadResult::Success: //
         {
@@ -410,7 +410,7 @@ EmuEvent InsertCartridgeFromSettings() {
 
                 std::error_code error{};
                 bup::BackupMemory bupMem{};
-                auto result = bupMem.LoadFrom(prevPath, error);
+                auto result = bupMem.LoadFrom(prevPath, false, error);
                 if (result == bup::BackupMemoryImageLoadResult::Success) {
                     ctx.saturn.instance->InsertCartridge<cart::BackupMemoryCartridge>(std::move(bupMem));
                 }
@@ -428,8 +428,8 @@ EmuEvent InsertCartridgeFromSettings() {
 
             std::error_code error{};
             bup::BackupMemory bupMem{};
-            bupMem.CreateFrom(cartSettings.backupRAM.imagePath, CapacityToBupSize(cartSettings.backupRAM.capacity),
-                              error);
+            bupMem.CreateFrom(cartSettings.backupRAM.imagePath, false, error,
+                              CapacityToBupSize(cartSettings.backupRAM.capacity));
             if (error) {
                 devlog::info<grp::base>("Failed to insert {} backup RAM cartridge from {}: {}",
                                         BupCapacityShortName(cartSettings.backupRAM.capacity),
@@ -540,7 +540,7 @@ EmuEvent LoadInternalBackupMemory() {
         std::filesystem::path path = ctx.GetInternalBackupRAMPath();
 
         std::error_code error{};
-        if (ctx.saturn.instance->LoadInternalBackupMemoryImage(path, error); error) {
+        if (ctx.saturn.instance->LoadInternalBackupMemoryImage(path, false, error); error) {
             devlog::warn<grp::base>("Failed to load internal backup memory from {}: {}", path, error.message());
         } else {
             devlog::info<grp::base>("Internal backup memory image loaded from {}", path);

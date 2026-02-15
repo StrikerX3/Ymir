@@ -751,7 +751,7 @@ void runBUPSandbox() {
 
     ymir::bup::BackupMemory mem{};
     std::error_code error{};
-    mem.CreateFrom("bup-int.bin", ymir::bup::BackupMemorySize::_256Kbit, error);
+    mem.CreateFrom("bup-int.bin", false, error, ymir::bup::BackupMemorySize::_256Kbit);
     if (error) {
         fmt::println("Failed to read backup memory file: {}", error.message());
         return;

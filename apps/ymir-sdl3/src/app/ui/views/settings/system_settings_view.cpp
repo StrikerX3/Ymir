@@ -319,7 +319,7 @@ void SystemSettingsView::LoadBackupImage(std::filesystem::path file) {
         // The user selected an existing image. Make sure it's a proper internal backup image.
         std::error_code error{};
         bup::BackupMemory bupMem{};
-        const auto result = bupMem.LoadFrom(file, error);
+        const auto result = bupMem.LoadFrom(file, false, error);
         switch (result) {
         case bup::BackupMemoryImageLoadResult::Success:
             if (bupMem.Size() == 32_KiB) {

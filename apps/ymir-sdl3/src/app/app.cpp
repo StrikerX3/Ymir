@@ -5389,7 +5389,7 @@ void App::LoadRecommendedCartridge() {
             m_context.GetPerGameExternalBackupRAMPath(ymir::bup::BackupMemorySize::_32Mbit);
         std::error_code error{};
         ymir::bup::BackupMemory bupMem{};
-        bupMem.CreateFrom(cartPath, ymir::bup::BackupMemorySize::_32Mbit, error);
+        bupMem.CreateFrom(cartPath, false, error, ymir::bup::BackupMemorySize::_32Mbit);
         if (error) {
             m_context.EnqueueEvent(
                 events::gui::ShowError(fmt::format("Failed to load external backup memory: {}", error.message())));

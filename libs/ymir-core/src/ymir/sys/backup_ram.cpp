@@ -38,25 +38,28 @@ void BackupMemory::MapMemory(sys::SH2Bus &bus, uint32 start, uint32 end) {
         [](uint32 address, uint32 value, void *ctx) { static_cast<BackupMemory *>(ctx)->WriteLong(address, value); });
 }
 
-BackupMemoryImageLoadResult BackupMemory::LoadFrom(const std::filesystem::path &path, std::error_code &error) {
+BackupMemoryImageLoadResult BackupMemory::LoadFrom(const std::filesystem::path &path, bool copyOnWrite,
+                                                   std::error_code &error) {
     error.clear();
 
     // Attempt to memory-map the file
-    m_backupRAM = mio::make_mmap_sink(path.native(), error);
+    std::unique_ptr<Container> container = MemoryMapFile(path, copyOnWrite, error);
+    if (!container) {
+        return BackupMemoryImageLoadResult::OutOfMemoryError;
+    }
     if (error) {
         return BackupMemoryImageLoadResult::FilesystemError;
     }
-    m_data = reinterpret_cast<uint8_t *>(m_backupRAM.data());
-    m_dataSize = m_backupRAM.size();
 
-    m_addressShift = CheckInterleaved() ? 1u : 0u;
+    const size_t containerSize = container->Size();
+    const size_t addressShift = CheckInterleaved(*container) ? 1u : 0u;
 
     // Determine if image size matches any valid backup memory size
     bool valid = false;
     BackupMemorySize size{};
     for (uint32 i = 0; i < std::size(kSizes); i++) {
         // Check for double size in case the image is interleaved
-        if (m_dataSize == (kSizes[i] << m_addressShift)) {
+        if (containerSize == (kSizes[i] << addressShift)) {
             valid = true;
             size = static_cast<BackupMemorySize>(i);
             break;
@@ -64,15 +67,16 @@ BackupMemoryImageLoadResult BackupMemory::LoadFrom(const std::filesystem::path &
     }
     if (!valid) {
         // Fail without specifying error code
-        m_backupRAM.unmap();
         return BackupMemoryImageLoadResult::InvalidSize;
     }
 
     // Update parameters
-    m_headerValid = CheckHeader();
-    m_addressMask = m_dataSize - 1u;
+    m_backupRAM.swap(container);
+    m_addressShift = addressShift;
+    m_addressMask = containerSize - 1u;
     m_blockSize = kBlockSizes[static_cast<size_t>(size)];
     m_blockBitmap.resize(GetTotalBlocks() / 64u);
+    m_headerValid = CheckHeader();
 
     RebuildFileList(true);
 
@@ -81,7 +85,8 @@ BackupMemoryImageLoadResult BackupMemory::LoadFrom(const std::filesystem::path &
     return BackupMemoryImageLoadResult::Success;
 }
 
-void BackupMemory::CreateFrom(const std::filesystem::path &path, BackupMemorySize size, std::error_code &error) {
+void BackupMemory::CreateFrom(const std::filesystem::path &path, bool copyOnWrite, std::error_code &error,
+                              BackupMemorySize size) {
     error.clear();
 
     bool format = false;
@@ -109,16 +114,21 @@ void BackupMemory::CreateFrom(const std::filesystem::path &path, BackupMemorySiz
     }
 
     // Attempt to memory-map the file
-    m_backupRAM = mio::make_mmap_sink(path.native(), error);
+    std::unique_ptr<Container> container = MemoryMapFile(path, copyOnWrite, error);
+    if (!container) {
+        return;
+    }
     if (error) {
         return;
     }
-    m_data = reinterpret_cast<uint8_t *>(m_backupRAM.data());
-    m_dataSize = m_backupRAM.size();
+
+    const size_t containerSize = container->Size();
+    const size_t addressShift = CheckInterleaved(*container) ? 1u : 0u;
 
     // Update parameters
-    m_addressShift = CheckInterleaved() ? 1u : 0u;
-    m_addressMask = m_dataSize - 1u;
+    m_backupRAM.swap(container);
+    m_addressShift = addressShift;
+    m_addressMask = containerSize - 1u;
     m_blockSize = kBlockSizes[static_cast<size_t>(size)];
     m_blockBitmap.resize(GetTotalBlocks() / 64u);
 
@@ -141,14 +151,12 @@ void BackupMemory::CreateFrom(const std::filesystem::path &path, BackupMemorySiz
 void BackupMemory::CreateInMemory(BackupMemorySize size) {
     const size_t sz = kSizes[static_cast<size_t>(size)];
 
-    m_memoryBuffer.resize(sz);
-    m_data = m_memoryBuffer.data();
-    m_dataSize = sz;
+    m_backupRAM = std::make_unique<InMemoryContainer>(sz);
 
-    m_addressShift = 0;
-    m_addressMask = m_dataSize - 1u;
     m_blockSize = kBlockSizes[static_cast<size_t>(size)];
     m_blockBitmap.resize(GetTotalBlocks() / 64u);
+    m_addressShift = 0;
+    m_addressMask = m_backupRAM->Size() - 1u;
 
     m_headerValid = CheckHeader();
     if (!m_headerValid) {
@@ -217,7 +225,7 @@ bool BackupMemory::IsHeaderValid() const {
 }
 
 uint32 BackupMemory::Size() const {
-    return m_dataSize >> m_addressShift;
+    return m_backupRAM->Size() >> m_addressShift;
 }
 
 uint32 BackupMemory::GetBlockSize() const {
@@ -269,8 +277,10 @@ void BackupMemory::Format() {
 
     // Fill even bytes with FFs if the file is interleaved
     if (m_addressShift > 0) {
-        for (size_t i = 0; i < m_dataSize; i += 2) {
-            m_data[i] = 0xFF;
+        const size_t size = m_backupRAM->Size();
+        uint8 *data = m_backupRAM->Data();
+        for (uint32 i = 0; i < size; i += 2) {
+            data[i] = 0xFF;
         }
     }
 
@@ -567,10 +577,11 @@ void BackupMemory::RebuildFileList(bool force) const {
     const_cast<BackupMemory *>(this)->RebuildFileList(force);
 }
 
-bool BackupMemory::CheckInterleaved() const {
+bool BackupMemory::CheckInterleaved(Container &container) {
     // Checks if the image is in interleaved format: FF xx FF xx FF xx ...
-    for (size_t i = 0; i < m_dataSize; i += 2) {
-        if (m_data[i] != 0xFFu) {
+    const uint8 *data = container.Data();
+    for (uint32 i = 0; i < container.Size(); i += 2) {
+        if (data[i] != 0xFFu) {
             return false;
         }
     }
@@ -698,11 +709,29 @@ BackupFile BackupMemory::BuildFile(const BackupFileParams &params) const {
     return file;
 }
 
+std::unique_ptr<BackupMemory::Container> BackupMemory::MemoryMapFile(const std::filesystem::path &path,
+                                                                     bool copyOnWrite, std::error_code &error) {
+    if (copyOnWrite) {
+        auto mmap = mio::make_mmap_cow_sink(path.native(), error);
+        if (error) {
+            return {};
+        }
+        return std::make_unique<MemoryMappedCoWFileContainer>(std::move(mmap));
+    }
+
+    auto mmap = mio::make_mmap_sink(path.native(), error);
+    if (error) {
+        return {};
+    }
+    return std::make_unique<MemoryMappedFileContainer>(std::move(mmap));
+}
+
 FORCE_INLINE uint8 BackupMemory::DataReadByte(uint32 address) const {
     if (m_addressMask != 0) {
         address <<= m_addressShift;
         address |= m_addressShift;
-        return m_data[address & m_addressMask];
+        const uint8 *data = m_backupRAM->Data();
+        return data[address & m_addressMask];
     } else {
         return 0xFFu;
     }
@@ -739,7 +768,8 @@ FORCE_INLINE void BackupMemory::DataWriteByte(uint32 address, uint8 value) {
     if (m_addressMask != 0) {
         address <<= m_addressShift;
         address |= m_addressShift;
-        m_data[address & m_addressMask] = value;
+        uint8 *data = m_backupRAM->Data();
+        data[address & m_addressMask] = value;
         m_dirty = true;
     }
 }

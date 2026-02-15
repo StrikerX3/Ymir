@@ -241,8 +241,8 @@ void Saturn::LoadCDBlockROM(std::span<uint8, sh1::kROMSize> rom) {
     SH1.LoadROM(rom);
 }
 
-void Saturn::LoadInternalBackupMemoryImage(std::filesystem::path path, std::error_code &error) {
-    mem.LoadInternalBackupMemoryImage(path, error);
+void Saturn::LoadInternalBackupMemoryImage(std::filesystem::path path, bool copyOnWrite, std::error_code &error) {
+    mem.LoadInternalBackupMemoryImage(path, copyOnWrite, error);
 }
 
 XXH128Hash Saturn::GetIPLHash() const noexcept {

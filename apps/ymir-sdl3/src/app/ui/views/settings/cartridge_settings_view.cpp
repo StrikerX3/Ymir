@@ -321,7 +321,7 @@ void CartridgeSettingsView::LoadBackupImage(std::filesystem::path file) {
     bup::BackupMemory bupMem{};
     if (std::filesystem::is_regular_file(file)) {
         // The user selected an existing image. Make sure it's a proper backup image.
-        const auto result = bupMem.LoadFrom(file, error);
+        const auto result = bupMem.LoadFrom(file, false, error);
         switch (result) {
         case bup::BackupMemoryImageLoadResult::Success:
             settings.imagePath = file;
@@ -354,7 +354,7 @@ void CartridgeSettingsView::LoadBackupImage(std::filesystem::path file) {
                                m_context.profile.GetPath(ProfilePath::PersistentState) /
                                    fmt::format("bup-ext-{}M.bin", CapacityToSize(settings.capacity) * 8 / 1024 / 1024));
         }
-        bupMem.CreateFrom(file, CapacityToBupSize(settings.capacity), error);
+        bupMem.CreateFrom(file, false, error, CapacityToBupSize(settings.capacity));
         if (error) {
             m_context.EnqueueEvent(
                 events::gui::ShowError(fmt::format("Could not load backup memory image: {}", error.message())));

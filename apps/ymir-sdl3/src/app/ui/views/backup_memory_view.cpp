@@ -1336,7 +1336,7 @@ void BackupMemoryView::ImportImage(std::filesystem::path file) {
     // Try to load image
     bup::BackupMemory bupMem{};
     std::error_code error{};
-    auto result = bupMem.LoadFrom(file, error);
+    auto result = bupMem.LoadFrom(file, true, error);
     switch (result) {
     case bup::BackupMemoryImageLoadResult::Success: break;
     case bup::BackupMemoryImageLoadResult::FilesystemError:
@@ -1344,6 +1344,9 @@ void BackupMemoryView::ImportImage(std::filesystem::path file) {
         return;
     case bup::BackupMemoryImageLoadResult::InvalidSize:
         OpenErrorModal(fmt::format("Could not import {} as {}: invalid image size", file, m_name));
+        return;
+    case bup::BackupMemoryImageLoadResult::OutOfMemoryError:
+        OpenErrorModal(fmt::format("Could not import {} as {}: out of memory", file, m_name));
         return;
     }
 
