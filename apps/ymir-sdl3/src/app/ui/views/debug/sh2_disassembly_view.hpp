@@ -1,6 +1,7 @@
 #pragma once
 
 #include <app/shared_context.hpp>
+#include <app/ui/views/debug/sh2_debugger_model.hpp>
 
 #include <imgui.h>
 
@@ -8,13 +9,18 @@ namespace app::ui {
 
 class SH2DisassemblyView {
 public:
-    SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2);
+    SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2, SH2DebuggerModel &model);
 
     void Display();
+    void JumpTo(uint32 address);
 
 private:
     SharedContext &m_context;
     ymir::sh2::SH2 &m_sh2;
+    SH2DebuggerModel &m_model;
+
+    static constexpr uint32 kAddressMin = 0x00000000u;
+    static constexpr uint32 kAddressMax = 0xFFFFFFFEu; // Full 32-bit SH-2 address space (even aligned)
 
     struct Colors {
 #define C(r, g, b) (r / 255.0f), (g / 255.0f), (b / 255.0f), 1.0f
@@ -102,6 +108,21 @@ private:
 
         bool colorizeMnemonicsByType = true;
     } m_settings;
+
+    // View-local state for scrollable disassembly view
+    struct ViewState {
+        uint32 minAddress = kAddressMin;
+        uint32 maxAddress = kAddressMax; // address range min:max
+        bool rangeChanged = false;       // true if range updated this frame
+    } m_viewState;
+
+    // Cached line height, computed dynamically from font size
+    float m_lineAdvance = 0.0f;
+
+    // Scrolls the disassembly view to center the given address.
+    // smoothFollow: true for continuous PC tracking (smooth local, snappy far)
+    //               false for explicit JumpTo requests (always smooth)
+    void ScrollToAddress(uint32 targetAddress, float viewHeight, bool smoothFollow);
 };
 
 } // namespace app::ui

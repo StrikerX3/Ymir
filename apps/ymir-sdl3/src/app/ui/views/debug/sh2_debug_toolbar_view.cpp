@@ -1,5 +1,7 @@
 #include "sh2_debug_toolbar_view.hpp"
 
+#include "sh2_debugger_model.hpp"
+
 #include <ymir/hw/sh2/sh2.hpp>
 
 #include <app/events/emu_event_factory.hpp>
@@ -11,13 +13,17 @@
 
 #include <imgui.h>
 
+#include <cstdint>
+
 using namespace ymir;
 
 namespace app::ui {
 
-SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2)
+SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2, SH2DebuggerModel &model)
     : m_context(context)
-    , m_sh2(sh2) {}
+    , m_sh2(sh2)
+    , m_model(model)
+    , m_disasmDumpView(context, sh2) {}
 
 void SH2DebugToolbarView::Display() {
     ImGui::BeginGroup();
@@ -106,6 +112,24 @@ void SH2DebugToolbarView::Display() {
             m_context.saturn.SetSlaveSH2Enabled(slaveSH2Enabled);
         }
     }
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_CENTER_FOCUS_WEAK "##follow_pc_toggle")) {
+        m_model.followPC = !m_model.followPC;
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Follow PC");
+        ImGui::EndTooltip();
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_FILE_DOWNLOAD "##dump_disasm_range")) {
+        m_disasmDumpView.OpenPopup();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Dump Disasm Range");
+        ImGui::EndTooltip();
+    }
+    m_disasmDumpView.Display();
 
     ImGui::SameLine();
     if (!m_context.saturn.IsDebugTracingEnabled()) {
@@ -126,6 +150,23 @@ void SH2DebugToolbarView::Display() {
     }
     widgets::ExplanationTooltip("Whether the CPU is in standby or sleep mode due to executing the SLEEP instruction.",
                                 m_context.displayScale);
+
+    // Input field to jump to address
+    static uint32_t jumpAddress = 0;
+    ImGui::SetNextItemWidth(100.0f * m_context.displayScale); // Width for 8 hex digits
+    ImGui::InputScalar("##jump_address", ImGuiDataType_U32, &jumpAddress, nullptr, nullptr, "%08X",
+                       ImGuiInputTextFlags_CharsHexadecimal);
+    ImGui::SameLine();
+    if (ImGui::Button("Jump")) {
+        constexpr uint32_t kSH2AddrMin = 0x00000000u;
+        constexpr uint32_t kSH2AddrMax = 0xFFFFFFFEu;
+        // ensure to clamp to valid SH2 address range (even addresses)
+        jumpAddress = (std::clamp<uint32_t>(jumpAddress, kSH2AddrMin, kSH2AddrMax) & ~1u);
+        m_model.jumpAddress = jumpAddress;
+        m_model.jumpRequested = true;
+        m_model.recenterWindow = true; // One-shot: request window recenter
+        m_model.followPC = false;
+    }
 
     ImGui::EndGroup();
 }
