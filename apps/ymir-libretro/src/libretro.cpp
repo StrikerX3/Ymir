@@ -307,6 +307,13 @@ static struct {
     // CD block LLE
     bool cdblock_rom_loaded = false;
 
+    // Shadow WRAM buffers for RetroAchievements.
+    // Ymir stores WRAM in big-endian byte order, but rcheevos expects
+    // host-native uint16 storage. We expose byte-swapped shadow copies
+    // so that achievement memory reads produce the expected values.
+    std::vector<uint8_t> wram_low_shadow;
+    std::vector<uint8_t> wram_high_shadow;
+
     // Multi-disc state
     std::vector<std::string> disc_paths;
     unsigned disc_index = 0;
@@ -324,6 +331,15 @@ static struct {
 // ---------------------------------------------------------------------------
 // Ymir callback functions (C-style with void* context parameter)
 // ---------------------------------------------------------------------------
+
+// Swap adjacent bytes within each uint16 word to convert from Ymir's big-endian
+// storage to the host-native uint16 format that rcheevos expects.
+static void byteswap_copy_16(uint8_t *dst, const uint8_t *src, size_t size) {
+    for (size_t i = 0; i < size; i += 2) {
+        dst[i]     = src[i + 1];
+        dst[i + 1] = src[i];
+    }
+}
 
 static void on_frame_complete(uint32 *fb, uint32 width, uint32 height, void *) {
     core.fb_width = width;
@@ -623,7 +639,7 @@ static bool load_rom_cartridge(const char *filename, const ymir::db::ROMCartInfo
     return true;
 }
 
-// ROM cart filenames to search for (same as Beetle Saturn / standalone)
+// ROM cart filenames to search for (same as standalone)
 static constexpr const char *kKOF95Files[] = {"mpr-18811-mx.ic1", nullptr};
 static constexpr const char *kUltramanFiles[] = {"mpr-19367-mx.ic1", nullptr};
 
@@ -1064,16 +1080,28 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     core.is_pal =
         (core.saturn->GetVideoStandard() == ymir::core::config::sys::VideoStandard::PAL);
 
-    // Expose memory map for RetroAchievements (matches rcheevos Saturn region definitions)
+    // Expose memory map for RetroAchievements (matches rcheevos Saturn region definitions).
+    // Shadow buffers convert Ymir's big-endian WRAM to the host-native uint16
+    // byte layout that rcheevos expects for achievement memory reads.
+    core.wram_low_shadow.resize(core.saturn->mem.WRAMLow.size());
+    core.wram_high_shadow.resize(core.saturn->mem.WRAMHigh.size());
+
     struct retro_memory_descriptor descs[2] = {};
-    descs[0].ptr   = core.saturn->mem.WRAMLow.data();
+    descs[0].flags = RETRO_MEMDESC_SYSTEM_RAM;
+    descs[0].ptr   = core.wram_low_shadow.data();
     descs[0].start = 0x00200000;
-    descs[0].len   = core.saturn->mem.WRAMLow.size();
-    descs[1].ptr   = core.saturn->mem.WRAMHigh.data();
+    descs[0].len   = core.wram_low_shadow.size();
+    descs[0].addrspace = "LowWram";
+    descs[1].flags = RETRO_MEMDESC_SYSTEM_RAM;
+    descs[1].ptr   = core.wram_high_shadow.data();
     descs[1].start = 0x06000000;
-    descs[1].len   = core.saturn->mem.WRAMHigh.size();
+    descs[1].len   = core.wram_high_shadow.size();
+    descs[1].addrspace = "HighWram";
     struct retro_memory_map mmap = { descs, 2 };
     core.env_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmap);
+
+    bool cheevos_supported = true;
+    core.env_cb(RETRO_ENVIRONMENT_SET_SUPPORT_ACHIEVEMENTS, &cheevos_supported);
 
     // Initialize internal backup RAM in memory so the BIOS finds a valid
     // header during boot.  Save data is managed by RetroArch via .srm files;
@@ -1118,6 +1146,8 @@ RETRO_API void retro_unload_game(void) {
     core.cached_state_size = 0;
     core.disc_paths.clear();
     core.disc_index = 0;
+    core.wram_low_shadow.clear();
+    core.wram_high_shadow.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -1155,6 +1185,12 @@ RETRO_API void retro_run(void) {
 
     // Run one frame
     core.saturn->RunFrame();
+
+    // Update shadow WRAM for RetroAchievements (BE → ne16 byte-swap)
+    byteswap_copy_16(core.wram_low_shadow.data(), core.saturn->mem.WRAMLow.data(),
+                     core.saturn->mem.WRAMLow.size());
+    byteswap_copy_16(core.wram_high_shadow.data(), core.saturn->mem.WRAMHigh.data(),
+                     core.saturn->mem.WRAMHigh.size());
 
     // Notify frontend if resolution changed
     if (core.frame_ready &&
