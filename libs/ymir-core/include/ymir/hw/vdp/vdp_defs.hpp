@@ -35,6 +35,9 @@ inline constexpr uint32 kDefaultResV = 224; // Default/initial vertical resoluti
 inline constexpr uint32 kMinResH = 320; // Minimum horizontal resolution
 inline constexpr uint32 kMinResV = 224; // Minimum vertical resolution
 
+inline constexpr uint32 kMaxNormalResH = 352; // Maximum horizontal resolution in normal mode
+inline constexpr uint32 kMaxNormalResV = 256; // Maximum vertical resolution in normal mode
+
 inline constexpr uint32 kMaxResH = 704; // Maximum horizontal resolution
 inline constexpr uint32 kMaxResV = 512; // Maximum vertical resolution
 

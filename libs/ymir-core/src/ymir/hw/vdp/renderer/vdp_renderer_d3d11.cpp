@@ -694,7 +694,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
     // ---------------------------------
 
-    static constexpr std::array<VDP2RotParamData, vdp::kMaxResH * vdp::kMaxResV * 2> kBlankRotParams{};
+    static constexpr size_t kRotParamsSize = vdp::kMaxNormalResH * vdp::kMaxNormalResV * 2;
+    static constexpr std::array<VDP2RotParamData, kRotParamsSize> kBlankRotParams{};
 
     bufferInitData = {
         .pSysMem = kBlankRotParams.data(),
@@ -702,7 +703,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         .SysMemSlicePitch = 0,
     };
     bufferDesc = {
-        .ByteWidth = sizeof(VDP2RotParamData) * vdp::kMaxResH * vdp::kMaxResV * 2,
+        .ByteWidth = sizeof(VDP2RotParamData) * kRotParamsSize,
         .Usage = D3D11_USAGE_DEFAULT,
         .BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS,
         .CPUAccessFlags = 0,
@@ -720,7 +721,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         .Buffer =
             {
                 .FirstElement = 0,
-                .NumElements = vdp::kMaxResH * vdp::kMaxResV * 2,
+                .NumElements = kRotParamsSize,
             },
     };
     if (HRESULT hr =
