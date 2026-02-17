@@ -14,8 +14,33 @@ union D3DUint2 {
     struct {
         D3DUint x, y;
     };
+    struct {
+        D3DUint r, g;
+    };
 };
 static_assert(sizeof(D3DUint2) == sizeof(D3DUint) * 2);
+
+union D3DUint4 {
+    std::array<D3DUint, 4> array;
+    struct {
+        D3DUint x, y, z, w;
+    };
+    struct {
+        D3DUint r, g, b, a;
+    };
+};
+static_assert(sizeof(D3DUint4) == sizeof(D3DUint) * 4);
+
+union D3DInt2 {
+    std::array<D3DInt, 2> array;
+    struct {
+        D3DInt x, y;
+    };
+    struct {
+        D3DInt r, g;
+    };
+};
+static_assert(sizeof(D3DInt2) == sizeof(D3DInt) * 2);
 
 // -----------------------------------------------------------------------------
 
@@ -167,7 +192,9 @@ struct alignas(16) VDP2RotationRenderState {
 };
 
 struct alignas(16) VDP2RotParamData {
-    std::array<D3DUint, 4> reserved;
+    D3DInt2 screenCoords; // Screen coordinates (26.0)
+    D3DUint spriteCoords; // Sprite coordinates (13.0) (packed 2x 16-bit ints)
+    D3DUint coeffData;    // Coefficient table line color + transparency bit
 };
 
 } // namespace ymir::vdp
