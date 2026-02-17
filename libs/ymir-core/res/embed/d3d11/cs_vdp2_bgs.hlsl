@@ -147,7 +147,7 @@ uint ReadVRAM32(uint address) {
 
 uint GetY(uint y) {
     const bool interlaced = config.displayParams & 1;
-    const bool odd = (config.displayParams >> 1) & 1;
+    const uint odd = (config.displayParams >> 1) & 1;
     const bool exclusiveMonitor = (config.displayParams >> 2) & 1;
     if (interlaced && !exclusiveMonitor) {
         return (y << 1) | (odd /* TODO & !deinterlace */);
@@ -217,7 +217,7 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
     }
     
     // For normal screen modes, X coordinates don't use bit 0
-    if (hiResH == 0) {
+    if (!hiResH) {
         start.x >>= 1;
         end.x >>= 1;
     }
@@ -293,7 +293,7 @@ Character ExtractOneWordCharacter(uint4 bgParams, uint charData) {
     const uint supplScrollPalNum = ((bgParams.x >> 22) & 7) << 4;
     const bool supplScrollSpecialColorCalc = (bgParams.x >> 25) & 1;
     const bool supplScrollSpecialPriority = (bgParams.x >> 26) & 1;
-    const bool extChar = (bgParams.w >> 6) & 1;
+    const uint extChar = (bgParams.w >> 6) & 1;
     const uint cellSizeShift = (bgParams.w >> 8) & 1;
     const uint colorFormat = (bgParams.x >> 11) & 7;
 
@@ -370,6 +370,8 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
   
     const uint dotOffset = dotPos.x + dotPos.y * linePitch;
     
+    // TODO: apply VRAM data offset
+    
     uint colorData;
     uint4 outColor;
     bool outTransparent;
@@ -442,7 +444,7 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
 }
 
 uint4 FetchCharacterPixel(uint4 bgParams, Character ch, uint2 dotPos, uint cellIndex) {
-    const bool cellSizeShift = (bgParams.w >> 8) & 1;
+    const uint cellSizeShift = (bgParams.w >> 8) & 1;
     const uint colorFormat = (bgParams.x >> 11) & 7;
 
     if (ch.flipH) {
@@ -488,8 +490,8 @@ uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, bool 
     const uint planeShift = rot ? 2 : 1;
     const uint planeMask = (1 << planeShift) - 1;
     
-    const bool twoWordChar = (bgParams.w >> 7) & 1;
-    const bool cellSizeShift = (bgParams.w >> 8) & 1;
+    const uint twoWordChar = (bgParams.w >> 7) & 1;
+    const uint cellSizeShift = (bgParams.w >> 8) & 1;
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
 
     const uint2 planePos = (scrollPos >> (pageShift + 9)) & planeMask;
@@ -547,8 +549,8 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
     const uint4 nbgParams = state.nbgParams[index];
   
     const uint2 pageShift = uint2((nbgParams.w >> 4) & 1, (nbgParams.w >> 5) & 1);
-    const bool twoWordChar = (nbgParams.w >> 7) & 1;
-    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
+    const uint twoWordChar = (nbgParams.w >> 7) & 1;
+    const uint cellSizeShift = (nbgParams.w >> 8) & 1;
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
     
     pos.y = GetY(pos.y);
@@ -675,9 +677,6 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     if (screenOverProcess == kScreenOverProcessRepeatChar) {
         // TODO: VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
        
-        const uint colorFormat = (rbgParams.x >> 11) & 7;
-        const bool largePalette = colorFormat != kColorFormatPalette16;
-        const bool extChar = (rbgParams.w >> 6) & 1;
         const uint2 dotPos = scrollPos & 7;
         Character ch = ExtractOneWordCharacter(rbgParams, screenOverPatternName);
         return FetchCharacterPixel(rbgParams, ch, dotPos, 0);
