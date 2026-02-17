@@ -97,6 +97,11 @@ static const uint kRotParamModeB = 1;
 static const uint kRotParamModeCoeff = 2;
 static const uint kRotParamModeWindow = 3;
 
+static const uint kScreenOverProcessRepeat = 0;
+static const uint kScreenOverProcessRepeatChar = 1;
+static const uint kScreenOverProcessTransparent = 2;
+static const uint kScreenOverProcessFixed512 = 3;
+
 struct Character {
     uint charNum;
     uint palNum;
@@ -217,8 +222,8 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
         end.x >>= 1;
     }
     
-    const bool inside = int(pos.x) >= start.x && int(pos.y) >= start.y &&
-                        int(pos.x) <= end.x && int(pos.y) <= end.y;
+    const int2 spos = int2(pos);
+    const bool inside = all(spos >= start) && all(spos <= end);
     return inside != invert;
 }
 
@@ -283,45 +288,15 @@ bool GetSpecialColorCalcFlag(uint4 nbgParams, uint specColorCode, bool specColor
     }
 }
 
-Character FetchTwoWordCharacter(uint4 nbgParams, uint pageAddress, uint charIndex) {
-    const uint patNameAccess = nbgParams.w & 0xF;
-    const uint charAddress = pageAddress + charIndex * 4;
-    const uint charBank = (charAddress >> 17) & 3;
- 
-    if (((patNameAccess >> charBank) & 1) == 0) {
-        return kBlankCharacter;
-    }
-    
-    const uint charData = ReadVRAM32(charAddress);
+Character ExtractOneWordCharacter(uint4 bgParams, uint charData) {
+    const uint supplScrollCharNum = (bgParams.w >> 9) & 0x1F;
+    const uint supplScrollPalNum = ((bgParams.x >> 22) & 7) << 4;
+    const bool supplScrollSpecialColorCalc = (bgParams.x >> 25) & 1;
+    const bool supplScrollSpecialPriority = (bgParams.x >> 26) & 1;
+    const bool extChar = (bgParams.w >> 6) & 1;
+    const bool cellSizeShift = (bgParams.w >> 8) & 1;
+    const uint colorFormat = (bgParams.x >> 11) & 7;
 
-    Character ch;
-    ch.charNum = charData & 0x7FFF;
-    ch.palNum = ((charData >> 16) & 0x7F) << 4;
-    ch.specColorCalc = (charData >> 28) & 1;
-    ch.specPriority = (charData >> 29) & 1;
-    ch.flipH = (charData >> 30) & 1;
-    ch.flipV = (charData >> 31) & 1;
-    return ch;
-}
-
-Character FetchOneWordCharacter(uint4 nbgParams, uint pageAddress, uint charIndex) {
-    const uint charAddress = pageAddress + charIndex * 2;
-    const uint charBank = (charAddress >> 17) & 3;
-    const uint patNameAccess = nbgParams.w & 0xF;
-    if (((patNameAccess >> charBank) & 1) == 0) {
-        return kBlankCharacter;
-    }
-    
-    const uint charData = ReadVRAM16(charAddress);
-
-    const uint supplScrollCharNum = (nbgParams.w >> 9) & 0x1F;
-    const uint supplScrollPalNum = ((nbgParams.x >> 22) & 7) << 4;
-    const bool supplScrollSpecialColorCalc = (nbgParams.x >> 25) & 1;
-    const bool supplScrollSpecialPriority = (nbgParams.x >> 26) & 1;
-    const bool extChar = (nbgParams.w >> 6) & 1;
-    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
-    const uint colorFormat = (nbgParams.x >> 11) & 7;
-    
     // Character number bit range from the 1-word character pattern data (charData)
     const uint baseCharNumMask = extChar ? 0xFFF : 0x3FF;
     const uint baseCharNumPos = 2 * cellSizeShift;
@@ -352,13 +327,46 @@ Character FetchOneWordCharacter(uint4 nbgParams, uint pageAddress, uint charInde
     return ch;
 }
 
-uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch, uint palNum, bool specColorCalc, uint specPriority) {
-    const uint charPatAccess = nbgParams.x & 0xF;
-    const uint colorFormat = (nbgParams.x >> 11) & 7;
-    const uint cramOffset = nbgParams.x & 0x700;
-    const uint bgPriorityNum = (nbgParams.x >> 17) & 7;
-    const uint bgPriorityMode = (nbgParams.x >> 20) & 3;
-    const bool enableTransparency = (nbgParams.x >> 28) & 1;
+Character FetchTwoWordCharacter(uint4 bgParams, uint pageAddress, uint charIndex) {
+    const uint patNameAccess = bgParams.w & 0xF;
+    const uint charAddress = pageAddress + charIndex * 4;
+    const uint charBank = (charAddress >> 17) & 3;
+ 
+    if (((patNameAccess >> charBank) & 1) == 0) {
+        return kBlankCharacter;
+    }
+    
+    const uint charData = ReadVRAM32(charAddress);
+
+    Character ch;
+    ch.charNum = charData & 0x7FFF;
+    ch.palNum = ((charData >> 16) & 0x7F) << 4;
+    ch.specColorCalc = (charData >> 28) & 1;
+    ch.specPriority = (charData >> 29) & 1;
+    ch.flipH = (charData >> 30) & 1;
+    ch.flipV = (charData >> 31) & 1;
+    return ch;
+}
+
+Character FetchOneWordCharacter(uint4 bgParams, uint pageAddress, uint charIndex) {
+    const uint charAddress = pageAddress + charIndex * 2;
+    const uint charBank = (charAddress >> 17) & 3;
+    const uint patNameAccess = bgParams.w & 0xF;
+    if (((patNameAccess >> charBank) & 1) == 0) {
+        return kBlankCharacter;
+    }
+    
+    const uint charData = ReadVRAM16(charAddress);
+    return ExtractOneWordCharacter(bgParams, charData);
+}
+
+uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch, uint palNum, bool specColorCalc, uint specPriority) {
+    const uint charPatAccess = bgParams.x & 0xF;
+    const uint colorFormat = (bgParams.x >> 11) & 7;
+    const uint cramOffset = bgParams.x & 0x700;
+    const uint bgPriorityNum = (bgParams.x >> 17) & 7;
+    const uint bgPriorityMode = (bgParams.x >> 20) & 3;
+    const bool enableTransparency = (bgParams.x >> 28) & 1;
   
     const uint dotOffset = dotPos.x + dotPos.y * linePitch;
     
@@ -374,7 +382,7 @@ uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch
         colorData = (dotData >> 1) & 7;
         outColor = FetchCRAMColor(cramOffset, colorIndex);
         outTransparent = enableTransparency && dotData == 0;
-        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, outColor.a);
+        outSpecColorCalc = GetSpecialColorCalcFlag(bgParams, colorData, specColorCalc, outColor.a);
 
     } else if (colorFormat == kColorFormatPalette256) {
         const uint dotAddress = baseAddress + dotOffset;
@@ -384,7 +392,7 @@ uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch
         colorData = (dotData >> 1) & 7;
         outColor = FetchCRAMColor(cramOffset, colorIndex);
         outTransparent = enableTransparency && dotData == 0;
-        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, outColor.a);
+        outSpecColorCalc = GetSpecialColorCalcFlag(bgParams, colorData, specColorCalc, outColor.a);
 
     } else if (colorFormat == kColorFormatPalette2048) {
         const uint dotAddress = baseAddress + (dotOffset << 1);
@@ -394,7 +402,7 @@ uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch
         colorData = (dotData >> 1) & 7;
         outColor = FetchCRAMColor(cramOffset, colorIndex);
         outTransparent = enableTransparency && (dotData & 0x7FF) == 0;
-        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, colorData, specColorCalc, outColor.a);
+        outSpecColorCalc = GetSpecialColorCalcFlag(bgParams, colorData, specColorCalc, outColor.a);
 
     } else if (colorFormat == kColorFormatRGB555) {
         const uint dotAddress = baseAddress + (dotOffset << 1);
@@ -402,7 +410,7 @@ uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM16(dotAddress) : 0;
         outColor = Color555(dotData);
         outTransparent = enableTransparency && outColor.w == 0;
-        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
+        outSpecColorCalc = GetSpecialColorCalcFlag(bgParams, 7, specColorCalc, true);
 
     } else if (colorFormat == kColorFormatRGB888) {
         const uint dotAddress = baseAddress + (dotOffset << 2);
@@ -410,7 +418,7 @@ uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch
         const uint dotData = ((charPatAccess >> dotBank) & 1) ? ReadVRAM32(dotAddress) : 0;
         outColor = Color888(dotData);
         outTransparent = enableTransparency && outColor.w == 0;
-        outSpecColorCalc = GetSpecialColorCalcFlag(nbgParams, 7, specColorCalc, true);
+        outSpecColorCalc = GetSpecialColorCalcFlag(bgParams, 7, specColorCalc, true);
 
     } else {
         colorData = 0;
@@ -426,16 +434,16 @@ uint4 FetchPixel(uint4 nbgParams, uint baseAddress, uint2 dotPos, uint linePitch
     } else if (bgPriorityMode == kPriorityModeDot) {
         outPriority &= ~1;
         if (specPriority && colorFormat < kColorFormatRGB555) {
-            outPriority |= IsSpecialColorCalcMatch(nbgParams, colorData);
+            outPriority |= IsSpecialColorCalcMatch(bgParams, colorData);
         }
     }
     
     return uint4(outColor.xyz, (outTransparent << 7) | (outSpecColorCalc << 6) | outPriority);
 }
 
-uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cellIndex) {
-    const bool cellSizeShift = (nbgParams.w >> 8) & 1;
-    const uint colorFormat = (nbgParams.x >> 11) & 7;
+uint4 FetchCharacterPixel(uint4 bgParams, Character ch, uint2 dotPos, uint cellIndex) {
+    const bool cellSizeShift = (bgParams.w >> 8) & 1;
+    const uint colorFormat = (bgParams.x >> 11) & 7;
 
     if (ch.flipH) {
         dotPos.x ^= 7;
@@ -463,20 +471,74 @@ uint4 FetchCharacterPixel(uint4 nbgParams, Character ch, uint2 dotPos, uint cell
     const bool specColorCalc = ch.specColorCalc;
     const uint specPriority = ch.specPriority;
 
-    return FetchPixel(nbgParams, baseAddress, dotPos, 8, ch.palNum, specColorCalc, specPriority);
+    return FetchPixel(bgParams, baseAddress, dotPos, 8, ch.palNum, specColorCalc, specPriority);
 }
 
-uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
-    const uint bitmapSizeH = 512 << (nbgParams.w & 1);
-    const uint bitmapSizeV = 256 << ((nbgParams.w >> 1) & 1);
+uint4 FetchBitmapPixel(uint4 bgParams, uint2 scrollPos) {
+    const uint bitmapSizeH = 512 << (bgParams.w & 1);
+    const uint bitmapSizeV = 256 << ((bgParams.w >> 1) & 1);
 
     const uint2 dotPos = scrollPos & uint2(bitmapSizeH - 1, bitmapSizeV - 1);
-    const uint baseAddress = ((nbgParams.w >> 2) & 7) << 17;
-    const uint palNum = ((nbgParams.x >> 22) & 7) << 8;
-    const bool specColorCalc = (nbgParams.x >> 25) & 1;
-    const uint specPriority = (nbgParams.x >> 26) & 1;
+    const uint baseAddress = ((bgParams.w >> 2) & 7) << 17;
+    const uint palNum = ((bgParams.x >> 22) & 7) << 8;
+    const bool specColorCalc = (bgParams.x >> 25) & 1;
+    const uint specPriority = (bgParams.x >> 26) & 1;
  
-    return FetchPixel(nbgParams, baseAddress, dotPos, bitmapSizeH, palNum, specColorCalc, specPriority);
+    return FetchPixel(bgParams, baseAddress, dotPos, bitmapSizeH, palNum, specColorCalc, specPriority);
+}
+
+uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, bool rot, uint pageBaseAddresses[16]) {
+    const uint planeShift = rot ? 2 : 1;
+    const uint planeMask = (1 << planeShift) - 1;
+    
+    const uint2 pageShift = uint2((bgParams.w >> 4) & 1, (bgParams.w >> 5) & 1);
+    const bool twoWordChar = (bgParams.w >> 7) & 1;
+    const bool cellSizeShift = (bgParams.w >> 8) & 1;
+    const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
+
+    const uint2 planePos = (scrollPos >> (pageShift + 9)) & planeMask;
+    const uint plane = planePos.x | (planePos.y << planeShift);
+    const uint pageBaseAddress = pageBaseAddresses[plane];
+    
+    // HACK: apply data access shift
+    // Not entirely correct, but fixes problems with World Heroes Perfect's demo screen
+    const uint bank = (pageBaseAddress >> 17) & 3;
+    if ((bgParams.x >> (4 + bank)) & 1) {
+        scrollPos.x += 8;
+    }
+    
+    const uint2 pagePos = (scrollPos >> 9) & pageShift;
+    const uint page = pagePos.x + (pagePos.y << 1);
+    const uint pageOffset = page << pageSize;
+    const uint pageAddress = pageBaseAddress + pageOffset;
+
+    const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
+    const uint charIndex = charPatPos.x + (charPatPos.y << (6 - cellSizeShift));
+    
+    const uint2 cellPos = (scrollPos >> 3) & cellSizeShift;
+    uint cellIndex = cellPos.x + (cellPos.y << 1);
+
+    uint2 dotPos = scrollPos & 7;
+    
+    Character ch;
+    if (twoWordChar) {
+        ch = FetchTwoWordCharacter(bgParams, pageAddress, charIndex);
+    } else {
+        ch = FetchOneWordCharacter(bgParams, pageAddress, charIndex);
+    }
+    return FetchCharacterPixel(bgParams, ch, dotPos, cellIndex);
+}
+
+uint4 FetchScrollNBGPixel(uint4 bgParams, uint2 scrollPos, uint pageBaseAddresses[4]) {
+    uint pbaResized[16];
+    for (int i = 0; i < 4; i++) {
+        pbaResized[i] = pageBaseAddresses[i];
+    }
+    return FetchScrollBGPixel(bgParams, scrollPos, false, pbaResized);
+}
+
+uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint pageBaseAddresses[16]) {
+    return FetchScrollBGPixel(bgParams, scrollPos, true, pageBaseAddresses);
 }
 
 // -----------------------------------------------------------------------------
@@ -508,35 +570,7 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
     
     const uint2 scrollPos = fracScrollPos >> 8;
   
-    const uint2 planePos = (scrollPos >> (pageShift + 9)) & 1;
-    const uint plane = planePos.x | (planePos.y << 1);
-    const uint pageBaseAddress = state.nbgPageBaseAddresses[index][plane];
-    
-    // TODO: apply data access shift hack here
-    // const uint bank = (pageBaseAddress >> 17) & 3;
-    // const uint vramAccessOffset = ((nbgParams.x >> (4 + bank)) & 1) << 3;
-    
-    const uint2 pagePos = (scrollPos >> 9) & pageShift;
-    const uint page = pagePos.x + (pagePos.y << 1);
-    const uint pageOffset = page << pageSize;
-    const uint pageAddress = pageBaseAddress + pageOffset;
-
-    const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
-    const uint charIndex = charPatPos.x + (charPatPos.y << (6 - cellSizeShift));
-    
-    const uint2 cellPos = (scrollPos >> 3) & cellSizeShift;
-    uint cellIndex = cellPos.x + (cellPos.y << 1);
-
-    uint2 dotPos = scrollPos & 7;
-    
-    Character ch;
-    if (twoWordChar) {
-        ch = FetchTwoWordCharacter(nbgParams, pageAddress, charIndex);
-    } else {
-        ch = FetchOneWordCharacter(nbgParams, pageAddress, charIndex);
-    }
-    
-    return FetchCharacterPixel(nbgParams, ch, dotPos, cellIndex);
+    return FetchScrollNBGPixel(nbgParams, scrollPos, state.nbgPageBaseAddresses[index]);
 }
 
 uint4 DrawBitmapNBG(uint2 pos, uint index) {
@@ -609,29 +643,50 @@ uint SelectRotationParameter(uint4 rbgParams, uint2 pos) {
     return kRotParamA; // shouldn't happen
 }
 
-uint4 DrawScrollRBG(uint2 pos, uint index) {
+uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const RenderState state = renderState[0];
     const uint4 rbgParams = state.rbgParams[index];
-    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
+    const uint screenOverProcess = (rbgParams.z >> 16) & 3;
+    const uint screenOverPatternName = rbgParams.z & 0xFFFF;
+    const uint2 pageShift = uint2((rbgParams.w >> 4) & 1, (rbgParams.w >> 5) & 1);
+
     const uint rotIndex = GetRotIndex(pos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
 
-    // TODO: implement
+    // Determine maximum coordinates and screen over process
+    const bool usingFixed512 = screenOverProcess == kScreenOverProcessFixed512;
+    const bool usingRepeat = screenOverProcess == kScreenOverProcessRepeat;
+    const uint2 scrollSize = usingFixed512
+        ? uint2(512, 512)
+        : uint2(512 * 4, 512 * 4) << pageShift;
     
-    return uint4(
-        (rotState.screenCoords.x >> 0) & 0xFF,
-        (rotState.screenCoords.x >> 8) & 0x7F, // bit 7 = scroll/bitmap (=0)
-        (rotState.screenCoords.y >> 0) & 0xFF,
-        ((rotState.screenCoords.y >> 8) & 0x7F) | (rotState.coeffData & 0x80)
-    );
-    //return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
-    //return uint4(pos.x, pos.y, index * 255, 128);
+    const uint2 scrollPos = rotState.screenCoords;
+    if (all(scrollPos < scrollSize) || usingRepeat) {
+        // Plot pixel
+        
+        // TODO: VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
+        
+        return FetchScrollRBGPixel(rbgParams, scrollPos, state.rbgPageBaseAddresses[rotSel][index]);
+    }
+
+    // Out of bounds
+    
+    if (screenOverProcess == kScreenOverProcessRepeatChar) {
+        // TODO: VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
+       
+        const uint colorFormat = (rbgParams.x >> 11) & 7;
+        const bool largePalette = colorFormat != kColorFormatPalette16;
+        const bool extChar = (rbgParams.w >> 6) & 1;
+        const uint2 dotPos = scrollPos & 7;
+        Character ch = ExtractOneWordCharacter(rbgParams, screenOverPatternName);
+        return FetchCharacterPixel(rbgParams, ch, dotPos, 0);
+    }
+    return kTransparentPixel;
 }
 
-uint4 DrawBitmapRBG(uint2 pos, uint index) {
+uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
     const RenderState state = renderState[0];
     const uint4 rbgParams = state.rbgParams[index];
-    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
     const uint rotIndex = GetRotIndex(pos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
   
@@ -648,6 +703,11 @@ uint4 DrawBitmapRBG(uint2 pos, uint index) {
 }
 
 uint4 DrawRBG(uint2 pos, uint index) {
+    const bool hiResH = (config.displayParams >> 5) & 1;
+    if (hiResH) {
+        pos.x >>= 1;
+    }
+
     const RenderState state = renderState[0];
     const uint4 rbgParams = state.rbgParams[index];
         
@@ -660,8 +720,18 @@ uint4 DrawRBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
 
+    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
+    const uint rotIndex = GetRotIndex(pos, rotSel);
+    const RotParamState rotState = rotParamState[rotIndex];
+
+    // Handle transparent pixels in coefficient table
+    const bool coeffTableEnable = (rotParams[0].x >> 0) & 1;
+    if (coeffTableEnable && ((rotState.coeffData >> 7) & 1)) {
+        return kTransparentPixel;
+    }
+
     const bool bitmap = (rbgParams.x >> 31) & 1;
-    return bitmap ? DrawBitmapRBG(pos, index) : DrawScrollRBG(pos, index);
+    return bitmap ? DrawBitmapRBG(pos, index, rotSel) : DrawScrollRBG(pos, index, rotSel);
 }
 
 // -----------------------------------------------------------------------------

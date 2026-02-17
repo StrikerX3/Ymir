@@ -1368,6 +1368,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         commonParams.spriteWindowInvert = bgParams.windowSet.inverted[2];
         commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
 
+        auto &rotation = renderParams.rotParams;
+        rotation.screenOverPatternName = rotParams.screenOverPatternName;
+        rotation.screenOverProcess = static_cast<uint32>(rotParams.screenOverProcess);
+
         if (bgParams.bitmap) {
             commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
             commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
