@@ -468,10 +468,7 @@ uint4 FetchCharacterPixel(uint4 bgParams, Character ch, uint2 dotPos, uint cellI
     }
 
     const uint baseAddress = (ch.charNum + cellIndex) << 5;
-    const bool specColorCalc = ch.specColorCalc;
-    const uint specPriority = ch.specPriority;
-
-    return FetchPixel(bgParams, baseAddress, dotPos, 8, ch.palNum, specColorCalc, specPriority);
+    return FetchPixel(bgParams, baseAddress, dotPos, 8, ch.palNum, ch.specColorCalc, ch.specPriority);
 }
 
 uint4 FetchBitmapPixel(uint4 bgParams, uint2 scrollPos) {
@@ -487,11 +484,10 @@ uint4 FetchBitmapPixel(uint4 bgParams, uint2 scrollPos) {
     return FetchPixel(bgParams, baseAddress, dotPos, bitmapSizeH, palNum, specColorCalc, specPriority);
 }
 
-uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, bool rot, uint pageBaseAddresses[16]) {
+uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, bool rot, uint pageBaseAddresses[16]) {
     const uint planeShift = rot ? 2 : 1;
     const uint planeMask = (1 << planeShift) - 1;
     
-    const uint2 pageShift = uint2((bgParams.w >> 4) & 1, (bgParams.w >> 5) & 1);
     const bool twoWordChar = (bgParams.w >> 7) & 1;
     const bool cellSizeShift = (bgParams.w >> 8) & 1;
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
@@ -530,15 +526,18 @@ uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, bool rot, uint pageBas
 }
 
 uint4 FetchScrollNBGPixel(uint4 bgParams, uint2 scrollPos, uint pageBaseAddresses[4]) {
+    const uint2 pageShift = uint2((bgParams.w >> 4) & 1, (bgParams.w >> 5) & 1);
+ 
     uint pbaResized[16];
     for (int i = 0; i < 4; i++) {
         pbaResized[i] = pageBaseAddresses[i];
     }
-    return FetchScrollBGPixel(bgParams, scrollPos, false, pbaResized);
+    
+    return FetchScrollBGPixel(bgParams, scrollPos, pageShift, false, pbaResized);
 }
 
-uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint pageBaseAddresses[16]) {
-    return FetchScrollBGPixel(bgParams, scrollPos, true, pageBaseAddresses);
+uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, uint pageBaseAddresses[16]) {
+    return FetchScrollBGPixel(bgParams, scrollPos, pageShift, true, pageBaseAddresses);
 }
 
 // -----------------------------------------------------------------------------
@@ -648,7 +647,9 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const uint4 rbgParams = state.rbgParams[index];
     const uint screenOverProcess = (rbgParams.z >> 16) & 3;
     const uint screenOverPatternName = rbgParams.z & 0xFFFF;
-    const uint2 pageShift = uint2((rbgParams.w >> 4) & 1, (rbgParams.w >> 5) & 1);
+
+    const uint4 rotParams = state.rbgParams[rotSel];
+    const uint2 pageShift = uint2((rotParams.w >> 4) & 1, (rotParams.w >> 5) & 1);
 
     const uint rotIndex = GetRotIndex(pos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
@@ -665,8 +666,8 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
         // Plot pixel
         
         // TODO: VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
-        
-        return FetchScrollRBGPixel(rbgParams, scrollPos, state.rbgPageBaseAddresses[rotSel][index]);
+    
+        return FetchScrollRBGPixel(rbgParams, scrollPos, pageShift, state.rbgPageBaseAddresses[rotSel][index]);
     }
 
     // Out of bounds
