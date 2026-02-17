@@ -108,8 +108,14 @@ struct BGRenderParams {
     } common;
     static_assert(sizeof(Common) == sizeof(D3DUint) * 2);
 
-    // Entry 2 - padding/reserved
-    D3DUint padding;
+    // Entry 2 - rotation parameters
+    struct RotParams {                      //  bits  use
+        D3DUint screenOverPatternName : 16; //  0-15  Screen-over pattern name
+        D3DUint screenOverProcess : 2;      // 16-17  Screen-over process
+                                            //          0 = repeat planes      2 = transparent
+                                            //          1 = repeat character   3 = transparent + restrict to 512x512
+    } rotParams;
+    static_assert(sizeof(RotParams) == sizeof(D3DUint));
 
     // Entry 3 - type-specific parameters
     union TypeSpecific {
