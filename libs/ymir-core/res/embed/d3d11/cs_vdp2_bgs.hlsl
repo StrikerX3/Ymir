@@ -510,7 +510,12 @@ uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, bool 
     const uint pageOffset = page << pageSize;
     const uint pageAddress = pageBaseAddress + pageOffset;
 
-    const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
+    // HACK: work around FXC bug that produces invalid code for the line below:
+    //   const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
+    // When cellSizeShift is derived from a masked/shifted value, the compiler merges the two shifts into one:
+    //   const uint2 charPatPos = (scrollPos >> (3 + cellSizeShift) & 0x3F;
+    const uint2 baseCharPatPos = (scrollPos >> 3) & 0x3F;
+    const uint2 charPatPos = cellSizeShift ? (baseCharPatPos >> 1) : baseCharPatPos;
     const uint charIndex = charPatPos.x + (charPatPos.y << (6 - cellSizeShift));
     
     const uint2 cellPos = (scrollPos >> 3) & cellSizeShift;
