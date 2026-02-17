@@ -795,18 +795,10 @@ private:
         }
 
         void Reset() {
-            for (auto &addrs : pageBaseAddresses) {
-                addrs.fill(0);
-            }
             screenCoords.fill({});
             lineColor.fill({.u32 = 0});
             transparent.fill(false);
         }
-
-        // Page base addresses for RBG planes A-P using Rotation Parameters A and B.
-        // Indexing: [RBG0-1][Plane A-P]
-        // Derived from mapIndices, CHCTLA/CHCTLB.xxCHSZ, PNCR.xxPNB and PLSZ.xxPLSZn
-        std::array<std::array<uint32, 16>, 2> pageBaseAddresses;
 
         // Precomputed screen coordinates (26.0).
         alignas(16) std::array<CoordS32, kMaxNormalResH> screenCoords;
@@ -914,8 +906,6 @@ private:
     // Initializes the specified NBG.
     template <uint32 index>
     void VDP2InitNormalBG();
-
-    void VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2);
 
     // Updates the enabled backgrounds.
     void VDP2UpdateEnabledBGs();

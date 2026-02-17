@@ -273,6 +273,11 @@ protected:
     /// @brief States for Rotation Parameters A and B.
     std::array<RotationParamState, 2> m_rotParamStates;
 
+    /// @brief Page base addresses for RBG planes A-P using Rotation Parameters A and B.
+    /// Indexing: [RotParam A/B][RBG0-1][Plane A-P]
+    /// Derived from `mapIndices`, `CHCTLA/CHCTLB.xxCHSZ`, `PNCR.xxPNB` and `PLSZ.xxPLSZn`.
+    std::array<std::array<std::array<uint32, 16>, 2>, 2> m_rbgPageBaseAddresses;
+
     /// @brief State for the line color and back screens.
     LineBackLayerState m_lineBackLayerState;
 
@@ -308,6 +313,10 @@ protected:
     /// @param[in] regs2 the VDP2 register state to use
     /// @param[in] debugRenderOpts the VDP2 debug rendering options to use
     void VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts);
+
+    /// @brief Updates the page base addresses for RBGs.
+    /// @param[in] regs2 the VDP2 register state to use
+    void VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2);
 
 private:
     const VDPRendererType m_type;
