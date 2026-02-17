@@ -35,7 +35,7 @@ struct RenderState {
 struct RotParamState {
     int2 screenCoords;
     uint spriteCoords; // packed 2x int16
-    uint coeffData; // bits 0-24 = line color + MSB; bit 31 = transparency
+    uint coeffData; // bits 0-6 = raw line color data; bit 7 = transparency
 };
 
 // -----------------------------------------------------------------------------
