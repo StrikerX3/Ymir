@@ -36,7 +36,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     // HACK: very simple compositing
     uint3 outColor = uint3(0, 0, 0);
     int maxPriority = -1;
-    for (uint i = 0; i < 4; i++) {
+    for (uint i = 0; i < 6; i++) {
         const uint4 pixel = textureBGs[uint3(drawCoord, i)];
         const bool transparent = (pixel.a >> 7) & 1;
         if (transparent) {
