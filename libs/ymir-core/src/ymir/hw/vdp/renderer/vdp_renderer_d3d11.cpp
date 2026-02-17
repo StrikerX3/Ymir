@@ -1101,6 +1101,20 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
             scrollParams.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
         }
     }
+    for (uint32 i = 0; i < 2; ++i) {
+        const auto &bgParams = regs2.bgParams[i];
+        auto &renderParams = state.rbgParams[i];
+
+        auto &commonParams = renderParams.common;
+        commonParams.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
+        commonParams.charPatDelay = bgParams.charPatDelay;
+        commonParams.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
+
+        if (!bgParams.bitmap) {
+            auto &scrollParams = renderParams.typeSpecific.scroll;
+            scrollParams.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
+        }
+    }
 
     m_context->dirtyVDP2RenderState = true;
 }
