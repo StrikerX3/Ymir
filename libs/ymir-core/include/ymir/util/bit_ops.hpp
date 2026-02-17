@@ -217,6 +217,22 @@ template <std::size_t mask, std::integral T>
     return value & m0; // Clear out extraneous bits
 }
 
+/// @brief Converts an array of booleans into a densely-packed unsigned integer.
+/// @tparam T the unsigned integer type to pack bits into
+/// @tparam N the array size, no larger than the bit width of `T`
+/// @param[in] arr the array of booleans
+/// @return an unsigned integer with the bits of the array packed into the least significant bits
+template <std::unsigned_integral T, size_t N>
+FORCE_INLINE static T gather_array(const std::array<bool, N> &arr) {
+    static_assert(N > 0, "array must not be empty");
+    static_assert(N <= sizeof(T) * CHAR_BIT, "array does not fit in T");
+    T bits = 0u;
+    for (T i = 0; i < N; ++i) {
+        bits |= static_cast<T>(arr[i]) << i;
+    }
+    return bits;
+}
+
 namespace detail {
 
     template <class T, std::size_t... N>
