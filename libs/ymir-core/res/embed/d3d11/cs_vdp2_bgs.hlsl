@@ -209,13 +209,13 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
 
 bool InsideWindows(uint4 nbgParams, uint2 pos) {
     const Window windows[2] = renderState[0].windows;
-    const bool window0Enable = (nbgParams.x >> 13) & 1;
-    const bool window0Invert = (nbgParams.x >> 14) & 1;
-    const bool window1Enable = (nbgParams.x >> 15) & 1;
-    const bool window1Invert = (nbgParams.x >> 16) & 1;
-    const bool spriteWindowEnable = (nbgParams.x >> 17) & 1;
-    // TODO: const bool spriteWindowInvert = (nbgParams.x >> 18) & 1;
-    const uint windowLogic = (nbgParams.x >> 19) & 1;
+    const bool window0Enable = (nbgParams.y >> 13) & 1;
+    const bool window0Invert = (nbgParams.y >> 14) & 1;
+    const bool window1Enable = (nbgParams.y >> 15) & 1;
+    const bool window1Invert = (nbgParams.y >> 16) & 1;
+    const bool spriteWindowEnable = (nbgParams.y >> 17) & 1;
+    // TODO: const bool spriteWindowInvert = (nbgParams.y >> 18) & 1;
+    const uint windowLogic = (nbgParams.y >> 19) & 1;
     
     // If no windows are enabled, consider the pixel outside of windows
     if (!window0Enable && !window1Enable && !spriteWindowEnable) {
