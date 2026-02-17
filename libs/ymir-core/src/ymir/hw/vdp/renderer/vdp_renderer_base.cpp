@@ -27,7 +27,7 @@ namespace grp {
 } // namespace grp
 
 void IVDPRenderer::Reset(bool hard) {
-    for (auto &state : m_normBGLayerStates) {
+    for (auto &state : m_nbgLayerStates) {
         state.Reset();
     }
     for (auto &state : m_rotParamStates) {
@@ -376,17 +376,17 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
             case CyclePatterns::VCellScrollNBG0:
                 if (regs2.bgParams[1].verticalCellScrollEnable) {
                     m_vertCellScrollInc += sizeof(uint32);
-                    m_normBGLayerStates[0].vertCellScrollOffset = vcellAccessOffset;
-                    m_normBGLayerStates[0].vertCellScrollDelay = slotIndex >= 3;
-                    m_normBGLayerStates[0].vertCellScrollRepeat = slotIndex >= 2;
+                    m_nbgLayerStates[0].vertCellScrollOffset = vcellAccessOffset;
+                    m_nbgLayerStates[0].vertCellScrollDelay = slotIndex >= 3;
+                    m_nbgLayerStates[0].vertCellScrollRepeat = slotIndex >= 2;
                     vcellAccessOffset += sizeof(uint32);
                 }
                 break;
             case CyclePatterns::VCellScrollNBG1:
                 if (regs2.bgParams[2].verticalCellScrollEnable) {
                     m_vertCellScrollInc += sizeof(uint32);
-                    m_normBGLayerStates[1].vertCellScrollOffset = vcellAccessOffset;
-                    m_normBGLayerStates[1].vertCellScrollDelay = slotIndex >= 3;
+                    m_nbgLayerStates[1].vertCellScrollOffset = vcellAccessOffset;
+                    m_nbgLayerStates[1].vertCellScrollDelay = slotIndex >= 3;
                     vcellAccessOffset += sizeof(uint32);
                 }
                 break;

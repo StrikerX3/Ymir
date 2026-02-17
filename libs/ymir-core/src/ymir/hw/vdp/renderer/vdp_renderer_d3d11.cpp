@@ -1089,7 +1089,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
     auto &state = m_context->cpuVDP2BGRenderState;
     for (uint32 i = 0; i < 4; ++i) {
         const auto &bgParams = regs2.bgParams[i + 1];
-        const NormBGLayerState &bgState = m_normBGLayerStates[i];
+        const NBGLayerState &bgState = m_nbgLayerStates[i];
         auto &renderParams = state.nbgParams[i];
 
         auto &commonParams = renderParams.common;

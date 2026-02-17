@@ -505,7 +505,7 @@ public:
         [[nodiscard]] const VDP1Regs &GetVDP1Regs() const;
         [[nodiscard]] const VDP2Regs &GetVDP2Regs() const;
 
-        [[nodiscard]] const std::array<NormBGLayerState, 4> &GetNBGLayerStates() const;
+        [[nodiscard]] const std::array<NBGLayerState, 4> &GetNBGLayerStates() const;
 
         [[nodiscard]] uint16 GetLatchedEraseWriteValue() const;
         [[nodiscard]] uint16 GetLatchedEraseX1() const;
