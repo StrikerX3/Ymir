@@ -273,7 +273,7 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
     }
 
     for (size_t i = 0; i < 2; i++) {
-        state.rotParamStates[i].pageBaseAddresses = m_rotParamLineStates[i].pageBaseAddresses;
+        state.rotParamStates[i].pageBaseAddresses = m_rbgPageBaseAddresses[i];
         state.rotParamStates[i].Xst = m_rotParamStates[i].Xst;
         state.rotParamStates[i].Yst = m_rotParamStates[i].Yst;
         state.rotParamStates[i].KA = m_rotParamStates[i].KA;
@@ -334,7 +334,7 @@ void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &sta
     }
 
     for (size_t i = 0; i < 2; i++) {
-        m_rotParamLineStates[i].pageBaseAddresses = state.rotParamStates[i].pageBaseAddresses;
+        m_rbgPageBaseAddresses[i] = state.rotParamStates[i].pageBaseAddresses;
         m_rotParamStates[i].Xst = state.rotParamStates[i].Xst;
         m_rotParamStates[i].Yst = state.rotParamStates[i].Yst;
         m_rotParamStates[i].KA = state.rotParamStates[i].KA;
@@ -1945,33 +1945,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2InitNormalBG() {
     bgState.mosaicCounterY = 0;
     if constexpr (index < 2) {
         bgState.lineScrollTableAddress = bgParams.lineScrollTableAddress;
-    }
-}
-
-FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2) {
-    for (int index = 0; index < 2; index++) {
-        if (!regs2.bgEnabled[index + 4]) {
-            continue;
-        }
-
-        BGParams &bgParams = regs2.bgParams[index];
-        if (!bgParams.rbgPageBaseAddressesDirty) {
-            continue;
-        }
-        bgParams.rbgPageBaseAddressesDirty = false;
-
-        const bool cellSizeShift = bgParams.cellSizeShift;
-        const bool twoWordChar = bgParams.twoWordChar;
-
-        for (int param = 0; param < 2; param++) {
-            const RotationParams &rotParam = regs2.rotParams[param];
-            auto &pageBaseAddresses = m_rotParamLineStates[param].pageBaseAddresses;
-            const uint16 plsz = rotParam.plsz;
-            for (int plane = 0; plane < 16; plane++) {
-                const uint32 mapIndex = rotParam.mapIndices[plane];
-                pageBaseAddresses[index][plane] = CalcPageBaseAddress(cellSizeShift, twoWordChar, plsz, mapIndex);
-            }
-        }
     }
 }
 
@@ -4426,7 +4399,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
             const Pixel pixel = VDP2FetchScrollBGPixel<true, charMode, fourCellChar, colorFormat, colorMode>(
-                bgParams, rotParamState.pageBaseAddresses[bgIndex], rotParams.pageShiftH, rotParams.pageShiftV,
+                bgParams, m_rbgPageBaseAddresses[rotParamSelector][bgIndex], rotParams.pageShiftH, rotParams.pageShiftV,
                 scrollCoord, m_vramFetchers[altField][rotParamSelector + 4]);
             if (!doubleResH || !windowState[xx]) {
                 layerState.pixels.SetPixel(xx, pixel);
