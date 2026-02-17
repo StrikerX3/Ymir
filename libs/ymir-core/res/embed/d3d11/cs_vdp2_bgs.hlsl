@@ -206,24 +206,33 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
     return inside != invert;
 }
 
-bool InsideWindows(uint4 nbgParams, uint2 pos) {
+// windowParams must contain:
+// bit  use
+//   0  Window logic
+//   1  Window 0 enable
+//   2  Window 0 invert
+//   3  Window 1 enable
+//   4  Window 1 invert
+//   5  Sprite window enable (if hasSpriteWindow==true)
+//   6  Sprite window invert (if hasSpriteWindow==true)
+bool InsideWindows(uint windowParams, bool hasSpriteWindow, uint2 pos) {
     const Window windows[2] = renderState[0].windows;
-    const bool window0Enable = (nbgParams.y >> 13) & 1;
-    const bool window0Invert = (nbgParams.y >> 14) & 1;
-    const bool window1Enable = (nbgParams.y >> 15) & 1;
-    const bool window1Invert = (nbgParams.y >> 16) & 1;
-    const bool spriteWindowEnable = (nbgParams.y >> 17) & 1;
-    // TODO: const bool spriteWindowInvert = (nbgParams.y >> 18) & 1;
-    const uint windowLogic = (nbgParams.y >> 19) & 1;
+    const uint windowLogic = windowParams & 1;
+    const bool window0Enable = (windowParams >> 1) & 1;
+    const bool window0Invert = (windowParams >> 2) & 1;
+    const bool window1Enable = (windowParams >> 3) & 1;
+    const bool window1Invert = (windowParams >> 4) & 1;
+    const bool spriteWindowEnable = hasSpriteWindow && ((windowParams >> 5) & 1);
+    const bool spriteWindowInvert = hasSpriteWindow && ((windowParams >> 6) & 1);
     
     // If no windows are enabled, consider the pixel outside of windows
-    if (!window0Enable && !window1Enable && !spriteWindowEnable) {
+    if (!window0Enable && !window1Enable && (hasSpriteWindow && !spriteWindowEnable)) {
         return false;
     }
     
     const bool insideW0 = window0Enable && InsideWindow(windows[0], window0Invert, pos);
     const bool insideW1 = window1Enable && InsideWindow(windows[1], window1Invert, pos);
-    const bool insideSW = spriteWindowEnable && false; // TODO: InsideSpriteWindow(...);
+    const bool insideSW = spriteWindowEnable && false; // TODO: InsideSpriteWindow(spriteWindowInvert, pos);
     
     if (windowLogic == kWindowLogicAND) {
         return insideW0 && insideW1 /*&& insideSW*/;
@@ -544,7 +553,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
     
-    if (InsideWindows(nbgParams, pos)) {
+    if (InsideWindows(nbgParams.y >> 13, true, pos)) {
         return kTransparentPixel;
     }
   
@@ -561,7 +570,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
     
-    if (InsideWindows(rbgParams, pos)) {
+    if (InsideWindows(rbgParams.y >> 13, true, pos)) {
         return kTransparentPixel;
     }
 

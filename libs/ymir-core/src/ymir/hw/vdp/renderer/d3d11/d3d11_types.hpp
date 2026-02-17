@@ -98,13 +98,13 @@ struct BGRenderParams {
         D3DUint vertCellScrollOffset : 1;   //    10  Vertical cell scroll offset  0=none; 1=4 bytes    (NBG0/1 only)
         D3DUint vertCellScrollRepeat : 1;   //    11  Vertical cell scroll repeat  0=none; 1=once       (NBG0 only)
         D3DUint mosaicEnable : 1;           //    12  Mosaic enable                0=disable; 1=enable
-        D3DUint window0Enable : 1;          //    13  Window 0 enable              0=disable; 1=enable
-        D3DUint window0Invert : 1;          //    14  Window 0 inverted            0=disable; 1=enable
-        D3DUint window1Enable : 1;          //    15  Window 1 enable              0=disable; 1=enable
-        D3DUint window1Invert : 1;          //    16  Window 1 inverted            0=disable; 1=enable
-        D3DUint spriteWindowEnable : 1;     //    17  Sprite window enable         0=disable; 1=enable
-        D3DUint spriteWindowInvert : 1;     //    18  Sprite window inverted       0=disable; 1=enable
-        D3DUint windowLogic : 1;            //    19  Window logic                 0=OR; 1=AND
+        D3DUint windowLogic : 1;            //    13  Window logic                 0=OR; 1=AND
+        D3DUint window0Enable : 1;          //    14  Window 0 enable              0=disable; 1=enable
+        D3DUint window0Invert : 1;          //    15  Window 0 invert              0=disable; 1=enable
+        D3DUint window1Enable : 1;          //    16  Window 1 enable              0=disable; 1=enable
+        D3DUint window1Invert : 1;          //    17  Window 1 invert              0=disable; 1=enable
+        D3DUint spriteWindowEnable : 1;     //    18  Sprite window enable         0=disable; 1=enable
+        D3DUint spriteWindowInvert : 1;     //    19  Sprite window invert         0=disable; 1=enable
     } common;
     static_assert(sizeof(Common) == sizeof(D3DUint) * 2);
 
