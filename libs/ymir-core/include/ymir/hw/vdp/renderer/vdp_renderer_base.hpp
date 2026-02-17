@@ -296,6 +296,10 @@ protected:
     /// ```
     std::array<bool, 6> m_layerEnabled;
 
+    // Rotation coefficient data access permissions per VRAM bank.
+    // Derived from RAMCTL.RDBS(A-B)(0-1)(1-0), RAMCTL.VRAMD and RAMCTL.VRBMD
+    std::array<bool, 4> m_coeffAccess;
+
     /// @brief Computes the access patterns for NBGs and RBGs.
     /// @param[in] regs2 the VDP2 register state to update
     void VDP2CalcAccessPatterns(VDP2Regs &regs2);
