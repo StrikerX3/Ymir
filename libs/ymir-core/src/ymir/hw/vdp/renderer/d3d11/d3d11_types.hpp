@@ -183,10 +183,6 @@ struct alignas(16) RotParamBase {
 };
 static_assert(sizeof(RotParamBase) == sizeof(D3DUint) * 4);
 
-struct alignas(16) VDP2RotationRenderState {
-    std::array<RotationRenderParams, 2> rotParams;
-};
-
 struct alignas(16) VDP2RotParamData {
     D3DInt2 screenCoords; // Screen coordinates (26.0)
     D3DUint spriteCoords; // Sprite coordinates (13.0) (packed 2x 16-bit ints)
