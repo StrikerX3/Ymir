@@ -915,7 +915,7 @@ struct VRAMControl {
     // Derived from RAMCTL.CRKTE
     bool colorRAMCoeffTableEnable;
 
-    // Determines if rotation parameter coefficients are per dot or not.
+    // Determines if rotation parameter coefficients are per dot (true) or per line (false).
     // Derived from RAMCTL.VRAMD, VRBMD and CRKTE
     bool perDotRotationCoeffs;
 

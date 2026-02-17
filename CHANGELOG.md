@@ -47,7 +47,7 @@ Introduced save state file version 12.
 - Input: Fixed analog to D-Pad axis conversion to not overwrite whenever an input was released in opposite direction. (#754; @PringleElUno)
 - MIDI: Defend against crashes when the library fails to initialize.
 - SH2: Fix `@(disp.PC)` loads being decoded as stores for watchpoints.
-- SH2: Fix `ldc/lds @Rm` decoding from the wrong position for watchpoints.
+- SH2: Fix `ldc/lds @Rm` decoding from the wrong opcode bits for watchpoints.
 - VDP1: Fix handling of zero horizontal character size in CMDSIZE.
 - VDP1: Increase PTM=1 drawing delay and apply it only during VBlank. Fixes flickering graphics on Earthworm Jim 2. (#745)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
@@ -55,10 +55,11 @@ Introduced save state file version 12.
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
 - VDP1: Stop processing commands if encountering an all-zeros entry. Fixes invalid clipping coordinates in Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. (#761)
 - VDP2: Apply VRAM access shift per bank to scroll NBGs with invalid timing patterns. Fixes World Heroes Perfect title screen shift and Cyberbots - Fullmetal Madness HUD shift and broken background in stage 2. (#756)
-- VDP2: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
-- VDP2: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
-- VDP2: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 - VDP2: Use only the first PN access to check for valid CP accesses. Fixes graphics shift in Daisuki and BattleSport. (#769, #770)
+- VDP2-SW: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
+- VDP2-SW: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
+- VDP2-SW: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
+- VDP2-SW: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 
 
 ## Version 0.2.1
