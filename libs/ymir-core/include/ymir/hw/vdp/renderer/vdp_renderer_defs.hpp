@@ -138,8 +138,8 @@ struct VRAMFetcher {
 };
 
 /// @brief NBG layer state, including coordinate counters, increments and addresses.
-struct NormBGLayerState {
-    NormBGLayerState() {
+struct NBGLayerState {
+    NBGLayerState() {
         Reset();
     }
 

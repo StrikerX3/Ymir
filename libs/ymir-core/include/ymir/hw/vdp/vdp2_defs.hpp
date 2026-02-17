@@ -214,10 +214,12 @@ struct alignas(128) BGParams {
     // Page shifts are either 0 or 1, used when determining which plane a particular (x,y) coordinate belongs to.
     // A shift of 0 corresponds to 1 page per plane dimension.
     // A shift of 1 corresponds to 2 pages per plane dimension.
+    // Only valid for NBGs.
     uint32 pageShiftH; // Horizontal page shift, derived from PLSZ.xxPLSZn
     uint32 pageShiftV; // Vertical page shift, derived from PLSZ.xxPLSZn
 
     // Bitmap dimensions, when the screen is in bitmap mode.
+    // Only valid for NBGs.
     uint32 bitmapSizeH; // Horizontal bitmap dots, derived from CHCTLA/CHCTLB.xxBMSZ
     uint32 bitmapSizeV; // Vertical bitmap dots, derived from CHCTLA/CHCTLB.xxBMSZ
 
@@ -242,6 +244,7 @@ struct alignas(128) BGParams {
     std::array<uint32, 4> pageBaseAddresses;
 
     // Base address of bitmap data.
+    // Only valid for NBGs.
     // Derived from MPOFN
     uint32 bitmapBaseAddress;
 

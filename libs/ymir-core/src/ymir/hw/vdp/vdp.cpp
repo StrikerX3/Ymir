@@ -1275,7 +1275,7 @@ const VDP2Regs &VDP::Probe::GetVDP2Regs() const {
     return m_vdp.m_state.regs2;
 }
 
-const std::array<NormBGLayerState, 4> &VDP::Probe::GetNBGLayerStates() const {
+const std::array<NBGLayerState, 4> &VDP::Probe::GetNBGLayerStates() const {
     return m_vdp.m_renderer->GetNBGLayerStates();
 }
 
