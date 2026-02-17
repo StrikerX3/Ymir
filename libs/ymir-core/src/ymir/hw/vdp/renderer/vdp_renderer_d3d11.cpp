@@ -1008,6 +1008,7 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     VDP2CalcAccessPatterns();
+    VDP2UpdateRotationPageBaseAddresses(m_state.regs2);
 
     const bool renderBGs = m_context->dirtyVDP2VRAM || m_context->dirtyVDP2CRAM || m_context->dirtyVDP2RenderState;
     const bool compose = m_context->dirtyVDP2RenderState;
