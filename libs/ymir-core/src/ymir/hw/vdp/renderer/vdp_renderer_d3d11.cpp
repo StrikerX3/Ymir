@@ -1058,6 +1058,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
     for (uint32 i = 0; i < 4; ++i) {
         state.nbgParams[i].common.enabled = m_layerEnabled[i + 2];
     }
+    for (uint32 i = 0; i < 2; ++i) {
+        state.rbgParams[i].common.enabled = m_layerEnabled[i + 1];
+    }
 
     m_context->dirtyVDP2RenderState = true;
 }
