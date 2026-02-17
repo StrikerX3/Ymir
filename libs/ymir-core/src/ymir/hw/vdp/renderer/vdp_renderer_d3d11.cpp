@@ -1,5 +1,6 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp>
 
+#include <ymir/util/bit_ops.hpp>
 #include <ymir/util/inline.hpp>
 #include <ymir/util/scope_guard.hpp>
 
@@ -1061,15 +1062,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
     m_context->dirtyVDP2RenderState = true;
 }
 
-template <size_t N>
-FORCE_INLINE static uint32 GatherBits(const std::array<bool, N> &arr) {
-    uint32 bits = 0u;
-    for (uint32 i = 0; i < N; ++i) {
-        bits |= static_cast<uint32>(arr[i]) << i;
-    }
-    return bits;
-}
-
 template <uint32 bitPos, size_t N>
 FORCE_INLINE static std::array<bool, N> ExtractArrayBits(const std::array<uint32, N> &arr) {
     std::array<bool, N> bits;
@@ -1094,16 +1086,16 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
         auto &renderParams = state.nbgParams[i];
 
         auto &commonParams = renderParams.common;
-        commonParams.charPatAccess = GatherBits(bgParams.charPatAccess);
+        commonParams.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
         commonParams.charPatDelay = bgParams.charPatDelay;
-        commonParams.vramAccessOffset = GatherBits(ExtractArrayBits<3>(bgParams.vramDataOffset));
+        commonParams.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
         commonParams.vertCellScrollDelay = bgState.vertCellScrollDelay;
         commonParams.vertCellScrollOffset = bgState.vertCellScrollOffset;
         commonParams.vertCellScrollRepeat = bgState.vertCellScrollRepeat;
 
         if (!bgParams.bitmap) {
             auto &scrollParams = renderParams.typeSpecific.scroll;
-            scrollParams.patNameAccess = GatherBits(bgParams.patNameAccess);
+            scrollParams.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
         }
     }
 
@@ -1287,7 +1279,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
     const VDP2Regs &regs2 = m_state.regs2;
     auto &state = m_context->cpuVDP2BGRenderState;
 
-    // TODO: update these in response to register writes
     for (uint32 i = 0; i < 4; ++i) {
         const BGParams &bgParams = regs2.bgParams[i + 1];
         BGRenderParams &renderParams = state.nbgParams[i];
@@ -1409,8 +1400,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         state.windows[i].lineWindowTableEnable = regs2.windowParams[i].lineWindowTableEnable;
     }
 
-    state.specialFunctionCodes = GatherBits(regs2.specialFunctionCodes[0].colorMatches) |
-                                 (GatherBits(regs2.specialFunctionCodes[0].colorMatches) << 8u);
+    state.specialFunctionCodes = bit::gather_array<uint32>(regs2.specialFunctionCodes[0].colorMatches) |
+                                 (bit::gather_array<uint32>(regs2.specialFunctionCodes[1].colorMatches) << 8u);
 
     auto *ctx = m_context->deferredCtx;
 
