@@ -194,7 +194,7 @@ struct alignas(16) VDP2RotationRenderState {
 struct alignas(16) VDP2RotParamData {
     D3DInt2 screenCoords; // Screen coordinates (26.0)
     D3DUint spriteCoords; // Sprite coordinates (13.0) (packed 2x 16-bit ints)
-    D3DUint coeffData;    // Coefficient table line color + transparency bit
+    D3DUint coeffData;    // Raw coefficient line color data (bits 0-6) + transparency (bit 7)
 };
 
 } // namespace ymir::vdp
