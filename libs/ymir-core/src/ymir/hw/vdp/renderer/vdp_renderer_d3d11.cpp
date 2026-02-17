@@ -1142,7 +1142,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     m_context->CSSetShaderResources(
         {m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
     m_context->CSSetUnorderedAccessViews({m_context->uavVDP2BGs});
-    m_context->CSSetShaderResources(3, {m_context->srvVDP2RotParams});
+    m_context->CSSetShaderResources(3, {m_context->srvVDP2RotRenderParams, m_context->srvVDP2RotParams});
     m_context->CSSetShader(m_context->csVDP2BGs);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 
@@ -1402,6 +1402,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
         state.windows[i].lineWindowTableAddress = regs2.windowParams[i].lineWindowTableAddress;
         state.windows[i].lineWindowTableEnable = regs2.windowParams[i].lineWindowTableEnable;
     }
+
+    state.commonRotParams.rotParamMode = static_cast<uint32>(regs2.commonRotParams.rotParamMode);
+    state.commonRotParams.window0Enable = regs2.commonRotParams.windowSet.enabled[0];
+    state.commonRotParams.window0Invert = regs2.commonRotParams.windowSet.inverted[0];
+    state.commonRotParams.window1Enable = regs2.commonRotParams.windowSet.enabled[1];
+    state.commonRotParams.window1Invert = regs2.commonRotParams.windowSet.inverted[1];
+    state.commonRotParams.windowLogic = static_cast<uint32>(regs2.commonRotParams.windowSet.logic);
 
     state.specialFunctionCodes = bit::gather_array<uint32>(regs2.specialFunctionCodes[0].colorMatches) |
                                  (bit::gather_array<uint32>(regs2.specialFunctionCodes[1].colorMatches) << 8u);
