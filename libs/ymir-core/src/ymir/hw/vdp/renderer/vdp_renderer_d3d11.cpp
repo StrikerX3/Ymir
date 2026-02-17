@@ -512,7 +512,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
 
     srvDesc = {
-        .Format = DXGI_FORMAT_UNKNOWN,
+        .Format = DXGI_FORMAT_R8G8B8A8_UINT,
         .ViewDimension = D3D11_SRV_DIMENSION_BUFFER,
         .Buffer =
             {
