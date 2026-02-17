@@ -195,9 +195,9 @@ public:
     virtual void UpdateEnabledLayers() = 0;
 
     /// @brief Retrieves a read-only reference to the current states of the NBG layers.
-    /// @return a reference to an array of `NormBGLayerState` objects for NBG0-NBG3.
-    const std::array<NormBGLayerState, 4> &GetNBGLayerStates() const {
-        return m_normBGLayerStates;
+    /// @return a reference to an array of `NBGLayerState` objects for NBG0-NBG3.
+    const std::array<NBGLayerState, 4> &GetNBGLayerStates() const {
+        return m_nbgLayerStates;
     }
 
     // -------------------------------------------------------------------------
@@ -268,7 +268,7 @@ public:
 
 protected:
     /// @brief Layer states for NBGs 0-3.
-    std::array<NormBGLayerState, 4> m_normBGLayerStates;
+    std::array<NBGLayerState, 4> m_nbgLayerStates;
 
     /// @brief States for Rotation Parameters A and B.
     std::array<RotationParamState, 2> m_rotParamStates;

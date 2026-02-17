@@ -931,7 +931,7 @@ private:
     // y is the scanline to draw
     // bgParams contains the parameters for the BG to draw.
     // bgState is a reference to the background layer state for the background.
-    void VDP2UpdateLineScreenScroll(uint32 y, const BGParams &bgParams, NormBGLayerState &bgState);
+    void VDP2UpdateLineScreenScroll(uint32 y, const BGParams &bgParams, NBGLayerState &bgState);
 
     // Loads rotation parameter tables and calculates coefficients and increments.
     //
@@ -1073,7 +1073,7 @@ private:
     template <CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll,
               bool deinterlace>
     void VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
-                                const NormBGLayerState &bgState, VRAMFetcher &vramFetcher,
+                                const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
                                 std::span<const bool> windowState, bool altField);
 
     // Draws a normal bitmap BG scanline.
@@ -1092,7 +1092,7 @@ private:
     // deinterlace determines whether to deinterlace video output
     template <ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll, bool deinterlace>
     void VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
-                                const NormBGLayerState &bgState, VRAMFetcher &vramFetcher,
+                                const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
                                 std::span<const bool> windowState, bool altField);
 
     // Draws a rotation scroll BG scanline.
