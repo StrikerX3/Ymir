@@ -15,7 +15,9 @@ struct RenderState {
 };
 
 struct RotParamState {
-    uint4 reserved;
+    int2 screenCoords;
+    uint spriteCoords; // packed 2x int16
+    uint coeffData; // bits 0-24 = line color + MSB; bit 31 = transparency
 };
 
 // -----------------------------------------------------------------------------
@@ -403,7 +405,9 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     RotParamState result;
 
     // TODO: implement
-    result.reserved = uint4(pos.xy, index, 128);
+    result.screenCoords = pos.xy;
+    result.spriteCoords = 0xDEADBEEF;
+    result.coeffData = 0x81FFFFFF;
     
     return result;
 }
