@@ -303,6 +303,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     const RotParamBase base = rotParamBases[index];
     const uint2 rotParams = state.rotParams[index];
     
+    const bool coeffTableEnable = (rotParams.x >> 0) & 1;
     const uint coeffDataMode = (rotParams.x >> 3) & 3;
     const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
     const bool fbRotEnable = (rotParams.x >> 10) & 1;
@@ -346,30 +347,37 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     // reduce to 10 frac bits
     const int scrXIncH = (t.A * t.deltaX + t.B * t.deltaY) >> 10;
     const int scrYIncH = (t.D * t.deltaX + t.E * t.deltaY) >> 10;
-
-    // Current coefficient address (16.10)
-    const uint KAxofs = coeffDataPerDot ? pos.x * t.dKAx : 0;
-    const uint KA = base.KA + KAxofs + pos.y * t.dKAst;
-
-    // Read and apply rotation coefficient
-    const RotCoefficient coeff = ReadRotCoefficient(rotParams, KA);
     
     int kx = t.kx;
     int ky = t.ky;
+
+    RotCoefficient coeff;
+    if (coeffTableEnable) {
+        // Current coefficient address (16.10)
+        const uint KAxofs = coeffDataPerDot ? pos.x * t.dKAx : 0;
+        const uint KA = base.KA + KAxofs + pos.y * t.dKAst;
+
+        // Read and apply rotation coefficient
+        coeff = ReadRotCoefficient(rotParam, KA);
    
-    switch (coeffDataMode) {
-        case kCoeffDataModeScaleCoeffXY:
-            kx = ky = coeff.value;
-            break;
-        case kCoeffDataModeScaleCoeffX:
-            kx = coeff.value;
-            break;
-        case kCoeffDataModeScaleCoeffY:
-            ky = coeff.value;
-            break;
-        case kCoeffDataModeViewpointX:
-            Xp = coeff.value << 2;
-            break;
+        switch (coeffDataMode) {
+            case kCoeffDataModeScaleCoeffXY:
+                kx = ky = coeff.value;
+                break;
+            case kCoeffDataModeScaleCoeffX:
+                kx = coeff.value;
+                break;
+            case kCoeffDataModeScaleCoeffY:
+                ky = coeff.value;
+                break;
+            case kCoeffDataModeViewpointX:
+                Xp = coeff.value << 2;
+                break;
+        }
+    } else {
+        coeff.value = 0;
+        coeff.lineColorData = 0;
+        coeff.transparent = true;
     }
     
     RotParamState result;
