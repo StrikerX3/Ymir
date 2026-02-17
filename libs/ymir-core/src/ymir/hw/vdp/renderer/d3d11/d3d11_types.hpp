@@ -59,12 +59,12 @@ struct alignas(16) VDP2RenderConfig {
     D3DUint startY; // Top Y coordinate of target rendering area
 };
 
-struct NBGRenderParams {
+struct BGRenderParams {
     // Entries 0 and 1 - common parameters
     struct Common {
         /* Entry 0 */                   //  bits  use
         D3DUint charPatAccess : 4;      //   0-3  Character pattern access per VRAM bank
-        D3DUint vramAccessOffset : 4;   //   4-7  VRAM access offset per bank  0=no delay; 1=8-byte delay
+        D3DUint vramAccessOffset : 4;   //   4-7  VRAM access offset per bank      0=no delay; 1=8-byte delay
         D3DUint cramOffset : 3;         //  8-10  CRAM offset
         D3DUint colorFormat : 3;        // 11-13  Color format
                                         //          0 =   16-color palette   3 = RGB 5:5:5
@@ -73,7 +73,7 @@ struct NBGRenderParams {
         D3DUint specColorCalcMode : 2;  // 14-15  Special color calculation mode
                                         //          0 = per screen      2 = per dot
                                         //          1 = per character   3 = color data MSB
-        D3DUint specFuncSelect : 1;     //    16  Special function select         0=A; 1=B
+        D3DUint specFuncSelect : 1;     //    16  Special function select          0=A; 1=B
         D3DUint priorityNumber : 3;     // 17-19  Priority number
         D3DUint priorityMode : 2;       // 20-21  Priority mode
                                         //          0 = per screen      2 = per dot
@@ -82,17 +82,17 @@ struct NBGRenderParams {
         D3DUint supplColorCalcBit : 1;  //    25  Supplementary special color calculation bit
         D3DUint supplSpecPrioBit : 1;   //    26  Supplementary special priority bit
         D3DUint charPatDelay : 1;       //    27  Character pattern delay
-        D3DUint transparencyEnable : 1; //    28  Transparency enable        0=disable; 1=enable
-        D3DUint colorCalcEnable : 1;    //    29  Color calculation enable   0=disable; 1=enable
-        D3DUint enabled : 1;            //    30  Background enabled    0=disable; 1=enable
-        D3DUint bitmap : 1;             //    31  Background type       0=scroll; 1=bitmap
+        D3DUint transparencyEnable : 1; //    28  Transparency enable              0=disable; 1=enable
+        D3DUint colorCalcEnable : 1;    //    29  Color calculation enable         0=disable; 1=enable
+        D3DUint enabled : 1;            //    30  Background enabled               0=disable; 1=enable
+        D3DUint bitmap : 1;             //    31  Background type                  0=scroll; 1=bitmap
 
         /* Entry 1 */                       //  bits  use
-        D3DUint lineZoomEnable : 1;         //     0  Line zoom enable             0=disable; 1=enable
-        D3DUint lineScrollXEnable : 1;      //     1  X line scroll enable         0=disable; 1=enable
-        D3DUint lineScrollYEnable : 1;      //     2  Y line scroll enable         0=disable; 1=enable
-        D3DUint lineScrollInterval : 2;     //   3-4  Line scroll table interval   (1 << x)
-        D3DUint lineScrollTableAddress : 3; //   5-7  Line scroll table address    (x << 17)
+        D3DUint lineZoomEnable : 1;         //     0  Line zoom enable             0=disable; 1=enable  (NBG0/1 only)
+        D3DUint lineScrollXEnable : 1;      //     1  X line scroll enable         0=disable; 1=enable  (NBG0/1 only)
+        D3DUint lineScrollYEnable : 1;      //     2  Y line scroll enable         0=disable; 1=enable  (NBG0/1 only)
+        D3DUint lineScrollInterval : 2;     //   3-4  Line scroll table interval   (1 << x)             (NBG0/1 only)
+        D3DUint lineScrollTableAddress : 3; //   5-7  Line scroll table address    (x << 17)            (NBG0/1 only)
         D3DUint vertCellScrollEnable : 1;   //     8  Vertical cell scroll enable  0=disable; 1=enable  (NBG0/1 only)
         D3DUint vertCellScrollDelay : 1;    //     9  Vertical cell scroll delay   0=none; 1=one entry  (NBG0/1 only)
         D3DUint vertCellScrollOffset : 1;   //    10  Vertical cell scroll offset  0=none; 1=4 bytes    (NBG0/1 only)
@@ -104,7 +104,7 @@ struct NBGRenderParams {
         D3DUint window1Invert : 1;          //    16  Window 1 inverted            0=disable; 1=enable
         D3DUint spriteWindowEnable : 1;     //    17  Sprite window enable         0=disable; 1=enable
         D3DUint spriteWindowInvert : 1;     //    18  Sprite window inverted       0=disable; 1=enable
-        D3DUint windowLogic : 1;            //    19  Window logic          0=OR; 1=AND
+        D3DUint windowLogic : 1;            //    19  Window logic                 0=OR; 1=AND
     } common;
     static_assert(sizeof(Common) == sizeof(D3DUint) * 2);
 
@@ -115,8 +115,8 @@ struct NBGRenderParams {
     union TypeSpecific {
         struct Scroll {                //  bits  use
             D3DUint patNameAccess : 4; //   0-3  Pattern name access per bank
-            D3DUint pageShiftH : 1;    //     4  Horizontal page size shift
-            D3DUint pageShiftV : 1;    //     5  Vertical page size shift
+            D3DUint pageShiftH : 1;    //     4  Horizontal page size shift    (NBG0-3, RotParam A/B)
+            D3DUint pageShiftV : 1;    //     5  Vertical page size shift      (NBG0-3, RotParam A/B)
             D3DUint extChar : 1;       //     6  Extended character number     0=10 bits; 1=12 bits, no H/V flip
             D3DUint twoWordChar : 1;   //     7  Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
             D3DUint cellSizeShift : 1; //     8  Character cell size           0=1x1 cell; 1=2x2 cells
@@ -124,19 +124,14 @@ struct NBGRenderParams {
         } scroll;
 
         struct Bitmap {                    //  bits  use
-            D3DUint bitmapSizeH : 1;       //     0  Horizontal bitmap size shift  (512 << x)
-            D3DUint bitmapSizeV : 1;       //     1  Vertical bitmap size shift    (256 << x)
-            D3DUint bitmapBaseAddress : 3; //   2-4  Bitmap base address           (x << 17)
+            D3DUint bitmapSizeH : 1;       //     0  Horizontal bitmap size shift  (512 << x)  (NBG0-3 only)
+            D3DUint bitmapSizeV : 1;       //     1  Vertical bitmap size shift    (256 << x)  (NBG0-3 only)
+            D3DUint bitmapBaseAddress : 3; //   2-4  Bitmap base address           (x << 17)   (NBG0-3, RotParam A/B)
         } bitmap;
     } typeSpecific;
     static_assert(sizeof(TypeSpecific) == sizeof(D3DUint));
 };
-static_assert(sizeof(NBGRenderParams) == sizeof(D3DUint) * 4);
-
-struct RBGRenderParams {
-    D3DUint2 _reserved;
-};
-static_assert(sizeof(RBGRenderParams) == sizeof(D3DUint) * 2);
+static_assert(sizeof(BGRenderParams) == sizeof(D3DUint) * 4);
 
 struct WindowRenderParams {
     D3DUint2 start;
@@ -146,14 +141,14 @@ struct WindowRenderParams {
 };
 
 struct alignas(16) VDP2BGRenderState {
-    std::array<NBGRenderParams, 4> nbgParams;
-    std::array<RBGRenderParams, 2> rbgParams;
+    std::array<BGRenderParams, 4> nbgParams;
+    std::array<BGRenderParams, 2> rbgParams;
 
     std::array<D3DUint2, 4> nbgScrollAmount; // 11.8 fixed-point
     std::array<D3DUint2, 4> nbgScrollInc;    // 11.8 fixed-point
 
-    std::array<std::array<D3DUint, 4>, 4> nbgPageBaseAddresses;  // [NBG0-3][plane A-D]
-    std::array<std::array<D3DUint, 16>, 2> rbgPageBaseAddresses; // [RBG0-1][plane A-P]
+    std::array<std::array<D3DUint, 4>, 4> nbgPageBaseAddresses;                 // [NBG0-3][plane A-D]
+    std::array<std::array<std::array<D3DUint, 16>, 2>, 2> rbgPageBaseAddresses; // [RotParam A/B][RBG0-1][plane A-P]
 
     std::array<WindowRenderParams, 2> windows; // Window 0 and 1
 
