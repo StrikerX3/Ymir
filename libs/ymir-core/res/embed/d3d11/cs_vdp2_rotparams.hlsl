@@ -1,0 +1,416 @@
+struct Config {
+    uint displayParams;
+    uint startY;
+    uint2 _padding;
+};
+
+struct RotParamBase {
+    uint tableAddress;
+    int Xst, Yst;
+    uint KA;
+};
+
+struct RenderState {
+    uint2 rotParams[2];
+};
+
+struct RotParamState {
+    uint4 reserved;
+};
+
+// -----------------------------------------------------------------------------
+
+cbuffer Config : register(b0) {
+    Config config;
+}
+
+ByteAddressBuffer vram : register(t0);
+ByteAddressBuffer cramCoeff : register(t1);
+StructuredBuffer<RenderState> renderState : register(t2);
+StructuredBuffer<RotParamBase> rotParamBases : register(t3);
+
+RWStructuredBuffer<RotParamState> rotParamOut : register(u0);
+
+// -----------------------------------------------------------------------------
+
+static const uint kMaxResH = 704;
+static const uint kMaxResV = 512;
+
+static const uint kRotParamLinePitch = kMaxResH;
+static const uint kRotParamEntryStride = kRotParamLinePitch * kMaxResV;
+
+static const uint kCoeffDataModeScaleCoeffXY = 0;
+static const uint kCoeffDataModeScaleCoeffX = 1;
+static const uint kCoeffDataModeScaleCoeffY = 2;
+static const uint kCoeffDataModeViewpointX = 3;
+
+// -----------------------------------------------------------------------------
+
+struct int64 {
+    int hi;
+    uint lo;
+};
+
+int64 i64_shr(int64 x, uint shift) {
+    if (shift == 0) {
+        return x;
+    }
+    int64 result;
+    if (shift < 32) {
+        result.hi = x.hi >> shift;
+        result.lo = (x.lo >> shift) | (x.hi << (32 - shift));
+    } else if (shift < 64) {
+        result.hi = x.hi >> 31;
+        result.lo = x.hi >> (shift - 32);
+    } else {
+        result.hi = result.lo = x.hi >> 31;
+    }
+    return result;
+}
+
+int64 i64_add(int64 x, int64 y) {
+    int64 result;
+    result.lo = x.lo + y.lo;
+    result.hi = x.hi + y.hi;
+    if (result.lo < x.lo) {
+        ++result.hi;
+    }
+    return result;
+}
+
+int64 i64_mul32x32(int x, int y) {
+    const uint xl = x & 0xFFFF;
+    const int xh = x >> 16;
+    const uint yl = y & 0xFFFF;
+    const int yh = y >> 16;
+
+    const uint p0 = xl * yl; // [0..31]
+    const uint p1 = xh * yl; // [16..47]
+    const uint p2 = xl * yh; // [16..47]
+    const uint p3 = xh * yh; // [32..63]
+
+    const int t = p1 + (p0 >> 16);
+    const int w1 = (t & 0xFFFF) + p2;
+    const int w2 = t >> 16;
+
+    int64 result;
+    result.lo = p0 + ((p1 + p2) << 16);
+    result.hi = (w1 >> 16) + w2 + p3;
+    return result;
+}
+
+int i64_mul32x32_mid32(int x, int y) {
+    int64 result = i64_mul32x32(x, y);
+    return (result.hi << 16) | (result.lo >> 16);
+}
+
+// -----------------------------------------------------------------------------
+
+int SignExtend(int value, int bits) {
+    const uint shift = 32 - bits;
+    return (value << shift) >> shift;
+}
+
+uint ByteSwap16(uint val) {
+    return ((val >> 8) & 0x00FF) |
+           ((val << 8) & 0xFF00);
+}
+
+uint ByteSwap32(uint val) {
+    return ((val >> 24) & 0x000000FF) |
+           ((val >> 8) & 0x0000FF00) |
+           ((val << 8) & 0x00FF0000) |
+           ((val << 24) & 0xFF000000);
+}
+
+uint ReadVRAM4(uint address, uint nibble) {
+    return (vram.Load(address & ~3) >> ((address & 3) * 8 + nibble * 4)) & 0xF;
+}
+
+uint ReadVRAM8(uint address) {
+    return vram.Load(address & ~3) >> ((address & 3) * 8) & 0xFF;
+}
+
+uint ReadVRAM16(uint address) {
+    return ByteSwap16(vram.Load(address & ~3) >> ((address & 2) * 8));
+}
+
+// Expects address to be 32-bit-aligned
+uint ReadVRAM32(uint address) {
+    return ByteSwap32(vram.Load(address));
+}
+
+uint ReadCRAMCoeff16(uint address) {
+    return ByteSwap16(cramCoeff.Load(address & ~3) >> ((address & 2) * 8));
+}
+
+// Expects address to be 32-bit-aligned
+uint ReadCRAMCoeff32(uint address) {
+    return ByteSwap32(cramCoeff.Load(address));
+}
+
+uint GetY(uint y) {
+    const bool interlaced = config.displayParams & 1;
+    const bool odd = (config.displayParams >> 1) & 1;
+    const bool exclusiveMonitor = (config.displayParams >> 2) & 1;
+    if (interlaced && !exclusiveMonitor) {
+        return (y << 1) | (odd /* TODO & !deinterlace */);
+    } else {
+        return y;
+    }
+}
+
+// -----------------------------------------------------------------------------
+
+struct RotTable {
+    // Screen start coordinates (signed 13.10 fixed point)
+    int Xst, Yst, Zst;
+
+    // Screen vertical coordinate increments (signed 3.10 fixed point)
+    int deltaXst, deltaYst;
+
+    // Screen horizontal coordinate increments (signed 3.10 fixed point)
+    int deltaX, deltaY;
+
+    // Rotation matrix parameters (signed 4.10 fixed point)
+    int A, B, C, D, E, F;
+
+    // Viewpoint coordinates (signed 14-bit integer)
+    int Px, Py, Pz;
+
+    // Center point coordinates (signed 14-bit integer)
+    int Cx, Cy, Cz;
+
+    // Horizontal shift (signed 14.10 fixed point)
+    int Mx, My;
+
+    // Scaling coefficients (signed 8.16 fixed point)
+    int kx, ky;
+
+    // Coefficient table parameters
+    uint KAst; // Coefficient table start address (unsigned 16.10 fixed point)
+    int dKAst; // Coefficient table vertical increment (signed 10.10 fixed point)
+    int dKAx; // Coefficient table horizontal increment (signed 10.10 fixed point)
+
+};
+
+struct RotValues {
+    int2 scr;
+    int2 spr;
+};
+
+struct RotCoefficient {
+    int value; // coefficient value, scaled to 16 fractional bits
+    uint lineColorData;
+    bool transparent;
+};
+
+RotTable ReadRotTable(const uint address) {
+    RotTable table;
+    
+    table.Xst = SignExtend(ReadVRAM32(address + 0x00) >> 6, 23);
+    table.Yst = SignExtend(ReadVRAM32(address + 0x04) >> 6, 23);
+    table.Zst = SignExtend(ReadVRAM32(address + 0x08) >> 6, 23);
+
+    table.deltaXst = SignExtend(ReadVRAM32(address + 0x0C) >> 6, 13);
+    table.deltaYst = SignExtend(ReadVRAM32(address + 0x10) >> 6, 13);
+
+    table.deltaX = SignExtend(ReadVRAM32(address + 0x14) >> 6, 13);
+    table.deltaY = SignExtend(ReadVRAM32(address + 0x18) >> 6, 13);
+
+    table.A = SignExtend(ReadVRAM32(address + 0x1C) >> 6, 14);
+    table.B = SignExtend(ReadVRAM32(address + 0x20) >> 6, 14);
+    table.C = SignExtend(ReadVRAM32(address + 0x24) >> 6, 14);
+    table.D = SignExtend(ReadVRAM32(address + 0x28) >> 6, 14);
+    table.E = SignExtend(ReadVRAM32(address + 0x2C) >> 6, 14);
+    table.F = SignExtend(ReadVRAM32(address + 0x30) >> 6, 14);
+
+    table.Px = SignExtend(ReadVRAM16(address + 0x34), 14);
+    table.Py = SignExtend(ReadVRAM16(address + 0x36), 14);
+    table.Pz = SignExtend(ReadVRAM16(address + 0x38), 14);
+
+    table.Cx = SignExtend(ReadVRAM16(address + 0x3C), 14);
+    table.Cy = SignExtend(ReadVRAM16(address + 0x3E), 14);
+    table.Cz = SignExtend(ReadVRAM16(address + 0x40), 14);
+
+    table.Mx = SignExtend(ReadVRAM32(address + 0x44) >> 6, 24);
+    table.My = SignExtend(ReadVRAM32(address + 0x48) >> 6, 24);
+
+    table.kx = SignExtend(ReadVRAM32(address + 0x4C), 24);
+    table.ky = SignExtend(ReadVRAM32(address + 0x50), 24);
+
+    table.KAst = ReadVRAM32(address + 0x54) >> 6;
+    table.dKAst = SignExtend(ReadVRAM32(address + 0x58) >> 6, 20);
+    table.dKAx = SignExtend(ReadVRAM32(address + 0x5C) >> 6, 20);
+    
+    return table;
+}
+
+RotCoefficient ReadRotCoefficient(uint2 rbgParams, uint coeffAddress) {
+    RotCoefficient coeff;
+
+    const uint offset = coeffAddress >> 10;
+    const bool coeffTableCRAM = (rbgParams.x >> 1) & 1;
+    const bool coeffDataSize = (rbgParams.x >> 2) & 1;
+    const uint coeffDataMode = (rbgParams.x >> 3) & 3;
+    const bool coeffDataAccess = (rbgParams.x >> 5) & 0xF;
+    
+    if (coeffDataSize) {
+        // One-word coefficient data
+        const uint address = offset * 2;
+        const uint data = coeffTableCRAM ? ReadCRAMCoeff16(address) : ReadVRAM16(address);
+        coeff.value = SignExtend(data, 15);
+        coeff.lineColorData = 0;
+        coeff.transparent = (data >> 15) & 1;
+
+        if (coeffDataMode == kCoeffDataModeViewpointX) {
+            coeff.value <<= 14;
+        } else {
+            coeff.value <<= 6;
+        }
+    } else {
+        // Two-word coefficient data
+        const uint address = offset * 4;
+        const uint data = coeffTableCRAM ? ReadCRAMCoeff32(address) : ReadVRAM32(address);
+        coeff.value = SignExtend(data, 24);
+        coeff.lineColorData = (data >> 24) & 0x7F;
+        coeff.transparent = (data >> 31) & 1;
+
+        if (coeffDataMode == kCoeffDataModeViewpointX) {
+            coeff.value <<= 8;
+        }
+    }
+
+    return coeff;
+}
+
+RotValues CalcRotValues(uint2 rbgParams, uint2 pos, RotParamBase base) {
+    const uint coeffDataMode = (rbgParams.x >> 3) & 3;
+    const bool coeffDataPerDot = (rbgParams.x >> 9) & 1;
+
+    const RotTable t = ReadRotTable(base.tableAddress);
+
+    // TODO: move rotparam calculation to another compute shader
+    
+    int Tx, Ty, Tz;
+    
+    // Common terms for Xsp and Ysp (14.10)
+    // 10 - 0 = 10 frac bits
+    // 23 - 14 = 23 total bits
+    // expand to 10 frac bits
+    // 10 - 10 = 10 frac bits
+    // 23 - 24 = 24 total bits
+    const int Xst = base.Xst + (pos.y - config.startY) * t.deltaXst;
+    const int Yst = base.Yst + (pos.y - config.startY) * t.deltaYst;
+    const int Zst = t.Zst;
+    Tx = Xst - (t.Px << 10);
+    Ty = Yst - (t.Py << 10);
+    Tz = Zst - (t.Pz << 10);
+
+    // Transformed starting screen coordinates (18.10)
+    // 10*(10-10) + 10*(10-10) + 10*(10-10) = 20 frac bits
+    // 14*(23-24) + 14*(23-24) + 14*(23-24) = 38 total bits
+    // reduce to 10 frac bits
+    const int Xsp = i64_shr(i64_add(i64_add(i64_mul32x32(t.A, Tx), i64_mul32x32(t.B, Ty)), i64_mul32x32(t.C, Tz)), 10).lo;
+    const int Ysp = i64_shr(i64_add(i64_add(i64_mul32x32(t.D, Tx), i64_mul32x32(t.E, Ty)), i64_mul32x32(t.F, Tz)), 10).lo;
+
+    // Transformed view coordinates (18.10)
+    // 10*(0-0) + 10*(0-0) + 10*(0-0) + 10 + 10 = 10+10+10 + 10+10 = 10 frac bits
+    // 14*(14-14) + 14*(14-14) + 14*(14-14) + 24 + 24 = 28+28+28 + 24+24 = 28 total bits
+    Tx = t.Px - t.Cx;
+    Ty = t.Py - t.Cy;
+    Tz = t.Pz - t.Cz;
+    int /***/ Xp = t.A * Tx + t.B * Ty + t.C * Tz + (t.Cx << 10) + t.Mx;
+    const int Yp = t.D * Tx + t.E * Ty + t.F * Tz + (t.Cy << 10) + t.My;
+
+    // Screen coordinate increments per Hcnt (7.10)
+    // 10*10 + 10*10 = 20 + 20 = 20 frac bits
+    // 14*13 + 14*13 = 27 + 27 = 27 total bits
+    // reduce to 10 frac bits
+    const int scrXIncH = (t.A * t.deltaX + t.B * t.deltaY) >> 10;
+    const int scrYIncH = (t.D * t.deltaX + t.E * t.deltaY) >> 10;
+
+    // Current coefficient address (16.10)
+    // TODO: disable X offset if rotation coefficient cannot be fetched when using per-dot coefficients
+    const uint KAXofs = coeffDataPerDot /* && canFetchCoeff */ ? pos.x * t.dKAx : 0;
+    const uint KA = base.KA + KAXofs + pos.y * t.dKAst;
+
+    // Current screen coordinates (18.10)
+    const int scrX = Xsp + pos.x * scrXIncH;
+    const int scrY = Ysp + pos.x * scrYIncH;
+
+    // Current sprite coordinates (13.10)
+    // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
+    // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
+    const int sprX = t.Xst + pos.x * t.deltaX + pos.y * t.deltaXst;
+    const int sprY = t.Yst + pos.x * t.deltaY + pos.y * t.deltaYst;
+
+    // Read and apply rotation coefficient
+    const RotCoefficient coeff = ReadRotCoefficient(rbgParams, KA);
+    
+    int kx = t.kx;
+    int ky = t.ky;
+   
+    switch (coeffDataMode) {
+        case kCoeffDataModeScaleCoeffXY:
+            kx = ky = coeff.value;
+            break;
+        case kCoeffDataModeScaleCoeffX:
+            kx = coeff.value;
+            break;
+        case kCoeffDataModeScaleCoeffY:
+            ky = coeff.value;
+            break;
+        case kCoeffDataModeViewpointX:
+            Xp = coeff.value << 2;
+            break;
+    }
+    
+    // TODO: coeffUseLineColorData
+
+    RotValues result;
+
+    // Resulting screen coordinates (26.0)
+    // (16*10) + 10 = 26 + 10 frac bits
+    // (24*28) + 28 = 52 + 28 total bits
+    // reduce 26 to 10 frac bits
+    // = 10 + 10 = 10 frac bits
+    // = 36 + 28 = 36 total bits
+    // remove frac bits from result = 26 total bits
+    result.scr = int2(
+        (i64_mul32x32_mid32(kx, scrX) + Xp) >> 10,
+        (i64_mul32x32_mid32(ky, scrY) + Yp) >> 10
+    );
+
+    // Resulting sprite coordinates (13.0)
+    result.spr = int2(sprX >> 10, sprY >> 10);
+    
+    // TODO: Resulting coefficient data
+
+    return result;
+}
+
+RotParamState CalcRotation(uint2 pos, uint index) {
+    const RenderState state = renderState[0];
+    const RotParamBase rotParamBase = rotParamBases[index];
+    const uint2 rotParams = state.rotParams[index];
+    
+    const uint coeffDataMode = (rotParams.x >> 3) & 3;
+    const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
+    
+    const RotValues rotValues = CalcRotValues(rotParams, pos, rotParamBase);
+
+    RotParamState result;
+
+    // TODO: implement
+    result.reserved = uint4(pos.xy, index, 128);
+    
+    return result;
+}
+
+[numthreads(32, 1, 2)]
+void CSMain(uint3 id : SV_DispatchThreadID) {
+    const uint2 drawCoord = id.xy + uint2(0, config.startY);
+    const uint outIndex = drawCoord.x + GetY(drawCoord.y) * kRotParamLinePitch + id.z * kRotParamEntryStride;
+    rotParamOut[outIndex] = CalcRotation(drawCoord, id.z);
+}

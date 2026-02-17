@@ -6,6 +6,7 @@
 
 namespace ymir::vdp {
 
+using D3DInt = sint32;
 using D3DUint = uint32;
 
 union D3DUint2 {
@@ -15,6 +16,8 @@ union D3DUint2 {
     };
 };
 static_assert(sizeof(D3DUint2) == sizeof(D3DUint) * 2);
+
+// -----------------------------------------------------------------------------
 
 struct alignas(16) VDP2RenderConfig {
     struct DisplayParams {            //  bits  use
@@ -105,6 +108,11 @@ struct NBGRenderParams {
 };
 static_assert(sizeof(NBGRenderParams) == sizeof(D3DUint) * 4);
 
+struct RBGRenderParams {
+    D3DUint2 _reserved;
+};
+static_assert(sizeof(RBGRenderParams) == sizeof(D3DUint) * 2);
+
 struct WindowRenderParams {
     D3DUint2 start;
     D3DUint2 end;
@@ -112,8 +120,9 @@ struct WindowRenderParams {
     bool lineWindowTableEnable;
 };
 
-struct alignas(16) VDP2RenderState {
+struct alignas(16) VDP2BGRenderState {
     std::array<NBGRenderParams, 4> nbgParams;
+    std::array<RBGRenderParams, 2> rbgParams;
 
     std::array<D3DUint2, 4> nbgScrollAmount; // 11.8 fixed-point
     std::array<D3DUint2, 4> nbgScrollInc;    // 11.8 fixed-point
@@ -126,6 +135,39 @@ struct alignas(16) VDP2RenderState {
     D3DUint specialFunctionCodes; //  bits  use
                                   //   0-7  Special function code A
                                   //  8-15  Special function code B
+};
+
+// -----------------------------------------------------------------------------
+
+struct RotationRenderParams {      //  bits  use
+    D3DUint coeffTableEnable : 1;  //     0  Coefficient table enabled          0=disable; 1=enable
+    D3DUint coeffTableCRAM : 1;    //     1  Coefficient table location         0=VRAM; 1=CRAM
+    D3DUint coeffDataSize : 1;     //     2  Coefficient data size              0=2 words; 1=1 word
+    D3DUint coeffDataMode : 2;     //   3-4  Coefficient data mode              0=kx/ky; 1=kx; 2=ky; 3=Px
+    D3DUint coeffDataAccessA0 : 1; //     5  Coefficient data access for VRAM bank A0/A
+    D3DUint coeffDataAccessA1 : 1; //     6  Coefficient data access for VRAM bank A1
+    D3DUint coeffDataAccessB0 : 1; //     7  Coefficient data access for VRAM bank B0/B
+    D3DUint coeffDataAccessB1 : 1; //     8  Coefficient data access for VRAM bank B1
+    D3DUint coeffDataPerDot : 1;   //     9  Per-dot coefficients               0=per line; 1=per dot
+
+    D3DUint _reserved;
+};
+static_assert(sizeof(RotationRenderParams) == sizeof(D3DUint) * 2);
+
+// Base Xst, Yst, KA for params A and B relative to config.startY
+struct alignas(16) RotParamBase {
+    D3DUint tableAddress;
+    D3DInt Xst, Yst;
+    D3DUint KA;
+};
+static_assert(sizeof(RotParamBase) == sizeof(D3DUint) * 4);
+
+struct alignas(16) VDP2RotationRenderState {
+    std::array<RotationRenderParams, 2> rotParams;
+};
+
+struct alignas(16) VDP2RotParamData {
+    std::array<D3DUint, 4> reserved;
 };
 
 } // namespace ymir::vdp

@@ -154,6 +154,12 @@ private:
     /// @brief Updates the VDP2 rendering configuration constants.
     void VDP2UpdateRenderConfig();
 
+    /// @brief Updates rotation parameter base values for the next chunk.
+    void VDP2UpdateRotParamBases();
+
+    /// @brief Updates rotation parameter states if dirty.
+    void VDP2UpdateRotParamStates();
+
     uint32 m_nextVDP2BGY;
     uint32 m_nextVDP2ComposeY;
 
@@ -164,7 +170,6 @@ private:
     uint32 m_HRes = vdp::kDefaultResH;
     uint32 m_VRes = vdp::kDefaultResV;
     bool m_exclusiveMonitor = false;
-    std::array<D3DColor, vdp::kVDP2CRAMSize / sizeof(uint16)> m_CRAMCache;
 };
 
 } // namespace ymir::vdp
