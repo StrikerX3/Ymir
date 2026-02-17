@@ -62,7 +62,7 @@ struct alignas(16) VDP2RenderConfig {
 struct BGRenderParams {
     // Entries 0 and 1 - common parameters
     struct Common {
-        /* Entry 0 */                   //  bits  use
+        /* Entry 0 (X) */               //  bits  use
         D3DUint charPatAccess : 4;      //   0-3  Character pattern access per VRAM bank
         D3DUint vramAccessOffset : 4;   //   4-7  VRAM access offset per bank      0=no delay; 1=8-byte delay
         D3DUint cramOffset : 3;         //  8-10  CRAM offset
@@ -87,7 +87,7 @@ struct BGRenderParams {
         D3DUint enabled : 1;            //    30  Background enabled               0=disable; 1=enable
         D3DUint bitmap : 1;             //    31  Background type                  0=scroll; 1=bitmap
 
-        /* Entry 1 */                       //  bits  use
+        /* Entry 1 (Y) */                   //  bits  use
         D3DUint lineZoomEnable : 1;         //     0  Line zoom enable             0=disable; 1=enable  (NBG0/1 only)
         D3DUint lineScrollXEnable : 1;      //     1  X line scroll enable         0=disable; 1=enable  (NBG0/1 only)
         D3DUint lineScrollYEnable : 1;      //     2  Y line scroll enable         0=disable; 1=enable  (NBG0/1 only)
@@ -108,7 +108,7 @@ struct BGRenderParams {
     } common;
     static_assert(sizeof(Common) == sizeof(D3DUint) * 2);
 
-    // Entry 2 - rotation parameters
+    // Entry 2 (Z) - rotation parameters
     struct RotParams {                      //  bits  use
         D3DUint screenOverPatternName : 16; //  0-15  Screen-over pattern name
         D3DUint screenOverProcess : 2;      // 16-17  Screen-over process
@@ -117,7 +117,7 @@ struct BGRenderParams {
     } rotParams;
     static_assert(sizeof(RotParams) == sizeof(D3DUint));
 
-    // Entry 3 - type-specific parameters
+    // Entry 3 (W) - type-specific parameters
     union TypeSpecific {
         struct Scroll {                //  bits  use
             D3DUint patNameAccess : 4; //   0-3  Pattern name access per bank
