@@ -13,13 +13,13 @@ struct Window {
 
 struct RenderState {
     uint4 nbgParams[4];
-    uint2 rbgParams[2];
+    uint4 rbgParams[2];
     
     uint2 nbgScrollAmount[4];
     uint2 nbgScrollInc[4];
     
     uint nbgPageBaseAddresses[4][4];
-    uint rbgPageBaseAddresses[2][16];
+    uint rbgPageBaseAddresses[2][2][16];
 
     // TODO: NBG line scroll offset tables (X/Y) (or addresses to read from VRAM)
     // TODO: Vertical cell scroll table base address
@@ -458,10 +458,6 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
 uint4 DrawScrollNBG(uint2 pos, uint index) {
     const RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
-
-    if (InsideWindows(nbgParams, pos)) {
-        return kTransparentPixel;
-    }
   
     const uint2 pageShift = uint2((nbgParams.w >> 4) & 1, (nbgParams.w >> 5) & 1);
     const bool twoWordChar = (nbgParams.w >> 7) & 1;
@@ -520,10 +516,6 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
 uint4 DrawBitmapNBG(uint2 pos, uint index) {
     const RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
-  
-    if (InsideWindows(nbgParams, pos)) {
-        return kTransparentPixel;
-    }
     
     const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
  
@@ -553,14 +545,27 @@ uint4 DrawNBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
     
+    if (InsideWindows(nbgParams, pos)) {
+        return kTransparentPixel;
+    }
+  
     const bool bitmap = (nbgParams.x >> 31) & 1;
     return bitmap ? DrawBitmapNBG(pos, index) : DrawScrollNBG(pos, index);
 }
 
 uint4 DrawRBG(uint2 pos, uint index) {
     const RenderState state = renderState[0];
-    const uint2 rbgParams = state.rbgParams[index];
+    const uint4 rbgParams = state.rbgParams[index];
+        
+    const bool enabled = (rbgParams.x >> 30) & 1;
+    if (!enabled) {
+        return kTransparentPixel;
+    }
     
+    if (InsideWindows(rbgParams, pos)) {
+        return kTransparentPixel;
+    }
+
     // TODO: implement
     
     const uint rotIndex = pos.x + GetY(pos.y) * kRotParamLinePitch + index * kRotParamEntryStride;
