@@ -1290,7 +1290,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
     // TODO: update these in response to register writes
     for (uint32 i = 0; i < 4; ++i) {
         const BGParams &bgParams = regs2.bgParams[i + 1];
-        NBGRenderParams &renderParams = state.nbgParams[i];
+        BGRenderParams &renderParams = state.nbgParams[i];
 
         auto &commonParams = renderParams.common;
         commonParams.transparencyEnable = bgParams.enableTransparency;
@@ -1348,8 +1348,57 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
 
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
     }
-    // TODO: calculate RBG page base addresses
-    // - extract shared code from the software renderer
+
+    for (uint32 i = 0; i < 2; ++i) {
+        const BGParams &bgParams = regs2.bgParams[i];
+        const RotationParams &rotParams = regs2.rotParams[i];
+        BGRenderParams &renderParams = state.rbgParams[i];
+
+        auto &commonParams = renderParams.common;
+        commonParams.transparencyEnable = bgParams.enableTransparency;
+        commonParams.colorCalcEnable = bgParams.colorCalcEnable;
+        commonParams.cramOffset = bgParams.cramOffset >> 8u;
+        commonParams.colorFormat = static_cast<uint32>(bgParams.colorFormat);
+        commonParams.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
+        commonParams.specFuncSelect = bgParams.specialFunctionSelect;
+        commonParams.priorityNumber = bgParams.priorityNumber;
+        commonParams.priorityMode = static_cast<uint32>(bgParams.priorityMode);
+        commonParams.bitmap = bgParams.bitmap;
+
+        commonParams.mosaicEnable = bgParams.mosaicEnable;
+        commonParams.window0Enable = bgParams.windowSet.enabled[0];
+        commonParams.window0Invert = bgParams.windowSet.inverted[0];
+        commonParams.window1Enable = bgParams.windowSet.enabled[1];
+        commonParams.window1Invert = bgParams.windowSet.inverted[1];
+        commonParams.spriteWindowEnable = bgParams.windowSet.enabled[2];
+        commonParams.spriteWindowInvert = bgParams.windowSet.inverted[2];
+        commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
+
+        if (bgParams.bitmap) {
+            commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
+            commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
+            commonParams.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
+
+            auto &bitmapParams = renderParams.typeSpecific.bitmap;
+            bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
+            bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
+            bitmapParams.bitmapBaseAddress = rotParams.bitmapBaseAddress >> 17u;
+        } else {
+            commonParams.supplPalNum = bgParams.supplScrollPalNum >> 4u;
+            commonParams.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
+            commonParams.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
+
+            auto &scrollParams = renderParams.typeSpecific.scroll;
+            scrollParams.pageShiftH = rotParams.pageShiftH;
+            scrollParams.pageShiftV = rotParams.pageShiftV;
+            scrollParams.extChar = bgParams.extChar;
+            scrollParams.twoWordChar = bgParams.twoWordChar;
+            scrollParams.cellSizeShift = bgParams.cellSizeShift;
+            scrollParams.supplCharNum = bgParams.supplScrollCharNum;
+        }
+
+        state.rbgPageBaseAddresses[i] = m_rbgPageBaseAddresses[i];
+    }
 
     for (uint32 i = 0; i < 2; ++i) {
         state.windows[i].start.x = regs2.windowParams[i].startX;
