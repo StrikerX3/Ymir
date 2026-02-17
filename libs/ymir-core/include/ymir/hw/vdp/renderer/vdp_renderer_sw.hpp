@@ -809,18 +809,18 @@ private:
         std::array<std::array<uint32, 16>, 2> pageBaseAddresses;
 
         // Precomputed screen coordinates (26.0).
-        alignas(16) std::array<CoordS32, kMaxResH / 2> screenCoords;
+        alignas(16) std::array<CoordS32, kMaxNormalResH> screenCoords;
 
         // Precomputed sprite coordinates (13.0).
-        alignas(16) std::array<CoordS32, kMaxResH / 2> spriteCoords;
+        alignas(16) std::array<CoordS32, kMaxNormalResH> spriteCoords;
 
         // Precomputed coefficient table line color.
         // Filled in only if the coefficient table is enabled and using line color data.
-        alignas(16) std::array<Color888, kMaxResH / 2> lineColor;
+        alignas(16) std::array<Color888, kMaxNormalResH> lineColor;
 
         // Prefetched coefficient table transparency bits.
         // Filled in only if the coefficient table is enabled.
-        alignas(16) std::array<bool, kMaxResH / 2> transparent;
+        alignas(16) std::array<bool, kMaxNormalResH> transparent;
     };
 
     enum RotParamSelector { RotParamA, RotParamB };
