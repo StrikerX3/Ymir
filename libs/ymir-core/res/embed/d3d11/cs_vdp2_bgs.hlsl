@@ -294,7 +294,7 @@ Character ExtractOneWordCharacter(uint4 bgParams, uint charData) {
     const bool supplScrollSpecialColorCalc = (bgParams.x >> 25) & 1;
     const bool supplScrollSpecialPriority = (bgParams.x >> 26) & 1;
     const bool extChar = (bgParams.w >> 6) & 1;
-    const bool cellSizeShift = (bgParams.w >> 8) & 1;
+    const uint cellSizeShift = (bgParams.w >> 8) & 1;
     const uint colorFormat = (bgParams.x >> 11) & 7;
 
     // Character number bit range from the 1-word character pattern data (charData)
@@ -303,7 +303,7 @@ Character ExtractOneWordCharacter(uint4 bgParams, uint charData) {
 
     // Upper character number bit range from the supplementary character number (bgParams.supplCharNum)
     const uint supplCharNumStart = 2 * cellSizeShift + 2 * extChar;
-    const uint supplCharNumMask = 0xF >> supplCharNumStart;
+    const uint supplCharNumMask = 0x1F >> supplCharNumStart;
     const uint supplCharNumPos = 10 + supplCharNumStart;
     // The lower bits are always in range 0..1 and only used if cellSizeShift == true
 
@@ -312,7 +312,7 @@ Character ExtractOneWordCharacter(uint4 bgParams, uint charData) {
 
     Character ch;
     ch.charNum = (baseCharNum << baseCharNumPos) | (supplCharNum << supplCharNumPos);
-    if (cellSizeShift) {
+    if (cellSizeShift > 0) {
         ch.charNum |= supplScrollCharNum & 3;
     }
     if (colorFormat != kColorFormatPalette16) {
