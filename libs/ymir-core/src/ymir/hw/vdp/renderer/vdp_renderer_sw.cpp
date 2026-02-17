@@ -4616,9 +4616,9 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP2CanFetchCoefficient(const RotationPar
 
     // Check that the VRAM bank containing the coefficient table is designated for coefficient data.
     // Return a default (transparent) coefficient if not.
-    // Determine which bank is targeted
     const uint32 address = ((baseAddress + offset) * sizeof(uint32)) >> params.coeffDataSize;
 
+    // Determine which bank is targeted.
     // Address is 19 bits wide when using 512 KiB VRAM.
     // Bank is designated by bits 17-18.
     uint32 bank = bit::extract<17, 18>(address);
