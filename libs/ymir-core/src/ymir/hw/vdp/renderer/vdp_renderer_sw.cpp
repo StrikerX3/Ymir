@@ -4616,57 +4616,28 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP2CanFetchCoefficient(const RotationPar
         return true;
     }
 
-    const uint32 baseAddress = params.coeffTableAddressOffset;
-    const uint32 offset = coeffAddress >> 10u;
-
     // Check that the VRAM bank containing the coefficient table is designated for coefficient data.
     // Return a default (transparent) coefficient if not.
-    const uint32 address = ((baseAddress + offset) * sizeof(uint32)) >> params.coeffDataSize;
+    const uint32 offset = coeffAddress >> 10u;
+    const uint32 address = (offset * sizeof(uint32)) >> params.coeffDataSize;
 
     // Determine which bank is targeted.
     // Address is 19 bits wide when using 512 KiB VRAM.
     // Bank is designated by bits 17-18.
-    uint32 bank = bit::extract<17, 18>(address);
-
-    // RAMCTL.VRAMD and VRBMD specify if VRAM A and B respectively are partitioned into two blocks (when set).
-    // If they're not partitioned, RDBSA0n/RDBSB0n designate the role of the whole block (VRAM-A or -B).
-    // RDBSA1n/RDBSB1n designates the roles of the second half of the partitioned banks (VRAM-A1 or -A2).
-    // Masking the bank index with VRAMD/VRBMD adjusts the bank index of the second half back to the first half so
-    // we can uniformly handle both cases with one simple switch table.
-    if (bank < 2) {
-        bank &= ~(regs.vramControl.partitionVRAMA ^ 1);
-    } else {
-        bank &= ~(regs.vramControl.partitionVRAMB ^ 1);
-    }
-
-    switch (bank) {
-    case 0: // VRAM-A0 or VRAM-A
-        if (regs.vramControl.rotDataBankSelA0 != RotDataBankSel::Coefficients) {
-            return false;
-        }
-        break;
-    case 1: // VRAM-A1
-        if (regs.vramControl.rotDataBankSelA1 != RotDataBankSel::Coefficients) {
-            return false;
-        }
-        break;
-    case 2: // VRAM-B0 or VRAM-B
-        if (regs.vramControl.rotDataBankSelB0 != RotDataBankSel::Coefficients) {
-            return false;
-        }
-        break;
-    case 3: // VRAM-B1
-        if (regs.vramControl.rotDataBankSelB1 != RotDataBankSel::Coefficients) {
-            return false;
-        }
-        break;
-    }
-
-    return true;
+    const uint32 bank = bit::extract<17, 18>(address);
+    return m_coeffAccess[bank];
 }
 
 FORCE_INLINE Coefficient SoftwareVDPRenderer::VDP2FetchRotationCoefficient(const RotationParams &params,
                                                                            uint32 coeffAddress) {
+    const VDP2Regs &regs2 = VDP2GetRegs();
+    const bool perDotCoeff = regs2.vramControl.perDotRotationCoeffs;
+
+    // Force coefficient to zero if it cannot be read in per-dot mode
+    if (perDotCoeff && !VDP2CanFetchCoefficient(params, coeffAddress)) {
+        return {};
+    }
+
     const VDP2Regs &regs = VDP2GetRegs();
 
     Coefficient coeff{};

@@ -394,6 +394,15 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
             }
         }
     }
+
+    // Apply access permissions for rotation coefficient data
+    auto &vramCtl = regs2.vramControl;
+    auto isCoeff = [](RotDataBankSel sel) { return sel == RotDataBankSel::Coefficients; };
+    std::array<bool, 4> coeffAccess{};
+    m_coeffAccess[0] = isCoeff(vramCtl.rotDataBankSelA0);
+    m_coeffAccess[1] = isCoeff(vramCtl.partitionVRAMA ? vramCtl.rotDataBankSelA1 : vramCtl.rotDataBankSelA0);
+    m_coeffAccess[2] = isCoeff(vramCtl.rotDataBankSelB0);
+    m_coeffAccess[3] = isCoeff(vramCtl.partitionVRAMB ? vramCtl.rotDataBankSelB1 : vramCtl.rotDataBankSelB0);
 }
 
 void IVDPRenderer::VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts) {
