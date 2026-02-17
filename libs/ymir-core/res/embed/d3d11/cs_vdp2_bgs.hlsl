@@ -45,7 +45,7 @@ cbuffer Config : register(b0) {
 }
 
 ByteAddressBuffer vram : register(t0);
-StructuredBuffer<uint> cram : register(t1);
+Buffer<uint4> cram : register(t1);
 StructuredBuffer<RenderState> renderState : register(t2);
 StructuredBuffer<RotParamState> rotParamState : register(t3);
 
@@ -137,8 +137,7 @@ uint GetY(uint y) {
 
 uint4 FetchCRAMColor(uint cramOffset, uint colorIndex) {
     const uint cramAddress = (cramOffset + colorIndex) & kCRAMAddressMask;
-    const uint cramValue = cram[cramAddress];
-    return uint4(cramValue & 0xFF, (cramValue >> 8) & 0xFF, (cramValue >> 16) & 0xFF, (cramValue >> 24) & 0xFF);
+    return cram[cramAddress];
 }
 
 uint4 Color555(uint val16) {
