@@ -33,6 +33,11 @@ void IVDPRenderer::Reset(bool hard) {
     for (auto &state : m_rotParamStates) {
         state.Reset();
     }
+    for (auto &state : m_rbgPageBaseAddresses) {
+        for (auto &addrs : state) {
+            addrs.fill(0);
+        }
+    }
     for (auto &state : m_vramFetchers) {
         state[0].Reset();
         state[1].Reset();
@@ -436,6 +441,33 @@ void IVDPRenderer::VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2Debug
         m_layerEnabled[3] = enabledLayers[3] && regs2.bgEnabled[1] && !disableNBG1;         // NBG1/EXBG
         m_layerEnabled[4] = enabledLayers[4] && regs2.bgEnabled[2] && !disableNBG2;         // NBG2
         m_layerEnabled[5] = enabledLayers[5] && regs2.bgEnabled[3] && !disableNBG3;         // NBG3
+    }
+}
+
+void IVDPRenderer::VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2) {
+    for (int index = 0; index < 2; index++) {
+        if (!regs2.bgEnabled[index + 4]) {
+            continue;
+        }
+
+        BGParams &bgParams = regs2.bgParams[index];
+        if (!bgParams.rbgPageBaseAddressesDirty) {
+            continue;
+        }
+        bgParams.rbgPageBaseAddressesDirty = false;
+
+        const bool cellSizeShift = bgParams.cellSizeShift;
+        const bool twoWordChar = bgParams.twoWordChar;
+
+        for (int param = 0; param < 2; param++) {
+            const RotationParams &rotParam = regs2.rotParams[param];
+            auto &pageBaseAddresses = m_rbgPageBaseAddresses[param];
+            const uint16 plsz = rotParam.plsz;
+            for (int plane = 0; plane < 16; plane++) {
+                const uint32 mapIndex = rotParam.mapIndices[plane];
+                pageBaseAddresses[index][plane] = CalcPageBaseAddress(cellSizeShift, twoWordChar, plsz, mapIndex);
+            }
+        }
     }
 }
 
