@@ -28,8 +28,10 @@ struct RenderState {
 
     Window windows[2];
 
+    uint commonRotParams;
+    
     uint specialFunctionCodes;
-    uint3 _padding;
+    uint2 _padding;
 };
 
 struct RotParamState {
@@ -47,8 +49,14 @@ cbuffer Config : register(b0) {
 ByteAddressBuffer vram : register(t0);
 Buffer<uint4> cram : register(t1);
 StructuredBuffer<RenderState> renderState : register(t2);
-StructuredBuffer<RotParamState> rotParamState : register(t3);
+Buffer<uint2> rotParams : register(t3);
+StructuredBuffer<RotParamState> rotParamState : register(t4);
 
+// The alpha channel of the output is used for pixel attributes as follows:
+// bits  use
+//  0-3  Priority (0 to 7)
+//    6  Special color calculation flag
+//    7  Transparent flag (0=opaque, 1=transparent)
 RWTexture2DArray<uint4> bgOut : register(u0);
 
 // -----------------------------------------------------------------------------
@@ -80,6 +88,14 @@ static const uint kMaxNormalResV = 256;
 
 static const uint kRotParamLinePitch = kMaxNormalResH;
 static const uint kRotParamEntryStride = kRotParamLinePitch * kMaxNormalResV;
+
+static const uint kRotParamA = 0;
+static const uint kRotParamB = 1;
+
+static const uint kRotParamModeA = 0;
+static const uint kRotParamModeB = 1;
+static const uint kRotParamModeCoeff = 2;
+static const uint kRotParamModeWindow = 3;
 
 struct Character {
     uint charNum;
@@ -463,6 +479,8 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
     return FetchPixel(nbgParams, baseAddress, dotPos, bitmapSizeH, palNum, specColorCalc, specPriority);
 }
 
+// -----------------------------------------------------------------------------
+
 uint4 DrawScrollNBG(uint2 pos, uint index) {
     const RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
@@ -561,6 +579,74 @@ uint4 DrawNBG(uint2 pos, uint index) {
     return bitmap ? DrawBitmapNBG(pos, index) : DrawScrollNBG(pos, index);
 }
 
+// -----------------------------------------------------------------------------
+
+uint GetRotIndex(uint2 pos, uint paramIndex) {
+    return pos.x + pos.y * kRotParamLinePitch + paramIndex * kRotParamEntryStride;
+}
+
+uint SelectRotationParameter(uint4 rbgParams, uint2 pos) {
+    const uint commonRotParams = renderState[0].commonRotParams;
+    const uint rotParamMode = commonRotParams & 3;
+    switch (rotParamMode) {
+        case kRotParamModeA:
+            return kRotParamA;
+        case kRotParamModeB:
+            return kRotParamB;
+        case kRotParamModeCoeff:{
+                const bool coeffTableEnable = (rotParams[0].x >> 0) & 1;
+                if (!coeffTableEnable) {
+                    return kRotParamA;
+                }
+                const uint rotIndex = GetRotIndex(pos, 0);
+                const uint coeffData = rotParamState[rotIndex].coeffData;
+                const bool transparent = (coeffData >> 7) & 1;
+                return transparent ? kRotParamB : kRotParamA;
+            }
+        case kRotParamModeWindow:
+            return InsideWindows(commonRotParams >> 2, false, pos) ? kRotParamB : kRotParamA;
+    }
+    return kRotParamA; // shouldn't happen
+}
+
+uint4 DrawScrollRBG(uint2 pos, uint index) {
+    const RenderState state = renderState[0];
+    const uint4 rbgParams = state.rbgParams[index];
+    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
+    const uint rotIndex = GetRotIndex(pos, rotSel);
+    const RotParamState rotState = rotParamState[rotIndex];
+
+    // TODO: implement
+    
+    return uint4(
+        (rotState.screenCoords.x >> 0) & 0xFF,
+        (rotState.screenCoords.x >> 8) & 0x7F, // bit 7 = scroll/bitmap (=0)
+        (rotState.screenCoords.y >> 0) & 0xFF,
+        ((rotState.screenCoords.y >> 8) & 0x7F) | (rotState.coeffData & 0x80)
+    );
+    //return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
+    //return uint4(pos.x, pos.y, index * 255, 128);
+}
+
+uint4 DrawBitmapRBG(uint2 pos, uint index) {
+    const RenderState state = renderState[0];
+    const uint4 rbgParams = state.rbgParams[index];
+    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
+    const uint rotIndex = GetRotIndex(pos, rotSel);
+    const RotParamState rotState = rotParamState[rotIndex];
+  
+    // TODO: implement
+    
+    return uint4(
+        (rotState.screenCoords.x >> 0) & 0xFF,
+        ((rotState.screenCoords.x >> 8) & 0x7F) | 0x80, // bit 7 = scroll/bitmap (=1)
+        (rotState.screenCoords.y >> 0) & 0xFF,
+        ((rotState.screenCoords.y >> 8) & 0x7F) | (rotState.coeffData & 0x80)
+    );
+    //return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
+    //return uint4(pos.x, pos.y, index * 255, 128);
+}
+
 uint4 DrawRBG(uint2 pos, uint index) {
     const RenderState state = renderState[0];
     const uint4 rbgParams = state.rbgParams[index];
@@ -574,24 +660,11 @@ uint4 DrawRBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
 
-    // TODO: implement
-    
-    const uint rotIndex = pos.x + GetY(pos.y) * kRotParamLinePitch + index * kRotParamEntryStride;
-    return uint4(
-        (rotParamState[rotIndex].screenCoords.x >> 0) & 0xFF,
-        (rotParamState[rotIndex].screenCoords.x >> 8) & 0xFF,
-        (rotParamState[rotIndex].screenCoords.y >> 0) & 0xFF,
-        ((rotParamState[rotIndex].screenCoords.y >> 8) & 0x7F) | (rotParamState[rotIndex].coeffData & 0x80)
-    );
-    //return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
-    //return uint4(pos.x, pos.y, index * 255, 128);
+    const bool bitmap = (rbgParams.x >> 31) & 1;
+    return bitmap ? DrawBitmapRBG(pos, index) : DrawScrollRBG(pos, index);
 }
 
-// The alpha channel of the output is used for pixel attributes as follows:
-// bits  use
-//  0-3  Priority (0 to 7)
-//    6  Special color calculation flag
-//    7  Transparent flag (0=opaque, 1=transparent)
+// -----------------------------------------------------------------------------
 
 [numthreads(32, 1, 6)]
 void CSMain(uint3 id : SV_DispatchThreadID) {

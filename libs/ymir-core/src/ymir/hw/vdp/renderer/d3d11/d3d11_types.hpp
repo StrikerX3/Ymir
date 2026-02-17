@@ -140,6 +140,17 @@ struct WindowRenderParams {
     bool lineWindowTableEnable;
 };
 
+struct RotParams {             //  bits  use
+    D3DUint rotParamMode : 2;  //   0-1  Rotation parameter mode
+                               //          0 = always use A   2 = select based on coefficient data
+                               //          1 = always use B   3 = select based on window flag
+    D3DUint windowLogic : 1;   //     2  Window logic     0=OR; 1=AND
+    D3DUint window0Enable : 1; //     3  Window 0 enable  0=disable; 1=enable
+    D3DUint window0Invert : 1; //     4  Window 0 invert  0=disable; 1=enable
+    D3DUint window1Enable : 1; //     5  Window 1 enable  0=disable; 1=enable
+    D3DUint window1Invert : 1; //     6  Window 1 invert  0=disable; 1=enable
+};
+
 struct alignas(16) VDP2BGRenderState {
     std::array<BGRenderParams, 4> nbgParams;
     std::array<BGRenderParams, 2> rbgParams;
@@ -151,6 +162,8 @@ struct alignas(16) VDP2BGRenderState {
     std::array<std::array<std::array<D3DUint, 16>, 2>, 2> rbgPageBaseAddresses; // [RotParam A/B][RBG0-1][plane A-P]
 
     std::array<WindowRenderParams, 2> windows; // Window 0 and 1
+
+    RotParams commonRotParams;
 
     D3DUint specialFunctionCodes; //  bits  use
                                   //   0-7  Special function code A
