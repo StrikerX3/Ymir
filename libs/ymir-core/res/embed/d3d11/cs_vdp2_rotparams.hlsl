@@ -35,11 +35,11 @@ RWStructuredBuffer<RotParamState> rotParamOut : register(u0);
 
 // -----------------------------------------------------------------------------
 
-static const uint kMaxResH = 704;
-static const uint kMaxResV = 512;
+static const uint kMaxNormalResH = 352;
+static const uint kMaxNormalResV = 256;
 
-static const uint kRotParamLinePitch = kMaxResH;
-static const uint kRotParamEntryStride = kRotParamLinePitch * kMaxResV;
+static const uint kRotParamLinePitch = kMaxNormalResH;
+static const uint kRotParamEntryStride = kRotParamLinePitch * kMaxNormalResV;
 
 static const uint kCoeffDataModeScaleCoeffXY = 0;
 static const uint kCoeffDataModeScaleCoeffX = 1;
@@ -151,17 +151,6 @@ uint ReadCRAMCoeff32(uint address) {
     return ByteSwap32(cramCoeff.Load(address));
 }
 
-uint GetY(uint y) {
-    const bool interlaced = config.displayParams & 1;
-    const bool odd = (config.displayParams >> 1) & 1;
-    const bool exclusiveMonitor = (config.displayParams >> 2) & 1;
-    if (interlaced && !exclusiveMonitor) {
-        return (y << 1) | (odd /* TODO & !deinterlace */);
-    } else {
-        return y;
-    }
-}
-
 // -----------------------------------------------------------------------------
 
 struct RotTable {
@@ -254,8 +243,8 @@ bool CanFetchCoefficient(uint2 rotParams, uint coeffAddress) {
         return true;
     }
 
-    const bool coeffDataSize = (rotParams.x >> 2) & 1;
-    const bool coeffDataAccess = (rotParams.x >> 5) & 0xF;
+    const uint coeffDataSize = (rotParams.x >> 2) & 1;
+    const uint coeffDataAccess = (rotParams.x >> 5) & 0xF;
     
     const uint offset = coeffAddress >> 10u;
     const uint address = (offset * 4) >> coeffDataSize;
@@ -423,6 +412,6 @@ RotParamState CalcRotation(uint2 pos, uint index) {
 [numthreads(32, 1, 2)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = id.xy + uint2(0, config.startY);
-    const uint outIndex = drawCoord.x + GetY(drawCoord.y) * kRotParamLinePitch + id.z * kRotParamEntryStride;
+    const uint outIndex = drawCoord.x + drawCoord.y * kRotParamLinePitch + id.z * kRotParamEntryStride;
     rotParamOut[outIndex] = CalcRotation(drawCoord, id.z);
 }

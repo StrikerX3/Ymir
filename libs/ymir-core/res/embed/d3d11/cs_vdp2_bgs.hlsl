@@ -75,11 +75,11 @@ static const uint kPageSizes[2][2] = { { 13, 14 }, { 11, 12 } };
 
 static const uint kCRAMAddressMask = ((config.displayParams >> 3) & 3) == 1 ? 0x7FF : 0x3FF;
 
-static const uint kMaxResH = 704;
-static const uint kMaxResV = 512;
+static const uint kMaxNormalResH = 352;
+static const uint kMaxNormalResV = 256;
 
-static const uint kRotParamLinePitch = kMaxResH;
-static const uint kRotParamEntryStride = kRotParamLinePitch * kMaxResV;
+static const uint kRotParamLinePitch = kMaxNormalResH;
+static const uint kRotParamEntryStride = kRotParamLinePitch * kMaxNormalResV;
 
 struct Character {
     uint charNum;
@@ -564,7 +564,13 @@ uint4 DrawRBG(uint2 pos, uint index) {
     // TODO: implement
     
     const uint rotIndex = pos.x + GetY(pos.y) * kRotParamLinePitch + index * kRotParamEntryStride;
-    return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
+    return uint4(
+        (rotParamState[rotIndex].screenCoords.x >> 0) & 0xFF,
+        (rotParamState[rotIndex].screenCoords.x >> 8) & 0xFF,
+        (rotParamState[rotIndex].screenCoords.y >> 0) & 0xFF,
+        ((rotParamState[rotIndex].screenCoords.y >> 8) & 0x7F) | (rotParamState[rotIndex].coeffData & 0x80)
+    );
+    //return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
     //return uint4(pos.x, pos.y, index * 255, 128);
 }
 
