@@ -243,14 +243,42 @@ RotTable ReadRotTable(const uint address) {
     return table;
 }
 
-RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
-    RotCoefficient coeff;
+bool CanFetchCoefficient(uint2 rotParams, uint coeffAddress) {
+    const bool coeffTableCRAM = (rotParams.x >> 1) & 1;
+    if (coeffTableCRAM) {
+        return true;
+    }
 
+    const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
+    if (!coeffDataPerDot) {
+        return true;
+    }
+
+    const bool coeffDataSize = (rotParams.x >> 2) & 1;
+    const bool coeffDataAccess = (rotParams.x >> 5) & 0xF;
+    
+    const uint offset = coeffAddress >> 10u;
+    const uint address = (offset * 4) >> coeffDataSize;
+    const uint bank = (address >> 17) & 3;
+    return (coeffDataAccess >> bank) & 1;
+}
+
+RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
     const uint offset = coeffAddress >> 10;
     const bool coeffTableCRAM = (rotParams.x >> 1) & 1;
     const bool coeffDataSize = (rotParams.x >> 2) & 1;
     const uint coeffDataMode = (rotParams.x >> 3) & 3;
     const bool coeffDataAccess = (rotParams.x >> 5) & 0xF;
+
+    RotCoefficient coeff;
+    
+    // Force coefficient to 0 if it cannot be read in per-dot mode
+    if (!CanFetchCoefficient(rotParams, coeffAddress)) {
+        coeff.value = 0;
+        coeff.lineColorData = 0;
+        coeff.transparent = true;
+        return coeff;
+    }
     
     if (coeffDataSize) {
         // One-word coefficient data
@@ -330,20 +358,8 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     const int scrYIncH = (t.D * t.deltaX + t.E * t.deltaY) >> 10;
 
     // Current coefficient address (16.10)
-    // TODO: disable X offset if rotation coefficient cannot be fetched when using per-dot coefficients
-    const uint KAXofs = coeffDataPerDot /* && canFetchCoeff */ ? pos.x * t.dKAx : 0;
-    const uint KA = base.KA + KAXofs + pos.y * t.dKAst;
-
-    // Current screen coordinates (18.10)
-    const int scrX = Xsp + pos.x * scrXIncH;
-    const int scrY = Ysp + pos.x * scrYIncH;
-
-    // Current sprite coordinates (13.10)
-    // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
-    // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
-    // TODO: compute only if necessary
-    const int sprX = t.Xst + pos.x * t.deltaX + pos.y * t.deltaXst;
-    const int sprY = t.Yst + pos.x * t.deltaY + pos.y * t.deltaYst;
+    const uint KAxofs = coeffDataPerDot ? pos.x * t.dKAx : 0;
+    const uint KA = base.KA + KAxofs + pos.y * t.dKAst;
 
     // Read and apply rotation coefficient
     const RotCoefficient coeff = ReadRotCoefficient(rotParams, KA);
@@ -368,6 +384,10 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     
     RotParamState result;
     
+    // Current screen coordinates (18.10)
+    const int scrX = Xsp + pos.x * scrXIncH;
+    const int scrY = Ysp + pos.x * scrYIncH;
+
     // Resulting screen coordinates (26.0)
     // (16*10) + 10 = 26 + 10 frac bits
     // (24*28) + 28 = 52 + 28 total bits
@@ -379,8 +399,14 @@ RotParamState CalcRotation(uint2 pos, uint index) {
         (i64_mul32x32_mid32(kx, scrX) + Xp) >> 10,
         (i64_mul32x32_mid32(ky, scrY) + Yp) >> 10
     );
+    
+    // Current sprite coordinates (13.10)
+    // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
+    // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
+    const int sprX = t.Xst + pos.x * t.deltaX + pos.y * t.deltaXst;
+    const int sprY = t.Yst + pos.x * t.deltaY + pos.y * t.deltaYst;
 
-    // Resulting sprite coordinates (13.0)
+    // Pack resulting sprite coordinates (13.0)
     result.spriteCoords = ((sprX >> 10) & 0xFFFF) | ((sprY >> 10) << 16);
     
     // Pack coefficient data
