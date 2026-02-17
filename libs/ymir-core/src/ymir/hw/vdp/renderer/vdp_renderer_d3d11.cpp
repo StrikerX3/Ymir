@@ -1466,6 +1466,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
         dst.coeffDataAccessB0 = isCoeff(vramCtl.rotDataBankSelB0);
         dst.coeffDataAccessB1 = isCoeff(vramCtl.partitionVRAMB ? vramCtl.rotDataBankSelB1 : vramCtl.rotDataBankSelB0);
         dst.coeffDataPerDot = vramCtl.perDotRotationCoeffs;
+        dst.fbRotEnable = m_state.regs1.fbRotEnable;
     }
 
     auto *ctx = m_context->deferredCtx;

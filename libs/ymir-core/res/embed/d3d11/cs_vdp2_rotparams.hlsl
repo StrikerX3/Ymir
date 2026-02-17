@@ -316,6 +316,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     
     const uint coeffDataMode = (rotParams.x >> 3) & 3;
     const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
+    const bool fbRotEnable = (rotParams.x >> 10) & 1;
     
     const RotTable t = ReadRotTable(base.tableAddress);
 
@@ -400,14 +401,18 @@ RotParamState CalcRotation(uint2 pos, uint index) {
         (i64_mul32x32_mid32(ky, scrY) + Yp) >> 10
     );
     
-    // Current sprite coordinates (13.10)
-    // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
-    // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
-    const int sprX = t.Xst + pos.x * t.deltaX + pos.y * t.deltaXst;
-    const int sprY = t.Yst + pos.x * t.deltaY + pos.y * t.deltaYst;
+    if (fbRotEnable) {
+        // Current sprite coordinates (13.10)
+        // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
+        // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
+        const int sprX = t.Xst + pos.x * t.deltaX + pos.y * t.deltaXst;
+        const int sprY = t.Yst + pos.x * t.deltaY + pos.y * t.deltaYst;
 
-    // Pack resulting sprite coordinates (13.0)
-    result.spriteCoords = ((sprX >> 10) & 0xFFFF) | ((sprY >> 10) << 16);
+        // Pack resulting sprite coordinates (13.0)
+        result.spriteCoords = ((sprX >> 10) & 0xFFFF) | ((sprY >> 10) << 16);
+    } else {
+        result.spriteCoords = 0;
+    }
     
     // Pack coefficient data
     result.coeffData = coeff.lineColorData | (coeff.transparent << 7);

@@ -174,6 +174,7 @@ struct RotationRenderParams {      //  bits  use
     D3DUint coeffDataAccessB0 : 1; //     7  Coefficient data access for VRAM bank B0/B
     D3DUint coeffDataAccessB1 : 1; //     8  Coefficient data access for VRAM bank B1
     D3DUint coeffDataPerDot : 1;   //     9  Per-dot coefficients               0=per line; 1=per dot
+    D3DUint fbRotEnable : 1;       //    10  VDP1 framebuffer rotation enable   0=disable; 1=enable
 
     D3DUint _reserved;
 };
