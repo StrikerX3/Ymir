@@ -33,7 +33,9 @@ struct RenderState {
 };
 
 struct RotParamState {
-    uint4 reserved;
+    int2 screenCoords;
+    uint spriteCoords; // packed 2x int16
+    uint coeffData; // bits 0-24 = line color + MSB; bit 31 = transparency
 };
 
 // -----------------------------------------------------------------------------
@@ -562,7 +564,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
     // TODO: implement
     
     const uint rotIndex = pos.x + GetY(pos.y) * kRotParamLinePitch + index * kRotParamEntryStride;
-    return rotParamState[rotIndex].reserved;
+    return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
     //return uint4(pos.x, pos.y, index * 255, 128);
 }
 
