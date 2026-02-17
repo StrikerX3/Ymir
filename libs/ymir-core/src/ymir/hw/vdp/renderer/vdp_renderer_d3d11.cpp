@@ -57,8 +57,8 @@ struct Direct3D11VDPRenderer::Context {
         d3dutil::SafeRelease(srvVDP2BGRenderState);
         d3dutil::SafeRelease(bufVDP2RotParamBases);
         d3dutil::SafeRelease(srvVDP2RotParamBases);
-        d3dutil::SafeRelease(bufVDP2RotRenderState);
-        d3dutil::SafeRelease(srvVDP2RotRenderState);
+        d3dutil::SafeRelease(bufVDP2RotRenderParams);
+        d3dutil::SafeRelease(srvVDP2RotRenderParams);
         d3dutil::SafeRelease(cbufVDP2RenderConfig);
         d3dutil::SafeRelease(bufVDP2RotParams);
         d3dutil::SafeRelease(uavVDP2RotParams);
@@ -127,10 +127,10 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ShaderResourceView *srvVDP2RotParamBases = nullptr; //< SRV for rotparam base values
     std::array<RotParamBase, 2> cpuVDP2RotParamBases{};       //< CPU-side VDP2 rotparam base values
 
-    ID3D11Buffer *bufVDP2RotRenderState = nullptr;             //< VDP2 rotparams render state structured buffer
-    ID3D11ShaderResourceView *srvVDP2RotRenderState = nullptr; //< SRV for VDP2 rotparams render state
-    VDP2RotationRenderState cpuVDP2RotRenderState{};           //< CPU-side VDP2 rotparams render state
-    bool dirtyVDP2RotParamState = true;                        //< Dirty flag for VDP2 rotparams render state
+    ID3D11Buffer *bufVDP2RotRenderParams = nullptr;               //< VDP2 rotparams render params structured buffer
+    ID3D11ShaderResourceView *srvVDP2RotRenderParams = nullptr;   //< SRV for VDP2 rotparams render params
+    std::array<RotationRenderParams, 2> cpuVDP2RotRenderParams{}; //< CPU-side VDP2 rotparams render params
+    bool dirtyVDP2RotParamState = true;                           //< Dirty flag for VDP2 rotparams render params
 
     ID3D11Buffer *cbufVDP2RenderConfig = nullptr; //< VDP2 rendering configuration constant buffer
     VDP2RenderConfig cpuVDP2RenderConfig{};       //< CPU-side VDP2 rendering configuration
@@ -498,8 +498,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         .Usage = D3D11_USAGE_DYNAMIC,
         .BindFlags = D3D11_BIND_SHADER_RESOURCE,
         .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-        .MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
-        .StructureByteStride = sizeof(D3DColor),
+        .MiscFlags = 0,
+        .StructureByteStride = 0,
     };
     bufferInitData = {
         .pSysMem = m_context->cpuVDP2ColorCache.data(),
@@ -603,26 +603,26 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // ---------------------------------
 
     bufferDesc = {
-        .ByteWidth = sizeof(VDP2RotationRenderState),
+        .ByteWidth = sizeof(m_context->cpuVDP2RotRenderParams),
         .Usage = D3D11_USAGE_DYNAMIC,
         .BindFlags = D3D11_BIND_SHADER_RESOURCE,
         .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-        .MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
-        .StructureByteStride = sizeof(VDP2RotationRenderState),
+        .MiscFlags = 0,
+        .StructureByteStride = 0,
     };
     bufferInitData = {
-        .pSysMem = &m_context->cpuVDP2RotRenderState,
+        .pSysMem = &m_context->cpuVDP2RotRenderParams,
         .SysMemPitch = 0,
         .SysMemSlicePitch = 0,
     };
-    if (HRESULT hr = device->CreateBuffer(&bufferDesc, &bufferInitData, &m_context->bufVDP2RotRenderState);
+    if (HRESULT hr = device->CreateBuffer(&bufferDesc, &bufferInitData, &m_context->bufVDP2RotRenderParams);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
 
     srvDesc = {
-        .Format = DXGI_FORMAT_UNKNOWN,
+        .Format = DXGI_FORMAT_R32G32_UINT,
         .ViewDimension = D3D11_SRV_DIMENSION_BUFFER,
         .Buffer =
             {
@@ -630,8 +630,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
                 .NumElements = 1,
             },
     };
-    if (HRESULT hr = device->CreateShaderResourceView(m_context->bufVDP2RotRenderState, &srvDesc,
-                                                      &m_context->srvVDP2RotRenderState);
+    if (HRESULT hr = device->CreateShaderResourceView(m_context->bufVDP2RotRenderParams, &srvDesc,
+                                                      &m_context->srvVDP2RotRenderParams);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -803,8 +803,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2BGRenderState, "[Ymir D3D11] VDP2 NBG/RBG render state SRV");
     SetDebugName(m_context->bufVDP2RotParamBases, "[Ymir D3D11] VDP2 rotation parameter bases buffer");
     SetDebugName(m_context->srvVDP2RotParamBases, "[Ymir D3D11] VDP2 rotation parameter bases SRV");
-    SetDebugName(m_context->bufVDP2RotRenderState, "[Ymir D3D11] VDP2 rotation parameters render state buffer");
-    SetDebugName(m_context->srvVDP2RotRenderState, "[Ymir D3D11] VDP2 rotation parameters render state SRV");
+    SetDebugName(m_context->bufVDP2RotRenderParams, "[Ymir D3D11] VDP2 rotation parameters render params buffer");
+    SetDebugName(m_context->srvVDP2RotRenderParams, "[Ymir D3D11] VDP2 rotation parameters render params SRV");
     SetDebugName(m_context->cbufVDP2RenderConfig, "[Ymir D3D11] VDP2 rendering configuration constant buffer");
     SetDebugName(m_context->bufVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters buffer array");
     SetDebugName(m_context->uavVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters UAV");
@@ -1128,7 +1128,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     if (m_state.regs2.bgEnabled[4] || m_state.regs2.bgEnabled[5]) {
         m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
         m_context->CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache,
-                                         m_context->srvVDP2RotRenderState, m_context->srvVDP2RotParamBases});
+                                         m_context->srvVDP2RotRenderParams, m_context->srvVDP2RotParamBases});
         m_context->CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
         m_context->CSSetShader(m_context->csVDP2RotParams);
         ctx->Dispatch(m_HRes / 32, numLines, 1);
@@ -1492,7 +1492,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
 
     const uint32 baseAddress = regs2.commonRotParams.baseAddress & 0xFFF7C; // mask bit 6 (shifted left by 1)
     for (uint32 i = 0; i < 2; ++i) {
-        RotationRenderParams &dst = m_context->cpuVDP2RotRenderState.rotParams[i];
+        RotationRenderParams &dst = m_context->cpuVDP2RotRenderParams[i];
         RotationParams &src = regs2.rotParams[i];
         const auto &vramCtl = regs2.vramControl;
 
@@ -1513,9 +1513,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
     auto *ctx = m_context->deferredCtx;
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->bufVDP2RotRenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RotRenderState, sizeof(m_context->cpuVDP2RotRenderState));
-    ctx->Unmap(m_context->bufVDP2RotRenderState, 0);
+    ctx->Map(m_context->bufVDP2RotRenderParams, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP2RotRenderParams, sizeof(m_context->cpuVDP2RotRenderParams));
+    ctx->Unmap(m_context->bufVDP2RotRenderParams, 0);
 }
 
 } // namespace ymir::vdp

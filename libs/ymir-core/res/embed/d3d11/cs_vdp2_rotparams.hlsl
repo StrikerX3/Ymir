@@ -10,10 +10,6 @@ struct RotParamBase {
     uint KA;
 };
 
-struct RenderState {
-    uint2 rotParams[2];
-};
-
 struct RotParamState {
     int2 screenCoords;
     uint spriteCoords; // packed 2x int16
@@ -28,7 +24,7 @@ cbuffer Config : register(b0) {
 
 ByteAddressBuffer vram : register(t0);
 ByteAddressBuffer cramCoeff : register(t1);
-StructuredBuffer<RenderState> renderState : register(t2);
+Buffer<uint2> rotParams : register(t2);
 StructuredBuffer<RotParamBase> rotParamBases : register(t3);
 
 RWStructuredBuffer<RotParamState> rotParamOut : register(u0);
@@ -299,14 +295,13 @@ RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
 }
 
 RotParamState CalcRotation(uint2 pos, uint index) {
-    const RenderState state = renderState[0];
     const RotParamBase base = rotParamBases[index];
-    const uint2 rotParams = state.rotParams[index];
+    const uint2 rotParam = rotParams[index];
     
-    const bool coeffTableEnable = (rotParams.x >> 0) & 1;
-    const uint coeffDataMode = (rotParams.x >> 3) & 3;
-    const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
-    const bool fbRotEnable = (rotParams.x >> 10) & 1;
+    const bool coeffTableEnable = (rotParam.x >> 0) & 1;
+    const uint coeffDataMode = (rotParam.x >> 3) & 3;
+    const bool coeffDataPerDot = (rotParam.x >> 9) & 1;
+    const bool fbRotEnable = (rotParam.x >> 10) & 1;
     
     const RotTable t = ReadRotTable(base.tableAddress);
 
