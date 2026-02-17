@@ -1133,7 +1133,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     if (m_state.regs2.bgEnabled[4] || m_state.regs2.bgEnabled[5]) {
         m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
         m_context->CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache,
-                                         m_context->srvVDP2BGRenderState, m_context->srvVDP2RotParamBases});
+                                         m_context->srvVDP2RotRenderState, m_context->srvVDP2RotParamBases});
         m_context->CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
         m_context->CSSetShader(m_context->csVDP2RotParams);
         ctx->Dispatch(m_HRes / 32, numLines, 1);
