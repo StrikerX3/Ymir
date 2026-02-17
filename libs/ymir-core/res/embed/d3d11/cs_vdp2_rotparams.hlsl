@@ -17,7 +17,7 @@ struct RenderState {
 struct RotParamState {
     int2 screenCoords;
     uint spriteCoords; // packed 2x int16
-    uint coeffData; // bits 0-24 = line color + MSB; bit 31 = transparency
+    uint coeffData; // bits 0-6 = raw line color data; bit 7 = transparency
 };
 
 // -----------------------------------------------------------------------------
@@ -196,11 +196,6 @@ struct RotTable {
 
 };
 
-struct RotValues {
-    int2 scr;
-    int2 spr;
-};
-
 struct RotCoefficient {
     int value; // coefficient value, scaled to 16 fractional bits
     uint lineColorData;
@@ -248,14 +243,14 @@ RotTable ReadRotTable(const uint address) {
     return table;
 }
 
-RotCoefficient ReadRotCoefficient(uint2 rbgParams, uint coeffAddress) {
+RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
     RotCoefficient coeff;
 
     const uint offset = coeffAddress >> 10;
-    const bool coeffTableCRAM = (rbgParams.x >> 1) & 1;
-    const bool coeffDataSize = (rbgParams.x >> 2) & 1;
-    const uint coeffDataMode = (rbgParams.x >> 3) & 3;
-    const bool coeffDataAccess = (rbgParams.x >> 5) & 0xF;
+    const bool coeffTableCRAM = (rotParams.x >> 1) & 1;
+    const bool coeffDataSize = (rotParams.x >> 2) & 1;
+    const uint coeffDataMode = (rotParams.x >> 3) & 3;
+    const bool coeffDataAccess = (rotParams.x >> 5) & 0xF;
     
     if (coeffDataSize) {
         // One-word coefficient data
@@ -286,14 +281,16 @@ RotCoefficient ReadRotCoefficient(uint2 rbgParams, uint coeffAddress) {
     return coeff;
 }
 
-RotValues CalcRotValues(uint2 rbgParams, uint2 pos, RotParamBase base) {
-    const uint coeffDataMode = (rbgParams.x >> 3) & 3;
-    const bool coeffDataPerDot = (rbgParams.x >> 9) & 1;
-
+RotParamState CalcRotation(uint2 pos, uint index) {
+    const RenderState state = renderState[0];
+    const RotParamBase base = rotParamBases[index];
+    const uint2 rotParams = state.rotParams[index];
+    
+    const uint coeffDataMode = (rotParams.x >> 3) & 3;
+    const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
+    
     const RotTable t = ReadRotTable(base.tableAddress);
 
-    // TODO: move rotparam calculation to another compute shader
-    
     int Tx, Ty, Tz;
     
     // Common terms for Xsp and Ysp (14.10)
@@ -344,11 +341,12 @@ RotValues CalcRotValues(uint2 rbgParams, uint2 pos, RotParamBase base) {
     // Current sprite coordinates (13.10)
     // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
     // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
+    // TODO: compute only if necessary
     const int sprX = t.Xst + pos.x * t.deltaX + pos.y * t.deltaXst;
     const int sprY = t.Yst + pos.x * t.deltaY + pos.y * t.deltaYst;
 
     // Read and apply rotation coefficient
-    const RotCoefficient coeff = ReadRotCoefficient(rbgParams, KA);
+    const RotCoefficient coeff = ReadRotCoefficient(rotParams, KA);
     
     int kx = t.kx;
     int ky = t.ky;
@@ -368,10 +366,8 @@ RotValues CalcRotValues(uint2 rbgParams, uint2 pos, RotParamBase base) {
             break;
     }
     
-    // TODO: coeffUseLineColorData
-
-    RotValues result;
-
+    RotParamState result;
+    
     // Resulting screen coordinates (26.0)
     // (16*10) + 10 = 26 + 10 frac bits
     // (24*28) + 28 = 52 + 28 total bits
@@ -379,35 +375,16 @@ RotValues CalcRotValues(uint2 rbgParams, uint2 pos, RotParamBase base) {
     // = 10 + 10 = 10 frac bits
     // = 36 + 28 = 36 total bits
     // remove frac bits from result = 26 total bits
-    result.scr = int2(
+    result.screenCoords = int2(
         (i64_mul32x32_mid32(kx, scrX) + Xp) >> 10,
         (i64_mul32x32_mid32(ky, scrY) + Yp) >> 10
     );
 
     // Resulting sprite coordinates (13.0)
-    result.spr = int2(sprX >> 10, sprY >> 10);
+    result.spriteCoords = ((sprX >> 10) & 0xFFFF) | ((sprY >> 10) << 16);
     
-    // TODO: Resulting coefficient data
-
-    return result;
-}
-
-RotParamState CalcRotation(uint2 pos, uint index) {
-    const RenderState state = renderState[0];
-    const RotParamBase rotParamBase = rotParamBases[index];
-    const uint2 rotParams = state.rotParams[index];
-    
-    const uint coeffDataMode = (rotParams.x >> 3) & 3;
-    const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
-    
-    const RotValues rotValues = CalcRotValues(rotParams, pos, rotParamBase);
-
-    RotParamState result;
-
-    // TODO: implement
-    result.screenCoords = pos.xy;
-    result.spriteCoords = 0xDEADBEEF;
-    result.coeffData = 0x81FFFFFF;
+    // Pack coefficient data
+    result.coeffData = coeff.lineColorData | (coeff.transparent << 7);
     
     return result;
 }
