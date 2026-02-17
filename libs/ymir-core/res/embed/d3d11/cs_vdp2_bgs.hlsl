@@ -11,12 +11,9 @@ struct Window {
     bool lineWindowTableEnable;
 };
 
-cbuffer Config : register(b0) {
-    Config config;
-}
-
-struct VDP2RenderState {
+struct RenderState {
     uint4 nbgParams[4];
+    uint2 rbgParams[2];
     
     uint2 nbgScrollAmount[4];
     uint2 nbgScrollInc[4];
@@ -27,22 +24,32 @@ struct VDP2RenderState {
     // TODO: NBG line scroll offset tables (X/Y) (or addresses to read from VRAM)
     // TODO: Vertical cell scroll table base address
     // TODO: Mosaic sizes (X/Y)
-    // TODO: Rotation parameters A and B
-    // TODO: Common rotation parameters - table address, mode, windows
     // TODO: Sprite layer parameters
 
     Window windows[2];
 
     uint specialFunctionCodes;
-    
     uint3 _padding;
 };
 
+struct RotParamState {
+    uint4 reserved;
+};
+
+// -----------------------------------------------------------------------------
+
+cbuffer Config : register(b0) {
+    Config config;
+}
+
 ByteAddressBuffer vram : register(t0);
 StructuredBuffer<uint> cram : register(t1);
-StructuredBuffer<VDP2RenderState> renderState : register(t2);
+StructuredBuffer<RenderState> renderState : register(t2);
+StructuredBuffer<RotParamState> rotParamState : register(t3);
 
-RWTexture2DArray<uint4> textureOut : register(u0);
+RWTexture2DArray<uint4> bgOut : register(u0);
+
+// -----------------------------------------------------------------------------
 
 static const uint kWindowLogicOR = 0;
 static const uint kWindowLogicAND = 1;
@@ -66,6 +73,12 @@ static const uint kPageSizes[2][2] = { { 13, 14 }, { 11, 12 } };
 
 static const uint kCRAMAddressMask = ((config.displayParams >> 3) & 3) == 1 ? 0x7FF : 0x3FF;
 
+static const uint kMaxResH = 704;
+static const uint kMaxResV = 512;
+
+static const uint kRotParamLinePitch = kMaxResH;
+static const uint kRotParamEntryStride = kRotParamLinePitch * kMaxResV;
+
 struct Character {
     uint charNum;
     uint palNum;
@@ -77,6 +90,8 @@ struct Character {
 
 static const Character kBlankCharacter = (Character) 0;
 static const uint4 kTransparentPixel = uint4(0, 0, 0, 128);
+
+// -----------------------------------------------------------------------------
 
 uint ByteSwap16(uint val) {
     return ((val >> 8) & 0x00FF) |
@@ -185,7 +200,8 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
         end.x >>= 1;
     }
     
-    const bool inside = pos >= start && pos <= end;
+    const bool inside = int(pos.x) >= start.x && int(pos.y) >= start.y &&
+                        int(pos.x) <= end.x && int(pos.y) <= end.y;
     return inside != invert;
 }
 
@@ -197,7 +213,7 @@ bool InsideWindows(uint4 nbgParams, uint2 pos) {
     const bool window1Invert = (nbgParams.x >> 16) & 1;
     const bool spriteWindowEnable = (nbgParams.x >> 17) & 1;
     // TODO: const bool spriteWindowInvert = (nbgParams.x >> 18) & 1;
-    const bool windowLogic = (nbgParams.x >> 19) & 1;
+    const uint windowLogic = (nbgParams.x >> 19) & 1;
     
     // If no windows are enabled, consider the pixel outside of windows
     if (!window0Enable && !window1Enable && !spriteWindowEnable) {
@@ -438,7 +454,7 @@ uint4 FetchBitmapPixel(uint4 nbgParams, uint2 scrollPos) {
 }
 
 uint4 DrawScrollNBG(uint2 pos, uint index) {
-    const VDP2RenderState state = renderState[0];
+    const RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
 
     if (InsideWindows(nbgParams, pos)) {
@@ -500,7 +516,7 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
 }
 
 uint4 DrawBitmapNBG(uint2 pos, uint index) {
-    const VDP2RenderState state = renderState[0];
+    const RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
   
     if (InsideWindows(nbgParams, pos)) {
@@ -527,7 +543,7 @@ uint4 DrawBitmapNBG(uint2 pos, uint index) {
 }
 
 uint4 DrawNBG(uint2 pos, uint index) {
-    const VDP2RenderState state = renderState[0];
+    const RenderState state = renderState[0];
     const uint4 nbgParams = state.nbgParams[index];
     
     const bool enabled = (nbgParams.x >> 30) & 1;
@@ -540,7 +556,14 @@ uint4 DrawNBG(uint2 pos, uint index) {
 }
 
 uint4 DrawRBG(uint2 pos, uint index) {
-    return uint4(index * 255, pos.x, pos.y, 255);
+    const RenderState state = renderState[0];
+    const uint2 rbgParams = state.rbgParams[index];
+    
+    // TODO: implement
+    
+    const uint rotIndex = pos.x + GetY(pos.y) * kRotParamLinePitch + index * kRotParamEntryStride;
+    return rotParamState[rotIndex].reserved;
+    //return uint4(pos.x, pos.y, index * 255, 128);
 }
 
 // The alpha channel of the output is used for pixel attributes as follows:
@@ -554,8 +577,8 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = id.xy + uint2(0, config.startY);
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z);
     if (id.z < 4) {
-        textureOut[outCoord] = DrawNBG(drawCoord, id.z);
+        bgOut[outCoord] = DrawNBG(drawCoord, id.z);
     } else {
-        textureOut[outCoord] = DrawRBG(drawCoord, id.z - 4);
+        bgOut[outCoord] = DrawRBG(drawCoord, id.z - 4);
     }
 }
