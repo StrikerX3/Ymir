@@ -808,10 +808,10 @@ private:
         // Derived from mapIndices, CHCTLA/CHCTLB.xxCHSZ, PNCR.xxPNB and PLSZ.xxPLSZn
         std::array<std::array<uint32, 16>, 2> pageBaseAddresses;
 
-        // Precomputed screen coordinates (with 16 fractional bits).
+        // Precomputed screen coordinates (26.0).
         alignas(16) std::array<CoordS32, kMaxResH / 2> screenCoords;
 
-        // Precomputed sprite coordinates (without fractional bits).
+        // Precomputed sprite coordinates (13.0).
         alignas(16) std::array<CoordS32, kMaxResH / 2> spriteCoords;
 
         // Precomputed coefficient table line color.

@@ -2065,7 +2065,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
             state.KA += t.dKAst;
         }
 
-        // Transformed starting screen coordinates
+        // Transformed starting screen coordinates (18.10)
         // 10*(10-10) + 10*(10-10) + 10*(10-10) = 20 frac bits
         // 14*(23-24) + 14*(23-24) + 14*(23-24) = 38 total bits
         // reduce to 10 frac bits
@@ -2078,13 +2078,13 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
                             static_cast<sint64>(t.F) * (t.Zst - (t.Pz << 10))) >>
                            10;
 
-        // Transformed view coordinates
+        // Transformed view coordinates (18.10)
         // 10*(0-0) + 10*(0-0) + 10*(0-0) + 10 + 10 = 10+10+10 + 10+10 = 10 frac bits
         // 14*(14-14) + 14*(14-14) + 14*(14-14) + 24 + 24 = 28+28+28 + 24+24 = 28 total bits
         /***/ sint32 Xp = (t.A * (t.Px - t.Cx) + t.B * (t.Py - t.Cy) + t.C * (t.Pz - t.Cz)) + (t.Cx << 10) + t.Mx;
         const sint32 Yp = (t.D * (t.Px - t.Cx) + t.E * (t.Py - t.Cy) + t.F * (t.Pz - t.Cz)) + (t.Cy << 10) + t.My;
 
-        // Screen coordinate increments per Hcnt
+        // Screen coordinate increments per Hcnt (7.10)
         // 10*10 + 10*10 = 20 + 20 = 20 frac bits
         // 14*13 + 14*13 = 27 + 27 = 27 total bits
         // reduce to 10 frac bits
@@ -2095,9 +2095,11 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
         sint64 kx = t.kx;
         sint64 ky = t.ky;
 
-        // Current screen coordinates (18.10) and coefficient address (16.10)
+        // Current screen coordinates (18.10)
         sint32 scrX = Xsp;
         sint32 scrY = Ysp;
+
+        // Current coefficient address (16.10)
         uint32 KA = state.KA;
 
         // Current sprite coordinates (13.10)
@@ -2154,10 +2156,13 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
                 }
             }
 
-            // Store screen coordinates
-            // (16*10) + 10 = 26 + 10
+            // Resulting screen coordinates (26.0)
+            // (16*10) + 10 = 26 + 10 frac bits
+            // (24*28) + 28 = 52 + 28 total bits
             // reduce 26 to 10 frac bits
-            // remove frac bits from result
+            // = 10 + 10 = 10 frac bits
+            // = 36 + 28 = 36 total bits
+            // remove frac bits from result = 26 total bits
             lineState.screenCoords[x].x() = (((kx * scrX) >> 16) + Xp) >> 10;
             lineState.screenCoords[x].y() = (((ky * scrY) >> 16) + Yp) >> 10;
 
@@ -2166,7 +2171,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
             scrY += scrYIncH;
 
             if (regs1.fbRotEnable) {
-                // Store sprite coordinates
+                // Resulting sprite coordinates (13.0)
                 lineState.spriteCoords[x].x() = sprX >> 10ll;
                 lineState.spriteCoords[x].y() = sprY >> 10ll;
 
