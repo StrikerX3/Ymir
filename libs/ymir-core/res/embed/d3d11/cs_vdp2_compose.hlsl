@@ -113,7 +113,7 @@ bool IsLineColorEnabled(uint layer, uint2 pos) {
     return false;
 }
 
-uint GetColorCalcRatio(uint layer, uint2 pos) {
+int GetColorCalcRatio(uint layer, uint2 pos) {
     // TODO: implement
     return 15;
 }
@@ -235,7 +235,7 @@ uint3 Compose(uint2 pos) {
     } else {
         if (layer0ColorCalcEnabled) {
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
-            const uint ratio = GetColorCalcRatio(ratioLayer, pos);
+            const int ratio = GetColorCalcRatio(ratioLayer, pos);
             output = int3(layer1Pixel.rgb) + (int3(layer0Pixel.rgb) - int3(layer1Pixel.rgb)) * ratio / 32;
         } else {
             output = layer0Pixel.rgb;
