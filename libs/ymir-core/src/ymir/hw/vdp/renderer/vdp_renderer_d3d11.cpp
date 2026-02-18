@@ -1060,7 +1060,7 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
 
     const bool renderBGs = m_context->dirtyVDP2VRAM || m_context->dirtyVDP2CRAM || m_context->dirtyVDP2RenderState ||
                            m_context->dirtyVDP2RotParamState || m_context->dirtyVDP2ComposeParams;
-    const bool compose = m_context->dirtyVDP2RenderState || m_context->dirtyVDP2ComposeParams;
+    const bool compose = m_context->dirtyVDP2ComposeParams;
     if (renderBGs) {
         VDP2RenderBGLines(y);
     }
@@ -1200,7 +1200,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
                                          m_context->srvVDP2RotRenderParams, m_context->srvVDP2RotParamBases});
         m_context->CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
         m_context->CSSetShader(m_context->csVDP2RotParams);
-        ctx->Dispatch(m_HRes / 32, numLines, 1);
+
+        const bool doubleResH = m_state.regs2.TVMD.HRESOn & 0b010;
+        const uint32 hresShift = doubleResH ? 1 : 0;
+        const uint32 hres = m_HRes >> hresShift;
+        ctx->Dispatch(hres / 32, numLines, 1);
     }
 
     // Draw NBGs and RBGs
@@ -1516,7 +1520,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamBases() {
 
     // Determine how many lines to draw and update next scanline counter
     const bool readAll = m_nextVDP2RotBasesY == 0;
-    const uint32 numLines = m_nextVDP2BGY - m_nextVDP2RotBasesY + (readAll ? 0 : 1);
+    const uint32 numLines = m_nextVDP2BGY - m_nextVDP2RotBasesY + 1;
     m_nextVDP2RotBasesY = m_nextVDP2BGY + 1;
 
     const uint32 baseAddress = regs2.commonRotParams.baseAddress & 0xFFF7C; // mask bit 6 (shifted left by 1)
@@ -1528,26 +1532,35 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamBases() {
 
         base.tableAddress = address;
 
+        uint32 numXstLines = numLines;
         if (readAll || src.readXst) {
             base.Xst = bit::extract_signed<6, 28, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x00));
             src.readXst = false;
+            --numXstLines;
+        }
+        if (numXstLines > 0) {
+            base.Xst += bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x0C)) * numXstLines;
         }
 
+        uint32 numYstLines = numLines;
         if (readAll || src.readYst) {
             base.Yst = bit::extract_signed<6, 28, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x04));
             src.readYst = false;
+            --numYstLines;
+        }
+        if (numYstLines > 0) {
+            base.Yst += bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x10)) * numYstLines;
         }
 
+        uint32 numKALines = numLines;
         if (readAll || src.readKAst) {
             const uint32 KAst = bit::extract<6, 31>(m_state.VDP2ReadVRAM<uint32>(address + 0x54));
             base.KA = src.coeffTableAddressOffset + KAst;
             src.readKAst = false;
+            --numKALines;
         }
-
-        if (numLines > 0) {
-            base.Xst += bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x0C)) * numLines;
-            base.Yst += bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x10)) * numLines;
-            base.KA += bit::extract_signed<6, 25>(m_state.VDP2ReadVRAM<uint32>(address + 0x58)) * numLines;
+        if (numKALines > 0) {
+            base.KA += bit::extract_signed<6, 25>(m_state.VDP2ReadVRAM<uint32>(address + 0x58)) * numKALines;
         }
     }
 
