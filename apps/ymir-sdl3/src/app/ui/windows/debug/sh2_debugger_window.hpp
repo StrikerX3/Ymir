@@ -13,6 +13,8 @@ class SH2DebuggerWindow : public SH2WindowBase {
 public:
     SH2DebuggerWindow(SharedContext &context, bool master);
 
+    void RequestOpen(bool triggeredByEvent, bool requestFocus);
+
     void LoadState(std::filesystem::path path);
     void SaveState(std::filesystem::path path);
 

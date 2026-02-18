@@ -69,6 +69,7 @@ private:
             ImVec4 wtptHoveredIconColor{C(210, 87, 255)};
             ImVec4 wtptActiveIconColor{C(148, 18, 196)};
 
+            ImVec4 lineHoverColor{C(61, 53, 2)};
             ImVec4 cursorBgColor{C(34, 61, 2)};
             ImVec4 pcBgColor{C(3, 61, 71)};
             ImVec4 prBgColor{C(6, 40, 84)};
@@ -109,20 +110,13 @@ private:
         bool colorizeMnemonicsByType = true;
     } m_settings;
 
-    // View-local state for scrollable disassembly view
-    struct ViewState {
-        uint32 minAddress = kAddressMin;
-        uint32 maxAddress = kAddressMax; // address range min:max
-        bool rangeChanged = false;       // true if range updated this frame
-    } m_viewState;
+    struct Cursor {
+        uint32 address = 0;
+        uint32 viewportTopAddress = 0;
+    } m_cursor;
 
-    // Cached line height, computed dynamically from font size
-    float m_lineAdvance = 0.0f;
-
-    // Scrolls the disassembly view to center the given address.
-    // smoothFollow: true for continuous PC tracking (smooth local, snappy far)
-    //               false for explicit JumpTo requests (always smooth)
-    void ScrollToAddress(uint32 targetAddress, float viewHeight, bool smoothFollow);
+    // Moves the cursor to the specified address and adjusts the viewport accordingly
+    void MoveCursor(uint32 address, uint32 lineCount);
 };
 
 } // namespace app::ui

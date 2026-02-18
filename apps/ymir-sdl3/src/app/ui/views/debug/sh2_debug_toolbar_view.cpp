@@ -28,7 +28,14 @@ SH2DebugToolbarView::SH2DebugToolbarView(SharedContext &context, sh2::SH2 &sh2, 
 void SH2DebugToolbarView::Display() {
     ImGui::BeginGroup();
 
-    if (!m_context.saturn.IsDebugTracingEnabled()) {
+    ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+    const float hexCharWidth = ImGui::CalcTextSize("F").x;
+    ImGui::PopFont();
+    const float framePadding = ImGui::GetStyle().FramePadding.x;
+    const float regFieldWidth = framePadding * 2 + hexCharWidth * 8;
+
+    const bool debugTracing = m_context.saturn.IsDebugTracingEnabled();
+    if (!debugTracing) {
         ImGui::TextColored(m_context.colors.warn, "Debug tracing is disabled. Some features will not work.");
         ImGui::SameLine();
         if (ImGui::SmallButton("Enable (F11)##debug_tracing")) {
@@ -37,7 +44,13 @@ void SH2DebugToolbarView::Display() {
     }
     const bool master = m_sh2.IsMaster();
     const bool enabled = master || m_context.saturn.IsSlaveSH2Enabled();
+    const bool paused = m_context.paused;
     auto &probe = m_sh2.GetProbe();
+
+    // Keep jump address in sync with PC when following PC
+    if (m_model.followPC) {
+        m_jumpAddress = probe.PC() & ~1u;
+    }
 
     ImGui::BeginDisabled(!enabled);
     {
@@ -51,7 +64,7 @@ void SH2DebugToolbarView::Display() {
 
         ImGui::SameLine();
 
-        ImGui::BeginDisabled(m_context.paused);
+        ImGui::BeginDisabled(paused);
         if (ImGui::Button(ICON_MS_PAUSE)) {
             m_context.EnqueueEvent(events::emu::SetPaused(true));
         }
@@ -63,7 +76,7 @@ void SH2DebugToolbarView::Display() {
 
         ImGui::SameLine();
 
-        ImGui::BeginDisabled(!m_context.paused);
+        ImGui::BeginDisabled(!paused);
         if (ImGui::Button(ICON_MS_PLAY_ARROW)) {
             m_context.EnqueueEvent(events::emu::SetPaused(false));
         }
@@ -105,6 +118,16 @@ void SH2DebugToolbarView::Display() {
         ImGui::EndTooltip();
     }
 
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_FILE_DOWNLOAD "##dump_disasm_range")) {
+        m_disasmDumpView.OpenPopup();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Dump disassembly range");
+        ImGui::EndTooltip();
+    }
+    m_disasmDumpView.Display();
+
     if (!master) {
         ImGui::SameLine();
         bool slaveSH2Enabled = m_context.saturn.IsSlaveSH2Enabled();
@@ -112,27 +135,9 @@ void SH2DebugToolbarView::Display() {
             m_context.saturn.SetSlaveSH2Enabled(slaveSH2Enabled);
         }
     }
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_MS_CENTER_FOCUS_WEAK "##follow_pc_toggle")) {
-        m_model.followPC = !m_model.followPC;
-    }
-    if (ImGui::BeginItemTooltip()) {
-        ImGui::TextUnformatted("Follow PC");
-        ImGui::EndTooltip();
-    }
 
     ImGui::SameLine();
-    if (ImGui::Button(ICON_MS_FILE_DOWNLOAD "##dump_disasm_range")) {
-        m_disasmDumpView.OpenPopup();
-    }
-    if (ImGui::BeginItemTooltip()) {
-        ImGui::TextUnformatted("Dump Disasm Range");
-        ImGui::EndTooltip();
-    }
-    m_disasmDumpView.Display();
-
-    ImGui::SameLine();
-    if (!m_context.saturn.IsDebugTracingEnabled()) {
+    if (!debugTracing) {
         ImGui::BeginDisabled();
     }
     bool suspended = m_sh2.IsCPUSuspended();
@@ -140,7 +145,7 @@ void SH2DebugToolbarView::Display() {
         m_sh2.SetCPUSuspended(suspended);
     }
     widgets::ExplanationTooltip("Disables the CPU while in debug mode.", m_context.displayScale);
-    if (!m_context.saturn.IsDebugTracingEnabled()) {
+    if (!debugTracing) {
         ImGui::EndDisabled();
     }
     ImGui::SameLine();
@@ -151,22 +156,52 @@ void SH2DebugToolbarView::Display() {
     widgets::ExplanationTooltip("Whether the CPU is in standby or sleep mode due to executing the SLEEP instruction.",
                                 m_context.displayScale);
 
+    auto doJump = [&] {
+        // Align to even addresses
+        m_jumpAddress = m_jumpAddress & ~1u;
+        m_model.jumpAddress = m_jumpAddress;
+        m_model.jumpRequested = true;
+        m_model.followPC = false;
+    };
+
     // Input field to jump to address
-    static uint32_t jumpAddress = 0;
-    ImGui::SetNextItemWidth(100.0f * m_context.displayScale); // Width for 8 hex digits
-    ImGui::InputScalar("##jump_address", ImGuiDataType_U32, &jumpAddress, nullptr, nullptr, "%08X",
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Go to:");
+
+    ImGui::SameLine();
+    if (ImGui::Button("PC##goto")) {
+        m_jumpAddress = probe.PC();
+        doJump();
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("PR##goto")) {
+        m_jumpAddress = probe.PR();
+        doJump();
+    }
+
+    ImGui::SameLine();
+    ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+    ImGui::SetNextItemWidth(regFieldWidth);
+    ImGui::InputScalar("##goto_address", ImGuiDataType_U32, &m_jumpAddress, nullptr, nullptr, "%08X",
                        ImGuiInputTextFlags_CharsHexadecimal);
+    if (ImGui::IsItemDeactivatedAfterEdit()) {
+        doJump();
+    }
+    ImGui::PopFont();
+
     ImGui::SameLine();
     if (ImGui::Button("Jump")) {
-        constexpr uint32_t kSH2AddrMin = 0x00000000u;
-        constexpr uint32_t kSH2AddrMax = 0xFFFFFFFEu;
-        // ensure to clamp to valid SH2 address range (even addresses)
-        jumpAddress = (std::clamp<uint32_t>(jumpAddress, kSH2AddrMin, kSH2AddrMax) & ~1u);
-        m_model.jumpAddress = jumpAddress;
-        m_model.jumpRequested = true;
-        m_model.recenterWindow = true; // One-shot: request window recenter
-        m_model.followPC = false;
+        doJump();
     }
+
+    ImGui::SameLine();
+    ImGui::Checkbox("Follow PC", &m_model.followPC);
+
+    ImGui::SameLine();
+    ImGui::Checkbox("on events", &m_model.followPCOnEvents);
+    widgets::ExplanationTooltip("Causes the cursor to jump to PC when breakpoints and watchpoints are hit.",
+                                m_context.displayScale);
 
     ImGui::EndGroup();
 }

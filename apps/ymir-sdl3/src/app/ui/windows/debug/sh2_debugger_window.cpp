@@ -22,6 +22,16 @@ SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master)
     m_windowConfig.flags = ImGuiWindowFlags_MenuBar;
 }
 
+void SH2DebuggerWindow::RequestOpen(bool triggeredByEvent, bool requestFocus) {
+    Open = true;
+    if (requestFocus) {
+        RequestFocus();
+    }
+    if (triggeredByEvent && m_debuggerModel.followPCOnEvents) {
+        m_debuggerModel.followPC = true;
+    }
+}
+
 void SH2DebuggerWindow::LoadState(std::filesystem::path path) {
     // TODO: this feels like the wrong place for this...
 
@@ -169,7 +179,7 @@ void SH2DebuggerWindow::PrepareWindow() {
 }
 
 void SH2DebuggerWindow::DrawContents() {
-    if (ImGui::BeginTable("disasm_main", 2, ImGuiTableFlags_BordersInnerV)) {
+    if (ImGui::BeginTable("disasm_main", 2, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_NoSavedSettings)) {
         ImGui::TableSetupColumn("##left", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("##right", ImGuiTableColumnFlags_WidthFixed, m_regsView.GetViewWidth());
 
@@ -215,8 +225,8 @@ void SH2DebuggerWindow::DrawContents() {
         m_context.EnqueueEvent(events::gui::OpenSH2WatchpointsWindow(m_sh2.IsMaster()));
     }
     if (ImGui::Shortcut(ImGuiKey_F11, baseFlags)) {
-        // Enable debug tracing
-        m_context.EnqueueEvent(events::emu::SetDebugTrace(true));
+        // Toggle debug tracing
+        m_context.EnqueueEvent(events::emu::SetDebugTrace(!m_context.saturn.IsDebugTracingEnabled()));
     }
     if (ImGui::Shortcut(ImGuiKey_Space, baseFlags) || ImGui::Shortcut(ImGuiKey_R, baseFlags)) {
         // Pause/Resume

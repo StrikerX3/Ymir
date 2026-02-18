@@ -51,8 +51,9 @@ inline GUIEvent OpenSettings(ui::SettingsTab tab) {
     return {.type = GUIEvent::Type::OpenSettings, .value = tab};
 }
 
-inline GUIEvent OpenSH2DebuggerWindow(bool master) {
-    return {.type = GUIEvent::Type::OpenSH2DebuggerWindow, .value = master};
+inline GUIEvent OpenSH2DebuggerWindow(bool master, bool triggeredByEvent) {
+    return {.type = GUIEvent::Type::OpenSH2DebuggerWindow,
+            .value = OpenSH2DebuggerWindowParams{.master = master, .triggeredByEvent = triggeredByEvent}};
 }
 
 inline GUIEvent OpenSH2BreakpointsWindow(bool master) {
