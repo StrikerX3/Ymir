@@ -826,7 +826,7 @@ private:
         LYR_NBG2,
         LYR_NBG3,
         LYR_Back,
-        LYR_LineColor,
+        LYR_LineColor, // not really used
     };
 
     // Cached CRAM colors converted from RGB555 to RGB888.
