@@ -42,6 +42,17 @@ union D3DInt2 {
 };
 static_assert(sizeof(D3DInt2) == sizeof(D3DInt) * 2);
 
+union D3DInt3 {
+    std::array<D3DInt, 3> array;
+    struct {
+        D3DInt x, y, z;
+    };
+    struct {
+        D3DInt r, g, b;
+    };
+};
+static_assert(sizeof(D3DInt3) == sizeof(D3DInt) * 3);
+
 // -----------------------------------------------------------------------------
 
 struct alignas(16) VDP2RenderConfig {
@@ -228,6 +239,43 @@ struct alignas(16) VDP2RotParamData {
     D3DInt2 screenCoords; // Screen coordinates (26.0)
     D3DUint spriteCoords; // Sprite coordinates (13.0) (packed 2x 16-bit ints)
     D3DUint coeffData;    // Raw coefficient line color data (bits 0-6) + transparency (bit 7)
+};
+
+// -----------------------------------------------------------------------------
+
+struct alignas(16) VDP2ComposeParams { //  bits  use
+    D3DUint colorCalcEnable : 8;       //   0-7  Color calculation enable flags    0=disable; 1=enable
+                                       //          0 = sprite
+                                       //          1 = RBG0
+                                       //          2 = RBG1/NBG0
+                                       //          3 = NBG1/EXBG
+                                       //          4 = NBG2
+                                       //          5 = NBG3
+                                       //          6 = Back screen
+                                       //          7 = Line screen
+    D3DUint extendedColorCalc : 1;     //     8  Use extended color calculation   0=disable; 1=enable
+                                       //          (always disabled in hi-res modes)
+    D3DUint blendMode : 1;             //     9  Blend mode                  0=alpha; 1=additive
+    D3DUint useSecondScreenRatio : 1;  //    10  Use second screen ratio     0=top screen; 1=second screen
+    D3DUint colorOffsetEnable : 7;     // 11-17  Color offset enable flags   0=disable; 1=enable
+                                       //          0 = Sprite
+                                       //          1 = RBG0
+                                       //          2 = NBG0/RBG1
+                                       //          3 = NBG1/EXBG
+                                       //          4 = NBG2
+                                       //          5 = NBG3
+                                       //          6 = Back screen
+    D3DUint colorOffsetSelect : 7;     // 18-24  Color offset selector       0=A; 1=B
+                                       //          0 = Sprite
+                                       //          1 = RBG0
+                                       //          2 = NBG0/RBG1
+                                       //          3 = NBG1/EXBG
+                                       //          4 = NBG2
+                                       //          5 = NBG3
+                                       //          6 = Back screen
+
+    D3DInt3 colorOffsetA; // Color offset A (RGB999)
+    D3DInt3 colorOffsetB; // Color offset B (RGB999)
 };
 
 } // namespace ymir::vdp

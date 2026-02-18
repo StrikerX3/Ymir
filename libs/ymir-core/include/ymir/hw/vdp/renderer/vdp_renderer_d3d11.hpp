@@ -160,6 +160,9 @@ private:
     /// @brief Updates rotation parameter states if dirty.
     void VDP2UpdateRotParamStates();
 
+    /// @brief Updates VDP2 compositor parameters if dirty.
+    void VDP2UpdateComposeParams();
+
     uint32 m_nextVDP2BGY;
     uint32 m_nextVDP2ComposeY;
 
