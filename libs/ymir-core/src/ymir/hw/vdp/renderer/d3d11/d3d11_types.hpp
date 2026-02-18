@@ -60,7 +60,8 @@ struct alignas(16) VDP2RenderConfig {
     // Top Y coordinate of target rendering area
     D3DUint startY;
 
-    // Layer enable state based on BGON and other factors
+    // Bits 0-5 hold the layer enable state based on BGON and other factors:
+    //
     // bit  RBG0+RBG1   RBG0        RBG1        no RBGs
     //   0  Sprite      Sprite      Sprite      Sprite
     //   1  RBG0        RBG0        -           -
@@ -68,6 +69,15 @@ struct alignas(16) VDP2RenderConfig {
     //   3  EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
     //   4  -           NBG2        NBG2        NBG2
     //   5  -           NBG3        NBG3        NBG3
+    //
+    // Bits 16-21 hold the individual layer enable flags:
+    // bit  layer
+    //  16  NBG0
+    //  17  NBG1
+    //  18  NBG2
+    //  19  NBG3
+    //  20  RBG0
+    //  21  RBG1
     D3DUint layerEnabled;
 };
 
