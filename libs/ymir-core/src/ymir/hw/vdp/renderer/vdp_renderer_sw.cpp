@@ -3680,7 +3680,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
     // NOTE: All arrays here are intentionally left uninitialized for performance.
     // Only the necessary entries are initialized and used.
 
-    // Determine layer orders
+    // Determine layer order
     static constexpr std::array<LayerIndex, 3> kLayersInit{LYR_Back, LYR_Back, LYR_Back};
     alignas(16) std::array<std::array<LayerIndex, 3>, kMaxResH> scanline_layers;
     std::fill_n(scanline_layers.begin(), m_HRes, kLayersInit);
