@@ -1054,7 +1054,8 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
     IVDPRenderer::VDP2UpdateEnabledBGs(m_state.regs2, m_vdp2DebugRenderOptions);
 
-    m_context->cpuVDP2RenderConfig.layerEnabled = bit::gather_array<uint32>(m_layerEnabled);
+    m_context->cpuVDP2RenderConfig.layerEnabled =
+        bit::gather_array<uint32>(m_layerEnabled) | (bit::gather_array<uint32>(m_state.regs2.bgEnabled) << 16u);
 
     auto &state = m_context->cpuVDP2BGRenderState;
     for (uint32 i = 0; i < 4; ++i) {
