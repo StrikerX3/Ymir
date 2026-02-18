@@ -12,6 +12,9 @@ cbuffer Config : register(b0) {
 // -----------------------------------------------------------------------------
 
 Texture2DArray<uint4> bgIn : register(t0); // [0-3] = NBG0-3, [4-5] = RBG0-1
+// TODO: spriteIn (normal and mesh layers)
+// TODO: composeParams
+
 RWTexture2D<float4> textureOut : register(u0);
 
 // -----------------------------------------------------------------------------
@@ -35,6 +38,15 @@ static const uint4 kTransparentPixel = uint4(0, 0, 0, 128);
 
 // -----------------------------------------------------------------------------
 
+bool BitTest(uint value, uint bit) {
+    return ((value >> bit) & 1) != 0;
+}
+
+uint BitExtract(uint value, uint offset, uint length) {
+    const uint mask = (1u << length) - 1u;
+    return (value >> offset) & mask;
+}
+
 // The alpha channel of the layer textures contains pixel attributes:
 // bits  use
 //  0-3  Priority (0 to 7)
@@ -48,16 +60,16 @@ struct Attributes {
 
 Attributes ToAttributes(uint pixelData) {
     Attributes attrs;
-    attrs.priority = pixelData & 7;
-    attrs.specColorCalc = (pixelData >> 6) & 1;
-    attrs.transparent = (pixelData >> 7) & 1;
+    attrs.priority = BitExtract(pixelData, 0, 3);
+    attrs.specColorCalc = BitTest(pixelData, 6);
+    attrs.transparent = BitTest(pixelData, 7);
     return attrs;
 }
 
 uint GetY(uint y) {
-    const bool interlaced = config.displayParams & 1;
-    const bool odd = (config.displayParams >> 1) & 1;
-    const bool exclusiveMonitor = (config.displayParams >> 2) & 1;
+    const bool interlaced = BitTest(config.displayParams, 0);
+    const uint odd = BitExtract(config.displayParams, 1, 1);
+    const bool exclusiveMonitor = BitTest(config.displayParams, 2);
     if (interlaced && !exclusiveMonitor) {
         return (y << 1) | (odd /* TODO & !deinterlace */);
     } else {
@@ -68,11 +80,11 @@ uint GetY(uint y) {
 // -----------------------------------------------------------------------------
 
 bool IsBGLayerEnabled(uint bgLayer) {
-    return (config.layerEnabled >> (bgLayer + 16)) & 1;
+    return BitTest(config.layerEnabled, bgLayer + 16);
 }
 
 bool IsLayerEnabled(uint layer) {
-    return (config.layerEnabled >> layer) & 1;
+    return BitTest(config.layerEnabled, layer);
 }
 
 uint4 GetLayerOutput(uint index, uint2 pos) {
@@ -124,7 +136,7 @@ uint3 Compose(uint2 pos) {
         // Insert the layer into the appropriate position in the stack
         // - Higher priority beats lower priority
         // - If same priority, lower Layer index beats higher Layer index
-        // - layers[0] is topmost (first) layer
+        // - layerStack[0] is topmost (first) layer
         for (int i = 0; i < 3; i++) {
             if (attrs.priority > layerPrios[i] || (attrs.priority == layerPrios[i] && layer < layerStack[i])) {
                 // Push layers back
@@ -138,6 +150,8 @@ uint3 Compose(uint2 pos) {
             }
         }
     }
+    
+    // TODO: sprite mesh layer
     
     const uint4 topOut = GetLayerOutput(layerStack[0], pos);
     return topOut.rgb;

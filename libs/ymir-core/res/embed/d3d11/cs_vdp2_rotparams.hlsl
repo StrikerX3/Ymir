@@ -104,6 +104,15 @@ int i64_mul32x32_mid32(int x, int y) {
 
 // -----------------------------------------------------------------------------
 
+bool BitTest(uint value, uint bit) {
+    return ((value >> bit) & 1) != 0;
+}
+
+uint BitExtract(uint value, uint offset, uint length) {
+    const uint mask = (1u << length) - 1u;
+    return (value >> offset) & mask;
+}
+
 int SignExtend(int value, int bits) {
     const uint shift = 32 - bits;
     return (value << shift) >> shift;
@@ -121,16 +130,8 @@ uint ByteSwap32(uint val) {
            ((val << 24) & 0xFF000000);
 }
 
-uint ReadVRAM4(uint address, uint nibble) {
-    return (vram.Load(address & ~3) >> ((address & 3) * 8 + nibble * 4)) & 0xF;
-}
-
-uint ReadVRAM8(uint address) {
-    return vram.Load(address & ~3) >> ((address & 3) * 8) & 0xFF;
-}
-
 uint ReadVRAM16(uint address) {
-    return ByteSwap16(vram.Load(address & ~3) >> ((address & 2) * 8));
+    return ByteSwap16(BitExtract(vram.Load(address & ~3), (address & 2) * 8, 16));
 }
 
 // Expects address to be 32-bit-aligned
@@ -139,7 +140,7 @@ uint ReadVRAM32(uint address) {
 }
 
 uint ReadCRAMCoeff16(uint address) {
-    return ByteSwap16(cramCoeff.Load(address & ~3) >> ((address & 2) * 8));
+    return ByteSwap16(BitExtract(cramCoeff.Load(address & ~3), (address & 2) * 8, 16));
 }
 
 // Expects address to be 32-bit-aligned
@@ -229,31 +230,29 @@ RotTable ReadRotTable(const uint address) {
 }
 
 bool CanFetchCoefficient(uint2 rotParams, uint coeffAddress) {
-    const bool coeffTableCRAM = (rotParams.x >> 1) & 1;
+    const bool coeffTableCRAM = BitTest(rotParams.x, 1);
     if (coeffTableCRAM) {
         return true;
     }
 
-    const bool coeffDataPerDot = (rotParams.x >> 9) & 1;
+    const bool coeffDataPerDot = BitTest(rotParams.x, 9);
     if (!coeffDataPerDot) {
         return true;
     }
 
-    const uint coeffDataSize = (rotParams.x >> 2) & 1;
-    const uint coeffDataAccess = (rotParams.x >> 5) & 0xF;
-    
+    const uint coeffDataSize = BitExtract(rotParams.x, 2, 1);
+    const uint coeffDataAccess = BitExtract(rotParams.x, 5, 4);
     const uint offset = coeffAddress >> 10u;
     const uint address = (offset * 4) >> coeffDataSize;
-    const uint bank = (address >> 17) & 3;
-    return (coeffDataAccess >> bank) & 1;
+    const uint bank = BitExtract(address, 17, 2);
+    return BitTest(coeffDataAccess, bank);
 }
 
 RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
     const uint offset = coeffAddress >> 10;
-    const bool coeffTableCRAM = (rotParams.x >> 1) & 1;
-    const bool coeffDataSize = (rotParams.x >> 2) & 1;
-    const uint coeffDataMode = (rotParams.x >> 3) & 3;
-    const bool coeffDataAccess = (rotParams.x >> 5) & 0xF;
+    const bool coeffTableCRAM = BitTest(rotParams.x, 1);
+    const bool coeffDataSize = BitTest(rotParams.x, 2);
+    const uint coeffDataMode = BitExtract(rotParams.x, 3, 2);
 
     RotCoefficient coeff;
     
@@ -271,7 +270,7 @@ RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
         const uint data = coeffTableCRAM ? ReadCRAMCoeff16(address) : ReadVRAM16(address);
         coeff.value = SignExtend(data, 15);
         coeff.lineColorData = 0;
-        coeff.transparent = (data >> 15) & 1;
+        coeff.transparent = BitTest(data, 15);
 
         if (coeffDataMode == kCoeffDataModeViewpointX) {
             coeff.value <<= 14;
@@ -283,8 +282,8 @@ RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
         const uint address = offset * 4;
         const uint data = coeffTableCRAM ? ReadCRAMCoeff32(address) : ReadVRAM32(address);
         coeff.value = SignExtend(data, 24);
-        coeff.lineColorData = (data >> 24) & 0x7F;
-        coeff.transparent = (data >> 31) & 1;
+        coeff.lineColorData = BitExtract(data, 24, 7);
+        coeff.transparent = BitTest(data, 31);
 
         if (coeffDataMode == kCoeffDataModeViewpointX) {
             coeff.value <<= 8;
@@ -298,10 +297,10 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     const RotParamBase base = rotParamBases[index];
     const uint2 rotParam = rotParams[index];
     
-    const bool coeffTableEnable = (rotParam.x >> 0) & 1;
-    const uint coeffDataMode = (rotParam.x >> 3) & 3;
-    const bool coeffDataPerDot = (rotParam.x >> 9) & 1;
-    const bool fbRotEnable = (rotParam.x >> 10) & 1;
+    const bool coeffTableEnable = BitTest(rotParam.x, 0);
+    const uint coeffDataMode = BitExtract(rotParam.x, 3, 2);
+    const bool coeffDataPerDot = BitTest(rotParam.x, 9);
+    const bool fbRotEnable = BitTest(rotParam.x, 10);
     
     const RotTable t = ReadRotTable(base.tableAddress);
 
