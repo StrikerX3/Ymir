@@ -313,8 +313,8 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     // expand to 10 frac bits
     // 10 - 10 = 10 frac bits
     // 23 - 24 = 24 total bits
-    const int Xst = base.Xst + (pos.y - config.startY) * t.deltaXst;
-    const int Yst = base.Yst + (pos.y - config.startY) * t.deltaYst;
+    const int Xst = base.Xst + pos.y * t.deltaXst;
+    const int Yst = base.Yst + pos.y * t.deltaYst;
     const int Zst = t.Zst;
     Tx = Xst - (t.Px << 10);
     Ty = Yst - (t.Py << 10);
@@ -350,7 +350,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     if (coeffTableEnable) {
         // Current coefficient address (16.10)
         const uint KAxofs = coeffDataPerDot ? pos.x * t.dKAx : 0;
-        const uint KA = base.KA + KAxofs + pos.y * t.dKAst;
+        const uint KA = base.KA + pos.y * t.dKAst + KAxofs;
 
         // Read and apply rotation coefficient
         coeff = ReadRotCoefficient(rotParam, KA);
@@ -397,8 +397,8 @@ RotParamState CalcRotation(uint2 pos, uint index) {
         // Current sprite coordinates (13.10)
         // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
         // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
-        const int sprX = t.Xst + pos.x * t.deltaX + pos.y * t.deltaXst;
-        const int sprY = t.Yst + pos.x * t.deltaY + pos.y * t.deltaYst;
+        const int sprX = t.Xst + pos.y * t.deltaXst + pos.x * t.deltaX;
+        const int sprY = t.Yst + pos.y * t.deltaYst + pos.x * t.deltaY;
 
         // Pack resulting sprite coordinates (13.0)
         result.spriteCoords = ((sprX >> 10) & 0xFFFF) | ((sprY >> 10) << 16);
@@ -414,7 +414,6 @@ RotParamState CalcRotation(uint2 pos, uint index) {
 
 [numthreads(32, 1, 2)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = id.xy + uint2(0, config.startY);
-    const uint outIndex = drawCoord.x + drawCoord.y * kRotParamLinePitch + id.z * kRotParamEntryStride;
-    rotParamOut[outIndex] = CalcRotation(drawCoord, id.z);
+    const uint outIndex = id.x + (id.y + config.startY) * kRotParamLinePitch + id.z * kRotParamEntryStride;
+    rotParamOut[outIndex] = CalcRotation(id.xy, id.z);
 }
