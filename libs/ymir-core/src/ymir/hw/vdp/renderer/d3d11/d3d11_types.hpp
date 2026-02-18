@@ -56,7 +56,19 @@ struct alignas(16) VDP2RenderConfig {
                                       //          3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
         D3DUint hiResH : 1;           //     5  Horizontal resolution    0=320/352; 1=640/704
     } displayParams;
-    D3DUint startY; // Top Y coordinate of target rendering area
+
+    // Top Y coordinate of target rendering area
+    D3DUint startY;
+
+    // Layer enable state based on BGON and other factors
+    // bit  RBG0+RBG1   RBG0        RBG1        no RBGs
+    //   0  Sprite      Sprite      Sprite      Sprite
+    //   1  RBG0        RBG0        -           -
+    //   2  RBG1        NBG0        RBG1        NBG0
+    //   3  EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+    //   4  -           NBG2        NBG2        NBG2
+    //   5  -           NBG3        NBG3        NBG3
+    D3DUint layerEnabled;
 };
 
 struct BGRenderParams {
