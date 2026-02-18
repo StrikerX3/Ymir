@@ -318,7 +318,7 @@ Character ExtractOneWordCharacter(uint4 bgParams, uint charData) {
     if (colorFormat != kColorFormatPalette16) {
         ch.palNum = ((charData >> 12) & 7) << 8;
     } else {
-        ch.palNum = (((charData >> 12) & 0xF) | (supplScrollPalNum << 4)) << 4;
+        ch.palNum = (((charData >> 12) & 0xF) | supplScrollPalNum) << 4;
     }
     ch.specColorCalc = supplScrollSpecialColorCalc;
     ch.specPriority = supplScrollSpecialPriority;
@@ -514,6 +514,7 @@ uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, bool 
     //   const uint2 charPatPos = ((scrollPos >> 3) & 0x3F) >> cellSizeShift;
     // When cellSizeShift is derived from a masked/shifted value, the compiler merges the two shifts into one:
     //   const uint2 charPatPos = (scrollPos >> (3 + cellSizeShift) & 0x3F;
+    // See https://shader-playground.timjones.io/1df21a52a4e485bd355e1c9bab45bbd8
     const uint2 baseCharPatPos = (scrollPos >> 3) & 0x3F;
     const uint2 charPatPos = cellSizeShift ? (baseCharPatPos >> 1) : baseCharPatPos;
     const uint charIndex = charPatPos.x + (charPatPos.y << (6 - cellSizeShift));
