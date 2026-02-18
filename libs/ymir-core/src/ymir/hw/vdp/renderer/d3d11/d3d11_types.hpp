@@ -244,7 +244,7 @@ struct alignas(16) VDP2RotParamData {
 // -----------------------------------------------------------------------------
 
 struct alignas(16) VDP2ComposeParams { //  bits  use
-    D3DUint colorCalcEnable : 8;       //   0-7  Color calculation enable flags    0=disable; 1=enable
+    D3DUint colorCalcEnable : 8;       //   0-7  Use color calculation per layer  0=disable; 1=enable
                                        //          0 = sprite
                                        //          1 = RBG0
                                        //          2 = RBG1/NBG0
@@ -255,9 +255,9 @@ struct alignas(16) VDP2ComposeParams { //  bits  use
                                        //          7 = Line screen
     D3DUint extendedColorCalc : 1;     //     8  Use extended color calculation   0=disable; 1=enable
                                        //          (always disabled in hi-res modes)
-    D3DUint blendMode : 1;             //     9  Blend mode                  0=alpha; 1=additive
-    D3DUint useSecondScreenRatio : 1;  //    10  Use second screen ratio     0=top screen; 1=second screen
-    D3DUint colorOffsetEnable : 7;     // 11-17  Color offset enable flags   0=disable; 1=enable
+    D3DUint blendMode : 1;             //     9  Blend mode                       0=alpha; 1=additive
+    D3DUint useSecondScreenRatio : 1;  //    10  Use second screen ratio          0=top screen; 1=second screen
+    D3DUint colorOffsetEnable : 7;     // 11-17  Color offset enable per layer    0=disable; 1=enable
                                        //          0 = Sprite
                                        //          1 = RBG0
                                        //          2 = NBG0/RBG1
@@ -265,7 +265,7 @@ struct alignas(16) VDP2ComposeParams { //  bits  use
                                        //          4 = NBG2
                                        //          5 = NBG3
                                        //          6 = Back screen
-    D3DUint colorOffsetSelect : 7;     // 18-24  Color offset selector       0=A; 1=B
+    D3DUint colorOffsetSelect : 7;     // 18-24  Color offset select per layer    0=A; 1=B
                                        //          0 = Sprite
                                        //          1 = RBG0
                                        //          2 = NBG0/RBG1
@@ -273,9 +273,30 @@ struct alignas(16) VDP2ComposeParams { //  bits  use
                                        //          4 = NBG2
                                        //          5 = NBG3
                                        //          6 = Back screen
+    D3DUint lineColorEnable : 7;       // 25-31  Line color enable per layer      0=disable; 1=enable
+                                       //          0 = Sprite
+                                       //          1 = RBG0
+                                       //          2 = NBG0/RBG1
+                                       //          3 = NBG1/EXBG
+                                       //          4 = NBG2
+                                       //          5 = NBG3
+                                       //          6 = Back screen (always false), but simplifies shader implementation
 
     D3DInt3 colorOffsetA; // Color offset A (RGB999)
     D3DInt3 colorOffsetB; // Color offset B (RGB999)
+
+    D3DUint bgColorCalcRatios; // NBG/RBG color calculation ratios (bit packed)
+                               //  bits  layer
+                               //   0-4  RBG0
+                               //   5-9  NBG0/RBG1
+                               // 10-14  NBG1/EXBG
+                               // 15-19  NBG2
+                               // 20-24  NBG3
+
+    D3DUint backLineColorCalcRatios; // Back/line screen color calculation ratios (bit packed)
+                                     //  bits  layer
+                                     //   0-4  Back screen
+                                     //   5-9  Line screen
 };
 
 } // namespace ymir::vdp
