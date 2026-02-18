@@ -3852,9 +3852,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             }
         }
 
-        // Extended color calculations (only in normal TV modes)
-        const bool useExtendedColorCalc = colorCalcParams.extendedColorCalcEnable && regs.TVMD.HRESOn < 2;
-
         const bool doubleResH = regs.TVMD.HRESOn & 0b010;
         const uint32 xShift = doubleResH ? 1 : 0;
 
@@ -3884,6 +3881,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
                 break;
             }
         }
+
+        // Extended color calculations (only in normal TV modes)
+        const bool useExtendedColorCalc = colorCalcParams.extendedColorCalcEnable && regs.TVMD.HRESOn < 2;
 
         // Apply extended color calculations to layer 1
         if (useExtendedColorCalc) {

@@ -2,7 +2,7 @@ struct Config {
     uint displayParams;
     uint startY;
     uint layerEnabled;
-    uint _padding;
+    uint _reserved;
 };
 
 struct Window {
@@ -55,7 +55,7 @@ StructuredBuffer<RotParamState> rotParamState : register(t4);
 
 // The alpha channel of the output is used for pixel attributes as follows:
 // bits  use
-//  0-3  Priority (0 to 7)
+//  0-2  Priority (0 to 7)
 //    6  Special color calculation flag
 //    7  Transparent flag (0=opaque, 1=transparent)
 RWTexture2DArray<uint4> bgOut : register(u0);
