@@ -165,6 +165,7 @@ private:
 
     uint32 m_nextVDP2BGY;
     uint32 m_nextVDP2ComposeY;
+    uint32 m_nextVDP2RotBasesY;
 
     struct Context;
     std::unique_ptr<Context> m_context;
