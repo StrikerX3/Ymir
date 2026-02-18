@@ -1,7 +1,8 @@
 struct Config {
     uint displayParams;
     uint startY;
-    uint2 _padding;
+    uint layerEnabled;
+    uint _padding;
 };
 
 struct Window {
