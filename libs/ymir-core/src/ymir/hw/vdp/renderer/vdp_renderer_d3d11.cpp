@@ -1622,6 +1622,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
     params.useSecondScreenRatio = regs2.colorCalcParams.useSecondScreenRatio;
     params.colorOffsetEnable = bit::gather_array<uint32>(regs2.colorOffsetEnable);
     params.colorOffsetSelect = bit::gather_array<uint32>(regs2.colorOffsetSelect);
+    params.useSecondScreenRatio = 0                                                 //
+                                  | (regs2.spriteParams.lineColorScreenEnable << 0) //
+                                  | (regs2.bgParams[0].lineColorScreenEnable << 1)  //
+                                  | (regs2.bgParams[1].lineColorScreenEnable << 2)  //
+                                  | (regs2.bgParams[2].lineColorScreenEnable << 3)  //
+                                  | (regs2.bgParams[3].lineColorScreenEnable << 4)  //
+                                  | (regs2.bgParams[4].lineColorScreenEnable << 5)  //
+        ;
 
     params.colorOffsetA.r = bit::sign_extend<9>(regs2.colorOffset[0].r);
     params.colorOffsetA.g = bit::sign_extend<9>(regs2.colorOffset[0].g);
@@ -1630,6 +1638,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
     params.colorOffsetB.r = bit::sign_extend<9>(regs2.colorOffset[1].r);
     params.colorOffsetB.g = bit::sign_extend<9>(regs2.colorOffset[1].g);
     params.colorOffsetB.b = bit::sign_extend<9>(regs2.colorOffset[1].b);
+
+    params.bgColorCalcRatios = 0                                          //
+                               | (regs2.bgParams[0].colorCalcRatio << 0)  //
+                               | (regs2.bgParams[1].colorCalcRatio << 5)  //
+                               | (regs2.bgParams[2].colorCalcRatio << 10) //
+                               | (regs2.bgParams[3].colorCalcRatio << 15) //
+                               | (regs2.bgParams[4].colorCalcRatio << 20) //
+        ;
+
+    params.backLineColorCalcRatios = 0                                              //
+                                     | (regs2.backScreenParams.colorCalcRatio << 0) //
+                                     | (regs2.lineScreenParams.colorCalcRatio << 5) //
+        ;
 
     auto *ctx = m_context->deferredCtx;
 

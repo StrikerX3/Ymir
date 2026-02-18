@@ -9,7 +9,9 @@ struct ComposeParams {
     uint params;
     int3 colorOffsetA;
     int3 colorOffsetB;
-    uint _reserved;
+    uint bgColorCalcRatios;
+    uint backLineColorCalcRatios;
+    uint3 _reserved;
 };
 
 // -----------------------------------------------------------------------------
@@ -32,6 +34,7 @@ static const uint kBGLayerNBG2 = 2;
 static const uint kBGLayerNBG3 = 3;
 static const uint kBGLayerRBG0 = 4;
 static const uint kBGLayerRBG1 = 5;
+static const uint kBGLayerInvalid = 6;
 
 static const uint kLayerSprite = 0;
 static const uint kLayerRBG0 = 1;
@@ -95,31 +98,74 @@ bool IsLayerEnabled(uint layer) {
     return BitTest(config.layerEnabled, layer);
 }
 
+uint GetBGLayerIndex(uint layer) {
+    switch (layer) {
+        case kLayerRBG0:
+            return kBGLayerRBG0;
+        case kLayerNBG0_RBG1:
+            return IsBGLayerEnabled(kBGLayerRBG1) ? kBGLayerRBG1 : kBGLayerNBG0;
+        case kLayerNBG1_EXBG:
+            return kBGLayerNBG1;
+        case kLayerNBG2:
+            return kBGLayerNBG2;
+        case kLayerNBG3:
+            return kBGLayerNBG3;
+        default:
+            return kBGLayerInvalid; // go out of bounds intentionally to read blanks
+    }
+}
+
 bool IsColorCalcEnabled(uint layer, uint2 pos) {
     if (layer > kLayerBack) {
         return false;
     }
-    if (!BitTest(composeParams[0].params.x, layer)) {
+    if (!BitTest(composeParams[0].params, layer)) {
+        // Color calculation is disabled for this layer
         return false;
     }
     if (layer == kLayerSprite) {
         // TODO: check sprite pixel attributes at [pos]
+        return false;
     }
-    return true;
+    // BG layers use the per-pixel special color calculation flag
+    const uint bgLayer = GetBGLayerIndex(layer);
+    const uint attrs = bgIn[uint3(pos.xy, bgLayer)].w;
+    return BitTest(attrs, 6);
 }
 
 bool IsLineColorEnabled(uint layer, uint2 pos) {
-    // TODO: implement
-    return false;
+    return BitTest(composeParams[0].params, layer + 25);
+}
+
+uint3 GetLineColor(uint layer, uint2 pos) {
+    if (layer == kBGLayerRBG0 || (layer == kBGLayerRBG1 && IsBGLayerEnabled(kBGLayerRBG1))) {
+        // TODO: get from RBG line color texture at [pos]
+    }
+    // TODO: get line color data for [pos.y]
+    return uint3(0, 0, 0);
 }
 
 int GetColorCalcRatio(uint layer, uint2 pos) {
-    // TODO: implement
-    return 15;
+    switch (layer) {
+        case kLayerSprite:
+            // TODO: check sprite pixel attributes at [pos]
+            return 31;
+        case kLayerRBG0:
+        case kLayerNBG0_RBG1:
+        case kLayerNBG1_EXBG:
+        case kLayerNBG2:
+        case kLayerNBG3:
+            return BitExtract(composeParams[0].bgColorCalcRatios, (layer - kBGLayerRBG0) * 5, 5);
+        case kLayerBack:
+        case kLayerLine:
+            return BitExtract(composeParams[0].backLineColorCalcRatios, (layer - kLayerBack) * 5, 5);
+        default:
+            return 31;
+    }
 }
 
 bool IsColorOffsetEnabled(uint layer) {
-    return BitTest(composeParams[0].params.x, layer + 11);
+    return BitTest(composeParams[0].params, layer + 11);
 }
 
 int3 GetColorOffset(uint layer) {
@@ -132,15 +178,11 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
         case kLayerSprite:
             return kTransparentPixel; // TODO: read from sprite layer output
         case kLayerRBG0:
-            return bgIn[uint3(pos.xy, kBGLayerRBG0)];
         case kLayerNBG0_RBG1:
-            return bgIn[uint3(pos.xy, IsBGLayerEnabled(kBGLayerRBG1) ? kBGLayerRBG1 : kBGLayerNBG0)];
         case kLayerNBG1_EXBG:
-            return bgIn[uint3(pos.xy, kBGLayerNBG1)];
         case kLayerNBG2:
-            return bgIn[uint3(pos.xy, kBGLayerNBG2)];
         case kLayerNBG3:
-            return bgIn[uint3(pos.xy, kBGLayerNBG3)];
+            return bgIn[uint3(pos.xy, GetBGLayerIndex(layer))];
         case kLayerBack:
             return kTransparentPixel; // TODO: read from back screen output
         default:
@@ -197,9 +239,9 @@ uint3 Compose(uint2 pos) {
     
     const bool layer0ColorCalcEnabled = IsColorCalcEnabled(layerStack[0], pos);
     const bool layer0LineColorEnabled = IsLineColorEnabled(layerStack[0], pos);
-    const bool extendedColorCalc = BitTest(composeParams[0].params.x, 8);
-    const bool useAdditiveBlend = BitTest(composeParams[0].params.x, 9);
-    const bool useSecondScreenRatio = BitTest(composeParams[0].params.x, 10);
+    const bool extendedColorCalc = BitTest(composeParams[0].params, 8);
+    const bool useAdditiveBlend = BitTest(composeParams[0].params, 9);
+    const bool useSecondScreenRatio = BitTest(composeParams[0].params, 10);
 
     const uint4 layer0Pixel = GetLayerOutput(layerStack[0], pos);
     uint4 layer1Pixel = GetLayerOutput(layerStack[1], pos);
@@ -216,30 +258,29 @@ uint3 Compose(uint2 pos) {
         }
         
         if (layer0LineColorEnabled) {
+            const uint3 lineColor = GetLineColor(layerStack[0], pos);
             if (IsColorCalcEnabled(kLayerLine, pos)) {
                 // TODO: blend line color
             } else {
                 // TODO: replace with line color
             }
         }
-    } else {
-        if (layer0LineColorEnabled) {
-            // TODO: replace layer 1 pixel with line color screen
-        }
+    } else if (layer0LineColorEnabled) {
+        // TODO: replace layer 1 pixel with line color screen
     }
     
     // TODO: blend layer 1 with sprite mesh layer colors
     
-    if (useAdditiveBlend) {
-        output = min(layer0Pixel.rgb + layer1Pixel.rgb, 255);
-    } else {
-        if (layer0ColorCalcEnabled) {
+    if (layer0ColorCalcEnabled) {
+        if (useAdditiveBlend) {
+            output = min(layer0Pixel.rgb + layer1Pixel.rgb, 255);
+        } else {
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
             const int ratio = GetColorCalcRatio(ratioLayer, pos);
             output = int3(layer1Pixel.rgb) + (int3(layer0Pixel.rgb) - int3(layer1Pixel.rgb)) * ratio / 32;
-        } else {
-            output = layer0Pixel.rgb;
         }
+    } else {
+        output = layer0Pixel.rgb;
     }
     
     // TODO: blend layer 0 with sprite mesh layer colors
