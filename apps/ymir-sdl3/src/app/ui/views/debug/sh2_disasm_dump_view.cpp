@@ -6,6 +6,8 @@
 
 #include <imgui.h>
 
+#include <utility>
+
 using namespace ymir;
 
 namespace app::ui {
@@ -18,7 +20,6 @@ SH2DisasmDumpView::SH2DisasmDumpView(SharedContext &context, sh2::SH2 &sh2)
 
 void SH2DisasmDumpView::OpenPopup() {
     ResetRangeFromPC();
-    m_errorMessage.clear();
     ImGui::OpenPopup(kPopupName);
 }
 
@@ -27,7 +28,7 @@ void SH2DisasmDumpView::Display() {
     constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_AlwaysAutoResize;
 
     // try popup window
-    if (!ImGui::BeginPopupModal(kPopupName, nullptr, flags)) {
+    if (!ImGui::BeginPopupContextWindow(kPopupName)) {
         return;
     }
 
@@ -39,44 +40,51 @@ void SH2DisasmDumpView::Display() {
     const float framePadding = ImGui::GetStyle().FramePadding.x;
     const float fieldWidth = framePadding * 2 + hexCharWidth * 8;
 
-    ImGui::TextUnformatted("Address range (hex)");
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Addresses:");
 
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(fieldWidth);
     ImGui::PushFont(m_context.fonts.monospace.regular, fontSize);
-    ImGui::SetNextItemWidth(fieldWidth);
-    ImGui::InputScalar("Start", ImGuiDataType_U32, &m_startAddress, nullptr, nullptr, "%08X",
-                       ImGuiInputTextFlags_CharsHexadecimal);
-    ImGui::SetNextItemWidth(fieldWidth);
-    ImGui::InputScalar("End", ImGuiDataType_U32, &m_endAddress, nullptr, nullptr, "%08X",
-                       ImGuiInputTextFlags_CharsHexadecimal);
+    if (ImGui::InputScalar("##start", ImGuiDataType_U32, &m_startAddress, nullptr, nullptr, "%08X",
+                           ImGuiInputTextFlags_CharsHexadecimal)) {
+        m_endAddress = std::max<uint32>(m_startAddress, m_endAddress);
+    }
     ImGui::PopFont();
 
-    ImGui::Checkbox("Keep open", &m_keepOpen);
-    ImGui::Checkbox("Binary dump", &m_binDump);
-    ImGui::Checkbox("Disasm dump", &m_disasmDump);
+    ImGui::SameLine();
+    ImGui::TextUnformatted("to");
 
-    if (!m_errorMessage.empty()) {
-        ImGui::TextColored(m_context.colors.warn, "%s", m_errorMessage.c_str());
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(fieldWidth);
+    ImGui::PushFont(m_context.fonts.monospace.regular, fontSize);
+    if (ImGui::InputScalar("##end", ImGuiDataType_U32, &m_endAddress, nullptr, nullptr, "%08X",
+                           ImGuiInputTextFlags_CharsHexadecimal)) {
+        m_startAddress = std::min<uint32>(m_startAddress, m_endAddress);
     }
+    ImGui::PopFont();
 
-    if (ImGui::Button("Dump")) {
-        uint32 start = m_startAddress & ~1u;
-        uint32 end = m_endAddress & ~1u;
-        if (end < start) {
-            m_errorMessage = "Start address must be <= End address.";
-        } else {
-            m_startAddress = start;
-            m_endAddress = end;
-            m_errorMessage.clear();
-            m_context.EnqueueEvent(events::emu::debug::DumpDisasmView(start, end, m_sh2.IsMaster(), m_disasmDump, m_binDump));
+    m_startAddress &= ~1u;
+    m_endAddress &= ~1u;
+
+    ImGui::Checkbox("Keep open", &m_keepOpen);
+
+    auto disasmButton = [&](const char *name, bool disasmDump, bool binaryDump) {
+        ImGui::SameLine();
+        if (ImGui::Button(name)) {
+            m_context.EnqueueEvent(events::emu::debug::DumpDisasmView(m_startAddress, m_endAddress, m_sh2.IsMaster(),
+                                                                      disasmDump, binaryDump));
             if (!m_keepOpen) {
                 ImGui::CloseCurrentPopup();
             }
         }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Close")) {
-        ImGui::CloseCurrentPopup();
-    }
+    };
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Dump:");
+    disasmButton("Disassembly", true, false);
+    disasmButton("Binary", false, true);
+    disasmButton("Both", true, true);
 
     ImGui::EndPopup();
 }

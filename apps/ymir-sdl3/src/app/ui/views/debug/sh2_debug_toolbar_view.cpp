@@ -123,8 +123,11 @@ void SH2DebugToolbarView::Display() {
         m_disasmDumpView.OpenPopup();
     }
     if (ImGui::BeginItemTooltip()) {
-        ImGui::TextUnformatted("Dump disassembly range");
+        ImGui::TextUnformatted("Dump disassembly range (Ctrl+D)");
         ImGui::EndTooltip();
+    }
+    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_D)) {
+        m_disasmDumpView.OpenPopup();
     }
     m_disasmDumpView.Display();
 
