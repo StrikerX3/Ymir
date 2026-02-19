@@ -138,7 +138,7 @@ void SH2DisassemblyView::Display() {
             // Handle keyboard navigation
             // The cursor can be freely moved when not following PC or while the emulator is paused
             if (childWindowFocused) {
-                if (io.KeyMods == 0 && ImGui ::IsKeyPressed(ImGuiKey_UpArrow)) {
+                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
                     m_model.followPC = false;
                     MoveCursor(m_cursor.address - sizeof(uint16), lines);
                 }
@@ -164,6 +164,9 @@ void SH2DisassemblyView::Display() {
                     MoveCursor(m_cursor.address + lines * sizeof(uint16), lines);
                 }
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
+                    toggleBreakpoint(m_cursor.address);
+                }
+                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
                     toggleBreakpoint(m_cursor.address);
                 }
                 /*if (io.KeyMods == ImGuiMod_Shift && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
@@ -322,7 +325,7 @@ void SH2DisassemblyView::Display() {
                     if (ImGui::BeginItemTooltip()) {
                         ImGui::Separator();
                         ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.medium);
-                        ImGui::TextUnformatted("Click to toggle breakpoint");
+                        ImGui::TextUnformatted("Click to toggle breakpoint (F9, B)");
                         ImGui::PopFont();
                         ImGui::EndTooltip();
                     }
