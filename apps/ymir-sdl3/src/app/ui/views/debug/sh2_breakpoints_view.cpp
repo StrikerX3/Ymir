@@ -2,6 +2,8 @@
 
 #include <ymir/hw/sh2/sh2.hpp>
 
+#include <app/ui/fonts/IconsMaterialSymbols.h>
+
 #include <app/events/emu_event_factory.hpp>
 
 #include <imgui.h>
@@ -53,22 +55,36 @@ void SH2BreakpointsView::Display() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Add")) {
+    if (ImGui::Button(ICON_MS_ADD)) {
         std::unique_lock lock{m_context.locks.breakpoints};
         m_sh2.AddBreakpoint(m_address);
         m_context.debuggers.MakeDirty();
     }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Add");
+        ImGui::EndTooltip();
+    }
+
     ImGui::SameLine();
-    if (ImGui::Button("Remove")) {
+    if (ImGui::Button(ICON_MS_REMOVE)) {
         std::unique_lock lock{m_context.locks.breakpoints};
         m_sh2.RemoveBreakpoint(m_address);
         m_context.debuggers.MakeDirty();
     }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Remove");
+        ImGui::EndTooltip();
+    }
+
     ImGui::SameLine();
-    if (ImGui::Button("Clear")) {
+    if (ImGui::Button(ICON_MS_CLEAR_ALL)) {
         std::unique_lock lock{m_context.locks.breakpoints};
         m_sh2.ClearBreakpoints();
         m_context.debuggers.MakeDirty();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Clear all");
+        ImGui::EndTooltip();
     }
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
@@ -96,7 +112,7 @@ void SH2BreakpointsView::Display() {
                 }
             }
             if (ImGui::TableNextColumn()) {
-                if (ImGui::Button(fmt::format("Remove##{}", i).c_str())) {
+                if (ImGui::Button(fmt::format(ICON_MS_DELETE "##{}", i).c_str())) {
                     std::unique_lock lock{m_context.locks.breakpoints};
                     m_sh2.RemoveBreakpoint(address);
                     m_context.debuggers.MakeDirty();
