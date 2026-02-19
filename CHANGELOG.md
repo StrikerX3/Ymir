@@ -56,7 +56,7 @@ Introduced save state file version 12.
 - VDP2-SW: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
 - VDP2-SW: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
 - VDP2-SW: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
-- VDP2-Sw: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
+- VDP2-SW: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 
 
 ## Version 0.2.1
