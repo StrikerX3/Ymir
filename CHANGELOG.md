@@ -14,6 +14,12 @@ Introduced save state file version 12.
 - App: Warn users about Flatpak filesystem permissions if the app is running in its sandbox and a disc image fails to load.
 - Backup RAM: Support in-memory and copy-on-write memory-mapped files in addition to regular memory-mapped files.
 - Build: Support Profile-Guided Optimization (PGO) builds. (#742; @mmkzer0)
+- Debugger: Allow scrolling the SH2 disassembly view. (#743; @mmkzer0)
+- Debugger: Implement keyboard navigation and interactions in the SH2 disassembly view:
+    - Up/down arrow keys: move cursor up/down one instruction.
+    - Page up/down: move cursor up/down one page.
+    - Home/end: move cursor to the top/bottom of the viewport.
+    - The cursor is kept below 15% of the top and above 35% of the bottom of the viewport.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - Input: Added support for mouse events.
