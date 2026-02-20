@@ -251,43 +251,43 @@ uint3 Compose(uint2 pos) {
     const bool useAdditiveBlend = BitTest(composeParams[0].params, 9);
     const bool useSecondScreenRatio = BitTest(composeParams[0].params, 10);
 
-    const uint4 layer0Pixel = GetLayerOutput(layerStack[0], pos);
-    uint4 layer1Pixel = GetLayerOutput(layerStack[1], pos);
+    const uint3 layer0Pixel = GetLayerOutput(layerStack[0], pos).rgb;
+    uint3 layer1Pixel = GetLayerOutput(layerStack[1], pos).rgb;
     
     if (extendedColorCalc) {
         if (IsColorCalcEnabled(layerStack[1], pos)) {
-            const uint4 layer2Pixel = GetLayerOutput(layerStack[2], pos);
+            const uint3 layer2Pixel = GetLayerOutput(layerStack[2], pos).rgb;
 
             // TODO: blend layer 2 with sprite mesh layer colors
             
-            layer1Pixel.rgb = (layer1Pixel.rgb + layer2Pixel.rgb) >> 1;
+            layer1Pixel = (layer1Pixel + layer2Pixel) >> 1;
         }
         
         if (layer0LineColorEnabled) {
             const uint3 lineColor = GetLineColor(layerStack[0], pos);
             if (IsColorCalcEnabled(kLayerLine, pos)) {
-                layer1Pixel.rgb = (layer1Pixel.rgb + lineColor) >> 1;
+                layer1Pixel = (layer1Pixel + lineColor) >> 1;
             } else {
-                layer1Pixel.rgb = lineColor;
+                layer1Pixel = lineColor;
             }
         }
     } else if (layer0LineColorEnabled) {
-        layer1Pixel.rgb = GetLineColor(layerStack[0], pos);
+        layer1Pixel = GetLineColor(layerStack[0], pos);
     }
     
     // TODO: blend layer 1 with sprite mesh layer colors
     
     if (layer0ColorCalcEnabled) {
         if (useAdditiveBlend) {
-            output = min(layer0Pixel.rgb + layer1Pixel.rgb, 255);
+            output = min(layer0Pixel + layer1Pixel, 255);
         } else {
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
             const int ratio = GetColorCalcRatio(ratioLayer, pos);
-            output = int3(layer1Pixel.rgb) + (int3(layer0Pixel.rgb) - int3(layer1Pixel.rgb)) * ratio / 32;
+            output = int3(layer1Pixel) + (int3(layer0Pixel) - int3(layer1Pixel)) * ratio / 32;
             
         }
     } else {
-        output = layer0Pixel.rgb;
+        output = layer0Pixel;
     }
     
     // TODO: blend layer 0 with sprite mesh layer colors
