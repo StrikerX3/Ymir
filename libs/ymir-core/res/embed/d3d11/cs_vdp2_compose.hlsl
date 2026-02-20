@@ -144,11 +144,10 @@ bool IsLineColorEnabled(uint layer, uint2 pos) {
 }
 
 uint3 GetLineColor(uint layer, uint2 pos) {
-    if (layer == kBGLayerRBG0 || (layer == kBGLayerRBG1 && IsBGLayerEnabled(kBGLayerRBG1))) {
-        // TODO: get from RBG line color texture at [pos]
+    if (layer == kLayerRBG0 || (layer == kLayerNBG0_RBG1 && IsBGLayerEnabled(kBGLayerRBG1))) {
+        return rbgLineColorIn[uint3(pos, layer - kLayerRBG0)].rgb;
     }
-    // TODO: get line color data for [pos.y]
-    return uint3(0, 0, 0);
+    return lineColorIn[uint2(0, pos.y)].rgb;
 }
 
 int GetColorCalcRatio(uint layer, uint2 pos) {
@@ -164,7 +163,7 @@ int GetColorCalcRatio(uint layer, uint2 pos) {
             return BitExtract(composeParams[0].bgColorCalcRatios, (layer - kBGLayerRBG0) * 5, 5);
         case kLayerBack:
         case kLayerLine:
-            return BitExtract(composeParams[0].backLineColorCalcRatios, (layer - kLayerBack) * 5, 5);
+            return BitExtract(composeParams[0].backLineColorCalcRatios, IsColorCalcEnabled(layer, pos) ? 0 : 5, 5);
         default:
             return 31;
     }
@@ -252,8 +251,6 @@ uint3 Compose(uint2 pos) {
     const uint4 layer0Pixel = GetLayerOutput(layerStack[0], pos);
     uint4 layer1Pixel = GetLayerOutput(layerStack[1], pos);
     
-    // TODO: line color data
-    
     if (extendedColorCalc) {
         if (IsColorCalcEnabled(layerStack[1], pos)) {
             const uint4 layer2Pixel = GetLayerOutput(layerStack[2], pos);
@@ -266,13 +263,13 @@ uint3 Compose(uint2 pos) {
         if (layer0LineColorEnabled) {
             const uint3 lineColor = GetLineColor(layerStack[0], pos);
             if (IsColorCalcEnabled(kLayerLine, pos)) {
-                // TODO: blend line color
+                layer1Pixel.rgb = (layer1Pixel.rgb + lineColor) >> 1;
             } else {
-                // TODO: replace with line color
+                layer1Pixel.rgb = lineColor;
             }
         }
     } else if (layer0LineColorEnabled) {
-        // TODO: replace layer 1 pixel with line color screen
+        layer1Pixel.rgb = GetLineColor(layerStack[0], pos);
     }
     
     // TODO: blend layer 1 with sprite mesh layer colors
