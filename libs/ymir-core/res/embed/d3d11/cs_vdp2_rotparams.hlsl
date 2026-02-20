@@ -301,7 +301,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     const bool coeffTableEnable = BitTest(rotParam.x, 0);
     const uint coeffDataMode = BitExtract(rotParam.x, 3, 2);
     const bool coeffDataPerDot = BitTest(rotParam.x, 9);
-    const bool fbRotEnable = BitTest(rotParam.x, 10);
+    const bool fbRotEnable = BitTest(rotParam.x, 11);
     
     const RotTable t = ReadRotTable(base.tableAddress);
 

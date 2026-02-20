@@ -69,6 +69,12 @@ struct Direct3D11VDPRenderer::Context {
         d3dutil::SafeRelease(texVDP2BGs);
         d3dutil::SafeRelease(uavVDP2BGs);
         d3dutil::SafeRelease(srvVDP2BGs);
+        d3dutil::SafeRelease(texVDP2RotLineColors);
+        d3dutil::SafeRelease(uavVDP2RotLineColors);
+        d3dutil::SafeRelease(srvVDP2RotLineColors);
+        d3dutil::SafeRelease(texVDP2LineColors);
+        d3dutil::SafeRelease(uavVDP2LineColors);
+        d3dutil::SafeRelease(srvVDP2LineColors);
         d3dutil::SafeRelease(csVDP2BGs);
         d3dutil::SafeRelease(texVDP2Output);
         d3dutil::SafeRelease(uavVDP2Output);
@@ -147,10 +153,16 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ShaderResourceView *srvVDP2RotParams = nullptr;  //< SRV for rotation parameters texture array
     ID3D11ComputeShader *csVDP2RotParams = nullptr;        //< Rotation parameters compute shader
 
-    ID3D11Texture2D *texVDP2BGs = nullptr;           //< NBG0-3, RBG0-1 textures (in that order)
-    ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG texture array
-    ID3D11ShaderResourceView *srvVDP2BGs = nullptr;  //< SRV for NBG/RBG texture array
-    ID3D11ComputeShader *csVDP2BGs = nullptr;        //< NBG/RBG compute shader
+    ID3D11Texture2D *texVDP2BGs = nullptr;                     //< NBG0-3, RBG0-1 textures (in that order)
+    ID3D11UnorderedAccessView *uavVDP2BGs = nullptr;           //< UAV for NBG/RBG texture array
+    ID3D11ShaderResourceView *srvVDP2BGs = nullptr;            //< SRV for NBG/RBG texture array
+    ID3D11Texture2D *texVDP2RotLineColors = nullptr;           //< LNCL textures for RBG0-1 (in that order)
+    ID3D11UnorderedAccessView *uavVDP2RotLineColors = nullptr; //< UAV for RBG0-1 LNCL texture array
+    ID3D11ShaderResourceView *srvVDP2RotLineColors = nullptr;  //< SRV for RBG0-1 LNCL texture array
+    ID3D11Texture2D *texVDP2LineColors = nullptr;              //< LNCL screen texture
+    ID3D11UnorderedAccessView *uavVDP2LineColors = nullptr;    //< UAV for LNCL texture
+    ID3D11ShaderResourceView *srvVDP2LineColors = nullptr;     //< SRV for LNCL texture
+    ID3D11ComputeShader *csVDP2BGs = nullptr;                  //< NBG/RBG compute shader
 
     ID3D11Texture2D *texVDP2Output = nullptr;           //< Framebuffer output texture
     ID3D11UnorderedAccessView *uavVDP2Output = nullptr; //< UAV for framebuffer output texture
@@ -404,6 +416,125 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
             },
     };
     if (HRESULT hr = device->CreateUnorderedAccessView(m_context->texVDP2BGs, &uavDesc, &m_context->uavVDP2BGs);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    // ---------------------------------
+
+    std::array<D3D11_SUBRESOURCE_DATA, 2> texVDP2RotLineColorsData{};
+    texVDP2RotLineColorsData.fill({
+        .pSysMem = kBlankFramebuffer.data(),
+        .SysMemPitch = vdp::kMaxNormalResH * sizeof(uint32),
+        .SysMemSlicePitch = 0,
+    });
+    texDesc = {
+        .Width = vdp::kMaxNormalResH,
+        .Height = vdp::kMaxNormalResV,
+        .MipLevels = 1,
+        .ArraySize = 2, // RBG0-1
+        .Format = DXGI_FORMAT_R8G8B8A8_UINT,
+        .SampleDesc = {.Count = 1, .Quality = 0},
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0,
+    };
+    if (HRESULT hr = m_device->CreateTexture2D(&texDesc, texVDP2BGsData.data(), &m_context->texVDP2RotLineColors);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    srvDesc = {
+        .Format = texDesc.Format,
+        .ViewDimension = D3D_SRV_DIMENSION_TEXTURE2DARRAY,
+        .Texture2DArray =
+            {
+                .MostDetailedMip = 0,
+                .MipLevels = UINT(-1),
+                .FirstArraySlice = 0,
+                .ArraySize = texDesc.ArraySize,
+            },
+    };
+    if (HRESULT hr = device->CreateShaderResourceView(m_context->texVDP2RotLineColors, &srvDesc,
+                                                      &m_context->srvVDP2RotLineColors);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    uavDesc = {
+        .Format = texDesc.Format,
+        .ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY,
+        .Texture2DArray =
+            {
+                .MipSlice = 0,
+                .FirstArraySlice = 0,
+                .ArraySize = texDesc.ArraySize,
+            },
+    };
+    if (HRESULT hr = device->CreateUnorderedAccessView(m_context->texVDP2RotLineColors, &uavDesc,
+                                                       &m_context->uavVDP2RotLineColors);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    // ---------------------------------
+
+    bufferInitData = {
+        .pSysMem = kBlankFramebuffer.data(),
+        .SysMemPitch = 0,
+        .SysMemSlicePitch = 0,
+    };
+    texDesc = {
+        .Width = 2, // (0,y) = LNCL; (1,y) = BACK
+        .Height = vdp::kMaxNormalResV,
+        .MipLevels = 1,
+        .ArraySize = 1,
+        .Format = DXGI_FORMAT_R8G8B8A8_UINT,
+        .SampleDesc = {.Count = 1, .Quality = 0},
+        .Usage = D3D11_USAGE_DEFAULT,
+        .BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE,
+        .CPUAccessFlags = 0,
+        .MiscFlags = 0,
+    };
+    if (HRESULT hr = m_device->CreateTexture2D(&texDesc, texVDP2BGsData.data(), &m_context->texVDP2LineColors);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    srvDesc = {
+        .Format = texDesc.Format,
+        .ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D,
+        .Texture2D =
+            {
+                .MostDetailedMip = 0,
+                .MipLevels = UINT(-1),
+            },
+    };
+    if (HRESULT hr =
+            device->CreateShaderResourceView(m_context->texVDP2LineColors, &srvDesc, &m_context->srvVDP2LineColors);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+
+    uavDesc = {
+        .Format = texDesc.Format,
+        .ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D,
+        .Texture2DArray =
+            {
+                .MipSlice = 0,
+                .FirstArraySlice = 0,
+                .ArraySize = texDesc.ArraySize,
+            },
+    };
+    if (HRESULT hr =
+            device->CreateUnorderedAccessView(m_context->texVDP2LineColors, &uavDesc, &m_context->uavVDP2LineColors);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -858,6 +989,12 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG texture array");
     SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
     SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
+    SetDebugName(m_context->texVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL texture array");
+    SetDebugName(m_context->uavVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
+    SetDebugName(m_context->srvVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL SRV");
+    SetDebugName(m_context->texVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen texture");
+    SetDebugName(m_context->uavVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen UAV");
+    SetDebugName(m_context->srvVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen SRV");
     SetDebugName(m_context->csVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG compute shader");
     SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
     SetDebugName(m_context->uavVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
@@ -1100,10 +1237,11 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
-    IVDPRenderer::VDP2UpdateEnabledBGs(m_state.regs2, m_vdp2DebugRenderOptions);
+    const VDP2Regs &regs2 = m_state.regs2;
+    IVDPRenderer::VDP2UpdateEnabledBGs(regs2, m_vdp2DebugRenderOptions);
 
-    m_context->cpuVDP2RenderConfig.layerEnabled =
-        bit::gather_array<uint32>(m_layerEnabled) | (bit::gather_array<uint32>(m_state.regs2.bgEnabled) << 16u);
+    m_context->cpuVDP2RenderConfig.layerEnabled = bit::gather_array<uint32>(m_layerEnabled);
+    m_context->cpuVDP2RenderConfig.bgEnabled = bit::gather_array<uint32>(regs2.bgEnabled);
 
     auto &state = m_context->cpuVDP2BGRenderState;
     for (uint32 i = 0; i < 4; ++i) {
@@ -1211,7 +1349,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     m_context->CSSetShaderResources(
         {m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
-    m_context->CSSetUnorderedAccessViews({m_context->uavVDP2BGs});
+    m_context->CSSetUnorderedAccessViews(
+        {m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors});
     m_context->CSSetShaderResources(3, {m_context->srvVDP2RotRenderParams, m_context->srvVDP2RotParams});
     m_context->CSSetShader(m_context->csVDP2BGs);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
@@ -1245,7 +1384,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     // Compose final image
     m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     m_context->CSSetUnorderedAccessViews({m_context->uavVDP2Output});
-    m_context->CSSetShaderResources({m_context->srvVDP2BGs, m_context->srvVDP2ComposeParams});
+    m_context->CSSetShaderResources({m_context->srvVDP2BGs, nullptr /* sprite layers */,
+                                     m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
+                                     m_context->srvVDP2ComposeParams});
     m_context->CSSetShader(m_context->csVDP2Compose);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 }
@@ -1482,6 +1623,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
     state.commonRotParams.window1Invert = regs2.commonRotParams.windowSet.inverted[1];
     state.commonRotParams.windowLogic = static_cast<uint32>(regs2.commonRotParams.windowSet.logic);
 
+    state.lineScreenParams.baseAddress = regs2.lineScreenParams.baseAddress;
+    state.lineScreenParams.perLine = regs2.lineScreenParams.perLine;
+    state.backScreenParams.baseAddress = regs2.backScreenParams.baseAddress;
+    state.backScreenParams.perLine = regs2.backScreenParams.perLine;
+
     state.specialFunctionCodes = bit::gather_array<uint32>(regs2.specialFunctionCodes[0].colorMatches) |
                                  (bit::gather_array<uint32>(regs2.specialFunctionCodes[1].colorMatches) << 8u);
 
@@ -1502,6 +1648,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
     config.displayParams.colorRAMMode = regs2.vramControl.colorRAMMode;
     config.displayParams.hiResH = bit::test<1>(regs2.TVMD.HRESOn);
+
+    config.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
+    config.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
 
     auto *ctx = m_context->deferredCtx;
 
@@ -1593,6 +1742,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
         auto isCoeff = [](RotDataBankSel sel) { return sel == RotDataBankSel::Coefficients; };
 
         dst.coeffTableEnable = src.coeffTableEnable;
+        dst.coeffLineColorData = src.coeffUseLineColorData;
         dst.coeffTableCRAM = vramCtl.colorRAMCoeffTableEnable;
         dst.coeffDataSize = src.coeffDataSize;
         dst.coeffDataMode = static_cast<D3DUint>(src.coeffDataMode);
@@ -1636,13 +1786,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
     params.useSecondScreenRatio = regs2.colorCalcParams.useSecondScreenRatio;
     params.colorOffsetEnable = bit::gather_array<uint32>(regs2.colorOffsetEnable);
     params.colorOffsetSelect = bit::gather_array<uint32>(regs2.colorOffsetSelect);
-    params.useSecondScreenRatio = 0                                                 //
-                                  | (regs2.spriteParams.lineColorScreenEnable << 0) //
-                                  | (regs2.bgParams[0].lineColorScreenEnable << 1)  //
-                                  | (regs2.bgParams[1].lineColorScreenEnable << 2)  //
-                                  | (regs2.bgParams[2].lineColorScreenEnable << 3)  //
-                                  | (regs2.bgParams[3].lineColorScreenEnable << 4)  //
-                                  | (regs2.bgParams[4].lineColorScreenEnable << 5)  //
+    params.lineColorEnable = 0                                                 //
+                             | (regs2.spriteParams.lineColorScreenEnable << 0) //
+                             | (regs2.bgParams[0].lineColorScreenEnable << 1)  //
+                             | (regs2.bgParams[1].lineColorScreenEnable << 2)  //
+                             | (regs2.bgParams[2].lineColorScreenEnable << 3)  //
+                             | (regs2.bgParams[3].lineColorScreenEnable << 4)  //
+                             | (regs2.bgParams[4].lineColorScreenEnable << 5)  //
         ;
 
     params.colorOffsetA.r = bit::sign_extend<9>(regs2.colorOffset[0].r);
