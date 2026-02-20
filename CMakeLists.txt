@@ -22,7 +22,9 @@ option(Ymir_ENABLE_IPO "Enable IPO / LTO for Ymir" ON)
 option(Ymir_ENABLE_DEVLOG "Enable development logs" ${Ymir_DEV_BUILD})
 option(Ymir_ENABLE_DEV_ASSERTIONS "Enable development-time assertions" OFF)
 option(Ymir_ENABLE_IMGUI_DEMO "Enable ImGui demo window" ON)
+option(Ymir_ENABLE_SDL3_APP "Compile the SDL3 frontend" "${is_top_level}")
 option(Ymir_ENABLE_UPDATE_CHECKS "Enable update checks" ON)
+option(Ymir_ENABLE_LIBRETRO "Compile the libretro core" OFF)
 
 if (Ymir_DEV_BUILD)
     message(STATUS "Ymir: Development build")
@@ -100,6 +102,12 @@ else ()
     message(STATUS "IPO / LTO not supported: ${IPO_ERROR}")
 endif ()
 
+## Provide dependencies for libretro builds (no vcpkg)
+if (Ymir_ENABLE_LIBRETRO)
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    include(cmake/LibretroDeps.cmake)
+endif ()
+
 ## Include third-party libraries
 add_subdirectory(vendor)
 
@@ -122,6 +130,6 @@ if (Ymir_ENABLE_TESTS)
 endif ()
 
 ## Configure Visual Studio solution
-if (MSVC)
+if (MSVC AND Ymir_ENABLE_SDL3_APP)
     set_property(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}" PROPERTY VS_STARTUP_PROJECT ymir-sdl3)
 endif ()
