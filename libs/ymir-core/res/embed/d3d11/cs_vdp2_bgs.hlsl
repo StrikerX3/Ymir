@@ -743,7 +743,6 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
         ? uint2(512, 512)
         : uint2(512 * 4, 512 * 4) << pageShift;
 
-    
     const uint2 scrollPos = rotState.screenCoords;
     if (all(scrollPos < scrollSize) || usingRepeat) {
         StoreRotationLineColorData(pos, index, rotSel);
@@ -767,19 +766,29 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
 uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
     const RenderState state = renderState[0];
     const uint4 rbgParams = state.rbgParams[index];
+    const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
+
+    const uint4 rotParams = state.rbgParams[rotSel];
+    const uint2 pageShift = uint2(BitExtract(rotParams.w, 4, 1), BitExtract(rotParams.w, 5, 1));
+
     const uint rotIndex = GetRotIndex(pos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
   
-    // TODO: implement
+    // Determine maximum coordinates and screen over process
+    const bool usingFixed512 = screenOverProcess == kScreenOverProcessFixed512;
+    const bool usingRepeat = screenOverProcess == kScreenOverProcessRepeat;
+    const uint2 scrollSize = usingFixed512
+        ? uint2(512, 512)
+        : uint2(512 * 4, 512 * 4) << pageShift;
+
+    const uint2 scrollPos = rotState.screenCoords;
+    if (all(scrollPos < scrollSize) || usingRepeat) {
+        StoreRotationLineColorData(pos, index, rotSel);
+        
+        return FetchBitmapPixel(rbgParams, scrollPos);
+    }
     
-    return uint4(
-        (rotState.screenCoords.x >> 0) & 0xFF,
-        ((rotState.screenCoords.x >> 8) & 0x7F) | 0x80, // bit 7 = scroll/bitmap (=1)
-        (rotState.screenCoords.y >> 0) & 0xFF,
-        ((rotState.screenCoords.y >> 8) & 0x7F) | (rotState.coeffData & 0x80)
-    );
-    //return uint4(rotParamState[rotIndex].screenCoords, rotParamState[rotIndex].spriteCoords, rotParamState[rotIndex].coeffData);
-    //return uint4(pos.x, pos.y, index * 255, 128);
+    return kTransparentPixel;
 }
 
 uint4 DrawRBG(uint2 pos, uint index) {
