@@ -160,10 +160,10 @@ int GetColorCalcRatio(uint layer, uint2 pos) {
         case kLayerNBG1_EXBG:
         case kLayerNBG2:
         case kLayerNBG3:
-            return BitExtract(composeParams[0].bgColorCalcRatios, (layer - kBGLayerRBG0) * 5, 5);
+            return BitExtract(composeParams[0].bgColorCalcRatios, (layer - kLayerRBG0) * 5, 5);
         case kLayerBack:
         case kLayerLine:
-            return BitExtract(composeParams[0].backLineColorCalcRatios, IsColorCalcEnabled(layer, pos) ? 0 : 5, 5);
+            return BitExtract(composeParams[0].backLineColorCalcRatios, IsColorCalcEnabled(layer, pos) ? 5 : 0, 5);
         default:
             return 31;
     }
@@ -281,6 +281,7 @@ uint3 Compose(uint2 pos) {
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
             const int ratio = GetColorCalcRatio(ratioLayer, pos);
             output = int3(layer1Pixel.rgb) + (int3(layer0Pixel.rgb) - int3(layer1Pixel.rgb)) * ratio / 32;
+            
         }
     } else {
         output = layer0Pixel.rgb;
