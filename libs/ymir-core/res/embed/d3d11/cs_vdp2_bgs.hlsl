@@ -25,14 +25,17 @@ struct RenderState {
     // TODO: NBG line scroll offset tables (X/Y) (or addresses to read from VRAM)
     // TODO: Vertical cell scroll table base address
     // TODO: Mosaic sizes (X/Y)
+
     // TODO: Sprite layer parameters
 
     Window windows[2];
 
     uint commonRotParams;
     
+    uint lineScreenParams;
+    uint backScreenParams;
+    
     uint specialFunctionCodes;
-    uint2 _padding;
 };
 
 struct RotParamState {
@@ -53,12 +56,14 @@ StructuredBuffer<RenderState> renderState : register(t2);
 Buffer<uint2> rotParams : register(t3);
 StructuredBuffer<RotParamState> rotParamState : register(t4);
 
-// The alpha channel of the output is used for pixel attributes as follows:
+// The alpha channel of the BG output is used for pixel attributes as follows:
 // bits  use
 //  0-2  Priority (0 to 7)
 //    6  Special color calculation flag
 //    7  Transparent flag (0=opaque, 1=transparent)
 RWTexture2DArray<uint4> bgOut : register(u0);
+RWTexture2DArray<uint4> rbgLineColorOut : register(u1);
+RWTexture2D<uint4> lineColorOut : register(u2);
 
 // -----------------------------------------------------------------------------
 
@@ -661,6 +666,64 @@ uint SelectRotationParameter(uint4 rbgParams, uint2 pos) {
     return kRotParamA; // shouldn't happen
 }
 
+void StoreRotationLineColorData(uint2 pos, uint index, uint rotSel) {
+    const bool lineColorEnabled = BitTest(config.layerEnabled, 6 + index);
+    if (!lineColorEnabled) {
+        return;
+    }
+    
+    const RenderState state = renderState[0];
+    const uint commonRotParams = state.commonRotParams;
+    const uint rotParamMode = BitExtract(commonRotParams, 0, 2);
+    const bool hasRBG1 = BitTest(config.layerEnabled, 13);
+
+    bool useCoeffLineColor = false;
+    uint coeffSel;
+    
+    switch (rotParamMode) {
+        case kRotParamModeA:
+            useCoeffLineColor = rotSel == kRotParamA;
+            coeffSel = kRotParamA;
+            break;
+        case kRotParamModeB:
+            useCoeffLineColor = rotSel == kRotParamB;
+            coeffSel = hasRBG1 ? kRotParamA : kRotParamB;
+            break;
+        case kRotParamModeCoeff:
+            useCoeffLineColor = true;
+            coeffSel = kRotParamA;
+            break;
+        case kRotParamModeWindow:
+            useCoeffLineColor = true;
+            coeffSel = hasRBG1 ? kRotParamA : rotSel;
+            break;
+    }
+
+    const bool lineColorPerLine = BitTest(state.lineScreenParams, 19);
+    const uint lineColorBaseAddress = BitExtract(state.lineScreenParams, 0, 19);
+    
+    const uint lineColorY = lineColorPerLine ? pos.y : 0;
+    const uint lineColorAddress = lineColorBaseAddress + lineColorY;
+
+    uint cramAddress = ReadVRAM16(lineColorAddress);
+    
+    if (useCoeffLineColor) {
+        const uint2 rotParam = rotParams[index];
+        const bool coeffTableEnable = BitTest(rotParam.x, 0);
+        const bool coeffUseLineColorData = BitTest(rotParam.x, 10);
+        if (coeffTableEnable && coeffUseLineColorData) {
+            const uint baseLineColorData = BitExtract(cramAddress, 7, 4);
+            
+            const uint rotIndex = GetRotIndex(pos.xy, coeffSel);
+            const uint lineColorData = BitExtract(rotParamState[rotIndex].coeffData, 0, 7);
+            
+            cramAddress = (baseLineColorData << 7) | lineColorData;
+        }
+    }
+    
+    rbgLineColorOut[uint3(pos.xy, index)] = cram[cramAddress];
+}
+
 uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const RenderState state = renderState[0];
     const uint4 rbgParams = state.rbgParams[index];
@@ -679,25 +742,25 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const uint2 scrollSize = usingFixed512
         ? uint2(512, 512)
         : uint2(512 * 4, 512 * 4) << pageShift;
+
     
     const uint2 scrollPos = rotState.screenCoords;
     if (all(scrollPos < scrollSize) || usingRepeat) {
-        // Plot pixel
+        StoreRotationLineColorData(pos, index, rotSel);
         
-        // TODO: VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
-    
         return FetchScrollRBGPixel(rbgParams, scrollPos, pageShift, state.rbgPageBaseAddresses[rotSel][index]);
     }
 
     // Out of bounds
     
     if (screenOverProcess == kScreenOverProcessRepeatChar) {
-        // TODO: VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
-       
+        StoreRotationLineColorData(pos, index, rotSel);
+        
         const uint2 dotPos = scrollPos & 7;
         Character ch = ExtractOneWordCharacter(rbgParams, screenOverPatternName);
         return FetchCharacterPixel(rbgParams, ch, dotPos, 0);
     }
+
     return kTransparentPixel;
 }
 
@@ -753,6 +816,22 @@ uint4 DrawRBG(uint2 pos, uint index) {
 
 // -----------------------------------------------------------------------------
 
+uint4 DrawLineBackScreen(uint index, uint y) {
+    const RenderState state = renderState[0];
+    const uint params = index == 0 ? state.lineScreenParams : state.backScreenParams;
+    
+    const bool lineColorPerLine = BitTest(params, 19);
+    const uint lineColorBaseAddress = BitExtract(params, 0, 19);
+    
+    const uint lineColorY = lineColorPerLine ? y : 0;
+    const uint lineColorAddress = lineColorBaseAddress + lineColorY;
+
+    const uint cramAddress = ReadVRAM16(lineColorAddress);
+    return cram[cramAddress];
+}
+
+// -----------------------------------------------------------------------------
+
 [numthreads(32, 1, 6)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = id.xy + uint2(0, config.startY);
@@ -761,5 +840,9 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         bgOut[outCoord] = DrawNBG(drawCoord, id.z);
     } else {
         bgOut[outCoord] = DrawRBG(drawCoord, id.z - 4);
+    }
+    
+    if (id.z == 0 && id.x < 2) {
+        lineColorOut[outCoord.xy] = DrawLineBackScreen(drawCoord.x, drawCoord.y);
     }
 }
