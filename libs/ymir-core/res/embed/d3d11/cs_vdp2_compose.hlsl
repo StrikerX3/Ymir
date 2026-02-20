@@ -189,13 +189,16 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
         case kLayerNBG3:
             return bgIn[uint3(pos.xy, GetBGLayerIndex(layer))];
         case kLayerBack:
-            return kTransparentPixel; // TODO: read from back screen output
+            return lineColorIn[uint2(1, pos.y)]; // the attribute byte doesn't matter
         default:
             return kTransparentPixel; // should never happpen
     }
 }
 
 uint3 Compose(uint2 pos) {
+    // TODO: clear screen is display is disabled
+    // - also honor BDCLMD
+    
     uint layerStack[3] = { kLayerBack, kLayerBack, kLayerBack };
     uint layerPrios[3] = { 0, 0, 0 };
     
