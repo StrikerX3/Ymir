@@ -869,7 +869,7 @@ private:
     std::array<RotationParamLineState, 2> m_rotParamLineStates;
 
     // Line colors per RBG per pixel.
-    std::array<std::array<Color888, kMaxResH / 2>, 2> m_rbgLineColors;
+    std::array<std::array<Color888, kMaxNormalResH>, 2> m_rbgLineColors;
 
     // Window state for NBGs and RBGs.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.

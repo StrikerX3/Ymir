@@ -20,9 +20,11 @@ cbuffer Config : register(b0) {
     Config config;
 }
 
-Texture2DArray<uint4> bgIn : register(t0); // [0-3] = NBG0-3, [4-5] = RBG0-1
+Texture2DArray<uint4> bgIn : register(t0);
 // TODO: spriteIn (normal and mesh layers)
-StructuredBuffer<ComposeParams> composeParams : register(t1);
+Texture2DArray<uint4> rbgLineColorIn : register(t2);
+Texture2D<uint4> lineColorIn : register(t3);
+StructuredBuffer<ComposeParams> composeParams : register(t4);
 
 RWTexture2D<float4> textureOut : register(u0);
 
@@ -91,11 +93,15 @@ uint GetY(uint y) {
 // -----------------------------------------------------------------------------
 
 bool IsBGLayerEnabled(uint bgLayer) {
-    return BitTest(config.layerEnabled, bgLayer + 16);
+    return BitTest(config.layerEnabled, bgLayer + 8);
 }
 
 bool IsLayerEnabled(uint layer) {
     return BitTest(config.layerEnabled, layer);
+}
+
+bool IsRBGLineColorEnabled(uint layer) {
+    return BitTest(config.layerEnabled, layer + 6);
 }
 
 uint GetBGLayerIndex(uint layer) {

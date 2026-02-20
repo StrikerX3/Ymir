@@ -71,25 +71,26 @@ struct alignas(16) VDP2RenderConfig {
     // Top Y coordinate of target rendering area
     D3DUint startY;
 
-    // Bits 0-5 hold the layer enable state based on BGON and other factors:
-    //
-    // bit  RBG0+RBG1   RBG0        RBG1        no RBGs
-    //   0  Sprite      Sprite      Sprite      Sprite
-    //   1  RBG0        RBG0        -           -
-    //   2  RBG1        NBG0        RBG1        NBG0
-    //   3  EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
-    //   4  -           NBG2        NBG2        NBG2
-    //   5  -           NBG3        NBG3        NBG3
-    //
-    // Bits 16-21 hold the individual layer enable flags:
-    // bit  layer
-    //  16  NBG0
-    //  17  NBG1
-    //  18  NBG2
-    //  19  NBG3
-    //  20  RBG0
-    //  21  RBG1
-    D3DUint layerEnabled;
+    struct {                             //  bits  use
+        D3DUint layerEnabled : 6;        //   0-5  Layer enable state based on BGON and other factors:
+                                         //        bit  RBG0+RBG1   RBG0        RBG1        no RBGs
+                                         //          0  Sprite      Sprite      Sprite      Sprite
+                                         //          1  RBG0        RBG0        -           -
+                                         //          2  RBG1        NBG0        RBG1        NBG0
+                                         //          3  EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+                                         //          4  -           NBG2        NBG2        NBG2
+                                         //          5  -           NBG3        NBG3        NBG3
+        D3DUint lineColorEnableRBG0 : 1; //     6  Line color screen enable for RBG0
+        D3DUint lineColorEnableRBG1 : 1; //     7  Line color screen enable for RBG1
+        D3DUint bgEnabled : 6;           //  8-15  Individual layer enable flags
+                                         //        bit  layer
+                                         //          8  NBG0
+                                         //          9  NBG1
+                                         //         10  NBG2
+                                         //         11  NBG3
+                                         //         12  RBG0
+                                         //         13  RBG1
+    };
 };
 
 struct BGRenderParams {
@@ -190,6 +191,12 @@ struct RotParams {             //  bits  use
     D3DUint window1Invert : 1; //     6  Window 1 invert  0=disable; 1=enable
 };
 
+struct VDP2LineBackScreenParams {
+    D3DUint baseAddress : 19; //  0-18  Base address of color data
+    D3DUint perLine : 1;      //    19  Use colors per line              0=per screen; 1=per line
+};
+static_assert(sizeof(VDP2LineBackScreenParams) == sizeof(D3DUint));
+
 struct alignas(16) VDP2BGRenderState {
     std::array<BGRenderParams, 4> nbgParams;
     std::array<BGRenderParams, 2> rbgParams;
@@ -204,6 +211,9 @@ struct alignas(16) VDP2BGRenderState {
 
     RotParams commonRotParams;
 
+    VDP2LineBackScreenParams lineScreenParams;
+    VDP2LineBackScreenParams backScreenParams;
+
     D3DUint specialFunctionCodes; //  bits  use
                                   //   0-7  Special function code A
                                   //  8-15  Special function code B
@@ -211,17 +221,18 @@ struct alignas(16) VDP2BGRenderState {
 
 // -----------------------------------------------------------------------------
 
-struct RotationRenderParams {      //  bits  use
-    D3DUint coeffTableEnable : 1;  //     0  Coefficient table enabled          0=disable; 1=enable
-    D3DUint coeffTableCRAM : 1;    //     1  Coefficient table location         0=VRAM; 1=CRAM
-    D3DUint coeffDataSize : 1;     //     2  Coefficient data size              0=2 words; 1=1 word
-    D3DUint coeffDataMode : 2;     //   3-4  Coefficient data mode              0=kx/ky; 1=kx; 2=ky; 3=Px
-    D3DUint coeffDataAccessA0 : 1; //     5  Coefficient data access for VRAM bank A0/A
-    D3DUint coeffDataAccessA1 : 1; //     6  Coefficient data access for VRAM bank A1
-    D3DUint coeffDataAccessB0 : 1; //     7  Coefficient data access for VRAM bank B0/B
-    D3DUint coeffDataAccessB1 : 1; //     8  Coefficient data access for VRAM bank B1
-    D3DUint coeffDataPerDot : 1;   //     9  Per-dot coefficients               0=per line; 1=per dot
-    D3DUint fbRotEnable : 1;       //    10  VDP1 framebuffer rotation enable   0=disable; 1=enable
+struct RotationRenderParams {       //  bits  use
+    D3DUint coeffTableEnable : 1;   //     0  Coefficient table enabled          0=disable; 1=enable
+    D3DUint coeffTableCRAM : 1;     //     1  Coefficient table location         0=VRAM; 1=CRAM
+    D3DUint coeffDataSize : 1;      //     2  Coefficient data size              0=2 words; 1=1 word
+    D3DUint coeffDataMode : 2;      //   3-4  Coefficient data mode              0=kx/ky; 1=kx; 2=ky; 3=Px
+    D3DUint coeffDataAccessA0 : 1;  //     5  Coefficient data access for VRAM bank A0/A
+    D3DUint coeffDataAccessA1 : 1;  //     6  Coefficient data access for VRAM bank A1
+    D3DUint coeffDataAccessB0 : 1;  //     7  Coefficient data access for VRAM bank B0/B
+    D3DUint coeffDataAccessB1 : 1;  //     8  Coefficient data access for VRAM bank B1
+    D3DUint coeffDataPerDot : 1;    //     9  Per-dot coefficients               0=per line; 1=per dot
+    D3DUint coeffLineColorData : 1; //    10  Use coefficient line color data    0=disable; 1=enable
+    D3DUint fbRotEnable : 1;        //    11  VDP1 framebuffer rotation enable   0=disable; 1=enable
 
     D3DUint _reserved;
 };
