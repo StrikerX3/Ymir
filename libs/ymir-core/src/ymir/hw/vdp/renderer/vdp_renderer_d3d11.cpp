@@ -23,6 +23,8 @@
 
 CMRC_DECLARE(Ymir_core_rc);
 
+using namespace d3dutil;
+
 namespace ymir::vdp {
 
 auto g_embedfs = cmrc::Ymir_core_rc::get_filesystem();
@@ -61,10 +63,10 @@ struct Direct3D11VDPRenderer::Context {
     }
 
     ~Context() {
-        d3dutil::SafeRelease(m_resources);
+        SafeRelease(m_resources);
         {
             std::unique_lock lock{mtxCmdList};
-            d3dutil::SafeRelease(cmdListQueue);
+            SafeRelease(cmdListQueue);
         }
     }
 
@@ -95,7 +97,7 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP1VRAM = nullptr;                              //< VDP1 VRAM buffer
     ID3D11ShaderResourceView *srvVDP1VRAM = nullptr;                  //< SRV for VDP1 VRAM buffer
-    d3dutil::DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};          //< Dirty bitmap for VDP1 VRAM
+    DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};                   //< Dirty bitmap for VDP1 VRAM
     std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages = {}; //< VDP1 VRAM page buffers
 
     ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
@@ -125,7 +127,7 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP2VRAM = nullptr;                              //< VDP2 VRAM buffer
     ID3D11ShaderResourceView *srvVDP2VRAM = nullptr;                  //< SRV for VDP2 VRAM buffer
-    d3dutil::DirtyBitmap<kVDP2VRAMPages> dirtyVDP2VRAM = {};          //< Dirty bitmap for VDP2 VRAM
+    DirtyBitmap<kVDP2VRAMPages> dirtyVDP2VRAM = {};                   //< Dirty bitmap for VDP2 VRAM
     std::array<ID3D11Buffer *, kVDP2VRAMPages> bufVDP2VRAMPages = {}; //< VDP2 VRAM page buffers
 
     ID3D11Buffer *bufVDP2RotRegs = nullptr;             //< VDP2 rotation registers structured buffer
@@ -228,7 +230,7 @@ struct Direct3D11VDPRenderer::Context {
             arraySize = 1;
         }
 
-        const UINT elementSize = d3dutil::GetFormatSize(format);
+        const UINT elementSize = GetFormatSize(format);
 
         const D3D11_USAGE usage = cpuAccessFlags == 0 ? D3D11_USAGE_DEFAULT : D3D11_USAGE_DYNAMIC;
 
@@ -548,7 +550,7 @@ struct Direct3D11VDPRenderer::Context {
             bindFlags |= D3D11_BIND_SHADER_RESOURCE;
         }
 
-        const UINT elementSize = d3dutil::GetFormatSize(format);
+        const UINT elementSize = GetFormatSize(format);
 
         if (HRESULT hr = CreateBuffer(bufOut, BufferType::Primitive, elementSize, numElements, initData, bindFlags,
                                       cpuAccessFlags);
@@ -611,7 +613,7 @@ struct Direct3D11VDPRenderer::Context {
 
     bool CreateVertexShader(ID3D11VertexShader *&vsOut, const char *path, const char *entrypoint = "VSMain",
                             D3D_SHADER_MACRO *macros = nullptr) {
-        auto &shaderCache = d3dutil::D3DShaderCache::Instance(false);
+        auto &shaderCache = D3DShaderCache::Instance(false);
         vsOut = shaderCache.GetVertexShader(device, GetEmbedFSFile(path), entrypoint, macros);
         if (vsOut != nullptr) {
             m_resources.push_back(vsOut);
@@ -622,7 +624,7 @@ struct Direct3D11VDPRenderer::Context {
 
     bool CreatePixelShader(ID3D11PixelShader *&psOut, const char *path, const char *entrypoint = "PSMain",
                            D3D_SHADER_MACRO *macros = nullptr) {
-        auto &shaderCache = d3dutil::D3DShaderCache::Instance(false);
+        auto &shaderCache = D3DShaderCache::Instance(false);
         psOut = shaderCache.GetPixelShader(device, GetEmbedFSFile(path), entrypoint, macros);
         if (psOut != nullptr) {
             m_resources.push_back(psOut);
@@ -633,7 +635,7 @@ struct Direct3D11VDPRenderer::Context {
 
     bool CreateComputeShader(ID3D11ComputeShader *&csOut, const char *path, const char *entrypoint = "CSMain",
                              D3D_SHADER_MACRO *macros = nullptr) {
-        auto &shaderCache = d3dutil::D3DShaderCache::Instance(false);
+        auto &shaderCache = D3DShaderCache::Instance(false);
         csOut = shaderCache.GetComputeShader(device, GetEmbedFSFile(path), entrypoint, macros);
         if (csOut != nullptr) {
             m_resources.push_back(csOut);
@@ -823,11 +825,13 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         // TODO: report error
         return;
     }
+    SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
 
     if (!m_context->CreateVertexShader(m_context->vsIdentity, "d3d11/vs_identity.hlsl")) {
         // TODO: report error
         return;
     }
+    SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
 
     // -------------------------------------------------------------------------
     // VDP1
@@ -837,6 +841,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         // TODO: report error
         return;
     }
+    SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
     // TODO:
     //
@@ -859,153 +864,6 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // ID3D11UnorderedAccessView *uavVDP1PolyOut
     // ID3D11ShaderResourceView *srvVDP1PolyOut
     // ID3D11ComputeShader *csVDP1PolyMerge
-
-    // -------------------------------------------------------------------------
-    // VDP2 - shared resources
-
-    if (HRESULT hr = m_context->CreateConstantBuffer(&m_context->cbufVDP2RenderConfig, m_context->cpuVDP2RenderConfig);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP2VRAM, &m_context->srvVDP2VRAM,
-                                                        m_state.VRAM2.size(), m_state.VRAM2.data(), 0, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    for (auto &buf : m_context->bufVDP2VRAMPages) {
-        if (HRESULT hr = m_context->CreateByteAddressBuffer(&buf, nullptr, 1u << kVRAMPageBits, nullptr, 0,
-                                                            D3D11_CPU_ACCESS_WRITE);
-            FAILED(hr)) {
-            // TODO: report error
-            return;
-        }
-    }
-
-    if (HRESULT hr = m_context->CreatePrimitiveBuffer(&m_context->bufVDP2RotRegs, &m_context->srvVDP2RotRegs,
-                                                      DXGI_FORMAT_R32G32_UINT, m_context->cpuVDP2RotRegs.size(),
-                                                      m_context->cpuVDP2RotRegs.data(), 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    static constexpr size_t kRotParamsSize = vdp::kMaxNormalResH * vdp::kMaxNormalResV * 2;
-    static constexpr std::array<VDP2RotParamData, kRotParamsSize> kBlankRotParams{};
-
-    if (HRESULT hr = m_context->CreateStructuredBuffer(&m_context->bufVDP2RotParams, &m_context->srvVDP2RotParams,
-                                                       &m_context->uavVDP2RotParams, kBlankRotParams.size(),
-                                                       kBlankRotParams.data(), 0, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2BGs, &m_context->srvVDP2BGs, &m_context->uavVDP2BGs,
-                                                vdp::kMaxResH, vdp::kMaxResV, 6, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2RotLineColors, &m_context->srvVDP2RotLineColors,
-                                                &m_context->uavVDP2RotLineColors, vdp::kMaxNormalResH,
-                                                vdp::kMaxNormalResV, 2, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2LineColors, &m_context->srvVDP2LineColors,
-                                                &m_context->uavVDP2LineColors, 2, vdp::kMaxNormalResV, 0,
-                                                DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    // -------------------------------------------------------------------------
-    // VDP2 - rotation parameters shader
-
-    if (!m_context->CreateComputeShader(m_context->csVDP2RotParams, "d3d11/cs_vdp2_rotparams.hlsl")) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP2CoeffCache, &m_context->srvVDP2CoeffCache,
-                                                        m_context->cpuVDP2CoeffCache.size(),
-                                                        m_context->cpuVDP2CoeffCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr = m_context->CreateStructuredBuffer(
-            &m_context->bufVDP2RotParamBases, &m_context->srvVDP2RotParamBases, nullptr,
-            m_context->cpuVDP2RotParamBases.size(), m_context->cpuVDP2RotParamBases.data(), 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    // -------------------------------------------------------------------------
-    // VDP2 - NBG/RBG shader
-
-    if (!m_context->CreateComputeShader(m_context->csVDP2BGs, "d3d11/cs_vdp2_bgs.hlsl", "CSMain", nullptr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr = m_context->CreatePrimitiveBuffer(&m_context->bufVDP2ColorCache, &m_context->srvVDP2ColorCache,
-                                                      DXGI_FORMAT_R8G8B8A8_UINT, m_context->cpuVDP2ColorCache.size(),
-                                                      m_context->cpuVDP2ColorCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr =
-            m_context->CreateStructuredBuffer(&m_context->bufVDP2BGRenderState, &m_context->srvVDP2BGRenderState,
-                                              nullptr, 1, &m_context->cpuVDP2BGRenderState, 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    // -------------------------------------------------------------------------
-    // VDP2 - compositor shader
-
-    if (!m_context->CreateComputeShader(m_context->csVDP2Compose, "d3d11/cs_vdp2_compose.hlsl", "CSMain", nullptr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr =
-            m_context->CreateStructuredBuffer(&m_context->bufVDP2ComposeParams, &m_context->srvVDP2ComposeParams,
-                                              nullptr, 1, &m_context->cpuVDP2ComposeParams, 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    if (HRESULT hr =
-            m_context->CreateTexture2D(&m_context->texVDP2Output, nullptr, &m_context->uavVDP2Output, vdp::kMaxResH,
-                                       vdp::kMaxResV, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-
-    // -------------------------------------------------------------------------
-    // Debug names
-
-    using namespace d3dutil;
-
-    SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
-    SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
-    SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
     SetDebugName(m_context->bufVDP1VRAM, "[Ymir D3D11] VDP1 VRAM buffer");
     SetDebugName(m_context->srvVDP1VRAM, "[Ymir D3D11] VDP1 VRAM SRV");
     for (uint32 i = 0; auto *buf : m_context->bufVDP1VRAMPages) {
@@ -1024,42 +882,179 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->uavVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output UAV");
     SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
     SetDebugName(m_context->csVDP1PolyMerge, "[Ymir D3D11] VDP1 polygon merger compute shader");
+
+    // -------------------------------------------------------------------------
+    // VDP2 - shared resources
+
+    if (HRESULT hr = m_context->CreateConstantBuffer(&m_context->cbufVDP2RenderConfig, m_context->cpuVDP2RenderConfig);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->cbufVDP2RenderConfig, "[Ymir D3D11] VDP2 rendering configuration constant buffer");
+
+    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP2VRAM, &m_context->srvVDP2VRAM,
+                                                        m_state.VRAM2.size(), m_state.VRAM2.data(), 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->bufVDP2VRAM, "[Ymir D3D11] VDP2 VRAM buffer");
     SetDebugName(m_context->srvVDP2VRAM, "[Ymir D3D11] VDP2 VRAM SRV");
-    for (uint32 i = 0; auto *buf : m_context->bufVDP2VRAMPages) {
+
+    for (uint32 i = 0; auto &buf : m_context->bufVDP2VRAMPages) {
+        if (HRESULT hr = m_context->CreateByteAddressBuffer(&buf, nullptr, 1u << kVRAMPageBits, nullptr, 0,
+                                                            D3D11_CPU_ACCESS_WRITE);
+            FAILED(hr)) {
+            // TODO: report error
+            return;
+        }
         SetDebugName(buf, fmt::format("[Ymir D3D11] VDP2 VRAM page buffer #{}", i));
         ++i;
     }
-    SetDebugName(m_context->bufVDP2ColorCache, "[Ymir D3D11] VDP2 CRAM color cache buffer");
-    SetDebugName(m_context->srvVDP2ColorCache, "[Ymir D3D11] VDP2 CRAM color cache SRV");
-    SetDebugName(m_context->bufVDP2CoeffCache, "[Ymir D3D11] VDP2 CRAM rotation coefficients cache buffer");
-    SetDebugName(m_context->srvVDP2CoeffCache, "[Ymir D3D11] VDP2 CRAM rotation coefficients cache SRV");
-    SetDebugName(m_context->bufVDP2BGRenderState, "[Ymir D3D11] VDP2 NBG/RBG render state buffer");
-    SetDebugName(m_context->srvVDP2BGRenderState, "[Ymir D3D11] VDP2 NBG/RBG render state SRV");
-    SetDebugName(m_context->bufVDP2RotParamBases, "[Ymir D3D11] VDP2 rotation parameter bases buffer");
-    SetDebugName(m_context->srvVDP2RotParamBases, "[Ymir D3D11] VDP2 rotation parameter bases SRV");
+
+    if (HRESULT hr = m_context->CreatePrimitiveBuffer(&m_context->bufVDP2RotRegs, &m_context->srvVDP2RotRegs,
+                                                      DXGI_FORMAT_R32G32_UINT, m_context->cpuVDP2RotRegs.size(),
+                                                      m_context->cpuVDP2RotRegs.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->bufVDP2RotRegs, "[Ymir D3D11] VDP2 rotation registers buffer");
     SetDebugName(m_context->srvVDP2RotRegs, "[Ymir D3D11] VDP2 rotation registers SRV");
-    SetDebugName(m_context->bufVDP2ComposeParams, "[Ymir D3D11] VDP2 compositor parameters buffer");
-    SetDebugName(m_context->srvVDP2ComposeParams, "[Ymir D3D11] VDP2 compositor parameters SRV");
-    SetDebugName(m_context->cbufVDP2RenderConfig, "[Ymir D3D11] VDP2 rendering configuration constant buffer");
+
+    static constexpr size_t kRotParamsSize = vdp::kMaxNormalResH * vdp::kMaxNormalResV * 2;
+    static constexpr std::array<VDP2RotParamData, kRotParamsSize> kBlankRotParams{};
+
+    if (HRESULT hr = m_context->CreateStructuredBuffer(&m_context->bufVDP2RotParams, &m_context->srvVDP2RotParams,
+                                                       &m_context->uavVDP2RotParams, kBlankRotParams.size(),
+                                                       kBlankRotParams.data(), 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->bufVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters buffer array");
     SetDebugName(m_context->uavVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters UAV");
     SetDebugName(m_context->srvVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters SRV");
-    SetDebugName(m_context->csVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters compute shader");
+
+    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2BGs, &m_context->srvVDP2BGs, &m_context->uavVDP2BGs,
+                                                vdp::kMaxResH, vdp::kMaxResV, 6, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG texture array");
     SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
     SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
+
+    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2RotLineColors, &m_context->srvVDP2RotLineColors,
+                                                &m_context->uavVDP2RotLineColors, vdp::kMaxNormalResH,
+                                                vdp::kMaxNormalResV, 2, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->texVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL texture array");
     SetDebugName(m_context->uavVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
     SetDebugName(m_context->srvVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL SRV");
+
+    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2LineColors, &m_context->srvVDP2LineColors,
+                                                &m_context->uavVDP2LineColors, 2, vdp::kMaxNormalResV, 0,
+                                                DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->texVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen texture");
     SetDebugName(m_context->uavVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen UAV");
     SetDebugName(m_context->srvVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen SRV");
+
+    // -------------------------------------------------------------------------
+    // VDP2 - rotation parameters shader
+
+    if (!m_context->CreateComputeShader(m_context->csVDP2RotParams, "d3d11/cs_vdp2_rotparams.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->csVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters compute shader");
+
+    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP2CoeffCache, &m_context->srvVDP2CoeffCache,
+                                                        m_context->cpuVDP2CoeffCache.size(),
+                                                        m_context->cpuVDP2CoeffCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP2CoeffCache, "[Ymir D3D11] VDP2 CRAM rotation coefficients cache buffer");
+    SetDebugName(m_context->srvVDP2CoeffCache, "[Ymir D3D11] VDP2 CRAM rotation coefficients cache SRV");
+
+    if (HRESULT hr = m_context->CreateStructuredBuffer(
+            &m_context->bufVDP2RotParamBases, &m_context->srvVDP2RotParamBases, nullptr,
+            m_context->cpuVDP2RotParamBases.size(), m_context->cpuVDP2RotParamBases.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP2RotParamBases, "[Ymir D3D11] VDP2 rotation parameter bases buffer");
+    SetDebugName(m_context->srvVDP2RotParamBases, "[Ymir D3D11] VDP2 rotation parameter bases SRV");
+
+    // -------------------------------------------------------------------------
+    // VDP2 - NBG/RBG shader
+
+    if (!m_context->CreateComputeShader(m_context->csVDP2BGs, "d3d11/cs_vdp2_bgs.hlsl", "CSMain", nullptr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->csVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG compute shader");
+
+    if (HRESULT hr = m_context->CreatePrimitiveBuffer(&m_context->bufVDP2ColorCache, &m_context->srvVDP2ColorCache,
+                                                      DXGI_FORMAT_R8G8B8A8_UINT, m_context->cpuVDP2ColorCache.size(),
+                                                      m_context->cpuVDP2ColorCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP2ColorCache, "[Ymir D3D11] VDP2 CRAM color cache buffer");
+    SetDebugName(m_context->srvVDP2ColorCache, "[Ymir D3D11] VDP2 CRAM color cache SRV");
+
+    if (HRESULT hr =
+            m_context->CreateStructuredBuffer(&m_context->bufVDP2BGRenderState, &m_context->srvVDP2BGRenderState,
+                                              nullptr, 1, &m_context->cpuVDP2BGRenderState, 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP2BGRenderState, "[Ymir D3D11] VDP2 NBG/RBG render state buffer");
+    SetDebugName(m_context->srvVDP2BGRenderState, "[Ymir D3D11] VDP2 NBG/RBG render state SRV");
+
+    // -------------------------------------------------------------------------
+    // VDP2 - compositor shader
+
+    if (!m_context->CreateComputeShader(m_context->csVDP2Compose, "d3d11/cs_vdp2_compose.hlsl", "CSMain", nullptr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->csVDP2Compose, "[Ymir D3D11] VDP2 framebuffer compute shader");
+
+    if (HRESULT hr =
+            m_context->CreateStructuredBuffer(&m_context->bufVDP2ComposeParams, &m_context->srvVDP2ComposeParams,
+                                              nullptr, 1, &m_context->cpuVDP2ComposeParams, 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP2ComposeParams, "[Ymir D3D11] VDP2 compositor parameters buffer");
+    SetDebugName(m_context->srvVDP2ComposeParams, "[Ymir D3D11] VDP2 compositor parameters SRV");
+
+    if (HRESULT hr =
+            m_context->CreateTexture2D(&m_context->texVDP2Output, nullptr, &m_context->uavVDP2Output, vdp::kMaxResH,
+                                       vdp::kMaxResV, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
     SetDebugName(m_context->uavVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
-    SetDebugName(m_context->csVDP2Compose, "[Ymir D3D11] VDP2 framebuffer compute shader");
 
     m_valid = true;
 }
@@ -1290,7 +1285,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
         return;
     }
-    d3dutil::SetDebugName(commandList, "[Ymir D3D11] Command list");
+    SetDebugName(commandList, "[Ymir D3D11] Command list");
 
     // Append to pending command list queue
     {
