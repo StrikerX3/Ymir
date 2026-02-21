@@ -240,7 +240,7 @@ struct alignas(16) VDP2BGRenderState {
 
 // -----------------------------------------------------------------------------
 
-struct RotationRenderParams {       //  bits  use
+struct VDP2RotationRegs {           //  bits  use
     D3DUint coeffTableEnable : 1;   //     0  Coefficient table enabled          0=disable; 1=enable
     D3DUint coeffTableCRAM : 1;     //     1  Coefficient table location         0=VRAM; 1=CRAM
     D3DUint coeffDataSize : 1;      //     2  Coefficient data size              0=2 words; 1=1 word
@@ -255,7 +255,7 @@ struct RotationRenderParams {       //  bits  use
 
     D3DUint _reserved;
 };
-static_assert(sizeof(RotationRenderParams) == sizeof(D3DUint) * 2);
+static_assert(sizeof(VDP2RotationRegs) == sizeof(D3DUint) * 2);
 
 // Base Xst, Yst, KA for params A and B relative to config.startY
 struct alignas(16) RotParamBase {
