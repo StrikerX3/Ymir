@@ -93,7 +93,7 @@ struct alignas(16) VDP2RenderConfig {
     };
 };
 
-struct BGRenderParams {
+struct VDP2BGRenderParams {
     // Entries 0 and 1 - common parameters
     struct Common {
         /* Entry 0 (X) */               //  bits  use
@@ -171,7 +171,7 @@ struct BGRenderParams {
     } typeSpecific;
     static_assert(sizeof(TypeSpecific) == sizeof(D3DUint));
 };
-static_assert(sizeof(BGRenderParams) == sizeof(D3DUint) * 4);
+static_assert(sizeof(VDP2BGRenderParams) == sizeof(D3DUint) * 4);
 
 struct WindowRenderParams {
     D3DUint2 start;
@@ -198,8 +198,8 @@ struct VDP2LineBackScreenParams {
 static_assert(sizeof(VDP2LineBackScreenParams) == sizeof(D3DUint));
 
 struct alignas(16) VDP2BGRenderState {
-    std::array<BGRenderParams, 4> nbgParams;
-    std::array<BGRenderParams, 2> rbgParams;
+    std::array<VDP2BGRenderParams, 4> nbgParams;
+    std::array<VDP2BGRenderParams, 2> rbgParams;
 
     std::array<D3DUint2, 4> nbgScrollAmount; // 11.8 fixed-point
     std::array<D3DUint2, 4> nbgScrollInc;    // 11.8 fixed-point

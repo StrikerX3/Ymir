@@ -196,7 +196,7 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
 }
 
 uint3 Compose(uint2 pos) {
-    // TODO: clear screen is display is disabled
+    // TODO: clear screen if display is disabled
     // - also honor BDCLMD
     
     uint layerStack[3] = { kLayerBack, kLayerBack, kLayerBack };
