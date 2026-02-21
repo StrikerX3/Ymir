@@ -844,7 +844,7 @@ void App::RunEmulator() {
                                d3d11Renderer->GetVDP2OutputTexture());
         hwFbTexture = SDL_CreateTextureWithProperties(m_graphicsService.GetRenderer(), texProps);
         if (hwFbTexture == nullptr) {
-            ShowStartupFailure("Could not create SDL texture from D3D11 texture: %s", SDL_GetError());
+            ShowStartupFailure("Could not create SDL texture from D3D11 texture: {}", SDL_GetError());
             return;
         }
         SDL_SetTextureScaleMode(hwFbTexture, SDL_SCALEMODE_NEAREST);
