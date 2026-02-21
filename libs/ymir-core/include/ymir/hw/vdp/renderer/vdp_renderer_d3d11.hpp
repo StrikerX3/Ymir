@@ -123,7 +123,6 @@ public:
 private:
     VDPState &m_state;
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
-    ID3D11Device *m_device;
     bool m_restoreState;
 
     /// @brief Convenience method that invokes `IVDPRenderer::VDP2UpdateEnabledBGs(...)` with the correct parameters.
