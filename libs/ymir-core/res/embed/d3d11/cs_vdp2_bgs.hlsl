@@ -12,7 +12,7 @@ struct Window {
     bool lineWindowTableEnable;
 };
 
-struct RenderState {
+struct BGRenderState {
     uint4 nbgParams[4];
     uint4 rbgParams[2];
     
@@ -51,9 +51,9 @@ cbuffer Config : register(b0) {
 }
 
 ByteAddressBuffer vram : register(t0);
-Buffer<uint4> cram : register(t1);
-StructuredBuffer<RenderState> renderState : register(t2);
-Buffer<uint2> rotParams : register(t3);
+Buffer<uint4> cramColor : register(t1);
+StructuredBuffer<BGRenderState> bgRenderState : register(t2);
+Buffer<uint2> rotRegs : register(t3);
 StructuredBuffer<RotParamState> rotParamState : register(t4);
 
 // The alpha channel of the BG output is used for pixel attributes as follows:
@@ -173,7 +173,7 @@ uint GetY(uint y) {
 
 uint4 FetchCRAMColor(uint cramOffset, uint colorIndex) {
     const uint cramAddress = (cramOffset + colorIndex) & kCRAMAddressMask;
-    return cram[cramAddress];
+    return cramColor[cramAddress];
 }
 
 uint4 Color555(uint val16) {
@@ -252,7 +252,7 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
 //   5  Sprite window enable (if hasSpriteWindow==true)
 //   6  Sprite window invert (if hasSpriteWindow==true)
 bool InsideWindows(uint windowParams, bool hasSpriteWindow, uint2 pos) {
-    const Window windows[2] = renderState[0].windows;
+    const Window windows[2] = bgRenderState[0].windows;
     const uint windowLogic = BitExtract(windowParams, 0, 1);
     const bool window0Enable = BitTest(windowParams, 1);
     const bool window0Invert = BitTest(windowParams, 2);
@@ -281,7 +281,7 @@ bool InsideWindows(uint windowParams, bool hasSpriteWindow, uint2 pos) {
 
 bool IsSpecialColorCalcMatch(uint4 nbgParams, uint specColorCode) {
     const uint specFuncSelect = BitExtract(nbgParams.x, 16, 1);
-    return BitTest(renderState[0].specialFunctionCodes, specFuncSelect * 8 + specColorCode);
+    return BitTest(bgRenderState[0].specialFunctionCodes, specFuncSelect * 8 + specColorCode);
 }
 
 bool GetSpecialColorCalcFlag(uint4 nbgParams, uint specColorCode, bool specColorCalc, bool colorMSB) {
@@ -567,7 +567,7 @@ uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, uint
 // -----------------------------------------------------------------------------
 
 uint4 DrawScrollNBG(uint2 pos, uint index) {
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
   
     const uint2 pageShift = uint2(BitExtract(nbgParams.w, 4, 1), BitExtract(nbgParams.w, 5, 1));
@@ -597,7 +597,7 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
 }
 
 uint4 DrawBitmapNBG(uint2 pos, uint index) {
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
     
     const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
@@ -620,7 +620,7 @@ uint4 DrawBitmapNBG(uint2 pos, uint index) {
 }
 
 uint4 DrawNBG(uint2 pos, uint index) {
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
     
     const bool enabled = BitTest(nbgParams.x, 30);
@@ -643,15 +643,15 @@ uint GetRotIndex(uint2 pos, uint paramIndex) {
 }
 
 uint SelectRotationParameter(uint4 rbgParams, uint2 pos) {
-    const uint commonRotParams = renderState[0].commonRotParams;
-    const uint rotParamMode = BitExtract(commonRotParams, 0, 2);
-    switch (rotParamMode) {
+    const uint commonRotParams = bgRenderState[0].commonRotParams;
+    const uint regsMode = BitExtract(commonRotParams, 0, 2);
+    switch (regsMode) {
         case kRotParamModeA:
             return kRotParamA;
         case kRotParamModeB:
             return kRotParamB;
         case kRotParamModeCoeff:{
-                const bool coeffTableEnable = BitTest(rotParams[0].x, 0);
+                const bool coeffTableEnable = BitTest(rotRegs[0].x, 0);
                 if (!coeffTableEnable) {
                     return kRotParamA;
                 }
@@ -672,15 +672,15 @@ void StoreRotationLineColorData(uint2 pos, uint index, uint rotSel) {
         return;
     }
     
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint commonRotParams = state.commonRotParams;
-    const uint rotParamMode = BitExtract(commonRotParams, 0, 2);
+    const uint regsMode = BitExtract(commonRotParams, 0, 2);
     const bool hasRBG1 = BitTest(config.layerEnabled, 13);
 
     bool useCoeffLineColor = false;
     uint coeffSel;
     
-    switch (rotParamMode) {
+    switch (regsMode) {
         case kRotParamModeA:
             useCoeffLineColor = rotSel == kRotParamA;
             coeffSel = kRotParamA;
@@ -708,9 +708,9 @@ void StoreRotationLineColorData(uint2 pos, uint index, uint rotSel) {
     uint cramAddress = ReadVRAM16(lineColorAddress);
     
     if (useCoeffLineColor) {
-        const uint2 rotParam = rotParams[index];
-        const bool coeffTableEnable = BitTest(rotParam.x, 0);
-        const bool coeffUseLineColorData = BitTest(rotParam.x, 10);
+        const uint2 regs = rotRegs[index];
+        const bool coeffTableEnable = BitTest(regs.x, 0);
+        const bool coeffUseLineColorData = BitTest(regs.x, 10);
         if (coeffTableEnable && coeffUseLineColorData) {
             const uint baseLineColorData = BitExtract(cramAddress, 7, 4);
             
@@ -721,11 +721,11 @@ void StoreRotationLineColorData(uint2 pos, uint index, uint rotSel) {
         }
     }
     
-    rbgLineColorOut[uint3(pos.xy, index)] = cram[cramAddress];
+    rbgLineColorOut[uint3(pos.xy, index)] = cramColor[cramAddress];
 }
 
 uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
     const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
     const uint screenOverPatternName = BitExtract(rbgParams.z, 0, 16);
@@ -764,7 +764,7 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
 }
 
 uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
     const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
 
@@ -797,7 +797,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
         pos.x >>= 1;
     }
 
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
         
     const bool enabled = BitTest(rbgParams.x, 30);
@@ -814,7 +814,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
     const RotParamState rotState = rotParamState[rotIndex];
 
     // Handle transparent pixels in coefficient table
-    const bool coeffTableEnable = BitTest(rotParams[0].x, 0);
+    const bool coeffTableEnable = BitTest(rotRegs[0].x, 0);
     if (coeffTableEnable && BitTest(rotState.coeffData, 7)) {
         return kTransparentPixel;
     }
@@ -826,7 +826,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
 // -----------------------------------------------------------------------------
 
 uint4 DrawLineBackScreen(uint index, uint y) {
-    const RenderState state = renderState[0];
+    const BGRenderState state = bgRenderState[0];
     const uint params = index == 0 ? state.lineScreenParams : state.backScreenParams;
     
     const bool lineColorPerLine = BitTest(params, 19);
@@ -836,7 +836,7 @@ uint4 DrawLineBackScreen(uint index, uint y) {
     const uint lineColorAddress = lineColorBaseAddress + lineColorY;
 
     const uint cramAddress = ReadVRAM16(lineColorAddress);
-    return cram[cramAddress];
+    return cramColor[cramAddress];
 }
 
 // -----------------------------------------------------------------------------

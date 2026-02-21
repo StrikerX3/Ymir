@@ -25,7 +25,7 @@ cbuffer Config : register(b0) {
 
 ByteAddressBuffer vram : register(t0);
 ByteAddressBuffer cramCoeff : register(t1);
-Buffer<uint2> rotParams : register(t2);
+Buffer<uint2> rotRegs : register(t2);
 StructuredBuffer<RotParamBase> rotParamBases : register(t3);
 
 RWStructuredBuffer<RotParamState> rotParamOut : register(u0);
@@ -230,35 +230,35 @@ RotTable ReadRotTable(const uint address) {
     return table;
 }
 
-bool CanFetchCoefficient(uint2 rotParams, uint coeffAddress) {
-    const bool coeffTableCRAM = BitTest(rotParams.x, 1);
+bool CanFetchCoefficient(uint2 regs, uint coeffAddress) {
+    const bool coeffTableCRAM = BitTest(regs.x, 1);
     if (coeffTableCRAM) {
         return true;
     }
 
-    const bool coeffDataPerDot = BitTest(rotParams.x, 9);
+    const bool coeffDataPerDot = BitTest(regs.x, 9);
     if (!coeffDataPerDot) {
         return true;
     }
 
-    const uint coeffDataSize = BitExtract(rotParams.x, 2, 1);
-    const uint coeffDataAccess = BitExtract(rotParams.x, 5, 4);
+    const uint coeffDataSize = BitExtract(regs.x, 2, 1);
+    const uint coeffDataAccess = BitExtract(regs.x, 5, 4);
     const uint offset = coeffAddress >> 10u;
     const uint address = (offset * 4) >> coeffDataSize;
     const uint bank = BitExtract(address, 17, 2);
     return BitTest(coeffDataAccess, bank);
 }
 
-RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
+RotCoefficient ReadRotCoefficient(uint2 regs, uint coeffAddress) {
     const uint offset = coeffAddress >> 10;
-    const bool coeffTableCRAM = BitTest(rotParams.x, 1);
-    const bool coeffDataSize = BitTest(rotParams.x, 2);
-    const uint coeffDataMode = BitExtract(rotParams.x, 3, 2);
+    const bool coeffTableCRAM = BitTest(regs.x, 1);
+    const bool coeffDataSize = BitTest(regs.x, 2);
+    const uint coeffDataMode = BitExtract(regs.x, 3, 2);
 
     RotCoefficient coeff;
     
     // Force coefficient to 0 if it cannot be read in per-dot mode
-    if (!CanFetchCoefficient(rotParams, coeffAddress)) {
+    if (!CanFetchCoefficient(regs, coeffAddress)) {
         coeff.value = 0;
         coeff.lineColorData = 0;
         coeff.transparent = true;
@@ -296,12 +296,12 @@ RotCoefficient ReadRotCoefficient(uint2 rotParams, uint coeffAddress) {
 
 RotParamState CalcRotation(uint2 pos, uint index) {
     const RotParamBase base = rotParamBases[index];
-    const uint2 rotParam = rotParams[index];
+    const uint2 regs = rotRegs[index];
     
-    const bool coeffTableEnable = BitTest(rotParam.x, 0);
-    const uint coeffDataMode = BitExtract(rotParam.x, 3, 2);
-    const bool coeffDataPerDot = BitTest(rotParam.x, 9);
-    const bool fbRotEnable = BitTest(rotParam.x, 11);
+    const bool coeffTableEnable = BitTest(regs.x, 0);
+    const uint coeffDataMode = BitExtract(regs.x, 3, 2);
+    const bool coeffDataPerDot = BitTest(regs.x, 9);
+    const bool fbRotEnable = BitTest(regs.x, 11);
     
     const RotTable t = ReadRotTable(base.tableAddress);
 
@@ -353,7 +353,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
         const uint KA = base.KA + pos.y * t.dKAst + KAxofs;
 
         // Read and apply rotation coefficient
-        coeff = ReadRotCoefficient(rotParam, KA);
+        coeff = ReadRotCoefficient(regs, KA);
    
         switch (coeffDataMode) {
             case kCoeffDataModeScaleCoeffXY:
