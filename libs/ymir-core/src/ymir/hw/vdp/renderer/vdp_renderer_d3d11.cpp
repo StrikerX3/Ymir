@@ -43,6 +43,12 @@ static constexpr uint32 kVDP1FBRAMPages = vdp::kVDP1FramebufferRAMSize >> kVRAMP
 static constexpr uint32 kVDP1VRAMPages = vdp::kVDP1VRAMSize >> kVRAMPageBits;
 static constexpr uint32 kVDP2VRAMPages = vdp::kVDP2VRAMSize >> kVRAMPageBits;
 
+static constexpr uint32 kVDP1PolyAtlasH = 2048;
+static constexpr uint32 kVDP1PolyAtlasV = 2048;
+
+static_assert(kVDP1PolyAtlasH >= kVDP1MaxFBSizeH);
+static_assert(kVDP1PolyAtlasV >= kVDP1MaxFBSizeV);
+
 static constexpr uint32 kColorCacheSize = vdp::kVDP2CRAMSize / sizeof(uint16);
 static constexpr uint32 kCoeffCacheSize = vdp::kVDP2CRAMSize / 2; // top-half only
 
@@ -84,40 +90,45 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11VertexShader *vsIdentity = nullptr; //< Identity/passthrough vertex shader, required to run pixel shaders
 
     // -------------------------------------------------------------------------
-    // VDP1
-
-    // VDP1 rendering process idea:
-    // - batch polygons to render in a large atlas (2048x2048, maybe larger)
-    // - render polygons with compute shader individually, parallelized into atlas regions
-    // - merge rendered polygons with pixel shader into draw framebuffer (+ draw transparent mesh buffer if enabled)
-    // - copy VDP1 FBRAM to CPU-side FBRAM + main and emulator thread synchronization
+    // VDP1 - shared resources
 
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
-
-    ID3D11Buffer *bufVDP1VRAM = nullptr;                              //< VDP1 VRAM buffer
-    ID3D11ShaderResourceView *srvVDP1VRAM = nullptr;                  //< SRV for VDP1 VRAM buffer
-    DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};                   //< Dirty bitmap for VDP1 VRAM
-    std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages = {}; //< VDP1 VRAM page buffers
-
-    ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
-    ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
-    bool dirtyVDP1FBRAM = true;                       //< Dirty flag for VDP1 framebuffer RAM
 
     ID3D11Buffer *bufVDP1RenderState = nullptr;             //< VDP1 render state structured buffer
     ID3D11ShaderResourceView *srvVDP1RenderState = nullptr; //< SRV for VDP1 render state
     VDP1RenderState cpuVDP1RenderState{};                   //< CPU-side VDP1 render state
     bool dirtyVDP1RenderState = true;                       //< Dirty flag for VDP1 render state
 
-    ID3D11Texture2D *texVDP1Polys = nullptr;           //< VDP1 polygon atlas texture
-    ID3D11UnorderedAccessView *uavVDP1Polys = nullptr; //< UAV for VDP1 polygon atlas texture
-    ID3D11ShaderResourceView *srvVDP1Polys = nullptr;  //< SRV for VDP1 polygon atlas texture
-    ID3D11ComputeShader *csVDP1PolyDraw = nullptr;     //< VDP1 polygon drawing compute shader
+    ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
+    ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
+    bool dirtyVDP1FBRAM = true;                       //< Dirty flag for VDP1 framebuffer RAM
 
-    ID3D11Texture2D *texVDP1PolyOut = nullptr;           //< VDP1 polygon output texture array (sprite, mesh)
-    ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output textures
-    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output textures
-    ID3D11ComputeShader *csVDP1PolyMerge = nullptr;      //< VDP1 polygon merger compute shader
+    ID3D11Buffer *bufVDP1Polys = nullptr;             //< VDP1 polygon atlas buffer
+    ID3D11ShaderResourceView *srvVDP1Polys = nullptr; //< SRV for VDP1 polygon atlas buffer
+
+    // -------------------------------------------------------------------------
+    // VDP1 - polygon erase/init shader
+
+    ID3D11ComputeShader *csVDP1Erase = nullptr; //< VDP1 polygon erase/init compute shader
+
+    // -------------------------------------------------------------------------
+    // VDP1 - polygon drawing shader
+
+    ID3D11ComputeShader *csVDP1PolyDraw = nullptr; //< VDP1 polygon drawing compute shader
+
+    ID3D11Buffer *bufVDP1VRAM = nullptr;                              //< VDP1 VRAM buffer
+    ID3D11ShaderResourceView *srvVDP1VRAM = nullptr;                  //< SRV for VDP1 VRAM buffer
+    DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};                   //< Dirty bitmap for VDP1 VRAM
+    std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages = {}; //< VDP1 VRAM page buffers
+
+    // -------------------------------------------------------------------------
+    // VDP1 - polygon merging shader
+
+    ID3D11ComputeShader *csVDP1PolyMerge = nullptr; //< VDP1 polygon merger compute shader
+
+    ID3D11Buffer *bufVDP1PolyOut = nullptr;             //< VDP1 polygon output buffer (sprite, mesh)
+    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr; //< SRV for VDP1 polygon output textures
 
     // -------------------------------------------------------------------------
     // VDP2 - shared resources
@@ -136,20 +147,20 @@ struct Direct3D11VDPRenderer::Context {
     bool dirtyVDP2RotParamState = true;                 //< Dirty flag for VDP2 rotation registers
 
     ID3D11Buffer *bufVDP2RotParams = nullptr;              //< Rotation parameters A/B buffers (in that order)
-    ID3D11UnorderedAccessView *uavVDP2RotParams = nullptr; //< UAV for rotation parameters texture array
     ID3D11ShaderResourceView *srvVDP2RotParams = nullptr;  //< SRV for rotation parameters texture array
+    ID3D11UnorderedAccessView *uavVDP2RotParams = nullptr; //< UAV for rotation parameters texture array
 
     ID3D11Texture2D *texVDP2BGs = nullptr;           //< NBG0-3, RBG0-1 textures (in that order)
-    ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG texture array
     ID3D11ShaderResourceView *srvVDP2BGs = nullptr;  //< SRV for NBG/RBG texture array
+    ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG texture array
 
     ID3D11Texture2D *texVDP2RotLineColors = nullptr;           //< LNCL textures for RBG0-1 (in that order)
-    ID3D11UnorderedAccessView *uavVDP2RotLineColors = nullptr; //< UAV for RBG0-1 LNCL texture array
     ID3D11ShaderResourceView *srvVDP2RotLineColors = nullptr;  //< SRV for RBG0-1 LNCL texture array
+    ID3D11UnorderedAccessView *uavVDP2RotLineColors = nullptr; //< UAV for RBG0-1 LNCL texture array
 
     ID3D11Texture2D *texVDP2LineColors = nullptr;           //< LNCL screen texture (0,y=LNCL; 1,y=BACK)
-    ID3D11UnorderedAccessView *uavVDP2LineColors = nullptr; //< UAV for LNCL screen texture
     ID3D11ShaderResourceView *srvVDP2LineColors = nullptr;  //< SRV for LNCL screen texture
+    ID3D11UnorderedAccessView *uavVDP2LineColors = nullptr; //< UAV for LNCL screen texture
 
     // -------------------------------------------------------------------------
     // VDP2 - rotation parameters shader
@@ -514,11 +525,11 @@ struct Direct3D11VDPRenderer::Context {
     /// @return the result of the attempt to create the buffer
     HRESULT CreateByteAddressBuffer(ID3D11Buffer **bufOut, ID3D11ShaderResourceView **srvOutOpt, UINT size,
                                     const void *initData, UINT bindFlags, UINT cpuAccessFlags) {
-        assert(device != nullptr);
-        assert(bufOut != nullptr);
-        assert(*bufOut == nullptr);
-        assert(srvOutOpt == nullptr || *srvOutOpt == nullptr);
         assert((size & 15) == 0);
+
+        if (srvOutOpt != nullptr) {
+            bindFlags |= D3D11_BIND_SHADER_RESOURCE;
+        }
 
         if (HRESULT hr = CreateBuffer(bufOut, BufferType::Raw, size, 1, initData, bindFlags, cpuAccessFlags);
             FAILED(hr)) {
@@ -834,7 +845,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
 
     // -------------------------------------------------------------------------
-    // VDP1
+    // VDP1 - shared resources
 
     if (HRESULT hr = m_context->CreateConstantBuffer(&m_context->cbufVDP1RenderConfig, m_context->cpuVDP1RenderConfig);
         FAILED(hr)) {
@@ -843,45 +854,91 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
-    // TODO:
-    //
-    // ID3D11Buffer *bufVDP1VRAM
-    // ID3D11ShaderResourceView *srvVDP1VRAM
-    // std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages
-    //
-    // ID3D11Buffer *bufVDP1FBRAM
-    // ID3D11ShaderResourceView *srvVDP1FBRAM
-    //
-    // ID3D11Buffer *bufVDP1RenderState
-    // ID3D11ShaderResourceView *srvVDP1RenderState
-    //
-    // ID3D11Texture2D *texVDP1Polys
-    // ID3D11UnorderedAccessView *uavVDP1Polys
-    // ID3D11ShaderResourceView *srvVDP1Polys
-    // ID3D11ComputeShader *csVDP1PolyDraw
-    //
-    // ID3D11Texture2D *texVDP1PolyOut
-    // ID3D11UnorderedAccessView *uavVDP1PolyOut
-    // ID3D11ShaderResourceView *srvVDP1PolyOut
-    // ID3D11ComputeShader *csVDP1PolyMerge
-    SetDebugName(m_context->bufVDP1VRAM, "[Ymir D3D11] VDP1 VRAM buffer");
-    SetDebugName(m_context->srvVDP1VRAM, "[Ymir D3D11] VDP1 VRAM SRV");
-    for (uint32 i = 0; auto *buf : m_context->bufVDP1VRAMPages) {
-        SetDebugName(buf, fmt::format("[Ymir D3D11] VDP1 VRAM page buffer #{}", i));
-        ++i;
+    if (HRESULT hr =
+            m_context->CreateStructuredBuffer(&m_context->bufVDP1RenderState, &m_context->srvVDP1RenderState, nullptr,
+                                              1, &m_context->cpuVDP1RenderState, 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1RenderState, "[Ymir D3D11] VDP1 render state buffer");
+    SetDebugName(m_context->srvVDP1RenderState, "[Ymir D3D11] VDP1 render state SRV");
+
+    if (HRESULT hr = m_context->CreateByteAddressBuffer(
+            &m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, kVDP1FramebufferRAMSize,
+            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
     }
     SetDebugName(m_context->bufVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM buffer");
     SetDebugName(m_context->srvVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM SRV");
-    SetDebugName(m_context->bufVDP1RenderState, "[Ymir D3D11] VDP1 render state buffer");
-    SetDebugName(m_context->srvVDP1RenderState, "[Ymir D3D11] VDP1 render state SRV");
-    SetDebugName(m_context->texVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas texture");
-    SetDebugName(m_context->uavVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas UAV");
+
+    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP1Polys, &m_context->srvVDP1Polys,
+                                                        kVDP1PolyAtlasH * kVDP1PolyAtlasV, nullptr, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas buffer");
     SetDebugName(m_context->srvVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas SRV");
+
+    // -------------------------------------------------------------------------
+    // VDP1 - polygon erase/init shader
+
+    if (!m_context->CreateComputeShader(m_context->csVDP1Erase, "d3d11/cs_vdp1_erase.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->csVDP1Erase, "[Ymir D3D11] VDP1 polygon erase/init compute shader");
+
+    // -------------------------------------------------------------------------
+    // VDP1 - polygon drawing shader
+
+    if (!m_context->CreateComputeShader(m_context->csVDP1PolyDraw, "d3d11/cs_vdp1_polydraw.hlsl")) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->csVDP1PolyDraw, "[Ymir D3D11] VDP1 polygon drawing compute shader");
-    SetDebugName(m_context->texVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output texture array");
-    SetDebugName(m_context->uavVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output UAV");
-    SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
+
+    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM,
+                                                        m_state.VRAM1.size(), m_state.VRAM1.data(), 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1VRAM, "[Ymir D3D11] VDP1 VRAM buffer");
+    SetDebugName(m_context->srvVDP1VRAM, "[Ymir D3D11] VDP1 VRAM SRV");
+
+    for (uint32 i = 0; auto &buf : m_context->bufVDP1VRAMPages) {
+        if (HRESULT hr = m_context->CreateByteAddressBuffer(&buf, nullptr, 1u << kVRAMPageBits, nullptr, 0,
+                                                            D3D11_CPU_ACCESS_WRITE);
+            FAILED(hr)) {
+            // TODO: report error
+            return;
+        }
+        SetDebugName(buf, fmt::format("[Ymir D3D11] VDP1 VRAM page buffer #{}", i));
+        ++i;
+    }
+
+    // -------------------------------------------------------------------------
+    // VDP1 - polygon merging shader
+
+    if (!m_context->CreateComputeShader(m_context->csVDP1PolyMerge, "d3d11/cs_vdp1_polymerge.hlsl")) {
+        // TODO: report error
+        return;
+    }
     SetDebugName(m_context->csVDP1PolyMerge, "[Ymir D3D11] VDP1 polygon merger compute shader");
+
+    if (HRESULT hr = m_context->CreateByteAddressBuffer(
+            &m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut, kVDP1FramebufferRAMSize,
+            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output buffer");
+    SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
 
     // -------------------------------------------------------------------------
     // VDP2 - shared resources
@@ -934,8 +991,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
     SetDebugName(m_context->bufVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters buffer array");
-    SetDebugName(m_context->uavVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters UAV");
     SetDebugName(m_context->srvVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters SRV");
+    SetDebugName(m_context->uavVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters UAV");
 
     if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2BGs, &m_context->srvVDP2BGs, &m_context->uavVDP2BGs,
                                                 vdp::kMaxResH, vdp::kMaxResV, 6, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
@@ -944,8 +1001,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
     SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG texture array");
-    SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
     SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
+    SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
 
     if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2RotLineColors, &m_context->srvVDP2RotLineColors,
                                                 &m_context->uavVDP2RotLineColors, vdp::kMaxNormalResH,
@@ -955,8 +1012,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
     SetDebugName(m_context->texVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL texture array");
-    SetDebugName(m_context->uavVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
     SetDebugName(m_context->srvVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL SRV");
+    SetDebugName(m_context->uavVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
 
     if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2LineColors, &m_context->srvVDP2LineColors,
                                                 &m_context->uavVDP2LineColors, 2, vdp::kMaxNormalResV, 0,
@@ -966,8 +1023,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
     SetDebugName(m_context->texVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen texture");
-    SetDebugName(m_context->uavVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen UAV");
     SetDebugName(m_context->srvVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen SRV");
+    SetDebugName(m_context->uavVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen UAV");
 
     // -------------------------------------------------------------------------
     // VDP2 - rotation parameters shader
@@ -1030,7 +1087,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP2 - compositor shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP2Compose, "d3d11/cs_vdp2_compose.hlsl", "CSMain", nullptr)) {
+    if (!m_context->CreateComputeShader(m_context->csVDP2Compose, "d3d11/cs_vdp2_compose.hlsl")) {
         // TODO: report error
         return;
     }
@@ -1078,7 +1135,12 @@ void Direct3D11VDPRenderer::ExecutePendingCommandList() {
     // TODO: if VDP1 FBRAM copy flag is set:
     // 1. copy VDP1 FBRAM data to a local copy in m_context
     // 2. signal emulator thread to copy that to m_state.spriteFB
-    // TODO: after finishing the command list,
+
+    // VDP1 rendering process idea:
+    // - batch polygons to render in a large atlas (2048x2048, maybe larger)
+    // - render polygons with compute shader individually, parallelized into atlas regions
+    // - merge rendered polygons with pixel shader into draw framebuffer (+ draw transparent mesh buffer if enabled)
+    // - copy VDP1 FBRAM to CPU-side FBRAM + main and emulator thread synchronization
 }
 
 ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {
