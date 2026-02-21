@@ -36,6 +36,9 @@ static std::string_view GetEmbedFSFile(const std::string &path) {
 // Renderer context
 
 static constexpr uint32 kVRAMPageBits = 12;
+
+static constexpr uint32 kVDP1FBRAMPages = vdp::kVDP1FramebufferRAMSize >> kVRAMPageBits;
+static constexpr uint32 kVDP1VRAMPages = vdp::kVDP1VRAMSize >> kVRAMPageBits;
 static constexpr uint32 kVDP2VRAMPages = vdp::kVDP2VRAMSize >> kVRAMPageBits;
 
 static constexpr uint32 kColorCacheSize = vdp::kVDP2CRAMSize / sizeof(uint16);
@@ -80,20 +83,37 @@ struct Direct3D11VDPRenderer::Context {
     // -------------------------------------------------------------------------
 
     // VDP1 rendering process idea:
-    // - batch polygons
-    // - render polygons with compute shader individually, parallelized into separate textures
+    // - batch polygons to render in a large atlas (2048x2048, maybe larger)
+    // - render polygons with compute shader individually, parallelized into atlas regions
     // - merge rendered polygons with pixel shader into draw framebuffer (+ draw transparent mesh buffer if enabled)
-    // TODO: figure out how to handle VDP1 framebuffer writes from SH2
-    // TODO: figure out how to handle mid-frame VDP1 VRAM writes
+    // - copy VDP1 FBRAM to CPU-side FBRAM + main and emulator thread synchronization
 
-    // TODO: VDP1 VRAM buffer (ByteAddressBuffer?)
-    // TODO: VDP1 framebuffer RAM buffer
-    // TODO: VDP1 registers structured buffer array (per polygon)
-    // TODO: VDP1 polygon 2D texture array + UAVs + SRVs
-    // TODO: VDP1 framebuffer 2D textures + SRVs
-    // TODO: VDP1 transparent meshes 2D textures + SRVs
-    // TODO: VDP1 polygon compute shader (one thread per polygon in a batch)
-    // TODO: VDP1 framebuffer merger pixel shader
+    ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
+    VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
+
+    ID3D11Buffer *bufVDP1VRAM = nullptr;                              //< VDP1 VRAM buffer
+    ID3D11ShaderResourceView *srvVDP1VRAM = nullptr;                  //< SRV for VDP1 VRAM buffer
+    d3dutil::DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};          //< Dirty bitmap for VDP1 VRAM
+    std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages = {}; //< VDP1 VRAM page buffers
+
+    ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
+    ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
+    bool dirtyVDP1FBRAM = true;                       //< Dirty flag for VDP1 framebuffer RAM
+
+    ID3D11Buffer *bufVDP1RenderState = nullptr;             //< VDP1 render state structured buffer
+    ID3D11ShaderResourceView *srvVDP1RenderState = nullptr; //< SRV for VDP1 render state
+    VDP1RenderState cpuVDP1RenderState{};                   //< CPU-side VDP1 render state
+    bool dirtyVDP1RenderState = true;                       //< Dirty flag for VDP1 render state
+
+    ID3D11Texture2D *texVDP1Polys = nullptr;           //< VDP1 polygon atlas texture
+    ID3D11UnorderedAccessView *uavVDP1Polys = nullptr; //< UAV for VDP1 polygon atlas texture
+    ID3D11ShaderResourceView *srvVDP1Polys = nullptr;  //< SRV for VDP1 polygon atlas texture
+    ID3D11ComputeShader *csVDP1PolyDraw = nullptr;     //< VDP1 polygon drawing compute shader
+
+    ID3D11Texture2D *texVDP1PolyOut = nullptr;           //< VDP1 polygon output texture array (sprite, mesh)
+    ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output textures
+    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output textures
+    ID3D11ComputeShader *csVDP1PolyMerge = nullptr;      //< VDP1 polygon merger compute shader
 
     // -------------------------------------------------------------------------
 
@@ -927,6 +947,25 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
     SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
     SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
+    SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
+    SetDebugName(m_context->bufVDP1VRAM, "[Ymir D3D11] VDP1 VRAM buffer");
+    SetDebugName(m_context->srvVDP1VRAM, "[Ymir D3D11] VDP1 VRAM SRV");
+    for (uint32 i = 0; auto *buf : m_context->bufVDP1VRAMPages) {
+        SetDebugName(buf, fmt::format("[Ymir D3D11] VDP1 VRAM page buffer #{}", i));
+        ++i;
+    }
+    SetDebugName(m_context->bufVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM buffer");
+    SetDebugName(m_context->srvVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM SRV");
+    SetDebugName(m_context->bufVDP1RenderState, "[Ymir D3D11] VDP1 render state buffer");
+    SetDebugName(m_context->srvVDP1RenderState, "[Ymir D3D11] VDP1 render state SRV");
+    SetDebugName(m_context->texVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas texture");
+    SetDebugName(m_context->uavVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas UAV");
+    SetDebugName(m_context->srvVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas SRV");
+    SetDebugName(m_context->csVDP1PolyDraw, "[Ymir D3D11] VDP1 polygon drawing compute shader");
+    SetDebugName(m_context->texVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output texture array");
+    SetDebugName(m_context->uavVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output UAV");
+    SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
+    SetDebugName(m_context->csVDP1PolyMerge, "[Ymir D3D11] VDP1 polygon merger compute shader");
     SetDebugName(m_context->bufVDP2VRAM, "[Ymir D3D11] VDP2 VRAM buffer");
     SetDebugName(m_context->srvVDP2VRAM, "[Ymir D3D11] VDP2 VRAM SRV");
     for (uint32 i = 0; auto *buf : m_context->bufVDP2VRAMPages) {
@@ -978,9 +1017,15 @@ void Direct3D11VDPRenderer::ExecutePendingCommandList() {
         HwCallbacks.PreExecuteCommandList();
         m_context->immediateCtx->ExecuteCommandList(cmdList, m_restoreState);
         cmdList->Release();
+        // TODO: if a VDP1 frame was rendered, set flag indicating that a VDP1 FBRAM copy is needed
         HwCallbacks.PostExecuteCommandList();
     }
     m_context->cmdListQueue.clear();
+
+    // TODO: if VDP1 FBRAM copy flag is set:
+    // 1. copy VDP1 FBRAM data to a local copy in m_context
+    // 2. signal emulator thread to copy that to m_state.spriteFB
+    // TODO: after finishing the command list,
 }
 
 ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {

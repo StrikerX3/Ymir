@@ -55,6 +55,25 @@ static_assert(sizeof(D3DInt3) == sizeof(D3DInt) * 3);
 
 // -----------------------------------------------------------------------------
 
+struct alignas(16) VDP1RenderConfig {
+    // TODO: number of VDP1 polygons to render
+    // TODO: relevant VDP1 registers
+
+    D3DUint4 reserved;
+};
+
+struct VDP1RenderState {
+    // TODO: individual polygon rendering parameters
+    // - system clipping area
+    // - user clipping area
+    // - all 0x20 bytes of the command
+    // - polygon bounds in atlas texture
+
+    D3DUint4 reserved;
+};
+
+// -----------------------------------------------------------------------------
+
 struct alignas(16) VDP2RenderConfig {
     struct DisplayParams {            //  bits  use
         D3DUint interlaced : 1;       //     0  Interlaced
