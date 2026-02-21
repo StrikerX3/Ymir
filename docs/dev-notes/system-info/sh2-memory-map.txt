@@ -64,8 +64,8 @@ Address range            Mirror size   Description
 0x5A0'0000..0x5AF'FFFF   0x40000/0x80000   68000 Work RAM
 0x5B0'0000..0x5BF'FFFF   0x1000            SCSP registers
 0x5C0'0000..0x5C7'FFFF   0x80000           VDP1 VRAM
-0x5C8'0000..0x5CF'FFFF   0x40000           VDP1 Framebuffer (backbuffer only)
-0x5D0'0000..0x5D7'FFFF   0x18 (no mirror)  VDP1 Registers
+0x5C8'0000..0x5CF'FFFF   0x40000           VDP1 framebuffer (backbuffer only)
+0x5D0'0000..0x5D7'FFFF   0x18 (no mirror)  VDP1 registers
 0x5D8'0000..0x5DF'FFFF   -                 Lockup when read
 0x5E0'0000..0x5EF'FFFF   0x80000           VDP2 VRAM
 0x5F0'0000..0x5F7'FFFF   0x1000            VDP2 CRAM
