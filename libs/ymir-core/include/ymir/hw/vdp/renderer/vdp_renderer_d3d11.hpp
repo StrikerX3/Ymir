@@ -128,13 +128,26 @@ private:
     // -------------------------------------------------------------------------
     // VDP1 rendering
 
-    // TODO
+    /// @brief Updates the VDP1 rendering configuration constants.
+    void VDP1UpdateRenderConfig();
 
     /// @brief Updates VDP1 VRAM if dirty.
     void VDP1UpdateVRAM();
 
     /// @brief Uploads the current VDP1 drawing FBRAM to the GPU.
     void VDP1UploadDrawFBRAM();
+
+    void VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control);
+    void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);
+    void VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control);
+
+    void VDP1Cmd_DrawPolygon(uint32 cmdAddress);
+    void VDP1Cmd_DrawPolylines(uint32 cmdAddress);
+    void VDP1Cmd_DrawLine(uint32 cmdAddress);
+
+    void VDP1Cmd_SetSystemClipping(uint32 cmdAddress);
+    void VDP1Cmd_SetUserClipping(uint32 cmdAddress);
+    void VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress);
 
     // -------------------------------------------------------------------------
     // VDP2 rendering

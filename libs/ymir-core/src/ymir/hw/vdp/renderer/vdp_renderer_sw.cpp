@@ -252,7 +252,7 @@ void SoftwareVDPRenderer::PostLoadStateSync() {
 void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
     state.vdp1State.sysClipH = m_VDP1State.sysClipH;
     state.vdp1State.sysClipV = m_VDP1State.sysClipV;
-    state.vdp1State.doubleV = m_VDP1State.doubleV;
+    state.vdp1State.doubleV = m_VDP1doubleV;
     state.vdp1State.userClipX0 = m_VDP1State.userClipX0;
     state.vdp1State.userClipY0 = m_VDP1State.userClipY0;
     state.vdp1State.userClipX1 = m_VDP1State.userClipX1;
@@ -313,7 +313,7 @@ bool SoftwareVDPRenderer::ValidateState(const state::VDPState::VDPRendererState 
 void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &state) {
     m_VDP1State.sysClipH = state.vdp1State.sysClipH;
     m_VDP1State.sysClipV = state.vdp1State.sysClipV;
-    m_VDP1State.doubleV = state.vdp1State.doubleV;
+    m_VDP1doubleV = state.vdp1State.doubleV;
     m_VDP1State.userClipX0 = state.vdp1State.userClipX0;
     m_VDP1State.userClipY0 = state.vdp1State.userClipY0;
     m_VDP1State.userClipX1 = state.vdp1State.userClipX1;
@@ -524,7 +524,7 @@ void SoftwareVDPRenderer::VDP1BeginFrame() {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
     // TODO: move doubleV to this class
-    m_VDP1State.doubleV =
+    m_VDP1doubleV =
         m_enhancements.deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
 }
 
@@ -1008,7 +1008,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelUserClipped(CoordS32 coord) co
     if (x < ctx.userClipX0 || x > ctx.userClipX1) {
         return true;
     }
-    if (y < (ctx.userClipY0 << ctx.doubleV) || y > (ctx.userClipY1 << ctx.doubleV)) {
+    if (y < (ctx.userClipY0 << m_VDP1doubleV) || y > (ctx.userClipY1 << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1021,7 +1021,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelSystemClipped(CoordS32 coord) 
     if (x < 0 || x > ctx.sysClipH) {
         return true;
     }
-    if (y < 0 || y > (ctx.sysClipV << ctx.doubleV)) {
+    if (y < 0 || y > (ctx.sysClipV << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1041,7 +1041,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsLineSystemClipped(CoordS32 coord1, 
     if (x1 > ctx.sysClipH && x2 > ctx.sysClipH) {
         return true;
     }
-    if (y1 > (ctx.sysClipV << ctx.doubleV) && y2 > (ctx.sysClipV << ctx.doubleV)) {
+    if (y1 > (ctx.sysClipV << m_VDP1doubleV) && y2 > (ctx.sysClipV << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1064,8 +1064,8 @@ bool SoftwareVDPRenderer::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coor
     if (x1 > ctx.sysClipH && x2 > ctx.sysClipH && x3 > ctx.sysClipH && x4 > ctx.sysClipH) {
         return true;
     }
-    if (y1 > (ctx.sysClipV << ctx.doubleV) && y2 > (ctx.sysClipV << ctx.doubleV) &&
-        y3 > (ctx.sysClipV << ctx.doubleV) && y4 > (ctx.sysClipV << ctx.doubleV)) {
+    if (y1 > (ctx.sysClipV << m_VDP1doubleV) && y2 > (ctx.sysClipV << m_VDP1doubleV) &&
+        y3 > (ctx.sysClipV << m_VDP1doubleV) && y4 > (ctx.sysClipV << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1191,7 +1191,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 co
 
     LineStepper line{coord1, coord2, antiAlias};
     auto &ctx = m_VDP1State;
-    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
+    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << m_VDP1doubleV) | m_VDP1doubleV);
 
     VDP1PixelParams pixelParams{
         .mode = lineParams.mode,
@@ -1246,7 +1246,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
     const uint32 v = lineParams.texVStepper.Value();
 
     LineStepper line{coord1, coord2, true};
-    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
+    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << m_VDP1doubleV) | m_VDP1doubleV);
 
     VDP1PixelParams pixelParams{
         .mode = mode,
@@ -1496,10 +1496,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1Cmd_Handle(uint32 cmdAddress, VDP1Com
         VDP1Cmd_DrawDistortedSprite<deinterlace, transparentMeshes>(cmdAddress, control);
         break;
 
-    case DrawPolygon: VDP1Cmd_DrawPolygon<deinterlace, transparentMeshes>(cmdAddress, control); break;
+    case DrawPolygon: VDP1Cmd_DrawPolygon<deinterlace, transparentMeshes>(cmdAddress); break;
     case DrawPolylines: [[fallthrough]];
-    case DrawPolylinesAlt: VDP1Cmd_DrawPolylines<deinterlace, transparentMeshes>(cmdAddress, control); break;
-    case DrawLine: VDP1Cmd_DrawLine<deinterlace, transparentMeshes>(cmdAddress, control); break;
+    case DrawPolylinesAlt: VDP1Cmd_DrawPolylines<deinterlace, transparentMeshes>(cmdAddress); break;
+    case DrawLine: VDP1Cmd_DrawLine<deinterlace, transparentMeshes>(cmdAddress); break;
 
     case UserClipping: [[fallthrough]];
     case UserClippingAlt: VDP1Cmd_SetUserClipping(cmdAddress); break;
@@ -1527,7 +1527,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Comman
     const sint32 rx = xa + std::max(charSizeH, 1u) - 1u; // right X
     const sint32 by = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
 
     const CoordS32 coordA{lx, ty << doubleV};
     const CoordS32 coordB{rx, ty << doubleV};
@@ -1626,7 +1626,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Comman
     qxd += ctx.localCoordX;
     qyd += ctx.localCoordY;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
 
     const CoordS32 coordA{qxa, qya << doubleV};
     const CoordS32 coordB{qxb, qyb << doubleV};
@@ -1657,7 +1657,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Com
     const sint32 xd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -1670,7 +1670,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Com
 }
 
 template <bool deinterlace, bool transparentMeshes>
-void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
+void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
     if (!m_layerEnabled[0]) {
         return;
     }
@@ -1689,7 +1689,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Co
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -1751,7 +1751,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Co
 }
 
 template <bool deinterlace, bool transparentMeshes>
-void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control) {
+void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
     if (!m_layerEnabled[0]) {
         return;
     }
@@ -1770,7 +1770,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -1820,7 +1820,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::
 }
 
 template <bool deinterlace, bool transparentMeshes>
-void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control) {
+void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     if (!m_layerEnabled[0]) {
         return;
     }
@@ -1835,7 +1835,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Contr
     const sint32 yb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
 
