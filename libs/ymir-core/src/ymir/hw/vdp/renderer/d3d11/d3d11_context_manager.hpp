@@ -7,6 +7,7 @@
 #include <d3d11.h>
 
 #include <initializer_list>
+#include <type_traits>
 #include <vector>
 
 namespace ymir::vdp::d3d11 {
@@ -20,6 +21,25 @@ public:
 
     ID3D11DeviceContext *GetDeferredContext() const {
         return m_deferredCtx;
+    }
+
+    /// @brief Attempts to lock a resource for modification. If successful, invokes `fnProcess` with a reference to the
+    /// `D3D11_MAPPED_SUBRESOURCE` created by mapping the resource and unmaps it afterwards.
+    ///
+    /// @tparam Fn the type of callable to invoke when the resource is mapped
+    /// @param[in] resource the resource to modify
+    /// @param[in] fnProcess the modifier function
+    /// @return the result of the `Map` operation
+    template <typename Fn>
+        requires std::is_invocable_v<Fn, const D3D11_MAPPED_SUBRESOURCE &>
+    HRESULT ModifyResource(ID3D11Resource *resource, UINT subresource, Fn &&fnProcess) {
+        D3D11_MAPPED_SUBRESOURCE mappedResource;
+        const HRESULT hr = m_deferredCtx->Map(resource, subresource, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+        if (SUCCEEDED(hr)) {
+            fnProcess(mappedResource);
+            m_deferredCtx->Unmap(resource, subresource);
+        }
+        return hr;
     }
 
     void VSSetConstantBuffers(std::initializer_list<ID3D11Buffer *> bufs, uint32 offset = 0);

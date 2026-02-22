@@ -366,6 +366,7 @@ target_link_libraries(ymir-core PUBLIC
     concurrentqueue
     xxHash::xxHash
     chdr-static
+    smol-atlas::smol-atlas
 )
 if (WIN32)
     ## synchronization.lib required for WaitOnAddress and WakeByAddressAll

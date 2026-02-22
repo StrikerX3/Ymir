@@ -64,13 +64,10 @@ struct alignas(16) VDP1RenderConfig {
 };
 
 struct VDP1PolyParams {
-    // TODO: individual polygon rendering parameters
-    // - system clipping area
-    // - user clipping area
-    // - command address in VRAM
-    // - polygon bounds in atlas texture
-
-    D3DUint reserved;
+    D3DUint2 atlasPos;  //< Position in atlas texture
+    D3DUint2 sysClip;   //< System clipping area size
+    D3DUint4 userClip;  //< User clipping area bounds (X=left, Y=top, Z=right, W=bottom)
+    D3DUint cmdAddress; //< Command address in VDP1 VRAM
 };
 
 // -----------------------------------------------------------------------------
