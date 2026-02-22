@@ -1,9 +1,9 @@
 // TODO: inputs and outputs:
-// [cbuf] rendering parameters - number of polygons to merge, relevant VDP1 registers
-// [in] structured buffer array for the parameters of each polygon to merge
-// [in] byte address buffer with rendered polygons
-// [out] byte address buffer for framebuffer (+ transparent meshes buffer)
-// [out] VDP1 FBRAM
+// [cbuffer] rendering parameters - number of polygons to merge, relevant VDP1 registers
+// [StructuredBuffer array] parameters of each polygon to merge
+// [ByteAddressBuffer] rendered polygons
+// [RWByteAddressBuffer] byte address buffer for framebuffer (+ transparent meshes buffer)
+// [RWByteAddressBuffer] VDP1 FBRAM
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
