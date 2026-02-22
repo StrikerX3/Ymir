@@ -29,6 +29,10 @@ DeviceManager::DeviceManager(ID3D11Device *device)
 
 DeviceManager::~DeviceManager() {
     SafeRelease(m_resources);
+    {
+        std::unique_lock lock{m_mtxCmdList};
+        SafeRelease(m_cmdListQueue);
+    }
 }
 
 HRESULT DeviceManager::CreateDeferredContext(ID3D11DeviceContext *&ctx) {
@@ -366,6 +370,26 @@ bool DeviceManager::CreateComputeShader(ID3D11ComputeShader *&csOut, const char 
         return true;
     }
     return false;
+}
+
+void DeviceManager::EnqueueCommandList(ID3D11CommandList *cmdList) {
+    std::unique_lock lock{m_mtxCmdList};
+    m_cmdListQueue.push_back(cmdList);
+}
+
+bool DeviceManager::ExecutePendingCommandLists(bool restoreState, HardwareRendererCallbacks &hwCallbacks) {
+    std::unique_lock lock{m_mtxCmdList};
+    if (m_cmdListQueue.empty()) {
+        return false;
+    }
+    for (ID3D11CommandList *cmdList : m_cmdListQueue) {
+        hwCallbacks.PreExecuteCommandList();
+        m_immediateCtx->ExecuteCommandList(cmdList, restoreState);
+        cmdList->Release();
+        hwCallbacks.PostExecuteCommandList();
+    }
+    m_cmdListQueue.clear();
+    return true;
 }
 
 } // namespace ymir::vdp::d3d11

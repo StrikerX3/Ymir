@@ -2,8 +2,6 @@
 
 #include <ymir/core/types.hpp>
 
-#include <ymir/hw/vdp/renderer/vdp_renderer_hw_callbacks.hpp>
-
 #include "d3d11_device_manager.hpp"
 
 #include <d3d11.h>
@@ -17,7 +15,6 @@ namespace ymir::vdp::d3d11 {
 class ContextManager {
 public:
     ContextManager(DeviceManager &devMgr);
-    ~ContextManager();
 
     void Reset();
 
@@ -41,16 +38,11 @@ public:
     void CSSetShader(ID3D11ComputeShader *shader);
 
     HRESULT FinishCommandList(ID3D11CommandList *&cmdList);
-    bool ExecutePendingCommandLists(ID3D11DeviceContext *immediateCtx, bool restoreState,
-                                    HardwareRendererCallbacks &hwCallbacks);
 
 private:
     DeviceManager &m_devMgr;
 
     ID3D11DeviceContext *m_deferredCtx = nullptr;
-
-    std::mutex m_mtxCmdList{};
-    std::vector<ID3D11CommandList *> m_cmdListQueue; //< Pending command list queue
 
     struct ResourceSet {
         void Reset() {
