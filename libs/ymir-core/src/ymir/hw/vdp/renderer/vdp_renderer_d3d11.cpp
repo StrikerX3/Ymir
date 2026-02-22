@@ -54,15 +54,17 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
 
-    ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
-    ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
-    VDP1PolyParams cpuVDP1PolyParams{};                    //< CPU-side VDP1 polygon parameters
-
     ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
     ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
 
     ID3D11Buffer *bufVDP1Polys = nullptr;             //< VDP1 polygon atlas buffer
     ID3D11ShaderResourceView *srvVDP1Polys = nullptr; //< SRV for VDP1 polygon atlas buffer
+
+    ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
+    ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
+    std::array<VDP1PolyParams, 256> cpuVDP1PolyParams{};   //< CPU-side VDP1 polygon parameters
+    size_t cpuVDP1PolyParamsCount = 0;                     //< Number of VDP1 polygon parameters defined so far
+    // TODO: atlas manager
 
     // -------------------------------------------------------------------------
     // VDP1 - polygon erase/swap shader
@@ -195,15 +197,6 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
-    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
-                                                   1, &m_context->cpuVDP1PolyParams, 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
-    SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
-
     if (HRESULT hr =
             devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, kVDP1FramebufferRAMSize,
                                            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
@@ -222,6 +215,16 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas buffer");
     SetDebugName(m_context->srvVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas SRV");
+
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
+                                                   m_context->cpuVDP1PolyParams.size(),
+                                                   m_context->cpuVDP1PolyParams.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
+    SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
 
     // -------------------------------------------------------------------------
     // VDP1 - polygon erase/swap shader
@@ -471,39 +474,6 @@ void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
         // 1. copy VDP1 FBRAM data to a local copy in m_context
         // 2. signal emulator thread to copy that to m_state.spriteFB
     }
-
-    // VDP1 rendering process idea:
-    // - on VDP1 VRAM writes:
-    //   - update dirtyVDP1VRAM
-    //   - sync bufVDP1VRAM
-    //     - possible granularities (from lowest to highest):
-    //       - on framebuffer swap
-    //       - when VDP1 drawing starts and/or ends
-    //       - once per VDP2 scanline (same as VDP2 VRAM sync)
-    //       - when a polygon batch is processed
-    //       - when a command is processed
-    //     - when this happens, also force-submit any pending polygons for rendering
-    // - on swap:
-    //   - copy bufVDP1FBRAM to CPU-side display FBRAM
-    //     - emulator thread waits for FBRAM copy signal
-    //     - main thread processes command list
-    //     - main thread copies FBRAM to staging CPU-side buffer as described above
-    //     - main thread signals emulator thread
-    //     - emulator thread copies FBRAM from staging buffer to m_state.spriteFB[m_state.displayFB]
-    //   - copy CPU-side VDP1 draw FBRAM into bufVDP1FBRAM
-    //     - simple Map -> memcpy -> Unmap
-    //   - update cbufVDP1RenderConfig
-    //   - dispatch csVDP1EraseSwap to prepare bufVDP1PolyOut
-    // - whenever commands are processed:
-    //   - update CPU-side VDP1 clipping coordinates (for clipping commands)
-    //   - batch polygons to render in a large atlas (2048x2048, maybe larger)
-    //     - update cpuVDP1PolyParams
-    //     - mark dirtyVDP1PolyParams as dirty
-    //   - when the atlas is full or when VDP1 drawing ends, submit for rendering
-    //     - upload cpuVDP1PolyParams to bufVDP1PolyParams if dirtyVDP1PolyParams and clear dirty flag
-    //     - dispatch csVDP1PolyDraw to render polygons into bufVDP1Polys
-    //     - dispatch csVDP1PolyMerge to copy polygons from bufVDP1Polys to bufVDP1PolyOut
-    // - VDP2 will use srvVDP1PolyOut to render the sprite+mesh layers
 }
 
 ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {
@@ -531,6 +501,8 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     m_context->dirtyVDP2ComposeParams = true;
 
     m_context->ResetContexts();
+
+    m_VDP1State.Reset();
 }
 
 // -----------------------------------------------------------------------------
@@ -583,7 +555,7 @@ void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint16 value) {
 }
 
 void Direct3D11VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {
-    // All registers are passed to the constant buffer which is always updated
+    // All important registers are passed to the constant buffer which is always updated on every shader dispatch
 }
 
 // -----------------------------------------------------------------------------
@@ -675,6 +647,26 @@ void Direct3D11VDPRenderer::VDP1BeginFrame() {
 }
 
 void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Control control) {
+    // TODO: disable this if too expensive
+    VDP1UpdateVRAM();
+
+    switch (control.command) {
+    case VDP1Command::CommandType::DrawNormalSprite: VDP1Cmd_DrawNormalSprite(cmdAddress, control); break;
+    case VDP1Command::CommandType::DrawScaledSprite: VDP1Cmd_DrawScaledSprite(cmdAddress, control); break;
+    case VDP1Command::CommandType::DrawDistortedSprite: [[fallthrough]];
+    case VDP1Command::CommandType::DrawDistortedSpriteAlt: VDP1Cmd_DrawDistortedSprite(cmdAddress, control); break;
+
+    case VDP1Command::CommandType::DrawPolygon: VDP1Cmd_DrawPolygon(cmdAddress); break;
+    case VDP1Command::CommandType::DrawPolylines: [[fallthrough]];
+    case VDP1Command::CommandType::DrawPolylinesAlt: VDP1Cmd_DrawPolylines(cmdAddress); break;
+    case VDP1Command::CommandType::DrawLine: VDP1Cmd_DrawLine(cmdAddress); break;
+
+    case VDP1Command::CommandType::UserClipping: [[fallthrough]];
+    case VDP1Command::CommandType::UserClippingAlt: VDP1Cmd_SetUserClipping(cmdAddress); break;
+    case VDP1Command::CommandType::SystemClipping: VDP1Cmd_SetSystemClipping(cmdAddress); break;
+    case VDP1Command::CommandType::SetLocalCoordinates: VDP1Cmd_SetLocalCoordinates(cmdAddress); break;
+    }
+
     // TODO: execute the command
     // - adjust clipping / submit polygon to a batch
     // - when a batch is full:
@@ -687,6 +679,18 @@ void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::C
 
 void Direct3D11VDPRenderer::VDP1EndFrame() {
     Callbacks.VDP1DrawFinished();
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
+    const VDP1Regs &regs1 = m_state.regs1;
+    auto &config = m_context->cpuVDP1RenderConfig;
+
+    auto *ctx = m_context->VDP1Context.GetDeferredContext();
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    ctx->Map(m_context->cbufVDP1RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, &m_context->cpuVDP1RenderConfig, sizeof(m_context->cpuVDP1RenderConfig));
+    ctx->Unmap(m_context->cbufVDP1RenderConfig, 0);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
@@ -724,6 +728,38 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
     ctx->Map(m_context->bufVDP1FBRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
     ctx->Unmap(m_context->bufVDP1FBRAM, 0);
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control) {}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control) {}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control) {}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
+    auto &ctx = m_VDP1State;
+    ctx.sysClipH = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+    ctx.sysClipV = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
+    auto &ctx = m_VDP1State;
+    ctx.userClipX0 = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    ctx.userClipY0 = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    ctx.userClipX1 = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+    ctx.userClipY1 = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress) {
+    auto &ctx = m_VDP1State;
+    ctx.localCoordX = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    ctx.localCoordY = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
 }
 
 // -----------------------------------------------------------------------------

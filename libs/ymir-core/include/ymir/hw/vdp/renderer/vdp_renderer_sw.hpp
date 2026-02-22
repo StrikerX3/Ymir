@@ -584,37 +584,7 @@ private:
     // -------------------------------------------------------------------------
     // VDP1
 
-    struct VDP1State {
-        VDP1State() {
-            Reset();
-        }
-
-        void Reset() {
-            sysClipH = 512;
-            sysClipV = 256;
-
-            userClipX0 = 0;
-            userClipY0 = 0;
-
-            userClipX1 = 512;
-            userClipY1 = 256;
-
-            localCoordX = 0;
-            localCoordY = 0;
-        }
-
-        // System clipping dimensions
-        uint16 sysClipH, sysClipV;
-        uint16 doubleV;
-
-        // User clipping area
-        uint16 userClipX0, userClipY0; // Top-left
-        uint16 userClipX1, userClipY1; // Bottom-right
-
-        // Local coordinates offset
-        sint32 localCoordX;
-        sint32 localCoordY;
-    } m_VDP1State;
+    uint16 m_VDP1doubleV;
 
     struct VDP1PixelParams {
         VDP1Command::DrawMode mode;
@@ -686,9 +656,9 @@ private:
     TPL_TRAITS void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);
     TPL_TRAITS void VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control);
 
-    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress);
+    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress);
+    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress);
 
     void VDP1Cmd_SetSystemClipping(uint32 cmdAddress);
     void VDP1Cmd_SetUserClipping(uint32 cmdAddress);
