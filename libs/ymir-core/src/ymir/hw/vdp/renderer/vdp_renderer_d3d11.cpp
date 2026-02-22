@@ -1474,7 +1474,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     VDP2UpdateVRAM();
     VDP2UpdateCRAM();
-    VDP2UpdateRenderState();
+    VDP2UpdateBGRenderState();
     VDP2UpdateRotParamStates();
     VDP2UpdateRotParamBases();
 
@@ -1525,7 +1525,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     auto *ctx = m_context->deferredCtx;
     D3D11_MAPPED_SUBRESOURCE mappedResource;
 
-    VDP2UpdateRenderState();
+    VDP2UpdateBGRenderState();
     VDP2UpdateComposeParams();
 
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2ComposeY;
@@ -1636,7 +1636,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
     }
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderState() {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
     if (!m_context->dirtyVDP2BGRenderState) {
         return;
     }
