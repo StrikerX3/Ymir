@@ -125,6 +125,14 @@ private:
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     bool m_restoreState;
 
+    // -------------------------------------------------------------------------
+    // VDP1 rendering
+
+    // TODO
+
+    // -------------------------------------------------------------------------
+    // VDP2 rendering
+
     /// @brief Convenience method that invokes `IVDPRenderer::VDP2UpdateEnabledBGs(...)` with the correct parameters.
     void VDP2UpdateEnabledBGs();
 
@@ -147,8 +155,8 @@ private:
     /// @brief Updates VDP2 CRAM if dirty.
     void VDP2UpdateCRAM();
 
-    /// @brief Updates the VDP2 render state if dirty.
-    void VDP2UpdateRenderState();
+    /// @brief Updates the VDP2 NBG/RBG render states if dirty.
+    void VDP2UpdateBGRenderState();
 
     /// @brief Updates the VDP2 rendering configuration constants.
     void VDP2UpdateRenderConfig();
