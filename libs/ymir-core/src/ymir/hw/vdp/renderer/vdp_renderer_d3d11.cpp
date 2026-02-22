@@ -13,6 +13,8 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
+#include <smol-atlas.h>
+
 #include <fmt/format.h>
 
 #include <cassert>
@@ -25,11 +27,44 @@ using namespace d3dutil;
 
 namespace ymir::vdp::d3d11 {
 
+struct AtlasAllocator {
+    AtlasAllocator(uint32 width, uint32 height) {
+        m_ctx = sma_atlas_create(width, height);
+    }
+
+    ~AtlasAllocator() {
+        sma_atlas_destroy(m_ctx);
+    }
+
+    void Clear() {
+        sma_atlas_clear(m_ctx);
+    }
+
+    /// @brief Attempts to add a rectangle with the specified dimensions to the current batch.
+    /// @param[in] width the polygon width
+    /// @param[in] height the polygon height
+    /// @return `true` if the polygon could be packed into the atlas, `false` otherwise
+    bool Add(uint32 width, uint32 height, uint32 &outX, uint32 &outY) {
+        smol_atlas_item_t *item = sma_item_add(m_ctx, width, height);
+        if (item != nullptr) {
+            outX = sma_item_x(item);
+            outY = sma_item_y(item);
+            return true;
+        }
+
+        return false;
+    }
+
+private:
+    smol_atlas_t *m_ctx;
+};
+
 struct Direct3D11VDPRenderer::Context {
     Context(ID3D11Device *device)
         : DeviceManager(device)
         , VDP1Context(DeviceManager)
-        , VDP2Context(DeviceManager) {}
+        , VDP2Context(DeviceManager)
+        , atlasVDP1(kVDP1PolyAtlasH, kVDP1PolyAtlasV) {}
 
     DeviceManager DeviceManager;
     ContextManager VDP1Context;
@@ -38,6 +73,7 @@ struct Direct3D11VDPRenderer::Context {
     void ResetContexts() {
         VDP1Context.Reset();
         VDP2Context.Reset();
+        atlasVDP1.Clear();
     }
 
     // -------------------------------------------------------------------------
@@ -62,9 +98,10 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
     ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
-    std::array<VDP1PolyParams, 256> cpuVDP1PolyParams{};   //< CPU-side VDP1 polygon parameters
-    size_t cpuVDP1PolyParamsCount = 0;                     //< Number of VDP1 polygon parameters defined so far
-    // TODO: atlas manager
+    std::array<VDP1PolyParams, 2048> cpuVDP1PolyParams{};  //< CPU-side VDP1 polygon parameters
+    size_t cpuVDP1PolyParamsCount = 0;                     //< CPU-side VDP1 polygon parameters count
+
+    AtlasAllocator atlasVDP1; //< VDP1 polygon atlas context
 
     // -------------------------------------------------------------------------
     // VDP1 - polygon erase/swap shader
@@ -616,7 +653,8 @@ void Direct3D11VDPRenderer::DumpExtraVDP1Framebuffers(std::ostream &out) const {
 void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {}
 
 void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
-    // TODO: finish partial batch of polygons
+    // Submit partial batch
+    VDP1SubmitPolygons();
 
     auto &ctx = m_context->VDP1Context;
 
@@ -681,16 +719,66 @@ void Direct3D11VDPRenderer::VDP1EndFrame() {
     Callbacks.VDP1DrawFinished();
 }
 
+void Direct3D11VDPRenderer::VDP1AddPolygon(uint32 width, uint32 height, uint32 cmdAddress) {
+    // Try allocating it in the atlas
+    uint32 x, y;
+    if (!m_context->atlasVDP1.Add(width, height, x, y)) {
+        // Submit batch if failed to make room for polygon then try again
+        VDP1SubmitPolygons();
+
+        if (!m_context->atlasVDP1.Add(width, height, x, y)) {
+            // This really should succeed no matter how large the polygon is
+            YMIR_DEV_CHECK();
+        }
+    }
+
+    // Write polygon parameters to list
+    const size_t index = m_context->cpuVDP1PolyParamsCount;
+    ++m_context->cpuVDP1PolyParamsCount;
+
+    auto &entry = m_context->cpuVDP1PolyParams[index];
+    entry.atlasPos.x = x;
+    entry.atlasPos.y = y;
+    entry.sysClip.x = m_VDP1State.sysClipH;
+    entry.sysClip.y = m_VDP1State.sysClipV;
+    entry.userClip.x = m_VDP1State.userClipX0;
+    entry.userClip.y = m_VDP1State.userClipX1;
+    entry.userClip.z = m_VDP1State.userClipY0;
+    entry.userClip.w = m_VDP1State.userClipY1;
+    entry.cmdAddress = cmdAddress;
+
+    // Submit batch if the polygon list is now full
+    if (m_context->cpuVDP1PolyParamsCount == m_context->cpuVDP1PolyParams.size()) {
+        VDP1SubmitPolygons();
+    }
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
+    if (m_context->cpuVDP1PolyParamsCount == 0) {
+        // Nothing to submit; don't waste time
+        return;
+    }
+
+    // Upload polygons
+    m_context->VDP1Context.ModifyResource(m_context->bufVDP1PolyParams, 0,
+                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                                              memcpy(mappedResource.pData, &m_context->cpuVDP1PolyParams,
+                                                     sizeof(VDP1PolyParams) * m_context->cpuVDP1PolyParamsCount);
+                                          });
+
+    // TODO: submit polygons for rendering
+
+    m_context->atlasVDP1.Clear();
+    m_context->cpuVDP1PolyParamsCount = 0;
+}
+
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
     const VDP1Regs &regs1 = m_state.regs1;
     auto &config = m_context->cpuVDP1RenderConfig;
 
-    auto *ctx = m_context->VDP1Context.GetDeferredContext();
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->cbufVDP1RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP1RenderConfig, sizeof(m_context->cpuVDP1RenderConfig));
-    ctx->Unmap(m_context->cbufVDP1RenderConfig, 0);
+    m_context->VDP1Context.ModifyResource(
+        m_context->cbufVDP1RenderConfig, 0,
+        [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) { memcpy(mappedResource.pData, &config, sizeof(config)); });
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
@@ -710,10 +798,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
             ++offset;
             --count;
 
-            D3D11_MAPPED_SUBRESOURCE mappedResource;
-            HRESULT hr = ctx->Map(bufStaging, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-            memcpy(mappedResource.pData, &m_state.VRAM1[vramOffset], kBufSize);
-            ctx->Unmap(bufStaging, 0);
+            m_context->VDP1Context.ModifyResource(bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                memcpy(mappedResource.pData, &m_state.VRAM1[vramOffset], kBufSize);
+            });
             ctx->CopySubresourceRegion(m_context->bufVDP1VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
             vramOffset += kBufSize;
         }
@@ -721,13 +808,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
-    auto *ctx = m_context->VDP1Context.GetDeferredContext();
-
-    const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->bufVDP1FBRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
-    ctx->Unmap(m_context->bufVDP1FBRAM, 0);
+    m_context->VDP1Context.ModifyResource(m_context->bufVDP1FBRAM, 0,
+                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                                              const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
+                                              memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
+                                          });
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control) {}
@@ -784,7 +869,7 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
     m_nextVDP2ComposeY = 0;
     m_nextVDP2RotBasesY = 0;
 
-    m_context->ResetContexts();
+    m_context->VDP2Context.Reset();
 
     m_context->VDP2Context.VSSetShaderResources({});
     m_context->VDP2Context.VSSetShader(m_context->vsIdentity);
@@ -1006,10 +1091,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {
             ++offset;
             --count;
 
-            D3D11_MAPPED_SUBRESOURCE mappedResource;
-            HRESULT hr = ctx->Map(bufStaging, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-            memcpy(mappedResource.pData, &m_state.VRAM2[vramOffset], kBufSize);
-            ctx->Unmap(bufStaging, 0);
+            m_context->VDP2Context.ModifyResource(bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                memcpy(mappedResource.pData, &m_state.VRAM2[vramOffset], kBufSize);
+            });
             ctx->CopySubresourceRegion(m_context->bufVDP2VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
             vramOffset += kBufSize;
         }
@@ -1022,7 +1106,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
     }
     m_context->dirtyVDP2CRAM = false;
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
     const VDP2Regs &regs2 = m_state.regs2;
 
     auto &colorCache = m_context->cpuVDP2ColorCache;
@@ -1062,10 +1145,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
         break;
     }
 
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->bufVDP2ColorCache, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, colorCache.data(), sizeof(colorCache));
-    ctx->Unmap(m_context->bufVDP2ColorCache, 0);
+    m_context->VDP2Context.ModifyResource(m_context->bufVDP2ColorCache, 0,
+                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                                              memcpy(mappedResource.pData, colorCache.data(), sizeof(colorCache));
+                                          });
 
     // Update RBG coefficients if RBGs are enabled and CRAM coefficients are in use
     if ((regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable) {
@@ -1073,10 +1156,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
 
         std::copy(m_state.CRAM.begin() + m_state.CRAM.size() / 2, m_state.CRAM.end(), coeffCache.begin());
 
-        D3D11_MAPPED_SUBRESOURCE mappedResource;
-        ctx->Map(m_context->bufVDP2CoeffCache, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-        memcpy(mappedResource.pData, coeffCache.data(), sizeof(coeffCache));
-        ctx->Unmap(m_context->bufVDP2CoeffCache, 0);
+        m_context->VDP2Context.ModifyResource(m_context->bufVDP2CoeffCache, 0,
+                                              [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                                                  memcpy(mappedResource.pData, coeffCache.data(), sizeof(coeffCache));
+                                              });
     }
 }
 
@@ -1229,12 +1312,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
     state.specialFunctionCodes = bit::gather_array<uint32>(regs2.specialFunctionCodes[0].colorMatches) |
                                  (bit::gather_array<uint32>(regs2.specialFunctionCodes[1].colorMatches) << 8u);
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->bufVDP2BGRenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2BGRenderState, sizeof(m_context->cpuVDP2BGRenderState));
-    ctx->Unmap(m_context->bufVDP2BGRenderState, 0);
+    m_context->VDP2Context.ModifyResource(
+        m_context->bufVDP2BGRenderState, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP2BGRenderState, sizeof(m_context->cpuVDP2BGRenderState));
+        });
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
@@ -1250,12 +1331,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
     config.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
-    ctx->Unmap(m_context->cbufVDP2RenderConfig, 0);
+    m_context->VDP2Context.ModifyResource(
+        m_context->cbufVDP2RenderConfig, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
+        });
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamBases() {
@@ -1311,12 +1390,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamBases() {
         }
     }
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->bufVDP2RotParamBases, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RotParamBases, sizeof(m_context->cpuVDP2RotParamBases));
-    ctx->Unmap(m_context->bufVDP2RotParamBases, 0);
+    m_context->VDP2Context.ModifyResource(
+        m_context->bufVDP2RotParamBases, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP2RotParamBases, sizeof(m_context->cpuVDP2RotParamBases));
+        });
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
@@ -1352,12 +1429,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
         dst.fbRotEnable = m_state.regs1.fbRotEnable;
     }
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->bufVDP2RotRegs, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2RotRegs, sizeof(m_context->cpuVDP2RotRegs));
-    ctx->Unmap(m_context->bufVDP2RotRegs, 0);
+    m_context->VDP2Context.ModifyResource(
+        m_context->bufVDP2RotRegs, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP2RotRegs, sizeof(m_context->cpuVDP2RotRegs));
+        });
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
@@ -1414,12 +1489,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
                                      | (regs2.lineScreenParams.colorCalcRatio << 5) //
         ;
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
-    ctx->Map(m_context->bufVDP2ComposeParams, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    memcpy(mappedResource.pData, &m_context->cpuVDP2ComposeParams, sizeof(m_context->cpuVDP2ComposeParams));
-    ctx->Unmap(m_context->bufVDP2ComposeParams, 0);
+    m_context->VDP2Context.ModifyResource(
+        m_context->bufVDP2ComposeParams, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP2ComposeParams, sizeof(m_context->cpuVDP2ComposeParams));
+        });
 }
 
 } // namespace ymir::vdp::d3d11
