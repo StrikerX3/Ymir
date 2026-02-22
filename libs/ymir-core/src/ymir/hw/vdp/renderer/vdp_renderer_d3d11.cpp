@@ -29,10 +29,7 @@ struct Direct3D11VDPRenderer::Context {
     Context(ID3D11Device *device)
         : DeviceManager(device)
         , VDP1Context(DeviceManager)
-        , VDP2Context(DeviceManager) {
-
-        immediateCtx = DeviceManager.GetImmediateContext();
-    }
+        , VDP2Context(DeviceManager) {}
 
     DeviceManager DeviceManager;
     ContextManager VDP1Context;
@@ -48,8 +45,6 @@ struct Direct3D11VDPRenderer::Context {
 
     // TODO: consider using WIL
     // - https://github.com/microsoft/wil
-
-    ID3D11DeviceContext *immediateCtx = nullptr; //< Immediate context. Should not be used in the renderer thread!
 
     ID3D11VertexShader *vsIdentity = nullptr; //< Identity/passthrough vertex shader, required to run pixel shaders
 
@@ -465,14 +460,11 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
 Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
-void Direct3D11VDPRenderer::ExecutePendingCommandList() {
-    auto *immediateCtx = m_context->immediateCtx;
-
+void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
     bool copyVDP1FBRAM = false;
-    if (m_context->VDP1Context.ExecutePendingCommandLists(immediateCtx, m_restoreState, HwCallbacks)) {
+    if (m_context->DeviceManager.ExecutePendingCommandLists(m_restoreState, HwCallbacks)) {
         // TODO: if a VDP1 frame was rendered, set flag indicating that a VDP1 FBRAM copy is needed
     }
-    m_context->VDP2Context.ExecutePendingCommandLists(immediateCtx, m_restoreState, HwCallbacks);
 
     if (copyVDP1FBRAM) {
         // TODO: implement
@@ -667,6 +659,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     }
     SetDebugName(commandList, fmt::format("[Ymir D3D11] VDP1 command list (frame {})", m_VDP1FrameCounter));
     ++m_VDP1FrameCounter;
+    m_context->DeviceManager.EnqueueCommandList(commandList);
 
     HwCallbacks.CommandListReady();
 
@@ -798,6 +791,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     }
     SetDebugName(commandList, fmt::format("[Ymir D3D11] VDP2 command list (frame {})", m_VDP2FrameCounter));
     ++m_VDP2FrameCounter;
+    m_context->DeviceManager.EnqueueCommandList(commandList);
 
     HwCallbacks.CommandListReady();
 

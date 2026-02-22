@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/hw/vdp/renderer/vdp_renderer_hw_callbacks.hpp>
+
 #include <d3d11.h>
 
 #include <mutex>
@@ -210,9 +212,22 @@ public:
     bool CreateComputeShader(ID3D11ComputeShader *&csOut, const char *path, const char *entrypoint = "CSMain",
                              D3D_SHADER_MACRO *macros = nullptr);
 
+    /// @brief Enqueues a command list for execution in the immediate context.
+    /// @param[in] cmdList the command list to enqueue
+    void EnqueueCommandList(ID3D11CommandList *cmdList);
+
+    /// @brief Executes all pending command lists.
+    /// @param[in] restoreState whether to restore the context state after executing each command list
+    /// @param[in] hwCallbacks a reference to the hardware VDP callbacks to invoke during command list processing
+    /// @return `true` if any commands were processed
+    bool ExecutePendingCommandLists(bool restoreState, HardwareRendererCallbacks &hwCallbacks);
+
 private:
     ID3D11Device *m_device = nullptr;
     ID3D11DeviceContext *m_immediateCtx = nullptr;
+
+    std::mutex m_mtxCmdList{};
+    std::vector<ID3D11CommandList *> m_cmdListQueue;
 
     std::vector<IUnknown *> m_resources;
 };

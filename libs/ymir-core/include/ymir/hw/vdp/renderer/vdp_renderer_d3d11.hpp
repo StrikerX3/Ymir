@@ -46,7 +46,7 @@ public:
     // -------------------------------------------------------------------------
     // Hardware rendering
 
-    void ExecutePendingCommandList() override;
+    void ExecutePendingCommandLists() override;
 
     /// @brief Retrieves a pointer to the `ID3D11Texture2D` containing the composited VDP2 output.
     /// @return a pointer to the rendered display texture

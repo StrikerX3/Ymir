@@ -15,11 +15,6 @@ ContextManager::ContextManager(DeviceManager &devMgr)
     }
 }
 
-ContextManager::~ContextManager() {
-    std::unique_lock lock{m_mtxCmdList};
-    d3dutil::SafeRelease(m_cmdListQueue);
-}
-
 void ContextManager::Reset() {
     m_resVS.Reset();
     m_resPS.Reset();
@@ -87,28 +82,7 @@ void ContextManager::CSSetShader(ID3D11ComputeShader *shader) {
 }
 
 HRESULT ContextManager::FinishCommandList(ID3D11CommandList *&cmdList) {
-    HRESULT hr = m_deferredCtx->FinishCommandList(FALSE, &cmdList);
-    if (SUCCEEDED(hr)) {
-        std::unique_lock lock{m_mtxCmdList};
-        m_cmdListQueue.push_back(cmdList);
-    }
-    return hr;
-}
-
-bool ContextManager::ExecutePendingCommandLists(ID3D11DeviceContext *immediateCtx, bool restoreState,
-                                                HardwareRendererCallbacks &hwCallbacks) {
-    std::unique_lock lock{m_mtxCmdList};
-    if (m_cmdListQueue.empty()) {
-        return false;
-    }
-    for (ID3D11CommandList *cmdList : m_cmdListQueue) {
-        hwCallbacks.PreExecuteCommandList();
-        immediateCtx->ExecuteCommandList(cmdList, restoreState);
-        cmdList->Release();
-        hwCallbacks.PostExecuteCommandList();
-    }
-    m_cmdListQueue.clear();
-    return true;
+    return m_deferredCtx->FinishCommandList(FALSE, &cmdList);
 }
 
 template <typename T>

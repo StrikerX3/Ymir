@@ -25,11 +25,11 @@ struct HardwareRendererCallbacks {
     CBHardwareCommandListReady CommandListReady;
 
     /// @brief Callback invoked before a command list is processed. This callback is invoked by the same thread that
-    /// invokes `HardwareVDPRendererBase::ExecutePendingCommandList()`.
+    /// invokes `HardwareVDPRendererBase::ExecutePendingCommandLists()`.
     CBHardwarePreExecuteCommandList PreExecuteCommandList;
 
     /// @brief Callback invoked after a command list is processed. This callback is invoked by the same thread that
-    /// invokes `HardwareVDPRendererBase::ExecutePendingCommandList()`.
+    /// invokes `HardwareVDPRendererBase::ExecutePendingCommandLists()`.
     CBHardwarePostExecuteCommandList PostExecuteCommandList;
 };
 
