@@ -48,7 +48,9 @@ class NullVDPRenderer;
 class SoftwareVDPRenderer;
 class HardwareVDPRendererBase;
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
-class Direct3D11VDPRenderer;
+namespace d3d11 {
+    class Direct3D11VDPRenderer;
+}
 #endif
 
 namespace detail {
@@ -74,7 +76,7 @@ namespace detail {
     /// @brief Metadata about the Direct3D 11 VDP renderer.
     template <>
     struct VDPRendererTypeMeta<VDPRendererType::Direct3D11> {
-        using type = Direct3D11VDPRenderer;
+        using type = d3d11::Direct3D11VDPRenderer;
     };
 #endif
 

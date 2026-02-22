@@ -9,7 +9,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace d3dutil {
+namespace ymir::vdp::d3d11 {
 
 enum class ShaderType { VertexShader, PixelShader, ComputeShader };
 
@@ -73,4 +73,4 @@ private:
                                  D3D_SHADER_MACRO *macros);
 };
 
-} // namespace d3dutil
+} // namespace ymir::vdp::d3d11
