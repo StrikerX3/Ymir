@@ -4,7 +4,9 @@
 #include <ymir/util/inline.hpp>
 #include <ymir/util/scope_guard.hpp>
 
-#include "d3d11/d3d11_shader_cache.hpp"
+#include "d3d11/d3d11_context_manager.hpp"
+#include "d3d11/d3d11_defs.hpp"
+#include "d3d11/d3d11_device_manager.hpp"
 #include "d3d11/d3d11_types.hpp"
 #include "d3d11/d3d11_utils.hpp"
 
@@ -13,67 +15,32 @@
 
 #include <fmt/format.h>
 
-#include <cmrc/cmrc.hpp>
-
 #include <cassert>
 #include <mutex>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-CMRC_DECLARE(Ymir_core_rc);
-
 using namespace d3dutil;
 
-namespace ymir::vdp {
-
-auto g_embedfs = cmrc::Ymir_core_rc::get_filesystem();
-
-static std::string_view GetEmbedFSFile(const std::string &path) {
-    cmrc::file contents = g_embedfs.open(path);
-    return {contents.begin(), contents.end()};
-}
-
-// -----------------------------------------------------------------------------
-// Renderer context
-
-static constexpr uint32 kVRAMPageBits = 12;
-
-static constexpr uint32 kVDP1FBRAMPages = vdp::kVDP1FramebufferRAMSize >> kVRAMPageBits;
-static constexpr uint32 kVDP1VRAMPages = vdp::kVDP1VRAMSize >> kVRAMPageBits;
-static constexpr uint32 kVDP2VRAMPages = vdp::kVDP2VRAMSize >> kVRAMPageBits;
-
-static constexpr uint32 kVDP1PolyAtlasH = 2048;
-static constexpr uint32 kVDP1PolyAtlasV = 2048;
-
-static_assert(kVDP1PolyAtlasH >= kVDP1MaxFBSizeH);
-static_assert(kVDP1PolyAtlasV >= kVDP1MaxFBSizeV);
-
-static constexpr uint32 kColorCacheSize = vdp::kVDP2CRAMSize / sizeof(uint16);
-static constexpr uint32 kCoeffCacheSize = vdp::kVDP2CRAMSize / 2; // top-half only
-
-/// @brief Type of buffer to create
-enum class BufferType {
-    Constant,   //< Constant buffer (bound to `cbuffer`)
-    Primitive,  //< Primitive buffer (bound to `[RW]Buffer<T>`)
-    Structured, //< Structured buffer (bound to `[RW]StructuredBuffer<T>`)
-    Raw,        //< Raw buffer (bound to `ByteAddressArray`)
-};
+namespace ymir::vdp::d3d11 {
 
 struct Direct3D11VDPRenderer::Context {
     Context(ID3D11Device *device)
-        : device(device) {
-        device->GetImmediateContext(&immediateCtx);
+        : DeviceManager(device)
+        , VDP1Context(DeviceManager)
+        , VDP2Context(DeviceManager) {
 
-        m_resources.push_back(immediateCtx);
+        immediateCtx = DeviceManager.GetImmediateContext();
     }
 
-    ~Context() {
-        SafeRelease(m_resources);
-        {
-            std::unique_lock lock{mtxCmdList};
-            SafeRelease(cmdListQueue);
-        }
+    DeviceManager DeviceManager;
+    ContextManager VDP1Context;
+    ContextManager VDP2Context;
+
+    void ResetContexts() {
+        VDP1Context.Reset();
+        VDP2Context.Reset();
     }
 
     // -------------------------------------------------------------------------
@@ -82,10 +49,7 @@ struct Direct3D11VDPRenderer::Context {
     // TODO: consider using WIL
     // - https://github.com/microsoft/wil
 
-    ID3D11Device *device = nullptr; //< D3D11 device pointer.
-
     ID3D11DeviceContext *immediateCtx = nullptr; //< Immediate context. Should not be used in the renderer thread!
-    ID3D11DeviceContext *deferredCtx = nullptr;  //< Deferred context. Primary context used for rendering.
 
     ID3D11VertexShader *vsIdentity = nullptr; //< Identity/passthrough vertex shader, required to run pixel shaders
 
@@ -98,11 +62,9 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
     ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
     VDP1PolyParams cpuVDP1PolyParams{};                    //< CPU-side VDP1 polygon parameters
-    bool dirtyVDP1PolyParams = true;                       //< Dirty flag for VDP1 polygon parameters
 
     ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
     ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
-    bool dirtyVDP1FBRAM = true;                       //< Dirty flag for VDP1 framebuffer RAM
 
     ID3D11Buffer *bufVDP1Polys = nullptr;             //< VDP1 polygon atlas buffer
     ID3D11ShaderResourceView *srvVDP1Polys = nullptr; //< SRV for VDP1 polygon atlas buffer
@@ -204,618 +166,6 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Texture2D *texVDP2Output = nullptr;           //< Framebuffer output texture
     ID3D11UnorderedAccessView *uavVDP2Output = nullptr; //< UAV for framebuffer output texture
-
-    // -------------------------------------------------------------------------
-    // Command lists
-
-    std::mutex mtxCmdList{};
-    std::vector<ID3D11CommandList *> cmdListQueue; //< Pending command list queue
-
-    // -------------------------------------------------------------------------
-    // Resource management
-
-    /// @brief Creates a deferred context.
-    /// @return the result of the attempt to create a deferred context
-    HRESULT CreateDeferredContext() {
-        const HRESULT hr = device->CreateDeferredContext(0, &deferredCtx);
-        if (SUCCEEDED(hr)) {
-            m_resources.push_back(deferredCtx);
-        }
-        return hr;
-    }
-
-    /// @brief Creates a 2D texture (or array).
-    /// @param[out] texOut a pointer to the texture resource to create
-    /// @param[in] width the texture width
-    /// @param[in] height the texture height
-    /// @param[in] arraySize the texture array size. Set to 0 for a single texture. 1 or more creates a 2D texture array
-    /// @param[in] format the texture pixel format
-    /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
-    /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
-    /// @return the result of the attempt to create the texture
-    HRESULT CreateTexture2D(ID3D11Texture2D **texOut, UINT width, UINT height, UINT arraySize, DXGI_FORMAT format,
-                            UINT bindFlags, UINT cpuAccessFlags) {
-        assert(device != nullptr);
-        assert(texOut != nullptr);
-        assert(*texOut == nullptr);
-
-        if (arraySize == 0) {
-            arraySize = 1;
-        }
-
-        const UINT elementSize = GetFormatSize(format);
-
-        const D3D11_USAGE usage = cpuAccessFlags == 0 ? D3D11_USAGE_DEFAULT : D3D11_USAGE_DYNAMIC;
-
-        std::vector<uint32> blankData{};
-        blankData.resize(width * height);
-
-        std::vector<D3D11_SUBRESOURCE_DATA> texInitData{};
-        for (UINT i = 0; i < arraySize; ++i) {
-            texInitData.push_back({
-                .pSysMem = blankData.data(),
-                .SysMemPitch = width * elementSize,
-                .SysMemSlicePitch = 0,
-            });
-        }
-        const D3D11_TEXTURE2D_DESC texDesc = {
-            .Width = width,
-            .Height = height,
-            .MipLevels = 1,
-            .ArraySize = arraySize,
-            .Format = format,
-            .SampleDesc = {.Count = 1, .Quality = 0},
-            .Usage = usage,
-            .BindFlags = bindFlags,
-            .CPUAccessFlags = cpuAccessFlags,
-            .MiscFlags = 0,
-        };
-
-        const HRESULT hr = device->CreateTexture2D(&texDesc, texInitData.data(), texOut);
-        if (SUCCEEDED(hr)) {
-            m_resources.push_back(*texOut);
-        }
-        return hr;
-    }
-
-    /// @brief Creates a shader resource view for a 2D texture resource.
-    /// @param[out] srvOut the pointer to the SRV resource to create
-    /// @param[in] tex the texture to bind to
-    /// @param[in] format the texture pixel format
-    /// @param[in] arraySize the texture array size. Set to 0 for a single texture. 1 or more creates a 2D texture array
-    /// @return the result of the attempt to create the UAV
-    HRESULT CreateTexture2DSRV(ID3D11ShaderResourceView **srvOut, ID3D11Texture2D *tex, DXGI_FORMAT format,
-                               UINT arraySize = 0) {
-        assert(device != nullptr);
-        assert(srvOut != nullptr);
-        assert(*srvOut == nullptr);
-
-        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = format;
-        if (arraySize == 0) {
-            srvDesc.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D;
-            srvDesc.Texture2D.MostDetailedMip = 0;
-            srvDesc.Texture2D.MipLevels = UINT(-1);
-        } else {
-            srvDesc.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2DARRAY;
-            srvDesc.Texture2DArray.MostDetailedMip = 0;
-            srvDesc.Texture2DArray.MipLevels = UINT(-1);
-            srvDesc.Texture2DArray.FirstArraySlice = 0;
-            srvDesc.Texture2DArray.ArraySize = arraySize;
-        }
-
-        const HRESULT hr = device->CreateShaderResourceView(tex, &srvDesc, srvOut);
-        if (SUCCEEDED(hr)) {
-            m_resources.push_back(*srvOut);
-        }
-        return hr;
-    }
-
-    /// @brief Creates an unordered access view for a 2D texture resource.
-    /// @param[out] uavOut the pointer to the UAV resource to create
-    /// @param[in] tex the texture to bind to
-    /// @param[in] format the texture pixel format
-    /// @param[in] arraySize the texture array size. Set to 0 for a single texture. 1 or more creates a 2D texture array
-    /// @return the result of the attempt to create the UAV
-    HRESULT CreateTexture2DUAV(ID3D11UnorderedAccessView **uavOut, ID3D11Texture2D *tex, DXGI_FORMAT format,
-                               UINT arraySize = 0) {
-        assert(device != nullptr);
-        assert(uavOut != nullptr);
-        assert(*uavOut == nullptr);
-
-        D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-        uavDesc.Format = format;
-        if (arraySize == 0) {
-            uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-            uavDesc.Texture2D.MipSlice = 0;
-        } else {
-            uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY;
-            uavDesc.Texture2DArray.MipSlice = 0;
-            uavDesc.Texture2DArray.FirstArraySlice = 0;
-            uavDesc.Texture2DArray.ArraySize = arraySize;
-        }
-
-        const HRESULT hr = device->CreateUnorderedAccessView(tex, &uavDesc, uavOut);
-        if (SUCCEEDED(hr)) {
-            m_resources.push_back(*uavOut);
-        }
-        return hr;
-    }
-
-    /// @brief Convenience function that creates a 2D texture (or array) along with SRV and UAV bound to it.
-    /// @param[out] texOut pointer to the 2D texture resource to create
-    /// @param[out,opt] srvOutOpt pointer to the SRV to create
-    /// @param[out,opt] uavOutOpt pointer to the UAV to create
-    /// @param[in] width the texture width
-    /// @param[in] height the texture height
-    /// @param[in] arraySize the texture array size. Set to 0 for a single texture. 1 or more creates a 2D texture array
-    /// @param[in] format the texture pixel format
-    /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
-    /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
-    /// @return the result of creating the texture and bound resources. If a resource fails to create, returns the error
-    /// code of that resource. Resources are created in the order: Texture -> SRV (if specified) -> UAV (if specified).
-    HRESULT CreateTexture2D(ID3D11Texture2D **texOut, ID3D11ShaderResourceView **srvOutOpt,
-                            ID3D11UnorderedAccessView **uavOutOpt, UINT width, UINT height, UINT arraySize,
-                            DXGI_FORMAT format, UINT bindFlags, UINT cpuAccessFlags) {
-        if (srvOutOpt != nullptr) {
-            bindFlags |= D3D11_BIND_SHADER_RESOURCE;
-        }
-        if (uavOutOpt != nullptr) {
-            bindFlags |= D3D11_BIND_UNORDERED_ACCESS;
-        }
-
-        if (HRESULT hr = CreateTexture2D(texOut, width, height, arraySize, format, bindFlags, cpuAccessFlags);
-            FAILED(hr)) {
-            return hr;
-        }
-        if (srvOutOpt != nullptr) {
-            if (HRESULT hr = CreateTexture2DSRV(srvOutOpt, *texOut, format, arraySize); FAILED(hr)) {
-                return hr;
-            }
-        }
-        if (uavOutOpt != nullptr) {
-            if (HRESULT hr = CreateTexture2DUAV(uavOutOpt, *texOut, format, arraySize); FAILED(hr)) {
-                return hr;
-            }
-        }
-
-        return S_OK;
-    }
-
-    /// @brief Creates a buffer of the specified type.
-    /// @param[out] bufOut pointer to the buffer resource to create
-    /// @param[in] type the type of buffer to create
-    /// @param[in] elementSize the size of each element in the buffer
-    /// @param[in] numElements the number of elements in the buffer
-    /// @param[in,opt] initData pointer to the initial data to fill the buffer with
-    /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
-    /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
-    /// @return the result of the attempt to create the buffer
-    HRESULT CreateBuffer(ID3D11Buffer **bufOut, BufferType type, UINT elementSize, UINT numElements,
-                         const void *initData, UINT bindFlags, UINT cpuAccessFlags) {
-        assert(device != nullptr);
-        assert(bufOut != nullptr);
-        assert(*bufOut == nullptr);
-
-        const bool constant = type == BufferType::Constant;
-        const bool structured = type == BufferType::Structured;
-        const bool raw = type == BufferType::Raw;
-
-        if (constant) {
-            bindFlags = D3D11_BIND_CONSTANT_BUFFER;
-            cpuAccessFlags |= D3D11_CPU_ACCESS_WRITE;
-        } else {
-            bindFlags &= ~D3D11_BIND_CONSTANT_BUFFER;
-        }
-
-        const D3D11_USAGE usage = cpuAccessFlags == 0 ? D3D11_USAGE_DEFAULT : D3D11_USAGE_DYNAMIC;
-
-        UINT miscFlags;
-        if (structured) {
-            miscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-        } else if (raw) {
-            miscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
-            bindFlags |= D3D11_BIND_SHADER_RESOURCE;
-        } else {
-            miscFlags = 0;
-        }
-
-        const D3D11_BUFFER_DESC desc = {
-            .ByteWidth = elementSize * numElements,
-            .Usage = usage,
-            .BindFlags = bindFlags,
-            .CPUAccessFlags = cpuAccessFlags,
-            .MiscFlags = miscFlags,
-            .StructureByteStride = structured ? elementSize : 0,
-        };
-        const D3D11_SUBRESOURCE_DATA initDataDesc = {
-            .pSysMem = initData,
-            .SysMemPitch = elementSize,
-            .SysMemSlicePitch = 0,
-        };
-
-        const HRESULT hr = device->CreateBuffer(&desc, initData == nullptr ? nullptr : &initDataDesc, bufOut);
-        if (SUCCEEDED(hr)) {
-            m_resources.push_back(*bufOut);
-        }
-        return hr;
-    }
-
-    /// @brief Creates a shader resource view for the given buffer.
-    /// @param[out] srvOut the pointer to the SRV resource to create
-    /// @param[in] buffer the buffer to bind to
-    /// @param[in] format the format of the buffer's contents
-    /// @param[in] numElements the number of elements in the buffer
-    /// @param[in] raw whether to allow raw views of the buffer
-    /// @return the result of the attempt to create the SRV
-    HRESULT CreateBufferSRV(ID3D11ShaderResourceView **srvOut, ID3D11Buffer *buffer, DXGI_FORMAT format,
-                            UINT numElements, bool raw) {
-        assert(device != nullptr);
-        assert(srvOut != nullptr);
-        assert(*srvOut == nullptr);
-        assert(buffer != nullptr);
-
-        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = format;
-        if (raw) {
-            srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
-            srvDesc.BufferEx.FirstElement = 0;
-            srvDesc.BufferEx.NumElements = numElements;
-            srvDesc.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
-        } else {
-            srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-            srvDesc.Buffer.FirstElement = 0;
-            srvDesc.Buffer.NumElements = numElements;
-        }
-
-        const HRESULT hr = device->CreateShaderResourceView(buffer, &srvDesc, srvOut);
-        if (SUCCEEDED(hr)) {
-            m_resources.push_back(*srvOut);
-        }
-        return hr;
-    }
-
-    /// @brief Creates an unordered access view for the given buffer.
-    /// @param[out] uavOut the pointer to the UAV resource to create
-    /// @param[in] buffer the buffer to bind to
-    /// @param[in] format the format of the buffer's contents
-    /// @param[in] numElements the number of elements in the buffer
-    /// @param[in] raw whether to allow raw views of the buffer
-    /// @return the result of the attempt to create the UAV
-    HRESULT CreateBufferUAV(ID3D11UnorderedAccessView **uavOut, ID3D11Buffer *buffer, DXGI_FORMAT format,
-                            UINT numElements, bool raw) {
-        assert(device != nullptr);
-        assert(uavOut != nullptr);
-        assert(*uavOut == nullptr);
-        assert(buffer != nullptr);
-
-        D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-        uavDesc.Format = format;
-        uavDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
-        uavDesc.Buffer.FirstElement = 0;
-        uavDesc.Buffer.NumElements = numElements;
-        uavDesc.Buffer.Flags = raw ? D3D11_BUFFER_UAV_FLAG_RAW : 0;
-
-        const HRESULT hr = device->CreateUnorderedAccessView(buffer, &uavDesc, uavOut);
-        if (SUCCEEDED(hr)) {
-            m_resources.push_back(*uavOut);
-        }
-        return hr;
-    }
-
-    /// @brief Creates a constant buffer with the given initial data.
-    /// @tparam T the type of the initial data. Size must be a multiple of 16.
-    /// @param[out] bufOut pointer to the buffer resource to create
-    /// @param[in] initData reference to the initial data to use for the constant buffer
-    /// @return the result of the attempt to create the buffer
-    template <typename T>
-        requires((alignof(T) & 15) == 0)
-    HRESULT CreateConstantBuffer(ID3D11Buffer **bufOut, const T &initData) {
-        assert((sizeof(T) & 15) == 0);
-
-        return CreateBuffer(bufOut, BufferType::Constant, sizeof(T), 1, &initData, D3D11_BIND_CONSTANT_BUFFER,
-                            D3D11_CPU_ACCESS_WRITE);
-    }
-
-    /// @brief Creates a buffer appropriate for use as a `ByteAddressBuffer`.
-    /// @param[out] bufOut pointer to the buffer resource to create
-    /// @param[out,opt] srvOutOpt pointer to the SRV to create
-    /// @param[in] size number of bytes in the buffer. Must be a multiple of 16.
-    /// @param[in,opt] initData pointer to the initial data to fill the buffer with
-    /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
-    /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
-    /// @return the result of the attempt to create the buffer
-    HRESULT CreateByteAddressBuffer(ID3D11Buffer **bufOut, ID3D11ShaderResourceView **srvOutOpt, UINT size,
-                                    const void *initData, UINT bindFlags, UINT cpuAccessFlags) {
-        assert((size & 15) == 0);
-
-        if (srvOutOpt != nullptr) {
-            bindFlags |= D3D11_BIND_SHADER_RESOURCE;
-        }
-
-        if (HRESULT hr = CreateBuffer(bufOut, BufferType::Raw, size, 1, initData, bindFlags, cpuAccessFlags);
-            FAILED(hr)) {
-            return hr;
-        }
-
-        if (srvOutOpt != nullptr) {
-            if (HRESULT hr = CreateBufferSRV(srvOutOpt, *bufOut, DXGI_FORMAT_R32_TYPELESS, size / sizeof(UINT), true);
-                FAILED(hr)) {
-                return hr;
-            }
-        }
-
-        return S_OK;
-    }
-
-    /// @brief Creates a primitive (non-structured) buffer that can be bound as a `[RW]Buffer<T>`.
-    /// @param[out] bufOut pointer to the buffer resource to create
-    /// @param[out,opt] srvOutOpt pointer to the SRV to create
-    /// @param[in] format the element format
-    /// @param[in] numElements number of elements in the buffer
-    /// @param[in,opt] initData pointer to the initial data to fill the buffer with
-    /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
-    /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
-    /// @return the result of the attempt to create the buffer
-    HRESULT CreatePrimitiveBuffer(ID3D11Buffer **bufOut, ID3D11ShaderResourceView **srvOutOpt, DXGI_FORMAT format,
-                                  UINT numElements, const void *initData, UINT bindFlags, UINT cpuAccessFlags) {
-        if (srvOutOpt != nullptr) {
-            bindFlags |= D3D11_BIND_SHADER_RESOURCE;
-        }
-
-        const UINT elementSize = GetFormatSize(format);
-
-        if (HRESULT hr = CreateBuffer(bufOut, BufferType::Primitive, elementSize, numElements, initData, bindFlags,
-                                      cpuAccessFlags);
-            FAILED(hr)) {
-            return hr;
-        }
-
-        if (srvOutOpt != nullptr) {
-            if (HRESULT hr = CreateBufferSRV(srvOutOpt, *bufOut, format, numElements, false); FAILED(hr)) {
-                return hr;
-            }
-        }
-
-        return S_OK;
-    }
-
-    /// @brief Creates a structured buffer that can be bound as a `[RW]StructuredBuffer<T>`.
-    /// @tparam T the type of the elements in the buffer
-    /// @param[out] bufOut pointer to the buffer resource to create
-    /// @param[out,opt] srvOutOpt pointer to the SRV to create
-    /// @param[out,opt] uavOutOpt pointer to the UAV to create
-    /// @param[in] numElements number of elements in the buffer
-    /// @param[in,opt] initData pointer to the initial data to fill the buffer with
-    /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
-    /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
-    /// @return the result of the attempt to create the buffer
-    template <typename T>
-    HRESULT CreateStructuredBuffer(ID3D11Buffer **bufOut, ID3D11ShaderResourceView **srvOutOpt,
-                                   ID3D11UnorderedAccessView **uavOutOpt, UINT numElements, const T *initData,
-                                   UINT bindFlags, UINT cpuAccessFlags) {
-        if (srvOutOpt != nullptr) {
-            bindFlags |= D3D11_BIND_SHADER_RESOURCE;
-        }
-        if (uavOutOpt != nullptr) {
-            bindFlags |= D3D11_BIND_UNORDERED_ACCESS;
-        }
-
-        const UINT elementSize = sizeof(T);
-
-        if (HRESULT hr = CreateBuffer(bufOut, BufferType::Structured, elementSize, numElements, initData, bindFlags,
-                                      cpuAccessFlags);
-            FAILED(hr)) {
-            return hr;
-        }
-
-        if (srvOutOpt != nullptr) {
-            if (HRESULT hr = CreateBufferSRV(srvOutOpt, *bufOut, DXGI_FORMAT_UNKNOWN, numElements, false); FAILED(hr)) {
-                return hr;
-            }
-        }
-
-        if (uavOutOpt != nullptr) {
-            if (HRESULT hr = CreateBufferUAV(uavOutOpt, *bufOut, DXGI_FORMAT_UNKNOWN, numElements, false); FAILED(hr)) {
-                return hr;
-            }
-        }
-
-        return S_OK;
-    }
-
-    bool CreateVertexShader(ID3D11VertexShader *&vsOut, const char *path, const char *entrypoint = "VSMain",
-                            D3D_SHADER_MACRO *macros = nullptr) {
-        auto &shaderCache = D3DShaderCache::Instance(false);
-        vsOut = shaderCache.GetVertexShader(device, GetEmbedFSFile(path), entrypoint, macros);
-        if (vsOut != nullptr) {
-            m_resources.push_back(vsOut);
-            return true;
-        }
-        return false;
-    }
-
-    bool CreatePixelShader(ID3D11PixelShader *&psOut, const char *path, const char *entrypoint = "PSMain",
-                           D3D_SHADER_MACRO *macros = nullptr) {
-        auto &shaderCache = D3DShaderCache::Instance(false);
-        psOut = shaderCache.GetPixelShader(device, GetEmbedFSFile(path), entrypoint, macros);
-        if (psOut != nullptr) {
-            m_resources.push_back(psOut);
-            return true;
-        }
-        return false;
-    };
-
-    bool CreateComputeShader(ID3D11ComputeShader *&csOut, const char *path, const char *entrypoint = "CSMain",
-                             D3D_SHADER_MACRO *macros = nullptr) {
-        auto &shaderCache = D3DShaderCache::Instance(false);
-        csOut = shaderCache.GetComputeShader(device, GetEmbedFSFile(path), entrypoint, macros);
-        if (csOut != nullptr) {
-            m_resources.push_back(csOut);
-            return true;
-        }
-        return false;
-    };
-
-    // -------------------------------------------------------------------------
-
-    void VSSetConstantBuffers(std::initializer_list<ID3D11Buffer *> bufs) {
-        SetConstantBuffers(bufs, m_resVS.cbufs);
-    }
-
-    void VSSetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> uavs) {
-        SetUnorderedAccessViews(uavs, m_resVS.uavs);
-    }
-
-    void VSSetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> srvs) {
-        SetShaderResources(srvs, m_resVS.srvs);
-    }
-
-    void VSSetShader(ID3D11VertexShader *shader) {
-        if (shader != m_curVS) {
-            m_curVS = shader;
-            deferredCtx->VSSetShader(shader, nullptr, 0);
-        }
-    }
-
-    void PSSetConstantBuffers(std::initializer_list<ID3D11Buffer *> bufs) {
-        SetConstantBuffers(bufs, m_resPS.cbufs);
-    }
-
-    void PSSetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> uavs) {
-        SetUnorderedAccessViews(uavs, m_resPS.uavs);
-    }
-
-    void PSSetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> srvs) {
-        SetShaderResources(srvs, m_resPS.srvs);
-    }
-
-    void PSSetShader(ID3D11PixelShader *shader) {
-        if (shader != m_curPS) {
-            m_curPS = shader;
-            deferredCtx->PSSetShader(shader, nullptr, 0);
-        }
-    }
-
-    void CSSetConstantBuffers(std::initializer_list<ID3D11Buffer *> bufs) {
-        SetConstantBuffers(bufs, m_resCS.cbufs);
-    }
-
-    void CSSetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> uavs) {
-        SetUnorderedAccessViews(uavs, m_resCS.uavs);
-    }
-
-    void CSSetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> srvs) {
-        SetShaderResources(srvs, m_resCS.srvs);
-    }
-
-    void CSSetShaderResources(uint32 offset, std::initializer_list<ID3D11ShaderResourceView *> srvs) {
-        SetShaderResources(offset, srvs, m_resCS.srvs);
-    }
-
-    void CSSetShader(ID3D11ComputeShader *shader) {
-        if (shader != m_curCS) {
-            m_curCS = shader;
-            deferredCtx->CSSetShader(shader, nullptr, 0);
-        }
-    }
-
-    void ResetResources() {
-        m_resVS.Reset();
-        m_resPS.Reset();
-        m_resCS.Reset();
-        m_curVS = nullptr;
-        m_curPS = nullptr;
-        m_curCS = nullptr;
-    }
-
-private:
-    struct Resources {
-        void Reset() {
-            cbufs.clear();
-            srvs.clear();
-            uavs.clear();
-        }
-
-        std::vector<ID3D11Buffer *> cbufs;
-        std::vector<ID3D11ShaderResourceView *> srvs;
-        std::vector<ID3D11UnorderedAccessView *> uavs;
-    };
-
-    template <typename T>
-    bool UpdateResources(std::initializer_list<T *> src, std::vector<T *> &dst) {
-        if (!dst.empty() && dst.size() == src.size() && std::equal(src.begin(), src.end(), dst.begin())) {
-            return false;
-        }
-        if (src.size() > dst.size()) {
-            dst.resize(src.size());
-        }
-        std::copy(src.begin(), src.end(), dst.begin());
-        if (src.size() < dst.size()) {
-            std::fill(dst.begin() + src.size(), dst.end(), nullptr);
-        }
-        return true;
-    }
-
-    template <typename T>
-    bool UpdateResources(uint32 offset, std::initializer_list<T *> src, std::vector<T *> &dst) {
-        if (!dst.empty() && dst.size() == src.size() + offset &&
-            std::equal(src.begin() + offset, src.end(), dst.begin())) {
-            return false;
-        }
-        if (src.size() + offset > dst.size()) {
-            dst.resize(src.size() + offset);
-        }
-        std::copy(src.begin(), src.end(), dst.begin() + offset);
-        if (src.size() + offset < dst.size()) {
-            std::fill(dst.begin() + offset + src.size(), dst.end(), nullptr);
-        }
-        return true;
-    }
-
-    void SetConstantBuffers(std::initializer_list<ID3D11Buffer *> src, std::vector<ID3D11Buffer *> &dst) {
-        if (!UpdateResources(src, dst)) {
-            return;
-        }
-        deferredCtx->CSSetConstantBuffers(0, dst.size(), dst.data());
-        dst.resize(src.size());
-    }
-
-    void SetUnorderedAccessViews(std::initializer_list<ID3D11UnorderedAccessView *> src,
-                                 std::vector<ID3D11UnorderedAccessView *> &dst) {
-        if (!UpdateResources(src, dst)) {
-            return;
-        }
-        deferredCtx->CSSetUnorderedAccessViews(0, dst.size(), dst.data(), nullptr);
-        dst.resize(src.size());
-    }
-
-    void SetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> src,
-                            std::vector<ID3D11ShaderResourceView *> &dst) {
-        if (!UpdateResources(src, dst)) {
-            return;
-        }
-        deferredCtx->CSSetShaderResources(0, dst.size(), dst.data());
-        dst.resize(src.size());
-    }
-
-    void SetShaderResources(uint32 offset, std::initializer_list<ID3D11ShaderResourceView *> src,
-                            std::vector<ID3D11ShaderResourceView *> &dst) {
-        if (!UpdateResources(offset, src, dst)) {
-            return;
-        }
-        deferredCtx->CSSetShaderResources(offset, src.size(), src.begin());
-        dst.resize(src.size() + offset);
-    }
-
-    Resources m_resVS;
-    ID3D11VertexShader *m_curVS = nullptr;
-    Resources m_resPS;
-    ID3D11PixelShader *m_curPS = nullptr;
-    Resources m_resCS;
-    ID3D11ComputeShader *m_curCS = nullptr;
-
-    std::vector<IUnknown *> m_resources;
 };
 
 // -----------------------------------------------------------------------------
@@ -829,18 +179,12 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     , m_restoreState(restoreState)
     , m_context(std::make_unique<Context>(device)) {
 
+    auto &devMgr = m_context->DeviceManager;
+
     // -------------------------------------------------------------------------
     // Basics
 
-    // Immediate context is automatically referenced by the Context constructor
-
-    if (HRESULT hr = m_context->CreateDeferredContext(); FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    SetDebugName(m_context->deferredCtx, "[Ymir D3D11] Deferred context");
-
-    if (!m_context->CreateVertexShader(m_context->vsIdentity, "d3d11/vs_identity.hlsl")) {
+    if (!devMgr.CreateVertexShader(m_context->vsIdentity, "d3d11/vs_identity.hlsl")) {
         // TODO: report error
         return;
     }
@@ -849,16 +193,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP1 - shared resources
 
-    if (HRESULT hr = m_context->CreateConstantBuffer(&m_context->cbufVDP1RenderConfig, m_context->cpuVDP1RenderConfig);
+    if (HRESULT hr = devMgr.CreateConstantBuffer(m_context->cbufVDP1RenderConfig, m_context->cpuVDP1RenderConfig);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
-    if (HRESULT hr =
-            m_context->CreateStructuredBuffer(&m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr, 1,
-                                              &m_context->cpuVDP1PolyParams, 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
+                                                   1, &m_context->cpuVDP1PolyParams, 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -866,9 +209,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
     SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
 
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(
-            &m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, kVDP1FramebufferRAMSize,
-            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, kVDP1FramebufferRAMSize,
+                                           m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -876,8 +219,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM buffer");
     SetDebugName(m_context->srvVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM SRV");
 
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP1Polys, &m_context->srvVDP1Polys,
-                                                        kVDP1PolyAtlasH * kVDP1PolyAtlasV, nullptr, 0, 0);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1Polys, &m_context->srvVDP1Polys,
+                                                    kVDP1PolyAtlasH * kVDP1PolyAtlasV, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -888,7 +231,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP1 - polygon erase/swap shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP1EraseSwap, "d3d11/cs_vdp1_eraseswap.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseSwap, "d3d11/cs_vdp1_eraseswap.hlsl")) {
         // TODO: report error
         return;
     }
@@ -897,14 +240,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP1 - polygon drawing shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP1PolyDraw, "d3d11/cs_vdp1_polydraw.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP1PolyDraw, "d3d11/cs_vdp1_polydraw.hlsl")) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->csVDP1PolyDraw, "[Ymir D3D11] VDP1 polygon drawing compute shader");
 
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM,
-                                                        m_state.VRAM1.size(), m_state.VRAM1.data(), 0, 0);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM,
+                                                    m_state.VRAM1.size(), m_state.VRAM1.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -913,8 +256,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP1VRAM, "[Ymir D3D11] VDP1 VRAM SRV");
 
     for (uint32 i = 0; auto &buf : m_context->bufVDP1VRAMPages) {
-        if (HRESULT hr = m_context->CreateByteAddressBuffer(&buf, nullptr, 1u << kVRAMPageBits, nullptr, 0,
-                                                            D3D11_CPU_ACCESS_WRITE);
+        if (HRESULT hr =
+                devMgr.CreateByteAddressBuffer(buf, nullptr, 1u << kVRAMPageBits, nullptr, 0, D3D11_CPU_ACCESS_WRITE);
             FAILED(hr)) {
             // TODO: report error
             return;
@@ -926,14 +269,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP1 - polygon merging shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP1PolyMerge, "d3d11/cs_vdp1_polymerge.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP1PolyMerge, "d3d11/cs_vdp1_polymerge.hlsl")) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->csVDP1PolyMerge, "[Ymir D3D11] VDP1 polygon merger compute shader");
 
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(
-            &m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut, kVDP1FramebufferRAMSize,
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(
+            m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut, kVDP1FramebufferRAMSize,
             m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
@@ -947,15 +290,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP2 - shared resources
 
-    if (HRESULT hr = m_context->CreateConstantBuffer(&m_context->cbufVDP2RenderConfig, m_context->cpuVDP2RenderConfig);
+    if (HRESULT hr = devMgr.CreateConstantBuffer(m_context->cbufVDP2RenderConfig, m_context->cpuVDP2RenderConfig);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->cbufVDP2RenderConfig, "[Ymir D3D11] VDP2 rendering configuration constant buffer");
 
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP2VRAM, &m_context->srvVDP2VRAM,
-                                                        m_state.VRAM2.size(), m_state.VRAM2.data(), 0, 0);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2VRAM, &m_context->srvVDP2VRAM,
+                                                    m_state.VRAM2.size(), m_state.VRAM2.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -964,8 +307,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2VRAM, "[Ymir D3D11] VDP2 VRAM SRV");
 
     for (uint32 i = 0; auto &buf : m_context->bufVDP2VRAMPages) {
-        if (HRESULT hr = m_context->CreateByteAddressBuffer(&buf, nullptr, 1u << kVRAMPageBits, nullptr, 0,
-                                                            D3D11_CPU_ACCESS_WRITE);
+        if (HRESULT hr =
+                devMgr.CreateByteAddressBuffer(buf, nullptr, 1u << kVRAMPageBits, nullptr, 0, D3D11_CPU_ACCESS_WRITE);
             FAILED(hr)) {
             // TODO: report error
             return;
@@ -974,9 +317,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         ++i;
     }
 
-    if (HRESULT hr = m_context->CreatePrimitiveBuffer(&m_context->bufVDP2RotRegs, &m_context->srvVDP2RotRegs,
-                                                      DXGI_FORMAT_R32G32_UINT, m_context->cpuVDP2RotRegs.size(),
-                                                      m_context->cpuVDP2RotRegs.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreatePrimitiveBuffer(m_context->bufVDP2RotRegs, &m_context->srvVDP2RotRegs,
+                                                  DXGI_FORMAT_R32G32_UINT, m_context->cpuVDP2RotRegs.size(),
+                                                  m_context->cpuVDP2RotRegs.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -987,9 +330,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     static constexpr size_t kRotParamsSize = vdp::kMaxNormalResH * vdp::kMaxNormalResV * 2;
     static constexpr std::array<VDP2RotParamData, kRotParamsSize> kBlankRotParams{};
 
-    if (HRESULT hr = m_context->CreateStructuredBuffer(&m_context->bufVDP2RotParams, &m_context->srvVDP2RotParams,
-                                                       &m_context->uavVDP2RotParams, kBlankRotParams.size(),
-                                                       kBlankRotParams.data(), 0, 0);
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP2RotParams, &m_context->srvVDP2RotParams,
+                                                   &m_context->uavVDP2RotParams, kBlankRotParams.size(),
+                                                   kBlankRotParams.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -998,8 +341,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters SRV");
     SetDebugName(m_context->uavVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters UAV");
 
-    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2BGs, &m_context->srvVDP2BGs, &m_context->uavVDP2BGs,
-                                                vdp::kMaxResH, vdp::kMaxResV, 6, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2BGs, &m_context->srvVDP2BGs, &m_context->uavVDP2BGs,
+                                            vdp::kMaxResH, vdp::kMaxResV, 6, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1008,9 +351,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
     SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
 
-    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2RotLineColors, &m_context->srvVDP2RotLineColors,
-                                                &m_context->uavVDP2RotLineColors, vdp::kMaxNormalResH,
-                                                vdp::kMaxNormalResV, 2, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2RotLineColors, &m_context->srvVDP2RotLineColors,
+                                            &m_context->uavVDP2RotLineColors, vdp::kMaxNormalResH, vdp::kMaxNormalResV,
+                                            2, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1019,9 +362,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL SRV");
     SetDebugName(m_context->uavVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
 
-    if (HRESULT hr = m_context->CreateTexture2D(&m_context->texVDP2LineColors, &m_context->srvVDP2LineColors,
-                                                &m_context->uavVDP2LineColors, 2, vdp::kMaxNormalResV, 0,
-                                                DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2LineColors, &m_context->srvVDP2LineColors,
+                                            &m_context->uavVDP2LineColors, 2, vdp::kMaxNormalResV, 0,
+                                            DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1033,15 +376,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP2 - rotation parameters shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP2RotParams, "d3d11/cs_vdp2_rotparams.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP2RotParams, "d3d11/cs_vdp2_rotparams.hlsl")) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->csVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters compute shader");
 
-    if (HRESULT hr = m_context->CreateByteAddressBuffer(&m_context->bufVDP2CoeffCache, &m_context->srvVDP2CoeffCache,
-                                                        m_context->cpuVDP2CoeffCache.size(),
-                                                        m_context->cpuVDP2CoeffCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2CoeffCache, &m_context->srvVDP2CoeffCache,
+                                                    m_context->cpuVDP2CoeffCache.size(),
+                                                    m_context->cpuVDP2CoeffCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1049,9 +392,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP2CoeffCache, "[Ymir D3D11] VDP2 CRAM rotation coefficients cache buffer");
     SetDebugName(m_context->srvVDP2CoeffCache, "[Ymir D3D11] VDP2 CRAM rotation coefficients cache SRV");
 
-    if (HRESULT hr = m_context->CreateStructuredBuffer(
-            &m_context->bufVDP2RotParamBases, &m_context->srvVDP2RotParamBases, nullptr,
-            m_context->cpuVDP2RotParamBases.size(), m_context->cpuVDP2RotParamBases.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP2RotParamBases, &m_context->srvVDP2RotParamBases,
+                                                   nullptr, m_context->cpuVDP2RotParamBases.size(),
+                                                   m_context->cpuVDP2RotParamBases.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1062,15 +405,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP2 - NBG/RBG shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP2BGs, "d3d11/cs_vdp2_bgs.hlsl", "CSMain", nullptr)) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP2BGs, "d3d11/cs_vdp2_bgs.hlsl", "CSMain", nullptr)) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->csVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG compute shader");
 
-    if (HRESULT hr = m_context->CreatePrimitiveBuffer(&m_context->bufVDP2ColorCache, &m_context->srvVDP2ColorCache,
-                                                      DXGI_FORMAT_R8G8B8A8_UINT, m_context->cpuVDP2ColorCache.size(),
-                                                      m_context->cpuVDP2ColorCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreatePrimitiveBuffer(m_context->bufVDP2ColorCache, &m_context->srvVDP2ColorCache,
+                                                  DXGI_FORMAT_R8G8B8A8_UINT, m_context->cpuVDP2ColorCache.size(),
+                                                  m_context->cpuVDP2ColorCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1079,8 +422,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2ColorCache, "[Ymir D3D11] VDP2 CRAM color cache SRV");
 
     if (HRESULT hr =
-            m_context->CreateStructuredBuffer(&m_context->bufVDP2BGRenderState, &m_context->srvVDP2BGRenderState,
-                                              nullptr, 1, &m_context->cpuVDP2BGRenderState, 0, D3D11_CPU_ACCESS_WRITE);
+            devMgr.CreateStructuredBuffer(m_context->bufVDP2BGRenderState, &m_context->srvVDP2BGRenderState, nullptr, 1,
+                                          &m_context->cpuVDP2BGRenderState, 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1091,15 +434,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP2 - compositor shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP2Compose, "d3d11/cs_vdp2_compose.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP2Compose, "d3d11/cs_vdp2_compose.hlsl")) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->csVDP2Compose, "[Ymir D3D11] VDP2 framebuffer compute shader");
 
     if (HRESULT hr =
-            m_context->CreateStructuredBuffer(&m_context->bufVDP2ComposeParams, &m_context->srvVDP2ComposeParams,
-                                              nullptr, 1, &m_context->cpuVDP2ComposeParams, 0, D3D11_CPU_ACCESS_WRITE);
+            devMgr.CreateStructuredBuffer(m_context->bufVDP2ComposeParams, &m_context->srvVDP2ComposeParams, nullptr, 1,
+                                          &m_context->cpuVDP2ComposeParams, 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1108,8 +451,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2ComposeParams, "[Ymir D3D11] VDP2 compositor parameters SRV");
 
     if (HRESULT hr =
-            m_context->CreateTexture2D(&m_context->texVDP2Output, nullptr, &m_context->uavVDP2Output, vdp::kMaxResH,
-                                       vdp::kMaxResV, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
+            devMgr.CreateTexture2D(m_context->texVDP2Output, nullptr, &m_context->uavVDP2Output, vdp::kMaxResH,
+                                   vdp::kMaxResV, 0, DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1123,22 +466,19 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
 void Direct3D11VDPRenderer::ExecutePendingCommandList() {
-    std::unique_lock lock{m_context->mtxCmdList};
-    if (m_context->cmdListQueue.empty()) {
-        return;
-    }
-    for (ID3D11CommandList *cmdList : m_context->cmdListQueue) {
-        HwCallbacks.PreExecuteCommandList();
-        m_context->immediateCtx->ExecuteCommandList(cmdList, m_restoreState);
-        cmdList->Release();
-        // TODO: if a VDP1 frame was rendered, set flag indicating that a VDP1 FBRAM copy is needed
-        HwCallbacks.PostExecuteCommandList();
-    }
-    m_context->cmdListQueue.clear();
+    auto *immediateCtx = m_context->immediateCtx;
 
-    // TODO: if VDP1 FBRAM copy flag is set:
-    // 1. copy VDP1 FBRAM data to a local copy in m_context
-    // 2. signal emulator thread to copy that to m_state.spriteFB
+    bool copyVDP1FBRAM = false;
+    if (m_context->VDP1Context.ExecutePendingCommandLists(immediateCtx, m_restoreState, HwCallbacks)) {
+        // TODO: if a VDP1 frame was rendered, set flag indicating that a VDP1 FBRAM copy is needed
+    }
+    m_context->VDP2Context.ExecutePendingCommandLists(immediateCtx, m_restoreState, HwCallbacks);
+
+    if (copyVDP1FBRAM) {
+        // TODO: implement
+        // 1. copy VDP1 FBRAM data to a local copy in m_context
+        // 2. signal emulator thread to copy that to m_state.spriteFB
+    }
 
     // VDP1 rendering process idea:
     // - on VDP1 VRAM writes:
@@ -1148,6 +488,7 @@ void Direct3D11VDPRenderer::ExecutePendingCommandList() {
     //       - on framebuffer swap
     //       - when VDP1 drawing starts and/or ends
     //       - once per VDP2 scanline (same as VDP2 VRAM sync)
+    //       - when a polygon batch is processed
     //       - when a command is processed
     //     - when this happens, also force-submit any pending polygons for rendering
     // - on swap:
@@ -1185,6 +526,8 @@ bool Direct3D11VDPRenderer::IsValid() const {
 }
 
 void Direct3D11VDPRenderer::ResetImpl(bool hard) {
+    m_context->dirtyVDP1VRAM.SetAll();
+
     VDP2UpdateEnabledBGs();
     m_nextVDP2BGY = 0;
     m_nextVDP2ComposeY = 0;
@@ -1194,7 +537,8 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     m_context->dirtyVDP2BGRenderState = true;
     m_context->dirtyVDP2RotParamState = true;
     m_context->dirtyVDP2ComposeParams = true;
-    m_context->ResetResources();
+
+    m_context->ResetContexts();
 }
 
 // -----------------------------------------------------------------------------
@@ -1208,7 +552,14 @@ void Direct3D11VDPRenderer::ConfigureEnhancements(const config::Enhancements &en
 void Direct3D11VDPRenderer::PreSaveStateSync() {}
 
 void Direct3D11VDPRenderer::PostLoadStateSync() {
+    m_context->dirtyVDP1VRAM.SetAll();
+
     VDP2UpdateEnabledBGs();
+    m_context->dirtyVDP2VRAM.SetAll();
+    m_context->dirtyVDP2CRAM = true;
+    m_context->dirtyVDP2BGRenderState = true;
+    m_context->dirtyVDP2RotParamState = true;
+    m_context->dirtyVDP2ComposeParams = true;
 }
 
 void Direct3D11VDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {}
@@ -1222,15 +573,26 @@ void Direct3D11VDPRenderer::LoadState(const state::VDPState::VDPRendererState &s
 // -----------------------------------------------------------------------------
 // VDP1 memory and register writes
 
-void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint8 value) {}
+void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint8 value) {
+    m_context->dirtyVDP1VRAM.Set(address >> kVRAMPageBits);
+}
 
-void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint16 value) {}
+void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint16 value) {
+    // The address is always word-aligned, so the value will never straddle two pages
+    m_context->dirtyVDP1VRAM.Set(address >> kVRAMPageBits);
+}
 
-void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {}
+void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {
+    // These writes have no effect on the drawing buffer; no need to sync
+}
 
-void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint16 value) {}
+void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint16 value) {
+    // These writes have no effect on the drawing buffer; no need to sync
+}
 
-void Direct3D11VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {}
+void Direct3D11VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {
+    // All registers are passed to the constant buffer which is always updated
+}
 
 // -----------------------------------------------------------------------------
 // VDP2 memory and register writes
@@ -1291,7 +653,26 @@ void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {}
 
 void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     // TODO: finish partial batch of polygons
+
+    auto &ctx = m_context->VDP1Context;
+
+    // Cleanup
+    ctx.CSSetUnorderedAccessViews({});
+    ctx.CSSetShaderResources({});
+    ctx.CSSetConstantBuffers({});
+
+    ID3D11CommandList *commandList = nullptr;
+    if (HRESULT hr = ctx.FinishCommandList(commandList); FAILED(hr)) {
+        return;
+    }
+    SetDebugName(commandList, fmt::format("[Ymir D3D11] VDP1 command list (frame {})", m_VDP1FrameCounter));
+    ++m_VDP1FrameCounter;
+
+    HwCallbacks.CommandListReady();
+
     // TODO: copy VDP1 framebuffer to m_state.spriteFB
+
+    VDP1UploadDrawFBRAM();
     Callbacks.VDP1FramebufferSwap();
 }
 
@@ -1312,6 +693,43 @@ void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::C
 
 void Direct3D11VDPRenderer::VDP1EndFrame() {
     Callbacks.VDP1DrawFinished();
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
+    if (!m_context->dirtyVDP1VRAM) {
+        return;
+    }
+
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
+
+    m_context->dirtyVDP1VRAM.Process([&](uint64 offset, uint64 count) {
+        uint32 vramOffset = offset << kVRAMPageBits;
+        static constexpr uint32 kBufSize = 1u << kVRAMPageBits;
+        static constexpr D3D11_BOX kSrcBox{0, 0, 0, kBufSize, 1, 1};
+        // TODO: coalesce larger segments by using larger staging buffers
+        while (count > 0) {
+            ID3D11Buffer *bufStaging = m_context->bufVDP1VRAMPages[offset];
+            ++offset;
+            --count;
+
+            D3D11_MAPPED_SUBRESOURCE mappedResource;
+            HRESULT hr = ctx->Map(bufStaging, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+            memcpy(mappedResource.pData, &m_state.VRAM1[vramOffset], kBufSize);
+            ctx->Unmap(bufStaging, 0);
+            ctx->CopySubresourceRegion(m_context->bufVDP1VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
+            vramOffset += kBufSize;
+        }
+    });
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
+
+    const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    ctx->Map(m_context->bufVDP1FBRAM, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
+    ctx->Unmap(m_context->bufVDP1FBRAM, 0);
 }
 
 // -----------------------------------------------------------------------------
@@ -1336,13 +754,13 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
     m_nextVDP2ComposeY = 0;
     m_nextVDP2RotBasesY = 0;
 
-    m_context->ResetResources();
+    m_context->ResetContexts();
 
-    m_context->VSSetShaderResources({});
-    m_context->VSSetShader(m_context->vsIdentity);
+    m_context->VDP2Context.VSSetShaderResources({});
+    m_context->VDP2Context.VSSetShader(m_context->vsIdentity);
 
-    m_context->PSSetShaderResources({});
-    m_context->PSSetShader(nullptr);
+    m_context->VDP2Context.PSSetShaderResources({});
+    m_context->VDP2Context.PSSetShader(nullptr);
 }
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
@@ -1366,24 +784,19 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     VDP2RenderBGLines(vres - 1);
     VDP2ComposeLines(m_VRes - 1);
 
-    auto *ctx = m_context->deferredCtx;
+    auto &ctx = m_context->VDP2Context;
 
     // Cleanup
-    m_context->CSSetUnorderedAccessViews({});
-    m_context->CSSetShaderResources({});
-    m_context->CSSetConstantBuffers({});
+    ctx.CSSetUnorderedAccessViews({});
+    ctx.CSSetShaderResources({});
+    ctx.CSSetConstantBuffers({});
 
     ID3D11CommandList *commandList = nullptr;
-    if (HRESULT hr = ctx->FinishCommandList(FALSE, &commandList); FAILED(hr)) {
+    if (HRESULT hr = ctx.FinishCommandList(commandList); FAILED(hr)) {
         return;
     }
-    SetDebugName(commandList, "[Ymir D3D11] Command list");
-
-    // Append to pending command list queue
-    {
-        std::unique_lock lock{m_context->mtxCmdList};
-        m_context->cmdListQueue.push_back(commandList);
-    }
+    SetDebugName(commandList, fmt::format("[Ymir D3D11] VDP2 command list (frame {})", m_VDP2FrameCounter));
+    ++m_VDP2FrameCounter;
 
     HwCallbacks.CommandListReady();
 
@@ -1470,7 +883,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // ----------------------
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
 
     VDP2UpdateVRAM();
     VDP2UpdateCRAM();
@@ -1487,11 +900,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // Compute rotation parameters if any RBGs are enabled
     if (m_state.regs2.bgEnabled[4] || m_state.regs2.bgEnabled[5]) {
-        m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-        m_context->CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache,
-                                         m_context->srvVDP2RotRegs, m_context->srvVDP2RotParamBases});
-        m_context->CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
-        m_context->CSSetShader(m_context->csVDP2RotParams);
+        m_context->VDP2Context.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+        m_context->VDP2Context.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache,
+                                                     m_context->srvVDP2RotRegs, m_context->srvVDP2RotParamBases});
+        m_context->VDP2Context.CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
+        m_context->VDP2Context.CSSetShader(m_context->csVDP2RotParams);
 
         const bool doubleResH = m_state.regs2.TVMD.HRESOn & 0b010;
         const uint32 hresShift = doubleResH ? 1 : 0;
@@ -1500,13 +913,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     }
 
     // Draw NBGs and RBGs
-    m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-    m_context->CSSetShaderResources(
+    m_context->VDP2Context.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    m_context->VDP2Context.CSSetShaderResources(
         {m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
-    m_context->CSSetUnorderedAccessViews(
+    m_context->VDP2Context.CSSetUnorderedAccessViews(
         {m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors});
-    m_context->CSSetShaderResources(3, {m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams});
-    m_context->CSSetShader(m_context->csVDP2BGs);
+    m_context->VDP2Context.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams}, 3);
+    m_context->VDP2Context.CSSetShader(m_context->csVDP2BGs);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 
     // Update rotation parameter bases for the next chunk if not done rendering
@@ -1522,7 +935,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
 
     // ----------------------
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
     D3D11_MAPPED_SUBRESOURCE mappedResource;
 
     VDP2UpdateBGRenderState();
@@ -1536,12 +949,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     m_nextVDP2ComposeY = y + 1;
 
     // Compose final image
-    m_context->CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-    m_context->CSSetUnorderedAccessViews({m_context->uavVDP2Output});
-    m_context->CSSetShaderResources({m_context->srvVDP2BGs, nullptr /* sprite layers */,
-                                     m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
-                                     m_context->srvVDP2ComposeParams});
-    m_context->CSSetShader(m_context->csVDP2Compose);
+    m_context->VDP2Context.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    m_context->VDP2Context.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
+    m_context->VDP2Context.CSSetShaderResources({m_context->srvVDP2BGs, nullptr /* sprite layers */,
+                                                 m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
+                                                 m_context->srvVDP2ComposeParams});
+    m_context->VDP2Context.CSSetShader(m_context->csVDP2Compose);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 }
 
@@ -1550,7 +963,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {
         return;
     }
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
 
     m_context->dirtyVDP2VRAM.Process([&](uint64 offset, uint64 count) {
         uint32 vramOffset = offset << kVRAMPageBits;
@@ -1578,7 +991,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
     }
     m_context->dirtyVDP2CRAM = false;
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
     const VDP2Regs &regs2 = m_state.regs2;
 
     auto &colorCache = m_context->cpuVDP2ColorCache;
@@ -1785,7 +1198,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
     state.specialFunctionCodes = bit::gather_array<uint32>(regs2.specialFunctionCodes[0].colorMatches) |
                                  (bit::gather_array<uint32>(regs2.specialFunctionCodes[1].colorMatches) << 8u);
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     ctx->Map(m_context->bufVDP2BGRenderState, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -1806,7 +1219,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
     config.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     ctx->Map(m_context->cbufVDP2RenderConfig, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -1867,7 +1280,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamBases() {
         }
     }
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     ctx->Map(m_context->bufVDP2RotParamBases, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -1908,7 +1321,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
         dst.fbRotEnable = m_state.regs1.fbRotEnable;
     }
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     ctx->Map(m_context->bufVDP2RotRegs, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -1970,7 +1383,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
                                      | (regs2.lineScreenParams.colorCalcRatio << 5) //
         ;
 
-    auto *ctx = m_context->deferredCtx;
+    auto *ctx = m_context->VDP2Context.GetDeferredContext();
 
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     ctx->Map(m_context->bufVDP2ComposeParams, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -1978,4 +1391,4 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
     ctx->Unmap(m_context->bufVDP2ComposeParams, 0);
 }
 
-} // namespace ymir::vdp
+} // namespace ymir::vdp::d3d11

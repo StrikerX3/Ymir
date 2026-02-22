@@ -981,13 +981,13 @@ void VDP::BeginVPhaseLastLine() {
 void VDP::VDP1SwapFramebuffer() {
     devlog::trace<grp::vdp1>("Swapping framebuffers - draw {}, display {}", m_state.displayFB, m_state.displayFB ^ 1);
 
-    m_renderer->VDP1SwapFramebuffer();
-
     m_state.regs1.prevCommandAddress = m_state.regs1.currCommandAddress;
     m_state.regs1.prevFrameEnded = m_state.regs1.currFrameEnded;
     m_state.regs1.currFrameEnded = false;
 
     m_state.displayFB ^= 1;
+
+    m_renderer->VDP1SwapFramebuffer();
 
     if (bit::test<1>(m_state.regs1.plotTrigger)) {
         VDP1BeginFrame();

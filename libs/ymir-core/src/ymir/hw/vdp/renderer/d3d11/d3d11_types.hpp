@@ -4,7 +4,7 @@
 
 #include <array>
 
-namespace ymir::vdp {
+namespace ymir::vdp::d3d11 {
 
 using D3DInt = sint32;
 using D3DUint = uint32;
@@ -336,4 +336,4 @@ struct alignas(16) VDP2ComposeParams { //  bits  use
                                      //   5-9  Line screen
 };
 
-} // namespace ymir::vdp
+} // namespace ymir::vdp::d3d11

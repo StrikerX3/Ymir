@@ -135,6 +135,7 @@ add_library(ymir-core
     include/ymir/hw/vdp/renderer/vdp_renderer_base.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_defs.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_hw_base.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_hw_callbacks.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
 
@@ -308,6 +309,11 @@ if (WIN32)
         
         src/ymir/hw/vdp/renderer/vdp_renderer_d3d11.cpp
         
+        src/ymir/hw/vdp/renderer/d3d11/d3d11_context_manager.cpp
+        src/ymir/hw/vdp/renderer/d3d11/d3d11_context_manager.hpp
+        src/ymir/hw/vdp/renderer/d3d11/d3d11_defs.hpp
+        src/ymir/hw/vdp/renderer/d3d11/d3d11_device_manager.cpp
+        src/ymir/hw/vdp/renderer/d3d11/d3d11_device_manager.hpp
         src/ymir/hw/vdp/renderer/d3d11/d3d11_shader_cache.cpp
         src/ymir/hw/vdp/renderer/d3d11/d3d11_shader_cache.hpp
         src/ymir/hw/vdp/renderer/d3d11/d3d11_types.hpp
