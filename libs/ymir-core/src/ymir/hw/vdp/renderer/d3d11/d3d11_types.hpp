@@ -70,7 +70,7 @@ struct VDP1PolyParams {
     // - command address in VRAM
     // - polygon bounds in atlas texture
 
-    D3DUint4 reserved;
+    D3DUint reserved;
 };
 
 // -----------------------------------------------------------------------------
