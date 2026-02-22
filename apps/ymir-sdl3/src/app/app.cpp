@@ -2659,7 +2659,7 @@ void App::RunEmulator() {
 
         // Update display
         if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
-            hwrenderer->ExecutePendingCommandList();
+            hwrenderer->ExecutePendingCommandLists();
         } else if (screen.updated || screen.videoSync) {
             if (screen.videoSync && screen.expectFrame && !m_context.paused) {
                 screen.frameReadyEvent.Wait();
