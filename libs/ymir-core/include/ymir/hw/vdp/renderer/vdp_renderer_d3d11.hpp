@@ -23,7 +23,7 @@ struct ID3D11Texture2D;
 
 // -----------------------------------------------------------------------------
 
-namespace ymir::vdp {
+namespace ymir::vdp::d3d11 {
 
 using D3DColor = std::array<uint8, 4>;
 
@@ -130,6 +130,12 @@ private:
 
     // TODO
 
+    /// @brief Updates VDP1 VRAM if dirty.
+    void VDP1UpdateVRAM();
+
+    /// @brief Uploads the current VDP1 drawing FBRAM to the GPU.
+    void VDP1UploadDrawFBRAM();
+
     // -------------------------------------------------------------------------
     // VDP2 rendering
 
@@ -177,10 +183,13 @@ private:
     struct Context;
     std::unique_ptr<Context> m_context;
 
+    uint64 m_VDP1FrameCounter = 0;
+    uint64 m_VDP2FrameCounter = 0;
+
     bool m_valid = false;
     uint32 m_HRes = vdp::kDefaultResH;
     uint32 m_VRes = vdp::kDefaultResV;
     bool m_exclusiveMonitor = false;
 };
 
-} // namespace ymir::vdp
+} // namespace ymir::vdp::d3d11

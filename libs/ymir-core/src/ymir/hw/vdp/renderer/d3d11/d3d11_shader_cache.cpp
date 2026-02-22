@@ -13,7 +13,9 @@
 #include <cassert>
 #include <cstring>
 
-namespace d3dutil {
+using namespace d3dutil;
+
+namespace ymir::vdp::d3d11 {
 
 D3DShaderCache D3DShaderCache::s_debugInstance{true};
 D3DShaderCache D3DShaderCache::s_normalInstance{false};
@@ -143,4 +145,4 @@ D3DShaderCache::CacheKey D3DShaderCache::CacheKey::From(ShaderType type, std::st
     return key;
 }
 
-} // namespace d3dutil
+} // namespace ymir::vdp::d3d11
