@@ -2,6 +2,8 @@
 
 #include "d3d11_utils.hpp"
 
+#include <algorithm>
+
 namespace ymir::vdp::d3d11 {
 
 ContextManager::ContextManager(DeviceManager &devMgr)
@@ -111,7 +113,7 @@ bool ContextManager::ExecutePendingCommandLists(ID3D11DeviceContext *immediateCt
 
 template <typename T>
 bool ContextManager::UpdateResources(uint32 offset, std::initializer_list<T *> src, std::vector<T *> &dst) {
-    if (!dst.empty() && dst.size() == src.size() + offset && std::equal(src.begin() + offset, src.end(), dst.begin())) {
+    if (dst.size() == src.size() + offset && std::equal(src.begin() + offset, src.end(), dst.begin())) {
         return false;
     }
     if (src.size() + offset > dst.size()) {
@@ -147,7 +149,7 @@ void ContextManager::SetShaderResources(uint32 offset, std::initializer_list<ID3
     if (!UpdateResources(offset, src, dst)) {
         return;
     }
-    m_deferredCtx->CSSetShaderResources(offset, src.size(), src.begin());
+    m_deferredCtx->CSSetShaderResources(offset, dst.size() - offset, &dst[offset]);
     dst.resize(src.size() + offset);
 }
 

@@ -673,6 +673,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     // TODO: copy VDP1 framebuffer to m_state.spriteFB
 
     VDP1UploadDrawFBRAM();
+
     Callbacks.VDP1FramebufferSwap();
 }
 
@@ -700,7 +701,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
         return;
     }
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
+    auto *ctx = m_context->VDP1Context.GetDeferredContext();
 
     m_context->dirtyVDP1VRAM.Process([&](uint64 offset, uint64 count) {
         uint32 vramOffset = offset << kVRAMPageBits;
@@ -723,7 +724,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
+    auto *ctx = m_context->VDP1Context.GetDeferredContext();
 
     const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
     D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -883,7 +884,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // ----------------------
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
+    auto &vdp2Ctx = m_context->VDP2Context;
+    auto *ctx = vdp2Ctx.GetDeferredContext();
 
     VDP2UpdateVRAM();
     VDP2UpdateCRAM();
@@ -900,11 +902,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // Compute rotation parameters if any RBGs are enabled
     if (m_state.regs2.bgEnabled[4] || m_state.regs2.bgEnabled[5]) {
-        m_context->VDP2Context.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-        m_context->VDP2Context.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache,
-                                                     m_context->srvVDP2RotRegs, m_context->srvVDP2RotParamBases});
-        m_context->VDP2Context.CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
-        m_context->VDP2Context.CSSetShader(m_context->csVDP2RotParams);
+        vdp2Ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+        vdp2Ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache, m_context->srvVDP2RotRegs,
+                                      m_context->srvVDP2RotParamBases});
+        vdp2Ctx.CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
+        vdp2Ctx.CSSetShader(m_context->csVDP2RotParams);
 
         const bool doubleResH = m_state.regs2.TVMD.HRESOn & 0b010;
         const uint32 hresShift = doubleResH ? 1 : 0;
@@ -913,13 +915,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     }
 
     // Draw NBGs and RBGs
-    m_context->VDP2Context.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-    m_context->VDP2Context.CSSetShaderResources(
+    vdp2Ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    vdp2Ctx.CSSetShaderResources(
         {m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
-    m_context->VDP2Context.CSSetUnorderedAccessViews(
+    vdp2Ctx.CSSetUnorderedAccessViews(
         {m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors});
-    m_context->VDP2Context.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams}, 3);
-    m_context->VDP2Context.CSSetShader(m_context->csVDP2BGs);
+    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams}, 3);
+    vdp2Ctx.CSSetShader(m_context->csVDP2BGs);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 
     // Update rotation parameter bases for the next chunk if not done rendering
@@ -935,8 +937,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
 
     // ----------------------
 
-    auto *ctx = m_context->VDP2Context.GetDeferredContext();
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    auto &vdp2Ctx = m_context->VDP2Context;
+    auto *ctx = vdp2Ctx.GetDeferredContext();
 
     VDP2UpdateBGRenderState();
     VDP2UpdateComposeParams();
@@ -949,12 +951,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     m_nextVDP2ComposeY = y + 1;
 
     // Compose final image
-    m_context->VDP2Context.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-    m_context->VDP2Context.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
-    m_context->VDP2Context.CSSetShaderResources({m_context->srvVDP2BGs, nullptr /* sprite layers */,
-                                                 m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
-                                                 m_context->srvVDP2ComposeParams});
-    m_context->VDP2Context.CSSetShader(m_context->csVDP2Compose);
+    vdp2Ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    vdp2Ctx.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
+    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2BGs, nullptr /* sprite layers */, m_context->srvVDP2RotLineColors,
+                                  m_context->srvVDP2LineColors, m_context->srvVDP2ComposeParams});
+    vdp2Ctx.CSSetShader(m_context->csVDP2Compose);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 }
 
