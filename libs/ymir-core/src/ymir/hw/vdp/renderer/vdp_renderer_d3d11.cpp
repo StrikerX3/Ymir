@@ -95,10 +95,10 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
 
-    ID3D11Buffer *bufVDP1RenderState = nullptr;             //< VDP1 render state structured buffer
-    ID3D11ShaderResourceView *srvVDP1RenderState = nullptr; //< SRV for VDP1 render state
-    VDP1RenderState cpuVDP1RenderState{};                   //< CPU-side VDP1 render state
-    bool dirtyVDP1RenderState = true;                       //< Dirty flag for VDP1 render state
+    ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
+    ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
+    VDP1PolyParams cpuVDP1PolyParams{};                    //< CPU-side VDP1 polygon parameters
+    bool dirtyVDP1PolyParams = true;                       //< Dirty flag for VDP1 polygon parameters
 
     ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
     ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
@@ -108,9 +108,9 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ShaderResourceView *srvVDP1Polys = nullptr; //< SRV for VDP1 polygon atlas buffer
 
     // -------------------------------------------------------------------------
-    // VDP1 - polygon erase/init shader
+    // VDP1 - polygon erase/swap shader
 
-    ID3D11ComputeShader *csVDP1Erase = nullptr; //< VDP1 polygon erase/init compute shader
+    ID3D11ComputeShader *csVDP1EraseSwap = nullptr; //< VDP1 polygon erase/swap compute shader
 
     // -------------------------------------------------------------------------
     // VDP1 - polygon drawing shader
@@ -129,6 +129,8 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP1PolyOut = nullptr;             //< VDP1 polygon output buffer (sprite, mesh)
     ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr; //< SRV for VDP1 polygon output textures
+
+    // =========================================================================
 
     // -------------------------------------------------------------------------
     // VDP2 - shared resources
@@ -174,7 +176,7 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP2RotParamBases = nullptr;             //< VDP2 rotparam base values structured buffer array
     ID3D11ShaderResourceView *srvVDP2RotParamBases = nullptr; //< SRV for rotparam base values
-    std::array<RotParamBase, 2> cpuVDP2RotParamBases{};       //< CPU-side VDP2 rotparam base values
+    std::array<VDP2RotParamBase, 2> cpuVDP2RotParamBases{};   //< CPU-side VDP2 rotparam base values
 
     // -------------------------------------------------------------------------
     // VDP2 - NBG/RBG shader
@@ -855,14 +857,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
     if (HRESULT hr =
-            m_context->CreateStructuredBuffer(&m_context->bufVDP1RenderState, &m_context->srvVDP1RenderState, nullptr,
-                                              1, &m_context->cpuVDP1RenderState, 0, D3D11_CPU_ACCESS_WRITE);
+            m_context->CreateStructuredBuffer(&m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr, 1,
+                                              &m_context->cpuVDP1PolyParams, 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1RenderState, "[Ymir D3D11] VDP1 render state buffer");
-    SetDebugName(m_context->srvVDP1RenderState, "[Ymir D3D11] VDP1 render state SRV");
+    SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
+    SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
 
     if (HRESULT hr = m_context->CreateByteAddressBuffer(
             &m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, kVDP1FramebufferRAMSize,
@@ -884,13 +886,13 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas SRV");
 
     // -------------------------------------------------------------------------
-    // VDP1 - polygon erase/init shader
+    // VDP1 - polygon erase/swap shader
 
-    if (!m_context->CreateComputeShader(m_context->csVDP1Erase, "d3d11/cs_vdp1_erase.hlsl")) {
+    if (!m_context->CreateComputeShader(m_context->csVDP1EraseSwap, "d3d11/cs_vdp1_eraseswap.hlsl")) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1Erase, "[Ymir D3D11] VDP1 polygon erase/init compute shader");
+    SetDebugName(m_context->csVDP1EraseSwap, "[Ymir D3D11] VDP1 polygon erase/swap compute shader");
 
     // -------------------------------------------------------------------------
     // VDP1 - polygon drawing shader
@@ -939,6 +941,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output buffer");
     SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
+
+    // =========================================================================
 
     // -------------------------------------------------------------------------
     // VDP2 - shared resources
@@ -1137,10 +1141,36 @@ void Direct3D11VDPRenderer::ExecutePendingCommandList() {
     // 2. signal emulator thread to copy that to m_state.spriteFB
 
     // VDP1 rendering process idea:
-    // - batch polygons to render in a large atlas (2048x2048, maybe larger)
-    // - render polygons with compute shader individually, parallelized into atlas regions
-    // - merge rendered polygons with pixel shader into draw framebuffer (+ draw transparent mesh buffer if enabled)
-    // - copy VDP1 FBRAM to CPU-side FBRAM + main and emulator thread synchronization
+    // - on VDP1 VRAM writes:
+    //   - update dirtyVDP1VRAM
+    //   - sync bufVDP1VRAM
+    //     - possible granularities (from lowest to highest):
+    //       - on framebuffer swap
+    //       - when VDP1 drawing starts and/or ends
+    //       - once per VDP2 scanline (same as VDP2 VRAM sync)
+    //       - when a command is processed
+    //     - when this happens, also force-submit any pending polygons for rendering
+    // - on swap:
+    //   - copy bufVDP1FBRAM to CPU-side display FBRAM
+    //     - emulator thread waits for FBRAM copy signal
+    //     - main thread processes command list
+    //     - main thread copies FBRAM to staging CPU-side buffer as described above
+    //     - main thread signals emulator thread
+    //     - emulator thread copies FBRAM from staging buffer to m_state.spriteFB[m_state.displayFB]
+    //   - copy CPU-side VDP1 draw FBRAM into bufVDP1FBRAM
+    //     - simple Map -> memcpy -> Unmap
+    //   - update cbufVDP1RenderConfig
+    //   - dispatch csVDP1EraseSwap to prepare bufVDP1PolyOut
+    // - whenever commands are processed:
+    //   - update CPU-side VDP1 clipping coordinates (for clipping commands)
+    //   - batch polygons to render in a large atlas (2048x2048, maybe larger)
+    //     - update cpuVDP1PolyParams
+    //     - mark dirtyVDP1PolyParams as dirty
+    //   - when the atlas is full or when VDP1 drawing ends, submit for rendering
+    //     - upload cpuVDP1PolyParams to bufVDP1PolyParams if dirtyVDP1PolyParams and clear dirty flag
+    //     - dispatch csVDP1PolyDraw to render polygons into bufVDP1Polys
+    //     - dispatch csVDP1PolyMerge to copy polygons from bufVDP1Polys to bufVDP1PolyOut
+    // - VDP2 will use srvVDP1PolyOut to render the sprite+mesh layers
 }
 
 ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {
@@ -1798,7 +1828,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamBases() {
 
     const uint32 baseAddress = regs2.commonRotParams.baseAddress & 0xFFF7C; // mask bit 6 (shifted left by 1)
     for (uint32 i = 0; i < 2; ++i) {
-        RotParamBase &base = m_context->cpuVDP2RotParamBases[i];
+        VDP2RotParamBase &base = m_context->cpuVDP2RotParamBases[i];
         RotationParams &src = regs2.rotParams[i];
 
         const uint32 address = baseAddress + i * 0x80;

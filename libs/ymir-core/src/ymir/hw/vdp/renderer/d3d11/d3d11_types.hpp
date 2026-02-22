@@ -58,15 +58,16 @@ static_assert(sizeof(D3DInt3) == sizeof(D3DInt) * 3);
 struct alignas(16) VDP1RenderConfig {
     // TODO: number of VDP1 polygons to render
     // TODO: relevant VDP1 registers
+    // - erase/swap bounds and value (including vblank erase bounds)
 
     D3DUint4 reserved;
 };
 
-struct VDP1RenderState {
+struct VDP1PolyParams {
     // TODO: individual polygon rendering parameters
     // - system clipping area
     // - user clipping area
-    // - all 0x20 bytes of the command
+    // - command address in VRAM
     // - polygon bounds in atlas texture
 
     D3DUint4 reserved;
@@ -192,14 +193,14 @@ struct VDP2BGRenderParams {
 };
 static_assert(sizeof(VDP2BGRenderParams) == sizeof(D3DUint) * 4);
 
-struct WindowRenderParams {
+struct VDP2WindowRenderParams {
     D3DUint2 start;
     D3DUint2 end;
     D3DUint lineWindowTableAddress;
     bool lineWindowTableEnable;
 };
 
-struct RotParams {             //  bits  use
+struct VDPRotParams {          //  bits  use
     D3DUint rotParamMode : 2;  //   0-1  Rotation parameter mode
                                //          0 = always use A   2 = select based on coefficient data
                                //          1 = always use B   3 = select based on window flag
@@ -226,9 +227,9 @@ struct alignas(16) VDP2BGRenderState {
     std::array<std::array<D3DUint, 4>, 4> nbgPageBaseAddresses;                 // [NBG0-3][plane A-D]
     std::array<std::array<std::array<D3DUint, 16>, 2>, 2> rbgPageBaseAddresses; // [RotParam A/B][RBG0-1][plane A-P]
 
-    std::array<WindowRenderParams, 2> windows; // Window 0 and 1
+    std::array<VDP2WindowRenderParams, 2> windows; // Window 0 and 1
 
-    RotParams commonRotParams;
+    VDPRotParams commonRotParams;
 
     VDP2LineBackScreenParams lineScreenParams;
     VDP2LineBackScreenParams backScreenParams;
@@ -236,6 +237,12 @@ struct alignas(16) VDP2BGRenderState {
     D3DUint specialFunctionCodes; //  bits  use
                                   //   0-7  Special function code A
                                   //  8-15  Special function code B
+};
+
+struct VDP2SpriteAttrs {        //  bits  use
+    D3DUint colorCalcRatio : 5; //   0-4  Color calculation ratio
+    D3DUint shadowOrWindow : 1; //     5  Shadow/window flag (SD bit in sprite data; meaning depends on SPWINEN)
+    D3DUint normalShadow : 1;   //     6  Normal shadow flag (DC bits are all 1s except LSB)
 };
 
 // -----------------------------------------------------------------------------
@@ -258,12 +265,12 @@ struct VDP2RotationRegs {           //  bits  use
 static_assert(sizeof(VDP2RotationRegs) == sizeof(D3DUint) * 2);
 
 // Base Xst, Yst, KA for params A and B relative to config.startY
-struct alignas(16) RotParamBase {
+struct alignas(16) VDP2RotParamBase {
     D3DUint tableAddress;
     D3DInt Xst, Yst;
     D3DUint KA;
 };
-static_assert(sizeof(RotParamBase) == sizeof(D3DUint) * 4);
+static_assert(sizeof(VDP2RotParamBase) == sizeof(D3DUint) * 4);
 
 struct alignas(16) VDP2RotParamData {
     D3DInt2 screenCoords; // Screen coordinates (26.0)

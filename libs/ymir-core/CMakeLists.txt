@@ -317,7 +317,7 @@ if (WIN32)
     target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_DIRECT3D=1")
 
     list(APPEND YMIR_CORE_RESOURCES
-        res/embed/d3d11/cs_vdp1_erase.hlsl
+        res/embed/d3d11/cs_vdp1_eraseswap.hlsl
         res/embed/d3d11/cs_vdp1_polydraw.hlsl
         res/embed/d3d11/cs_vdp1_polymerge.hlsl
         res/embed/d3d11/cs_vdp2_bgs.hlsl

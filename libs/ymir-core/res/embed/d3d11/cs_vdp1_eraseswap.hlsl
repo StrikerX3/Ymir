@@ -1,11 +1,11 @@
 // TODO: inputs and outputs:
-// [cbuf] rendering parameters - relevant VDP1 registers (erase, vblank bounds)
-// [in] VDP1 FBRAM
-// [out] byte address buffer for framebuffer (+ transparent meshes buffer)
+// [cbuffer] rendering parameters - relevant VDP1 registers (erase, vblank bounds)
+// [ByteAddressBuffer] VDP1 FBRAM
+// [RWByteAddressBuffer] framebuffer + transparent meshes
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    // TODO: perform erase process
+    // TODO: perform erase/swap process
     // - id.xy are framebuffer coordinates
     // - id.z is not used
     // - either write the 16-bit erase value or copy from VDP1 FBRAM
