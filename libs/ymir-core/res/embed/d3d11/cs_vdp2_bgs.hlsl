@@ -827,7 +827,8 @@ uint4 DrawRBG(uint2 pos, uint index) {
 
 uint4 DrawLineBackScreen(uint index, uint y) {
     const BGRenderState state = bgRenderState[0];
-    const uint params = index == 0 ? state.lineScreenParams : state.backScreenParams;
+    const bool isLineColor = index == 0; // otherwise back color
+    const uint params = isLineColor ? state.lineScreenParams : state.backScreenParams;
     
     const bool lineColorPerLine = BitTest(params, 19);
     const uint lineColorBaseAddress = BitExtract(params, 0, 19);
@@ -835,8 +836,9 @@ uint4 DrawLineBackScreen(uint index, uint y) {
     const uint lineColorY = lineColorPerLine ? y : 0;
     const uint lineColorAddress = lineColorBaseAddress + lineColorY;
 
-    const uint cramAddress = ReadVRAM16(lineColorAddress);
-    return cramColor[cramAddress];
+    // LNCL reads from CRAM; BACK reads from VRAM
+    const uint value = ReadVRAM16(lineColorAddress);
+    return isLineColor ? cramColor[value] : Color555(value);
 }
 
 // -----------------------------------------------------------------------------
