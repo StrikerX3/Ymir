@@ -72,7 +72,7 @@ struct Direct3D11VDPRenderer::Context {
     ContextManager VDP1Context;
     ContextManager VDP2Context;
 
-    void ResetContexts() {
+    void Reset() {
         VDP1Context.Reset();
         VDP2Context.Reset();
         atlasVDP1.Clear();
@@ -539,7 +539,7 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     m_context->dirtyVDP2RotParamState = true;
     m_context->dirtyVDP2ComposeParams = true;
 
-    m_context->ResetContexts();
+    m_context->Reset();
 
     m_VDP1State.Reset();
 }
@@ -1134,8 +1134,6 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
     m_nextVDP2BGY = 0;
     m_nextVDP2ComposeY = 0;
     m_nextVDP2RotBasesY = 0;
-
-    m_context->VDP2Context.Reset();
 
     m_context->VDP2Context.VSSetShaderResources({});
     m_context->VDP2Context.VSSetShader(m_context->vsIdentity);
