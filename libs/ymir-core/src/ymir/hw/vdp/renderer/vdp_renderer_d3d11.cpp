@@ -844,18 +844,17 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     const uint32 charSizeV = size.V;
 
     auto &ctx = m_VDP1State;
-    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
-    sint32 x0 = xa;                                // left X
-    sint32 y0 = ya;                                // top Y
-    sint32 x1 = xa + std::max(charSizeH, 1u) - 1u; // right X
-    sint32 y1 = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
-    VDP1ClipCoords(x0, y0);
-    VDP1ClipCoords(x1, y1);
+    sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
+    sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
 
-    const uint32 dx = x1 - x0;
-    const uint32 dy = y1 - y0;
+    VDP1ClipCoords(xa, ya);
+    VDP1ClipCoords(xb, yb);
+
+    const uint32 dx = xb - xa;
+    const uint32 dy = yb - ya;
 
     if (dx == 0 || dy == 0) {
         return;
