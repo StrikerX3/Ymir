@@ -27,6 +27,8 @@
 #include <type_traits>
 #include <vector>
 
+#include <ymir/util/dev_log.hpp>
+
 // ---------------------------------------------------------------------------
 // Core options
 // ---------------------------------------------------------------------------
@@ -919,8 +921,22 @@ RETRO_API void retro_set_input_state(retro_input_state_t cb) {
 // libretro API: lifecycle
 // ---------------------------------------------------------------------------
 
+static void devlog_to_libretro(devlog::Level level, const char *message) {
+    if (!core.log_cb)
+        return;
+    enum retro_log_level rl = RETRO_LOG_DEBUG;
+    if (level >= devlog::level::error)
+        rl = RETRO_LOG_ERROR;
+    else if (level >= devlog::level::warn)
+        rl = RETRO_LOG_WARN;
+    else if (level >= devlog::level::info)
+        rl = RETRO_LOG_INFO;
+    core.log_cb(rl, "[Ymir] %s\n", message);
+}
+
 RETRO_API void retro_init(void) {
     core.audio_buffer.reserve(882 * 2); // PAL worst case per frame
+    devlog::setSink(devlog_to_libretro);
 }
 
 RETRO_API void retro_deinit(void) {

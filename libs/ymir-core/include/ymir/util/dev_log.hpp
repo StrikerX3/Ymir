@@ -128,7 +128,16 @@ namespace level {
     inline constexpr const char *name<error> = "error";
 } // namespace level
 
+/// @brief Callback type for redirecting devlog output.
+///
+/// When set, all devlog output goes through this callback instead of stdout.
+/// The callback receives the fully formatted log line (without trailing newline).
+using SinkCallback = void (*)(Level level, const char *message);
+
 namespace detail {
+
+    /// @brief The currently active devlog output sink.
+    inline SinkCallback g_sink = nullptr;
 
     /// @brief Describes a log group.
     ///
@@ -168,6 +177,16 @@ namespace detail {
     template <Level level, detail::Group TGroup>
     inline constexpr bool enabled = globalEnable && TGroup::enabled && level >= TGroup::level;
 
+    /// @brief Writes a formatted devlog message to the active sink or stdout.
+    inline void emit(Level level, fmt::memory_buffer &buf) {
+        auto str = fmt::to_string(buf);
+        if (g_sink) {
+            g_sink(level, str.c_str());
+        } else {
+            fmt::println("{}", str);
+        }
+    }
+
     /// @brief Logs a message to the dev log of the specified group.
     /// @tparam ...TArgs the log message's argument types
     /// @tparam level the log level
@@ -182,7 +201,7 @@ namespace detail {
             auto out = std::back_inserter(buf);
             fmt::format_to(out, "{:5s} | {:16s} | ", level::name<level>, TGroup::name);
             fmt::format_to(out, fmt, static_cast<TArgs &&>(args)...);
-            fmt::println("{}", fmt::to_string(buf));
+            emit(level, buf);
         }
     }
 
@@ -201,11 +220,17 @@ namespace detail {
             auto out = std::back_inserter(buf);
             fmt::format_to(out, "{:5s} | {:16s} | ", level::name<level>, TGroup::Name(nameArgs));
             fmt::format_to(out, fmt, static_cast<TArgs &&>(args)...);
-            fmt::println("{}", fmt::to_string(buf));
+            emit(level, buf);
         }
     }
 
 } // namespace detail
+
+/// @brief Sets a custom output sink for devlog messages.
+/// @param[in] cb the callback to invoke, or nullptr to restore stdout output
+inline void setSink(SinkCallback cb) {
+    detail::g_sink = cb;
+}
 
 /// @brief Determines if trace logging is enabled for the group.
 /// @tparam TGroup the group to check
