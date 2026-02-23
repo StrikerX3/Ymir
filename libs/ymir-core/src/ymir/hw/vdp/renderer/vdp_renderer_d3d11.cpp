@@ -17,6 +17,7 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <mutex>
@@ -720,6 +721,21 @@ void Direct3D11VDPRenderer::VDP1EndFrame() {
     Callbacks.VDP1DrawFinished();
 }
 
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1SystemClipCoords(sint32 &x, sint32 &y) {
+    x = std::clamp<sint32>(x, 0, m_VDP1State.sysClipH);
+    y = std::clamp<sint32>(y, 0, m_VDP1State.sysClipV);
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1UserClipCoords(sint32 &x, sint32 &y) {
+    x = std::clamp<sint32>(x, m_VDP1State.userClipX0, std::max(m_VDP1State.userClipX0, m_VDP1State.userClipX1));
+    y = std::clamp<sint32>(y, m_VDP1State.userClipY0, std::max(m_VDP1State.userClipY0, m_VDP1State.userClipY1));
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1ClipCoords(sint32 &x, sint32 &y) {
+    VDP1SystemClipCoords(x, y);
+    VDP1UserClipCoords(x, y);
+}
+
 void Direct3D11VDPRenderer::VDP1AddPolygon(uint32 width, uint32 height, uint32 cmdAddress) {
     // Try allocating it in the atlas
     uint32 x, y;
@@ -827,8 +843,23 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     const uint32 charSizeH = size.H * 8;
     const uint32 charSizeV = size.V;
 
-    const uint32 dx = std::max(charSizeH, 1u) - 1u;
-    const uint32 dy = std::max(charSizeV, 1u) - 1u;
+    auto &ctx = m_VDP1State;
+    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+
+    sint32 x0 = xa;                                // left X
+    sint32 y0 = ya;                                // top Y
+    sint32 x1 = xa + std::max(charSizeH, 1u) - 1u; // right X
+    sint32 y1 = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
+    VDP1ClipCoords(x0, y0);
+    VDP1ClipCoords(x1, y1);
+
+    const uint32 dx = x1 - x0;
+    const uint32 dy = y1 - y0;
+
+    if (dx == 0 || dy == 0) {
+        return;
+    }
 
     VDP1AddPolygon(dx, dy, cmdAddress);
 }
@@ -838,22 +869,101 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
         return;
     }
 
-    uint32 dx;
-    if (bit::extract<0, 1>(control.zoomPoint) == 0) {
-        const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    const VDP1Command::Size size{.u16 = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0A)};
+
+    auto &ctx = m_VDP1State;
+    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+
+    // Calculated quad coordinates
+    sint32 qxa = xa;
+    sint32 qya = ya;
+    sint32 qxb = xa;
+    sint32 qyb = ya;
+    sint32 qxc = xa;
+    sint32 qyc = ya;
+    sint32 qxd = xa;
+    sint32 qyd = ya;
+
+    const uint8 zoomPointH = bit::extract<0, 1>(control.zoomPoint);
+    const uint8 zoomPointV = bit::extract<2, 3>(control.zoomPoint);
+
+    if (zoomPointH == 0) {
         const sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
-        dx = std::abs(xc - xa);
+
+        qxb = xc;
+        qxc = xc;
     } else {
-        dx = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+        const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+
+        switch (zoomPointH) {
+        case 1:
+            qxb += xb;
+            qxc += xb;
+            break;
+        case 2:
+            qxa -= xb >> 1;
+            qxb += (xb + 1) >> 1;
+            qxc += (xb + 1) >> 1;
+            qxd -= xb >> 1;
+            break;
+        case 3:
+            qxa -= xb;
+            qxd -= xb;
+            break;
+        }
     }
 
-    uint32 dy;
-    if (bit::extract<2, 3>(control.zoomPoint) == 0) {
-        const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    if (zoomPointV == 0) {
         const sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
-        dy = std::abs(yc - ya);
+
+        qyc = yc;
+        qyd = yc;
     } else {
-        dy = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+        const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+
+        switch (zoomPointV) {
+        case 1:
+            qyc += yb;
+            qyd += yb;
+            break;
+        case 2:
+            qya -= yb >> 1;
+            qyb -= yb >> 1;
+            qyc += (yb + 1) >> 1;
+            qyd += (yb + 1) >> 1;
+            break;
+        case 3:
+            qya -= yb;
+            qyb -= yb;
+            break;
+        }
+    }
+
+    qxa += ctx.localCoordX;
+    qya += ctx.localCoordY;
+    qxb += ctx.localCoordX;
+    qyb += ctx.localCoordY;
+    qxc += ctx.localCoordX;
+    qyc += ctx.localCoordY;
+    qxd += ctx.localCoordX;
+    qyd += ctx.localCoordY;
+
+    VDP1ClipCoords(qxa, qya);
+    VDP1ClipCoords(qxb, qyb);
+    VDP1ClipCoords(qxc, qyc);
+    VDP1ClipCoords(qxd, qyd);
+
+    const sint32 maxX = std::max(std::max(qxa, qxb), std::max(qxc, qxd));
+    const sint32 maxY = std::max(std::max(qya, qyb), std::max(qyc, qyd));
+    const sint32 minX = std::min(std::min(qxa, qxb), std::min(qxc, qxd));
+    const sint32 minY = std::min(std::min(qya, qyb), std::min(qyc, qyd));
+
+    const uint32 dx = maxX - minX;
+    const uint32 dy = maxY - minY;
+
+    if (dx == 0 || dy == 0) {
+        return;
     }
 
     VDP1AddPolygon(dx, dy, cmdAddress);
@@ -864,14 +974,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
         return;
     }
 
-    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
-    const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
-    const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
-    const sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
-    const sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
-    const sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18));
-    const sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A));
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18));
+    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A));
+
+    VDP1ClipCoords(xa, ya);
+    VDP1ClipCoords(xb, yb);
+    VDP1ClipCoords(xc, yc);
+    VDP1ClipCoords(xd, yd);
 
     const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
     const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
@@ -880,6 +995,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
 
     const uint32 dx = maxX - minX;
     const uint32 dy = maxY - minY;
+
+    if (dx == 0 || dy == 0) {
+        return;
+    }
 
     VDP1AddPolygon(dx, dy, cmdAddress);
 }
@@ -889,14 +1008,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
         return;
     }
 
-    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
-    const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
-    const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
-    const sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
-    const sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
-    const sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18));
-    const sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A));
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18));
+    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A));
+
+    VDP1ClipCoords(xa, ya);
+    VDP1ClipCoords(xb, yb);
+    VDP1ClipCoords(xc, yc);
+    VDP1ClipCoords(xd, yd);
 
     const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
     const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
@@ -905,6 +1029,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
 
     const uint32 dx = maxX - minX;
     const uint32 dy = maxY - minY;
+
+    if (dx == 0 || dy == 0) {
+        return;
+    }
 
     VDP1AddPolygon(dx, dy, cmdAddress);
 }
@@ -914,14 +1042,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
         return;
     }
 
-    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
-    const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
-    const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
-    const sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
-    const sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
-    const sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18));
-    const sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A));
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18));
+    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A));
+
+    VDP1ClipCoords(xa, ya);
+    VDP1ClipCoords(xb, yb);
+    VDP1ClipCoords(xc, yc);
+    VDP1ClipCoords(xd, yd);
 
     const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
     const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
@@ -931,6 +1064,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     const uint32 dx = maxX - minX;
     const uint32 dy = maxY - minY;
 
+    if (dx == 0 || dy == 0) {
+        return;
+    }
+
     VDP1AddPolygon(dx, dy, cmdAddress);
 }
 
@@ -939,13 +1076,20 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         return;
     }
 
-    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
-    const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
-    const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+
+    VDP1ClipCoords(xa, ya);
+    VDP1ClipCoords(xb, yb);
 
     const uint32 dx = std::abs(xb - xa);
     const uint32 dy = std::abs(yb - ya);
+
+    if (dx == 0 || dy == 0) {
+        return;
+    }
 
     VDP1AddPolygon(dx, dy, cmdAddress);
 }
