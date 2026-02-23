@@ -1505,10 +1505,10 @@ RETRO_API size_t retro_serialize_size(void) {
         return 0;
 
     if (core.cached_state_size == 0) {
-        ymir::state::State state{};
-        core.saturn->SaveState(state);
+        auto state = std::make_unique<ymir::state::State>();
+        core.saturn->SaveState(*state);
         // Measure exact size, plus padding for variable-length fields
-        core.cached_state_size = write_state(state, nullptr) + 4096;
+        core.cached_state_size = write_state(*state, nullptr) + 4096;
     }
     return core.cached_state_size;
 }
@@ -1517,12 +1517,12 @@ RETRO_API bool retro_serialize(void *data, size_t size) {
     if (!core.saturn)
         return false;
 
-    ymir::state::State state{};
-    core.saturn->SaveState(state);
-    size_t needed = write_state(state, nullptr);
+    auto state = std::make_unique<ymir::state::State>();
+    core.saturn->SaveState(*state);
+    size_t needed = write_state(*state, nullptr);
     if (needed > size)
         return false;
-    write_state(state, static_cast<uint8_t *>(data));
+    write_state(*state, static_cast<uint8_t *>(data));
     return true;
 }
 
@@ -1530,12 +1530,12 @@ RETRO_API bool retro_unserialize(const void *data, size_t size) {
     if (!core.saturn)
         return false;
 
-    ymir::state::State state{};
-    if (!read_state(state, static_cast<const uint8_t *>(data), size)) {
+    auto state = std::make_unique<ymir::state::State>();
+    if (!read_state(*state, static_cast<const uint8_t *>(data), size)) {
         LOG(RETRO_LOG_ERROR, "[Ymir] Failed to deserialize save state.\n");
         return false;
     }
-    if (!core.saturn->LoadState(state)) {
+    if (!core.saturn->LoadState(*state)) {
         LOG(RETRO_LOG_ERROR, "[Ymir] Failed to load save state (validation failed).\n");
         return false;
     }
