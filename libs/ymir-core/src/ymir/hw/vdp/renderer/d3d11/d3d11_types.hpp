@@ -56,7 +56,6 @@ static_assert(sizeof(D3DInt3) == sizeof(D3DInt) * 3);
 // -----------------------------------------------------------------------------
 
 struct alignas(16) VDP1RenderConfig {
-    // TODO: number of VDP1 polygons to render
     // TODO: relevant VDP1 registers
     // - erase/swap bounds and value (including vblank erase bounds)
 
@@ -64,17 +63,17 @@ struct alignas(16) VDP1RenderConfig {
 };
 
 struct VDP1PolyParams {
-    D3DUint atlasPosX : 16;   //< Horizontal position in atlas texture
-    D3DUint atlasPosY : 16;   //< Vertical position in atlas texture
-    D3DUint sysClipH : 16;    //< System clipping area width
-    D3DUint sysClipV : 16;    //< System clipping area height
-    D3DUint userClipX0 : 16;  //< User clipping area left coordinate
-    D3DUint userClipX1 : 16;  //< User clipping area right coordinate
-    D3DUint userClipY0 : 16;  //< User clipping area top coordinate
-    D3DUint userClipY1 : 16;  //< User clipping area bottom coordinate
-    D3DUint localCoordX : 16; //< Horizontal local coordinate offset
-    D3DUint localCoordY : 16; //< Vertical local coordinate offset
-    D3DUint cmdAddress;       //< Command address in VDP1 VRAM
+    D3DUint atlasPosX : 16;   // Horizontal position in atlas texture
+    D3DUint atlasPosY : 16;   // Vertical position in atlas texture
+    D3DUint sysClipH : 16;    // System clipping area width
+    D3DUint sysClipV : 16;    // System clipping area height
+    D3DUint userClipX0 : 16;  // User clipping area left coordinate
+    D3DUint userClipX1 : 16;  // User clipping area right coordinate
+    D3DUint userClipY0 : 16;  // User clipping area top coordinate
+    D3DUint userClipY1 : 16;  // User clipping area bottom coordinate
+    D3DUint localCoordX : 16; // Horizontal local coordinate offset
+    D3DUint localCoordY : 16; // Vertical local coordinate offset
+    D3DUint cmdAddress;       // Command address in VDP1 VRAM
 };
 
 // -----------------------------------------------------------------------------

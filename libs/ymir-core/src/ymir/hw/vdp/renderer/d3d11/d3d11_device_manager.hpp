@@ -133,13 +133,15 @@ public:
     /// @brief Creates a buffer appropriate for use as a `ByteAddressBuffer`.
     /// @param[out] bufOut pointer to the buffer resource to create
     /// @param[out,opt] srvOutOpt pointer to the SRV to create
+    /// @param[out,opt] uavOutOpt pointer to the UAV to create
     /// @param[in] size number of bytes in the buffer. Must be a multiple of 16.
     /// @param[in,opt] initData pointer to the initial data to fill the buffer with
     /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of the attempt to create the buffer
-    HRESULT CreateByteAddressBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt, UINT size,
-                                    const void *initData, UINT bindFlags, UINT cpuAccessFlags);
+    HRESULT CreateByteAddressBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt,
+                                    ID3D11UnorderedAccessView **uavOutOpt, UINT size, const void *initData,
+                                    UINT bindFlags, UINT cpuAccessFlags);
 
     /// @brief Creates a primitive (non-structured) buffer that can be bound as a `[RW]Buffer<T>`.
     /// @param[out] bufOut pointer to the buffer resource to create

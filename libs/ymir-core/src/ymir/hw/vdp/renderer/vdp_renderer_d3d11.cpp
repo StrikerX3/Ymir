@@ -95,12 +95,13 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
     ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
 
-    ID3D11Buffer *bufVDP1Polys = nullptr;             //< VDP1 polygon atlas buffer
-    ID3D11ShaderResourceView *srvVDP1Polys = nullptr; //< SRV for VDP1 polygon atlas buffer
+    ID3D11Buffer *bufVDP1Polys = nullptr;              //< VDP1 polygon atlas buffer
+    ID3D11ShaderResourceView *srvVDP1Polys = nullptr;  //< SRV for VDP1 polygon atlas buffer
+    ID3D11UnorderedAccessView *uavVDP1Polys = nullptr; //< UAV for VDP1 polygon atlas buffer
 
     ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
     ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
-    std::array<VDP1PolyParams, 2048> cpuVDP1PolyParams{};  //< CPU-side VDP1 polygon parameters
+    std::array<VDP1PolyParams, 512> cpuVDP1PolyParams{};   //< CPU-side VDP1 polygon parameters
     size_t cpuVDP1PolyParamsCount = 0;                     //< CPU-side VDP1 polygon parameters count
 
     AtlasAllocator atlasVDP1; //< VDP1 polygon atlas context
@@ -236,9 +237,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
-    if (HRESULT hr =
-            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, kVDP1FramebufferRAMSize,
-                                           m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(
+            m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, nullptr, kVDP1FramebufferRAMSize,
+            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -246,14 +247,16 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM buffer");
     SetDebugName(m_context->srvVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM SRV");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1Polys, &m_context->srvVDP1Polys,
-                                                    kVDP1PolyAtlasH * kVDP1PolyAtlasV, nullptr, 0, 0);
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1Polys, &m_context->srvVDP1Polys, &m_context->uavVDP1Polys,
+                                           kVDP1PolyAtlasH * kVDP1PolyAtlasV, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->bufVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas buffer");
     SetDebugName(m_context->srvVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas SRV");
+    SetDebugName(m_context->uavVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas UAV");
 
     if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
                                                    m_context->cpuVDP1PolyParams.size(),
@@ -283,7 +286,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->csVDP1PolyDraw, "[Ymir D3D11] VDP1 polygon drawing compute shader");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM,
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM, nullptr,
                                                     m_state.VRAM1.size(), m_state.VRAM1.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
@@ -293,8 +296,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP1VRAM, "[Ymir D3D11] VDP1 VRAM SRV");
 
     for (uint32 i = 0; auto &buf : m_context->bufVDP1VRAMPages) {
-        if (HRESULT hr =
-                devMgr.CreateByteAddressBuffer(buf, nullptr, 1u << kVRAMPageBits, nullptr, 0, D3D11_CPU_ACCESS_WRITE);
+        if (HRESULT hr = devMgr.CreateByteAddressBuffer(buf, nullptr, nullptr, 1u << kVRAMPageBits, nullptr, 0,
+                                                        D3D11_CPU_ACCESS_WRITE);
             FAILED(hr)) {
             // TODO: report error
             return;
@@ -313,7 +316,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->csVDP1PolyMerge, "[Ymir D3D11] VDP1 polygon merger compute shader");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(
-            m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut, kVDP1FramebufferRAMSize,
+            m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut, nullptr, kVDP1FramebufferRAMSize,
             m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
@@ -334,7 +337,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->cbufVDP2RenderConfig, "[Ymir D3D11] VDP2 rendering configuration constant buffer");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2VRAM, &m_context->srvVDP2VRAM,
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2VRAM, &m_context->srvVDP2VRAM, nullptr,
                                                     m_state.VRAM2.size(), m_state.VRAM2.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
@@ -344,8 +347,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2VRAM, "[Ymir D3D11] VDP2 VRAM SRV");
 
     for (uint32 i = 0; auto &buf : m_context->bufVDP2VRAMPages) {
-        if (HRESULT hr =
-                devMgr.CreateByteAddressBuffer(buf, nullptr, 1u << kVRAMPageBits, nullptr, 0, D3D11_CPU_ACCESS_WRITE);
+        if (HRESULT hr = devMgr.CreateByteAddressBuffer(buf, nullptr, nullptr, 1u << kVRAMPageBits, nullptr, 0,
+                                                        D3D11_CPU_ACCESS_WRITE);
             FAILED(hr)) {
             // TODO: report error
             return;
@@ -420,7 +423,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->csVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters compute shader");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2CoeffCache, &m_context->srvVDP2CoeffCache,
-                                                    m_context->cpuVDP2CoeffCache.size(),
+                                                    nullptr, m_context->cpuVDP2CoeffCache.size(),
                                                     m_context->cpuVDP2CoeffCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
@@ -778,6 +781,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
         return;
     }
 
+    auto &vdp1Ctx = m_context->VDP1Context;
+    auto *ctx = vdp1Ctx.GetDeferredContext();
+
     // Upload polygons
     m_context->VDP1Context.ModifyResource(m_context->bufVDP1PolyParams, 0,
                                           [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
@@ -785,7 +791,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
                                                      sizeof(VDP1PolyParams) * m_context->cpuVDP1PolyParamsCount);
                                           });
 
-    // TODO: submit polygons for rendering
+    VDP1UpdateRenderConfig();
+
+    // Render polygons
+    vdp1Ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
+    vdp1Ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams});
+    vdp1Ctx.CSSetUnorderedAccessViews({m_context->uavVDP1Polys});
+    vdp1Ctx.CSSetShader(m_context->csVDP1PolyDraw);
+    ctx->Dispatch(1, 1, m_context->cpuVDP1PolyParamsCount);
 
     m_context->atlasVDP1.Clear();
     m_context->cpuVDP1PolyParamsCount = 0;

@@ -255,12 +255,16 @@ HRESULT DeviceManager::CreateBufferUAV(ID3D11UnorderedAccessView *&uavOut, ID3D1
     return hr;
 }
 
-HRESULT DeviceManager::CreateByteAddressBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt, UINT size,
-                                               const void *initData, UINT bindFlags, UINT cpuAccessFlags) {
+HRESULT DeviceManager::CreateByteAddressBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt,
+                                               ID3D11UnorderedAccessView **uavOutOpt, UINT size, const void *initData,
+                                               UINT bindFlags, UINT cpuAccessFlags) {
     assert((size & 15) == 0);
 
     if (srvOutOpt != nullptr) {
         bindFlags |= D3D11_BIND_SHADER_RESOURCE;
+    }
+    if (uavOutOpt != nullptr) {
+        bindFlags |= D3D11_BIND_UNORDERED_ACCESS;
     }
 
     if (HRESULT hr = CreateBuffer(bufOut, BufferType::Raw, size, 1, initData, bindFlags, cpuAccessFlags); FAILED(hr)) {
@@ -269,6 +273,12 @@ HRESULT DeviceManager::CreateByteAddressBuffer(ID3D11Buffer *&bufOut, ID3D11Shad
 
     if (srvOutOpt != nullptr) {
         if (HRESULT hr = CreateBufferSRV(*srvOutOpt, bufOut, DXGI_FORMAT_R32_TYPELESS, size / sizeof(UINT), true);
+            FAILED(hr)) {
+            return hr;
+        }
+    }
+    if (uavOutOpt != nullptr) {
+        if (HRESULT hr = CreateBufferUAV(*uavOutOpt, bufOut, DXGI_FORMAT_R32_TYPELESS, size / sizeof(UINT), true);
             FAILED(hr)) {
             return hr;
         }
