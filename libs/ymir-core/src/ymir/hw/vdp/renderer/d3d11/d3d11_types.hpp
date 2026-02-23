@@ -64,10 +64,17 @@ struct alignas(16) VDP1RenderConfig {
 };
 
 struct VDP1PolyParams {
-    D3DUint2 atlasPos;  //< Position in atlas texture
-    D3DUint2 sysClip;   //< System clipping area size
-    D3DUint4 userClip;  //< User clipping area bounds (X=left, Y=top, Z=right, W=bottom)
-    D3DUint cmdAddress; //< Command address in VDP1 VRAM
+    D3DUint atlasPosX : 16;   //< Horizontal position in atlas texture
+    D3DUint atlasPosY : 16;   //< Vertical position in atlas texture
+    D3DUint sysClipH : 16;    //< System clipping area width
+    D3DUint sysClipV : 16;    //< System clipping area height
+    D3DUint userClipX0 : 16;  //< User clipping area left coordinate
+    D3DUint userClipX1 : 16;  //< User clipping area right coordinate
+    D3DUint userClipY0 : 16;  //< User clipping area top coordinate
+    D3DUint userClipY1 : 16;  //< User clipping area bottom coordinate
+    D3DUint localCoordX : 16; //< Horizontal local coordinate offset
+    D3DUint localCoordY : 16; //< Vertical local coordinate offset
+    D3DUint cmdAddress;       //< Command address in VDP1 VRAM
 };
 
 // -----------------------------------------------------------------------------

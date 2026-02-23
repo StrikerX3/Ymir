@@ -738,14 +738,16 @@ void Direct3D11VDPRenderer::VDP1AddPolygon(uint32 width, uint32 height, uint32 c
     ++m_context->cpuVDP1PolyParamsCount;
 
     auto &entry = m_context->cpuVDP1PolyParams[index];
-    entry.atlasPos.x = x;
-    entry.atlasPos.y = y;
-    entry.sysClip.x = m_VDP1State.sysClipH;
-    entry.sysClip.y = m_VDP1State.sysClipV;
-    entry.userClip.x = m_VDP1State.userClipX0;
-    entry.userClip.y = m_VDP1State.userClipX1;
-    entry.userClip.z = m_VDP1State.userClipY0;
-    entry.userClip.w = m_VDP1State.userClipY1;
+    entry.atlasPosX = x;
+    entry.atlasPosY = y;
+    entry.sysClipH = m_VDP1State.sysClipH;
+    entry.sysClipV = m_VDP1State.sysClipV;
+    entry.userClipX0 = m_VDP1State.userClipX0;
+    entry.userClipX1 = m_VDP1State.userClipX1;
+    entry.userClipY0 = m_VDP1State.userClipY0;
+    entry.userClipY1 = m_VDP1State.userClipY1;
+    entry.localCoordX = m_VDP1State.localCoordX;
+    entry.localCoordY = m_VDP1State.localCoordY;
     entry.cmdAddress = cmdAddress;
 
     // Submit batch if the polygon list is now full
