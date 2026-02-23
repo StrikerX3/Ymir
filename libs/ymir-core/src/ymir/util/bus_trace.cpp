@@ -1,13 +1,15 @@
 #include <ymir/util/bus_trace.hpp>
 
-#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include <atomic>
-#include <cstdlib>
-#include <fstream>
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <vector>
+#include <type_traits>
 
 #include <fmt/format.h>
 
@@ -15,33 +17,173 @@ namespace ymir::trace {
 
 namespace {
 
-struct BusTraceWriter {
+constexpr uint32 kFileMagic = 0x31525442; // "BTR1"
+constexpr uint16 kFileVersion = 1;
+constexpr size_t kBufferRecordCount = 8192;
+
+// File header for bus_trace.bin
+// - magic: "BTR1"
+// - version: format version
+// - recordSize: sizeof(BusTraceBinaryRecord) for compatibility checks
+struct BusTraceFileHeader {
+    uint32 magic;
+    uint16 version;
+    uint16 recordSize;
+};
+
+// Fixed-size on-disk trace record (little-endian host order).
+struct BusTraceBinaryRecord {
+    uint64 seq;
+    uint64 tickFirstAttempt;
+    uint64 tickComplete;
+    uint64 serviceCycles;
+    uint64 retries;
+    uint32 addr;
+    uint8 size;
+    uint8 master;
+    uint8 write;
+    uint8 kind;
+};
+static_assert(std::is_standard_layout_v<BusTraceBinaryRecord>);
+
+struct BusTraceConfig {
     bool enabled = false;
-    std::ofstream out;
+    std::string path = "bus_trace.bin";
+    uint64 maxRecords = 0; // 0 = unlimited
+    uint32 addrMin = 0;
+    uint32 addrMax = 0xFFFFFFFFu;
+    uint8 masterMask = 0xFF;
+};
+
+struct BusTraceWriter {
+    BusTraceConfig config;
+    std::FILE *file = nullptr;
+    std::vector<BusTraceBinaryRecord> buffer;
     std::mutex mutex;
     std::atomic<uint64> seq{0};
+    std::atomic<uint64> emitted{0};
+
+    ~BusTraceWriter() {
+        Flush();
+        if (file) {
+            std::fclose(file);
+            file = nullptr;
+        }
+    }
+
+    void Flush() {
+        std::lock_guard lock(mutex);
+        FlushLocked();
+    }
+
+    void FlushLocked() {
+        if (!file || buffer.empty()) {
+            return;
+        }
+        std::fwrite(buffer.data(), sizeof(BusTraceBinaryRecord), buffer.size(), file);
+        buffer.clear();
+    }
 };
+
+bool ParseUint64(const char *value, uint64 &out) {
+    if (!value || value[0] == '\0') {
+        return false;
+    }
+    char *end = nullptr;
+    const auto parsed = std::strtoull(value, &end, 0);
+    if (end == value) {
+        return false;
+    }
+    out = parsed;
+    return true;
+}
+
+bool ParseUint32(const char *value, uint32 &out) {
+    uint64 tmp = 0;
+    if (!ParseUint64(value, tmp)) {
+        return false;
+    }
+    out = static_cast<uint32>(tmp);
+    return true;
+}
+
+uint8 ParseMasterMask(const char *value) {
+    if (!value || value[0] == '\0' || std::strcmp(value, "ALL") == 0) {
+        return 0xFF;
+    }
+    if (std::strcmp(value, "MSH2") == 0) {
+        return 1u << static_cast<uint8>(BusTraceMaster::MSH2);
+    }
+    if (std::strcmp(value, "SSH2") == 0) {
+        return 1u << static_cast<uint8>(BusTraceMaster::SSH2);
+    }
+    if (std::strcmp(value, "DMA") == 0) {
+        return 1u << static_cast<uint8>(BusTraceMaster::DMA);
+    }
+    return 0xFF;
+}
 
 BusTraceWriter &GetBusTraceWriter() {
     static BusTraceWriter writer;
     static std::once_flag once;
+
     std::call_once(once, [&] {
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
         const char *enabledVar = std::getenv("YMIR_BUS_TRACE");
         if (!enabledVar || enabledVar[0] == '\0' || enabledVar[0] == '0') {
             return;
         }
 
-        const char *pathVar = std::getenv("YMIR_BUS_TRACE_FILE");
-        const std::string path = (pathVar && pathVar[0] != '\0') ? pathVar : "bus_trace.jsonl";
+        writer.config.enabled = true;
 
-        writer.out.open(path, std::ios::out | std::ios::trunc);
-        if (!writer.out.is_open()) {
+        if (const char *pathVar = std::getenv("YMIR_BUS_TRACE_FILE"); pathVar && pathVar[0] != '\0') {
+            writer.config.path = pathVar;
+        }
+
+        if (const char *maxVar = std::getenv("YMIR_BUS_TRACE_MAX_RECORDS"); maxVar && maxVar[0] != '\0') {
+            ParseUint64(maxVar, writer.config.maxRecords);
+        }
+        if (const char *addrMinVar = std::getenv("YMIR_BUS_TRACE_ADDR_MIN"); addrMinVar && addrMinVar[0] != '\0') {
+            ParseUint32(addrMinVar, writer.config.addrMin);
+        }
+        if (const char *addrMaxVar = std::getenv("YMIR_BUS_TRACE_ADDR_MAX"); addrMaxVar && addrMaxVar[0] != '\0') {
+            ParseUint32(addrMaxVar, writer.config.addrMax);
+        }
+        writer.config.masterMask = ParseMasterMask(std::getenv("YMIR_BUS_TRACE_MASTER"));
+
+        writer.file = std::fopen(writer.config.path.c_str(), "wb");
+        if (!writer.file) {
+            writer.config.enabled = false;
             return;
         }
-        writer.out.setf(std::ios::unitbuf);
-        writer.enabled = true;
+
+        const BusTraceFileHeader header{
+            .magic = kFileMagic,
+            .version = kFileVersion,
+            .recordSize = static_cast<uint16>(sizeof(BusTraceBinaryRecord)),
+        };
+        std::fwrite(&header, sizeof(header), 1, writer.file);
+
+        writer.buffer.reserve(kBufferRecordCount);
+#else
+        (void)writer;
+#endif
     });
+
     return writer;
+}
+
+bool PassFilters(const BusTraceConfig &cfg, const BusTraceRecord &record) {
+    if (record.addr < cfg.addrMin || record.addr > cfg.addrMax) {
+        return false;
+    }
+
+    const uint8 mask = 1u << static_cast<uint8>(record.master);
+    if ((cfg.masterMask & mask) == 0) {
+        return false;
+    }
+
+    return true;
 }
 
 std::string EscapeJson(std::string_view value) {
@@ -68,42 +210,109 @@ std::string EscapeJson(std::string_view value) {
     return escaped;
 }
 
+const char *MasterToString(uint8 master) {
+    switch (static_cast<BusTraceMaster>(master)) {
+    case BusTraceMaster::MSH2: return "MSH2";
+    case BusTraceMaster::SSH2: return "SSH2";
+    case BusTraceMaster::DMA: return "DMA";
+    }
+    return "UNKNOWN";
+}
+
+const char *KindToString(uint8 kind) {
+    switch (static_cast<BusTraceAccessKind>(kind)) {
+    case BusTraceAccessKind::IFetch: return "ifetch";
+    case BusTraceAccessKind::Read: return "read";
+    case BusTraceAccessKind::Write: return "write";
+    case BusTraceAccessKind::MMIORead: return "mmio_read";
+    case BusTraceAccessKind::MMIOWrite: return "mmio_write";
+    }
+    return "read";
+}
+
 } // namespace
 
 bool IsBusTraceEnabled() {
-    return GetBusTraceWriter().enabled;
+    return GetBusTraceWriter().config.enabled;
 }
 
 void EmitBusTraceRecord(const BusTraceRecord &record) {
     BusTraceWriter &writer = GetBusTraceWriter();
-    if (!writer.enabled) {
+    if (!writer.config.enabled || !writer.file) {
         return;
     }
 
-    const uint64 seq = writer.seq.fetch_add(1, std::memory_order_relaxed);
+    if (!PassFilters(writer.config, record)) {
+        return;
+    }
 
-    std::lock_guard lock(writer.mutex);
-    writer.out << "{\"seq\":" << seq << ",\"master\":\"" << EscapeJson(record.master)
-               << "\",\"tick_first_attempt\":" << record.tickFirstAttempt << ",\"tick_complete\":"
-               << record.tickComplete << ",\"addr\":\"" << fmt::format("0x{:08X}", record.addr)
-               << "\",\"size\":" << record.size << ",\"rw\":\"" << record.rw << "\",\"kind\":\""
-               << EscapeJson(record.kind) << "\",\"service_cycles\":" << record.serviceCycles
-               << ",\"retries\":" << record.retries << "}\n";
+    if (writer.config.maxRecords != 0 && writer.emitted.load(std::memory_order_relaxed) >= writer.config.maxRecords) {
+        return;
+    }
+
+    BusTraceBinaryRecord out{};
+    out.seq = writer.seq.fetch_add(1, std::memory_order_relaxed);
+    out.tickFirstAttempt = record.tickFirstAttempt;
+    out.tickComplete = record.tickComplete;
+    out.serviceCycles = record.serviceCycles;
+    out.retries = record.retries;
+    out.addr = record.addr;
+    out.size = record.size;
+    out.master = static_cast<uint8>(record.master);
+    out.write = record.write ? 1 : 0;
+    out.kind = static_cast<uint8>(record.kind);
+
+    {
+        std::lock_guard lock(writer.mutex);
+        if (writer.config.maxRecords != 0 && writer.emitted.load(std::memory_order_relaxed) >= writer.config.maxRecords) {
+            return;
+        }
+        writer.buffer.push_back(out);
+        writer.emitted.fetch_add(1, std::memory_order_relaxed);
+        if (writer.buffer.size() >= kBufferRecordCount) {
+            writer.FlushLocked();
+        }
+    }
+}
+
+bool ConvertBusTraceToJsonl(const char *inputPath, const char *outputPath) {
+    if (!inputPath || !outputPath) {
+        return false;
+    }
+
+    std::FILE *in = std::fopen(inputPath, "rb");
+    if (!in) {
+        return false;
+    }
+
+    std::FILE *out = std::fopen(outputPath, "wb");
+    if (!out) {
+        std::fclose(in);
+        return false;
+    }
+
+    BusTraceFileHeader header{};
+    if (std::fread(&header, sizeof(header), 1, in) != 1 || header.magic != kFileMagic ||
+        header.version != kFileVersion || header.recordSize != sizeof(BusTraceBinaryRecord)) {
+        std::fclose(in);
+        std::fclose(out);
+        return false;
+    }
+
+    BusTraceBinaryRecord rec{};
+    while (std::fread(&rec, sizeof(rec), 1, in) == 1) {
+        const std::string line = fmt::format(
+            "{{\"seq\":{},\"master\":\"{}\",\"tick_first_attempt\":{},\"tick_complete\":{},"
+            "\"addr\":\"0x{:08X}\",\"size\":{},\"rw\":\"{}\",\"kind\":\"{}\","
+            "\"service_cycles\":{},\"retries\":{}}}\n",
+            rec.seq, EscapeJson(MasterToString(rec.master)), rec.tickFirstAttempt, rec.tickComplete, rec.addr, rec.size,
+            rec.write ? "W" : "R", EscapeJson(KindToString(rec.kind)), rec.serviceCycles, rec.retries);
+        std::fwrite(line.data(), 1, line.size(), out);
+    }
+
+    std::fclose(in);
+    std::fclose(out);
+    return true;
 }
 
 } // namespace ymir::trace
-
-#else
-
-namespace ymir::trace {
-
-bool IsBusTraceEnabled() {
-    return false;
-}
-
-void EmitBusTraceRecord(const BusTraceRecord &) {
-}
-
-} // namespace ymir::trace
-
-#endif

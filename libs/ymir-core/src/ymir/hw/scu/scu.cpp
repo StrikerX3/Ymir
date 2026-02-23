@@ -722,16 +722,17 @@ void SCU::RunDMA(uint64 cycles) {
                 return;
             }
             const uint64 tick = m_scheduler.CurrentCount();
+            const uint64 serviceCycles = m_bus.GetAccessCycles<true>(address);
             ymir::trace::EmitBusTraceRecord({
-                .master = "DMA",
-                .rw = "W",
-                .kind = "write",
                 .tickFirstAttempt = tick,
-                .tickComplete = tick,
-                .serviceCycles = m_bus.GetAccessCycles<true>(address),
+                .tickComplete = tick + serviceCycles,
+                .serviceCycles = serviceCycles,
                 .retries = 0,
                 .addr = address,
-                .size = size,
+                .size = static_cast<uint8>(size),
+                .master = ymir::trace::BusTraceMaster::DMA,
+                .write = true,
+                .kind = ymir::trace::BusTraceAccessKind::Write,
             });
         };
 #endif

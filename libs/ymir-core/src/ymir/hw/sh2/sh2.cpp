@@ -1594,23 +1594,25 @@ void SH2::TraceBusAccessComplete(uint32 address, uint32 size) {
         m_busTracePendingAccess.active = false;
     }
 
-    constexpr const char *kDefaultKind = write ? "write" : "read";
-    constexpr const char *kMMIOKind = write ? "mmio_write" : "mmio_read";
-    constexpr const char *kRW = write ? "W" : "R";
-
     const uint32 partition = (address >> 29u) & 0b111u;
-    const char *kind = instrFetch ? "ifetch" : (partition == 0b111u ? kMMIOKind : kDefaultKind);
+    const auto kind = instrFetch ? ymir::trace::BusTraceAccessKind::IFetch
+                                 : (partition == 0b111u
+                                        ? (write ? ymir::trace::BusTraceAccessKind::MMIOWrite
+                                                 : ymir::trace::BusTraceAccessKind::MMIORead)
+                                        : (write ? ymir::trace::BusTraceAccessKind::Write
+                                                 : ymir::trace::BusTraceAccessKind::Read));
 
+    const uint64 serviceCycles = AccessCycles<write, enableCache>(address);
     ymir::trace::EmitBusTraceRecord({
-        .master = m_isMaster ? "MSH2" : "SSH2",
-        .rw = kRW,
-        .kind = kind,
         .tickFirstAttempt = tickFirstAttempt,
-        .tickComplete = GetCurrentCycleCount(),
-        .serviceCycles = AccessCycles<write, enableCache>(address),
+        .tickComplete = GetCurrentCycleCount() + serviceCycles,
+        .serviceCycles = serviceCycles,
         .retries = retries,
         .addr = address,
-        .size = size,
+        .size = static_cast<uint8>(size),
+        .master = m_isMaster ? ymir::trace::BusTraceMaster::MSH2 : ymir::trace::BusTraceMaster::SSH2,
+        .write = write,
+        .kind = kind,
     });
 }
 #endif

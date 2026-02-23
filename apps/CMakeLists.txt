@@ -5,3 +5,7 @@ add_subdirectory(ymir-sdl3)
 if (Ymir_ENABLE_YMDASM)
 	add_subdirectory(ymdasm)
 endif ()
+
+if (Ymir_ENABLE_BUS_TRACE_CONVERTER)
+    add_subdirectory(bus-trace-convert)
+endif ()
