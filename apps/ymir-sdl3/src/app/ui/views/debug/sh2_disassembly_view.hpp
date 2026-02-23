@@ -1,6 +1,7 @@
 #pragma once
 
 #include <app/shared_context.hpp>
+#include <app/ui/views/debug/sh2_debugger_model.hpp>
 
 #include <imgui.h>
 
@@ -8,13 +9,18 @@ namespace app::ui {
 
 class SH2DisassemblyView {
 public:
-    SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2);
+    SH2DisassemblyView(SharedContext &context, ymir::sh2::SH2 &sh2, SH2DebuggerModel &model);
 
     void Display();
+    void JumpTo(uint32 address);
 
 private:
     SharedContext &m_context;
     ymir::sh2::SH2 &m_sh2;
+    SH2DebuggerModel &m_model;
+
+    static constexpr uint32 kAddressMin = 0x00000000u;
+    static constexpr uint32 kAddressMax = 0xFFFFFFFEu; // Full 32-bit SH-2 address space (even aligned)
 
     struct Colors {
 #define C(r, g, b) (r / 255.0f), (g / 255.0f), (b / 255.0f), 1.0f
@@ -63,6 +69,7 @@ private:
             ImVec4 wtptHoveredIconColor{C(210, 87, 255)};
             ImVec4 wtptActiveIconColor{C(148, 18, 196)};
 
+            ImVec4 lineHoverColor{C(61, 53, 2)};
             ImVec4 cursorBgColor{C(34, 61, 2)};
             ImVec4 pcBgColor{C(3, 61, 71)};
             ImVec4 prBgColor{C(6, 40, 84)};
@@ -102,6 +109,14 @@ private:
 
         bool colorizeMnemonicsByType = true;
     } m_settings;
+
+    struct Cursor {
+        uint32 address = 0;
+        uint32 viewportTopAddress = 0;
+    } m_cursor;
+
+    // Moves the cursor to the specified address and adjusts the viewport accordingly
+    void MoveCursor(uint32 address, uint32 lineCount);
 };
 
 } // namespace app::ui

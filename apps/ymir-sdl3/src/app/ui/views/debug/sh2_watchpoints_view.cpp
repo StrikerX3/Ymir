@@ -115,26 +115,40 @@ void SH2WatchpointsView::Display() {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Add")) {
+            if (ImGui::Button(ICON_MS_ADD)) {
                 std::unique_lock lock{m_context.locks.watchpoints};
                 m_sh2.AddWatchpoint(m_address, flags);
                 m_context.debuggers.MakeDirty();
             }
+            if (ImGui::BeginItemTooltip()) {
+                ImGui::TextUnformatted("Add");
+                ImGui::EndTooltip();
+            }
+
             ImGui::SameLine();
-            if (ImGui::Button("Remove")) {
+            if (ImGui::Button(ICON_MS_REMOVE)) {
                 std::unique_lock lock{m_context.locks.watchpoints};
                 m_sh2.RemoveWatchpoint(m_address, flags);
                 m_context.debuggers.MakeDirty();
             }
+            if (ImGui::BeginItemTooltip()) {
+                ImGui::TextUnformatted("Remove");
+                ImGui::EndTooltip();
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button(ICON_MS_CLEAR_ALL)) {
+                std::unique_lock lock{m_context.locks.watchpoints};
+                m_sh2.ClearWatchpoints();
+                m_context.debuggers.MakeDirty();
+            }
+            if (ImGui::BeginItemTooltip()) {
+                ImGui::TextUnformatted("Clear all");
+                ImGui::EndTooltip();
+            }
         }
 
         ImGui::EndTable();
-    }
-
-    if (ImGui::Button("Clear")) {
-        std::unique_lock lock{m_context.locks.watchpoints};
-        m_sh2.ClearWatchpoints();
-        m_context.debuggers.MakeDirty();
     }
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);

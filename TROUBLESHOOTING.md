@@ -125,6 +125,12 @@ If Ymir still runs poorly after trying these, your CPU might be too slow for the
 A quad core CPU or better will help with threaded VDP1/VDP2 rendering, threaded deinterlace and the rewind buffer.
 
 
+## General issues on Windows
+
+- Software like [Rainmeter](https://www.rainmeter.net/) and some RGB controllers can be very demanding on low-end systems. Make sure to turn them off when not needed for optimal performance.
+- Desktop customization software such as [Windhawk](https://windhawk.net/) and [OldNewExplorer](https://www.oldnewexplorer.com/) can interfere with some basic application functions and cause Ymir to freeze or crash. Disable them or add Ymir to exceptions if possible.
+
+
 ## General issues on Linux
 
 For typical Linux systems:

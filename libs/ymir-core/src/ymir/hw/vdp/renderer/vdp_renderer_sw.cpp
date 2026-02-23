@@ -1230,7 +1230,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
     const VDP1Regs &regs1 = VDP1GetRegs();
     auto &ctx = m_VDP1State;
 
-    const uint32 charSizeH = lineParams.charSizeH;
+    const uint32 charSizeH = std::max<uint32>(lineParams.charSizeH, 1u);
     const auto mode = lineParams.mode;
     const auto control = lineParams.control;
     if (mode.colorMode == 5) {

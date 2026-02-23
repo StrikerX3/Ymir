@@ -45,6 +45,12 @@ struct PeripheralBindsParams {
     uint32 slotIndex;
 };
 
+// Parameters for opening an SH-2 debugger window.
+struct OpenSH2DebuggerWindowParams {
+    bool master; // true=MSH2, false=SSH2
+    bool triggeredByEvent;
+};
+
 struct GUIEvent {
     enum class Type {
         LoadDisc,
@@ -60,7 +66,7 @@ struct GUIEvent {
 
         OpenBackupMemoryManager,
         OpenSettings,             // Opens a specific Settings tab; uses ui::SettingsTab
-        OpenSH2DebuggerWindow,    // Opens an SH-2 debugger window; uses bool (true=MSH2, false=SSH2)
+        OpenSH2DebuggerWindow,    // Opens an SH-2 debugger window; uses OpenSH2DebuggerWindowParams
         OpenSH2BreakpointsWindow, // Opens an SH-2 breakpoints window; uses bool (true=MSH2, false=SSH2)
         OpenSH2WatchpointsWindow, // Opens an SH-2 watchpoints window; uses bool (true=MSH2, false=SSH2)
 
@@ -94,7 +100,7 @@ struct GUIEvent {
 
     Type type;
     std::variant<std::monostate, bool, uint32, std::string, std::filesystem::path, PeripheralBindsParams,
-                 FileDialogParams, FolderDialogParams, ui::SettingsTab, gfx::Backend>
+                 FileDialogParams, FolderDialogParams, OpenSH2DebuggerWindowParams, ui::SettingsTab, gfx::Backend>
         value;
 };
 

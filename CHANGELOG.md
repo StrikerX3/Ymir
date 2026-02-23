@@ -14,6 +14,12 @@ Introduced save state file version 12.
 - App: Warn users about Flatpak filesystem permissions if the app is running in its sandbox and a disc image fails to load.
 - Backup RAM: Support in-memory and copy-on-write memory-mapped files in addition to regular memory-mapped files.
 - Build: Support Profile-Guided Optimization (PGO) builds. (#742; @mmkzer0)
+- Debugger: Allow scrolling the SH2 disassembly view. (#743; @mmkzer0)
+- Debugger: Implement keyboard navigation and interactions in the SH2 disassembly view:
+    - Up/down arrow keys: move cursor up/down one instruction.
+    - Page up/down: move cursor up/down one page.
+    - Home/end: move cursor to the top/bottom of the viewport.
+    - The cursor is kept below 15% of the top and above 35% of the bottom of the viewport.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - Input: Added support for mouse events.
@@ -41,6 +47,7 @@ Introduced save state file version 12.
 - MIDI: Defend against crashes when the library fails to initialize.
 - SH2: Fix `@(disp.PC)` loads being decoded as stores for watchpoints.
 - SH2: Fix `ldc/lds @Rm` decoding from the wrong position for watchpoints.
+- VDP1: Fix handling of zero horizontal character size in CMDSIZE.
 - VDP1: Increase PTM=1 drawing delay and apply it only during VBlank. Fixes flickering graphics on Earthworm Jim 2. (#745)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
 - VDP1: Rework cycle counting method and increase cycle budget per frame. Fixes slowdowns in Road Rash and graphics glitches in multiple games, including Virtua Cop and Burning Rangers. (#704, #721, #722)

@@ -1904,7 +1904,7 @@ void App::RunEmulator() {
                  sharedCtx.DisplayMessage(fmt::format("{}SH2 breakpoint hit at {:08X}",
                                                       (info.details.sh2Breakpoint.master ? 'M' : 'S'),
                                                       info.details.sh2Breakpoint.pc));
-                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Breakpoint.master));
+                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Breakpoint.master, true));
                  break;
              case SH2Watchpoint: //
                  sharedCtx.DisplayMessage(
@@ -1912,7 +1912,7 @@ void App::RunEmulator() {
                                  (info.details.sh2Watchpoint.master ? 'M' : 'S'), info.details.sh2Watchpoint.size * 8,
                                  (info.details.sh2Watchpoint.write ? "write" : "read"),
                                  info.details.sh2Watchpoint.address, info.details.sh2Watchpoint.pc));
-                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Watchpoint.master));
+                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Watchpoint.master, true));
                  break;
              default: sharedCtx.DisplayMessage("Paused due to a debug break event"); break;
              }
@@ -2422,9 +2422,9 @@ void App::RunEmulator() {
             case EvtType::OpenSettings: m_settingsWindow.OpenTab(std::get<ui::SettingsTab>(evt.value)); break;
             case EvtType::OpenSH2DebuggerWindow: //
             {
-                auto &windowSet = std::get<bool>(evt.value) ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
-                windowSet.debugger.Open = true;
-                windowSet.debugger.RequestFocus();
+                const auto &params = std::get<OpenSH2DebuggerWindowParams>(evt.value);
+                auto &windowSet = params.master ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                windowSet.debugger.RequestOpen(params.triggeredByEvent, true);
                 break;
             }
             case EvtType::OpenSH2BreakpointsWindow: //
