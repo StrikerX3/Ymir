@@ -682,6 +682,8 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     VDP1UploadDrawFBRAM();
 
+    // TODO: dispatch erase/swap shader
+
     Callbacks.VDP1FramebufferSwap();
 }
 
@@ -799,6 +801,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
     vdp1Ctx.CSSetUnorderedAccessViews({m_context->uavVDP1Polys});
     vdp1Ctx.CSSetShader(m_context->csVDP1PolyDraw);
     ctx->Dispatch(1, 1, m_context->cpuVDP1PolyParamsCount);
+
+    // TODO: merge polygons
 
     m_context->atlasVDP1.Clear();
     m_context->cpuVDP1PolyParamsCount = 0;
