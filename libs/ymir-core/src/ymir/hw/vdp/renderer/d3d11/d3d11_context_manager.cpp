@@ -82,7 +82,9 @@ void ContextManager::CSSetShader(ID3D11ComputeShader *shader) {
 }
 
 HRESULT ContextManager::FinishCommandList(ID3D11CommandList *&cmdList) {
-    return m_deferredCtx->FinishCommandList(FALSE, &cmdList);
+    const HRESULT hr = m_deferredCtx->FinishCommandList(FALSE, &cmdList);
+    Reset();
+    return hr;
 }
 
 template <typename T>
