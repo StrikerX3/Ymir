@@ -6,6 +6,7 @@
 #include "scu_devlog.hpp"
 
 #include <ymir/util/inline.hpp>
+#include <ymir/util/bus_trace.hpp>
 #include <ymir/util/scope_guard.hpp>
 #include <ymir/util/size_ops.hpp>
 
@@ -715,6 +716,26 @@ void SCU::RunDMA(uint64 cycles) {
         };
         auto checkWriteStall = [&](uint32 address, uint32 size) { return checkStall(address, size, true); };
 
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+        auto emitDMAWriteTrace = [&](uint32 address, uint32 size) {
+            if (!util::bus_trace::IsEnabled()) {
+                return;
+            }
+            const uint64 tick = m_scheduler.CurrentCount();
+            util::bus_trace::Emit({
+                .master = "DMA",
+                .rw = "W",
+                .kind = "write",
+                .tickFirstAttempt = tick,
+                .tickComplete = tick,
+                .serviceCycles = m_bus.GetAccessCycles<true>(address),
+                .retries = 0,
+                .addr = address,
+                .size = size,
+            });
+        };
+#endif
+
         if (xfer.started) {
             if (checkReadStall(sizeof(uint32))) {
                 return;
@@ -805,6 +826,9 @@ void SCU::RunDMA(uint64 cycles) {
                 }
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 1);
+#endif
 
                 currDstOffset += 1;
                 ch.currXferCount -= 1;
@@ -822,6 +846,9 @@ void SCU::RunDMA(uint64 cycles) {
                 }
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 2);
+#endif
 
                 currDstOffset += 2;
                 ch.currXferCount -= 2;
@@ -839,6 +866,9 @@ void SCU::RunDMA(uint64 cycles) {
                 }
                 const uint32 value = read32();
                 m_bus.Write<uint32>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 4);
+#endif
 
                 currDstOffset += 4;
                 ch.currXferCount -= 4;
@@ -856,6 +886,9 @@ void SCU::RunDMA(uint64 cycles) {
                 }
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 2);
+#endif
 
                 currDstOffset += 2;
                 ch.currXferCount -= 2;
@@ -873,6 +906,9 @@ void SCU::RunDMA(uint64 cycles) {
                 }
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 1);
+#endif
 
                 currDstOffset += 1;
                 ch.currXferCount -= 1;
@@ -899,6 +935,9 @@ void SCU::RunDMA(uint64 cycles) {
                 }
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 1);
+#endif
 
                 currDstOffset += 1;
                 ch.currXferCount -= 1;
@@ -931,6 +970,9 @@ void SCU::RunDMA(uint64 cycles) {
 
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 2);
+#endif
 
                 currDstOffset += 2;
                 ch.currXferCount -= 2;
@@ -961,10 +1003,16 @@ void SCU::RunDMA(uint64 cycles) {
 
                 const uint32 value1 = read16();
                 m_bus.Write<uint16>(addr1, value1);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr1, 2);
+#endif
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr1, value1);
 
                 const uint32 value2 = read16();
                 m_bus.Write<uint16>(addr2, value2);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr2, 2);
+#endif
                 devlog::trace<grp::dma>("SCU DMA{}: 16-bit write to {:08X} -> {:04X}", level, addr2, value2);
 
                 currDstAddr += ch.currDstAddrInc;
@@ -992,6 +1040,9 @@ void SCU::RunDMA(uint64 cycles) {
                 }
                 const uint16 value = read16();
                 m_bus.Write<uint16>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 2);
+#endif
 
                 currDstOffset += 2;
                 ch.currXferCount -= 2;
@@ -1019,6 +1070,9 @@ void SCU::RunDMA(uint64 cycles) {
 
                 const uint8 value = read8();
                 m_bus.Write<uint8>(addr, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+                emitDMAWriteTrace(addr, 1);
+#endif
 
                 currDstOffset += 1;
                 ch.currXferCount -= 1;

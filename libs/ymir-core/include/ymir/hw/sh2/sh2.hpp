@@ -34,6 +34,7 @@
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/inline.hpp>
+#include <ymir/util/bus_trace.hpp>
 #include <ymir/util/virtual_memory.hpp>
 
 #include <array>
@@ -919,9 +920,29 @@ private:
     bool CheckWatchpoint(const DecodedMemAccesses::Access &access);
 
     const std::string_view m_logPrefix; // For devlogs
+    const bool m_isMaster;
+
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    struct BusTracePendingAccess {
+        bool active = false;
+        uint32 address = 0;
+        uint32 size = 0;
+        bool write = false;
+        uint64 tickFirstAttempt = 0;
+        uint64 retries = 0;
+    };
+
+    BusTracePendingAccess m_busTracePendingAccess;
+
+
+    template <bool write, bool instrFetch, bool enableCache>
+    void TraceBusAccessComplete(uint32 address, uint32 size);
+#endif
 
     // -------------------------------------------------------------------------
     // Helper functions
+
+    FORCE_INLINE bool CheckBusWait(uint32 address, uint32 size, bool write);
 
     void SetupDelaySlot(uint32 targetAddress);
 

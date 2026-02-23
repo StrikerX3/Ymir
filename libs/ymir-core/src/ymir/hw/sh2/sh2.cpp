@@ -206,7 +206,8 @@ SH2::SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master, const sys::S
     : m_scheduler(scheduler)
     , m_bus(bus)
     , m_systemFeatures(systemFeatures)
-    , m_logPrefix(master ? "SH2-M" : "SH2-S") {
+    , m_logPrefix(master ? "SH2-M" : "SH2-S")
+    , m_isMaster(master) {
 
     BCR1.MASTER = !master;
     Reset(true);
@@ -724,37 +725,62 @@ void SH2::MemWrite(uint32 address, T value) {
 
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint16 SH2::FetchInstruction(uint32 address) {
-    return MemRead<uint16, true, false, enableCache>(address);
+    const uint16 value = MemRead<uint16, true, false, enableCache>(address);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    TraceBusAccessComplete<false, true, enableCache>(address, sizeof(uint16));
+#endif
+    return value;
 }
 
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint8 SH2::MemReadByte(uint32 address) {
-    return MemRead<uint8, false, false, enableCache>(address);
+    const uint8 value = MemRead<uint8, false, false, enableCache>(address);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    TraceBusAccessComplete<false, false, enableCache>(address, sizeof(uint8));
+#endif
+    return value;
 }
 
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint16 SH2::MemReadWord(uint32 address) {
-    return MemRead<uint16, false, false, enableCache>(address);
+    const uint16 value = MemRead<uint16, false, false, enableCache>(address);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    TraceBusAccessComplete<false, false, enableCache>(address, sizeof(uint16));
+#endif
+    return value;
 }
 
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint32 SH2::MemReadLong(uint32 address) {
-    return MemRead<uint32, false, false, enableCache>(address);
+    const uint32 value = MemRead<uint32, false, false, enableCache>(address);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    TraceBusAccessComplete<false, false, enableCache>(address, sizeof(uint32));
+#endif
+    return value;
 }
 
 template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE void SH2::MemWriteByte(uint32 address, uint8 value) {
     MemWrite<uint8, false, debug, enableCache>(address, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    TraceBusAccessComplete<true, false, enableCache>(address, sizeof(uint8));
+#endif
 }
 
 template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE void SH2::MemWriteWord(uint32 address, uint16 value) {
     MemWrite<uint16, false, debug, enableCache>(address, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    TraceBusAccessComplete<true, false, enableCache>(address, sizeof(uint16));
+#endif
 }
 
 template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE void SH2::MemWriteLong(uint32 address, uint32 value) {
     MemWrite<uint32, false, debug, enableCache>(address, value);
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    TraceBusAccessComplete<true, false, enableCache>(address, sizeof(uint32));
+#endif
 }
 
 template <bool enableCache>
@@ -1518,6 +1544,76 @@ FORCE_INLINE uint64 SH2::GetCurrentCycleCount() const {
     return m_scheduler.CurrentCount() + m_cyclesExecuted;
 }
 
+FORCE_INLINE bool SH2::CheckBusWait(uint32 address, uint32 size, bool write) {
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    if (util::bus_trace::IsEnabled()) {
+        const uint64 tickNow = GetCurrentCycleCount();
+        if (!m_busTracePendingAccess.active || m_busTracePendingAccess.address != address ||
+            m_busTracePendingAccess.size != size || m_busTracePendingAccess.write != write) {
+            m_busTracePendingAccess.active = true;
+            m_busTracePendingAccess.address = address;
+            m_busTracePendingAccess.size = size;
+            m_busTracePendingAccess.write = write;
+            m_busTracePendingAccess.tickFirstAttempt = tickNow;
+            m_busTracePendingAccess.retries = 0;
+        }
+    }
+#endif
+
+    const bool stalled = m_bus.IsBusWait(address, size, write);
+
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+    if (stalled && util::bus_trace::IsEnabled() && m_busTracePendingAccess.active &&
+        m_busTracePendingAccess.address == address && m_busTracePendingAccess.size == size &&
+        m_busTracePendingAccess.write == write) {
+        ++m_busTracePendingAccess.retries;
+    }
+#endif
+
+    return stalled;
+}
+
+#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+
+template <bool write, bool instrFetch, bool enableCache>
+void SH2::TraceBusAccessComplete(uint32 address, uint32 size) {
+    if (!util::bus_trace::IsEnabled()) {
+        return;
+    }
+
+    uint64 tickFirstAttempt = GetCurrentCycleCount();
+    uint64 retries = 0;
+
+    if (m_busTracePendingAccess.active) {
+        if (m_busTracePendingAccess.address == address && m_busTracePendingAccess.size == size &&
+            m_busTracePendingAccess.write == write) {
+            tickFirstAttempt = m_busTracePendingAccess.tickFirstAttempt;
+            retries = m_busTracePendingAccess.retries;
+        }
+        m_busTracePendingAccess.active = false;
+    }
+
+    constexpr const char *kDefaultKind = write ? "write" : "read";
+    constexpr const char *kMMIOKind = write ? "mmio_write" : "mmio_read";
+    constexpr const char *kRW = write ? "W" : "R";
+
+    const uint32 partition = (address >> 29u) & 0b111u;
+    const char *kind = instrFetch ? "ifetch" : (partition == 0b111u ? kMMIOKind : kDefaultKind);
+
+    util::bus_trace::Emit({
+        .master = m_isMaster ? "MSH2" : "SSH2",
+        .rw = kRW,
+        .kind = kind,
+        .tickFirstAttempt = tickFirstAttempt,
+        .tickComplete = GetCurrentCycleCount(),
+        .serviceCycles = AccessCycles<write, enableCache>(address),
+        .retries = retries,
+        .addr = address,
+        .size = size,
+    });
+}
+#endif
+
 FLATTEN FORCE_INLINE bool SH2::IsDMATransferActive(const DMAChannel &ch) const {
     // AE never occurs and NMIF is never set, so both checks can be safely skipped
     return ch.IsEnabled() && DMAOR.DME /*&& !DMAOR.NMIF && !DMAOR.AE*/;
@@ -1558,12 +1654,12 @@ bool SH2::StepDMAC(uint32 channel) {
         }
     };
 
-    if (m_bus.IsBusWait(ch.srcAddress, xferSize, false)) {
+    if (CheckBusWait(ch.srcAddress, xferSize, false)) {
         devlog::trace<grp::dma_xfer>(m_logPrefix, "DMAC{} transfer from {:08X} stalled by bus wait signal", channel,
                                      ch.srcAddress);
         return false;
     }
-    if (m_bus.IsBusWait(ch.dstAddress, xferSize, true)) {
+    if (CheckBusWait(ch.dstAddress, xferSize, true)) {
         devlog::trace<grp::dma_xfer>(m_logPrefix, "DMAC{} transfer to {:08X} stalled by bus wait signal", channel,
                                      ch.dstAddress);
         return false;
@@ -2343,7 +2439,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
         AdvancePC<delaySlot>();
     }
@@ -2355,7 +2451,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<enableCache>(address);
         AdvancePC<delaySlot>();
     }
@@ -2377,7 +2473,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
         AdvancePC<delaySlot>();
     }
@@ -2389,7 +2485,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<enableCache>(address);
         AdvancePC<delaySlot>();
     }
@@ -2411,7 +2507,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
         AdvancePC<delaySlot>();
     }
@@ -2423,7 +2519,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<enableCache>(address);
         AdvancePC<delaySlot>();
     }
@@ -2445,7 +2541,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
         AdvancePC<delaySlot>();
     }
@@ -2457,7 +2553,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[0] = MemReadLong<enableCache>(address);
         AdvancePC<delaySlot>();
     }
@@ -2480,7 +2576,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 2;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[args.rm]);
         R[args.rn] -= 2;
         AdvancePC<delaySlot>();
@@ -2493,7 +2589,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 4;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
         R[args.rn] -= 4;
         AdvancePC<delaySlot>();
@@ -2519,7 +2615,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
         if (args.rn != args.rm) {
             R[args.rm] += 2;
@@ -2534,7 +2630,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<enableCache>(address);
         if (args.rn != args.rm) {
             R[args.rm] += 4;
@@ -2559,7 +2655,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[args.rm]);
         AdvancePC<delaySlot>();
     }
@@ -2571,7 +2667,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
         AdvancePC<delaySlot>();
     }
@@ -2593,7 +2689,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[args.rm]);
         AdvancePC<delaySlot>();
     }
@@ -2605,7 +2701,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
         AdvancePC<delaySlot>();
     }
@@ -2627,7 +2723,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[0]);
         AdvancePC<delaySlot>();
     }
@@ -2639,7 +2735,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
         AdvancePC<delaySlot>();
     }
@@ -2661,7 +2757,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[0]);
         AdvancePC<delaySlot>();
     }
@@ -2673,7 +2769,7 @@ template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
-    if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
+    if (!CheckBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[0]);
         AdvancePC<delaySlot>();
     }
