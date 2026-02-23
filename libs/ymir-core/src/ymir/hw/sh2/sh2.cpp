@@ -1,6 +1,7 @@
 #include <ymir/hw/sh2/sh2.hpp>
 
 #include <ymir/util/bit_ops.hpp>
+#include <ymir/util/bus_trace.hpp>
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/dev_assert.hpp>
 #include <ymir/util/dev_log.hpp>
@@ -726,7 +727,7 @@ void SH2::MemWrite(uint32 address, T value) {
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint16 SH2::FetchInstruction(uint32 address) {
     const uint16 value = MemRead<uint16, true, false, enableCache>(address);
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     TraceBusAccessComplete<false, true, enableCache>(address, sizeof(uint16));
 #endif
     return value;
@@ -735,7 +736,7 @@ FLATTEN FORCE_INLINE uint16 SH2::FetchInstruction(uint32 address) {
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint8 SH2::MemReadByte(uint32 address) {
     const uint8 value = MemRead<uint8, false, false, enableCache>(address);
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     TraceBusAccessComplete<false, false, enableCache>(address, sizeof(uint8));
 #endif
     return value;
@@ -744,7 +745,7 @@ FLATTEN FORCE_INLINE uint8 SH2::MemReadByte(uint32 address) {
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint16 SH2::MemReadWord(uint32 address) {
     const uint16 value = MemRead<uint16, false, false, enableCache>(address);
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     TraceBusAccessComplete<false, false, enableCache>(address, sizeof(uint16));
 #endif
     return value;
@@ -753,7 +754,7 @@ FLATTEN FORCE_INLINE uint16 SH2::MemReadWord(uint32 address) {
 template <bool enableCache>
 FLATTEN FORCE_INLINE uint32 SH2::MemReadLong(uint32 address) {
     const uint32 value = MemRead<uint32, false, false, enableCache>(address);
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     TraceBusAccessComplete<false, false, enableCache>(address, sizeof(uint32));
 #endif
     return value;
@@ -762,7 +763,7 @@ FLATTEN FORCE_INLINE uint32 SH2::MemReadLong(uint32 address) {
 template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE void SH2::MemWriteByte(uint32 address, uint8 value) {
     MemWrite<uint8, false, debug, enableCache>(address, value);
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     TraceBusAccessComplete<true, false, enableCache>(address, sizeof(uint8));
 #endif
 }
@@ -770,7 +771,7 @@ FLATTEN FORCE_INLINE void SH2::MemWriteByte(uint32 address, uint8 value) {
 template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE void SH2::MemWriteWord(uint32 address, uint16 value) {
     MemWrite<uint16, false, debug, enableCache>(address, value);
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     TraceBusAccessComplete<true, false, enableCache>(address, sizeof(uint16));
 #endif
 }
@@ -778,7 +779,7 @@ FLATTEN FORCE_INLINE void SH2::MemWriteWord(uint32 address, uint16 value) {
 template <bool debug, bool enableCache>
 FLATTEN FORCE_INLINE void SH2::MemWriteLong(uint32 address, uint32 value) {
     MemWrite<uint32, false, debug, enableCache>(address, value);
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     TraceBusAccessComplete<true, false, enableCache>(address, sizeof(uint32));
 #endif
 }
@@ -1545,8 +1546,8 @@ FORCE_INLINE uint64 SH2::GetCurrentCycleCount() const {
 }
 
 FORCE_INLINE bool SH2::CheckBusWait(uint32 address, uint32 size, bool write) {
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
-    if (util::bus_trace::IsEnabled()) {
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
+    if (ymir::trace::IsBusTraceEnabled()) {
         const uint64 tickNow = GetCurrentCycleCount();
         if (!m_busTracePendingAccess.active || m_busTracePendingAccess.address != address ||
             m_busTracePendingAccess.size != size || m_busTracePendingAccess.write != write) {
@@ -1562,8 +1563,8 @@ FORCE_INLINE bool SH2::CheckBusWait(uint32 address, uint32 size, bool write) {
 
     const bool stalled = m_bus.IsBusWait(address, size, write);
 
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
-    if (stalled && util::bus_trace::IsEnabled() && m_busTracePendingAccess.active &&
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
+    if (stalled && ymir::trace::IsBusTraceEnabled() && m_busTracePendingAccess.active &&
         m_busTracePendingAccess.address == address && m_busTracePendingAccess.size == size &&
         m_busTracePendingAccess.write == write) {
         ++m_busTracePendingAccess.retries;
@@ -1573,11 +1574,11 @@ FORCE_INLINE bool SH2::CheckBusWait(uint32 address, uint32 size, bool write) {
     return stalled;
 }
 
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
 
 template <bool write, bool instrFetch, bool enableCache>
 void SH2::TraceBusAccessComplete(uint32 address, uint32 size) {
-    if (!util::bus_trace::IsEnabled()) {
+    if (!ymir::trace::IsBusTraceEnabled()) {
         return;
     }
 
@@ -1600,7 +1601,7 @@ void SH2::TraceBusAccessComplete(uint32 address, uint32 size) {
     const uint32 partition = (address >> 29u) & 0b111u;
     const char *kind = instrFetch ? "ifetch" : (partition == 0b111u ? kMMIOKind : kDefaultKind);
 
-    util::bus_trace::Emit({
+    ymir::trace::EmitBusTraceRecord({
         .master = m_isMaster ? "MSH2" : "SSH2",
         .rw = kRW,
         .kind = kind,

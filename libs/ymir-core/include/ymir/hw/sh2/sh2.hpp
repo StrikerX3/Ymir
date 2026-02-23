@@ -34,7 +34,6 @@
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/inline.hpp>
-#include <ymir/util/bus_trace.hpp>
 #include <ymir/util/virtual_memory.hpp>
 
 #include <array>
@@ -922,7 +921,7 @@ private:
     const std::string_view m_logPrefix; // For devlogs
     const bool m_isMaster;
 
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     struct BusTracePendingAccess {
         bool active = false;
         uint32 address = 0;

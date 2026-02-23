@@ -1,28 +1,29 @@
 #include <ymir/util/bus_trace.hpp>
 
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
 
 #include <atomic>
 #include <cstdlib>
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include <fmt/format.h>
 
-namespace ymir::util::bus_trace {
+namespace ymir::trace {
 
 namespace {
 
-struct Writer {
+struct BusTraceWriter {
     bool enabled = false;
     std::ofstream out;
     std::mutex mutex;
     std::atomic<uint64> seq{0};
 };
 
-Writer &GetWriter() {
-    static Writer writer;
+BusTraceWriter &GetBusTraceWriter() {
+    static BusTraceWriter writer;
     static std::once_flag once;
     std::call_once(once, [&] {
         const char *enabledVar = std::getenv("YMIR_BUS_TRACE");
@@ -69,12 +70,12 @@ std::string EscapeJson(std::string_view value) {
 
 } // namespace
 
-bool IsEnabled() {
-    return GetWriter().enabled;
+bool IsBusTraceEnabled() {
+    return GetBusTraceWriter().enabled;
 }
 
-void Emit(const Record &record) {
-    Writer &writer = GetWriter();
+void EmitBusTraceRecord(const BusTraceRecord &record) {
+    BusTraceWriter &writer = GetBusTraceWriter();
     if (!writer.enabled) {
         return;
     }
@@ -90,7 +91,19 @@ void Emit(const Record &record) {
                << ",\"retries\":" << record.retries << "}\n";
 }
 
-} // namespace ymir::util::bus_trace
+} // namespace ymir::trace
+
+#else
+
+namespace ymir::trace {
+
+bool IsBusTraceEnabled() {
+    return false;
+}
+
+void EmitBusTraceRecord(const BusTraceRecord &) {
+}
+
+} // namespace ymir::trace
 
 #endif
-

@@ -2,11 +2,9 @@
 
 #include <ymir/core/types.hpp>
 
-#if defined(YMIR_BUS_TRACE) && YMIR_BUS_TRACE
+namespace ymir::trace {
 
-namespace ymir::util::bus_trace {
-
-struct Record {
+struct BusTraceRecord {
     const char *master;
     const char *rw;
     const char *kind;
@@ -18,10 +16,7 @@ struct Record {
     uint32 size;
 };
 
-bool IsEnabled();
-void Emit(const Record &record);
+bool IsBusTraceEnabled();
+void EmitBusTraceRecord(const BusTraceRecord &record);
 
-} // namespace ymir::util::bus_trace
-
-#endif
-
+} // namespace ymir::trace
