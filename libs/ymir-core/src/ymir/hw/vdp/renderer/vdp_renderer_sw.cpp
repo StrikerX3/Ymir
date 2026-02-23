@@ -1522,20 +1522,18 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Comman
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
-    const sint32 lx = xa;                                // left X
-    const sint32 ty = ya;                                // top Y
-    const sint32 rx = xa + std::max(charSizeH, 1u) - 1u; // right X
-    const sint32 by = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
+    const sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
+    const sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
 
     const sint32 doubleV = m_VDP1doubleV;
 
-    const CoordS32 coordA{lx, ty << doubleV};
-    const CoordS32 coordB{rx, ty << doubleV};
-    const CoordS32 coordC{rx, by << doubleV};
-    const CoordS32 coordD{lx, by << doubleV};
+    const CoordS32 coordA{xa, ya << doubleV};
+    const CoordS32 coordB{xb, ya << doubleV};
+    const CoordS32 coordC{xb, yb << doubleV};
+    const CoordS32 coordD{xa, yb << doubleV};
 
     devlog::trace<grp::vdp1_cmd>("[{:05X}] Draw normal sprite: {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d}",
-                                 cmdAddress, lx, ty, rx, ty, rx, by, lx, by);
+                                 cmdAddress, xa, ya, xb, ya, xb, yb, xa, yb);
 
     VDP1PlotTexturedQuad<deinterlace, transparentMeshes>(cmdAddress, control, size, coordA, coordB, coordC, coordD);
 }
