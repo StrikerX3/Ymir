@@ -215,6 +215,7 @@ add_library(ymir-core
     include/ymir/util/type_traits_ex.hpp
     include/ymir/util/unreachable.hpp
     include/ymir/util/virtual_memory.hpp
+    include/ymir/util/bus_trace.hpp
 
 
     src/ymir/ymir.cpp
@@ -295,6 +296,7 @@ add_library(ymir-core
     src/ymir/util/process.cpp
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
+    src/ymir/util/bus_trace.cpp
 )
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
