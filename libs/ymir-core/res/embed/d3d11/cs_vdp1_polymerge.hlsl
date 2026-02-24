@@ -77,7 +77,7 @@ uint ByteSwap32(uint val) {
 
 void WriteFBOut8(uint address, uint data) {
     const uint shift = (address & 3) * 8;
-    const uint mask = 0xFF << shift;
+    const uint mask = ~(0xFF << shift);
     data = (data & 0xFF) << shift;
              
     address &= ~3;
@@ -88,9 +88,9 @@ void WriteFBOut8(uint address, uint data) {
 
 void WriteFBOut16(uint address, uint data) {
     const uint shift = (address & 2) * 8;
-    const uint mask = 0xFFFF << shift;
+    const uint mask = ~(0xFFFF << shift);
     data = (data & 0xFFFF) << shift;
-             
+
     address &= ~3;
     uint dummy;
     fbOut.InterlockedAnd(address, mask, dummy);
