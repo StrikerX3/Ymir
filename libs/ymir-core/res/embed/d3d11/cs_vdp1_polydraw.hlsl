@@ -53,6 +53,8 @@ static const uint kCommandDrawPolylinesAlt = 0x7;
 static const uint kCommandDrawLine = 0x6;
 // No other commands should hit the renderer
 
+static const uint kAtlasStride = 1024;
+
 // -----------------------------------------------------------------------------
 
 bool BitTest(uint value, uint bit) {
@@ -69,14 +71,14 @@ int SignExtend(int value, int bits) {
     return (value << shift) >> shift;
 }
 
-uint2 Extract16U(uint value32) {
+uint2 Extract16PairU(uint value32) {
     return uint2(
         BitExtract(value32, 0, 16),
         BitExtract(value32, 16, 16)
     );
 }
 
-int2 Extract16S(uint value32, int bits) {
+int2 Extract16PairSX(uint value32, int bits) {
     return uint2(
         SignExtend(BitExtract(value32, 0, 16), bits),
         SignExtend(BitExtract(value32, 16, 16), bits)
@@ -112,7 +114,43 @@ uint FetchCMDSingle(uint cmdAddress, uint offset) {
 // offset must be 32-bit aligned
 uint2 FetchCMDPair(uint cmdAddress, uint offset) {
     const uint value = ReadVRAM32(cmdAddress + offset);
-    return Extract16U(value);
+    return Extract16PairU(value);
+}
+
+uint FetchCMDCTRL(uint cmdAddress) {
+    return FetchCMDSingle(cmdAddress, kOffsetCMDCTRL);
+}
+
+uint2 FetchCMDPMOD_COLR(uint cmdAddress) {
+    return FetchCMDPair(cmdAddress, kOffsetCMDPMOD);
+}
+
+uint2 FetchCMDSRCA_SIZE(uint cmdAddress) {
+    return FetchCMDPair(cmdAddress, kOffsetCMDSRCA);
+}
+
+int2 FetchCMDXA_YA(uint cmdAddress) {
+    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXA);
+    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+}
+
+int2 FetchCMDXB_YB(uint cmdAddress) {
+    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXB);
+    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+}
+
+int2 FetchCMDXC_YC(uint cmdAddress) {
+    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXC);
+    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+}
+
+int2 FetchCMDXD_YD(uint cmdAddress) {
+    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXD);
+    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+}
+
+uint FetchCMDGRDA(uint cmdAddress) {
+    return FetchCMDSingle(cmdAddress, kOffsetCMDGRDA);
 }
 
 // -----------------------------------------------------------------------------
@@ -151,26 +189,42 @@ void DrawScaledSprite(uint index, const PolyParams poly, const uint cmdctrl) {
 }
 
 void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) {
+    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+    
+    const int2 A = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
+    const int2 B = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
+    const int2 C = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
+    const int2 D = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
+
+    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
+    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
+    
+    // TODO: actually render the polygon
+
+    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+        const uint basePos = y * kAtlasStride;
+        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
+            const uint pos = (basePos + x) * 4;
+            polyOut.Store(pos, poly.cmdAddress | 0xFF0000);
+        }
+    }
 }
 
 void DrawPolygon(uint index, const PolyParams poly) {
-    const uint2 localCoord = Extract16S(poly.localCoord, 13);
+    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
-    const uint2 rawA = FetchCMDPair(poly.cmdAddress, 0x0C);
-    const uint2 rawB = FetchCMDPair(poly.cmdAddress, 0x10);
-    const uint2 rawC = FetchCMDPair(poly.cmdAddress, 0x14);
-    const uint2 rawD = FetchCMDPair(poly.cmdAddress, 0x18);
-    
-    const int2 A = int2(SignExtend(rawA.x, 13), SignExtend(rawA.y, 13)) + localCoord;
-    const int2 B = int2(SignExtend(rawB.x, 13), SignExtend(rawB.y, 13)) + localCoord;
-    const int2 C = int2(SignExtend(rawC.x, 13), SignExtend(rawC.y, 13)) + localCoord;
-    const int2 D = int2(SignExtend(rawD.x, 13), SignExtend(rawD.y, 13)) + localCoord;
+    const int2 A = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
+    const int2 B = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
+    const int2 C = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
+    const int2 D = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
 
-    const uint2 atlasPos = Extract16U(poly.atlasPos);
-    const uint2 atlasEnd = atlasPos + Extract16U(poly.size);
+    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
+    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
+    
+    // TODO: actually render the polygon
 
     for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
-        const uint basePos = y * 1024;
+        const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
             polyOut.Store(pos, poly.cmdAddress);
@@ -199,7 +253,7 @@ void Draw(uint index) {
 
     // TODO: determine actual bounds and offset into atlas
     
-    const uint cmdctrl = FetchCMDSingle(poly.cmdAddress, kOffsetCMDCTRL);
+    const uint cmdctrl = FetchCMDCTRL(poly.cmdAddress);
     const uint command = BitExtract(cmdctrl, 0, 4);
     
     switch (command) {
