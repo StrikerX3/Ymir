@@ -14,7 +14,6 @@
 #include <string_view>
 #include <thread>
 #include <type_traits>
-#include <vector>
 
 #include <fmt/format.h>
 
@@ -90,7 +89,8 @@ struct BusTraceWriter {
     std::atomic<bool> flushInProgress{false};
     std::thread flushThread;
 
-    std::vector<BusTraceBinaryRecord> ramBuffer;
+    std::unique_ptr<BusTraceBinaryRecord[]> ramBuffer;
+    uint64 ramCapacity = 0;
     uint64 reserveRequested = 0;
     uint64 reserveFinal = 0;
     uint64 reserveFallbackCount = 0;
@@ -103,6 +103,7 @@ struct BusTraceWriter {
     std::atomic<uint64> rejectedAfterStop{0};
 
     bool stopReported = false;
+    std::atomic<bool> memoryCapWarningPrinted{false};
 
     ~BusTraceWriter() {
         if (active.load(std::memory_order_relaxed)) {
@@ -122,7 +123,7 @@ struct BusTraceWriter {
         if (config.captureMode != BusTraceCaptureMode::RamOnly) {
             return config.maxRecords;
         }
-        uint64 limit = maxRecordsByMemory;
+        uint64 limit = std::min(maxRecordsByMemory, ramCapacity);
         if (config.maxRecords != 0) {
             limit = std::min(limit, config.maxRecords);
         }
@@ -225,9 +226,7 @@ struct BusTraceWriter {
         emitted.store(0, std::memory_order_relaxed);
         dropped.store(0, std::memory_order_relaxed);
         rejectedAfterStop.store(0, std::memory_order_relaxed);
-        if (config.captureMode == BusTraceCaptureMode::RamOnly) {
-            ramBuffer.clear();
-        }
+        memoryCapWarningPrinted.store(false, std::memory_order_relaxed);
         active.store(true, std::memory_order_relaxed);
 
         if (config.captureMode == BusTraceCaptureMode::RamOnly) {
@@ -255,8 +254,9 @@ struct BusTraceWriter {
         uint64 recordCount = emitted.load(std::memory_order_relaxed);
 
         if (config.captureMode == BusTraceCaptureMode::RamOnly) {
-            writeOk = WriteBinaryFile(ramBuffer.data(), ramBuffer.size(), bytesWritten);
-            recordCount = ramBuffer.size();
+            const uint64 count = emitted.load(std::memory_order_relaxed);
+            writeOk = WriteBinaryFile(ramBuffer.get(), static_cast<size_t>(count), bytesWritten);
+            recordCount = count;
         } else {
             FlushAllPendingAsync();
             if (file) {
@@ -452,8 +452,9 @@ BusTraceWriter &GetBusTraceWriter() {
 
             while (reserveTry >= kMinReserveRecords) {
                 try {
-                    writer.ramBuffer.reserve(static_cast<size_t>(reserveTry));
+                    writer.ramBuffer = std::make_unique<BusTraceBinaryRecord[]>(static_cast<size_t>(reserveTry));
                     writer.reserveFinal = reserveTry;
+                    writer.ramCapacity = reserveTry;
                     break;
                 } catch (const std::bad_alloc &) {
                     ++writer.reserveFallbackCount;
@@ -604,7 +605,9 @@ void EmitBusTraceRecord(const BusTraceRecord &record) {
     if (limit != 0 && writer.emitted.load(std::memory_order_relaxed) >= limit) {
         if (writer.config.captureMode == BusTraceCaptureMode::RamOnly &&
             writer.active.exchange(false, std::memory_order_relaxed)) {
-            std::printf("Bus trace: memory cap reached; stopping capture and flushing to disk\n");
+            if (!writer.memoryCapWarningPrinted.exchange(true, std::memory_order_relaxed)) {
+                std::printf("Bus trace: memory cap reached; stopping capture and flushing to disk\n");
+            }
             writer.StopCapture(BusTraceStopReason::MemoryCap);
         }
         return;
@@ -623,8 +626,18 @@ void EmitBusTraceRecord(const BusTraceRecord &record) {
     out.kind = static_cast<uint8>(record.kind);
 
     if (writer.config.captureMode == BusTraceCaptureMode::RamOnly) {
-        writer.ramBuffer.push_back(out);
-        writer.emitted.fetch_add(1, std::memory_order_relaxed);
+        const uint64 index = writer.emitted.fetch_add(1, std::memory_order_relaxed);
+        if (limit != 0 && index >= limit) {
+            writer.emitted.store(limit, std::memory_order_relaxed);
+            writer.active.store(false, std::memory_order_relaxed);
+            if (!writer.memoryCapWarningPrinted.exchange(true, std::memory_order_relaxed)) {
+                std::printf("Bus trace: memory cap reached; stopping capture and flushing to disk\n");
+            }
+            writer.StopCapture(BusTraceStopReason::MemoryCap);
+            return;
+        }
+
+        writer.ramBuffer[static_cast<size_t>(index)] = out;
         return;
     }
 
