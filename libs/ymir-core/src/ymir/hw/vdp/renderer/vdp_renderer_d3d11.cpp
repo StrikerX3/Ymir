@@ -92,8 +92,10 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
 
-    ID3D11Buffer *bufVDP1FBRAM = nullptr;             //< VDP1 framebuffer RAM buffer (drawing only)
-    ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr; //< SRV for VDP1 framebuffer RAM buffer
+    ID3D11Buffer *bufVDP1FBRAM = nullptr;              //< VDP1 framebuffer RAM buffer (drawing only)
+    ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr;  //< SRV for VDP1 framebuffer RAM buffer
+    ID3D11UnorderedAccessView *uavVDP1FBRAM = nullptr; //< UAV for VDP1 framebuffer RAM buffer
+    ID3D11Buffer *bufVDP1FBRAMStaging = nullptr;       //< VDP1 framebuffer RAM staging buffer (CPU<->GPU transfers)
 
     ID3D11Buffer *bufVDP1Polys = nullptr;              //< VDP1 polygon atlas buffer
     ID3D11ShaderResourceView *srvVDP1Polys = nullptr;  //< SRV for VDP1 polygon atlas buffer
@@ -126,8 +128,9 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11ComputeShader *csVDP1PolyMerge = nullptr; //< VDP1 polygon merger compute shader
 
-    ID3D11Buffer *bufVDP1PolyOut = nullptr;             //< VDP1 polygon output buffer (sprite, mesh)
-    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr; //< SRV for VDP1 polygon output textures
+    ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer (sprite, mesh)
+    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output textures
+    ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output textures
 
     // =========================================================================
 
@@ -151,9 +154,9 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ShaderResourceView *srvVDP2RotParams = nullptr;  //< SRV for rotation parameters texture array
     ID3D11UnorderedAccessView *uavVDP2RotParams = nullptr; //< UAV for rotation parameters texture array
 
-    ID3D11Texture2D *texVDP2BGs = nullptr;           //< NBG0-3, RBG0-1 textures (in that order)
-    ID3D11ShaderResourceView *srvVDP2BGs = nullptr;  //< SRV for NBG/RBG texture array
-    ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG texture array
+    ID3D11Texture2D *texVDP2BGs = nullptr;           //< NBG0-3, RBG0-1, sprite, mesh textures (in that order)
+    ID3D11ShaderResourceView *srvVDP2BGs = nullptr;  //< SRV for NBG/RBG/sprite texture array
+    ID3D11UnorderedAccessView *uavVDP2BGs = nullptr; //< UAV for NBG/RBG/sprite texture array
 
     ID3D11Texture2D *texVDP2RotLineColors = nullptr;           //< LNCL textures for RBG0-1 (in that order)
     ID3D11ShaderResourceView *srvVDP2RotLineColors = nullptr;  //< SRV for RBG0-1 LNCL texture array
@@ -237,15 +240,24 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(
-            m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM, nullptr, kVDP1FramebufferRAMSize,
-            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM,
+                                                    &m_context->uavVDP1FBRAM, kVDP1FramebufferRAMSize,
+                                                    m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->bufVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM buffer");
     SetDebugName(m_context->srvVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM SRV");
+    SetDebugName(m_context->uavVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM UAV");
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMStaging, nullptr, nullptr, kVDP1FramebufferRAMSize,
+                                           m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1FBRAMStaging, "[Ymir D3D11] VDP1 FBRAM staging buffer");
 
     if (HRESULT hr =
             devMgr.CreateByteAddressBuffer(m_context->bufVDP1Polys, &m_context->srvVDP1Polys, &m_context->uavVDP1Polys,
@@ -315,15 +327,16 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->csVDP1PolyMerge, "[Ymir D3D11] VDP1 polygon merger compute shader");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(
-            m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut, nullptr, kVDP1FramebufferRAMSize,
-            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
+                                                    &m_context->uavVDP1PolyOut, kVDP1FramebufferRAMSize,
+                                                    m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->bufVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output buffer");
     SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
+    SetDebugName(m_context->uavVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output UAV");
 
     // =========================================================================
 
@@ -382,14 +395,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->uavVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters UAV");
 
     if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2BGs, &m_context->srvVDP2BGs, &m_context->uavVDP2BGs,
-                                            vdp::kMaxResH, vdp::kMaxResV, 6, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+                                            vdp::kMaxResH, vdp::kMaxResV, 8, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG texture array");
-    SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG SRV");
-    SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG UAV");
+    SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG/sprite texture array");
+    SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG/sprite SRV");
+    SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG/sprite UAV");
 
     if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2RotLineColors, &m_context->srvVDP2RotLineColors,
                                             &m_context->uavVDP2RotLineColors, vdp::kMaxNormalResH, vdp::kMaxNormalResV,
@@ -741,7 +754,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1ClipCoords(sint32 &x, sint32 &y) {
     VDP1UserClipCoords(x, y);
 }
 
-void Direct3D11VDPRenderer::VDP1AddPolygon(uint32 width, uint32 height, uint32 cmdAddress) {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS32 bottomRight, uint32 cmdAddress) {
+    const uint32 width = bottomRight.x() - topLeft.x();
+    const uint32 height = bottomRight.y() - topLeft.y();
+
     // Try allocating it in the atlas
     uint32 x, y;
     if (!m_context->atlasVDP1.Add(width, height, x, y)) {
@@ -761,6 +777,10 @@ void Direct3D11VDPRenderer::VDP1AddPolygon(uint32 width, uint32 height, uint32 c
     auto &entry = m_context->cpuVDP1PolyParams[index];
     entry.atlasPosX = x;
     entry.atlasPosY = y;
+    entry.sizeX = width;
+    entry.sizeY = height;
+    entry.fbPosX = topLeft.x();
+    entry.fbPosY = topLeft.y();
     entry.sysClipH = m_VDP1State.sysClipH;
     entry.sysClipV = m_VDP1State.sysClipV;
     entry.userClipX0 = m_VDP1State.userClipX0;
@@ -802,7 +822,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
     vdp1Ctx.CSSetShader(m_context->csVDP1PolyDraw);
     ctx->Dispatch(1, 1, m_context->cpuVDP1PolyParamsCount);
 
-    // TODO: merge polygons
+    // Merge polygons
+    vdp1Ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
+    vdp1Ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
+    vdp1Ctx.CSSetShaderResources({m_context->srvVDP1Polys, m_context->srvVDP1PolyParams});
+    vdp1Ctx.CSSetShader(m_context->csVDP1PolyMerge);
+    ctx->Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
 
     m_context->atlasVDP1.Clear();
     m_context->cpuVDP1PolyParamsCount = 0;
@@ -811,6 +836,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
     const VDP1Regs &regs1 = m_state.regs1;
     auto &config = m_context->cpuVDP1RenderConfig;
+
+    config.numPolys = m_context->cpuVDP1PolyParamsCount;
 
     m_context->VDP1Context.ModifyResource(
         m_context->cbufVDP1RenderConfig, 0,
@@ -844,11 +871,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
-    m_context->VDP1Context.ModifyResource(m_context->bufVDP1FBRAM, 0,
+    m_context->VDP1Context.ModifyResource(m_context->bufVDP1FBRAMStaging, 0,
                                           [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
                                               const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
                                               memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
                                           });
+    m_context->VDP1Context.GetDeferredContext()->CopyResource(m_context->bufVDP1FBRAM, m_context->bufVDP1FBRAMStaging);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -877,7 +905,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
         return;
     }
 
-    VDP1AddPolygon(dx, dy, cmdAddress);
+    VDP1AddPolygon({xa, ya}, {xb, yb}, cmdAddress);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -970,10 +998,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     VDP1ClipCoords(qxc, qyc);
     VDP1ClipCoords(qxd, qyd);
 
-    const sint32 maxX = std::max(std::max(qxa, qxb), std::max(qxc, qxd));
-    const sint32 maxY = std::max(std::max(qya, qyb), std::max(qyc, qyd));
     const sint32 minX = std::min(std::min(qxa, qxb), std::min(qxc, qxd));
     const sint32 minY = std::min(std::min(qya, qyb), std::min(qyc, qyd));
+    const sint32 maxX = std::max(std::max(qxa, qxb), std::max(qxc, qxd));
+    const sint32 maxY = std::max(std::max(qya, qyb), std::max(qyc, qyd));
 
     const uint32 dx = maxX - minX;
     const uint32 dy = maxY - minY;
@@ -982,7 +1010,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
         return;
     }
 
-    VDP1AddPolygon(dx, dy, cmdAddress);
+    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -1005,8 +1033,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     VDP1ClipCoords(xd, yd);
 
     const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
-    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
     const sint32 minY = std::min(std::min(ya, yb), std::min(yc, yd));
+    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
     const sint32 maxY = std::max(std::max(ya, yb), std::max(yc, yd));
 
     const uint32 dx = maxX - minX;
@@ -1016,7 +1044,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
         return;
     }
 
-    VDP1AddPolygon(dx, dy, cmdAddress);
+    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
@@ -1039,8 +1067,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     VDP1ClipCoords(xd, yd);
 
     const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
-    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
     const sint32 minY = std::min(std::min(ya, yb), std::min(yc, yd));
+    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
     const sint32 maxY = std::max(std::max(ya, yb), std::max(yc, yd));
 
     const uint32 dx = maxX - minX;
@@ -1050,7 +1078,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
         return;
     }
 
-    VDP1AddPolygon(dx, dy, cmdAddress);
+    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
@@ -1073,8 +1101,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     VDP1ClipCoords(xd, yd);
 
     const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
-    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
     const sint32 minY = std::min(std::min(ya, yb), std::min(yc, yd));
+    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
     const sint32 maxY = std::max(std::max(ya, yb), std::max(yc, yd));
 
     const uint32 dx = maxX - minX;
@@ -1084,7 +1112,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
         return;
     }
 
-    VDP1AddPolygon(dx, dy, cmdAddress);
+    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
@@ -1107,7 +1135,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         return;
     }
 
-    VDP1AddPolygon(dx, dy, cmdAddress);
+    VDP1AddPolygon({std::min(xa, xb), std::min(ya, yb)}, {std::max(xa, xb), std::max(ya, yb)}, cmdAddress);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
@@ -1316,7 +1344,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
         {m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
     vdp2Ctx.CSSetUnorderedAccessViews(
         {m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors});
-    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams}, 3);
+    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut},
+                                 3);
     vdp2Ctx.CSSetShader(m_context->csVDP2BGs);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 
@@ -1349,8 +1378,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     // Compose final image
     vdp2Ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     vdp2Ctx.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
-    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2BGs, nullptr /* sprite layers */, m_context->srvVDP2RotLineColors,
-                                  m_context->srvVDP2LineColors, m_context->srvVDP2ComposeParams});
+    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2BGs, m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
+                                  m_context->srvVDP2ComposeParams});
     vdp2Ctx.CSSetShader(m_context->csVDP2Compose);
     ctx->Dispatch(m_HRes / 32, numLines, 1);
 }

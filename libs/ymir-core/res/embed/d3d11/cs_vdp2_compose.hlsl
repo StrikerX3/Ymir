@@ -21,10 +21,9 @@ cbuffer Config : register(b0) {
 }
 
 Texture2DArray<uint4> bgIn : register(t0);
-// TODO: spriteIn (normal and mesh layers)
-Texture2DArray<uint4> rbgLineColorIn : register(t2);
-Texture2D<uint4> lineColorIn : register(t3);
-StructuredBuffer<ComposeParams> composeParams : register(t4);
+Texture2DArray<uint4> rbgLineColorIn : register(t1);
+Texture2D<uint4> lineColorIn : register(t2);
+StructuredBuffer<ComposeParams> composeParams : register(t3);
 
 RWTexture2D<float4> textureOut : register(u0);
 

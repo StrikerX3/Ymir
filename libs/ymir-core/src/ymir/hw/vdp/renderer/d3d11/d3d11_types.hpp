@@ -20,6 +20,17 @@ union D3DUint2 {
 };
 static_assert(sizeof(D3DUint2) == sizeof(D3DUint) * 2);
 
+union D3DUint3 {
+    std::array<D3DUint, 3> array;
+    struct {
+        D3DUint x, y, z;
+    };
+    struct {
+        D3DUint r, g, b;
+    };
+};
+static_assert(sizeof(D3DUint3) == sizeof(D3DUint) * 3);
+
 union D3DUint4 {
     std::array<D3DUint, 4> array;
     struct {
@@ -58,13 +69,18 @@ static_assert(sizeof(D3DInt3) == sizeof(D3DInt) * 3);
 struct alignas(16) VDP1RenderConfig {
     // TODO: relevant VDP1 registers
     // - erase/swap bounds and value (including vblank erase bounds)
+    D3DUint numPolys;
 
-    D3DUint4 reserved;
+    D3DUint3 reserved;
 };
 
 struct VDP1PolyParams {
     D3DUint atlasPosX : 16;   // Horizontal position in atlas texture
     D3DUint atlasPosY : 16;   // Vertical position in atlas texture
+    D3DUint sizeX : 16;       // Horizontal size of polygon after clipping
+    D3DUint sizeY : 16;       // Vertical size of polygon after clipping
+    D3DUint fbPosX : 16;      // Horizontal position in framebuffer
+    D3DUint fbPosY : 16;      // Vertical position in framebuffer
     D3DUint sysClipH : 16;    // System clipping area width
     D3DUint sysClipV : 16;    // System clipping area height
     D3DUint userClipX0 : 16;  // User clipping area left coordinate
