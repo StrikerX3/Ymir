@@ -205,7 +205,7 @@ void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) 
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
-            polyOut.Store(pos, poly.cmdAddress | 0xFF0000);
+            polyOut.Store(pos, ~(x - atlasPos.x + (y - atlasPos.y) * 256));
         }
     }
 }
@@ -227,7 +227,7 @@ void DrawPolygon(uint index, const PolyParams poly) {
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
-            polyOut.Store(pos, poly.cmdAddress);
+            polyOut.Store(pos, ~(x - atlasPos.x + (y - atlasPos.y) * 256));
         }
     }
 }
