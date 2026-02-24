@@ -79,6 +79,7 @@
 
 #include "actions.hpp"
 
+#include <cstdio>
 #include <cstddef>
 #include <ymir/ymir.hpp>
 
@@ -87,6 +88,7 @@
 #include <ymir/db/game_db.hpp>
 
 #include <ymir/util/lsn_denormals.hpp>
+#include <ymir/util/bus_trace.hpp>
 #include <ymir/util/process.hpp>
 #include <ymir/util/scope_guard.hpp>
 #include <ymir/util/thread_name.hpp>
@@ -2202,6 +2204,19 @@ void App::RunEmulator() {
 
                     // Restore system mouse cursor and release captured mice
                     ReleaseAllMice();
+                }
+
+                // Toggle bus trace capture on F10 key press.
+                if (evt.key.scancode == SDL_SCANCODE_F10 && evt.key.down && !evt.key.repeat) {
+                    if (ymir::trace::IsBusTraceEnabled()) {
+                        const bool active = ymir::trace::ToggleBusTraceActive();
+                        if (active) {
+                            std::printf("Bus trace: RECORDING\n");
+                        } else {
+                            std::printf("Bus trace: STOPPED (records_dropped=%llu)\n",
+                                        static_cast<unsigned long long>(ymir::trace::GetBusTraceRecordsDropped()));
+                        }
+                    }
                 }
                 break;
 

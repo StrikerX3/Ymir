@@ -919,9 +919,34 @@ private:
     bool CheckWatchpoint(const DecodedMemAccesses::Access &access);
 
     const std::string_view m_logPrefix; // For devlogs
+    const bool m_isMaster;
+
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
+    struct BusTracePendingAccess {
+        bool active = false;
+        uint32 address = 0;
+        uint32 size = 0;
+        bool write = false;
+        uint64 tickFirstAttempt = 0;
+        uint64 retries = 0;
+    };
+
+    BusTracePendingAccess m_busTracePendingAccess;
+
+
+    template <bool write, bool instrFetch, bool enableCache>
+    void TraceBusAccessComplete(uint32 address, uint32 size);
+
+    void BeginPendingBusAccess(uint32 address, uint32 size, bool write, uint64 tickNow);
+    void OnPendingBusAccessRetry(uint32 address, uint32 size, bool write);
+    bool CompletePendingBusAccess(uint32 address, uint32 size, bool write, uint64 &tickFirstAttempt, uint64 &retries);
+    void CancelPendingBusAccess();
+#endif
 
     // -------------------------------------------------------------------------
     // Helper functions
+
+    FORCE_INLINE bool CheckBusWait(uint32 address, uint32 size, bool write);
 
     void SetupDelaySlot(uint32 targetAddress);
 
