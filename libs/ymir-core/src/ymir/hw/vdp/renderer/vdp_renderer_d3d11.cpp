@@ -260,8 +260,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1FBRAMStaging, "[Ymir D3D11] VDP1 FBRAM staging buffer");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyAtlas, &m_context->srvVDP1PolyAtlas,
-                                                    &m_context->uavVDP1PolyAtlas, kVDP1PolyAtlasH * kVDP1PolyAtlasV,
-                                                    nullptr, 0, 0);
+                                                    &m_context->uavVDP1PolyAtlas,
+                                                    kVDP1PolyAtlasH * kVDP1PolyAtlasV * sizeof(D3DUint), nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
