@@ -14,6 +14,19 @@ struct PolyParams {
     uint cmdAddress;
 };
 
+struct CMDSRCAData {
+    uint charAddress;
+};
+
+struct CMDSIZEData {
+    uint2 charSize;
+};
+
+struct CMDSRCA_SIZE {
+    CMDSRCAData srca;
+    CMDSIZEData size;
+};
+
 // -----------------------------------------------------------------------------
 
 cbuffer Config : register(b0) {
@@ -125,8 +138,14 @@ uint2 FetchCMDPMOD_COLR(uint cmdAddress) {
     return FetchCMDPair(cmdAddress, kOffsetCMDPMOD);
 }
 
-uint2 FetchCMDSRCA_SIZE(uint cmdAddress) {
-    return FetchCMDPair(cmdAddress, kOffsetCMDSRCA);
+CMDSRCA_SIZE FetchCMDSRCA_SIZE(uint cmdAddress) {
+    const uint2 pair = FetchCMDPair(cmdAddress, kOffsetCMDSRCA);
+    
+    CMDSRCA_SIZE data;
+    data.srca.charAddress = pair.x << 3;
+    data.size.charSize.x = max(BitExtract(pair.y, 8, 6), 1);
+    data.size.charSize.y = max(BitExtract(pair.y, 0, 8) << 8, 1);
+    return data;
 }
 
 int2 FetchCMDXA_YA(uint cmdAddress) {
@@ -183,9 +202,47 @@ int2 ClipCoords(const PolyParams poly, int2 coords) {
 }
 
 void DrawNormalSprite(uint index, const PolyParams poly, const uint cmdctrl) {
+    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+
+    const CMDSRCA_SIZE srca_size = FetchCMDSRCA_SIZE(poly.cmdAddress);
+    const uint2 charSize = srca_size.size.charSize;
+
+    const int2 A = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
+    const int2 B = B + charSize - 1;
+
+    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
+    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
+    
+    // TODO: actually render the polygon
+
+    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+        const uint basePos = y * kAtlasStride;
+        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
+            const uint pos = (basePos + x) * 4;
+            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
+            polyOut.Store(pos, value);
+        }
+    }
 }
 
 void DrawScaledSprite(uint index, const PolyParams poly, const uint cmdctrl) {
+    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+
+    // TODO: load and parse parameters
+    
+    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
+    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
+    
+    // TODO: actually render the polygon
+
+    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+        const uint basePos = y * kAtlasStride;
+        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
+            const uint pos = (basePos + x) * 4;
+            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
+            polyOut.Store(pos, value);
+        }
+    }
 }
 
 void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) {
@@ -205,7 +262,8 @@ void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) 
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
-            polyOut.Store(pos, ~(x - atlasPos.x + (y - atlasPos.y) * 256));
+            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
+            polyOut.Store(pos, value);
         }
     }
 }
@@ -227,15 +285,50 @@ void DrawPolygon(uint index, const PolyParams poly) {
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
-            polyOut.Store(pos, ~(x - atlasPos.x + (y - atlasPos.y) * 256));
+            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
+            polyOut.Store(pos, value);
         }
     }
 }
 
 void DrawPolylines(uint index, const PolyParams poly) {
+    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+    
+    // TODO: load and parse parameters
+
+    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
+    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
+    
+    // TODO: actually render the polygon
+
+    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+        const uint basePos = y * kAtlasStride;
+        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
+            const uint pos = (basePos + x) * 4;
+            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
+            polyOut.Store(pos, value);
+        }
+    }
 }
 
 void DrawLine(uint index, const PolyParams poly) {
+    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+
+    // TODO: load and parse parameters
+
+    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
+    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
+    
+    // TODO: actually render the polygon
+
+    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+        const uint basePos = y * kAtlasStride;
+        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
+            const uint pos = (basePos + x) * 4;
+            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
+            polyOut.Store(pos, value);
+        }
+    }
 }
 
 void Draw(uint index) {
