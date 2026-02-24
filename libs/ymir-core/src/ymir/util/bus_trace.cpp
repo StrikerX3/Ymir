@@ -61,6 +61,7 @@ struct BusTraceConfig {
 
 struct BusTraceWriter {
     BusTraceConfig config;
+    std::atomic<bool> active{false};
     std::FILE *file = nullptr;
     std::vector<BusTraceBinaryRecord> buffer;
     std::mutex mutex;
@@ -296,9 +297,28 @@ bool IsBusTraceEnabled() {
     return GetBusTraceWriter().config.enabled;
 }
 
+bool IsBusTraceActive() {
+    auto &writer = GetBusTraceWriter();
+    return writer.config.enabled && writer.active.load(std::memory_order_relaxed);
+}
+
+bool ToggleBusTraceActive() {
+    auto &writer = GetBusTraceWriter();
+    if (!writer.config.enabled) {
+        return false;
+    }
+
+    const bool next = !writer.active.load(std::memory_order_relaxed);
+    writer.active.store(next, std::memory_order_relaxed);
+    return next;
+}
+
 void EmitBusTraceRecord(const BusTraceRecord &record) {
     BusTraceWriter &writer = GetBusTraceWriter();
     if (!writer.config.enabled || !writer.file) {
+        return;
+    }
+    if (!writer.active.load(std::memory_order_relaxed)) {
         return;
     }
 
