@@ -27,6 +27,10 @@ RWByteAddressBuffer fbOut : register(u0);
 
 // -----------------------------------------------------------------------------
 
+static const uint kAtlasStride = 1024;
+
+// -----------------------------------------------------------------------------
+
 bool BitTest(uint value, uint bit) {
     return ((value >> bit) & 1) != 0;
 }
@@ -41,18 +45,22 @@ int SignExtend(int value, int bits) {
     return (value << shift) >> shift;
 }
 
-uint2 Extract16U(uint value32) {
+uint2 Extract16PairU(uint value32) {
     return uint2(
         BitExtract(value32, 0, 16),
         BitExtract(value32, 16, 16)
     );
 }
 
-int2 Extract16S(uint value32, int bits = 16) {
+int2 Extract16PairSX(uint value32, int bits) {
     return uint2(
-        SignExtend(BitExtract(value32, 0, 16), bits),
-        SignExtend(BitExtract(value32, 16, 16), bits)
+        SignExtend(value32, bits),
+        SignExtend((value32 >> 16), bits)
     );
+}
+
+int2 Extract16PairS(uint value32) {
+    return Extract16PairSX(value32, 16);
 }
 
 uint ByteSwap16(uint val) {
@@ -67,7 +75,7 @@ uint ByteSwap32(uint val) {
            ((val << 24) & 0xFF000000);
 }
 
-void WriteFB8(uint address, uint data) {
+void WriteFBOut8(uint address, uint data) {
     const uint shift = (address & 3) * 8;
     const uint mask = 0xFF << shift;
     data = (data & 0xFF) << shift;
@@ -78,7 +86,7 @@ void WriteFB8(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
-void WriteFB16(uint address, uint data) {
+void WriteFBOut16(uint address, uint data) {
     const uint shift = (address & 2) * 8;
     const uint mask = 0xFFFF << shift;
     data = (data & 0xFFFF) << shift;
@@ -95,8 +103,8 @@ void MergePolys(uint2 pos) {
     for (uint i = 0; i < config.numPolys; i++) {
         const PolyParams poly = polyParams[i];
 
-        const int2 fbPos = Extract16S(poly.fbPos);
-        const int2 size = Extract16S(poly.size);
+        const int2 fbPos = Extract16PairS(poly.fbPos);
+        const int2 size = Extract16PairS(poly.size);
 
         // Skip out of bounds pixels
         if (!all(pos >= fbPos) || !all(pos < fbPos + size)) {
@@ -104,15 +112,15 @@ void MergePolys(uint2 pos) {
         }
         
         const int2 relPos = pos - fbPos;
-        const int2 atlasPos = Extract16S(poly.atlasPos) + relPos;
+        const int2 atlasPos = Extract16PairS(poly.atlasPos) + relPos;
         
-        const uint atlasAddr = (atlasPos.x + atlasPos.y * 1024) * 4;
+        const uint atlasAddr = (atlasPos.x + atlasPos.y * kAtlasStride) * 4;
         const uint rawValue = polyIn.Load(atlasAddr);
                 
         // TODO: 8-bit/16-bit mode
         // TODO: framebuffer dimensions
         const uint fbAddr = (pos.x + pos.y * 512) * 2;
-        WriteFB16(fbAddr, rawValue);
+        WriteFBOut16(fbAddr, rawValue);
     }
 }
 

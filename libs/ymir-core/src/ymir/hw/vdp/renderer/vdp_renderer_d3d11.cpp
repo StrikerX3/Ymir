@@ -695,7 +695,12 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     VDP1UploadDrawFBRAM();
 
-    // TODO: dispatch erase/swap shader
+    // Dispatch erase/swap shader
+    ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
+    ctx.CSSetShaderResources({m_context->srvVDP1FBRAM});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
+    ctx.CSSetShader(m_context->csVDP1EraseSwap);
+    ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
 
     Callbacks.VDP1FramebufferSwap();
 }
@@ -724,15 +729,6 @@ void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::C
     case VDP1Command::CommandType::SystemClipping: VDP1Cmd_SetSystemClipping(cmdAddress); break;
     case VDP1Command::CommandType::SetLocalCoordinates: VDP1Cmd_SetLocalCoordinates(cmdAddress); break;
     }
-
-    // TODO: execute the command
-    // - adjust clipping / submit polygon to a batch
-    // - when a batch is full:
-    //   - submit for rendering with compute shader into an array of staging textures
-    //     - texture size = VDP1 framebuffer size
-    //     - each polygon must be drawn in a single thread, but multiple polygons can be rendered in parallel
-    //   - merge them into the final VDP1 framebuffer in order
-    //     - this can be parallelized by splitting the framebuffer into tiles
 }
 
 void Direct3D11VDPRenderer::VDP1EndFrame() {
@@ -803,8 +799,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
         return;
     }
 
-    auto &vdp1Ctx = m_context->VDP1Context;
-    auto *ctx = vdp1Ctx.GetDeferredContext();
+    auto &ctx = m_context->VDP1Context;
 
     // Upload polygons
     m_context->VDP1Context.ModifyResource(m_context->bufVDP1PolyParams, 0,
@@ -816,18 +811,18 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
     VDP1UpdateRenderConfig();
 
     // Render polygons
-    vdp1Ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-    vdp1Ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams});
-    vdp1Ctx.CSSetUnorderedAccessViews({m_context->uavVDP1Polys});
-    vdp1Ctx.CSSetShader(m_context->csVDP1PolyDraw);
-    ctx->Dispatch(1, 1, m_context->cpuVDP1PolyParamsCount);
+    ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
+    ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1Polys});
+    ctx.CSSetShader(m_context->csVDP1PolyDraw);
+    ctx.Dispatch(1, 1, m_context->cpuVDP1PolyParamsCount);
 
     // Merge polygons
-    vdp1Ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-    vdp1Ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
-    vdp1Ctx.CSSetShaderResources({m_context->srvVDP1Polys, m_context->srvVDP1PolyParams});
-    vdp1Ctx.CSSetShader(m_context->csVDP1PolyMerge);
-    ctx->Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
+    ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
+    ctx.CSSetShaderResources({m_context->srvVDP1Polys, m_context->srvVDP1PolyParams});
+    ctx.CSSetShader(m_context->csVDP1PolyMerge);
+    ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
 
     m_context->atlasVDP1.Clear();
     m_context->cpuVDP1PolyParamsCount = 0;
@@ -1308,8 +1303,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // ----------------------
 
-    auto &vdp2Ctx = m_context->VDP2Context;
-    auto *ctx = vdp2Ctx.GetDeferredContext();
+    auto &ctx = m_context->VDP2Context;
 
     VDP2UpdateVRAM();
     VDP2UpdateCRAM();
@@ -1326,28 +1320,26 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // Compute rotation parameters if any RBGs are enabled
     if (m_state.regs2.bgEnabled[4] || m_state.regs2.bgEnabled[5]) {
-        vdp2Ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-        vdp2Ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache, m_context->srvVDP2RotRegs,
-                                      m_context->srvVDP2RotParamBases});
-        vdp2Ctx.CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
-        vdp2Ctx.CSSetShader(m_context->csVDP2RotParams);
+        ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+        ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache, m_context->srvVDP2RotRegs,
+                                  m_context->srvVDP2RotParamBases});
+        ctx.CSSetUnorderedAccessViews({m_context->uavVDP2RotParams});
+        ctx.CSSetShader(m_context->csVDP2RotParams);
 
         const bool doubleResH = m_state.regs2.TVMD.HRESOn & 0b010;
         const uint32 hresShift = doubleResH ? 1 : 0;
         const uint32 hres = m_HRes >> hresShift;
-        ctx->Dispatch(hres / 32, numLines, 1);
+        ctx.Dispatch(hres / 32, numLines, 1);
     }
 
     // Draw NBGs and RBGs
-    vdp2Ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-    vdp2Ctx.CSSetShaderResources(
-        {m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
-    vdp2Ctx.CSSetUnorderedAccessViews(
+    ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
+    ctx.CSSetUnorderedAccessViews(
         {m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors});
-    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut},
-                                 3);
-    vdp2Ctx.CSSetShader(m_context->csVDP2BGs);
-    ctx->Dispatch(m_HRes / 32, numLines, 1);
+    ctx.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut}, 3);
+    ctx.CSSetShader(m_context->csVDP2BGs);
+    ctx.Dispatch(m_HRes / 32, numLines, 1);
 
     // Update rotation parameter bases for the next chunk if not done rendering
     const bool vShift = m_state.regs2.TVMD.IsInterlaced() ? 1u : 0u;
@@ -1362,8 +1354,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
 
     // ----------------------
 
-    auto &vdp2Ctx = m_context->VDP2Context;
-    auto *ctx = vdp2Ctx.GetDeferredContext();
+    auto &ctx = m_context->VDP2Context;
 
     VDP2UpdateBGRenderState();
     VDP2UpdateComposeParams();
@@ -1376,12 +1367,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     m_nextVDP2ComposeY = y + 1;
 
     // Compose final image
-    vdp2Ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-    vdp2Ctx.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
-    vdp2Ctx.CSSetShaderResources({m_context->srvVDP2BGs, m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
-                                  m_context->srvVDP2ComposeParams});
-    vdp2Ctx.CSSetShader(m_context->csVDP2Compose);
-    ctx->Dispatch(m_HRes / 32, numLines, 1);
+    ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
+    ctx.CSSetShaderResources({m_context->srvVDP2BGs, m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
+                              m_context->srvVDP2ComposeParams});
+    ctx.CSSetShader(m_context->csVDP2Compose);
+    ctx.Dispatch(m_HRes / 32, numLines, 1);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {

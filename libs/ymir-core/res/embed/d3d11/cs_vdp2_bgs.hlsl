@@ -838,6 +838,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
     // index 0 = sprite
     // index 1 = transparent meshes
     if (index == 0) {
+        // TODO: sprite type, color format, attributes, etc.
         // TODO: 8-bit/16-bit mode
         // TODO: framebuffer dimensions
         const uint fbAddr = (pos.x + pos.y * 512) * 2;

@@ -23,6 +23,10 @@ public:
         return m_deferredCtx;
     }
 
+    void Dispatch(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGroupCountZ) {
+        m_deferredCtx->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
+    }
+
     /// @brief Attempts to lock a resource for modification. If successful, invokes `fnProcess` with a reference to the
     /// `D3D11_MAPPED_SUBRESOURCE` created by mapping the resource and unmaps it afterwards.
     ///
