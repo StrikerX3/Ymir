@@ -1,9 +1,12 @@
 struct Config {
+    uint numPolys;
     uint4 _reserved;
 };
 
 struct PolyParams {
     uint atlasPos;
+    uint size;
+    uint fbPos;
     uint sysClip;
     uint userClipX;
     uint userClipY;
@@ -61,6 +64,25 @@ uint BitExtract(uint value, uint offset, uint length) {
     return (value >> offset) & mask;
 }
 
+int SignExtend(int value, int bits) {
+    const uint shift = 32 - bits;
+    return (value << shift) >> shift;
+}
+
+uint2 Extract16U(uint value32) {
+    return uint2(
+        BitExtract(value32, 0, 16),
+        BitExtract(value32, 16, 16)
+    );
+}
+
+int2 Extract16S(uint value32, int bits) {
+    return uint2(
+        SignExtend(BitExtract(value32, 0, 16), bits),
+        SignExtend(BitExtract(value32, 16, 16), bits)
+    );
+}
+
 uint ByteSwap16(uint val) {
     return ((val >> 8) & 0x00FF) |
            ((val << 8) & 0xFF00);
@@ -90,13 +112,37 @@ uint FetchCMDSingle(uint cmdAddress, uint offset) {
 // offset must be 32-bit aligned
 uint2 FetchCMDPair(uint cmdAddress, uint offset) {
     const uint value = ReadVRAM32(cmdAddress + offset);
-    return uint2(
-        BitExtract(value, 0, 16),
-        BitExtract(value, 16, 16)
-    );
+    return Extract16U(value);
 }
 
 // -----------------------------------------------------------------------------
+
+// TODO: might not be needed
+int2 SystemClipCoords(const PolyParams poly, int2 coords) {
+    const uint sysClipH = BitExtract(poly.sysClip, 0, 16);
+    const uint sysClipV = BitExtract(poly.sysClip, 16, 16);
+    coords.x = clamp(coords.x, 0, sysClipH);
+    coords.y = clamp(coords.y, 0, sysClipV);
+    return coords;
+}
+
+// TODO: might not be needed
+int2 UserClipCoords(const PolyParams poly, int2 coords) {
+    const uint userClipX0 = BitExtract(poly.userClipX, 0, 16);
+    const uint userClipX1 = BitExtract(poly.userClipX, 16, 16);
+    const uint userClipY0 = BitExtract(poly.userClipY, 0, 16);
+    const uint userClipY1 = BitExtract(poly.userClipY, 16, 16);
+    coords.x = clamp(coords.x, userClipX0, max(userClipX0, userClipX1));
+    coords.y = clamp(coords.y, userClipY0, max(userClipY0, userClipY1));
+    return coords;
+}
+
+// TODO: might not be needed
+int2 ClipCoords(const PolyParams poly, int2 coords) {
+    coords = SystemClipCoords(poly, coords);
+    coords = UserClipCoords(poly, coords);
+    return coords;
+}
 
 void DrawNormalSprite(uint index, const PolyParams poly, const uint cmdctrl) {
 }
@@ -108,6 +154,28 @@ void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) 
 }
 
 void DrawPolygon(uint index, const PolyParams poly) {
+    const uint2 localCoord = Extract16S(poly.localCoord, 13);
+    
+    const uint2 rawA = FetchCMDPair(poly.cmdAddress, 0x0C);
+    const uint2 rawB = FetchCMDPair(poly.cmdAddress, 0x10);
+    const uint2 rawC = FetchCMDPair(poly.cmdAddress, 0x14);
+    const uint2 rawD = FetchCMDPair(poly.cmdAddress, 0x18);
+    
+    const int2 A = int2(SignExtend(rawA.x, 13), SignExtend(rawA.y, 13)) + localCoord;
+    const int2 B = int2(SignExtend(rawB.x, 13), SignExtend(rawB.y, 13)) + localCoord;
+    const int2 C = int2(SignExtend(rawC.x, 13), SignExtend(rawC.y, 13)) + localCoord;
+    const int2 D = int2(SignExtend(rawD.x, 13), SignExtend(rawD.y, 13)) + localCoord;
+
+    const uint2 atlasPos = Extract16U(poly.atlasPos);
+    const uint2 atlasEnd = atlasPos + Extract16U(poly.size);
+
+    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+        const uint basePos = y * 1024;
+        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
+            const uint pos = (basePos + x) * 4;
+            polyOut.Store(pos, poly.cmdAddress);
+        }
+    }
 }
 
 void DrawPolylines(uint index, const PolyParams poly) {
@@ -161,10 +229,10 @@ void Draw(uint index) {
             break;
     }
 
-    polyOut.Store(index * 16, poly.atlasPos);
-    polyOut.Store(index * 16 + 4, poly.cmdAddress);
-    polyOut.Store(index * 16 + 8, cmdctrl);
-    polyOut.Store(index * 16 + 12, 0xDEADBEEF);
+    // polyOut.Store(index * 16, poly.atlasPos);
+    // polyOut.Store(index * 16 + 4, poly.cmdAddress);
+    // polyOut.Store(index * 16 + 8, cmdctrl);
+    // polyOut.Store(index * 16 + 12, 0xDEADBEEF);
 }
 
 // -----------------------------------------------------------------------------
