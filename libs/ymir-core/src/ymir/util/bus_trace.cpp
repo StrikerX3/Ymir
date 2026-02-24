@@ -6,11 +6,15 @@
 
 #include <algorithm>
 #include <atomic>
+#include <limits>
+#include <mutex>
 #include <memory>
+#include <new>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <type_traits>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -21,6 +25,21 @@ namespace {
 constexpr uint32 kFileMagic = 0x31525442; // "BTR1"
 constexpr uint16 kFileVersion = 1;
 constexpr size_t kDefaultBufferRecordCount = 500000;
+constexpr uint64 kDefaultReserveRecords = 50000000;
+constexpr uint64 kDefaultMaxBufferMB = 10240;
+constexpr uint64 kMinReserveRecords = 1024;
+
+enum class BusTraceCaptureMode : uint8 {
+    Async = 0,
+    RamOnly = 1,
+};
+
+enum class BusTraceStopReason : uint8 {
+    None = 0,
+    Manual,
+    Shutdown,
+    MemoryCap,
+};
 
 struct BusTraceFileHeader {
     uint32 magic;
@@ -28,7 +47,6 @@ struct BusTraceFileHeader {
     uint16 recordSize;
 };
 
-// Fixed-size on-disk trace record (little-endian host order).
 struct BusTraceBinaryRecord {
     uint64 seq;
     uint64 tickFirstAttempt;
@@ -55,6 +73,9 @@ struct BusTraceConfig {
     uint64 untilTick = 0; // 0 = unlimited
     uint32 sampleRatio = 1;
     uint32 bufferRecords = static_cast<uint32>(kDefaultBufferRecordCount);
+    BusTraceCaptureMode captureMode = BusTraceCaptureMode::Async;
+    uint64 reserveRecords = kDefaultReserveRecords;
+    uint64 maxBufferMB = kDefaultMaxBufferMB;
 };
 
 struct BusTraceWriter {
@@ -65,31 +86,61 @@ struct BusTraceWriter {
     std::unique_ptr<BusTraceBinaryRecord[]> buffers[2];
     uint32 activeBufferIndex = 0;
     uint32 activeCount = 0;
-    uint32 flushCount = 0;
-    uint32 flushBufferIndex = 1;
     uint32 flushTrigger = 0;
-
     std::atomic<bool> flushInProgress{false};
     std::thread flushThread;
+
+    std::vector<BusTraceBinaryRecord> ramBuffer;
+    uint64 reserveRequested = 0;
+    uint64 reserveFinal = 0;
+    uint64 reserveFallbackCount = 0;
+    uint64 maxRecordsByMemory = 0;
 
     std::atomic<uint64> seq{0};
     std::atomic<uint64> emitted{0};
     std::atomic<uint64> seen{0};
     std::atomic<uint64> dropped{0};
+    std::atomic<uint64> rejectedAfterStop{0};
+
+    bool stopReported = false;
 
     ~BusTraceWriter() {
-        active.store(false, std::memory_order_relaxed);
-        FlushAllPending();
-
-        if (config.enabled) {
-            std::printf("Bus trace: STOPPED (records_dropped=%llu)\n",
-                        static_cast<unsigned long long>(dropped.load(std::memory_order_relaxed)));
+        if (active.load(std::memory_order_relaxed)) {
+            StopCapture(BusTraceStopReason::Shutdown);
         }
 
-        if (file) {
-            std::fclose(file);
-            file = nullptr;
+        if (config.captureMode == BusTraceCaptureMode::Async) {
+            JoinFlushThreadIfNeeded();
+            if (file) {
+                std::fclose(file);
+                file = nullptr;
+            }
         }
+    }
+
+    uint64 MaxRecordsLimit() const {
+        if (config.captureMode != BusTraceCaptureMode::RamOnly) {
+            return config.maxRecords;
+        }
+        uint64 limit = maxRecordsByMemory;
+        if (config.maxRecords != 0) {
+            limit = std::min(limit, config.maxRecords);
+        }
+        return limit;
+    }
+
+    const char *CaptureModeToString() const {
+        return config.captureMode == BusTraceCaptureMode::RamOnly ? "ram_only" : "async";
+    }
+
+    static const char *StopReasonToString(BusTraceStopReason reason) {
+        switch (reason) {
+        case BusTraceStopReason::Manual: return "manual";
+        case BusTraceStopReason::Shutdown: return "shutdown";
+        case BusTraceStopReason::MemoryCap: return "memory_cap";
+        case BusTraceStopReason::None: break;
+        }
+        return "unknown";
     }
 
     void JoinFlushThreadIfNeeded() {
@@ -105,23 +156,23 @@ struct BusTraceWriter {
 
         JoinFlushThreadIfNeeded();
 
-        flushBufferIndex = activeBufferIndex;
-        flushCount = activeCount;
+        const uint32 flushBufferIndex = activeBufferIndex;
+        const uint32 flushCount = activeCount;
 
         activeBufferIndex ^= 1u;
         activeCount = 0;
 
         flushInProgress.store(true, std::memory_order_relaxed);
 
-        flushThread = std::thread([this, flushIdx = flushBufferIndex, count = flushCount] {
-            std::fwrite(buffers[flushIdx].get(), sizeof(BusTraceBinaryRecord), count, file);
+        flushThread = std::thread([this, flushBufferIndex, flushCount] {
+            std::fwrite(buffers[flushBufferIndex].get(), sizeof(BusTraceBinaryRecord), flushCount, file);
             flushInProgress.store(false, std::memory_order_relaxed);
         });
 
         return true;
     }
 
-    void FlushAllPending() {
+    void FlushAllPendingAsync() {
         if (!file) {
             return;
         }
@@ -135,6 +186,94 @@ struct BusTraceWriter {
         }
 
         std::fflush(file);
+    }
+
+    bool WriteBinaryFile(const BusTraceBinaryRecord *records, size_t count, uint64 &bytesWritten) {
+        bytesWritten = 0;
+
+        std::FILE *out = std::fopen(config.path.c_str(), "wb");
+        if (!out) {
+            return false;
+        }
+
+        const BusTraceFileHeader header{
+            .magic = kFileMagic,
+            .version = kFileVersion,
+            .recordSize = static_cast<uint16>(sizeof(BusTraceBinaryRecord)),
+        };
+
+        if (std::fwrite(&header, sizeof(header), 1, out) != 1) {
+            std::fclose(out);
+            return false;
+        }
+
+        const size_t writeCount = (count > 0) ? std::fwrite(records, sizeof(BusTraceBinaryRecord), count, out) : 0;
+        std::fflush(out);
+        std::fclose(out);
+
+        if (count > 0 && writeCount != count) {
+            return false;
+        }
+
+        bytesWritten = sizeof(header) + (static_cast<uint64>(count) * sizeof(BusTraceBinaryRecord));
+        return true;
+    }
+
+    void StartCapture() {
+        stopReported = false;
+        seen.store(0, std::memory_order_relaxed);
+        emitted.store(0, std::memory_order_relaxed);
+        dropped.store(0, std::memory_order_relaxed);
+        rejectedAfterStop.store(0, std::memory_order_relaxed);
+        if (config.captureMode == BusTraceCaptureMode::RamOnly) {
+            ramBuffer.clear();
+        }
+        active.store(true, std::memory_order_relaxed);
+
+        if (config.captureMode == BusTraceCaptureMode::RamOnly) {
+            std::printf(
+                "Bus trace config: mode=%s record_size=%zu reserve_records=%llu max_records=%llu estimated_reserve_bytes=%llu max_buffer_bytes=%llu fallback_count=%llu final_reserve=%llu\n",
+                CaptureModeToString(), sizeof(BusTraceBinaryRecord),
+                static_cast<unsigned long long>(reserveRequested), static_cast<unsigned long long>(maxRecordsByMemory),
+                static_cast<unsigned long long>(reserveRequested * sizeof(BusTraceBinaryRecord)),
+                static_cast<unsigned long long>(maxRecordsByMemory * sizeof(BusTraceBinaryRecord)),
+                static_cast<unsigned long long>(reserveFallbackCount), static_cast<unsigned long long>(reserveFinal));
+        }
+    }
+
+    void StopCapture(BusTraceStopReason reason) {
+        if (stopReported && reason != BusTraceStopReason::Shutdown) {
+            active.store(false, std::memory_order_relaxed);
+            return;
+        }
+
+        active.store(false, std::memory_order_relaxed);
+        stopReported = true;
+
+        uint64 bytesWritten = 0;
+        bool writeOk = false;
+        uint64 recordCount = emitted.load(std::memory_order_relaxed);
+
+        if (config.captureMode == BusTraceCaptureMode::RamOnly) {
+            writeOk = WriteBinaryFile(ramBuffer.data(), ramBuffer.size(), bytesWritten);
+            recordCount = ramBuffer.size();
+        } else {
+            FlushAllPendingAsync();
+            if (file) {
+                const long fileBytes = std::ftell(file);
+                if (fileBytes > 0) {
+                    bytesWritten = static_cast<uint64>(fileBytes);
+                }
+            }
+            writeOk = true;
+        }
+
+        std::printf(
+            "Bus trace: STOPPED stop_reason=%s records=%llu bytes_written=%llu output=%s reserve_records=%llu max_records=%llu records_dropped=%llu records_rejected_after_stop=%llu write_ok=%s\n",
+            StopReasonToString(reason), static_cast<unsigned long long>(recordCount), static_cast<unsigned long long>(bytesWritten),
+            config.path.c_str(), static_cast<unsigned long long>(reserveFinal),
+            static_cast<unsigned long long>(MaxRecordsLimit()), static_cast<unsigned long long>(dropped.load(std::memory_order_relaxed)),
+            static_cast<unsigned long long>(rejectedAfterStop.load(std::memory_order_relaxed)), writeOk ? "true" : "false");
     }
 };
 
@@ -205,6 +344,16 @@ uint8 ParseMasterMask(const char *value) {
     return 0xFF;
 }
 
+BusTraceCaptureMode ParseCaptureMode(const char *value) {
+    if (!value || value[0] == '\0' || std::strcmp(value, "async") == 0) {
+        return BusTraceCaptureMode::Async;
+    }
+    if (std::strcmp(value, "ram_only") == 0) {
+        return BusTraceCaptureMode::RamOnly;
+    }
+    return BusTraceCaptureMode::Async;
+}
+
 BusTraceWriter &GetBusTraceWriter() {
     static BusTraceWriter writer;
     static std::once_flag once;
@@ -231,8 +380,11 @@ BusTraceWriter &GetBusTraceWriter() {
         if (const char *addrMaxVar = std::getenv("YMIR_BUS_TRACE_ADDR_MAX"); addrMaxVar && addrMaxVar[0] != '\0') {
             ParseUint32(addrMaxVar, writer.config.addrMax);
         }
+
         writer.config.masterMask = ParseMasterMask(std::getenv("YMIR_BUS_TRACE_MASTER"));
         writer.config.kindMask = ParseKindMask(std::getenv("YMIR_BUS_TRACE_KIND"));
+        writer.config.captureMode = ParseCaptureMode(std::getenv("YMIR_BUS_TRACE_CAPTURE_MODE"));
+
         if (const char *afterVar = std::getenv("YMIR_BUS_TRACE_AFTER_TICK"); afterVar && afterVar[0] != '\0') {
             ParseUint64(afterVar, writer.config.afterTick);
         }
@@ -245,29 +397,79 @@ BusTraceWriter &GetBusTraceWriter() {
                 writer.config.sampleRatio = static_cast<uint32>(sample);
             }
         }
-        if (const char *bufferVar = std::getenv("YMIR_BUS_TRACE_BUFFER_RECORDS"); bufferVar && bufferVar[0] != '\0') {
-            uint64 parsed = 0;
-            if (ParseUint64(bufferVar, parsed) && parsed >= 1024) {
-                writer.config.bufferRecords = static_cast<uint32>(parsed);
+
+        if (writer.config.captureMode == BusTraceCaptureMode::Async) {
+            if (const char *bufferVar = std::getenv("YMIR_BUS_TRACE_BUFFER_RECORDS"); bufferVar && bufferVar[0] != '\0') {
+                uint64 parsed = 0;
+                if (ParseUint64(bufferVar, parsed) && parsed >= 1024 && parsed <= std::numeric_limits<uint32>::max()) {
+                    writer.config.bufferRecords = static_cast<uint32>(parsed);
+                }
+            }
+
+            writer.file = std::fopen(writer.config.path.c_str(), "wb");
+            if (!writer.file) {
+                writer.config.enabled = false;
+                return;
+            }
+
+            const BusTraceFileHeader header{
+                .magic = kFileMagic,
+                .version = kFileVersion,
+                .recordSize = static_cast<uint16>(sizeof(BusTraceBinaryRecord)),
+            };
+            std::fwrite(&header, sizeof(header), 1, writer.file);
+
+            writer.buffers[0] = std::make_unique<BusTraceBinaryRecord[]>(writer.config.bufferRecords);
+            writer.buffers[1] = std::make_unique<BusTraceBinaryRecord[]>(writer.config.bufferRecords);
+            writer.flushTrigger = std::max<uint32>(1, (writer.config.bufferRecords * 80u) / 100u);
+            writer.reserveFinal = writer.config.bufferRecords;
+        } else {
+            uint64 requestedReserve = kDefaultReserveRecords;
+            uint64 maxBufferMB = kDefaultMaxBufferMB;
+
+            if (const char *reserveVar = std::getenv("YMIR_BUS_TRACE_RESERVE_RECORDS"); reserveVar && reserveVar[0] != '\0') {
+                ParseUint64(reserveVar, requestedReserve);
+            }
+            if (const char *maxMbVar = std::getenv("YMIR_BUS_TRACE_MAX_BUFFER_MB"); maxMbVar && maxMbVar[0] != '\0') {
+                ParseUint64(maxMbVar, maxBufferMB);
+            }
+
+            writer.config.reserveRecords = requestedReserve;
+            writer.config.maxBufferMB = maxBufferMB;
+
+            const uint64 bytesPerRecord = sizeof(BusTraceBinaryRecord);
+            const uint64 maxBufferBytes = maxBufferMB * 1024ull * 1024ull;
+            writer.maxRecordsByMemory = (bytesPerRecord == 0) ? 0 : (maxBufferBytes / bytesPerRecord);
+
+            if (writer.maxRecordsByMemory == 0) {
+                writer.config.enabled = false;
+                std::printf("Bus trace: disabled (ram_only max buffer too small for one record)\n");
+                return;
+            }
+
+            writer.reserveRequested = std::min(requestedReserve, writer.maxRecordsByMemory);
+            uint64 reserveTry = writer.reserveRequested;
+
+            while (reserveTry >= kMinReserveRecords) {
+                try {
+                    writer.ramBuffer.reserve(static_cast<size_t>(reserveTry));
+                    writer.reserveFinal = reserveTry;
+                    break;
+                } catch (const std::bad_alloc &) {
+                    ++writer.reserveFallbackCount;
+                    reserveTry /= 2;
+                }
+            }
+
+            if (writer.reserveFinal == 0) {
+                writer.config.enabled = false;
+                std::printf("Bus trace: disabled (failed to reserve RAM buffer, requested=%llu max=%llu fallback_count=%llu)\n",
+                            static_cast<unsigned long long>(writer.reserveRequested),
+                            static_cast<unsigned long long>(writer.maxRecordsByMemory),
+                            static_cast<unsigned long long>(writer.reserveFallbackCount));
+                return;
             }
         }
-
-        writer.file = std::fopen(writer.config.path.c_str(), "wb");
-        if (!writer.file) {
-            writer.config.enabled = false;
-            return;
-        }
-
-        const BusTraceFileHeader header{
-            .magic = kFileMagic,
-            .version = kFileVersion,
-            .recordSize = static_cast<uint16>(sizeof(BusTraceBinaryRecord)),
-        };
-        std::fwrite(&header, sizeof(header), 1, writer.file);
-
-        writer.buffers[0] = std::make_unique<BusTraceBinaryRecord[]>(writer.config.bufferRecords);
-        writer.buffers[1] = std::make_unique<BusTraceBinaryRecord[]>(writer.config.bufferRecords);
-        writer.flushTrigger = std::max<uint32>(1, (writer.config.bufferRecords * 80u) / 100u);
 #else
         (void)writer;
 #endif
@@ -363,10 +565,10 @@ bool ToggleBusTraceActive() {
     }
 
     const bool next = !writer.active.load(std::memory_order_relaxed);
-    writer.active.store(next, std::memory_order_relaxed);
-
-    if (!next) {
-        writer.FlushAllPending();
+    if (next) {
+        writer.StartCapture();
+    } else {
+        writer.StopCapture(BusTraceStopReason::Manual);
     }
 
     return next;
@@ -378,10 +580,14 @@ uint64 GetBusTraceRecordsDropped() {
 
 void EmitBusTraceRecord(const BusTraceRecord &record) {
     BusTraceWriter &writer = GetBusTraceWriter();
-    if (!writer.config.enabled || !writer.file) {
+    if (!writer.config.enabled) {
         return;
     }
+
     if (!writer.active.load(std::memory_order_relaxed)) {
+        if (writer.stopReported) {
+            writer.rejectedAfterStop.fetch_add(1, std::memory_order_relaxed);
+        }
         return;
     }
 
@@ -394,7 +600,31 @@ void EmitBusTraceRecord(const BusTraceRecord &record) {
         return;
     }
 
-    if (writer.config.maxRecords != 0 && writer.emitted.load(std::memory_order_relaxed) >= writer.config.maxRecords) {
+    const uint64 limit = writer.MaxRecordsLimit();
+    if (limit != 0 && writer.emitted.load(std::memory_order_relaxed) >= limit) {
+        if (writer.config.captureMode == BusTraceCaptureMode::RamOnly &&
+            writer.active.exchange(false, std::memory_order_relaxed)) {
+            std::printf("Bus trace: memory cap reached; stopping capture and flushing to disk\n");
+            writer.StopCapture(BusTraceStopReason::MemoryCap);
+        }
+        return;
+    }
+
+    BusTraceBinaryRecord out{};
+    out.seq = writer.seq.fetch_add(1, std::memory_order_relaxed);
+    out.tickFirstAttempt = record.tickFirstAttempt;
+    out.tickComplete = record.tickComplete;
+    out.serviceCycles = record.serviceCycles;
+    out.retries = record.retries;
+    out.addr = record.addr;
+    out.size = record.size;
+    out.master = static_cast<uint8>(record.master);
+    out.write = record.write ? 1 : 0;
+    out.kind = static_cast<uint8>(record.kind);
+
+    if (writer.config.captureMode == BusTraceCaptureMode::RamOnly) {
+        writer.ramBuffer.push_back(out);
+        writer.emitted.fetch_add(1, std::memory_order_relaxed);
         return;
     }
 
@@ -409,18 +639,7 @@ void EmitBusTraceRecord(const BusTraceRecord &record) {
         }
     }
 
-    BusTraceBinaryRecord &out = writer.buffers[writer.activeBufferIndex][writer.activeCount++];
-    out.seq = writer.seq.fetch_add(1, std::memory_order_relaxed);
-    out.tickFirstAttempt = record.tickFirstAttempt;
-    out.tickComplete = record.tickComplete;
-    out.serviceCycles = record.serviceCycles;
-    out.retries = record.retries;
-    out.addr = record.addr;
-    out.size = record.size;
-    out.master = static_cast<uint8>(record.master);
-    out.write = record.write ? 1 : 0;
-    out.kind = static_cast<uint8>(record.kind);
-
+    writer.buffers[writer.activeBufferIndex][writer.activeCount++] = out;
     writer.emitted.fetch_add(1, std::memory_order_relaxed);
 
     if (writer.activeCount >= writer.flushTrigger && !writer.flushInProgress.load(std::memory_order_relaxed)) {
