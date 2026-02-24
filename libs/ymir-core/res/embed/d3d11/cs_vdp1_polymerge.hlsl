@@ -27,7 +27,7 @@ RWByteAddressBuffer fbOut : register(u0);
 
 // -----------------------------------------------------------------------------
 
-static const uint kAtlasStride = 1024;
+static const uint kAtlasStride = 2048;
 
 // -----------------------------------------------------------------------------
 
