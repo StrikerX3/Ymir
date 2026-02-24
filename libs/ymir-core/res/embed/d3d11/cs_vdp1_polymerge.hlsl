@@ -107,7 +107,7 @@ void MergePolys(uint2 pos) {
         const int2 size = Extract16PairS(poly.size);
 
         // Skip out of bounds pixels
-        if (!all(pos >= fbPos) || !all(pos < fbPos + size)) {
+        if (any(pos < fbPos) || any(pos >= fbPos + size)) {
             continue;
         }
         

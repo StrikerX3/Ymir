@@ -843,7 +843,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
         // TODO: framebuffer dimensions
         const uint fbAddr = (pos.x + pos.y * 512) * 2;
         const uint spriteData = ReadSprite16(fbAddr);
-        return uint4(spriteData & 0xFF, (spriteData >> 8) & 0xFF, 0, 0);
+        return uint4(spriteData & 0xFF, (spriteData >> 8) & 0xFF, 0, 1);
     }
     
     return uint4(pos, index * 255, 255);

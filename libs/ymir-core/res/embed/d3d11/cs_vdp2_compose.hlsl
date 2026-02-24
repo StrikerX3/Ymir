@@ -35,7 +35,9 @@ static const uint kBGLayerNBG2 = 2;
 static const uint kBGLayerNBG3 = 3;
 static const uint kBGLayerRBG0 = 4;
 static const uint kBGLayerRBG1 = 5;
-static const uint kBGLayerInvalid = 6;
+static const uint kBGLayerSprite = 6;
+static const uint kBGLayerMesh = 7;
+static const uint kBGLayerInvalid = 8;
 
 static const uint kLayerSprite = 0;
 static const uint kLayerRBG0 = 1;
@@ -105,6 +107,8 @@ bool IsRBGLineColorEnabled(uint layer) {
 
 uint GetBGLayerIndex(uint layer) {
     switch (layer) {
+        case kLayerSprite:
+            return kBGLayerSprite;
         case kLayerRBG0:
             return kBGLayerRBG0;
         case kLayerNBG0_RBG1:
@@ -180,7 +184,6 @@ int3 GetColorOffset(uint layer) {
 uint4 GetLayerOutput(uint layer, uint2 pos) {
     switch (layer) {
         case kLayerSprite:
-            return kTransparentPixel; // TODO: read from sprite layer output
         case kLayerRBG0:
         case kLayerNBG0_RBG1:
         case kLayerNBG1_EXBG:
