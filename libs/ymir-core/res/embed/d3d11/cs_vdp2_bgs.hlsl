@@ -55,6 +55,7 @@ Buffer<uint4> cramColor : register(t1);
 StructuredBuffer<BGRenderState> bgRenderState : register(t2);
 Buffer<uint2> rotRegs : register(t3);
 StructuredBuffer<RotParamState> rotParamState : register(t4);
+ByteAddressBuffer spriteFB : register(t5);
 
 // The alpha channel of the BG output is used for pixel attributes as follows:
 // bits  use
@@ -158,6 +159,14 @@ uint ReadVRAM16(uint address) {
 // Expects address to be 32-bit-aligned
 uint ReadVRAM32(uint address) {
     return ByteSwap32(vram.Load(address));
+}
+
+uint ReadSprite8(uint address) {
+    return BitExtract(spriteFB.Load(address & ~3), (address & 3) * 8, 8);
+}
+
+uint ReadSprite16(uint address) {
+    return ByteSwap16(BitExtract(spriteFB.Load(address & ~3), (address & 2) * 8, 16));
 }
 
 uint GetY(uint y) {
@@ -825,6 +834,22 @@ uint4 DrawRBG(uint2 pos, uint index) {
 
 // -----------------------------------------------------------------------------
 
+uint4 DrawSprite(uint2 pos, uint index) {
+    // index 0 = sprite
+    // index 1 = transparent meshes
+    if (index == 0) {
+        // TODO: 8-bit/16-bit mode
+        // TODO: framebuffer dimensions
+        const uint fbAddr = (pos.x + pos.y * 512) * 2;
+        const uint spriteData = ReadSprite16(fbAddr);
+        return uint4(spriteData & 0xFF, (spriteData >> 8) & 0xFF, 0, 0);
+    }
+    
+    return uint4(pos, index * 255, 255);
+}
+
+// -----------------------------------------------------------------------------
+
 uint4 DrawLineBackScreen(uint index, uint y) {
     const BGRenderState state = bgRenderState[0];
     const bool isLineColor = index == 0; // otherwise back color
@@ -843,14 +868,16 @@ uint4 DrawLineBackScreen(uint index, uint y) {
 
 // -----------------------------------------------------------------------------
 
-[numthreads(32, 1, 6)]
+[numthreads(32, 1, 8)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = id.xy + uint2(0, config.startY);
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z);
     if (id.z < 4) {
         bgOut[outCoord] = DrawNBG(drawCoord, id.z);
-    } else {
+    } else if (id.z < 6) {
         bgOut[outCoord] = DrawRBG(drawCoord, id.z - 4);
+    } else {
+        bgOut[outCoord] = DrawSprite(drawCoord, id.z - 6);
     }
     
     if (id.z == 0 && id.x < 2) {

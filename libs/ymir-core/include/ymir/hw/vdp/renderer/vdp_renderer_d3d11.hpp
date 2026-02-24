@@ -146,10 +146,10 @@ private:
     /// @brief Adds a polygon with the specified dimensions to the current batch.
     /// Submits the current batch and creates a new one if necessary.
     ///
-    /// @param[in] width the polygon width
-    /// @param[in] height the polygon height
+    /// @param[in] topLeft the polygon's top-left coordinates
+    /// @param[in] bottomRight the polygon's bottom-right coordinates
     /// @param[in] cmdAddress the command address in VDP1 VRAM
-    void VDP1AddPolygon(uint32 width, uint32 height, uint32 cmdAddress);
+    void VDP1AddPolygon(CoordS32 topLeft, CoordS32 bottomRight, uint32 cmdAddress);
 
     /// @brief Submits all pending polygons for rendering.
     /// Reinitializes the atlas and clears the pending polygon list afterwards.
