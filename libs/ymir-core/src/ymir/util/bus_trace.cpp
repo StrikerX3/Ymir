@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <atomic>
 #include <limits>
-#include <mutex>
 #include <memory>
 #include <new>
 #include <string>
@@ -101,6 +100,7 @@ struct BusTraceWriter {
     std::atomic<uint64> seen{0};
     std::atomic<uint64> dropped{0};
     std::atomic<uint64> rejectedAfterStop{0};
+    std::atomic<bool> ramFlushInProgress{false};
 
     bool stopReported = false;
     std::atomic<bool> memoryCapWarningPrinted{false};
@@ -110,8 +110,9 @@ struct BusTraceWriter {
             StopCapture(BusTraceStopReason::Shutdown);
         }
 
+        JoinFlushThreadIfNeeded();
+
         if (config.captureMode == BusTraceCaptureMode::Async) {
-            JoinFlushThreadIfNeeded();
             if (file) {
                 std::fclose(file);
                 file = nullptr;
@@ -220,13 +221,74 @@ struct BusTraceWriter {
         return true;
     }
 
-    void StartCapture() {
+    bool EnsureRamBufferAllocated() {
+        if (config.captureMode != BusTraceCaptureMode::RamOnly) {
+            return true;
+        }
+
+        if (ramBuffer && ramCapacity > 0) {
+            return true;
+        }
+
+        if (reserveFinal < kMinReserveRecords) {
+            return false;
+        }
+
+        try {
+            ramBuffer = std::make_unique<BusTraceBinaryRecord[]>(static_cast<size_t>(reserveFinal));
+            ramCapacity = reserveFinal;
+            return true;
+        } catch (const std::bad_alloc &) {
+            return false;
+        }
+    }
+
+    void StartRamFlushInBackground(uint64 recordCount, BusTraceStopReason reason) {
+        if (ramFlushInProgress.exchange(true, std::memory_order_relaxed)) {
+            return;
+        }
+
+        auto flushBuffer = std::move(ramBuffer);
+        ramCapacity = 0;
+
+        std::printf("Bus trace: flushing %llu records to disk in background...\n",
+                    static_cast<unsigned long long>(recordCount));
+
+        JoinFlushThreadIfNeeded();
+        flushThread = std::thread([this, reason, recordCount, flushBuffer = std::move(flushBuffer)]() mutable {
+            uint64 bytesWritten = 0;
+            const bool writeOk = WriteBinaryFile(flushBuffer.get(), static_cast<size_t>(recordCount), bytesWritten);
+
+            std::printf(
+                "Bus trace: flush complete, wrote %llu bytes (records=%llu, reason=%s, output=%s, write_ok=%s)\n",
+                static_cast<unsigned long long>(bytesWritten), static_cast<unsigned long long>(recordCount),
+                StopReasonToString(reason), config.path.c_str(), writeOk ? "true" : "false");
+
+            ramFlushInProgress.store(false, std::memory_order_relaxed);
+        });
+    }
+
+    bool StartCapture() {
         stopReported = false;
         seen.store(0, std::memory_order_relaxed);
         emitted.store(0, std::memory_order_relaxed);
         dropped.store(0, std::memory_order_relaxed);
         rejectedAfterStop.store(0, std::memory_order_relaxed);
         memoryCapWarningPrinted.store(false, std::memory_order_relaxed);
+
+        if (config.captureMode == BusTraceCaptureMode::RamOnly) {
+            if (ramFlushInProgress.load(std::memory_order_relaxed)) {
+                std::printf("Bus trace: flush still in progress; start ignored\n");
+                return false;
+            }
+
+            JoinFlushThreadIfNeeded();
+            if (!EnsureRamBufferAllocated()) {
+                std::printf("Bus trace: failed to allocate RAM capture buffer; start ignored\n");
+                return false;
+            }
+        }
+
         active.store(true, std::memory_order_relaxed);
 
         if (config.captureMode == BusTraceCaptureMode::RamOnly) {
@@ -238,6 +300,8 @@ struct BusTraceWriter {
                 static_cast<unsigned long long>(maxRecordsByMemory * sizeof(BusTraceBinaryRecord)),
                 static_cast<unsigned long long>(reserveFallbackCount), static_cast<unsigned long long>(reserveFinal));
         }
+
+        return true;
     }
 
     void StopCapture(BusTraceStopReason reason) {
@@ -255,7 +319,13 @@ struct BusTraceWriter {
 
         if (config.captureMode == BusTraceCaptureMode::RamOnly) {
             const uint64 count = emitted.load(std::memory_order_relaxed);
-            writeOk = WriteBinaryFile(ramBuffer.get(), static_cast<size_t>(count), bytesWritten);
+            if (count == 0) {
+                writeOk = true;
+                bytesWritten = 0;
+            } else {
+                StartRamFlushInBackground(count, reason);
+                writeOk = true;
+            }
             recordCount = count;
         } else {
             FlushAllPendingAsync();
@@ -567,7 +637,9 @@ bool ToggleBusTraceActive() {
 
     const bool next = !writer.active.load(std::memory_order_relaxed);
     if (next) {
-        writer.StartCapture();
+        if (!writer.StartCapture()) {
+            return false;
+        }
     } else {
         writer.StopCapture(BusTraceStopReason::Manual);
     }
