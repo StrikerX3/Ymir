@@ -541,6 +541,15 @@ BusTraceWriter &GetBusTraceWriter() {
                 return;
             }
         }
+
+        // Auto-start capture immediately if requested (captures from first bus access)
+        if (const char *autoVar = std::getenv("YMIR_BUS_TRACE_AUTO_START"); autoVar && autoVar[0] != '\0' && autoVar[0] != '0') {
+            if (writer.StartCapture()) {
+                std::printf("Bus trace: RECORDING (auto-start)\n");
+            } else {
+                std::printf("Bus trace: auto-start failed\n");
+            }
+        }
 #else
         (void)writer;
 #endif
