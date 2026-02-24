@@ -33,6 +33,7 @@ struct BusTraceRecord {
 bool IsBusTraceEnabled();
 bool IsBusTraceActive();
 bool ToggleBusTraceActive();
+uint64 GetBusTraceRecordsDropped();
 void EmitBusTraceRecord(const BusTraceRecord &record);
 
 // Converts runtime binary trace into JSONL.

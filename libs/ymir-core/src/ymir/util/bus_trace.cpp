@@ -4,11 +4,12 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <algorithm>
 #include <atomic>
-#include <mutex>
+#include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <thread>
 #include <type_traits>
 
 #include <fmt/format.h>
@@ -19,12 +20,8 @@ namespace {
 
 constexpr uint32 kFileMagic = 0x31525442; // "BTR1"
 constexpr uint16 kFileVersion = 1;
-constexpr size_t kBufferRecordCount = 8192;
+constexpr size_t kDefaultBufferRecordCount = 500000;
 
-// File header for bus_trace.bin
-// - magic: "BTR1"
-// - version: format version
-// - recordSize: sizeof(BusTraceBinaryRecord) for compatibility checks
 struct BusTraceFileHeader {
     uint32 magic;
     uint16 version;
@@ -57,37 +54,87 @@ struct BusTraceConfig {
     uint64 afterTick = 0;
     uint64 untilTick = 0; // 0 = unlimited
     uint32 sampleRatio = 1;
+    uint32 bufferRecords = static_cast<uint32>(kDefaultBufferRecordCount);
 };
 
 struct BusTraceWriter {
     BusTraceConfig config;
     std::atomic<bool> active{false};
     std::FILE *file = nullptr;
-    std::vector<BusTraceBinaryRecord> buffer;
-    std::mutex mutex;
+
+    std::unique_ptr<BusTraceBinaryRecord[]> buffers[2];
+    uint32 activeBufferIndex = 0;
+    uint32 activeCount = 0;
+    uint32 flushCount = 0;
+    uint32 flushBufferIndex = 1;
+    uint32 flushTrigger = 0;
+
+    std::atomic<bool> flushInProgress{false};
+    std::thread flushThread;
+
     std::atomic<uint64> seq{0};
     std::atomic<uint64> emitted{0};
     std::atomic<uint64> seen{0};
+    std::atomic<uint64> dropped{0};
 
     ~BusTraceWriter() {
-        Flush();
+        active.store(false, std::memory_order_relaxed);
+        FlushAllPending();
+
+        if (config.enabled) {
+            std::printf("Bus trace: STOPPED (records_dropped=%llu)\n",
+                        static_cast<unsigned long long>(dropped.load(std::memory_order_relaxed)));
+        }
+
         if (file) {
             std::fclose(file);
             file = nullptr;
         }
     }
 
-    void Flush() {
-        std::lock_guard lock(mutex);
-        FlushLocked();
+    void JoinFlushThreadIfNeeded() {
+        if (flushThread.joinable()) {
+            flushThread.join();
+        }
     }
 
-    void FlushLocked() {
-        if (!file || buffer.empty()) {
+    bool StartAsyncFlushFromActiveBuffer() {
+        if (!file || flushInProgress.load(std::memory_order_relaxed) || activeCount == 0) {
+            return false;
+        }
+
+        JoinFlushThreadIfNeeded();
+
+        flushBufferIndex = activeBufferIndex;
+        flushCount = activeCount;
+
+        activeBufferIndex ^= 1u;
+        activeCount = 0;
+
+        flushInProgress.store(true, std::memory_order_relaxed);
+
+        flushThread = std::thread([this, flushIdx = flushBufferIndex, count = flushCount] {
+            std::fwrite(buffers[flushIdx].get(), sizeof(BusTraceBinaryRecord), count, file);
+            flushInProgress.store(false, std::memory_order_relaxed);
+        });
+
+        return true;
+    }
+
+    void FlushAllPending() {
+        if (!file) {
             return;
         }
-        std::fwrite(buffer.data(), sizeof(BusTraceBinaryRecord), buffer.size(), file);
-        buffer.clear();
+
+        JoinFlushThreadIfNeeded();
+        flushInProgress.store(false, std::memory_order_relaxed);
+
+        if (activeCount > 0) {
+            std::fwrite(buffers[activeBufferIndex].get(), sizeof(BusTraceBinaryRecord), activeCount, file);
+            activeCount = 0;
+        }
+
+        std::fflush(file);
     }
 };
 
@@ -112,7 +159,6 @@ bool ParseUint32(const char *value, uint32 &out) {
     out = static_cast<uint32>(tmp);
     return true;
 }
-
 
 uint32 ParseKindMask(const char *value) {
     if (!value || value[0] == '\0' || std::strcmp(value, "ALL") == 0) {
@@ -199,6 +245,12 @@ BusTraceWriter &GetBusTraceWriter() {
                 writer.config.sampleRatio = static_cast<uint32>(sample);
             }
         }
+        if (const char *bufferVar = std::getenv("YMIR_BUS_TRACE_BUFFER_RECORDS"); bufferVar && bufferVar[0] != '\0') {
+            uint64 parsed = 0;
+            if (ParseUint64(bufferVar, parsed) && parsed >= 1024) {
+                writer.config.bufferRecords = static_cast<uint32>(parsed);
+            }
+        }
 
         writer.file = std::fopen(writer.config.path.c_str(), "wb");
         if (!writer.file) {
@@ -213,7 +265,9 @@ BusTraceWriter &GetBusTraceWriter() {
         };
         std::fwrite(&header, sizeof(header), 1, writer.file);
 
-        writer.buffer.reserve(kBufferRecordCount);
+        writer.buffers[0] = std::make_unique<BusTraceBinaryRecord[]>(writer.config.bufferRecords);
+        writer.buffers[1] = std::make_unique<BusTraceBinaryRecord[]>(writer.config.bufferRecords);
+        writer.flushTrigger = std::max<uint32>(1, (writer.config.bufferRecords * 80u) / 100u);
 #else
         (void)writer;
 #endif
@@ -310,7 +364,16 @@ bool ToggleBusTraceActive() {
 
     const bool next = !writer.active.load(std::memory_order_relaxed);
     writer.active.store(next, std::memory_order_relaxed);
+
+    if (!next) {
+        writer.FlushAllPending();
+    }
+
     return next;
+}
+
+uint64 GetBusTraceRecordsDropped() {
+    return GetBusTraceWriter().dropped.load(std::memory_order_relaxed);
 }
 
 void EmitBusTraceRecord(const BusTraceRecord &record) {
@@ -335,7 +398,18 @@ void EmitBusTraceRecord(const BusTraceRecord &record) {
         return;
     }
 
-    BusTraceBinaryRecord out{};
+    if (writer.activeCount >= writer.config.bufferRecords) {
+        if (!writer.flushInProgress.load(std::memory_order_relaxed)) {
+            writer.StartAsyncFlushFromActiveBuffer();
+        }
+
+        if (writer.activeCount >= writer.config.bufferRecords) {
+            writer.dropped.fetch_add(1, std::memory_order_relaxed);
+            return;
+        }
+    }
+
+    BusTraceBinaryRecord &out = writer.buffers[writer.activeBufferIndex][writer.activeCount++];
     out.seq = writer.seq.fetch_add(1, std::memory_order_relaxed);
     out.tickFirstAttempt = record.tickFirstAttempt;
     out.tickComplete = record.tickComplete;
@@ -347,16 +421,10 @@ void EmitBusTraceRecord(const BusTraceRecord &record) {
     out.write = record.write ? 1 : 0;
     out.kind = static_cast<uint8>(record.kind);
 
-    {
-        std::lock_guard lock(writer.mutex);
-        if (writer.config.maxRecords != 0 && writer.emitted.load(std::memory_order_relaxed) >= writer.config.maxRecords) {
-            return;
-        }
-        writer.buffer.push_back(out);
-        writer.emitted.fetch_add(1, std::memory_order_relaxed);
-        if (writer.buffer.size() >= kBufferRecordCount) {
-            writer.FlushLocked();
-        }
+    writer.emitted.fetch_add(1, std::memory_order_relaxed);
+
+    if (writer.activeCount >= writer.flushTrigger && !writer.flushInProgress.load(std::memory_order_relaxed)) {
+        writer.StartAsyncFlushFromActiveBuffer();
     }
 }
 

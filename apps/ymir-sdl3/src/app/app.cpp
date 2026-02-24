@@ -2210,7 +2210,12 @@ void App::RunEmulator() {
                 if (evt.key.scancode == SDL_SCANCODE_F10 && evt.key.down && !evt.key.repeat) {
                     if (ymir::trace::IsBusTraceEnabled()) {
                         const bool active = ymir::trace::ToggleBusTraceActive();
-                        std::printf("Bus trace: %s\n", active ? "RECORDING" : "STOPPED");
+                        if (active) {
+                            std::printf("Bus trace: RECORDING\n");
+                        } else {
+                            std::printf("Bus trace: STOPPED (records_dropped=%llu)\n",
+                                        static_cast<unsigned long long>(ymir::trace::GetBusTraceRecordsDropped()));
+                        }
                     }
                 }
                 break;
