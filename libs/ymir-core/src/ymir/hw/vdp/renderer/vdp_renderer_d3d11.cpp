@@ -97,9 +97,9 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11UnorderedAccessView *uavVDP1FBRAM = nullptr; //< UAV for VDP1 framebuffer RAM buffer
     ID3D11Buffer *bufVDP1FBRAMStaging = nullptr;       //< VDP1 framebuffer RAM staging buffer (CPU<->GPU transfers)
 
-    ID3D11Buffer *bufVDP1Polys = nullptr;              //< VDP1 polygon atlas buffer
-    ID3D11ShaderResourceView *srvVDP1Polys = nullptr;  //< SRV for VDP1 polygon atlas buffer
-    ID3D11UnorderedAccessView *uavVDP1Polys = nullptr; //< UAV for VDP1 polygon atlas buffer
+    ID3D11Buffer *bufVDP1PolyAtlas = nullptr;              //< VDP1 polygon atlas buffer
+    ID3D11ShaderResourceView *srvVDP1PolyAtlas = nullptr;  //< SRV for VDP1 polygon atlas buffer
+    ID3D11UnorderedAccessView *uavVDP1PolyAtlas = nullptr; //< UAV for VDP1 polygon atlas buffer
 
     ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
     ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
@@ -129,8 +129,8 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ComputeShader *csVDP1PolyMerge = nullptr; //< VDP1 polygon merger compute shader
 
     ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer (sprite, mesh)
-    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output textures
-    ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output textures
+    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output buffer
+    ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output buffer
 
     // =========================================================================
 
@@ -259,16 +259,16 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1FBRAMStaging, "[Ymir D3D11] VDP1 FBRAM staging buffer");
 
-    if (HRESULT hr =
-            devMgr.CreateByteAddressBuffer(m_context->bufVDP1Polys, &m_context->srvVDP1Polys, &m_context->uavVDP1Polys,
-                                           kVDP1PolyAtlasH * kVDP1PolyAtlasV, nullptr, 0, 0);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyAtlas, &m_context->srvVDP1PolyAtlas,
+                                                    &m_context->uavVDP1PolyAtlas, kVDP1PolyAtlasH * kVDP1PolyAtlasV,
+                                                    nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas buffer");
-    SetDebugName(m_context->srvVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas SRV");
-    SetDebugName(m_context->uavVDP1Polys, "[Ymir D3D11] VDP1 polygon atlas UAV");
+    SetDebugName(m_context->bufVDP1PolyAtlas, "[Ymir D3D11] VDP1 polygon atlas buffer");
+    SetDebugName(m_context->srvVDP1PolyAtlas, "[Ymir D3D11] VDP1 polygon atlas SRV");
+    SetDebugName(m_context->uavVDP1PolyAtlas, "[Ymir D3D11] VDP1 polygon atlas UAV");
 
     if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
                                                    m_context->cpuVDP1PolyParams.size(),
@@ -813,14 +813,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
     // Render polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1Polys});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyAtlas});
     ctx.CSSetShader(m_context->csVDP1PolyDraw);
     ctx.Dispatch(1, 1, m_context->cpuVDP1PolyParamsCount);
 
     // Merge polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
-    ctx.CSSetShaderResources({m_context->srvVDP1Polys, m_context->srvVDP1PolyParams});
+    ctx.CSSetShaderResources({m_context->srvVDP1PolyAtlas, m_context->srvVDP1PolyParams});
     ctx.CSSetShader(m_context->csVDP1PolyMerge);
     ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
 

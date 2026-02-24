@@ -53,7 +53,7 @@ static const uint kCommandDrawPolylinesAlt = 0x7;
 static const uint kCommandDrawLine = 0x6;
 // No other commands should hit the renderer
 
-static const uint kAtlasStride = 1024;
+static const uint kAtlasStride = 2048;
 
 // -----------------------------------------------------------------------------
 
