@@ -1595,6 +1595,8 @@ FORCE_INLINE bool SH2::CheckBusWait(uint32 address, uint32 size, bool write) {
 #endif
 
     const bool stalled = m_bus.IsBusWait(address, size, write);
+    // NOTE: If stalled is always false in a scenario, retries will remain zero; trace-side instrumentation
+    // cannot infer contention that the underlying bus wait model does not currently surface.
 
 #if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     if (stalled && ymir::trace::IsBusTraceEnabled()) {

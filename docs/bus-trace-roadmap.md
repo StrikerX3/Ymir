@@ -29,15 +29,15 @@ Make the trace **accurate enough to analyze contention** (MSH2/SSH2/DMA timing i
 #### Tasks
 - [x] **Trace path parity audit: MSH2 vs SSH2** (same hooks in shared SH2 core)
 - [x] **Check for master-only gating bugs** (none found; emit tags by `m_isMaster`)
-- [ ] **Check alternate execution paths**
+- [x] **Check alternate execution paths** (shared SH-2 code path confirmed; no master-only bypass found)
 - [x] **Tag master source explicitly at emit point**
-- [ ] **Validate SSH2 fetch + mem separately**
-- [ ] **Test with a known scene/game boot where SSH2 should be active**
+- [x] **Validate SSH2 fetch + mem separately** (SSH2-only run captured 200K events)
+- [x] **Test with a known scene/game boot where SSH2 should be active** (clean all-master gameplay window captured both MSH2/SSH2)
 
 #### Acceptance criteria
-- [ ] SSH2 records are present beyond reset vectors in real traces
-- [ ] SSH2 contributes meaningful activity in game boot / active scenes
-- [ ] SSH2 events include correct kinds (`ifetch`, `read`, `write`, etc.)
+- [x] SSH2 records are present beyond reset vectors in real traces
+- [x] SSH2 contributes meaningful activity in game boot / active scenes
+- [x] SSH2 events include correct kinds (`ifetch`, `read`, `write`, etc.)
 
 ---
 
@@ -108,3 +108,15 @@ Convert and summarize:
 bus-trace-convert bus_trace.bin bus_trace.jsonl
 bus-trace-convert --summary bus_trace.bin
 ```
+
+
+## Latest trace findings
+
+- SSH2 tracing is functioning; early “missing SSH2” observations were capture-window/cap artifacts when MSH2 filled the record cap first.
+- DMA tracing is situational (present in boot traces, absent in some gameplay windows), matching game behavior rather than instrumentation failure.
+- `retries` remains zero across all provided runs because `IsBusWait()` did not report stalls in tested scenarios; this indicates the current Ymir timing model is not producing master-contention waits in those paths.
+- `YMIR_BUS_TRACE_AFTER_TICK` and `YMIR_BUS_TRACE_MASTER` filters were validated; note that env vars persist across terminal sessions and can unintentionally constrain later captures.
+
+### Blocked P0 acceptance items (model-dependent)
+
+The remaining P0 retry acceptance checks require contention signals from emulator timing (`IsBusWait()==true`) during SH-2 memory accesses. Without that behavior in the current model/workload, trace-side instrumentation cannot create non-zero retries.
