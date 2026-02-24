@@ -53,6 +53,10 @@ struct BusTraceConfig {
     uint32 addrMin = 0;
     uint32 addrMax = 0xFFFFFFFFu;
     uint8 masterMask = 0xFF;
+    uint32 kindMask = 0xFFFFFFFFu;
+    uint64 afterTick = 0;
+    uint64 untilTick = 0; // 0 = unlimited
+    uint32 sampleRatio = 1;
 };
 
 struct BusTraceWriter {
@@ -62,6 +66,7 @@ struct BusTraceWriter {
     std::mutex mutex;
     std::atomic<uint64> seq{0};
     std::atomic<uint64> emitted{0};
+    std::atomic<uint64> seen{0};
 
     ~BusTraceWriter() {
         Flush();
@@ -107,6 +112,36 @@ bool ParseUint32(const char *value, uint32 &out) {
     return true;
 }
 
+
+uint32 ParseKindMask(const char *value) {
+    if (!value || value[0] == '\0' || std::strcmp(value, "ALL") == 0) {
+        return 0xFFFFFFFFu;
+    }
+    if (std::strcmp(value, "IFETCH") == 0) {
+        return 1u << static_cast<uint8>(BusTraceAccessKind::IFetch);
+    }
+    if (std::strcmp(value, "DATA") == 0) {
+        return (1u << static_cast<uint8>(BusTraceAccessKind::Read)) |
+               (1u << static_cast<uint8>(BusTraceAccessKind::Write));
+    }
+    if (std::strcmp(value, "MMIO") == 0) {
+        return (1u << static_cast<uint8>(BusTraceAccessKind::MMIORead)) |
+               (1u << static_cast<uint8>(BusTraceAccessKind::MMIOWrite));
+    }
+    if (std::strcmp(value, "READ") == 0) {
+        return (1u << static_cast<uint8>(BusTraceAccessKind::Read)) |
+               (1u << static_cast<uint8>(BusTraceAccessKind::MMIORead));
+    }
+    if (std::strcmp(value, "WRITE") == 0) {
+        return (1u << static_cast<uint8>(BusTraceAccessKind::Write)) |
+               (1u << static_cast<uint8>(BusTraceAccessKind::MMIOWrite));
+    }
+    if (std::strcmp(value, "DMA") == 0) {
+        return 1u << static_cast<uint8>(BusTraceAccessKind::Write);
+    }
+    return 0xFFFFFFFFu;
+}
+
 uint8 ParseMasterMask(const char *value) {
     if (!value || value[0] == '\0' || std::strcmp(value, "ALL") == 0) {
         return 0xFF;
@@ -150,6 +185,19 @@ BusTraceWriter &GetBusTraceWriter() {
             ParseUint32(addrMaxVar, writer.config.addrMax);
         }
         writer.config.masterMask = ParseMasterMask(std::getenv("YMIR_BUS_TRACE_MASTER"));
+        writer.config.kindMask = ParseKindMask(std::getenv("YMIR_BUS_TRACE_KIND"));
+        if (const char *afterVar = std::getenv("YMIR_BUS_TRACE_AFTER_TICK"); afterVar && afterVar[0] != '\0') {
+            ParseUint64(afterVar, writer.config.afterTick);
+        }
+        if (const char *untilVar = std::getenv("YMIR_BUS_TRACE_UNTIL_TICK"); untilVar && untilVar[0] != '\0') {
+            ParseUint64(untilVar, writer.config.untilTick);
+        }
+        if (const char *sampleVar = std::getenv("YMIR_BUS_TRACE_SAMPLE_RATIO"); sampleVar && sampleVar[0] != '\0') {
+            uint64 sample = 1;
+            if (ParseUint64(sampleVar, sample) && sample > 0) {
+                writer.config.sampleRatio = static_cast<uint32>(sample);
+            }
+        }
 
         writer.file = std::fopen(writer.config.path.c_str(), "wb");
         if (!writer.file) {
@@ -178,8 +226,20 @@ bool PassFilters(const BusTraceConfig &cfg, const BusTraceRecord &record) {
         return false;
     }
 
-    const uint8 mask = 1u << static_cast<uint8>(record.master);
-    if ((cfg.masterMask & mask) == 0) {
+    const uint8 masterMask = 1u << static_cast<uint8>(record.master);
+    if ((cfg.masterMask & masterMask) == 0) {
+        return false;
+    }
+
+    const uint32 kindMask = 1u << static_cast<uint8>(record.kind);
+    if ((cfg.kindMask & kindMask) == 0) {
+        return false;
+    }
+
+    if (record.tickFirstAttempt < cfg.afterTick) {
+        return false;
+    }
+    if (cfg.untilTick != 0 && record.tickFirstAttempt > cfg.untilTick) {
         return false;
     }
 
@@ -243,6 +303,11 @@ void EmitBusTraceRecord(const BusTraceRecord &record) {
     }
 
     if (!PassFilters(writer.config, record)) {
+        return;
+    }
+
+    const uint64 seen = writer.seen.fetch_add(1, std::memory_order_relaxed);
+    if (writer.config.sampleRatio > 1 && (seen % writer.config.sampleRatio) != 0) {
         return;
     }
 

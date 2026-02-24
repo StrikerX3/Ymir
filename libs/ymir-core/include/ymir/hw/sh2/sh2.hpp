@@ -936,6 +936,11 @@ private:
 
     template <bool write, bool instrFetch, bool enableCache>
     void TraceBusAccessComplete(uint32 address, uint32 size);
+
+    void BeginPendingBusAccess(uint32 address, uint32 size, bool write, uint64 tickNow);
+    void OnPendingBusAccessRetry(uint32 address, uint32 size, bool write);
+    bool CompletePendingBusAccess(uint32 address, uint32 size, bool write, uint64 &tickFirstAttempt, uint64 &retries);
+    void CancelPendingBusAccess();
 #endif
 
     // -------------------------------------------------------------------------

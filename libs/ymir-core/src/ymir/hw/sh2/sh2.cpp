@@ -264,6 +264,10 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     SBYCR.u8 = 0x00;
     m_sleep = false;
 
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
+    CancelPendingBusAccess();
+#endif
+
     DIVU.Reset();
     FRT.Reset();
     INTC.Reset();
@@ -1545,29 +1549,56 @@ FORCE_INLINE uint64 SH2::GetCurrentCycleCount() const {
     return m_scheduler.CurrentCount() + m_cyclesExecuted;
 }
 
+#if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
+void SH2::BeginPendingBusAccess(uint32 address, uint32 size, bool write, uint64 tickNow) {
+    if (m_busTracePendingAccess.active) {
+        return;
+    }
+    m_busTracePendingAccess.active = true;
+    m_busTracePendingAccess.address = address;
+    m_busTracePendingAccess.size = size;
+    m_busTracePendingAccess.write = write;
+    m_busTracePendingAccess.tickFirstAttempt = tickNow;
+    m_busTracePendingAccess.retries = 0;
+}
+
+void SH2::OnPendingBusAccessRetry(uint32 address, uint32 size, bool write) {
+    if (!m_busTracePendingAccess.active || m_busTracePendingAccess.address != address ||
+        m_busTracePendingAccess.size != size || m_busTracePendingAccess.write != write) {
+        return;
+    }
+    ++m_busTracePendingAccess.retries;
+}
+
+bool SH2::CompletePendingBusAccess(uint32 address, uint32 size, bool write, uint64 &tickFirstAttempt, uint64 &retries) {
+    if (!m_busTracePendingAccess.active || m_busTracePendingAccess.address != address ||
+        m_busTracePendingAccess.size != size || m_busTracePendingAccess.write != write) {
+        return false;
+    }
+
+    tickFirstAttempt = m_busTracePendingAccess.tickFirstAttempt;
+    retries = m_busTracePendingAccess.retries;
+    m_busTracePendingAccess.active = false;
+    return true;
+}
+
+void SH2::CancelPendingBusAccess() {
+    m_busTracePendingAccess.active = false;
+}
+#endif
+
 FORCE_INLINE bool SH2::CheckBusWait(uint32 address, uint32 size, bool write) {
 #if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     if (ymir::trace::IsBusTraceEnabled()) {
-        const uint64 tickNow = GetCurrentCycleCount();
-        if (!m_busTracePendingAccess.active || m_busTracePendingAccess.address != address ||
-            m_busTracePendingAccess.size != size || m_busTracePendingAccess.write != write) {
-            m_busTracePendingAccess.active = true;
-            m_busTracePendingAccess.address = address;
-            m_busTracePendingAccess.size = size;
-            m_busTracePendingAccess.write = write;
-            m_busTracePendingAccess.tickFirstAttempt = tickNow;
-            m_busTracePendingAccess.retries = 0;
-        }
+        BeginPendingBusAccess(address, size, write, GetCurrentCycleCount());
     }
 #endif
 
     const bool stalled = m_bus.IsBusWait(address, size, write);
 
 #if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
-    if (stalled && ymir::trace::IsBusTraceEnabled() && m_busTracePendingAccess.active &&
-        m_busTracePendingAccess.address == address && m_busTracePendingAccess.size == size &&
-        m_busTracePendingAccess.write == write) {
-        ++m_busTracePendingAccess.retries;
+    if (stalled && ymir::trace::IsBusTraceEnabled()) {
+        OnPendingBusAccessRetry(address, size, write);
     }
 #endif
 
@@ -1585,14 +1616,7 @@ void SH2::TraceBusAccessComplete(uint32 address, uint32 size) {
     uint64 tickFirstAttempt = GetCurrentCycleCount();
     uint64 retries = 0;
 
-    if (m_busTracePendingAccess.active) {
-        if (m_busTracePendingAccess.address == address && m_busTracePendingAccess.size == size &&
-            m_busTracePendingAccess.write == write) {
-            tickFirstAttempt = m_busTracePendingAccess.tickFirstAttempt;
-            retries = m_busTracePendingAccess.retries;
-        }
-        m_busTracePendingAccess.active = false;
-    }
+    CompletePendingBusAccess(address, size, write, tickFirstAttempt, retries);
 
     const uint32 partition = (address >> 29u) & 0b111u;
     const auto kind = instrFetch ? ymir::trace::BusTraceAccessKind::IFetch
