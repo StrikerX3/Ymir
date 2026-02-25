@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -8,7 +9,7 @@
 namespace busarb {
 
 inline constexpr std::uint32_t kApiVersionMajor = 1;
-inline constexpr std::uint32_t kApiVersionMinor = 1;
+inline constexpr std::uint32_t kApiVersionMinor = 2;
 inline constexpr std::uint32_t kApiVersionPatch = 0;
 
 enum class BusMasterId : std::uint8_t {
@@ -60,16 +61,25 @@ public:
 
     [[nodiscard]] std::optional<std::size_t> pick_winner(const std::vector<BusRequest> &same_tick_requests) const;
     [[nodiscard]] std::uint64_t bus_free_tick() const;
+    [[nodiscard]] std::uint64_t bus_free_tick(std::uint32_t addr) const;
 
 private:
+    struct DomainState {
+        std::uint64_t bus_free_tick = 0;
+        bool has_last_granted_addr = false;
+        std::uint32_t last_granted_addr = 0;
+        std::optional<BusMasterId> last_granted_master = std::nullopt;
+    };
+
+    [[nodiscard]] static std::size_t domain_index(std::uint32_t addr);
+    [[nodiscard]] DomainState &domain_state(std::uint32_t addr);
+    [[nodiscard]] const DomainState &domain_state(std::uint32_t addr) const;
     [[nodiscard]] std::uint32_t service_cycles(const BusRequest &req) const;
     [[nodiscard]] static int priority(BusMasterId id);
 
     TimingCallbacks callbacks_{};
     ArbiterConfig config_{};
-    std::uint64_t bus_free_tick_ = 0;
-    bool has_last_granted_addr_ = false;
-    std::uint32_t last_granted_addr_ = 0;
+    std::array<DomainState, 5> domain_states_{};
     std::optional<BusMasterId> last_granted_cpu_ = std::nullopt;
 };
 

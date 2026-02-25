@@ -10,25 +10,29 @@ Arbiter::Arbiter(TimingCallbacks callbacks, ArbiterConfig config) : callbacks_(c
 }
 
 BusWaitResult Arbiter::query_wait(const BusRequest &req) const {
-    if (req.now_tick >= bus_free_tick_) {
+    const DomainState &state = domain_state(req.addr);
+    if (req.now_tick >= state.bus_free_tick) {
         return BusWaitResult{false, 0U};
     }
-    const std::uint64_t delta = bus_free_tick_ - req.now_tick;
+    const std::uint64_t delta = state.bus_free_tick - req.now_tick;
     return BusWaitResult{true, static_cast<std::uint32_t>(std::min<std::uint64_t>(delta, 0xFFFFFFFFULL))};
 }
 
 void Arbiter::commit_grant(const BusRequest &req, std::uint64_t tick_start, bool had_tie) {
-    const std::uint64_t actual_start = std::max(tick_start, bus_free_tick_);
+    DomainState &state = domain_state(req.addr);
+    const std::uint64_t actual_start = std::max(tick_start, state.bus_free_tick);
     std::uint64_t duration = service_cycles(req);
-    if (has_last_granted_addr_ && req.addr == last_granted_addr_) {
+    if (state.has_last_granted_addr && req.addr == state.last_granted_addr && state.last_granted_master.has_value() &&
+        *state.last_granted_master != req.master_id) {
         duration += config_.same_address_contention;
     }
     if (had_tie) {
         duration += config_.tie_turnaround;
     }
-    bus_free_tick_ = actual_start + duration;
-    has_last_granted_addr_ = true;
-    last_granted_addr_ = req.addr;
+    state.bus_free_tick = actual_start + duration;
+    state.has_last_granted_addr = true;
+    state.last_granted_addr = req.addr;
+    state.last_granted_master = req.master_id;
     if (req.master_id == BusMasterId::SH2_A || req.master_id == BusMasterId::SH2_B) {
         last_granted_cpu_ = req.master_id;
     }
@@ -94,12 +98,44 @@ std::optional<std::size_t> Arbiter::pick_winner(const std::vector<BusRequest> &s
 }
 
 std::uint64_t Arbiter::bus_free_tick() const {
-    return bus_free_tick_;
+    std::uint64_t max_tick = 0;
+    for (const DomainState &state : domain_states_) {
+        max_tick = std::max(max_tick, state.bus_free_tick);
+    }
+    return max_tick;
+}
+
+std::uint64_t Arbiter::bus_free_tick(std::uint32_t addr) const {
+    return domain_state(addr).bus_free_tick;
 }
 
 std::uint32_t Arbiter::service_cycles(const BusRequest &req) const {
     const std::uint32_t cycles = callbacks_.access_cycles(callbacks_.ctx, req.addr, req.is_write, req.size_bytes);
     return std::max(1U, cycles);
+}
+
+std::size_t Arbiter::domain_index(std::uint32_t addr) {
+    if (addr <= 0x00F'FFFF) {
+        return 0; // BIOS ROM
+    }
+    if (addr >= 0x020'0000 && addr <= 0x02F'FFFF) {
+        return 1; // WRAM-L
+    }
+    if (addr >= 0x200'0000 && addr <= 0x4FF'FFFF) {
+        return 2; // A-Bus CS0/CS1
+    }
+    if (addr >= 0x600'0000 && addr <= 0x7FF'FFFF) {
+        return 3; // WRAM-H
+    }
+    return 4; // fallback/unmanaged
+}
+
+Arbiter::DomainState &Arbiter::domain_state(std::uint32_t addr) {
+    return domain_states_[domain_index(addr)];
+}
+
+const Arbiter::DomainState &Arbiter::domain_state(std::uint32_t addr) const {
+    return domain_states_[domain_index(addr)];
 }
 
 int Arbiter::priority(BusMasterId id) {

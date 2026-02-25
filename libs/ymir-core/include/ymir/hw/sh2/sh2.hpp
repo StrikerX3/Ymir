@@ -40,6 +40,7 @@
 #include <bitset>
 #include <iosfwd>
 #include <map>
+#include <optional>
 #include <set>
 
 namespace busarb {
@@ -673,9 +674,14 @@ private:
 
     // Number of cycles executed in the current Advance invocation
     uint64 m_cyclesExecuted;
+    std::optional<uint64> m_instructionArbiterNowTick = std::nullopt;
 
     // Retrieves the current absolute cycle count
     uint64 GetCurrentCycleCount() const;
+    uint64 GetArbiterNowTick() const;
+    void BeginInstructionArbiterWindow();
+    void EndInstructionArbiterWindow();
+    void AdvanceArbiterNowTick(uint64 cycles);
 
     // -------------------------------------------------------------------------
     // Memory accessors
@@ -958,7 +964,7 @@ private:
     FORCE_INLINE bool CheckBusWait(uint32 address, uint32 size, bool write);
     FORCE_INLINE bool ShouldUseArbiter(uint32 address, uint32 &busAddress) const;
     FORCE_INLINE static bool IsArbiterManagedBusAddress(uint32 busAddress);
-    FORCE_INLINE uint64 ApplyArbiterWait(uint32 busAddress, uint32 size, bool write, uint64 baseCycles) const;
+    FORCE_INLINE uint64 ApplyArbiterWait(uint32 busAddress, uint32 size, bool write, uint64 baseCycles);
 
     void SetupDelaySlot(uint32 targetAddress);
 

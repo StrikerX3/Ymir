@@ -277,6 +277,7 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
 
     m_delaySlotTarget = 0;
     m_delaySlot = false;
+    m_instructionArbiterNowTick.reset();
 
     m_cache.Reset();
 }
@@ -344,7 +345,10 @@ FLATTEN uint64 SH2::Advance(uint64 cycles, uint64 spilloverCycles) {
         // [[maybe_unused]] const uint32 prevPC = PC; // debug aid
 
         // TODO: choose between interpreter (cached or uncached) and JIT recompiler
-        m_cyclesExecuted += InterpretNext<debug, enableCache>();
+        BeginInstructionArbiterWindow();
+        const uint64 instructionCycles = InterpretNext<debug, enableCache>();
+        EndInstructionArbiterWindow();
+        m_cyclesExecuted += instructionCycles;
 
         // If PC is not in any of these places, something went horribly wrong
 
@@ -394,7 +398,9 @@ FLATTEN uint64 SH2::Step() {
     m_cyclesExecuted = 0; // so that AdvanceWDT/FRT sync to the scheduler time
     AdvanceWDT<false>();
     AdvanceFRT<false>();
+    BeginInstructionArbiterWindow();
     m_cyclesExecuted = InterpretNext<debug, enableCache>();
+    EndInstructionArbiterWindow();
     AdvanceDMA<debug, enableCache>(m_cyclesExecuted);
     return m_cyclesExecuted;
 }
@@ -925,7 +931,7 @@ FORCE_INLINE bool SH2::ShouldUseArbiter(uint32 address, uint32 &busAddress) cons
     return IsArbiterManagedBusAddress(busAddress);
 }
 
-FORCE_INLINE uint64 SH2::ApplyArbiterWait(uint32 busAddress, uint32 size, bool write, uint64 baseCycles) const {
+FORCE_INLINE uint64 SH2::ApplyArbiterWait(uint32 busAddress, uint32 size, bool write, uint64 baseCycles) {
     if (m_busArbiter == nullptr) {
         return baseCycles;
     }
@@ -935,12 +941,14 @@ FORCE_INLINE uint64 SH2::ApplyArbiterWait(uint32 busAddress, uint32 size, bool w
     req.addr = busAddress;
     req.is_write = write;
     req.size_bytes = static_cast<uint8>(std::min<uint32>(size, 0xFFu));
-    req.now_tick = GetCurrentCycleCount();
+    req.now_tick = GetArbiterNowTick();
 
     const busarb::BusWaitResult wait = m_busArbiter->query_wait(req);
     const uint64 tickStart = req.now_tick + wait.wait_cycles;
     m_busArbiter->commit_grant(req, tickStart);
-    return baseCycles + wait.wait_cycles;
+    const uint64 totalCycles = baseCycles + wait.wait_cycles;
+    AdvanceArbiterNowTick(totalCycles);
+    return totalCycles;
 }
 
 // -----------------------------------------------------------------------------
@@ -1619,6 +1627,28 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
 
 FORCE_INLINE uint64 SH2::GetCurrentCycleCount() const {
     return m_scheduler.CurrentCount() + m_cyclesExecuted;
+}
+
+FORCE_INLINE uint64 SH2::GetArbiterNowTick() const {
+    const uint64 schedulerTick = GetCurrentCycleCount();
+    if (!m_instructionArbiterNowTick.has_value()) {
+        return schedulerTick;
+    }
+    return std::max(schedulerTick, *m_instructionArbiterNowTick);
+}
+
+FORCE_INLINE void SH2::BeginInstructionArbiterWindow() {
+    m_instructionArbiterNowTick = GetCurrentCycleCount();
+}
+
+FORCE_INLINE void SH2::EndInstructionArbiterWindow() {
+    m_instructionArbiterNowTick.reset();
+}
+
+FORCE_INLINE void SH2::AdvanceArbiterNowTick(uint64 cycles) {
+    if (m_instructionArbiterNowTick.has_value()) {
+        *m_instructionArbiterNowTick += cycles;
+    }
 }
 
 #if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)

@@ -742,7 +742,7 @@ void SCU::RunDMA(uint64 cycles) {
                 const uint64 tickStart = req.now_tick + wait.wait_cycles;
                 m_busArbiter->commit_grant(req, tickStart);
                 if (m_enableBusContentionLocalTick) {
-                    dmaArbiterNowTick = m_busArbiter->bus_free_tick();
+                    dmaArbiterNowTick = m_busArbiter->bus_free_tick(req.addr);
                 }
                 return false;
             }
