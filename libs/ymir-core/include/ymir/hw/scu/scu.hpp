@@ -99,6 +99,14 @@ public:
         m_enableBusContention = enable;
     }
 
+    void EnableBusContentionForDMA(bool enable) {
+        m_enableBusContentionForDMA = enable;
+    }
+
+    void EnableBusContentionLocalTick(bool enable) {
+        m_enableBusContentionLocalTick = enable;
+    }
+
     // Checks if a DMA transfer is active.
     // This is used to stall the SH-2s.
     bool IsDMAActive() const {
@@ -173,6 +181,8 @@ private:
     sys::SH2Bus &m_bus;
     ::busarb::Arbiter *m_busArbiter = nullptr;
     bool m_enableBusContention = false;
+    bool m_enableBusContentionForDMA = true;
+    bool m_enableBusContentionLocalTick = false;
 
     CBExternalInterrupt m_cbExternalMasterInterrupt;
     CBExternalInterrupt m_cbExternalSlaveInterrupt;

@@ -173,6 +173,8 @@ Saturn::Saturn()
     m_systemFeatures.enableDebugTracing = false;
     m_systemFeatures.emulateSH2Cache = false;
     m_systemFeatures.enableBusContention = false;
+    m_systemFeatures.enableSCUDMAArbitration = true;
+    m_systemFeatures.enableSCUDMALocalArbiterTick = false;
     RefreshBusArbiter();
     UpdateFunctionPointers();
 
@@ -409,6 +411,22 @@ void Saturn::EnableBusContention(bool enable) {
     RefreshBusArbiter();
 }
 
+void Saturn::EnableSCUDMAArbitration(bool enable) {
+    if (m_systemFeatures.enableSCUDMAArbitration == enable) {
+        return;
+    }
+    m_systemFeatures.enableSCUDMAArbitration = enable;
+    RefreshBusArbiter();
+}
+
+void Saturn::EnableSCUDMALocalArbiterTick(bool enable) {
+    if (m_systemFeatures.enableSCUDMALocalArbiterTick == enable) {
+        return;
+    }
+    m_systemFeatures.enableSCUDMALocalArbiterTick = enable;
+    RefreshBusArbiter();
+}
+
 uint32 Saturn::BusArbiterAccessCycles(void *ctx, uint32 addr, bool isWrite, uint8 sizeBytes) {
     const auto *saturn = static_cast<Saturn *>(ctx);
     if (saturn == nullptr) {
@@ -441,6 +459,8 @@ void Saturn::RefreshBusArbiter() {
     slaveSH2.SetBusArbiter(m_busArbiter.get());
     SCU.SetBusArbiter(m_busArbiter.get());
     SCU.EnableBusContention(m_systemFeatures.enableBusContention);
+    SCU.EnableBusContentionForDMA(m_systemFeatures.enableSCUDMAArbitration);
+    SCU.EnableBusContentionLocalTick(m_systemFeatures.enableSCUDMALocalArbiterTick);
 }
 
 void Saturn::SaveState(state::State &state) const {

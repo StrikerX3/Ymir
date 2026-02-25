@@ -34,6 +34,12 @@ int main(int argc, char **argv) {
                           cxxopts::value(progOpts.enableDebugTracing)->default_value("false"));
     options.add_options()("bus-contention", "Enable SH2/SCU bus contention modeling",
                           cxxopts::value(progOpts.enableBusContention)->default_value("false"));
+    options.add_options()("bus-contention-sh2-only",
+                          "With bus contention enabled, exclude SCU DMA from arbitration (diagnostic mode)",
+                          cxxopts::value(progOpts.busContentionSH2Only)->default_value("false"));
+    options.add_options()("bus-contention-scu-local-tick",
+                          "With bus contention enabled, advance SCU DMA arbiter now_tick within RunDMA (diagnostic mode)",
+                          cxxopts::value(progOpts.busContentionSCULocalTick)->default_value("false"));
     options.add_options()("E,exceptions", "Capture all unhandled exceptions",
                           cxxopts::value(enableAllExceptions)->default_value("false"));
     options.parse_positional({"disc"});

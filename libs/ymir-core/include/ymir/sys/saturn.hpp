@@ -208,6 +208,26 @@ struct Saturn {
         return m_systemFeatures.enableBusContention;
     }
 
+    /// @brief Enables or disables SCU DMA participation in bus contention arbitration.
+    /// @param[in] enable whether SCU DMA should use the arbiter
+    void EnableSCUDMAArbitration(bool enable);
+
+    /// @brief Determines if SCU DMA participates in bus contention arbitration.
+    /// @return true when SCU DMA arbitration is enabled
+    [[nodiscard]] bool IsSCUDMAArbitrationEnabled() const noexcept {
+        return m_systemFeatures.enableSCUDMAArbitration;
+    }
+
+    /// @brief Enables or disables local `now_tick` progression for SCU DMA arbitration.
+    /// @param[in] enable whether SCU DMA should advance arbiter `now_tick` within RunDMA
+    void EnableSCUDMALocalArbiterTick(bool enable);
+
+    /// @brief Determines if SCU DMA uses local `now_tick` progression for arbitration.
+    /// @return true when local SCU DMA arbiter tick mode is enabled
+    [[nodiscard]] bool IsSCUDMALocalArbiterTickEnabled() const noexcept {
+        return m_systemFeatures.enableSCUDMALocalArbiterTick;
+    }
+
     /// @brief Runs the emulator until the end of the current frame using the current settings.
     ///
     /// The implementation of the function depends on the following parameters:

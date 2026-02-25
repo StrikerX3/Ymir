@@ -695,6 +695,8 @@ void SCU::RunDMA(uint64 cycles) {
 
     // TODO: proper cycle counting
 
+    uint64 dmaArbiterNowTick = m_scheduler.CurrentCount();
+
     // HACK: complete all active transfers
     while (m_activeDMAChannelLevel < m_dmaChannels.size()) {
         const uint8 level = m_activeDMAChannelLevel;
@@ -721,13 +723,14 @@ void SCU::RunDMA(uint64 cycles) {
                 return false;
             };
 
-            if (m_enableBusContention && m_busArbiter != nullptr && isArbiterManagedAddress(address)) {
+            if (m_enableBusContention && m_enableBusContentionForDMA && m_busArbiter != nullptr &&
+                isArbiterManagedAddress(address)) {
                 busarb::BusRequest req{};
                 req.master_id = busarb::BusMasterId::DMA;
                 req.addr = address;
                 req.is_write = write;
                 req.size_bytes = static_cast<uint8>(size > 0xFFu ? 0xFFu : size);
-                req.now_tick = m_scheduler.CurrentCount();
+                req.now_tick = m_enableBusContentionLocalTick ? dmaArbiterNowTick : m_scheduler.CurrentCount();
 
                 const busarb::BusWaitResult wait = m_busArbiter->query_wait(req);
                 if (wait.should_wait) {
@@ -736,7 +739,11 @@ void SCU::RunDMA(uint64 cycles) {
                     return true;
                 }
 
-                m_busArbiter->commit_grant(req, req.now_tick);
+                const uint64 tickStart = req.now_tick + wait.wait_cycles;
+                m_busArbiter->commit_grant(req, tickStart);
+                if (m_enableBusContentionLocalTick) {
+                    dmaArbiterNowTick = m_busArbiter->bus_free_tick();
+                }
                 return false;
             }
 
