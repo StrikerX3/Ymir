@@ -1130,21 +1130,43 @@ void DrawPolygon(uint index, const PolyParams poly) {
 void DrawPolylines(uint index, const PolyParams poly) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
-    // TODO: load and parse parameters
-
-    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
-    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
+    LineParams lineParams;
+    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
     
-    // TODO: actually render the polygon
+    const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
+    const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
+    const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
+    const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
 
-    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
-        const uint basePos = y * kAtlasStride;
-        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
-            const uint pos = (basePos + x) * 4;
-            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyAtlas.Store(pos, value);
-        }
-    }*/
+    Color555 colorA, colorB, colorC, colorD;
+    if (lineParams.mode_color.gouraudEnable) {
+        const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
+        colorA = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
+        colorB = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
+        colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 4));
+        colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 6));
+    }
+  
+    if (lineParams.mode_color.gouraudEnable) {
+        lineParams.gouraudLeft = colorA;
+        lineParams.gouraudRight = colorB;
+    }
+    PlotLine(poly, coordA, coordB, lineParams, false);
+    if (lineParams.mode_color.gouraudEnable) {
+        lineParams.gouraudLeft = colorB;
+        lineParams.gouraudRight = colorC;
+    }
+    PlotLine(poly, coordB, coordC, lineParams, false);
+    if (lineParams.mode_color.gouraudEnable) {
+        lineParams.gouraudLeft = colorC;
+        lineParams.gouraudRight = colorD;
+    }
+    PlotLine(poly, coordC, coordD, lineParams, false);
+    if (lineParams.mode_color.gouraudEnable) {
+        lineParams.gouraudLeft = colorD;
+        lineParams.gouraudRight = colorA;
+    }
+    PlotLine(poly, coordD, coordA, lineParams, false);
 }
 
 void DrawLine(uint index, const PolyParams poly) {
