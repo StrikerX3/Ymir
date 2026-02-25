@@ -819,8 +819,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
 
     // Merge polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
-    ctx.CSSetShaderResources({m_context->srvVDP1PolyAtlas, m_context->srvVDP1PolyParams});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyAtlas, m_context->uavVDP1PolyOut});
+    ctx.CSSetShaderResources({m_context->srvVDP1PolyParams});
     ctx.CSSetShader(m_context->csVDP1PolyMerge);
     ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
 

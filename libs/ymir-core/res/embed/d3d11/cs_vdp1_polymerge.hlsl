@@ -22,10 +22,10 @@ cbuffer Config : register(b0) {
     Config config;
 }
 
-ByteAddressBuffer polyIn : register(t0);
-StructuredBuffer<PolyParams> polyParams : register(t1);
+StructuredBuffer<PolyParams> polyParams : register(t0);
 
-RWByteAddressBuffer fbOut : register(u0);
+RWByteAddressBuffer polyAtlas : register(u0);
+RWByteAddressBuffer fbOut : register(u1);
 
 // -----------------------------------------------------------------------------
 
@@ -161,7 +161,8 @@ void MergePolys(uint2 pos) {
         const int2 atlasPos = Extract16PairS(poly.atlasPos) + relPos;
         
         const uint atlasAddr = (atlasPos.x + atlasPos.y * kAtlasStride) * 4;
-        const uint rawValue = polyIn.Load(atlasAddr);
+        const uint rawValue = polyAtlas.Load(atlasAddr);
+        polyAtlas.Store(atlasAddr, 0);
         
         // Skip pixels that haven't been touched
         if (!BitTest(rawValue, kPolyMergerPixelDrawn)) {
