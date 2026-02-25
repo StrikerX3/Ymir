@@ -491,7 +491,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP2Compose, "[Ymir D3D11] VDP2 framebuffer compute shader");
+    SetDebugName(m_context->csVDP2Compose, "[Ymir D3D11] VDP2 framebuffer compositor compute shader");
 
     if (HRESULT hr =
             devMgr.CreateStructuredBuffer(m_context->bufVDP2ComposeParams, &m_context->srvVDP2ComposeParams, nullptr, 1,

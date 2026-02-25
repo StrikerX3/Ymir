@@ -33,6 +33,7 @@ static const uint kAtlasStride = 2048;
 
 // Special values for the polygon merger
 //  bits  use
+//    31  Pixel drawn
 //    18  Mesh pixel
 // 17-16  Color calculation mode to apply
 //          0 = replace
@@ -40,6 +41,7 @@ static const uint kAtlasStride = 2048;
 //          2 = half-luminance
 //          3 = half-transparency
 //  15-0  Raw color data
+static const uint kPolyMergerPixelDrawn = 31;
 static const uint kPolyMergerMesh = 18;
 static const uint kPolyMergerColorCalcBitsShift = 16;
 static const uint kPolyMergerSetMSB = 0xFFFFFFFF;
@@ -160,6 +162,11 @@ void MergePolys(uint2 pos) {
         
         const uint atlasAddr = (atlasPos.x + atlasPos.y * kAtlasStride) * 4;
         const uint rawValue = polyIn.Load(atlasAddr);
+        
+        // Skip pixels that haven't been touched
+        if (!BitTest(rawValue, kPolyMergerPixelDrawn)) {
+            continue;
+        }
                 
         const uint fbAddr = (pos.x + pos.y * fbSizeH) * 2;
         
