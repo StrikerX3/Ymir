@@ -25,7 +25,7 @@ cbuffer Config : register(b0) {
 ByteAddressBuffer vram : register(t0);
 StructuredBuffer<PolyParams> polyParams : register(t1);
 
-RWByteAddressBuffer polyOut : register(u0);
+RWByteAddressBuffer polyAtlas : register(u0);
 
 // -----------------------------------------------------------------------------
 
@@ -936,10 +936,6 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
 
     // TODO: pixelParams.mode_color.preClippingDisable
     
-    const int2 baseAtlasPos = Extract16PairS(poly.atlasPos);
-    const int2 atlasPos = baseAtlasPos + relPos;
-    const uint atlasOffset = (atlasPos.y * kAtlasStride + atlasPos.x) * 4;
-    
     uint value;
     if (pixelParams.mode_color.msbOn) {
         value = kPolyMergerSetMSB;
@@ -949,20 +945,24 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
             // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
             value = pixelParams.mode_color.color & 0xFF;
         } else {
-            uint srcColor = pixelParams.mode_color.color;
+            value = pixelParams.mode_color.color;
             if (pixelParams.mode_color.gouraudEnable) {
                 // Apply gouraud shading to source color
-                Color555 srcColor555 = Uint16ToColor555(srcColor);
-                srcColor555 = pixelParams.gouraud.Blend(srcColor555);
-                srcColor = Color555ToUint16(srcColor555);
+                Color555 color = Uint16ToColor555(value);
+                color = pixelParams.gouraud.Blend(color);
+                value = Color555ToUint16(color);
             }
-            srcColor |= pixelParams.mode_color.colorCalcBits << kPolyMergerColorCalcBitsShift;
-            value = srcColor;
+            value |= pixelParams.mode_color.colorCalcBits << kPolyMergerColorCalcBitsShift;
         }
-        value |= pixelParams.mode_color.meshEnable << kPolyMergerMesh;
+        value |= uint(pixelParams.mode_color.meshEnable) << kPolyMergerMesh;
         value |= 1 << kPolyMergerPixelDrawn;
     }
-    polyOut.Store(atlasOffset, value);
+    
+    const int2 baseAtlasPos = Extract16PairS(poly.atlasPos);
+    const int2 atlasPos = baseAtlasPos + relPos;
+    const uint atlasOffset = (atlasPos.y * kAtlasStride + atlasPos.x) * 4;
+    polyAtlas.Store(atlasOffset, value);
+    
     return true;
 }
 
@@ -1021,14 +1021,14 @@ void DrawNormalSprite(uint index, const PolyParams poly, const uint cmdctrl) {
     
     // TODO: actually render the polygon
 
-    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
             const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyOut.Store(pos, value);
+            polyAtlas.Store(pos, value);
         }
-    }
+    }*/
 }
 
 void DrawScaledSprite(uint index, const PolyParams poly, const uint cmdctrl) {
@@ -1041,14 +1041,14 @@ void DrawScaledSprite(uint index, const PolyParams poly, const uint cmdctrl) {
     
     // TODO: actually render the polygon
 
-    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
             const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyOut.Store(pos, value);
+            polyAtlas.Store(pos, value);
         }
-    }
+    }*/
 }
 
 void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) {
@@ -1064,14 +1064,14 @@ void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) 
     
     // TODO: actually render the polygon
 
-    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
             const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyOut.Store(pos, value);
+            polyAtlas.Store(pos, value);
         }
-    }
+    }*/
 }
 
 void DrawPolygon(uint index, const PolyParams poly) {
@@ -1085,9 +1085,6 @@ void DrawPolygon(uint index, const PolyParams poly) {
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
     const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
 
-    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
-    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
-    
     QuadStepper quad = NewQuadStepper(coordA, coordB, coordC, coordD);
     
     if (lineParams.mode_color.gouraudEnable) {
@@ -1136,14 +1133,14 @@ void DrawPolylines(uint index, const PolyParams poly) {
     
     // TODO: actually render the polygon
 
-    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
             const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyOut.Store(pos, value);
+            polyAtlas.Store(pos, value);
         }
-    }
+    }*/
 }
 
 void DrawLine(uint index, const PolyParams poly) {
@@ -1156,14 +1153,14 @@ void DrawLine(uint index, const PolyParams poly) {
     
     // TODO: actually render the polygon
 
-    for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
+    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
         const uint basePos = y * kAtlasStride;
         for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
             const uint pos = (basePos + x) * 4;
             const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyOut.Store(pos, value);
+            polyAtlas.Store(pos, value);
         }
-    }
+    }*/
 }
 
 void Draw(uint index) {
@@ -1199,10 +1196,10 @@ void Draw(uint index) {
             break;
     }
 
-    // polyOut.Store(index * 16, poly.atlasPos);
-    // polyOut.Store(index * 16 + 4, poly.cmdAddress);
-    // polyOut.Store(index * 16 + 8, cmdctrl);
-    // polyOut.Store(index * 16 + 12, 0xDEADBEEF);
+    // polyAtlas.Store(index * 16, poly.atlasPos);
+    // polyAtlas.Store(index * 16 + 4, poly.cmdAddress);
+    // polyAtlas.Store(index * 16 + 8, cmdctrl);
+    // polyAtlas.Store(index * 16 + 12, 0xDEADBEEF);
 }
 
 // -----------------------------------------------------------------------------
