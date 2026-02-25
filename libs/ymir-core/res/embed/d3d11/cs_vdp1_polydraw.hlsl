@@ -59,6 +59,7 @@ static const uint kAtlasStride = 2048;
 
 // Special values for the polygon merger
 //  bits  use
+//    31  Pixel drawn
 //    18  Mesh pixel
 // 17-16  Color calculation mode to apply
 //          0 = replace
@@ -66,6 +67,7 @@ static const uint kAtlasStride = 2048;
 //          2 = half-luminance
 //          3 = half-transparency
 //  15-0  Raw color data
+static const uint kPolyMergerPixelDrawn = 31;
 static const uint kPolyMergerMesh = 18;
 static const uint kPolyMergerColorCalcBitsShift = 16;
 static const uint kPolyMergerSetMSB = 0xFFFFFFFF;
@@ -845,7 +847,6 @@ struct PixelParams {
     GouraudStepper gouraud;
 };
 
-
 bool IsPixelUserClipped(const PolyParams poly, int2 coord) {
     const int userClipX0 = BitExtract(poly.userClipX, 0, 16);
     const int userClipX1 = BitExtract(poly.userClipX, 16, 16);
@@ -905,6 +906,7 @@ bool IsPixelClipped(const PolyParams poly, int2 coord, bool userClippingEnable, 
     }
     return false;
 }
+
 bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams) {
     // Reject pixels outside of clipping area
     if (IsPixelClipped(poly, coord, pixelParams.mode_color.userClippingEnable, pixelParams.mode_color.clippingMode)) {
@@ -938,8 +940,9 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
     const int2 atlasPos = baseAtlasPos + relPos;
     const uint atlasOffset = (atlasPos.y * kAtlasStride + atlasPos.x) * 4;
     
+    uint value;
     if (pixelParams.mode_color.msbOn) {
-        polyOut.Store(atlasOffset, kPolyMergerSetMSB);
+        value = kPolyMergerSetMSB;
     } else {
         uint value;
         if (pixel8Bits) {
@@ -957,8 +960,9 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
             value = srcColor;
         }
         value |= pixelParams.mode_color.meshEnable << kPolyMergerMesh;
-        polyOut.Store(atlasOffset, value);
+        value |= 1 << kPolyMergerPixelDrawn;
     }
+    polyOut.Store(atlasOffset, value);
     return true;
 }
 
@@ -1120,17 +1124,6 @@ void DrawPolygon(uint index, const PolyParams poly) {
             break;
         }
     }
-
-    // TODO: actually render the polygon
-
-    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
-        const uint basePos = y * kAtlasStride;
-        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
-            const uint pos = (basePos + x) * 4;
-            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyOut.Store(pos, value);
-        }
-    }*/
 }
 
 void DrawPolylines(uint index, const PolyParams poly) {
