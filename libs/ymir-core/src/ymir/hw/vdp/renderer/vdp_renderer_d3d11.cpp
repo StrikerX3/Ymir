@@ -830,9 +830,17 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
     const VDP1Regs &regs1 = m_state.regs1;
+    const VDP2Regs &regs2 = m_state.regs2;
     auto &config = m_context->cpuVDP1RenderConfig;
 
     config.numPolys = m_context->cpuVDP1PolyParamsCount;
+
+    config.params.fbSizeH = std::countr_zero(regs1.fbSizeH) - 9;
+    config.params.fbSizeV = std::countr_zero(regs1.fbSizeV) - 8;
+    config.params.pixel8Bits = regs1.pixel8Bits;
+    config.params.doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+    config.params.dblInterlaceEnable = regs1.dblInterlaceEnable;
+    config.params.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
 
     m_context->VDP1Context.ModifyResource(
         m_context->cbufVDP1RenderConfig, 0,

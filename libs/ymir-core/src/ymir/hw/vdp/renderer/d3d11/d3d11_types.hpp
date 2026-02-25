@@ -71,7 +71,24 @@ struct alignas(16) VDP1RenderConfig {
     // - erase/swap bounds and value (including vblank erase bounds)
     D3DUint numPolys;
 
-    D3DUint3 reserved;
+    struct Params {
+        /**/                              //  bits  use
+        D3DUint fbSizeH : 1;              //     0  Framebuffer horizontal size shift    (512 << x)
+        D3DUint fbSizeV : 1;              //     1  Framebuffer vertical size shift      (256 << x)
+        D3DUint pixel8Bits : 1;           //     2  Pixel data size                      0=16 bits; 1=8 bits
+        D3DUint doubleDensity : 1;        //     3  Double-density interlace mode
+        D3DUint dblInterlaceEnable : 1;   //     4  Double interlace enable
+        D3DUint dblInterlaceDrawLine : 1; //     5  Double interlace line                0=even; 1=odd
+    } params;
+    static_assert(sizeof(Params) == sizeof(D3DUint));
+
+    struct Erase {
+        /**/          //  bits  use
+        D3DUint : 32; //   ...  ...
+    } erase;
+    static_assert(sizeof(Erase) == sizeof(D3DUint));
+
+    D3DUint reserved;
 };
 
 struct VDP1PolyParams {

@@ -1,6 +1,8 @@
 struct Config {
     uint numPolys;
-    uint3 _reserved;
+    uint params;
+    uint erase;
+    uint _reserved;
 };
 
 struct PolyParams {
@@ -28,6 +30,21 @@ RWByteAddressBuffer fbOut : register(u0);
 // -----------------------------------------------------------------------------
 
 static const uint kAtlasStride = 2048;
+
+// Special values for the polygon merger
+//  bits  use
+//    18  Mesh pixel
+// 17-16  Color calculation mode to apply
+//          0 = replace
+//          1 = shadow
+//          2 = half-luminance
+//          3 = half-transparency
+//  15-0  Raw color data
+static const uint kPolyMergerMesh = 18;
+static const uint kPolyMergerColorCalcBitsShift = 16;
+static const uint kPolyMergerSetMSB = 0xFFFFFFFF;
+
+typedef uint4 Color555;
 
 // -----------------------------------------------------------------------------
 
@@ -75,7 +92,17 @@ uint ByteSwap32(uint val) {
            ((val << 24) & 0xFF000000);
 }
 
-void WriteFBOut8(uint address, uint data) {
+uint ReadFB8(uint address) {
+    const uint value = fbOut.Load(address & ~3);
+    return (value >> ((address & 3) * 8)) & 0xFF;
+}
+
+uint ReadFB16(uint address) {
+    const uint value = fbOut.Load(address & ~3);
+    return (value >> ((address & 2) * 8)) & 0xFFFF;
+}
+
+void WriteFB8(uint address, uint data) {
     const uint shift = (address & 3) * 8;
     const uint mask = ~(0xFF << shift);
     data = (data & 0xFF) << shift;
@@ -86,7 +113,7 @@ void WriteFBOut8(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
-void WriteFBOut16(uint address, uint data) {
+void WriteFB16(uint address, uint data) {
     const uint shift = (address & 2) * 8;
     const uint mask = ~(0xFFFF << shift);
     data = (data & 0xFFFF) << shift;
@@ -97,7 +124,24 @@ void WriteFBOut16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
+Color555 Uint16ToColor555(uint rawValue) {
+    return uint4(
+        BitExtract(rawValue, 0, 5),
+        BitExtract(rawValue, 5, 5),
+        BitExtract(rawValue, 10, 5),
+        BitExtract(rawValue, 15, 1)
+    );
+}
+
+uint Color555ToUint16(Color555 color) {
+    return color.r | (color.g << 5) | (color.b << 10) | (color.a << 15);
+}
+
 // -----------------------------------------------------------------------------
+
+static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
+static const bool pixel8Bits = BitTest(config.params, 2);
+static const bool transparentMeshes = false;
 
 void MergePolys(uint2 pos) {
     for (uint i = 0; i < config.numPolys; i++) {
@@ -117,10 +161,83 @@ void MergePolys(uint2 pos) {
         const uint atlasAddr = (atlasPos.x + atlasPos.y * kAtlasStride) * 4;
         const uint rawValue = polyIn.Load(atlasAddr);
                 
-        // TODO: 8-bit/16-bit mode
-        // TODO: framebuffer dimensions
-        const uint fbAddr = (pos.x + pos.y * 512) * 2;
-        WriteFBOut16(fbAddr, rawValue);
+        const uint fbAddr = (pos.x + pos.y * fbSizeH) * 2;
+        
+        if (rawValue == kPolyMergerSetMSB) {
+            const uint bit = 0x80 << ((fbAddr & 3) * 8);
+            uint dummy;
+            fbOut.InterlockedOr(fbAddr & ~3, bit, dummy);
+        } else if (pixel8Bits) {
+            const uint value = BitExtract(rawValue, 0, 8);
+            const bool meshEnable = BitTest(rawValue, kPolyMergerMesh);
+        
+            // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
+       
+            if (transparentMeshes && meshEnable) {
+                // TODO: write to mesh layer
+            } else {
+                WriteFB8(fbAddr, value);
+                if (transparentMeshes) {
+                    // TODO: clear pixel from transparent mesh buffer
+                }
+            }
+        } else {
+            // TODO: 8-bit/16-bit mode
+            const uint rawColor = BitExtract(rawValue, 0, 16);
+            const uint colorCalcBits = BitExtract(rawValue, kPolyMergerColorCalcBitsShift, 2);
+            const bool meshEnable = BitTest(rawValue, kPolyMergerMesh);
+            
+            Color555 srcColor = Uint16ToColor555(rawColor);
+            Color555 dstColor = Uint16ToColor555(ReadFB16(fbAddr));
+
+            // Apply color calculations
+            //
+            // In all cases where calculation is done, the raw color data to be drawn ("original graphic") or from
+            // the background are interpreted as 5:5:5 RGB.
+
+            switch (colorCalcBits) {
+                case 0: // Replace
+                    dstColor = srcColor;
+                    break;
+                case 1: // Shadow
+                    // Halve destination luminosity if it's not transparent
+                    if (dstColor.a) {
+                        dstColor.r >>= 1u;
+                        dstColor.g >>= 1u;
+                        dstColor.b >>= 1u;
+                    }
+                    break;
+                case 2: // Half-luminance
+                    // Draw original graphic with halved luminance
+                    dstColor.r = srcColor.r >> 1u;
+                    dstColor.g = srcColor.g >> 1u;
+                    dstColor.b = srcColor.b >> 1u;
+                    dstColor.a = srcColor.a;
+                    break;
+                case 3: // Half-transparency
+                    // If background is not transparent, blend half of original graphic and half of background
+                    // Otherwise, draw original graphic as is
+                    if (dstColor.a) {
+                        dstColor.r = (srcColor.r + dstColor.r) >> 1u;
+                        dstColor.g = (srcColor.g + dstColor.g) >> 1u;
+                        dstColor.b = (srcColor.b + dstColor.b) >> 1u;
+                    } else {
+                        dstColor = srcColor;
+                    }
+                    break;
+            }
+
+            const uint value = Color555ToUint16(dstColor);
+            
+            if (transparentMeshes && meshEnable) {
+                // TODO: write to mesh layer
+            } else {
+                WriteFB16(fbAddr, value);
+                if (transparentMeshes) {
+                    // TODO: clear pixel from transparent mesh buffer
+                }
+            }
+        }
     }
 }
 
