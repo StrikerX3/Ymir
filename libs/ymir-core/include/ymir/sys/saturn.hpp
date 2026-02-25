@@ -12,6 +12,8 @@ See @ref index for instructions on how to use the emulator.
 #include <ymir/core/hash.hpp>
 #include <ymir/core/scheduler.hpp>
 
+#include <ymir/bus/busarb.hpp>
+
 #include <ymir/state/state.hpp>
 
 #include <ymir/debug/debug_break.hpp>
@@ -194,6 +196,16 @@ struct Saturn {
     /// @return the SH-2 cache emulation state
     [[nodiscard]] bool IsSH2CacheEmulationEnabled() const noexcept {
         return configuration.system.emulateSH2Cache;
+    }
+
+    /// @brief Enables or disables SH-2/SCU bus contention modeling.
+    /// @param[in] enable whether to enable or disable bus contention modeling
+    void EnableBusContention(bool enable);
+
+    /// @brief Determines if bus contention modeling is enabled.
+    /// @return the bus contention modeling state
+    [[nodiscard]] bool IsBusContentionEnabled() const noexcept {
+        return m_systemFeatures.enableBusContention;
     }
 
     /// @brief Runs the emulator until the end of the current frame using the current settings.
@@ -404,6 +416,13 @@ private:
 
     /// @brief Global system features.
     sys::SystemFeatures m_systemFeatures;
+
+    /// @brief Shared bus contention arbiter.
+    std::unique_ptr<busarb::Arbiter> m_busArbiter;
+    busarb::ArbiterConfig m_busArbiterConfig{};
+
+    static uint32 BusArbiterAccessCycles(void *ctx, uint32 addr, bool isWrite, uint8 sizeBytes);
+    void RefreshBusArbiter();
 
 public:
     // -------------------------------------------------------------------------

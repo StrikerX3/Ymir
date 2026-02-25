@@ -201,6 +201,7 @@ int App::Run(const CommandLineOptions &options) {
     setlocale(LC_ALL, "en_us.UTF8");
 
     m_options = options;
+    m_context.saturn.instance->EnableBusContention(m_options.enableBusContention);
 
     auto &settings = m_settings;
 

@@ -1,5 +1,7 @@
 #include <ymir/hw/sh2/sh2.hpp>
 
+#include <ymir/bus/busarb.hpp>
+
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/bus_trace.hpp>
 #include <ymir/util/data_ops.hpp>
@@ -839,7 +841,12 @@ template <mem_primitive T>
 template <bool write, bool enableCache>
 FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
     // TODO: distinguish between different sizes
-    const uint32 partition = (address >> 29u) & 0b111;
+    const uint32 partition = (address >> 29u) & 0b111u;
+    uint64 baseCycles = 1;
+    uint32 busAddress = 0;
+    uint32 sizeBytes = sizeof(uint32);
+    bool useArbiter = false;
+
     switch (partition) {
     case 0b000: // cache
         if constexpr (enableCache && !write) {
@@ -851,7 +858,10 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
                 return 1;
             } else {
                 // Cache miss - fill cache line
-                return m_bus.GetAccessCycles<write>(address) * 4;
+                baseCycles = m_bus.GetAccessCycles<write>(address) * 4;
+                sizeBytes = 16;
+                useArbiter = ShouldUseArbiter(address, busAddress);
+                break;
             }
         } else if constexpr (!enableCache) {
             // Simplified model - assume cache hits on all accesses to cached area
@@ -860,7 +870,9 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
         [[fallthrough]];
     case 0b001: [[fallthrough]];
     case 0b101: // cache-through
-        return m_bus.GetAccessCycles<write>(address);
+        baseCycles = m_bus.GetAccessCycles<write>(address);
+        useArbiter = ShouldUseArbiter(address, busAddress);
+        break;
     case 0b010: return 1;        // associative purge
     case 0b011: return 1;        // cache address array
     case 0b100: [[fallthrough]]; // cache data array
@@ -868,7 +880,67 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
     case 0b111: return 4;        // I/O area
     }
 
-    util::unreachable();
+    if (!useArbiter) {
+        return baseCycles;
+    }
+
+    return ApplyArbiterWait(busAddress, sizeBytes, write, baseCycles);
+}
+
+FORCE_INLINE bool SH2::IsArbiterManagedBusAddress(uint32 busAddress) {
+    // BIOS ROM
+    if (busAddress <= 0x00F'FFFF) {
+        return true;
+    }
+
+    // Low WRAM
+    if (busAddress >= 0x020'0000 && busAddress <= 0x02F'FFFF) {
+        return true;
+    }
+
+    // A-Bus CS0/CS1
+    if (busAddress >= 0x200'0000 && busAddress <= 0x4FF'FFFF) {
+        return true;
+    }
+
+    // High WRAM
+    if (busAddress >= 0x600'0000 && busAddress <= 0x7FF'FFFF) {
+        return true;
+    }
+
+    return false;
+}
+
+FORCE_INLINE bool SH2::ShouldUseArbiter(uint32 address, uint32 &busAddress) const {
+    if (!m_systemFeatures.enableBusContention || m_busArbiter == nullptr) {
+        return false;
+    }
+
+    const uint32 partition = (address >> 29u) & 0b111u;
+    if (partition != 0b000u && partition != 0b001u && partition != 0b101u) {
+        return false;
+    }
+
+    busAddress = address & 0x7FF'FFFFu;
+    return IsArbiterManagedBusAddress(busAddress);
+}
+
+FORCE_INLINE uint64 SH2::ApplyArbiterWait(uint32 busAddress, uint32 size, bool write, uint64 baseCycles) const {
+    if (m_busArbiter == nullptr) {
+        return baseCycles;
+    }
+
+    busarb::BusRequest req{};
+    req.master_id = m_isMaster ? busarb::BusMasterId::SH2_A : busarb::BusMasterId::SH2_B;
+    req.addr = busAddress;
+    req.is_write = write;
+    req.size_bytes = static_cast<uint8>(std::min<uint32>(size, 0xFFu));
+    req.now_tick = GetCurrentCycleCount();
+
+    const busarb::BusWaitResult wait = m_busArbiter->query_wait(req);
+    const uint64 tickStart = req.now_tick + wait.wait_cycles;
+    m_busArbiter->commit_grant(req, tickStart);
+    return baseCycles + wait.wait_cycles;
 }
 
 // -----------------------------------------------------------------------------
@@ -1588,6 +1660,11 @@ void SH2::CancelPendingBusAccess() {
 #endif
 
 FORCE_INLINE bool SH2::CheckBusWait(uint32 address, uint32 size, bool write) {
+    uint32 busAddress = 0;
+    if (ShouldUseArbiter(address, busAddress)) {
+        return false;
+    }
+
 #if defined(YMIR_BUS_TRACE) && (YMIR_BUS_TRACE + 0)
     if (ymir::trace::IsBusTraceEnabled()) {
         BeginPendingBusAccess(address, size, write, GetCurrentCycleCount());
@@ -1682,6 +1759,35 @@ bool SH2::StepDMAC(uint32 channel) {
         case Reserved: return 0;
         }
     };
+
+    auto checkArbiterStall = [&](uint32 address, uint32 size, bool write) {
+        uint32 busAddress = 0;
+        if (!ShouldUseArbiter(address, busAddress)) {
+            return false;
+        }
+
+        busarb::BusRequest req{};
+        req.master_id = m_isMaster ? busarb::BusMasterId::SH2_A : busarb::BusMasterId::SH2_B;
+        req.addr = busAddress;
+        req.is_write = write;
+        req.size_bytes = static_cast<uint8>(std::min<uint32>(size, 0xFFu));
+        req.now_tick = GetCurrentCycleCount();
+
+        const busarb::BusWaitResult wait = m_busArbiter->query_wait(req);
+        if (wait.should_wait) {
+            return true;
+        }
+
+        m_busArbiter->commit_grant(req, req.now_tick);
+        return false;
+    };
+
+    if (checkArbiterStall(ch.srcAddress, xferSize, false)) {
+        return false;
+    }
+    if (checkArbiterStall(ch.dstAddress, xferSize, true)) {
+        return false;
+    }
 
     if (CheckBusWait(ch.srcAddress, xferSize, false)) {
         devlog::trace<grp::dma_xfer>(m_logPrefix, "DMAC{} transfer from {:08X} stalled by bus wait signal", channel,

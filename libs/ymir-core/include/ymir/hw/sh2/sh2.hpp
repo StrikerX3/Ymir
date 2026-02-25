@@ -42,6 +42,10 @@
 #include <map>
 #include <set>
 
+namespace busarb {
+class Arbiter;
+}
+
 namespace ymir::sh2 {
 
 // -----------------------------------------------------------------------------
@@ -70,6 +74,10 @@ public:
     }
 
     void MapMemory(sys::SH2Bus &bus);
+
+    void SetBusArbiter(::busarb::Arbiter *arbiter) {
+        m_busArbiter = arbiter;
+    }
 
     void DumpCacheData(std::ostream &out) const;
     void DumpCacheAddressTag(std::ostream &out) const;
@@ -673,6 +681,7 @@ private:
     // Memory accessors
 
     sys::SH2Bus &m_bus;
+    ::busarb::Arbiter *m_busArbiter = nullptr;
     const sys::SystemFeatures &m_systemFeatures;
 
     // According to the SH7604/SH7095 manuals, the address space is divided into these areas:
@@ -947,6 +956,9 @@ private:
     // Helper functions
 
     FORCE_INLINE bool CheckBusWait(uint32 address, uint32 size, bool write);
+    FORCE_INLINE bool ShouldUseArbiter(uint32 address, uint32 &busAddress) const;
+    FORCE_INLINE static bool IsArbiterManagedBusAddress(uint32 busAddress);
+    FORCE_INLINE uint64 ApplyArbiterWait(uint32 busAddress, uint32 size, bool write, uint64 baseCycles) const;
 
     void SetupDelaySlot(uint32 targetAddress);
 

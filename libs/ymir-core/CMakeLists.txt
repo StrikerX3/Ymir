@@ -10,6 +10,8 @@ add_library(ymir-core
     include/ymir/core/scheduler_defs.hpp
     include/ymir/core/types.hpp
 
+    include/ymir/bus/busarb.hpp
+
     include/ymir/db/cdb_rom_db.hpp
     include/ymir/db/game_db.hpp
     include/ymir/db/ipl_db.hpp
@@ -222,6 +224,8 @@ add_library(ymir-core
 
     src/ymir/core/configuration.cpp
     src/ymir/core/hash.cpp
+
+    src/ymir/bus/busarb.cpp
 
     src/ymir/db/cdb_rom_db.cpp
     src/ymir/db/game_db.cpp

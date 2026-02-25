@@ -5,6 +5,7 @@ namespace ymir::sys {
 struct SystemFeatures {
     bool enableDebugTracing = false;
     bool emulateSH2Cache = false;
+    bool enableBusContention = false;
 };
 
 } // namespace ymir::sys

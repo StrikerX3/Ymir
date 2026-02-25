@@ -172,6 +172,8 @@ Saturn::Saturn()
 
     m_systemFeatures.enableDebugTracing = false;
     m_systemFeatures.emulateSH2Cache = false;
+    m_systemFeatures.enableBusContention = false;
+    RefreshBusArbiter();
     UpdateFunctionPointers();
 
     configuration.system.preferredRegionOrder.Observe(
@@ -190,6 +192,9 @@ void Saturn::Reset(bool hard) {
 
     if (hard) {
         m_scheduler.Reset();
+        if (m_systemFeatures.enableBusContention) {
+            RefreshBusArbiter();
+        }
     }
 
     masterSH2.Reset(hard);
@@ -394,6 +399,48 @@ void Saturn::EnableDebugTracing(bool enable) {
         masterSH2.UseDebugBreakManager(nullptr);
         slaveSH2.UseDebugBreakManager(nullptr);
     }
+}
+
+void Saturn::EnableBusContention(bool enable) {
+    if (m_systemFeatures.enableBusContention == enable) {
+        return;
+    }
+    m_systemFeatures.enableBusContention = enable;
+    RefreshBusArbiter();
+}
+
+uint32 Saturn::BusArbiterAccessCycles(void *ctx, uint32 addr, bool isWrite, uint8 sizeBytes) {
+    const auto *saturn = static_cast<Saturn *>(ctx);
+    if (saturn == nullptr) {
+        return 1;
+    }
+
+    uint32 baseCycles;
+    if (isWrite) {
+        baseCycles = static_cast<uint32>(saturn->mainBus.GetAccessCycles<true>(addr));
+    } else {
+        baseCycles = static_cast<uint32>(saturn->mainBus.GetAccessCycles<false>(addr));
+    }
+
+    // Cache line fills in SH2::AccessCycles encode 16-byte operations.
+    if (sizeBytes == 16) {
+        return baseCycles * 4;
+    }
+    return baseCycles;
+}
+
+void Saturn::RefreshBusArbiter() {
+    if (m_systemFeatures.enableBusContention) {
+        m_busArbiter = std::make_unique<busarb::Arbiter>(
+            busarb::TimingCallbacks{.access_cycles = &Saturn::BusArbiterAccessCycles, .ctx = this}, m_busArbiterConfig);
+    } else {
+        m_busArbiter.reset();
+    }
+
+    masterSH2.SetBusArbiter(m_busArbiter.get());
+    slaveSH2.SetBusArbiter(m_busArbiter.get());
+    SCU.SetBusArbiter(m_busArbiter.get());
+    SCU.EnableBusContention(m_systemFeatures.enableBusContention);
 }
 
 void Saturn::SaveState(state::State &state) const {

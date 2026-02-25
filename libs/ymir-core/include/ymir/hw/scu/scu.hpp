@@ -31,6 +31,10 @@
 
 #include <iosfwd>
 
+namespace busarb {
+class Arbiter;
+}
+
 namespace ymir::scu {
 
 // SCU memory map
@@ -85,6 +89,14 @@ public:
 
     void SetDebugPortWriteCallback(CBDebugPortWrite callback) {
         m_cbDebugPortWrite = callback;
+    }
+
+    void SetBusArbiter(::busarb::Arbiter *arbiter) {
+        m_busArbiter = arbiter;
+    }
+
+    void EnableBusContention(bool enable) {
+        m_enableBusContention = enable;
     }
 
     // Checks if a DMA transfer is active.
@@ -159,6 +171,8 @@ public:
 
 private:
     sys::SH2Bus &m_bus;
+    ::busarb::Arbiter *m_busArbiter = nullptr;
+    bool m_enableBusContention = false;
 
     CBExternalInterrupt m_cbExternalMasterInterrupt;
     CBExternalInterrupt m_cbExternalSlaveInterrupt;

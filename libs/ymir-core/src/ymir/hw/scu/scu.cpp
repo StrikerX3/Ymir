@@ -1,5 +1,7 @@
 #include <ymir/hw/scu/scu.hpp>
 
+#include <ymir/bus/busarb.hpp>
+
 #include <ymir/hw/cart/cart_impl_dram.hpp>
 #include <ymir/hw/cart/cart_impl_rom.hpp>
 
@@ -703,6 +705,41 @@ void SCU::RunDMA(uint64 cycles) {
         auto &xfer = ch.xfer;
 
         auto checkStall = [&](uint32 address, uint32 size, bool write) {
+            auto isArbiterManagedAddress = [](uint32 busAddress) {
+                if (busAddress <= 0x00F'FFFF) {
+                    return true;
+                }
+                if (busAddress >= 0x020'0000 && busAddress <= 0x02F'FFFF) {
+                    return true;
+                }
+                if (busAddress >= 0x200'0000 && busAddress <= 0x4FF'FFFF) {
+                    return true;
+                }
+                if (busAddress >= 0x600'0000 && busAddress <= 0x7FF'FFFF) {
+                    return true;
+                }
+                return false;
+            };
+
+            if (m_enableBusContention && m_busArbiter != nullptr && isArbiterManagedAddress(address)) {
+                busarb::BusRequest req{};
+                req.master_id = busarb::BusMasterId::DMA;
+                req.addr = address;
+                req.is_write = write;
+                req.size_bytes = static_cast<uint8>(size > 0xFFu ? 0xFFu : size);
+                req.now_tick = m_scheduler.CurrentCount();
+
+                const busarb::BusWaitResult wait = m_busArbiter->query_wait(req);
+                if (wait.should_wait) {
+                    devlog::trace<grp::dma>("SCU DMA{}: {}-bit {} {:08X} stalled by arbiter", level, size * 8,
+                                            (write ? "write to" : "read from"), address);
+                    return true;
+                }
+
+                m_busArbiter->commit_grant(req, req.now_tick);
+                return false;
+            }
+
             if (m_bus.IsBusWait(address, size, write)) {
                 devlog::trace<grp::dma>("SCU DMA{}: {}-bit {} {:08X} stalled by bus wait signal", level, size * 8,
                                         (write ? "write to" : "read from"), ch.currSrcAddr);
