@@ -1171,22 +1171,20 @@ void DrawPolylines(uint index, const PolyParams poly) {
 
 void DrawLine(uint index, const PolyParams poly) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
-
-    // TODO: load and parse parameters
-
-    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
-    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
     
-    // TODO: actually render the polygon
+    LineParams lineParams;
+    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
+    
+    const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
+    const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
 
-    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
-        const uint basePos = y * kAtlasStride;
-        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
-            const uint pos = (basePos + x) * 4;
-            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyAtlas.Store(pos, value);
-        }
-    }*/
+    if (lineParams.mode_color.gouraudEnable) {
+        const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
+        lineParams.gouraudLeft = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
+        lineParams.gouraudRight = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
+    }
+    
+    PlotLine(poly, coordA, coordB, lineParams, false);
 }
 
 void Draw(uint index) {
