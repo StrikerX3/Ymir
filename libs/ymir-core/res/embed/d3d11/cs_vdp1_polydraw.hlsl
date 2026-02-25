@@ -1212,7 +1212,3 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     // TODO: figure out if it is possible to efficiently parallelize individual polygon rendering
     Draw(id.z);
 }
-
-/*
-(986,17-83): error X3020: operator cannot be used with a bool lvalue
-*/
