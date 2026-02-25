@@ -1,7 +1,8 @@
 struct Config {
     uint numPolys;
-    // TODO: erase parameters
-    uint4 _reserved;
+    uint params;
+    uint erase;
+    uint _reserved;
 };
 
 // -----------------------------------------------------------------------------
@@ -43,6 +44,8 @@ void WriteFBOut16(uint address, uint data) {
 
 // -----------------------------------------------------------------------------
 
+static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
+
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     // TODO: perform erase/swap process
@@ -53,7 +56,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     
     // TODO: use erase parameters
     // TODO: framebuffer dimensions
-    const uint address = (id.x + id.y * 512) * 2;
+    const uint address = (id.x + id.y * fbSizeH) * 2;
     //WriteFBOut16(address, ReadFBRAM16(address));
     WriteFBOut16(address, 0x0000);
 }
