@@ -481,7 +481,7 @@ struct LineStepper {
     uint SystemClip(int2 size) {
         static const int kPadding = 1;
         
-        // Add padding to compensate for minar inaccuracies
+        // Add padding to compensate for minor inaccuracies
         size += kPadding + 1;
         
         // Bail out early if the line length is zero
@@ -499,9 +499,9 @@ struct LineStepper {
             return 0;
         }
 
-        // Fully clip the line if it is entirely out of bounds
-        if (any(posS < -kPadding) || any(posS > size) ||
-            any(posE < -kPadding) || any(posE > size)) {
+        // Fully clip line if it is entirely out of bounds
+        if ((posS.x < -kPadding && posE.x < -kPadding) || (posS.x > size.x && posE.x > size.x) ||
+            (posS.y < -kPadding && posE.y < -kPadding) || (posS.y > size.y && posE.y > size.y)) {
             pos = end;
             length = 0;
             return 0;
@@ -528,9 +528,10 @@ struct LineStepper {
             for (uint i = 0; i < startClip; ++i) {
                 accum -= num;
                 if (den != 0) {
-                    while (accum <= accumTarget) {
-                        accum += den;
-                        pos += minInc;
+                    if (accum <= accumTarget) {
+                        const uint steps = (accumTarget - accum + 1) / den;
+                        accum += den * steps;
+                        pos += minInc * steps;
                     }
                 }
             }
@@ -556,9 +557,10 @@ struct LineStepper {
             for (uint i = 0; i < endClip; ++i) {
                 tempAccum -= num;
                 if (den != 0) {
-                    while (tempAccum <= accumTarget) {
-                        tempAccum += den;
-                        end += minInc;
+                    if (tempAccum <= accumTarget) {
+                        const uint steps = (accumTarget - tempAccum + 1) / den;
+                        tempAccum += den * steps;
+                        end += minInc * steps;
                     }
                 }
             }
@@ -628,6 +630,8 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
         stepper.majInc.y = delta.y >= 0 ? +1 : -1;
         stepper.minInc.x = delta.x >= 0 ? +1 : -1;
         stepper.minInc.y = 0;
+        delta.xy = delta.yx;
+        absDelta.xy = absDelta.yx;
     }
     stepper.num = absDelta.y << 1;
     stepper.den = absDelta.x << 1;
@@ -1090,9 +1094,9 @@ void DrawPolygon(uint index, const PolyParams poly) {
     if (lineParams.mode_color.gouraudEnable) {
         const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
         const Color555 colorA = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
-        const Color555 colorB = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
-        const Color555 colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
-        const Color555 colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
+        const Color555 colorB = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
+        const Color555 colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 4));
+        const Color555 colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 6));
         
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
