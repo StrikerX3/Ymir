@@ -434,7 +434,7 @@ struct Sandbox {
 
             bool firstPixel = true;
             if (lineIndex % lineStep == lineOffset) {
-                LineStepper line{coordL, coordR};
+                LineStepper line{coordL, coordR, antialias};
                 TextureStepper texUStepper;
                 texUStepper.Setup(line.Length() + 1, 0, texSize);
                 bool needsAA = false;
