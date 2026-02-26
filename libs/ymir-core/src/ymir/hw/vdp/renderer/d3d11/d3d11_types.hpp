@@ -79,6 +79,7 @@ struct alignas(16) VDP1RenderConfig {
         D3DUint doubleDensity : 1;        //     3  Double-density interlace mode
         D3DUint dblInterlaceEnable : 1;   //     4  Double interlace enable
         D3DUint dblInterlaceDrawLine : 1; //     5  Double interlace line                0=even; 1=odd
+        D3DUint evenOddCoordSelect : 1;   //     6  Even/odd coordinate select (HSS)     0=even; 1=odd
     } params;
     static_assert(sizeof(Params) == sizeof(D3DUint));
 
