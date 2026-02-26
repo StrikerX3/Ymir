@@ -169,7 +169,10 @@ void MergePolys(uint2 pos) {
             continue;
         }
                 
-        const uint fbAddr = (pos.x + pos.y * fbSizeH) * 2;
+        uint fbAddr = (pos.x + pos.y * fbSizeH);
+        if (!pixel8Bits) {
+            fbAddr <<= 1;
+        }
         
         if (rawValue == kPolyMergerSetMSB) {
             const uint bit = 0x80 << ((fbAddr & 3) * 8);

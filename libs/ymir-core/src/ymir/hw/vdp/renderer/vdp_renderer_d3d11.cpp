@@ -841,6 +841,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
     config.params.doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
     config.params.dblInterlaceEnable = regs1.dblInterlaceEnable;
     config.params.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
+    config.params.evenOddCoordSelect = regs1.evenOddCoordSelect;
 
     m_context->VDP1Context.ModifyResource(
         m_context->cbufVDP1RenderConfig, 0,
