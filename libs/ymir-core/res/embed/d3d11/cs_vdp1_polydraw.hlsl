@@ -1059,22 +1059,22 @@ struct EndCodeCounter {
     }
 };
 
-void ReadTexel(inout EndCodeCounter endCodeCounter, inout TextureStepper uStepper, uint v, uint charSizeH, TexturedLineParams lineParams, out uint color, out bool transparent) {
-    const uint u = uStepper.Value();
+void ReadTexel(inout EndCodeCounter endCodeCounter, uint2 uv, TexturedLineParams lineParams, out uint color, out bool transparent) {
+    const uint charSizeH = lineParams.srca_size.charSize.x;
+    const uint charIndex = uv.x + uv.y * charSizeH;
 
-    const uint charIndex = u + v * charSizeH;
     // Read next texel
     switch (lineParams.mode_color.colorMode) {
         case 0: // 4 bpp, 16 colors, bank mode
             color = ReadVRAM8(lineParams.srca_size.charAddress + (charIndex >> 1));
-            color = (color >> ((~u & 1) * 4)) & 0xF;
+            color = (color >> ((~uv.x & 1) * 4)) & 0xF;
             endCodeCounter.ProcessEndCode(color == 0xF);
             transparent = color == 0x0;
             color |= lineParams.mode_color.color & 0xFFF0;
             break;
         case 1: // 4 bpp, 16 colors, lookup table mode
             color = ReadVRAM8(lineParams.srca_size.charAddress + (charIndex >> 1));
-            color = (color >> ((~u & 1) * 4)) & 0xF;
+            color = (color >> ((~uv.x & 1) * 4)) & 0xF;
             endCodeCounter.ProcessEndCode(color == 0xF);
             transparent = color == 0x0;
             color = ReadVRAM16(color * 2 + lineParams.mode_color.color * 8);
@@ -1160,9 +1160,7 @@ bool PlotTexturedLine(PolyParams poly, int2 coord1, int2 coord2, TexturedLinePar
     endCodeCounter.count = useHighSpeedShrink ? -2147483648 : 0;
     endCodeCounter.enable = !lineParams.mode_color.endCodeDisable;
     
-    // TODO: convert readTexel lambda to a function
-    
-    ReadTexel(endCodeCounter, uStepper, v, charSizeH, lineParams, color, transparent);
+    ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
 
     bool aa = false;
     bool plotted = false;
@@ -1170,7 +1168,7 @@ bool PlotTexturedLine(PolyParams poly, int2 coord1, int2 coord2, TexturedLinePar
         // Load new texels if U coordinate changed
         while (uStepper.ShouldStepTexel()) {
             uStepper.StepTexel();
-            ReadTexel(endCodeCounter, uStepper, v, charSizeH, lineParams, color, transparent);
+            ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
 
             if (endCodeCounter.count == 2) {
                 break;
