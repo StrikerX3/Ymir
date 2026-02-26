@@ -190,7 +190,6 @@ void MergePolys(uint2 pos) {
                 }
             }
         } else {
-            // TODO: 8-bit/16-bit mode
             const uint rawColor = BitExtract(rawValue, 0, 16);
             const uint colorCalcBits = BitExtract(rawValue, kPolyMergerColorCalcBitsShift, 2);
             const bool meshEnable = BitTest(rawValue, kPolyMergerMesh);
