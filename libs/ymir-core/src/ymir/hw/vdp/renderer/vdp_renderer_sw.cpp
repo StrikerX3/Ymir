@@ -1436,7 +1436,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
         .charSizeV = charSizeV,
     };
 
-    const bool flipV = control.flipV;
     QuadStepper quad{coordA, coordB, coordC, coordD};
 
     if (mode.gouraudEnable) {
@@ -1457,6 +1456,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
         lineParams.gouraudRight = &quad.RightEdge().Gouraud();
     }
 
+    const bool flipV = control.flipV;
     quad.SetupTexture(lineParams.texVStepper, charSizeV, flipV);
 
     // Optimization for the case where the quad goes outside the system clipping area.
