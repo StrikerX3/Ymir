@@ -172,19 +172,19 @@ CMDPMOD_COLR FetchCMDPMOD_COLR(uint cmdAddress) {
     const uint2 pair = FetchCMDPair(cmdAddress, kOffsetCMDPMOD);
     
     CMDPMOD_COLR data;
-    data.colorCalcBits = BitExtract(pair.x, 0, 2);
-    data.gouraudEnable = BitTest(pair.x, 2);
-    data.colorMode = BitExtract(pair.x, 3, 3);
-    data.transparentPixelDisable = BitTest(pair.x, 6);
-    data.endCodeDisable = BitTest(pair.x, 7);
-    data.meshEnable = BitTest(pair.x, 8);
-    data.clippingMode = BitTest(pair.x, 9);
-    data.userClippingEnable = BitTest(pair.x, 10);
-    data.preClippingDisable = BitTest(pair.x, 11);
-    data.highSpeedShrink = BitTest(pair.x, 12);
-    data.msbOn = BitTest(pair.x, 15);
+    data.colorCalcBits = BitExtract(pair.y, 0, 2);
+    data.gouraudEnable = BitTest(pair.y, 2);
+    data.colorMode = BitExtract(pair.y, 3, 3);
+    data.transparentPixelDisable = BitTest(pair.y, 6);
+    data.endCodeDisable = BitTest(pair.y, 7);
+    data.meshEnable = BitTest(pair.y, 8);
+    data.clippingMode = BitTest(pair.y, 9);
+    data.userClippingEnable = BitTest(pair.y, 10);
+    data.preClippingDisable = BitTest(pair.y, 11);
+    data.highSpeedShrink = BitTest(pair.y, 12);
+    data.msbOn = BitTest(pair.y, 15);
     
-    data.color = pair.y;
+    data.color = pair.x;
     return data;
 }
 
@@ -192,30 +192,30 @@ CMDSRCA_SIZE FetchCMDSRCA_SIZE(uint cmdAddress) {
     const uint2 pair = FetchCMDPair(cmdAddress, kOffsetCMDSRCA);
     
     CMDSRCA_SIZE data;
-    data.charAddress = pair.x << 3;
-    data.charSize.x = max(BitExtract(pair.y, 8, 6), 1);
-    data.charSize.y = max(BitExtract(pair.y, 0, 8) << 8, 1);
+    data.charAddress = pair.y << 3;
+    data.charSize.x = max(BitExtract(pair.x, 8, 6), 1);
+    data.charSize.y = max(BitExtract(pair.x, 0, 8) << 8, 1);
     return data;
 }
 
 int2 FetchCMDXA_YA(uint cmdAddress) {
     const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXA);
-    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
 }
 
 int2 FetchCMDXB_YB(uint cmdAddress) {
     const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXB);
-    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
 }
 
 int2 FetchCMDXC_YC(uint cmdAddress) {
     const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXC);
-    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
 }
 
 int2 FetchCMDXD_YD(uint cmdAddress) {
     const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXD);
-    return int2(SignExtend(raw.x, 13), SignExtend(raw.y, 13));
+    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
 }
 
 uint FetchCMDGRDA(uint cmdAddress) {
@@ -920,7 +920,7 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
     const int2 fbPos = Extract16PairS(poly.fbPos);
     const int2 size = Extract16PairS(poly.size);
     const int2 relPos = coord - fbPos;
-    if (any(relPos < 0) || any(relPos > size)) {
+    if (any(relPos < 0) || any(relPos >= size)) {
         return false;
     }
 

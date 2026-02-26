@@ -751,8 +751,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1ClipCoords(sint32 &x, sint32 &y) {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS32 bottomRight, uint32 cmdAddress) {
-    const uint32 width = bottomRight.x() - topLeft.x();
-    const uint32 height = bottomRight.y() - topLeft.y();
+    const uint32 width = bottomRight.x() - topLeft.x() + 1;
+    const uint32 height = bottomRight.y() - topLeft.y() + 1;
 
     // Try allocating it in the atlas
     uint32 x, y;
