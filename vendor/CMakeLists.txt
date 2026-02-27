@@ -50,18 +50,12 @@ add_subdirectory(lz4 EXCLUDE_FROM_ALL)
 message(STATUS "==> libchdr")
 add_subdirectory(libchdr)
 
-# smol-atlas - https://github.com/aras-p/smol-atlas
-# - Not available as a vcpkg port
-message(STATUS "==> smol-atlas")
-add_subdirectory(smol-atlas)
-
 # Place vendored library projects under a Vendored folder in Visual Studio solutions
 if (MSVC)
     set_target_properties(chdr-static PROPERTIES FOLDER Vendored)
     set_target_properties(imgui PROPERTIES FOLDER Vendored)
     set_target_properties(lz4 PROPERTIES FOLDER Vendored)
     set_target_properties(lzma PROPERTIES FOLDER Vendored)
-    set_target_properties(smol-atlas PROPERTIES FOLDER Vendored)
     set_target_properties(xxHash PROPERTIES FOLDER Vendored)
 endif ()
 

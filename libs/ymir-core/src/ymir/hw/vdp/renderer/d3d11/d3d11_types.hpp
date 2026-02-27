@@ -93,12 +93,6 @@ struct alignas(16) VDP1RenderConfig {
 };
 
 struct VDP1PolyParams {
-    D3DUint atlasPosX : 16;   // Horizontal position in atlas texture
-    D3DUint atlasPosY : 16;   // Vertical position in atlas texture
-    D3DUint sizeX : 16;       // Horizontal size of polygon after clipping
-    D3DUint sizeY : 16;       // Vertical size of polygon after clipping
-    D3DUint fbPosX : 16;      // Horizontal position in framebuffer
-    D3DUint fbPosY : 16;      // Vertical position in framebuffer
     D3DUint sysClipH : 16;    // System clipping area width
     D3DUint sysClipV : 16;    // System clipping area height
     D3DUint userClipX0 : 16;  // User clipping area left coordinate
