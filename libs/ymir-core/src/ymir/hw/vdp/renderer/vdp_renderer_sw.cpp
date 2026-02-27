@@ -1464,22 +1464,52 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
     // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
-    bool plottedLine = false;
+    //
+    // This also handles a degenerate case with a bowtie quad sitting outside the corner of the screen with two points
+    // poking into the screen area in a configuration similar to this:
+    //
+    //                       D
+    //                        B
+    //   +-----------------+
+    //   |            A    |
+    //   |               C |
+    //   |                 |
+    //   |                 |
+    //   |                 |
+    //   +-----------------+
+    //
+    // In this case, the line gets fully clipped partway through the quad, but comes back into view at the end, so we
+    // need to check for two sequences of plotted lines rather than one.
+    bool linePlotted = false;
+    int plottedSegmentsCount = 0;
+    const int plottedSegmentsMax = quad.IsDegenerate() ? 2 : 1;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         // Plot lines between the interpolated points
         const CoordS32 coordL = quad.LeftEdge().Coord();
         const CoordS32 coordR = quad.RightEdge().Coord();
+
         while (lineParams.texVStepper.ShouldStepTexel()) {
             lineParams.texVStepper.StepTexel();
         }
         lineParams.texVStepper.StepPixel();
+
+        if (mode.gouraudEnable) {
+            lineParams.gouraudLeft = &quad.LeftEdge().Gouraud();
+            lineParams.gouraudRight = &quad.RightEdge().Gouraud();
+        }
+
         if (VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
-            plottedLine = true;
-        } else if (plottedLine) {
+            if (!linePlotted) {
+                linePlotted = true;
+                ++plottedSegmentsCount;
+            }
+        } else if (plottedSegmentsCount >= plottedSegmentsMax) {
             // No more lines can be drawn past this point
             break;
+        } else {
+            linePlotted = false;
         }
     }
 }
@@ -1727,23 +1757,46 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
     // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
-    bool plottedLine = false;
+    //
+    // This also handles a degenerate case with a bowtie quad sitting outside the corner of the screen with two points
+    // poking into the screen area in a configuration similar to this:
+    //
+    //                       D
+    //                        B
+    //   +-----------------+
+    //   |            A    |
+    //   |               C |
+    //   |                 |
+    //   |                 |
+    //   |                 |
+    //   +-----------------+
+    //
+    // In this case, the line gets fully clipped partway through the quad, but comes back into view at the end, so we
+    // need to check for two sequences of plotted lines rather than one.
+    bool linePlotted = false;
+    int plottedSegmentsCount = 0;
+    const int plottedSegmentsMax = quad.IsDegenerate() ? 2 : 1;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
+        // Plot lines between the interpolated points
         const CoordS32 coordL = quad.LeftEdge().Coord();
         const CoordS32 coordR = quad.RightEdge().Coord();
 
-        // Plot lines between the interpolated points
         if (mode.gouraudEnable) {
             lineParams.gouraudLeft = quad.LeftEdge().GouraudValue();
             lineParams.gouraudRight = quad.RightEdge().GouraudValue();
         }
         if (VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
-            plottedLine = true;
-        } else if (plottedLine) {
+            if (!linePlotted) {
+                linePlotted = true;
+                ++plottedSegmentsCount;
+            }
+        } else if (plottedSegmentsCount >= plottedSegmentsMax) {
             // No more lines can be drawn past this point
             break;
+        } else {
+            linePlotted = false;
         }
     }
 }
