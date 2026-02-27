@@ -324,8 +324,7 @@ if (WIN32)
 
     list(APPEND YMIR_CORE_RESOURCES
         res/embed/d3d11/cs_vdp1_eraseswap.hlsl
-        res/embed/d3d11/cs_vdp1_polydraw.hlsl
-        res/embed/d3d11/cs_vdp1_polymerge.hlsl
+        res/embed/d3d11/cs_vdp1_render.hlsl
         res/embed/d3d11/cs_vdp2_bgs.hlsl
         res/embed/d3d11/cs_vdp2_compose.hlsl
         res/embed/d3d11/cs_vdp2_rotparams.hlsl
@@ -366,7 +365,6 @@ target_link_libraries(ymir-core PUBLIC
     concurrentqueue
     xxHash::xxHash
     chdr-static
-    smol-atlas::smol-atlas
 )
 if (WIN32)
     ## synchronization.lib required for WaitOnAddress and WakeByAddressAll

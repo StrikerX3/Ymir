@@ -13,8 +13,6 @@
 #include <d3d11.h>
 #include <d3dcompiler.h>
 
-#include <smol-atlas.h>
-
 #include <fmt/format.h>
 
 #include <algorithm>
@@ -29,44 +27,11 @@ using namespace d3dutil;
 
 namespace ymir::vdp::d3d11 {
 
-struct AtlasAllocator {
-    AtlasAllocator(uint32 width, uint32 height) {
-        m_ctx = sma_atlas_create(width, height);
-    }
-
-    ~AtlasAllocator() {
-        sma_atlas_destroy(m_ctx);
-    }
-
-    void Clear() {
-        sma_atlas_clear(m_ctx);
-    }
-
-    /// @brief Attempts to add a rectangle with the specified dimensions to the current batch.
-    /// @param[in] width the polygon width
-    /// @param[in] height the polygon height
-    /// @return `true` if the polygon could be packed into the atlas, `false` otherwise
-    bool Add(uint32 width, uint32 height, uint32 &outX, uint32 &outY) {
-        smol_atlas_item_t *item = sma_item_add(m_ctx, width, height);
-        if (item != nullptr) {
-            outX = sma_item_x(item);
-            outY = sma_item_y(item);
-            return true;
-        }
-
-        return false;
-    }
-
-private:
-    smol_atlas_t *m_ctx;
-};
-
 struct Direct3D11VDPRenderer::Context {
     Context(ID3D11Device *device)
         : DeviceManager(device)
         , VDP1Context(DeviceManager)
-        , VDP2Context(DeviceManager)
-        , atlasVDP1(kVDP1PolyAtlasH, kVDP1PolyAtlasV) {}
+        , VDP2Context(DeviceManager) {}
 
     DeviceManager DeviceManager;
     ContextManager VDP1Context;
@@ -75,7 +40,6 @@ struct Direct3D11VDPRenderer::Context {
     void Reset() {
         VDP1Context.Reset();
         VDP2Context.Reset();
-        atlasVDP1.Clear();
     }
 
     // -------------------------------------------------------------------------
@@ -85,6 +49,16 @@ struct Direct3D11VDPRenderer::Context {
     // - https://github.com/microsoft/wil
 
     ID3D11VertexShader *vsIdentity = nullptr; //< Identity/passthrough vertex shader, required to run pixel shaders
+
+    // =========================================================================
+    // VDP1 resources
+    //
+    // FBRAM is the actual data present in the VDP1's FBRAM (seen by the CPU).
+    // PolyOut is the buffer used internally by the renderer to output polygons at any resolution.
+    // Both buffers have essentially the same format, but only the FBRAM makes it out of the GPU.
+
+    // TODO: deal with FBRAM writes from the CPU
+    // - add second PolyOut buffer and handle framebuffer flipping
 
     // -------------------------------------------------------------------------
     // VDP1 - shared resources
@@ -97,36 +71,25 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11UnorderedAccessView *uavVDP1FBRAM = nullptr; //< UAV for VDP1 framebuffer RAM buffer
     ID3D11Buffer *bufVDP1FBRAMStaging = nullptr;       //< VDP1 framebuffer RAM staging buffer (CPU<->GPU transfers)
 
-    ID3D11Buffer *bufVDP1PolyAtlas = nullptr;              //< VDP1 polygon atlas buffer
-    ID3D11ShaderResourceView *srvVDP1PolyAtlas = nullptr;  //< SRV for VDP1 polygon atlas buffer
-    ID3D11UnorderedAccessView *uavVDP1PolyAtlas = nullptr; //< UAV for VDP1 polygon atlas buffer
-
-    ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
-    ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
-    std::array<VDP1PolyParams, 512> cpuVDP1PolyParams{};   //< CPU-side VDP1 polygon parameters
-    size_t cpuVDP1PolyParamsCount = 0;                     //< CPU-side VDP1 polygon parameters count
-
-    AtlasAllocator atlasVDP1; //< VDP1 polygon atlas context
-
     // -------------------------------------------------------------------------
-    // VDP1 - polygon erase/swap shader
+    // VDP1 - framebuffer erase/swap shader
 
     ID3D11ComputeShader *csVDP1EraseSwap = nullptr; //< VDP1 polygon erase/swap compute shader
 
     // -------------------------------------------------------------------------
-    // VDP1 - polygon drawing shader
+    // VDP1 - polygon rendering shader
 
-    ID3D11ComputeShader *csVDP1PolyDraw = nullptr; //< VDP1 polygon drawing compute shader
+    ID3D11ComputeShader *csVDP1Render = nullptr; //< VDP1 polygon drawing compute shader
 
     ID3D11Buffer *bufVDP1VRAM = nullptr;                              //< VDP1 VRAM buffer
     ID3D11ShaderResourceView *srvVDP1VRAM = nullptr;                  //< SRV for VDP1 VRAM buffer
     DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};                   //< Dirty bitmap for VDP1 VRAM
     std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages = {}; //< VDP1 VRAM page buffers
 
-    // -------------------------------------------------------------------------
-    // VDP1 - polygon merging shader
-
-    ID3D11ComputeShader *csVDP1PolyMerge = nullptr; //< VDP1 polygon merger compute shader
+    ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
+    ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
+    std::array<VDP1PolyParams, 1024> cpuVDP1PolyParams{};  //< CPU-side VDP1 polygon parameters
+    size_t cpuVDP1PolyParamsCount = 0;                     //< CPU-side VDP1 polygon parameters count
 
     ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer (sprite, mesh)
     ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output buffer
@@ -181,9 +144,9 @@ struct Direct3D11VDPRenderer::Context {
     std::array<VDP2RotParamBase, 2> cpuVDP2RotParamBases{};   //< CPU-side VDP2 rotparam base values
 
     // -------------------------------------------------------------------------
-    // VDP2 - NBG/RBG shader
+    // VDP2 - NBG/RBG/sprite layer shader
 
-    ID3D11ComputeShader *csVDP2BGs = nullptr; //< NBG/RBG compute shader
+    ID3D11ComputeShader *csVDP2BGs = nullptr; //< NBG/RBG/sprite compute shader
 
     ID3D11Buffer *bufVDP2ColorCache = nullptr;               //< VDP2 CRAM color cache buffer
     ID3D11ShaderResourceView *srvVDP2ColorCache = nullptr;   //< SRV for VDP2 CRAM color cache buffer
@@ -259,29 +222,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1FBRAMStaging, "[Ymir D3D11] VDP1 FBRAM staging buffer");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyAtlas, &m_context->srvVDP1PolyAtlas,
-                                                    &m_context->uavVDP1PolyAtlas,
-                                                    kVDP1PolyAtlasH * kVDP1PolyAtlasV * sizeof(D3DUint), nullptr, 0, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    SetDebugName(m_context->bufVDP1PolyAtlas, "[Ymir D3D11] VDP1 polygon atlas buffer");
-    SetDebugName(m_context->srvVDP1PolyAtlas, "[Ymir D3D11] VDP1 polygon atlas SRV");
-    SetDebugName(m_context->uavVDP1PolyAtlas, "[Ymir D3D11] VDP1 polygon atlas UAV");
-
-    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
-                                                   m_context->cpuVDP1PolyParams.size(),
-                                                   m_context->cpuVDP1PolyParams.data(), 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
-    SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
-
     // -------------------------------------------------------------------------
-    // VDP1 - polygon erase/swap shader
+    // VDP1 - framebuffer erase/swap shader
 
     if (!devMgr.CreateComputeShader(m_context->csVDP1EraseSwap, "d3d11/cs_vdp1_eraseswap.hlsl")) {
         // TODO: report error
@@ -290,13 +232,13 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->csVDP1EraseSwap, "[Ymir D3D11] VDP1 polygon erase/swap compute shader");
 
     // -------------------------------------------------------------------------
-    // VDP1 - polygon drawing shader
+    // VDP1 - polygon rendering shader
 
-    if (!devMgr.CreateComputeShader(m_context->csVDP1PolyDraw, "d3d11/cs_vdp1_polydraw.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP1Render, "d3d11/cs_vdp1_render.hlsl")) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1PolyDraw, "[Ymir D3D11] VDP1 polygon drawing compute shader");
+    SetDebugName(m_context->csVDP1Render, "[Ymir D3D11] VDP1 polygon rendering compute shader");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM, nullptr,
                                                     m_state.VRAM1.size(), m_state.VRAM1.data(), 0, 0);
@@ -318,14 +260,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         ++i;
     }
 
-    // -------------------------------------------------------------------------
-    // VDP1 - polygon merging shader
-
-    if (!devMgr.CreateComputeShader(m_context->csVDP1PolyMerge, "d3d11/cs_vdp1_polymerge.hlsl")) {
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
+                                                   m_context->cpuVDP1PolyParams.size(),
+                                                   m_context->cpuVDP1PolyParams.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1PolyMerge, "[Ymir D3D11] VDP1 polygon merger compute shader");
+    SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
+    SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
                                                     &m_context->uavVDP1PolyOut, kVDP1FramebufferRAMSize,
@@ -751,32 +694,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1ClipCoords(sint32 &x, sint32 &y) {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS32 bottomRight, uint32 cmdAddress) {
-    const uint32 width = bottomRight.x() - topLeft.x() + 1;
-    const uint32 height = bottomRight.y() - topLeft.y() + 1;
-
-    // Try allocating it in the atlas
-    uint32 x, y;
-    if (!m_context->atlasVDP1.Add(width, height, x, y)) {
-        // Submit batch if failed to make room for polygon then try again
-        VDP1SubmitPolygons();
-
-        if (!m_context->atlasVDP1.Add(width, height, x, y)) {
-            // This really should succeed no matter how large the polygon is
-            YMIR_DEV_CHECK();
-        }
-    }
-
     // Write polygon parameters to list
     const size_t index = m_context->cpuVDP1PolyParamsCount;
     ++m_context->cpuVDP1PolyParamsCount;
 
     auto &entry = m_context->cpuVDP1PolyParams[index];
-    entry.atlasPosX = x;
-    entry.atlasPosY = y;
-    entry.sizeX = width;
-    entry.sizeY = height;
-    entry.fbPosX = topLeft.x();
-    entry.fbPosY = topLeft.y();
     entry.sysClipH = m_VDP1State.sysClipH;
     entry.sysClipV = m_VDP1State.sysClipV;
     entry.userClipX0 = m_VDP1State.userClipX0;
@@ -787,7 +709,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS
     entry.localCoordY = m_VDP1State.localCoordY;
     entry.cmdAddress = cmdAddress;
 
-    // Submit batch if the polygon list is now full
+    // Submit batch if the polygon list is full
     if (m_context->cpuVDP1PolyParamsCount == m_context->cpuVDP1PolyParams.size()) {
         VDP1SubmitPolygons();
     }
@@ -813,18 +735,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
     // Render polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyAtlas});
-    ctx.CSSetShader(m_context->csVDP1PolyDraw);
-    ctx.Dispatch(1, 1, m_context->cpuVDP1PolyParamsCount);
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1FBRAM});
+    ctx.CSSetShader(m_context->csVDP1Render);
+    ctx.Dispatch((m_VDP1State.sysClipH + 31) / 32, (m_VDP1State.sysClipV + 31) / 32, 1);
 
-    // Merge polygons
-    ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyAtlas, m_context->uavVDP1PolyOut});
-    ctx.CSSetShaderResources({m_context->srvVDP1PolyParams});
-    ctx.CSSetShader(m_context->csVDP1PolyMerge);
-    ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
-
-    m_context->atlasVDP1.Clear();
     m_context->cpuVDP1PolyParamsCount = 0;
 }
 

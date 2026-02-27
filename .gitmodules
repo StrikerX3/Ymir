@@ -20,6 +20,3 @@
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/microsoft/vcpkg.git
-[submodule "vendor/smol-atlas/smol-atlas"]
-	path = vendor/smol-atlas/smol-atlas
-	url = https://github.com/aras-p/smol-atlas.git
