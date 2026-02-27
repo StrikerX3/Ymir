@@ -80,6 +80,10 @@ typedef uint4 Color555;
 
 // -----------------------------------------------------------------------------
 
+int cross2D(int2 vecA, int2 vecB) {
+    return vecA.x * vecB.y - vecA.y * vecB.x;
+}
+
 bool BitTest(uint value, uint bit) {
     return ((value >> bit) & 1) != 0;
 }
@@ -735,6 +739,8 @@ struct QuadStepper {
 
     uint dmaj;
     uint step;
+    
+    bool degenerate;
 
     // Sets up texture interpolation for the given texture vertical size and parameters.
     void SetupTexture(inout TextureStepper stepper, uint charSizeV, bool flipV) {
@@ -785,6 +791,35 @@ QuadStepper NewQuadStepper(int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
     stepper.edgeL.Setup(coordA, coordD, stepper.dmaj);
     stepper.edgeR.Setup(coordB, coordC, stepper.dmaj);
     
+    // Determine if quad is degenerate by checking cross products of pairs of consecutive edges
+
+    const int2 vecAB = coordB - coordA;
+    const int2 vecBC = coordC - coordB;
+    const int2 vecCD = coordD - coordC;
+    const int2 vecDA = coordA - coordD;
+
+    const int crossABC = cross2D(vecAB, vecBC);
+    const int crossBCD = cross2D(vecBC, vecCD);
+    const int crossCDA = cross2D(vecCD, vecDA);
+    const int crossDAB = cross2D(vecDA, vecAB);
+
+    // Produces -1 for negatives or 0 for positives/zeros
+    const int signABC = crossABC >> 31;
+    const int signBCD = crossBCD >> 31;
+    const int signCDA = crossCDA >> 31;
+    const int signDAB = crossDAB >> 31;
+
+    if (crossABC == 0 || crossBCD == 0 || crossCDA == 0 || crossDAB == 0) {
+        // If any of the cross products is zero, two edges are colinear or two points coincide.
+        // This results in a triangle, a line or a point, all of which are considered non-degenerate.
+        stepper.degenerate = false;
+    } else {
+        // The quad is regular if all cross product signs match.
+        // If all signs match, the sum of the signs will be either 0 or 4.
+        const int signSum = signABC + signBCD + signCDA + signDAB;
+        stepper.degenerate = (signSum & ~4) == 0;
+    }
+
     return stepper;
 }
 
@@ -1354,7 +1389,9 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
     // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
-    bool plottedLine = false;
+    bool linePlotted = false;
+    int plottedSegmentsCount = 0;
+    const int plottedSegmentsMax = quad.degenerate ? 2 : 1;
   
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
@@ -1366,6 +1403,7 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
             lineParams.gouraudLeft = quad.edgeL.GouraudValue();
             lineParams.gouraudRight = quad.edgeR.GouraudValue();
         }
+        
         bool plotted = false;
         if (PlotLine(pos, poly, coordL, coordR, lineParams, true)) {
             plotted = true;
@@ -1373,11 +1411,17 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
         if (PlotLine(pos, poly, coordL, coordR, lineParams, false)) {
             plotted = true;
         }
+        
         if (plotted) {
-            plottedLine = true;
-        } else if (plottedLine) {
+            if (!linePlotted) {
+                linePlotted = true;
+                ++plottedSegmentsCount;
+            }
+        } else if (plottedSegmentsCount >= plottedSegmentsMax) {
             // No more lines can be drawn past this point
             break;
+        } else {
+            linePlotted = false;
         }
     }
 }
@@ -1470,13 +1514,13 @@ void Draw(uint2 pos) {
                 DrawPolygon(pos, poly);
                 break;
             case kCommandDrawPolylines:
-                DrawPolylines(index, poly);
+                //DrawPolylines(index, poly);
                 break;
             case kCommandDrawPolylinesAlt:
-                DrawPolylines(index, poly);
+                //DrawPolylines(index, poly);
                 break;
             case kCommandDrawLine:
-                DrawLine(index, poly);
+                //DrawLine(index, poly);
                 break;
         }
     }
