@@ -6,9 +6,6 @@ struct Config {
 };
 
 struct PolyParams {
-    uint atlasPos;
-    uint size;
-    uint fbPos;
     uint sysClip;
     uint userClipX;
     uint userClipY;
@@ -25,7 +22,8 @@ cbuffer Config : register(b0) {
 ByteAddressBuffer vram : register(t0);
 StructuredBuffer<PolyParams> polyParams : register(t1);
 
-RWByteAddressBuffer polyAtlas : register(u0);
+RWByteAddressBuffer fbOut : register(u0);
+RWByteAddressBuffer fbram : register(u1);
 
 // -----------------------------------------------------------------------------
 
@@ -54,23 +52,6 @@ static const uint kCommandDrawPolylines = 0x5;
 static const uint kCommandDrawPolylinesAlt = 0x7;
 static const uint kCommandDrawLine = 0x6;
 // No other commands should hit the renderer
-
-static const uint kAtlasStride = 2048;
-
-// Special values for the polygon merger
-//  bits  use
-//    31  Pixel drawn
-//    18  Mesh pixel
-// 17-16  Color calculation mode to apply
-//          0 = replace
-//          1 = shadow
-//          2 = half-luminance
-//          3 = half-transparency
-//  15-0  Raw color data
-static const uint kPolyMergerPixelDrawn = 31;
-static const uint kPolyMergerMesh = 18;
-static const uint kPolyMergerColorCalcBitsShift = 16;
-static const uint kPolyMergerSetMSB = 0xFFFFFFFF;
 
 struct CMDPMOD_COLR {
     // CMDPMOD
@@ -155,6 +136,38 @@ uint ReadVRAM16(uint address) {
 // Expects address to be 32-bit-aligned
 uint ReadVRAM32(uint address) {
     return ByteSwap32(vram.Load(address));
+}
+
+uint ReadFB8(uint address) {
+    const uint value = fbOut.Load(address & ~3);
+    return (value >> ((address & 3) * 8)) & 0xFF;
+}
+
+uint ReadFB16(uint address) {
+    const uint value = fbOut.Load(address & ~3);
+    return (value >> ((address & 2) * 8)) & 0xFFFF;
+}
+
+void WriteFB8(uint address, uint data) {
+    const uint shift = (address & 3) * 8;
+    const uint mask = ~(0xFF << shift);
+    data = (data & 0xFF) << shift;
+             
+    address &= ~3;
+    uint dummy;
+    fbOut.InterlockedAnd(address, mask, dummy);
+    fbOut.InterlockedOr(address, data, dummy);
+}
+
+void WriteFB16(uint address, uint data) {
+    const uint shift = (address & 2) * 8;
+    const uint mask = ~(0xFFFF << shift);
+    data = (data & 0xFFFF) << shift;
+
+    address &= ~3;
+    uint dummy;
+    fbOut.InterlockedAnd(address, mask, dummy);
+    fbOut.InterlockedOr(address, data, dummy);
 }
 
 // offset must be 16-bit aligned
@@ -246,7 +259,8 @@ static const bool pixel8Bits = BitTest(config.params, 2);
 static const bool doubleDensity = BitTest(config.params, 3);
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
 static const bool dblInterlaceDrawLine = BitTest(config.params, 5);
-static const bool deinterlace = false;
+static const bool deinterlace = false; // TODO: pull from config
+static const bool transparentMeshes = false; // TODO: pull from config
 
 // Steps over the texels of a texture.
 struct TextureStepper {
@@ -479,104 +493,44 @@ struct LineStepper {
     
     int2 aaInc;
     bool antiAlias;
-    
-    // Clips the slope to the area 0x0..width x height.
+
+    // Skips the slope to the same row or column of the specified pixel.
     // Returns the number of increments skipped.
-    uint SystemClip(int2 size) {
-        static const int kPadding = 1;
-        
-        // Add padding to compensate for minor inaccuracies
-        size += kPadding + 1;
-        
-        // Bail out early if the line length is zero
-        uint length = dmaj;
-        if (length == 0) {
-            return 0;
+    // Returns dmaj if out of range.
+    // When antiAlias is true, this targets the antialiasing pixel coordinates
+    // and will skip one pixel less than the target coordinates. Invoke Step()
+    // to check if the antialias  pixel is to be drawn.
+    uint SkipToTarget(uint2 targetPos, bool antiAlias) {
+        int2 deltaPos = targetPos - pos;
+        if (antiAlias) {
+            deltaPos -= aaInc;
+        }
+        deltaPos *= majInc;
+        const int delta = deltaPos.x + deltaPos.y; // only one component is non-zero
+
+        // Check if out of range
+        if (delta < 0 || delta > int(dmaj)) {
+            return dmaj + 1;
         }
 
-        int2 posS = pos;
-        int2 posE = end;
-        
-        // Bail out early if the line is entirely in-bounds
-        if (all(posS >= -kPadding) && all(posS <= size) &&
-            all(posE >= -kPadding) && all(posE <= size)) {
-            return 0;
-        }
-
-        // Fully clip line if it is entirely out of bounds
-        if ((posS.x < -kPadding && posE.x < -kPadding) || (posS.x > size.x && posE.x > size.x) ||
-            (posS.y < -kPadding && posE.y < -kPadding) || (posS.y > size.y && posE.y > size.y)) {
-            pos = end;
-            length = 0;
-            return 0;
-        }
-
-        // ---------------------------------------------------------------------
-        
-        const bool xmajor = majInc.x != 0;
-        const int inc = majInc.x + majInc.y; // only one of the two is non-zero
-        const int startPos = xmajor ? posS.x : posS.y;
-        const int endPos = xmajor ? posE.x : posE.y;
-        const int maxLen = xmajor ? size.x : size.y;
-
-        // Clip from the start
-        uint startClip = 0u;
-        if (inc > 0 && startPos < -kPadding) {
-            startClip = -startPos - 1 - kPadding;
-        } else if (inc < 0 && startPos > maxLen) {
-            startClip = startPos - maxLen;
-        }
-        if (startClip > 0u) {
-            startClip = min(startClip, length - 1u);
-            pos += majInc * startClip;
-            for (uint i = 0; i < startClip; ++i) {
-                accum -= num;
-                if (den != 0) {
-                    if (accum <= accumTarget) {
-                        const uint steps = (accumTarget - accum + 1) / den;
-                        accum += den * steps;
-                        pos += minInc * steps;
-                    }
-                }
+        // Apply steps
+        if (delta > 0) {
+            int steps = delta;
+            if (antiAlias) {
+                steps--;
             }
-            length -= startClip;
-        }
-        
-        
-        // ---------------------------------------------------------------------
+            step += steps;
+            pos += majInc * steps;
 
-        // Clip from the end
-        uint endClip = 0u;
-        if (inc < 0 && endPos < -kPadding) {
-            endClip = -endPos - 1 - kPadding;
-        } else if (inc > 0 && endPos > maxLen) {
-            endClip = endPos - maxLen;
-        }
-        endClip = min(endClip, length);
-        if (endClip > 0u) {
-            endClip = length - endClip;
-            length = endClip;
-            end = pos;
-            int tempAccum = accum;
-            for (uint i = 0; i < endClip; ++i) {
-                tempAccum -= num;
-                if (den != 0) {
-                    if (tempAccum <= accumTarget) {
-                        const uint steps = (accumTarget - tempAccum + 1) / den;
-                        tempAccum += den * steps;
-                        end += minInc * steps;
-                    }
-                }
+            accum -= num * steps;
+            if (den != 0) {
+                const int count = (accumTarget - accum + den) / den;
+                accum += den * count;
+                pos += minInc * count;
             }
         }
-        length = length + 1u;
 
-        return startClip;
-    }
-
-    // Determines if the slope can be stepped.
-    bool CanStep() {
-        return step <= length;
+        return delta;
     }
     
     // Steps the slope to the next coordinate.
@@ -660,14 +614,6 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
             stepper.aaInc.y = samesign ? -stepper.majInc.y : 0;
         }
     }
-    
-    // NOTE: Shifting counters by this amount forces them to have 13 bits without the need for masking
-    static const int kShift = 32 - 13;
-    
-    stepper.num <<= kShift;
-    stepper.den <<= kShift;
-    stepper.accum <<= kShift;
-    stepper.accumTarget <<= kShift;
     
     return stepper;
 }
@@ -946,15 +892,8 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
         return false;
     }
     
-    const int2 fbPos = Extract16PairS(poly.fbPos);
-    const int2 size = Extract16PairS(poly.size);
-    const int2 relPos = coord - fbPos;
-    if (any(relPos < 0) || any(relPos >= size)) {
-        return false;
-    }
-
     if (pixelParams.mode_color.meshEnable && ((coord.x ^ coord.y) & 1)) {
-        return true;
+        return false;
     }
 
     const bool altFB = deinterlace && doubleDensity && (coord.y & 1);
@@ -967,50 +906,114 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
         coord.y >>= 1;
     }
 
+    uint fbAddr = (coord.x + coord.y * fbSizeH);
+    if (!pixel8Bits) {
+        fbAddr <<= 1;
+    }
+
+    const bool meshEnable = pixelParams.mode_color.meshEnable;
+    
     // TODO: pixelParams.mode_color.preClippingDisable
     
-    uint value;
     if (pixelParams.mode_color.msbOn) {
-        value = kPolyMergerSetMSB;
+        const uint bit = 0x80 << ((fbAddr & 3) * 8);
+        uint dummy;
+        fbOut.InterlockedOr(fbAddr & ~3, bit, dummy);
     } else {
         uint value;
         if (pixel8Bits) {
+            const uint value = pixelParams.mode_color.color & 0xFF;
+        
             // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
-            value = pixelParams.mode_color.color & 0xFF;
+       
+            if (transparentMeshes && meshEnable) {
+                // TODO: write to mesh layer
+            } else {
+                WriteFB8(fbAddr, value);
+                if (transparentMeshes) {
+                    // TODO: clear pixel from transparent mesh buffer
+                }
+            }
         } else {
-            value = pixelParams.mode_color.color;
             if (pixelParams.mode_color.gouraudEnable) {
                 // Apply gouraud shading to source color
                 Color555 color = Uint16ToColor555(value);
                 color = pixelParams.gouraud.Blend(color);
                 value = Color555ToUint16(color);
             }
-            value |= pixelParams.mode_color.colorCalcBits << kPolyMergerColorCalcBitsShift;
+            
+            const uint rawColor = pixelParams.mode_color.color;
+            const uint colorCalcBits = pixelParams.mode_color.colorCalcBits;
+            
+            Color555 srcColor = Uint16ToColor555(rawColor);
+            Color555 dstColor;
+
+            // Apply color calculations
+            //
+            // In all cases where calculation is done, the raw color data to be drawn ("original graphic") or from
+            // the background are interpreted as 5:5:5 RGB.
+
+            switch (colorCalcBits) {
+                case 0: // Replace
+                    dstColor = srcColor;
+                    break;
+                case 1: // Shadow
+                    // Halve destination luminosity if it's not transparent
+                    dstColor = Uint16ToColor555(ReadFB16(fbAddr));
+                    if (dstColor.a) {
+                        dstColor.r >>= 1u;
+                        dstColor.g >>= 1u;
+                        dstColor.b >>= 1u;
+                    }
+                    break;
+                case 2: // Half-luminance
+                    // Draw original graphic with halved luminance
+                    dstColor.r = srcColor.r >> 1u;
+                    dstColor.g = srcColor.g >> 1u;
+                    dstColor.b = srcColor.b >> 1u;
+                    dstColor.a = srcColor.a;
+                    break;
+                case 3: // Half-transparency
+                    // If background is not transparent, blend half of original graphic and half of background
+                    // Otherwise, draw original graphic as is
+                    dstColor = Uint16ToColor555(ReadFB16(fbAddr));
+                    if (dstColor.a) {
+                        dstColor.r = (srcColor.r + dstColor.r) >> 1u;
+                        dstColor.g = (srcColor.g + dstColor.g) >> 1u;
+                        dstColor.b = (srcColor.b + dstColor.b) >> 1u;
+                    } else {
+                        dstColor = srcColor;
+                    }
+                    break;
+            }
+
+            const uint value = Color555ToUint16(dstColor);
+            
+            if (transparentMeshes && meshEnable) {
+                // TODO: write to mesh layer
+            } else {
+                WriteFB16(fbAddr, value);
+                if (transparentMeshes) {
+                    // TODO: clear pixel from transparent mesh buffer
+                }
+            }
         }
-        value |= uint(pixelParams.mode_color.meshEnable) << kPolyMergerMesh;
-        value |= 1 << kPolyMergerPixelDrawn;
     }
-    
-    const int2 baseAtlasPos = Extract16PairS(poly.atlasPos);
-    const int2 atlasPos = baseAtlasPos + relPos;
-    const uint atlasOffset = (atlasPos.y * kAtlasStride + atlasPos.x) * 4;
-    polyAtlas.Store(atlasOffset, value);
     
     return true;
 }
 
-bool PlotLine(const PolyParams poly, int2 coord1, int2 coord2, LineParams lineParams, bool antiAlias) {
+bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LineParams lineParams, bool antiAlias) {
     if (IsLineSystemClipped(poly, coord1, coord2)) {
         return false;
     }
 
-    const int2 sysClip = int2(
-        BitExtract(poly.sysClip, 0, 16),
-        BitExtract(poly.sysClip, 16, 16)
-    );
-    
     LineStepper lineStepper = NewLineStepper(coord1, coord2, antiAlias);
-    const uint skipSteps = lineStepper.SystemClip(sysClip);
+    const uint skipSteps = lineStepper.SkipToTarget(pos, antiAlias);
+    if (skipSteps > lineStepper.dmaj) {
+        return false;
+    }
+    
     PixelParams pixelParams;
     pixelParams.mode_color = lineParams.mode_color;
     if (pixelParams.mode_color.gouraudEnable) {
@@ -1018,30 +1021,14 @@ bool PlotLine(const PolyParams poly, int2 coord1, int2 coord2, LineParams linePa
         pixelParams.gouraud.Skip(skipSteps);
     }
 
-    bool aa = false;
-    bool plotted = false;
-    for (lineStepper.Step(); lineStepper.CanStep(); aa = lineStepper.Step()) {
-        bool plottedPixel = PlotPixel(poly, lineStepper.Coord(), pixelParams);
-        if (antiAlias) {
-            if (aa) {
-                if (PlotPixel(poly, lineStepper.AACoord(), pixelParams)) {
-                    plottedPixel = true;
-                }
-            }
-        }
-        if (plottedPixel) {
-            plotted = true;
-        } else if (plotted) {
-            // No more pixels can be drawn past this point
-            break;
-        }
-
-        if (pixelParams.mode_color.gouraudEnable) {
-            pixelParams.gouraud.Step();
-        }
+    if (!antiAlias) {
+        return PlotPixel(poly, lineStepper.Coord(), pixelParams);
     }
-
-    return plotted;
+    if (lineStepper.Step()) {
+        return PlotPixel(poly, lineStepper.AACoord(), pixelParams);
+    }
+    
+    return false;
 }
 
 struct EndCodeCounter {
@@ -1107,12 +1094,16 @@ void ReadTexel(inout EndCodeCounter endCodeCounter, uint2 uv, TexturedLineParams
     }
 }
 
-bool PlotTexturedLine(PolyParams poly, int2 coord1, int2 coord2, TexturedLineParams lineParams, inout GouraudStepper gouraudL, inout GouraudStepper gouraudR) {
+bool PlotTexturedLine(uint2 pos, PolyParams poly, int2 coord1, int2 coord2, TexturedLineParams lineParams, inout GouraudStepper gouraudL, inout GouraudStepper gouraudR) {
     if (IsLineSystemClipped(poly, coord1, coord2)) {
         return false;
     }
+    
+    return false;
 
-    const uint charSizeH = lineParams.srca_size.charSize.x;
+    // TODO: rewrite
+    
+    /*const uint charSizeH = lineParams.srca_size.charSize.x;
     if (lineParams.mode_color.colorMode == 5) {
         // Force-align character address in 16 bpp RGB mode
         lineParams.srca_size.charAddress &= ~0xF;
@@ -1236,10 +1227,10 @@ bool PlotTexturedLine(PolyParams poly, int2 coord1, int2 coord2, TexturedLinePar
         }
     }
 
-    return plotted;
+    return plotted;*/
 }
 
-void PlotTexturedQuad(PolyParams poly, uint cmdctrl, CMDSRCA_SIZE srca_size, int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
+void PlotTexturedQuad(uint2 pos, PolyParams poly, uint cmdctrl, CMDSRCA_SIZE srca_size, int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
     if (IsQuadSystemClipped(poly, coordA, coordB, coordC, coordD)) {
         return;
     }
@@ -1285,7 +1276,7 @@ void PlotTexturedQuad(PolyParams poly, uint cmdctrl, CMDSRCA_SIZE srca_size, int
             lineParams.texVStepper.StepTexel();
         }
         lineParams.texVStepper.StepPixel();
-        if (PlotTexturedLine(poly, coordL, coordR, lineParams, quad.edgeL.gouraud, quad.edgeR.gouraud)) {
+        if (PlotTexturedLine(pos, poly, coordL, coordR, lineParams, quad.edgeL.gouraud, quad.edgeR.gouraud)) {
             plottedLine = true;
         } else if (plottedLine) {
             // No more lines can be drawn past this point
@@ -1294,7 +1285,7 @@ void PlotTexturedQuad(PolyParams poly, uint cmdctrl, CMDSRCA_SIZE srca_size, int
     }
 }
 
-void DrawNormalSprite(uint index, const PolyParams poly, const uint cmdctrl) {
+void DrawNormalSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
 
     const CMDSRCA_SIZE srca_size = FetchCMDSRCA_SIZE(poly.cmdAddress);
@@ -1308,30 +1299,18 @@ void DrawNormalSprite(uint index, const PolyParams poly, const uint cmdctrl) {
     const int2 coordC = int2(coordBR.x, coordBR.y);
     const int2 coordD = int2(coordTL.x, coordBR.y);
 
-    PlotTexturedQuad(poly, cmdctrl, srca_size, coordA, coordB, coordC, coordD);
+    PlotTexturedQuad(pos, poly, cmdctrl, srca_size, coordA, coordB, coordC, coordD);
 }
 
-void DrawScaledSprite(uint index, const PolyParams poly, const uint cmdctrl) {
+void DrawScaledSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
 
     // TODO: load and parse parameters
     
-    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
-    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
-    
     // TODO: actually render the polygon
-
-    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
-        const uint basePos = y * kAtlasStride;
-        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
-            const uint pos = (basePos + x) * 4;
-            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyAtlas.Store(pos, value);
-        }
-    }*/
 }
 
-void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) {
+void DrawDistortedSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
@@ -1339,23 +1318,11 @@ void DrawDistortedSprite(uint index, const PolyParams poly, const uint cmdctrl) 
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
     const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
 
-    const uint2 atlasPos = Extract16PairU(poly.atlasPos);
-    const uint2 atlasEnd = atlasPos + Extract16PairU(poly.size);
-    
     // TODO: actually render the polygon
-
-    /*for (uint y = atlasPos.y; y < atlasEnd.y; y++) {
-        const uint basePos = y * kAtlasStride;
-        for (uint x = atlasPos.x; x < atlasEnd.x; x++) {
-            const uint pos = (basePos + x) * 4;
-            const uint value = ~(x - atlasPos.x + (y - atlasPos.y) * 256);
-            polyAtlas.Store(pos, value);
-        }
-    }*/
 }
 
-void DrawPolygon(uint index, const PolyParams poly) {
-    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+void DrawPolygon(uint2 pos, const PolyParams poly) {
+    const int2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     LineParams lineParams;
     lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
@@ -1399,7 +1366,14 @@ void DrawPolygon(uint index, const PolyParams poly) {
             lineParams.gouraudLeft = quad.edgeL.GouraudValue();
             lineParams.gouraudRight = quad.edgeR.GouraudValue();
         }
-        if (PlotLine(poly, coordL, coordR, lineParams, true)) {
+        bool plotted = false;
+        if (PlotLine(pos, poly, coordL, coordR, lineParams, true)) {
+            plotted = true;
+        }
+        if (PlotLine(pos, poly, coordL, coordR, lineParams, false)) {
+            plotted = true;
+        }
+        if (plotted) {
             plottedLine = true;
         } else if (plottedLine) {
             // No more lines can be drawn past this point
@@ -1408,7 +1382,7 @@ void DrawPolygon(uint index, const PolyParams poly) {
     }
 }
 
-void DrawPolylines(uint index, const PolyParams poly) {
+void DrawPolylines(uint2 pos, const PolyParams poly) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     LineParams lineParams;
@@ -1436,25 +1410,25 @@ void DrawPolylines(uint index, const PolyParams poly) {
         lineParams.gouraudLeft = colorA;
         lineParams.gouraudRight = colorB;
     }
-    PlotLine(poly, coordA, coordB, lineParams, false);
+    PlotLine(pos, poly, coordA, coordB, lineParams, false);
     if (lineParams.mode_color.gouraudEnable) {
         lineParams.gouraudLeft = colorB;
         lineParams.gouraudRight = colorC;
     }
-    PlotLine(poly, coordB, coordC, lineParams, false);
+    PlotLine(pos, poly, coordB, coordC, lineParams, false);
     if (lineParams.mode_color.gouraudEnable) {
         lineParams.gouraudLeft = colorC;
         lineParams.gouraudRight = colorD;
     }
-    PlotLine(poly, coordC, coordD, lineParams, false);
+    PlotLine(pos, poly, coordC, coordD, lineParams, false);
     if (lineParams.mode_color.gouraudEnable) {
         lineParams.gouraudLeft = colorD;
         lineParams.gouraudRight = colorA;
     }
-    PlotLine(poly, coordD, coordA, lineParams, false);
+    PlotLine(pos, poly, coordD, coordA, lineParams, false);
 }
 
-void DrawLine(uint index, const PolyParams poly) {
+void DrawLine(uint2 pos, const PolyParams poly) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     LineParams lineParams;
@@ -1469,52 +1443,48 @@ void DrawLine(uint index, const PolyParams poly) {
         lineParams.gouraudRight = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
     }
     
-    PlotLine(poly, coordA, coordB, lineParams, false);
+    PlotLine(pos, poly, coordA, coordB, lineParams, false);
 }
 
-void Draw(uint index) {
-    const PolyParams poly = polyParams[index];
+void Draw(uint2 pos) {
+    for (uint index = 0; index < config.numPolys; index++) {
+        const PolyParams poly = polyParams[index];
 
-    const uint cmdctrl = FetchCMDCTRL(poly.cmdAddress);
-    const uint command = BitExtract(cmdctrl, 0, 4);
+        const uint cmdctrl = FetchCMDCTRL(poly.cmdAddress);
+        const uint command = BitExtract(cmdctrl, 0, 4);
     
-    switch (command) {
-        case kCommandDrawNormalSprite:
-            DrawNormalSprite(index, poly, cmdctrl);
-            break;
-        case kCommandDrawScaledSprite:
-            DrawScaledSprite(index, poly, cmdctrl);
-            break;
-        case kCommandDrawDistortedSprite:
-            DrawDistortedSprite(index, poly, cmdctrl);
-            break;
-        case kCommandDrawDistortedSpriteAlt:
-            DrawDistortedSprite(index, poly, cmdctrl);
-            break;
-        case kCommandDrawPolygon:
-            DrawPolygon(index, poly);
-            break;
-        case kCommandDrawPolylines:
-            DrawPolylines(index, poly);
-            break;
-        case kCommandDrawPolylinesAlt:
-            DrawPolylines(index, poly);
-            break;
-        case kCommandDrawLine:
-            DrawLine(index, poly);
-            break;
+        switch (command) {
+            case kCommandDrawNormalSprite:
+                //DrawNormalSprite(index, poly, cmdctrl);
+                break;
+            case kCommandDrawScaledSprite:
+                //DrawScaledSprite(index, poly, cmdctrl);
+                break;
+            case kCommandDrawDistortedSprite:
+                //DrawDistortedSprite(index, poly, cmdctrl);
+                break;
+            case kCommandDrawDistortedSpriteAlt:
+                //DrawDistortedSprite(index, poly, cmdctrl);
+                break;
+            case kCommandDrawPolygon:
+                DrawPolygon(pos, poly);
+                break;
+            case kCommandDrawPolylines:
+                DrawPolylines(index, poly);
+                break;
+            case kCommandDrawPolylinesAlt:
+                DrawPolylines(index, poly);
+                break;
+            case kCommandDrawLine:
+                DrawLine(index, poly);
+                break;
+        }
     }
-
-    // polyAtlas.Store(index * 16, poly.atlasPos);
-    // polyAtlas.Store(index * 16 + 4, poly.cmdAddress);
-    // polyAtlas.Store(index * 16 + 8, cmdctrl);
-    // polyAtlas.Store(index * 16 + 12, 0xDEADBEEF);
 }
 
 // -----------------------------------------------------------------------------
 
-[numthreads(1, 1, 1)]
+[numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    // TODO: figure out if it is possible to efficiently parallelize individual polygon rendering
-    Draw(id.z);
+    Draw(id.xy);
 }

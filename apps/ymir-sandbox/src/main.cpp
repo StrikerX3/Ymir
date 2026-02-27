@@ -33,6 +33,177 @@
 
 using namespace util;
 
+// Steps over the pixels of a line.
+struct AltLineStepper {
+    FORCE_INLINE AltLineStepper(ymir::vdp::CoordS32 coord1, ymir::vdp::CoordS32 coord2, bool antiAlias = false) {
+        auto [x1, y1] = coord1;
+        auto [x2, y2] = coord2;
+
+        m_x = x1;
+        m_y = y1;
+        m_xEnd = x2;
+        m_yEnd = y2;
+        m_antiAlias = antiAlias;
+
+        sint32 dx = x2 - x1;
+        sint32 dy = y2 - y1;
+        sint32 adx = abs(dx);
+        sint32 ady = abs(dy);
+        m_dmaj = std::max(adx, ady);
+        m_length = m_dmaj + 1;
+        m_step = 0;
+
+        const bool xMajor = adx >= ady;
+        if (xMajor) {
+            m_xMajInc = dx >= 0 ? +1 : -1;
+            m_yMajInc = 0;
+            m_xMinInc = 0;
+            m_yMinInc = dy >= 0 ? +1 : -1;
+        } else {
+            m_xMajInc = 0;
+            m_yMajInc = dy >= 0 ? +1 : -1;
+            m_xMinInc = dx >= 0 ? +1 : -1;
+            m_yMinInc = 0;
+            std::swap(dx, dy);
+            std::swap(adx, ady);
+        }
+        m_num = ady << 1;
+        m_den = adx << 1;
+        m_accum = adx + 1;
+        m_accumTarget = 0;
+        if (!antiAlias && dx < 0) {
+            ++m_accumTarget;
+        }
+        m_accum += m_num;
+
+        m_x -= m_xMajInc;
+        m_y -= m_yMajInc;
+
+        if (antiAlias) {
+            --m_accum;
+            --m_accumTarget;
+            const bool samesign = (x1 > x2) == (y1 > y2);
+            if (xMajor) {
+                m_aaXInc = samesign ? 0 : -m_xMajInc;
+                m_aaYInc = samesign ? -m_yMinInc : 0;
+            } else {
+                m_aaXInc = samesign ? 0 : -m_xMinInc;
+                m_aaYInc = samesign ? -m_yMajInc : 0;
+            }
+        }
+    }
+
+    // Determines if the slope can be stepped.
+    FORCE_INLINE bool CanStep() const {
+        return m_step <= m_length;
+    }
+
+    // Steps the slope to the next coordinate.
+    // Should not be invoked when CanStep() returns false.
+    // Returns true if an antialias pixel should be drawn.
+    FORCE_INLINE bool Step() {
+        ++m_step;
+        m_x += m_xMajInc;
+        m_y += m_yMajInc;
+        m_accum -= m_num;
+        if (m_accum <= m_accumTarget) {
+            m_accum += m_den;
+            m_x += m_xMinInc;
+            m_y += m_yMinInc;
+            return m_antiAlias;
+        }
+        return false;
+    }
+
+    // TODO: move to shader
+    uint32 SkipToTarget(ymir::vdp::CoordS32 targetPos, bool aa) {
+        const sint32 dx = (targetPos.x() - m_x - (aa ? m_aaXInc : 0)) * m_xMajInc;
+        const sint32 dy = (targetPos.y() - m_y - (aa ? m_aaYInc : 0)) * m_yMajInc;
+
+        const sint32 delta = dx + dy;
+
+        if (delta < 0 || delta >= m_dmaj) {
+            return m_dmaj;
+        }
+
+        if (delta > 0) {
+            const sint32 steps = delta - (aa ? 1 : 0);
+            m_step += steps;
+            m_x += m_xMajInc * steps;
+            m_y += m_yMajInc * steps;
+
+            m_accum -= m_num * steps;
+            if (m_den != 0) {
+                const sint32 count = (m_accumTarget - m_accum + m_den) / m_den;
+                m_accum += m_den * count;
+                m_x += m_xMinInc * count;
+                m_y += m_yMinInc * count;
+            }
+        }
+
+        return delta;
+    }
+
+    // Retrieves the current X coordinate.
+    FORCE_INLINE sint32 X() const {
+        return m_x & 0x7FF;
+    }
+
+    // Retrieves the current Y coordinate.
+    FORCE_INLINE sint32 Y() const {
+        return m_y & 0x7FF;
+    }
+
+    // Retrieves the current X and Y coordinates.
+    FORCE_INLINE ymir::vdp::CoordS32 Coord() const {
+        return {m_x, m_y};
+    }
+
+    // Returns the X coordinate of the antialiased pixel.
+    FORCE_INLINE sint32 AAX() const {
+        return m_x + m_aaXInc;
+    }
+
+    // Returns the Y coordinate of the antialiased pixel.
+    FORCE_INLINE sint32 AAY() const {
+        return m_y + m_aaYInc;
+    }
+
+    // Returns the X and Y coordinates of the antialiased pixel.
+    FORCE_INLINE ymir::vdp::CoordS32 AACoord() const {
+        return {AAX(), AAY()};
+    }
+
+    // Retrieves the total number of steps in the slope, that is, the longest of the vertical and horizontal spans.
+    FORCE_INLINE uint32 Length() const {
+        return m_dmaj;
+    }
+
+private:
+    sint32 m_num;
+    sint32 m_den;
+    sint32 m_accum;
+    sint32 m_accumTarget;
+
+    sint32 m_xMajInc;
+    sint32 m_yMajInc;
+    sint32 m_xMinInc;
+    sint32 m_yMinInc;
+
+    sint32 m_x;
+    sint32 m_y;
+    sint32 m_xEnd;
+    sint32 m_yEnd;
+
+    uint32 m_dmaj;
+    uint32 m_step;
+    uint32 m_length;
+
+    sint32 m_aaXInc;
+    sint32 m_aaYInc;
+    bool m_antiAlias;
+};
+
 struct Sandbox {
     Sandbox(uint32 width, uint32 height)
         : framebuffer(width * height)
@@ -203,6 +374,16 @@ struct Sandbox {
             cy = 144;
             dx = 255;
             dy = 27;
+        }
+        if (keys[SDL_SCANCODE_0] && !prevKeys[SDL_SCANCODE_0]) {
+            ax = 489;
+            ay = 112;
+            bx = 676;
+            by = -82;
+            cx = 361;
+            cy = 17;
+            dx = 583;
+            dy = -77;
         }
 
         if (keyRepeat[SDL_SCANCODE_KP_PLUS]) {
@@ -434,6 +615,13 @@ struct Sandbox {
 
             bool firstPixel = true;
             if (lineIndex % lineStep == lineOffset) {
+                AltLineStepper altLine{coordL, coordR, antialias};
+                AltLineStepper altLineAA{coordL, coordR, antialias};
+                const uint32 altSteps = altLine.SkipToTarget({targetX, targetY}, false);
+                const uint32 altStepsAA = altLineAA.SkipToTarget({targetX, targetY}, true);
+
+                uint32 currSteps = 0;
+
                 LineStepper line{coordL, coordR, antialias};
                 TextureStepper texUStepper;
                 texUStepper.Setup(line.Length() + 1, 0, texSize);
@@ -446,9 +634,11 @@ struct Sandbox {
                     texUStepper.StepPixel();
                     const uint32 u = texUStepper.Value();
 
+                    const bool match = altSteps < line.Length() && currSteps == altSteps;
+
                     uint32 color;
                     switch (polygonFillMode) {
-                    case 0: color = firstPixel ? 0xc7997c : first ? 0x96674a : 0x75492e; break;
+                    case 0: color = match ? 0xff00ff : firstPixel ? 0xc7997c : first ? 0x96674a : 0x75492e; break;
                     case 1:
                         color = (u & 0xFF) | ((v & 0xFF) << 8u) | (firstPixel * 0xFF0000) | (first * 0x7F0000);
                         break;
@@ -462,9 +652,26 @@ struct Sandbox {
                     DrawPixel(x, y, color);
                     if (antialias && needsAA) {
                         auto [aax, aay] = line.AACoord();
-                        DrawPixel(aax, aay, color);
+                        DrawPixel(aax, aay, color ^ 0xFFFFFF);
                     }
                     firstPixel = false;
+
+                    currSteps++;
+                }
+
+                if (altSteps < line.Length()) {
+                    auto [x, y] = altLine.Coord();
+                    if (x == targetX && y == targetY) {
+                        DrawPixel(x, y, 0xFFFF00);
+                    }
+
+                    needsAA = altLineAA.Step();
+                    if (needsAA) {
+                        auto [aax, aay] = altLineAA.AACoord();
+                        if (aax == targetX && aay == targetY) {
+                            DrawPixel(aax, aay, 0xFF00FF);
+                        }
+                    }
                 }
             }
             lineIndex++;
@@ -526,6 +733,8 @@ struct Sandbox {
     double bx, by;
     double cx, cy;
     double dx, dy;
+
+    sint32 targetX, targetY;
 
     bool edgesOnTop = true;
     bool antialias = true;
@@ -634,6 +843,8 @@ static void runSandbox() {
 
     Sandbox sandbox{screenWidth, screenHeight};
 
+    // SDL_HideCursor();
+
     while (running) {
         SDL_Event evt{};
         while (SDL_PollEvent(&evt)) {
@@ -648,6 +859,16 @@ static void runSandbox() {
             case SDL_EVENT_QUIT: running = false; break;
             }
         }
+
+        float mx, my;
+        SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
+        // if (mb & SDL_BUTTON_LMASK)
+
+        mx = (int)(mx / scale);
+        my = (int)(my / scale);
+
+        sandbox.targetX = mx;
+        sandbox.targetY = my;
 
         sandbox.Frame();
 
@@ -670,8 +891,16 @@ static void runSandbox() {
         SDL_RenderClear(renderer);
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
 
+        SDL_FRect mouseTarget;
+        mouseTarget.x = mx * scale;
+        mouseTarget.y = my * scale;
+        mouseTarget.w = scale;
+        mouseTarget.h = scale;
+        SDL_SetRenderDrawColor(renderer, 255, 0, 255, 224);
+        // SDL_RenderRect(renderer, &mouseTarget);
+
         if (showHelp) {
-            SDL_FRect rect{187, 49, 10, 10};
+            SDL_FRect rect{187, 59, 10, 10};
             SDL_SetRenderDrawColor(renderer, 255, 82, 79, 128);
             SDL_RenderFillRect(renderer, &rect);
 
@@ -1255,7 +1484,7 @@ static void runCurlSandbox() {
 }
 
 int main(int argc, char **argv) {
-    // runSandbox();
+    runSandbox();
     // runBUPSandbox();
     // runInputSandbox();
     // if (argc >= 2) {
@@ -1270,7 +1499,7 @@ int main(int argc, char **argv) {
     //     //   - track FAD range should include INDEX 00
     //     //   - starting FAD should point to INDEX 01 (when seeking to track)
     // }
-    runCurlSandbox();
+    /// runCurlSandbox();
 
     return EXIT_SUCCESS;
 }
