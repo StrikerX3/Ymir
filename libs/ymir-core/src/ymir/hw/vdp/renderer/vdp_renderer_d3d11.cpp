@@ -91,6 +91,14 @@ struct Direct3D11VDPRenderer::Context {
     std::array<VDP1PolyParams, 1024> cpuVDP1PolyParams{};  //< CPU-side VDP1 polygon parameters
     size_t cpuVDP1PolyParamsCount = 0;                     //< CPU-side VDP1 polygon parameters count
 
+    ID3D11Buffer *bufVDP1PolyParamBins = nullptr;             //< VDP1 polygon parameter bins structured buffer
+    ID3D11ShaderResourceView *srvVDP1PolyParamBins = nullptr; //< SRV for VDP1 polygon parameter bins
+    std::array<VDP1PolyParamsBin, kVDP1NumBins> cpuVDP1PolyParamBins{}; //< CPU-side VDP1 polygon parameter bins
+
+    ID3D11Buffer *bufVDP1PolyParamBinCounts = nullptr; //< VDP1 polygon parameter bin counts structured buffer
+    ID3D11ShaderResourceView *srvVDP1PolyParamBinCounts = nullptr; //< SRV for VDP1 polygon parameter bin counts
+    std::array<D3DUint, kVDP1NumBins> cpuVDP1PolyParamBinCounts{}; //< CPU-side VDP1 polygon parameter bin counts
+
     ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer (sprite, mesh)
     ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output buffer
     ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output buffer
@@ -269,6 +277,28 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
     SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
+
+    if (HRESULT hr =
+            devMgr.CreatePrimitiveBuffer(m_context->bufVDP1PolyParamBins, &m_context->srvVDP1PolyParamBins,
+                                         DXGI_FORMAT_R32_UINT, m_context->cpuVDP1PolyParamBins.size() * kVDP1BinDepth,
+                                         m_context->cpuVDP1PolyParamBins.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1PolyParamBins, "[Ymir D3D11] VDP1 polygon parameter bins buffer");
+    SetDebugName(m_context->srvVDP1PolyParamBins, "[Ymir D3D11] VDP1 polygon parameter bins SRV");
+
+    if (HRESULT hr =
+            devMgr.CreatePrimitiveBuffer(m_context->bufVDP1PolyParamBinCounts, &m_context->srvVDP1PolyParamBinCounts,
+                                         DXGI_FORMAT_R32_UINT, m_context->cpuVDP1PolyParamBinCounts.size(),
+                                         m_context->cpuVDP1PolyParamBinCounts.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1PolyParamBinCounts, "[Ymir D3D11] VDP1 polygon parameter bin counts buffer");
+    SetDebugName(m_context->srvVDP1PolyParamBinCounts, "[Ymir D3D11] VDP1 polygon parameter bin counts SRV");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
                                                     &m_context->uavVDP1PolyOut, kVDP1FramebufferRAMSize,
@@ -698,6 +728,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS
     const size_t index = m_context->cpuVDP1PolyParamsCount;
     ++m_context->cpuVDP1PolyParamsCount;
 
+    bool full = m_context->cpuVDP1PolyParamsCount == m_context->cpuVDP1PolyParams.size();
+
     const uint32 width = bottomRight.x() - topLeft.x() + 1;
     const uint32 height = bottomRight.y() - topLeft.y() + 1;
 
@@ -716,8 +748,26 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS
     entry.localCoordY = m_VDP1State.localCoordY;
     entry.cmdAddress = cmdAddress;
 
-    // Submit batch if the polygon list is full
-    if (m_context->cpuVDP1PolyParamsCount == m_context->cpuVDP1PolyParams.size()) {
+    // Add polygon to bins
+    const uint32 lowerBoundX = topLeft.x() / kVDP1BinH;
+    const uint32 lowerBoundY = topLeft.y() / kVDP1BinV;
+    const uint32 upperBoundX = (bottomRight.x() + kVDP1BinH - 1) / kVDP1BinH;
+    const uint32 upperBoundY = (bottomRight.y() + kVDP1BinV - 1) / kVDP1BinV;
+    for (uint32 y = lowerBoundY; y <= upperBoundY; ++y) {
+        for (uint32 x = lowerBoundX; x <= upperBoundX; ++x) {
+            const size_t binIndex = y * kVDP1BinsX + x;
+            auto &bin = m_context->cpuVDP1PolyParamBins[binIndex];
+            auto &numPolys = m_context->cpuVDP1PolyParamBinCounts[binIndex];
+            bin[numPolys] = index;
+            ++numPolys;
+            if (numPolys == bin.size()) {
+                full = true;
+            }
+        }
+    }
+
+    // Submit batch if the polygon list or a bin is full
+    if (full) {
         VDP1SubmitPolygons();
     }
 }
@@ -736,17 +786,28 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
                                               memcpy(mappedResource.pData, &m_context->cpuVDP1PolyParams,
                                                      sizeof(VDP1PolyParams) * m_context->cpuVDP1PolyParamsCount);
                                           });
+    m_context->VDP1Context.ModifyResource(
+        m_context->bufVDP1PolyParamBins, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP1PolyParamBins, sizeof(m_context->cpuVDP1PolyParamBins));
+        });
+    m_context->VDP1Context.ModifyResource(m_context->bufVDP1PolyParamBinCounts, 0,
+                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                                              memcpy(mappedResource.pData, &m_context->cpuVDP1PolyParamBinCounts,
+                                                     sizeof(m_context->cpuVDP1PolyParamBinCounts));
+                                          });
 
     VDP1UpdateRenderConfig();
 
     // Render polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-    ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams});
+    ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams, m_context->srvVDP1PolyParamBins,
+                              m_context->srvVDP1PolyParamBinCounts});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1FBRAM});
     ctx.CSSetShader(m_context->csVDP1Render);
     ctx.Dispatch((m_VDP1State.sysClipH + 31) / 32, (m_VDP1State.sysClipV + 31) / 32, 1);
 
     m_context->cpuVDP1PolyParamsCount = 0;
+    m_context->cpuVDP1PolyParamBinCounts.fill(0);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {

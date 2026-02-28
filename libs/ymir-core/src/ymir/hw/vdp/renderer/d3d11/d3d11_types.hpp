@@ -108,6 +108,15 @@ struct VDP1PolyParams {
     D3DUint cmdAddress;       // Command address in VDP1 VRAM
 };
 
+static constexpr size_t kVDP1BinH = 32;
+static constexpr size_t kVDP1BinV = 32;
+static constexpr size_t kVDP1BinDepth = 128;
+static constexpr size_t kVDP1BinsX = (kVDP1MaxFBSizeH + kVDP1BinH - 1) / kVDP1BinH;
+static constexpr size_t kVDP1BinsY = (kVDP1MaxFBSizeV + kVDP1BinV - 1) / kVDP1BinV;
+static constexpr size_t kVDP1NumBins = kVDP1BinsX * kVDP1BinsY;
+
+using VDP1PolyParamsBin = std::array<D3DUint, kVDP1BinDepth>;
+
 // -----------------------------------------------------------------------------
 
 struct alignas(16) VDP2RenderConfig {
