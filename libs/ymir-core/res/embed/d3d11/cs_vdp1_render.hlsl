@@ -503,67 +503,52 @@ struct LineStepper {
     int2 minInc;
     
     int2 pos;
-    int2 end;
+    int2 start;
     
     uint dmaj;
     uint step;
-    uint length;
     
     int2 aaInc;
     bool antiAlias;
 
-    // Skips the slope to the same row or column of the specified pixel.
-    // Returns the number of increments skipped.
-    // Returns dmaj if out of range.
-    // When antiAlias is true, this targets the antialiasing pixel coordinates
-    // and will skip one pixel less than the target coordinates. Invoke Step()
-    // to check if the antialias  pixel is to be drawn.
-    uint SkipToTarget(uint2 targetPos, bool antiAlias) {
-        int2 deltaPos = targetPos - pos;
-        if (antiAlias) {
-            deltaPos -= aaInc;
+    // Computes how many steps are needed from the start of the line to reach the target pixel.
+    // Aligns the major coordinate only.
+    uint StepsToTarget(uint2 targetPos, bool antiAlias) {
+        const int2 deltaPos = (targetPos - start - (antiAlias ? aaInc : 0)) * majInc;
+        const int delta = deltaPos.x + deltaPos.y;
+
+        if (delta < 0 || delta >= dmaj + 1) {
+            return dmaj + 1;
         }
-        deltaPos *= majInc;
-        const int delta = deltaPos.x + deltaPos.y; // only one component is non-zero
-
-        // Check if out of range
-        if (delta < 0 || delta > int(dmaj + 1)) {
-            return dmaj + 2;
-        }
-
-        // Apply steps
-        if (delta > 0) {
-            int steps = delta;
-            if (antiAlias) {
-                steps--;
-            }
-            step += steps;
-            pos += majInc * steps;
-
-            accum -= num * steps;
-            if (den != 0) {
-                const int count = (accumTarget - accum + den) / den;
-                accum += den * count;
-                pos += minInc * count;
-            }
-        }
-
         return delta;
     }
     
-    // Steps the slope to the next coordinate.
-    // Should not be invoked when CanStep() returns false.
-    // Returns true if an antialias pixel should be drawn.
-    bool Step() {
-        ++step;
-        pos += majInc;
-        accum -= num;
-        if (accum <= accumTarget) {
-            accum += den;
-            pos += minInc;
-            return antiAlias;
+    // Sets the slope step to the specified coordinate.
+    // Clamped to the length of the line.
+    void SetStep(uint targetStep) {
+        targetStep = min(targetStep, dmaj);
+
+        const int stepDelta = targetStep + 1 - step;
+        if (stepDelta == 0) {
+            return;
         }
-        return false;
+
+        step = targetStep + 1;
+        pos += majInc * stepDelta;
+
+        // TODO: mask to 13 bits
+
+        accum -= num * stepDelta;
+        if (den != 0) {
+            const int count = (accumTarget - accum + den) / den;
+            accum += den * count;
+            pos += minInc * count;
+        }
+    }
+
+    // Determines if the current step needs antialiasing.
+    bool NeedsAA() {
+        return antiAlias && step > 1 && accum - den + num > accumTarget;
     }
 
     // Retrieves the current X and Y coordinates.
@@ -586,13 +571,12 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
     LineStepper stepper;
     
     stepper.pos = coord1;
-    stepper.end = coord2;
+    stepper.start = coord1;
     stepper.antiAlias = antiAlias;
     
     int2 delta = coord2 - coord1;
     int2 absDelta = abs(delta); // component-wise
     stepper.dmaj = max(absDelta.x, absDelta.y);
-    stepper.length = stepper.dmaj + 1;
     stepper.step = 0;
     
     const bool xMajor = absDelta.x >= absDelta.y;
@@ -632,7 +616,15 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
             stepper.aaInc.y = samesign ? -stepper.majInc.y : 0;
         }
     }
-    
+ 
+    // NOTE: Shifting counters by this amount forces them to have 13 bits without the need for masking
+    // static const int kShift = 32 - 13;
+    // 
+    // stepper.num <<= kShift;
+    // stepper.den <<= kShift;
+    // stepper.accum <<= kShift;
+    // stepper.accumTarget <<= kShift;
+   
     return stepper;
 }
 
@@ -1062,31 +1054,50 @@ bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LinePa
     if (IsLineSystemClipped(poly, coord1, coord2)) {
         return false;
     }
-
-    LineStepper lineStepper = NewLineStepper(coord1, coord2, antiAlias);
-    const uint skipSteps = lineStepper.SkipToTarget(pos, antiAlias);
-    if (skipSteps > lineStepper.dmaj + 1) {
-        return false;
-    }
+    
+    bool plotted = false;
     
     PixelParams pixelParams;
     pixelParams.mode_color = lineParams.mode_color;
-    if (pixelParams.mode_color.gouraudEnable) {
-        pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
-        pixelParams.gouraud.Skip(skipSteps);
-    }
 
-    if (!antiAlias) {
+    LineStepper lineStepper = NewLineStepper(coord1, coord2, antiAlias);
+    const uint steps = lineStepper.StepsToTarget(pos, false);
+    if (steps <= lineStepper.Length()) {
+        lineStepper.SetStep(steps);
+        
         if (all(lineStepper.Coord() == int2(pos))) {
-            return PlotPixel(poly, lineStepper.Coord(), pixelParams);
+            if (pixelParams.mode_color.gouraudEnable) {
+                pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
+                pixelParams.gouraud.Skip(steps);
+            }
+
+            // DEBUG: pixelParams.mode_color.color = (lineStepper.Coord().x & 0xFF) | ((lineStepper.Coord().y & 0xFF) << 8);
+        
+            if (PlotPixel(poly, lineStepper.Coord(), pixelParams)) {
+                plotted = true;
+            }
         }
     }
-    if (lineStepper.Step()) {
-        if (all(lineStepper.AACoord() == int2(pos))) {
-            return PlotPixel(poly, lineStepper.AACoord(), pixelParams);
+    
+    if (antiAlias) {
+        const uint aaSteps = lineStepper.StepsToTarget(pos, true);
+        if (aaSteps <= lineStepper.Length()) {
+            lineStepper.SetStep(aaSteps);
+            
+            if (all(lineStepper.AACoord() == int2(pos))) {
+                if (pixelParams.mode_color.gouraudEnable) {
+                    pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
+                    pixelParams.gouraud.Skip(aaSteps);
+                }
+
+                if (PlotPixel(poly, lineStepper.AACoord(), pixelParams)) {
+                    plotted = true;
+                }
+            }
         }
     }
-    return false;
+    
+    return plotted;
 }
 
 struct EndCodeCounter {
@@ -1424,19 +1435,14 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
         bool plotted = false;
 
         const int dist = PointToLineDistanceSq(pos, coordL, coordR);
-        if (abs(dist) <= 1) {
+        if (dist <= 1) {
             // Plot lines between the interpolated points
             if (lineParams.mode_color.gouraudEnable) {
                 lineParams.gouraudLeft = quad.edgeL.GouraudValue();
                 lineParams.gouraudRight = quad.edgeR.GouraudValue();
             }
         
-            if (PlotLine(pos, poly, coordL, coordR, lineParams, true)) {
-                plotted = true;
-            }
-            if (PlotLine(pos, poly, coordL, coordR, lineParams, false)) {
-                plotted = true;
-            }
+            plotted = PlotLine(pos, poly, coordL, coordR, lineParams, true);
         }
         
         if (plotted) {
