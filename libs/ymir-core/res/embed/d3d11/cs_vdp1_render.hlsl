@@ -527,8 +527,8 @@ struct LineStepper {
         const int delta = deltaPos.x + deltaPos.y; // only one component is non-zero
 
         // Check if out of range
-        if (delta < 0 || delta > int(dmaj)) {
-            return dmaj + 1;
+        if (delta < 0 || delta > int(dmaj + 1)) {
+            return dmaj + 2;
         }
 
         // Apply steps
@@ -1065,7 +1065,7 @@ bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LinePa
 
     LineStepper lineStepper = NewLineStepper(coord1, coord2, antiAlias);
     const uint skipSteps = lineStepper.SkipToTarget(pos, antiAlias);
-    if (skipSteps > lineStepper.dmaj) {
+    if (skipSteps > lineStepper.dmaj + 1) {
         return false;
     }
     
@@ -1077,12 +1077,15 @@ bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LinePa
     }
 
     if (!antiAlias) {
-        return PlotPixel(poly, lineStepper.Coord(), pixelParams);
+        if (all(lineStepper.Coord() == int2(pos))) {
+            return PlotPixel(poly, lineStepper.Coord(), pixelParams);
+        }
     }
     if (lineStepper.Step()) {
-        return PlotPixel(poly, lineStepper.AACoord(), pixelParams);
+        if (all(lineStepper.AACoord() == int2(pos))) {
+            return PlotPixel(poly, lineStepper.AACoord(), pixelParams);
+        }
     }
-    
     return false;
 }
 
