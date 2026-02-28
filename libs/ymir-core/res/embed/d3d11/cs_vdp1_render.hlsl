@@ -6,6 +6,8 @@ struct Config {
 };
 
 struct PolyParams {
+    uint pos;
+    uint size;
     uint sysClip;
     uint userClipX;
     uint userClipY;
@@ -1359,9 +1361,6 @@ void DrawDistortedSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
 void DrawPolygon(uint2 pos, const PolyParams poly) {
     const int2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
-    LineParams lineParams;
-    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
-    
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
     const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
@@ -1372,7 +1371,10 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
     }
     
     QuadStepper quad = NewQuadStepper(coordA, coordB, coordC, coordD);
-    
+ 
+    LineParams lineParams;
+    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
+
     if (lineParams.mode_color.gouraudEnable) {
         const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
         
@@ -1493,7 +1495,14 @@ void DrawLine(uint2 pos, const PolyParams poly) {
 void Draw(uint2 pos) {
     for (uint index = 0; index < config.numPolys; index++) {
         const PolyParams poly = polyParams[index];
-
+        
+        const int2 polyPos = Extract16PairS(poly.pos);
+        const int2 polySize = Extract16PairS(poly.size);
+        
+        if (any(pos < polyPos) || any(pos >= polyPos + polySize)) {
+            continue;
+        }
+        
         const uint cmdctrl = FetchCMDCTRL(poly.cmdAddress);
         const uint command = BitExtract(cmdctrl, 0, 4);
     
