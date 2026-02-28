@@ -698,7 +698,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS
     const size_t index = m_context->cpuVDP1PolyParamsCount;
     ++m_context->cpuVDP1PolyParamsCount;
 
+    const uint32 width = bottomRight.x() - topLeft.x() + 1;
+    const uint32 height = bottomRight.y() - topLeft.y() + 1;
+
     auto &entry = m_context->cpuVDP1PolyParams[index];
+    entry.posX = topLeft.x();
+    entry.posY = topLeft.y();
+    entry.sizeX = width;
+    entry.sizeY = height;
     entry.sysClipH = m_VDP1State.sysClipH;
     entry.sysClipV = m_VDP1State.sysClipV;
     entry.userClipX0 = m_VDP1State.userClipX0;
