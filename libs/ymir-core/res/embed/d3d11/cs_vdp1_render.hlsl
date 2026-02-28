@@ -86,6 +86,10 @@ int cross2D(int2 vecA, int2 vecB) {
     return vecA.x * vecB.y - vecA.y * vecB.x;
 }
 
+int square(int value) {
+    return value * value;
+}
+
 bool BitTest(uint value, uint bit) {
     return ((value >> bit) & 1) != 0;
 }
@@ -845,6 +849,12 @@ struct TexturedLineParams {
     TextureStepper texVStepper;
 };
 
+int PointToLineDistanceSq(int2 pointCoord, int2 lineCoord1, int2 lineCoord2) {
+    const int2 l21 = lineCoord2 - lineCoord1;
+    const int2 l1p = lineCoord1 - pointCoord;
+    return cross2D(l21, l1p) / sqrt(square(l21.x) + square(l21.y));
+}
+
 bool IsPixelUserClipped(const PolyParams poly, int2 coord) {
     const int userClipX0 = BitExtract(poly.userClipX, 0, 16);
     const int userClipX1 = BitExtract(poly.userClipX, 16, 16);
@@ -1399,19 +1409,23 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
     for (; quad.CanStep(); quad.Step()) {
         const int2 coordL = quad.edgeL.Coord();
         const int2 coordR = quad.edgeR.Coord();
-
-        // Plot lines between the interpolated points
-        if (lineParams.mode_color.gouraudEnable) {
-            lineParams.gouraudLeft = quad.edgeL.GouraudValue();
-            lineParams.gouraudRight = quad.edgeR.GouraudValue();
-        }
         
         bool plotted = false;
-        if (PlotLine(pos, poly, coordL, coordR, lineParams, true)) {
-            plotted = true;
-        }
-        if (PlotLine(pos, poly, coordL, coordR, lineParams, false)) {
-            plotted = true;
+
+        const int dist = PointToLineDistanceSq(pos, coordL, coordR);
+        if (abs(dist) <= 1) {
+            // Plot lines between the interpolated points
+            if (lineParams.mode_color.gouraudEnable) {
+                lineParams.gouraudLeft = quad.edgeL.GouraudValue();
+                lineParams.gouraudRight = quad.edgeR.GouraudValue();
+            }
+        
+            if (PlotLine(pos, poly, coordL, coordR, lineParams, true)) {
+                plotted = true;
+            }
+            if (PlotLine(pos, poly, coordL, coordR, lineParams, false)) {
+                plotted = true;
+            }
         }
         
         if (plotted) {
