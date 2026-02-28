@@ -23,11 +23,19 @@ cbuffer Config : register(b0) {
 
 ByteAddressBuffer vram : register(t0);
 StructuredBuffer<PolyParams> polyParams : register(t1);
+Buffer<uint> polyParamBins : register(t2);
+Buffer<uint> polyParamBinCounts : register(t3);
 
 RWByteAddressBuffer fbOut : register(u0);
 RWByteAddressBuffer fbram : register(u1);
 
 // -----------------------------------------------------------------------------
+
+static const uint2 kVDP1MaxFBSize = uint2(1024, 512);
+
+static const uint2 kBinSize = uint2(32, 32);
+static const uint2 kBinCount = (kVDP1MaxFBSize + kBinSize - 1) / kBinSize;
+static const uint kBinDepth = 128;
 
 static const uint kOffsetCMDCTRL = 0x00;
 static const uint kOffsetCMDLINK = 0x02;
@@ -1507,8 +1515,12 @@ void DrawLine(uint2 pos, const PolyParams poly) {
 }
 
 void Draw(uint2 pos) {
-    for (uint index = 0; index < config.numPolys; index++) {
-        const PolyParams poly = polyParams[index];
+    const uint2 binPos = pos / kBinSize;
+    const uint binIndex = binPos.y * kBinCount.x + binPos.x;
+    const uint binOffset = binIndex * kBinDepth;
+    const uint numPolys = polyParamBinCounts[binIndex];
+    for (uint index = 0; index < numPolys; index++) {
+        const PolyParams poly = polyParams[polyParamBins[binOffset + index]];
         
         const int2 polyPos = Extract16PairS(poly.pos);
         const int2 polySize = Extract16PairS(poly.size);
