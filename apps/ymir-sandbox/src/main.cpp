@@ -201,6 +201,21 @@ private:
     bool m_antiAlias;
 };
 
+FORCE_INLINE sint32 cross2D(ymir::vdp::CoordS32 vecA, ymir::vdp::CoordS32 vecB) {
+    return vecA.x() * vecB.y() - vecA.y() * vecB.x();
+}
+
+FORCE_INLINE sint32 square(sint32 value) {
+    return value * value;
+}
+
+FORCE_INLINE static sint32 PointToLineDistance(ymir::vdp::CoordS32 pointCoord, ymir::vdp::CoordS32 lineCoord1,
+                                               ymir::vdp::CoordS32 lineCoord2) {
+    const ymir::vdp::CoordS32 l21 = {lineCoord2.x() - lineCoord1.x(), lineCoord2.y() - lineCoord1.y()};
+    const ymir::vdp::CoordS32 l1p = {lineCoord1.x() - pointCoord.x(), lineCoord1.y() - pointCoord.y()};
+    return cross2D(l21, l1p) / sqrt(square(l21.x()) + square(l21.y()));
+}
+
 struct Sandbox {
     Sandbox(uint32 width, uint32 height)
         : framebuffer(width * height)
@@ -593,6 +608,11 @@ struct Sandbox {
             DrawPixel(dx, dy, 0xff4fb6);
         }
 
+        const sint32 winding = cross2D({coordB.x() - coordA.x(), coordB.y() - coordA.y()},
+                                       {coordC.x() - coordB.x(), coordC.y() - coordB.y()}) >= 0
+                                   ? +1
+                                   : -1;
+
         // bool swapped;
         uint32 texSize = polygonFillMode == 2 ? 8 : polygonFillMode == 3 ? 32 : 256;
         // uint32 texShift = polygonFillMode == 2 ? 13 : polygonFillMode == 3 ? 11 : 8;
@@ -647,6 +667,19 @@ struct Sandbox {
                         color = ((u ^ v) & 1) ? 0xFFFFFF : 0x000000;
                         color ^= (firstPixel * 0xFF0000) | (first * 0x7F0000);
                         break;
+                    }
+
+                    const sint32 dist = PointToLineDistance({targetX, targetY}, coordL, coordR) * winding;
+                    if (dist < 0) {
+                        color &= 0xFFFF00;
+                        // color |= bit::reverse((uint8)std::clamp<uint32>(255 + dist, 0, 255));
+                        color |= 255 - std::clamp<uint32>(-dist, 0, 255);
+                    } else if (dist > 0) {
+                        color &= 0xFF00FF;
+                        // color |= bit::reverse((uint8)std::clamp<uint32>(255 - dist, 0, 255)) << 8;
+                        color |= (255 - std::clamp<uint32>(dist, 0, 255)) << 8;
+                    } else {
+                        color = 0xFFFFFF;
                     }
 
                     DrawPixel(x, y, color);
@@ -762,12 +795,12 @@ static void runSandbox() {
     using namespace std::chrono_literals;
 
     // Screen parameters
-    // const uint32 screenWidth = 500;
-    // const uint32 screenHeight = 300;
-    // const uint32 scale = 3;
-    const uint32 screenWidth = 250;
-    const uint32 screenHeight = 150;
-    const uint32 scale = 6;
+    const uint32 screenWidth = 500;
+    const uint32 screenHeight = 300;
+    const uint32 scale = 3;
+    // const uint32 screenWidth = 250;
+    // const uint32 screenHeight = 150;
+    // const uint32 scale = 6;
 
     // ---------------------------------
     // Initialize SDL video subsystem

@@ -539,10 +539,14 @@ struct LineStepper {
         // TODO: mask to 13 bits
 
         accum -= num * stepDelta;
-        if (den != 0) {
+        /*if (den != 0) {
             const int count = (accumTarget - accum + den) / den;
             accum += den * count;
             pos += minInc * count;
+        }*/
+        while (accum <= accumTarget) {
+            accum += den;
+            pos += minInc;
         }
     }
 
@@ -675,17 +679,17 @@ struct Edge {
         accumTarget = adx >= ady ? posAccumTarget.y : posAccumTarget.x;
 
         // NOTE: Shifting counters by this amount forces them to have 13 bits without the need for masking
-        static const int kShift = 32 - 13;
-
-        posNum <<= kShift;
-        posDen <<= kShift;
-        posAccum <<= kShift;
-        posAccumTarget <<= kShift;
-
-        num <<= kShift;
-        den <<= kShift;
-        accum <<= kShift;
-        accumTarget <<= kShift;
+        // static const int kShift = 32 - 13;
+        // 
+        // posNum <<= kShift;
+        // posDen <<= kShift;
+        // posAccum <<= kShift;
+        // posAccumTarget <<= kShift;
+        // 
+        // num <<= kShift;
+        // den <<= kShift;
+        // accum <<= kShift;
+        // accumTarget <<= kShift;
 
         gouraudEnable = false;
     }
@@ -698,6 +702,31 @@ struct Edge {
     void Step() {
         accum += num;
         if (accum >= accumTarget) {
+            accum -= den;
+
+            posAccum.x += posNum.x;
+            if (posAccum.x >= posAccumTarget.x) {
+                posAccum.x -= posDen.x;
+                pos.x += posInc.x;
+            }
+
+            posAccum.y += posNum.y;
+            if (posAccum.y >= posAccumTarget.y) {
+                posAccum.y -= posDen.y;
+                pos.y += posInc.y;
+            }
+
+            if (gouraudEnable) {
+                gouraud.Step();
+            }
+        }
+    }
+    
+    void Skip(int steps) {
+        // TODO: mask to 13 bits
+        
+        accum += num * steps;
+        while (accum >= accumTarget) {
             accum -= den;
 
             posAccum.x += posNum.x;
@@ -747,6 +776,7 @@ struct QuadStepper {
     uint step;
     
     bool degenerate;
+    bool clockwiseWinding; // only makes sense if !degenerate
 
     // Sets up texture interpolation for the given texture vertical size and parameters.
     void SetupTexture(inout TextureStepper stepper, uint charSizeV, bool flipV) {
@@ -780,6 +810,14 @@ struct QuadStepper {
 
         edgeL.Step();
         edgeR.Step();
+    }
+    
+    void Skip(int steps) {
+        step += steps;
+        
+        edgeL.Skip(steps);
+        edgeR.Skip(steps);
+
     }
 };
 
@@ -819,6 +857,7 @@ QuadStepper NewQuadStepper(int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
         // If any of the cross products is zero, two edges are colinear or two points coincide.
         // This results in a triangle, a line or a point, all of which are considered non-degenerate.
         stepper.degenerate = false;
+        stepper.clockwiseWinding = crossABC >= 0;
     } else {
         // The quad is regular if all cross product signs match.
         // If all signs match, the sum of the signs will be either 0 or 4.
@@ -849,7 +888,7 @@ struct TexturedLineParams {
     TextureStepper texVStepper;
 };
 
-int PointToLineDistanceSq(int2 pointCoord, int2 lineCoord1, int2 lineCoord2) {
+int PointToLineDistance(int2 pointCoord, int2 lineCoord1, int2 lineCoord2) {
     const int2 l21 = lineCoord2 - lineCoord1;
     const int2 l1p = lineCoord1 - pointCoord;
     return cross2D(l21, l1p) / sqrt(square(l21.x) + square(l21.y));
@@ -1071,8 +1110,6 @@ bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LinePa
                 pixelParams.gouraud.Skip(steps);
             }
 
-            // DEBUG: pixelParams.mode_color.color = (lineStepper.Coord().x & 0xFF) | ((lineStepper.Coord().y & 0xFF) << 8);
-        
             if (PlotPixel(poly, lineStepper.Coord(), pixelParams)) {
                 plotted = true;
             }
@@ -1427,6 +1464,19 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
     int plottedSegmentsCount = 0;
     const int plottedSegmentsMax = quad.degenerate ? 2 : 1;
   
+    if (!quad.degenerate) {
+        const int2 coordL = quad.edgeL.Coord();
+        const int2 coordR = quad.edgeR.Coord();
+
+        int dist = PointToLineDistance(pos, coordL, coordR);
+        if (quad.clockwiseWinding) {
+            dist = -dist;
+        }
+        if (dist > 0) {
+            quad.Skip(dist);
+        }
+    }
+
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         const int2 coordL = quad.edgeL.Coord();
@@ -1434,8 +1484,14 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
         
         bool plotted = false;
 
-        const int dist = PointToLineDistanceSq(pos, coordL, coordR);
-        if (dist <= 1) {
+        const int dist = PointToLineDistance(pos, coordL, coordR);
+        if (!quad.degenerate) {
+            const int distComp = quad.clockwiseWinding ? -dist : dist;
+            if (distComp < 0) {
+                break;
+            }
+        }
+        if (abs(dist) <= 1) {
             // Plot lines between the interpolated points
             if (lineParams.mode_color.gouraudEnable) {
                 lineParams.gouraudLeft = quad.edgeL.GouraudValue();
