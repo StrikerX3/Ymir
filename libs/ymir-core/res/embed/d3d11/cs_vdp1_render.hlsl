@@ -112,13 +112,6 @@ int SignExtend(int value, int bits) {
     return (value << shift) >> shift;
 }
 
-uint2 Extract16PairU(uint value32) {
-    return uint2(
-        BitExtract(value32, 0, 16),
-        BitExtract(value32, 16, 16)
-    );
-}
-
 int2 Extract16PairSX(uint value32, int bits) {
     return uint2(
         SignExtend(BitExtract(value32, 0, 16), bits),
@@ -128,7 +121,6 @@ int2 Extract16PairSX(uint value32, int bits) {
 
 int2 Extract16PairS(uint value32) {
     return Extract16PairSX(value32, 16);
-
 }
 
 uint ByteSwap16(uint val) {
@@ -188,73 +180,62 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
-// offset must be 16-bit aligned
-uint FetchCMDSingle(uint cmdAddress, uint offset) {
-    return ReadVRAM16(cmdAddress + offset);
-}
-
-// offset must be 32-bit aligned
-uint2 FetchCMDPair(uint cmdAddress, uint offset) {
-    const uint value = ReadVRAM32(cmdAddress + offset);
-    return Extract16PairU(value);
-}
-
 uint FetchCMDCTRL(uint cmdAddress) {
-    return FetchCMDSingle(cmdAddress, kOffsetCMDCTRL);
+    return ReadVRAM16(cmdAddress + kOffsetCMDCTRL);
 }
 
 CMDPMOD_COLR FetchCMDPMOD_COLR(uint cmdAddress) {
-    const uint2 pair = FetchCMDPair(cmdAddress, kOffsetCMDPMOD);
+    const uint pair = ReadVRAM32(cmdAddress + kOffsetCMDPMOD);
     
     CMDPMOD_COLR data;
-    data.colorCalcBits = BitExtract(pair.y, 0, 2);
-    data.gouraudEnable = BitTest(pair.y, 2);
-    data.colorMode = BitExtract(pair.y, 3, 3);
-    data.transparentPixelDisable = BitTest(pair.y, 6);
-    data.endCodeDisable = BitTest(pair.y, 7);
-    data.meshEnable = BitTest(pair.y, 8);
-    data.clippingMode = BitTest(pair.y, 9);
-    data.userClippingEnable = BitTest(pair.y, 10);
-    data.preClippingDisable = BitTest(pair.y, 11);
-    data.highSpeedShrink = BitTest(pair.y, 12);
-    data.msbOn = BitTest(pair.y, 15);
-    
-    data.color = pair.x;
+    data.colorCalcBits = BitExtract(pair, 16, 2);
+    data.gouraudEnable = BitTest(pair, 18);
+    data.colorMode = BitExtract(pair, 19, 3);
+    data.transparentPixelDisable = BitTest(pair, 22);
+    data.endCodeDisable = BitTest(pair, 23);
+    data.meshEnable = BitTest(pair, 24);
+    data.clippingMode = BitTest(pair, 25);
+    data.userClippingEnable = BitTest(pair, 26);
+    data.preClippingDisable = BitTest(pair, 27);
+    data.highSpeedShrink = BitTest(pair, 28);
+    data.msbOn = BitTest(pair, 31);
+ 
+    data.color = BitExtract(pair, 0, 16);
     return data;
 }
 
 CMDSRCA_SIZE FetchCMDSRCA_SIZE(uint cmdAddress) {
-    const uint2 pair = FetchCMDPair(cmdAddress, kOffsetCMDSRCA);
+    const uint pair = ReadVRAM32(cmdAddress + kOffsetCMDSRCA);
     
     CMDSRCA_SIZE data;
-    data.charAddress = pair.y << 3;
-    data.charSize.x = max(BitExtract(pair.x, 8, 6), 1);
-    data.charSize.y = max(BitExtract(pair.x, 0, 8) << 8, 1);
+    data.charAddress = BitExtract(pair, 16, 16) << 3;
+    data.charSize.x = max(BitExtract(pair, 8, 6), 1);
+    data.charSize.y = max(BitExtract(pair, 0, 8) << 8, 1);
     return data;
 }
 
 int2 FetchCMDXA_YA(uint cmdAddress) {
-    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXA);
-    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
+    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXA);
+    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
 }
 
 int2 FetchCMDXB_YB(uint cmdAddress) {
-    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXB);
-    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
+    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXB);
+    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
 }
 
 int2 FetchCMDXC_YC(uint cmdAddress) {
-    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXC);
-    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
+    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXC);
+    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
 }
 
 int2 FetchCMDXD_YD(uint cmdAddress) {
-    const uint2 raw = FetchCMDPair(cmdAddress, kOffsetCMDXD);
-    return int2(SignExtend(raw.y, 13), SignExtend(raw.x, 13));
+    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXD);
+    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
 }
 
 uint FetchCMDGRDA(uint cmdAddress) {
-    return FetchCMDSingle(cmdAddress, kOffsetCMDGRDA) << 3;
+    return ReadVRAM16(cmdAddress + kOffsetCMDGRDA) << 3;
 }
 
 Color555 Uint16ToColor555(uint rawValue) {
