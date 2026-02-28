@@ -972,7 +972,7 @@ bool IsQuadSystemClipped(const PolyParams poly, int2 coord1, int2 coord2, int2 c
     return false;
 }
 
-bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams) {
+bool PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const PixelParams pixelParams) {
     // Reject pixels outside of clipping area
     if (IsPixelClipped(poly, coord, pixelParams.mode_color.userClippingEnable, pixelParams.mode_color.clippingMode)) {
         return false;
@@ -992,19 +992,16 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
         coord.y >>= 1;
     }
 
-    uint fbAddr = (coord.x + coord.y * fbSizeH);
-    if (!pixel8Bits) {
-        fbAddr <<= 1;
-    }
-
     const bool meshEnable = pixelParams.mode_color.meshEnable;
     
     // TODO: pixelParams.mode_color.preClippingDisable
     
     if (pixelParams.mode_color.msbOn) {
-        const uint bit = 0x80 << ((fbAddr & 3) * 8);
-        uint dummy;
-        fbOut.InterlockedOr(fbAddr & ~3, bit, dummy);
+        uint bit = 0x80;
+        if (pixel8Bits && BitTest(coord.x, 0)) {
+            bit <<= 8;
+        }
+        pixelData |= bit;
     } else {
         uint value;
         if (pixel8Bits) {
@@ -1015,7 +1012,7 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
             if (transparentMeshes && meshEnable) {
                 // TODO: write to mesh layer
             } else {
-                WriteFB8(fbAddr, value);
+                pixelData = value;
                 if (transparentMeshes) {
                     // TODO: clear pixel from transparent mesh buffer
                 }
@@ -1045,7 +1042,7 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
                     break;
                 case 1: // Shadow
                     // Halve destination luminosity if it's not transparent
-                    dstColor = Uint16ToColor555(ReadFB16(fbAddr));
+                    dstColor = Uint16ToColor555(pixelData);
                     if (dstColor.a) {
                         dstColor.r >>= 1u;
                         dstColor.g >>= 1u;
@@ -1062,7 +1059,7 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
                 case 3: // Half-transparency
                     // If background is not transparent, blend half of original graphic and half of background
                     // Otherwise, draw original graphic as is
-                    dstColor = Uint16ToColor555(ReadFB16(fbAddr));
+                    dstColor = Uint16ToColor555(pixelData);
                     if (dstColor.a) {
                         dstColor.r = (srcColor.r + dstColor.r) >> 1u;
                         dstColor.g = (srcColor.g + dstColor.g) >> 1u;
@@ -1078,7 +1075,7 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
             if (transparentMeshes && meshEnable) {
                 // TODO: write to mesh layer
             } else {
-                WriteFB16(fbAddr, value);
+                pixelData = value;
                 if (transparentMeshes) {
                     // TODO: clear pixel from transparent mesh buffer
                 }
@@ -1089,7 +1086,7 @@ bool PlotPixel(const PolyParams poly, int2 coord, const PixelParams pixelParams)
     return true;
 }
 
-bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LineParams lineParams, bool antiAlias) {
+bool PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord1, int2 coord2, LineParams lineParams, bool antiAlias) {
     if (IsLineSystemClipped(poly, coord1, coord2)) {
         return false;
     }
@@ -1110,7 +1107,7 @@ bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LinePa
                 pixelParams.gouraud.Skip(steps);
             }
 
-            if (PlotPixel(poly, lineStepper.Coord(), pixelParams)) {
+            if (PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams)) {
                 plotted = true;
             }
         }
@@ -1127,7 +1124,7 @@ bool PlotLine(uint2 pos, const PolyParams poly, int2 coord1, int2 coord2, LinePa
                     pixelParams.gouraud.Skip(aaSteps);
                 }
 
-                if (PlotPixel(poly, lineStepper.AACoord(), pixelParams)) {
+                if (PlotPixel(lineStepper.AACoord(), poly, pixelData, pixelParams)) {
                     plotted = true;
                 }
             }
@@ -1336,7 +1333,7 @@ bool PlotTexturedLine(uint2 pos, PolyParams poly, int2 coord1, int2 coord2, Text
     return plotted;*/
 }
 
-void PlotTexturedQuad(uint2 pos, PolyParams poly, uint cmdctrl, CMDSRCA_SIZE srca_size, int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
+void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmdctrl, CMDSRCA_SIZE srca_size, int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
     if (IsQuadSystemClipped(poly, coordA, coordB, coordC, coordD)) {
         return;
     }
@@ -1391,7 +1388,7 @@ void PlotTexturedQuad(uint2 pos, PolyParams poly, uint cmdctrl, CMDSRCA_SIZE src
     }
 }
 
-void DrawNormalSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
+void DrawNormalSprite(uint2 pos, const PolyParams poly, const uint cmdctrl, inout uint pixelData) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
 
     const CMDSRCA_SIZE srca_size = FetchCMDSRCA_SIZE(poly.cmdAddress);
@@ -1405,10 +1402,10 @@ void DrawNormalSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
     const int2 coordC = int2(coordBR.x, coordBR.y);
     const int2 coordD = int2(coordTL.x, coordBR.y);
 
-    PlotTexturedQuad(pos, poly, cmdctrl, srca_size, coordA, coordB, coordC, coordD);
+    PlotTexturedQuad(pos, poly, pixelData, cmdctrl, srca_size, coordA, coordB, coordC, coordD);
 }
 
-void DrawScaledSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
+void DrawScaledSprite(uint2 pos, const PolyParams poly, inout uint pixelData, const uint cmdctrl) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
 
     // TODO: load and parse parameters
@@ -1416,7 +1413,7 @@ void DrawScaledSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
     // TODO: actually render the polygon
 }
 
-void DrawDistortedSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
+void DrawDistortedSprite(uint2 pos, const PolyParams poly, inout uint pixelData, const uint cmdctrl) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
@@ -1427,7 +1424,7 @@ void DrawDistortedSprite(uint2 pos, const PolyParams poly, const uint cmdctrl) {
     // TODO: actually render the polygon
 }
 
-void DrawPolygon(uint2 pos, const PolyParams poly) {
+void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const int2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
@@ -1454,25 +1451,18 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
         
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
-  
-    // Optimization for the case where the quad goes outside the system clipping area.
-    // Skip rendering the rest of the quad when a line is clipped after plotting at least one line.
-    // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
-    // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
-    // can be plotted because they all sit outside the system clip area.
-    bool linePlotted = false;
-    int plottedSegmentsCount = 0;
-    const int plottedSegmentsMax = quad.degenerate ? 2 : 1;
-  
+
     if (!quad.degenerate) {
         const int2 coordL = quad.edgeL.Coord();
         const int2 coordR = quad.edgeR.Coord();
 
         int dist = PointToLineDistance(pos, coordL, coordR);
-        if (quad.clockwiseWinding) {
+        if (!quad.clockwiseWinding) {
             dist = -dist;
         }
+
         if (dist > 0) {
+            // Skip until the first line that will be drawn on the target pixel  
             quad.Skip(dist);
         }
     }
@@ -1482,10 +1472,9 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
         const int2 coordL = quad.edgeL.Coord();
         const int2 coordR = quad.edgeR.Coord();
         
-        bool plotted = false;
-
         const int dist = PointToLineDistance(pos, coordL, coordR);
         if (!quad.degenerate) {
+            // Stop if the last line that will affect this pixel has been drawn
             const int distComp = quad.clockwiseWinding ? -dist : dist;
             if (distComp < 0) {
                 break;
@@ -1498,24 +1487,12 @@ void DrawPolygon(uint2 pos, const PolyParams poly) {
                 lineParams.gouraudRight = quad.edgeR.GouraudValue();
             }
         
-            plotted = PlotLine(pos, poly, coordL, coordR, lineParams, true);
-        }
-        
-        if (plotted) {
-            if (!linePlotted) {
-                linePlotted = true;
-                ++plottedSegmentsCount;
-            }
-        } else if (plottedSegmentsCount >= plottedSegmentsMax) {
-            // No more lines can be drawn past this point
-            break;
-        } else {
-            linePlotted = false;
+            PlotLine(pos, poly, pixelData, coordL, coordR, lineParams, true);
         }
     }
 }
 
-void DrawPolylines(uint2 pos, const PolyParams poly) {
+void DrawPolylines(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     LineParams lineParams;
@@ -1543,25 +1520,25 @@ void DrawPolylines(uint2 pos, const PolyParams poly) {
         lineParams.gouraudLeft = colorA;
         lineParams.gouraudRight = colorB;
     }
-    PlotLine(pos, poly, coordA, coordB, lineParams, false);
+    PlotLine(pos, poly, pixelData, coordA, coordB, lineParams, false);
     if (lineParams.mode_color.gouraudEnable) {
         lineParams.gouraudLeft = colorB;
         lineParams.gouraudRight = colorC;
     }
-    PlotLine(pos, poly, coordB, coordC, lineParams, false);
+    PlotLine(pos, poly, pixelData, coordB, coordC, lineParams, false);
     if (lineParams.mode_color.gouraudEnable) {
         lineParams.gouraudLeft = colorC;
         lineParams.gouraudRight = colorD;
     }
-    PlotLine(pos, poly, coordC, coordD, lineParams, false);
+    PlotLine(pos, poly, pixelData, coordC, coordD, lineParams, false);
     if (lineParams.mode_color.gouraudEnable) {
         lineParams.gouraudLeft = colorD;
         lineParams.gouraudRight = colorA;
     }
-    PlotLine(pos, poly, coordD, coordA, lineParams, false);
+    PlotLine(pos, poly, pixelData, coordD, coordA, lineParams, false);
 }
 
-void DrawLine(uint2 pos, const PolyParams poly) {
+void DrawLine(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
     
     LineParams lineParams;
@@ -1576,10 +1553,18 @@ void DrawLine(uint2 pos, const PolyParams poly) {
         lineParams.gouraudRight = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
     }
     
-    PlotLine(pos, poly, coordA, coordB, lineParams, false);
+    PlotLine(pos, poly, pixelData, coordA, coordB, lineParams, false);
 }
 
 void Draw(uint2 pos) {
+    const uint fbAddr = (pos.x + pos.y * fbSizeH);
+    uint pixelData;
+    if (pixel8Bits) {
+        pixelData = ReadFB8(fbAddr);
+    } else {
+        pixelData = ReadFB16(fbAddr << 1);
+    }
+
     const uint2 binPos = pos / kBinSize;
     const uint binIndex = binPos.y * kBinCount.x + binPos.x;
     const uint binOffset = binIndex * kBinDepth;
@@ -1599,30 +1584,32 @@ void Draw(uint2 pos) {
     
         switch (command) {
             case kCommandDrawNormalSprite:
-                //DrawNormalSprite(index, poly, cmdctrl);
+                //DrawNormalSprite(index, poly, pixelData, cmdctrl);
                 break;
             case kCommandDrawScaledSprite:
-                //DrawScaledSprite(index, poly, cmdctrl);
+                //DrawScaledSprite(index, poly, pixelData, cmdctrl);
                 break;
             case kCommandDrawDistortedSprite:
-                //DrawDistortedSprite(index, poly, cmdctrl);
-                break;
             case kCommandDrawDistortedSpriteAlt:
-                //DrawDistortedSprite(index, poly, cmdctrl);
+                //DrawDistortedSprite(index, poly, pixelData, cmdctrl);
                 break;
             case kCommandDrawPolygon:
-                DrawPolygon(pos, poly);
+                DrawPolygon(pos, poly, pixelData);
                 break;
             case kCommandDrawPolylines:
-                //DrawPolylines(index, poly);
-                break;
             case kCommandDrawPolylinesAlt:
-                //DrawPolylines(index, poly);
+                DrawPolylines(index, poly, pixelData);
                 break;
             case kCommandDrawLine:
-                //DrawLine(index, poly);
+                DrawLine(index, poly, pixelData);
                 break;
         }
+    }
+    
+    if (pixel8Bits) {
+        WriteFB8(fbAddr, pixelData);
+    } else {
+        WriteFB16(fbAddr << 1, pixelData);
     }
 }
 
