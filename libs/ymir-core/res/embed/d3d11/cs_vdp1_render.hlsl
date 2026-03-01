@@ -29,10 +29,6 @@ struct CommandEntry {
     uint ctrl_grda;
     uint pmod_colr;
     uint srca_size;
-    uint xa_ya;
-    uint xb_yb;
-    uint xc_yc;
-    uint xd_yd;
 };
 
 typedef uint4 Color555;
