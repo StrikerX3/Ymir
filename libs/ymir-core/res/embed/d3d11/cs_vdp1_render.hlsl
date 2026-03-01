@@ -586,9 +586,9 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint pmod_colr, const Go
         return;
     }
 
-    const bool altFB = deinterlace && doubleDensity && (coord.y & 1);
+    const bool altFB = deinterlace && doubleDensity && BitTest(coord.y, 0);
     if (doubleDensity) {
-        if (!deinterlace && dblInterlaceEnable && (coord.y & 1) != dblInterlaceDrawLine) {
+        if (!deinterlace && dblInterlaceEnable && BitTest(coord.y, 0) != dblInterlaceDrawLine) {
             return;
         }
     }
