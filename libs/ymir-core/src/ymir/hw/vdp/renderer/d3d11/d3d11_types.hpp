@@ -104,12 +104,12 @@ struct VDP1LineParams {
     D3DUint userClipX1 : 16; // User clipping area right coordinate
     D3DUint userClipY1 : 16; // User clipping area bottom coordinate
 
-    D3DUint cmdIndex : 9;  //   0-8  Command table entry index
-    D3DUint antiAlias : 1; //     9  Antialiased
-    D3DUint gouraud : 1;   //    10  Gouraud shading (0=no shading; 1=gouraud)
-    D3DUint textured : 1;  //    11  Textured        (0=solid color; 1=textured)
-    D3DUint : 4;           // 12-15  (reserved)
-    D3DUint : 8;           // 16-23  (reserved)
+    D3DUint cmdIndex : 10; //   0-9  Command table entry index
+    D3DUint : 6;           // 10-15  (reserved)
+    D3DUint antiAlias : 1; //    16  Antialiased
+    D3DUint gouraud : 1;   //    17  Gouraud shading (0=no shading; 1=gouraud)
+    D3DUint textured : 1;  //    18  Textured        (0=solid color; 1=textured)
+    D3DUint : 5;           // 19-23  (reserved)
     D3DUint texV : 8;      // 24-31  Texture V coordinate
 
     D3DUint gouraudStart : 16; // RGB 5:5:5 gouraud value for the start of the line
