@@ -191,11 +191,12 @@ This can be easily achieved with the pre- and post-execution callbacks that are 
 command list is executed:
 
 ```cpp
-void PreExecuteCommandList(void *userContext)
-void PostExecuteCommandList(void *userContext)
+void PreExecuteCommandList(bool first, void *userContext)
+void PostExecuteCommandList(bool last, void *userContext)
 ```
 
 where
+- `first` and `last` indicate if the command is the first or last in the list respectively
 - `userContext` is a user-provided context pointer
 
 These callbacks are invoked in the same thread that invokes `ExecutePendingCommandList()` and can be configured in the
@@ -207,10 +208,11 @@ Whenever a command list is prepared, the hardware renderer invokes another callb
 callback signature is:
 
 ```cpp
-void CommandListReady(void *userContext)
+void CommandListReady(bool vdp2FrameEnd, void *userContext)
 ```
 
 where
+- `vdp2FrameEnd` indicates that the command list completes a VDP2 frame
 - `userContext` is a user-provided context pointer
 
 This callback is invoked by the renderer thread (which may be the emulator thread) and can be configured through the VDP
