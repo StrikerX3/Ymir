@@ -686,95 +686,114 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint pmod_colr, const Go
     }
 }
 
-/*void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coord1, int2 coord2, TexturedLineParams lineParams, inout GouraudStepper gouraudL, inout GouraudStepper gouraudR) {
-    const uint steps = lineStepper.StepsToTarget(pos, false);
-    if (steps <= lineStepper.Length()) {
-        lineStepper.SetStep(steps);
-
-        if (all(lineStepper.Coord() == int2(pos))) {
-            if (pixelParams.mode_color.gouraudEnable) {
-                pixelParams.gouraud.Setup(lineStepper.Length() + 1, gouraudL.Value(), gouraudR.Value());
-                pixelParams.gouraud.Skip(steps);
-            }
-
-            uStepper.SetPixel(steps);
-            uStepper.ResetTexel(); // TODO: optimize me
-
-            if (endCodeCounter.enable) {
-                ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
-                while (uStepper.ShouldStepTexel()) {
-                    uStepper.StepTexel();
-                    ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
-
-                    if (endCodeCounter.count == 2) {
-                        break;
-                    }
-                }
-                if (endCodeCounter.count == 2) {
-                    break;
-                }
-            } else {
-                while (uStepper.ShouldStepTexel()) {
-                    uStepper.StepTexel();
-                }
-                ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
-            }
-
-            if (!endCodeCounter.hasEndCode && (!transparent || transparentPixelDisable)) {
-                pixelParams.mode_color.color = color;
-
-                PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
-            }
-        }
-    }
-}*/
-
-void ReadTexel(uint u, uint v, uint charAddress, uint charSizeH, uint colorMode, uint colorData, out uint color, out bool transparent) {
+void ReadTexel(uint u, uint v, uint charAddress, uint charSizeH, uint colorMode, uint colorData, out uint color, out bool transparent, out bool hasEndCode) {
     const uint charIndex = u + v * charSizeH;
 
-    // Read next texel
     switch (colorMode) {
         case 0: // 4 bpp, 16 colors, bank mode
             color = ReadVRAM8(charAddress + (charIndex >> 1));
             color = (color >> ((~u & 1) * 4)) & 0xF;
+            hasEndCode = color == 0xF;
             transparent = color == 0x0;
             color |= colorData & 0xFFF0;
             break;
         case 1: // 4 bpp, 16 colors, lookup table mode
             color = ReadVRAM8(charAddress + (charIndex >> 1));
             color = (color >> ((~u & 1) * 4)) & 0xF;
+            hasEndCode = color == 0xF;
             transparent = color == 0x0;
             color = ReadVRAM16(color * 2 + colorData * 8);
             break;
         case 2: // 8 bpp, 64 colors, bank mode
             color = ReadVRAM8(charAddress + charIndex);
             transparent = color == 0x00;
+            hasEndCode = color == 0xFF;
             color &= 0x3F;
             color |= colorData & 0xFFC0;
             break;
         case 3: // 8 bpp, 128 colors, bank mode
             color = ReadVRAM8(charAddress + charIndex);
             transparent = color == 0x00;
+            hasEndCode = color == 0xFF;
             color &= 0x7F;
             color |= colorData & 0xFF80;
             break;
         case 4: // 8 bpp, 256 colors, bank mode
             color = ReadVRAM8(charAddress + charIndex);
             transparent = color == 0x00;
+            hasEndCode = color == 0xFF;
             color |= colorData & 0xFF00;
             break;
         case 5: // 16 bpp, 32768 colors, RGB mode
             color = ReadVRAM16((charAddress & ~0xF) + charIndex * 2);
             transparent = !BitTest(color, 15);
+            hasEndCode = color == 0x7FFF;
             break;
     }
 }
-//endCodeCounter.ProcessEndCode(color == 0xF);
-//endCodeCounter.ProcessEndCode(color == 0xF);
-//endCodeCounter.ProcessEndCode(color == 0xFF);
-//endCodeCounter.ProcessEndCode(color == 0xFF);
-//endCodeCounter.ProcessEndCode(color == 0xFF);
-//endCodeCounter.ProcessEndCode(color == 0x7FFF);
+
+uint FindEndCode(uint charAddress, uint uStart, uint uEnd, uint texV, uint charSizeH, uint colorMode) {
+    const uint baseCharIndex = texV * charSizeH;
+
+    uint endCodeCount = 0;
+
+    uint color;
+
+    int uInc = uStart <= uEnd ? +1 : -1;
+    uint u = uStart;
+
+    while (u < charSizeH) {
+        const uint charIndex = u + baseCharIndex;
+
+        switch (colorMode) {
+            case 0: // 4 bpp, 16 colors, bank mode
+                color = ReadVRAM8(charAddress + (charIndex >> 1));
+                color = (color >> ((~u & 1) * 4)) & 0xF;
+                if (color == 0xF) {
+                    endCodeCount++;
+                }
+                break;
+            case 1: // 4 bpp, 16 colors, lookup table mode
+                color = ReadVRAM8(charAddress + (charIndex >> 1));
+                color = (color >> ((~u & 1) * 4)) & 0xF;
+                if (color == 0xF) {
+                    endCodeCount++;
+                }
+                break;
+            case 2: // 8 bpp, 64 colors, bank mode
+                color = ReadVRAM8(charAddress + charIndex);
+                if (color == 0xFF) {
+                    endCodeCount++;
+                }
+                break;
+            case 3: // 8 bpp, 128 colors, bank mode
+                color = ReadVRAM8(charAddress + charIndex);
+                if (color == 0xFF) {
+                    endCodeCount++;
+                }
+                break;
+            case 4: // 8 bpp, 256 colors, bank mode
+                color = ReadVRAM8(charAddress + charIndex);
+                if (color == 0xFF) {
+                    endCodeCount++;
+                }
+                break;
+            case 5: // 16 bpp, 32768 colors, RGB mode
+                color = ReadVRAM16((charAddress & ~0xF) + charIndex * 2);
+                if (color == 0x7FFF) {
+                    endCodeCount++;
+                }
+                break;
+        }
+        if (endCodeCount == 2) {
+            return u;
+        }
+
+        u += uInc;
+    }
+
+    return charSizeH;
+}
 
 void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     const LineParams vdp1line = lineParams[lineIndex];
@@ -784,7 +803,6 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     const bool userClippingEnable = BitTest(cmdModeColor, 10);
     const bool clippingMode = BitTest(cmdModeColor, 9);
 
-    // Reject pixels outside of clipping area
     if (IsPixelClipped(vdp1line, pos, userClippingEnable, clippingMode)) {
         return;
     }
@@ -800,24 +818,27 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     LineStepper lineStepper = NewLineStepper(vdp1line.coordStart, vdp1line.coordEnd, antiAlias);
 
     GouraudStepper gouraudStepper;
-    // TODO: initialize gouraud stepper only once
 
     TextureStepper uStepper;
     uint charAddress;
     uint charSizeH;
+    bool flipH;
     uint colorMode;
     uint colorData;
     bool transparentPixelDisable;
+    uint endCodeIndex;
+    bool endCodesEnabled;
 
     if (textured) {
         charSizeH = max(BitExtract(commands[cmdIndex].srca_size, 8 + 16, 6) << 3, 1);
+        flipH = BitTest(commands[cmdIndex].ctrl_grda, 4);
         charAddress = BitExtract(commands[cmdIndex].srca_size, 0, 16) << 3;
         colorMode = BitExtract(cmdModeColor, 0, 2);
         colorData = BitExtract(cmdModeColor, 16, 16);
         transparentPixelDisable = BitTest(cmdModeColor, 6);
-        const bool flipH = BitTest(commands[cmdIndex].ctrl_grda, 4);
         const bool useHighSpeedShrink = BitTest(cmdModeColor, 12) && lineStepper.Length() < charSizeH - 1;
         const bool evenOddCoordSelect = BitTest(config.params, 6);
+        endCodesEnabled = !BitTest(cmdModeColor, 7);
 
         int uStart = 0;
         int uEnd = charSizeH - 1;
@@ -828,6 +849,10 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
         }
 
         uStepper.Setup(lineStepper.Length() + 1, uStart, uEnd, useHighSpeedShrink, evenOddCoordSelect);
+
+        if (endCodesEnabled && !useHighSpeedShrink) {
+            endCodeIndex = FindEndCode(charAddress, uStart, uEnd, texV, charSizeH, colorMode);
+        }
     }
 
     const uint steps = lineStepper.StepsToTarget(pos, false);
@@ -836,27 +861,31 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
         if (all(lineStepper.Coord() == int2(pos))) {
             if (gouraudEnable) {
+                // TODO: initialize gouraud stepper only once
                 gouraudStepper.Setup(lineStepper.Length() + 1, gouraudStart, gouraudEnd);
                 gouraudStepper.Skip(steps);
             }
 
             if (textured) {
+                // TODO: optimize this
                 uStepper.SetPixel(steps);
-                uStepper.ResetTexel(); // TODO: optimize me
-
+                uStepper.ResetTexel();
                 while (uStepper.ShouldStepTexel()) {
                     uStepper.StepTexel();
                 }
 
-                // TODO: handle end codes
+                // TODO: simplify this mess
+                const uint texU = uStepper.Value();
+                if (!endCodesEnabled || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
+                    uint color;
+                    bool transparent;
+                    bool hasEndCode;
+                    ReadTexel(texU, texV, charAddress, charSizeH, colorMode, colorData, color, transparent, hasEndCode);
 
-                uint color;
-                bool transparent;
-                ReadTexel(uStepper.Value(), texV, charAddress, charSizeH, colorMode, colorData, color, transparent);
-
-                if (!transparent || transparentPixelDisable) {
-                    const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
-                    PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
+                    if ((!hasEndCode || !endCodesEnabled) && (!transparent || transparentPixelDisable)) {
+                        const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
+                        PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
+                    }
                 }
             } else {
                 PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
@@ -864,6 +893,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
         }
     }
 
+    // TODO: deduplicate code
     if (antiAlias) {
         const uint steps = lineStepper.StepsToTarget(pos, true);
         if (steps <= lineStepper.Length()) {
@@ -877,21 +907,23 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
                 if (textured) {
                     uStepper.SetPixel(steps);
-                    uStepper.ResetTexel(); // TODO: optimize me
+                    uStepper.ResetTexel();
 
                     while (uStepper.ShouldStepTexel()) {
                         uStepper.StepTexel();
                     }
 
-                    // TODO: handle end codes
+                    const uint texU = uStepper.Value();
+                    if (!endCodesEnabled || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
+                        uint color;
+                        bool transparent;
+                        bool hasEndCode;
+                        ReadTexel(texU, texV, charAddress, charSizeH, colorMode, colorData, color, transparent, hasEndCode);
 
-                    uint color;
-                    bool transparent;
-                    ReadTexel(uStepper.Value(), texV, charAddress, charSizeH, colorMode, colorData, color, transparent);
-
-                    if (!transparent || transparentPixelDisable) {
-                        const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
-                        PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
+                        if ((!hasEndCode || !endCodesEnabled) && (!transparent || transparentPixelDisable)) {
+                            const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
+                            PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
+                        }
                     }
                 } else {
                     PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
