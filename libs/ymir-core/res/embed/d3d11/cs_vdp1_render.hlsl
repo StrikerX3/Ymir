@@ -13,12 +13,14 @@ struct LineParams {
     uint userClip0;
     uint userClip1;
 
+    //   0-8  Command table entry index
+    //     9  Antialiased
+    //    10  Gouraud shading (0=no shading; 1=gouraud)
+    //    11  Textured        (0=solid color; 1=textured)
+    // 12-15  (reserved)
+    // 16-23  (reserved)
+    // 24-31  Texture V coordinate
     uint params;
-    //   0-7  Command table entry index
-    //  8-15  Texture V coordinate
-    //    16  Textured        (0=solid color; 1=textured)
-    //    17  Gouraud shading (0=no shading; 1=gouraud)
-    //    18  Antialiased
 
     uint gouraud;
 };
@@ -947,7 +949,7 @@ void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmd
 
 void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     const LineParams vdp1line = lineParams[lineIndex];
-    const uint cmdIndex = BitExtract(vdp1line.params, 0, 8);
+    const uint cmdIndex = BitExtract(vdp1line.params, 0, 9);
 
     const uint cmdModeColor = commands[cmdIndex].pmod_colr;
     const bool userClippingEnable = BitTest(cmdModeColor, 10);
@@ -958,10 +960,10 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
         return;
     }
 
-    const uint texV = BitExtract(vdp1line.params, 8, 8);
-    const bool textured = BitTest(vdp1line.params, 16);
-    const bool gouraudEnable = BitTest(vdp1line.params, 17);
-    const bool antiAlias = BitTest(vdp1line.params, 18);
+    const bool antiAlias = BitTest(vdp1line.params, 9);
+    const bool gouraudEnable = BitTest(vdp1line.params, 10);
+    const bool textured = BitTest(vdp1line.params, 11);
+    const uint texV = BitExtract(vdp1line.params, 24, 8);
 
     const uint gouraudStart = BitExtract(vdp1line.gouraud, 0, 16);
     const uint gouraudEnd = BitExtract(vdp1line.gouraud, 16, 16);
