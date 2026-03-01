@@ -1055,27 +1055,31 @@ void App::RunEmulator() {
 
         vdp.SetHardwareCommandListReadyCallback({
             this,
-            [](void *ctx) {
-                auto &app = *static_cast<App *>(ctx);
-                auto &sharedCtx = app.m_context;
-                auto &screen = sharedCtx.screen;
-                if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
-                    screen.frameRequestEvent.Wait();
-                    screen.frameRequestEvent.Reset();
-                }
-                if (screen.videoSync) {
-                    screen.frameReadyEvent.Set();
+            [](bool vdp2FrameEnd, void *ctx) {
+                if (vdp2FrameEnd) {
+                    auto &app = *static_cast<App *>(ctx);
+                    auto &sharedCtx = app.m_context;
+                    auto &screen = sharedCtx.screen;
+                    if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
+                        screen.frameRequestEvent.Wait();
+                        screen.frameRequestEvent.Reset();
+                    }
+                    if (screen.videoSync) {
+                        screen.frameReadyEvent.Set();
+                    }
                 }
             },
         });
 
         vdp.SetHardwarePreExecuteCommandListCallback({
             &m_graphicsService,
-            [](void *ctx) {
-                auto &graphicsService = *static_cast<services::GraphicsService *>(ctx);
-                SDL_Renderer *renderer = graphicsService.GetRenderer();
-                if (renderer != nullptr) {
-                    SDL_FlushRenderer(renderer);
+            [](bool first, void *ctx) {
+                if (first) {
+                    auto &graphicsService = *static_cast<services::GraphicsService *>(ctx);
+                    SDL_Renderer *renderer = graphicsService.GetRenderer();
+                    if (renderer != nullptr) {
+                        SDL_FlushRenderer(renderer);
+                    }
                 }
             },
         });

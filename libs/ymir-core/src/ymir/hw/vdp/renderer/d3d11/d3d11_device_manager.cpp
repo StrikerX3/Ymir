@@ -392,11 +392,12 @@ bool DeviceManager::ExecutePendingCommandLists(bool restoreState, HardwareRender
     if (m_cmdListQueue.empty()) {
         return false;
     }
-    for (ID3D11CommandList *cmdList : m_cmdListQueue) {
-        hwCallbacks.PreExecuteCommandList();
+    for (size_t i = 0; i < m_cmdListQueue.size(); ++i) {
+        ID3D11CommandList *cmdList = m_cmdListQueue[i];
+        hwCallbacks.PreExecuteCommandList(i == 0);
         m_immediateCtx->ExecuteCommandList(cmdList, restoreState);
         cmdList->Release();
-        hwCallbacks.PostExecuteCommandList();
+        hwCallbacks.PostExecuteCommandList(i == m_cmdListQueue.size() - 1);
     }
     m_cmdListQueue.clear();
     return true;
