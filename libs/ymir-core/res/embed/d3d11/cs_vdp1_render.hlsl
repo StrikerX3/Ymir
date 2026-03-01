@@ -935,24 +935,6 @@ bool IsPixelClipped(const PolyParams poly, int2 coord, bool userClippingEnable, 
     return false;
 }
 
-bool IsQuadSystemClipped(const PolyParams poly, int2 coord1, int2 coord2, int2 coord3, int2 coord4) {
-    const int sysClipH = BitExtract(poly.sysClip, 0, 16);
-    const int sysClipV = BitExtract(poly.sysClip, 16, 16);
-    if (coord1.x < 0 && coord2.x < 0 && coord3.x < 0 && coord4.x < 0) {
-        return true;
-    }
-    if (coord1.y < 0 && coord2.y < 0 && coord3.y < 0 && coord4.y < 0) {
-        return true;
-    }
-    if (coord1.x > sysClipH && coord2.x > sysClipH && coord3.x > sysClipH && coord4.x > sysClipH) {
-        return true;
-    }
-    if (coord1.y > sysClipV && coord2.y > sysClipV && coord3.y > sysClipV && coord4.y > sysClipV) {
-        return true;
-    }
-    return false;
-}
-
 bool PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const PixelParams pixelParams) {
     // Reject pixels outside of clipping area
     if (IsPixelClipped(poly, coord, pixelParams.mode_color.userClippingEnable, pixelParams.mode_color.clippingMode)) {
@@ -1315,10 +1297,6 @@ bool PlotTexturedLine(uint2 pos, PolyParams poly, int2 coord1, int2 coord2, Text
 }
 
 void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmdctrl, CMDSRCA_SIZE srca_size, int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
-    if (IsQuadSystemClipped(poly, coordA, coordB, coordC, coordD)) {
-        return;
-    }
-    
     const CMDPMOD_COLR pmod_colr = FetchCMDPMOD_COLR(poly.cmdAddress);
     const uint charAddress = srca_size.charAddress;
     const uint2 charSize = srca_size.charSize;
@@ -1413,10 +1391,6 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
     const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
 
-    if (IsQuadSystemClipped(poly, coordA, coordB, coordC, coordD)) {
-        return;
-    }
-    
     QuadStepper quad = NewQuadStepper(coordA, coordB, coordC, coordD);
  
     LineParams lineParams;
@@ -1483,10 +1457,6 @@ void DrawPolylines(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
     const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
-
-    if (IsQuadSystemClipped(poly, coordA, coordB, coordC, coordD)) {
-        return;
-    }
 
     Color555 colorA, colorB, colorC, colorD;
     if (lineParams.mode_color.gouraudEnable) {

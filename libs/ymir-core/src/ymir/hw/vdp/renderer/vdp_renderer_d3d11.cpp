@@ -724,6 +724,20 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1ClipCoords(sint32 &x, sint32 &y) {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS32 bottomRight, uint32 cmdAddress) {
+    // Discard if completely out of bounds
+    if (topLeft.x() < 0 && bottomRight.x() < 0) {
+        return;
+    }
+    if (topLeft.y() < 0 && bottomRight.y() < 0) {
+        return;
+    }
+    if (topLeft.x() > m_VDP1State.sysClipH && bottomRight.x() > m_VDP1State.sysClipH) {
+        return;
+    }
+    if (topLeft.y() > m_VDP1State.sysClipV && bottomRight.y() > m_VDP1State.sysClipV) {
+        return;
+    }
+
     // Write polygon parameters to list
     const size_t index = m_context->cpuVDP1PolyParamsCount;
     ++m_context->cpuVDP1PolyParamsCount;
