@@ -153,7 +153,6 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP2CoeffCache = nullptr;             //< VDP2 CRAM rotation coefficients cache buffer
     ID3D11ShaderResourceView *srvVDP2CoeffCache = nullptr; //< SRV for VDP2 CRAM rotation coefficients cache buffer
-    std::array<uint8, kCoeffCacheSize> cpuVDP2CoeffCache;  //< CPU-side VDP2 CRAM rotation coefficients cache
     bool dirtyVDP2CRAM = true;                             //< Dirty flag for VDP2 CRAM
 
     ID3D11Buffer *bufVDP2RotParamBases = nullptr;             //< VDP2 rotparam base values structured buffer array
@@ -430,8 +429,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->csVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters compute shader");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2CoeffCache, &m_context->srvVDP2CoeffCache,
-                                                    nullptr, m_context->cpuVDP2CoeffCache.size(),
-                                                    m_context->cpuVDP2CoeffCache.data(), 0, D3D11_CPU_ACCESS_WRITE);
+                                                    nullptr, kVDP2CRAMSize / 2, &m_state.CRAM[kVDP2CRAMSize / 2], 0,
+                                                    D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -621,10 +620,74 @@ void Direct3D11VDPRenderer::VDP2WriteVRAM(uint32 address, uint16 value) {
 
 void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
     m_context->dirtyVDP2CRAM = true;
+
+    auto &colorCache = m_context->cpuVDP2ColorCache;
+    switch (m_state.regs2.vramControl.colorRAMMode) {
+    case 0: {
+        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const Color555 color5{.u16 = value};
+        const Color888 color8 = ConvertRGB555to888(color5);
+        colorCache[address >> 1u][0] = color8.r;
+        colorCache[address >> 1u][1] = color8.g;
+        colorCache[address >> 1u][2] = color8.b;
+        break;
+    }
+    case 1: {
+        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const Color555 color5{.u16 = value};
+        const Color888 color8 = ConvertRGB555to888(color5);
+        colorCache[address >> 1u][0] = color8.r;
+        colorCache[address >> 1u][1] = color8.g;
+        colorCache[address >> 1u][2] = color8.b;
+        break;
+    }
+    case 2: [[fallthrough]];
+    case 3: [[fallthrough]];
+    default: {
+        const auto value = m_state.VDP2ReadCRAM<uint32>(address & ~3u);
+        const Color888 color8{.u32 = value};
+        colorCache[address >> 1u][0] = color8.r;
+        colorCache[address >> 1u][1] = color8.g;
+        colorCache[address >> 1u][2] = color8.b;
+        break;
+    }
+    }
 }
 
 void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
     m_context->dirtyVDP2CRAM = true;
+
+    auto &colorCache = m_context->cpuVDP2ColorCache;
+    switch (m_state.regs2.vramControl.colorRAMMode) {
+    case 0: {
+        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const Color555 color5{.u16 = value};
+        const Color888 color8 = ConvertRGB555to888(color5);
+        colorCache[address >> 1u][0] = color8.r;
+        colorCache[address >> 1u][1] = color8.g;
+        colorCache[address >> 1u][2] = color8.b;
+        break;
+    }
+    case 1: {
+        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const Color555 color5{.u16 = value};
+        const Color888 color8 = ConvertRGB555to888(color5);
+        colorCache[address >> 1u][0] = color8.r;
+        colorCache[address >> 1u][1] = color8.g;
+        colorCache[address >> 1u][2] = color8.b;
+        break;
+    }
+    case 2: [[fallthrough]];
+    case 3: [[fallthrough]];
+    default: {
+        const auto value = m_state.VDP2ReadCRAM<uint32>(address & ~3u);
+        const Color888 color8{.u32 = value};
+        colorCache[address >> 1u][0] = color8.r;
+        colorCache[address >> 1u][1] = color8.g;
+        colorCache[address >> 1u][2] = color8.b;
+        break;
+    }
+    }
 }
 
 void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
@@ -634,8 +697,46 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
 
     switch (address) {
     case 0x00E: // RAMCTL
+    {
         m_context->dirtyVDP2CRAM = true;
+
+        auto &colorCache = m_context->cpuVDP2ColorCache;
+        switch (m_state.regs2.vramControl.colorRAMMode) {
+        case 0:
+            for (uint32 i = 0; i < 1024; ++i) {
+                const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
+                const Color555 color5{.u16 = value};
+                const Color888 color8 = ConvertRGB555to888(color5);
+                colorCache[i][0] = color8.r;
+                colorCache[i][1] = color8.g;
+                colorCache[i][2] = color8.b;
+            }
+            break;
+        case 1:
+            for (uint32 i = 0; i < 2048; ++i) {
+                const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
+                const Color555 color5{.u16 = value};
+                const Color888 color8 = ConvertRGB555to888(color5);
+                colorCache[i][0] = color8.r;
+                colorCache[i][1] = color8.g;
+                colorCache[i][2] = color8.b;
+            }
+            break;
+        case 2: [[fallthrough]];
+        case 3: [[fallthrough]];
+        default:
+            for (uint32 i = 0; i < 1024; ++i) {
+                const auto value = m_state.VDP2ReadCRAM<uint32>(i * sizeof(uint32));
+                const Color888 color8{.u32 = value};
+                colorCache[i][0] = color8.r;
+                colorCache[i][1] = color8.g;
+                colorCache[i][2] = color8.b;
+            }
+            break;
+        }
+
         break;
+    }
     case 0x020: [[fallthrough]]; // BGON
     case 0x028: [[fallthrough]]; // CHCTLA
     case 0x02A:                  // CHCTLB
@@ -1730,41 +1831,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
 
     auto &colorCache = m_context->cpuVDP2ColorCache;
 
-    // TODO: consider updating entries on writes to CRAM and changes to color RAM mode register
-    switch (regs2.vramControl.colorRAMMode) {
-    case 0:
-        for (uint32 i = 0; i < 1024; ++i) {
-            const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
-            const Color555 color5{.u16 = value};
-            const Color888 color8 = ConvertRGB555to888(color5);
-            colorCache[i][0] = color8.r;
-            colorCache[i][1] = color8.g;
-            colorCache[i][2] = color8.b;
-        }
-        break;
-    case 1:
-        for (uint32 i = 0; i < 2048; ++i) {
-            const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
-            const Color555 color5{.u16 = value};
-            const Color888 color8 = ConvertRGB555to888(color5);
-            colorCache[i][0] = color8.r;
-            colorCache[i][1] = color8.g;
-            colorCache[i][2] = color8.b;
-        }
-        break;
-    case 2: [[fallthrough]];
-    case 3: [[fallthrough]];
-    default:
-        for (uint32 i = 0; i < 1024; ++i) {
-            const auto value = m_state.VDP2ReadCRAM<uint32>(i * sizeof(uint32));
-            const Color888 color8{.u32 = value};
-            colorCache[i][0] = color8.r;
-            colorCache[i][1] = color8.g;
-            colorCache[i][2] = color8.b;
-        }
-        break;
-    }
-
     m_context->VDP2Context.ModifyResource(m_context->bufVDP2ColorCache, 0,
                                           [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
                                               memcpy(mappedResource.pData, colorCache.data(), sizeof(colorCache));
@@ -1772,14 +1838,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
 
     // Update RBG coefficients if RBGs are enabled and CRAM coefficients are in use
     if ((regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable) {
-        auto &coeffCache = m_context->cpuVDP2CoeffCache;
-
-        std::copy(m_state.CRAM.begin() + m_state.CRAM.size() / 2, m_state.CRAM.end(), coeffCache.begin());
-
-        m_context->VDP2Context.ModifyResource(m_context->bufVDP2CoeffCache, 0,
-                                              [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                                                  memcpy(mappedResource.pData, coeffCache.data(), sizeof(coeffCache));
-                                              });
+        m_context->VDP2Context.ModifyResource(
+            m_context->bufVDP2CoeffCache, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                memcpy(mappedResource.pData, &m_state.CRAM[kVDP2CRAMSize / 2], kVDP2CRAMSize / 2);
+            });
     }
 }
 
