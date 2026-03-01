@@ -13,7 +13,7 @@
 #include <ymir/hw/vdp/vdp_defs.hpp>
 #include <ymir/hw/vdp/vdp_state.hpp>
 
-#include <ymir/hw/vdp/renderer/sw/vdp1_steppers.hpp>
+#include <ymir/hw/vdp/renderer/common/vdp1_steppers.hpp>
 
 #include <ymir/hw/hw_defs.hpp>
 

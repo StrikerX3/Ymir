@@ -1787,6 +1787,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
             lineParams.gouraudLeft = quad.LeftEdge().GouraudValue();
             lineParams.gouraudRight = quad.RightEdge().GouraudValue();
         }
+
         if (VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
             if (!linePlotted) {
                 linePlotted = true;
