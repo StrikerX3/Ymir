@@ -133,6 +133,15 @@ struct VDP1CommandEntry {
     // NOTE: shader doesn't need CMDLINK, so moving CMDGRDA to its place saves 4 bytes and keeps everything aligned
 };
 
+static constexpr size_t kVDP1BinSizeX = 32;
+static constexpr size_t kVDP1BinSizeY = 32;
+static constexpr size_t kVDP1BinSizeZ = 512;
+static constexpr size_t kVDP1BinCountX = (kVDP1MaxFBSizeH + kVDP1BinSizeX - 1) / kVDP1BinSizeX;
+static constexpr size_t kVDP1BinCountY = (kVDP1MaxFBSizeV + kVDP1BinSizeY - 1) / kVDP1BinSizeY;
+static constexpr size_t kVDP1NumBins = kVDP1BinCountX * kVDP1BinCountY;
+
+using VDP1LineParamsBin = std::array<uint16, kVDP1BinSizeZ>;
+
 // -----------------------------------------------------------------------------
 
 struct alignas(16) VDP2RenderConfig {
