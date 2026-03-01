@@ -683,7 +683,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     ++m_VDP1FrameCounter;
     m_context->DeviceManager.EnqueueCommandList(commandList);
 
-    HwCallbacks.CommandListReady();
+    HwCallbacks.CommandListReady(false);
 
     // TODO: copy VDP1 framebuffer to m_state.spriteFB
 
@@ -1537,7 +1537,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     ++m_VDP2FrameCounter;
     m_context->DeviceManager.EnqueueCommandList(commandList);
 
-    HwCallbacks.CommandListReady();
+    HwCallbacks.CommandListReady(true);
 
     Callbacks.VDP2DrawFinished();
 }
