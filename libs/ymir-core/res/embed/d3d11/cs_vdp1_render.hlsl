@@ -1533,24 +1533,24 @@ void Draw(uint2 pos) {
     
         switch (command) {
             case kCommandDrawNormalSprite:
-                //DrawNormalSprite(index, poly, pixelData, cmdctrl);
+                //DrawNormalSprite(pos, poly, pixelData, cmdctrl);
                 break;
             case kCommandDrawScaledSprite:
-                //DrawScaledSprite(index, poly, pixelData, cmdctrl);
+                //DrawScaledSprite(pos, poly, pixelData, cmdctrl);
                 break;
             case kCommandDrawDistortedSprite:
             case kCommandDrawDistortedSpriteAlt:
-                //DrawDistortedSprite(index, poly, pixelData, cmdctrl);
+                //DrawDistortedSprite(pos, poly, pixelData, cmdctrl);
                 break;
             case kCommandDrawPolygon:
                 DrawPolygon(pos, poly, pixelData);
                 break;
             case kCommandDrawPolylines:
             case kCommandDrawPolylinesAlt:
-                DrawPolylines(index, poly, pixelData);
+                DrawPolylines(pos, poly, pixelData);
                 break;
             case kCommandDrawLine:
-                DrawLine(index, poly, pixelData);
+                DrawLine(pos, poly, pixelData);
                 break;
         }
     }
