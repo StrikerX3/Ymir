@@ -519,6 +519,9 @@ struct LineStepper {
         // TODO: mask to 13 bits
 
         accum -= num * stepDelta;
+        // NOTE: if stepDelta is ever negative, this will need adjustments.
+        // Luckily, the AA pixel is always offset by 0 or +1 from the normal pixel, never -1, and since
+        // the normal pixel is rendered before the AA pixel, the accumulator increases monotonically.
         /*if (den != 0) {
             const int count = (accumTarget - accum + den) / den;
             accum += den * count;
@@ -1345,7 +1348,7 @@ void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmd
     }
 }
 
-void DrawNormalSprite(uint2 pos, const PolyParams poly, const uint cmdctrl, inout uint pixelData) {
+void DrawNormalSprite(uint2 pos, const PolyParams poly, inout uint pixelData, const uint cmdctrl) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
 
     const CMDSRCA_SIZE srca_size = FetchCMDSRCA_SIZE(poly.cmdAddress);
@@ -1419,6 +1422,9 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
             quad.Skip(dist);
         }
     }
+    
+    // TODO: optimize degenerate quads, perhaps by implementing a separate code path
+    // with special optimization tricks for them
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
@@ -1434,7 +1440,6 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
             }
         }
         if (abs(dist) <= 1) {
-            // Plot lines between the interpolated points
             if (lineParams.mode_color.gouraudEnable) {
                 lineParams.gouraudLeft = quad.edgeL.GouraudValue();
                 lineParams.gouraudRight = quad.edgeR.GouraudValue();
