@@ -191,7 +191,7 @@ struct RotCoefficient {
 
 RotTable ReadRotTable(const uint address) {
     RotTable table;
-    
+
     table.Xst = SignExtend(ReadVRAM32(address + 0x00) >> 6, 23);
     table.Yst = SignExtend(ReadVRAM32(address + 0x04) >> 6, 23);
     table.Zst = SignExtend(ReadVRAM32(address + 0x08) >> 6, 23);
@@ -226,7 +226,7 @@ RotTable ReadRotTable(const uint address) {
     table.KAst = ReadVRAM32(address + 0x54) >> 6;
     table.dKAst = SignExtend(ReadVRAM32(address + 0x58) >> 6, 20);
     table.dKAx = SignExtend(ReadVRAM32(address + 0x5C) >> 6, 20);
-    
+
     return table;
 }
 
@@ -256,7 +256,7 @@ RotCoefficient ReadRotCoefficient(uint2 regs, uint coeffAddress) {
     const uint coeffDataMode = BitExtract(regs.x, 3, 2);
 
     RotCoefficient coeff;
-    
+
     // Force coefficient to 0 if it cannot be read in per-dot mode
     if (!CanFetchCoefficient(regs, coeffAddress)) {
         coeff.value = 0;
@@ -264,7 +264,7 @@ RotCoefficient ReadRotCoefficient(uint2 regs, uint coeffAddress) {
         coeff.transparent = true;
         return coeff;
     }
-    
+
     if (coeffDataSize) {
         // One-word coefficient data
         const uint address = offset * 2;
@@ -297,16 +297,16 @@ RotCoefficient ReadRotCoefficient(uint2 regs, uint coeffAddress) {
 RotParamState CalcRotation(uint2 pos, uint index) {
     const RotParamBase base = rotParamBases[index];
     const uint2 regs = rotRegs[index];
-    
+
     const bool coeffTableEnable = BitTest(regs.x, 0);
     const uint coeffDataMode = BitExtract(regs.x, 3, 2);
     const bool coeffDataPerDot = BitTest(regs.x, 9);
     const bool fbRotEnable = BitTest(regs.x, 11);
-    
+
     const RotTable t = ReadRotTable(base.tableAddress);
 
     int Tx, Ty, Tz;
-    
+
     // Common terms for Xsp and Ysp (14.10)
     // 10 - 0 = 10 frac bits
     // 23 - 14 = 23 total bits
@@ -342,7 +342,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     // reduce to 10 frac bits
     const int scrXIncH = (t.A * t.deltaX + t.B * t.deltaY) >> 10;
     const int scrYIncH = (t.D * t.deltaX + t.E * t.deltaY) >> 10;
-    
+
     int kx = t.kx;
     int ky = t.ky;
 
@@ -354,7 +354,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
 
         // Read and apply rotation coefficient
         coeff = ReadRotCoefficient(regs, KA);
-   
+
         switch (coeffDataMode) {
             case kCoeffDataModeScaleCoeffXY:
                 kx = ky = coeff.value;
@@ -374,9 +374,9 @@ RotParamState CalcRotation(uint2 pos, uint index) {
         coeff.lineColorData = 0;
         coeff.transparent = true;
     }
-    
+
     RotParamState result;
-    
+
     // Current screen coordinates (18.10)
     const int scrX = Xsp + pos.x * scrXIncH;
     const int scrY = Ysp + pos.x * scrYIncH;
@@ -392,7 +392,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
         (i64_mul32x32_mid32(kx, scrX) + Xp) >> 10,
         (i64_mul32x32_mid32(ky, scrY) + Yp) >> 10
     );
-    
+
     if (fbRotEnable) {
         // Current sprite coordinates (13.10)
         // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
@@ -405,10 +405,10 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     } else {
         result.spriteCoords = 0;
     }
-    
+
     // Pack coefficient data
     result.coeffData = coeff.lineColorData | (coeff.transparent << 7);
-    
+
     return result;
 }
 
