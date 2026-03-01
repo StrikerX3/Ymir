@@ -903,12 +903,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
     const CoordS32 topLeft{std::min(coord1.x(), coord2.x()), std::min(coord1.y(), coord2.y())};
     const CoordS32 bottomRight{std::max(coord1.x(), coord2.x()), std::max(coord1.y(), coord2.y())};
 
-    const uint32 lowerBoundX = std::clamp<sint32>(topLeft.x() / kVDP1BinSizeX, 0, kVDP1BinCountX);
-    const uint32 lowerBoundY = std::clamp<sint32>(topLeft.y() / kVDP1BinSizeY, 0, kVDP1BinCountY);
-    const uint32 upperBoundX =
-        std::clamp<sint32>((bottomRight.x() + kVDP1BinSizeX - 1) / kVDP1BinSizeX, 0, kVDP1BinCountX);
-    const uint32 upperBoundY =
-        std::clamp<sint32>((bottomRight.y() + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 0, kVDP1BinCountY);
+    static constexpr sint32 kMaxX = kVDP1BinCountX - 1;
+    static constexpr sint32 kMaxY = kVDP1BinCountY - 1;
+    static constexpr auto divRoundUp = [](sint32 value, sint32 divisor) { return (value + divisor - 1) / divisor; };
+    const uint32 lowerBoundX = std::clamp<sint32>(topLeft.x() / kVDP1BinSizeX, 0, kMaxX);
+    const uint32 lowerBoundY = std::clamp<sint32>(topLeft.y() / kVDP1BinSizeY, 0, kMaxY);
+    const uint32 upperBoundX = std::clamp<sint32>(divRoundUp(bottomRight.x(), kVDP1BinSizeX), 0, kMaxX);
+    const uint32 upperBoundY = std::clamp<sint32>(divRoundUp(bottomRight.y(), kVDP1BinSizeY), 0, kMaxY);
     for (uint32 y = lowerBoundY; y <= upperBoundY; ++y) {
         for (uint32 x = lowerBoundX; x <= upperBoundX; ++x) {
             const size_t binIndex = y * kVDP1BinCountX + x;
