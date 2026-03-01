@@ -1,5 +1,7 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp>
 
+#include <ymir/hw/vdp/renderer/common/vdp1_steppers.hpp>
+
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/inline.hpp>
 #include <ymir/util/scope_guard.hpp>
@@ -86,18 +88,16 @@ struct Direct3D11VDPRenderer::Context {
     DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};                   //< Dirty bitmap for VDP1 VRAM
     std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages = {}; //< VDP1 VRAM page buffers
 
-    ID3D11Buffer *bufVDP1PolyParams = nullptr;             //< VDP1 polygon parameters structured buffer
-    ID3D11ShaderResourceView *srvVDP1PolyParams = nullptr; //< SRV for VDP1 polygon parameters
-    std::array<VDP1PolyParams, 1024> cpuVDP1PolyParams{};  //< CPU-side VDP1 polygon parameters
-    size_t cpuVDP1PolyParamsCount = 0;                     //< CPU-side VDP1 polygon parameters count
+    ID3D11Buffer *bufVDP1LineParams = nullptr;             //< VDP1 line parameters structured buffer
+    ID3D11ShaderResourceView *srvVDP1LineParams = nullptr; //< SRV for VDP1 line parameters
+    std::array<VDP1LineParams, 4096> cpuVDP1LineParams{};  //< CPU-side VDP1 line parameters
+    size_t cpuVDP1LineParamsCount = 0;                     //< CPU-side VDP1 line parameters count
 
-    ID3D11Buffer *bufVDP1PolyParamBins = nullptr;             //< VDP1 polygon parameter bins structured buffer
-    ID3D11ShaderResourceView *srvVDP1PolyParamBins = nullptr; //< SRV for VDP1 polygon parameter bins
-    std::array<VDP1PolyParamsBin, kVDP1NumBins> cpuVDP1PolyParamBins{}; //< CPU-side VDP1 polygon parameter bins
-
-    ID3D11Buffer *bufVDP1PolyParamBinCounts = nullptr; //< VDP1 polygon parameter bin counts structured buffer
-    ID3D11ShaderResourceView *srvVDP1PolyParamBinCounts = nullptr; //< SRV for VDP1 polygon parameter bin counts
-    std::array<D3DUint, kVDP1NumBins> cpuVDP1PolyParamBinCounts{}; //< CPU-side VDP1 polygon parameter bin counts
+    ID3D11Buffer *bufVDP1CommandTable = nullptr;             //< VDP1 command table structured buffer
+    ID3D11ShaderResourceView *srvVDP1CommandTable = nullptr; //< SRV for VDP1 command table
+    std::array<VDP1CommandEntry, 256> cpuVDP1CommandTable{}; //< CPU-side VDP1 command table (ring buffer)
+    size_t cpuVDP1CommandTableHead = 0;                      //< CPU-side VDP1 command table head index
+    size_t cpuVDP1CommandTableTail = 0;                      //< CPU-side VDP1 command table tail index
 
     ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer (sprite, mesh)
     ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output buffer
@@ -268,37 +268,25 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         ++i;
     }
 
-    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1PolyParams, &m_context->srvVDP1PolyParams, nullptr,
-                                                   m_context->cpuVDP1PolyParams.size(),
-                                                   m_context->cpuVDP1PolyParams.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1LineParams, &m_context->srvVDP1LineParams, nullptr,
+                                                   m_context->cpuVDP1LineParams.size(),
+                                                   m_context->cpuVDP1LineParams.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters buffer");
-    SetDebugName(m_context->srvVDP1PolyParams, "[Ymir D3D11] VDP1 polygon parameters SRV");
+    SetDebugName(m_context->bufVDP1LineParams, "[Ymir D3D11] VDP1 line parameters buffer");
+    SetDebugName(m_context->srvVDP1LineParams, "[Ymir D3D11] VDP1 line parameters SRV");
 
-    if (HRESULT hr =
-            devMgr.CreatePrimitiveBuffer(m_context->bufVDP1PolyParamBins, &m_context->srvVDP1PolyParamBins,
-                                         DXGI_FORMAT_R32_UINT, m_context->cpuVDP1PolyParamBins.size() * kVDP1BinDepth,
-                                         m_context->cpuVDP1PolyParamBins.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1CommandTable, &m_context->srvVDP1CommandTable,
+                                                   nullptr, m_context->cpuVDP1CommandTable.size(),
+                                                   m_context->cpuVDP1CommandTable.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1PolyParamBins, "[Ymir D3D11] VDP1 polygon parameter bins buffer");
-    SetDebugName(m_context->srvVDP1PolyParamBins, "[Ymir D3D11] VDP1 polygon parameter bins SRV");
-
-    if (HRESULT hr =
-            devMgr.CreatePrimitiveBuffer(m_context->bufVDP1PolyParamBinCounts, &m_context->srvVDP1PolyParamBinCounts,
-                                         DXGI_FORMAT_R32_UINT, m_context->cpuVDP1PolyParamBinCounts.size(),
-                                         m_context->cpuVDP1PolyParamBinCounts.data(), 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    SetDebugName(m_context->bufVDP1PolyParamBinCounts, "[Ymir D3D11] VDP1 polygon parameter bin counts buffer");
-    SetDebugName(m_context->srvVDP1PolyParamBinCounts, "[Ymir D3D11] VDP1 polygon parameter bin counts SRV");
+    SetDebugName(m_context->bufVDP1CommandTable, "[Ymir D3D11] VDP1 command table ring buffer");
+    SetDebugName(m_context->srvVDP1CommandTable, "[Ymir D3D11] VDP1 command table SRV");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
                                                     &m_context->uavVDP1PolyOut, kVDP1FramebufferRAMSize,
@@ -645,7 +633,7 @@ void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {}
 
 void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     // Submit partial batch
-    VDP1SubmitPolygons();
+    VDP1SubmitLines();
 
     auto &ctx = m_context->VDP1Context;
 
@@ -723,71 +711,89 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1ClipCoords(sint32 &x, sint32 &y) {
     VDP1UserClipCoords(x, y);
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddPolygon(CoordS32 topLeft, CoordS32 bottomRight, uint32 cmdAddress) {
+FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(uint32 cmdAddress) {
+    auto &table = m_context->cpuVDP1CommandTable;
+    size_t &head = m_context->cpuVDP1CommandTableHead;
+
+    const size_t index = head;
+    head = (head + 1) % table.size();
+    assert(head != m_context->cpuVDP1CommandTableTail);
+
+    auto &entry = m_context->cpuVDP1CommandTable[index];
+    entry.cmdctrl = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x00);
+    entry.cmdpmod = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x04);
+    entry.cmdcolr = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x06);
+    entry.cmdcolr = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x06);
+    entry.cmdsrca = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x08);
+    entry.cmdsize = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0A);
+    entry.cmdxa = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C);
+    entry.cmdya = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E);
+    entry.cmdxb = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10);
+    entry.cmdyb = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12);
+    entry.cmdxc = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14);
+    entry.cmdyc = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16);
+    entry.cmdxd = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18);
+    entry.cmdyd = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A);
+    entry.cmdgrda = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1C);
+
+    return index;
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DiscardCommand() {
+    assert(m_context->cpuVDP1CommandTableHead != m_context->cpuVDP1CommandTableTail);
+
+    size_t &head = m_context->cpuVDP1CommandTableHead;
+    head = (head - 1) % m_context->cpuVDP1CommandTable.size();
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
+                                                     const VDP1LineExtras &extras) {
     // Discard if completely out of bounds
-    if (topLeft.x() < 0 && bottomRight.x() < 0) {
+    if (coord1.x() < 0 && coord2.x() < 0) {
         return;
     }
-    if (topLeft.y() < 0 && bottomRight.y() < 0) {
+    if (coord1.y() < 0 && coord2.y() < 0) {
         return;
     }
-    if (topLeft.x() > m_VDP1State.sysClipH && bottomRight.x() > m_VDP1State.sysClipH) {
+    if (coord1.x() > m_VDP1State.sysClipH && coord2.x() > m_VDP1State.sysClipH) {
         return;
     }
-    if (topLeft.y() > m_VDP1State.sysClipV && bottomRight.y() > m_VDP1State.sysClipV) {
+    if (coord1.y() > m_VDP1State.sysClipV && coord2.y() > m_VDP1State.sysClipV) {
         return;
     }
 
     // Write polygon parameters to list
-    const size_t index = m_context->cpuVDP1PolyParamsCount;
-    ++m_context->cpuVDP1PolyParamsCount;
+    const size_t index = m_context->cpuVDP1LineParamsCount;
+    ++m_context->cpuVDP1LineParamsCount;
 
-    bool full = m_context->cpuVDP1PolyParamsCount == m_context->cpuVDP1PolyParams.size();
-
-    const uint32 width = bottomRight.x() - topLeft.x() + 1;
-    const uint32 height = bottomRight.y() - topLeft.y() + 1;
-
-    auto &entry = m_context->cpuVDP1PolyParams[index];
-    entry.posX = topLeft.x();
-    entry.posY = topLeft.y();
-    entry.sizeX = width;
-    entry.sizeY = height;
+    auto &entry = m_context->cpuVDP1LineParams[index];
+    entry.coordStart.x = coord1.x();
+    entry.coordStart.y = coord1.y();
+    entry.coordEnd.x = coord2.x();
+    entry.coordEnd.y = coord2.y();
     entry.sysClipH = m_VDP1State.sysClipH;
     entry.sysClipV = m_VDP1State.sysClipV;
     entry.userClipX0 = m_VDP1State.userClipX0;
-    entry.userClipX1 = m_VDP1State.userClipX1;
     entry.userClipY0 = m_VDP1State.userClipY0;
+    entry.userClipX1 = m_VDP1State.userClipX1;
     entry.userClipY1 = m_VDP1State.userClipY1;
-    entry.localCoordX = m_VDP1State.localCoordX;
-    entry.localCoordY = m_VDP1State.localCoordY;
-    entry.cmdAddress = cmdAddress;
+    entry.cmdIndex = cmdIndex;
+    entry.antiAlias = extras.antiAliased;
+    entry.textured = extras.textured;
+    entry.texV = extras.texV;
+    entry.gouraud = extras.gouraud;
+    entry.gouraudStart = extras.gouraudStart.u16;
+    entry.gouraudEnd = extras.gouraudEnd.u16;
 
-    // Add polygon to bins
-    const uint32 lowerBoundX = topLeft.x() / kVDP1BinH;
-    const uint32 lowerBoundY = topLeft.y() / kVDP1BinV;
-    const uint32 upperBoundX = (bottomRight.x() + kVDP1BinH - 1) / kVDP1BinH;
-    const uint32 upperBoundY = (bottomRight.y() + kVDP1BinV - 1) / kVDP1BinV;
-    for (uint32 y = lowerBoundY; y <= upperBoundY; ++y) {
-        for (uint32 x = lowerBoundX; x <= upperBoundX; ++x) {
-            const size_t binIndex = y * kVDP1BinsX + x;
-            auto &bin = m_context->cpuVDP1PolyParamBins[binIndex];
-            auto &numPolys = m_context->cpuVDP1PolyParamBinCounts[binIndex];
-            bin[numPolys] = index;
-            ++numPolys;
-            if (numPolys == bin.size()) {
-                full = true;
-            }
-        }
-    }
-
-    // Submit batch if the polygon list or a bin is full
+    // Submit batch if the line list or the command table is full
+    const bool full = m_context->cpuVDP1LineParamsCount == m_context->cpuVDP1LineParams.size();
     if (full) {
-        VDP1SubmitPolygons();
+        VDP1SubmitLines();
     }
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
-    if (m_context->cpuVDP1PolyParamsCount == 0) {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
+    if (m_context->cpuVDP1LineParamsCount == 0) {
         // Nothing to submit; don't waste time
         return;
     }
@@ -795,33 +801,134 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitPolygons() {
     auto &ctx = m_context->VDP1Context;
 
     // Upload polygons
-    m_context->VDP1Context.ModifyResource(m_context->bufVDP1PolyParams, 0,
+    m_context->VDP1Context.ModifyResource(m_context->bufVDP1LineParams, 0,
                                           [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                                              memcpy(mappedResource.pData, &m_context->cpuVDP1PolyParams,
-                                                     sizeof(VDP1PolyParams) * m_context->cpuVDP1PolyParamsCount);
+                                              memcpy(mappedResource.pData, &m_context->cpuVDP1LineParams,
+                                                     sizeof(VDP1LineParams) * m_context->cpuVDP1LineParamsCount);
                                           });
     m_context->VDP1Context.ModifyResource(
-        m_context->bufVDP1PolyParamBins, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-            memcpy(mappedResource.pData, &m_context->cpuVDP1PolyParamBins, sizeof(m_context->cpuVDP1PolyParamBins));
+        m_context->bufVDP1CommandTable, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP1CommandTable, sizeof(m_context->cpuVDP1CommandTable));
         });
-    m_context->VDP1Context.ModifyResource(m_context->bufVDP1PolyParamBinCounts, 0,
-                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                                              memcpy(mappedResource.pData, &m_context->cpuVDP1PolyParamBinCounts,
-                                                     sizeof(m_context->cpuVDP1PolyParamBinCounts));
-                                          });
 
     VDP1UpdateRenderConfig();
 
     // Render polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-    ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1PolyParams, m_context->srvVDP1PolyParamBins,
-                              m_context->srvVDP1PolyParamBinCounts});
+    ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1LineParams, m_context->srvVDP1CommandTable});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1FBRAM});
     ctx.CSSetShader(m_context->csVDP1Render);
     ctx.Dispatch((m_VDP1State.sysClipH + 31) / 32, (m_VDP1State.sysClipV + 31) / 32, 1);
 
-    m_context->cpuVDP1PolyParamsCount = 0;
-    m_context->cpuVDP1PolyParamBinCounts.fill(0);
+    m_context->cpuVDP1LineParamsCount = 0;
+    m_context->cpuVDP1CommandTableTail = m_context->cpuVDP1CommandTableHead;
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB,
+                                                           CoordS32 coordC, CoordS32 coordD) {
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
+    const VDP1Command::Control control{.u16 = cmd.cmdctrl};
+    const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
+
+    QuadStepper quad{coordA, coordB, coordC, coordD};
+
+    if (mode.gouraudEnable) {
+        const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
+
+        Color555 colorA{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u)};
+        Color555 colorB{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u)};
+        Color555 colorC{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 4u)};
+        Color555 colorD{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 6u)};
+
+        quad.SetupGouraud(colorA, colorB, colorC, colorD);
+    }
+
+    VDP1LineExtras extras{
+        .antiAliased = true,
+        .textured = false,
+        .gouraud = mode.gouraudEnable,
+    };
+
+    // Interpolate linearly over edges A-D and B-C
+    for (; quad.CanStep(); quad.Step()) {
+        // Plot lines between the interpolated points
+        const CoordS32 coordL = quad.LeftEdge().Coord();
+        const CoordS32 coordR = quad.RightEdge().Coord();
+
+        if (mode.gouraudEnable) {
+            extras.gouraudStart = quad.LeftEdge().GouraudValue();
+            extras.gouraudEnd = quad.RightEdge().GouraudValue();
+        }
+
+        VDP1AddLine(cmdIndex, coordL, coordR, extras);
+    }
+
+    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
+                              m_context->cpuVDP1CommandTableTail;
+    if (cmdTableFull) {
+        VDP1SubmitLines();
+    }
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawTexturedQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB,
+                                                              CoordS32 coordC, CoordS32 coordD) {
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
+    const VDP1Command::Control control{.u16 = cmd.cmdctrl};
+    const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
+    const VDP1Command::Size size{.u16 = cmd.cmdsize};
+
+    QuadStepper quad{coordA, coordB, coordC, coordD};
+
+    if (mode.gouraudEnable) {
+        const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
+
+        Color555 colorA{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u)};
+        Color555 colorB{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u)};
+        Color555 colorC{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 4u)};
+        Color555 colorD{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 6u)};
+
+        quad.SetupGouraud(colorA, colorB, colorC, colorD);
+    }
+
+    TextureStepper texVStepper;
+
+    const uint32 charSizeV = size.V;
+    const bool flipV = control.flipV;
+    quad.SetupTexture(texVStepper, charSizeV, flipV);
+
+    VDP1LineExtras extras{
+        .antiAliased = true,
+        .textured = true,
+        .gouraud = mode.gouraudEnable,
+    };
+
+    // Interpolate linearly over edges A-D and B-C
+    for (; quad.CanStep(); quad.Step()) {
+        // Plot lines between the interpolated points
+        const CoordS32 coordL = quad.LeftEdge().Coord();
+        const CoordS32 coordR = quad.RightEdge().Coord();
+
+        while (texVStepper.ShouldStepTexel()) {
+            texVStepper.StepTexel();
+        }
+        texVStepper.StepPixel();
+        extras.texV = texVStepper.Value();
+
+        if (mode.gouraudEnable) {
+            extras.gouraudStart = quad.LeftEdge().GouraudValue();
+            extras.gouraudEnd = quad.RightEdge().GouraudValue();
+        }
+
+        VDP1AddLine(cmdIndex, coordL, coordR, extras);
+    }
+
+    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
+                              m_context->cpuVDP1CommandTableTail;
+    if (cmdTableFull) {
+        VDP1SubmitLines();
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
@@ -829,7 +936,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
     const VDP2Regs &regs2 = m_state.regs2;
     auto &config = m_context->cpuVDP1RenderConfig;
 
-    config.numPolys = m_context->cpuVDP1PolyParamsCount;
+    config.numLines = m_context->cpuVDP1LineParamsCount;
 
     config.params.fbSizeH = std::countr_zero(regs1.fbSizeH) - 9;
     config.params.fbSizeV = std::countr_zero(regs1.fbSizeV) - 8;
@@ -884,16 +991,24 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
         return;
     }
 
-    const VDP1Command::Size size{.u16 = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0A)};
+    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
+    const VDP1Command::Size size{.u16 = cmd.cmdsize};
     const uint32 charSizeH = size.H * 8;
     const uint32 charSizeV = size.V;
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
 
     sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
     sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
+
+    const CoordS32 coordA{xa, ya};
+    const CoordS32 coordB{xb, ya};
+    const CoordS32 coordC{xb, yb};
+    const CoordS32 coordD{xa, yb};
 
     VDP1ClipCoords(xa, ya);
     VDP1ClipCoords(xb, yb);
@@ -902,10 +1017,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     const uint32 dy = yb - ya;
 
     if (dx == 0 || dy == 0) {
+        VDP1DiscardCommand();
         return;
     }
 
-    VDP1AddPolygon({xa, ya}, {xb, yb}, cmdAddress);
+    VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -913,11 +1029,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
         return;
     }
 
-    const VDP1Command::Size size{.u16 = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0A)};
+    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
+    const VDP1Command::Size size{.u16 = cmd.cmdsize};
 
     auto &ctx = m_VDP1State;
-    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    const sint32 xa = bit::sign_extend<13>(cmd.cmdxa);
+    const sint32 ya = bit::sign_extend<13>(cmd.cmdya);
 
     // Calculated quad coordinates
     sint32 qxa = xa;
@@ -933,12 +1052,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     const uint8 zoomPointV = bit::extract<2, 3>(control.zoomPoint);
 
     if (zoomPointH == 0) {
-        const sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+        const sint32 xc = bit::sign_extend<13>(cmd.cmdxc);
 
         qxb = xc;
         qxc = xc;
     } else {
-        const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+        const sint32 xb = bit::sign_extend<13>(cmd.cmdxb);
 
         switch (zoomPointH) {
         case 1:
@@ -959,12 +1078,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     }
 
     if (zoomPointV == 0) {
-        const sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+        const sint32 yc = bit::sign_extend<13>(cmd.cmdyc);
 
         qyc = yc;
         qyd = yc;
     } else {
-        const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+        const sint32 yb = bit::sign_extend<13>(cmd.cmdyb);
 
         switch (zoomPointV) {
         case 1:
@@ -993,6 +1112,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     qxd += ctx.localCoordX;
     qyd += ctx.localCoordY;
 
+    const CoordS32 coordA{qxa, qya};
+    const CoordS32 coordB{qxb, qyb};
+    const CoordS32 coordC{qxc, qyc};
+    const CoordS32 coordD{qxd, qyd};
+
     VDP1ClipCoords(qxa, qya);
     VDP1ClipCoords(qxb, qyb);
     VDP1ClipCoords(qxc, qyc);
@@ -1007,10 +1131,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     const uint32 dy = maxY - minY;
 
     if (dx == 0 || dy == 0) {
+        VDP1DiscardCommand();
         return;
     }
 
-    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
+    VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -1018,15 +1143,23 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
         return;
     }
 
+    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(cmd.cmdxc) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(cmd.cmdyc) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(cmd.cmdxd) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(cmd.cmdyd) + ctx.localCoordY;
+
+    const CoordS32 coordA{xa, ya};
+    const CoordS32 coordB{xb, yb};
+    const CoordS32 coordC{xc, yc};
+    const CoordS32 coordD{xd, yd};
 
     VDP1ClipCoords(xa, ya);
     VDP1ClipCoords(xb, yb);
@@ -1042,10 +1175,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     const uint32 dy = maxY - minY;
 
     if (dx == 0 || dy == 0) {
+        VDP1DiscardCommand();
         return;
     }
 
-    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
+    VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
@@ -1053,15 +1187,23 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
         return;
     }
 
+    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(cmd.cmdxc) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(cmd.cmdyc) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(cmd.cmdxd) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(cmd.cmdyd) + ctx.localCoordY;
+
+    const CoordS32 coordA{xa, ya};
+    const CoordS32 coordB{xb, yb};
+    const CoordS32 coordC{xc, yc};
+    const CoordS32 coordD{xd, yd};
 
     VDP1ClipCoords(xa, ya);
     VDP1ClipCoords(xb, yb);
@@ -1077,10 +1219,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     const uint32 dy = maxY - minY;
 
     if (dx == 0 || dy == 0) {
+        VDP1DiscardCommand();
         return;
     }
 
-    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
+    VDP1DrawSolidQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
@@ -1088,15 +1231,23 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
         return;
     }
 
+    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(cmd.cmdxc) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(cmd.cmdyc) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(cmd.cmdxd) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(cmd.cmdyd) + ctx.localCoordY;
+
+    const CoordS32 coordA{xa, ya};
+    const CoordS32 coordB{xb, yb};
+    const CoordS32 coordC{xc, yc};
+    const CoordS32 coordD{xd, yd};
 
     VDP1ClipCoords(xa, ya);
     VDP1ClipCoords(xb, yb);
@@ -1112,10 +1263,60 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     const uint32 dy = maxY - minY;
 
     if (dx == 0 || dy == 0) {
+        VDP1DiscardCommand();
         return;
     }
 
-    VDP1AddPolygon({minX, minY}, {maxX, maxY}, cmdAddress);
+    const VDP1Command::DrawMode mode{.u16 = cmd.cmdgrda};
+
+    VDP1LineExtras extras{
+        .antiAliased = false,
+        .textured = false,
+        .gouraud = mode.gouraudEnable,
+    };
+
+    Color555 gouraudA;
+    Color555 gouraudB;
+    Color555 gouraudC;
+    Color555 gouraudD;
+
+    if (mode.gouraudEnable) {
+        const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
+        gouraudA.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u);
+        gouraudB.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u);
+        gouraudC.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 4u);
+        gouraudD.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 6u);
+    }
+
+    if (mode.gouraudEnable) {
+        extras.gouraudStart = gouraudA;
+        extras.gouraudEnd = gouraudB;
+    }
+    VDP1AddLine(cmdIndex, coordA, coordB, extras);
+
+    if (mode.gouraudEnable) {
+        extras.gouraudStart = gouraudB;
+        extras.gouraudEnd = gouraudC;
+    }
+    VDP1AddLine(cmdIndex, coordB, coordC, extras);
+
+    if (mode.gouraudEnable) {
+        extras.gouraudStart = gouraudC;
+        extras.gouraudEnd = gouraudD;
+    }
+    VDP1AddLine(cmdIndex, coordC, coordD, extras);
+
+    if (mode.gouraudEnable) {
+        extras.gouraudStart = gouraudD;
+        extras.gouraudEnd = gouraudA;
+    }
+    VDP1AddLine(cmdIndex, coordD, coordA, extras);
+
+    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
+                              m_context->cpuVDP1CommandTableTail;
+    if (cmdTableFull) {
+        VDP1SubmitLines();
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
@@ -1123,11 +1324,17 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         return;
     }
 
+    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
+
+    const CoordS32 coordA{xa, ya};
+    const CoordS32 coordB{xb, yb};
 
     VDP1ClipCoords(xa, ya);
     VDP1ClipCoords(xb, yb);
@@ -1136,10 +1343,32 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     const uint32 dy = std::abs(yb - ya);
 
     if (dx == 0 || dy == 0) {
+        VDP1DiscardCommand();
         return;
     }
 
-    VDP1AddPolygon({std::min(xa, xb), std::min(ya, yb)}, {std::max(xa, xb), std::max(ya, yb)}, cmdAddress);
+    const VDP1Command::DrawMode mode{.u16 = cmd.cmdgrda};
+    const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
+
+    VDP1LineExtras extras{
+        .antiAliased = false,
+        .textured = false,
+        .gouraud = mode.gouraudEnable,
+    };
+
+    if (mode.gouraudEnable) {
+        const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
+        extras.gouraudStart.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u);
+        extras.gouraudEnd.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u);
+    }
+
+    VDP1AddLine(cmdIndex, coordA, coordB, extras);
+
+    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
+                              m_context->cpuVDP1CommandTableTail;
+    if (cmdTableFull) {
+        VDP1SubmitLines();
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
@@ -1151,8 +1380,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAdd
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
     auto &ctx = m_VDP1State;
     ctx.userClipX0 = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    ctx.userClipY0 = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
     ctx.userClipX1 = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+    ctx.userClipY0 = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
     ctx.userClipY1 = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
 }
 
