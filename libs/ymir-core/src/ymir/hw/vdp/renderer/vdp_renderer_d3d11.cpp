@@ -94,11 +94,11 @@ struct Direct3D11VDPRenderer::Context {
     std::array<VDP1LineParams, 8192> cpuVDP1LineParams{};  //< CPU-side VDP1 line parameters
     size_t cpuVDP1LineParamsCount = 0;                     //< CPU-side VDP1 line parameters count
 
-    ID3D11Buffer *bufVDP1CommandTable = nullptr;             //< VDP1 command table structured buffer
-    ID3D11ShaderResourceView *srvVDP1CommandTable = nullptr; //< SRV for VDP1 command table
-    std::array<VDP1CommandEntry, 512> cpuVDP1CommandTable{}; //< CPU-side VDP1 command table (ring buffer)
-    size_t cpuVDP1CommandTableHead = 0;                      //< CPU-side VDP1 command table head index
-    size_t cpuVDP1CommandTableTail = 0;                      //< CPU-side VDP1 command table tail index
+    ID3D11Buffer *bufVDP1CommandTable = nullptr;              //< VDP1 command table structured buffer
+    ID3D11ShaderResourceView *srvVDP1CommandTable = nullptr;  //< SRV for VDP1 command table
+    std::array<VDP1CommandEntry, 1024> cpuVDP1CommandTable{}; //< CPU-side VDP1 command table (ring buffer)
+    size_t cpuVDP1CommandTableHead = 0;                       //< CPU-side VDP1 command table head index
+    size_t cpuVDP1CommandTableTail = 0;                       //< CPU-side VDP1 command table tail index
 
     ID3D11Buffer *bufVDP1LineBins = nullptr;                         //< VDP1 line parameter bins structured buffer
     ID3D11ShaderResourceView *srvVDP1LineBins = nullptr;             //< SRV for VDP1 line parameter bins
@@ -830,21 +830,6 @@ void Direct3D11VDPRenderer::VDP1EndFrame() {
     Callbacks.VDP1DrawFinished();
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1SystemClipCoords(sint32 &x, sint32 &y) {
-    x = std::clamp<sint32>(x, 0, m_VDP1State.sysClipH);
-    y = std::clamp<sint32>(y, 0, m_VDP1State.sysClipV);
-}
-
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1UserClipCoords(sint32 &x, sint32 &y) {
-    x = std::clamp<sint32>(x, m_VDP1State.userClipX0, std::max(m_VDP1State.userClipX0, m_VDP1State.userClipX1));
-    y = std::clamp<sint32>(y, m_VDP1State.userClipY0, std::max(m_VDP1State.userClipY0, m_VDP1State.userClipY1));
-}
-
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1ClipCoords(sint32 &x, sint32 &y) {
-    VDP1SystemClipCoords(x, y);
-    VDP1UserClipCoords(x, y);
-}
-
 FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(uint32 cmdAddress) {
     auto &table = m_context->cpuVDP1CommandTable;
     size_t &head = m_context->cpuVDP1CommandTableHead;
@@ -918,10 +903,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
     const CoordS32 topLeft{std::min(coord1.x(), coord2.x()), std::min(coord1.y(), coord2.y())};
     const CoordS32 bottomRight{std::max(coord1.x(), coord2.x()), std::max(coord1.y(), coord2.y())};
 
-    const uint32 lowerBoundX = topLeft.x() / kVDP1BinSizeX;
-    const uint32 lowerBoundY = topLeft.y() / kVDP1BinSizeY;
-    const uint32 upperBoundX = (bottomRight.x() + kVDP1BinSizeX - 1) / kVDP1BinSizeX;
-    const uint32 upperBoundY = (bottomRight.y() + kVDP1BinSizeY - 1) / kVDP1BinSizeY;
+    const uint32 lowerBoundX = std::clamp<sint32>(topLeft.x() / kVDP1BinSizeX, 0, kVDP1BinCountX);
+    const uint32 lowerBoundY = std::clamp<sint32>(topLeft.y() / kVDP1BinSizeY, 0, kVDP1BinCountY);
+    const uint32 upperBoundX =
+        std::clamp<sint32>((bottomRight.x() + kVDP1BinSizeX - 1) / kVDP1BinSizeX, 0, kVDP1BinCountX);
+    const uint32 upperBoundY =
+        std::clamp<sint32>((bottomRight.y() + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 0, kVDP1BinCountY);
     for (uint32 y = lowerBoundY; y <= upperBoundY; ++y) {
         for (uint32 x = lowerBoundX; x <= upperBoundX; ++x) {
             const size_t binIndex = y * kVDP1BinCountX + x;
@@ -1192,17 +1179,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     const CoordS32 coordC{xb, yb};
     const CoordS32 coordD{xa, yb};
 
-    VDP1ClipCoords(xa, ya);
-    VDP1ClipCoords(xb, yb);
-
-    const uint32 dx = xb - xa;
-    const uint32 dy = yb - ya;
-
-    if (dx == 0 || dy == 0) {
-        VDP1DiscardCommand();
-        return;
-    }
-
     VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
 
@@ -1299,24 +1275,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     const CoordS32 coordC{qxc, qyc};
     const CoordS32 coordD{qxd, qyd};
 
-    VDP1ClipCoords(qxa, qya);
-    VDP1ClipCoords(qxb, qyb);
-    VDP1ClipCoords(qxc, qyc);
-    VDP1ClipCoords(qxd, qyd);
-
-    const sint32 minX = std::min(std::min(qxa, qxb), std::min(qxc, qxd));
-    const sint32 minY = std::min(std::min(qya, qyb), std::min(qyc, qyd));
-    const sint32 maxX = std::max(std::max(qxa, qxb), std::max(qxc, qxd));
-    const sint32 maxY = std::max(std::max(qya, qyb), std::max(qyc, qyd));
-
-    const uint32 dx = maxX - minX;
-    const uint32 dy = maxY - minY;
-
-    if (dx == 0 || dy == 0) {
-        VDP1DiscardCommand();
-        return;
-    }
-
     VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
 
@@ -1342,24 +1300,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     const CoordS32 coordB{xb, yb};
     const CoordS32 coordC{xc, yc};
     const CoordS32 coordD{xd, yd};
-
-    VDP1ClipCoords(xa, ya);
-    VDP1ClipCoords(xb, yb);
-    VDP1ClipCoords(xc, yc);
-    VDP1ClipCoords(xd, yd);
-
-    const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
-    const sint32 minY = std::min(std::min(ya, yb), std::min(yc, yd));
-    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
-    const sint32 maxY = std::max(std::max(ya, yb), std::max(yc, yd));
-
-    const uint32 dx = maxX - minX;
-    const uint32 dy = maxY - minY;
-
-    if (dx == 0 || dy == 0) {
-        VDP1DiscardCommand();
-        return;
-    }
 
     VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
@@ -1387,24 +1327,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     const CoordS32 coordC{xc, yc};
     const CoordS32 coordD{xd, yd};
 
-    VDP1ClipCoords(xa, ya);
-    VDP1ClipCoords(xb, yb);
-    VDP1ClipCoords(xc, yc);
-    VDP1ClipCoords(xd, yd);
-
-    const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
-    const sint32 minY = std::min(std::min(ya, yb), std::min(yc, yd));
-    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
-    const sint32 maxY = std::max(std::max(ya, yb), std::max(yc, yd));
-
-    const uint32 dx = maxX - minX;
-    const uint32 dy = maxY - minY;
-
-    if (dx == 0 || dy == 0) {
-        VDP1DiscardCommand();
-        return;
-    }
-
     VDP1DrawSolidQuad(cmdIndex, coordA, coordB, coordC, coordD);
 }
 
@@ -1430,24 +1352,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     const CoordS32 coordB{xb, yb};
     const CoordS32 coordC{xc, yc};
     const CoordS32 coordD{xd, yd};
-
-    VDP1ClipCoords(xa, ya);
-    VDP1ClipCoords(xb, yb);
-    VDP1ClipCoords(xc, yc);
-    VDP1ClipCoords(xd, yd);
-
-    const sint32 minX = std::min(std::min(xa, xb), std::min(xc, xd));
-    const sint32 minY = std::min(std::min(ya, yb), std::min(yc, yd));
-    const sint32 maxX = std::max(std::max(xa, xb), std::max(xc, xd));
-    const sint32 maxY = std::max(std::max(ya, yb), std::max(yc, yd));
-
-    const uint32 dx = maxX - minX;
-    const uint32 dy = maxY - minY;
-
-    if (dx == 0 || dy == 0) {
-        VDP1DiscardCommand();
-        return;
-    }
 
     const VDP1Command::DrawMode mode{.u16 = cmd.cmdgrda};
 
@@ -1517,17 +1421,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
-
-    VDP1ClipCoords(xa, ya);
-    VDP1ClipCoords(xb, yb);
-
-    const uint32 dx = std::abs(xb - xa);
-    const uint32 dy = std::abs(yb - ya);
-
-    if (dx == 0 || dy == 0) {
-        VDP1DiscardCommand();
-        return;
-    }
 
     const VDP1Command::DrawMode mode{.u16 = cmd.cmdgrda};
     const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
@@ -1827,16 +1720,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
     }
     m_context->dirtyVDP2CRAM = false;
 
-    const VDP2Regs &regs2 = m_state.regs2;
-
-    auto &colorCache = m_context->cpuVDP2ColorCache;
-
-    m_context->VDP2Context.ModifyResource(m_context->bufVDP2ColorCache, 0,
-                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                                              memcpy(mappedResource.pData, colorCache.data(), sizeof(colorCache));
-                                          });
+    m_context->VDP2Context.ModifyResource(
+        m_context->bufVDP2ColorCache, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, m_context->cpuVDP2ColorCache.data(), sizeof(m_context->cpuVDP2ColorCache));
+        });
 
     // Update RBG coefficients if RBGs are enabled and CRAM coefficients are in use
+    const VDP2Regs &regs2 = m_state.regs2;
     if ((regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable) {
         m_context->VDP2Context.ModifyResource(
             m_context->bufVDP2CoeffCache, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {

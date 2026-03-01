@@ -128,21 +128,6 @@ private:
     // -------------------------------------------------------------------------
     // VDP1 rendering
 
-    /// @brief Clips the given coordinates to the system clipping area.
-    /// @param[in,out] x the X coordinate to clip
-    /// @param[in,out] y the Y coordinate to clip
-    void VDP1SystemClipCoords(sint32 &x, sint32 &y);
-
-    /// @brief Clips the given coordinates to the user clipping area.
-    /// @param[in,out] x the X coordinate to clip
-    /// @param[in,out] y the Y coordinate to clip
-    void VDP1UserClipCoords(sint32 &x, sint32 &y);
-
-    /// @brief Clips the given coordinates to the intersection of the system and user clipping areas.
-    /// @param[in,out] x the X coordinate to clip
-    /// @param[in,out] y the Y coordinate to clip
-    void VDP1ClipCoords(sint32 &x, sint32 &y);
-
     /// @brief Adds a command to the ring buffer.
     ///
     /// @param[in] cmdAddress the command address in VDP1 VRAM
