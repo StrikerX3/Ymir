@@ -33,6 +33,8 @@ struct CommandEntry {
     uint xd_yd;
 };
 
+typedef uint4 Color555;
+
 // -----------------------------------------------------------------------------
 
 cbuffer Config : register(b0) {
@@ -42,13 +44,19 @@ cbuffer Config : register(b0) {
 ByteAddressBuffer vram : register(t0);
 StructuredBuffer<LineParams> lineParams : register(t1);
 StructuredBuffer<CommandEntry> commands : register(t2);
+Buffer<uint> lineBins : register(t3);
+Buffer<uint> lineBinCounts : register(t4);
 
 RWByteAddressBuffer fbOut : register(u0);
 RWByteAddressBuffer fbram : register(u1);
 
 // -----------------------------------------------------------------------------
 
-typedef uint4 Color555;
+static const uint2 kVDP1MaxFBSize = uint2(1024, 512);
+
+static const uint2 kBinSize = uint2(32, 32);
+static const uint2 kBinCount = (kVDP1MaxFBSize + kBinSize - 1) / kBinSize;
+static const uint kBinDepth = 512;
 
 // -----------------------------------------------------------------------------
 
@@ -994,7 +1002,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     }
 }
 
-[numthreads(32, 32, 1)]
+[numthreads(kBinSize.x, kBinSize.y, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 pos = id.xy;
 
@@ -1007,9 +1015,15 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         pixelData = ReadFB16(fbAddr << 1);
     }
 
-    for (uint index = 0; index < config.numLines; index++) {
-        const int2 lineStart = lineParams[index].coordStart;
-        const int2 lineEnd = lineParams[index].coordEnd;
+    const uint2 binPos = pos / kBinSize;
+    const uint binIndex = binPos.y * kBinCount.x + binPos.x;
+    const uint binOffset = binIndex * kBinDepth;
+    const uint numLines = lineBinCounts[binIndex];
+
+    for (uint index = 0; index < numLines; index++) {
+        const uint lineIndex = lineBins[binOffset + index];
+        const int2 lineStart = lineParams[lineIndex].coordStart;
+        const int2 lineEnd = lineParams[lineIndex].coordEnd;
 
         const int2 lowerBound = min(lineStart, lineEnd);
         const int2 upperBound = max(lineStart, lineEnd);
@@ -1022,7 +1036,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
             continue;
         }
 
-        DrawLine(pos, index, pixelData);
+        DrawLine(pos, lineIndex, pixelData);
     }
 
     if (pixel8Bits) {
