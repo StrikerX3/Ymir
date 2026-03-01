@@ -843,7 +843,7 @@ QuadStepper NewQuadStepper(int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
         // The quad is regular if all cross product signs match.
         // If all signs match, the sum of the signs will be either 0 or 4.
         const int signSum = signABC + signBCD + signCDA + signDAB;
-        stepper.degenerate = (signSum & ~4) == 0;
+        stepper.degenerate = (signSum & ~4) != 0;
     }
 
     return stepper;
