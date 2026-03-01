@@ -91,12 +91,12 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP1LineParams = nullptr;             //< VDP1 line parameters structured buffer
     ID3D11ShaderResourceView *srvVDP1LineParams = nullptr; //< SRV for VDP1 line parameters
-    std::array<VDP1LineParams, 4096> cpuVDP1LineParams{};  //< CPU-side VDP1 line parameters
+    std::array<VDP1LineParams, 8192> cpuVDP1LineParams{};  //< CPU-side VDP1 line parameters
     size_t cpuVDP1LineParamsCount = 0;                     //< CPU-side VDP1 line parameters count
 
     ID3D11Buffer *bufVDP1CommandTable = nullptr;             //< VDP1 command table structured buffer
     ID3D11ShaderResourceView *srvVDP1CommandTable = nullptr; //< SRV for VDP1 command table
-    std::array<VDP1CommandEntry, 256> cpuVDP1CommandTable{}; //< CPU-side VDP1 command table (ring buffer)
+    std::array<VDP1CommandEntry, 512> cpuVDP1CommandTable{}; //< CPU-side VDP1 command table (ring buffer)
     size_t cpuVDP1CommandTableHead = 0;                      //< CPU-side VDP1 command table head index
     size_t cpuVDP1CommandTableTail = 0;                      //< CPU-side VDP1 command table tail index
 
@@ -814,9 +814,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
     entry.userClipY1 = m_VDP1State.userClipY1;
     entry.cmdIndex = cmdIndex;
     entry.antiAlias = extras.antiAliased;
+    entry.gouraud = extras.gouraud;
     entry.textured = extras.textured;
     entry.texV = extras.texV;
-    entry.gouraud = extras.gouraud;
     entry.gouraudStart = extras.gouraudStart.u16;
     entry.gouraudEnd = extras.gouraudEnd.u16;
 
