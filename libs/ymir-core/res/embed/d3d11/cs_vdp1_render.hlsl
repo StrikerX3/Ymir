@@ -209,8 +209,8 @@ CMDSRCA_SIZE FetchCMDSRCA_SIZE(uint cmdAddress) {
     
     CMDSRCA_SIZE data;
     data.charAddress = BitExtract(pair, 16, 16) << 3;
-    data.charSize.x = max(BitExtract(pair, 8, 6), 1);
-    data.charSize.y = max(BitExtract(pair, 0, 8) << 8, 1);
+    data.charSize.x = max(BitExtract(pair, 8, 6) << 8, 1);
+    data.charSize.y = max(BitExtract(pair, 0, 8), 1);
     return data;
 }
 
@@ -1151,38 +1151,28 @@ void ReadTexel(inout EndCodeCounter endCodeCounter, uint2 uv, TexturedLineParams
     }
 }
 
-bool PlotTexturedLine(uint2 pos, PolyParams poly, int2 coord1, int2 coord2, TexturedLineParams lineParams, inout GouraudStepper gouraudL, inout GouraudStepper gouraudR) {
+void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coord1, int2 coord2, TexturedLineParams lineParams, inout GouraudStepper gouraudL, inout GouraudStepper gouraudR) {
     if (IsLineSystemClipped(poly, coord1, coord2)) {
-        return false;
+        return;
     }
     
-    return false;
-
-    // TODO: rewrite
-    
-    /*const uint charSizeH = lineParams.srca_size.charSize.x;
+    const uint charSizeH = lineParams.srca_size.charSize.x;
     if (lineParams.mode_color.colorMode == 5) {
         // Force-align character address in 16 bpp RGB mode
         lineParams.srca_size.charAddress &= ~0xF;
     }
-
-    const int2 sysClip = int2(
-        BitExtract(poly.sysClip, 0, 16),
-        BitExtract(poly.sysClip, 16, 16)
-    );
-
-    const uint v = lineParams.texVStepper.Value();
-
-    LineStepper lineStepper = NewLineStepper(coord1, coord2, true);
-    const uint skipSteps = lineStepper.SystemClip(sysClip);
     
     PixelParams pixelParams;
     pixelParams.mode_color = lineParams.mode_color;
-    if (lineParams.mode_color.gouraudEnable) {
-        pixelParams.gouraud.Setup(lineStepper.Length() + 1, gouraudL.Value(), gouraudR.Value());
-        pixelParams.gouraud.Skip(skipSteps);
-    }
-    
+
+    LineStepper lineStepper = NewLineStepper(coord1, coord2, true);
+        
+    const bool useHighSpeedShrink = lineParams.mode_color.highSpeedShrink && lineStepper.Length() < charSizeH - 1;
+    const bool evenOddCoordSelect = BitTest(config.params, 6);
+    const bool userClippingEnable = lineParams.mode_color.userClippingEnable;
+    const bool clippingMode = lineParams.mode_color.clippingMode;
+    const bool transparentPixelDisable = lineParams.mode_color.transparentPixelDisable;
+
     int uStart = 0;
     int uEnd = charSizeH - 1;
     const bool flipH = BitTest(lineParams.control, 4);
@@ -1191,23 +1181,57 @@ bool PlotTexturedLine(uint2 pos, PolyParams poly, int2 coord1, int2 coord2, Text
         uStart = uEnd;
         uEnd = tmp;
     }
-    const bool useHighSpeedShrink = lineParams.mode_color.highSpeedShrink && lineStepper.Length() < charSizeH - 1;
-    const bool evenOddCoordSelect = BitTest(config.params, 6);
-    const bool userClippingEnable = lineParams.mode_color.userClippingEnable;
-    const bool clippingMode = lineParams.mode_color.clippingMode;
-    const bool transparentPixelDisable = lineParams.mode_color.transparentPixelDisable;
-
+    
+    const uint v = lineParams.texVStepper.Value();
+    
     TextureStepper uStepper;
     uStepper.Setup(lineStepper.Length() + 1, uStart, uEnd, useHighSpeedShrink, evenOddCoordSelect);
-    uStepper.SkipPixels(skipSteps);
-    
-    uint color = 0;
-    bool transparent = true;
+
     EndCodeCounter endCodeCounter;
     endCodeCounter.hasEndCode = false;
-    endCodeCounter.count = useHighSpeedShrink ? -2147483648 : 0;
-    endCodeCounter.enable = !lineParams.mode_color.endCodeDisable;
+    endCodeCounter.count = 0;
+    endCodeCounter.enable = !lineParams.mode_color.endCodeDisable && !useHighSpeedShrink;
+
+    uint color = 0;
+    bool transparent = true;
+
+    const uint steps = lineStepper.StepsToTarget(pos, false);
+    if (steps <= lineStepper.Length()) {
+        lineStepper.SetStep(steps);
+        
+        if (all(lineStepper.Coord() == int2(pos))) {
+            if (pixelParams.mode_color.gouraudEnable) {
+                pixelParams.gouraud.Setup(lineStepper.Length() + 1, gouraudL.Value(), gouraudR.Value());
+                pixelParams.gouraud.Skip(steps);
+            }
+        
+            // TODO: uStepper.SetPixel(steps);
+            
+            // TODO: fetch texel, plot pixel
+            pixelData = 0xDEAD;
+            PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
+        }
+    }
     
+    const uint aaSteps = lineStepper.StepsToTarget(pos, true);
+    if (aaSteps <= lineStepper.Length()) {
+        lineStepper.SetStep(aaSteps);
+
+        if (lineStepper.NeedsAA() && all(lineStepper.AACoord() == int2(pos))) {
+            if (pixelParams.mode_color.gouraudEnable) {
+                pixelParams.gouraud.Setup(lineStepper.Length() + 1, gouraudL.Value(), gouraudR.Value());
+                pixelParams.gouraud.Skip(aaSteps);
+            }
+             
+            // TODO: uStepper.SetPixel(aaSteps);
+   
+            // TODO: fetch texel, plot pixel
+            pixelData = 0xBEEF;
+            PlotPixel(lineStepper.AACoord(), poly, pixelData, pixelParams);
+        }
+    }
+    
+    /*
     ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
 
     bool aa = false;
@@ -1250,56 +1274,25 @@ bool PlotTexturedLine(uint2 pos, PolyParams poly, int2 coord1, int2 coord2, Text
 
         pixelParams.mode_color.color = color;
 
-        bool plottedPixel = PlotPixel(poly, lineStepper.Coord(), pixelParams);
+        PlotPixel(poly, lineStepper.Coord(), pixelParams);
         if (aa) {
-            if (PlotPixel(poly, lineStepper.AACoord(), pixelParams)) {
-                plottedPixel = true;
-            }
+            PlotPixel(poly, lineStepper.AACoord(), pixelParams);
         }
-        if (plottedPixel) {
-            plotted = true;
-        } else if (plotted) {
-            // No more pixels can be drawn past this point
-            break;
-        }
-
-        if (lineParams.mode_color.gouraudEnable) {
-            pixelParams.gouraud.Step();
-        }
-    }
-
-    if (endCodeCounter.count == 2 && !plotted) {
-        // Check that the line is indeed entirely out of bounds.
-        // End codes cut the line short, so if it happens to cut the line before it managed to plot a pixel in-bounds,
-        // the optimization could interrupt rendering the rest of the quad.
-        for (; lineStepper.CanStep(); aa = lineStepper.Step()) {
-            if (!IsPixelClipped(poly, lineStepper.Coord(), userClippingEnable, clippingMode)) {
-                plotted = true;
-                break;
-            }
-            if (aa && !IsPixelClipped(poly, lineStepper.Coord(), userClippingEnable, clippingMode)) {
-                plotted = true;
-                break;
-            }
-        }
-    }
-
-    return plotted;*/
+    }*/
 }
 
 void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmdctrl, CMDSRCA_SIZE srca_size, int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
-    const CMDPMOD_COLR pmod_colr = FetchCMDPMOD_COLR(poly.cmdAddress);
-    const uint charAddress = srca_size.charAddress;
-    const uint2 charSize = srca_size.charSize;
- 
     TexturedLineParams lineParams;
     lineParams.control = cmdctrl;
-    lineParams.mode_color = pmod_colr;
+    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
     lineParams.srca_size = srca_size;
+    
+    const uint charAddress = srca_size.charAddress;
+    const uint2 charSize = srca_size.charSize;
     
     QuadStepper quad = NewQuadStepper(coordA, coordB, coordC, coordD);
 
-    if (pmod_colr.gouraudEnable) {
+    if (lineParams.mode_color.gouraudEnable) {
         const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
         
         const Color555 colorA = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
@@ -1313,27 +1306,44 @@ void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmd
     const bool flipV = BitTest(cmdctrl, 5);
     quad.SetupTexture(lineParams.texVStepper, charSize.y, flipV);
     
-    // Optimization for the case where the quad goes outside the system clipping area.
-    // Skip rendering the rest of the quad when a line is clipped after plotting at least one line.
-    // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
-    // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
-    // can be plotted because they all sit outside the system clip area.
-    bool plottedLine = false;
+    if (!quad.degenerate) {
+        const int2 coordL = quad.edgeL.Coord();
+        const int2 coordR = quad.edgeR.Coord();
+
+        int dist = PointToLineDistance(pos, coordL, coordR);
+        if (quad.clockwiseWinding) {
+            dist = -dist;
+        }
+
+        if (dist > 0) {
+            // Skip until the first line that will be drawn on the target pixel  
+            quad.Skip(dist);
+            lineParams.texVStepper.SkipPixels(dist);
+        }
+    }
+    
+    // TODO: optimize degenerate quads, perhaps by implementing a separate code path
+    // with special optimization tricks for them
     
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
-        // Plot lines between the interpolated points
         const int2 coordL = quad.edgeL.Coord();
         const int2 coordR = quad.edgeR.Coord();
-        while (lineParams.texVStepper.ShouldStepTexel()) {
-            lineParams.texVStepper.StepTexel();
+        
+        const int dist = PointToLineDistance(pos, coordL, coordR);
+        if (!quad.degenerate) {
+            // Stop if the last line that will affect this pixel has been drawn
+            const int distComp = quad.clockwiseWinding ? dist : -dist;
+            if (distComp > 0) {
+                break;
+            }
         }
-        lineParams.texVStepper.StepPixel();
-        if (PlotTexturedLine(pos, poly, coordL, coordR, lineParams, quad.edgeL.gouraud, quad.edgeR.gouraud)) {
-            plottedLine = true;
-        } else if (plottedLine) {
-            // No more lines can be drawn past this point
-            break;
+        if (abs(dist) <= 1) {
+            while (lineParams.texVStepper.ShouldStepTexel()) {
+                lineParams.texVStepper.StepTexel();
+            }
+            lineParams.texVStepper.StepPixel();
+            PlotTexturedLine(pos, poly, pixelData, coordL, coordR, lineParams, quad.edgeL.gouraud, quad.edgeR.gouraud);
         }
     }
 }
@@ -1528,7 +1538,7 @@ void Draw(uint2 pos) {
     
         switch (command) {
             case kCommandDrawNormalSprite:
-                //DrawNormalSprite(pos, poly, pixelData, cmdctrl);
+                DrawNormalSprite(pos, poly, pixelData, cmdctrl);
                 break;
             case kCommandDrawScaledSprite:
                 //DrawScaledSprite(pos, poly, pixelData, cmdctrl);
