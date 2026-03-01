@@ -936,20 +936,20 @@ bool IsPixelClipped(const PolyParams poly, int2 coord, bool userClippingEnable, 
     return false;
 }
 
-bool PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const PixelParams pixelParams) {
+void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const PixelParams pixelParams) {
     // Reject pixels outside of clipping area
     if (IsPixelClipped(poly, coord, pixelParams.mode_color.userClippingEnable, pixelParams.mode_color.clippingMode)) {
-        return false;
+        return;
     }
     
     if (pixelParams.mode_color.meshEnable && ((coord.x ^ coord.y) & 1)) {
-        return false;
+        return;
     }
 
     const bool altFB = deinterlace && doubleDensity && (coord.y & 1);
     if (doubleDensity) {
         if (!deinterlace && dblInterlaceEnable && (coord.y & 1) != dblInterlaceDrawLine) {
-            return true;
+            return;
         }
     }
     if ((deinterlace && doubleDensity) || dblInterlaceEnable) {
@@ -1046,16 +1046,12 @@ bool PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
             }
         }
     }
-    
-    return true;
 }
 
-bool PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord1, int2 coord2, LineParams lineParams, bool antiAlias) {
+void PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord1, int2 coord2, LineParams lineParams, bool antiAlias) {
     if (IsLineSystemClipped(poly, coord1, coord2)) {
-        return false;
+        return;
     }
-    
-    bool plotted = false;
     
     PixelParams pixelParams;
     pixelParams.mode_color = lineParams.mode_color;
@@ -1071,9 +1067,7 @@ bool PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord
                 pixelParams.gouraud.Skip(steps);
             }
 
-            if (PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams)) {
-                plotted = true;
-            }
+            PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
         }
     }
     
@@ -1082,20 +1076,16 @@ bool PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord
         if (aaSteps <= lineStepper.Length()) {
             lineStepper.SetStep(aaSteps);
             
-            if (all(lineStepper.AACoord() == int2(pos))) {
+            if (lineStepper.NeedsAA() && all(lineStepper.AACoord() == int2(pos))) {
                 if (pixelParams.mode_color.gouraudEnable) {
                     pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
                     pixelParams.gouraud.Skip(aaSteps);
                 }
 
-                if (PlotPixel(lineStepper.AACoord(), poly, pixelData, pixelParams)) {
-                    plotted = true;
-                }
+                PlotPixel(lineStepper.AACoord(), poly, pixelData, pixelParams);
             }
         }
     }
-    
-    return plotted;
 }
 
 struct EndCodeCounter {
@@ -1413,7 +1403,7 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
         const int2 coordR = quad.edgeR.Coord();
 
         int dist = PointToLineDistance(pos, coordL, coordR);
-        if (!quad.clockwiseWinding) {
+        if (quad.clockwiseWinding) {
             dist = -dist;
         }
 
@@ -1434,8 +1424,8 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
         const int dist = PointToLineDistance(pos, coordL, coordR);
         if (!quad.degenerate) {
             // Stop if the last line that will affect this pixel has been drawn
-            const int distComp = quad.clockwiseWinding ? -dist : dist;
-            if (distComp < 0) {
+            const int distComp = quad.clockwiseWinding ? dist : -dist;
+            if (distComp > 0) {
                 break;
             }
         }
