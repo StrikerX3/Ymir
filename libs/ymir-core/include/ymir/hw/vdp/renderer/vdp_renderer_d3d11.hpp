@@ -143,17 +143,55 @@ private:
     /// @param[in,out] y the Y coordinate to clip
     void VDP1ClipCoords(sint32 &x, sint32 &y);
 
-    /// @brief Adds a polygon with the specified dimensions to the current batch.
+    /// @brief Adds a command to the ring buffer.
+    ///
+    /// @param[in] cmdAddress the command address in VDP1 VRAM
+    /// @return the index of the command in the ring buffer
+    size_t VDP1AddCommand(uint32 cmdAddress);
+
+    /// @brief Discards the last command.
+    void VDP1DiscardCommand();
+
+    /// @brief Specifies additional VDP1 line parameters.
+    struct VDP1LineExtras {
+        bool antiAliased; //< Whether the line is antialiased
+
+        bool textured; //< Whether the line is textured (`true`) or a solid color (`false`)
+        uint8 texV;    //< The texture V coordinate. Only valid if `textured == true`
+
+        bool gouraud;          //< Whether the line uses gouraud shading
+        Color555 gouraudStart; //< The starting gouraud color
+        Color555 gouraudEnd;   //< The ending gouraud color
+    };
+
+    /// @brief Adds a line with the specified coordinates to the current batch.
     /// Submits the current batch and creates a new one if necessary.
     ///
-    /// @param[in] topLeft the polygon's top-left coordinates
-    /// @param[in] bottomRight the polygon's bottom-right coordinates
-    /// @param[in] cmdAddress the command address in VDP1 VRAM
-    void VDP1AddPolygon(CoordS32 topLeft, CoordS32 bottomRight, uint32 cmdAddress);
+    /// @param[in] cmdIndex the index of the VDP1 command in the table
+    /// @param[in] coord1 the line's starting coordinates
+    /// @param[in] coord2 the line's ending coordinates
+    /// @param[in] extras additional line parameters
+    void VDP1AddLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2, const VDP1LineExtras &extras);
 
-    /// @brief Submits all pending polygons for rendering.
-    /// Reinitializes the atlas and clears the pending polygon list afterwards.
-    void VDP1SubmitPolygons();
+    /// @brief Submits all pending lines for rendering.
+    /// Clears the pending line list afterwards.
+    void VDP1SubmitLines();
+
+    /// @brief Draws a solid untextured quad with the given coordinates.
+    /// @param[in] cmdIndex the command index
+    /// @param[in] coordA the coordinate of the vertex A
+    /// @param[in] coordB the coordinate of the vertex B
+    /// @param[in] coordC the coordinate of the vertex C
+    /// @param[in] coordD the coordinate of the vertex D
+    void VDP1DrawSolidQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
+
+    /// @brief Draws a textured quad with the given coordinates.
+    /// @param[in] cmdIndex the command index
+    /// @param[in] coordA the coordinate of the vertex A
+    /// @param[in] coordB the coordinate of the vertex B
+    /// @param[in] coordC the coordinate of the vertex C
+    /// @param[in] coordD the coordinate of the vertex D
+    void VDP1DrawTexturedQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
 
     /// @brief Updates the VDP1 rendering configuration constants.
     void VDP1UpdateRenderConfig();

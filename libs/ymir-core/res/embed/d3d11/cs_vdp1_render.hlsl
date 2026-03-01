@@ -1,18 +1,36 @@
 struct Config {
-    uint numPolys;
+    uint numLines;
     uint params;
     uint erase;
     uint _reserved;
 };
 
-struct PolyParams {
-    uint pos;
-    uint size;
+struct LineParams {
+    int2 coordStart;
+    int2 coordEnd;
+
     uint sysClip;
-    uint userClipX;
-    uint userClipY;
-    uint localCoord;
-    uint cmdAddress;
+    uint userClip0;
+    uint userClip1;
+
+    uint params;
+    //   0-7  Command table entry index
+    //  8-15  Texture V coordinate
+    //    16  Textured        (0=solid color; 1=textured)
+    //    17  Gouraud shading (0=no shading; 1=gouraud)
+    //    18  Antialiased
+
+    uint gouraud;
+};
+
+struct CommandEntry {
+    uint ctrl_grda;
+    uint pmod_colr;
+    uint srca_size;
+    uint xa_ya;
+    uint xb_yb;
+    uint xc_yc;
+    uint xd_yd;
 };
 
 // -----------------------------------------------------------------------------
@@ -22,69 +40,13 @@ cbuffer Config : register(b0) {
 }
 
 ByteAddressBuffer vram : register(t0);
-StructuredBuffer<PolyParams> polyParams : register(t1);
-Buffer<uint> polyParamBins : register(t2);
-Buffer<uint> polyParamBinCounts : register(t3);
+StructuredBuffer<LineParams> lineParams : register(t1);
+StructuredBuffer<CommandEntry> commands : register(t2);
 
 RWByteAddressBuffer fbOut : register(u0);
 RWByteAddressBuffer fbram : register(u1);
 
 // -----------------------------------------------------------------------------
-
-static const uint2 kVDP1MaxFBSize = uint2(1024, 512);
-
-static const uint2 kBinSize = uint2(32, 32);
-static const uint2 kBinCount = (kVDP1MaxFBSize + kBinSize - 1) / kBinSize;
-static const uint kBinDepth = 128;
-
-static const uint kOffsetCMDCTRL = 0x00;
-static const uint kOffsetCMDLINK = 0x02;
-static const uint kOffsetCMDPMOD = 0x04;
-static const uint kOffsetCMDCOLR = 0x06;
-static const uint kOffsetCMDSRCA = 0x08;
-static const uint kOffsetCMDSIZE = 0x0A;
-static const uint kOffsetCMDXA = 0x0C;
-static const uint kOffsetCMDYA = 0x0E;
-static const uint kOffsetCMDXB = 0x10;
-static const uint kOffsetCMDYB = 0x12;
-static const uint kOffsetCMDXC = 0x14;
-static const uint kOffsetCMDYC = 0x16;
-static const uint kOffsetCMDXD = 0x18;
-static const uint kOffsetCMDYD = 0x1A;
-static const uint kOffsetCMDGRDA = 0x1C;
-
-static const uint kCommandDrawNormalSprite = 0x0;
-static const uint kCommandDrawScaledSprite = 0x1;
-static const uint kCommandDrawDistortedSprite = 0x2;
-static const uint kCommandDrawDistortedSpriteAlt = 0x3;
-static const uint kCommandDrawPolygon = 0x4;
-static const uint kCommandDrawPolylines = 0x5;
-static const uint kCommandDrawPolylinesAlt = 0x7;
-static const uint kCommandDrawLine = 0x6;
-// No other commands should hit the renderer
-
-struct CMDPMOD_COLR {
-    // CMDPMOD
-    uint colorCalcBits;
-    bool gouraudEnable;
-    uint colorMode;
-    bool transparentPixelDisable;
-    bool endCodeDisable;
-    bool meshEnable;
-    bool clippingMode;
-    bool userClippingEnable;
-    bool preClippingDisable;
-    bool highSpeedShrink;
-    bool msbOn;
-
-    // CMDCOLR
-    uint color;
-};
-
-struct CMDSRCA_SIZE {
-    uint charAddress;
-    uint2 charSize;
-};
 
 typedef uint4 Color555;
 
@@ -96,6 +58,12 @@ int cross2D(int2 vecA, int2 vecB) {
 
 int square(int value) {
     return value * value;
+}
+
+int SignedPointToLineDistance(int2 pointCoord, int2 lineCoord1, int2 lineCoord2) {
+    const int2 l21 = lineCoord2 - lineCoord1;
+    const int2 l1p = lineCoord1 - pointCoord;
+    return cross2D(l21, l1p) / sqrt(square(l21.x) + square(l21.y));
 }
 
 bool BitTest(uint value, uint bit) {
@@ -113,7 +81,7 @@ int SignExtend(int value, int bits) {
 }
 
 int2 Extract16PairSX(uint value32, int bits) {
-    return uint2(
+    return int2(
         SignExtend(BitExtract(value32, 0, 16), bits),
         SignExtend(BitExtract(value32, 16, 16), bits)
     );
@@ -121,6 +89,13 @@ int2 Extract16PairSX(uint value32, int bits) {
 
 int2 Extract16PairS(uint value32) {
     return Extract16PairSX(value32, 16);
+}
+
+uint2 Extract16PairU(uint value32) {
+    return uint2(
+        BitExtract(value32, 0, 16),
+        BitExtract(value32, 16, 16)
+    );
 }
 
 uint ByteSwap16(uint val) {
@@ -178,64 +153,6 @@ void WriteFB16(uint address, uint data) {
     uint dummy;
     fbOut.InterlockedAnd(address, mask, dummy);
     fbOut.InterlockedOr(address, data, dummy);
-}
-
-uint FetchCMDCTRL(uint cmdAddress) {
-    return ReadVRAM16(cmdAddress + kOffsetCMDCTRL);
-}
-
-CMDPMOD_COLR FetchCMDPMOD_COLR(uint cmdAddress) {
-    const uint pair = ReadVRAM32(cmdAddress + kOffsetCMDPMOD);
-
-    CMDPMOD_COLR data;
-    data.colorCalcBits = BitExtract(pair, 16, 2);
-    data.gouraudEnable = BitTest(pair, 18);
-    data.colorMode = BitExtract(pair, 19, 3);
-    data.transparentPixelDisable = BitTest(pair, 22);
-    data.endCodeDisable = BitTest(pair, 23);
-    data.meshEnable = BitTest(pair, 24);
-    data.clippingMode = BitTest(pair, 25);
-    data.userClippingEnable = BitTest(pair, 26);
-    data.preClippingDisable = BitTest(pair, 27);
-    data.highSpeedShrink = BitTest(pair, 28);
-    data.msbOn = BitTest(pair, 31);
-
-    data.color = BitExtract(pair, 0, 16);
-    return data;
-}
-
-CMDSRCA_SIZE FetchCMDSRCA_SIZE(uint cmdAddress) {
-    const uint pair = ReadVRAM32(cmdAddress + kOffsetCMDSRCA);
-
-    CMDSRCA_SIZE data;
-    data.charAddress = BitExtract(pair, 16, 16) << 3;
-    data.charSize.x = max(BitExtract(pair, 8, 6) << 8, 1);
-    data.charSize.y = max(BitExtract(pair, 0, 8), 1);
-    return data;
-}
-
-int2 FetchCMDXA_YA(uint cmdAddress) {
-    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXA);
-    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
-}
-
-int2 FetchCMDXB_YB(uint cmdAddress) {
-    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXB);
-    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
-}
-
-int2 FetchCMDXC_YC(uint cmdAddress) {
-    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXC);
-    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
-}
-
-int2 FetchCMDXD_YD(uint cmdAddress) {
-    const uint raw = ReadVRAM32(cmdAddress + kOffsetCMDXD);
-    return int2(SignExtend(raw >> 16, 13), SignExtend(raw, 13));
-}
-
-uint FetchCMDGRDA(uint cmdAddress) {
-    return ReadVRAM16(cmdAddress + kOffsetCMDGRDA) << 3;
 }
 
 Color555 Uint16ToColor555(uint rawValue) {
@@ -628,312 +545,19 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
 
 // -----------------------------------------------------------------------------
 
-struct Edge {
-    GouraudStepper gouraud;
-    bool gouraudEnable;
-
-    uint dmaj;
-
-    int2 pos;
-    int2 posInc;
-    int2 posNum;
-    int2 posDen;
-    int2 posAccum;
-    int2 posAccumTarget;
-
-    int num;
-    int den;
-    int accum;
-    int accumTarget;
-
-    void Setup(int2 coord1, int2 coord2, uint delta) {
-        const int dx = SignExtend(coord2.x - coord1.x, 13);
-        const int dy = SignExtend(coord2.y - coord1.y, 13);
-        const uint adx = abs(dx);
-        const uint ady = abs(dy);
-        dmaj = max(adx, ady);
-
-        pos = coord1;
-
-        posInc.x = dx >= 0 ? +1 : -1;
-        posInc.y = dy >= 0 ? +1 : -1;
-
-        posNum.x = adx << 1;
-        posNum.y = ady << 1;
-
-        posDen.x = posDen.y = dmaj << 1;
-        posAccum.x = posAccum.y = ~dmaj;
-
-        posAccumTarget.x = dy < 0 ? -1 : 0;
-        posAccumTarget.y = dx < 0 ? -1 : 0;
-
-        num = dmaj << 1;
-        den = delta << 1;
-        accum = ~delta;
-        accumTarget = adx >= ady ? posAccumTarget.y : posAccumTarget.x;
-
-        // NOTE: Shifting counters by this amount forces them to have 13 bits without the need for masking
-        // static const int kShift = 32 - 13;
-        //
-        // posNum <<= kShift;
-        // posDen <<= kShift;
-        // posAccum <<= kShift;
-        // posAccumTarget <<= kShift;
-        //
-        // num <<= kShift;
-        // den <<= kShift;
-        // accum <<= kShift;
-        // accumTarget <<= kShift;
-
-        gouraudEnable = false;
-    }
-
-    void SetupGouraud(Color555 start, Color555 end) {
-        gouraud.Setup(dmaj + 1, start, end);
-        gouraudEnable = true;
-    }
-
-    void Step() {
-        accum += num;
-        if (accum >= accumTarget) {
-            accum -= den;
-
-            posAccum.x += posNum.x;
-            if (posAccum.x >= posAccumTarget.x) {
-                posAccum.x -= posDen.x;
-                pos.x += posInc.x;
-            }
-
-            posAccum.y += posNum.y;
-            if (posAccum.y >= posAccumTarget.y) {
-                posAccum.y -= posDen.y;
-                pos.y += posInc.y;
-            }
-
-            if (gouraudEnable) {
-                gouraud.Step();
-            }
-        }
-    }
-
-    void Skip(int steps) {
-        // TODO: mask to 13 bits
-
-        accum += num * steps;
-        while (accum >= accumTarget) {
-            accum -= den;
-
-            posAccum.x += posNum.x;
-            if (posAccum.x >= posAccumTarget.x) {
-                posAccum.x -= posDen.x;
-                pos.x += posInc.x;
-            }
-
-            posAccum.y += posNum.y;
-            if (posAccum.y >= posAccumTarget.y) {
-                posAccum.y -= posDen.y;
-                pos.y += posInc.y;
-            }
-
-            if (gouraudEnable) {
-                gouraud.Step();
-            }
-        }
-    }
-
-    // Retrieves the current X and Y coordinates of this edge.
-    int2 Coord() {
-        return pos;
-    }
-
-    Color555 GouraudValue() {
-        return gouraud.Value();
-    }
-};
-
-// -----------------------------------------------------------------------------
-
-// Dual edge iterator for a quad with vertices A-B-C-D arranged in clockwise order from top-left:
-//
-//    A-->B
-//    ^   |
-//    |   v
-//    D<--C
-//
-// The stepper uses the edges A-D and B-C and steps over each pixel on the longer edge, advancing the position on the
-// other edge proportional to their lengths.
-struct QuadStepper {
-    Edge edgeL; // left edge (A-D)
-    Edge edgeR; // right edge (B-C)
-
-    uint dmaj;
-    uint step;
-
-    bool degenerate;
-    bool clockwiseWinding; // only makes sense if !degenerate
-
-    // Sets up texture interpolation for the given texture vertical size and parameters.
-    void SetupTexture(inout TextureStepper stepper, uint charSizeV, bool flipV) {
-        int start = 0;
-        int end = charSizeV - 1;
-        if (flipV) {
-            int tmp = start;
-            start = end;
-            end = tmp;
-        }
-        stepper.Setup(dmaj + 1, start, end);
-    }
-
-    // Sets up gouraud shading with the given start and end values.
-    void SetupGouraud(Color555 colorA, Color555 colorB, Color555 colorC, Color555 colorD) {
-        edgeL.SetupGouraud(colorA, colorD);
-        edgeR.SetupGouraud(colorB, colorC);
-    }
-
-    // Determines if this stepper can be stepped.
-    bool CanStep() {
-        return step <= dmaj;
-    }
-
-    // Steps both edges of the quad to the next coordinate.
-    // The major edge is stepped by a full pixel.
-    // The minor edge is stepped in proportion to the major edge.
-    // Should not be invoked when CanStep() returns false.
-    void Step() {
-        ++step;
-
-        edgeL.Step();
-        edgeR.Step();
-    }
-
-    void Skip(int steps) {
-        step += steps;
-
-        edgeL.Skip(steps);
-        edgeR.Skip(steps);
-
-    }
-};
-
-QuadStepper NewQuadStepper(int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
-    QuadStepper stepper;
-
-    const uint deltaLx = abs(SignExtend(coordD.x - coordA.x, 13));
-    const uint deltaLy = abs(SignExtend(coordD.y - coordA.y, 13));
-    const uint deltaRx = abs(SignExtend(coordC.x - coordB.x, 13));
-    const uint deltaRy = abs(SignExtend(coordC.y - coordB.y, 13));
-
-    stepper.dmaj = max(max(deltaLx, deltaLy), max(deltaRx, deltaRy)) & 0xFFF;
-    stepper.step = 0;
-
-    stepper.edgeL.Setup(coordA, coordD, stepper.dmaj);
-    stepper.edgeR.Setup(coordB, coordC, stepper.dmaj);
-
-    // Determine if quad is degenerate by checking cross products of pairs of consecutive edges
-
-    const int2 vecAB = coordB - coordA;
-    const int2 vecBC = coordC - coordB;
-    const int2 vecCD = coordD - coordC;
-    const int2 vecDA = coordA - coordD;
-
-    const int crossABC = cross2D(vecAB, vecBC);
-    const int crossBCD = cross2D(vecBC, vecCD);
-    const int crossCDA = cross2D(vecCD, vecDA);
-    const int crossDAB = cross2D(vecDA, vecAB);
-
-    // Produces -1 for negatives or 0 for positives/zeros
-    const int signABC = crossABC >> 31;
-    const int signBCD = crossBCD >> 31;
-    const int signCDA = crossCDA >> 31;
-    const int signDAB = crossDAB >> 31;
-
-    if (crossABC == 0 || crossBCD == 0 || crossCDA == 0 || crossDAB == 0) {
-        // If any of the cross products is zero, two edges are colinear or two points coincide.
-        // This results in a triangle, a line or a point, all of which are considered non-degenerate.
-        stepper.degenerate = false;
-        stepper.clockwiseWinding = crossABC >= 0;
-    } else {
-        // The quad is regular if all cross product signs match.
-        // If all signs match, the sum of the signs will be either 0 or 4.
-        const int signSum = signABC + signBCD + signCDA + signDAB;
-        stepper.degenerate = (signSum & ~4) != 0;
-    }
-
-    return stepper;
+bool IsPixelUserClipped(const LineParams vdp1line, uint2 coord) {
+    const uint2 userClip0 = Extract16PairU(vdp1line.userClip0);
+    const uint2 userClip1 = Extract16PairU(vdp1line.userClip1);
+    return any(coord < userClip0) || any(coord > userClip1);
 }
 
-// -----------------------------------------------------------------------------
-
-struct LineParams {
-    CMDPMOD_COLR mode_color;
-    Color555 gouraudLeft;
-    Color555 gouraudRight;
-};
-
-struct PixelParams {
-    CMDPMOD_COLR mode_color;
-    GouraudStepper gouraud;
-};
-
-struct TexturedLineParams {
-    uint control;
-    CMDPMOD_COLR mode_color;
-    CMDSRCA_SIZE srca_size;
-    TextureStepper texVStepper;
-};
-
-int PointToLineDistance(int2 pointCoord, int2 lineCoord1, int2 lineCoord2) {
-    const int2 l21 = lineCoord2 - lineCoord1;
-    const int2 l1p = lineCoord1 - pointCoord;
-    return cross2D(l21, l1p) / sqrt(square(l21.x) + square(l21.y));
+bool IsPixelSystemClipped(const LineParams vdp1line, uint2 coord) {
+    const uint2 sysClip = Extract16PairU(vdp1line.sysClip);
+    return any(coord < 0) || any(coord > sysClip);
 }
 
-bool IsPixelUserClipped(const PolyParams poly, int2 coord) {
-    const int userClipX0 = BitExtract(poly.userClipX, 0, 16);
-    const int userClipX1 = BitExtract(poly.userClipX, 16, 16);
-    const int userClipY0 = BitExtract(poly.userClipY, 0, 16);
-    const int userClipY1 = BitExtract(poly.userClipY, 16, 16);
-    if (coord.x < userClipX0 || coord.x > userClipX1) {
-        return true;
-    }
-    if (coord.y < userClipY0 || coord.y > userClipY1) {
-        return true;
-    }
-    return false;
-}
-
-bool IsPixelSystemClipped(const PolyParams poly, int2 coord) {
-    const int sysClipH = BitExtract(poly.sysClip, 0, 16);
-    const int sysClipV = BitExtract(poly.sysClip, 16, 16);
-    if (coord.x < 0 || coord.x > sysClipH) {
-        return true;
-    }
-    if (coord.y < 0 || coord.y > sysClipV) {
-        return true;
-    }
-    return false;
-}
-
-bool IsLineSystemClipped(const PolyParams poly, int2 coord1, int2 coord2) {
-    const int sysClipH = BitExtract(poly.sysClip, 0, 16);
-    const int sysClipV = BitExtract(poly.sysClip, 16, 16);
-    if (coord1.x < 0 && coord2.x < 0) {
-        return true;
-    }
-    if (coord1.y < 0 && coord2.y < 0) {
-        return true;
-    }
-    if (coord1.x > sysClipH && coord2.x > sysClipH) {
-        return true;
-    }
-    if (coord1.y > sysClipV && coord2.y > sysClipV) {
-        return true;
-    }
-    return false;
-}
-
-bool IsPixelClipped(const PolyParams poly, int2 coord, bool userClippingEnable, bool clippingMode) {
-    if (IsPixelSystemClipped(poly, coord)) {
+bool IsPixelClipped(const LineParams vdp1line, uint2 coord, bool userClippingEnable, bool clippingMode) {
+    if (IsPixelSystemClipped(vdp1line, coord)) {
         return true;
     }
     if (userClippingEnable) {
@@ -941,20 +565,19 @@ bool IsPixelClipped(const PolyParams poly, int2 coord, bool userClippingEnable, 
         // clippingMode = true -> draw outside, reject inside
         // The function returns true if the pixel is clipped, therefore we want to reject pixels that return the
         // opposite of clippingMode on that function.
-        if (IsPixelUserClipped(poly, coord) != clippingMode) {
+        if (IsPixelUserClipped(vdp1line, coord) != clippingMode) {
             return true;
         }
     }
     return false;
 }
 
-void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const PixelParams pixelParams) {
-    // Reject pixels outside of clipping area
-    if (IsPixelClipped(poly, coord, pixelParams.mode_color.userClippingEnable, pixelParams.mode_color.clippingMode)) {
-        return;
-    }
+void PlotPixel(uint2 coord, inout uint pixelData, const uint pmod_colr, const GouraudStepper gouraudStepper) {
+    const bool gouraudEnable = BitTest(pmod_colr, 2);
+    const bool meshEnable = BitTest(pmod_colr, 8);
+    const bool msbOn = BitTest(pmod_colr, 15);
 
-    if (pixelParams.mode_color.meshEnable && ((coord.x ^ coord.y) & 1)) {
+    if (meshEnable && ((coord.x ^ coord.y) & 1)) {
         return;
     }
 
@@ -968,11 +591,9 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
         coord.y >>= 1;
     }
 
-    const bool meshEnable = pixelParams.mode_color.meshEnable;
+    // TODO: preClippingDisable
 
-    // TODO: pixelParams.mode_color.preClippingDisable
-
-    if (pixelParams.mode_color.msbOn) {
+    if (msbOn) {
         uint bit = 0x80;
         if (pixel8Bits && BitTest(coord.x, 0)) {
             bit <<= 8;
@@ -981,7 +602,7 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
     } else {
         uint value;
         if (pixel8Bits) {
-            const uint value = pixelParams.mode_color.color & 0xFF;
+            const uint value = BitExtract(pmod_colr, 16, 8);
 
             // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
 
@@ -994,15 +615,15 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
                 }
             }
         } else {
-            if (pixelParams.mode_color.gouraudEnable) {
+            if (gouraudEnable) {
                 // Apply gouraud shading to source color
                 Color555 color = Uint16ToColor555(value);
-                color = pixelParams.gouraud.Blend(color);
+                color = gouraudStepper.Blend(color);
                 value = Color555ToUint16(color);
             }
 
-            const uint rawColor = pixelParams.mode_color.color;
-            const uint colorCalcBits = pixelParams.mode_color.colorCalcBits;
+            const uint rawColor = BitExtract(pmod_colr, 16, 16);
+            const uint colorCalcBits = BitExtract(pmod_colr, 0, 2);
 
             Color555 srcColor = Uint16ToColor555(rawColor);
             Color555 dstColor;
@@ -1060,47 +681,7 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
     }
 }
 
-void PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord1, int2 coord2, LineParams lineParams, bool antiAlias) {
-    if (IsLineSystemClipped(poly, coord1, coord2)) {
-        return;
-    }
-
-    PixelParams pixelParams;
-    pixelParams.mode_color = lineParams.mode_color;
-
-    LineStepper lineStepper = NewLineStepper(coord1, coord2, antiAlias);
-    const uint steps = lineStepper.StepsToTarget(pos, false);
-    if (steps <= lineStepper.Length()) {
-        lineStepper.SetStep(steps);
-
-        if (all(lineStepper.Coord() == int2(pos))) {
-            if (pixelParams.mode_color.gouraudEnable) {
-                pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
-                pixelParams.gouraud.Skip(steps);
-            }
-
-            PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
-        }
-    }
-
-    if (antiAlias) {
-        const uint aaSteps = lineStepper.StepsToTarget(pos, true);
-        if (aaSteps <= lineStepper.Length()) {
-            lineStepper.SetStep(aaSteps);
-
-            if (lineStepper.NeedsAA() && all(lineStepper.AACoord() == int2(pos))) {
-                if (pixelParams.mode_color.gouraudEnable) {
-                    pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
-                    pixelParams.gouraud.Skip(aaSteps);
-                }
-
-                PlotPixel(lineStepper.AACoord(), poly, pixelData, pixelParams);
-            }
-        }
-    }
-}
-
-struct EndCodeCounter {
+/*struct EndCodeCounter {
     bool enable;
     bool hasEndCode;
     int count;
@@ -1355,172 +936,70 @@ void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmd
             PlotTexturedLine(pos, poly, pixelData, coordL, coordR, lineParams, quad.edgeL.gouraud, quad.edgeR.gouraud);
         }
     }
-}
+}*/
 
-void DrawNormalSprite(uint2 pos, const PolyParams poly, inout uint pixelData, const uint cmdctrl) {
-    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
+    const LineParams vdp1line = lineParams[lineIndex];
+    const uint cmdIndex = BitExtract(vdp1line.params, 0, 8);
 
-    const CMDSRCA_SIZE srca_size = FetchCMDSRCA_SIZE(poly.cmdAddress);
-    const uint2 charSize = srca_size.charSize;
+    const uint cmdModeColor = commands[cmdIndex].pmod_colr;
+    const bool userClippingEnable = BitTest(cmdModeColor, 10);
+    const bool clippingMode = BitTest(cmdModeColor, 9);
 
-    const int2 coordTL = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
-    const int2 coordBR = coordTL + charSize - 1;
-
-    const int2 coordA = int2(coordTL.x, coordTL.y);
-    const int2 coordB = int2(coordBR.x, coordTL.y);
-    const int2 coordC = int2(coordBR.x, coordBR.y);
-    const int2 coordD = int2(coordTL.x, coordBR.y);
-
-    PlotTexturedQuad(pos, poly, pixelData, cmdctrl, srca_size, coordA, coordB, coordC, coordD);
-}
-
-void DrawScaledSprite(uint2 pos, const PolyParams poly, inout uint pixelData, const uint cmdctrl) {
-    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
-
-    // TODO: load and parse parameters
-
-    // TODO: actually render the polygon
-}
-
-void DrawDistortedSprite(uint2 pos, const PolyParams poly, inout uint pixelData, const uint cmdctrl) {
-    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
-
-    const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
-    const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
-    const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
-    const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
-
-    // TODO: actually render the polygon
-}
-
-void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
-    const int2 localCoord = Extract16PairSX(poly.localCoord, 13);
-
-    const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
-    const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
-    const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
-    const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
-
-    QuadStepper quad = NewQuadStepper(coordA, coordB, coordC, coordD);
-
-    LineParams lineParams;
-    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
-
-    if (lineParams.mode_color.gouraudEnable) {
-        const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
-
-        const Color555 colorA = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
-        const Color555 colorB = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
-        const Color555 colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 4));
-        const Color555 colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 6));
-
-        quad.SetupGouraud(colorA, colorB, colorC, colorD);
+    // Reject pixels outside of clipping area
+    if (IsPixelClipped(vdp1line, pos, userClippingEnable, clippingMode)) {
+        return;
     }
 
-    if (!quad.degenerate) {
-        const int2 coordL = quad.edgeL.Coord();
-        const int2 coordR = quad.edgeR.Coord();
+    const uint texV = BitExtract(vdp1line.params, 8, 8);
+    const bool textured = BitTest(vdp1line.params, 16);
+    const bool gouraudEnable = BitTest(vdp1line.params, 17);
+    const bool antiAlias = BitTest(vdp1line.params, 18);
 
-        int dist = PointToLineDistance(pos, coordL, coordR);
-        if (quad.clockwiseWinding) {
-            dist = -dist;
-        }
+    const uint gouraudStart = BitExtract(vdp1line.gouraud, 0, 16);
+    const uint gouraudEnd = BitExtract(vdp1line.gouraud, 16, 16);
 
-        if (dist > 0) {
-            // Skip until the first line that will be drawn on the target pixel
-            quad.Skip(dist);
-        }
-    }
+    GouraudStepper gouraudStepper;
+    // TODO: initialize gouraud stepper only once
 
-    // TODO: optimize degenerate quads, perhaps by implementing a separate code path
-    // with special optimization tricks for them
+    LineStepper lineStepper = NewLineStepper(vdp1line.coordStart, vdp1line.coordEnd, antiAlias);
+    const uint steps = lineStepper.StepsToTarget(pos, false);
+    if (steps <= lineStepper.Length()) {
+        lineStepper.SetStep(steps);
 
-    // Interpolate linearly over edges A-D and B-C
-    for (; quad.CanStep(); quad.Step()) {
-        const int2 coordL = quad.edgeL.Coord();
-        const int2 coordR = quad.edgeR.Coord();
-
-        const int dist = PointToLineDistance(pos, coordL, coordR);
-        if (!quad.degenerate) {
-            // Stop if the last line that will affect this pixel has been drawn
-            const int distComp = quad.clockwiseWinding ? dist : -dist;
-            if (distComp > 0) {
-                break;
-            }
-        }
-        if (abs(dist) <= 1) {
-            if (lineParams.mode_color.gouraudEnable) {
-                lineParams.gouraudLeft = quad.edgeL.GouraudValue();
-                lineParams.gouraudRight = quad.edgeR.GouraudValue();
+        if (all(lineStepper.Coord() == int2(pos))) {
+            if (gouraudEnable) {
+                gouraudStepper.Setup(lineStepper.Length() + 1, gouraudStart, gouraudEnd);
+                gouraudStepper.Skip(steps);
             }
 
-            PlotLine(pos, poly, pixelData, coordL, coordR, lineParams, true);
+            PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
+        }
+    }
+
+    if (antiAlias) {
+        const uint aaSteps = lineStepper.StepsToTarget(pos, true);
+        if (aaSteps <= lineStepper.Length()) {
+            lineStepper.SetStep(aaSteps);
+
+            if (lineStepper.NeedsAA() && all(lineStepper.AACoord() == int2(pos))) {
+                if (gouraudEnable) {
+                    gouraudStepper.Setup(lineStepper.Length() + 1, gouraudStart, gouraudEnd);
+                    gouraudStepper.Skip(steps);
+                }
+
+                PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
+            }
         }
     }
 }
 
-void DrawPolylines(uint2 pos, const PolyParams poly, inout uint pixelData) {
-    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
+[numthreads(32, 32, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID) {
+    const uint2 pos = id.xy;
 
-    LineParams lineParams;
-    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
-
-    const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
-    const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
-    const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
-    const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
-
-    Color555 colorA, colorB, colorC, colorD;
-    if (lineParams.mode_color.gouraudEnable) {
-        const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
-        colorA = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
-        colorB = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
-        colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 4));
-        colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 6));
-    }
-
-    if (lineParams.mode_color.gouraudEnable) {
-        lineParams.gouraudLeft = colorA;
-        lineParams.gouraudRight = colorB;
-    }
-    PlotLine(pos, poly, pixelData, coordA, coordB, lineParams, false);
-    if (lineParams.mode_color.gouraudEnable) {
-        lineParams.gouraudLeft = colorB;
-        lineParams.gouraudRight = colorC;
-    }
-    PlotLine(pos, poly, pixelData, coordB, coordC, lineParams, false);
-    if (lineParams.mode_color.gouraudEnable) {
-        lineParams.gouraudLeft = colorC;
-        lineParams.gouraudRight = colorD;
-    }
-    PlotLine(pos, poly, pixelData, coordC, coordD, lineParams, false);
-    if (lineParams.mode_color.gouraudEnable) {
-        lineParams.gouraudLeft = colorD;
-        lineParams.gouraudRight = colorA;
-    }
-    PlotLine(pos, poly, pixelData, coordD, coordA, lineParams, false);
-}
-
-void DrawLine(uint2 pos, const PolyParams poly, inout uint pixelData) {
-    const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
-
-    LineParams lineParams;
-    lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
-
-    const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
-    const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
-
-    if (lineParams.mode_color.gouraudEnable) {
-        const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
-        lineParams.gouraudLeft = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
-        lineParams.gouraudRight = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
-    }
-
-    PlotLine(pos, poly, pixelData, coordA, coordB, lineParams, false);
-}
-
-void Draw(uint2 pos) {
     const uint fbAddr = (pos.x + pos.y * fbSizeH);
+
     uint pixelData;
     if (pixel8Bits) {
         pixelData = ReadFB8(fbAddr);
@@ -1528,45 +1007,22 @@ void Draw(uint2 pos) {
         pixelData = ReadFB16(fbAddr << 1);
     }
 
-    const uint2 binPos = pos / kBinSize;
-    const uint binIndex = binPos.y * kBinCount.x + binPos.x;
-    const uint binOffset = binIndex * kBinDepth;
-    const uint numPolys = polyParamBinCounts[binIndex];
-    for (uint index = 0; index < numPolys; index++) {
-        const PolyParams poly = polyParams[polyParamBins[binOffset + index]];
+    for (uint index = 0; index < config.numLines; index++) {
+        const int2 lineStart = lineParams[index].coordStart;
+        const int2 lineEnd = lineParams[index].coordEnd;
 
-        const int2 polyPos = Extract16PairS(poly.pos);
-        const int2 polySize = Extract16PairS(poly.size);
+        const int2 lowerBound = min(lineStart, lineEnd);
+        const int2 upperBound = max(lineStart, lineEnd);
 
-        if (any(int2(pos) < polyPos) || any(int2(pos) >= polyPos + polySize)) {
+        if (any(int2(pos) < lowerBound) || any(int2(pos) > upperBound)) {
             continue;
         }
 
-        const uint cmdctrl = FetchCMDCTRL(poly.cmdAddress);
-        const uint command = BitExtract(cmdctrl, 0, 4);
-
-        switch (command) {
-            case kCommandDrawNormalSprite:
-                DrawNormalSprite(pos, poly, pixelData, cmdctrl);
-                break;
-            case kCommandDrawScaledSprite:
-                //DrawScaledSprite(pos, poly, pixelData, cmdctrl);
-                break;
-            case kCommandDrawDistortedSprite:
-            case kCommandDrawDistortedSpriteAlt:
-                //DrawDistortedSprite(pos, poly, pixelData, cmdctrl);
-                break;
-            case kCommandDrawPolygon:
-                DrawPolygon(pos, poly, pixelData);
-                break;
-            case kCommandDrawPolylines:
-            case kCommandDrawPolylinesAlt:
-                DrawPolylines(pos, poly, pixelData);
-                break;
-            case kCommandDrawLine:
-                DrawLine(pos, poly, pixelData);
-                break;
+        if (abs(SignedPointToLineDistance(int2(pos), lineStart, lineEnd)) > 1) {
+            continue;
         }
+
+        DrawLine(pos, index, pixelData);
     }
 
     if (pixel8Bits) {
@@ -1574,11 +1030,4 @@ void Draw(uint2 pos) {
     } else {
         WriteFB16(fbAddr << 1, pixelData);
     }
-}
-
-// -----------------------------------------------------------------------------
-
-[numthreads(32, 32, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID) {
-    Draw(id.xy);
 }

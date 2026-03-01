@@ -69,7 +69,7 @@ static_assert(sizeof(D3DInt3) == sizeof(D3DInt) * 3);
 struct alignas(16) VDP1RenderConfig {
     // TODO: relevant VDP1 registers
     // - erase/swap bounds and value (including vblank erase bounds)
-    D3DUint numPolys;
+    D3DUint numLines;
 
     struct Params {
         /**/                              //  bits  use
@@ -92,30 +92,46 @@ struct alignas(16) VDP1RenderConfig {
     D3DUint reserved;
 };
 
-struct VDP1PolyParams {
-    D3DUint posX : 16;        // Horizontal position of polygon in framebuffer
-    D3DUint posY : 16;        // Vertical position of polygon in framebuffer
-    D3DUint sizeX : 16;       // Horizontal size of polygon after clipping
-    D3DUint sizeY : 16;       // Vertical size of polygon after clipping
-    D3DUint sysClipH : 16;    // System clipping area width
-    D3DUint sysClipV : 16;    // System clipping area height
-    D3DUint userClipX0 : 16;  // User clipping area left coordinate
-    D3DUint userClipX1 : 16;  // User clipping area right coordinate
-    D3DUint userClipY0 : 16;  // User clipping area top coordinate
-    D3DUint userClipY1 : 16;  // User clipping area bottom coordinate
-    D3DUint localCoordX : 16; // Horizontal local coordinate offset
-    D3DUint localCoordY : 16; // Vertical local coordinate offset
-    D3DUint cmdAddress;       // Command address in VDP1 VRAM
+struct VDP1LineParams {
+    D3DInt2 coordStart; // Starting line coordinates
+    D3DInt2 coordEnd;   // Ending line coordinates
+
+    D3DUint sysClipH : 16; // System clipping area width
+    D3DUint sysClipV : 16; // System clipping area height
+
+    D3DUint userClipX0 : 16; // User clipping area left coordinate
+    D3DUint userClipY0 : 16; // User clipping area top coordinate
+    D3DUint userClipX1 : 16; // User clipping area right coordinate
+    D3DUint userClipY1 : 16; // User clipping area bottom coordinate
+
+    D3DUint cmdIndex : 8;  //   0-7  Command table entry index
+    D3DUint texV : 8;      //  8-15  Texture V coordinate
+    D3DUint textured : 1;  //    16  Textured        (0=solid color; 1=textured)
+    D3DUint gouraud : 1;   //    17  Gouraud shading (0=no shading; 1=gouraud)
+    D3DUint antiAlias : 1; //    18  Antialiased
+    D3DUint : 0;           // 19-31  Reserved
+
+    D3DUint gouraudStart : 16; // RGB 5:5:5 gouraud value for the start of the line
+    D3DUint gouraudEnd : 16;   // RGB 5:5:5 gouraud value for the end of the line
 };
 
-static constexpr size_t kVDP1BinH = 32;
-static constexpr size_t kVDP1BinV = 32;
-static constexpr size_t kVDP1BinDepth = 128;
-static constexpr size_t kVDP1BinsX = (kVDP1MaxFBSizeH + kVDP1BinH - 1) / kVDP1BinH;
-static constexpr size_t kVDP1BinsY = (kVDP1MaxFBSizeV + kVDP1BinV - 1) / kVDP1BinV;
-static constexpr size_t kVDP1NumBins = kVDP1BinsX * kVDP1BinsY;
-
-using VDP1PolyParamsBin = std::array<D3DUint, kVDP1BinDepth>;
+struct VDP1CommandEntry {
+    D3DUint cmdctrl : 16; // CMDCTRL value
+    D3DUint cmdgrda : 16; // CMDGRDA value
+    D3DUint cmdpmod : 16; // CMDPMOD value
+    D3DUint cmdcolr : 16; // CMDCOLR value
+    D3DUint cmdsrca : 16; // CMDSRCA value
+    D3DUint cmdsize : 16; // CMDSIZE value
+    D3DUint cmdxa : 16;   // CMDXA value
+    D3DUint cmdya : 16;   // CMDYA value
+    D3DUint cmdxb : 16;   // CMDXB value
+    D3DUint cmdyb : 16;   // CMDYB value
+    D3DUint cmdxc : 16;   // CMDXC value
+    D3DUint cmdyc : 16;   // CMDYC value
+    D3DUint cmdxd : 16;   // CMDXD value
+    D3DUint cmdyd : 16;   // CMDYD value
+    // NOTE: shader doesn't need CMDLINK, so moving CMDGRDA to its place saves 4 bytes and keeps everything aligned
+};
 
 // -----------------------------------------------------------------------------
 

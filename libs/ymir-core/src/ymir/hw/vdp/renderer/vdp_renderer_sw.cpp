@@ -1841,32 +1841,33 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
         .color = color,
     };
 
-    const Color555 A{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 0u)};
-    const Color555 B{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 2u)};
-    const Color555 C{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
-    const Color555 D{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
-    devlog::trace<grp::vdp1_cmd>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)A.r, (uint8)A.g,
-                                 (uint8)A.b, (uint8)B.r, (uint8)B.g, (uint8)B.b, (uint8)C.r, (uint8)C.g, (uint8)C.b,
-                                 (uint8)D.r, (uint8)D.g, (uint8)D.b);
+    const Color555 gouraudA{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 0u)};
+    const Color555 gouraudB{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 2u)};
+    const Color555 gouraudC{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
+    const Color555 gouraudD{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
+    devlog::trace<grp::vdp1_cmd>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)gouraudA.r,
+                                 (uint8)gouraudA.g, (uint8)gouraudA.b, (uint8)gouraudB.r, (uint8)gouraudB.g,
+                                 (uint8)gouraudB.b, (uint8)gouraudC.r, (uint8)gouraudC.g, (uint8)gouraudC.b,
+                                 (uint8)gouraudD.r, (uint8)gouraudD.g, (uint8)gouraudD.b);
 
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = A;
-        lineParams.gouraudRight = B;
+        lineParams.gouraudLeft = gouraudA;
+        lineParams.gouraudRight = gouraudB;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams);
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = B;
-        lineParams.gouraudRight = C;
+        lineParams.gouraudLeft = gouraudB;
+        lineParams.gouraudRight = gouraudC;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordB, coordC, lineParams);
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = C;
-        lineParams.gouraudRight = D;
+        lineParams.gouraudLeft = gouraudC;
+        lineParams.gouraudRight = gouraudD;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordC, coordD, lineParams);
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = D;
-        lineParams.gouraudRight = A;
+        lineParams.gouraudLeft = gouraudD;
+        lineParams.gouraudRight = gouraudA;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordD, coordA, lineParams);
 }
