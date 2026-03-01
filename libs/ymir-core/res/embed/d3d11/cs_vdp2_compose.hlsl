@@ -200,29 +200,29 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
 uint3 Compose(uint2 pos) {
     // TODO: clear screen if display is disabled
     // - also honor BDCLMD
-    
+
     uint layerStack[3] = { kLayerBack, kLayerBack, kLayerBack };
     uint layerPrios[3] = { 0, 0, 0 };
-    
+
     for (uint layer = 0; layer < 6; layer++) {
         // Skip disabled layers
         if (!IsLayerEnabled(layer)) {
             continue;
         }
-        
+
         const uint4 layerOutput = GetLayerOutput(layer, pos);
         const Attributes attrs = ToAttributes(layerOutput.a);
-        
+
         // Skip transparent pixels
         if (attrs.transparent) {
             continue;
         }
-        
+
         // Priority zero also means transparent pixel
         if (attrs.priority == 0) {
             continue;
         }
-        
+
         // TODO: skip normal shadow sprite layer pixels
 
         // Insert the layer into the appropriate position in the stack
@@ -242,11 +242,11 @@ uint3 Compose(uint2 pos) {
             }
         }
     }
-    
+
     // TODO: find sprite mesh layer stack position
-    
+
     uint3 output = { 0, 0, 0 };
-    
+
     const bool layer0ColorCalcEnabled = IsColorCalcEnabled(layerStack[0], pos);
     const bool layer0LineColorEnabled = IsLineColorEnabled(layerStack[0], pos);
     const bool extendedColorCalc = BitTest(composeParams[0].params, 8);
@@ -255,16 +255,16 @@ uint3 Compose(uint2 pos) {
 
     const uint3 layer0Pixel = GetLayerOutput(layerStack[0], pos).rgb;
     uint3 layer1Pixel = GetLayerOutput(layerStack[1], pos).rgb;
-    
+
     if (extendedColorCalc) {
         if (IsColorCalcEnabled(layerStack[1], pos)) {
             const uint3 layer2Pixel = GetLayerOutput(layerStack[2], pos).rgb;
 
             // TODO: blend layer 2 with sprite mesh layer colors
-            
+
             layer1Pixel = (layer1Pixel + layer2Pixel) >> 1;
         }
-        
+
         if (layer0LineColorEnabled) {
             const uint3 lineColor = GetLineColor(layerStack[0], pos);
             if (IsColorCalcEnabled(kLayerLine, pos)) {
@@ -276,9 +276,9 @@ uint3 Compose(uint2 pos) {
     } else if (layer0LineColorEnabled) {
         layer1Pixel = GetLineColor(layerStack[0], pos);
     }
-    
+
     // TODO: blend layer 1 with sprite mesh layer colors
-    
+
     if (layer0ColorCalcEnabled) {
         if (useAdditiveBlend) {
             output = min(layer0Pixel + layer1Pixel, 255);
@@ -286,21 +286,21 @@ uint3 Compose(uint2 pos) {
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
             const int ratio = GetColorCalcRatio(ratioLayer, pos);
             output = int3(layer1Pixel) + (int3(layer0Pixel) - int3(layer1Pixel)) * ratio / 32;
-            
+
         }
     } else {
         output = layer0Pixel;
     }
-    
+
     // TODO: blend layer 0 with sprite mesh layer colors
-    
+
     // TOOD: apply sprite shadow
-    
+
     if (IsColorOffsetEnabled(layerStack[0])) {
         const int3 offset = GetColorOffset(layerStack[0]);
         output = clamp(int3(output) + offset, 0, 255);
     }
-    
+
     return output;
 }
 
