@@ -162,7 +162,7 @@ void WriteFB8(uint address, uint data) {
     const uint shift = (address & 3) * 8;
     const uint mask = ~(0xFF << shift);
     data = (data & 0xFF) << shift;
-             
+
     address &= ~3;
     uint dummy;
     fbOut.InterlockedAnd(address, mask, dummy);
@@ -186,7 +186,7 @@ uint FetchCMDCTRL(uint cmdAddress) {
 
 CMDPMOD_COLR FetchCMDPMOD_COLR(uint cmdAddress) {
     const uint pair = ReadVRAM32(cmdAddress + kOffsetCMDPMOD);
-    
+
     CMDPMOD_COLR data;
     data.colorCalcBits = BitExtract(pair, 16, 2);
     data.gouraudEnable = BitTest(pair, 18);
@@ -199,14 +199,14 @@ CMDPMOD_COLR FetchCMDPMOD_COLR(uint cmdAddress) {
     data.preClippingDisable = BitTest(pair, 27);
     data.highSpeedShrink = BitTest(pair, 28);
     data.msbOn = BitTest(pair, 31);
- 
+
     data.color = BitExtract(pair, 0, 16);
     return data;
 }
 
 CMDSRCA_SIZE FetchCMDSRCA_SIZE(uint cmdAddress) {
     const uint pair = ReadVRAM32(cmdAddress + kOffsetCMDSRCA);
-    
+
     CMDSRCA_SIZE data;
     data.charAddress = BitExtract(pair, 16, 16) << 3;
     data.charSize.x = max(BitExtract(pair, 8, 6) << 8, 1);
@@ -327,7 +327,6 @@ struct TextureStepper {
     }
 
     // Skips the specified number of pixels.
-    // Meant to be used when clipping lines with LineStepper::SystemClip().
     void SkipPixels(uint count) {
         accum += num * count;
     }
@@ -396,7 +395,6 @@ struct GouraudChannelStepper {
     }
 
     // Skips the specified number of pixels.
-    // Meant to be used when clipping lines with LineStepper::SystemClip().
     void Skip(uint steps) {
         value += intInc * steps;
         accum -= num * steps;
@@ -442,7 +440,6 @@ struct GouraudStepper {
     }
 
     // Skips the specified number of pixels.
-    // Meant to be used when clipping lines with LineStepper::SystemClip().
     void Skip(uint steps) {
         if (steps > 0) {
             stepperR.Skip(steps);
@@ -479,16 +476,16 @@ struct LineStepper {
     int den;
     int accum;
     int accumTarget;
-    
+
     int2 majInc;
     int2 minInc;
-    
+
     int2 pos;
     int2 start;
-    
+
     uint dmaj;
     uint step;
-    
+
     int2 aaInc;
 
     // Computes how many steps are needed from the start of the line to reach the target pixel.
@@ -497,12 +494,12 @@ struct LineStepper {
         const int2 deltaPos = (targetPos - start - (antiAlias ? aaInc : 0)) * majInc;
         const int delta = deltaPos.x + deltaPos.y;
 
-        if (delta < 0 || delta >= dmaj + 1) {
+        if (delta < 0 || delta >= int(dmaj) + 1) {
             return dmaj + 1;
         }
         return delta;
     }
-    
+
     // Sets the slope step to the specified coordinate.
     // Clamped to the length of the line.
     void SetStep(uint targetStep) {
@@ -556,15 +553,15 @@ struct LineStepper {
 
 LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
     LineStepper stepper;
-    
+
     stepper.pos = coord1;
     stepper.start = coord1;
-    
+
     int2 delta = coord2 - coord1;
     int2 absDelta = abs(delta); // component-wise
     stepper.dmaj = max(absDelta.x, absDelta.y);
     stepper.step = 0;
-    
+
     const bool xMajor = absDelta.x >= absDelta.y;
     if (xMajor) {
         stepper.majInc.x = delta.x >= 0 ? +1 : -1;
@@ -587,9 +584,9 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
         ++stepper.accumTarget;
     }
     stepper.accum += stepper.num;
-    
+
     stepper.pos -= stepper.majInc;
-    
+
     if (antiAlias) {
         --stepper.accum;
         --stepper.accumTarget;
@@ -602,15 +599,15 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
             stepper.aaInc.y = samesign ? -stepper.majInc.y : 0;
         }
     }
- 
+
     // NOTE: Shifting counters by this amount forces them to have 13 bits without the need for masking
     // static const int kShift = 32 - 13;
-    // 
+    //
     // stepper.num <<= kShift;
     // stepper.den <<= kShift;
     // stepper.accum <<= kShift;
     // stepper.accumTarget <<= kShift;
-   
+
     return stepper;
 }
 
@@ -633,7 +630,7 @@ struct Edge {
     int den;
     int accum;
     int accumTarget;
-    
+
     void Setup(int2 coord1, int2 coord2, uint delta) {
         const int dx = SignExtend(coord2.x - coord1.x, 13);
         const int dy = SignExtend(coord2.y - coord1.y, 13);
@@ -662,12 +659,12 @@ struct Edge {
 
         // NOTE: Shifting counters by this amount forces them to have 13 bits without the need for masking
         // static const int kShift = 32 - 13;
-        // 
+        //
         // posNum <<= kShift;
         // posDen <<= kShift;
         // posAccum <<= kShift;
         // posAccumTarget <<= kShift;
-        // 
+        //
         // num <<= kShift;
         // den <<= kShift;
         // accum <<= kShift;
@@ -675,12 +672,12 @@ struct Edge {
 
         gouraudEnable = false;
     }
-    
+
     void SetupGouraud(Color555 start, Color555 end) {
         gouraud.Setup(dmaj + 1, start, end);
         gouraudEnable = true;
     }
-    
+
     void Step() {
         accum += num;
         if (accum >= accumTarget) {
@@ -703,10 +700,10 @@ struct Edge {
             }
         }
     }
-    
+
     void Skip(int steps) {
         // TODO: mask to 13 bits
-        
+
         accum += num * steps;
         while (accum >= accumTarget) {
             accum -= den;
@@ -728,12 +725,12 @@ struct Edge {
             }
         }
     }
-    
+
     // Retrieves the current X and Y coordinates of this edge.
     int2 Coord() {
         return pos;
     }
-    
+
     Color555 GouraudValue() {
         return gouraud.Value();
     }
@@ -756,7 +753,7 @@ struct QuadStepper {
 
     uint dmaj;
     uint step;
-    
+
     bool degenerate;
     bool clockwiseWinding; // only makes sense if !degenerate
 
@@ -793,10 +790,10 @@ struct QuadStepper {
         edgeL.Step();
         edgeR.Step();
     }
-    
+
     void Skip(int steps) {
         step += steps;
-        
+
         edgeL.Skip(steps);
         edgeR.Skip(steps);
 
@@ -816,7 +813,7 @@ QuadStepper NewQuadStepper(int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
 
     stepper.edgeL.Setup(coordA, coordD, stepper.dmaj);
     stepper.edgeR.Setup(coordB, coordC, stepper.dmaj);
-    
+
     // Determine if quad is degenerate by checking cross products of pairs of consecutive edges
 
     const int2 vecAB = coordB - coordA;
@@ -941,7 +938,7 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
     if (IsPixelClipped(poly, coord, pixelParams.mode_color.userClippingEnable, pixelParams.mode_color.clippingMode)) {
         return;
     }
-    
+
     if (pixelParams.mode_color.meshEnable && ((coord.x ^ coord.y) & 1)) {
         return;
     }
@@ -957,9 +954,9 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
     }
 
     const bool meshEnable = pixelParams.mode_color.meshEnable;
-    
+
     // TODO: pixelParams.mode_color.preClippingDisable
-    
+
     if (pixelParams.mode_color.msbOn) {
         uint bit = 0x80;
         if (pixel8Bits && BitTest(coord.x, 0)) {
@@ -970,9 +967,9 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
         uint value;
         if (pixel8Bits) {
             const uint value = pixelParams.mode_color.color & 0xFF;
-        
+
             // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
-       
+
             if (transparentMeshes && meshEnable) {
                 // TODO: write to mesh layer
             } else {
@@ -988,10 +985,10 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
                 color = pixelParams.gouraud.Blend(color);
                 value = Color555ToUint16(color);
             }
-            
+
             const uint rawColor = pixelParams.mode_color.color;
             const uint colorCalcBits = pixelParams.mode_color.colorCalcBits;
-            
+
             Color555 srcColor = Uint16ToColor555(rawColor);
             Color555 dstColor;
 
@@ -1035,7 +1032,7 @@ void PlotPixel(int2 coord, const PolyParams poly, inout uint pixelData, const Pi
             }
 
             const uint value = Color555ToUint16(dstColor);
-            
+
             if (transparentMeshes && meshEnable) {
                 // TODO: write to mesh layer
             } else {
@@ -1052,7 +1049,7 @@ void PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord
     if (IsLineSystemClipped(poly, coord1, coord2)) {
         return;
     }
-    
+
     PixelParams pixelParams;
     pixelParams.mode_color = lineParams.mode_color;
 
@@ -1060,7 +1057,7 @@ void PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord
     const uint steps = lineStepper.StepsToTarget(pos, false);
     if (steps <= lineStepper.Length()) {
         lineStepper.SetStep(steps);
-        
+
         if (all(lineStepper.Coord() == int2(pos))) {
             if (pixelParams.mode_color.gouraudEnable) {
                 pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
@@ -1070,12 +1067,12 @@ void PlotLine(uint2 pos, const PolyParams poly, inout uint pixelData, int2 coord
             PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
         }
     }
-    
+
     if (antiAlias) {
         const uint aaSteps = lineStepper.StepsToTarget(pos, true);
         if (aaSteps <= lineStepper.Length()) {
             lineStepper.SetStep(aaSteps);
-            
+
             if (lineStepper.NeedsAA() && all(lineStepper.AACoord() == int2(pos))) {
                 if (pixelParams.mode_color.gouraudEnable) {
                     pixelParams.gouraud.Setup(lineStepper.Length() + 1, lineParams.gouraudLeft, lineParams.gouraudRight);
@@ -1092,7 +1089,7 @@ struct EndCodeCounter {
     bool enable;
     bool hasEndCode;
     int count;
-    
+
     void ProcessEndCode(bool endCode) {
         if (enable && endCode) {
             hasEndCode = true;
@@ -1155,18 +1152,18 @@ void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coo
     if (IsLineSystemClipped(poly, coord1, coord2)) {
         return;
     }
-    
+
     const uint charSizeH = lineParams.srca_size.charSize.x;
     if (lineParams.mode_color.colorMode == 5) {
         // Force-align character address in 16 bpp RGB mode
         lineParams.srca_size.charAddress &= ~0xF;
     }
-    
+
     PixelParams pixelParams;
     pixelParams.mode_color = lineParams.mode_color;
 
     LineStepper lineStepper = NewLineStepper(coord1, coord2, true);
-        
+
     const bool useHighSpeedShrink = lineParams.mode_color.highSpeedShrink && lineStepper.Length() < charSizeH - 1;
     const bool evenOddCoordSelect = BitTest(config.params, 6);
     const bool userClippingEnable = lineParams.mode_color.userClippingEnable;
@@ -1181,9 +1178,9 @@ void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coo
         uStart = uEnd;
         uEnd = tmp;
     }
-    
+
     const uint v = lineParams.texVStepper.Value();
-    
+
     TextureStepper uStepper;
     uStepper.Setup(lineStepper.Length() + 1, uStart, uEnd, useHighSpeedShrink, evenOddCoordSelect);
 
@@ -1198,21 +1195,21 @@ void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coo
     const uint steps = lineStepper.StepsToTarget(pos, false);
     if (steps <= lineStepper.Length()) {
         lineStepper.SetStep(steps);
-        
+
         if (all(lineStepper.Coord() == int2(pos))) {
             if (pixelParams.mode_color.gouraudEnable) {
                 pixelParams.gouraud.Setup(lineStepper.Length() + 1, gouraudL.Value(), gouraudR.Value());
                 pixelParams.gouraud.Skip(steps);
             }
-        
+
             // TODO: uStepper.SetPixel(steps);
-            
+
             // TODO: fetch texel, plot pixel
             pixelData = 0xDEAD;
             PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
         }
     }
-    
+
     const uint aaSteps = lineStepper.StepsToTarget(pos, true);
     if (aaSteps <= lineStepper.Length()) {
         lineStepper.SetStep(aaSteps);
@@ -1222,15 +1219,15 @@ void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coo
                 pixelParams.gouraud.Setup(lineStepper.Length() + 1, gouraudL.Value(), gouraudR.Value());
                 pixelParams.gouraud.Skip(aaSteps);
             }
-             
+
             // TODO: uStepper.SetPixel(aaSteps);
-   
+
             // TODO: fetch texel, plot pixel
             pixelData = 0xBEEF;
             PlotPixel(lineStepper.AACoord(), poly, pixelData, pixelParams);
         }
     }
-    
+
     /*
     ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
 
@@ -1250,7 +1247,7 @@ void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coo
             break;
         }
         uStepper.StepPixel();
-  
+
         if (endCodeCounter.hasEndCode || (transparent && !transparentPixelDisable)) {
             // Check if the transparent pixel is in-bounds
             if (!IsPixelClipped(poly, lineStepper.Coord(), userClippingEnable, clippingMode)) {
@@ -1286,26 +1283,26 @@ void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmd
     lineParams.control = cmdctrl;
     lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
     lineParams.srca_size = srca_size;
-    
+
     const uint charAddress = srca_size.charAddress;
     const uint2 charSize = srca_size.charSize;
-    
+
     QuadStepper quad = NewQuadStepper(coordA, coordB, coordC, coordD);
 
     if (lineParams.mode_color.gouraudEnable) {
         const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
-        
+
         const Color555 colorA = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
         const Color555 colorB = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
         const Color555 colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 4));
         const Color555 colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 6));
-        
+
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
 
     const bool flipV = BitTest(cmdctrl, 5);
     quad.SetupTexture(lineParams.texVStepper, charSize.y, flipV);
-    
+
     if (!quad.degenerate) {
         const int2 coordL = quad.edgeL.Coord();
         const int2 coordR = quad.edgeR.Coord();
@@ -1316,20 +1313,20 @@ void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmd
         }
 
         if (dist > 0) {
-            // Skip until the first line that will be drawn on the target pixel  
+            // Skip until the first line that will be drawn on the target pixel
             quad.Skip(dist);
             lineParams.texVStepper.SkipPixels(dist);
         }
     }
-    
+
     // TODO: optimize degenerate quads, perhaps by implementing a separate code path
     // with special optimization tricks for them
-    
+
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         const int2 coordL = quad.edgeL.Coord();
         const int2 coordR = quad.edgeR.Coord();
-        
+
         const int dist = PointToLineDistance(pos, coordL, coordR);
         if (!quad.degenerate) {
             // Stop if the last line that will affect this pixel has been drawn
@@ -1356,7 +1353,7 @@ void DrawNormalSprite(uint2 pos, const PolyParams poly, inout uint pixelData, co
 
     const int2 coordTL = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
     const int2 coordBR = coordTL + charSize - 1;
-    
+
     const int2 coordA = int2(coordTL.x, coordTL.y);
     const int2 coordB = int2(coordBR.x, coordTL.y);
     const int2 coordC = int2(coordBR.x, coordBR.y);
@@ -1369,13 +1366,13 @@ void DrawScaledSprite(uint2 pos, const PolyParams poly, inout uint pixelData, co
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
 
     // TODO: load and parse parameters
-    
+
     // TODO: actually render the polygon
 }
 
 void DrawDistortedSprite(uint2 pos, const PolyParams poly, inout uint pixelData, const uint cmdctrl) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
-    
+
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
     const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
@@ -1386,25 +1383,25 @@ void DrawDistortedSprite(uint2 pos, const PolyParams poly, inout uint pixelData,
 
 void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const int2 localCoord = Extract16PairSX(poly.localCoord, 13);
-    
+
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
     const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
     const int2 coordD = FetchCMDXD_YD(poly.cmdAddress) + localCoord;
 
     QuadStepper quad = NewQuadStepper(coordA, coordB, coordC, coordD);
- 
+
     LineParams lineParams;
     lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
 
     if (lineParams.mode_color.gouraudEnable) {
         const uint gouraudTable = FetchCMDGRDA(poly.cmdAddress);
-        
+
         const Color555 colorA = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
         const Color555 colorB = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
         const Color555 colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 4));
         const Color555 colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 6));
-        
+
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
 
@@ -1418,11 +1415,11 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
         }
 
         if (dist > 0) {
-            // Skip until the first line that will be drawn on the target pixel  
+            // Skip until the first line that will be drawn on the target pixel
             quad.Skip(dist);
         }
     }
-    
+
     // TODO: optimize degenerate quads, perhaps by implementing a separate code path
     // with special optimization tricks for them
 
@@ -1430,7 +1427,7 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
     for (; quad.CanStep(); quad.Step()) {
         const int2 coordL = quad.edgeL.Coord();
         const int2 coordR = quad.edgeR.Coord();
-        
+
         const int dist = PointToLineDistance(pos, coordL, coordR);
         if (!quad.degenerate) {
             // Stop if the last line that will affect this pixel has been drawn
@@ -1444,7 +1441,7 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
                 lineParams.gouraudLeft = quad.edgeL.GouraudValue();
                 lineParams.gouraudRight = quad.edgeR.GouraudValue();
             }
-        
+
             PlotLine(pos, poly, pixelData, coordL, coordR, lineParams, true);
         }
     }
@@ -1452,10 +1449,10 @@ void DrawPolygon(uint2 pos, const PolyParams poly, inout uint pixelData) {
 
 void DrawPolylines(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
-    
+
     LineParams lineParams;
     lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
-    
+
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
     const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
     const int2 coordC = FetchCMDXC_YC(poly.cmdAddress) + localCoord;
@@ -1469,7 +1466,7 @@ void DrawPolylines(uint2 pos, const PolyParams poly, inout uint pixelData) {
         colorC = Uint16ToColor555(ReadVRAM16(gouraudTable + 4));
         colorD = Uint16ToColor555(ReadVRAM16(gouraudTable + 6));
     }
-  
+
     if (lineParams.mode_color.gouraudEnable) {
         lineParams.gouraudLeft = colorA;
         lineParams.gouraudRight = colorB;
@@ -1494,10 +1491,10 @@ void DrawPolylines(uint2 pos, const PolyParams poly, inout uint pixelData) {
 
 void DrawLine(uint2 pos, const PolyParams poly, inout uint pixelData) {
     const uint2 localCoord = Extract16PairSX(poly.localCoord, 13);
-    
+
     LineParams lineParams;
     lineParams.mode_color = FetchCMDPMOD_COLR(poly.cmdAddress);
-    
+
     const int2 coordA = FetchCMDXA_YA(poly.cmdAddress) + localCoord;
     const int2 coordB = FetchCMDXB_YB(poly.cmdAddress) + localCoord;
 
@@ -1506,7 +1503,7 @@ void DrawLine(uint2 pos, const PolyParams poly, inout uint pixelData) {
         lineParams.gouraudLeft = Uint16ToColor555(ReadVRAM16(gouraudTable + 0));
         lineParams.gouraudRight = Uint16ToColor555(ReadVRAM16(gouraudTable + 2));
     }
-    
+
     PlotLine(pos, poly, pixelData, coordA, coordB, lineParams, false);
 }
 
@@ -1525,17 +1522,17 @@ void Draw(uint2 pos) {
     const uint numPolys = polyParamBinCounts[binIndex];
     for (uint index = 0; index < numPolys; index++) {
         const PolyParams poly = polyParams[polyParamBins[binOffset + index]];
-        
+
         const int2 polyPos = Extract16PairS(poly.pos);
         const int2 polySize = Extract16PairS(poly.size);
-        
-        if (any(pos < polyPos) || any(pos >= polyPos + polySize)) {
+
+        if (any(int2(pos) < polyPos) || any(int2(pos) >= polyPos + polySize)) {
             continue;
         }
-        
+
         const uint cmdctrl = FetchCMDCTRL(poly.cmdAddress);
         const uint command = BitExtract(cmdctrl, 0, 4);
-    
+
         switch (command) {
             case kCommandDrawNormalSprite:
                 DrawNormalSprite(pos, poly, pixelData, cmdctrl);
@@ -1559,7 +1556,7 @@ void Draw(uint2 pos) {
                 break;
         }
     }
-    
+
     if (pixel8Bits) {
         WriteFB8(fbAddr, pixelData);
     } else {
