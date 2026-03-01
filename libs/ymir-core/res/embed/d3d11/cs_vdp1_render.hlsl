@@ -45,7 +45,7 @@ ByteAddressBuffer vram : register(t0);
 StructuredBuffer<LineParams> lineParams : register(t1);
 StructuredBuffer<CommandEntry> commands : register(t2);
 Buffer<uint> lineBins : register(t3);
-Buffer<uint> lineBinCounts : register(t4);
+Buffer<uint> lineBinIndices : register(t4);
 
 RWByteAddressBuffer fbOut : register(u0);
 RWByteAddressBuffer fbram : register(u1);
@@ -54,9 +54,8 @@ RWByteAddressBuffer fbram : register(u1);
 
 static const uint2 kVDP1MaxFBSize = uint2(1024, 512);
 
-static const uint2 kBinSize = uint2(32, 32);
+static const uint2 kBinSize = uint2(8, 8);
 static const uint2 kBinCount = (kVDP1MaxFBSize + kBinSize - 1) / kBinSize;
-static const uint kBinDepth = 512;
 
 // -----------------------------------------------------------------------------
 
@@ -1017,8 +1016,8 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
 
     const uint2 binPos = pos / kBinSize;
     const uint binIndex = binPos.y * kBinCount.x + binPos.x;
-    const uint binOffset = binIndex * kBinDepth;
-    const uint numLines = lineBinCounts[binIndex];
+    const uint binOffset = lineBinIndices[binIndex];
+    const uint numLines = lineBinIndices[binIndex + 1] - binOffset;
 
     for (uint index = 0; index < numLines; index++) {
         const uint lineIndex = lineBins[binOffset + index];

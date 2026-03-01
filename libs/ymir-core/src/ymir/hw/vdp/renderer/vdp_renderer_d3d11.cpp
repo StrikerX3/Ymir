@@ -22,6 +22,7 @@
 #include <cmath>
 #include <mutex>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -99,13 +100,13 @@ struct Direct3D11VDPRenderer::Context {
     size_t cpuVDP1CommandTableHead = 0;                      //< CPU-side VDP1 command table head index
     size_t cpuVDP1CommandTableTail = 0;                      //< CPU-side VDP1 command table tail index
 
-    ID3D11Buffer *bufVDP1LineParamBins = nullptr;                       //< VDP1 line parameter bins structured buffer
-    ID3D11ShaderResourceView *srvVDP1LineParamBins = nullptr;           //< SRV for VDP1 line parameter bins
-    std::array<VDP1LineParamsBin, kVDP1NumBins> cpuVDP1LineParamBins{}; //< CPU-side VDP1 line parameter bins
+    ID3D11Buffer *bufVDP1LineBins = nullptr;                         //< VDP1 line parameter bins structured buffer
+    ID3D11ShaderResourceView *srvVDP1LineBins = nullptr;             //< SRV for VDP1 line parameter bins
+    std::array<std::vector<uint16>, kVDP1NumBins> cpuVDP1LineBins{}; //< CPU-side VDP1 line parameter bins buffer
+    size_t cpuVDP1LineBinsUsage = 0;                                 //< Number of bin entries used so far
 
-    ID3D11Buffer *bufVDP1LineParamBinCounts = nullptr;             //< VDP1 line parameter bin counts structured buffer
-    ID3D11ShaderResourceView *srvVDP1LineParamBinCounts = nullptr; //< SRV for VDP1 line parameter bin counts
-    std::array<uint16, kVDP1NumBins> cpuVDP1LineParamBinCounts{};  //< CPU-side VDP1 line parameter bin counts
+    ID3D11Buffer *bufVDP1LineBinIndices = nullptr;             //< VDP1 line bin indices structured buffer
+    ID3D11ShaderResourceView *srvVDP1LineBinIndices = nullptr; //< SRV for VDP1 line bin indices
 
     ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer (sprite, mesh)
     ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output buffer
@@ -296,27 +297,29 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1CommandTable, "[Ymir D3D11] VDP1 command table ring buffer");
     SetDebugName(m_context->srvVDP1CommandTable, "[Ymir D3D11] VDP1 command table SRV");
 
-    if (HRESULT hr =
-            devMgr.CreatePrimitiveBuffer(m_context->bufVDP1LineParamBins, &m_context->srvVDP1LineParamBins,
-                                         DXGI_FORMAT_R16_UINT, m_context->cpuVDP1LineParamBins.size() * kVDP1BinSizeZ,
-                                         m_context->cpuVDP1LineParamBins.data(), 0, D3D11_CPU_ACCESS_WRITE);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    SetDebugName(m_context->bufVDP1LineParamBins, "[Ymir D3D11] VDP1 line parameter bins buffer");
-    SetDebugName(m_context->srvVDP1LineParamBins, "[Ymir D3D11] VDP1 line parameter bins SRV");
+    static constexpr std::array<uint16, kVDP1BinBufferSize> kEmptyBinData = {};
 
     if (HRESULT hr =
-            devMgr.CreatePrimitiveBuffer(m_context->bufVDP1LineParamBinCounts, &m_context->srvVDP1LineParamBinCounts,
-                                         DXGI_FORMAT_R16_UINT, m_context->cpuVDP1LineParamBinCounts.size(),
-                                         m_context->cpuVDP1LineParamBinCounts.data(), 0, D3D11_CPU_ACCESS_WRITE);
+            devMgr.CreatePrimitiveBuffer(m_context->bufVDP1LineBins, &m_context->srvVDP1LineBins, DXGI_FORMAT_R16_UINT,
+                                         kEmptyBinData.size(), kEmptyBinData.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1LineParamBinCounts, "[Ymir D3D11] VDP1 line parameter bin counts buffer");
-    SetDebugName(m_context->srvVDP1LineParamBinCounts, "[Ymir D3D11] VDP1 line parameter bin counts SRV");
+    SetDebugName(m_context->bufVDP1LineBins, "[Ymir D3D11] VDP1 line parameter bins buffer");
+    SetDebugName(m_context->srvVDP1LineBins, "[Ymir D3D11] VDP1 line parameter bins SRV");
+
+    static constexpr std::array<uint32, kVDP1NumBins + 1> kEmptyBins = {};
+
+    if (HRESULT hr = devMgr.CreatePrimitiveBuffer(m_context->bufVDP1LineBinIndices, &m_context->srvVDP1LineBinIndices,
+                                                  DXGI_FORMAT_R32_UINT, kEmptyBins.size(), kEmptyBins.data(), 0,
+                                                  D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1LineBinIndices, "[Ymir D3D11] VDP1 line parameter bin indices buffer");
+    SetDebugName(m_context->srvVDP1LineBinIndices, "[Ymir D3D11] VDP1 line parameter bin indices SRV");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
                                                     &m_context->uavVDP1PolyOut, kVDP1FramebufferRAMSize,
@@ -829,14 +832,15 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
     for (uint32 y = lowerBoundY; y <= upperBoundY; ++y) {
         for (uint32 x = lowerBoundX; x <= upperBoundX; ++x) {
             const size_t binIndex = y * kVDP1BinCountX + x;
-            auto &bin = m_context->cpuVDP1LineParamBins[binIndex];
-            auto &numLines = m_context->cpuVDP1LineParamBinCounts[binIndex];
-            bin[numLines] = index;
-            ++numLines;
-            if (numLines == bin.size()) {
-                full = true;
-            }
+            auto &bin = m_context->cpuVDP1LineBins[binIndex];
+            bin.push_back(index);
+            ++m_context->cpuVDP1LineBinsUsage;
         }
+    }
+
+    // Mark as full if there's not enough room for a full screen's worth of bins
+    if (m_context->cpuVDP1LineBinsUsage >= kVDP1BinBufferSize - kVDP1NumBins) {
+        full = true;
     }
 
     // Submit batch if the line list, the command table or a bin is full
@@ -864,13 +868,30 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
             memcpy(mappedResource.pData, &m_context->cpuVDP1CommandTable, sizeof(m_context->cpuVDP1CommandTable));
         });
     m_context->VDP1Context.ModifyResource(
-        m_context->bufVDP1LineParamBins, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-            memcpy(mappedResource.pData, &m_context->cpuVDP1LineParamBins, sizeof(m_context->cpuVDP1LineParamBins));
+        m_context->bufVDP1LineBins, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            // Concatenate the vectors into a single sequence
+            auto *data = static_cast<char *>(mappedResource.pData);
+            for (auto &bin : m_context->cpuVDP1LineBins) {
+                if (bin.empty()) {
+                    continue;
+                }
+                const size_t bytes = bin.size() * sizeof(std::decay_t<decltype(bin)>::value_type);
+                memcpy(data, bin.data(), bytes);
+                data += bytes;
+            }
         });
-    m_context->VDP1Context.ModifyResource(m_context->bufVDP1LineParamBinCounts, 0,
+    m_context->VDP1Context.ModifyResource(m_context->bufVDP1LineBinIndices, 0,
                                           [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                                              memcpy(mappedResource.pData, &m_context->cpuVDP1LineParamBinCounts,
-                                                     sizeof(m_context->cpuVDP1LineParamBinCounts));
+                                              // Synthesize index sequence from bin vectors
+                                              auto *data = static_cast<char *>(mappedResource.pData);
+                                              size_t index = 0;
+                                              util::WriteNE<uint32>(data, index);
+                                              data += sizeof(uint32);
+                                              for (const auto &bin : m_context->cpuVDP1LineBins) {
+                                                  index += bin.size();
+                                                  util::WriteNE<uint32>(data, index);
+                                                  data += sizeof(uint32);
+                                              }
                                           });
 
     VDP1UpdateRenderConfig();
@@ -878,7 +899,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     // Render polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1LineParams, m_context->srvVDP1CommandTable,
-                              m_context->srvVDP1LineParamBins, m_context->srvVDP1LineParamBinCounts});
+                              m_context->srvVDP1LineBins, m_context->srvVDP1LineBinIndices});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1FBRAM});
     ctx.CSSetShader(m_context->csVDP1Render);
     ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
@@ -886,7 +907,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
 
     m_context->cpuVDP1LineParamsCount = 0;
     m_context->cpuVDP1CommandTableTail = m_context->cpuVDP1CommandTableHead;
-    m_context->cpuVDP1LineParamBinCounts.fill(0);
+    for (auto &bin : m_context->cpuVDP1LineBins) {
+        bin.clear();
+    }
+    m_context->cpuVDP1LineBinsUsage = 0;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB,
