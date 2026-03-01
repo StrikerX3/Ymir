@@ -490,7 +490,6 @@ struct LineStepper {
     uint step;
     
     int2 aaInc;
-    bool antiAlias;
 
     // Computes how many steps are needed from the start of the line to reach the target pixel.
     // Aligns the major coordinate only.
@@ -533,7 +532,7 @@ struct LineStepper {
 
     // Determines if the current step needs antialiasing.
     bool NeedsAA() {
-        return antiAlias && step > 1 && accum - den + num > accumTarget;
+        return step > 1 && accum - den + num > accumTarget;
     }
 
     // Retrieves the current X and Y coordinates.
@@ -557,7 +556,6 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
     
     stepper.pos = coord1;
     stepper.start = coord1;
-    stepper.antiAlias = antiAlias;
     
     int2 delta = coord2 - coord1;
     int2 absDelta = abs(delta); // component-wise
