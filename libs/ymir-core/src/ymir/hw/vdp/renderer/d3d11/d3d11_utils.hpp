@@ -21,6 +21,7 @@ FORCE_INLINE UINT GetFormatSize(DXGI_FORMAT format) {
     case DXGI_FORMAT_UNKNOWN: return 1;
     case DXGI_FORMAT_R8G8B8A8_UINT: return 4;
     case DXGI_FORMAT_R8G8B8A8_UNORM: return 4;
+    case DXGI_FORMAT_R16_UINT: return 2;
     case DXGI_FORMAT_R32_TYPELESS: return 4;
     case DXGI_FORMAT_R32_UINT: return 4;
     case DXGI_FORMAT_R32G32_UINT: return 8;
