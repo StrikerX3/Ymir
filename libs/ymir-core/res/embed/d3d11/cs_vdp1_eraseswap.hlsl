@@ -35,7 +35,7 @@ void WriteFBOut16(uint address, uint data) {
     const uint shift = (address & 2) * 8;
     const uint mask = 0xFFFF << shift;
     data = (data & 0xFFFF) << shift;
-             
+
     address &= ~3;
     uint dummy;
     fbOut.InterlockedAnd(address, mask, dummy);
@@ -53,7 +53,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     // - id.z is not used
     // - either write the 16-bit erase value or copy from VDP1 FBRAM
     //  - output is in the same format as FBRAM
-    
+
     // TODO: use erase parameters
     // TODO: framebuffer dimensions
     const uint address = (id.x + id.y * fbSizeH) * 2;
