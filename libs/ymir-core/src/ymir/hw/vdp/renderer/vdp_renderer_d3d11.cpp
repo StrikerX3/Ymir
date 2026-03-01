@@ -759,14 +759,6 @@ FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(uint32 cmdAddress) {
     entry.cmdcolr = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x06);
     entry.cmdsrca = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x08);
     entry.cmdsize = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0A);
-    entry.cmdxa = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C);
-    entry.cmdya = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E);
-    entry.cmdxb = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10);
-    entry.cmdyb = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12);
-    entry.cmdxc = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14);
-    entry.cmdyc = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16);
-    entry.cmdxd = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18);
-    entry.cmdyd = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A);
     entry.cmdgrda = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1C);
 
     return index;
@@ -1088,8 +1080,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     const uint32 charSizeV = size.V;
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
     sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
     sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
@@ -1124,8 +1116,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     const VDP1Command::Size size{.u16 = cmd.cmdsize};
 
     auto &ctx = m_VDP1State;
-    const sint32 xa = bit::sign_extend<13>(cmd.cmdxa);
-    const sint32 ya = bit::sign_extend<13>(cmd.cmdya);
+    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
+    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
 
     // Calculated quad coordinates
     sint32 qxa = xa;
@@ -1141,12 +1133,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     const uint8 zoomPointV = bit::extract<2, 3>(control.zoomPoint);
 
     if (zoomPointH == 0) {
-        const sint32 xc = bit::sign_extend<13>(cmd.cmdxc);
+        const sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
 
         qxb = xc;
         qxc = xc;
     } else {
-        const sint32 xb = bit::sign_extend<13>(cmd.cmdxb);
+        const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
 
         switch (zoomPointH) {
         case 1:
@@ -1167,12 +1159,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     }
 
     if (zoomPointV == 0) {
-        const sint32 yc = bit::sign_extend<13>(cmd.cmdyc);
+        const sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
 
         qyc = yc;
         qyd = yc;
     } else {
-        const sint32 yb = bit::sign_extend<13>(cmd.cmdyb);
+        const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
 
         switch (zoomPointV) {
         case 1:
@@ -1236,14 +1228,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(cmd.cmdxc) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(cmd.cmdyc) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(cmd.cmdxd) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(cmd.cmdyd) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1280,14 +1272,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(cmd.cmdxc) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(cmd.cmdyc) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(cmd.cmdxd) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(cmd.cmdyd) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1324,14 +1316,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(cmd.cmdxc) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(cmd.cmdyc) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(cmd.cmdxd) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(cmd.cmdyd) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1417,10 +1409,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(cmd.cmdxa) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(cmd.cmdya) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(cmd.cmdxb) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(cmd.cmdyb) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};

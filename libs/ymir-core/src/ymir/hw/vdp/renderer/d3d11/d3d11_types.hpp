@@ -123,14 +123,6 @@ struct VDP1CommandEntry {
     D3DUint cmdcolr : 16; // CMDCOLR value
     D3DUint cmdsrca : 16; // CMDSRCA value
     D3DUint cmdsize : 16; // CMDSIZE value
-    D3DUint cmdxa : 16;   // CMDXA value
-    D3DUint cmdya : 16;   // CMDYA value
-    D3DUint cmdxb : 16;   // CMDXB value
-    D3DUint cmdyb : 16;   // CMDYB value
-    D3DUint cmdxc : 16;   // CMDXC value
-    D3DUint cmdyc : 16;   // CMDYC value
-    D3DUint cmdxd : 16;   // CMDXD value
-    D3DUint cmdyd : 16;   // CMDYD value
     // NOTE: shader doesn't need CMDLINK, so moving CMDGRDA to its place saves 4 bytes and keeps everything aligned
 };
 
