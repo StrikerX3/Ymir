@@ -270,6 +270,9 @@ struct TextureStepper {
     int value;
     int inc;
 
+    int baseAccum;
+    int baseValue;
+
     void Setup(uint length, int start, int end, bool hss = false, int hssSelect = 0) {
         if (hss) {
             start >>= 1;
@@ -303,6 +306,8 @@ struct TextureStepper {
         }
         num <<= 1;
         den <<= 1;
+        baseAccum = accum;
+        baseValue = value;
     }
 
     // Retrieves the current texture coordinate value.
@@ -321,6 +326,11 @@ struct TextureStepper {
         accum -= den;
     }
 
+    // Resets the texel counter to the initial value.
+    void ResetTexel() {
+        value = baseValue;
+    }
+
     // Advances to the next pixel.
     void StepPixel() {
         accum += num;
@@ -329,6 +339,11 @@ struct TextureStepper {
     // Skips the specified number of pixels.
     void SkipPixels(uint count) {
         accum += num * count;
+    }
+
+    // Moves to the pixel at the specified step.
+    void SetPixel(uint step) {
+        accum = baseAccum + num * step;
     }
 };
 
@@ -1202,11 +1217,34 @@ void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coo
                 pixelParams.gouraud.Skip(steps);
             }
 
-            // TODO: uStepper.SetPixel(steps);
+            uStepper.SetPixel(steps);
+            uStepper.ResetTexel(); // TODO: optimize me
 
-            // TODO: fetch texel, plot pixel
-            pixelData = 0xDEAD;
-            PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
+            if (endCodeCounter.enable) {
+                ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
+                while (uStepper.ShouldStepTexel()) {
+                    uStepper.StepTexel();
+                    ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
+
+                    if (endCodeCounter.count == 2) {
+                        break;
+                    }
+                }
+                if (endCodeCounter.count == 2) {
+                    break;
+                }
+            } else {
+                while (uStepper.ShouldStepTexel()) {
+                    uStepper.StepTexel();
+                }
+                ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
+            }
+
+            if (!endCodeCounter.hasEndCode && (!transparent || transparentPixelDisable)) {
+                pixelParams.mode_color.color = color;
+
+                PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
+            }
         }
     }
 
@@ -1220,62 +1258,36 @@ void PlotTexturedLine(uint2 pos, PolyParams poly, inout uint pixelData, int2 coo
                 pixelParams.gouraud.Skip(aaSteps);
             }
 
-            // TODO: uStepper.SetPixel(aaSteps);
+            uStepper.SetPixel(aaSteps);
+            uStepper.ResetTexel(); // TODO: optimize me
 
-            // TODO: fetch texel, plot pixel
-            pixelData = 0xBEEF;
-            PlotPixel(lineStepper.AACoord(), poly, pixelData, pixelParams);
+            if (endCodeCounter.enable) {
+                ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
+                while (uStepper.ShouldStepTexel()) {
+                    uStepper.StepTexel();
+                    ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
+
+                    if (endCodeCounter.count == 2) {
+                        break;
+                    }
+                }
+                if (endCodeCounter.count == 2) {
+                    break;
+                }
+            } else {
+                while (uStepper.ShouldStepTexel()) {
+                    uStepper.StepTexel();
+                }
+                ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
+            }
+
+            if (!endCodeCounter.hasEndCode && (!transparent || transparentPixelDisable)) {
+                pixelParams.mode_color.color = color;
+
+                PlotPixel(lineStepper.Coord(), poly, pixelData, pixelParams);
+            }
         }
     }
-
-    /*
-    ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
-
-    bool aa = false;
-    bool plotted = false;
-    for (lineStepper.Step(); lineStepper.CanStep(); aa = lineStepper.Step()) {
-        // Load new texels if U coordinate changed
-        while (uStepper.ShouldStepTexel()) {
-            uStepper.StepTexel();
-            ReadTexel(endCodeCounter, uint2(uStepper.Value(), v), lineParams, color, transparent);
-
-            if (endCodeCounter.count == 2) {
-                break;
-            }
-        }
-        if (endCodeCounter.count == 2) {
-            break;
-        }
-        uStepper.StepPixel();
-
-        if (endCodeCounter.hasEndCode || (transparent && !transparentPixelDisable)) {
-            // Check if the transparent pixel is in-bounds
-            if (!IsPixelClipped(poly, lineStepper.Coord(), userClippingEnable, clippingMode)) {
-                plotted = true;
-                continue;
-            }
-            if (aa && !IsPixelClipped(poly, lineStepper.Coord(), userClippingEnable, clippingMode)) {
-                plotted = true;
-                continue;
-            }
-
-            // At this point the pixel is clipped. Bail out if there have been in-bounds pixels before, as no more
-            // pixels can be drawn past this point.
-            if (plotted) {
-                break;
-            }
-
-            // Otherwise, continue to the next pixel
-            continue;
-        }
-
-        pixelParams.mode_color.color = color;
-
-        PlotPixel(poly, lineStepper.Coord(), pixelParams);
-        if (aa) {
-            PlotPixel(poly, lineStepper.AACoord(), pixelParams);
-        }
-    }*/
 }
 
 void PlotTexturedQuad(uint2 pos, PolyParams poly, inout uint pixelData, uint cmdctrl, CMDSRCA_SIZE srca_size, int2 coordA, int2 coordB, int2 coordC, int2 coordD) {
