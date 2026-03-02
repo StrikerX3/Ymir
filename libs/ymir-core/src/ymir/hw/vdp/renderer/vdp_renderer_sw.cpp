@@ -2131,7 +2131,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
         // Current sprite coordinates (13.10)
         sint32 sprX;
         sint32 sprY;
-        if (regs1.fbRotEnable) {
+        if (regs1.fbRotEnable && i == 0) {
             sprX = t.Xst + y * t.deltaXst;
             sprY = t.Yst + y * t.deltaYst;
         }
@@ -2196,7 +2196,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
             scrX += scrXIncH;
             scrY += scrYIncH;
 
-            if (regs1.fbRotEnable) {
+            if (regs1.fbRotEnable && i == 0) {
                 // Resulting sprite coordinates (13.0)
                 lineState.spriteCoords[x].x() = sprX >> 10ll;
                 lineState.spriteCoords[x].y() = sprY >> 10ll;
@@ -5222,9 +5222,6 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         }
     } else {
         fbOffset *= sizeof(uint16);
-        if (type >= 8) {
-            ++fbOffset;
-        }
         rawData = util::ReadBE<uint16>(&fb[fbOffset & 0x3FFFE]);
     }
 

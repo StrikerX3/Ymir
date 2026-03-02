@@ -1892,6 +1892,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
+    const VDP1Regs &regs1 = m_state.regs1;
     const VDP2Regs &regs2 = m_state.regs2;
     auto &config = m_context->cpuVDP2RenderConfig;
 
@@ -1900,9 +1901,33 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
     config.displayParams.colorRAMMode = regs2.vramControl.colorRAMMode;
     config.displayParams.hiResH = bit::test<1>(regs2.TVMD.HRESOn);
+    config.displayParams.spriteRotate = regs1.fbRotEnable;
+    config.displayParams.sprite8Bit = regs1.pixel8Bits;
+    config.displayParams.spriteType = regs2.spriteParams.type;
+    config.displayParams.spriteFBSizeH = std::countr_zero(regs1.fbSizeH) - 9;
+    config.displayParams.spriteFBSizeV = std::countr_zero(regs1.fbSizeV) - 8;
+    config.displayParams.spriteMixedFormat = regs2.spriteParams.mixedFormat;
+    config.displayParams.useSpriteWindow = regs2.spriteParams.useSpriteWindow;
+    config.displayParams.spriteColorCalcEnable = regs2.spriteParams.colorCalcEnable;
+    config.displayParams.spriteColorCalcValue = regs2.spriteParams.colorCalcValue;
+    config.displayParams.spriteColorCalcCond = static_cast<uint32>(regs2.spriteParams.colorCalcCond);
+    config.displayParams.spriteColorDataOffset = regs2.spriteParams.colorDataOffset >> 8u;
+    config.displayParams.spriteWindowEnabled = regs2.spriteParams.spriteWindowEnabled;
+    config.displayParams.spriteWindowInverted = regs2.spriteParams.spriteWindowInverted;
 
     config.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
     config.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
+
+    auto pack8x3 = [](const std::array<uint8, 8> &data) {
+        uint32 value = 0;
+        for (uint32 i = 0; i < data.size(); i++) {
+            value |= data[i] << (3 * i);
+        }
+        return value;
+    };
+
+    config.spritePriorities = pack8x3(regs2.spriteParams.priorities);
+    config.spriteColorCalcRatios = pack8x3(regs2.spriteParams.colorCalcRatios);
 
     m_context->VDP2Context.ModifyResource(
         m_context->cbufVDP2RenderConfig, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {

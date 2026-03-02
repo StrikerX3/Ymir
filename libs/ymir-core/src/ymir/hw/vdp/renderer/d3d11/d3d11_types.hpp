@@ -136,16 +136,29 @@ static constexpr size_t kVDP1BinBufferSize = 256 * 1024;
 // -----------------------------------------------------------------------------
 
 struct alignas(16) VDP2RenderConfig {
-    struct DisplayParams {            //  bits  use
-        D3DUint interlaced : 1;       //     0  Interlaced
-        D3DUint oddField : 1;         //     1  Field                    0=even; 1=odd
-        D3DUint exclusiveMonitor : 1; //     2  Exclusive monitor mode   0=normal; 1=exclusive
-        D3DUint colorRAMMode : 2;     //   3-4  Color RAM mode
-                                      //          0 = RGB 5:5:5, 1024 words
-                                      //          1 = RGB 5:5:5, 2048 words
-                                      //          2 = RGB 8:8:8, 1024 words
-                                      //          3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
-        D3DUint hiResH : 1;           //     5  Horizontal resolution    0=320/352; 1=640/704
+    struct DisplayParams {                 //  bits  use
+        D3DUint interlaced : 1;            //     0  Interlaced
+        D3DUint oddField : 1;              //     1  Field                    0=even; 1=odd
+        D3DUint exclusiveMonitor : 1;      //     2  Exclusive monitor mode   0=normal; 1=exclusive
+        D3DUint colorRAMMode : 2;          //   3-4  Color RAM mode
+                                           //          0 = RGB 5:5:5, 1024 words
+                                           //          1 = RGB 5:5:5, 2048 words
+                                           //          2 = RGB 8:8:8, 1024 words
+                                           //          3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
+        D3DUint hiResH : 1;                //     5  Horizontal resolution        0=320/352; 1=640/704
+        D3DUint spriteRotate : 1;          //     6  Sprite layer rotation        0=normal; 1=use rotparam A
+        D3DUint sprite8Bit : 1;            //     7  VDP1 data size               0=16-bit; 1=8-bit
+        D3DUint spriteType : 4;            //  8-11  Sprite data type
+        D3DUint spriteFBSizeH : 1;         //    12  Sprite framebuffer horizontal size shift  (512 << x)
+        D3DUint spriteFBSizeV : 1;         //    13  Sprite framebuffer vertical size shift    (256 << x)
+        D3DUint spriteMixedFormat : 1;     //    14  Sprite layer color format    0=palette only; 1=mixed palette/RGB
+        D3DUint useSpriteWindow : 1;       //    15  Sprite window enabled
+        D3DUint spriteColorCalcEnable : 1; //    16  Sprite color calculation enable
+        D3DUint spriteColorCalcValue : 3;  // 17-19  Target color calculation value
+        D3DUint spriteColorCalcCond : 2;   // 20-21  Special color calculation condition
+        D3DUint spriteColorDataOffset : 3; // 22-24  Special color data offset in CRAM
+        D3DUint spriteWindowEnabled : 1;   //    25  Sprite window enabled for the sprite layer
+        D3DUint spriteWindowInverted : 1;  //    26  Sprite window inverted for the sprite layer
     } displayParams;
 
     // Top Y coordinate of target rendering area
@@ -162,7 +175,7 @@ struct alignas(16) VDP2RenderConfig {
                                          //          5  -           NBG3        NBG3        NBG3
         D3DUint lineColorEnableRBG0 : 1; //     6  Line color screen enable for RBG0
         D3DUint lineColorEnableRBG1 : 1; //     7  Line color screen enable for RBG1
-        D3DUint bgEnabled : 6;           //  8-15  Individual layer enable flags
+        D3DUint bgEnabled : 6;           //  8-13  Individual layer enable flags
                                          //        bit  layer
                                          //          8  NBG0
                                          //          9  NBG1
@@ -171,6 +184,9 @@ struct alignas(16) VDP2RenderConfig {
                                          //         12  RBG0
                                          //         13  RBG1
     };
+
+    D3DUint spritePriorities;      // Packed 8x 3-bit sprite priorities
+    D3DUint spriteColorCalcRatios; // Packed 8x 3-bit sprite color calculation ratios
 };
 
 struct VDP2BGRenderParams {
