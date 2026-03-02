@@ -133,7 +133,7 @@ uint ReadFB8(uint address) {
 
 uint ReadFB16(uint address) {
     const uint value = fbOut.Load(address & ~3);
-    return (value >> ((address & 2) * 8)) & 0xFFFF;
+    return ByteSwap16(value >> ((address & 2) * 8));
 }
 
 void WriteFB8(uint address, uint data) {
