@@ -843,7 +843,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
     const RotParamState rotState = rotParamState[rotIndex];
 
     // Handle transparent pixels in coefficient table
-    const bool coeffTableEnable = BitTest(rotRegs[0].x, 0);
+    const bool coeffTableEnable = BitTest(rotRegs[rotSel].x, 0);
     if (coeffTableEnable && BitTest(rotState.coeffData, 7)) {
         return kTransparentPixel;
     }
