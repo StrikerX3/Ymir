@@ -407,7 +407,10 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     }
 
     // Pack coefficient data
-    result.coeffData = coeff.lineColorData | (coeff.transparent << 7);
+    result.coeffData = coeff.lineColorData;
+    if (coeff.transparent) {
+        result.coeffData |= 0x80;
+    }
 
     return result;
 }
