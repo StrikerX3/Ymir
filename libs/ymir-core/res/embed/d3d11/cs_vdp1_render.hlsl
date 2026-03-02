@@ -881,7 +881,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
                 // TODO: simplify this mess
                 const uint texU = uStepper.Value();
-                if (!endCodesEnabled || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex && endCodeIndex < charSizeH))) {
+                if (!endCodesEnabled || endCodeIndex >= charSizeH  || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
                     uint color;
                     bool transparent;
                     bool hasEndCode;
@@ -919,7 +919,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
                     }
 
                     const uint texU = uStepper.Value();
-                    if (!endCodesEnabled || (endCodeIndex < charSizeH && (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex)))) {
+                    if (!endCodesEnabled || endCodeIndex >= charSizeH || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
                         uint color;
                         bool transparent;
                         bool hasEndCode;
