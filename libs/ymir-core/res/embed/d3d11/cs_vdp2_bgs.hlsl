@@ -231,6 +231,11 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
         end.x = ReadVRAM16(address + 2);
     }
 
+    start.x = SignExtend(start.x, 16);
+    end.x = SignExtend(end.x, 16);
+    start.y = SignExtend(start.y, 16);
+    end.y = SignExtend(end.y, 16);
+
     // Some games set out-of-range window parameters and expect them to work.
     // It seems like window coordinates should be signed...
     //
