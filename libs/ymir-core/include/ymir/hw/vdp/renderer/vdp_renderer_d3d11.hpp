@@ -134,9 +134,6 @@ private:
     /// @return the index of the command in the ring buffer
     size_t VDP1AddCommand(uint32 cmdAddress);
 
-    /// @brief Discards the last command.
-    void VDP1DiscardCommand();
-
     /// @brief Specifies additional VDP1 line parameters.
     struct VDP1LineExtras {
         bool antiAliased; //< Whether the line is antialiased

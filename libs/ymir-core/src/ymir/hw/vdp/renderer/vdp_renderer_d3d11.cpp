@@ -850,13 +850,6 @@ FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(uint32 cmdAddress) {
     return index;
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1DiscardCommand() {
-    assert(m_context->cpuVDP1CommandTableHead != m_context->cpuVDP1CommandTableTail);
-
-    size_t &head = m_context->cpuVDP1CommandTableHead;
-    head = (head - 1) % m_context->cpuVDP1CommandTable.size();
-}
-
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
                                                      const VDP1LineExtras &extras) {
     // Discard if completely out of bounds
