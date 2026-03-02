@@ -393,7 +393,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
         (i64_mul32x32_mid32(ky, scrY) + Yp) >> 10
     );
 
-    if (fbRotEnable) {
+    if (fbRotEnable && index == 0) {
         // Current sprite coordinates (13.10)
         // 10 + 0*10 + 0*10 = 10 + 10 + 10 = 10 frac bits
         // 23 + 10*13 + 9*13 = 23 + 23 + 22 = 23 total bits
