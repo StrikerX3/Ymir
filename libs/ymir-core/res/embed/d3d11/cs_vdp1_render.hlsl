@@ -13,12 +13,12 @@ struct LineParams {
     uint userClip0;
     uint userClip1;
 
-    //   0-8  Command table entry index
-    //     9  Antialiased
-    //    10  Gouraud shading (0=no shading; 1=gouraud)
-    //    11  Textured        (0=solid color; 1=textured)
-    // 12-15  (reserved)
-    // 16-23  (reserved)
+    //   0-9  Command table entry index
+    // 10-15  (reserved)
+    //    16  Antialiased
+    //    17  Gouraud shading (0=no shading; 1=gouraud)
+    //    18  Textured        (0=solid color; 1=textured)
+    // 19-23  (reserved)
     // 24-31  Texture V coordinate
     uint params;
 
