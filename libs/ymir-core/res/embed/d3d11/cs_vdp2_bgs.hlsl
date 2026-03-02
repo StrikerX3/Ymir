@@ -2,7 +2,8 @@ struct Config {
     uint displayParams;
     uint startY;
     uint layerEnabled;
-    uint _reserved;
+    uint spritePriorities;
+    uint spriteColorCalcRatios;
 };
 
 struct Window {
@@ -25,8 +26,6 @@ struct BGRenderState {
     // TODO: NBG line scroll offset tables (X/Y) (or addresses to read from VRAM)
     // TODO: Vertical cell scroll table base address
     // TODO: Mosaic sizes (X/Y)
-
-    // TODO: Sprite layer parameters
 
     Window windows[2];
 
@@ -130,6 +129,22 @@ bool BitTest(uint value, uint bit) {
 uint BitExtract(uint value, uint offset, uint length) {
     const uint mask = (1u << length) - 1u;
     return (value >> offset) & mask;
+}
+
+int SignExtend(int value, int bits) {
+    const uint shift = 32 - bits;
+    return (value << shift) >> shift;
+}
+
+int2 Extract16PairSX(uint value32, int bits) {
+    return int2(
+        SignExtend(BitExtract(value32, 0, 16), bits),
+        SignExtend(BitExtract(value32, 16, 16), bits)
+    );
+}
+
+int2 Extract16PairS(uint value32) {
+    return Extract16PairSX(value32, 16);
 }
 
 uint ByteSwap16(uint val) {
@@ -834,19 +849,260 @@ uint4 DrawRBG(uint2 pos, uint index) {
 
 // -----------------------------------------------------------------------------
 
-uint4 DrawSprite(uint2 pos, uint index) {
-    // index 0 = sprite
-    // index 1 = transparent meshes
-    if (index == 0) {
-        // TODO: sprite type, color format, attributes, etc.
-        // TODO: 8-bit/16-bit mode
-        // TODO: framebuffer dimensions
-        const uint fbAddr = (pos.x + pos.y * 512) * 2;
-        const uint spriteData = ReadSprite16(fbAddr);
-        return uint4(spriteData & 0xFF, (spriteData >> 8) & 0xFF, 0, 1);
+static const uint kSpriteDataNormal = 0; // Any other value
+static const uint kSpriteDataShadow = 1; // Normal shadow pattern (DC=0b...11110)
+static const uint kSpriteDataTransparent = 2; // Raw 16-bit value is 0x0000
+
+struct SpriteData {
+    uint colorData; // DC10-0
+    uint colorCalcRatio; // CC2-0
+    uint priority; // PR2-0
+    bool shadowOrWindow; // SD
+    uint special; // Color data special patterns
+};
+
+uint GetSpecialPattern(uint rawData, uint colorDataBits) {
+    // Normal shadow pattern (LSB = 0, rest of the color data bits = 1)
+    const uint kNormalShadowValue = (1u << (colorDataBits + 1u)) - 2u;
+
+    if ((rawData & 0x7FFF) == 0) {
+        return kSpriteDataTransparent;
+    } else if (BitExtract(rawData, 0, colorDataBits) == kNormalShadowValue) {
+        return kSpriteDataShadow;
+    } else {
+        return kSpriteDataNormal;
+    }
+}
+
+SpriteData FetchSpriteData(uint fbAddr) {
+    // Adjust offset based on VDP1 data size.
+    // The majority of games actually set the sprite readout size to match the VDP1 sprite data size, but there's
+    // *always* an exception...
+    // 8-bit VDP1 data vs. 16-bit readout: NBA Live 98
+    // 16-bit VDP1 data vs. 8-bit readout: I Love Donald Duck
+    const uint type = BitExtract(config.displayParams, 8, 4);
+    const bool pixel8Bits = BitTest(config.displayParams, 7);
+    uint rawData;
+    if (pixel8Bits) {
+        rawData = ReadSprite8(fbAddr);
+        if (type < 8 /*&& (!applyMesh || rawData != 0)*/) {
+            rawData |= 0xFF00;
+        }
+    } else {
+        fbAddr <<= 1;
+        rawData = ReadSprite16(fbAddr);
     }
 
-    return uint4(pos, index * 255, 255);
+    // Sprite types 0-7 are 16-bit, 8-15 are 8-bit
+
+    SpriteData data;
+    switch (type) {
+        case 0x0:
+            data.colorData = BitExtract(rawData, 0, 10);
+            data.colorCalcRatio = BitExtract(rawData, 11, 13);
+            data.priority = BitExtract(rawData, 14, 15);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 10);
+            break;
+
+        case 0x1:
+            data.colorData = BitExtract(rawData, 0, 10);
+            data.colorCalcRatio = BitExtract(rawData, 11, 12);
+            data.priority = BitExtract(rawData, 13, 15);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 10);
+            break;
+
+        case 0x2:
+            data.colorData = BitExtract(rawData, 0, 10);
+            data.colorCalcRatio = BitExtract(rawData, 11, 13);
+            data.priority = BitExtract(rawData, 14, 1);
+            data.shadowOrWindow = BitTest(rawData, 15);
+            data.special = GetSpecialPattern(rawData, 10);
+            break;
+
+        case 0x3:
+            data.colorData = BitExtract(rawData, 0, 10);
+            data.colorCalcRatio = BitExtract(rawData, 11, 12);
+            data.priority = BitExtract(rawData, 13, 14);
+            data.shadowOrWindow = BitTest(rawData, 15);
+            data.special = GetSpecialPattern(rawData, 10);
+            break;
+
+        case 0x4:
+            data.colorData = BitExtract(rawData, 0, 9);
+            data.colorCalcRatio = BitExtract(rawData, 10, 12);
+            data.priority = BitExtract(rawData, 13, 14);
+            data.shadowOrWindow = BitTest(rawData, 15);
+            data.special = GetSpecialPattern(rawData, 9);
+            break;
+
+        case 0x5:
+            data.colorData = BitExtract(rawData, 0, 10);
+            data.colorCalcRatio = BitExtract(rawData, 11, 1);
+            data.priority = BitExtract(rawData, 12, 14);
+            data.shadowOrWindow = BitTest(rawData, 15);
+            data.special = GetSpecialPattern(rawData, 10);
+            break;
+
+        case 0x6:
+            data.colorData = BitExtract(rawData, 0, 9);
+            data.colorCalcRatio = BitExtract(rawData, 10, 11);
+            data.priority = BitExtract(rawData, 12, 14);
+            data.shadowOrWindow = BitTest(rawData, 15);
+            data.special = GetSpecialPattern(rawData, 9);
+            break;
+
+        case 0x7:
+            data.colorData = BitExtract(rawData, 0, 8);
+            data.colorCalcRatio = BitExtract(rawData, 9, 11);
+            data.priority = BitExtract(rawData, 12, 14);
+            data.shadowOrWindow = BitTest(rawData, 15);
+            data.special = GetSpecialPattern(rawData, 8);
+            break;
+
+        case 0x8:
+            data.colorData = BitExtract(rawData, 0, 6);
+            data.colorCalcRatio = 0;
+            data.priority = BitExtract(rawData, 7, 1);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 6);
+            break;
+
+        case 0x9:
+            data.colorData = BitExtract(rawData, 0, 5);
+            data.colorCalcRatio = BitExtract(rawData, 6, 1);
+            data.priority = BitExtract(rawData, 7, 1);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 5);
+            break;
+
+        case 0xA:
+            data.colorData = BitExtract(rawData, 0, 5);
+            data.colorCalcRatio = 0;
+            data.priority = BitExtract(rawData, 6, 7);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 5);
+            break;
+
+        case 0xB:
+            data.colorData = BitExtract(rawData, 0, 5);
+            data.colorCalcRatio = BitExtract(rawData, 6, 7);
+            data.priority = 0;
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 5);
+            break;
+
+        case 0xC:
+            data.colorData = BitExtract(rawData, 0, 7);
+            data.colorCalcRatio = 0;
+            data.priority = BitExtract(rawData, 7, 1);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 7);
+            break;
+
+        case 0xD:
+            data.colorData = BitExtract(rawData, 0, 7);
+            data.colorCalcRatio = BitExtract(rawData, 6, 1);
+            data.priority = BitExtract(rawData, 7, 1);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 7);
+            break;
+
+        case 0xE:
+            data.colorData = BitExtract(rawData, 0, 7);
+            data.colorCalcRatio = 0;
+            data.priority = BitExtract(rawData, 6, 7);
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 7);
+            break;
+
+        case 0xF:
+            data.colorData = BitExtract(rawData, 0, 7);
+            data.colorCalcRatio = BitExtract(rawData, 6, 7);
+            data.priority = 0;
+            data.shadowOrWindow = false;
+            data.special = GetSpecialPattern(rawData, 7);
+            break;
+    }
+    return data;
+}
+
+// index 0 = sprite
+// index 1 = transparent meshes
+uint4 DrawSprite(uint2 pos, uint index) {
+    // TODO: implement transparent meshes
+    if (index == 1) {
+        return kTransparentPixel;
+    }
+
+    const bool rotate = BitTest(config.displayParams, 6);
+    const uint type = BitExtract(config.displayParams, 8, 4);
+    const uint fbSizeH = 512 << BitExtract(config.displayParams, 12, 1);
+    const bool mixedFormat = BitTest(config.displayParams, 14);
+    const bool useSpriteWindow = BitTest(config.displayParams, 15);
+
+    const uint2 spritePos = rotate ? Extract16PairS(rotParamState[0].spriteCoords) : pos;
+    const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
+
+    // TODO: sprite window
+    /*if (m_spriteLayerAttrs[altField].window[x]) {
+        layerAttrs.shadowOrWindow[x] = false;
+        return kTransparentPixel;
+    }*/
+
+    if (mixedFormat) {
+        const uint spriteDataValue = ReadSprite16(fbAddr << 1);
+        if (BitTest(spriteDataValue, 15)) {
+            // RGB data
+
+            // Transparent if:
+            // - Using byte-sized sprite types (0x8 to 0xF) and the lower 8 bits are all zero
+            // - Using word-sized sprite types that have the shadow/sprite window bit (types 0x2 to 0x7), sprite
+            //   window is enabled, and the lower 15 bits are all zero
+            if (type >= 8) {
+                if (BitExtract(spriteDataValue, 0, 7) == 0) {
+                    // TODO: layerAttrs.shadowOrWindow[x] = false;
+                    return kTransparentPixel;
+                }
+            } else if (type >= 2) {
+                if (useSpriteWindow && BitExtract(spriteDataValue, 0, 14) == 0) {
+                    // TODO: layerAttrs.shadowOrWindow[x] = false;
+                    return kTransparentPixel;
+                }
+            }
+
+            const uint4 outColor = Color555(spriteDataValue);
+            const uint outPriority = BitExtract(config.spritePriorities, 0, 3);
+
+            // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
+            // TODO: layerAttrs.shadowOrWindow[x] = false;
+            // TODO: layerAttrs.normalShadow[x] = false;
+            return uint4(outColor.rgb, outPriority);
+        }
+    }
+
+    // Palette data
+    const SpriteData spriteData = FetchSpriteData(fbAddr);
+
+    // Handle sprite window
+    const bool spriteWindowEnabled = BitTest(config.displayParams, 25);
+    const bool spriteWindowInverted = BitTest(config.displayParams, 26);
+    if (useSpriteWindow && spriteWindowEnabled && spriteData.shadowOrWindow != spriteWindowInverted) {
+        // TODO: layerAttrs.shadowOrWindow[x] = true;
+        return kTransparentPixel;
+    }
+
+    const uint colorDataOffset = BitExtract(config.displayParams, 22, 3) << 8;
+    const uint colorIndex = colorDataOffset + spriteData.colorData;
+    const uint4 outColor = FetchCRAMColor(0, colorIndex);
+    const bool outTransparent = spriteData.special == kSpriteDataTransparent;
+    const uint outPriority = BitExtract(config.spritePriorities, spriteData.priority * 3, 3);
+
+    // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
+    // TODO: layerAttrs.shadowOrWindow[x] = spriteData.shadowOrWindow;
+    // TODO: layerAttrs.normalShadow[x] = spriteData.special == kSpriteDataShadow;
+    return uint4(outColor.xyz, (outTransparent << 7) | outPriority);
 }
 
 // -----------------------------------------------------------------------------
