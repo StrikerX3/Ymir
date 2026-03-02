@@ -31,8 +31,6 @@ struct CommandEntry {
     uint srca_size;
 };
 
-typedef uint4 Color555;
-
 // -----------------------------------------------------------------------------
 
 cbuffer Config : register(b0) {
@@ -152,7 +150,7 @@ void WriteFB8(uint address, uint data) {
 void WriteFB16(uint address, uint data) {
     const uint shift = (address & 2) * 8;
     const uint mask = ~(0xFFFF << shift);
-    data = (data & 0xFFFF) << shift;
+    data = ByteSwap16(data) << shift;
 
     address &= ~3;
     uint dummy;
@@ -160,7 +158,16 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
-Color555 Uint16ToColor555(uint rawValue) {
+uint4 Color555(uint val16) {
+    return uint4(
+        ((val16 >> 0) & 0x1F) << 3,
+        ((val16 >> 5) & 0x1F) << 3,
+        ((val16 >> 10) & 0x1F) << 3,
+        (val16 >> 15) & 1
+    );
+}
+
+uint4 Uint16ToColor555(uint rawValue) {
     return uint4(
         BitExtract(rawValue, 0, 5),
         BitExtract(rawValue, 5, 5),
@@ -169,7 +176,7 @@ Color555 Uint16ToColor555(uint rawValue) {
     );
 }
 
-uint Color555ToUint16(Color555 color) {
+uint Color555ToUint16(uint4 color) {
     return color.r | (color.g << 5) | (color.b << 10) | (color.a << 15);
 }
 
@@ -363,10 +370,10 @@ struct GouraudStepper {
     GouraudChannelStepper stepperB;
 
     // Sets up gouraud shading with the given length and start and end colors.
-    void Setup(uint length, Color555 gouraudStart, Color555 gouraudEnd) {
-        stepperR.Setup(length, gouraudStart.r, gouraudEnd.r);
-        stepperG.Setup(length, gouraudStart.g, gouraudEnd.g);
-        stepperB.Setup(length, gouraudStart.b, gouraudEnd.b);
+    void Setup(uint length, uint4 gouraudStart, uint4 gouraudEnd) {
+        stepperR.Setup(length, gouraudStart.r >> 3, gouraudEnd.r >> 3);
+        stepperG.Setup(length, gouraudStart.g >> 3, gouraudEnd.g >> 3);
+        stepperB.Setup(length, gouraudStart.b >> 3, gouraudEnd.b >> 3);
     }
 
     // Steps the gouraud shader to the next coordinate.
@@ -386,7 +393,7 @@ struct GouraudStepper {
     }
 
     // Returns the current gouraud gradient value.
-    Color555 Value() {
+    uint4 Value() {
         return uint4(
             stepperR.Value(),
             stepperG.Value(),
@@ -396,7 +403,7 @@ struct GouraudStepper {
     }
 
     // Blends the given base color with the current gouraud shading values.
-    Color555 Blend(Color555 baseColor) {
+    uint4 Blend(uint4 baseColor) {
         return uint4(
             stepperR.Blend(baseColor.r),
             stepperG.Blend(baseColor.g),
@@ -577,10 +584,10 @@ bool IsPixelClipped(const LineParams vdp1line, uint2 coord, bool userClippingEna
     return false;
 }
 
-void PlotPixel(uint2 coord, inout uint pixelData, const uint pmod_colr, const GouraudStepper gouraudStepper) {
-    const bool gouraudEnable = BitTest(pmod_colr, 2);
-    const bool meshEnable = BitTest(pmod_colr, 8);
-    const bool msbOn = BitTest(pmod_colr, 15);
+void PlotPixel(uint2 coord, inout uint pixelData, const uint cmdModeColor, const GouraudStepper gouraudStepper) {
+    const bool gouraudEnable = BitTest(cmdModeColor, 2);
+    const bool meshEnable = BitTest(cmdModeColor, 8);
+    const bool msbOn = BitTest(cmdModeColor, 15);
 
     if (meshEnable && ((coord.x ^ coord.y) & 1)) {
         return;
@@ -607,7 +614,7 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint pmod_colr, const Go
     } else {
         uint value;
         if (pixel8Bits) {
-            const uint value = BitExtract(pmod_colr, 16, 8);
+            const uint value = BitExtract(cmdModeColor, 16, 8);
 
             // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
 
@@ -620,18 +627,16 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint pmod_colr, const Go
                 }
             }
         } else {
+            const uint rawColor = BitExtract(cmdModeColor, 16, 16);
+            const uint colorCalcBits = BitExtract(cmdModeColor, 0, 2);
+
+            uint4 srcColor = Uint16ToColor555(rawColor);
+            uint4 dstColor;
+
             if (gouraudEnable) {
                 // Apply gouraud shading to source color
-                Color555 color = Uint16ToColor555(value);
-                color = gouraudStepper.Blend(color);
-                value = Color555ToUint16(color);
+                srcColor = gouraudStepper.Blend(srcColor);
             }
-
-            const uint rawColor = BitExtract(pmod_colr, 16, 16);
-            const uint colorCalcBits = BitExtract(pmod_colr, 0, 2);
-
-            Color555 srcColor = Uint16ToColor555(rawColor);
-            Color555 dstColor;
 
             // Apply color calculations
             //
@@ -812,8 +817,8 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     const bool textured = BitTest(vdp1line.params, 18);
     const uint texV = BitExtract(vdp1line.params, 24, 8);
 
-    const uint gouraudStart = BitExtract(vdp1line.gouraud, 0, 16);
-    const uint gouraudEnd = BitExtract(vdp1line.gouraud, 16, 16);
+    const uint4 gouraudStart = Color555(BitExtract(vdp1line.gouraud, 0, 16));
+    const uint4 gouraudEnd = Color555(BitExtract(vdp1line.gouraud, 16, 16));
 
     LineStepper lineStepper = NewLineStepper(vdp1line.coordStart, vdp1line.coordEnd, antiAlias);
 
@@ -833,7 +838,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
         charSizeH = max(BitExtract(commands[cmdIndex].srca_size, 8 + 16, 6) << 3, 1);
         flipH = BitTest(commands[cmdIndex].ctrl_grda, 4);
         charAddress = BitExtract(commands[cmdIndex].srca_size, 0, 16) << 3;
-        colorMode = BitExtract(cmdModeColor, 0, 2);
+        colorMode = BitExtract(cmdModeColor, 3, 3);
         colorData = BitExtract(cmdModeColor, 16, 16);
         transparentPixelDisable = BitTest(cmdModeColor, 6);
         const bool useHighSpeedShrink = BitTest(cmdModeColor, 12) && lineStepper.Length() < charSizeH - 1;
