@@ -295,7 +295,7 @@ RotCoefficient ReadRotCoefficient(uint2 regs, uint coeffAddress) {
 }
 
 RotParamState CalcRotation(uint2 pos, uint index) {
-    const RotParamBase base = rotParamBases[index];
+    const RotParamBase base = rotParamBases[index * kMaxNormalResV + pos.y + config.startY];
     const uint2 regs = rotRegs[index];
 
     const bool coeffTableEnable = BitTest(regs.x, 0);
@@ -313,8 +313,8 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     // expand to 10 frac bits
     // 10 - 10 = 10 frac bits
     // 23 - 24 = 24 total bits
-    const int Xst = base.Xst + pos.y * t.deltaXst;
-    const int Yst = base.Yst + pos.y * t.deltaYst;
+    const int Xst = base.Xst;
+    const int Yst = base.Yst;
     const int Zst = t.Zst;
     Tx = Xst - (t.Px << 10);
     Ty = Yst - (t.Py << 10);
@@ -350,7 +350,7 @@ RotParamState CalcRotation(uint2 pos, uint index) {
     if (coeffTableEnable) {
         // Current coefficient address (16.10)
         const uint KAxofs = coeffDataPerDot ? pos.x * t.dKAx : 0;
-        const uint KA = base.KA + pos.y * t.dKAst + KAxofs;
+        const uint KA = base.KA + KAxofs;
 
         // Read and apply rotation coefficient
         coeff = ReadRotCoefficient(regs, KA);

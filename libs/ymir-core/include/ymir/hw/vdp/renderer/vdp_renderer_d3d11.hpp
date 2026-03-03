@@ -227,8 +227,12 @@ private:
     /// @brief Updates the VDP2 rendering configuration constants.
     void VDP2UpdateRenderConfig();
 
-    /// @brief Updates rotation parameter base values for the next chunk.
-    void VDP2UpdateRotParamBases();
+    /// @brief Updates rotation parameter base values for the current scanline.
+    /// @param[in] y the scaline to compute
+    void VDP2UpdateRotationParameterBases(uint16 y);
+
+    /// @brief Uploads the rotation parameter base values table to the GPU.
+    void VDP2UploadRotationParameterBases();
 
     /// @brief Updates rotation parameter states if dirty.
     void VDP2UpdateRotParamStates();
@@ -238,7 +242,6 @@ private:
 
     uint32 m_nextVDP2BGY;
     uint32 m_nextVDP2ComposeY;
-    uint32 m_nextVDP2RotBasesY;
 
     struct Context;
     std::unique_ptr<Context> m_context;
