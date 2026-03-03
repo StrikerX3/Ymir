@@ -221,6 +221,9 @@ private:
     /// @brief Updates VDP2 CRAM if dirty.
     void VDP2UpdateCRAM();
 
+    /// @brief Initializes per-frame NBG states.
+    void VDP2InitNBGs();
+
     /// @brief Updates the VDP2 NBG/RBG render states if dirty.
     void VDP2UpdateBGRenderState();
 
