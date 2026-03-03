@@ -157,7 +157,7 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11Buffer *bufVDP2RotParamBases = nullptr;             //< VDP2 rotparam base values structured buffer array
     ID3D11ShaderResourceView *srvVDP2RotParamBases = nullptr; //< SRV for rotparam base values
-    std::array<VDP2RotParamBase, 2> cpuVDP2RotParamBases{};   //< CPU-side VDP2 rotparam base values
+    std::array<VDP2RotParamBase, kMaxNormalResV * 2> cpuVDP2RotParamBases{}; //< CPU-side VDP2 rotparam base values
 
     // -------------------------------------------------------------------------
     // VDP2 - NBG/RBG/sprite layer shader
@@ -541,7 +541,6 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     VDP2UpdateEnabledBGs();
     m_nextVDP2BGY = 0;
     m_nextVDP2ComposeY = 0;
-    m_nextVDP2RotBasesY = 0;
     m_context->dirtyVDP2VRAM.SetAll();
     m_context->dirtyVDP2CRAM = true;
     m_context->dirtyVDP2BGRenderState = true;
@@ -1541,7 +1540,6 @@ void Direct3D11VDPRenderer::VDP2LatchTVMD() {
 void Direct3D11VDPRenderer::VDP2BeginFrame() {
     m_nextVDP2BGY = 0;
     m_nextVDP2ComposeY = 0;
-    m_nextVDP2RotBasesY = 0;
 
     m_context->VDP2Context.VSSetShaderResources({});
     m_context->VDP2Context.VSSetShader(m_context->vsIdentity);
@@ -1552,6 +1550,7 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     VDP2CalcAccessPatterns();
+    VDP2UpdateRotationParameterBases(y);
     VDP2UpdateRotationPageBaseAddresses(m_state.regs2);
 
     const bool renderBGs = m_context->dirtyVDP2VRAM || m_context->dirtyVDP2CRAM || m_context->dirtyVDP2BGRenderState ||
@@ -1679,7 +1678,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     VDP2UpdateCRAM();
     VDP2UpdateBGRenderState();
     VDP2UpdateRotParamStates();
-    VDP2UpdateRotParamBases();
 
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY;
     VDP2UpdateRenderConfig();
@@ -1690,6 +1688,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // Compute rotation parameters if any RBGs are enabled
     if (m_state.regs2.bgEnabled[4] || m_state.regs2.bgEnabled[5]) {
+        VDP2UploadRotationParameterBases();
+
         ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
         ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2CoeffCache, m_context->srvVDP2RotRegs,
                                   m_context->srvVDP2RotParamBases});
@@ -1991,59 +1991,52 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
         });
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamBases() {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotationParameterBases(uint16 y) {
     VDP2Regs &regs2 = m_state.regs2;
     if (!regs2.bgEnabled[4] && !regs2.bgEnabled[5]) {
         // Skip if no RBGs are enabled
         return;
     }
 
-    // Determine how many lines to draw and update next scanline counter
-    const bool readAll = m_nextVDP2RotBasesY == 0;
-    const uint32 numLines = m_nextVDP2BGY - m_nextVDP2RotBasesY + 1;
-    m_nextVDP2RotBasesY = m_nextVDP2BGY + 1;
+    const bool readAll = y == 0;
 
     const uint32 baseAddress = regs2.commonRotParams.baseAddress & 0xFFF7C; // mask bit 6 (shifted left by 1)
     for (uint32 i = 0; i < 2; ++i) {
-        VDP2RotParamBase &base = m_context->cpuVDP2RotParamBases[i];
+        VDP2RotParamBase &base = m_context->cpuVDP2RotParamBases[i * kMaxNormalResV + y];
         RotationParams &src = regs2.rotParams[i];
 
         const uint32 address = baseAddress + i * 0x80;
 
         base.tableAddress = address;
 
-        uint32 numXstLines = numLines;
         if (readAll || src.readXst) {
             base.Xst = bit::extract_signed<6, 28, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x00));
             src.readXst = false;
-            --numXstLines;
-        }
-        if (numXstLines > 0) {
-            base.Xst += bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x0C)) * numXstLines;
+        } else {
+            const VDP2RotParamBase &prevBase = m_context->cpuVDP2RotParamBases[i * kMaxNormalResV + y - 1];
+            base.Xst = prevBase.Xst + bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x0C));
         }
 
-        uint32 numYstLines = numLines;
         if (readAll || src.readYst) {
             base.Yst = bit::extract_signed<6, 28, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x04));
             src.readYst = false;
-            --numYstLines;
-        }
-        if (numYstLines > 0) {
-            base.Yst += bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x10)) * numYstLines;
+        } else {
+            const VDP2RotParamBase &prevBase = m_context->cpuVDP2RotParamBases[i * kMaxNormalResV + y - 1];
+            base.Yst = prevBase.Yst + bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x10));
         }
 
-        uint32 numKALines = numLines;
         if (readAll || src.readKAst) {
             const uint32 KAst = bit::extract<6, 31>(m_state.VDP2ReadVRAM<uint32>(address + 0x54));
             base.KA = src.coeffTableAddressOffset + KAst;
             src.readKAst = false;
-            --numKALines;
-        }
-        if (numKALines > 0) {
-            base.KA += bit::extract_signed<6, 25>(m_state.VDP2ReadVRAM<uint32>(address + 0x58)) * numKALines;
+        } else {
+            const VDP2RotParamBase &prevBase = m_context->cpuVDP2RotParamBases[i * kMaxNormalResV + y - 1];
+            base.KA = prevBase.KA + bit::extract_signed<6, 25>(m_state.VDP2ReadVRAM<uint32>(address + 0x58));
         }
     }
+}
 
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UploadRotationParameterBases() {
     m_context->VDP2Context.ModifyResource(
         m_context->bufVDP2RotParamBases, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
             memcpy(mappedResource.pData, &m_context->cpuVDP2RotParamBases, sizeof(m_context->cpuVDP2RotParamBases));
