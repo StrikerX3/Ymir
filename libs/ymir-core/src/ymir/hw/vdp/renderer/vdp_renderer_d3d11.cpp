@@ -1541,6 +1541,8 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
     m_nextVDP2BGY = 0;
     m_nextVDP2ComposeY = 0;
 
+    VDP2InitNBGs();
+
     m_context->VDP2Context.VSSetShaderResources({});
     m_context->VDP2Context.VSSetShader(m_context->vsIdentity);
 
@@ -1553,15 +1555,28 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     VDP2UpdateRotationParameterBases(y);
     VDP2UpdateRotationPageBaseAddresses(m_state.regs2);
 
-    const bool renderBGs = m_context->dirtyVDP2VRAM || m_context->dirtyVDP2CRAM || m_context->dirtyVDP2BGRenderState ||
-                           m_context->dirtyVDP2RotParamState || m_context->dirtyVDP2ComposeParams;
-    const bool compose = m_context->dirtyVDP2ComposeParams;
-    if (renderBGs) {
-        VDP2RenderBGLines(y);
+    // When Y=0, the changes happened during vblank (or, more precisely, between the last Y of the previous frame and
+    // the first line of this frame). Otherwise, the changes happened between Y-1 and Y. Therefore, we need to render
+    // lines up to Y-1 then sync the state, unless Y=0, in which case we just sync the state.
+
+    if (y > 0) {
+        const bool renderBGs = m_context->dirtyVDP2VRAM || m_context->dirtyVDP2CRAM ||
+                               m_context->dirtyVDP2BGRenderState || m_context->dirtyVDP2RotParamState ||
+                               m_context->dirtyVDP2ComposeParams;
+        const bool compose = m_context->dirtyVDP2ComposeParams;
+        if (renderBGs) {
+            VDP2RenderBGLines(y - 1);
+        }
+        if (compose) {
+            VDP2ComposeLines(y - 1);
+        }
     }
-    if (compose) {
-        VDP2ComposeLines(y);
-    }
+
+    VDP2UpdateVRAM();
+    VDP2UpdateCRAM();
+    VDP2UpdateBGRenderState();
+    VDP2UpdateRotParamStates();
+    VDP2UpdateComposeParams();
 }
 
 void Direct3D11VDPRenderer::VDP2EndFrame() {
@@ -1569,6 +1584,12 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     const uint32 vres = m_VRes >> vShift;
     VDP2RenderBGLines(vres - 1);
     VDP2ComposeLines(m_VRes - 1);
+
+    VDP2UpdateVRAM();
+    VDP2UpdateCRAM();
+    VDP2UpdateBGRenderState();
+    VDP2UpdateRotParamStates();
+    VDP2UpdateComposeParams();
 
     auto &ctx = m_context->VDP2Context;
 
@@ -1674,11 +1695,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     auto &ctx = m_context->VDP2Context;
 
-    VDP2UpdateVRAM();
-    VDP2UpdateCRAM();
-    VDP2UpdateBGRenderState();
-    VDP2UpdateRotParamStates();
-
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY;
     VDP2UpdateRenderConfig();
 
@@ -1725,9 +1741,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     // ----------------------
 
     auto &ctx = m_context->VDP2Context;
-
-    VDP2UpdateBGRenderState();
-    VDP2UpdateComposeParams();
 
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2ComposeY;
     VDP2UpdateRenderConfig();
@@ -1790,6 +1803,28 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
                 memcpy(mappedResource.pData, &m_state.CRAM[kVDP2CRAMSize / 2], kVDP2CRAMSize / 2);
             });
     }
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2InitNBGs() {
+    const VDP2Regs &regs2 = m_state.regs2;
+    auto &state = m_context->cpuVDP2BGRenderState;
+
+    for (uint32 i = 0; i < 4; ++i) {
+        const BGParams &bgParams = regs2.bgParams[i + 1];
+
+        state.nbgScrollAmount[i].y = bgParams.scrollAmountV;
+        if (/*!m_enhancements.deinterlace &&*/ regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && regs2.TVSTAT.ODD) {
+            state.nbgScrollAmount[i].y += bgParams.scrollIncV;
+        }
+        state.nbgScrollInc[i].x = bgParams.scrollIncH;
+        // TODO: bgState.mosaicCounterY = 0;
+
+        if (i < 2) {
+            // TODO: bgState.lineScrollTableAddress = bgParams.lineScrollTableAddress;
+        }
+    }
+
+    m_context->dirtyVDP2BGRenderState = true;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
@@ -1855,8 +1890,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         }
 
         state.nbgScrollAmount[i].x = bgParams.scrollAmountH;
-        state.nbgScrollAmount[i].y = bgParams.scrollAmountV;
-        state.nbgScrollInc[i].x = bgParams.scrollIncH;
         state.nbgScrollInc[i].y = bgParams.scrollIncV;
 
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
