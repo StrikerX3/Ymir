@@ -1,8 +1,9 @@
 struct Config {
     uint displayParams;
     uint startY;
-    uint layerEnabled;
-    uint _reserved;
+    uint extraParams;
+    uint spritePriorities;
+    uint spriteColorCalcRatios;
 };
 
 struct ComposeParams {
@@ -94,15 +95,15 @@ uint GetY(uint y) {
 // -----------------------------------------------------------------------------
 
 bool IsBGLayerEnabled(uint bgLayer) {
-    return BitTest(config.layerEnabled, bgLayer + 8);
+    return BitTest(config.extraParams, bgLayer + 8);
 }
 
 bool IsLayerEnabled(uint layer) {
-    return BitTest(config.layerEnabled, layer);
+    return BitTest(config.extraParams, layer);
 }
 
 bool IsRBGLineColorEnabled(uint layer) {
-    return BitTest(config.layerEnabled, layer + 6);
+    return BitTest(config.extraParams, layer + 6);
 }
 
 uint GetBGLayerIndex(uint layer) {

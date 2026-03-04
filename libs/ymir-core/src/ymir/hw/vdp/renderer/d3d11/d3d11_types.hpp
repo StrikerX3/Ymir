@@ -183,7 +183,9 @@ struct alignas(16) VDP2RenderConfig {
                                          //         11  NBG3
                                          //         12  RBG0
                                          //         13  RBG1
-    };
+        D3DUint mosaicH : 4;             // 14-17  Horizontal mosaic size (minus one)
+        D3DUint mosaicV : 4;             // 18-21  Vertical mosaic size (minus one)
+    } extraParams;
 
     D3DUint spritePriorities;      // Packed 8x 3-bit sprite priorities
     D3DUint spriteColorCalcRatios; // Packed 8x 3-bit sprite color calculation ratios
@@ -297,7 +299,6 @@ struct alignas(16) VDP2BGRenderState {
     std::array<VDP2BGRenderParams, 4> nbgParams;
     std::array<VDP2BGRenderParams, 2> rbgParams;
 
-    // std::array<D3DUint2, 4> nbgFracScroll;   // 11.8 fixed-point
     std::array<D3DUint2, 4> nbgScrollAmount; // 11.8 fixed-point
     std::array<D3DUint2, 4> nbgScrollInc;    // 11.8 fixed-point
 
