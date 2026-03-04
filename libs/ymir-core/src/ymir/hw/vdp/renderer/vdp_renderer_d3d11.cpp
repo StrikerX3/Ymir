@@ -257,7 +257,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->csVDP1Render, "[Ymir D3D11] VDP1 polygon rendering compute shader");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM, nullptr,
-                                                    m_state.VRAM1.size(), m_state.VRAM1.data(), 0, 0);
+                                                    m_state.mem1.VRAM.size(), m_state.mem1.VRAM.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -344,7 +344,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->cbufVDP2RenderConfig, "[Ymir D3D11] VDP2 rendering configuration constant buffer");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2VRAM, &m_context->srvVDP2VRAM, nullptr,
-                                                    m_state.VRAM2.size(), m_state.VRAM2.data(), 0, 0);
+                                                    m_state.mem2.VRAM.size(), m_state.mem2.VRAM.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -429,8 +429,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->csVDP2RotParams, "[Ymir D3D11] VDP2 rotation parameters compute shader");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP2CoeffCache, &m_context->srvVDP2CoeffCache,
-                                                    nullptr, kVDP2CRAMSize / 2, &m_state.CRAM[kVDP2CRAMSize / 2], 0,
-                                                    D3D11_CPU_ACCESS_WRITE);
+                                                    nullptr, kVDP2CRAMSize / 2, &m_state.mem2.CRAM[kVDP2CRAMSize / 2],
+                                                    0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -621,7 +621,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
     auto &colorCache = m_context->cpuVDP2ColorCache;
     switch (m_state.regs2.vramControl.colorRAMMode) {
     case 0: {
-        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
         colorCache[address >> 1u][0] = color8.r;
@@ -630,7 +630,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
         break;
     }
     case 1: {
-        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
         colorCache[address >> 1u][0] = color8.r;
@@ -641,7 +641,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
     case 2: [[fallthrough]];
     case 3: [[fallthrough]];
     default: {
-        const auto value = m_state.VDP2ReadCRAM<uint32>(address & ~3u);
+        const auto value = m_state.mem2.ReadCRAM<uint32>(address & ~3u);
         const Color888 color8{.u32 = value};
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
@@ -657,7 +657,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
     auto &colorCache = m_context->cpuVDP2ColorCache;
     switch (m_state.regs2.vramControl.colorRAMMode) {
     case 0: {
-        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
         colorCache[address >> 1u][0] = color8.r;
@@ -666,7 +666,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
         break;
     }
     case 1: {
-        const auto value = m_state.VDP2ReadCRAM<uint16>(address & ~1u);
+        const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
         colorCache[address >> 1u][0] = color8.r;
@@ -677,7 +677,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
     case 2: [[fallthrough]];
     case 3: [[fallthrough]];
     default: {
-        const auto value = m_state.VDP2ReadCRAM<uint32>(address & ~3u);
+        const auto value = m_state.mem2.ReadCRAM<uint32>(address & ~3u);
         const Color888 color8{.u32 = value};
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
@@ -767,7 +767,7 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
             switch (m_state.regs2.vramControl.colorRAMMode) {
             case 0:
                 for (uint32 i = 0; i < 1024; ++i) {
-                    const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
+                    const auto value = m_state.mem2.ReadCRAM<uint16>(i * sizeof(uint16));
                     const Color555 color5{.u16 = value};
                     const Color888 color8 = ConvertRGB555to888(color5);
                     colorCache[i][0] = color8.r;
@@ -777,7 +777,7 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
                 break;
             case 1:
                 for (uint32 i = 0; i < 2048; ++i) {
-                    const auto value = m_state.VDP2ReadCRAM<uint16>(i * sizeof(uint16));
+                    const auto value = m_state.mem2.ReadCRAM<uint16>(i * sizeof(uint16));
                     const Color555 color5{.u16 = value};
                     const Color888 color8 = ConvertRGB555to888(color5);
                     colorCache[i][0] = color8.r;
@@ -789,7 +789,7 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
             case 3: [[fallthrough]];
             default:
                 for (uint32 i = 0; i < 1024; ++i) {
-                    const auto value = m_state.VDP2ReadCRAM<uint32>(i * sizeof(uint32));
+                    const auto value = m_state.mem2.ReadCRAM<uint32>(i * sizeof(uint32));
                     const Color888 color8{.u32 = value};
                     colorCache[i][0] = color8.r;
                     colorCache[i][1] = color8.g;
@@ -895,13 +895,13 @@ FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(uint32 cmdAddress) {
     assert(head != m_context->cpuVDP1CommandTableTail);
 
     auto &entry = m_context->cpuVDP1CommandTable[index];
-    entry.cmdctrl = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x00);
-    entry.cmdpmod = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x04);
-    entry.cmdcolr = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x06);
-    entry.cmdcolr = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x06);
-    entry.cmdsrca = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x08);
-    entry.cmdsize = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0A);
-    entry.cmdgrda = m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1C);
+    entry.cmdctrl = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x00);
+    entry.cmdpmod = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x04);
+    entry.cmdcolr = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x06);
+    entry.cmdcolr = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x06);
+    entry.cmdsrca = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x08);
+    entry.cmdsize = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0A);
+    entry.cmdgrda = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1C);
 
     return index;
 }
@@ -1054,10 +1054,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(size_t cmdIndex, Coor
     if (mode.gouraudEnable) {
         const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
 
-        Color555 colorA{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u)};
-        Color555 colorB{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u)};
-        Color555 colorC{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 4u)};
-        Color555 colorD{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 6u)};
+        Color555 colorA{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 0u)};
+        Color555 colorB{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 2u)};
+        Color555 colorC{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 4u)};
+        Color555 colorD{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 6u)};
 
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
@@ -1102,10 +1102,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawTexturedQuad(size_t cmdIndex, C
     if (mode.gouraudEnable) {
         const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
 
-        Color555 colorA{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u)};
-        Color555 colorB{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u)};
-        Color555 colorC{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 4u)};
-        Color555 colorD{.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 6u)};
+        Color555 colorA{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 0u)};
+        Color555 colorB{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 2u)};
+        Color555 colorC{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 4u)};
+        Color555 colorD{.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 6u)};
 
         quad.SetupGouraud(colorA, colorB, colorC, colorD);
     }
@@ -1187,7 +1187,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
             --count;
 
             m_context->VDP1Context.ModifyResource(bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                memcpy(mappedResource.pData, &m_state.VRAM1[vramOffset], kBufSize);
+                memcpy(mappedResource.pData, &m_state.mem1.VRAM[vramOffset], kBufSize);
             });
             ctx->CopySubresourceRegion(m_context->bufVDP1VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
             vramOffset += kBufSize;
@@ -1217,8 +1217,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     const uint32 charSizeV = size.V;
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
     sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
     sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
@@ -1242,8 +1242,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     const VDP1Command::Size size{.u16 = cmd.cmdsize};
 
     auto &ctx = m_VDP1State;
-    const sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    const sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    const sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C));
+    const sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E));
 
     // Calculated quad coordinates
     sint32 qxa = xa;
@@ -1259,12 +1259,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     const uint8 zoomPointV = bit::extract<2, 3>(control.zoomPoint);
 
     if (zoomPointH == 0) {
-        const sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
+        const sint32 xc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14));
 
         qxb = xc;
         qxc = xc;
     } else {
-        const sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10));
+        const sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10));
 
         switch (zoomPointH) {
         case 1:
@@ -1285,12 +1285,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     }
 
     if (zoomPointV == 0) {
-        const sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+        const sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16));
 
         qyc = yc;
         qyd = yc;
     } else {
-        const sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12));
+        const sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12));
 
         switch (zoomPointV) {
         case 1:
@@ -1336,14 +1336,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1362,14 +1362,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1388,14 +1388,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1417,10 +1417,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
 
     if (mode.gouraudEnable) {
         const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
-        gouraudA.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u);
-        gouraudB.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u);
-        gouraudC.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 4u);
-        gouraudD.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 6u);
+        gouraudA.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 0u);
+        gouraudB.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 2u);
+        gouraudC.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 4u);
+        gouraudD.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 6u);
     }
 
     if (mode.gouraudEnable) {
@@ -1463,10 +1463,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1482,8 +1482,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
 
     if (mode.gouraudEnable) {
         const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
-        extras.gouraudStart.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 0u);
-        extras.gouraudEnd.u16 = m_state.VDP1ReadVRAM<uint16>(gouraudTable + 2u);
+        extras.gouraudStart.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 0u);
+        extras.gouraudEnd.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 2u);
     }
 
     VDP1AddLine(cmdIndex, coordA, coordB, extras);
@@ -1497,22 +1497,22 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
     auto &ctx = m_VDP1State;
-    ctx.sysClipH = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
-    ctx.sysClipV = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+    ctx.sysClipH = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14));
+    ctx.sysClipV = bit::extract<0, 8>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16));
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
     auto &ctx = m_VDP1State;
-    ctx.userClipX0 = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    ctx.userClipX1 = bit::extract<0, 9>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x14));
-    ctx.userClipY0 = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
-    ctx.userClipY1 = bit::extract<0, 8>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x16));
+    ctx.userClipX0 = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C));
+    ctx.userClipX1 = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14));
+    ctx.userClipY0 = bit::extract<0, 8>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E));
+    ctx.userClipY1 = bit::extract<0, 8>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16));
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress) {
     auto &ctx = m_VDP1State;
-    ctx.localCoordX = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0C));
-    ctx.localCoordY = bit::sign_extend<13>(m_state.VDP1ReadVRAM<uint16>(cmdAddress + 0x0E));
+    ctx.localCoordX = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C));
+    ctx.localCoordY = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E));
 }
 
 // -----------------------------------------------------------------------------
@@ -1771,7 +1771,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {
             --count;
 
             m_context->VDP2Context.ModifyResource(bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                memcpy(mappedResource.pData, &m_state.VRAM2[vramOffset], kBufSize);
+                memcpy(mappedResource.pData, &m_state.mem2.VRAM[vramOffset], kBufSize);
             });
             ctx->CopySubresourceRegion(m_context->bufVDP2VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
             vramOffset += kBufSize;
@@ -1795,7 +1795,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateCRAM() {
     if ((regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable) {
         m_context->VDP2Context.ModifyResource(
             m_context->bufVDP2CoeffCache, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                memcpy(mappedResource.pData, &m_state.CRAM[kVDP2CRAMSize / 2], kVDP2CRAMSize / 2);
+                memcpy(mappedResource.pData, &m_state.mem2.CRAM[kVDP2CRAMSize / 2], kVDP2CRAMSize / 2);
             });
     }
 }
@@ -1885,6 +1885,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         }
 
         state.nbgScrollAmount[i].x = bgParams.scrollAmountH;
+        // state.nbgScrollAmount[i].y = bgParams.scrollAmountV;
+        // state.nbgScrollInc[i].x = bgParams.scrollIncH;
         state.nbgScrollInc[i].y = bgParams.scrollIncV;
 
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
@@ -2038,28 +2040,28 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotationParameterBases(uint16
         base.tableAddress = address;
 
         if (readAll || src.readXst) {
-            base.Xst = bit::extract_signed<6, 28, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x00));
+            base.Xst = bit::extract_signed<6, 28, sint32>(m_state.mem2.ReadVRAM<uint32>(address + 0x00));
             src.readXst = false;
         } else {
             const VDP2RotParamBase &prevBase = m_context->cpuVDP2RotParamBases[i * kMaxNormalResV + y - 1];
-            base.Xst = prevBase.Xst + bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x0C));
+            base.Xst = prevBase.Xst + bit::extract_signed<6, 18, sint32>(m_state.mem2.ReadVRAM<uint32>(address + 0x0C));
         }
 
         if (readAll || src.readYst) {
-            base.Yst = bit::extract_signed<6, 28, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x04));
+            base.Yst = bit::extract_signed<6, 28, sint32>(m_state.mem2.ReadVRAM<uint32>(address + 0x04));
             src.readYst = false;
         } else {
             const VDP2RotParamBase &prevBase = m_context->cpuVDP2RotParamBases[i * kMaxNormalResV + y - 1];
-            base.Yst = prevBase.Yst + bit::extract_signed<6, 18, sint32>(m_state.VDP2ReadVRAM<uint32>(address + 0x10));
+            base.Yst = prevBase.Yst + bit::extract_signed<6, 18, sint32>(m_state.mem2.ReadVRAM<uint32>(address + 0x10));
         }
 
         if (readAll || src.readKAst) {
-            const uint32 KAst = bit::extract<6, 31>(m_state.VDP2ReadVRAM<uint32>(address + 0x54));
+            const uint32 KAst = bit::extract<6, 31>(m_state.mem2.ReadVRAM<uint32>(address + 0x54));
             base.KA = src.coeffTableAddressOffset + KAst;
             src.readKAst = false;
         } else {
             const VDP2RotParamBase &prevBase = m_context->cpuVDP2RotParamBases[i * kMaxNormalResV + y - 1];
-            base.KA = prevBase.KA + bit::extract_signed<6, 25>(m_state.VDP2ReadVRAM<uint32>(address + 0x58));
+            base.KA = prevBase.KA + bit::extract_signed<6, 25>(m_state.mem2.ReadVRAM<uint32>(address + 0x58));
         }
     }
 }
