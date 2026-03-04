@@ -69,7 +69,7 @@ public:
     // -------------------------------------------------------------------------
     // Configuration
 
-    void ConfigureEnhancements(const config::Enhancements &enhancements) override;
+    void UpdateEnhancements() override;
 
     /// @brief Software renderer callbacks.
     SoftwareRendererCallbacks SwCallbacks;
@@ -556,9 +556,6 @@ private:
 
     // -------------------------------------------------------------------------
     // Configuration
-
-    // Local copy of the current VDP enhancements configuration.
-    config::Enhancements m_enhancements;
 
     // Runs the deinterlacer in a dedicated thread.
     bool m_threadedDeinterlacer = false;

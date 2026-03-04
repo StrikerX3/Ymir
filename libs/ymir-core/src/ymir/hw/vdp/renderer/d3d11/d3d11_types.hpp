@@ -297,6 +297,7 @@ struct alignas(16) VDP2BGRenderState {
     std::array<VDP2BGRenderParams, 4> nbgParams;
     std::array<VDP2BGRenderParams, 2> rbgParams;
 
+    // std::array<D3DUint2, 4> nbgFracScroll;   // 11.8 fixed-point
     std::array<D3DUint2, 4> nbgScrollAmount; // 11.8 fixed-point
     std::array<D3DUint2, 4> nbgScrollInc;    // 11.8 fixed-point
 
