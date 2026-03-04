@@ -27,7 +27,7 @@ namespace ymir::state {
 //   9 = 0.1.8
 //  10 = 0.2.0
 //  11 = 0.2.1
-//  12 = 0.2.2
+//  12 = 0.3.0
 inline constexpr uint32 kVersion = 12;
 
 } // namespace ymir::state
@@ -711,13 +711,6 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
             rs.normBGLayerStates[2].fracScrollY -= (s.regs2.SCYIN2 << 8u);
             rs.normBGLayerStates[3].fracScrollY -= (s.regs2.SCYIN3 << 8u);
         }
-        if (version < 7) {
-            // Compensate for the lack of scrollAmountV in earlier versions
-            rs.normBGLayerStates[0].scrollAmountV = (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
-            rs.normBGLayerStates[1].scrollAmountV = (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
-            rs.normBGLayerStates[2].scrollAmountV = (s.regs2.SCYIN2 << 8u);
-            rs.normBGLayerStates[3].scrollAmountV = (s.regs2.SCYIN3 << 8u);
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -732,6 +725,9 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
 
 template <class Archive>
 void serialize(Archive &ar, VDPState::VDPRendererState::NormBGLayerState &s, const uint32 version) {
+    // v12:
+    // - Removed fields
+    //   - scrollAmountV
     // v7:
     // - New fields
     //   - normBGLayerStates[0].scrollAmountV = (regs2.SCYIN0 << 8u) | (regs2.SCYDN0 >> 8u);
@@ -756,10 +752,11 @@ void serialize(Archive &ar, VDPState::VDPRendererState::NormBGLayerState &s, con
     //       normBGLayerStates[2].fracScrollY -= (regs2.SCYIN2 << 8u);
     //       normBGLayerStates[3].fracScrollY -= (regs2.SCYIN3 << 8u);
 
-    // NOTE: fracScrollX/Y and scrollAmountV compensation happens in the VDPState serializer
+    // NOTE: fracScrollX/Y compensation happens in the VDPState serializer
     ar(s.fracScrollX, s.fracScrollY, s.scrollIncH);
-    if (version >= 7) {
-        ar(s.scrollAmountV);
+    if (version >= 7 && version < 12) {
+        uint32 scrollAmountV;
+        ar(scrollAmountV);
     }
     ar(s.lineScrollTableAddress);
     if (version >= 4) {
