@@ -1,8 +1,9 @@
 struct Config {
     uint displayParams;
     uint startY;
-    uint layerEnabled;
-    uint _reserved;
+    uint extraParams;
+    uint spritePriorities;
+    uint spriteColorCalcRatios;
 };
 
 struct RotParamBase {
