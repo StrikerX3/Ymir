@@ -127,8 +127,7 @@ void SoftwareVDPRenderer::ResetImpl(bool hard) {
     VDP2UpdateEnabledBGs();
 }
 
-void SoftwareVDPRenderer::ConfigureEnhancements(const config::Enhancements &enhancements) {
-    m_enhancements = enhancements;
+void SoftwareVDPRenderer::UpdateEnhancements() {
     UpdateFunctionPointers();
 }
 
