@@ -352,8 +352,8 @@ void VDP2VRAMDelayView::Display() {
         for (uint32 i = 0; i < 2; i++) {
             if (ImGui::TableNextColumn()) {
                 if (regs2.bgEnabled[i]) {
-                    if (regs2.bgParams[i + 1].verticalCellScrollEnable) {
-                        if (nbgLayerStates[i].vertCellScrollDelay) {
+                    if (regs2.bgParams[i + 1].vcellScrollEnable) {
+                        if (nbgLayerStates[i].vcellScrollDelay) {
                             ImGui::TextColored(colorBad, "yes");
                         } else {
                             ImGui::TextColored(colorGood, "no");
@@ -371,8 +371,8 @@ void VDP2VRAMDelayView::Display() {
         }
         if (ImGui::TableNextColumn()) {
             if (regs2.bgEnabled[0]) {
-                if (regs2.bgParams[1].verticalCellScrollEnable) {
-                    if (nbgLayerStates[0].vertCellScrollRepeat) {
+                if (regs2.bgParams[1].vcellScrollEnable) {
+                    if (nbgLayerStates[0].vcellScrollRepeat) {
                         ImGui::TextColored(colorBad, "yes");
                     } else {
                         ImGui::TextColored(colorGood, "no");

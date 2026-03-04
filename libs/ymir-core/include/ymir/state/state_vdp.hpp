@@ -234,9 +234,9 @@ struct VDPState {
             uint32 fracScrollY;
             uint32 scrollIncH;
             uint32 lineScrollTableAddress;
-            uint32 vertCellScrollOffset;
-            bool vertCellScrollDelay;
-            bool vertCellScrollRepeat;
+            uint32 vcellScrollOffset;
+            bool vcellScrollDelay;
+            bool vcellScrollRepeat;
             uint8 mosaicCounterY;
         };
 
@@ -275,7 +275,7 @@ struct VDPState {
         std::array<RotationParamState, 2> rotParamStates;
         LineBackLayerState lineBackLayerState;
         std::array<std::array<VRAMFetcherState, 6>, 2> vramFetchers;
-        uint32 vertCellScrollInc;
+        uint32 vcellScrollInc;
 
         uint8 displayFB;
     } renderer;

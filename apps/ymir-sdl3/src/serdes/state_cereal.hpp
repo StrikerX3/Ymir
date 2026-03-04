@@ -463,7 +463,7 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     //   - vramFetchers = (default values)
     // v4:
     // - New fields
-    //   - vertCellScrollInc = sizeof(uint32)
+    //   - vcellScrollInc = sizeof(uint32)
     // v10:
     // - Removed fields
     //   - bool vdp1Done
@@ -689,9 +689,9 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
             }
         }
         if (version >= 4) {
-            ar(rs.vertCellScrollInc);
+            ar(rs.vcellScrollInc);
         } else {
-            rs.vertCellScrollInc = sizeof(uint32);
+            rs.vcellScrollInc = sizeof(uint32);
         }
         ar(rs.displayFB);
         if (version <= 10) {
@@ -734,11 +734,11 @@ void serialize(Archive &ar, VDPState::VDPRendererState::NormBGLayerState &s, con
     //   - normBGLayerStates[1].scrollAmountV = (regs2.SCYIN1 << 8u) | (regs2.SCYDN1 >> 8u);
     //   - normBGLayerStates[2].scrollAmountV = (regs2.SCYIN2 << 8u);
     //   - normBGLayerStates[3].scrollAmountV = (regs2.SCYIN3 << 8u);
-    //   - vertCellScrollDelay = false
-    //   - vertCellScrollRepeat = false
+    //   - vcellScrollDelay = false
+    //   - vcellScrollRepeat = false
     // v4:
     // - New fields
-    //   - vertCellScrollOffset = 0
+    //   - vcellScrollOffset = 0
     // - Changed fields
     //   - fracScrollX and fracScrollY no longer include the values of SC[XY][ID]N#. Therefore, they need to be
     //     compensated for as follows:
@@ -760,15 +760,15 @@ void serialize(Archive &ar, VDPState::VDPRendererState::NormBGLayerState &s, con
     }
     ar(s.lineScrollTableAddress);
     if (version >= 4) {
-        ar(s.vertCellScrollOffset);
+        ar(s.vcellScrollOffset);
     } else {
-        s.vertCellScrollOffset = 0;
+        s.vcellScrollOffset = 0;
     }
     if (version >= 7) {
-        ar(s.vertCellScrollDelay, s.vertCellScrollRepeat);
+        ar(s.vcellScrollDelay, s.vcellScrollRepeat);
     } else {
-        s.vertCellScrollDelay = false;
-        s.vertCellScrollRepeat = false;
+        s.vcellScrollDelay = false;
+        s.vcellScrollRepeat = false;
     }
     ar(s.mosaicCounterY);
 }

@@ -4,6 +4,7 @@ struct Config {
     uint extraParams;
     uint spritePriorities;
     uint spriteColorCalcRatios;
+    uint vcellScrollTableAddress;
 };
 
 struct Window {
@@ -22,9 +23,6 @@ struct BGRenderState {
 
     uint nbgPageBaseAddresses[4][4];
     uint rbgPageBaseAddresses[2][2][16];
-
-    // TODO: NBG line scroll offset tables (X/Y) (or addresses to read from VRAM)
-    // TODO: Vertical cell scroll table base address
 
     Window windows[2];
 
@@ -613,10 +611,10 @@ uint4 DrawNBG(uint2 pos, uint index) {
     // const bool lineScrollYEnable = BitTest(nbgParams.y, 2);
     // const uint lineScrollInterval = 1 << BitExtract(nbgParams.y, 3, 2;
     // const uint lineScrollTableAddress = BitExtract(nbgParams.y, 5, 3) << 17;
-    // const bool vertCellScrollEnable = BitTest(nbgParams.y, 8);
-    // const bool vertCellScrollDelay = BitTest(nbgParams.y, 9);
-    // const uint vertCellScrollOffset = BitExtract(nbgParams.y, 10, 1) << 2;
-    // const bool vertCellScrollRepeat = BitTest(nbgParams.y, 11);
+    // const bool vcellScrollEnable = BitTest(nbgParams.y, 8);
+    // const bool vcellScrollDelay = BitTest(nbgParams.y, 9);
+    // const uint vcellScrollOffset = BitExtract(nbgParams.y, 10, 1) << 2;
+    // const bool vcellScrollRepeat = BitTest(nbgParams.y, 11);
     const bool mosaicEnable = BitTest(nbgParams.y, 12);
 
     uint2 scrollPos = fracScrollPos >> 8;
