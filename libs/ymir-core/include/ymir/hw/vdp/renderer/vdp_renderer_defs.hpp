@@ -163,11 +163,6 @@ struct NBGLayerState {
     // Reset at the start of every frame and updated every scanline.
     uint32 fracScrollY;
 
-    // Vertical scroll amount with 8 fractional bits.
-    // Initialized at VBlank OUT.
-    // Derived from SCYINn and SCYDNn
-    uint32 scrollAmountV;
-
     // Fractional X scroll coordinate increment.
     // Applied every pixel and updated at the start of the frame or every line when line zoom is enabled.
     uint32 scrollIncH;
