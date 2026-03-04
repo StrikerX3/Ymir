@@ -362,6 +362,10 @@ protected:
     /// @param[in] regs2 the VDP2 register state to update
     void VDP2CalcAccessPatterns(VDP2Regs &regs2);
 
+    /// @brief Computes vertical cell scroll access delays for NBGs 0 and 1.
+    /// @param regs2 the VDP2 register state to use
+    void VDP2CalcVertCellScrollDelay(VDP2Regs &regs2);
+
     /// @brief Updates the background enable states in `m_layerEnabled`.
     /// @param[in] regs2 the VDP2 register state to use
     /// @param[in] debugRenderOpts the VDP2 debug rendering options to use

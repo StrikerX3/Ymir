@@ -1567,11 +1567,7 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
         }
     }
 
-    VDP2UpdateVRAM();
-    VDP2UpdateCRAM();
-    VDP2UpdateBGRenderState();
-    VDP2UpdateRotParamStates();
-    VDP2UpdateComposeParams();
+    VDP2UpdateState();
 }
 
 void Direct3D11VDPRenderer::VDP2EndFrame() {
@@ -1580,11 +1576,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     VDP2RenderBGLines(vres - 1);
     VDP2ComposeLines(m_VRes - 1);
 
-    VDP2UpdateVRAM();
-    VDP2UpdateCRAM();
-    VDP2UpdateBGRenderState();
-    VDP2UpdateRotParamStates();
-    VDP2UpdateComposeParams();
+    VDP2UpdateState();
 
     auto &ctx = m_context->VDP2Context;
 
@@ -1675,6 +1667,27 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
             auto &scrollParams = renderParams.typeSpecific.scroll;
             scrollParams.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
         }
+    }
+
+    m_context->dirtyVDP2BGRenderState = true;
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVertCellScrollDelay() {
+    const bool dirty = m_state.regs2.accessPatternsDirty;
+    IVDPRenderer::VDP2CalcVertCellScrollDelay(m_state.regs2);
+    if (!dirty) {
+        return;
+    }
+
+    auto &state = m_context->cpuVDP2BGRenderState;
+    for (uint32 i = 0; i < 2; ++i) {
+        const NBGLayerState &bgState = m_nbgLayerStates[i];
+        auto &renderParams = state.nbgParams[i];
+
+        auto &commonParams = renderParams.common;
+        commonParams.vertCellScrollDelay = bgState.vertCellScrollDelay;
+        commonParams.vertCellScrollOffset = bgState.vertCellScrollOffset;
+        commonParams.vertCellScrollRepeat = bgState.vertCellScrollRepeat;
     }
 
     m_context->dirtyVDP2BGRenderState = true;
@@ -2170,6 +2183,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
         m_context->bufVDP2ComposeParams, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
             memcpy(mappedResource.pData, &m_context->cpuVDP2ComposeParams, sizeof(m_context->cpuVDP2ComposeParams));
         });
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateState() {
+    VDP2UpdateVRAM();
+    VDP2UpdateCRAM();
+    VDP2UpdateBGRenderState();
+    VDP2UpdateRotParamStates();
+    VDP2UpdateComposeParams();
 }
 
 } // namespace ymir::vdp::d3d11

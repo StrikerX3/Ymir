@@ -70,6 +70,7 @@ struct VDP2Regs {
 
         TVMDDirty = true;
         accessPatternsDirty = true;
+        vcellScrollDirty = true;
     }
 
     template <bool peek>
@@ -1837,6 +1838,9 @@ struct VDP2Regs {
     }
 
     FORCE_INLINE void WriteSCRCTL(uint16 value) {
+        vcellScrollDirty |= bgParams[1].verticalCellScrollEnable != bit::test<0>(value);
+        vcellScrollDirty |= bgParams[2].verticalCellScrollEnable != bit::test<8>(value);
+
         bgParams[1].verticalCellScrollEnable = bit::test<0>(value);
         bgParams[1].lineScrollXEnable = bit::test<1>(value);
         bgParams[1].lineScrollYEnable = bit::test<2>(value);
@@ -3276,6 +3280,10 @@ struct VDP2Regs {
     // - BGON
     // - ZMCTL
     bool accessPatternsDirty;
+
+    // Indicates if the vertical cell scroll was enabled or disabled on NBG 0 or 1.
+    // Also set when VRAM access patterns change.
+    bool vcellScrollDirty;
 
     // Whether to display each background:
     // [0] NBG0
