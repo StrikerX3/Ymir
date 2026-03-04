@@ -169,7 +169,7 @@ struct NBGLayerState {
     uint32 scrollAmountV;
 
     // Fractional X scroll coordinate increment.
-    // Applied every pixel and updated every scanline.
+    // Applied every pixel and updated at the start of the frame or every line when line zoom is enabled.
     uint32 scrollIncH;
 
     // Current line scroll table address.

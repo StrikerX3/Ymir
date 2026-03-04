@@ -62,11 +62,6 @@ protected:
 
 public:
     // -------------------------------------------------------------------------
-    // Configuration
-
-    void ConfigureEnhancements(const config::Enhancements &enhancements) override;
-
-    // -------------------------------------------------------------------------
     // Save states
 
     void PreSaveStateSync() override;

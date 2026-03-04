@@ -553,11 +553,6 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
 }
 
 // -----------------------------------------------------------------------------
-// Configuration
-
-void Direct3D11VDPRenderer::ConfigureEnhancements(const config::Enhancements &enhancements) {}
-
-// -----------------------------------------------------------------------------
 // Save states
 
 void Direct3D11VDPRenderer::PreSaveStateSync() {}
