@@ -563,6 +563,7 @@ void SoftwareVDPRenderer::VDP2RenderLine(uint32 y) {
     if (m_threadedVDP2Rendering) {
         m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::VDP2DrawLine(y));
         VDP2CalcAccessPatterns(m_state.regs2);
+        VDP2CalcVertCellScrollDelay(m_state.regs2);
     } else {
         const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
         VDP2PrepareLine(y);
@@ -2353,6 +2354,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2PrepareLine(uint32 y) {
     }
 
     VDP2CalcAccessPatterns(regs2);
+    VDP2CalcVertCellScrollDelay(regs2);
     if (regs2.bgEnabled[4] || regs2.bgEnabled[5]) {
         VDP2CalcRotationParameterTables(y);
     }

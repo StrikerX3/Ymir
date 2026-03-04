@@ -201,6 +201,10 @@ private:
     /// and updates dirty flags as needed.
     void VDP2CalcAccessPatterns();
 
+    /// @brief Convenience method that invokes `IVDPRenderer::VDP2CalcVertCellScrollDelay(...)` with the correct
+    /// parameters and updates dirty flags as needed.
+    void VDP2CalcVertCellScrollDelay();
+
     /// @brief Renders NBG/RBG lines [`m_nextVDP2BGY`..`y`] and updates `m_nextVDP2BGY` to point to the next scanline.
     /// @param[in] y the bottommost line to render
     void VDP2RenderBGLines(uint32 y);
@@ -237,6 +241,9 @@ private:
 
     /// @brief Updates VDP2 compositor parameters if dirty.
     void VDP2UpdateComposeParams();
+
+    /// @brief Updates all dirty VDP2 state.
+    void VDP2UpdateState();
 
     uint32 m_nextVDP2BGY;
     uint32 m_nextVDP2ComposeY;
