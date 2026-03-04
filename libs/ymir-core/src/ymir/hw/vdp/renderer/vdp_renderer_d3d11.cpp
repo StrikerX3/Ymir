@@ -1645,9 +1645,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
         commonParams.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
         commonParams.charPatDelay = bgParams.charPatDelay;
         commonParams.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
-        commonParams.vertCellScrollDelay = bgState.vertCellScrollDelay;
-        commonParams.vertCellScrollOffset = bgState.vertCellScrollOffset;
-        commonParams.vertCellScrollRepeat = bgState.vertCellScrollRepeat;
+        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
+        commonParams.vcellScrollOffset = bgState.vcellScrollOffset;
+        commonParams.vcellScrollRepeat = bgState.vcellScrollRepeat;
 
         if (!bgParams.bitmap) {
             auto &scrollParams = renderParams.typeSpecific.scroll;
@@ -1672,9 +1672,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
     m_context->dirtyVDP2BGRenderState = true;
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVertCellScrollDelay() {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVCellScrollDelay() {
     const bool dirty = m_state.regs2.accessPatternsDirty;
-    IVDPRenderer::VDP2CalcVertCellScrollDelay(m_state.regs2);
+    IVDPRenderer::VDP2CalcVCellScrollDelay(m_state.regs2);
     if (!dirty) {
         return;
     }
@@ -1685,9 +1685,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVertCellScrollDelay() {
         auto &renderParams = state.nbgParams[i];
 
         auto &commonParams = renderParams.common;
-        commonParams.vertCellScrollDelay = bgState.vertCellScrollDelay;
-        commonParams.vertCellScrollOffset = bgState.vertCellScrollOffset;
-        commonParams.vertCellScrollRepeat = bgState.vertCellScrollRepeat;
+        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
+        commonParams.vcellScrollOffset = bgState.vcellScrollOffset;
+        commonParams.vcellScrollRepeat = bgState.vcellScrollRepeat;
     }
 
     m_context->dirtyVDP2BGRenderState = true;
@@ -1862,8 +1862,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         commonParams.lineScrollYEnable = bgParams.lineScrollYEnable;
         commonParams.lineScrollInterval = bgParams.lineScrollInterval;
         commonParams.lineScrollTableAddress = nbgState.lineScrollTableAddress >> 17u;
-        commonParams.vertCellScrollEnable = bgParams.verticalCellScrollEnable;
-        commonParams.mosaicEnable = bgParams.mosaicEnable && (i >= 2 || !bgParams.verticalCellScrollEnable);
+        commonParams.vcellScrollEnable = bgParams.vcellScrollEnable;
+        commonParams.mosaicEnable = bgParams.mosaicEnable && (i >= 2 || !bgParams.vcellScrollEnable);
         commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
         commonParams.window0Enable = bgParams.windowSet.enabled[0];
         commonParams.window0Invert = bgParams.windowSet.inverted[0];
@@ -2027,6 +2027,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
 
     config.spritePriorities = pack8x3(regs2.spriteParams.priorities);
     config.spriteColorCalcRatios = pack8x3(regs2.spriteParams.colorCalcRatios);
+
+    config.vcellScrollTableAddress = regs2.vcellScrollTableAddress;
 
     m_context->VDP2Context.ModifyResource(
         m_context->cbufVDP2RenderConfig, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {

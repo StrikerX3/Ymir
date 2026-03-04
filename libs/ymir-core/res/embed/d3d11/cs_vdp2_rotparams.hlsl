@@ -4,6 +4,7 @@ struct Config {
     uint extraParams;
     uint spritePriorities;
     uint spriteColorCalcRatios;
+    uint vcellScrollTableAddress;
 };
 
 struct RotParamBase {
