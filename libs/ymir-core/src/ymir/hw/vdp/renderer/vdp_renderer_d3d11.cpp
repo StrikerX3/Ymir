@@ -1602,8 +1602,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
     const VDP2Regs &regs2 = m_state.regs2;
     IVDPRenderer::VDP2UpdateEnabledBGs(regs2, m_vdp2DebugRenderOptions);
 
-    m_context->cpuVDP2RenderConfig.layerEnabled = bit::gather_array<uint32>(m_layerEnabled);
-    m_context->cpuVDP2RenderConfig.bgEnabled = bit::gather_array<uint32>(regs2.bgEnabled);
+    m_context->cpuVDP2RenderConfig.extraParams.layerEnabled = bit::gather_array<uint32>(m_layerEnabled);
+    m_context->cpuVDP2RenderConfig.extraParams.bgEnabled = bit::gather_array<uint32>(regs2.bgEnabled);
 
     auto &state = m_context->cpuVDP2BGRenderState;
     for (uint32 i = 0; i < 4; ++i) {
@@ -1819,16 +1819,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2InitNBGs() {
 
     for (uint32 i = 0; i < 4; ++i) {
         const BGParams &bgParams = regs2.bgParams[i + 1];
+        NBGLayerState &nbgState = m_nbgLayerStates[i];
 
-        state.nbgScrollAmount[i].y = bgParams.scrollAmountV;
-        if (/*!m_enhancements.deinterlace &&*/ regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && regs2.TVSTAT.ODD) {
-            state.nbgScrollAmount[i].y += bgParams.scrollIncV;
-        }
-        state.nbgScrollInc[i].x = bgParams.scrollIncH;
-        // TODO: bgState.mosaicCounterY = 0;
+        // NOTE: fracScrollX/Y are computed from scratch in the shader
+        nbgState.scrollIncH = bgParams.scrollIncH;
 
         if (i < 2) {
-            // TODO: bgState.lineScrollTableAddress = bgParams.lineScrollTableAddress;
+            nbgState.lineScrollTableAddress = bgParams.lineScrollTableAddress;
         }
     }
 
@@ -1847,6 +1844,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
     for (uint32 i = 0; i < 4; ++i) {
         const BGParams &bgParams = regs2.bgParams[i + 1];
         VDP2BGRenderParams &renderParams = state.nbgParams[i];
+        const NBGLayerState &nbgState = m_nbgLayerStates[i];
 
         auto &commonParams = renderParams.common;
         commonParams.transparencyEnable = bgParams.enableTransparency;
@@ -1863,16 +1861,16 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         commonParams.lineScrollXEnable = bgParams.lineScrollXEnable;
         commonParams.lineScrollYEnable = bgParams.lineScrollYEnable;
         commonParams.lineScrollInterval = bgParams.lineScrollInterval;
-        commonParams.lineScrollTableAddress = bgParams.lineScrollTableAddress >> 17u;
+        commonParams.lineScrollTableAddress = nbgState.lineScrollTableAddress >> 17u;
         commonParams.vertCellScrollEnable = bgParams.verticalCellScrollEnable;
-        commonParams.mosaicEnable = bgParams.mosaicEnable;
+        commonParams.mosaicEnable = bgParams.mosaicEnable && (i >= 2 || !bgParams.verticalCellScrollEnable);
+        commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
         commonParams.window0Enable = bgParams.windowSet.enabled[0];
         commonParams.window0Invert = bgParams.windowSet.inverted[0];
         commonParams.window1Enable = bgParams.windowSet.enabled[1];
         commonParams.window1Invert = bgParams.windowSet.inverted[1];
         commonParams.spriteWindowEnable = bgParams.windowSet.enabled[2];
         commonParams.spriteWindowInvert = bgParams.windowSet.inverted[2];
-        commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
 
         if (bgParams.bitmap) {
             commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
@@ -1898,8 +1896,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         }
 
         state.nbgScrollAmount[i].x = bgParams.scrollAmountH;
-        // state.nbgScrollAmount[i].y = bgParams.scrollAmountV;
-        // state.nbgScrollInc[i].x = bgParams.scrollIncH;
+        state.nbgScrollAmount[i].y = bgParams.scrollAmountV;
+        state.nbgScrollInc[i].x = nbgState.scrollIncH;
         state.nbgScrollInc[i].y = bgParams.scrollIncV;
 
         state.nbgPageBaseAddresses[i] = bgParams.pageBaseAddresses;
@@ -2014,8 +2012,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.spriteWindowEnabled = regs2.spriteParams.spriteWindowEnabled;
     config.displayParams.spriteWindowInverted = regs2.spriteParams.spriteWindowInverted;
 
-    config.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
-    config.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
+    config.extraParams.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
+    config.extraParams.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
+    config.extraParams.mosaicH = regs2.mosaicH - 1;
+    config.extraParams.mosaicV = regs2.mosaicV - 1;
 
     auto pack8x3 = [](const std::array<uint8, 8> &data) {
         uint32 value = 0;

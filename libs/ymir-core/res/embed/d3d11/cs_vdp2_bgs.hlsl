@@ -1,7 +1,7 @@
 struct Config {
     uint displayParams;
     uint startY;
-    uint layerEnabled;
+    uint extraParams;
     uint spritePriorities;
     uint spriteColorCalcRatios;
 };
@@ -25,7 +25,6 @@ struct BGRenderState {
 
     // TODO: NBG line scroll offset tables (X/Y) (or addresses to read from VRAM)
     // TODO: Vertical cell scroll table base address
-    // TODO: Mosaic sizes (X/Y)
 
     Window windows[2];
 
@@ -608,19 +607,23 @@ uint4 DrawNBG(uint2 pos, uint index) {
 
     const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
 
-    // TODO: mosaic, line screen scroll, vertical cell scroll, data access delays, etc.
+    // TODO: line screen scroll, vertical cell scroll, data access delays, etc.
     // const bool lineZoomEnable = BitTest(nbgParams.y, 0);
     // const bool lineScrollXEnable = BitTest(nbgParams.y, 1);
     // const bool lineScrollYEnable = BitTest(nbgParams.y, 2);
     // const uint lineScrollInterval = 1 << BitExtract(nbgParams.y, 3, 2;
     // const uint lineScrollTableAddress = BitExtract(nbgParams.y, 5, 3) << 17;
-    // const bool mosaicEnable = BitTest(nbgParams.x, 12);
-    // const bool vertCellScrollEnable = BitTest(nbgParams.y, 8) && !mosaicEnable;
+    // const bool vertCellScrollEnable = BitTest(nbgParams.y, 8);
     // const bool vertCellScrollDelay = BitTest(nbgParams.y, 9);
     // const uint vertCellScrollOffset = BitExtract(nbgParams.y, 10, 1) << 2;
     // const bool vertCellScrollRepeat = BitTest(nbgParams.y, 11);
+    const bool mosaicEnable = BitTest(nbgParams.y, 12);
 
-    const uint2 scrollPos = fracScrollPos >> 8;
+    uint2 scrollPos = fracScrollPos >> 8;
+    if (mosaicEnable) {
+        const uint2 mosaic = uint2(BitExtract(config.extraParams, 14, 4) + 1, BitExtract(config.extraParams, 18, 4) + 1);
+        scrollPos -= scrollPos % mosaic;
+    }
 
     const bool bitmap = BitTest(nbgParams.x, 31);
     return bitmap
@@ -658,8 +661,8 @@ uint SelectRotationParameter(uint4 rbgParams, uint2 pos) {
     return kRotParamA; // shouldn't happen
 }
 
-void StoreRotationLineColorData(uint2 pos, uint index, uint rotSel) {
-    const bool lineColorEnabled = BitTest(config.layerEnabled, 6 + index);
+void StoreRotationLineColorData(uint2 pos, uint2 rotPos, uint index, uint rotSel) {
+    const bool lineColorEnabled = BitTest(config.extraParams, 6 + index);
     if (!lineColorEnabled) {
         return;
     }
@@ -667,7 +670,7 @@ void StoreRotationLineColorData(uint2 pos, uint index, uint rotSel) {
     const BGRenderState state = bgRenderState[0];
     const uint commonRotParams = state.commonRotParams;
     const uint regsMode = BitExtract(commonRotParams, 0, 2);
-    const bool hasRBG1 = BitTest(config.layerEnabled, 13);
+    const bool hasRBG1 = BitTest(config.extraParams, 13);
 
     bool useCoeffLineColor = false;
     uint coeffSel;
@@ -706,7 +709,7 @@ void StoreRotationLineColorData(uint2 pos, uint index, uint rotSel) {
         if (coeffTableEnable && coeffUseLineColorData) {
             const uint baseLineColorData = BitExtract(cramAddress, 7, 4);
 
-            const uint rotIndex = GetRotIndex(pos.xy, coeffSel);
+            const uint rotIndex = GetRotIndex(rotPos.xy, coeffSel);
             const uint lineColorData = BitExtract(rotParamState[rotIndex].coeffData, 0, 7);
 
             cramAddress = (baseLineColorData << 7) | lineColorData;
@@ -721,11 +724,18 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const uint4 rbgParams = state.rbgParams[index];
     const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
     const uint screenOverPatternName = BitExtract(rbgParams.z, 0, 16);
+    const bool mosaicEnable = BitTest(rbgParams.y, 12);
+
+    uint2 rotPos = pos;
+    if (mosaicEnable) {
+        const uint mosaicH = BitExtract(config.extraParams, 14, 4) + 1;
+        rotPos.x -= rotPos.x % mosaicH;
+    }
 
     const uint4 rotParams = state.rbgParams[rotSel];
     const uint2 pageShift = uint2(BitExtract(rotParams.w, 4, 1), BitExtract(rotParams.w, 5, 1));
 
-    const uint rotIndex = GetRotIndex(pos, rotSel);
+    const uint rotIndex = GetRotIndex(rotPos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
 
     // Determine maximum coordinates and screen over process
@@ -737,7 +747,7 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
 
     const uint2 scrollPos = rotState.screenCoords;
     if (all(scrollPos < scrollSize) || usingRepeat) {
-        StoreRotationLineColorData(pos, index, rotSel);
+        StoreRotationLineColorData(pos, rotPos, index, rotSel);
 
         return FetchScrollRBGPixel(rbgParams, scrollPos, pageShift, state.rbgPageBaseAddresses[rotSel][index]);
     }
@@ -745,7 +755,7 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     // Out of bounds
 
     if (screenOverProcess == kScreenOverProcessRepeatChar) {
-        StoreRotationLineColorData(pos, index, rotSel);
+        StoreRotationLineColorData(pos, rotPos, index, rotSel);
 
         const uint2 dotPos = scrollPos & 7;
         Character ch = ExtractOneWordCharacter(rbgParams, screenOverPatternName);
@@ -759,11 +769,18 @@ uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
     const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
     const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
+    const bool mosaicEnable = BitTest(rbgParams.y, 12);
+
+    uint2 rotPos = pos;
+    if (mosaicEnable) {
+        const uint mosaicH = BitExtract(config.extraParams, 14, 4) + 1;
+        rotPos.x -= rotPos.x % mosaicH;
+    }
 
     const uint4 rotParams = state.rbgParams[rotSel];
     const uint2 pageShift = uint2(BitExtract(rotParams.w, 4, 1), BitExtract(rotParams.w, 5, 1));
 
-    const uint rotIndex = GetRotIndex(pos, rotSel);
+    const uint rotIndex = GetRotIndex(rotPos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
 
     // Determine maximum coordinates and screen over process
@@ -775,7 +792,7 @@ uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
 
     const uint2 scrollPos = rotState.screenCoords;
     if (all(scrollPos < scrollSize) || usingRepeat) {
-        StoreRotationLineColorData(pos, index, rotSel);
+        StoreRotationLineColorData(pos, rotPos, index, rotSel);
 
         return FetchBitmapPixel(rbgParams, scrollPos);
     }

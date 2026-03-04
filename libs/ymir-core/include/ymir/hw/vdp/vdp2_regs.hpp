@@ -3328,8 +3328,8 @@ struct VDP2Regs {
     // Applies to all backgrounds with the mosaic effect enabled.
     // Rotation backgrounds only use the horizontal dimension.
     // Derived from MZCTL.MZSZH/V
-    uint8 mosaicH; // Horizontal mosaic size
-    uint8 mosaicV; // Vertical mosaic size
+    uint8 mosaicH; // Horizontal mosaic size (MZCTL.MZSZH + 1)
+    uint8 mosaicV; // Vertical mosaic size (MZCTL.MZSZV + 1)
 
     // Color offset enable for:
     // [0] Sprite
