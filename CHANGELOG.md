@@ -53,6 +53,7 @@ Introduced save state file version 12.
 - VDP1: Rework cycle counting method and increase cycle budget per frame. Fixes slowdowns in Road Rash and graphics glitches in multiple games, including Virtua Cop and Burning Rangers. (#704, #721, #722)
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
 - VDP2-SW: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
+- VDP2-SW: Compute vertical cell scroll delays/offsets when enabling/disabling the effect in addition to access cycle changes.
 - VDP2-SW: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
 - VDP2-SW: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
 - VDP2-SW: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)

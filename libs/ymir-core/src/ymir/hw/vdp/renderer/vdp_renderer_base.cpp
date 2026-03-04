@@ -52,6 +52,7 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
         return;
     }
     regs2.accessPatternsDirty = false;
+    regs2.vcellScrollDirty = true;
 
     // Some games set up illegal access patterns that cause NBG2/NBG3 character pattern reads to be delayed, shifting
     // all graphics on those backgrounds one tile to the right.
@@ -361,6 +362,22 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
         }
     }
 
+    // Apply access permissions for rotation coefficient data
+    auto &vramCtl = regs2.vramControl;
+    auto isCoeff = [](RotDataBankSel sel) { return sel == RotDataBankSel::Coefficients; };
+    std::array<bool, 4> coeffAccess{};
+    m_coeffAccess[0] = isCoeff(vramCtl.rotDataBankSelA0);
+    m_coeffAccess[1] = isCoeff(vramCtl.partitionVRAMA ? vramCtl.rotDataBankSelA1 : vramCtl.rotDataBankSelA0);
+    m_coeffAccess[2] = isCoeff(vramCtl.rotDataBankSelB0);
+    m_coeffAccess[3] = isCoeff(vramCtl.partitionVRAMB ? vramCtl.rotDataBankSelB1 : vramCtl.rotDataBankSelB0);
+}
+
+void IVDPRenderer::VDP2CalcVertCellScrollDelay(VDP2Regs &regs2) {
+    if (!regs2.vcellScrollDirty) [[likely]] {
+        return;
+    }
+    regs2.vcellScrollDirty = false;
+
     // Translate VRAM access cycles for vertical cell scroll data into increment and offset for NBG0 and NBG1.
     //
     // Some games set up "illegal" access patterns which we have to honor. This is an approximation of the real
@@ -399,15 +416,6 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
             }
         }
     }
-
-    // Apply access permissions for rotation coefficient data
-    auto &vramCtl = regs2.vramControl;
-    auto isCoeff = [](RotDataBankSel sel) { return sel == RotDataBankSel::Coefficients; };
-    std::array<bool, 4> coeffAccess{};
-    m_coeffAccess[0] = isCoeff(vramCtl.rotDataBankSelA0);
-    m_coeffAccess[1] = isCoeff(vramCtl.partitionVRAMA ? vramCtl.rotDataBankSelA1 : vramCtl.rotDataBankSelA0);
-    m_coeffAccess[2] = isCoeff(vramCtl.rotDataBankSelB0);
-    m_coeffAccess[3] = isCoeff(vramCtl.partitionVRAMB ? vramCtl.rotDataBankSelB1 : vramCtl.rotDataBankSelB0);
 }
 
 void IVDPRenderer::VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts) {
