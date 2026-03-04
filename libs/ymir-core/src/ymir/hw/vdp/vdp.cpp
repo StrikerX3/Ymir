@@ -354,15 +354,15 @@ void VDP::Advance(uint64 cycles) {
 }
 
 void VDP::DumpVDP1VRAM(std::ostream &out) const {
-    out.write((const char *)m_state.VRAM1.data(), m_state.VRAM1.size());
+    out.write((const char *)m_state.mem1.VRAM.data(), m_state.mem1.VRAM.size());
 }
 
 void VDP::DumpVDP2VRAM(std::ostream &out) const {
-    out.write((const char *)m_state.VRAM2.data(), m_state.VRAM2.size());
+    out.write((const char *)m_state.mem2.VRAM.data(), m_state.mem2.VRAM.size());
 }
 
 void VDP::DumpVDP2CRAM(std::ostream &out) const {
-    out.write((const char *)m_state.CRAM.data(), m_state.CRAM.size());
+    out.write((const char *)m_state.mem2.CRAM.data(), m_state.mem2.CRAM.size());
 }
 
 void VDP::DumpVDP1Framebuffers(std::ostream &out) const {
@@ -378,13 +378,13 @@ void VDP::DumpVDP1Framebuffers(std::ostream &out) const {
 
 template <mem_primitive_16 T>
 FORCE_INLINE T VDP::VDP1ReadVRAM(uint32 address) const {
-    return m_state.VDP1ReadVRAM<T>(address);
+    return m_state.mem1.ReadVRAM<T>(address);
 }
 
 template <mem_primitive_16 T>
 FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
-    m_state.VDP1WriteVRAM<T>(address, value,
-                             [&](uint32 address, T value) { m_renderer->VDP1WriteVRAM(address, value); });
+    m_state.mem1.WriteVRAM<T>(address, value,
+                              [&](uint32 address, T value) { m_renderer->VDP1WriteVRAM(address, value); });
     if (m_stallVDP1OnVRAMWrites && m_VDP1State.drawing) {
         m_VDP1TimingPenaltyCycles += kVDP1TimingPenaltyPerWrite;
     }
@@ -453,18 +453,18 @@ FORCE_INLINE void VDP::VDP1WriteReg(uint32 address, uint16 value) {
 
 template <mem_primitive_16 T>
 FORCE_INLINE T VDP::VDP2ReadVRAM(uint32 address) const {
-    return m_state.VDP2ReadVRAM<T>(address);
+    return m_state.mem2.ReadVRAM<T>(address);
 }
 
 template <mem_primitive_16 T>
 FORCE_INLINE void VDP::VDP2WriteVRAM(uint32 address, T value) {
-    m_state.VDP2WriteVRAM<T>(address, value,
-                             [&](uint32 address, T value) { m_renderer->VDP2WriteVRAM(address, value); });
+    m_state.mem2.WriteVRAM<T>(address, value,
+                              [&](uint32 address, T value) { m_renderer->VDP2WriteVRAM(address, value); });
 }
 
 template <mem_primitive_16 T, bool peek>
 FORCE_INLINE T VDP::VDP2ReadCRAM(uint32 address) const {
-    return m_state.VDP2ReadCRAM<T>(address, [&](uint32 address, T value) {
+    return m_state.mem2.ReadCRAM<T>(address, [&](uint32 address, T value) {
         if constexpr (!peek) {
             devlog::trace<grp::vdp2_regs>("{}-bit VDP2 CRAM read from {:03X} = {:X}", sizeof(T) * 8, address, value);
         }
@@ -473,7 +473,7 @@ FORCE_INLINE T VDP::VDP2ReadCRAM(uint32 address) const {
 
 template <mem_primitive_16 T, bool poke>
 FORCE_INLINE void VDP::VDP2WriteCRAM(uint32 address, T value) {
-    m_state.VDP2WriteCRAM<T>(address, value, [&](uint32 address, T value) {
+    m_state.mem2.WriteCRAM<T>(address, value, [&](uint32 address, T value) {
         m_renderer->VDP2WriteCRAM(address, value);
         if constexpr (!poke) {
             devlog::trace<grp::vdp2_regs>("{}-bit VDP2 CRAM write to {:05X} = {:X}", sizeof(T) * 8, address, value);

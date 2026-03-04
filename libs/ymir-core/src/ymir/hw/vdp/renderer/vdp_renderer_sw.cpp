@@ -656,16 +656,16 @@ void SoftwareVDPRenderer::VDP1RenderThread() {
             case EvtType::SwapBuffers: rctx.swapBuffersSignal.Set(); break;
             case EvtType::Command: (this->*m_fnVDP1HandleCommand)(event.command.address, event.command.control); break;
 
-            case EvtType::VRAMWriteByte: rctx.vdp1.VRAM[event.write.address] = event.write.value; break;
+            case EvtType::VRAMWriteByte: rctx.vdp1.mem.VRAM[event.write.address] = event.write.value; break;
             case EvtType::VRAMWriteWord:
-                util::WriteBE<uint16>(&rctx.vdp1.VRAM[event.write.address], event.write.value);
+                util::WriteBE<uint16>(&rctx.vdp1.mem.VRAM[event.write.address], event.write.value);
                 break;
             case EvtType::RegWrite: rctx.vdp1.regs.Write<false>(event.write.address, event.write.value); break;
 
             case EvtType::PreSaveStateSync: rctx.preSaveSyncSignal.Set(); break;
             case EvtType::PostLoadStateSync:
                 rctx.vdp1.regs = m_state.regs1;
-                rctx.vdp1.VRAM = m_state.VRAM1;
+                rctx.vdp1.mem = m_state.mem1;
                 rctx.postLoadSyncSignal.Set();
                 break;
 
@@ -728,15 +728,15 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
             }
             case EvtType::VDP2EndFrame: rctx.renderFinishedSignal.Set(); break;
 
-            case EvtType::VDP2VRAMWriteByte: rctx.vdp2.VRAM[event.write.address] = event.write.value; break;
+            case EvtType::VDP2VRAMWriteByte: rctx.vdp2.mem.VRAM[event.write.address] = event.write.value; break;
             case EvtType::VDP2VRAMWriteWord:
-                util::WriteBE<uint16>(&rctx.vdp2.VRAM[event.write.address], event.write.value);
+                util::WriteBE<uint16>(&rctx.vdp2.mem.VRAM[event.write.address], event.write.value);
                 break;
             case EvtType::VDP2CRAMWriteByte:
                 // Update CRAM cache if color RAM mode changed is in one of the RGB555 modes
                 if (rctx.vdp2.regs.vramControl.colorRAMMode <= 1) {
-                    const uint8 oldValue = rctx.vdp2.CRAM[event.write.address];
-                    rctx.vdp2.CRAM[event.write.address] = event.write.value;
+                    const uint8 oldValue = rctx.vdp2.mem.CRAM[event.write.address];
+                    rctx.vdp2.mem.CRAM[event.write.address] = event.write.value;
 
                     if (oldValue != event.write.value) {
                         const uint32 cramAddress = event.write.address & ~1;
@@ -745,14 +745,14 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
                         rctx.vdp2.CRAMCache[cramAddress / sizeof(uint16)] = ConvertRGB555to888(color5);
                     }
                 } else {
-                    rctx.vdp2.CRAM[event.write.address] = event.write.value;
+                    rctx.vdp2.mem.CRAM[event.write.address] = event.write.value;
                 }
                 break;
             case EvtType::VDP2CRAMWriteWord:
                 // Update CRAM cache if color RAM mode is in one of the RGB555 modes
                 if (rctx.vdp2.regs.vramControl.colorRAMMode <= 1) {
-                    const uint16 oldValue = util::ReadBE<uint16>(&rctx.vdp2.CRAM[event.write.address]);
-                    util::WriteBE<uint16>(&rctx.vdp2.CRAM[event.write.address], event.write.value);
+                    const uint16 oldValue = util::ReadBE<uint16>(&rctx.vdp2.mem.CRAM[event.write.address]);
+                    util::WriteBE<uint16>(&rctx.vdp2.mem.CRAM[event.write.address], event.write.value);
 
                     if (oldValue != event.write.value) {
                         const uint32 cramAddress = event.write.address & ~1;
@@ -760,7 +760,7 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
                         rctx.vdp2.CRAMCache[cramAddress / sizeof(uint16)] = ConvertRGB555to888(color5);
                     }
                 } else {
-                    util::WriteBE<uint16>(&rctx.vdp2.CRAM[event.write.address], event.write.value);
+                    util::WriteBE<uint16>(&rctx.vdp2.mem.CRAM[event.write.address], event.write.value);
                 }
                 break;
             case EvtType::VDP2RegWrite:
@@ -771,7 +771,7 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
 
                     const uint8 newMode = rctx.vdp2.regs.vramControl.colorRAMMode;
                     if (newMode != oldMode && newMode <= 1) {
-                        for (uint32 addr = 0; addr < rctx.vdp2.CRAM.size(); addr += sizeof(uint16)) {
+                        for (uint32 addr = 0; addr < rctx.vdp2.mem.CRAM.size(); addr += sizeof(uint16)) {
                             const uint16 colorValue = VDP2ReadRendererCRAM<uint16>(addr);
                             const Color555 color5{.u16 = colorValue};
                             rctx.vdp2.CRAMCache[addr / sizeof(uint16)] = ConvertRGB555to888(color5);
@@ -803,11 +803,10 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
             case EvtType::PreSaveStateSync: rctx.preSaveSyncSignal.Set(); break;
             case EvtType::PostLoadStateSync:
                 rctx.vdp2.regs = m_state.regs2;
-                rctx.vdp2.VRAM = m_state.VRAM2;
-                rctx.vdp2.CRAM = m_state.CRAM;
+                rctx.vdp2.mem = m_state.mem2;
                 rctx.postLoadSyncSignal.Set();
                 VDP2UpdateEnabledBGs();
-                for (uint32 addr = 0; addr < rctx.vdp2.CRAM.size(); addr += sizeof(uint16)) {
+                for (uint32 addr = 0; addr < rctx.vdp2.mem.CRAM.size(); addr += sizeof(uint16)) {
                     const uint16 colorValue = VDP2ReadRendererCRAM<uint16>(addr);
                     const Color555 color5{.u16 = colorValue};
                     rctx.vdp2.CRAMCache[addr / sizeof(uint16)] = ConvertRGB555to888(color5);
@@ -848,23 +847,22 @@ void SoftwareVDPRenderer::VDP2DeinterlaceRenderThread() {
 template <mem_primitive T>
 FORCE_INLINE T SoftwareVDPRenderer::VDP1ReadRendererVRAM(uint32 address) {
     if (m_threadedVDP1Rendering) {
-        return util::ReadBE<T>(&m_vdp1RenderingContext.vdp1.VRAM[address & 0x7FFFF]);
+        return m_vdp1RenderingContext.vdp1.mem.ReadVRAM<T>(address);
     } else {
-        return m_state.VDP1ReadVRAM<T>(address);
+        return m_state.mem1.ReadVRAM<T>(address);
     }
 }
 
 FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &SoftwareVDPRenderer::VDP2GetRendererVRAM() {
-    return m_threadedVDP2Rendering ? m_vdp2RenderingContext.vdp2.VRAM : m_state.VRAM2;
+    return m_threadedVDP2Rendering ? m_vdp2RenderingContext.vdp2.mem.VRAM : m_state.mem2.VRAM;
 }
 
 template <mem_primitive T>
 FORCE_INLINE T SoftwareVDPRenderer::VDP2ReadRendererVRAM(uint32 address) {
     if (m_threadedVDP2Rendering) {
-        address = m_state.MapVDP2VRAMAddress<T>(address);
-        return util::ReadBE<T>(&m_vdp2RenderingContext.vdp2.VRAM[address]);
+        return m_vdp2RenderingContext.vdp2.mem.ReadVRAM<T>(address);
     } else {
-        return m_state.VDP2ReadVRAM<T>(address);
+        return m_state.mem2.ReadVRAM<T>(address);
     }
 }
 
@@ -876,10 +874,9 @@ FORCE_INLINE T SoftwareVDPRenderer::VDP2ReadRendererCRAM(uint32 address) {
         return value;
     } else {
         if (m_threadedVDP2Rendering) {
-            address = MapRendererCRAMAddress<T>(address);
-            return util::ReadBE<T>(&m_vdp2RenderingContext.vdp2.CRAM[address]);
+            return m_vdp2RenderingContext.vdp2.mem.ReadCRAM<T>(address);
         } else {
-            return m_state.VDP2ReadCRAM<T>(address);
+            return m_state.mem2.ReadCRAM<T>(address);
         }
     }
 }
@@ -895,10 +892,10 @@ FORCE_INLINE Color888 SoftwareVDPRenderer::VDP2ReadRendererColor5to8(uint32 addr
 template <mem_primitive T>
 FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateCRAMCache(uint32 address) {
     address &= ~1;
-    const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.CRAM[address])};
+    const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.mem2.CRAM[address])};
     m_CRAMCache[address / sizeof(uint16)] = ConvertRGB555to888(color5);
     if constexpr (std::is_same_v<T, uint32>) {
-        const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.CRAM[address + 2])};
+        const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.mem2.CRAM[address + 2])};
         m_CRAMCache[(address + 2) / sizeof(uint16)] = ConvertRGB555to888(color5);
     }
 }
@@ -1963,9 +1960,9 @@ FORCE_INLINE const VDP2Regs &SoftwareVDPRenderer::VDP2GetRegs() const {
 
 FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &SoftwareVDPRenderer::VDP2GetVRAM() {
     if (m_threadedVDP2Rendering) {
-        return m_vdp2RenderingContext.vdp2.VRAM;
+        return m_vdp2RenderingContext.vdp2.mem.VRAM;
     } else {
-        return m_state.VRAM2;
+        return m_state.mem2.VRAM;
     }
 }
 
