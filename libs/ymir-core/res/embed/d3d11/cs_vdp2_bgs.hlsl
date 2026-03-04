@@ -595,7 +595,7 @@ uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, uint
 
 // -----------------------------------------------------------------------------
 
-uint4 DrawScrollNBG(uint2 pos, uint index) {
+uint4 DrawNBG(uint2 pos, uint index) {
     const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
 
@@ -614,55 +614,18 @@ uint4 DrawScrollNBG(uint2 pos, uint index) {
     // const bool lineScrollYEnable = BitTest(nbgParams.y, 2);
     // const uint lineScrollInterval = 1 << BitExtract(nbgParams.y, 3, 2;
     // const uint lineScrollTableAddress = BitExtract(nbgParams.y, 5, 3) << 17;
-    // const bool vertCellScrollEnable = BitTest(nbgParams.y, 8);
+    // const bool mosaicEnable = BitTest(nbgParams.x, 12);
+    // const bool vertCellScrollEnable = BitTest(nbgParams.y, 8) && !mosaicEnable;
     // const bool vertCellScrollDelay = BitTest(nbgParams.y, 9);
     // const uint vertCellScrollOffset = BitExtract(nbgParams.y, 10, 1) << 2;
     // const bool vertCellScrollRepeat = BitTest(nbgParams.y, 11);
-    // const bool mosaicEnable = BitTest(nbgParams.x, 12);
 
     const uint2 scrollPos = fracScrollPos >> 8;
-
-    return FetchScrollNBGPixel(nbgParams, scrollPos, state.nbgPageBaseAddresses[index]);
-}
-
-uint4 DrawBitmapNBG(uint2 pos, uint index) {
-    const BGRenderState state = bgRenderState[0];
-    const uint4 nbgParams = state.nbgParams[index];
-
-    const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
-
-    // TODO: mosaic, line screen scroll, vertical cell scroll, data access delays, etc.
-    // const bool lineZoomEnable = BitTest(nbgParams.y, 0);
-    // const bool lineScrollXEnable = BitTest(nbgParams.y, 1);
-    // const bool lineScrollYEnable = BitTest(nbgParams.y, 2);
-    // const uint lineScrollInterval = 1 << BitExtract(nbgParams.y, 3, 2;
-    // const uint lineScrollTableAddress = BitExtract(nbgParams.y, 5, 3) << 17;
-    // const bool vertCellScrollEnable = BitTest(nbgParams.y, 8);
-    // const bool vertCellScrollDelay = BitTest(nbgParams.y, 9);
-    // const uint vertCellScrollOffset = BitExtract(nbgParams.y, 10, 1) << 2;
-    // const bool vertCellScrollRepeat = BitTest(nbgParams.y, 11);
-    // const bool mosaicEnable = BitTest(nbgParams.x, 12);
-
-    const uint2 scrollPos = fracScrollPos >> 8;
-
-    return FetchBitmapPixel(nbgParams, scrollPos);
-}
-
-uint4 DrawNBG(uint2 pos, uint index) {
-    const BGRenderState state = bgRenderState[0];
-    const uint4 nbgParams = state.nbgParams[index];
-
-    const bool enabled = BitTest(nbgParams.x, 30);
-    if (!enabled) {
-        return kTransparentPixel;
-    }
-
-    if (InsideWindows(nbgParams.y >> 13, true, pos)) {
-        return kTransparentPixel;
-    }
 
     const bool bitmap = BitTest(nbgParams.x, 31);
-    return bitmap ? DrawBitmapNBG(pos, index) : DrawScrollNBG(pos, index);
+    return bitmap
+        ? FetchBitmapPixel(nbgParams, scrollPos)
+        : FetchScrollNBGPixel(nbgParams, scrollPos, state.nbgPageBaseAddresses[index]);
 }
 
 // -----------------------------------------------------------------------------
