@@ -265,8 +265,8 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
         state.normBGLayerStates[i].fracScrollY = m_nbgLayerStates[i].fracScrollY;
         state.normBGLayerStates[i].scrollIncH = m_nbgLayerStates[i].scrollIncH;
         state.normBGLayerStates[i].lineScrollTableAddress = m_nbgLayerStates[i].lineScrollTableAddress;
-        state.normBGLayerStates[i].vertCellScrollOffset = m_nbgLayerStates[i].vertCellScrollOffset;
-        state.normBGLayerStates[i].vertCellScrollDelay = m_nbgLayerStates[i].vertCellScrollDelay;
+        state.normBGLayerStates[i].vcellScrollOffset = m_nbgLayerStates[i].vcellScrollOffset;
+        state.normBGLayerStates[i].vcellScrollDelay = m_nbgLayerStates[i].vcellScrollDelay;
         state.normBGLayerStates[i].mosaicCounterY = m_nbgLayerStates[i].mosaicCounterY;
     }
 
@@ -301,7 +301,7 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
         }
     }
 
-    state.vertCellScrollInc = m_vertCellScrollInc;
+    state.vcellScrollInc = m_vcellScrollInc;
 }
 
 bool SoftwareVDPRenderer::ValidateState(const state::VDPState::VDPRendererState &state) const {
@@ -325,8 +325,8 @@ void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &sta
         m_nbgLayerStates[i].fracScrollY = state.normBGLayerStates[i].fracScrollY;
         m_nbgLayerStates[i].scrollIncH = state.normBGLayerStates[i].scrollIncH;
         m_nbgLayerStates[i].lineScrollTableAddress = state.normBGLayerStates[i].lineScrollTableAddress;
-        m_nbgLayerStates[i].vertCellScrollOffset = state.normBGLayerStates[i].vertCellScrollOffset;
-        m_nbgLayerStates[i].vertCellScrollDelay = state.normBGLayerStates[i].vertCellScrollDelay;
+        m_nbgLayerStates[i].vcellScrollOffset = state.normBGLayerStates[i].vcellScrollOffset;
+        m_nbgLayerStates[i].vcellScrollDelay = state.normBGLayerStates[i].vcellScrollDelay;
         m_nbgLayerStates[i].mosaicCounterY = state.normBGLayerStates[i].mosaicCounterY;
     }
 
@@ -361,7 +361,7 @@ void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &sta
         }
     }
 
-    m_vertCellScrollInc = state.vertCellScrollInc;
+    m_vcellScrollInc = state.vcellScrollInc;
     m_vdp2RenderingContext.displayFB = state.displayFB;
 }
 
@@ -563,7 +563,7 @@ void SoftwareVDPRenderer::VDP2RenderLine(uint32 y) {
     if (m_threadedVDP2Rendering) {
         m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::VDP2DrawLine(y));
         VDP2CalcAccessPatterns(m_state.regs2);
-        VDP2CalcVertCellScrollDelay(m_state.regs2);
+        VDP2CalcVCellScrollDelay(m_state.regs2);
     } else {
         const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
         VDP2PrepareLine(y);
@@ -2354,7 +2354,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2PrepareLine(uint32 y) {
     }
 
     VDP2CalcAccessPatterns(regs2);
-    VDP2CalcVertCellScrollDelay(regs2);
+    VDP2CalcVCellScrollDelay(regs2);
     if (regs2.bgEnabled[4] || regs2.bgEnabled[5]) {
         VDP2CalcRotationParameterTables(y);
     }
@@ -4180,27 +4180,27 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
     uint32 fracScrollX = bgState.fracScrollX + bgParams.scrollAmountH;
     const uint32 fracScrollY = bgState.fracScrollY + bgParams.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
 
-    uint32 cellScrollTableAddress = regs.verticalCellScrollTableAddress + bgState.vertCellScrollOffset;
-    const bool verticalCellScrollEnable = useVCellScroll && bgParams.verticalCellScrollEnable;
+    uint32 cellScrollTableAddress = regs.vcellScrollTableAddress + bgState.vcellScrollOffset;
+    const bool vcellScrollEnable = useVCellScroll && bgParams.vcellScrollEnable;
 
     auto readCellScrollY = [&](bool checkRepeat = false) {
-        if (checkRepeat && bgState.vertCellScrollRepeat && bgState.vertCellScrollDelay) {
+        if (checkRepeat && bgState.vcellScrollRepeat && bgState.vcellScrollDelay) {
             return vramFetcher.lastVCellScroll;
         }
         const uint32 value = VDP2ReadRendererVRAM<uint32>(cellScrollTableAddress);
-        if (!checkRepeat || !bgState.vertCellScrollRepeat) {
-            cellScrollTableAddress += m_vertCellScrollInc;
+        if (!checkRepeat || !bgState.vcellScrollRepeat) {
+            cellScrollTableAddress += m_vcellScrollInc;
         }
         const uint32 prevValue = vramFetcher.lastVCellScroll;
         vramFetcher.lastVCellScroll = bit::extract<8, 26>(value);
-        return bgState.vertCellScrollDelay ? prevValue : vramFetcher.lastVCellScroll;
+        return bgState.vcellScrollDelay ? prevValue : vramFetcher.lastVCellScroll;
     };
 
     uint32 mosaicCounterX = 0;
     uint32 cellScrollY = 0;
     uint32 vCellScrollX = fracScrollX >> (8u + 3u);
 
-    if (verticalCellScrollEnable) {
+    if (vcellScrollEnable) {
         cellScrollY = readCellScrollY(true);
     }
 
@@ -4222,7 +4222,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
                 fracScrollX += bgState.scrollIncH;
                 continue;
             }
-        } else if (verticalCellScrollEnable) {
+        } else if (vcellScrollEnable) {
             // Update vertical cell scroll amount
             if ((fracScrollX >> (8u + 3u)) != vCellScrollX) {
                 vCellScrollX = fracScrollX >> (8u + 3u);
@@ -4254,7 +4254,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
     {
         // Apply horizontal mosaic or vertical cell-scrolling
         // Mosaic takes priority
-        if (!bgParams.mosaicEnable && verticalCellScrollEnable) {
+        if (!bgParams.mosaicEnable && vcellScrollEnable) {
             // Update vertical cell scroll amount
             if ((fracScrollX >> (8u + 3u)) != vCellScrollX) {
                 vCellScrollX = fracScrollX >> (8u + 3u);
@@ -4284,27 +4284,27 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
     uint32 fracScrollX = bgState.fracScrollX + bgParams.scrollAmountH;
     const uint32 fracScrollY = bgState.fracScrollY + bgParams.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
 
-    uint32 cellScrollTableAddress = regs.verticalCellScrollTableAddress + bgState.vertCellScrollOffset;
-    const bool verticalCellScrollEnable = useVCellScroll && bgParams.verticalCellScrollEnable;
+    uint32 cellScrollTableAddress = regs.vcellScrollTableAddress + bgState.vcellScrollOffset;
+    const bool vcellScrollEnable = useVCellScroll && bgParams.vcellScrollEnable;
 
     auto readCellScrollY = [&](bool checkRepeat = false) {
-        if (checkRepeat && bgState.vertCellScrollRepeat && bgState.vertCellScrollDelay) {
+        if (checkRepeat && bgState.vcellScrollRepeat && bgState.vcellScrollDelay) {
             return vramFetcher.lastVCellScroll;
         }
         const uint32 value = VDP2ReadRendererVRAM<uint32>(cellScrollTableAddress);
-        if (!checkRepeat || !bgState.vertCellScrollRepeat) {
-            cellScrollTableAddress += m_vertCellScrollInc;
+        if (!checkRepeat || !bgState.vcellScrollRepeat) {
+            cellScrollTableAddress += m_vcellScrollInc;
         }
         const uint32 prevValue = vramFetcher.lastVCellScroll;
         vramFetcher.lastVCellScroll = bit::extract<8, 26>(value);
-        return bgState.vertCellScrollDelay ? prevValue : vramFetcher.lastVCellScroll;
+        return bgState.vcellScrollDelay ? prevValue : vramFetcher.lastVCellScroll;
     };
 
     uint32 mosaicCounterX = 0;
     uint32 cellScrollY = 0;
     uint32 vCellScrollX = fracScrollX >> (8u + 3u);
 
-    if (verticalCellScrollEnable) {
+    if (vcellScrollEnable) {
         cellScrollY = readCellScrollY(true);
     }
 
@@ -4326,7 +4326,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
                 fracScrollX += bgState.scrollIncH;
                 continue;
             }
-        } else if (verticalCellScrollEnable) {
+        } else if (vcellScrollEnable) {
             // Update vertical cell scroll amount
             if ((fracScrollX >> (8u + 3u)) != vCellScrollX) {
                 vCellScrollX = fracScrollX >> (8u + 3u);

@@ -160,7 +160,7 @@ struct alignas(128) BGParams {
         charPatDelay = false;
         vramDataOffset.fill(0);
 
-        verticalCellScrollEnable = false;
+        vcellScrollEnable = false;
         lineScrollXEnable = false;
         lineScrollYEnable = false;
         lineZoomEnable = false;
@@ -315,7 +315,7 @@ struct alignas(128) BGParams {
     // Whether to use the vertical cell scroll table in VRAM.
     // Only valid for NBG0 and NBG1.
     // Derived from SCRCTL.NnVCSC
-    bool verticalCellScrollEnable;
+    bool vcellScrollEnable;
 
     // Whether to use the horizontal line scroll table in VRAM.
     // Only valid for NBG0 and NBG1.
