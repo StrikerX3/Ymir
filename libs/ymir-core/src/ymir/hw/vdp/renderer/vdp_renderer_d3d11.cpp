@@ -1547,6 +1547,7 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
 
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     VDP2CalcAccessPatterns();
+    VDP2CalcVCellScrollDelay();
     VDP2UpdateRotationParameterBases(y);
     VDP2UpdateRotationPageBaseAddresses(m_state.regs2);
 
@@ -2031,6 +2032,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.spriteColorCalcRatios = pack8x3(regs2.spriteParams.colorCalcRatios);
 
     config.vcellScrollTableAddress = regs2.vcellScrollTableAddress;
+    config.vcellScrollInc = m_vcellScrollInc;
 
     m_context->VDP2Context.ModifyResource(
         m_context->cbufVDP2RenderConfig, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {

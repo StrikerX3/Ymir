@@ -4197,11 +4197,11 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
     };
 
     uint32 mosaicCounterX = 0;
-    uint32 cellScrollY = 0;
-    uint32 vCellScrollX = fracScrollX >> (8u + 3u);
+    uint32 vcellScrollY = 0;
+    uint32 vcellScrollX = fracScrollX >> (8u + 3u);
 
     if (vcellScrollEnable) {
-        cellScrollY = readCellScrollY(true);
+        vcellScrollY = readCellScrollY(true);
     }
 
     for (uint32 x = 0; x < m_HRes; x++) {
@@ -4224,9 +4224,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
             }
         } else if (vcellScrollEnable) {
             // Update vertical cell scroll amount
-            if ((fracScrollX >> (8u + 3u)) != vCellScrollX) {
-                vCellScrollX = fracScrollX >> (8u + 3u);
-                cellScrollY = readCellScrollY();
+            if ((fracScrollX >> (8u + 3u)) != vcellScrollX) {
+                vcellScrollX = fracScrollX >> (8u + 3u);
+                vcellScrollY = readCellScrollY();
             }
         }
 
@@ -4236,7 +4236,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
-            const uint32 scrollY = ((fracScrollY + cellScrollY) >> 8u) - bgState.mosaicCounterY;
+            const uint32 scrollY = ((fracScrollY + vcellScrollY) >> 8u) - bgState.mosaicCounterY;
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel
@@ -4256,15 +4256,15 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
         // Mosaic takes priority
         if (!bgParams.mosaicEnable && vcellScrollEnable) {
             // Update vertical cell scroll amount
-            if ((fracScrollX >> (8u + 3u)) != vCellScrollX) {
-                vCellScrollX = fracScrollX >> (8u + 3u);
-                cellScrollY = readCellScrollY();
+            if ((fracScrollX >> (8u + 3u)) != vcellScrollX) {
+                vcellScrollX = fracScrollX >> (8u + 3u);
+                vcellScrollY = readCellScrollY();
             }
         }
 
         // Compute integer scroll screen coordinates
         const uint32 scrollX = fracScrollX >> 8u;
-        const uint32 scrollY = ((fracScrollY + cellScrollY) >> 8u) - bgState.mosaicCounterY;
+        const uint32 scrollY = ((fracScrollY + vcellScrollY) >> 8u) - bgState.mosaicCounterY;
         const CoordU32 scrollCoord{scrollX, scrollY};
 
         // Fetch pixel
@@ -4301,11 +4301,11 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
     };
 
     uint32 mosaicCounterX = 0;
-    uint32 cellScrollY = 0;
-    uint32 vCellScrollX = fracScrollX >> (8u + 3u);
+    uint32 vcellScrollY = 0;
+    uint32 vcellScrollX = fracScrollX >> (8u + 3u);
 
     if (vcellScrollEnable) {
-        cellScrollY = readCellScrollY(true);
+        vcellScrollY = readCellScrollY(true);
     }
 
     for (uint32 x = 0; x < m_HRes; x++) {
@@ -4328,9 +4328,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
             }
         } else if (vcellScrollEnable) {
             // Update vertical cell scroll amount
-            if ((fracScrollX >> (8u + 3u)) != vCellScrollX) {
-                vCellScrollX = fracScrollX >> (8u + 3u);
-                cellScrollY = readCellScrollY();
+            if ((fracScrollX >> (8u + 3u)) != vcellScrollX) {
+                vcellScrollX = fracScrollX >> (8u + 3u);
+                vcellScrollY = readCellScrollY();
             }
         }
 
@@ -4340,7 +4340,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
-            const uint32 scrollY = ((fracScrollY + cellScrollY) >> 8u) - bgState.mosaicCounterY;
+            const uint32 scrollY = ((fracScrollY + vcellScrollY) >> 8u) - bgState.mosaicCounterY;
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel

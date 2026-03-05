@@ -191,6 +191,7 @@ struct alignas(16) VDP2RenderConfig {
     D3DUint spriteColorCalcRatios; // Packed 8x 3-bit sprite color calculation ratios
 
     D3DUint vcellScrollTableAddress;
+    D3DUint vcellScrollInc;
 };
 
 struct VDP2BGRenderParams {
