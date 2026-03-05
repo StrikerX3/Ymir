@@ -228,8 +228,8 @@ struct VDP2BGRenderParams {
         D3DUint lineScrollInterval : 2;     //   3-4  Line scroll table interval   (1 << x)             (NBG0/1 only)
         D3DUint lineScrollTableAddress : 3; //   5-7  Line scroll table address    (x << 17)            (NBG0/1 only)
         D3DUint vcellScrollEnable : 1;      //     8  Vertical cell scroll enable  0=disable; 1=enable  (NBG0/1 only)
-        D3DUint vcellScrollDelay : 1;       //     9  Vertical cell scroll delay   0=none; 1=one entry  (NBG0/1 only)
-        D3DUint vcellScrollOffset : 1;      //    10  Vertical cell scroll offset  0=none; 1=4 bytes    (NBG0/1 only)
+        D3DUint vcellScrollOffset : 1;      //     9  Vertical cell scroll offset  0=none; 1=4 bytes    (NBG0/1 only)
+        D3DUint vcellScrollDelay : 1;       //    10  Vertical cell scroll delay   0=none; 1=one entry  (NBG0/1 only)
         D3DUint vcellScrollRepeat : 1;      //    11  Vertical cell scroll repeat  0=none; 1=once       (NBG0 only)
         D3DUint mosaicEnable : 1;           //    12  Mosaic enable                0=disable; 1=enable
         D3DUint windowLogic : 1;            //    13  Window logic                 0=OR; 1=AND
