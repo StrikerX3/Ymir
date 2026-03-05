@@ -196,14 +196,14 @@ jobs:
 
       # TODO: configure vcpkg cache
 
-      - uses: cross-platform-actions/action@v0.29.0
+      - uses: cross-platform-actions/action@v0.32.0
         env:
           CXX: clang++21
           CC: clang21
         with:
           operating_system: freebsd
           architecture: ${{ matrix.arch.name }}
-          version: '14.3'
+          version: '15.0'
           environment_variables: CXX CC
           run: |
             sudo pkg upgrade -y
