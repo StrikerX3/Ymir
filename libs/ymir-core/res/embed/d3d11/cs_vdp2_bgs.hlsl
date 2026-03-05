@@ -645,9 +645,10 @@ uint4 DrawNBG(uint2 pos, uint index) {
             baseFracScroll.x = BitExtract(ReadVRAM32(tableAddr), 8, 19);
         }
         if (lineScrollYEnable) {
-            // TODO: not quite right; seems to be counting twice as fast?
             const uint tableAddr = baseTableAddr + lineScrollYOffset;
             baseFracScroll.y = BitExtract(ReadVRAM32(tableAddr), 8, 19);
+            pos.y &= (1 << lineScrollIntervalShift) - 1; // reset cumulative scrollIncV increment
+            // TODO: double-density interlace
         }
         if (lineZoomEnable) {
             const uint tableAddr = baseTableAddr + lineZoomOffset;
