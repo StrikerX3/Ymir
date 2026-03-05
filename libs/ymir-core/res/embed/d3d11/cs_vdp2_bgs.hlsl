@@ -603,22 +603,36 @@ uint4 DrawNBG(uint2 pos, uint index) {
 
     pos.y = GetY(pos.y);
 
+    // TODO: compute baseFracScrollX/Y, add to this
     const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
 
-    // TODO: line screen scroll, vertical cell scroll, data access delays, etc.
+    // TODO: line screen scroll, data access delays, etc.
     // const bool lineZoomEnable = BitTest(nbgParams.y, 0);
     // const bool lineScrollXEnable = BitTest(nbgParams.y, 1);
     // const bool lineScrollYEnable = BitTest(nbgParams.y, 2);
     // const uint lineScrollInterval = 1 << BitExtract(nbgParams.y, 3, 2;
     // const uint lineScrollTableAddress = BitExtract(nbgParams.y, 5, 3) << 17;
-    // const bool vcellScrollEnable = BitTest(nbgParams.y, 8);
-    // const bool vcellScrollDelay = BitTest(nbgParams.y, 9);
-    // const uint vcellScrollOffset = BitExtract(nbgParams.y, 10, 1) << 2;
-    // const bool vcellScrollRepeat = BitTest(nbgParams.y, 11);
+    const bool vcellScrollEnable = BitTest(nbgParams.y, 8);
     const bool mosaicEnable = BitTest(nbgParams.y, 12);
 
     uint2 scrollPos = fracScrollPos >> 8;
-    if (mosaicEnable) {
+    if (vcellScrollEnable) {
+        const uint vcellScrollOffset = BitExtract(nbgParams.y, 9, 1) << 2;
+        const bool vcellScrollDelay = BitTest(nbgParams.y, 10);
+        const bool vcellScrollRepeat = BitTest(nbgParams.y, 11);
+
+        // const int scrollX = baseFracScroll.x >> 8;
+        // int offset = (pos.x + scrollX) >> 3;
+        // offset -= scrollX >> (8 + 3);
+        // if (vcellScrollRepeat && offset > 0) {
+        //     --offset;
+        // }
+        // if (vcellScrollDelay) {
+        //     --offset;
+        // }
+        // if offset == -1, read from the end of the previous line (or end of frame if at topmost row of cells)
+
+    } else if (mosaicEnable) {
         const uint2 mosaic = uint2(BitExtract(config.extraParams, 14, 4) + 1, BitExtract(config.extraParams, 18, 4) + 1);
         scrollPos -= scrollPos % mosaic;
     }

@@ -1645,8 +1645,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
         commonParams.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
         commonParams.charPatDelay = bgParams.charPatDelay;
         commonParams.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
-        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
         commonParams.vcellScrollOffset = bgState.vcellScrollOffset;
+        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
         commonParams.vcellScrollRepeat = bgState.vcellScrollRepeat;
 
         if (!bgParams.bitmap) {
@@ -1685,8 +1685,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVCellScrollDelay() {
         auto &renderParams = state.nbgParams[i];
 
         auto &commonParams = renderParams.common;
-        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
         commonParams.vcellScrollOffset = bgState.vcellScrollOffset;
+        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
         commonParams.vcellScrollRepeat = bgState.vcellScrollRepeat;
     }
 
@@ -1863,7 +1863,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         commonParams.lineScrollInterval = bgParams.lineScrollInterval;
         commonParams.lineScrollTableAddress = nbgState.lineScrollTableAddress >> 17u;
         commonParams.vcellScrollEnable = bgParams.vcellScrollEnable;
-        commonParams.mosaicEnable = bgParams.mosaicEnable && (i >= 2 || !bgParams.vcellScrollEnable);
+        commonParams.mosaicEnable = bgParams.mosaicEnable;
         commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
         commonParams.window0Enable = bgParams.windowSet.enabled[0];
         commonParams.window0Invert = bgParams.windowSet.inverted[0];
