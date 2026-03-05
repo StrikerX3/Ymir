@@ -5,6 +5,7 @@ struct Config {
     uint spritePriorities;
     uint spriteColorCalcRatios;
     uint vcellScrollTableAddress;
+    uint vcellScrollInc;
 };
 
 struct Window {
@@ -607,7 +608,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
     const uint cellSizeShift = BitExtract(nbgParams.w, 8, 1);
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
     const bool mosaicEnable = BitTest(nbgParams.y, 0);
-    const bool vcellScrollEnable = BitTest(nbgParams.y, 8);
+    const bool vcellScrollEnable = BitTest(nbgParams.y, 24);
 
     uint2 baseFracScroll = uint2(0, 0);
     uint2 scrollInc = state.nbgScrollInc[index];
@@ -643,37 +644,41 @@ uint4 DrawNBG(uint2 pos, uint index) {
             const uint tableAddr = baseTableAddr + lineScrollXOffset;
             baseFracScroll.x = BitExtract(ReadVRAM32(tableAddr), 8, 19);
         }
-        // TODO: not quite right; behavior varies between NBG0-1 and NBG2-3
-        /*if (lineScrollYEnable) {
+        if (lineScrollYEnable) {
+            // TODO: not quite right; seems to be counting twice as fast?
             const uint tableAddr = baseTableAddr + lineScrollYOffset;
             baseFracScroll.y = BitExtract(ReadVRAM32(tableAddr), 8, 19);
-        }*/
+        }
         if (lineZoomEnable) {
             const uint tableAddr = baseTableAddr + lineZoomOffset;
             scrollInc.x = BitExtract(ReadVRAM32(tableAddr), 8, 11);
         }
     }
 
+    if (vcellScrollEnable && !mosaicEnable) {
+        const uint vcellScrollOffset = BitExtract(nbgParams.y, 25, 1) << 2;
+        const bool vcellScrollDelay = BitTest(nbgParams.y, 26);
+        const bool vcellScrollRepeat = BitTest(nbgParams.y, 27);
+
+        const int scrollX = baseFracScroll.x >> 8;
+        int offset = (pos.x + scrollX) >> 3;
+        offset -= scrollX >> (8 + 3);
+        if (vcellScrollRepeat && offset > 0) {
+            --offset;
+        }
+        if (vcellScrollDelay) {
+            --offset;
+        }
+
+        // TODO: if offset == -1, read from the end of the previous line (or end of frame if at topmost row of cells)
+        const uint vcellAddress = config.vcellScrollTableAddress + offset * config.vcellScrollInc + vcellScrollOffset;
+        const uint vcellScrollY = BitExtract(ReadVRAM32(vcellAddress), 8, 19);
+        baseFracScroll.y += vcellScrollY;
+    }
+
     const uint2 fracScrollPos = baseFracScroll + state.nbgScrollAmount[index] + scrollInc * pos;
-
     uint2 scrollPos = fracScrollPos >> 8;
-    if (vcellScrollEnable) {
-        const uint vcellScrollOffset = BitExtract(nbgParams.y, 9, 1) << 2;
-        const bool vcellScrollDelay = BitTest(nbgParams.y, 10);
-        const bool vcellScrollRepeat = BitTest(nbgParams.y, 11);
-
-        // const int scrollX = baseFracScroll.x >> 8;
-        // int offset = (pos.x + scrollX) >> 3;
-        // offset -= scrollX >> (8 + 3);
-        // if (vcellScrollRepeat && offset > 0) {
-        //     --offset;
-        // }
-        // if (vcellScrollDelay) {
-        //     --offset;
-        // }
-        // if offset == -1, read from the end of the previous line (or end of frame if at topmost row of cells)
-
-    } else if (mosaicEnable) {
+    if (mosaicEnable) {
         const uint2 mosaic = uint2(BitExtract(config.extraParams, 14, 4) + 1, BitExtract(config.extraParams, 18, 4) + 1);
         scrollPos -= scrollPos % mosaic;
     }
