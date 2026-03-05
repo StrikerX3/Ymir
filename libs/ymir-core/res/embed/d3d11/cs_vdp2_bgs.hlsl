@@ -593,27 +593,68 @@ uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, uint
 // -----------------------------------------------------------------------------
 
 uint4 DrawNBG(uint2 pos, uint index) {
+    pos.y = GetY(pos.y);
+
     const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
+
+    if (InsideWindows(nbgParams.z >> 18, true, pos)) {
+        return kTransparentPixel;
+    }
 
     const uint2 pageShift = uint2(BitExtract(nbgParams.w, 4, 1), BitExtract(nbgParams.w, 5, 1));
     const uint twoWordChar = BitExtract(nbgParams.w, 7, 1);
     const uint cellSizeShift = BitExtract(nbgParams.w, 8, 1);
     const uint pageSize = kPageSizes[cellSizeShift][twoWordChar];
-
-    pos.y = GetY(pos.y);
-
-    // TODO: compute baseFracScrollX/Y, add to this
-    const uint2 fracScrollPos = state.nbgScrollAmount[index] + state.nbgScrollInc[index] * pos;
-
-    // TODO: line screen scroll, data access delays, etc.
-    // const bool lineZoomEnable = BitTest(nbgParams.y, 0);
-    // const bool lineScrollXEnable = BitTest(nbgParams.y, 1);
-    // const bool lineScrollYEnable = BitTest(nbgParams.y, 2);
-    // const uint lineScrollInterval = 1 << BitExtract(nbgParams.y, 3, 2;
-    // const uint lineScrollTableAddress = BitExtract(nbgParams.y, 5, 3) << 17;
+    const bool mosaicEnable = BitTest(nbgParams.y, 0);
     const bool vcellScrollEnable = BitTest(nbgParams.y, 8);
-    const bool mosaicEnable = BitTest(nbgParams.y, 12);
+
+    uint2 baseFracScroll = uint2(0, 0);
+    uint2 scrollInc = state.nbgScrollInc[index];
+
+    // Apply line scroll effects on NBG0 and NBG1 if enabled
+    if (index <= 1 && BitExtract(nbgParams.y, 21, 3) != 0) {
+        const uint lineScrollTableAddress = BitExtract(nbgParams.y, 1, 18) << 1;
+        const uint lineScrollIntervalShift = BitExtract(nbgParams.y, 19, 2);
+        const bool lineScrollXEnable = BitTest(nbgParams.y, 21);
+        const bool lineScrollYEnable = BitTest(nbgParams.y, 22);
+        const bool lineZoomEnable = BitTest(nbgParams.y, 23);
+
+        // Determine offsets for each entry and intervals between sets of entries
+        // TODO: make this relative to startY for games that change line scroll table flags mid-frame, if any
+        const uint lineScrollXOffset = 0; // if present, it's always the first entry
+        uint lineScrollYOffset = 0;
+        uint lineZoomOffset = 0;
+        uint lineScrollTableInc = 0;
+        if (lineScrollXEnable) {
+            lineScrollTableInc += 4;
+        }
+        if (lineScrollYEnable) {
+            lineScrollYOffset = lineScrollTableInc;
+            lineScrollTableInc += 4;
+        }
+        if (lineZoomEnable) {
+            lineZoomOffset = lineScrollTableInc;
+            lineScrollTableInc += 4;
+        }
+
+        const uint baseTableAddr = lineScrollTableAddress + (pos.y >> lineScrollIntervalShift) * lineScrollTableInc;
+        if (lineScrollXEnable) {
+            const uint tableAddr = baseTableAddr + lineScrollXOffset;
+            baseFracScroll.x = BitExtract(ReadVRAM32(tableAddr), 8, 19);
+        }
+        // TODO: not quite right; behavior varies between NBG0-1 and NBG2-3
+        /*if (lineScrollYEnable) {
+            const uint tableAddr = baseTableAddr + lineScrollYOffset;
+            baseFracScroll.y = BitExtract(ReadVRAM32(tableAddr), 8, 19);
+        }*/
+        if (lineZoomEnable) {
+            const uint tableAddr = baseTableAddr + lineZoomOffset;
+            scrollInc.x = BitExtract(ReadVRAM32(tableAddr), 8, 11);
+        }
+    }
+
+    const uint2 fracScrollPos = baseFracScroll + state.nbgScrollAmount[index] + scrollInc * pos;
 
     uint2 scrollPos = fracScrollPos >> 8;
     if (vcellScrollEnable) {
@@ -734,9 +775,9 @@ void StoreRotationLineColorData(uint2 pos, uint2 rotPos, uint index, uint rotSel
 uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
+    const bool mosaicEnable = BitTest(rbgParams.y, 0);
     const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
     const uint screenOverPatternName = BitExtract(rbgParams.z, 0, 16);
-    const bool mosaicEnable = BitTest(rbgParams.y, 12);
 
     uint2 rotPos = pos;
     if (mosaicEnable) {
@@ -780,8 +821,8 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
 uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
     const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
+    const bool mosaicEnable = BitTest(rbgParams.y, 0);
     const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
-    const bool mosaicEnable = BitTest(rbgParams.y, 12);
 
     uint2 rotPos = pos;
     if (mosaicEnable) {
@@ -826,7 +867,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
 
-    if (InsideWindows(rbgParams.y >> 13, true, pos)) {
+    if (InsideWindows(rbgParams.z >> 18, true, pos)) {
         return kTransparentPixel;
     }
 

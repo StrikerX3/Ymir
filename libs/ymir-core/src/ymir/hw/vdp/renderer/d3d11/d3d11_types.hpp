@@ -221,35 +221,35 @@ struct VDP2BGRenderParams {
         D3DUint enabled : 1;            //    30  Background enabled               0=disable; 1=enable
         D3DUint bitmap : 1;             //    31  Background type                  0=scroll; 1=bitmap
 
-        /* Entry 1 (Y) */                   //  bits  use
-        D3DUint lineZoomEnable : 1;         //     0  Line zoom enable             0=disable; 1=enable  (NBG0/1 only)
-        D3DUint lineScrollXEnable : 1;      //     1  X line scroll enable         0=disable; 1=enable  (NBG0/1 only)
-        D3DUint lineScrollYEnable : 1;      //     2  Y line scroll enable         0=disable; 1=enable  (NBG0/1 only)
-        D3DUint lineScrollInterval : 2;     //   3-4  Line scroll table interval   (1 << x)             (NBG0/1 only)
-        D3DUint lineScrollTableAddress : 3; //   5-7  Line scroll table address    (x << 17)            (NBG0/1 only)
-        D3DUint vcellScrollEnable : 1;      //     8  Vertical cell scroll enable  0=disable; 1=enable  (NBG0/1 only)
-        D3DUint vcellScrollOffset : 1;      //     9  Vertical cell scroll offset  0=none; 1=4 bytes    (NBG0/1 only)
-        D3DUint vcellScrollDelay : 1;       //    10  Vertical cell scroll delay   0=none; 1=one entry  (NBG0/1 only)
-        D3DUint vcellScrollRepeat : 1;      //    11  Vertical cell scroll repeat  0=none; 1=once       (NBG0 only)
-        D3DUint mosaicEnable : 1;           //    12  Mosaic enable                0=disable; 1=enable
-        D3DUint windowLogic : 1;            //    13  Window logic                 0=OR; 1=AND
-        D3DUint window0Enable : 1;          //    14  Window 0 enable              0=disable; 1=enable
-        D3DUint window0Invert : 1;          //    15  Window 0 invert              0=disable; 1=enable
-        D3DUint window1Enable : 1;          //    16  Window 1 enable              0=disable; 1=enable
-        D3DUint window1Invert : 1;          //    17  Window 1 invert              0=disable; 1=enable
-        D3DUint spriteWindowEnable : 1;     //    18  Sprite window enable         0=disable; 1=enable
-        D3DUint spriteWindowInvert : 1;     //    19  Sprite window invert         0=disable; 1=enable
+        /* Entry 1 (Y) */                    //  bits  use
+        D3DUint mosaicEnable : 1;            //     0  Mosaic enable                0=disable; 1=enable
+        D3DUint lineScrollTableAddress : 18; //  1-18  Line scroll table address    (x << 1)             (NBG0/1 only)
+        D3DUint lineScrollInterval : 2;      // 19-20  Line scroll table interval   (1 << x)             (NBG0/1 only)
+        D3DUint lineScrollXEnable : 1;       //    21  X line scroll enable         0=disable; 1=enable  (NBG0/1 only)
+        D3DUint lineScrollYEnable : 1;       //    22  Y line scroll enable         0=disable; 1=enable  (NBG0/1 only)
+        D3DUint lineZoomEnable : 1;          //    23  Line zoom enable             0=disable; 1=enable  (NBG0/1 only)
+        D3DUint vcellScrollEnable : 1;       //    24  Vertical cell scroll enable  0=disable; 1=enable  (NBG0/1 only)
+        D3DUint vcellScrollOffset : 1;       //    25  Vertical cell scroll offset  0=none; 1=4 bytes    (NBG0/1 only)
+        D3DUint vcellScrollDelay : 1;        //    26  Vertical cell scroll delay   0=none; 1=one entry  (NBG0/1 only)
+        D3DUint vcellScrollRepeat : 1;       //    27  Vertical cell scroll repeat  0=none; 1=once       (NBG0 only)
     } common;
     static_assert(sizeof(Common) == sizeof(D3DUint) * 2);
 
-    // Entry 2 (Z) - rotation parameters
-    struct RotParams {                      //  bits  use
+    // Entry 2 (Z) - rotation and window parameters
+    struct RotWindowParams {                //  bits  use
         D3DUint screenOverPatternName : 16; //  0-15  Screen-over pattern name
         D3DUint screenOverProcess : 2;      // 16-17  Screen-over process
                                             //          0 = repeat planes      2 = transparent
                                             //          1 = repeat character   3 = transparent + restrict to 512x512
-    } rotParams;
-    static_assert(sizeof(RotParams) == sizeof(D3DUint));
+        D3DUint windowLogic : 1;            //    18  Window logic           0=OR; 1=AND
+        D3DUint window0Enable : 1;          //    19  Window 0 enable        0=disable; 1=enable
+        D3DUint window0Invert : 1;          //    20  Window 0 invert        0=disable; 1=enable
+        D3DUint window1Enable : 1;          //    21  Window 1 enable        0=disable; 1=enable
+        D3DUint window1Invert : 1;          //    22  Window 1 invert        0=disable; 1=enable
+        D3DUint spriteWindowEnable : 1;     //    23  Sprite window enable   0=disable; 1=enable
+        D3DUint spriteWindowInvert : 1;     //    24  Sprite window invert   0=disable; 1=enable
+    } rotWindow;
+    static_assert(sizeof(RotWindowParams) == sizeof(D3DUint));
 
     // Entry 3 (W) - type-specific parameters
     union TypeSpecific {

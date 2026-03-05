@@ -1641,31 +1641,31 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
         const NBGLayerState &bgState = m_nbgLayerStates[i];
         auto &renderParams = state.nbgParams[i];
 
-        auto &commonParams = renderParams.common;
-        commonParams.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
-        commonParams.charPatDelay = bgParams.charPatDelay;
-        commonParams.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
-        commonParams.vcellScrollOffset = bgState.vcellScrollOffset;
-        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
-        commonParams.vcellScrollRepeat = bgState.vcellScrollRepeat;
+        auto &common = renderParams.common;
+        common.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
+        common.charPatDelay = bgParams.charPatDelay;
+        common.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
+        common.vcellScrollOffset = bgState.vcellScrollOffset;
+        common.vcellScrollDelay = bgState.vcellScrollDelay;
+        common.vcellScrollRepeat = bgState.vcellScrollRepeat;
 
         if (!bgParams.bitmap) {
-            auto &scrollParams = renderParams.typeSpecific.scroll;
-            scrollParams.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
+            auto &scroll = renderParams.typeSpecific.scroll;
+            scroll.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
         }
     }
     for (uint32 i = 0; i < 2; ++i) {
         const auto &bgParams = regs2.bgParams[i];
         auto &renderParams = state.rbgParams[i];
 
-        auto &commonParams = renderParams.common;
-        commonParams.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
-        commonParams.charPatDelay = bgParams.charPatDelay;
-        commonParams.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
+        auto &common = renderParams.common;
+        common.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
+        common.charPatDelay = bgParams.charPatDelay;
+        common.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
 
         if (!bgParams.bitmap) {
-            auto &scrollParams = renderParams.typeSpecific.scroll;
-            scrollParams.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
+            auto &scroll = renderParams.typeSpecific.scroll;
+            scroll.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
         }
     }
 
@@ -1684,10 +1684,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVCellScrollDelay() {
         const NBGLayerState &bgState = m_nbgLayerStates[i];
         auto &renderParams = state.nbgParams[i];
 
-        auto &commonParams = renderParams.common;
-        commonParams.vcellScrollOffset = bgState.vcellScrollOffset;
-        commonParams.vcellScrollDelay = bgState.vcellScrollDelay;
-        commonParams.vcellScrollRepeat = bgState.vcellScrollRepeat;
+        auto &common = renderParams.common;
+        common.vcellScrollOffset = bgState.vcellScrollOffset;
+        common.vcellScrollDelay = bgState.vcellScrollDelay;
+        common.vcellScrollRepeat = bgState.vcellScrollRepeat;
     }
 
     m_context->dirtyVDP2BGRenderState = true;
@@ -1846,53 +1846,55 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         VDP2BGRenderParams &renderParams = state.nbgParams[i];
         const NBGLayerState &nbgState = m_nbgLayerStates[i];
 
-        auto &commonParams = renderParams.common;
-        commonParams.transparencyEnable = bgParams.enableTransparency;
-        commonParams.colorCalcEnable = bgParams.colorCalcEnable;
-        commonParams.cramOffset = bgParams.cramOffset >> 8u;
-        commonParams.colorFormat = static_cast<uint32>(bgParams.colorFormat);
-        commonParams.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
-        commonParams.specFuncSelect = bgParams.specialFunctionSelect;
-        commonParams.priorityNumber = bgParams.priorityNumber;
-        commonParams.priorityMode = static_cast<uint32>(bgParams.priorityMode);
-        commonParams.bitmap = bgParams.bitmap;
+        auto &common = renderParams.common;
+        common.transparencyEnable = bgParams.enableTransparency;
+        common.colorCalcEnable = bgParams.colorCalcEnable;
+        common.cramOffset = bgParams.cramOffset >> 8u;
+        common.colorFormat = static_cast<uint32>(bgParams.colorFormat);
+        common.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
+        common.specFuncSelect = bgParams.specialFunctionSelect;
+        common.priorityNumber = bgParams.priorityNumber;
+        common.priorityMode = static_cast<uint32>(bgParams.priorityMode);
+        common.bitmap = bgParams.bitmap;
 
-        commonParams.lineZoomEnable = bgParams.lineZoomEnable;
-        commonParams.lineScrollXEnable = bgParams.lineScrollXEnable;
-        commonParams.lineScrollYEnable = bgParams.lineScrollYEnable;
-        commonParams.lineScrollInterval = bgParams.lineScrollInterval;
-        commonParams.lineScrollTableAddress = nbgState.lineScrollTableAddress >> 17u;
-        commonParams.vcellScrollEnable = bgParams.vcellScrollEnable;
-        commonParams.mosaicEnable = bgParams.mosaicEnable;
-        commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
-        commonParams.window0Enable = bgParams.windowSet.enabled[0];
-        commonParams.window0Invert = bgParams.windowSet.inverted[0];
-        commonParams.window1Enable = bgParams.windowSet.enabled[1];
-        commonParams.window1Invert = bgParams.windowSet.inverted[1];
-        commonParams.spriteWindowEnable = bgParams.windowSet.enabled[2];
-        commonParams.spriteWindowInvert = bgParams.windowSet.inverted[2];
+        common.mosaicEnable = bgParams.mosaicEnable;
+        common.lineScrollTableAddress = nbgState.lineScrollTableAddress >> 1u;
+        common.lineScrollInterval = bgParams.lineScrollInterval;
+        common.lineScrollXEnable = bgParams.lineScrollXEnable;
+        common.lineScrollYEnable = bgParams.lineScrollYEnable;
+        common.lineZoomEnable = bgParams.lineZoomEnable;
+        common.vcellScrollEnable = bgParams.vcellScrollEnable;
+
+        auto &rotWindow = renderParams.rotWindow;
+        rotWindow.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
+        rotWindow.window0Enable = bgParams.windowSet.enabled[0];
+        rotWindow.window0Invert = bgParams.windowSet.inverted[0];
+        rotWindow.window1Enable = bgParams.windowSet.enabled[1];
+        rotWindow.window1Invert = bgParams.windowSet.inverted[1];
+        rotWindow.spriteWindowEnable = bgParams.windowSet.enabled[2];
+        rotWindow.spriteWindowInvert = bgParams.windowSet.inverted[2];
 
         if (bgParams.bitmap) {
-            commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
-            commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
-            commonParams.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
+            common.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
+            common.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
+            common.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
 
-            auto &bitmapParams = renderParams.typeSpecific.bitmap;
-            bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
-            bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
-            bitmapParams.bitmapBaseAddress = bgParams.bitmapBaseAddress >> 17u;
+            auto &bitmap = renderParams.typeSpecific.bitmap;
+            bitmap.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
+            bitmap.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
+            bitmap.bitmapBaseAddress = bgParams.bitmapBaseAddress >> 17u;
         } else {
-            commonParams.supplPalNum = bgParams.supplScrollPalNum >> 4u;
-            commonParams.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
-            commonParams.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
+            common.supplPalNum = bgParams.supplScrollPalNum >> 4u;
+            common.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
+            common.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
 
-            auto &scrollParams = renderParams.typeSpecific.scroll;
-            scrollParams.pageShiftH = bgParams.pageShiftH;
-            scrollParams.pageShiftV = bgParams.pageShiftV;
-            scrollParams.extChar = bgParams.extChar;
-            scrollParams.twoWordChar = bgParams.twoWordChar;
-            scrollParams.cellSizeShift = bgParams.cellSizeShift;
-            scrollParams.supplCharNum = bgParams.supplScrollCharNum;
+            auto &scroll = renderParams.typeSpecific.scroll;
+            scroll.pageShiftH = bgParams.pageShiftH;
+            scroll.pageShiftV = bgParams.pageShiftV;
+            scroll.extChar = bgParams.extChar;
+            scroll.twoWordChar = bgParams.twoWordChar;
+            scroll.cellSizeShift = bgParams.cellSizeShift;
+            scroll.supplCharNum = bgParams.supplScrollCharNum;
         }
 
         state.nbgScrollAmount[i].x = bgParams.scrollAmountH;
@@ -1908,51 +1910,51 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         const RotationParams &rotParams = regs2.rotParams[i];
         VDP2BGRenderParams &renderParams = state.rbgParams[i];
 
-        auto &commonParams = renderParams.common;
-        commonParams.transparencyEnable = bgParams.enableTransparency;
-        commonParams.colorCalcEnable = bgParams.colorCalcEnable;
-        commonParams.cramOffset = bgParams.cramOffset >> 8u;
-        commonParams.colorFormat = static_cast<uint32>(bgParams.colorFormat);
-        commonParams.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
-        commonParams.specFuncSelect = bgParams.specialFunctionSelect;
-        commonParams.priorityNumber = bgParams.priorityNumber;
-        commonParams.priorityMode = static_cast<uint32>(bgParams.priorityMode);
-        commonParams.bitmap = bgParams.bitmap;
+        auto &common = renderParams.common;
+        common.transparencyEnable = bgParams.enableTransparency;
+        common.colorCalcEnable = bgParams.colorCalcEnable;
+        common.cramOffset = bgParams.cramOffset >> 8u;
+        common.colorFormat = static_cast<uint32>(bgParams.colorFormat);
+        common.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
+        common.specFuncSelect = bgParams.specialFunctionSelect;
+        common.priorityNumber = bgParams.priorityNumber;
+        common.priorityMode = static_cast<uint32>(bgParams.priorityMode);
+        common.bitmap = bgParams.bitmap;
 
-        commonParams.mosaicEnable = bgParams.mosaicEnable;
-        commonParams.window0Enable = bgParams.windowSet.enabled[0];
-        commonParams.window0Invert = bgParams.windowSet.inverted[0];
-        commonParams.window1Enable = bgParams.windowSet.enabled[1];
-        commonParams.window1Invert = bgParams.windowSet.inverted[1];
-        commonParams.spriteWindowEnable = bgParams.windowSet.enabled[2];
-        commonParams.spriteWindowInvert = bgParams.windowSet.inverted[2];
-        commonParams.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
+        common.mosaicEnable = bgParams.mosaicEnable;
 
-        auto &rotation = renderParams.rotParams;
-        rotation.screenOverPatternName = rotParams.screenOverPatternName;
-        rotation.screenOverProcess = static_cast<uint32>(rotParams.screenOverProcess);
+        auto &rotWindow = renderParams.rotWindow;
+        rotWindow.screenOverPatternName = rotParams.screenOverPatternName;
+        rotWindow.screenOverProcess = static_cast<uint32>(rotParams.screenOverProcess);
+        rotWindow.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
+        rotWindow.window0Enable = bgParams.windowSet.enabled[0];
+        rotWindow.window0Invert = bgParams.windowSet.inverted[0];
+        rotWindow.window1Enable = bgParams.windowSet.enabled[1];
+        rotWindow.window1Invert = bgParams.windowSet.inverted[1];
+        rotWindow.spriteWindowEnable = bgParams.windowSet.enabled[2];
+        rotWindow.spriteWindowInvert = bgParams.windowSet.inverted[2];
 
         if (bgParams.bitmap) {
-            commonParams.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
-            commonParams.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
-            commonParams.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
+            common.supplPalNum = bgParams.supplBitmapPalNum >> 8u;
+            common.supplColorCalcBit = bgParams.supplBitmapSpecialColorCalc;
+            common.supplSpecPrioBit = bgParams.supplBitmapSpecialPriority;
 
-            auto &bitmapParams = renderParams.typeSpecific.bitmap;
-            bitmapParams.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
-            bitmapParams.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
-            bitmapParams.bitmapBaseAddress = rotParams.bitmapBaseAddress >> 17u;
+            auto &bitmap = renderParams.typeSpecific.bitmap;
+            bitmap.bitmapSizeH = bit::extract<1>(bgParams.bmsz);
+            bitmap.bitmapSizeV = bit::extract<0>(bgParams.bmsz);
+            bitmap.bitmapBaseAddress = rotParams.bitmapBaseAddress >> 17u;
         } else {
-            commonParams.supplPalNum = bgParams.supplScrollPalNum >> 4u;
-            commonParams.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
-            commonParams.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
+            common.supplPalNum = bgParams.supplScrollPalNum >> 4u;
+            common.supplColorCalcBit = bgParams.supplScrollSpecialColorCalc;
+            common.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
 
-            auto &scrollParams = renderParams.typeSpecific.scroll;
-            scrollParams.pageShiftH = rotParams.pageShiftH;
-            scrollParams.pageShiftV = rotParams.pageShiftV;
-            scrollParams.extChar = bgParams.extChar;
-            scrollParams.twoWordChar = bgParams.twoWordChar;
-            scrollParams.cellSizeShift = bgParams.cellSizeShift;
-            scrollParams.supplCharNum = bgParams.supplScrollCharNum;
+            auto &scroll = renderParams.typeSpecific.scroll;
+            scroll.pageShiftH = rotParams.pageShiftH;
+            scroll.pageShiftV = rotParams.pageShiftV;
+            scroll.extChar = bgParams.extChar;
+            scroll.twoWordChar = bgParams.twoWordChar;
+            scroll.cellSizeShift = bgParams.cellSizeShift;
+            scroll.supplCharNum = bgParams.supplScrollCharNum;
         }
 
         state.rbgPageBaseAddresses[i] = m_rbgPageBaseAddresses[i];
