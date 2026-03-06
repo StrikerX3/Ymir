@@ -338,10 +338,6 @@ protected:
     /// Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
 
-    // Vertical cell scroll increment.
-    // Based on CYCA0/A1/B0/B1 parameters.
-    uint32 m_vcellScrollInc;
-
     /// @brief Layer enable state based on BGON and other factors.
     /// ```
     ///     RBG0+RBG1   RBG0        RBG1        no RBGs

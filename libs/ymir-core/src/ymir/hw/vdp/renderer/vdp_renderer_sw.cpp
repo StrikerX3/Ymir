@@ -301,7 +301,7 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
         }
     }
 
-    state.vcellScrollInc = m_vcellScrollInc;
+    state.vcellScrollInc = m_state.regs2.vcellScrollInc;
 }
 
 bool SoftwareVDPRenderer::ValidateState(const state::VDPState::VDPRendererState &state) const {
@@ -361,7 +361,7 @@ void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &sta
         }
     }
 
-    m_vcellScrollInc = state.vcellScrollInc;
+    m_state.regs2.vcellScrollInc = state.vcellScrollInc;
     m_vdp2RenderingContext.displayFB = state.displayFB;
 }
 
@@ -4189,7 +4189,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
         }
         const uint32 value = VDP2ReadRendererVRAM<uint32>(cellScrollTableAddress);
         if (!checkRepeat || !bgState.vcellScrollRepeat) {
-            cellScrollTableAddress += m_vcellScrollInc;
+            cellScrollTableAddress += regs.vcellScrollInc;
         }
         const uint32 prevValue = vramFetcher.lastVCellScroll;
         vramFetcher.lastVCellScroll = bit::extract<8, 26>(value);
@@ -4293,7 +4293,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
         }
         const uint32 value = VDP2ReadRendererVRAM<uint32>(cellScrollTableAddress);
         if (!checkRepeat || !bgState.vcellScrollRepeat) {
-            cellScrollTableAddress += m_vcellScrollInc;
+            cellScrollTableAddress += regs.vcellScrollInc;
         }
         const uint32 prevValue = vramFetcher.lastVCellScroll;
         vramFetcher.lastVCellScroll = bit::extract<8, 26>(value);
