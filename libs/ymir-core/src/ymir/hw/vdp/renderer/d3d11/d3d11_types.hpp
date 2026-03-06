@@ -159,6 +159,8 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint spriteColorDataOffset : 3; // 22-24  Special color data offset in CRAM
         D3DUint spriteWindowEnabled : 1;   //    25  Sprite window enabled for the sprite layer
         D3DUint spriteWindowInverted : 1;  //    26  Sprite window inverted for the sprite layer
+        D3DUint displayEnable : 1;         //    27  Display enabled             0=display off; 1=display on
+        D3DUint borderColorMode : 1;       //    28  Border color mode           0=black; 1=back screen color
     } displayParams;
 
     // Top Y coordinate of target rendering area
