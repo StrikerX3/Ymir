@@ -63,6 +63,7 @@ ByteAddressBuffer spriteFB : register(t5);
 RWTexture2DArray<uint4> bgOut : register(u0);
 RWTexture2DArray<uint4> rbgLineColorOut : register(u1);
 RWTexture2D<uint4> lineColorOut : register(u2);
+RWTexture2D<uint> spriteCCRatioOut : register(u3);
 
 // -----------------------------------------------------------------------------
 
@@ -1127,7 +1128,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
             const uint4 outColor = Color555(spriteDataValue);
             const uint outPriority = BitExtract(config.spriteParams.x, 0, 3);
 
-            // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
+            spriteCCRatioOut[pos] = BitExtract(config.spriteParams, 0 * 8 + 3, 5);
             return uint4(outColor.rgb, outPriority);
         }
     }
@@ -1153,7 +1154,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const uint outPriority = BitExtract(config.spriteParams, spriteData.priority * 8, 3);
     const uint outMSB = outColor.a;
 
-    // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
+    spriteCCRatioOut[pos] = BitExtract(config.spriteParams, spriteData.colorCalcRatio * 8 + 3, 5);
     return uint4(outColor.xyz, (outTransparent << 7) | (1 << 6) | (outNormalShadow << 5) | (outShadowOrWindow << 4) | (outMSB << 3) | outPriority);
 }
 
