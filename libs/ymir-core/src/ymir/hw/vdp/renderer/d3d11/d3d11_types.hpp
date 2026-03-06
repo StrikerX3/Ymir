@@ -189,7 +189,7 @@ struct alignas(16) VDP2RenderConfig {
 
     struct {                       //  bits  use
         D3DUint tableAddress : 19; //  0-18  Vertical cell scroll table address
-        D3DUint inc : 13;          // 19-31  Vertical cell scroll address increment per cell  (x << 2)
+        D3DUint inc : 3;           // 19-21  Vertical cell scroll address increment per cell  (x << 2)
     } vcellScroll;
 
     D3DUint2 spriteParams; // Packed 8x 3-bit sprite priorities + 5-bit color calculation ratios
