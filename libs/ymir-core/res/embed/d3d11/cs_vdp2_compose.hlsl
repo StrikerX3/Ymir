@@ -65,6 +65,9 @@ uint BitExtract(uint value, uint offset, uint length) {
 // The alpha channel of the layer textures contains pixel attributes:
 // bits  use
 //  0-2  Priority (0 to 7)
+//    3  -
+//    4  Sprite shadow/window flag (SD = 1)
+//    5  Sprite normal shadow flag (DC LSB = 0, rest of the bits = 1)
 //    6  Special color calculation flag
 //    7  Transparent flag (0=opaque, 1=transparent)
 struct Attributes {
@@ -135,6 +138,7 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
     }
     if (layer == kLayerSprite) {
         // TODO: check sprite pixel attributes at [pos]
+        // - priority check <=, ==, >=, or MSB=1
         return false;
     }
     // BG layers use the per-pixel special color calculation flag
@@ -224,7 +228,12 @@ uint3 Compose(uint2 pos) {
             continue;
         }
 
-        // TODO: skip normal shadow sprite layer pixels
+        // Skip normal shadow sprite layer pixels
+        if (layer == kLayerSprite) {
+            if (BitTest(layerOutput.a, 5)) {
+                continue;
+            }
+        }
 
         // Insert the layer into the appropriate position in the stack
         // - Higher priority beats lower priority
@@ -295,7 +304,17 @@ uint3 Compose(uint2 pos) {
 
     // TODO: blend layer 0 with sprite mesh layer colors
 
-    // TOOD: apply sprite shadow
+    // Apply sprite shadow if sprite layer has a shadow pixel and is on top of the topmost layer
+    const uint4 spriteOutput = GetLayerOutput(kLayerSprite, pos);
+    const uint spritePriority = BitExtract(spriteOutput.a, 0, 3);
+    if (spritePriority >= layerPrios[0]) {
+        const bool useSpriteWindow = BitTest(config.displayParams, 15);
+        const bool isNormalShadow = BitTest(spriteOutput.a, 5);
+        const bool isMSBShadow = !useSpriteWindow && BitTest(spriteOutput.a, 4);
+        if (isNormalShadow || isMSBShadow) {
+            output >>= 1;
+        }
+    }
 
     if (IsColorOffsetEnabled(layerStack[0])) {
         const int3 offset = GetColorOffset(layerStack[0]);
