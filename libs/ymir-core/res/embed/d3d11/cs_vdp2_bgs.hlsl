@@ -680,7 +680,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
 
         // TODO: if offset == -1, read from the end of the previous line (or end of frame if at topmost row of cells)
         const uint vcellScrollTableAddress = BitExtract(config.vcellScrollParams, 0, 19);
-        const uint vcellScrollInc = BitExtract(config.vcellScrollParams, 19, 13) << 2u;
+        const uint vcellScrollInc = BitExtract(config.vcellScrollParams, 19, 3) << 2u;
         const uint vcellAddress = vcellScrollTableAddress + offset * vcellScrollInc + vcellScrollOffset;
         const uint vcellScrollY = BitExtract(ReadVRAM32(vcellAddress), 8, 19);
         baseFracScroll.y += vcellScrollY;
