@@ -67,6 +67,12 @@ RWTexture2D<uint> spriteCCRatioOut : register(u3);
 
 // -----------------------------------------------------------------------------
 
+static const uint kPixelAttrBitSpriteColorMSB = 3;
+static const uint kPixelAttrBitSpriteShadowWindow = 4;
+static const uint kPixelAttrBitSpriteNormalShadow = 5;
+static const uint kPixelAttrBitSpecColorCalc = 6;
+static const uint kPixelAttrBitTransparent = 7;
+
 static const uint kWindowLogicOR = 0;
 static const uint kWindowLogicAND = 1;
 
@@ -118,7 +124,7 @@ struct Character {
 };
 
 static const Character kBlankCharacter = (Character) 0;
-static const uint4 kTransparentPixel = uint4(0, 0, 0, 128);
+static const uint4 kTransparentPixel = uint4(0, 0, 0, 1 << kPixelAttrBitTransparent);
 
 // -----------------------------------------------------------------------------
 
@@ -494,7 +500,12 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
         }
     }
 
-    return uint4(outColor.xyz, (outTransparent << 7) | (outSpecColorCalc << 6) | outPriority);
+    return uint4(
+        outColor.rgb,
+        (outTransparent << kPixelAttrBitTransparent) |
+        (outSpecColorCalc << kPixelAttrBitSpecColorCalc) |
+        outPriority
+    );
 }
 
 uint4 FetchCharacterPixel(uint4 bgParams, Character ch, uint2 dotPos, uint cellIndex) {
@@ -919,7 +930,7 @@ struct SpriteData {
 
 uint GetSpecialPattern(uint rawData, uint colorDataBits) {
     // Normal shadow pattern (LSB = 0, rest of the color data bits = 1)
-    const uint kNormalShadowValue = (1u << (colorDataBits + 1u)) - 2u;
+    const uint kNormalShadowValue = (1u << colorDataBits) - 2u;
 
     if ((rawData & 0x7FFF) == 0) {
         return kSpriteDataTransparent;
@@ -958,7 +969,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 11, 3);
             data.priority = BitExtract(rawData, 14, 2);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 10);
+            data.special = GetSpecialPattern(rawData, 11);
             break;
 
         case 0x1:
@@ -966,7 +977,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 11, 2);
             data.priority = BitExtract(rawData, 13, 33);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 10);
+            data.special = GetSpecialPattern(rawData, 11);
             break;
 
         case 0x2:
@@ -974,7 +985,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 11, 3);
             data.priority = BitExtract(rawData, 14, 1);
             data.shadowOrWindow = BitTest(rawData, 15);
-            data.special = GetSpecialPattern(rawData, 10);
+            data.special = GetSpecialPattern(rawData, 11);
             break;
 
         case 0x3:
@@ -982,7 +993,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 11, 2);
             data.priority = BitExtract(rawData, 13, 2);
             data.shadowOrWindow = BitTest(rawData, 15);
-            data.special = GetSpecialPattern(rawData, 10);
+            data.special = GetSpecialPattern(rawData, 11);
             break;
 
         case 0x4:
@@ -990,7 +1001,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 10, 3);
             data.priority = BitExtract(rawData, 13, 2);
             data.shadowOrWindow = BitTest(rawData, 15);
-            data.special = GetSpecialPattern(rawData, 9);
+            data.special = GetSpecialPattern(rawData, 10);
             break;
 
         case 0x5:
@@ -998,7 +1009,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 11, 1);
             data.priority = BitExtract(rawData, 12, 3);
             data.shadowOrWindow = BitTest(rawData, 15);
-            data.special = GetSpecialPattern(rawData, 10);
+            data.special = GetSpecialPattern(rawData, 11);
             break;
 
         case 0x6:
@@ -1006,7 +1017,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 10, 2);
             data.priority = BitExtract(rawData, 12, 3);
             data.shadowOrWindow = BitTest(rawData, 15);
-            data.special = GetSpecialPattern(rawData, 9);
+            data.special = GetSpecialPattern(rawData, 10);
             break;
 
         case 0x7:
@@ -1014,7 +1025,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 9, 3);
             data.priority = BitExtract(rawData, 12, 3);
             data.shadowOrWindow = BitTest(rawData, 15);
-            data.special = GetSpecialPattern(rawData, 8);
+            data.special = GetSpecialPattern(rawData, 9);
             break;
 
         case 0x8:
@@ -1022,7 +1033,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = 0;
             data.priority = BitExtract(rawData, 7, 1);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 6);
+            data.special = GetSpecialPattern(rawData, 7);
             break;
 
         case 0x9:
@@ -1030,7 +1041,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 6, 1);
             data.priority = BitExtract(rawData, 7, 1);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 5);
+            data.special = GetSpecialPattern(rawData, 6);
             break;
 
         case 0xA:
@@ -1038,7 +1049,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = 0;
             data.priority = BitExtract(rawData, 6, 2);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 5);
+            data.special = GetSpecialPattern(rawData, 6);
             break;
 
         case 0xB:
@@ -1046,7 +1057,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 6, 2);
             data.priority = 0;
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 5);
+            data.special = GetSpecialPattern(rawData, 6);
             break;
 
         case 0xC:
@@ -1054,7 +1065,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = 0;
             data.priority = BitExtract(rawData, 7, 1);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 7);
+            data.special = GetSpecialPattern(rawData, 8);
             break;
 
         case 0xD:
@@ -1062,7 +1073,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 6, 1);
             data.priority = BitExtract(rawData, 7, 1);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 7);
+            data.special = GetSpecialPattern(rawData, 8);
             break;
 
         case 0xE:
@@ -1070,7 +1081,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = 0;
             data.priority = BitExtract(rawData, 6, 2);
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 7);
+            data.special = GetSpecialPattern(rawData, 8);
             break;
 
         case 0xF:
@@ -1078,7 +1089,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
             data.colorCalcRatio = BitExtract(rawData, 6, 2);
             data.priority = 0;
             data.shadowOrWindow = false;
-            data.special = GetSpecialPattern(rawData, 7);
+            data.special = GetSpecialPattern(rawData, 8);
             break;
     }
     return data;
@@ -1141,7 +1152,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const bool spriteWindowInverted = BitTest(config.displayParams, 26);
     if (useSpriteWindow && spriteWindowEnabled && spriteData.shadowOrWindow != spriteWindowInverted) {
         uint4 outPixel = kTransparentPixel;
-        outPixel.a |= 1 << 4;
+        outPixel.a |= 1 << kPixelAttrBitSpriteShadowWindow;
         return outPixel;
     }
 
@@ -1149,13 +1160,21 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const uint colorIndex = colorDataOffset + spriteData.colorData;
     const uint4 outColor = FetchCRAMColor(0, colorIndex);
     const uint outTransparent = (spriteData.special == kSpriteDataTransparent) ? 1 : 0;
-    const uint outShadowOrWindow = (spriteData.shadowOrWindow) ? 1 : 0;
+    const uint outShadowOrWindow = spriteData.shadowOrWindow ? 1 : 0;
     const uint outNormalShadow = (spriteData.special == kSpriteDataShadow) ? 1 : 0;
     const uint outPriority = BitExtract(config.spriteParams, spriteData.priority * 8, 3);
     const uint outMSB = outColor.a;
 
     spriteCCRatioOut[pos] = BitExtract(config.spriteParams, spriteData.colorCalcRatio * 8 + 3, 5);
-    return uint4(outColor.xyz, (outTransparent << 7) | (1 << 6) | (outNormalShadow << 5) | (outShadowOrWindow << 4) | (outMSB << 3) | outPriority);
+    return uint4(
+        outColor.rgb,
+        (outTransparent << kPixelAttrBitTransparent) |
+        (1 << kPixelAttrBitSpecColorCalc) |
+        (outNormalShadow << kPixelAttrBitSpriteNormalShadow) |
+        (outShadowOrWindow << kPixelAttrBitSpriteShadowWindow) |
+        (outMSB << kPixelAttrBitSpriteColorMSB) |
+        outPriority
+    );
 }
 
 // -----------------------------------------------------------------------------

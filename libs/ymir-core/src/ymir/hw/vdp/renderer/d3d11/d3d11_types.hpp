@@ -137,7 +137,7 @@ static constexpr size_t kVDP1BinBufferSize = 256 * 1024;
 
 struct alignas(16) VDP2RenderConfig {
     struct DisplayParams {                 //  bits  use
-        D3DUint interlaced : 1;            //     0  Interlaced
+        D3DUint interlaced : 1;            //     0  Interlaced mode          0=progressive; 1=interlaced
         D3DUint oddField : 1;              //     1  Field                    0=even; 1=odd
         D3DUint exclusiveMonitor : 1;      //     2  Exclusive monitor mode   0=normal; 1=exclusive
         D3DUint colorRAMMode : 2;          //   3-4  Color RAM mode

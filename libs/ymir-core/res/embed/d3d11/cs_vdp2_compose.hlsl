@@ -31,6 +31,12 @@ RWTexture2D<float4> textureOut : register(u0);
 
 // -----------------------------------------------------------------------------
 
+static const uint kPixelAttrBitSpriteColorMSB = 3;
+static const uint kPixelAttrBitSpriteShadowWindow = 4;
+static const uint kPixelAttrBitSpriteNormalShadow = 5;
+static const uint kPixelAttrBitSpecColorCalc = 6;
+static const uint kPixelAttrBitTransparent = 7;
+
 static const uint kBGLayerNBG0 = 0;
 static const uint kBGLayerNBG1 = 1;
 static const uint kBGLayerNBG2 = 2;
@@ -86,8 +92,8 @@ struct Attributes {
 Attributes ToAttributes(uint pixelData) {
     Attributes attrs;
     attrs.priority = BitExtract(pixelData, 0, 3);
-    attrs.specColorCalc = BitTest(pixelData, 6);
-    attrs.transparent = BitTest(pixelData, 7);
+    attrs.specColorCalc = BitTest(pixelData, kPixelAttrBitSpecColorCalc);
+    attrs.transparent = BitTest(pixelData, kPixelAttrBitTransparent);
     return attrs;
 }
 
@@ -161,7 +167,7 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
             case kSpriteCCCondPriorityGE:
                 return priority >= value;
             case kSpriteCCCondColorMSB:
-                return BitTest(attrs, 3);
+                return BitTest(attrs, kPixelAttrBitSpriteColorMSB);
         }
         return false;
     }
@@ -261,7 +267,7 @@ uint3 Compose(uint2 pos) {
 
         // Skip normal shadow sprite layer pixels
         if (layer == kLayerSprite) {
-            if (BitTest(layerOutput.a, 5)) {
+            if (BitTest(layerOutput.a, kPixelAttrBitSpriteNormalShadow)) {
                 continue;
             }
         }
@@ -340,8 +346,8 @@ uint3 Compose(uint2 pos) {
     const uint spritePriority = BitExtract(spriteOutput.a, 0, 3);
     if (spritePriority >= layerPrios[0]) {
         const bool useSpriteWindow = BitTest(config.displayParams, 15);
-        const bool isNormalShadow = BitTest(spriteOutput.a, 5);
-        const bool isMSBShadow = !useSpriteWindow && BitTest(spriteOutput.a, 4);
+        const bool isNormalShadow = BitTest(spriteOutput.a, kPixelAttrBitSpriteNormalShadow);
+        const bool isMSBShadow = !useSpriteWindow && BitTest(spriteOutput.a, kPixelAttrBitSpriteShadowWindow);
         if (isNormalShadow || isMSBShadow) {
             output >>= 1;
         }
