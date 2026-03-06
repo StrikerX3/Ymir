@@ -50,6 +50,7 @@ static const uint kLayerBack = 6;
 static const uint kLayerLine = 7; // not used in the stack, but referenced for parameters
 
 static const uint4 kTransparentPixel = uint4(0, 0, 0, 128);
+static const uint3 kBlackPixel = uint3(0, 0, 0);
 
 // -----------------------------------------------------------------------------
 
@@ -203,8 +204,16 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
 }
 
 uint3 Compose(uint2 pos) {
-    // TODO: clear screen if display is disabled
-    // - also honor BDCLMD
+    // Clear screen if display is disabled
+    const bool displayEnabled = BitTest(config.displayParams, 27);
+    if (!displayEnabled) {
+        const bool borderColorMode = BitTest(config.displayParams, 28);
+        if (borderColorMode) {
+            // Use back screen color
+            return lineColorIn[uint2(1, pos.y)].rgb;
+        }
+        return kBlackPixel.rgb;
+    }
 
     uint layerStack[3] = { kLayerBack, kLayerBack, kLayerBack };
     uint layerPrios[3] = { 0, 0, 0 };

@@ -2014,6 +2014,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.spriteColorDataOffset = regs2.spriteParams.colorDataOffset >> 8u;
     config.displayParams.spriteWindowEnabled = regs2.spriteParams.spriteWindowEnabled;
     config.displayParams.spriteWindowInverted = regs2.spriteParams.spriteWindowInverted;
+    config.displayParams.displayEnable = regs2.TVMD.DISP;
+    config.displayParams.borderColorMode = regs2.TVMD.BDCLMD;
 
     config.extraParams.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
     config.extraParams.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
