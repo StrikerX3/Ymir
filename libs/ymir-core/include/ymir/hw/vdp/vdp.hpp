@@ -293,6 +293,7 @@ private:
             return nullptr;
         }
         if (!renderer->IsValid()) {
+            delete renderer;
             return nullptr;
         }
 
