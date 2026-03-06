@@ -24,7 +24,8 @@ cbuffer Config : register(b0) {
 Texture2DArray<uint4> bgIn : register(t0);
 Texture2DArray<uint4> rbgLineColorIn : register(t1);
 Texture2D<uint4> lineColorIn : register(t2);
-StructuredBuffer<ComposeParams> composeParams : register(t3);
+Texture2D<uint> spriteCCRatioIn : register(t3);
+StructuredBuffer<ComposeParams> composeParams : register(t4);
 
 RWTexture2D<float4> textureOut : register(u0);
 
@@ -184,8 +185,7 @@ uint3 GetLineColor(uint layer, uint2 pos) {
 int GetColorCalcRatio(uint layer, uint2 pos) {
     switch (layer) {
         case kLayerSprite:
-            // TODO: check sprite pixel attributes at [pos]
-            return 31;
+            return spriteCCRatioIn[pos];
         case kLayerRBG0:
         case kLayerNBG0_RBG1:
         case kLayerNBG1_EXBG:

@@ -146,6 +146,10 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ShaderResourceView *srvVDP2LineColors = nullptr;  //< SRV for LNCL screen texture
     ID3D11UnorderedAccessView *uavVDP2LineColors = nullptr; //< UAV for LNCL screen texture
 
+    ID3D11Texture2D *texVDP2SpriteCCRatios = nullptr;           //< Sprite color calc ratios
+    ID3D11ShaderResourceView *srvVDP2SpriteCCRatios = nullptr;  //< SRV for Sprite color calc ratios
+    ID3D11UnorderedAccessView *uavVDP2SpriteCCRatios = nullptr; //< UAV for Sprite color calc ratios
+
     // -------------------------------------------------------------------------
     // VDP2 - rotation parameters shader
 
@@ -418,6 +422,17 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->texVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen texture");
     SetDebugName(m_context->srvVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen SRV");
     SetDebugName(m_context->uavVDP2LineColors, "[Ymir D3D11] VDP2 line color/back screen UAV");
+
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2SpriteCCRatios, &m_context->srvVDP2SpriteCCRatios,
+                                            &m_context->uavVDP2SpriteCCRatios, vdp::kVDP1MaxFBSizeH,
+                                            vdp::kVDP1MaxFBSizeV, 0, DXGI_FORMAT_R8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->texVDP2SpriteCCRatios, "[Ymir D3D11] VDP2 sprite color calc ratios texture");
+    SetDebugName(m_context->srvVDP2SpriteCCRatios, "[Ymir D3D11] VDP2 sprite color calc ratios SRV");
+    SetDebugName(m_context->uavVDP2SpriteCCRatios, "[Ymir D3D11] VDP2 sprite color calc ratios UAV");
 
     // -------------------------------------------------------------------------
     // VDP2 - rotation parameters shader
@@ -1730,8 +1745,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     // Draw NBGs and RBGs
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
-    ctx.CSSetUnorderedAccessViews(
-        {m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors,
+                                   m_context->uavVDP2SpriteCCRatios});
     ctx.CSSetShaderResources({m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut}, 3);
     ctx.CSSetShader(m_context->csVDP2BGs);
     ctx.Dispatch(m_HRes / 32, numLines, 1);
@@ -1762,7 +1777,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
     ctx.CSSetShaderResources({m_context->srvVDP2BGs, m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
-                              m_context->srvVDP2ComposeParams});
+                              m_context->srvVDP2SpriteCCRatios, m_context->srvVDP2ComposeParams});
     ctx.CSSetShader(m_context->csVDP2Compose);
     ctx.Dispatch(m_HRes / 32, numLines, 1);
 }
