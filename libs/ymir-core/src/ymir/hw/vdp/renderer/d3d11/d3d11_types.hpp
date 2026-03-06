@@ -323,12 +323,6 @@ struct alignas(16) VDP2BGRenderState {
                                   //  8-15  Special function code B
 };
 
-struct VDP2SpriteAttrs {        //  bits  use
-    D3DUint colorCalcRatio : 5; //   0-4  Color calculation ratio
-    D3DUint shadowOrWindow : 1; //     5  Shadow/window flag (SD bit in sprite data; meaning depends on SPWINEN)
-    D3DUint normalShadow : 1;   //     6  Normal shadow flag (DC bits are all 1s except LSB)
-};
-
 // -----------------------------------------------------------------------------
 
 struct VDP2RotationRegs {           //  bits  use
