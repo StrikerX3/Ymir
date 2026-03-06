@@ -2,10 +2,8 @@ struct Config {
     uint displayParams;
     uint startY;
     uint extraParams;
-    uint spritePriorities;
-    uint spriteColorCalcRatios;
-    uint vcellScrollTableAddress;
-    uint vcellScrollInc;
+    uint vcellScrollParams;
+    uint2 spriteParams;
 };
 
 struct Window {
@@ -127,6 +125,15 @@ bool BitTest(uint value, uint bit) {
 uint BitExtract(uint value, uint offset, uint length) {
     const uint mask = (1u << length) - 1u;
     return (value >> offset) & mask;
+}
+
+uint BitExtract(uint2 value, uint offset, uint length) {
+    const uint mask = (1u << length) - 1u;
+    if (offset < 32) {
+        return (value.x >> offset) & mask;
+    } else {
+        return (value.y >> (offset - 32)) & mask;
+    }
 }
 
 int SignExtend(int value, int bits) {
@@ -657,11 +664,11 @@ uint4 DrawNBG(uint2 pos, uint index) {
     }
 
     if (vcellScrollEnable && !mosaicEnable) {
-        const uint vcellScrollOffset = BitExtract(nbgParams.y, 25, 1) << 2;
-        const bool vcellScrollDelay = BitTest(nbgParams.y, 26);
-        const bool vcellScrollRepeat = BitTest(nbgParams.y, 27);
+        const uint vcellScrollOffset = BitExtract(nbgParams.y, 25, 3) << 2;
+        const bool vcellScrollDelay = BitTest(nbgParams.y, 28);
+        const bool vcellScrollRepeat = BitTest(nbgParams.y, 29);
 
-        const int scrollX = baseFracScroll.x >> 8;
+        const uint scrollX = baseFracScroll.x >> 8;
         int offset = (pos.x + scrollX) >> 3;
         offset -= scrollX >> (8 + 3);
         if (vcellScrollRepeat && offset > 0) {
@@ -672,7 +679,9 @@ uint4 DrawNBG(uint2 pos, uint index) {
         }
 
         // TODO: if offset == -1, read from the end of the previous line (or end of frame if at topmost row of cells)
-        const uint vcellAddress = config.vcellScrollTableAddress + offset * config.vcellScrollInc + vcellScrollOffset;
+        const uint vcellScrollTableAddress = BitExtract(config.vcellScrollParams, 0, 19);
+        const uint vcellScrollInc = BitExtract(config.vcellScrollParams, 19, 13) << 2u;
+        const uint vcellAddress = vcellScrollTableAddress + offset * vcellScrollInc + vcellScrollOffset;
         const uint vcellScrollY = BitExtract(ReadVRAM32(vcellAddress), 8, 19);
         baseFracScroll.y += vcellScrollY;
     }
@@ -1117,7 +1126,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
             }
 
             const uint4 outColor = Color555(spriteDataValue);
-            const uint outPriority = BitExtract(config.spritePriorities, 0, 3);
+            const uint outPriority = BitExtract(config.spriteParams.x, 0, 3);
 
             // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
             // TODO: layerAttrs.shadowOrWindow[x] = false;
@@ -1141,7 +1150,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const uint colorIndex = colorDataOffset + spriteData.colorData;
     const uint4 outColor = FetchCRAMColor(0, colorIndex);
     const bool outTransparent = spriteData.special == kSpriteDataTransparent;
-    const uint outPriority = BitExtract(config.spritePriorities, spriteData.priority * 3, 3);
+    const uint outPriority = BitExtract(config.spriteParams, spriteData.priority * 8, 3);
 
     // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
     // TODO: layerAttrs.shadowOrWindow[x] = spriteData.shadowOrWindow;
