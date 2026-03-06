@@ -55,9 +55,9 @@ ByteAddressBuffer spriteFB : register(t5);
 // The alpha channel of the BG output is used for pixel attributes as follows:
 // bits  use
 //  0-2  Priority (0 to 7)
-//    3  -
-//    4  Sprite shadow/window flag (SD = 1)
-//    5  Sprite normal shadow flag (DC LSB = 0, rest of the bits = 1)
+//    3  Color MSB (sprite only)
+//    4  Sprite shadow/window flag (sprite only; SD = 1)
+//    5  Sprite normal shadow flag (sprite only; DC LSB = 0, rest of the bits = 1)
 //    6  Special color calculation flag
 //    7  Transparent flag (0=opaque, 1=transparent)
 RWTexture2DArray<uint4> bgOut : register(u0);
@@ -1151,9 +1151,10 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const uint outShadowOrWindow = (spriteData.shadowOrWindow) ? 1 : 0;
     const uint outNormalShadow = (spriteData.special == kSpriteDataShadow) ? 1 : 0;
     const uint outPriority = BitExtract(config.spriteParams, spriteData.priority * 8, 3);
+    const uint outMSB = outColor.a;
 
     // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
-    return uint4(outColor.xyz, (outTransparent << 7) | (1 << 6) | (outNormalShadow << 5) | (outShadowOrWindow << 4) | outPriority);
+    return uint4(outColor.xyz, (outTransparent << 7) | (1 << 6) | (outNormalShadow << 5) | (outShadowOrWindow << 4) | (outMSB << 3) | outPriority);
 }
 
 // -----------------------------------------------------------------------------
