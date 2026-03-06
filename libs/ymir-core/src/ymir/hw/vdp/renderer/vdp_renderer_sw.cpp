@@ -5160,11 +5160,11 @@ FORCE_INLINE Color888 SoftwareVDPRenderer::VDP2FetchCRAMColor(uint32 cramOffset,
 template <uint32 colorDataBits>
 FORCE_INLINE static SpriteData::Special GetSpecialPattern(uint16 rawData) {
     // Normal shadow pattern (LSB = 0, rest of the color data bits = 1)
-    static constexpr uint16 kNormalShadowValue = (1u << (colorDataBits + 1u)) - 2u;
+    static constexpr uint16 kNormalShadowValue = (1u << colorDataBits) - 2u;
 
     if ((rawData & 0x7FFF) == 0) {
         return SpriteData::Special::Transparent;
-    } else if (bit::extract<0, colorDataBits>(rawData) == kNormalShadowValue) {
+    } else if (bit::extract<0, colorDataBits - 1u>(rawData) == kNormalShadowValue) {
         return SpriteData::Special::Shadow;
     } else {
         return SpriteData::Special::Normal;
@@ -5201,14 +5201,14 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         data.colorData = bit::extract<0, 10>(rawData);
         data.colorCalcRatio = bit::extract<11, 13>(rawData);
         data.priority = bit::extract<14, 15>(rawData);
-        data.special = GetSpecialPattern<10>(rawData);
+        data.special = GetSpecialPattern<11>(rawData);
         break;
 
     case 0x1:
         data.colorData = bit::extract<0, 10>(rawData);
         data.colorCalcRatio = bit::extract<11, 12>(rawData);
         data.priority = bit::extract<13, 15>(rawData);
-        data.special = GetSpecialPattern<10>(rawData);
+        data.special = GetSpecialPattern<11>(rawData);
         break;
 
     case 0x2:
@@ -5216,7 +5216,7 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         data.colorCalcRatio = bit::extract<11, 13>(rawData);
         data.priority = bit::extract<14>(rawData);
         data.shadowOrWindow = bit::test<15>(rawData);
-        data.special = GetSpecialPattern<10>(rawData);
+        data.special = GetSpecialPattern<11>(rawData);
         break;
 
     case 0x3:
@@ -5224,7 +5224,7 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         data.colorCalcRatio = bit::extract<11, 12>(rawData);
         data.priority = bit::extract<13, 14>(rawData);
         data.shadowOrWindow = bit::test<15>(rawData);
-        data.special = GetSpecialPattern<10>(rawData);
+        data.special = GetSpecialPattern<11>(rawData);
         break;
 
     case 0x4:
@@ -5232,7 +5232,7 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         data.colorCalcRatio = bit::extract<10, 12>(rawData);
         data.priority = bit::extract<13, 14>(rawData);
         data.shadowOrWindow = bit::test<15>(rawData);
-        data.special = GetSpecialPattern<9>(rawData);
+        data.special = GetSpecialPattern<10>(rawData);
         break;
 
     case 0x5:
@@ -5240,7 +5240,7 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         data.colorCalcRatio = bit::extract<11>(rawData);
         data.priority = bit::extract<12, 14>(rawData);
         data.shadowOrWindow = bit::test<15>(rawData);
-        data.special = GetSpecialPattern<10>(rawData);
+        data.special = GetSpecialPattern<11>(rawData);
         break;
 
     case 0x6:
@@ -5248,7 +5248,7 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         data.colorCalcRatio = bit::extract<10, 11>(rawData);
         data.priority = bit::extract<12, 14>(rawData);
         data.shadowOrWindow = bit::test<15>(rawData);
-        data.special = GetSpecialPattern<9>(rawData);
+        data.special = GetSpecialPattern<10>(rawData);
         break;
 
     case 0x7:
@@ -5256,57 +5256,57 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
         data.colorCalcRatio = bit::extract<9, 11>(rawData);
         data.priority = bit::extract<12, 14>(rawData);
         data.shadowOrWindow = bit::test<15>(rawData);
-        data.special = GetSpecialPattern<8>(rawData);
+        data.special = GetSpecialPattern<9>(rawData);
         break;
 
     case 0x8:
         data.colorData = bit::extract<0, 6>(rawData);
         data.priority = bit::extract<7>(rawData);
-        data.special = GetSpecialPattern<6>(rawData);
+        data.special = GetSpecialPattern<7>(rawData);
         break;
 
     case 0x9:
         data.colorData = bit::extract<0, 5>(rawData);
         data.colorCalcRatio = bit::extract<6>(rawData);
         data.priority = bit::extract<7>(rawData);
-        data.special = GetSpecialPattern<5>(rawData);
+        data.special = GetSpecialPattern<6>(rawData);
         break;
 
     case 0xA:
         data.colorData = bit::extract<0, 5>(rawData);
         data.priority = bit::extract<6, 7>(rawData);
-        data.special = GetSpecialPattern<5>(rawData);
+        data.special = GetSpecialPattern<6>(rawData);
         break;
 
     case 0xB:
         data.colorData = bit::extract<0, 5>(rawData);
         data.colorCalcRatio = bit::extract<6, 7>(rawData);
-        data.special = GetSpecialPattern<5>(rawData);
+        data.special = GetSpecialPattern<6>(rawData);
         break;
 
     case 0xC:
         data.colorData = bit::extract<0, 7>(rawData);
         data.priority = bit::extract<7>(rawData);
-        data.special = GetSpecialPattern<7>(rawData);
+        data.special = GetSpecialPattern<8>(rawData);
         break;
 
     case 0xD:
         data.colorData = bit::extract<0, 7>(rawData);
         data.colorCalcRatio = bit::extract<6>(rawData);
         data.priority = bit::extract<7>(rawData);
-        data.special = GetSpecialPattern<7>(rawData);
+        data.special = GetSpecialPattern<8>(rawData);
         break;
 
     case 0xE:
         data.colorData = bit::extract<0, 7>(rawData);
         data.priority = bit::extract<6, 7>(rawData);
-        data.special = GetSpecialPattern<7>(rawData);
+        data.special = GetSpecialPattern<8>(rawData);
         break;
 
     case 0xF:
         data.colorData = bit::extract<0, 7>(rawData);
         data.colorCalcRatio = bit::extract<6, 7>(rawData);
-        data.special = GetSpecialPattern<7>(rawData);
+        data.special = GetSpecialPattern<8>(rawData);
         break;
     }
     return data;
