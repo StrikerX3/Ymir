@@ -49,6 +49,11 @@ static const uint kLayerNBG3 = 5;
 static const uint kLayerBack = 6;
 static const uint kLayerLine = 7; // not used in the stack, but referenced for parameters
 
+static const uint kSpriteCCCondPriorityLE = 0;
+static const uint kSpriteCCCondPriorityEQ = 1;
+static const uint kSpriteCCCondPriorityGE = 2;
+static const uint kSpriteCCCondColorMSB = 3;
+
 static const uint4 kTransparentPixel = uint4(0, 0, 0, 128);
 static const uint3 kBlackPixel = uint3(0, 0, 0);
 
@@ -66,9 +71,9 @@ uint BitExtract(uint value, uint offset, uint length) {
 // The alpha channel of the layer textures contains pixel attributes:
 // bits  use
 //  0-2  Priority (0 to 7)
-//    3  -
-//    4  Sprite shadow/window flag (SD = 1)
-//    5  Sprite normal shadow flag (DC LSB = 0, rest of the bits = 1)
+//    3  Color MSB (sprite only)
+//    4  Sprite shadow/window flag (sprite only; SD = 1)
+//    5  Sprite normal shadow flag (sprite only; DC LSB = 0, rest of the bits = 1)
 //    6  Special color calculation flag
 //    7  Transparent flag (0=opaque, 1=transparent)
 struct Attributes {
@@ -138,13 +143,30 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
         return false;
     }
     if (layer == kLayerSprite) {
-        // TODO: check sprite pixel attributes at [pos]
-        // - priority check <=, ==, >=, or MSB=1
+        if (!BitTest(config.displayParams, 16)) {
+            // Sprite color calculation is disabled
+            return false;
+        }
+        // Sprites use condition modes based on priority or color MSB
+        const uint attrs = bgIn[uint3(pos.xy, kBGLayerSprite)].a;
+        const uint priority = BitExtract(attrs, 0, 3);
+        const uint value = BitExtract(config.displayParams, 17, 3);
+        const uint cond = BitExtract(config.displayParams, 20, 2);
+        switch (cond) {
+            case kSpriteCCCondPriorityLE:
+                return priority <= value;
+            case kSpriteCCCondPriorityEQ:
+                return priority == value;
+            case kSpriteCCCondPriorityGE:
+                return priority >= value;
+            case kSpriteCCCondColorMSB:
+                return BitTest(attrs, 3);
+        }
         return false;
     }
     // BG layers use the per-pixel special color calculation flag
     const uint bgLayer = GetBGLayerIndex(layer);
-    const uint attrs = bgIn[uint3(pos.xy, bgLayer)].w;
+    const uint attrs = bgIn[uint3(pos.xy, bgLayer)].a;
     return BitTest(attrs, 6);
 }
 
