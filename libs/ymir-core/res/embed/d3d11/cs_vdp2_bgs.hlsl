@@ -669,8 +669,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
         const bool vcellScrollRepeat = BitTest(nbgParams.y, 29);
 
         const uint scrollX = baseFracScroll.x >> 8;
-        int offset = (pos.x + scrollX) >> 3;
-        offset -= scrollX >> (8 + 3);
+        int offset = (pos.x + (scrollX & 7)) >> 3;
         if (vcellScrollRepeat && offset > 0) {
             --offset;
         }
