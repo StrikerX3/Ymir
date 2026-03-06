@@ -1646,7 +1646,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
         common.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
         common.charPatDelay = bgParams.charPatDelay;
         common.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
-        common.vcellScrollOffset = bgState.vcellScrollOffset;
+        common.vcellScrollOffset = bgState.vcellScrollOffset >> 2u;
         common.vcellScrollDelay = bgState.vcellScrollDelay;
         common.vcellScrollRepeat = bgState.vcellScrollRepeat;
 
@@ -2020,19 +2020,28 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.extraParams.mosaicH = regs2.mosaicH - 1;
     config.extraParams.mosaicV = regs2.mosaicV - 1;
 
-    auto pack8x3 = [](const std::array<uint8, 8> &data) {
+    auto packSpriteData = [](const std::array<uint8, 8> &priorities, const std::array<uint8, 8> &colorCalcRatios,
+                             uint8 offset) {
         uint32 value = 0;
-        for (uint32 i = 0; i < data.size(); i++) {
-            value |= data[i] << (3 * i);
+        for (uint32 i = 0; i < 4; i++) {
+            value |= priorities[i + offset] << (8 * i);
+            value |= colorCalcRatios[i + offset] << (8 * i + 3);
         }
         return value;
     };
 
-    config.spritePriorities = pack8x3(regs2.spriteParams.priorities);
-    config.spriteColorCalcRatios = pack8x3(regs2.spriteParams.colorCalcRatios);
+    config.spriteParams.x = 0;
+    config.spriteParams.y = 0;
+    for (uint32 i = 0; i < 4; i++) {
+        config.spriteParams.x |= regs2.spriteParams.priorities[i] << (8 * i);
+        config.spriteParams.x |= regs2.spriteParams.colorCalcRatios[i] << (8 * i + 3);
 
-    config.vcellScrollTableAddress = regs2.vcellScrollTableAddress;
-    config.vcellScrollInc = regs2.vcellScrollInc;
+        config.spriteParams.y |= regs2.spriteParams.priorities[i + 4] << (8 * i);
+        config.spriteParams.y |= regs2.spriteParams.colorCalcRatios[i + 4] << (8 * i + 3);
+    }
+
+    config.vcellScroll.tableAddress = regs2.vcellScrollTableAddress;
+    config.vcellScroll.inc = regs2.vcellScrollInc >> 2u;
 
     m_context->VDP2Context.ModifyResource(
         m_context->cbufVDP2RenderConfig, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
