@@ -55,6 +55,9 @@ ByteAddressBuffer spriteFB : register(t5);
 // The alpha channel of the BG output is used for pixel attributes as follows:
 // bits  use
 //  0-2  Priority (0 to 7)
+//    3  -
+//    4  Sprite shadow/window flag (SD = 1)
+//    5  Sprite normal shadow flag (DC LSB = 0, rest of the bits = 1)
 //    6  Special color calculation flag
 //    7  Transparent flag (0=opaque, 1=transparent)
 RWTexture2DArray<uint4> bgOut : register(u0);
@@ -1099,7 +1102,6 @@ uint4 DrawSprite(uint2 pos, uint index) {
 
     // TODO: sprite window
     /*if (m_spriteLayerAttrs[altField].window[x]) {
-        layerAttrs.shadowOrWindow[x] = false;
         return kTransparentPixel;
     }*/
 
@@ -1114,12 +1116,10 @@ uint4 DrawSprite(uint2 pos, uint index) {
             //   window is enabled, and the lower 15 bits are all zero
             if (type >= 8) {
                 if (BitExtract(spriteDataValue, 0, 7) == 0) {
-                    // TODO: layerAttrs.shadowOrWindow[x] = false;
                     return kTransparentPixel;
                 }
             } else if (type >= 2) {
                 if (useSpriteWindow && BitExtract(spriteDataValue, 0, 14) == 0) {
-                    // TODO: layerAttrs.shadowOrWindow[x] = false;
                     return kTransparentPixel;
                 }
             }
@@ -1128,8 +1128,6 @@ uint4 DrawSprite(uint2 pos, uint index) {
             const uint outPriority = BitExtract(config.spriteParams.x, 0, 3);
 
             // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
-            // TODO: layerAttrs.shadowOrWindow[x] = false;
-            // TODO: layerAttrs.normalShadow[x] = false;
             return uint4(outColor.rgb, outPriority);
         }
     }
@@ -1141,20 +1139,21 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const bool spriteWindowEnabled = BitTest(config.displayParams, 25);
     const bool spriteWindowInverted = BitTest(config.displayParams, 26);
     if (useSpriteWindow && spriteWindowEnabled && spriteData.shadowOrWindow != spriteWindowInverted) {
-        // TODO: layerAttrs.shadowOrWindow[x] = true;
-        return kTransparentPixel;
+        uint4 outPixel = kTransparentPixel;
+        outPixel.a |= 1 << 4;
+        return outPixel;
     }
 
     const uint colorDataOffset = BitExtract(config.displayParams, 22, 3) << 8;
     const uint colorIndex = colorDataOffset + spriteData.colorData;
     const uint4 outColor = FetchCRAMColor(0, colorIndex);
-    const bool outTransparent = spriteData.special == kSpriteDataTransparent;
+    const uint outTransparent = (spriteData.special == kSpriteDataTransparent) ? 1 : 0;
+    const uint outShadowOrWindow = (spriteData.shadowOrWindow) ? 1 : 0;
+    const uint outNormalShadow = (spriteData.special == kSpriteDataShadow) ? 1 : 0;
     const uint outPriority = BitExtract(config.spriteParams, spriteData.priority * 8, 3);
 
     // TODO: layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
-    // TODO: layerAttrs.shadowOrWindow[x] = spriteData.shadowOrWindow;
-    // TODO: layerAttrs.normalShadow[x] = spriteData.special == kSpriteDataShadow;
-    return uint4(outColor.xyz, (outTransparent << 7) | outPriority);
+    return uint4(outColor.xyz, (outTransparent << 7) | (1 << 6) | (outNormalShadow << 5) | (outShadowOrWindow << 4) | outPriority);
 }
 
 // -----------------------------------------------------------------------------
