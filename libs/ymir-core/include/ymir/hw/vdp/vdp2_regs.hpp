@@ -3285,6 +3285,10 @@ struct VDP2Regs {
     // Also set when VRAM access patterns change.
     bool vcellScrollDirty;
 
+    // Vertical cell scroll increment.
+    // Based on CYCA0/A1/B0/B1 parameters.
+    uint32 vcellScrollInc;
+
     // Whether to display each background:
     // [0] NBG0
     // [1] NBG1
