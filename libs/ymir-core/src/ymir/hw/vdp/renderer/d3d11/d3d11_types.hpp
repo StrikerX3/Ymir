@@ -187,11 +187,12 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint mosaicV : 4;             // 18-21  Vertical mosaic size (minus one)
     } extraParams;
 
-    D3DUint spritePriorities;      // Packed 8x 3-bit sprite priorities
-    D3DUint spriteColorCalcRatios; // Packed 8x 3-bit sprite color calculation ratios
+    struct {                       //  bits  use
+        D3DUint tableAddress : 19; //  0-18  Vertical cell scroll table address
+        D3DUint inc : 13;          // 19-31  Vertical cell scroll address increment per cell  (x << 2)
+    } vcellScroll;
 
-    D3DUint vcellScrollTableAddress;
-    D3DUint vcellScrollInc;
+    D3DUint2 spriteParams; // Packed 8x 3-bit sprite priorities + 5-bit color calculation ratios
 };
 
 struct VDP2BGRenderParams {
@@ -230,9 +231,9 @@ struct VDP2BGRenderParams {
         D3DUint lineScrollYEnable : 1;       //    22  Y line scroll enable         0=disable; 1=enable  (NBG0/1 only)
         D3DUint lineZoomEnable : 1;          //    23  Line zoom enable             0=disable; 1=enable  (NBG0/1 only)
         D3DUint vcellScrollEnable : 1;       //    24  Vertical cell scroll enable  0=disable; 1=enable  (NBG0/1 only)
-        D3DUint vcellScrollOffset : 1;       //    25  Vertical cell scroll offset  0=none; 1=4 bytes    (NBG0/1 only)
-        D3DUint vcellScrollDelay : 1;        //    26  Vertical cell scroll delay   0=none; 1=one entry  (NBG0/1 only)
-        D3DUint vcellScrollRepeat : 1;       //    27  Vertical cell scroll repeat  0=none; 1=once       (NBG0 only)
+        D3DUint vcellScrollOffset : 3;       // 25-27  Vertical cell scroll offset  (x << 2)             (NBG0/1 only)
+        D3DUint vcellScrollDelay : 1;        //    28  Vertical cell scroll delay   0=none; 1=one entry  (NBG0/1 only)
+        D3DUint vcellScrollRepeat : 1;       //    29  Vertical cell scroll repeat  0=none; 1=once       (NBG0 only)
     } common;
     static_assert(sizeof(Common) == sizeof(D3DUint) * 2);
 

@@ -2,9 +2,8 @@ struct Config {
     uint displayParams;
     uint startY;
     uint extraParams;
-    uint spritePriorities;
-    uint spriteColorCalcRatios;
-    uint vcellScrollTableAddress;
+    uint vcellScrollParams;
+    uint2 spriteParams;
 };
 
 struct RotParamBase {
