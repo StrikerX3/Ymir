@@ -606,9 +606,9 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint cmdModeColor, const
     // TODO: preClippingDisable
 
     if (msbOn) {
-        uint bit = 0x80;
-        if (pixel8Bits && BitTest(coord.x, 0)) {
-            bit <<= 8;
+        uint bit = 0x8000;
+        if (pixel8Bits && !BitTest(coord.x, 0)) {
+            bit >>= 8;
         }
         pixelData |= bit;
     } else {
