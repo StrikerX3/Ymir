@@ -11,7 +11,7 @@
 
 #include <filesystem>
 #include <fstream>
-#include <unordered_map>
+#include <map>
 
 namespace ymir::media::loader::mdfmds {
 
@@ -171,7 +171,7 @@ bool Load(std::filesystem::path mdsPath, Disc &disc, bool preloadToRAM, CbLoader
     uint32 endFrameAddress = 0;
     std::array<uint32, 99> trackStartOffsets{};
     std::array<std::filesystem::path, 99> trackMDFs{};
-    std::unordered_map<std::filesystem::path, std::shared_ptr<IBinaryReader>> files{};
+    std::map<std::filesystem::path, std::shared_ptr<IBinaryReader>> files{};
 
     // Build sessions
     disc.sessions.clear();

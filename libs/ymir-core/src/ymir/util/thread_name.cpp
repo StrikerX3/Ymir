@@ -8,7 +8,7 @@
     #ifndef NOMINMAX
         #define NOMINMAX
     #endif
-    #include <Windows.h>
+    #include <windows.h>
 
 // Dynamically link to SetThreadDescription
 namespace util::detail {
