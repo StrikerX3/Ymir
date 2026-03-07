@@ -98,9 +98,9 @@ Attributes ToAttributes(uint pixelData) {
 }
 
 uint GetY(uint y) {
-    const bool interlaced = BitTest(config.displayParams, 0);
-    const uint odd = BitExtract(config.displayParams, 1, 1);
-    const bool exclusiveMonitor = BitTest(config.displayParams, 2);
+    const bool interlaced = BitExtract(config.displayParams, 0, 2) >= 2;
+    const uint odd = BitExtract(config.displayParams, 2, 1);
+    const bool exclusiveMonitor = BitTest(config.displayParams, 3);
     if (interlaced && !exclusiveMonitor) {
         return (y << 1) | (odd /* TODO & !deinterlace */);
     } else {
@@ -150,15 +150,15 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
         return false;
     }
     if (layer == kLayerSprite) {
-        if (!BitTest(config.displayParams, 16)) {
+        if (!BitTest(config.displayParams, 17)) {
             // Sprite color calculation is disabled
             return false;
         }
         // Sprites use condition modes based on priority or color MSB
         const uint attrs = bgIn[uint3(pos.xy, kBGLayerSprite)].a;
         const uint priority = BitExtract(attrs, 0, 3);
-        const uint value = BitExtract(config.displayParams, 17, 3);
-        const uint cond = BitExtract(config.displayParams, 20, 2);
+        const uint value = BitExtract(config.displayParams, 18, 3);
+        const uint cond = BitExtract(config.displayParams, 21, 2);
         switch (cond) {
             case kSpriteCCCondPriorityLE:
                 return priority <= value;
@@ -233,9 +233,9 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
 
 uint3 Compose(uint2 pos) {
     // Clear screen if display is disabled
-    const bool displayEnabled = BitTest(config.displayParams, 27);
+    const bool displayEnabled = BitTest(config.displayParams, 28);
     if (!displayEnabled) {
-        const bool borderColorMode = BitTest(config.displayParams, 28);
+        const bool borderColorMode = BitTest(config.displayParams, 29);
         if (borderColorMode) {
             // Use back screen color
             return lineColorIn[uint2(1, pos.y)].rgb;
@@ -345,7 +345,7 @@ uint3 Compose(uint2 pos) {
     const uint4 spriteOutput = GetLayerOutput(kLayerSprite, pos);
     const uint spritePriority = BitExtract(spriteOutput.a, 0, 3);
     if (spritePriority >= layerPrios[0]) {
-        const bool useSpriteWindow = BitTest(config.displayParams, 15);
+        const bool useSpriteWindow = BitTest(config.displayParams, 16);
         const bool isNormalShadow = BitTest(spriteOutput.a, kPixelAttrBitSpriteNormalShadow);
         const bool isMSBShadow = !useSpriteWindow && BitTest(spriteOutput.a, kPixelAttrBitSpriteShadowWindow);
         if (isNormalShadow || isMSBShadow) {

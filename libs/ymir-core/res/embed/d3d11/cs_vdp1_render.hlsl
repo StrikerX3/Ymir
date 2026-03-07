@@ -593,16 +593,6 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint cmdModeColor, const
         return;
     }
 
-    const bool altFB = deinterlace && doubleDensity && BitTest(coord.y, 0);
-    if (doubleDensity) {
-        if (!deinterlace && dblInterlaceEnable && BitTest(coord.y, 0) != dblInterlaceDrawLine) {
-            return;
-        }
-    }
-    if ((deinterlace && doubleDensity) || dblInterlaceEnable) {
-        coord.y >>= 1;
-    }
-
     // TODO: preClippingDisable
 
     if (msbOn) {

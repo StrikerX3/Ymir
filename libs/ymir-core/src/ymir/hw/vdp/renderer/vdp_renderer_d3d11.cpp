@@ -2011,7 +2011,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     const VDP2Regs &regs2 = m_state.regs2;
     auto &config = m_context->cpuVDP2RenderConfig;
 
-    config.displayParams.interlaced = regs2.TVMD.IsInterlaced();
+    config.displayParams.interlaceMode = static_cast<uint32>(regs2.TVMD.LSMDn);
     config.displayParams.oddField = regs2.TVSTAT.ODD;
     config.displayParams.exclusiveMonitor = m_exclusiveMonitor;
     config.displayParams.colorRAMMode = regs2.vramControl.colorRAMMode;
