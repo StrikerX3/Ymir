@@ -1137,11 +1137,11 @@ uint4 DrawSprite(uint2 pos, uint index) {
             // - Using word-sized sprite types that have the shadow/sprite window bit (types 0x2 to 0x7), sprite
             //   window is enabled, and the lower 15 bits are all zero
             if (type >= 8) {
-                if (BitExtract(spriteDataValue, 0, 7) == 0) {
+                if (BitExtract(spriteDataValue, 0, 8) == 0) {
                     return kTransparentPixel;
                 }
             } else if (type >= 2) {
-                if (useSpriteWindow && BitExtract(spriteDataValue, 0, 14) == 0) {
+                if (useSpriteWindow && BitExtract(spriteDataValue, 0, 15) == 0) {
                     return kTransparentPixel;
                 }
             }
