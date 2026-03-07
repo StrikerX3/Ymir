@@ -137,30 +137,34 @@ static constexpr size_t kVDP1BinBufferSize = 256 * 1024;
 
 struct alignas(16) VDP2RenderConfig {
     struct DisplayParams {                 //  bits  use
-        D3DUint interlaced : 1;            //     0  Interlaced mode          0=progressive; 1=interlaced
-        D3DUint oddField : 1;              //     1  Field                    0=even; 1=odd
-        D3DUint exclusiveMonitor : 1;      //     2  Exclusive monitor mode   0=normal; 1=exclusive
-        D3DUint colorRAMMode : 2;          //   3-4  Color RAM mode
+        D3DUint interlaceMode : 2;         //   0-1  Interlace mode
+                                           //          0 = progressive
+                                           //          1 = invalid
+                                           //          2 = single-density interlace
+                                           //          3 = double-density interlace
+        D3DUint oddField : 1;              //     2  Field                    0=even; 1=odd
+        D3DUint exclusiveMonitor : 1;      //     3  Exclusive monitor mode   0=normal; 1=exclusive
+        D3DUint colorRAMMode : 2;          //   4-5  Color RAM mode
                                            //          0 = RGB 5:5:5, 1024 words
                                            //          1 = RGB 5:5:5, 2048 words
                                            //          2 = RGB 8:8:8, 1024 words
                                            //          3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
-        D3DUint hiResH : 1;                //     5  Horizontal resolution        0=320/352; 1=640/704
-        D3DUint spriteRotate : 1;          //     6  Sprite layer rotation        0=normal; 1=use rotparam A
-        D3DUint sprite8Bit : 1;            //     7  VDP1 data size               0=16-bit; 1=8-bit
-        D3DUint spriteType : 4;            //  8-11  Sprite data type
-        D3DUint spriteFBSizeH : 1;         //    12  Sprite framebuffer horizontal size shift  (512 << x)
-        D3DUint spriteFBSizeV : 1;         //    13  Sprite framebuffer vertical size shift    (256 << x)
-        D3DUint spriteMixedFormat : 1;     //    14  Sprite layer color format    0=palette only; 1=mixed palette/RGB
-        D3DUint useSpriteWindow : 1;       //    15  Sprite window enabled
-        D3DUint spriteColorCalcEnable : 1; //    16  Sprite color calculation enable
-        D3DUint spriteColorCalcValue : 3;  // 17-19  Target color calculation value
-        D3DUint spriteColorCalcCond : 2;   // 20-21  Special color calculation condition
-        D3DUint spriteColorDataOffset : 3; // 22-24  Special color data offset in CRAM
-        D3DUint spriteWindowEnabled : 1;   //    25  Sprite window enabled for the sprite layer
-        D3DUint spriteWindowInverted : 1;  //    26  Sprite window inverted for the sprite layer
-        D3DUint displayEnable : 1;         //    27  Display enabled             0=display off; 1=display on
-        D3DUint borderColorMode : 1;       //    28  Border color mode           0=black; 1=back screen color
+        D3DUint hiResH : 1;                //     6  Horizontal resolution        0=320/352; 1=640/704
+        D3DUint spriteRotate : 1;          //     7  Sprite layer rotation        0=normal; 1=use rotparam A
+        D3DUint sprite8Bit : 1;            //     8  VDP1 data size               0=16-bit; 1=8-bit
+        D3DUint spriteType : 4;            //  9-12  Sprite data type
+        D3DUint spriteFBSizeH : 1;         //    13  Sprite framebuffer horizontal size shift  (512 << x)
+        D3DUint spriteFBSizeV : 1;         //    14  Sprite framebuffer vertical size shift    (256 << x)
+        D3DUint spriteMixedFormat : 1;     //    15  Sprite layer color format    0=palette only; 1=mixed palette/RGB
+        D3DUint useSpriteWindow : 1;       //    16  Sprite window enabled
+        D3DUint spriteColorCalcEnable : 1; //    17  Sprite color calculation enable
+        D3DUint spriteColorCalcValue : 3;  // 18-20  Target color calculation value
+        D3DUint spriteColorCalcCond : 2;   // 21-22  Special color calculation condition
+        D3DUint spriteColorDataOffset : 3; // 23-25  Special color data offset in CRAM
+        D3DUint spriteWindowEnabled : 1;   //    26  Sprite window enabled for the sprite layer
+        D3DUint spriteWindowInverted : 1;  //    27  Sprite window inverted for the sprite layer
+        D3DUint displayEnable : 1;         //    28  Display enabled             0=display off; 1=display on
+        D3DUint borderColorMode : 1;       //    29  Border color mode           0=black; 1=back screen color
     } displayParams;
 
     // Top Y coordinate of target rendering area
