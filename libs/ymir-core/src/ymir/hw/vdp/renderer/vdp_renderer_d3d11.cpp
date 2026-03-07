@@ -1473,7 +1473,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     const CoordS32 coordC{xc, yc};
     const CoordS32 coordD{xd, yd};
 
-    const VDP1Command::DrawMode mode{.u16 = cmd.cmdgrda};
+    const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
 
     VDP1LineExtras extras{
         .antiAliased = false,
@@ -1542,7 +1542,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
 
-    const VDP1Command::DrawMode mode{.u16 = cmd.cmdgrda};
+    const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
 
     VDP1LineExtras extras{
         .antiAliased = false,
