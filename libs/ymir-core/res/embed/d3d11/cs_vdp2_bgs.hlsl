@@ -785,7 +785,7 @@ void StoreRotationLineColorData(uint2 pos, uint2 rotPos, uint index, uint rotSel
     uint cramAddress = ReadVRAM16(lineColorAddress);
 
     if (useCoeffLineColor) {
-        const uint2 regs = rotRegs[index];
+        const uint2 regs = rotRegs[coeffSel];
         const bool coeffTableEnable = BitTest(regs.x, 0);
         const bool coeffUseLineColorData = BitTest(regs.x, 10);
         if (coeffTableEnable && coeffUseLineColorData) {
