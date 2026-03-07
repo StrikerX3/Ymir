@@ -182,6 +182,8 @@ uint Color555ToUint16(uint4 color) {
 // -----------------------------------------------------------------------------
 
 static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
+static const uint drawFB = BitExtract(config.params, 7, 1);
+static const uint drawFBOffset = drawFB * 256 * 1024;
 static const bool pixel8Bits = BitTest(config.params, 2);
 static const bool doubleDensity = BitTest(config.params, 3);
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
@@ -940,13 +942,13 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         fbPos.y >>= 1;
     }
 
-    const uint fbAddr = fbPos.x + fbPos.y * fbSizeH;
+    const uint fbAddr = fbPos.y * fbSizeH + fbPos.x;
 
     uint pixelData;
     if (pixel8Bits) {
-        pixelData = ReadFB8(fbAddr);
+        pixelData = ReadFB8(drawFBOffset + fbAddr);
     } else {
-        pixelData = ReadFB16(fbAddr << 1);
+        pixelData = ReadFB16(drawFBOffset + (fbAddr << 1));
     }
 
     const uint2 binPos = pos / kBinSize;
@@ -974,8 +976,8 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     }
 
     if (pixel8Bits) {
-        WriteFB8(fbAddr, pixelData);
+        WriteFB8(drawFBOffset + fbAddr, pixelData);
     } else {
-        WriteFB16(fbAddr << 1, pixelData);
+        WriteFB16(drawFBOffset + (fbAddr << 1), pixelData);
     }
 }

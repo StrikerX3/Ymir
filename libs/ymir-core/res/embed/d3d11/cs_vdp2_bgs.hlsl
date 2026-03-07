@@ -196,11 +196,16 @@ uint ReadVRAM32(uint address) {
     return ByteSwap32(vram.Load(address));
 }
 
+static const uint spriteDisplayFB = BitExtract(config.displayParams, 28, 1);
+static const uint spriteFBBaseOffset = spriteDisplayFB * 256 * 1024;
+
 uint ReadSprite8(uint address) {
+    address += spriteFBBaseOffset;
     return BitExtract(spriteFB.Load(address & ~3), (address & 3) * 8, 8);
 }
 
 uint ReadSprite16(uint address) {
+    address += spriteFBBaseOffset;
     return ByteSwap16(BitExtract(spriteFB.Load(address & ~3), (address & 2) * 8, 16));
 }
 

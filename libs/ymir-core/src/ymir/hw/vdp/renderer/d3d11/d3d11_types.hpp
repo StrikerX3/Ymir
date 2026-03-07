@@ -76,9 +76,10 @@ struct alignas(16) VDP1RenderConfig {
         D3DUint dblInterlaceEnable : 1;   //     4  Double interlace enable
         D3DUint dblInterlaceDrawLine : 1; //     5  Double interlace line                0=even; 1=odd
         D3DUint evenOddCoordSelect : 1;   //     6  Even/odd coordinate select (HSS)     0=even; 1=odd
-        D3DUint vblankErase : 1;          //     7  VBlank erase active
-        D3DUint vblankEraseMaxY : 9;      //  8-16  Last VBlank erase line
-        D3DUint vblankEraseMaxX : 10;     // 17-26  Last VBlank erase pixel in line
+        D3DUint drawFB : 1;               //     7  Current draw framebuffer index
+        D3DUint vblankErase : 1;          //     8  VBlank erase active
+        D3DUint vblankEraseMaxY : 9;      //  9-17  Last VBlank erase line
+        D3DUint vblankEraseMaxX : 10;     // 18-27  Last VBlank erase pixel in line
     } params;
     static_assert(sizeof(Params) == sizeof(D3DUint));
 
@@ -166,8 +167,9 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint spriteColorDataOffset : 3; // 23-25  Special color data offset in CRAM
         D3DUint spriteWindowEnabled : 1;   //    26  Sprite window enabled for the sprite layer
         D3DUint spriteWindowInverted : 1;  //    27  Sprite window inverted for the sprite layer
-        D3DUint displayEnable : 1;         //    28  Display enabled             0=display off; 1=display on
-        D3DUint borderColorMode : 1;       //    29  Border color mode           0=black; 1=back screen color
+        D3DUint spriteDisplayFB : 1;       //    28  Current sprite display framebuffer index
+        D3DUint displayEnable : 1;         //    29  Display enabled             0=display off; 1=display on
+        D3DUint borderColorMode : 1;       //    30  Border color mode           0=black; 1=back screen color
     } displayParams;
 
     // Top Y coordinate of target rendering area
