@@ -826,6 +826,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     bool transparentPixelDisable;
     uint endCodeIndex;
     bool endCodesEnabled;
+    bool checkEndCodes;
 
     if (textured) {
         charSizeH = max(BitExtract(commands[cmdIndex].srca_size, 8 + 16, 6) << 3, 1);
@@ -850,6 +851,9 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
         if (endCodesEnabled && !useHighSpeedShrink) {
             endCodeIndex = FindEndCode(charAddress, uStart, uEnd, texV, charSizeH, colorMode);
+            checkEndCodes = endCodeIndex < charSizeH;
+        } else {
+            checkEndCodes = false;
         }
     }
 
@@ -874,7 +878,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
                 // TODO: simplify this mess
                 const uint texU = uStepper.Value();
-                if (!endCodesEnabled || endCodeIndex >= charSizeH || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
+                if (!checkEndCodes || (flipH ? (texU <= endCodeIndex) : (texU >= endCodeIndex))) {
                     uint color;
                     bool transparent;
                     bool hasEndCode;
@@ -912,7 +916,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
                     }
 
                     const uint texU = uStepper.Value();
-                    if (!endCodesEnabled || endCodeIndex >= charSizeH || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
+                    if (!checkEndCodes || (flipH ? (texU <= endCodeIndex) : (texU >= endCodeIndex))) {
                         uint color;
                         bool transparent;
                         bool hasEndCode;
