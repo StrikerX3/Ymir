@@ -42,12 +42,12 @@ void WriteFB16(uint address, uint data) {
 
 // -----------------------------------------------------------------------------
 
-static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
 static const uint drawFB = BitExtract(config.params, 7, 1);
 static const uint drawFBOffset = drawFB * 256 * 1024;
 static const bool vblankErase = BitTest(config.params, 8);
 static const uint vblankEraseMaxY = BitExtract(config.params, 9, 9);
 static const uint vblankEraseMaxX = BitExtract(config.params, 18, 10);
+static const uint offsetShift = BitExtract(config.params, 28, 1) + 8;
 static const uint scaleV = BitExtract(config.erase, 31, 1);
 static const uint eraseX1 = BitExtract(config.erase, 0, 6) << 3;
 static const uint eraseY1 = BitExtract(config.erase, 6, 9) << scaleV;
@@ -56,10 +56,10 @@ static const uint eraseY3 = BitExtract(config.erase, 22, 9) << scaleV;
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint address = drawFBOffset + (id.y * fbSizeH + id.x) * 2;
+    const uint address = drawFBOffset + ((id.y << offsetShift) + id.x) * 2;
 
     // Bail out if out of range
-    if (id.x < eraseX1 || id.x >= eraseX3 || id.y < eraseY1 || id.y > eraseY3) {
+    if (id.x < eraseX1 || id.y < eraseY1 || id.x >= eraseX3 || id.y > eraseY3) {
         return;
     }
     // Bail out if pixel exceeds VBlank erase cycle limit
