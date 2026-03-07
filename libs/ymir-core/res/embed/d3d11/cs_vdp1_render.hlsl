@@ -367,16 +367,6 @@ struct GouraudStepper {
         }
     }
 
-    // Returns the current gouraud gradient value.
-    uint4 Value() {
-        return uint4(
-            stepperR.Value(),
-            stepperG.Value(),
-            stepperB.Value(),
-            0
-        );
-    }
-
     // Blends the given base color with the current gouraud shading values.
     uint4 Blend(uint4 baseColor) {
         return uint4(
