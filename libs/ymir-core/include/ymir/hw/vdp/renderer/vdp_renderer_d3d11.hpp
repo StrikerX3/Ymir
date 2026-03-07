@@ -258,6 +258,8 @@ private:
     uint32 m_HRes = vdp::kDefaultResH;
     uint32 m_VRes = vdp::kDefaultResV;
     bool m_exclusiveMonitor = false;
+
+    bool m_doVDP1Erase = false;
 };
 
 } // namespace ymir::vdp::d3d11

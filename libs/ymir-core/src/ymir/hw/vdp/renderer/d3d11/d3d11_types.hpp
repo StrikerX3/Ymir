@@ -67,10 +67,6 @@ static_assert(sizeof(D3DInt3) == sizeof(D3DInt) * 3);
 // -----------------------------------------------------------------------------
 
 struct alignas(16) VDP1RenderConfig {
-    // TODO: relevant VDP1 registers
-    // - erase/swap bounds and value (including vblank erase bounds)
-    D3DUint numLines;
-
     struct Params {
         /**/                              //  bits  use
         D3DUint fbSizeH : 1;              //     0  Framebuffer horizontal size shift    (512 << x)
@@ -80,16 +76,23 @@ struct alignas(16) VDP1RenderConfig {
         D3DUint dblInterlaceEnable : 1;   //     4  Double interlace enable
         D3DUint dblInterlaceDrawLine : 1; //     5  Double interlace line                0=even; 1=odd
         D3DUint evenOddCoordSelect : 1;   //     6  Even/odd coordinate select (HSS)     0=even; 1=odd
+        D3DUint vblankErase : 1;          //     7  VBlank erase active
+        D3DUint vblankEraseMaxY : 9;      //  8-16  Last VBlank erase line
+        D3DUint vblankEraseMaxX : 10;     // 17-26  Last VBlank erase pixel in line
     } params;
     static_assert(sizeof(Params) == sizeof(D3DUint));
 
     struct Erase {
-        /**/          //  bits  use
-        D3DUint : 32; //   ...  ...
-    } erase;
-    static_assert(sizeof(Erase) == sizeof(D3DUint));
+        /**/                //  bits  use
+        D3DUint x1 : 6;     //   0-5  Erase X1 (left) coordinate (x << 3)
+        D3DUint y1 : 9;     //  6-14  Erase Y1 (top) coordinate
+        D3DUint x3 : 7;     // 15-21  Erase X3 (right) coordinate (x << 3)
+        D3DUint y3 : 9;     // 22-30  Erase Y3 (bottom) coordinate
+        D3DUint scaleV : 1; //    31  Erase Y coordinate shift
 
-    D3DUint reserved;
+        D3DUint writeValue : 16; //  0-15  Erase write value
+    } erase;
+    static_assert(sizeof(Erase) == sizeof(D3DUint) * 2);
 };
 
 struct VDP1LineParams {

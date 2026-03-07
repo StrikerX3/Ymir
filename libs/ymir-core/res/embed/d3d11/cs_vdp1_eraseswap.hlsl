@@ -1,7 +1,7 @@
 struct Config {
-    uint numPolys;
     uint params;
     uint erase;
+    uint eraseWriteValue;
     uint _reserved;
 };
 
@@ -17,6 +17,10 @@ RWByteAddressBuffer fbOut : register(u0);
 
 // -----------------------------------------------------------------------------
 
+bool BitTest(uint value, uint bit) {
+    return ((value >> bit) & 1) != 0;
+}
+
 uint BitExtract(uint value, uint offset, uint length) {
     const uint mask = (1u << length) - 1u;
     return (value >> offset) & mask;
@@ -31,10 +35,10 @@ uint ReadFBRAM16(uint address) {
     return ByteSwap16(BitExtract(fbram.Load(address & ~3), (address & 2) * 8, 16));
 }
 
-void WriteFBOut16(uint address, uint data) {
+void WriteFB16(uint address, uint data) {
     const uint shift = (address & 2) * 8;
-    const uint mask = 0xFFFF << shift;
-    data = (data & 0xFFFF) << shift;
+    const uint mask = ~(0xFFFF << shift);
+    data = ByteSwap16(data) << shift;
 
     address &= ~3;
     uint dummy;
@@ -45,18 +49,31 @@ void WriteFBOut16(uint address, uint data) {
 // -----------------------------------------------------------------------------
 
 static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
+static const bool vblankErase = BitTest(config.params, 7);
+static const uint vblankEraseMaxY = BitExtract(config.params, 8, 9);
+static const uint vblankEraseMaxX = BitExtract(config.params, 17, 10);
+static const uint scaleV = BitExtract(config.erase, 31, 1);
+static const uint eraseX1 = BitExtract(config.erase, 0, 6) << 3;
+static const uint eraseY1 = BitExtract(config.erase, 6, 9) << scaleV;
+static const uint eraseX3 = BitExtract(config.erase, 15, 7) << 3;
+static const uint eraseY3 = BitExtract(config.erase, 22, 9) << scaleV;
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    // TODO: perform erase/swap process
-    // - id.xy are framebuffer coordinates
-    // - id.z is not used
-    // - either write the 16-bit erase value or copy from VDP1 FBRAM
-    //  - output is in the same format as FBRAM
-
-    // TODO: use erase parameters
-    // TODO: framebuffer dimensions
     const uint address = (id.x + id.y * fbSizeH) * 2;
-    //WriteFBOut16(address, ReadFBRAM16(address));
-    WriteFBOut16(address, 0x0000);
+
+    bool erasePixel = true;
+    if (vblankErase) {
+        if (id.y > vblankEraseMaxY) {
+            erasePixel = false;
+        } else if (id.y == vblankEraseMaxY && id.x > vblankEraseMaxX) {
+            erasePixel = false;
+        }
+    } else if (id.x < eraseX1 || id.x >= eraseX3 || id.y < eraseY1 || id.y >= eraseY3) {
+        erasePixel = false;
+
+    }
+    const uint eraseValue = erasePixel ? config.eraseWriteValue : ReadFBRAM16(address);
+
+    WriteFB16(address, eraseValue);
 }
