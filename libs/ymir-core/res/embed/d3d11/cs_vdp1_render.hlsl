@@ -733,14 +733,11 @@ uint FindEndCode(uint charAddress, uint uStart, uint uEnd, uint texV, uint charS
 
     uint endCodeCount = 0;
 
-    uint color;
-
     int uInc = uStart <= uEnd ? +1 : -1;
-    uint u = uStart;
-
-    while (u < charSizeH) {
+    for (int u = uStart; u != uEnd; u += uInc) {
         const uint charIndex = u + baseCharIndex;
 
+        uint color;
         switch (colorMode) {
             case 0: // 4 bpp, 16 colors, bank mode
                 color = ReadVRAM8(charAddress + (charIndex >> 1));
@@ -784,8 +781,6 @@ uint FindEndCode(uint charAddress, uint uStart, uint uEnd, uint texV, uint charS
         if (endCodeCount == 2) {
             return u;
         }
-
-        u += uInc;
     }
 
     return charSizeH;
@@ -878,7 +873,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
                 // TODO: simplify this mess
                 const uint texU = uStepper.Value();
-                if (!checkEndCodes || (flipH ? (texU <= endCodeIndex) : (texU >= endCodeIndex))) {
+                if (!checkEndCodes || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
                     uint color;
                     bool transparent;
                     bool hasEndCode;
@@ -916,7 +911,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
                     }
 
                     const uint texU = uStepper.Value();
-                    if (!checkEndCodes || (flipH ? (texU <= endCodeIndex) : (texU >= endCodeIndex))) {
+                    if (!checkEndCodes || (flipH ? (texU > endCodeIndex) : (texU < endCodeIndex))) {
                         uint color;
                         bool transparent;
                         bool hasEndCode;
