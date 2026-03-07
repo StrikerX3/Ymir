@@ -165,30 +165,31 @@ void InputContext::ProcessPrimitive(uint32 id, GamepadButton button, bool presse
         case GamepadButton::DpadLeft:
             ProcessPrimitive(
                 id, GamepadAxis1D::DPadX,
-                pressed ? -1.0f :
-                (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadRight)] ? +1.0 : 0.0f)); 
-            break; 
+                pressed ? -1.0f
+                        : (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadRight)] ? +1.0f : 0.0f));
+            break;
 
-        case GamepadButton::DpadRight: 
+        case GamepadButton::DpadRight:
             ProcessPrimitive(
                 id, GamepadAxis1D::DPadX,
-                pressed ? +1.0f :
-                (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadRight)] ? -1.0 : 0.0f));
+                pressed ? +1.0f
+                        : (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadLeft)] ? -1.0f : 0.0f));
             break;
 
-        case GamepadButton::DpadUp: 
+        case GamepadButton::DpadUp:
             ProcessPrimitive(
                 id, GamepadAxis1D::DPadY,
-                pressed ? -1.0f :
-                (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadUp)] ? +1.0 : 0.0f));
+                pressed ? -1.0f
+                        : (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadDown)] ? +1.0f : 0.0f));
             break;
 
-        case GamepadButton::DpadDown: ProcessPrimitive(
-                id, GamepadAxis1D::DPadY, 
-                pressed ? +1.0f :
-                (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadDown)] ? -1.0f : 0.0f)); 
+        case GamepadButton::DpadDown:
+            ProcessPrimitive(
+                id, GamepadAxis1D::DPadY,
+                pressed ? +1.0f
+                        : (m_gamepadButtonStates[id][static_cast<size_t>(GamepadButton::DpadUp)] ? -1.0f : 0.0f));
             break;
-        
+
         default: break;
         }
     }
