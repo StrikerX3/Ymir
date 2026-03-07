@@ -186,7 +186,7 @@ static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
 static const bool pixel8Bits = BitTest(config.params, 2);
 static const bool doubleDensity = BitTest(config.params, 3);
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
-static const bool dblInterlaceDrawLine = BitTest(config.params, 5);
+static const uint dblInterlaceDrawLine = BitExtract(config.params, 5, 1);
 static const bool deinterlace = false; // TODO: pull from config
 static const bool transparentMeshes = false; // TODO: pull from config
 
@@ -791,7 +791,7 @@ uint FindEndCode(uint charAddress, uint uStart, uint uEnd, uint texV, uint charS
 }
 
 void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
-    const LineParams vdp1line = lineParams[lineIndex];
+    LineParams vdp1line = lineParams[lineIndex];
     const uint cmdIndex = BitExtract(vdp1line.params, 0, 10);
 
     const uint cmdModeColor = commands[cmdIndex].pmod_colr;
@@ -801,6 +801,8 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     if (IsPixelClipped(vdp1line, pos, userClippingEnable, clippingMode)) {
         return;
     }
+    //vdp1line.coordStart.y >>= 1;
+    //vdp1line.coordEnd.y >>= 1;
 
     const bool antiAlias = BitTest(vdp1line.params, 16);
     const bool gouraudEnable = BitTest(vdp1line.params, 17);
@@ -931,8 +933,15 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 [numthreads(kBinSize.x, kBinSize.y, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 pos = id.xy;
+    uint2 fbPos = pos;
+    if (dblInterlaceEnable) {
+        if ((pos.y & 1) != dblInterlaceDrawLine) {
+            return;
+        }
+        fbPos.y >>= 1;
+    }
 
-    const uint fbAddr = (pos.x + pos.y * fbSizeH);
+    const uint fbAddr = fbPos.x + fbPos.y * fbSizeH;
 
     uint pixelData;
     if (pixel8Bits) {
