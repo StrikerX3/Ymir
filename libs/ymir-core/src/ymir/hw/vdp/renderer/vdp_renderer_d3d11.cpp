@@ -1543,7 +1543,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     const CoordS32 coordB{xb, yb};
 
     const VDP1Command::DrawMode mode{.u16 = cmd.cmdgrda};
-    const uint32 gouraudTable = static_cast<uint32>(cmd.cmdgrda) << 3u;
 
     VDP1LineExtras extras{
         .antiAliased = false,
