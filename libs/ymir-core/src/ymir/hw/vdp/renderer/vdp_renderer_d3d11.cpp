@@ -857,7 +857,7 @@ void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {
     config.params.vblankErase = cycles != 0;
     if (config.params.vblankErase) {
         // Compute last line and pixel that can be drawn with the given cycle budget
-        const uint32 lineWidth = config.erase.x3 - config.erase.x1;
+        const uint32 lineWidth = (config.erase.x3 << 3u) - (config.erase.x1 << 3u);
         if (lineWidth > 0) {
             config.params.vblankEraseMaxY = cycles / lineWidth;
             config.params.vblankEraseMaxX = cycles % lineWidth;
