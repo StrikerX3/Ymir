@@ -853,6 +853,7 @@ void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {
     config.erase.y3 = std::min<uint32>(regs1.eraseY3Latch, maxV);
     config.erase.scaleV = scaleV;
     config.erase.writeValue = regs1.eraseWriteValueLatch;
+    config.params.eraseAddressShift = regs1.eraseOffsetShift - 8;
 
     config.params.vblankErase = cycles != 0;
     if (config.params.vblankErase) {

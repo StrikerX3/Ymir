@@ -80,6 +80,7 @@ struct alignas(16) VDP1RenderConfig {
         D3DUint vblankErase : 1;          //     8  VBlank erase active
         D3DUint vblankEraseMaxY : 9;      //  9-17  Last VBlank erase line
         D3DUint vblankEraseMaxX : 10;     // 18-27  Last VBlank erase pixel in line
+        D3DUint eraseAddressShift : 1;    //    28  Erase address shift (coordY << (x + 8))
     } params;
     static_assert(sizeof(Params) == sizeof(D3DUint));
 
