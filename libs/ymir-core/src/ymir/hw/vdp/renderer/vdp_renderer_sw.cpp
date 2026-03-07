@@ -2910,6 +2910,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
             if (coord.x() < 0 || coord.x() >= regs1.fbSizeH || coord.y() < 0 || coord.y() >= regs1.fbSizeV) {
                 layerState.pixels.transparent[xx] = true;
                 layerAttrs.shadowOrWindow[xx] = false;
+                layerAttrs.normalShadow[xx] = false;
                 if (doubleResH) {
                     layerState.pixels.CopyPixel(xx, xx + 1);
                     layerAttrs.CopyAttrs(xx, xx + 1);
@@ -2917,6 +2918,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
                 if constexpr (transparentMeshes) {
                     meshLayerState.pixels.transparent[xx] = true;
                     meshLayerAttrs.shadowOrWindow[xx] = false;
+                    layerAttrs.normalShadow[xx] = false;
                     if (doubleResH) {
                         meshLayerState.pixels.CopyPixel(xx, xx + 1);
                         meshLayerAttrs.CopyAttrs(xx, xx + 1);
@@ -2965,6 +2967,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const Sprit
     if (m_spriteLayerAttrs[altField].window[x]) {
         layerState.pixels.transparent[x] = true;
         layerAttrs.shadowOrWindow[x] = false;
+        layerAttrs.normalShadow[x] = false;
         return;
     }
 
@@ -2981,12 +2984,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const Sprit
                 if (bit::extract<0, 7>(spriteDataValue) == 0) {
                     layerState.pixels.transparent[x] = true;
                     layerAttrs.shadowOrWindow[x] = false;
+                    layerAttrs.normalShadow[x] = false;
                     return;
                 }
             } else if (params.type >= 2) {
                 if (params.useSpriteWindow && bit::extract<0, 14>(spriteDataValue) == 0) {
                     layerState.pixels.transparent[x] = true;
                     layerAttrs.shadowOrWindow[x] = false;
+                    layerAttrs.normalShadow[x] = false;
                     return;
                 }
             }
@@ -3010,6 +3015,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const Sprit
         spriteData.shadowOrWindow != params.spriteWindowInverted) {
         layerState.pixels.transparent[x] = true;
         layerAttrs.shadowOrWindow[x] = true;
+        layerAttrs.normalShadow[x] = false;
         return;
     }
 
