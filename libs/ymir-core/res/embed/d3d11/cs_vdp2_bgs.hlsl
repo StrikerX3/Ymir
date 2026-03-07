@@ -73,6 +73,11 @@ static const uint kPixelAttrBitSpriteNormalShadow = 5;
 static const uint kPixelAttrBitSpecColorCalc = 6;
 static const uint kPixelAttrBitTransparent = 7;
 
+static const uint kInterlaceModeNone = 0;
+static const uint kInterlaceModeInvalid = 1;
+static const uint kInterlaceModeSingleDensity = 2;
+static const uint kInterlaceModeDoubleDensity = 3;
+
 static const uint kWindowLogicOR = 0;
 static const uint kWindowLogicAND = 1;
 
@@ -93,7 +98,7 @@ static const uint kSpecColorCalcModeColorMSB = 3;
 
 static const uint kPageSizes[2][2] = { { 13, 14 }, { 11, 12 } };
 
-static const uint kCRAMAddressMask = ((config.displayParams >> 3) & 3) == 1 ? 0x7FF : 0x3FF;
+static const uint kCRAMAddressMask = ((config.displayParams >> 4) & 3) == 1 ? 0x7FF : 0x3FF;
 
 static const uint kMaxNormalResH = 352;
 static const uint kMaxNormalResV = 256;
@@ -200,11 +205,11 @@ uint ReadSprite16(uint address) {
 }
 
 uint GetY(uint y) {
-    const bool interlaced = BitTest(config.displayParams, 0);
-    const uint odd = BitExtract(config.displayParams, 1, 1);
-    const bool exclusiveMonitor = BitTest(config.displayParams, 2);
+    const bool interlaced = BitExtract(config.displayParams, 0, 2) >= 2;
+    const uint oddField = BitExtract(config.displayParams, 2, 1);
+    const bool exclusiveMonitor = BitTest(config.displayParams, 3);
     if (interlaced && !exclusiveMonitor) {
-        return (y << 1) | (odd /* TODO & !deinterlace */);
+        return (y << 1) | (oddField /* TODO & !deinterlace */);
     } else {
         return y;
     }
@@ -234,7 +239,7 @@ uint4 Color888(uint val32) {
 }
 
 bool InsideWindow(Window window, bool invert, uint2 pos) {
-    const bool hiResH = BitTest(config.displayParams, 5);
+    const bool hiResH = BitTest(config.displayParams, 6);
 
     int2 start = window.start;
     int2 end = window.end;
@@ -883,7 +888,7 @@ uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
 }
 
 uint4 DrawRBG(uint2 pos, uint index) {
-    const bool hiResH = BitTest(config.displayParams, 5);
+    const bool hiResH = BitTest(config.displayParams, 6);
     if (hiResH) {
         pos.x >>= 1;
     }
@@ -947,8 +952,8 @@ SpriteData FetchSpriteData(uint fbAddr) {
     // *always* an exception...
     // 8-bit VDP1 data vs. 16-bit readout: NBA Live 98
     // 16-bit VDP1 data vs. 8-bit readout: I Love Donald Duck
-    const uint type = BitExtract(config.displayParams, 8, 4);
-    const bool pixel8Bits = BitTest(config.displayParams, 7);
+    const uint type = BitExtract(config.displayParams, 9, 4);
+    const bool pixel8Bits = BitTest(config.displayParams, 8);
     uint rawData;
     if (pixel8Bits) {
         rawData = ReadSprite8(fbAddr);
@@ -1103,11 +1108,11 @@ uint4 DrawSprite(uint2 pos, uint index) {
         return kTransparentPixel;
     }
 
-    const bool rotate = BitTest(config.displayParams, 6);
-    const uint type = BitExtract(config.displayParams, 8, 4);
-    const uint fbSizeH = 512 << BitExtract(config.displayParams, 12, 1);
-    const bool mixedFormat = BitTest(config.displayParams, 14);
-    const bool useSpriteWindow = BitTest(config.displayParams, 15);
+    const bool rotate = BitTest(config.displayParams, 7);
+    const uint type = BitExtract(config.displayParams, 9, 4);
+    const uint fbSizeH = 512 << BitExtract(config.displayParams, 13, 1);
+    const bool mixedFormat = BitTest(config.displayParams, 15);
+    const bool useSpriteWindow = BitTest(config.displayParams, 16);
 
     const uint2 spritePos = rotate ? Extract16PairS(rotParamState[0].spriteCoords) : pos;
     const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
@@ -1148,15 +1153,15 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const SpriteData spriteData = FetchSpriteData(fbAddr);
 
     // Handle sprite window
-    const bool spriteWindowEnabled = BitTest(config.displayParams, 25);
-    const bool spriteWindowInverted = BitTest(config.displayParams, 26);
+    const bool spriteWindowEnabled = BitTest(config.displayParams, 26);
+    const bool spriteWindowInverted = BitTest(config.displayParams, 27);
     if (useSpriteWindow && spriteWindowEnabled && spriteData.shadowOrWindow != spriteWindowInverted) {
         uint4 outPixel = kTransparentPixel;
         outPixel.a |= 1 << kPixelAttrBitSpriteShadowWindow;
         return outPixel;
     }
 
-    const uint colorDataOffset = BitExtract(config.displayParams, 22, 3) << 8;
+    const uint colorDataOffset = BitExtract(config.displayParams, 23, 3) << 8;
     const uint colorIndex = colorDataOffset + spriteData.colorData;
     const uint4 outColor = FetchCRAMColor(0, colorIndex);
     const uint outTransparent = (spriteData.special == kSpriteDataTransparent) ? 1 : 0;
