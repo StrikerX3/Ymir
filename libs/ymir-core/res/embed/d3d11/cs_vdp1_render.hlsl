@@ -1,7 +1,7 @@
 struct Config {
-    uint numLines;
     uint params;
     uint erase;
+    uint eraseWriteValue;
     uint _reserved;
 };
 
@@ -44,7 +44,6 @@ Buffer<uint> lineBins : register(t3);
 Buffer<uint> lineBinIndices : register(t4);
 
 RWByteAddressBuffer fbOut : register(u0);
-RWByteAddressBuffer fbram : register(u1);
 
 // -----------------------------------------------------------------------------
 
