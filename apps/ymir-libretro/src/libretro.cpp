@@ -279,7 +279,7 @@ static struct {
     bool use_input_bitmasks = false;
 
     // Video state
-    std::array<uint32_t, ymir::vdp::kMaxResH * ymir::vdp::kMaxResV> fb_copy{};
+    const uint32_t *fb_ptr = nullptr;
     uint32_t fb_width = 320;
     uint32_t fb_height = 224;
     uint32_t last_notified_width = 320;
@@ -325,14 +325,9 @@ static struct {
 // ---------------------------------------------------------------------------
 
 static void on_frame_complete(uint32 *fb, uint32 width, uint32 height, void *) {
+    core.fb_ptr = fb;
     core.fb_width = width;
     core.fb_height = height;
-    // Ymir outputs XBGR8888 (0xXXBBGGRR), libretro expects XRGB8888 (0xXXRRGGBB) — swap R and B
-    const auto count = static_cast<size_t>(width) * height;
-    for (size_t i = 0; i < count; i++) {
-        auto pixel = fb[i];
-        core.fb_copy[i] = (pixel & 0xFF00FF00u) | ((pixel & 0xFFu) << 16) | ((pixel >> 16) & 0xFFu);
-    }
     core.frame_ready = true;
 }
 
@@ -1167,7 +1162,7 @@ RETRO_API void retro_run(void) {
 
     // Submit video
     if (core.frame_ready) {
-        core.video_cb(core.fb_copy.data(), core.fb_width, core.fb_height,
+        core.video_cb(core.fb_ptr, core.fb_width, core.fb_height,
                       core.fb_width * sizeof(uint32_t));
     } else {
         // Frame not ready -- dupe previous

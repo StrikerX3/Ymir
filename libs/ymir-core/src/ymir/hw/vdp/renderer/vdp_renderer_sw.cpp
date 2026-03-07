@@ -4543,9 +4543,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         }
     }
 
-    // Opaque alpha
+    // Opaque alpha (and R↔B swap for XRGB output when building for libretro)
     for (Color888 &outputColor : framebufferOutput) {
+#if Ymir_VDP_OUTPUT_XRGB
+        const uint32 c = outputColor.u32;
+        outputColor.u32 = (c & 0x0000FF00u) | ((c & 0xFFu) << 16) | ((c >> 16) & 0xFFu) | 0xFF000000u;
+#else
         outputColor.u32 |= 0xFF000000;
+#endif
     }
 }
 
