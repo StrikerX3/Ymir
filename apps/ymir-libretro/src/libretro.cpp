@@ -299,10 +299,6 @@ static struct {
     // Cached serialized state size (computed on first retro_serialize_size call)
     size_t cached_state_size = 0;
 
-    // Backup RAM buffer exposed to RetroArch via RETRO_MEMORY_SAVE_RAM
-    std::array<uint8_t, ymir::sys::kInternalBackupRAMSizeAmount> save_ram{};
-    bool save_ram_needs_push = false; // true = push save_ram into emulator on next run
-
     // Device type per port
     unsigned port_device[2] = {RETRO_DEVICE_JOYPAD, RETRO_DEVICE_JOYPAD};
 
@@ -1043,10 +1039,6 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     core.saturn->SMPC.GetPeripheralPort2().ConnectControlPad();
     core.saturn->SMPC.GetPeripheralPort2().SetPeripheralReportCallback(make_peripheral_cb(1));
 
-    // Backup RAM: RetroArch loads .srm into core.save_ram after retro_load_game
-    // returns. We push it into the emulator on the first retro_run call.
-    core.save_ram_needs_push = true;
-
     // Build disc list: parse M3U playlist or use single path
     core.disc_paths.clear();
     std::filesystem::path game_path(game->path);
@@ -1120,9 +1112,8 @@ RETRO_API bool retro_load_game(const struct retro_game_info *game) {
     core.env_cb(RETRO_ENVIRONMENT_SET_SUPPORT_ACHIEVEMENTS, &cheevos_supported);
 
     // Initialize internal backup RAM in memory so the BIOS finds a valid
-    // header during boot.  Save data is managed by RetroArch via .srm files;
-    // the in-memory buffer is populated from core.save_ram on the first
-    // retro_run call and synced back on retro_unload_game.
+    // header during boot.  RetroArch manages save data via .srm files,
+    // reading/writing the raw buffer returned by retro_get_memory_data.
     {
         ymir::bup::BackupMemory bup;
         bup.CreateInMemory(ymir::bup::BackupMemorySize::_256Kbit);
@@ -1150,12 +1141,6 @@ RETRO_API bool retro_load_game_special(unsigned, const struct retro_game_info *,
 }
 
 RETRO_API void retro_unload_game(void) {
-    // Sync backup RAM to save_ram buffer before destruction
-    if (core.saturn) {
-        auto data = core.saturn->mem.GetInternalBackupRAM().ReadAll();
-        if (data.size() == core.save_ram.size())
-            std::memcpy(core.save_ram.data(), data.data(), data.size());
-    }
     core.saturn.reset();
     core.audio_buffer.clear();
     core.frame_ready = false;
@@ -1171,22 +1156,6 @@ RETRO_API void retro_unload_game(void) {
 // ---------------------------------------------------------------------------
 
 RETRO_API void retro_run(void) {
-    // On first run, push save_ram buffer into emulator backup RAM.
-    // RetroArch has loaded .srm into core.save_ram by this point.
-    if (core.save_ram_needs_push) {
-        core.save_ram_needs_push = false;
-        auto &bup = core.saturn->mem.GetInternalBackupRAM();
-        // Only push if the buffer contains valid data (not all zeros)
-        bool all_zero = true;
-        for (auto b : core.save_ram) {
-            if (b != 0) { all_zero = false; break; }
-        }
-        if (!all_zero) {
-            for (uint32_t i = 0; i < core.save_ram.size(); i++)
-                bup.WriteByte(i, core.save_ram[i]);
-        }
-    }
-
     // Check for option changes
     bool options_updated = false;
     if (core.env_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &options_updated) && options_updated)
@@ -1301,7 +1270,7 @@ RETRO_API unsigned retro_get_region(void) {
 RETRO_API void *retro_get_memory_data(unsigned id) {
     switch (id & RETRO_MEMORY_MASK) {
     case RETRO_MEMORY_SAVE_RAM:
-        return core.save_ram.data();
+        return core.saturn ? core.saturn->mem.GetInternalBackupRAM().Data() : nullptr;
     default:
         return nullptr;
     }
@@ -1310,7 +1279,7 @@ RETRO_API void *retro_get_memory_data(unsigned id) {
 RETRO_API size_t retro_get_memory_size(unsigned id) {
     switch (id & RETRO_MEMORY_MASK) {
     case RETRO_MEMORY_SAVE_RAM:
-        return core.save_ram.size();
+        return core.saturn ? core.saturn->mem.GetInternalBackupRAM().Size() : 0;
     default:
         return 0;
     }
