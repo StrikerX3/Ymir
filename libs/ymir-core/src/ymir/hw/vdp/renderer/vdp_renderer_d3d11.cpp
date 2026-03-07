@@ -561,6 +561,7 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     m_context->dirtyVDP2BGRenderState = true;
     m_context->dirtyVDP2RotParamState = true;
     m_context->dirtyVDP2ComposeParams = true;
+    m_doVDP1Erase = false;
 
     m_context->Reset();
 
@@ -642,6 +643,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
         colorCache[address >> 1u][2] = color8.b;
+        colorCache[address >> 1u][3] = color8.msb;
         break;
     }
     case 1: {
@@ -651,6 +653,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
         colorCache[address >> 1u][2] = color8.b;
+        colorCache[address >> 1u][3] = color8.msb;
         break;
     }
     case 2: [[fallthrough]];
@@ -661,6 +664,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
         colorCache[address >> 1u][2] = color8.b;
+        colorCache[address >> 1u][3] = color8.msb;
         break;
     }
     }
@@ -678,6 +682,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
         colorCache[address >> 1u][2] = color8.b;
+        colorCache[address >> 1u][3] = color8.msb;
         break;
     }
     case 1: {
@@ -687,6 +692,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
         colorCache[address >> 1u][2] = color8.b;
+        colorCache[address >> 1u][3] = color8.msb;
         break;
     }
     case 2: [[fallthrough]];
@@ -697,6 +703,7 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
         colorCache[address >> 1u][0] = color8.r;
         colorCache[address >> 1u][1] = color8.g;
         colorCache[address >> 1u][2] = color8.b;
+        colorCache[address >> 1u][3] = color8.msb;
         break;
     }
     }
@@ -788,6 +795,7 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
                     colorCache[i][0] = color8.r;
                     colorCache[i][1] = color8.g;
                     colorCache[i][2] = color8.b;
+                    colorCache[i][3] = color8.msb;
                 }
                 break;
             case 1:
@@ -798,6 +806,7 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
                     colorCache[i][0] = color8.r;
                     colorCache[i][1] = color8.g;
                     colorCache[i][2] = color8.b;
+                    colorCache[i][3] = color8.msb;
                 }
                 break;
             case 2: [[fallthrough]];
@@ -809,6 +818,7 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
                     colorCache[i][0] = color8.r;
                     colorCache[i][1] = color8.g;
                     colorCache[i][2] = color8.b;
+                    colorCache[i][3] = color8.msb;
                 }
                 break;
             }
@@ -834,7 +844,41 @@ void Direct3D11VDPRenderer::DumpExtraVDP1Framebuffers(std::ostream &out) const {
 // TODO: move all of this to a thread to reduce impact on the emulator thread
 // - need to manually update a copy of the VDP state using an event queue like the threaded software renderer
 
-void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {}
+void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {
+    auto &config = m_context->cpuVDP1RenderConfig;
+
+    m_doVDP1Erase = true;
+
+    // Vertical scale is doubled in double-interlace mode
+    const VDP1Regs &regs1 = m_state.regs1;
+    const VDP2Regs &regs2 = m_state.regs2;
+    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+    const uint32 scaleV = doubleDensity ? 1 : 0;
+
+    // Constrain erase area to certain limits based on current resolution
+    const uint32 maxH = (regs2.TVMD.HRESOn & 1) ? 428 : 400;
+    const uint32 maxV = m_VRes >> scaleV;
+
+    config.erase.x1 = std::min<uint32>(regs1.eraseX1Latch, maxH) >> 3u;
+    config.erase.y1 = std::min<uint32>(regs1.eraseY1Latch, maxV);
+    config.erase.x3 = std::min<uint32>(regs1.eraseX3Latch, maxH) >> 3u;
+    config.erase.y3 = std::min<uint32>(regs1.eraseY3Latch, maxV);
+    config.erase.scaleV = scaleV;
+    config.erase.writeValue = regs1.eraseWriteValueLatch;
+
+    config.params.vblankErase = cycles != 0;
+    if (config.params.vblankErase) {
+        // Compute last line and pixel that can be drawn with the given cycle budget
+        const uint32 lineWidth = config.erase.x3 - config.erase.x1;
+        if (lineWidth > 0) {
+            config.params.vblankEraseMaxY = cycles / lineWidth;
+            config.params.vblankEraseMaxX = cycles % lineWidth;
+        } else {
+            config.params.vblankEraseMaxY = 0;
+            config.params.vblankEraseMaxX = 0;
+        }
+    }
+}
 
 void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     // Submit partial batch
@@ -858,15 +902,25 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     HwCallbacks.CommandListReady(false);
 
     // TODO: copy VDP1 framebuffer to m_state.spriteFB
+    // - must be done on the main thread; sync point here
 
     VDP1UploadDrawFBRAM();
 
-    // Dispatch erase/swap shader
-    ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-    ctx.CSSetShaderResources({m_context->srvVDP1FBRAM});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
-    ctx.CSSetShader(m_context->csVDP1EraseSwap);
-    ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
+    if (m_doVDP1Erase) {
+        m_doVDP1Erase = false;
+
+        VDP1UpdateRenderConfig();
+
+        // Dispatch erase/swap shader
+        ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
+        ctx.CSSetShaderResources({m_context->srvVDP1FBRAM});
+        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
+        ctx.CSSetShader(m_context->csVDP1EraseSwap);
+        ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
+    } else {
+        // Simply copy the FBRAM over to the output
+        ctx.GetDeferredContext()->CopyResource(m_context->bufVDP1PolyOut, m_context->bufVDP1FBRAM);
+    }
 
     Callbacks.VDP1FramebufferSwap();
 }
@@ -1044,10 +1098,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1LineParams, m_context->srvVDP1CommandTable,
                               m_context->srvVDP1LineBins, m_context->srvVDP1LineBinIndices});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1FBRAM});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
     ctx.CSSetShader(m_context->csVDP1Render);
     ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
                  (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
+
+    // Copy output to FBRAM
+    ctx.GetDeferredContext()->CopyResource(m_context->bufVDP1FBRAMStaging, m_context->bufVDP1PolyOut);
 
     m_context->cpuVDP1LineParamsCount = 0;
     m_context->cpuVDP1CommandTableTail = m_context->cpuVDP1CommandTableHead;
@@ -1167,9 +1224,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawTexturedQuad(size_t cmdIndex, C
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
     const VDP1Regs &regs1 = m_state.regs1;
     const VDP2Regs &regs2 = m_state.regs2;
-    auto &config = m_context->cpuVDP1RenderConfig;
 
-    config.numLines = m_context->cpuVDP1LineParamsCount;
+    auto &config = m_context->cpuVDP1RenderConfig;
 
     config.params.fbSizeH = std::countr_zero(regs1.fbSizeH) - 9;
     config.params.fbSizeV = std::countr_zero(regs1.fbSizeV) - 8;
