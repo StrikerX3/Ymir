@@ -296,7 +296,8 @@ static struct {
     // Video standard (cached for retro_get_system_av_info / retro_get_region)
     bool is_pal = false;
 
-    // Cached serialized state size (computed on first retro_serialize_size call)
+    // Save state reuse: avoids multi-MB heap alloc/free per serialize call
+    std::unique_ptr<ymir::state::State> reusable_state;
     size_t cached_state_size = 0;
 
     // Device type per port
@@ -1123,6 +1124,7 @@ RETRO_API bool retro_load_game_special(unsigned, const struct retro_game_info *,
 
 RETRO_API void retro_unload_game(void) {
     core.saturn.reset();
+    core.reusable_state.reset();
     core.audio_buffer.clear();
     core.frame_ready = false;
     core.cached_state_size = 0;
@@ -1447,24 +1449,22 @@ RETRO_API size_t retro_serialize_size(void) {
         return 0;
 
     if (core.cached_state_size == 0) {
-        auto state = std::make_unique<ymir::state::State>();
-        core.saturn->SaveState(*state);
-        // Measure exact size, plus padding for variable-length fields
-        core.cached_state_size = write_state(*state, nullptr) + 4096;
+        if (!core.reusable_state)
+            core.reusable_state = std::make_unique<ymir::state::State>();
+        core.saturn->SaveState(*core.reusable_state);
+        core.cached_state_size = write_state(*core.reusable_state, nullptr) + 4096;
     }
     return core.cached_state_size;
 }
 
 RETRO_API bool retro_serialize(void *data, size_t size) {
-    if (!core.saturn)
+    if (!core.saturn || size < core.cached_state_size)
         return false;
 
-    auto state = std::make_unique<ymir::state::State>();
-    core.saturn->SaveState(*state);
-    size_t needed = write_state(*state, nullptr);
-    if (needed > size)
-        return false;
-    write_state(*state, static_cast<uint8_t *>(data));
+    if (!core.reusable_state)
+        core.reusable_state = std::make_unique<ymir::state::State>();
+    core.saturn->SaveState(*core.reusable_state);
+    write_state(*core.reusable_state, static_cast<uint8_t *>(data));
     return true;
 }
 
@@ -1472,12 +1472,13 @@ RETRO_API bool retro_unserialize(const void *data, size_t size) {
     if (!core.saturn)
         return false;
 
-    auto state = std::make_unique<ymir::state::State>();
-    if (!read_state(*state, static_cast<const uint8_t *>(data), size)) {
+    if (!core.reusable_state)
+        core.reusable_state = std::make_unique<ymir::state::State>();
+    if (!read_state(*core.reusable_state, static_cast<const uint8_t *>(data), size)) {
         LOG(RETRO_LOG_ERROR, "[Ymir] Failed to deserialize save state.\n");
         return false;
     }
-    if (!core.saturn->LoadState(*state)) {
+    if (!core.saturn->LoadState(*core.reusable_state)) {
         LOG(RETRO_LOG_ERROR, "[Ymir] Failed to load save state (validation failed).\n");
         return false;
     }
