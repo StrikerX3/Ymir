@@ -69,10 +69,8 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
 
-    ID3D11Buffer *bufVDP1FBRAM = nullptr;              //< VDP1 framebuffer RAM buffer (drawing only)
-    ID3D11ShaderResourceView *srvVDP1FBRAM = nullptr;  //< SRV for VDP1 framebuffer RAM buffer
-    ID3D11UnorderedAccessView *uavVDP1FBRAM = nullptr; //< UAV for VDP1 framebuffer RAM buffer
-    ID3D11Buffer *bufVDP1FBRAMStaging = nullptr;       //< VDP1 framebuffer RAM staging buffer (CPU<->GPU transfers)
+    ID3D11Buffer *bufVDP1FBRAMStaging = nullptr; //< VDP1 framebuffer RAM staging buffer (CPU<->GPU transfers)
+    bool dirtyVDP1FBRAMStaging = true;           //< VDP1 framebuffer RAM staging buffer dirty flag
 
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase/swap shader
@@ -223,16 +221,6 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAM, &m_context->srvVDP1FBRAM,
-                                                    &m_context->uavVDP1FBRAM, kVDP1FramebufferRAMSize,
-                                                    m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, 0);
-        FAILED(hr)) {
-        // TODO: report error
-        return;
-    }
-    SetDebugName(m_context->bufVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM buffer");
-    SetDebugName(m_context->srvVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM SRV");
-    SetDebugName(m_context->uavVDP1FBRAM, "[Ymir D3D11] VDP1 FBRAM UAV");
     if (HRESULT hr =
             devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMStaging, nullptr, nullptr, kVDP1FramebufferRAMSize,
                                            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
@@ -325,8 +313,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP1LineBinIndices, "[Ymir D3D11] VDP1 line parameter bin indices SRV");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
-                                                    &m_context->uavVDP1PolyOut, kVDP1FramebufferRAMSize,
-                                                    m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, 0);
+                                                    &m_context->uavVDP1PolyOut, sizeof(m_state.spriteFB),
+                                                    m_state.spriteFB.data(), 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -891,6 +879,18 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     ctx.CSSetShaderResources({});
     ctx.CSSetConstantBuffers({});
 
+    // Copy output to FBRAM
+    const D3D11_BOX srcBox{
+        .left = static_cast<UINT>(m_state.displayFB * kVDP1FramebufferRAMSize),
+        .top = 0,
+        .front = 0,
+        .right = static_cast<UINT>(srcBox.left + kVDP1FramebufferRAMSize),
+        .bottom = 1,
+        .back = 1,
+    };
+    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMStaging, 0, 0, 0, 0,
+                                                    m_context->bufVDP1PolyOut, 0, &srcBox);
+
     ID3D11CommandList *commandList = nullptr;
     if (HRESULT hr = ctx.FinishCommandList(commandList); FAILED(hr)) {
         return;
@@ -901,25 +901,23 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     HwCallbacks.CommandListReady(false);
 
-    // TODO: copy VDP1 framebuffer to m_state.spriteFB
+    // TODO: copy bufVDP1FBRAMStaging to m_state.spriteFB[m_state.displayFB]
     // - must be done on the main thread; sync point here
 
     VDP1UploadDrawFBRAM();
 
+    m_context->cpuVDP1RenderConfig.params.drawFB = m_state.displayFB ^ 1;
+    VDP1UpdateRenderConfig();
+
     if (m_doVDP1Erase) {
         m_doVDP1Erase = false;
 
-        VDP1UpdateRenderConfig();
-
         // Dispatch erase/swap shader
         ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-        ctx.CSSetShaderResources({m_context->srvVDP1FBRAM});
+        ctx.CSSetShaderResources({});
         ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
         ctx.CSSetShader(m_context->csVDP1EraseSwap);
         ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
-    } else {
-        // Simply copy the FBRAM over to the output
-        ctx.GetDeferredContext()->CopyResource(m_context->bufVDP1PolyOut, m_context->bufVDP1FBRAM);
     }
 
     Callbacks.VDP1FramebufferSwap();
@@ -1103,9 +1101,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
                  (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
 
-    // Copy output to FBRAM
-    ctx.GetDeferredContext()->CopyResource(m_context->bufVDP1FBRAMStaging, m_context->bufVDP1PolyOut);
-
     m_context->cpuVDP1LineParamsCount = 0;
     m_context->cpuVDP1CommandTableTail = m_context->cpuVDP1CommandTableHead;
     for (auto &bin : m_context->cpuVDP1LineBins) {
@@ -1267,12 +1262,16 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
+    if (!m_context->dirtyVDP1FBRAMStaging) {
+        return;
+    }
+    m_context->dirtyVDP1FBRAMStaging = false;
+
     m_context->VDP1Context.ModifyResource(m_context->bufVDP1FBRAMStaging, 0,
                                           [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
                                               const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
                                               memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
                                           });
-    m_context->VDP1Context.GetDeferredContext()->CopyResource(m_context->bufVDP1FBRAM, m_context->bufVDP1FBRAMStaging);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -2085,6 +2084,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.spriteColorDataOffset = regs2.spriteParams.colorDataOffset >> 8u;
     config.displayParams.spriteWindowEnabled = regs2.spriteParams.spriteWindowEnabled;
     config.displayParams.spriteWindowInverted = regs2.spriteParams.spriteWindowInverted;
+    config.displayParams.spriteDisplayFB = m_state.displayFB;
     config.displayParams.displayEnable = regs2.TVMD.DISP;
     config.displayParams.borderColorMode = regs2.TVMD.BDCLMD;
 

@@ -233,9 +233,9 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
 
 uint3 Compose(uint2 pos) {
     // Clear screen if display is disabled
-    const bool displayEnabled = BitTest(config.displayParams, 28);
+    const bool displayEnabled = BitTest(config.displayParams, 29);
     if (!displayEnabled) {
-        const bool borderColorMode = BitTest(config.displayParams, 29);
+        const bool borderColorMode = BitTest(config.displayParams, 30);
         if (borderColorMode) {
             // Use back screen color
             return lineColorIn[uint2(1, pos.y)].rgb;
