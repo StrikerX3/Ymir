@@ -19,8 +19,8 @@ void SystemMemory::Reset(bool hard) {
 void SystemMemory::MapMemory(SH2Bus &bus) {
     bus.MapArray(0x000'0000, 0x00F'FFFF, IPL, false);
     m_internalBackupRAM.MapMemory(bus, 0x018'0000, 0x01F'FFFF);
-    bus.MapArray(0x020'0000, 0x02F'FFFF, WRAMLow, true);
-    bus.MapArray(0x600'0000, 0x7FF'FFFF, WRAMHigh, true);
+    bus.MapArraySwapped(0x020'0000, 0x02F'FFFF, WRAMLow, true);
+    bus.MapArraySwapped(0x600'0000, 0x7FF'FFFF, WRAMHigh, true);
 
     // TODO: make this configurable
     // VA0/VA1: 030'0000 is unmapped; reads return all ones

@@ -16,7 +16,9 @@
 #include <ymir/util/type_traits_ex.hpp>
 #include <ymir/util/unreachable.hpp>
 
+#include <bit>
 #include <concepts>
+#include <cstring>
 #include <type_traits>
 
 namespace ymir::sys {
@@ -158,6 +160,34 @@ public:
         }
     }
 
+    /// @brief Convenience method that maps an array to the specified range with uint16 byte-swapped storage.
+    ///
+    /// On little-endian hosts, the array stores data in host-native uint16 byte order instead of big-endian.
+    /// Bus read/write operations transparently convert between the SH2's big-endian view and the native storage.
+    /// On big-endian hosts, this behaves identically to `MapArray`.
+    ///
+    /// @tparam N the size of the array. Must be a power of two and at least as large as the bus's page size
+    /// @param[in] start the lower bound of the address range to map the handlers into
+    /// @param[in] end the upper bound of the address range to map the handlers into
+    /// @param array a reference to the array to be mapped
+    /// @param writable indicates if the array is meant to be writable or read-only
+    template <size_t N>
+        requires(bit::is_power_of_two(N) && N >= kPageSize)
+    void MapArraySwapped(uint32 start, uint32 end, std::array<uint8, N> &array, bool writable) {
+        static constexpr uint32 kMask = N - 1;
+
+        const uint32 startIndex = start >> pageGranularityBits;
+        const uint32 endIndex = end >> pageGranularityBits;
+        uint32 offset = 0;
+        for (uint32 i = startIndex; i <= endIndex; i++) {
+            m_pages[i] = {}; // clear all handlers
+            m_pages[i].array = &array[offset & kMask];
+            m_pages[i].arrayWritable = writable;
+            m_pages[i].arraySwapped = true;
+            offset += kPageSize;
+        }
+    }
+
     // -----------------------------------------------------------------------------------------------------------------
     // Accessors
 
@@ -172,7 +202,23 @@ public:
         const MemoryPage &entry = m_pages[address >> pageGranularityBits];
 
         if (entry.array) {
-            return util::ReadBE<T>(&entry.array[address & kPageMask]);
+            const auto offset = address & kPageMask;
+            if constexpr (std::endian::native == std::endian::little) {
+                if (entry.arraySwapped) {
+                    if constexpr (std::is_same_v<T, uint8>) {
+                        return entry.array[offset ^ 1];
+                    } else if constexpr (std::is_same_v<T, uint16>) {
+                        T v;
+                        std::memcpy(&v, &entry.array[offset], sizeof(T));
+                        return v;
+                    } else {
+                        uint32 v;
+                        std::memcpy(&v, &entry.array[offset], sizeof(uint32));
+                        return static_cast<T>((v >> 16) | (v << 16));
+                    }
+                }
+            }
+            return util::ReadBE<T>(&entry.array[offset]);
         }
         if constexpr (std::is_same_v<T, uint8>) {
             return entry.read8(address, entry.ctx);
@@ -198,7 +244,21 @@ public:
 
         if (entry.array) {
             if (entry.arrayWritable) {
-                util::WriteBE<T>(&entry.array[address & kPageMask], value);
+                const auto offset = address & kPageMask;
+                if constexpr (std::endian::native == std::endian::little) {
+                    if (entry.arraySwapped) {
+                        if constexpr (std::is_same_v<T, uint8>) {
+                            entry.array[offset ^ 1] = value;
+                        } else if constexpr (std::is_same_v<T, uint16>) {
+                            std::memcpy(&entry.array[offset], &value, sizeof(T));
+                        } else {
+                            uint32 v = (static_cast<uint32>(value) >> 16) | (static_cast<uint32>(value) << 16);
+                            std::memcpy(&entry.array[offset], &v, sizeof(uint32));
+                        }
+                        return;
+                    }
+                }
+                util::WriteBE<T>(&entry.array[offset], value);
             }
             return;
         }
@@ -225,7 +285,23 @@ public:
         const MemoryPage &entry = m_pages[address >> pageGranularityBits];
 
         if (entry.array) {
-            return util::ReadBE<T>(&entry.array[address & kPageMask]);
+            const auto offset = address & kPageMask;
+            if constexpr (std::endian::native == std::endian::little) {
+                if (entry.arraySwapped) {
+                    if constexpr (std::is_same_v<T, uint8>) {
+                        return entry.array[offset ^ 1];
+                    } else if constexpr (std::is_same_v<T, uint16>) {
+                        T v;
+                        std::memcpy(&v, &entry.array[offset], sizeof(T));
+                        return v;
+                    } else {
+                        uint32 v;
+                        std::memcpy(&v, &entry.array[offset], sizeof(uint32));
+                        return static_cast<T>((v >> 16) | (v << 16));
+                    }
+                }
+            }
+            return util::ReadBE<T>(&entry.array[offset]);
         }
         if constexpr (std::is_same_v<T, uint8>) {
             return entry.peek8(address, entry.ctx);
@@ -251,7 +327,21 @@ public:
 
         if (entry.array) {
             if (entry.arrayWritable) {
-                util::WriteBE<T>(&entry.array[address & kPageMask], value);
+                const auto offset = address & kPageMask;
+                if constexpr (std::endian::native == std::endian::little) {
+                    if (entry.arraySwapped) {
+                        if constexpr (std::is_same_v<T, uint8>) {
+                            entry.array[offset ^ 1] = value;
+                        } else if constexpr (std::is_same_v<T, uint16>) {
+                            std::memcpy(&entry.array[offset], &value, sizeof(T));
+                        } else {
+                            uint32 v = (static_cast<uint32>(value) >> 16) | (static_cast<uint32>(value) << 16);
+                            std::memcpy(&entry.array[offset], &v, sizeof(uint32));
+                        }
+                        return;
+                    }
+                }
+                util::WriteBE<T>(&entry.array[offset], value);
             }
             return;
         }
@@ -319,6 +409,7 @@ private:
 
         uint8 *array = nullptr;
         bool arrayWritable = false;
+        bool arraySwapped = false;
 
         // Slow path for MMIO and other regions
 
