@@ -157,15 +157,6 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
-uint4 Color555(uint val16) {
-    return uint4(
-        ((val16 >> 0) & 0x1F) << 3,
-        ((val16 >> 5) & 0x1F) << 3,
-        ((val16 >> 10) & 0x1F) << 3,
-        (val16 >> 15) & 1
-    );
-}
-
 uint4 Uint16ToColor555(uint rawValue) {
     return uint4(
         BitExtract(rawValue, 0, 5),
@@ -289,7 +280,7 @@ struct GouraudChannelStepper {
     int intInc;
     int fracInc;
 
-    void Setup(uint length, uint start, uint end) {
+    void Setup(uint length, int start, int end) {
         const int delta = end - start;
         const uint absDelta = abs(delta);
 
@@ -329,18 +320,8 @@ struct GouraudChannelStepper {
         accum = ~accum;
     }
 
-    // Advances the gradient by a single pixel.
-    void Step() {
-        value += intInc;
-        accum -= num;
-        if (accum < 0) {
-            value += fracInc;
-            accum += den;
-        }
-    }
-
     // Skips the specified number of pixels.
-    void Skip(uint steps) {
+    void Skip(int steps) {
         value += intInc * steps;
         accum -= num * steps;
         if (den != 0) {
@@ -372,20 +353,13 @@ struct GouraudStepper {
 
     // Sets up gouraud shading with the given length and start and end colors.
     void Setup(uint length, uint4 gouraudStart, uint4 gouraudEnd) {
-        stepperR.Setup(length, gouraudStart.r >> 3, gouraudEnd.r >> 3);
-        stepperG.Setup(length, gouraudStart.g >> 3, gouraudEnd.g >> 3);
-        stepperB.Setup(length, gouraudStart.b >> 3, gouraudEnd.b >> 3);
-    }
-
-    // Steps the gouraud shader to the next coordinate.
-    void Step() {
-        stepperR.Step();
-        stepperG.Step();
-        stepperB.Step();
+        stepperR.Setup(length, gouraudStart.r, gouraudEnd.r);
+        stepperG.Setup(length, gouraudStart.g, gouraudEnd.g);
+        stepperB.Setup(length, gouraudStart.b, gouraudEnd.b);
     }
 
     // Skips the specified number of pixels.
-    void Skip(uint steps) {
+    void Skip(int steps) {
         if (steps > 0) {
             stepperR.Skip(steps);
             stepperG.Skip(steps);
@@ -797,16 +771,14 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
     if (IsPixelClipped(vdp1line, pos, userClippingEnable, clippingMode)) {
         return;
     }
-    //vdp1line.coordStart.y >>= 1;
-    //vdp1line.coordEnd.y >>= 1;
 
     const bool antiAlias = BitTest(vdp1line.params, 16);
     const bool gouraudEnable = BitTest(vdp1line.params, 17);
     const bool textured = BitTest(vdp1line.params, 18);
     const uint texV = BitExtract(vdp1line.params, 24, 8);
 
-    const uint4 gouraudStart = Color555(BitExtract(vdp1line.gouraud, 0, 16));
-    const uint4 gouraudEnd = Color555(BitExtract(vdp1line.gouraud, 16, 16));
+    const uint4 gouraudStart = Uint16ToColor555(BitExtract(vdp1line.gouraud, 0, 16));
+    const uint4 gouraudEnd = Uint16ToColor555(BitExtract(vdp1line.gouraud, 16, 16));
 
     LineStepper lineStepper = NewLineStepper(vdp1line.coordStart, vdp1line.coordEnd, antiAlias);
 
