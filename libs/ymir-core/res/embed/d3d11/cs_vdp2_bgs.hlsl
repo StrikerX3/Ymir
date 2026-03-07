@@ -790,7 +790,7 @@ void StoreRotationLineColorData(uint2 pos, uint2 rotPos, uint index, uint rotSel
     const uint lineColorBaseAddress = BitExtract(state.lineScreenParams, 0, 19);
 
     const uint lineColorY = lineColorPerLine ? pos.y : 0;
-    const uint lineColorAddress = lineColorBaseAddress + lineColorY;
+    const uint lineColorAddress = lineColorBaseAddress + lineColorY * 2;
 
     uint cramAddress = ReadVRAM16(lineColorAddress);
 
