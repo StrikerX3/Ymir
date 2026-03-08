@@ -440,8 +440,6 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
 
     const uint dotOffset = dotPos.x + dotPos.y * linePitch;
 
-    // TODO: apply VRAM data offset (from parameter)
-
     uint colorData;
     uint4 outColor;
     bool outTransparent;
@@ -449,7 +447,8 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     if (colorFormat == kColorFormatPalette16) {
         const uint dotAddress = baseAddress + (dotOffset >> 1);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM4(dotAddress, ~dotPos.x & 1) : 0;
+        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM4(dotAddress + vramAccessOffset, ~dotPos.x & 1) : 0;
         const uint colorIndex = palNum | dotData;
         colorData = BitExtract(dotData, 1, 3);
         outColor = FetchCRAMColor(cramOffset, colorIndex);
@@ -459,7 +458,8 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatPalette256) {
         const uint dotAddress = baseAddress + dotOffset;
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM8(dotAddress) : 0;
+        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM8(dotAddress + vramAccessOffset) : 0;
         const uint colorIndex = (palNum & 0x700) | dotData;
         colorData = BitExtract(dotData, 1, 3);
         outColor = FetchCRAMColor(cramOffset, colorIndex);
@@ -469,7 +469,8 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatPalette2048) {
         const uint dotAddress = baseAddress + (dotOffset << 1);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM16(dotAddress) : 0;
+        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM16(dotAddress + vramAccessOffset) : 0;
         const uint colorIndex = dotData & 0x7FF;
         colorData = BitExtract(dotData, 1, 3);
         outColor = FetchCRAMColor(cramOffset, colorIndex);
@@ -479,7 +480,8 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatRGB555) {
         const uint dotAddress = baseAddress + (dotOffset << 1);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM16(dotAddress) : 0;
+        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM16(dotAddress + vramAccessOffset) : 0;
         outColor = Color555(dotData);
         outTransparent = enableTransparency && outColor.w == 0;
         outSpecColorCalc = GetSpecialColorCalcFlag(bgParams, 7, specColorCalc, true);
@@ -487,7 +489,8 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatRGB888) {
         const uint dotAddress = baseAddress + (dotOffset << 2);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM32(dotAddress) : 0;
+        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM32(dotAddress + vramAccessOffset) : 0;
         outColor = Color888(dotData);
         outTransparent = enableTransparency && outColor.w == 0;
         outSpecColorCalc = GetSpecialColorCalcFlag(bgParams, 7, specColorCalc, true);
@@ -554,6 +557,7 @@ uint4 FetchBitmapPixel(uint4 bgParams, uint2 scrollPos) {
 
     const uint2 dotPos = scrollPos & uint2(bitmapSizeH - 1, bitmapSizeV - 1);
     const uint baseAddress = BitExtract(bgParams.w, 2, 3) << 17;
+    const uint bank = (baseAddress >> 17) & 3;
     const uint palNum = BitExtract(bgParams.x, 22, 3) << 8;
     const bool specColorCalc = BitTest(bgParams.x, 25);
     const uint specPriority = BitExtract(bgParams.x, 26, 1);
