@@ -440,7 +440,7 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
 
     const uint dotOffset = dotPos.x + dotPos.y * linePitch;
 
-    // TODO: apply VRAM data offset
+    // TODO: apply VRAM data offset (from parameter)
 
     uint colorData;
     uint4 outColor;
