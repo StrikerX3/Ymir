@@ -75,6 +75,10 @@ uint BitExtract(uint value, uint offset, uint length) {
     return (value >> offset) & mask;
 }
 
+static const bool interlaced = BitExtract(config.displayParams, 0, 2) >= 2;
+static const uint oddField = BitExtract(config.displayParams, 2, 1);
+static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
+
 // The alpha channel of the layer textures contains pixel attributes:
 // bits  use
 //  0-2  Priority (0 to 7)
@@ -98,11 +102,8 @@ Attributes ToAttributes(uint pixelData) {
 }
 
 uint GetY(uint y) {
-    const bool interlaced = BitExtract(config.displayParams, 0, 2) >= 2;
-    const uint odd = BitExtract(config.displayParams, 2, 1);
-    const bool exclusiveMonitor = BitTest(config.displayParams, 3);
     if (interlaced && !exclusiveMonitor) {
-        return (y << 1) | (odd /* TODO & !deinterlace */);
+        return (y << 1) | (oddField /* TODO & !deinterlace */);
     } else {
         return y;
     }
@@ -152,15 +153,15 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
         return false;
     }
     if (layer == kLayerSprite) {
-        if (!BitTest(config.displayParams, 17)) {
+        if (!BitTest(config.displayParams, 18)) {
             // Sprite color calculation is disabled
             return false;
         }
         // Sprites use condition modes based on priority or color MSB
         const uint attrs = bgIn[uint3(pos.xy, kBGLayerSprite)].a;
         const uint priority = BitExtract(attrs, 0, 3);
-        const uint value = BitExtract(config.displayParams, 18, 3);
-        const uint cond = BitExtract(config.displayParams, 21, 2);
+        const uint value = BitExtract(config.displayParams, 19, 3);
+        const uint cond = BitExtract(config.displayParams, 22, 2);
         switch (cond) {
             case kSpriteCCCondPriorityLE:
                 return priority <= value;
@@ -346,7 +347,7 @@ uint3 Compose(uint2 pos) {
     const uint4 spriteOutput = GetLayerOutput(kLayerSprite, pos);
     const uint spritePriority = BitExtract(spriteOutput.a, 0, 3);
     if (spritePriority >= layerPrios[0]) {
-        const bool useSpriteWindow = BitTest(config.displayParams, 16);
+        const bool useSpriteWindow = BitTest(config.displayParams, 17);
         const bool isNormalShadow = BitTest(spriteOutput.a, kPixelAttrBitSpriteNormalShadow);
         const bool isMSBShadow = !useSpriteWindow && BitTest(spriteOutput.a, kPixelAttrBitSpriteShadowWindow);
         if (isNormalShadow || isMSBShadow) {
