@@ -108,7 +108,10 @@ void VDP2VRAMDelayView::Display() {
         ImGui::TableSetupColumn("T7", ImGuiTableColumnFlags_WidthFixed, paddingWidth * 2 + hexCharWidth * 3);
         ImGui::TableHeadersRow();
 
-        auto drawBank = [&](const char *name, const std::array<vdp::CyclePatterns::Type, 8> &timings) {
+        auto drawBank = [&](const char *name, const std::array<vdp::CyclePatterns::Type, 8> &timings, bool enabled) {
+            if (!enabled) {
+                ImGui::BeginDisabled();
+            }
             ImGui::TableNextRow();
             if (ImGui::TableNextColumn()) {
                 ImGui::TextUnformatted(name);
@@ -136,13 +139,16 @@ void VDP2VRAMDelayView::Display() {
                     ImGui::PopFont();
                 }
             }
-            // All CYCxn registers
+            if (!enabled) {
+                ImGui::EndDisabled();
+            }
         };
 
-        drawBank("A0", regs2.cyclePatterns.timings[0]);
-        drawBank("A1", regs2.cyclePatterns.timings[1]);
-        drawBank("B0", regs2.cyclePatterns.timings[2]);
-        drawBank("B1", regs2.cyclePatterns.timings[3]);
+        // All CYCxn registers
+        drawBank("A0", regs2.cyclePatterns.timings[0], true);
+        drawBank("A1", regs2.cyclePatterns.timings[1], regs2.vramControl.partitionVRAMA);
+        drawBank("B0", regs2.cyclePatterns.timings[2], true);
+        drawBank("B1", regs2.cyclePatterns.timings[3], regs2.vramControl.partitionVRAMB);
 
         ImGui::EndTable();
     }
