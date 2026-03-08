@@ -102,8 +102,8 @@ uint ReadSprite16(uint address) {
     return ByteSwap16(BitExtract(spriteFB.Load(address & ~3), (address & 2) * 8, 16));
 }
 
-uint GetY(uint y, bool doubleDensityOnly) {
-    const bool interlaced = doubleDensityOnly ? interlaceMode == 3 : interlaceMode >= 2;
+uint GetY(uint y) {
+    const bool interlaced = interlaceMode >= 2;
     if (interlaced && !exclusiveMonitor) {
         return (y << 1) | (oddField /* TODO & !deinterlace */);
     } else {
@@ -326,7 +326,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
                             inHalfResH ? uint2(pos.x << 1, pos.y) :
                             outHalfResH ? uint2(pos.x >> 1, pos.y) :
                             pos;
-    const uint2 outPos = uint2(pos.x, GetY(pos.y, false));
+    const uint2 outPos = uint2(pos.x, GetY(pos.y));
     const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
 
     // TODO: sprite window
@@ -399,6 +399,6 @@ uint4 DrawSprite(uint2 pos, uint index) {
 [numthreads(32, 1, 2)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = uint2(id.x, id.y + config.startY);
-    const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y, false), id.z + 6);
+    const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z + 6);
     bgOut[outCoord] = DrawSprite(drawCoord, id.z);
 }
