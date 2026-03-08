@@ -169,8 +169,9 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint spriteWindowEnabled : 1;   //    26  Sprite window enabled for the sprite layer
         D3DUint spriteWindowInverted : 1;  //    27  Sprite window inverted for the sprite layer
         D3DUint spriteDisplayFB : 1;       //    28  Current sprite display framebuffer index
-        D3DUint displayEnable : 1;         //    29  Display enabled             0=display off; 1=display on
-        D3DUint borderColorMode : 1;       //    30  Border color mode           0=black; 1=back screen color
+        D3DUint spriteHalfResH : 1;        //    29  Sprite readout at half resolution
+        D3DUint displayEnable : 1;         //    30  Display enabled             0=display off; 1=display on
+        D3DUint borderColorMode : 1;       //    31  Border color mode           0=black; 1=back screen color
     } displayParams;
 
     // Top Y coordinate of target rendering area

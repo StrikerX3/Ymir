@@ -2085,6 +2085,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.spriteWindowEnabled = regs2.spriteParams.spriteWindowEnabled;
     config.displayParams.spriteWindowInverted = regs2.spriteParams.spriteWindowInverted;
     config.displayParams.spriteDisplayFB = m_state.displayFB;
+    config.displayParams.spriteHalfResH =
+        !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
     config.displayParams.displayEnable = regs2.TVMD.DISP;
     config.displayParams.borderColorMode = regs2.TVMD.BDCLMD;
 
