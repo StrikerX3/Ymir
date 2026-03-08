@@ -209,8 +209,8 @@ uint ReadSprite16(uint address) {
     return ByteSwap16(BitExtract(spriteFB.Load(address & ~3), (address & 2) * 8, 16));
 }
 
-uint GetY(uint y) {
-    const bool interlaced = BitExtract(config.displayParams, 0, 2) >= 2;
+uint GetY(uint y, bool doubleDensityOnly) {
+    const bool interlaced = doubleDensityOnly ? BitExtract(config.displayParams, 0, 2) == 3 : BitExtract(config.displayParams, 0, 2) >= 2;
     const uint oddField = BitExtract(config.displayParams, 2, 1);
     const bool exclusiveMonitor = BitTest(config.displayParams, 3);
     if (interlaced && !exclusiveMonitor) {
@@ -626,7 +626,7 @@ uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, uint
 // -----------------------------------------------------------------------------
 
 uint4 DrawNBG(uint2 pos, uint index) {
-    pos.y = GetY(pos.y);
+    pos.y = GetY(pos.y, true);
 
     const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
@@ -1122,7 +1122,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
 
     const uint2 spritePos = rotate ? Extract16PairS(rotParamState[0].spriteCoords) :
                             halfResH ? uint2(pos.x << 1, pos.y) : pos;
-    const uint2 outPos = uint2(pos.x, GetY(pos.y));
+    const uint2 outPos = uint2(pos.x, GetY(pos.y, false));
     const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
 
     // TODO: sprite window
@@ -1212,8 +1212,8 @@ uint4 DrawLineBackScreen(uint index, uint y) {
 
 [numthreads(32, 1, 8)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = id.xy + uint2(0, config.startY);
-    const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z);
+    const uint2 drawCoord = uint2(id.x, id.y + config.startY);
+    const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y, false), id.z);
     if (id.z < 4) {
         bgOut[outCoord] = DrawNBG(drawCoord, id.z);
     } else if (id.z < 6) {

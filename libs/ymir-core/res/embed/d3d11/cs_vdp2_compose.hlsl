@@ -364,7 +364,7 @@ uint3 Compose(uint2 pos) {
 
 [numthreads(32, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = uint2(id.x, GetY(id.y) + config.startY);
+    const uint2 drawCoord = uint2(id.x, GetY(id.y + config.startY));
     const uint3 outColor = Compose(drawCoord);
     textureOut[drawCoord] = float4(outColor / 255.0, 1.0f);
 }
