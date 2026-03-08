@@ -2021,7 +2021,15 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.sprite8Bit = regs1.pixel8Bits;
     config.displayParams.spriteType = regs2.spriteParams.type;
     config.displayParams.spriteFBSizeH = std::countr_zero(regs1.fbSizeH) - 9;
-    config.displayParams.spriteFBSizeV = std::countr_zero(regs1.fbSizeV) - 8;
+    config.displayParams.spriteInHalfResH = false;
+    config.displayParams.spriteOutHalfResH = false;
+    if (!regs1.hdtvEnable && !regs1.fbRotEnable) {
+        if (regs1.pixel8Bits) {
+            config.displayParams.spriteInHalfResH = (regs2.TVMD.HRESOn & 0b110) == 0b000;
+        } else {
+            config.displayParams.spriteOutHalfResH = (regs2.TVMD.HRESOn & 0b110) == 0b010;
+        }
+    }
     config.displayParams.spriteMixedFormat = regs2.spriteParams.mixedFormat;
     config.displayParams.useSpriteWindow = regs2.spriteParams.useSpriteWindow;
     config.displayParams.spriteColorCalcEnable = regs2.spriteParams.colorCalcEnable;
@@ -2031,8 +2039,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.spriteWindowEnabled = regs2.spriteParams.spriteWindowEnabled;
     config.displayParams.spriteWindowInverted = regs2.spriteParams.spriteWindowInverted;
     config.displayParams.spriteDisplayFB = m_state.displayFB;
-    config.displayParams.spriteHalfResH =
-        !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
     config.displayParams.displayEnable = regs2.TVMD.DISP;
     config.displayParams.borderColorMode = regs2.TVMD.BDCLMD;
 

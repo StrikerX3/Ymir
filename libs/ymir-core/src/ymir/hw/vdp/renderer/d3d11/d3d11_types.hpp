@@ -159,17 +159,17 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint sprite8Bit : 1;            //     8  VDP1 data size               0=16-bit; 1=8-bit
         D3DUint spriteType : 4;            //  9-12  Sprite data type
         D3DUint spriteFBSizeH : 1;         //    13  Sprite framebuffer horizontal size shift  (512 << x)
-        D3DUint spriteFBSizeV : 1;         //    14  Sprite framebuffer vertical size shift    (256 << x)
-        D3DUint spriteMixedFormat : 1;     //    15  Sprite layer color format    0=palette only; 1=mixed palette/RGB
-        D3DUint useSpriteWindow : 1;       //    16  Sprite window enabled
-        D3DUint spriteColorCalcEnable : 1; //    17  Sprite color calculation enable
-        D3DUint spriteColorCalcValue : 3;  // 18-20  Target color calculation value
-        D3DUint spriteColorCalcCond : 2;   // 21-22  Special color calculation condition
-        D3DUint spriteColorDataOffset : 3; // 23-25  Special color data offset in CRAM
-        D3DUint spriteWindowEnabled : 1;   //    26  Sprite window enabled for the sprite layer
-        D3DUint spriteWindowInverted : 1;  //    27  Sprite window inverted for the sprite layer
-        D3DUint spriteDisplayFB : 1;       //    28  Current sprite display framebuffer index
-        D3DUint spriteHalfResH : 1;        //    29  Sprite readout at half resolution
+        D3DUint spriteInHalfResH : 1;      //    14  Sprite input at half resolution
+        D3DUint spriteOutHalfResH : 1;     //    15  Sprite output at half resolution
+        D3DUint spriteMixedFormat : 1;     //    16  Sprite layer color format    0=palette only; 1=mixed palette/RGB
+        D3DUint useSpriteWindow : 1;       //    17  Sprite window enabled
+        D3DUint spriteColorCalcEnable : 1; //    18  Sprite color calculation enable
+        D3DUint spriteColorCalcValue : 3;  // 19-21  Target color calculation value
+        D3DUint spriteColorCalcCond : 2;   // 22-23  Special color calculation condition
+        D3DUint spriteColorDataOffset : 3; // 24-26  Special color data offset in CRAM
+        D3DUint spriteWindowEnabled : 1;   //    27  Sprite window enabled for the sprite layer
+        D3DUint spriteWindowInverted : 1;  //    28  Sprite window inverted for the sprite layer
+        D3DUint spriteDisplayFB : 1;       //    29  Current sprite display framebuffer index
         D3DUint displayEnable : 1;         //    30  Display enabled             0=display off; 1=display on
         D3DUint borderColorMode : 1;       //    31  Border color mode           0=black; 1=back screen color
     } displayParams;
