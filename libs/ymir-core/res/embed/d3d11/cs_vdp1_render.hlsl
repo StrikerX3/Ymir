@@ -897,7 +897,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 pos = id.xy;
     uint2 fbPos = pos;
     if (dblInterlaceEnable) {
-        if ((pos.y & 1) != dblInterlaceDrawLine) {
+        if ((pos.y & 1) == dblInterlaceDrawLine) {
             return;
         }
         fbPos.y >>= 1;

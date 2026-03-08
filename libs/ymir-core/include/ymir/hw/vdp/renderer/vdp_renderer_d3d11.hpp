@@ -229,6 +229,9 @@ private:
     /// @brief Updates the VDP2 rendering configuration constants.
     void VDP2UpdateRenderConfig();
 
+    /// @brief Uploads the VDP2 rendering configuration constants to the GPU.
+    void VDP2UploadRenderConfig();
+
     /// @brief Updates rotation parameter base values for the current scanline.
     /// @param[in] y the scaline to compute
     void VDP2UpdateRotationParameterBases(uint16 y);
