@@ -1118,8 +1118,10 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const uint fbSizeH = 512 << BitExtract(config.displayParams, 13, 1);
     const bool mixedFormat = BitTest(config.displayParams, 15);
     const bool useSpriteWindow = BitTest(config.displayParams, 16);
+    const bool halfResH = BitTest(config.displayParams, 29);
 
-    const uint2 spritePos = rotate ? Extract16PairS(rotParamState[0].spriteCoords) : pos;
+    const uint2 spritePos = rotate ? Extract16PairS(rotParamState[0].spriteCoords) :
+                            halfResH ? uint2(pos.x << 1, pos.y) : pos;
     const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
 
     // TODO: sprite window
