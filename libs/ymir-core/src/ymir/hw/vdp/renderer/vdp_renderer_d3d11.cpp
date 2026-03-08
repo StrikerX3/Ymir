@@ -1673,17 +1673,6 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
     const VDP2Regs &regs2 = m_state.regs2;
     IVDPRenderer::VDP2UpdateEnabledBGs(regs2, m_vdp2DebugRenderOptions);
 
-    m_context->cpuVDP2RenderConfig.extraParams.layerEnabled = bit::gather_array<uint32>(m_layerEnabled);
-    m_context->cpuVDP2RenderConfig.extraParams.bgEnabled = bit::gather_array<uint32>(regs2.bgEnabled);
-
-    auto &state = m_context->cpuVDP2BGRenderState;
-    for (uint32 i = 0; i < 4; ++i) {
-        state.nbgParams[i].common.enabled = m_layerEnabled[i + 2];
-    }
-    for (uint32 i = 0; i < 2; ++i) {
-        state.rbgParams[i].common.enabled = m_layerEnabled[i + 1];
-    }
-
     m_context->dirtyVDP2BGRenderState = true;
     m_context->dirtyVDP2RotParamState = true;
     m_context->dirtyVDP2ComposeParams = true;
@@ -1699,69 +1688,13 @@ FORCE_INLINE static std::array<bool, N> ExtractArrayBits(const std::array<uint32
 };
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcAccessPatterns() {
-    const bool dirty = m_state.regs2.accessPatternsDirty;
+    m_context->dirtyVDP2BGRenderState |= m_state.regs2.accessPatternsDirty;
     IVDPRenderer::VDP2CalcAccessPatterns(m_state.regs2);
-    if (!dirty) {
-        return;
-    }
-
-    const VDP2Regs &regs2 = m_state.regs2;
-    auto &state = m_context->cpuVDP2BGRenderState;
-    for (uint32 i = 0; i < 4; ++i) {
-        const auto &bgParams = regs2.bgParams[i + 1];
-        const NBGLayerState &bgState = m_nbgLayerStates[i];
-        auto &renderParams = state.nbgParams[i];
-
-        auto &common = renderParams.common;
-        common.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
-        common.charPatDelay = bgParams.charPatDelay;
-        common.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
-        common.vcellScrollOffset = bgState.vcellScrollOffset >> 2u;
-        common.vcellScrollDelay = bgState.vcellScrollDelay;
-        common.vcellScrollRepeat = bgState.vcellScrollRepeat;
-
-        if (!bgParams.bitmap) {
-            auto &scroll = renderParams.typeSpecific.scroll;
-            scroll.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
-        }
-    }
-    for (uint32 i = 0; i < 2; ++i) {
-        const auto &bgParams = regs2.bgParams[i];
-        auto &renderParams = state.rbgParams[i];
-
-        auto &common = renderParams.common;
-        common.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
-        common.charPatDelay = bgParams.charPatDelay;
-        common.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
-
-        if (!bgParams.bitmap) {
-            auto &scroll = renderParams.typeSpecific.scroll;
-            scroll.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
-        }
-    }
-
-    m_context->dirtyVDP2BGRenderState = true;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVCellScrollDelay() {
-    const bool dirty = m_state.regs2.accessPatternsDirty;
+    m_context->dirtyVDP2BGRenderState |= m_state.regs2.accessPatternsDirty;
     IVDPRenderer::VDP2CalcVCellScrollDelay(m_state.regs2);
-    if (!dirty) {
-        return;
-    }
-
-    auto &state = m_context->cpuVDP2BGRenderState;
-    for (uint32 i = 0; i < 2; ++i) {
-        const NBGLayerState &bgState = m_nbgLayerStates[i];
-        auto &renderParams = state.nbgParams[i];
-
-        auto &common = renderParams.common;
-        common.vcellScrollOffset = bgState.vcellScrollOffset;
-        common.vcellScrollDelay = bgState.vcellScrollDelay;
-        common.vcellScrollRepeat = bgState.vcellScrollRepeat;
-    }
-
-    m_context->dirtyVDP2BGRenderState = true;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
@@ -1918,14 +1851,18 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         const NBGLayerState &nbgState = m_nbgLayerStates[i];
 
         auto &common = renderParams.common;
-        common.transparencyEnable = bgParams.enableTransparency;
-        common.colorCalcEnable = bgParams.colorCalcEnable;
+        common.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
+        common.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
         common.cramOffset = bgParams.cramOffset >> 8u;
         common.colorFormat = static_cast<uint32>(bgParams.colorFormat);
         common.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
         common.specFuncSelect = bgParams.specialFunctionSelect;
         common.priorityNumber = bgParams.priorityNumber;
         common.priorityMode = static_cast<uint32>(bgParams.priorityMode);
+        common.charPatDelay = bgParams.charPatDelay;
+        common.transparencyEnable = bgParams.enableTransparency;
+        common.colorCalcEnable = bgParams.colorCalcEnable;
+        common.enabled = m_layerEnabled[i + 2];
         common.bitmap = bgParams.bitmap;
 
         common.mosaicEnable = bgParams.mosaicEnable;
@@ -1935,6 +1872,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         common.lineScrollYEnable = bgParams.lineScrollYEnable;
         common.lineZoomEnable = bgParams.lineZoomEnable;
         common.vcellScrollEnable = bgParams.vcellScrollEnable;
+        common.vcellScrollOffset = nbgState.vcellScrollOffset >> 2u;
+        common.vcellScrollDelay = nbgState.vcellScrollDelay;
+        common.vcellScrollRepeat = nbgState.vcellScrollRepeat;
 
         auto &rotWindow = renderParams.rotWindow;
         rotWindow.windowLogic = bgParams.windowSet.logic == WindowLogic::And;
@@ -1960,6 +1900,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
             common.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
 
             auto &scroll = renderParams.typeSpecific.scroll;
+            scroll.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
             scroll.pageShiftH = bgParams.pageShiftH;
             scroll.pageShiftV = bgParams.pageShiftV;
             scroll.extChar = bgParams.extChar;
@@ -1982,14 +1923,18 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
         VDP2BGRenderParams &renderParams = state.rbgParams[i];
 
         auto &common = renderParams.common;
-        common.transparencyEnable = bgParams.enableTransparency;
-        common.colorCalcEnable = bgParams.colorCalcEnable;
+        common.charPatAccess = bit::gather_array<uint8>(bgParams.charPatAccess);
+        common.vramAccessOffset = bit::gather_array<uint8>(ExtractArrayBits<3>(bgParams.vramDataOffset));
         common.cramOffset = bgParams.cramOffset >> 8u;
         common.colorFormat = static_cast<uint32>(bgParams.colorFormat);
         common.specColorCalcMode = static_cast<uint32>(bgParams.specialColorCalcMode);
         common.specFuncSelect = bgParams.specialFunctionSelect;
         common.priorityNumber = bgParams.priorityNumber;
         common.priorityMode = static_cast<uint32>(bgParams.priorityMode);
+        common.charPatDelay = bgParams.charPatDelay;
+        common.transparencyEnable = bgParams.enableTransparency;
+        common.colorCalcEnable = bgParams.colorCalcEnable;
+        common.enabled = m_layerEnabled[i + 1];
         common.bitmap = bgParams.bitmap;
 
         common.mosaicEnable = bgParams.mosaicEnable;
@@ -2020,6 +1965,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateBGRenderState() {
             common.supplSpecPrioBit = bgParams.supplScrollSpecialPriority;
 
             auto &scroll = renderParams.typeSpecific.scroll;
+            scroll.patNameAccess = bit::gather_array<uint8>(bgParams.patNameAccess);
             scroll.pageShiftH = rotParams.pageShiftH;
             scroll.pageShiftV = rotParams.pageShiftV;
             scroll.extChar = bgParams.extChar;
@@ -2090,8 +2036,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.displayParams.displayEnable = regs2.TVMD.DISP;
     config.displayParams.borderColorMode = regs2.TVMD.BDCLMD;
 
+    config.extraParams.layerEnabled = bit::gather_array<uint32>(m_layerEnabled);
     config.extraParams.lineColorEnableRBG0 = regs2.bgParams[0].lineColorScreenEnable;
     config.extraParams.lineColorEnableRBG1 = regs2.bgParams[1].lineColorScreenEnable;
+    config.extraParams.bgEnabled = bit::gather_array<uint32>(regs2.bgEnabled);
     config.extraParams.mosaicH = regs2.mosaicH - 1;
     config.extraParams.mosaicV = regs2.mosaicV - 1;
 
