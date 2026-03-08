@@ -328,6 +328,7 @@ if (WIN32)
         res/embed/d3d11/cs_vdp2_bgs.hlsl
         res/embed/d3d11/cs_vdp2_compose.hlsl
         res/embed/d3d11/cs_vdp2_rotparams.hlsl
+        res/embed/d3d11/cs_vdp2_sprite.hlsl
         res/embed/d3d11/vs_identity.hlsl
     )
 endif ()
