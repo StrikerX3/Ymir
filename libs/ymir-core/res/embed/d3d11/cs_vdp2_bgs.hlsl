@@ -524,7 +524,12 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
 uint4 FetchCharacterPixel(uint4 bgParams, Character ch, uint2 dotPos, uint cellIndex) {
     const uint cellSizeShift = BitExtract(bgParams.w, 8, 1);
     const uint colorFormat = BitExtract(bgParams.x, 11, 3);
+    const bool charPatDelay = BitTest(bgParams.x, 27);
+    const uint twoWordChar = BitExtract(bgParams.w, 7, 1);
 
+    if (twoWordChar && charPatDelay && cellSizeShift > 0) {
+        cellIndex ^= 1;
+    }
     if (ch.flipH) {
         dotPos.x ^= 7;
         if (cellSizeShift > 0) {
@@ -581,6 +586,8 @@ uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, bool 
     const uint bank = BitExtract(pageBaseAddress, 17, 2);
     if (BitTest(bgParams.x, 4 + bank)) {
         scrollPos.x += 8;
+    } else if (BitTest(bgParams.x, 27)) {
+        scrollPos.x -= 8;
     }
 
     const uint2 pagePos = (scrollPos >> 9) & pageShift;
