@@ -1122,6 +1122,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
 
     const uint2 spritePos = rotate ? Extract16PairS(rotParamState[0].spriteCoords) :
                             halfResH ? uint2(pos.x << 1, pos.y) : pos;
+    const uint2 outPos = uint2(pos.x, GetY(pos.y));
     const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
 
     // TODO: sprite window
@@ -1151,7 +1152,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
             const uint4 outColor = Color555(spriteDataValue);
             const uint outPriority = BitExtract(config.spriteParams.x, 0, 3);
 
-            spriteCCRatioOut[pos] = BitExtract(config.spriteParams, 0 * 8 + 3, 5);
+            spriteCCRatioOut[outPos] = BitExtract(config.spriteParams, 0 * 8 + 3, 5);
             return uint4(outColor.rgb, outPriority);
         }
     }
@@ -1177,7 +1178,7 @@ uint4 DrawSprite(uint2 pos, uint index) {
     const uint outPriority = BitExtract(config.spriteParams, spriteData.priority * 8, 3);
     const uint outMSB = outColor.a;
 
-    spriteCCRatioOut[pos] = BitExtract(config.spriteParams, spriteData.colorCalcRatio * 8 + 3, 5);
+    spriteCCRatioOut[outPos] = BitExtract(config.spriteParams, spriteData.colorCalcRatio * 8 + 3, 5);
     return uint4(
         outColor.rgb,
         (outTransparent << kPixelAttrBitTransparent) |
