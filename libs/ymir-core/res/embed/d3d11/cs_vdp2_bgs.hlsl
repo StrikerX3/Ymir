@@ -825,8 +825,6 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
     const bool mosaicEnable = BitTest(rbgParams.y, 0);
-    const uint screenOverProcess = BitExtract(rbgParams.z, 16, 2);
-    const uint screenOverPatternName = BitExtract(rbgParams.z, 0, 16);
 
     uint2 rotPos = pos;
     if (mosaicEnable) {
@@ -841,6 +839,7 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     const RotParamState rotState = rotParamState[rotIndex];
 
     // Determine maximum coordinates and screen over process
+    const uint screenOverProcess = BitExtract(rotParams.z, 16, 2);
     const bool usingFixed512 = screenOverProcess == kScreenOverProcessFixed512;
     const bool usingRepeat = screenOverProcess == kScreenOverProcessRepeat;
     const uint2 scrollSize = usingFixed512
@@ -859,6 +858,7 @@ uint4 DrawScrollRBG(uint2 pos, uint index, uint rotSel) {
     if (screenOverProcess == kScreenOverProcessRepeatChar) {
         StoreRotationLineColorData(pos, rotPos, index, rotSel);
 
+        const uint screenOverPatternName = BitExtract(rotParams.z, 0, 16);
         const uint2 dotPos = scrollPos & 7;
         Character ch = ExtractOneWordCharacter(rbgParams, screenOverPatternName);
         return FetchCharacterPixel(rbgParams, ch, dotPos, 0);
