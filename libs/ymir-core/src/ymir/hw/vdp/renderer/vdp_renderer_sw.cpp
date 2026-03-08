@@ -5044,7 +5044,9 @@ SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, VRAMFetcher &vramF
         }
 
         if (vramFetcher.UpdateCharacterDataAddress(address)) {
-            address += bgParams.vramDataOffset[bank];
+            if (bgParams.bitmap) {
+                address += bgParams.vramDataOffset[bank];
+            }
 
             // TODO: handle VRSIZE.VRAMSZ
             auto &vram = VDP2GetRendererVRAM();
