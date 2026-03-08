@@ -252,17 +252,17 @@ struct VDP2BGRenderParams {
 
     // Entry 2 (Z) - rotation and window parameters
     struct RotWindowParams {                //  bits  use
-        D3DUint screenOverPatternName : 16; //  0-15  Screen-over pattern name
-        D3DUint screenOverProcess : 2;      // 16-17  Screen-over process
+        D3DUint screenOverPatternName : 16; //  0-15  Screen-over pattern name  (RotParam A/B)
+        D3DUint screenOverProcess : 2;      // 16-17  Screen-over process       (RotParam A/B)
                                             //          0 = repeat planes      2 = transparent
                                             //          1 = repeat character   3 = transparent + restrict to 512x512
-        D3DUint windowLogic : 1;            //    18  Window logic           0=OR; 1=AND
-        D3DUint window0Enable : 1;          //    19  Window 0 enable        0=disable; 1=enable
-        D3DUint window0Invert : 1;          //    20  Window 0 invert        0=disable; 1=enable
-        D3DUint window1Enable : 1;          //    21  Window 1 enable        0=disable; 1=enable
-        D3DUint window1Invert : 1;          //    22  Window 1 invert        0=disable; 1=enable
-        D3DUint spriteWindowEnable : 1;     //    23  Sprite window enable   0=disable; 1=enable
-        D3DUint spriteWindowInvert : 1;     //    24  Sprite window invert   0=disable; 1=enable
+        D3DUint windowLogic : 1;            //    18  Window logic           0=OR; 1=AND            (RBG0/1)
+        D3DUint window0Enable : 1;          //    19  Window 0 enable        0=disable; 1=enable    (RBG0/1)
+        D3DUint window0Invert : 1;          //    20  Window 0 invert        0=disable; 1=enable    (RBG0/1)
+        D3DUint window1Enable : 1;          //    21  Window 1 enable        0=disable; 1=enable    (RBG0/1)
+        D3DUint window1Invert : 1;          //    22  Window 1 invert        0=disable; 1=enable    (RBG0/1)
+        D3DUint spriteWindowEnable : 1;     //    23  Sprite window enable   0=disable; 1=enable    (RBG0/1)
+        D3DUint spriteWindowInvert : 1;     //    24  Sprite window invert   0=disable; 1=enable    (RBG0/1)
     } rotWindow;
     static_assert(sizeof(RotWindowParams) == sizeof(D3DUint));
 
