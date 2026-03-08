@@ -142,10 +142,12 @@ uint GetBGLayerIndex(uint layer) {
 }
 
 bool IsColorCalcEnabled(uint layer, uint2 pos) {
-    if (layer > kLayerBack) {
-        return false;
+    const bool enabled = BitTest(composeParams[0].params, layer);
+    if (layer == kLayerLine) {
+        // Line screen layer uses the enable bit alone
+        return enabled;
     }
-    if (!BitTest(composeParams[0].params, layer)) {
+    if (!enabled) {
         // Color calculation is disabled for this layer
         return false;
     }
@@ -174,7 +176,7 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
     // BG layers use the per-pixel special color calculation flag
     const uint bgLayer = GetBGLayerIndex(layer);
     const uint attrs = bgIn[uint3(pos.xy, bgLayer)].a;
-    return BitTest(attrs, 6);
+    return BitTest(attrs, kPixelAttrBitSpecColorCalc);
 }
 
 bool IsLineColorEnabled(uint layer, uint2 pos) {
@@ -333,7 +335,6 @@ uint3 Compose(uint2 pos) {
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
             const int ratio = GetColorCalcRatio(ratioLayer, pos);
             output = int3(layer1Pixel) + (int3(layer0Pixel) - int3(layer1Pixel)) * ratio / 32;
-
         }
     } else {
         output = layer0Pixel;
