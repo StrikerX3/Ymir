@@ -1775,7 +1775,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     auto &ctx = m_context->VDP2Context;
 
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY;
-    VDP2UpdateRenderConfig();
+    VDP2UploadRenderConfig();
 
     // Determine how many lines to draw and update next scanline counter
     const uint32 numLines = y - m_nextVDP2BGY + 1;
@@ -1822,7 +1822,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     auto &ctx = m_context->VDP2Context;
 
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2ComposeY;
-    VDP2UpdateRenderConfig();
+    VDP2UploadRenderConfig();
 
     // Determine how many lines to draw and update next scanline counter
     const uint32 numLines = y - m_nextVDP2ComposeY + 1;
@@ -2117,7 +2117,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
 
     config.vcellScroll.tableAddress = regs2.vcellScrollTableAddress;
     config.vcellScroll.inc = regs2.vcellScrollInc >> 2u;
+}
 
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UploadRenderConfig() {
     m_context->VDP2Context.ModifyResource(
         m_context->cbufVDP2RenderConfig, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
             memcpy(mappedResource.pData, &m_context->cpuVDP2RenderConfig, sizeof(m_context->cpuVDP2RenderConfig));
@@ -2281,6 +2283,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateState() {
     VDP2UpdateBGRenderState();
     VDP2UpdateRotParamStates();
     VDP2UpdateComposeParams();
+    VDP2UpdateRenderConfig();
 }
 
 } // namespace ymir::vdp::d3d11

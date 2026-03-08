@@ -143,8 +143,8 @@ uint GetBGLayerIndex(uint layer) {
 
 bool IsColorCalcEnabled(uint layer, uint2 pos) {
     const bool enabled = BitTest(composeParams[0].params, layer);
-    if (layer == kLayerLine) {
-        // Line screen layer uses the enable bit alone
+    if (layer >= kLayerBack) {
+        // Back and line screen layers use the enable bit alone
         return enabled;
     }
     if (!enabled) {
