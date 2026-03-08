@@ -14,7 +14,7 @@ Vampire Savior - The Lord of Vampire
 Rayman
   Sets up illegal vertical cell scroll fetch timing for NBG1, causing it to be delayed.
 
-Capcom Generation - Dai-5-shuu Kakutouka-tachi 
+Capcom Generation - Dai-5-shuu Kakutouka-tachi
   Sets up multiple character pattern read cycles for NBG0 bitmap data in VRAM bank B in the image gallery, causing the
   bottom portion of the image (starting at Y=256) to be shifted left. The game compensates for that in VRAM.
   This is in contrast with Doukyuusei - if, which sets up NBG0 and NBG1 with very similar parameters but sets up one
