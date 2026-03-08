@@ -430,7 +430,7 @@ Character FetchOneWordCharacter(uint4 bgParams, uint pageAddress, uint charIndex
     return ExtractOneWordCharacter(bgParams, charData);
 }
 
-uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch, uint palNum, bool specColorCalc, uint specPriority) {
+uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch, bool applyVRAMDelay, uint palNum, bool specColorCalc, uint specPriority) {
     const uint charPatAccess = BitExtract(bgParams.x, 0, 4);
     const uint colorFormat = BitExtract(bgParams.x, 11, 3);
     const uint cramOffset = bgParams.x & 0x700;
@@ -447,7 +447,7 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     if (colorFormat == kColorFormatPalette16) {
         const uint dotAddress = baseAddress + (dotOffset >> 1);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint vramAccessOffset = applyVRAMDelay ? (BitExtract(bgParams.x, 4 + dotBank, 1) << 3) : 0;
         const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM4(dotAddress + vramAccessOffset, ~dotPos.x & 1) : 0;
         const uint colorIndex = palNum | dotData;
         colorData = BitExtract(dotData, 1, 3);
@@ -458,7 +458,7 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatPalette256) {
         const uint dotAddress = baseAddress + dotOffset;
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint vramAccessOffset = applyVRAMDelay ? (BitExtract(bgParams.x, 4 + dotBank, 1) << 3) : 0;
         const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM8(dotAddress + vramAccessOffset) : 0;
         const uint colorIndex = (palNum & 0x700) | dotData;
         colorData = BitExtract(dotData, 1, 3);
@@ -469,7 +469,7 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatPalette2048) {
         const uint dotAddress = baseAddress + (dotOffset << 1);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint vramAccessOffset = applyVRAMDelay ? (BitExtract(bgParams.x, 4 + dotBank, 1) << 3) : 0;
         const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM16(dotAddress + vramAccessOffset) : 0;
         const uint colorIndex = dotData & 0x7FF;
         colorData = BitExtract(dotData, 1, 3);
@@ -480,7 +480,7 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatRGB555) {
         const uint dotAddress = baseAddress + (dotOffset << 1);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint vramAccessOffset = applyVRAMDelay ? (BitExtract(bgParams.x, 4 + dotBank, 1) << 3) : 0;
         const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM16(dotAddress + vramAccessOffset) : 0;
         outColor = Color555(dotData);
         outTransparent = enableTransparency && outColor.w == 0;
@@ -489,7 +489,7 @@ uint4 FetchPixel(uint4 bgParams, uint baseAddress, uint2 dotPos, uint linePitch,
     } else if (colorFormat == kColorFormatRGB888) {
         const uint dotAddress = baseAddress + (dotOffset << 2);
         const uint dotBank = BitExtract(dotAddress, 17, 2);
-        const uint vramAccessOffset = BitExtract(bgParams.x, 4 + dotBank, 1) << 3;
+        const uint vramAccessOffset = applyVRAMDelay ? (BitExtract(bgParams.x, 4 + dotBank, 1) << 3) : 0;
         const uint dotData = BitTest(charPatAccess, dotBank) ? ReadVRAM32(dotAddress + vramAccessOffset) : 0;
         outColor = Color888(dotData);
         outTransparent = enableTransparency && outColor.w == 0;
@@ -548,7 +548,7 @@ uint4 FetchCharacterPixel(uint4 bgParams, Character ch, uint2 dotPos, uint cellI
     }
 
     const uint baseAddress = (ch.charNum + cellIndex) << 5;
-    return FetchPixel(bgParams, baseAddress, dotPos, 8, ch.palNum, ch.specColorCalc, ch.specPriority);
+    return FetchPixel(bgParams, baseAddress, dotPos, 8, false, ch.palNum, ch.specColorCalc, ch.specPriority);
 }
 
 uint4 FetchBitmapPixel(uint4 bgParams, uint2 scrollPos) {
@@ -557,12 +557,11 @@ uint4 FetchBitmapPixel(uint4 bgParams, uint2 scrollPos) {
 
     const uint2 dotPos = scrollPos & uint2(bitmapSizeH - 1, bitmapSizeV - 1);
     const uint baseAddress = BitExtract(bgParams.w, 2, 3) << 17;
-    const uint bank = (baseAddress >> 17) & 3;
     const uint palNum = BitExtract(bgParams.x, 22, 3) << 8;
     const bool specColorCalc = BitTest(bgParams.x, 25);
     const uint specPriority = BitExtract(bgParams.x, 26, 1);
 
-    return FetchPixel(bgParams, baseAddress, dotPos, bitmapSizeH, palNum, specColorCalc, specPriority);
+    return FetchPixel(bgParams, baseAddress, dotPos, bitmapSizeH, true, palNum, specColorCalc, specPriority);
 }
 
 uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, bool rot, uint pageBaseAddresses[16]) {
