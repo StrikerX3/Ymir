@@ -486,7 +486,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
             const uint outPriority = BitExtract(config.spriteParams.x, 0, 3);
 
             spriteAttrsOut[outPos] = BitExtract(config.spriteParams, 0 * 8 + 3, 5);
-            return uint4(outColor.rgb, outPriority);
+            return uint4(outColor.rgb, (1 << kPixelAttrBitSpriteColorMSB) | outPriority);
         }
     }
 
