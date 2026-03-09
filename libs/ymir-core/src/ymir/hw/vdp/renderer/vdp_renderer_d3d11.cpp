@@ -943,13 +943,16 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     if (m_doVDP1Erase) {
         m_doVDP1Erase = false;
+        const auto &erase = m_context->cpuVDP1RenderConfig.erase;
+        const uint32 width = (erase.x3 << 3) - (erase.x1 << 3) + 1;
+        const uint32 height = erase.y3 - erase.x1 + 1;
 
         // Dispatch erase/swap shader
         ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
         ctx.CSSetShaderResources({});
         ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
         ctx.CSSetShader(m_context->csVDP1EraseSwap);
-        ctx.Dispatch(m_state.regs1.fbSizeH / 32, m_state.regs1.fbSizeV / 32, 1);
+        ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
     }
 
     Callbacks.VDP1FramebufferSwap();
@@ -1301,7 +1304,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
 
     auto &ctx = m_context->VDP1Context;
     ctx.ModifyResource(m_context->bufVDP1FBRAMUp, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-        const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
+        const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB];
         memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
     });
 
