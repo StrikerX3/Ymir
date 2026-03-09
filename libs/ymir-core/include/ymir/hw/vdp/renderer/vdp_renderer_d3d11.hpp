@@ -49,6 +49,8 @@ public:
     void ExecutePendingCommandLists() override;
 
     /// @brief Retrieves a pointer to the `ID3D11Texture2D` containing the composited VDP2 output.
+    /// The texture is 704x512, uses the `DXGI_FORMAT_R8G8B8A8_UNORM` format and allows SRV bindings
+    /// (`D3D11_BIND_SHADER_RESOURCE`).
     /// @return a pointer to the rendered display texture
     ID3D11Texture2D *GetVDP2OutputTexture() const;
 
@@ -176,8 +178,13 @@ private:
     /// @brief Updates VDP1 VRAM if dirty.
     void VDP1UpdateVRAM();
 
-    /// @brief Uploads the current VDP1 drawing FBRAM to the GPU.
-    void VDP1UploadDrawFBRAM();
+    /// @brief Downloads the specified VDP1 FBRAM from the GPU.
+    /// @param[in] fbIndex the index of the framebuffer to download
+    void VDP1DownloadFBRAM(size_t fbIndex);
+
+    /// @brief Uploads the specified VDP1 FBRAM to the GPU if there were CPU writes.
+    /// @param[in] fbIndex the index of the framebuffer to upload
+    void VDP1UploadFBRAM(size_t fbIndex);
 
     void VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control);
     void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);

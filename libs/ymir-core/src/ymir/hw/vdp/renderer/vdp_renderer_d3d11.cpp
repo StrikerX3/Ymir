@@ -904,24 +904,40 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     // Submit partial batch
     VDP1SubmitLines();
 
+    // This function is invoked after the displayFB bit is flipped.
+    // The display framebuffer has the frame that the VDP1 has just drawn.
+    // The draw framebuffer is ready to be erased (or drawn over).
+    const size_t displayFB = m_state.displayFB;
+    const size_t drawFB = m_state.displayFB ^ 1;
+
+    VDP1DownloadFBRAM(displayFB); // copy freshly-swapped VDP1 frame to staging buffer
+    VDP1UploadFBRAM(displayFB);   // upload CPU-side VDP1 frame to display FBRAM
+
+    m_context->cpuVDP1RenderConfig.params.drawFB = drawFB;
+
     auto &ctx = m_context->VDP1Context;
+
+    // Do framebuffer erase
+    if (m_doVDP1Erase) {
+        m_doVDP1Erase = false;
+        const auto &erase = m_context->cpuVDP1RenderConfig.erase;
+        const uint32 width = (erase.x3 << 3) - (erase.x1 << 3) + 1;
+        const uint32 height = erase.y3 - erase.x1 + 1;
+
+        VDP1UpdateRenderConfig();
+
+        // Dispatch erase/swap shader
+        ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
+        ctx.CSSetShaderResources({});
+        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
+        ctx.CSSetShader(m_context->csVDP1EraseSwap);
+        ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
+    }
 
     // Cleanup
     ctx.CSSetUnorderedAccessViews({});
     ctx.CSSetShaderResources({});
     ctx.CSSetConstantBuffers({});
-
-    // TODO: Download FBRAM to copy to CPU-side array
-    /*const D3D11_BOX srcBox{
-        .left = static_cast<UINT>(m_state.displayFB * kVDP1FramebufferRAMSize),
-        .top = 0,
-        .front = 0,
-        .right = static_cast<UINT>(srcBox.left + kVDP1FramebufferRAMSize),
-        .bottom = 1,
-        .back = 1,
-    };
-    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown, 0, 0, 0, 0, m_context->bufVDP1PolyOut,
-                                                    0, &srcBox);*/
 
     ID3D11CommandList *commandList = nullptr;
     if (HRESULT hr = ctx.FinishCommandList(commandList); FAILED(hr)) {
@@ -933,27 +949,8 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     HwCallbacks.CommandListReady(false);
 
-    // TODO: copy bufVDP1FBRAMDown to m_state.spriteFB[m_state.displayFB]
+    // TODO: copy bufVDP1FBRAMDown to m_state.spriteFB[displayFB]
     // - must be done on the main thread; sync point here
-
-    VDP1UploadDrawFBRAM();
-
-    m_context->cpuVDP1RenderConfig.params.drawFB = m_state.displayFB ^ 1;
-    VDP1UpdateRenderConfig();
-
-    if (m_doVDP1Erase) {
-        m_doVDP1Erase = false;
-        const auto &erase = m_context->cpuVDP1RenderConfig.erase;
-        const uint32 width = (erase.x3 << 3) - (erase.x1 << 3) + 1;
-        const uint32 height = erase.y3 - erase.x1 + 1;
-
-        // Dispatch erase/swap shader
-        ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
-        ctx.CSSetShaderResources({});
-        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
-        ctx.CSSetShader(m_context->csVDP1EraseSwap);
-        ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
-    }
 
     Callbacks.VDP1FramebufferSwap();
 }
@@ -1296,7 +1293,21 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
     });
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DownloadFBRAM(size_t fbIndex) {
+    // TODO: Download FBRAM to copy to CPU-side array
+    /*const D3D11_BOX srcBox{
+        .left = static_cast<UINT>(fbIndex * kVDP1FramebufferRAMSize),
+        .top = 0,
+        .front = 0,
+        .right = static_cast<UINT>(srcBox.left + kVDP1FramebufferRAMSize),
+        .bottom = 1,
+        .back = 1,
+    };
+    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown, 0, 0, 0, 0, m_context->bufVDP1PolyOut,
+                                                    0, &srcBox);*/
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
     if (!m_context->dirtyVDP1FBRAMUp) {
         return;
     }
@@ -1304,8 +1315,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
 
     auto &ctx = m_context->VDP1Context;
     ctx.ModifyResource(m_context->bufVDP1FBRAMUp, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-        const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB];
-        memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
+        const auto &fbram = m_state.spriteFB[fbIndex];
+        memcpy(mappedResource.pData, fbram.data(), fbram.size());
     });
 
     const D3D11_BOX srcBox{
@@ -1316,9 +1327,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
         .bottom = 1,
         .back = 1,
     };
-    ctx.GetDeferredContext()->CopySubresourceRegion(
-        m_context->bufVDP1PolyOut, 0, static_cast<UINT>((m_state.displayFB ^ 1) * kVDP1FramebufferRAMSize), 0, 0,
-        m_context->bufVDP1FBRAMUp, 0, &srcBox);
+    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1PolyOut, 0,
+                                                    static_cast<UINT>(fbIndex * kVDP1FramebufferRAMSize), 0, 0,
+                                                    m_context->bufVDP1FBRAMUp, 0, &srcBox);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control) {
