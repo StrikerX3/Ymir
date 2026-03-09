@@ -144,9 +144,13 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11ShaderResourceView *srvVDP2LineColors = nullptr;  //< SRV for LNCL screen texture
     ID3D11UnorderedAccessView *uavVDP2LineColors = nullptr; //< UAV for LNCL screen texture
 
-    ID3D11Texture2D *texVDP2SpriteAttrs = nullptr;           //< Sprite attributes
-    ID3D11ShaderResourceView *srvVDP2SpriteAttrs = nullptr;  //< SRV for Sprite attributes
-    ID3D11UnorderedAccessView *uavVDP2SpriteAttrs = nullptr; //< UAV for Sprite attributes
+    ID3D11Texture2D *texVDP2SpriteAttrs = nullptr;           //< Sprite attributes texture
+    ID3D11ShaderResourceView *srvVDP2SpriteAttrs = nullptr;  //< SRV for sprite attributes texture
+    ID3D11UnorderedAccessView *uavVDP2SpriteAttrs = nullptr; //< UAV for sprite attributes texture
+
+    ID3D11Texture2D *texVDP2CCWindow = nullptr;           //< Color calc. window texture
+    ID3D11ShaderResourceView *srvVDP2CCWindow = nullptr;  //< SRV for color calculation window texture
+    ID3D11UnorderedAccessView *uavVDP2CCWindow = nullptr; //< UAV for color calculation window texture
 
     // -------------------------------------------------------------------------
     // VDP2 - rotation parameters shader
@@ -426,6 +430,17 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->texVDP2SpriteAttrs, "[Ymir D3D11] VDP2 sprite attributes texture");
     SetDebugName(m_context->srvVDP2SpriteAttrs, "[Ymir D3D11] VDP2 sprite attributes SRV");
     SetDebugName(m_context->uavVDP2SpriteAttrs, "[Ymir D3D11] VDP2 sprite attributes UAV");
+
+    if (HRESULT hr =
+            devMgr.CreateTexture2D(m_context->texVDP2CCWindow, &m_context->srvVDP2CCWindow, &m_context->uavVDP2CCWindow,
+                                   vdp::kVDP1MaxFBSizeH, vdp::kVDP1MaxFBSizeV, 0, DXGI_FORMAT_R8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->texVDP2CCWindow, "[Ymir D3D11] VDP2 color calculation window texture");
+    SetDebugName(m_context->srvVDP2CCWindow, "[Ymir D3D11] VDP2 color calculation window SRV");
+    SetDebugName(m_context->uavVDP2CCWindow, "[Ymir D3D11] VDP2 color calculation window UAV");
 
     // -------------------------------------------------------------------------
     // VDP2 - rotation parameters shader
@@ -1746,9 +1761,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // Draw sprite layer
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
-    ctx.CSSetShaderResources({m_context->srvVDP2ColorCache});
+    ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs, m_context->uavVDP2SpriteAttrs});
-    ctx.CSSetShaderResources({m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut}, 1);
+    ctx.CSSetShaderResources({m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut}, 3);
     ctx.CSSetShader(m_context->csVDP2Sprite);
     ctx.Dispatch(m_HRes / 32, numLines, 1);
 
@@ -1756,8 +1771,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState,
                               m_context->srvVDP2RotRegs, m_context->srvVDP2RotParams});
-    ctx.CSSetUnorderedAccessViews(
-        {m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs, m_context->uavVDP2RotLineColors, m_context->uavVDP2LineColors,
+                                   m_context->uavVDP2CCWindow});
     ctx.CSSetShader(m_context->csVDP2BGs);
     ctx.Dispatch(m_HRes / 32, numLines, 1);
 
@@ -1787,7 +1802,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2Output});
     ctx.CSSetShaderResources({m_context->srvVDP2BGs, m_context->srvVDP2RotLineColors, m_context->srvVDP2LineColors,
-                              m_context->srvVDP2SpriteAttrs, m_context->srvVDP2ComposeParams});
+                              m_context->srvVDP2SpriteAttrs, m_context->srvVDP2ComposeParams,
+                              m_context->srvVDP2CCWindow});
     ctx.CSSetShader(m_context->csVDP2Compose);
     ctx.Dispatch(m_HRes / 32, numLines, 1);
 }
@@ -2071,6 +2087,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.extraParams.mosaicH = regs2.mosaicH - 1;
     config.extraParams.mosaicV = regs2.mosaicV - 1;
 
+    config.vcellScroll.tableAddress = regs2.vcellScrollTableAddress;
+    config.vcellScroll.inc = regs2.vcellScrollInc >> 2u;
+
     auto packSpriteData = [](const std::array<uint8, 8> &priorities, const std::array<uint8, 8> &colorCalcRatios,
                              uint8 offset) {
         uint32 value = 0;
@@ -2091,8 +2110,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
         config.spriteParams.y |= regs2.spriteParams.colorCalcRatios[i + 4] << (8 * i + 3);
     }
 
-    config.vcellScroll.tableAddress = regs2.vcellScrollTableAddress;
-    config.vcellScroll.inc = regs2.vcellScrollInc >> 2u;
+    config.windows.spriteWindowLogic = regs2.spriteParams.windowSet.logic == WindowLogic::And;
+    config.windows.spriteW0Enable = regs2.spriteParams.windowSet.enabled[0];
+    config.windows.spriteW0Invert = regs2.spriteParams.windowSet.inverted[0];
+    config.windows.spriteW1Enable = regs2.spriteParams.windowSet.enabled[1];
+    config.windows.spriteW1Invert = regs2.spriteParams.windowSet.inverted[1];
+
+    config.windows.colorCalcWindowLogic = regs2.colorCalcParams.windowSet.logic == WindowLogic::And;
+    config.windows.colorCalcW0Enable = regs2.colorCalcParams.windowSet.enabled[0];
+    config.windows.colorCalcW0Invert = regs2.colorCalcParams.windowSet.inverted[0];
+    config.windows.colorCalcW1Enable = regs2.colorCalcParams.windowSet.enabled[1];
+    config.windows.colorCalcW1Invert = regs2.colorCalcParams.windowSet.inverted[1];
+    config.windows.colorCalcSWEnable = regs2.colorCalcParams.windowSet.enabled[2];
+    config.windows.colorCalcSWInvert = regs2.colorCalcParams.windowSet.inverted[2];
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UploadRenderConfig() {
