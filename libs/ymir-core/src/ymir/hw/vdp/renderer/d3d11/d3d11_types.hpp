@@ -206,6 +206,21 @@ struct alignas(16) VDP2RenderConfig {
     } vcellScroll;
 
     D3DUint2 spriteParams; // Packed 8x 3-bit sprite priorities + 5-bit color calculation ratios
+
+    struct {                              //  bits  use
+        D3DUint spriteWindowLogic : 1;    //     0  Sprite window logic        0=OR; 1=AND
+        D3DUint spriteW0Enable : 1;       //     1  Sprite W0 enable           0=disable; 1=enable
+        D3DUint spriteW0Invert : 1;       //     2  Sprite W0 invert           0=disable; 1=enable
+        D3DUint spriteW1Enable : 1;       //     3  Sprite W1 enable           0=disable; 1=enable
+        D3DUint spriteW1Invert : 1;       //     4  Sprite W1 invert           0=disable; 1=enable
+        D3DUint colorCalcWindowLogic : 1; //     5  Color calc. window logic   0=OR; 1=AND
+        D3DUint colorCalcW0Enable : 1;    //     6  Color calc. W0 enable      0=disable; 1=enable
+        D3DUint colorCalcW0Invert : 1;    //     7  Color calc. W0 invert      0=disable; 1=enable
+        D3DUint colorCalcW1Enable : 1;    //     8  Color calc. W1 enable      0=disable; 1=enable
+        D3DUint colorCalcW1Invert : 1;    //     9  Color calc. W1 invert      0=disable; 1=enable
+        D3DUint colorCalcSWEnable : 1;    //    10  Color calc. SW enable      0=disable; 1=enable
+        D3DUint colorCalcSWInvert : 1;    //    11  Color calc. SW invert      0=disable; 1=enable
+    } windows;
 };
 
 struct VDP2BGRenderParams {

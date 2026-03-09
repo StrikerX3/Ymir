@@ -4,6 +4,7 @@ struct Config {
     uint extraParams;
     uint vcellScrollParams;
     uint2 spriteParams;
+    uint windows;
 };
 
 struct Window {
@@ -62,6 +63,7 @@ StructuredBuffer<RotParamState> rotParamState : register(t4);
 RWTexture2DArray<uint4> bgOut : register(u0);
 RWTexture2DArray<uint4> rbgLineColorOut : register(u1);
 RWTexture2D<uint4> lineColorOut : register(u2);
+RWTexture2D<uint4> colorCalcWindowOut : register(u3);
 
 // -----------------------------------------------------------------------------
 
@@ -286,17 +288,35 @@ bool InsideWindows(uint windowParams, bool hasSpriteWindow, uint2 pos) {
         return false;
     }
 
-    const bool insideW0 = window0Enable && InsideWindow(windows[0], window0Invert, pos);
-    const bool insideW1 = window1Enable && InsideWindow(windows[1], window1Invert, pos);
-    const bool insideSW = spriteWindowEnable && InsideSpriteWindow(spriteWindowInvert, pos);
+    const bool windowLogicAND = windowLogic == kWindowLogicAND;
 
-    if (windowLogic == kWindowLogicAND) {
-        return insideW0 && insideW1 && insideSW;
-    } else {
-        return insideW0 || insideW1 || insideSW;
+    bool inside = windowLogicAND;
+    if (window0Enable) {
+        const bool insideW0 = InsideWindow(windows[0], window0Invert, pos);
+        if (windowLogicAND) {
+            inside = inside && insideW0;
+        } else {
+            inside = inside || insideW0;
+        }
+    }
+    if (window1Enable) {
+        const bool insideW1 = InsideWindow(windows[1], window1Invert, pos);
+        if (windowLogicAND) {
+            inside = inside && insideW1;
+        } else {
+            inside = inside || insideW1;
+        }
+    }
+    if (spriteWindowEnable) {
+        const bool insideSW = InsideSpriteWindow(spriteWindowInvert, pos);
+        if (windowLogicAND) {
+            inside = inside && insideSW;
+        } else {
+            inside = inside || insideSW;
+        }
     }
 
-    return false;
+    return inside;
 }
 
 bool IsSpecialColorCalcMatch(uint4 nbgParams, uint specColorCode) {
@@ -918,17 +938,19 @@ uint4 DrawLineBackScreen(uint index, uint y) {
 
 // -----------------------------------------------------------------------------
 
-[numthreads(32, 1, 6)]
+[numthreads(32, 1, 8)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = uint2(id.x, id.y + config.startY);
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y, false), id.z);
-    if (id.z < 4) {
+    if (id.z <= 3) {
         bgOut[outCoord] = DrawNBG(drawCoord, id.z);
-    } else if (id.z < 6) {
+    } else if (id.z <= 5) {
         bgOut[outCoord] = DrawRBG(drawCoord, id.z - 4);
-    }
-
-    if (id.z == 0 && id.x < 2) {
-        lineColorOut[outCoord.xy] = DrawLineBackScreen(drawCoord.x, drawCoord.y);
+    } else if (id.z == 6) {
+        colorCalcWindowOut[outCoord.xy] = InsideWindows(config.windows >> 5, true, drawCoord);
+    } else if (id.z == 7) {
+        if (id.x < 2) {
+            lineColorOut[outCoord.xy] = DrawLineBackScreen(drawCoord.x, drawCoord.y);
+        }
     }
 }

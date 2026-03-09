@@ -4,6 +4,7 @@ struct Config {
     uint extraParams;
     uint vcellScrollParams;
     uint2 spriteParams;
+    uint windows;
 };
 
 struct ComposeParams {
@@ -26,6 +27,7 @@ Texture2DArray<uint4> rbgLineColorIn : register(t1);
 Texture2D<uint4> lineColorIn : register(t2);
 Texture2D<uint> spriteAttrsIn : register(t3);
 StructuredBuffer<ComposeParams> composeParams : register(t4);
+Texture2D<uint4> colorCalcWindowIn : register(t5);
 
 RWTexture2D<float4> textureOut : register(u0);
 
@@ -150,6 +152,10 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
     }
     if (!enabled) {
         // Color calculation is disabled for this layer
+        return false;
+    }
+    if (colorCalcWindowIn[pos].r == 1) {
+        // Inside color calculation window
         return false;
     }
     if (layer == kLayerSprite) {

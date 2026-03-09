@@ -4,6 +4,34 @@ struct Config {
     uint extraParams;
     uint vcellScrollParams;
     uint2 spriteParams;
+    uint windows;
+};
+
+struct Window {
+    uint2 start;
+    uint2 end;
+    uint lineWindowTableAddress;
+    bool lineWindowTableEnable;
+};
+
+struct BGRenderState {
+    uint4 nbgParams[4];
+    uint4 rbgParams[2];
+
+    uint2 nbgScrollAmount[4];
+    uint2 nbgScrollInc[4];
+
+    uint nbgPageBaseAddresses[4][4];
+    uint rbgPageBaseAddresses[2][2][16];
+
+    Window windows[2];
+
+    uint commonRotParams;
+
+    uint lineScreenParams;
+    uint backScreenParams;
+
+    uint specialFunctionCodes;
 };
 
 struct RotParamState {
@@ -18,9 +46,11 @@ cbuffer Config : register(b0) {
     Config config;
 }
 
-Buffer<uint4> cramColor : register(t0);
-StructuredBuffer<RotParamState> rotParamState : register(t1);
-ByteAddressBuffer spriteFB : register(t2);
+ByteAddressBuffer vram : register(t0);
+Buffer<uint4> cramColor : register(t1);
+StructuredBuffer<BGRenderState> bgRenderState : register(t2);
+StructuredBuffer<RotParamState> rotParamState : register(t3);
+ByteAddressBuffer spriteFB : register(t4);
 
 // The alpha channel of the BG output is used for pixel attributes as follows:
 // bits  use
@@ -40,6 +70,9 @@ static const uint kPixelAttrBitSpriteShadowWindow = 4;
 static const uint kPixelAttrBitSpriteNormalShadow = 5;
 static const uint kPixelAttrBitSpecColorCalc = 6;
 static const uint kPixelAttrBitTransparent = 7;
+
+static const uint kWindowLogicOR = 0;
+static const uint kWindowLogicAND = 1;
 
 static const uint kCRAMAddressMask = ((config.displayParams >> 4) & 3) == 1 ? 0x7FF : 0x3FF;
 
@@ -89,8 +122,13 @@ uint ByteSwap16(uint val) {
 static const uint interlaceMode = BitExtract(config.displayParams, 0, 2);
 static const uint oddField = BitExtract(config.displayParams, 2, 1);
 static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
+static const bool hiResH = BitTest(config.displayParams, 6);
 static const uint spriteDisplayFB = BitExtract(config.displayParams, 29, 1);
 static const uint spriteFBBaseOffset = spriteDisplayFB * 256 * 1024;
+
+uint ReadVRAM16(uint address) {
+    return ByteSwap16(BitExtract(vram.Load(address & ~3), (address & 2) * 8, 16));
+}
 
 uint ReadSprite8(uint address) {
     address += spriteFBBaseOffset;
@@ -123,6 +161,98 @@ uint4 Color555(uint val16) {
         ((val16 >> 10) & 0x1F) << 3,
         (val16 >> 15) & 1
     );
+}
+
+bool InsideSpriteWindow(bool invert, uint2 pos) {
+    // TODO: implement
+    return false;
+}
+
+bool InsideWindow(Window window, bool invert, uint2 pos) {
+    int2 start = window.start;
+    int2 end = window.end;
+
+    // Read line window if enabled
+    if (window.lineWindowTableEnable) {
+        const uint address = window.lineWindowTableAddress + pos.y * 4;
+        start.x = ReadVRAM16(address + 0);
+        end.x = ReadVRAM16(address + 2);
+    }
+
+    start.x = SignExtend(start.x, 16);
+    end.x = SignExtend(end.x, 16);
+    start.y = SignExtend(start.y, 16);
+    end.y = SignExtend(end.y, 16);
+
+    // Some games set out-of-range window parameters and expect them to work.
+    // It seems like window coordinates should be signed...
+    //
+    // Panzer Dragoon 2 Zwei:
+    //   0000 to FFFE -> empty window
+    //   FFFE to 02C0 -> full line
+    //
+    // Panzer Dragoon Saga:
+    //   0000 to FFFF -> empty window
+    //
+    // Snatcher:
+    //   FFFC to 0286 -> full line
+    //
+    // Handle these cases here
+    if (start.x < 0) {
+        start.x = 0;
+    }
+    if (end.x < 0) {
+        if (start.x >= end.x) {
+            start.x = 0x3FF;
+        }
+        end.x = 0;
+    }
+
+    // For normal screen modes, X coordinates don't use bit 0
+    if (!hiResH) {
+        start.x >>= 1;
+        end.x >>= 1;
+    }
+
+    const int2 spos = int2(pos);
+    const bool inside = all(spos >= start) && all(spos <= end);
+    return inside != invert;
+}
+
+bool InsideWindows(uint2 pos) {
+    const Window windows[2] = bgRenderState[0].windows;
+    const uint windowLogic = BitExtract(config.windows, 0, 1);
+    const bool window0Enable = BitTest(config.windows, 1);
+    const bool window0Invert = BitTest(config.windows, 2);
+    const bool window1Enable = BitTest(config.windows, 3);
+    const bool window1Invert = BitTest(config.windows, 4);
+
+    // If no windows are enabled, consider the pixel outside of windows
+    if (!window0Enable && !window1Enable) {
+        return false;
+    }
+
+    const bool windowLogicAND = windowLogic == kWindowLogicAND;
+
+    bool inside = windowLogicAND;
+    if (window0Enable) {
+        const bool insideW0 = InsideWindow(windows[0], window0Invert, pos);
+        if (windowLogicAND) {
+            inside = inside && insideW0;
+        } else {
+            inside = inside || insideW0;
+        }
+    }
+    if (window1Enable) {
+        const bool insideW1 = InsideWindow(windows[1], window1Invert, pos);
+        if (windowLogicAND) {
+            inside = inside && insideW1;
+        } else {
+            inside = inside || insideW1;
+        }
+    }
+
+    return inside;
 }
 
 // -----------------------------------------------------------------------------
@@ -308,7 +438,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
 
 // index 0 = sprite
 // index 1 = transparent meshes
-uint4 DrawSprite(uint2 pos, uint index) {
+uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
     // TODO: implement transparent meshes
     if (index == 1) {
         return kTransparentPixel;
@@ -326,13 +456,11 @@ uint4 DrawSprite(uint2 pos, uint index) {
                             inHalfResH ? uint2(pos.x << 1, pos.y) :
                             outHalfResH ? uint2(pos.x >> 1, pos.y) :
                             pos;
-    const uint2 outPos = uint2(pos.x, GetY(pos.y));
     const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
 
-    // TODO: sprite window
-    /*if (m_spriteLayerAttrs[altField].window[x]) {
+    if (InsideWindows(pos)) {
         return kTransparentPixel;
-    }*/
+    }
 
     if (mixedFormat) {
         const uint spriteDataValue = ReadSprite16(fbAddr << 1);
@@ -400,5 +528,5 @@ uint4 DrawSprite(uint2 pos, uint index) {
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = uint2(id.x, id.y + config.startY);
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z + 6);
-    bgOut[outCoord] = DrawSprite(drawCoord, id.z);
+    bgOut[outCoord] = DrawSprite(drawCoord, outCoord.xy, id.z);
 }
