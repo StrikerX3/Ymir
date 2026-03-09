@@ -263,6 +263,9 @@ private:
     bool m_exclusiveMonitor = false;
 
     bool m_doVDP1Erase = false;
+
+    bool m_setSCYN2 = false;
+    bool m_setSCYN3 = false;
 };
 
 } // namespace ymir::vdp::d3d11

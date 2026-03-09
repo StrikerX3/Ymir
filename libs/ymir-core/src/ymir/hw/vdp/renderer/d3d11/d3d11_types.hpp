@@ -221,6 +221,11 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint colorCalcSWEnable : 1;    //    10  Color calc. SW enable      0=disable; 1=enable
         D3DUint colorCalcSWInvert : 1;    //    11  Color calc. SW invert      0=disable; 1=enable
     } windows;
+
+    struct {               //  bits  use
+        D3DUint nbg2 : 10; //   0-9  Base Y for NBG2
+        D3DUint nbg3 : 10; // 10-19  Base Y for NBG3
+    } fracScrollYBases;
 };
 
 struct VDP2BGRenderParams {
@@ -288,7 +293,7 @@ struct VDP2BGRenderParams {
             D3DUint pageShiftH : 1;    //     4  Horizontal page size shift    (NBG0-3, RotParam A/B)
             D3DUint pageShiftV : 1;    //     5  Vertical page size shift      (NBG0-3, RotParam A/B)
             D3DUint extChar : 1;       //     6  Extended character number     0=10 bits; 1=12 bits, no H/V flip
-            D3DUint twoWordChar : 1;   //     7  Two-word character            0=one-word (16-bit); 1=two-word (32-bit)
+            D3DUint twoWordChar : 1;   //     7  Two-word character            0=16-bit; 1=32-bit
             D3DUint cellSizeShift : 1; //     8  Character cell size           0=1x1 cell; 1=2x2 cells
             D3DUint supplCharNum : 5;  //  9-13  Supplementary character number
         } scroll;

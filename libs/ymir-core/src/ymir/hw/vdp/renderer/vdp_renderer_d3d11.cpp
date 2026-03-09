@@ -841,6 +841,11 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
             }
         }
     }
+
+    switch (address) {
+    case 0x092: m_setSCYN2 = true; break;
+    case 0x096: m_setSCYN3 = true; break;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1776,9 +1781,15 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.CSSetShader(m_context->csVDP2BGs);
     ctx.Dispatch(m_HRes / 32, numLines, 1);
 
-    // Update rotation parameter bases for the next chunk if not done rendering
-    const bool vShift = m_state.regs2.TVMD.IsInterlaced() ? 1u : 0u;
-    const uint32 vres = m_VRes >> vShift;
+    // Update fracScrollY bases for the next frame
+    if (m_setSCYN2) {
+        m_setSCYN2 = false;
+        m_context->cpuVDP2RenderConfig.fracScrollYBases.nbg2 = m_nextVDP2BGY;
+    }
+    if (m_setSCYN3) {
+        m_setSCYN3 = false;
+        m_context->cpuVDP2RenderConfig.fracScrollYBases.nbg3 = m_nextVDP2BGY;
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
@@ -1870,6 +1881,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2InitNBGs() {
             nbgState.lineScrollTableAddress = bgParams.lineScrollTableAddress;
         }
     }
+
+    m_context->cpuVDP2RenderConfig.fracScrollYBases.nbg2 = 0;
+    m_context->cpuVDP2RenderConfig.fracScrollYBases.nbg3 = 0;
 
     m_context->dirtyVDP2BGRenderState = true;
 }
