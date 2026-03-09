@@ -2042,6 +2042,9 @@ void App::RunEmulator() {
         screen.frameRequestEvent.Set();
         m_context.EnqueueEvent(events::emu::SetPaused(false));
         m_context.EnqueueEvent(events::emu::Shutdown());
+        if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
+            hwrenderer->DiscardPendingCommandLists();
+        }
         if (m_emuThread.joinable()) {
             m_emuThread.join();
         }

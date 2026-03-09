@@ -224,6 +224,10 @@ public:
     /// @return `true` if any commands were processed
     bool ExecutePendingCommandLists(bool restoreState, HardwareRendererCallbacks &hwCallbacks);
 
+    /// @brief Discards all pending command lists.
+    /// @return `true` if any commands were discarded
+    bool DiscardPendingCommandLists();
+
 private:
     ID3D11Device *m_device = nullptr;
     ID3D11DeviceContext *m_immediateCtx = nullptr;

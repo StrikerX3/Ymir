@@ -47,6 +47,7 @@ public:
     // Hardware rendering
 
     void ExecutePendingCommandLists() override;
+    void DiscardPendingCommandLists() override;
 
     /// @brief Retrieves a pointer to the `ID3D11Texture2D` containing the composited VDP2 output.
     /// The texture is 704x512, uses the `DXGI_FORMAT_R8G8B8A8_UNORM` format and allows SRV bindings
