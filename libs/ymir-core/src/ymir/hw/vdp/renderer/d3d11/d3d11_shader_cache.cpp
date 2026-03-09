@@ -110,7 +110,7 @@ ID3DBlob *D3DShaderCache::GetOrCompileShader(ShaderType type, std::string_view c
         FAILED(hr)) {
         if (errors != nullptr) {
             // TODO: report errors
-            auto *x = (const char *)errors->GetBufferPointer();
+            auto *errorStr = (const char *)errors->GetBufferPointer();
             YMIR_DEV_CHECK();
         }
         return nullptr;

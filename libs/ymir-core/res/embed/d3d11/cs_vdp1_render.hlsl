@@ -698,7 +698,7 @@ uint FindEndCode(uint charAddress, uint uStart, uint uEnd, uint texV, uint charS
     uint endCodeCount = 0;
 
     int uInc = uStart <= uEnd ? +1 : -1;
-    for (int u = uStart; u != uEnd; u += uInc) {
+    for (int u = uStart; u != int(uEnd); u += uInc) {
         const uint charIndex = u + baseCharIndex;
 
         uint color;
