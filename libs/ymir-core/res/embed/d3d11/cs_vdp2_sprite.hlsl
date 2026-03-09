@@ -5,6 +5,7 @@ struct Config {
     uint vcellScrollParams;
     uint2 spriteParams;
     uint windows;
+    uint fracScrollYBases;
 };
 
 struct Window {

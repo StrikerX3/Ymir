@@ -5,6 +5,7 @@ struct Config {
     uint vcellScrollParams;
     uint2 spriteParams;
     uint windows;
+    uint fracScrollYBases;
 };
 
 struct Window {
@@ -640,7 +641,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
     uint2 baseFracScroll = uint2(0, 0);
     uint2 scrollInc = state.nbgScrollInc[index];
 
-    // Apply line scroll effects on NBG0 and NBG1 if enabled
+    // Apply line scroll table effects on NBG0 and NBG1 if enabled
     if (index <= 1 && BitExtract(nbgParams.y, 21, 3) != 0) {
         const uint lineScrollTableAddress = BitExtract(nbgParams.y, 1, 18) << 1;
         const uint lineScrollIntervalShift = BitExtract(nbgParams.y, 19, 2);
@@ -680,6 +681,11 @@ uint4 DrawNBG(uint2 pos, uint index) {
             const uint tableAddr = baseTableAddr + lineZoomOffset;
             scrollInc.x = BitExtract(ReadVRAM32(tableAddr), 8, 11);
         }
+    }
+
+    if (index >= 2) {
+        // Adjust cumulative scrollIncV increment relative to last write
+        pos.y -= BitExtract(config.fracScrollYBases, (index - 2) * 10, 10);
     }
 
     if (vcellScrollEnable && !mosaicEnable) {
