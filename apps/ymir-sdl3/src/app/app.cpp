@@ -4047,7 +4047,7 @@ void App::EmulatorThread() {
 
             case SetThreadPriority: util::BoostCurrentThreadPriority(std::get<bool>(evt.value)); break;
 
-            case Shutdown: return;
+            case Shutdown: m_context.saturn.instance->VDP.UseNullRenderer(); return;
             }
         }
 
