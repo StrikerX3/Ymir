@@ -433,7 +433,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
     if (HRESULT hr =
             devMgr.CreateTexture2D(m_context->texVDP2CCWindow, &m_context->srvVDP2CCWindow, &m_context->uavVDP2CCWindow,
-                                   vdp::kVDP1MaxFBSizeH, vdp::kVDP1MaxFBSizeV, 0, DXGI_FORMAT_R8_UINT, 0, 0);
+                                   vdp::kMaxResH, vdp::kMaxResV, 0, DXGI_FORMAT_R8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
