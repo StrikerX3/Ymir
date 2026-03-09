@@ -541,15 +541,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
 void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
-    bool copyVDP1FBRAM = false;
     if (m_context->DeviceManager.ExecutePendingCommandLists(m_restoreState, HwCallbacks)) {
-        // TODO: if a VDP1 frame was rendered, set flag indicating that a VDP1 FBRAM copy is needed
+        // TODO: copy VDP1 FBRAM if needed, then signal render thread to copy it to the VDP state
     }
+}
 
-    if (copyVDP1FBRAM) {
-        // TODO: implement
-        // 1. copy VDP1 FBRAM data to a local copy in m_context
-        // 2. signal emulator thread to copy that to m_state.spriteFB
+void Direct3D11VDPRenderer::DiscardPendingCommandLists() {
+    if (m_context->DeviceManager.DiscardPendingCommandLists()) {
+        // TODO: unblock renderer thread in case it is waiting for a VDP1 FBRAM copy
     }
 }
 
@@ -1303,8 +1302,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DownloadFBRAM(size_t fbIndex) {
         .bottom = 1,
         .back = 1,
     };
-    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown, 0, 0, 0, 0, m_context->bufVDP1PolyOut,
-                                                    0, &srcBox);*/
+    m_context->VDP1Context.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown, 0, 0, 0, 0,
+                                                                       m_context->bufVDP1PolyOut, 0, &srcBox);*/
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {

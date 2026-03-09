@@ -36,6 +36,11 @@ public:
     /// The `HwCallbacks.PreExecuteCommandList` and `HwCallbacks.PostExecuteCommandList` callbacks are invoked before
     /// and after executing each command list.
     virtual void ExecutePendingCommandLists() = 0;
+
+    /// @brief Discards all pending command lists.
+    ///
+    /// No callbacks are invoked.
+    virtual void DiscardPendingCommandLists() = 0;
 };
 
 } // namespace ymir::vdp

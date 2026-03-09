@@ -29,10 +29,7 @@ DeviceManager::DeviceManager(ID3D11Device *device)
 
 DeviceManager::~DeviceManager() {
     SafeRelease(m_resources);
-    {
-        std::unique_lock lock{m_mtxCmdList};
-        SafeRelease(m_cmdListQueue);
-    }
+    DiscardPendingCommandLists();
 }
 
 HRESULT DeviceManager::CreateDeferredContext(ID3D11DeviceContext *&ctx) {
@@ -407,6 +404,15 @@ bool DeviceManager::ExecutePendingCommandLists(bool restoreState, HardwareRender
         hwCallbacks.PostExecuteCommandList(i == m_cmdListQueue.size() - 1);
     }
     m_cmdListQueue.clear();
+    return true;
+}
+
+bool DeviceManager::DiscardPendingCommandLists() {
+    std::unique_lock lock{m_mtxCmdList};
+    if (m_cmdListQueue.empty()) {
+        return false;
+    }
+    SafeRelease(m_cmdListQueue);
     return true;
 }
 
