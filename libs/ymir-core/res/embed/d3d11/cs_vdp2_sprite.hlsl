@@ -164,11 +164,6 @@ uint4 Color555(uint val16) {
     );
 }
 
-bool InsideSpriteWindow(bool invert, uint2 pos) {
-    // TODO: implement
-    return false;
-}
-
 bool InsideWindow(Window window, bool invert, uint2 pos) {
     int2 start = window.start;
     int2 end = window.end;
@@ -440,8 +435,8 @@ SpriteData FetchSpriteData(uint fbAddr) {
 // index 0 = sprite
 // index 1 = transparent meshes
 uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
-    // TODO: implement transparent meshes
     if (index == 1) {
+        // TODO: implement transparent meshes
         return kTransparentPixel;
     }
 
