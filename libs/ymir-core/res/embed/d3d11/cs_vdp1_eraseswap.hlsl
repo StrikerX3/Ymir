@@ -56,10 +56,11 @@ static const uint eraseY3 = BitExtract(config.erase, 22, 9) << scaleV;
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
+    const uint2 pos = uint2(id.x + eraseX1, id.y + eraseY1);
     const uint address = drawFBOffset + ((id.y << offsetShift) + id.x) * 2;
 
     // Bail out if out of range
-    if (id.x < eraseX1 || id.y < eraseY1 || id.x >= eraseX3 || id.y > eraseY3) {
+    if (id.x >= eraseX3 - eraseX1 + 1 || id.y > eraseY3 - eraseY1 + 1) {
         return;
     }
     // Bail out if pixel exceeds VBlank erase cycle limit
