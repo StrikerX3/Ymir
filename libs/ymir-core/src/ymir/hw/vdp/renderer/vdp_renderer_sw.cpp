@@ -3956,11 +3956,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             }
         } else {
             // Replace layer 1 pixels with line color screen where applicable
-            for (uint32 x = 0; x < m_HRes; ++x) {
-                if (layer0LineColorEnabled[x]) {
-                    layer1Pixels[x] = layer0LineColors[x];
-                }
-            }
+            Color888SelectMasked(std::span{layer1Pixels}.first(m_HRes), layer0LineColorEnabled, layer1Pixels,
+                                 layer0LineColors);
         }
 
         // Blend layer 1 with sprite mesh layer colors
