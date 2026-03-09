@@ -60,17 +60,14 @@ struct Direct3D11VDPRenderer::Context {
     // PolyOut is the buffer used internally by the renderer to output polygons at any resolution.
     // Both buffers have essentially the same format, but only the FBRAM makes it out of the GPU.
 
-    // TODO: deal with FBRAM writes from the CPU
-    // - add second PolyOut buffer and handle framebuffer flipping
-
     // -------------------------------------------------------------------------
     // VDP1 - shared resources
 
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
 
-    ID3D11Buffer *bufVDP1FBRAMStaging = nullptr; //< VDP1 framebuffer RAM staging buffer (CPU<->GPU transfers)
-    bool dirtyVDP1FBRAMStaging = true;           //< VDP1 framebuffer RAM staging buffer dirty flag
+    ID3D11Buffer *bufVDP1FBRAMUp = nullptr; //< VDP1 framebuffer RAM upload staging buffer (CPU->GPU transfers)
+    bool dirtyVDP1FBRAMUp = true;           //< VDP1 framebuffer RAM upload staging buffer dirty flag
 
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase/swap shader
@@ -231,13 +228,13 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
     if (HRESULT hr =
-            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMStaging, nullptr, nullptr, kVDP1FramebufferRAMSize,
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMUp, nullptr, nullptr, kVDP1FramebufferRAMSize,
                                            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1FBRAMStaging, "[Ymir D3D11] VDP1 FBRAM staging buffer");
+    SetDebugName(m_context->bufVDP1FBRAMUp, "[Ymir D3D11] VDP1 FBRAM upload staging buffer");
 
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase/swap shader
@@ -622,11 +619,11 @@ void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint16 value) {
 }
 
 void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {
-    // These writes have no effect on the drawing buffer; no need to sync
+    m_context->dirtyVDP1FBRAMUp = true;
 }
 
 void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint16 value) {
-    // These writes have no effect on the drawing buffer; no need to sync
+    m_context->dirtyVDP1FBRAMUp = true;
 }
 
 void Direct3D11VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {
@@ -914,8 +911,8 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     ctx.CSSetShaderResources({});
     ctx.CSSetConstantBuffers({});
 
-    // Copy output to FBRAM
-    const D3D11_BOX srcBox{
+    // TODO: Download FBRAM to copy to CPU-side array
+    /*const D3D11_BOX srcBox{
         .left = static_cast<UINT>(m_state.displayFB * kVDP1FramebufferRAMSize),
         .top = 0,
         .front = 0,
@@ -923,8 +920,8 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         .bottom = 1,
         .back = 1,
     };
-    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMStaging, 0, 0, 0, 0,
-                                                    m_context->bufVDP1PolyOut, 0, &srcBox);
+    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown, 0, 0, 0, 0, m_context->bufVDP1PolyOut,
+                                                    0, &srcBox);*/
 
     ID3D11CommandList *commandList = nullptr;
     if (HRESULT hr = ctx.FinishCommandList(commandList); FAILED(hr)) {
@@ -936,7 +933,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     HwCallbacks.CommandListReady(false);
 
-    // TODO: copy bufVDP1FBRAMStaging to m_state.spriteFB[m_state.displayFB]
+    // TODO: copy bufVDP1FBRAMDown to m_state.spriteFB[m_state.displayFB]
     // - must be done on the main thread; sync point here
 
     VDP1UploadDrawFBRAM();
@@ -1297,16 +1294,28 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadDrawFBRAM() {
-    if (!m_context->dirtyVDP1FBRAMStaging) {
+    if (!m_context->dirtyVDP1FBRAMUp) {
         return;
     }
-    m_context->dirtyVDP1FBRAMStaging = false;
+    m_context->dirtyVDP1FBRAMUp = false;
 
-    m_context->VDP1Context.ModifyResource(m_context->bufVDP1FBRAMStaging, 0,
-                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                                              const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
-                                              memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
-                                          });
+    auto &ctx = m_context->VDP1Context;
+    ctx.ModifyResource(m_context->bufVDP1FBRAMUp, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+        const auto &drawFBRAM = m_state.spriteFB[m_state.displayFB ^ 1];
+        memcpy(mappedResource.pData, drawFBRAM.data(), drawFBRAM.size());
+    });
+
+    const D3D11_BOX srcBox{
+        .left = 0,
+        .top = 0,
+        .front = 0,
+        .right = static_cast<UINT>(srcBox.left + kVDP1FramebufferRAMSize),
+        .bottom = 1,
+        .back = 1,
+    };
+    ctx.GetDeferredContext()->CopySubresourceRegion(
+        m_context->bufVDP1PolyOut, 0, static_cast<UINT>((m_state.displayFB ^ 1) * kVDP1FramebufferRAMSize), 0, 0,
+        m_context->bufVDP1FBRAMUp, 0, &srcBox);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control) {
