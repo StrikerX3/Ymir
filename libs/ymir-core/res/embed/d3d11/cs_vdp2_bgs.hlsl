@@ -933,7 +933,7 @@ uint4 DrawLineBackScreen(uint index, uint y) {
     const bool lineColorPerLine = BitTest(params, 19);
     const uint lineColorBaseAddress = BitExtract(params, 0, 19);
 
-    const uint lineColorY = lineColorPerLine ? y : 0;
+    const uint lineColorY = lineColorPerLine ? y * 2 : 0;
     const uint lineColorAddress = lineColorBaseAddress + lineColorY;
 
     // LNCL reads from CRAM; BACK reads from VRAM
