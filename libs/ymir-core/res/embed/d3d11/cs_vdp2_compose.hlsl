@@ -155,15 +155,11 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
         // Color calculation is disabled for this layer
         return false;
     }
-    if (colorCalcWindowIn[pos].r == 1) {
+    if (colorCalcWindowIn[pos].r != 0) {
         // Inside color calculation window
         return false;
     }
     if (layer == kLayerSprite) {
-        if (!BitTest(config.displayParams, 18)) {
-            // Sprite color calculation is disabled
-            return false;
-        }
         // Sprites use condition modes based on priority or color MSB
         const uint attrs = bgIn[uint3(pos.xy, kBGLayerSprite)].a;
         const uint priority = BitExtract(attrs, 0, 3);
@@ -342,7 +338,7 @@ uint3 Compose(uint2 pos) {
         } else {
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
             const int ratio = GetColorCalcRatio(ratioLayer, pos);
-            output = int3(layer1Pixel) + (int3(layer0Pixel) - int3(layer1Pixel)) * ratio / 32;
+            output = int3(layer1Pixel) + (((int3(layer0Pixel) - int3(layer1Pixel)) * ratio) >> 5);
         }
     } else {
         output = layer0Pixel;
