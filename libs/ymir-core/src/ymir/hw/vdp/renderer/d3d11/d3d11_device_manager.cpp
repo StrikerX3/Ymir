@@ -178,14 +178,21 @@ HRESULT DeviceManager::CreateBuffer(ID3D11Buffer *&bufOut, BufferType type, UINT
         bindFlags &= ~D3D11_BIND_CONSTANT_BUFFER;
     }
 
-    const D3D11_USAGE usage = cpuAccessFlags == 0 ? D3D11_USAGE_DEFAULT : D3D11_USAGE_DYNAMIC;
+    const D3D11_USAGE usage = cpuAccessFlags == 0                      ? D3D11_USAGE_DEFAULT
+                              : cpuAccessFlags & D3D11_CPU_ACCESS_READ ? D3D11_USAGE_STAGING
+                                                                       : D3D11_USAGE_DYNAMIC;
 
     UINT miscFlags;
     if (structured) {
         miscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     } else if (raw) {
-        miscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
-        bindFlags |= D3D11_BIND_SHADER_RESOURCE;
+        if (usage == D3D11_USAGE_STAGING) {
+            miscFlags = 0;
+            bindFlags = 0;
+        } else {
+            miscFlags = D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
+            bindFlags |= D3D11_BIND_SHADER_RESOURCE;
+        }
     } else {
         miscFlags = 0;
     }
