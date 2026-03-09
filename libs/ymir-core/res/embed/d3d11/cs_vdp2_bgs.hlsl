@@ -209,8 +209,7 @@ uint4 Color888(uint val32) {
 }
 
 bool InsideSpriteWindow(bool invert, uint2 pos) {
-    // TODO: implement
-    return false;
+    return BitTest(bgOut[uint3(pos, 6)].a, kPixelAttrBitSpriteShadowWindow) != invert;
 }
 
 bool InsideWindow(Window window, bool invert, uint2 pos) {
