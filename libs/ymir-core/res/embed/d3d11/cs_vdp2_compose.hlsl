@@ -237,14 +237,16 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
     }
 }
 
-uint3 Compose(uint2 pos) {
+uint3 Compose(uint2 basePos) {
+    const uint2 pos = uint2(basePos.x, GetY(basePos.y));
+
     // Clear screen if display is disabled
     const bool displayEnabled = BitTest(config.displayParams, 30);
     if (!displayEnabled) {
         const bool borderColorMode = BitTest(config.displayParams, 31);
         if (borderColorMode) {
             // Use back screen color
-            return lineColorIn[uint2(1, pos.y)].rgb;
+            return lineColorIn[uint2(1, basePos.y)].rgb;
         }
         return kBlackPixel.rgb;
     }
@@ -368,7 +370,8 @@ uint3 Compose(uint2 pos) {
 
 [numthreads(32, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = uint2(id.x, GetY(id.y + config.startY));
+    const uint2 drawCoord = uint2(id.x, id.y + config.startY);
+    const uint2 outCoord = uint2(drawCoord.x, GetY(drawCoord.y));
     const uint3 outColor = Compose(drawCoord);
-    textureOut[drawCoord] = float4(outColor / 255.0, 1.0f);
+    textureOut[outCoord] = float4(outColor / 255.0, 1.0f);
 }
