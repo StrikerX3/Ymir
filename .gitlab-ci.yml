@@ -16,6 +16,7 @@
       -DYmir_ENABLE_YMDASM=OFF
       -DYmir_ENABLE_TESTS=OFF
       -DYmir_INCLUDE_PACKAGING=OFF
+      -DYmir_DEV_BUILD=OFF
     GIT_SUBMODULE_STRATEGY: recursive
 
 # Inclusion templates, required for the build to work
@@ -70,6 +71,8 @@ libretro-build-windows-x64:
     - .libretro-windows-cmake-x86_64
     - .core-defs
   image: $CI_SERVER_HOST:5050/libretro-infrastructure/libretro-build-mxe-win-cross-cores:gcc12
+  variables:
+    CMAKE: x86_64-w64-mingw32.clang-cmake
 
 # Linux 64-bit
 libretro-build-linux-x64:
