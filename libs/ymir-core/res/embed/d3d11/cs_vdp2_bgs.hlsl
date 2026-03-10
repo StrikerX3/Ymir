@@ -172,10 +172,16 @@ uint ReadVRAM32(uint address) {
     return ByteSwap32(vram.Load(address));
 }
 
+static const uint kResolutionsH[4] = { 320, 352, 640, 704 };
+static const uint kResolutionsV[4] = { 224, 240, 256, 256 };
+
 static const uint interlaceMode = BitExtract(config.displayParams, 0, 2);
 static const uint oddField = BitExtract(config.displayParams, 2, 1);
 static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
 static const bool hiResH = BitTest(config.displayParams, 6);
+static const bool palMode = BitTest(config.displayParams, 22);
+static const uint displayResH = kResolutionsH[BitExtract(config.extraParams, 23, 2)]; // 3rd bit intentionally ignored
+static const uint displayResV = exclusiveMonitor ? 480 : kResolutionsV[BitExtract(config.extraParams, 26, palMode ? 2 : 1)];
 
 uint GetY(uint y, bool doubleDensityOnly) {
     const bool interlaced = doubleDensityOnly ? interlaceMode == 3 : interlaceMode >= 2;
@@ -572,8 +578,6 @@ uint4 FetchScrollBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, bool 
     const uint bank = BitExtract(pageBaseAddress, 17, 2);
     if (BitTest(bgParams.x, 4 + bank)) {
         scrollPos.x += 8;
-    } else if (BitTest(bgParams.x, 27)) {
-        scrollPos.x -= 8;
     }
 
     const uint2 pagePos = (scrollPos >> 9) & pageShift;
@@ -718,9 +722,32 @@ uint4 DrawNBG(uint2 pos, uint index) {
     }
 
     const bool bitmap = BitTest(nbgParams.x, 31);
-    return bitmap
-        ? FetchBitmapPixel(nbgParams, scrollPos)
-        : FetchScrollNBGPixel(nbgParams, scrollPos, state.nbgPageBaseAddresses[index]);
+    if (bitmap) {
+        return FetchBitmapPixel(nbgParams, scrollPos);
+    } else {
+        const bool charPatDelay = BitTest(nbgParams.x, 27);
+        if (charPatDelay) {
+            // Read previous character.
+            // If we're at the start of the line, read last character from previous line.
+            // If at the start of the screen, read last character in the screen.
+            if (pos.x >= 8) {
+                // Not at left edge of the screen - read character to the left
+                scrollPos.x -= 8;
+            } else {
+                // Left edge of the screen - read rightmost character from previous row
+                scrollPos.x += displayResH - 8;
+                if (pos.y >= 8) {
+                    // Not at top edge of the screen - read previous row
+                    scrollPos.y -= 8;
+                } else {
+                    // At top edge of the screen - read last character read the previous screen
+                    // TODO: actually store the character
+                    scrollPos.y += displayResV - 8;
+                }
+            }
+        }
+        return FetchScrollNBGPixel(nbgParams, scrollPos, state.nbgPageBaseAddresses[index]);
+    }
 }
 
 // -----------------------------------------------------------------------------
