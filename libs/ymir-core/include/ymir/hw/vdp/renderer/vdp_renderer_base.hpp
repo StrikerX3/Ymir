@@ -84,17 +84,35 @@ public:
 
     /// @brief Save the renderer state.
     /// @param[in] state the state object
-    virtual void SaveState(state::VDPState::VDPRendererState &state) = 0;
+    void SaveState(state::VDPState::VDPRendererState &state);
 
     /// @brief Validates the renderer state.
     /// @param[in] state the state object
     /// @return `true` if the given state is valid, `false` otherwise
-    virtual bool ValidateState(const state::VDPState::VDPRendererState &state) const = 0;
+    bool ValidateState(const state::VDPState::VDPRendererState &state) const;
 
     /// @brief Loads the renderer state.
     /// @param[in] state the state object
-    virtual void LoadState(const state::VDPState::VDPRendererState &state) = 0;
+    void LoadState(const state::VDPState::VDPRendererState &state);
 
+protected:
+    /// @brief Save the renderer state.
+    /// Invoked by calls to `SaveState(ymir::state::VDPState::VDPRendererState &)`.
+    /// @param[in] state the state object
+    virtual void SaveStateImpl(state::VDPState::VDPRendererState &state) = 0;
+
+    /// @brief Validates the renderer state.
+    /// Invoked by calls to `ValidateState(const ymir::state::VDPState::VDPRendererState &) const`.
+    /// @param[in] state the state object
+    /// @return `true` if the given state is valid, `false` otherwise
+    virtual bool ValidateStateImpl(const state::VDPState::VDPRendererState &state) const = 0;
+
+    /// @brief Loads the renderer state.
+    /// Invoked by calls to `LoadState(const ymir::state::VDPState::VDPRendererState &)`.
+    /// @param[in] state the state object
+    virtual void LoadStateImpl(const state::VDPState::VDPRendererState &state) = 0;
+
+public:
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
 
@@ -336,10 +354,6 @@ protected:
 
     /// @brief State for the line color and back screens.
     LineBackLayerState m_lineBackLayerState;
-
-    /// @brief VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
-    /// Entry [0] is primary and [1] is alternate field for deinterlacing.
-    std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
 
     /// @brief Layer enable state based on BGON and other factors.
     /// ```
