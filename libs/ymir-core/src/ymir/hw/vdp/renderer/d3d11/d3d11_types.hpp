@@ -198,6 +198,9 @@ struct alignas(16) VDP2RenderConfig {
                                          //         13  RBG1
         D3DUint mosaicH : 4;             // 14-17  Horizontal mosaic size (minus one)
         D3DUint mosaicV : 4;             // 18-21  Vertical mosaic size (minus one)
+        D3DUint palMode : 1;             //    22  Display standard (VDP2 TVSTAT.PAL)   0=NTSC; 1=PAL
+        D3DUint hresMode : 3;            // 23-25  Horizontal resolution mode (VDP2 TVMD.HRESO2-0)
+        D3DUint vresMode : 2;            // 26-27  Vertical resolution mode (VDP2 TVMD.VRESO1-0)
     } extraParams;
 
     struct {                       //  bits  use

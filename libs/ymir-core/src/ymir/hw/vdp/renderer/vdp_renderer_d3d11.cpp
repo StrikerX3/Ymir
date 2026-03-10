@@ -2180,6 +2180,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRenderConfig() {
     config.extraParams.bgEnabled = bit::gather_array<uint32>(regs2.bgEnabled);
     config.extraParams.mosaicH = regs2.mosaicH - 1;
     config.extraParams.mosaicV = regs2.mosaicV - 1;
+    config.extraParams.palMode = regs2.TVSTAT.PAL;
+    config.extraParams.hresMode = regs2.TVMD.HRESOn;
+    config.extraParams.vresMode = regs2.TVMD.VRESOn;
 
     config.vcellScroll.tableAddress = regs2.vcellScrollTableAddress;
     config.vcellScroll.inc = regs2.vcellScrollInc >> 2u;
