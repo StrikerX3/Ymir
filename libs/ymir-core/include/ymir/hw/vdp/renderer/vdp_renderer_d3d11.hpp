@@ -83,9 +83,9 @@ public:
     void PreSaveStateSync() override;
     void PostLoadStateSync() override;
 
-    void SaveState(state::VDPState::VDPRendererState &state) override;
-    bool ValidateState(const state::VDPState::VDPRendererState &state) const override;
-    void LoadState(const state::VDPState::VDPRendererState &state) override;
+    void SaveStateImpl(state::VDPState::VDPRendererState &state) override;
+    bool ValidateStateImpl(const state::VDPState::VDPRendererState &state) const override;
+    void LoadStateImpl(const state::VDPState::VDPRendererState &state) override;
 
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes

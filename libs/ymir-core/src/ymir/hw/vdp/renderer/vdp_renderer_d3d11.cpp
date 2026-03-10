@@ -628,13 +628,20 @@ void Direct3D11VDPRenderer::PostLoadStateSync() {
     m_context->dirtyVDP2ComposeParams = true;
 }
 
-void Direct3D11VDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {}
+void Direct3D11VDPRenderer::SaveStateImpl(state::VDPState::VDPRendererState &state) {}
 
-bool Direct3D11VDPRenderer::ValidateState(const state::VDPState::VDPRendererState &state) const {
+bool Direct3D11VDPRenderer::ValidateStateImpl(const state::VDPState::VDPRendererState &state) const {
     return true;
 }
 
-void Direct3D11VDPRenderer::LoadState(const state::VDPState::VDPRendererState &state) {}
+void Direct3D11VDPRenderer::LoadStateImpl(const state::VDPState::VDPRendererState &state) {
+    VDP2UpdateEnabledBGs();
+    m_context->dirtyVDP2VRAM.SetAll();
+    m_context->dirtyVDP2CRAM = true;
+    m_context->dirtyVDP2BGRenderState = true;
+    m_context->dirtyVDP2RotParamState = true;
+    m_context->dirtyVDP2ComposeParams = true;
+}
 
 // -----------------------------------------------------------------------------
 // VDP1 memory and register writes

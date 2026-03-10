@@ -741,7 +741,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
                     scrollPos.y -= 8;
                 } else {
                     // At top edge of the screen - read last character read the previous screen
-                    // TODO: actually store the character
+                    // TODO: read character from the previous screen (store on CPU side)
                     scrollPos.y += displayResV - 8;
                 }
             }

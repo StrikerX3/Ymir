@@ -27,6 +27,7 @@ namespace grp {
 } // namespace grp
 
 void IVDPRenderer::Reset(bool hard) {
+    m_VDP1State.Reset();
     for (auto &state : m_nbgLayerStates) {
         state.Reset();
     }
@@ -38,13 +39,88 @@ void IVDPRenderer::Reset(bool hard) {
             addrs.fill(0);
         }
     }
-    for (auto &state : m_vramFetchers) {
-        state[0].Reset();
-        state[1].Reset();
-    }
     m_lineBackLayerState.Reset();
 
     ResetImpl(hard);
+}
+
+void IVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
+    state.vdp1State.sysClipH = m_VDP1State.sysClipH;
+    state.vdp1State.sysClipV = m_VDP1State.sysClipV;
+    state.vdp1State.userClipX0 = m_VDP1State.userClipX0;
+    state.vdp1State.userClipY0 = m_VDP1State.userClipY0;
+    state.vdp1State.userClipX1 = m_VDP1State.userClipX1;
+    state.vdp1State.userClipY1 = m_VDP1State.userClipY1;
+    state.vdp1State.localCoordX = m_VDP1State.localCoordX;
+    state.vdp1State.localCoordY = m_VDP1State.localCoordY;
+
+    for (size_t i = 0; i < 4; i++) {
+        state.normBGLayerStates[i].fracScrollX = m_nbgLayerStates[i].fracScrollX;
+        state.normBGLayerStates[i].fracScrollY = m_nbgLayerStates[i].fracScrollY;
+        state.normBGLayerStates[i].scrollIncH = m_nbgLayerStates[i].scrollIncH;
+        state.normBGLayerStates[i].lineScrollTableAddress = m_nbgLayerStates[i].lineScrollTableAddress;
+        state.normBGLayerStates[i].vcellScrollOffset = m_nbgLayerStates[i].vcellScrollOffset;
+        state.normBGLayerStates[i].vcellScrollDelay = m_nbgLayerStates[i].vcellScrollDelay;
+        state.normBGLayerStates[i].mosaicCounterY = m_nbgLayerStates[i].mosaicCounterY;
+    }
+
+    for (size_t i = 0; i < 2; i++) {
+        state.rotParamStates[i].pageBaseAddresses = m_rbgPageBaseAddresses[i];
+        state.rotParamStates[i].Xst = m_rotParamStates[i].Xst;
+        state.rotParamStates[i].Yst = m_rotParamStates[i].Yst;
+        state.rotParamStates[i].KA = m_rotParamStates[i].KA;
+    }
+
+    state.lineBackLayerState.lineColor = m_lineBackLayerState.lineColor.u32;
+    state.lineBackLayerState.backColor = m_lineBackLayerState.backColor.u32;
+
+    auto copyChar = [&](state::VDPState::VDPRendererState::Character &dst, const Character &src) {
+        dst.charNum = src.charNum;
+        dst.palNum = src.palNum;
+        dst.specColorCalc = src.specColorCalc;
+        dst.specPriority = src.specPriority;
+        dst.flipH = src.flipH;
+        dst.flipV = src.flipV;
+    };
+
+    SaveStateImpl(state);
+}
+
+bool IVDPRenderer::ValidateState(const state::VDPState::VDPRendererState &state) const {
+    return ValidateStateImpl(state);
+}
+
+void IVDPRenderer::LoadState(const state::VDPState::VDPRendererState &state) {
+    m_VDP1State.sysClipH = state.vdp1State.sysClipH;
+    m_VDP1State.sysClipV = state.vdp1State.sysClipV;
+    m_VDP1State.userClipX0 = state.vdp1State.userClipX0;
+    m_VDP1State.userClipY0 = state.vdp1State.userClipY0;
+    m_VDP1State.userClipX1 = state.vdp1State.userClipX1;
+    m_VDP1State.userClipY1 = state.vdp1State.userClipY1;
+    m_VDP1State.localCoordX = state.vdp1State.localCoordX;
+    m_VDP1State.localCoordY = state.vdp1State.localCoordY;
+
+    for (size_t i = 0; i < 4; i++) {
+        m_nbgLayerStates[i].fracScrollX = state.normBGLayerStates[i].fracScrollX;
+        m_nbgLayerStates[i].fracScrollY = state.normBGLayerStates[i].fracScrollY;
+        m_nbgLayerStates[i].scrollIncH = state.normBGLayerStates[i].scrollIncH;
+        m_nbgLayerStates[i].lineScrollTableAddress = state.normBGLayerStates[i].lineScrollTableAddress;
+        m_nbgLayerStates[i].vcellScrollOffset = state.normBGLayerStates[i].vcellScrollOffset;
+        m_nbgLayerStates[i].vcellScrollDelay = state.normBGLayerStates[i].vcellScrollDelay;
+        m_nbgLayerStates[i].mosaicCounterY = state.normBGLayerStates[i].mosaicCounterY;
+    }
+
+    for (size_t i = 0; i < 2; i++) {
+        m_rbgPageBaseAddresses[i] = state.rotParamStates[i].pageBaseAddresses;
+        m_rotParamStates[i].Xst = state.rotParamStates[i].Xst;
+        m_rotParamStates[i].Yst = state.rotParamStates[i].Yst;
+        m_rotParamStates[i].KA = state.rotParamStates[i].KA;
+    }
+
+    m_lineBackLayerState.lineColor.u32 = state.lineBackLayerState.lineColor;
+    m_lineBackLayerState.backColor.u32 = state.lineBackLayerState.backColor;
+
+    LoadStateImpl(state);
 }
 
 void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {

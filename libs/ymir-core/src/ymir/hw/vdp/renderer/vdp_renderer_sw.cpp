@@ -103,7 +103,10 @@ void SoftwareVDPRenderer::ResetImpl(bool hard) {
         m_framebuffer.fill(0xFF000000);
     }
 
-    m_VDP1State.Reset();
+    for (auto &state : m_vramFetchers) {
+        state[0].Reset();
+        state[1].Reset();
+    }
 
     m_layerEnabled.fill(false);
     for (auto &state : m_layerStates) {
@@ -248,37 +251,9 @@ void SoftwareVDPRenderer::PostLoadStateSync() {
     }
 }
 
-void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
-    state.vdp1State.sysClipH = m_VDP1State.sysClipH;
-    state.vdp1State.sysClipV = m_VDP1State.sysClipV;
+void SoftwareVDPRenderer::SaveStateImpl(state::VDPState::VDPRendererState &state) {
     state.vdp1State.doubleV = m_VDP1doubleV;
-    state.vdp1State.userClipX0 = m_VDP1State.userClipX0;
-    state.vdp1State.userClipY0 = m_VDP1State.userClipY0;
-    state.vdp1State.userClipX1 = m_VDP1State.userClipX1;
-    state.vdp1State.userClipY1 = m_VDP1State.userClipY1;
-    state.vdp1State.localCoordX = m_VDP1State.localCoordX;
-    state.vdp1State.localCoordY = m_VDP1State.localCoordY;
     state.vdp1State.meshFB = m_meshFB;
-
-    for (size_t i = 0; i < 4; i++) {
-        state.normBGLayerStates[i].fracScrollX = m_nbgLayerStates[i].fracScrollX;
-        state.normBGLayerStates[i].fracScrollY = m_nbgLayerStates[i].fracScrollY;
-        state.normBGLayerStates[i].scrollIncH = m_nbgLayerStates[i].scrollIncH;
-        state.normBGLayerStates[i].lineScrollTableAddress = m_nbgLayerStates[i].lineScrollTableAddress;
-        state.normBGLayerStates[i].vcellScrollOffset = m_nbgLayerStates[i].vcellScrollOffset;
-        state.normBGLayerStates[i].vcellScrollDelay = m_nbgLayerStates[i].vcellScrollDelay;
-        state.normBGLayerStates[i].mosaicCounterY = m_nbgLayerStates[i].mosaicCounterY;
-    }
-
-    for (size_t i = 0; i < 2; i++) {
-        state.rotParamStates[i].pageBaseAddresses = m_rbgPageBaseAddresses[i];
-        state.rotParamStates[i].Xst = m_rotParamStates[i].Xst;
-        state.rotParamStates[i].Yst = m_rotParamStates[i].Yst;
-        state.rotParamStates[i].KA = m_rotParamStates[i].KA;
-    }
-
-    state.lineBackLayerState.lineColor = m_lineBackLayerState.lineColor.u32;
-    state.lineBackLayerState.backColor = m_lineBackLayerState.backColor.u32;
 
     auto copyChar = [&](state::VDPState::VDPRendererState::Character &dst, const Character &src) {
         dst.charNum = src.charNum;
@@ -304,41 +279,13 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
     state.vcellScrollInc = m_state.regs2.vcellScrollInc;
 }
 
-bool SoftwareVDPRenderer::ValidateState(const state::VDPState::VDPRendererState &state) const {
+bool SoftwareVDPRenderer::ValidateStateImpl(const state::VDPState::VDPRendererState &state) const {
     return true;
 }
 
-void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &state) {
-    m_VDP1State.sysClipH = state.vdp1State.sysClipH;
-    m_VDP1State.sysClipV = state.vdp1State.sysClipV;
+void SoftwareVDPRenderer::LoadStateImpl(const state::VDPState::VDPRendererState &state) {
     m_VDP1doubleV = state.vdp1State.doubleV;
-    m_VDP1State.userClipX0 = state.vdp1State.userClipX0;
-    m_VDP1State.userClipY0 = state.vdp1State.userClipY0;
-    m_VDP1State.userClipX1 = state.vdp1State.userClipX1;
-    m_VDP1State.userClipY1 = state.vdp1State.userClipY1;
-    m_VDP1State.localCoordX = state.vdp1State.localCoordX;
-    m_VDP1State.localCoordY = state.vdp1State.localCoordY;
     m_meshFB = state.vdp1State.meshFB;
-
-    for (size_t i = 0; i < 4; i++) {
-        m_nbgLayerStates[i].fracScrollX = state.normBGLayerStates[i].fracScrollX;
-        m_nbgLayerStates[i].fracScrollY = state.normBGLayerStates[i].fracScrollY;
-        m_nbgLayerStates[i].scrollIncH = state.normBGLayerStates[i].scrollIncH;
-        m_nbgLayerStates[i].lineScrollTableAddress = state.normBGLayerStates[i].lineScrollTableAddress;
-        m_nbgLayerStates[i].vcellScrollOffset = state.normBGLayerStates[i].vcellScrollOffset;
-        m_nbgLayerStates[i].vcellScrollDelay = state.normBGLayerStates[i].vcellScrollDelay;
-        m_nbgLayerStates[i].mosaicCounterY = state.normBGLayerStates[i].mosaicCounterY;
-    }
-
-    for (size_t i = 0; i < 2; i++) {
-        m_rbgPageBaseAddresses[i] = state.rotParamStates[i].pageBaseAddresses;
-        m_rotParamStates[i].Xst = state.rotParamStates[i].Xst;
-        m_rotParamStates[i].Yst = state.rotParamStates[i].Yst;
-        m_rotParamStates[i].KA = state.rotParamStates[i].KA;
-    }
-
-    m_lineBackLayerState.lineColor.u32 = state.lineBackLayerState.lineColor;
-    m_lineBackLayerState.backColor.u32 = state.lineBackLayerState.backColor;
 
     auto copyChar = [&](Character &dst, const state::VDPState::VDPRendererState::Character &src) {
         dst.charNum = src.charNum;

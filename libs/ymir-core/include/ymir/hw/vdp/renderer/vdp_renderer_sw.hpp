@@ -94,9 +94,9 @@ public:
     void PreSaveStateSync() override;
     void PostLoadStateSync() override;
 
-    void SaveState(state::VDPState::VDPRendererState &state) override;
-    bool ValidateState(const state::VDPState::VDPRendererState &state) const override;
-    void LoadState(const state::VDPState::VDPRendererState &state) override;
+    void SaveStateImpl(state::VDPState::VDPRendererState &state) override;
+    bool ValidateStateImpl(const state::VDPState::VDPRendererState &state) const override;
+    void LoadStateImpl(const state::VDPState::VDPRendererState &state) override;
 
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
@@ -798,6 +798,10 @@ private:
 
     template <mem_primitive T>
     void VDP2UpdateCRAMCache(uint32 address);
+
+    /// @brief VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
+    /// Entry [0] is primary and [1] is alternate field for deinterlacing.
+    std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
 
     // Common layer states.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
