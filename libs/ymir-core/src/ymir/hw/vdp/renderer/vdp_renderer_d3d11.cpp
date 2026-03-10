@@ -983,15 +983,22 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     HwCallbacks.CommandListReady(false);
     Callbacks.VDP1FramebufferSwap();
+
+    if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Swap) {
+        VDP1UpdateVRAM();
+    }
 }
 
 void Direct3D11VDPRenderer::VDP1BeginFrame() {
-    // TODO: initialize VDP1 frame
+    if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Draw) {
+        VDP1UpdateVRAM();
+    }
 }
 
 void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Control control) {
-    // TODO: disable this if too expensive
-    VDP1UpdateVRAM();
+    if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Command) {
+        VDP1UpdateVRAM();
+    }
 
     switch (control.command) {
     case VDP1Command::CommandType::DrawNormalSprite: VDP1Cmd_DrawNormalSprite(cmdAddress, control); break;
@@ -1730,9 +1737,9 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     // lines up to Y-1 then sync the state, unless Y=0, in which case we just sync the state.
 
     if (y > 0) {
-        const bool renderBGs = m_context->dirtyVDP2VRAM || m_context->dirtyVDP2CRAM ||
-                               m_context->dirtyVDP2BGRenderState || m_context->dirtyVDP2RotParamState ||
-                               m_context->dirtyVDP2ComposeParams;
+        const bool renderBGs = (m_VDP2VRAMSyncMode == VDP2VRAMSyncMode::Scanline && m_context->dirtyVDP2VRAM) ||
+                               m_context->dirtyVDP2CRAM || m_context->dirtyVDP2BGRenderState ||
+                               m_context->dirtyVDP2RotParamState || m_context->dirtyVDP2ComposeParams;
         const bool compose = m_context->dirtyVDP2ComposeParams;
         if (renderBGs) {
             VDP2RenderBGLines(y - 1);
@@ -1752,6 +1759,9 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     VDP2ComposeLines(m_VRes - 1);
 
     VDP2UpdateState();
+    if (m_VDP2VRAMSyncMode == VDP2VRAMSyncMode::Frame) {
+        VDP2UpdateVRAM();
+    }
 
     auto &ctx = m_context->VDP2Context;
 
@@ -2368,7 +2378,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateState() {
-    VDP2UpdateVRAM();
+    if (m_VDP2VRAMSyncMode == VDP2VRAMSyncMode::Scanline) {
+        VDP2UpdateVRAM();
+    }
     VDP2UpdateCRAM();
     VDP2UpdateBGRenderState();
     VDP2UpdateRotParamStates();
