@@ -398,6 +398,10 @@ bool DeviceManager::ExecutePendingCommandLists(bool restoreState, HardwareRender
     }
     for (size_t i = 0; i < m_cmdListQueue.size(); ++i) {
         ID3D11CommandList *cmdList = m_cmdListQueue[i];
+        if (cmdList == nullptr) {
+            // Skip no-op commands. These might be enqueued to process other events.
+            continue;
+        }
         hwCallbacks.PreExecuteCommandList(i == 0);
         m_immediateCtx->ExecuteCommandList(cmdList, restoreState);
         cmdList->Release();

@@ -3,6 +3,7 @@
 #include <ymir/hw/vdp/renderer/common/vdp1_steppers.hpp>
 
 #include <ymir/util/bit_ops.hpp>
+#include <ymir/util/event.hpp>
 #include <ymir/util/inline.hpp>
 #include <ymir/util/scope_guard.hpp>
 
@@ -18,6 +19,7 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <mutex>
@@ -66,8 +68,14 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
 
-    ID3D11Buffer *bufVDP1FBRAMUp = nullptr; //< VDP1 framebuffer RAM upload staging buffer (CPU->GPU transfers)
-    bool dirtyVDP1FBRAMUp = true;           //< VDP1 framebuffer RAM upload staging buffer dirty flag
+    ID3D11Buffer *bufVDP1FBRAMDown = nullptr;           //< VDP1 FBRAM download staging buffer (GPU->CPU transfers)
+    std::atomic_bool requestVDP1FBRAMDown = false;      //< VDP1 FBRAM download requested
+    util::Event eventVDP1FBRAMDownloaded{false};        //< VDP1 FBRAM downloaded to CPU staging buffer
+    std::array<uint8, kVDP1FBRAMSize> cpuVDP1FBRAMDown; //< VDP1 FBRAM CPU staging buffer
+    bool dirtyVDP1FBRAMDown = false;                    //< VDP1 FBRAM staging buffer ready to be copied to VDP1 state
+
+    ID3D11Buffer *bufVDP1FBRAMUp = nullptr; //< VDP1 FBRAM upload staging buffer (CPU->GPU transfers)
+    bool dirtyVDP1FBRAMUp = true;           //< VDP1 FBRAM upload staging buffer dirty flag
 
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase/swap shader
@@ -227,8 +235,16 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->cbufVDP1RenderConfig, "[Ymir D3D11] VDP1 rendering configuration constant buffer");
 
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMDown, nullptr, nullptr, kVDP1FBRAMSize,
+                                                    nullptr, 0, D3D11_CPU_ACCESS_READ);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1FBRAMDown, "[Ymir D3D11] VDP1 FBRAM download staging buffer");
+
     if (HRESULT hr =
-            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMUp, nullptr, nullptr, kVDP1FramebufferRAMSize,
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMUp, nullptr, nullptr, kVDP1FBRAMSize,
                                            m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
@@ -538,17 +554,32 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     m_valid = true;
 }
 
-Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
+Direct3D11VDPRenderer::~Direct3D11VDPRenderer() {
+    m_context->eventVDP1FBRAMDownloaded.Set();
+}
 
 void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
     if (m_context->DeviceManager.ExecutePendingCommandLists(m_restoreState, HwCallbacks)) {
-        // TODO: copy VDP1 FBRAM if needed, then signal render thread to copy it to the VDP state
+        bool expected = true;
+        if (m_context->requestVDP1FBRAMDown.compare_exchange_strong(expected, false, std::memory_order_acquire)) {
+            auto *immCtx = m_context->DeviceManager.GetImmediateContext();
+            D3D11_MAPPED_SUBRESOURCE mappedResource;
+            if (HRESULT hr = immCtx->Map(m_context->bufVDP1FBRAMDown, 0, D3D11_MAP_READ, 0, &mappedResource);
+                SUCCEEDED(hr)) {
+                memcpy(m_context->cpuVDP1FBRAMDown.data(), mappedResource.pData, m_context->cpuVDP1FBRAMDown.size());
+                immCtx->Unmap(m_context->bufVDP1FBRAMDown, 0);
+            }
+            m_context->eventVDP1FBRAMDownloaded.Set();
+        }
     }
 }
 
 void Direct3D11VDPRenderer::DiscardPendingCommandLists() {
     if (m_context->DeviceManager.DiscardPendingCommandLists()) {
-        // TODO: unblock renderer thread in case it is waiting for a VDP1 FBRAM copy
+        bool expected = true;
+        if (m_context->requestVDP1FBRAMDown.compare_exchange_strong(expected, false, std::memory_order_acquire)) {
+            m_context->eventVDP1FBRAMDownloaded.Set();
+        }
     }
 }
 
@@ -615,6 +646,10 @@ void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint8 value) {
 void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint16 value) {
     // The address is always word-aligned, so the value will never straddle two pages
     m_context->dirtyVDP1VRAM.Set(address >> kVRAMPageBits);
+}
+
+void Direct3D11VDPRenderer::VDP1SyncFB() {
+    VDP1CopyDownloadedFBRAM();
 }
 
 void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {
@@ -947,10 +982,6 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     m_context->DeviceManager.EnqueueCommandList(commandList);
 
     HwCallbacks.CommandListReady(false);
-
-    // TODO: copy bufVDP1FBRAMDown to m_state.spriteFB[displayFB]
-    // - must be done on the main thread; sync point here
-
     Callbacks.VDP1FramebufferSwap();
 }
 
@@ -1293,17 +1324,34 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DownloadFBRAM(size_t fbIndex) {
-    // TODO: Download FBRAM to copy to CPU-side array
-    /*const D3D11_BOX srcBox{
-        .left = static_cast<UINT>(fbIndex * kVDP1FramebufferRAMSize),
+    // Download FBRAM to copy to CPU-side array
+    const D3D11_BOX srcBox{
+        .left = static_cast<UINT>(fbIndex * kVDP1FBRAMSize),
         .top = 0,
         .front = 0,
-        .right = static_cast<UINT>(srcBox.left + kVDP1FramebufferRAMSize),
+        .right = static_cast<UINT>(srcBox.left + kVDP1FBRAMSize),
         .bottom = 1,
         .back = 1,
     };
     m_context->VDP1Context.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown, 0, 0, 0, 0,
-                                                                       m_context->bufVDP1PolyOut, 0, &srcBox);*/
+                                                                       m_context->bufVDP1PolyOut, 0, &srcBox);
+    m_context->dirtyVDP1FBRAMDown = true;
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1CopyDownloadedFBRAM() {
+    if (!m_context->dirtyVDP1FBRAMDown) {
+        return;
+    }
+    m_context->dirtyVDP1FBRAMDown = false;
+
+    // Send empty command list to copy VDP1 FBRAM and wait for it to be processed
+    m_context->DeviceManager.EnqueueCommandList(nullptr);
+    m_context->requestVDP1FBRAMDown.store(true, std::memory_order_release);
+    m_context->eventVDP1FBRAMDownloaded.Wait();
+    m_context->eventVDP1FBRAMDownloaded.Reset();
+
+    // Copy from staging buffer to VDP1 state
+    m_state.spriteFB[m_state.displayFB] = m_context->cpuVDP1FBRAMDown;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
@@ -1322,12 +1370,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
         .left = 0,
         .top = 0,
         .front = 0,
-        .right = static_cast<UINT>(srcBox.left + kVDP1FramebufferRAMSize),
+        .right = static_cast<UINT>(srcBox.left + kVDP1FBRAMSize),
         .bottom = 1,
         .back = 1,
     };
     ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1PolyOut, 0,
-                                                    static_cast<UINT>(fbIndex * kVDP1FramebufferRAMSize), 0, 0,
+                                                    static_cast<UINT>(fbIndex * kVDP1FBRAMSize), 0, 0,
                                                     m_context->bufVDP1FBRAMUp, 0, &srcBox);
 }
 
