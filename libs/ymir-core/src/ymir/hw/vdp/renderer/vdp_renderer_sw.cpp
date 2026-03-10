@@ -2390,6 +2390,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
     std::array<uint8, 4> pn = {0, 0, 0, 0}; // pattern name access masks
     std::array<uint8, 4> cp = {0, 0, 0, 0}; // character pattern access masks
 
+    // Character pattern access masks per bank
+    std::array<std::array<uint8, 4>, 4> cpBank = {{
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0},
+    }};
+
     // First CP access timing slot per NBG. 0xFF means no accesses found.
     std::array<uint8, 4> firstCPAccessTiming = {0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -2433,12 +2441,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
             {
                 const uint8 bgIndex = static_cast<uint8>(timing) - static_cast<uint8>(CyclePatterns::CharPatNBG0);
                 cp[bgIndex] |= 1u << i;
+                cpBank[bgIndex][bankIndex] |= 1u << i;
 
                 // TODO: find the correct rules for bitmap accesses
                 //
                 // Test cases:
                 //
                 // clang-format off
+                // --- bitmap NBGs ---
                 //  # Res  ZM  Color  Bnk  CP mapping    Delay?  Game screen
                 //  1 hi   1x  pal256  A   CP0 01..      no      Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
                 //                     B   CP0 ..23      yes     Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
@@ -2458,17 +2468,41 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 //                     B1  CP0 0123      no      Sonic Jam, art gallery
                 //  7 hi   1x  rgb555  A   CP0 0123      no      Steam Heart's, title screen
                 //                     B   CP0 0123      no      Steam Heart's, title screen
-                //  8 lo   1x  pal16       CP? 0123....  no      Groove on Fight, scrolling background in Options screen
-                //  9 lo   1x  pal256      CP? 01......  no      Mr. Bones, in-game graphics
-                // 10 lo   1x  pal256      CP? 01......  no      DoDonPachi, title screen background
-                // 11 lo   1x  pal256      CP? 01......  no      Jung Rhythm, title screen
-                // 12 lo   1x  pal256      CP? 01......  no      The Need for Speed, menus
-                // 13 lo   1x  pal256      CP? ..23....  no      The Legend of Oasis, in-game HUD
-                // 14 lo   1x  rgb555      CP? 0123....  no      Jung Rhythm, title screen
-                // 15 lo   1x  rgb888      CP? 01234567  no      Street Fighter Zero 3, Capcom logo FMV
+                //  8 lo   1x  pal256  A0  CP0 01......  no      Mr. Bones, in-game graphics
+                //  9 lo   1x  pal256  B0  CP0 0123....  no      Jung Rhythm, title screen
+                //                     B1  CP0 0123....  no      Jung Rhythm, title screen
+                //                     A0  CP1 01......  no      Jung Rhythm, title screen
+                // 10 lo   1x  pal256  A0  CP0 01......  no      The Need for Speed, menus
+                //                     A1  CP1 01......  no      The Need for Speed, menus
+                // 11 lo   1x  pal256  A   CP0 ..23....  no      The Legend of Oasis, in-game HUD
+                // 12 lo   1x  rgb888  A   CP0 01234567  no      Street Fighter Zero 3, Capcom logo FMV
+                //                     B0  CP0 01234567  no      Street Fighter Zero 3, Capcom logo FMV
+                // --- scroll NBGs ---
+                // 13 lo   1x  pal256  -   PN0 ........          DoDonPachi, title screen background
+                //                     A   CP0 01......  no      DoDonPachi, title screen background
+                // 14 lo   1x  pal16   -   PN1 ........          Groove on Fight, scrolling background in Options screen
+                //                     B0  CP1 0123....  no      Groove on Fight, scrolling background in Options screen
+                //                     B1  CP1 0123....  no      Groove on Fight, scrolling background in Options screen
+                // 15 lo   1x  pal16   A0  PN2 0.......          World Heroes Perfect, menus and intro animation
+                //                     A0  CP2 ...3....  yes     World Heroes Perfect, menus and intro animation
+                //                     B   CP2 .1......  no      World Heroes Perfect, menus and intro animation
+                // 16 lo   1x  pal16   B   PN0 0.......          Cyberbots - Fullmetal Madness, in-game
+                //                     A   CP0 0.......  no      Cyberbots - Fullmetal Madness, in-game
+                //                     B   CP0 ....4...  no      Cyberbots - Fullmetal Madness, in-game
+                //                     B   PN1 .1......          Cyberbots - Fullmetal Madness, in-game
+                //                     A   CP1 .1......  no      Cyberbots - Fullmetal Madness, in-game
+                //                     B   CP1 .....5..  no      Cyberbots - Fullmetal Madness, in-game
+                //                     B   PN2 ..2.....          Cyberbots - Fullmetal Madness, in-game
+                //                     A   CP2 ..2.....  no      Cyberbots - Fullmetal Madness, in-game
+                //                     B   CP2 ......6.  no      Cyberbots - Fullmetal Madness, in-game
+                //                     B   PN3 ...3....          Cyberbots - Fullmetal Madness, in-game
+                //                     A   CP3 ...3....  no      Cyberbots - Fullmetal Madness, in-game
+                //                     B   CP3 .......7  no      Cyberbots - Fullmetal Madness, in-game
                 // clang-format on
                 //
-                // Seems like the "delay" is caused by configuring out-of-phase reads for an NBG in different banks.
+                // Seems like the bitmap "delay" is caused by configuring out-of-phase reads for an NBG in different
+                // banks, and it only seems to happen in hi-res modes.
+                //
                 // In case #1, CP0 is assigned to T0-T1 on bank A and T2-T3 on bank B. This is out of phase and on
                 // different VRAM chips, so bank B reads are delayed.
                 // In case #2, CP1 is assigned to T0-T1 on bank B0 and T2-T3 on bank B1. Despite being out of phase,
@@ -2478,10 +2512,15 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // Case #4 has no delay because all reads for the same NBG are assigned to the same cycle slot.
                 // Cases #5 and #6 include more reads than necessary for the NBG, but because they all start on the same
                 // slot, no delay occurs.
+                //
+                // For scroll NBGs, the delay only occurs if CP accesses are assigned to illegal timing slots.
+                // Cases #13 and #14 illustrate that the PN access is actually optional (perhaps only for NBG0-1?).
+                // In case #15, the CP2 access in bank A0 is assigned to T3, which is illegal for PN at T0.
+                // Case #16 shows legal accesses. Note that there are CP0-CP3 accesses in both the T0-T3 and T4-T7
+                // ranges, but this does not cause the T4-T7 accesses to be shifted.
 
-                // FIXME: bitmap delay seems to only apply to hi-res modes
                 auto &bgParams = regs2.bgParams[bgIndex + 1];
-                if (!bgParams.bitmap || hires) {
+                if (bgParams.bitmap && hires) {
                     const uint8 vramIndex = bankIndex >> 1u;
                     if (firstCPAccessTiming[bgIndex] == 0xFF) {
                         firstCPAccessTiming[bgIndex] = i;
@@ -2561,8 +2600,16 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
 
             for (uint8 pnIndex = 0; pnIndex < 8; ++pnIndex) {
                 if ((bgPN & (1u << pnIndex)) != 0) {
-                    bgParams.charPatDelay = (bgCP & kPatterns[pnIndex]) == 0;
-                    break;
+                    for (uint8 bankIndex = 0; bankIndex < 4; ++bankIndex) {
+                        const uint8 bgCPBank = cpBank[i][bankIndex];
+                        if (bgCPBank != 0 && (bgCPBank & kPatterns[pnIndex]) == 0) {
+                            bgParams.vramDataOffset[bankIndex] = 8u;
+                        }
+                    }
+                    if ((bgCP & kPatterns[pnIndex]) == 0) {
+                        bgParams.charPatDelay = true;
+                        break;
+                    }
                 }
             }
         }
