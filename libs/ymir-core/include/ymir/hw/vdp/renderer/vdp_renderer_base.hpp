@@ -108,6 +108,9 @@ public:
     /// @param[in] value the value to write
     virtual void VDP1WriteVRAM(uint32 address, uint16 value) = 0;
 
+    /// @brief Synchronizes the VDP1 FBRAM for reads.
+    virtual void VDP1SyncFB() = 0;
+
     /// @brief Writes a byte to VDP1 framebuffer RAM.
     /// @param[in] address the address to write at
     /// @param[in] value the value to write

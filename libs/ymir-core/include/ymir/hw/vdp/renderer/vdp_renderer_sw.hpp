@@ -107,6 +107,8 @@ public:
     template <mem_primitive_16 T>
     void VDP1WriteVRAMImpl(uint32 address, T value);
 
+    void VDP1SyncFB() override {}
+
     void VDP1WriteFB(uint32 address, uint8 value) override;
     void VDP1WriteFB(uint32 address, uint16 value) override;
 

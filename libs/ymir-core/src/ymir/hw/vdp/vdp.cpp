@@ -392,6 +392,7 @@ FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
 
 template <mem_primitive_16 T>
 FORCE_INLINE T VDP::VDP1ReadFB(uint32 address) const {
+    m_renderer->VDP1SyncFB();
     return m_state.VDP1ReadFB<T>(address);
 }
 

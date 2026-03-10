@@ -79,6 +79,7 @@ public:
 
     void VDP1WriteVRAM(uint32 address, uint8 value) override;
     void VDP1WriteVRAM(uint32 address, uint16 value) override;
+    void VDP1SyncFB() override;
     void VDP1WriteFB(uint32 address, uint8 value) override;
     void VDP1WriteFB(uint32 address, uint16 value) override;
     void VDP1WriteReg(uint32 address, uint16 value) override;
@@ -182,6 +183,9 @@ private:
     /// @brief Downloads the specified VDP1 FBRAM from the GPU.
     /// @param[in] fbIndex the index of the framebuffer to download
     void VDP1DownloadFBRAM(size_t fbIndex);
+
+    /// @brief Copies the downloaded VDP1 FBRAM from the CPU staging buffer to the VDP1 FBRAM if needed.
+    void VDP1CopyDownloadedFBRAM();
 
     /// @brief Uploads the specified VDP1 FBRAM to the GPU if there were CPU writes.
     /// @param[in] fbIndex the index of the framebuffer to upload

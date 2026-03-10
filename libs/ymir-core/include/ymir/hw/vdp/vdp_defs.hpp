@@ -22,7 +22,7 @@ namespace ymir::vdp {
 // Memory chip sizes
 
 inline constexpr std::size_t kVDP1VRAMSize = 512_KiB;
-inline constexpr std::size_t kVDP1FramebufferRAMSize = 256_KiB;
+inline constexpr std::size_t kVDP1FBRAMSize = 256_KiB;
 inline constexpr std::size_t kVDP2VRAMSize = 512_KiB;
 inline constexpr std::size_t kVDP2CRAMSize = 4_KiB;
 
@@ -44,7 +44,7 @@ inline constexpr uint32 kMaxResV = 512; // Maximum vertical resolution
 // -----------------------------------------------------------------------------
 // VDP1
 
-using SpriteFB = std::array<uint8, kVDP1FramebufferRAMSize>;
+using SpriteFB = std::array<uint8, kVDP1FBRAMSize>;
 
 // -----------------------------------------------------------------------------
 // VDP2
