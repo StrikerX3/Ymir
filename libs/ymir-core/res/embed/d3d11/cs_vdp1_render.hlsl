@@ -77,22 +77,6 @@ uint BitExtract(uint value, uint offset, uint length) {
     return (value >> offset) & mask;
 }
 
-int SignExtend(int value, int bits) {
-    const uint shift = 32 - bits;
-    return (value << shift) >> shift;
-}
-
-int2 Extract16PairSX(uint value32, int bits) {
-    return int2(
-        SignExtend(BitExtract(value32, 0, 16), bits),
-        SignExtend(BitExtract(value32, 16, 16), bits)
-    );
-}
-
-int2 Extract16PairS(uint value32) {
-    return Extract16PairSX(value32, 16);
-}
-
 uint2 Extract16PairU(uint value32) {
     return uint2(
         BitExtract(value32, 0, 16),
@@ -105,24 +89,12 @@ uint ByteSwap16(uint val) {
            ((val << 8) & 0xFF00);
 }
 
-uint ByteSwap32(uint val) {
-    return ((val >> 24) & 0x000000FF) |
-           ((val >> 8) & 0x0000FF00) |
-           ((val << 8) & 0x00FF0000) |
-           ((val << 24) & 0xFF000000);
-}
-
 uint ReadVRAM8(uint address) {
     return BitExtract(vram.Load(address & ~3), (address & 3) * 8, 8);
 }
 
 uint ReadVRAM16(uint address) {
     return ByteSwap16(BitExtract(vram.Load(address & ~3), (address & 2) * 8, 16));
-}
-
-// Expects address to be 32-bit-aligned
-uint ReadVRAM32(uint address) {
-    return ByteSwap32(vram.Load(address));
 }
 
 uint ReadFB8(uint address) {
@@ -252,16 +224,6 @@ struct TextureStepper {
         value = baseValue;
     }
 
-    // Advances to the next pixel.
-    void StepPixel() {
-        accum += num;
-    }
-
-    // Skips the specified number of pixels.
-    void SkipPixels(uint count) {
-        accum += num * count;
-    }
-
     // Moves to the pixel at the specified step.
     void SetPixel(uint step) {
         accum = baseAccum + num * step;
@@ -330,11 +292,6 @@ struct GouraudChannelStepper {
                 accum += den;
             }
         }
-    }
-
-    // Retrieves the current gouraud shading value.
-    uint Value() {
-        return value;
     }
 
     // Blends the given base color value with the current gouraud shading value.
