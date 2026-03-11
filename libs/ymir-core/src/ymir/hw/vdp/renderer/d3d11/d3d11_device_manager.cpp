@@ -387,21 +387,21 @@ bool DeviceManager::CreateComputeShader(ID3D11ComputeShader *&csOut, const char 
 }
 
 void DeviceManager::EnqueueCommandList(ID3D11CommandList *cmdList) {
+    if (cmdList == nullptr) {
+        return;
+    }
     std::unique_lock lock{m_mtxCmdList};
     m_cmdListQueue.push_back(cmdList);
 }
 
 bool DeviceManager::ExecutePendingCommandLists(bool restoreState, HardwareRendererCallbacks &hwCallbacks) {
-    std::unique_lock lock{m_mtxCmdList};
+    std::unique_lock listLock{m_mtxCmdList};
     if (m_cmdListQueue.empty()) {
         return false;
     }
+    std::unique_lock ctxLock{m_mtxImmCtx};
     for (size_t i = 0; i < m_cmdListQueue.size(); ++i) {
         ID3D11CommandList *cmdList = m_cmdListQueue[i];
-        if (cmdList == nullptr) {
-            // Skip no-op commands. These might be enqueued to process other events.
-            continue;
-        }
         hwCallbacks.PreExecuteCommandList(i == 0);
         m_immediateCtx->ExecuteCommandList(cmdList, restoreState);
         cmdList->Release();

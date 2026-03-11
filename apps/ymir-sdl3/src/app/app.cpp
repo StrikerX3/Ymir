@@ -3733,172 +3733,177 @@ void App::RunEmulator() {
 
         SDL_Renderer *renderer = m_graphicsService.GetRenderer();
 
-        // Clear screen
-        const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
-        SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
-        SDL_RenderClear(renderer);
+        vdp.GetRenderer().RunSync([&] {
+            // Clear screen
+            const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
+            SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
+            SDL_RenderClear(renderer);
 
-        // Draw Saturn screen
-        if (!settings.video.displayVideoOutputInWindow) {
-            const auto &videoSettings = settings.video;
-            const bool forceAspectRatio = videoSettings.forceAspectRatio;
-            const double forcedAspect = videoSettings.forcedAspect;
-            const bool aspectRatioChanged = forceAspectRatio && forcedAspect != prevForcedAspect;
-            const bool forceAspectRatioChanged = prevForceAspectRatio != forceAspectRatio;
-            const bool screenSizeChanged = aspectRatioChanged || forceAspectRatioChanged || screen.resolutionChanged;
-            const bool fitWindowToScreen =
-                (videoSettings.autoResizeWindow && screenSizeChanged) || fitWindowToScreenNow;
-            const bool horzDisplay = videoSettings.rotation == Settings::Video::DisplayRotation::Normal ||
-                                     videoSettings.rotation == Settings::Video::DisplayRotation::_180;
+            // Draw Saturn screen
+            if (!settings.video.displayVideoOutputInWindow) {
+                const auto &videoSettings = settings.video;
+                const bool forceAspectRatio = videoSettings.forceAspectRatio;
+                const double forcedAspect = videoSettings.forcedAspect;
+                const bool aspectRatioChanged = forceAspectRatio && forcedAspect != prevForcedAspect;
+                const bool forceAspectRatioChanged = prevForceAspectRatio != forceAspectRatio;
+                const bool screenSizeChanged =
+                    aspectRatioChanged || forceAspectRatioChanged || screen.resolutionChanged;
+                const bool fitWindowToScreen =
+                    (videoSettings.autoResizeWindow && screenSizeChanged) || fitWindowToScreenNow;
+                const bool horzDisplay = videoSettings.rotation == Settings::Video::DisplayRotation::Normal ||
+                                         videoSettings.rotation == Settings::Video::DisplayRotation::_180;
 
-            float menuBarHeight = drawMainMenu ? ImGui::GetFrameHeight() : 0.0f;
+                float menuBarHeight = drawMainMenu ? ImGui::GetFrameHeight() : 0.0f;
 
-            // Get window size
-            int ww, wh;
-            SDL_GetWindowSize(screen.window, &ww, &wh);
+                // Get window size
+                int ww, wh;
+                SDL_GetWindowSize(screen.window, &ww, &wh);
 
+#if defined(__APPLE__)
+                // Logical->Physical window-coordinate fix primarily for MacOS Retina displays
+                const float pixelDensity = SDL_GetWindowPixelDensity(screen.window);
+                ww *= pixelDensity;
+                wh *= pixelDensity;
+
+                menuBarHeight *= pixelDensity;
+#endif
+
+                wh -= menuBarHeight;
+
+                double baseWidth = forceAspectRatio ? std::ceil(screen.height * screen.scaleY * forcedAspect)
+                                                    : screen.width * screen.scaleX;
+                double baseHeight = screen.height * screen.scaleY;
+                if (!horzDisplay) {
+                    std::swap(baseWidth, baseHeight);
+                }
+
+                double scale;
+                if (forceScreenScale) {
+                    const bool doubleRes = screen.width >= 640 || screen.height >= 400;
+                    scale = doubleRes ? forcedScreenScale : forcedScreenScale * 2;
+                } else {
+                    // Compute maximum scale to fit the display given the constraints above
+                    double scaleFactor = 1.0;
+
+                    const double scaleX = (double)ww / baseWidth;
+                    const double scaleY = (double)wh / baseHeight;
+                    scale = std::max(1.0, std::min(scaleX, scaleY));
+
+                    // Preserve the previous scale if the aspect ratio changed or the force option was just
+                    // enabled/disabled when fitting the window to the screen
+                    if (fitWindowToScreen) {
+                        int screenWidth = screen.width;
+                        int screenHeight = screen.height;
+                        int screenScaleX = screen.scaleX;
+                        int screenScaleY = screen.scaleY;
+                        if (screen.resolutionChanged) {
+                            // Handle double resolution scaling
+                            const bool currDoubleRes = screen.prevWidth >= 640 || screen.prevHeight >= 400;
+                            const bool nextDoubleRes = screen.width >= 640 || screen.height >= 400;
+                            if (currDoubleRes != nextDoubleRes) {
+                                scaleFactor = nextDoubleRes ? 0.5 : 2.0;
+                            }
+                            screenWidth = screen.prevWidth;
+                            screenHeight = screen.prevHeight;
+                            screenScaleX = screen.prevScaleX;
+                            screenScaleY = screen.prevScaleY;
+                        }
+                        if (screenSizeChanged) {
+                            double baseWidth = forceAspectRatio
+                                                   ? std::ceil(screenHeight * screenScaleY * prevForcedAspect)
+                                                   : screenWidth * screenScaleX;
+                            double baseHeight = screenHeight * screenScaleY;
+                            if (!horzDisplay) {
+                                std::swap(baseWidth, baseHeight);
+                            }
+                            const double scaleX = (double)ww / baseWidth;
+                            const double scaleY = (double)wh / baseHeight;
+                            scale = std::max(1.0, std::min(scaleX, scaleY));
+                        }
+                    }
+                    scale *= scaleFactor;
+                    if (videoSettings.forceIntegerScaling) {
+                        scale = floor(scale);
+                    }
+                }
+                int scaledWidth = baseWidth * scale;
+                int scaledHeight = baseHeight * scale;
+
+                // Resize window without moving the display position relative to the screen
+                if (fitWindowToScreen && (ww != scaledWidth || wh != scaledHeight)) {
+                    int wx, wy;
+                    SDL_GetWindowPosition(screen.window, &wx, &wy);
+
+                    // Get window decoration borders in order to prevent moving it off the screen
+                    int wbt = 0;
+                    int wbl = 0;
+                    SDL_GetWindowBordersSize(screen.window, &wbt, &wbl, nullptr, nullptr);
+
+                    int dx = scaledWidth - ww;
+                    int dy = scaledHeight - wh;
+                    SDL_SetWindowSize(screen.window, scaledWidth, scaledHeight + menuBarHeight);
+
+                    int nwx = std::max(wx - dx / 2, wbt);
+                    int nwy = std::max(wy - dy / 2, wbl);
+                    SDL_SetWindowPosition(screen.window, nwx, nwy);
+                }
+                if (!horzDisplay) {
+                    std::swap(scaledWidth, scaledHeight);
+                }
+
+                // Render framebuffer to display texture
+                renderDispTexture(scaledWidth, scaledHeight);
+
+                // Determine how much slack there is on each axis in order to center the image on the window
+                const int slackX = ww - scaledWidth;
+                const int slackY = wh - scaledHeight;
+
+                double rotAngle;
+                switch (videoSettings.rotation) {
+                default: [[fallthrough]];
+                case Settings::Video::DisplayRotation::Normal: rotAngle = 0.0; break;
+                case Settings::Video::DisplayRotation::_90CW: rotAngle = 90.0; break;
+                case Settings::Video::DisplayRotation::_180: rotAngle = 180.0; break;
+                case Settings::Video::DisplayRotation::_90CCW: rotAngle = 270.0; break;
+                }
+
+                // Draw the texture
+                SDL_FRect srcRect{.x = 0.0f,
+                                  .y = 0.0f,
+                                  .w = (float)(screen.width * screen.fbScale),
+                                  .h = (float)(screen.height * screen.fbScale)};
+                SDL_FRect dstRect{.x = floorf(slackX * 0.5f),
+                                  .y = floorf(slackY * 0.5f + menuBarHeight),
+                                  .w = (float)scaledWidth,
+                                  .h = (float)scaledHeight};
+                SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
+                SDL_RenderTextureRotated(renderer, dispTexturePtr, &srcRect, &dstRect, rotAngle, nullptr,
+                                         SDL_FLIP_NONE);
+
+                screen.scale = scale;
+                screen.dCenterX = dstRect.x + dstRect.w * 0.5f;
+                screen.dCenterY = dstRect.y + dstRect.h * 0.5f;
+                screen.dSizeX = dstRect.w;
+                screen.dSizeY = dstRect.h;
+            }
+
+            screen.resolutionChanged = false;
+
+            // Render ImGui widgets
 #if defined(__APPLE__)
             // Logical->Physical window-coordinate fix primarily for MacOS Retina displays
             const float pixelDensity = SDL_GetWindowPixelDensity(screen.window);
-            ww *= pixelDensity;
-            wh *= pixelDensity;
-
-            menuBarHeight *= pixelDensity;
+            SDL_SetRenderScale(renderer, pixelDensity, pixelDensity);
 #endif
 
-            wh -= menuBarHeight;
-
-            double baseWidth = forceAspectRatio ? std::ceil(screen.height * screen.scaleY * forcedAspect)
-                                                : screen.width * screen.scaleX;
-            double baseHeight = screen.height * screen.scaleY;
-            if (!horzDisplay) {
-                std::swap(baseWidth, baseHeight);
-            }
-
-            double scale;
-            if (forceScreenScale) {
-                const bool doubleRes = screen.width >= 640 || screen.height >= 400;
-                scale = doubleRes ? forcedScreenScale : forcedScreenScale * 2;
-            } else {
-                // Compute maximum scale to fit the display given the constraints above
-                double scaleFactor = 1.0;
-
-                const double scaleX = (double)ww / baseWidth;
-                const double scaleY = (double)wh / baseHeight;
-                scale = std::max(1.0, std::min(scaleX, scaleY));
-
-                // Preserve the previous scale if the aspect ratio changed or the force option was just enabled/disabled
-                // when fitting the window to the screen
-                if (fitWindowToScreen) {
-                    int screenWidth = screen.width;
-                    int screenHeight = screen.height;
-                    int screenScaleX = screen.scaleX;
-                    int screenScaleY = screen.scaleY;
-                    if (screen.resolutionChanged) {
-                        // Handle double resolution scaling
-                        const bool currDoubleRes = screen.prevWidth >= 640 || screen.prevHeight >= 400;
-                        const bool nextDoubleRes = screen.width >= 640 || screen.height >= 400;
-                        if (currDoubleRes != nextDoubleRes) {
-                            scaleFactor = nextDoubleRes ? 0.5 : 2.0;
-                        }
-                        screenWidth = screen.prevWidth;
-                        screenHeight = screen.prevHeight;
-                        screenScaleX = screen.prevScaleX;
-                        screenScaleY = screen.prevScaleY;
-                    }
-                    if (screenSizeChanged) {
-                        double baseWidth = forceAspectRatio ? std::ceil(screenHeight * screenScaleY * prevForcedAspect)
-                                                            : screenWidth * screenScaleX;
-                        double baseHeight = screenHeight * screenScaleY;
-                        if (!horzDisplay) {
-                            std::swap(baseWidth, baseHeight);
-                        }
-                        const double scaleX = (double)ww / baseWidth;
-                        const double scaleY = (double)wh / baseHeight;
-                        scale = std::max(1.0, std::min(scaleX, scaleY));
-                    }
-                }
-                scale *= scaleFactor;
-                if (videoSettings.forceIntegerScaling) {
-                    scale = floor(scale);
-                }
-            }
-            int scaledWidth = baseWidth * scale;
-            int scaledHeight = baseHeight * scale;
-
-            // Resize window without moving the display position relative to the screen
-            if (fitWindowToScreen && (ww != scaledWidth || wh != scaledHeight)) {
-                int wx, wy;
-                SDL_GetWindowPosition(screen.window, &wx, &wy);
-
-                // Get window decoration borders in order to prevent moving it off the screen
-                int wbt = 0;
-                int wbl = 0;
-                SDL_GetWindowBordersSize(screen.window, &wbt, &wbl, nullptr, nullptr);
-
-                int dx = scaledWidth - ww;
-                int dy = scaledHeight - wh;
-                SDL_SetWindowSize(screen.window, scaledWidth, scaledHeight + menuBarHeight);
-
-                int nwx = std::max(wx - dx / 2, wbt);
-                int nwy = std::max(wy - dy / 2, wbl);
-                SDL_SetWindowPosition(screen.window, nwx, nwy);
-            }
-            if (!horzDisplay) {
-                std::swap(scaledWidth, scaledHeight);
-            }
-
-            // Render framebuffer to display texture
-            renderDispTexture(scaledWidth, scaledHeight);
-
-            // Determine how much slack there is on each axis in order to center the image on the window
-            const int slackX = ww - scaledWidth;
-            const int slackY = wh - scaledHeight;
-
-            double rotAngle;
-            switch (videoSettings.rotation) {
-            default: [[fallthrough]];
-            case Settings::Video::DisplayRotation::Normal: rotAngle = 0.0; break;
-            case Settings::Video::DisplayRotation::_90CW: rotAngle = 90.0; break;
-            case Settings::Video::DisplayRotation::_180: rotAngle = 180.0; break;
-            case Settings::Video::DisplayRotation::_90CCW: rotAngle = 270.0; break;
-            }
-
-            // Draw the texture
-            SDL_FRect srcRect{.x = 0.0f,
-                              .y = 0.0f,
-                              .w = (float)(screen.width * screen.fbScale),
-                              .h = (float)(screen.height * screen.fbScale)};
-            SDL_FRect dstRect{.x = floorf(slackX * 0.5f),
-                              .y = floorf(slackY * 0.5f + menuBarHeight),
-                              .w = (float)scaledWidth,
-                              .h = (float)scaledHeight};
-            SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
-            SDL_RenderTextureRotated(renderer, dispTexturePtr, &srcRect, &dstRect, rotAngle, nullptr, SDL_FLIP_NONE);
-
-            screen.scale = scale;
-            screen.dCenterX = dstRect.x + dstRect.w * 0.5f;
-            screen.dCenterY = dstRect.y + dstRect.h * 0.5f;
-            screen.dSizeX = dstRect.w;
-            screen.dSizeY = dstRect.h;
-        }
-
-        screen.resolutionChanged = false;
-
-        // Render ImGui widgets
-#if defined(__APPLE__)
-        // Logical->Physical window-coordinate fix primarily for MacOS Retina displays
-        const float pixelDensity = SDL_GetWindowPixelDensity(screen.window);
-        SDL_SetRenderScale(renderer, pixelDensity, pixelDensity);
-#endif
-
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+            ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 
 #if defined(__APPLE__)
-        SDL_SetRenderScale(renderer, 1.0f, 1.0f);
+            SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 #endif
 
-        SDL_RenderPresent(renderer);
+            SDL_RenderPresent(renderer);
+        });
 
         // Process ImGui INI file write requests
         // TODO: compress and include in state blob

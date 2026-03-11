@@ -3,7 +3,6 @@
 #include <ymir/hw/vdp/renderer/common/vdp1_steppers.hpp>
 
 #include <ymir/util/bit_ops.hpp>
-#include <ymir/util/event.hpp>
 #include <ymir/util/inline.hpp>
 #include <ymir/util/scope_guard.hpp>
 
@@ -19,7 +18,6 @@
 #include <fmt/format.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <mutex>
@@ -68,11 +66,9 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *cbufVDP1RenderConfig = nullptr; //< VDP1 rendering configuration constant buffer
     VDP1RenderConfig cpuVDP1RenderConfig{};       //< CPU-side VDP1 rendering configuration
 
-    ID3D11Buffer *bufVDP1FBRAMDown = nullptr;           //< VDP1 FBRAM download staging buffer (GPU->CPU transfers)
-    std::atomic_bool requestVDP1FBRAMDown = false;      //< VDP1 FBRAM download requested
-    util::Event eventVDP1FBRAMDownloaded{false};        //< VDP1 FBRAM downloaded to CPU staging buffer
-    std::array<uint8, kVDP1FBRAMSize> cpuVDP1FBRAMDown; //< VDP1 FBRAM CPU staging buffer
-    bool dirtyVDP1FBRAMDown = false;                    //< VDP1 FBRAM staging buffer ready to be copied to VDP1 state
+    ID3D11Buffer *bufVDP1FBRAMDown = nullptr; //< VDP1 FBRAM download staging buffer (GPU->CPU transfers)
+    bool dirtyVDP1FBRAMDown = false;          //< VDP1 FBRAM staging buffer ready to be copied to VDP1 state
+    bool debugFetchVDP1FBRAMDown = false;     //< VDP1 FBRAM staging buffer should be transferred for debug reads
 
     ID3D11Buffer *bufVDP1FBRAMUp = nullptr; //< VDP1 FBRAM upload staging buffer (CPU->GPU transfers)
     bool dirtyVDP1FBRAMUp = true;           //< VDP1 FBRAM upload staging buffer dirty flag
@@ -554,33 +550,14 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     m_valid = true;
 }
 
-Direct3D11VDPRenderer::~Direct3D11VDPRenderer() {
-    m_context->eventVDP1FBRAMDownloaded.Set();
-}
+Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
 void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
-    if (m_context->DeviceManager.ExecutePendingCommandLists(m_restoreState, HwCallbacks)) {
-        bool expected = true;
-        if (m_context->requestVDP1FBRAMDown.compare_exchange_strong(expected, false, std::memory_order_acquire)) {
-            auto *immCtx = m_context->DeviceManager.GetImmediateContext();
-            D3D11_MAPPED_SUBRESOURCE mappedResource;
-            if (HRESULT hr = immCtx->Map(m_context->bufVDP1FBRAMDown, 0, D3D11_MAP_READ, 0, &mappedResource);
-                SUCCEEDED(hr)) {
-                memcpy(m_context->cpuVDP1FBRAMDown.data(), mappedResource.pData, m_context->cpuVDP1FBRAMDown.size());
-                immCtx->Unmap(m_context->bufVDP1FBRAMDown, 0);
-            }
-            m_context->eventVDP1FBRAMDownloaded.Set();
-        }
-    }
+    m_context->DeviceManager.ExecutePendingCommandLists(m_restoreState, HwCallbacks);
 }
 
 void Direct3D11VDPRenderer::DiscardPendingCommandLists() {
-    if (m_context->DeviceManager.DiscardPendingCommandLists()) {
-        bool expected = true;
-        if (m_context->requestVDP1FBRAMDown.compare_exchange_strong(expected, false, std::memory_order_acquire)) {
-            m_context->eventVDP1FBRAMDownloaded.Set();
-        }
-    }
+    m_context->DeviceManager.DiscardPendingCommandLists();
 }
 
 ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {
@@ -592,6 +569,10 @@ ID3D11Texture2D *Direct3D11VDPRenderer::GetVDP2OutputTexture() const {
 
 bool Direct3D11VDPRenderer::IsValid() const {
     return m_valid;
+}
+
+void Direct3D11VDPRenderer::RunSync(std::function<void()> fn) {
+    m_context->DeviceManager.RunSync(fn);
 }
 
 void Direct3D11VDPRenderer::ResetImpl(bool hard) {
@@ -657,6 +638,10 @@ void Direct3D11VDPRenderer::VDP1WriteVRAM(uint32 address, uint16 value) {
 
 void Direct3D11VDPRenderer::VDP1SyncFB() {
     VDP1CopyDownloadedFBRAM();
+}
+
+void Direct3D11VDPRenderer::VDP1DebugSyncFB() {
+    m_context->debugFetchVDP1FBRAMDown = true;
 }
 
 void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {
@@ -990,6 +975,11 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
     HwCallbacks.CommandListReady(false);
     Callbacks.VDP1FramebufferSwap();
+
+    if (m_context->debugFetchVDP1FBRAMDown) {
+        m_context->debugFetchVDP1FBRAMDown = false;
+        VDP1CopyDownloadedFBRAM();
+    }
 
     if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Swap) {
         VDP1UpdateVRAM();
@@ -1338,7 +1328,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DownloadFBRAM(size_t fbIndex) {
-    // Download FBRAM to copy to CPU-side array
+    // Copy FBRAM to staging buffer
     const D3D11_BOX srcBox{
         .left = static_cast<UINT>(fbIndex * kVDP1FBRAMSize),
         .top = 0,
@@ -1358,14 +1348,16 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1CopyDownloadedFBRAM() {
     }
     m_context->dirtyVDP1FBRAMDown = false;
 
-    // Send empty command list to copy VDP1 FBRAM and wait for it to be processed
-    m_context->DeviceManager.EnqueueCommandList(nullptr);
-    m_context->requestVDP1FBRAMDown.store(true, std::memory_order_release);
-    m_context->eventVDP1FBRAMDownloaded.Wait();
-    m_context->eventVDP1FBRAMDownloaded.Reset();
-
-    // Copy from staging buffer to VDP1 state
-    m_state.spriteFB[m_state.displayFB] = m_context->cpuVDP1FBRAMDown;
+    // Download VDP1 FBRAM straight to VDP1 state
+    m_context->DeviceManager.RunOnImmediateContext([&](ID3D11DeviceContext *immCtx) {
+        D3D11_MAPPED_SUBRESOURCE mappedResource;
+        if (HRESULT hr = immCtx->Map(m_context->bufVDP1FBRAMDown, 0, D3D11_MAP_READ, 0, &mappedResource);
+            SUCCEEDED(hr)) {
+            memcpy(m_state.spriteFB[m_state.displayFB].data(), mappedResource.pData,
+                   m_state.spriteFB[m_state.displayFB].size());
+            immCtx->Unmap(m_context->bufVDP1FBRAMDown, 0);
+        }
+    });
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {

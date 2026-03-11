@@ -4,6 +4,7 @@
 
 #include <d3d11.h>
 
+#include <concepts>
 #include <mutex>
 #include <vector>
 
@@ -228,9 +229,31 @@ public:
     /// @return `true` if any commands were discarded
     bool DiscardPendingCommandLists();
 
+    /// @brief Runs the function with mutex lock.
+    /// @tparam Fn the function type
+    /// @param[in] fn the function to invoke
+    template <typename Fn>
+        requires std::invocable<Fn>
+    void RunSync(Fn &&fn) {
+        std::unique_lock lock{m_mtxImmCtx};
+        fn();
+    }
+
+    /// @brief Runs the function on the immediate context with mutex lock.
+    /// @tparam Fn the function type
+    /// @param[in] fn the function to invoke
+    template <typename Fn>
+        requires std::invocable<Fn, ID3D11DeviceContext *>
+    void RunOnImmediateContext(Fn &&fn) {
+        std::unique_lock lock{m_mtxImmCtx};
+        fn(m_immediateCtx);
+    }
+
 private:
     ID3D11Device *m_device = nullptr;
     ID3D11DeviceContext *m_immediateCtx = nullptr;
+
+    std::mutex m_mtxImmCtx{};
 
     std::mutex m_mtxCmdList{};
     std::vector<ID3D11CommandList *> m_cmdListQueue;

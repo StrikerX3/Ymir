@@ -142,6 +142,11 @@ where:
 
 This callback must be registered by the frontend in order to adjust the screen size.
 
+`ymir::vdp::IVDPRenderer::RunSync(std::function<void()>)` executes the given function in the caller thread and may enter
+a critical section or hold a mutex if necessary to control access to non-thread-safe graphics objects (such as Direct3D
+11's immediate context). Any usage of graphics APIs by the frontend application must be done inside the function passed
+to `RunSync` to avoid race conditions, memory corruption and crashes.
+
 
 
 @subsection sw_renderer Software renderer
@@ -185,10 +190,10 @@ multithreading or minimum shader model version.
 
 Hardware renderers build command lists that must be executed on the thread where graphics is managed (typically the main
 or GUI thread) by invoking `ymir::vdp::HardwareVDPRendererBase::ExecutePendingCommandList()` at an appropriate time in
-the thread, which will execute the latest pending command list if one is available. The application may have to flush
-graphics state prior to executing the command lists or may wish to compute statistics on everry command list executed.
-This can be easily achieved with the pre- and post-execution callbacks that are invoked immediately before and after a
-command list is executed:
+the thread, which will execute all pending command lists. The application may have to flush graphics state prior to
+executing the command lists or may wish to compute statistics on everry command list executed. This can be easily
+achieved with the pre- and post-execution callbacks that are invoked immediately before and after a command list is
+executed:
 
 ```cpp
 void PreExecuteCommandList(bool first, void *userContext)

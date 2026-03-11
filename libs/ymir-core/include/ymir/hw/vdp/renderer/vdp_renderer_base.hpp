@@ -18,6 +18,7 @@
 #include <ymir/util/inline.hpp>
 
 #include <array>
+#include <functional>
 #include <ostream>
 #include <string_view>
 
@@ -42,6 +43,15 @@ public:
     /// @brief Determines if this is a hardware renderer.
     /// @return `true` if this is a hardware renderer, `false` if software or null renderer.
     virtual bool IsHardwareRenderer() const = 0;
+
+    /// @brief Executes the specified function synchronously in the caller thread.
+    ///
+    /// `RunSync` ensures thread safety when accessing graphics resources. It is mandatory to use this function in the
+    /// frontend when using graphics APIs concurrently with a hardware VDP renderer to avoid crashes or memory
+    /// corruption.
+    ///
+    /// @param[in] fn the function to invoke
+    virtual void RunSync(std::function<void()> fn) = 0;
 
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
@@ -128,6 +138,12 @@ public:
 
     /// @brief Synchronizes the VDP1 FBRAM for reads.
     virtual void VDP1SyncFB() = 0;
+
+    /// @brief Synchronizes the VDP1 FBRAM for debug reads.
+    /// Debug reads may not necessarily come from the emulator thread.
+    /// Synchronization is not required to occur immediately. Implementations may choose to delay synchronization to a
+    /// more convenient time, such as the next framebuffer swap.
+    virtual void VDP1DebugSyncFB() = 0;
 
     /// @brief Writes a byte to VDP1 framebuffer RAM.
     /// @param[in] address the address to write at
