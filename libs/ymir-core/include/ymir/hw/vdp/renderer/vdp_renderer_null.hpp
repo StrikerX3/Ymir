@@ -27,6 +27,10 @@ public:
         return false;
     }
 
+    void RunSync(std::function<void()> fn) override {
+        fn();
+    }
+
 protected:
     void ResetImpl(bool hard) override {}
 
@@ -49,6 +53,7 @@ public:
     void VDP1WriteVRAM(uint32 address, uint8 value) override {}
     void VDP1WriteVRAM(uint32 address, uint16 value) override {}
     void VDP1SyncFB() override {}
+    void VDP1DebugSyncFB() override {}
     void VDP1WriteFB(uint32 address, uint8 value) override {}
     void VDP1WriteFB(uint32 address, uint16 value) override {}
     void VDP1WriteReg(uint32 address, uint16 value) override {}
