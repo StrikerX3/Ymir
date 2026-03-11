@@ -17,6 +17,7 @@
       -DYmir_ENABLE_TESTS=OFF
       -DYmir_INCLUDE_PACKAGING=OFF
       -DYmir_DEV_BUILD=OFF
+      -DYmir_AVX2=ON
     GIT_SUBMODULE_STRATEGY: recursive
 
 # Inclusion templates, required for the build to work
