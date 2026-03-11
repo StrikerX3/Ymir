@@ -9,7 +9,7 @@
     #ifndef NOMINMAX
         #define NOMINMAX
     #endif
-    #include <Windows.h>
+    #include <windows.h>
 #elif defined(__APPLE__)
     #include <mach-o/dyld.h>
     #include <pthread.h>

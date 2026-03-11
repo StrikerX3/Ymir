@@ -77,6 +77,10 @@ public:
 
     std::vector<uint8> ReadAll() const final;
 
+    /// @brief Retrieves a pointer to the raw backup RAM data buffer.
+    /// @return a pointer to the raw data, or nullptr if no data is allocated
+    uint8 *Data() { return m_backupRAM ? m_backupRAM->Data() : nullptr; }
+
     bool IsHeaderValid() const final;
 
     uint32 Size() const final;
