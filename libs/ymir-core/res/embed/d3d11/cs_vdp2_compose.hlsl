@@ -122,10 +122,6 @@ bool IsLayerEnabled(uint layer) {
     return BitTest(config.extraParams, layer);
 }
 
-bool IsRBGLineColorEnabled(uint layer) {
-    return BitTest(config.extraParams, layer + 6);
-}
-
 uint GetBGLayerIndex(uint layer) {
     switch (layer) {
         case kLayerSprite:
