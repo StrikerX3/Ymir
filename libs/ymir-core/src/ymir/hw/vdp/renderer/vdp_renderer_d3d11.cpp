@@ -107,9 +107,13 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *bufVDP1LineBinIndices = nullptr;             //< VDP1 line bin indices structured buffer
     ID3D11ShaderResourceView *srvVDP1LineBinIndices = nullptr; //< SRV for VDP1 line bin indices
 
-    ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer (sprite, mesh)
+    ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer
     ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output buffer
     ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output buffer
+
+    ID3D11Buffer *bufVDP1MeshOut = nullptr;              //< VDP1 mesh polygon output buffer
+    ID3D11ShaderResourceView *srvVDP1MeshOut = nullptr;  //< SRV for VDP1 mesh polygon output buffer
+    ID3D11UnorderedAccessView *uavVDP1MeshOut = nullptr; //< UAV for VDP1 mesh polygon output buffer
 
     // =========================================================================
 
@@ -340,6 +344,17 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output buffer");
     SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
     SetDebugName(m_context->uavVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output UAV");
+
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1MeshOut, &m_context->srvVDP1MeshOut,
+                                                    &m_context->uavVDP1MeshOut, sizeof(m_state.spriteFB),
+                                                    m_state.spriteFB.data(), 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1MeshOut, "[Ymir D3D11] VDP1 mesh polygon output buffer");
+    SetDebugName(m_context->srvVDP1MeshOut, "[Ymir D3D11] VDP1 mesh polygon output SRV");
+    SetDebugName(m_context->uavVDP1MeshOut, "[Ymir D3D11] VDP1 mesh polygon output UAV");
 
     // =========================================================================
 
@@ -966,7 +981,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         // Dispatch erase/swap shader
         ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
         ctx.CSSetShaderResources({});
-        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
+        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1MeshOut});
         ctx.CSSetShader(m_context->csVDP1EraseSwap);
         ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
     }
@@ -1173,7 +1188,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1LineParams, m_context->srvVDP1CommandTable,
                               m_context->srvVDP1LineBins, m_context->srvVDP1LineBinIndices});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1MeshOut});
     ctx.CSSetShader(m_context->csVDP1Render);
     ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
                  (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
@@ -1858,7 +1873,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs, m_context->uavVDP2SpriteAttrs});
-    ctx.CSSetShaderResources({m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut}, 3);
+    ctx.CSSetShaderResources({m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut, m_context->srvVDP1MeshOut}, 3);
     ctx.CSSetShader(m_context->csVDP2Sprite);
     ctx.Dispatch(m_HRes / 32, numLines, 1);
 

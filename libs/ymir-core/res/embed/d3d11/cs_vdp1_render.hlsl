@@ -44,6 +44,7 @@ Buffer<uint> lineBins : register(t3);
 Buffer<uint> lineBinIndices : register(t4);
 
 RWByteAddressBuffer fbOut : register(u0);
+RWByteAddressBuffer meshOut : register(u1);
 
 // -----------------------------------------------------------------------------
 
@@ -127,6 +128,38 @@ void WriteFB16(uint address, uint data) {
     uint dummy;
     fbOut.InterlockedAnd(address, mask, dummy);
     fbOut.InterlockedOr(address, data, dummy);
+}
+
+uint ReadMesh8(uint address) {
+    const uint value = meshOut.Load(address & ~3);
+    return (value >> ((address & 3) * 8)) & 0xFF;
+}
+
+uint ReadMesh16(uint address) {
+    const uint value = meshOut.Load(address & ~3);
+    return ByteSwap16(value >> ((address & 2) * 8));
+}
+
+void WriteMesh8(uint address, uint data) {
+    const uint shift = (address & 3) * 8;
+    const uint mask = ~(0xFF << shift);
+    data = (data & 0xFF) << shift;
+
+    address &= ~3;
+    uint dummy;
+    meshOut.InterlockedAnd(address, mask, dummy);
+    meshOut.InterlockedOr(address, data, dummy);
+}
+
+void WriteMesh16(uint address, uint data) {
+    const uint shift = (address & 2) * 8;
+    const uint mask = ~(0xFFFF << shift);
+    data = ByteSwap16(data) << shift;
+
+    address &= ~3;
+    uint dummy;
+    meshOut.InterlockedAnd(address, mask, dummy);
+    meshOut.InterlockedOr(address, data, dummy);
 }
 
 uint4 Uint16ToColor555(uint rawValue) {
@@ -506,12 +539,12 @@ bool IsPixelClipped(const LineParams vdp1line, uint2 coord, bool userClippingEna
     return false;
 }
 
-void PlotPixel(uint2 coord, inout uint pixelData, const uint cmdModeColor, const GouraudStepper gouraudStepper) {
+void PlotPixel(uint2 coord, inout uint pixelData, inout uint meshData, const uint cmdModeColor, const GouraudStepper gouraudStepper) {
     const bool gouraudEnable = BitTest(cmdModeColor, 2);
     const bool meshEnable = BitTest(cmdModeColor, 8);
     const bool msbOn = BitTest(cmdModeColor, 15);
 
-    if (meshEnable && ((coord.x ^ coord.y) & 1)) {
+    if (!transparentMeshes && meshEnable && BitTest(coord.x ^ coord.y, 0)) {
         return;
     }
 
@@ -531,11 +564,11 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint cmdModeColor, const
             // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
 
             if (transparentMeshes && meshEnable) {
-                // TODO: write to mesh layer
+                meshData = value;
             } else {
                 pixelData = value;
                 if (transparentMeshes) {
-                    // TODO: clear pixel from transparent mesh buffer
+                    meshData = 0;
                 }
             }
         } else {
@@ -592,11 +625,11 @@ void PlotPixel(uint2 coord, inout uint pixelData, const uint cmdModeColor, const
             const uint value = Color555ToUint16(dstColor);
 
             if (transparentMeshes && meshEnable) {
-                // TODO: write to mesh layer
+                meshData = value;
             } else {
                 pixelData = value;
                 if (transparentMeshes) {
-                    // TODO: clear pixel from transparent mesh buffer
+                    meshData = 0;
                 }
             }
         }
@@ -707,7 +740,7 @@ uint FindEndCode(uint charAddress, uint uStart, uint uEnd, uint texV, uint charS
     return charSizeH;
 }
 
-void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
+void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshData) {
     LineParams vdp1line = lineParams[lineIndex];
     const uint cmdIndex = BitExtract(vdp1line.params, 0, 10);
 
@@ -800,11 +833,11 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
                     if ((!hasEndCode || !endCodesEnabled) && (!transparent || transparentPixelDisable)) {
                         const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
-                        PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
+                        PlotPixel(pos, pixelData, meshData, texModeColor, gouraudStepper);
                     }
                 }
             } else {
-                PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
+                PlotPixel(pos, pixelData, meshData, cmdModeColor, gouraudStepper);
             }
         }
     }
@@ -838,11 +871,11 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData) {
 
                         if ((!hasEndCode || !endCodesEnabled) && (!transparent || transparentPixelDisable)) {
                             const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
-                            PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
+                            PlotPixel(pos, pixelData, meshData, texModeColor, gouraudStepper);
                         }
                     }
                 } else {
-                    PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
+                    PlotPixel(pos, pixelData, meshData, cmdModeColor, gouraudStepper);
                 }
             }
         }
@@ -866,10 +899,17 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint fbAddr = fbPos.y * fbSizeH + fbPos.x;
 
     uint pixelData;
+    uint meshData;
     if (pixel8Bits) {
         pixelData = ReadFB8(drawFBOffset + fbAddr);
+        if (transparentMeshes) {
+            meshData = ReadMesh8(drawFBOffset + fbAddr);
+        }
     } else {
         pixelData = ReadFB16(drawFBOffset + (fbAddr << 1));
+        if (transparentMeshes) {
+            meshData = ReadMesh16(drawFBOffset + (fbAddr << 1));
+        }
     }
 
     const uint2 binPos = pos / kBinSize;
@@ -893,12 +933,18 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
             continue;
         }
 
-        DrawLine(pos, lineIndex, pixelData);
+        DrawLine(pos, lineIndex, pixelData, meshData);
     }
 
     if (pixel8Bits) {
         WriteFB8(drawFBOffset + fbAddr, pixelData);
+        if (transparentMeshes) {
+            WriteMesh8(drawFBOffset + fbAddr, meshData);
+        }
     } else {
         WriteFB16(drawFBOffset + (fbAddr << 1), pixelData);
+        if (transparentMeshes) {
+            WriteMesh16(drawFBOffset + (fbAddr << 1), meshData);
+        }
     }
 }

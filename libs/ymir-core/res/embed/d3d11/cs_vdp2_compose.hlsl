@@ -57,7 +57,8 @@ static const uint kLayerNBG1_EXBG = 3;
 static const uint kLayerNBG2 = 4;
 static const uint kLayerNBG3 = 5;
 static const uint kLayerBack = 6;
-static const uint kLayerLine = 7; // not used in the stack, but referenced for parameters
+static const uint kLayerLine = 7; // not used in the stack, but referenced by parameters
+static const uint kLayerMesh = 8; // not used in the stack, but referenced by parameters
 
 static const uint kSpriteCCCondPriorityLE = 0;
 static const uint kSpriteCCCondPriorityEQ = 1;
@@ -129,6 +130,8 @@ uint GetBGLayerIndex(uint layer) {
     switch (layer) {
         case kLayerSprite:
             return kBGLayerSprite;
+        case kLayerMesh:
+            return kBGLayerMesh;
         case kLayerRBG0:
             return kBGLayerRBG0;
         case kLayerNBG0_RBG1:
@@ -223,6 +226,7 @@ int3 GetColorOffset(uint layer) {
 uint4 GetLayerOutput(uint layer, uint2 pos) {
     switch (layer) {
         case kLayerSprite:
+        case kLayerMesh:
         case kLayerRBG0:
         case kLayerNBG0_RBG1:
         case kLayerNBG1_EXBG:
@@ -297,24 +301,43 @@ uint3 Compose(uint2 basePos) {
         }
     }
 
-    // TODO: find sprite mesh layer stack position
+    // Find sprite mesh layer stack position
+    uint meshLayer = 0xFF;
+    uint3 meshPixel;
+    if (transparentMeshes && IsLayerEnabled(kLayerSprite)) {
+        const uint4 meshOutput = GetLayerOutput(kLayerMesh, pos);
+        meshPixel = meshOutput.rgb;
+        const Attributes meshAttrs = ToAttributes(meshOutput.a);
+        if (!meshAttrs.transparent && meshAttrs.priority > 0 && !BitTest(meshOutput.a, kPixelAttrBitSpriteNormalShadow)) {
+            for (uint i = 0; i < 3; i++) {
+                // The sprite layer has the highest priority on ties, so the priority check can be simplified.
+                // Sprite pixels drawn of top of mesh pixels erase the corresponding pixels from the mesh layer,
+                // therefore the mesh layer can be considered always on top of the sprite layer.
+                if (meshAttrs.priority >= layerPrios[i]) {
+                    meshLayer = i;
+                    break;
+                }
+            }
+        }
+    }
 
     uint3 output = { 0, 0, 0 };
 
-    const bool layer0ColorCalcEnabled = IsColorCalcEnabled(layerStack[0], pos);
     const bool layer0LineColorEnabled = IsLineColorEnabled(layerStack[0], pos);
     const bool extendedColorCalc = BitTest(composeParams[0].params, 8);
-    const bool useAdditiveBlend = BitTest(composeParams[0].params, 9);
-    const bool useSecondScreenRatio = BitTest(composeParams[0].params, 10);
 
-    const uint3 layer0Pixel = GetLayerOutput(layerStack[0], pos).rgb;
+    uint3 layer0Pixel = GetLayerOutput(layerStack[0], pos).rgb;
     uint3 layer1Pixel = GetLayerOutput(layerStack[1], pos).rgb;
 
     if (extendedColorCalc) {
         if (IsColorCalcEnabled(layerStack[1], pos)) {
-            const uint3 layer2Pixel = GetLayerOutput(layerStack[2], pos).rgb;
+            uint3 layer2Pixel = GetLayerOutput(layerStack[2], pos).rgb;
 
-            // TODO: blend layer 2 with sprite mesh layer colors
+            // Blend layer 2 with sprite mesh layer colors
+            // TODO: apply color calculation effects
+            if (transparentMeshes && meshLayer == 2) {
+                layer2Pixel = (layer2Pixel + meshPixel) >> 1;
+            }
 
             layer1Pixel = (layer1Pixel + layer2Pixel) >> 1;
         }
@@ -331,12 +354,18 @@ uint3 Compose(uint2 basePos) {
         layer1Pixel = GetLineColor(layerStack[0], pos);
     }
 
-    // TODO: blend layer 1 with sprite mesh layer colors
+    // Blend layer 1 with sprite mesh layer colors
+    // TODO: apply color calculation effects
+    if (transparentMeshes && meshLayer == 1) {
+        layer1Pixel = (layer1Pixel + meshPixel) >> 1;
+    }
 
-    if (layer0ColorCalcEnabled) {
+    if (IsColorCalcEnabled(layerStack[0], pos)) {
+        const bool useAdditiveBlend = BitTest(composeParams[0].params, 9);
         if (useAdditiveBlend) {
             output = min(layer0Pixel + layer1Pixel, 255);
         } else {
+            const bool useSecondScreenRatio = BitTest(composeParams[0].params, 10);
             const uint ratioLayer = useSecondScreenRatio ? layerStack[1] : layerStack[0];
             const int ratio = GetColorCalcRatio(ratioLayer, pos);
             output = int3(layer1Pixel) + (((int3(layer0Pixel) - int3(layer1Pixel)) * ratio) >> 5);
@@ -345,7 +374,11 @@ uint3 Compose(uint2 basePos) {
         output = layer0Pixel;
     }
 
-    // TODO: blend layer 0 with sprite mesh layer colors
+    // Blend layer 0 with sprite mesh layer colors
+    // TODO: apply color calculation effects
+    if (transparentMeshes && meshLayer == 0) {
+        output = (output + meshPixel) >> 1;
+    }
 
     // Apply sprite shadow if sprite layer has a shadow pixel and is on top of the topmost layer
     const uint4 spriteOutput = GetLayerOutput(kLayerSprite, pos);
