@@ -12,6 +12,7 @@ cbuffer Config : register(b0) {
 }
 
 RWByteAddressBuffer fbOut : register(u0);
+RWByteAddressBuffer meshOut : register(u1);
 
 // -----------------------------------------------------------------------------
 
@@ -40,6 +41,17 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
+void WriteMesh16(uint address, uint data) {
+    const uint shift = (address & 2) * 8;
+    const uint mask = ~(0xFFFF << shift);
+    data = ByteSwap16(data) << shift;
+
+    address &= ~3;
+    uint dummy;
+    meshOut.InterlockedAnd(address, mask, dummy);
+    meshOut.InterlockedOr(address, data, dummy);
+}
+
 // -----------------------------------------------------------------------------
 
 static const uint drawFB = BitExtract(config.params, 7, 1);
@@ -53,6 +65,7 @@ static const uint eraseX1 = BitExtract(config.erase, 0, 6) << 3;
 static const uint eraseY1 = BitExtract(config.erase, 6, 9) << scaleV;
 static const uint eraseX3 = BitExtract(config.erase, 15, 7) << 3;
 static const uint eraseY3 = BitExtract(config.erase, 22, 9) << scaleV;
+static const bool transparentMeshes = BitTest(config.params, 30);
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
@@ -74,4 +87,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     }
 
     WriteFB16(address, config.eraseWriteValue);
+    if (transparentMeshes) {
+        WriteMesh16(address, 0);
+    }
 }

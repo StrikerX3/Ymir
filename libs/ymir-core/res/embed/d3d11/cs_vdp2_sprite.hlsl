@@ -52,6 +52,7 @@ Buffer<uint4> cramColor : register(t1);
 StructuredBuffer<BGRenderState> bgRenderState : register(t2);
 StructuredBuffer<RotParamState> rotParamState : register(t3);
 ByteAddressBuffer spriteFB : register(t4);
+ByteAddressBuffer meshFB : register(t5);
 
 // The alpha channel of the BG output is used for pixel attributes as follows:
 // bits  use
@@ -142,6 +143,16 @@ uint ReadSprite8(uint address) {
 uint ReadSprite16(uint address) {
     address += spriteFBBaseOffset;
     return ByteSwap16(BitExtract(spriteFB.Load(address & ~3), (address & 2) * 8, 16));
+}
+
+uint ReadMesh8(uint address) {
+    address += spriteFBBaseOffset;
+    return BitExtract(meshFB.Load(address & ~3), (address & 3) * 8, 8);
+}
+
+uint ReadMesh16(uint address) {
+    address += spriteFBBaseOffset;
+    return ByteSwap16(BitExtract(meshFB.Load(address & ~3), (address & 2) * 8, 16));
 }
 
 uint GetY(uint y) {
@@ -281,7 +292,7 @@ uint GetSpecialPattern(uint rawData, uint colorDataBits) {
     }
 }
 
-SpriteData FetchSpriteData(uint fbAddr) {
+SpriteData FetchSpriteData(uint fbAddr, bool meshLayer) {
     // Adjust offset based on VDP1 data size.
     // The majority of games actually set the sprite readout size to match the VDP1 sprite data size, but there's
     // *always* an exception...
@@ -291,13 +302,13 @@ SpriteData FetchSpriteData(uint fbAddr) {
     const uint type = BitExtract(config.displayParams, 9, 4);
     uint rawData;
     if (pixel8Bits) {
-        rawData = ReadSprite8(fbAddr);
-        if (type < 8 /*&& (!applyMesh || rawData != 0)*/) {
+        rawData = meshLayer ? ReadMesh8(fbAddr) : ReadSprite8(fbAddr);
+        if (type < 8 && (!meshLayer || rawData != 0)) {
             rawData |= 0xFF00;
         }
     } else {
         fbAddr <<= 1;
-        rawData = ReadSprite16(fbAddr);
+        rawData = meshLayer ? ReadMesh16(fbAddr) : ReadSprite16(fbAddr);
     }
 
     // Sprite types 0-7 are 16-bit, 8-15 are 8-bit
@@ -438,11 +449,7 @@ SpriteData FetchSpriteData(uint fbAddr) {
 // index 0 = sprite
 // index 1 = transparent meshes
 uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
-    if (index == 1) {
-        // TODO: implement transparent meshes
-        return kTransparentPixel;
-    }
-
+    const bool meshLayer = index == 1;
     const bool rotate = BitTest(config.displayParams, 7);
     const uint type = BitExtract(config.displayParams, 9, 4);
     const uint fbSizeH = 512 << BitExtract(config.displayParams, 13, 1);
@@ -462,7 +469,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
     }
 
     if (mixedFormat) {
-        const uint spriteDataValue = ReadSprite16(fbAddr << 1);
+        const uint spriteDataValue = meshLayer ? ReadMesh16(fbAddr << 1) : ReadSprite16(fbAddr << 1);
         if (BitTest(spriteDataValue, 15)) {
             // RGB data
 
@@ -489,7 +496,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
     }
 
     // Palette data
-    const SpriteData spriteData = FetchSpriteData(fbAddr);
+    const SpriteData spriteData = FetchSpriteData(fbAddr, meshLayer);
 
     // Handle sprite window
     const bool spriteWindowEnabled = BitTest(config.displayParams, 27);
@@ -525,6 +532,11 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
 
 [numthreads(32, 1, 2)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
+    if (id.z == 1 && !transparentMeshes) {
+        // Don't bother drawing transparent mesh layer if disabled
+        return;
+    }
+
     const uint2 drawCoord = uint2(id.x, id.y + config.startY);
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z + 6);
     bgOut[outCoord] = DrawSprite(drawCoord, outCoord.xy, id.z);
