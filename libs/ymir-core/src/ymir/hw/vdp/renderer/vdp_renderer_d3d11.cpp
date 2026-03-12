@@ -594,6 +594,17 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
 }
 
 // -----------------------------------------------------------------------------
+// Configuration
+
+void Direct3D11VDPRenderer::UpdateEnhancements() {
+    m_context->cpuVDP1RenderConfig.params.deinterlace = m_enhancements.deinterlace;
+    m_context->cpuVDP1RenderConfig.params.transparentMeshes = m_enhancements.transparentMeshes;
+
+    m_context->cpuVDP2RenderConfig.extraParams.deinterlace = m_enhancements.deinterlace;
+    m_context->cpuVDP2RenderConfig.extraParams.transparentMeshes = m_enhancements.transparentMeshes;
+}
+
+// -----------------------------------------------------------------------------
 // Save states
 
 void Direct3D11VDPRenderer::PreSaveStateSync() {}

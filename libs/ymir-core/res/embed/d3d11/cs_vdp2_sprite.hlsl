@@ -127,6 +127,9 @@ static const bool hiResH = BitTest(config.displayParams, 6);
 static const uint spriteDisplayFB = BitExtract(config.displayParams, 29, 1);
 static const uint spriteFBBaseOffset = spriteDisplayFB * 256 * 1024;
 
+static const bool deinterlace = BitTest(config.extraParams, 28);
+static const bool transparentMeshes = BitTest(config.extraParams, 29);
+
 uint ReadVRAM16(uint address) {
     return ByteSwap16(BitExtract(vram.Load(address & ~3), (address & 2) * 8, 16));
 }

@@ -183,6 +183,9 @@ static const bool palMode = BitTest(config.displayParams, 22);
 static const uint displayResH = kResolutionsH[BitExtract(config.extraParams, 23, 2)]; // 3rd bit intentionally ignored
 static const uint displayResV = exclusiveMonitor ? 480 : kResolutionsV[BitExtract(config.extraParams, 26, palMode ? 2 : 1)];
 
+static const bool deinterlace = BitTest(config.extraParams, 28);
+static const bool transparentMeshes = BitTest(config.extraParams, 29);
+
 uint GetY(uint y, bool doubleDensityOnly) {
     const bool interlaced = doubleDensityOnly ? interlaceMode == 3 : interlaceMode >= 2;
     if (interlaced && !exclusiveMonitor) {

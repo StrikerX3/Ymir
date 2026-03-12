@@ -80,15 +80,24 @@ protected:
 
 public:
     // -------------------------------------------------------------------------
+    // Configuration
+
+protected:
+    void UpdateEnhancements() override;
+
+public:
+    // -------------------------------------------------------------------------
     // Save states
 
     void PreSaveStateSync() override;
     void PostLoadStateSync() override;
 
+protected:
     void SaveStateImpl(state::VDPState::VDPRendererState &state) override;
     bool ValidateStateImpl(const state::VDPState::VDPRendererState &state) const override;
     void LoadStateImpl(const state::VDPState::VDPRendererState &state) override;
 
+public:
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
 

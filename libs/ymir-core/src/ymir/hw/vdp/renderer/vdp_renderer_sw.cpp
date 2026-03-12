@@ -453,7 +453,6 @@ void SoftwareVDPRenderer::VDP1SwapFramebuffer() {
 void SoftwareVDPRenderer::VDP1BeginFrame() {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
-    // TODO: move doubleV to this class
     m_VDP1doubleV =
         m_enhancements.deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
 }
