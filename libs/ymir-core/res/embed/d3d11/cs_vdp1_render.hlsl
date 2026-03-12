@@ -151,8 +151,8 @@ static const bool pixel8Bits = BitTest(config.params, 2);
 static const bool doubleDensity = BitTest(config.params, 3);
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
 static const uint dblInterlaceDrawLine = BitExtract(config.params, 5, 1);
-static const bool deinterlace = false; // TODO: pull from config
-static const bool transparentMeshes = false; // TODO: pull from config
+static const bool deinterlace = BitTest(config.params, 29);
+static const bool transparentMeshes = BitTest(config.params, 30);
 
 // Steps over the texels of a texture.
 struct TextureStepper {
@@ -855,6 +855,9 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     uint2 fbPos = pos;
     if (dblInterlaceEnable) {
         if ((pos.y & 1) == dblInterlaceDrawLine) {
+            // TODO: if deinterlace, add framebuffer address shift to point to alternate half
+            // TODO: on SH2 writes, copy FBRAM to both buffers
+            // TODO: on VDP2 sprite drawing, read from both buffers, alternating every line
             return;
         }
         fbPos.y >>= 1;

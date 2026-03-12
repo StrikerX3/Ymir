@@ -81,6 +81,8 @@ struct alignas(16) VDP1RenderConfig {
         D3DUint vblankEraseMaxY : 9;      //  9-17  Last VBlank erase line
         D3DUint vblankEraseMaxX : 10;     // 18-27  Last VBlank erase pixel in line
         D3DUint eraseAddressShift : 1;    //    28  Erase address shift (coordY << (x + 8))
+        D3DUint deinterlace : 1;          //    29  Deinterlace
+        D3DUint transparentMeshes : 1;    //    30  Render mesh sprites as transparent
     } params;
     static_assert(sizeof(Params) == sizeof(D3DUint));
 
@@ -201,6 +203,8 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint palMode : 1;             //    22  Display standard (VDP2 TVSTAT.PAL)   0=NTSC; 1=PAL
         D3DUint hresMode : 3;            // 23-25  Horizontal resolution mode (VDP2 TVMD.HRESO2-0)
         D3DUint vresMode : 2;            // 26-27  Vertical resolution mode (VDP2 TVMD.VRESO1-0)
+        D3DUint deinterlace : 1;         //    28  Deinterlace
+        D3DUint transparentMeshes : 1;   //    29  Render mesh sprites as transparent
     } extraParams;
 
     struct {                       //  bits  use

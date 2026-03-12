@@ -82,6 +82,9 @@ static const bool interlaced = BitExtract(config.displayParams, 0, 2) >= 2;
 static const uint oddField = BitExtract(config.displayParams, 2, 1);
 static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
 
+static const bool deinterlace = BitTest(config.extraParams, 28);
+static const bool transparentMeshes = BitTest(config.extraParams, 29);
+
 // The alpha channel of the layer textures contains pixel attributes:
 // bits  use
 //  0-2  Priority (0 to 7)
