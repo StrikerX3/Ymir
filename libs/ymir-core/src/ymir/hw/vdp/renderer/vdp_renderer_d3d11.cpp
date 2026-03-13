@@ -1852,15 +1852,18 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     const bool deinterlace = m_enhancements.deinterlace && m_state.regs2.TVMD.IsInterlaced();
     const uint32 yShift = deinterlace ? 1u : 0u;
 
-    m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY << yShift;
-    VDP2UploadRenderConfig();
+    const uint32 startY = m_nextVDP2BGY;
 
     // Determine how many lines to draw and update next scanline counter
-    const uint32 numLines = (y - m_nextVDP2BGY + 1) << yShift;
+    const uint32 baseNumLines = y - m_nextVDP2BGY + 1;
+    const uint32 numLines = baseNumLines << yShift;
     m_nextVDP2BGY = y + 1;
 
     // Compute rotation parameters if any RBGs are enabled
     if (m_state.regs2.bgEnabled[4] || m_state.regs2.bgEnabled[5]) {
+        m_context->cpuVDP2RenderConfig.startY = startY;
+        VDP2UploadRenderConfig();
+
         VDP2UploadRotationParameterBases();
 
         ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
@@ -1874,6 +1877,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
         const uint32 hres = m_HRes >> hresShift;
         ctx.Dispatch(hres / 32, numLines, 1);
     }
+
+    m_context->cpuVDP2RenderConfig.startY = startY << yShift;
+    VDP2UploadRenderConfig();
 
     // Draw sprite layer
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
