@@ -31,8 +31,8 @@ using namespace d3dutil;
 namespace ymir::vdp::d3d11 {
 
 struct Direct3D11VDPRenderer::Context {
-    Context(ID3D11Device *device)
-        : DeviceManager(device)
+    Context(ID3D11Device *device, bool debug)
+        : DeviceManager(device, debug)
         , VDP1Context(DeviceManager)
         , VDP2Context(DeviceManager) {}
 
@@ -207,12 +207,12 @@ struct Direct3D11VDPRenderer::Context {
 // Implementation
 
 Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
-                                             ID3D11Device *device, bool restoreState)
+                                             ID3D11Device *device, bool restoreState, bool debug)
     : HardwareVDPRendererBase(VDPRendererType::Direct3D11)
     , m_state(state)
     , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
     , m_restoreState(restoreState)
-    , m_context(std::make_unique<Context>(device)) {
+    , m_context(std::make_unique<Context>(device, debug)) {
 
     auto &devMgr = m_context->DeviceManager;
 

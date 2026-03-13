@@ -72,6 +72,7 @@ Usage:
   -P, --paused        Start paused
   -F, --fast-forward  Start in fast-forward mode
   -D, --debug         Start with debug tracing enabled
+  -G, --gpu-debug     Enable graphics API debugging
   -E, --exceptions    Capture all unhandled exceptions
 
 ```
