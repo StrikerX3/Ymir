@@ -108,9 +108,17 @@ Attributes ToAttributes(uint pixelData) {
     return attrs;
 }
 
-uint GetY(uint y) {
-    if (interlaced && !exclusiveMonitor) {
-        return (y << 1) | (oddField /* TODO & !deinterlace */);
+uint GetOutputY(uint y) {
+    if (!deinterlace && interlaced && !exclusiveMonitor) {
+        return (y << 1) | oddField;
+    } else {
+        return y;
+    }
+}
+
+uint GetLoResInputY(uint y) {
+    if (deinterlace && interlaced) {
+        return y >> 1;
     } else {
         return y;
     }
@@ -208,7 +216,7 @@ int GetColorCalcRatio(uint layer, uint2 pos) {
             return BitExtract(composeParams[0].bgColorCalcRatios, (layer - kLayerRBG0) * 5, 5);
         case kLayerBack:
         case kLayerLine:
-            return BitExtract(composeParams[0].backLineColorCalcRatios, IsColorCalcEnabled(layer, pos) ? 5 : 0, 5);
+            return BitExtract(composeParams[0].backLineColorCalcRatios, IsColorCalcEnabled(layer, uint2(pos.x, GetLoResInputY(pos.y))) ? 5 : 0, 5);
         default:
             return 31;
     }
@@ -234,14 +242,14 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
         case kLayerNBG3:
             return bgIn[uint3(pos.xy, GetBGLayerIndex(layer))];
         case kLayerBack:
-            return lineColorIn[uint2(1, pos.y)]; // the attribute byte doesn't matter
+            return lineColorIn[uint2(1, GetLoResInputY(pos.y))]; // the attribute byte doesn't matter
         default:
             return kTransparentPixel; // should never happpen
     }
 }
 
 uint3 Compose(uint2 basePos) {
-    const uint2 pos = uint2(basePos.x, GetY(basePos.y));
+    const uint2 pos = uint2(basePos.x, GetOutputY(basePos.y));
 
     // Clear screen if display is disabled
     const bool displayEnabled = BitTest(config.displayParams, 30);
@@ -249,7 +257,7 @@ uint3 Compose(uint2 basePos) {
         const bool borderColorMode = BitTest(config.displayParams, 31);
         if (borderColorMode) {
             // Use back screen color
-            return lineColorIn[uint2(1, basePos.y)].rgb;
+            return lineColorIn[uint2(1, GetLoResInputY(basePos.y))].rgb;
         }
         return kBlackPixel.rgb;
     }
@@ -403,7 +411,7 @@ uint3 Compose(uint2 basePos) {
 [numthreads(32, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 drawCoord = uint2(id.x, id.y + config.startY);
-    const uint2 outCoord = uint2(drawCoord.x, GetY(drawCoord.y));
+    const uint2 outCoord = uint2(drawCoord.x, GetOutputY(drawCoord.y));
     const uint3 outColor = Compose(drawCoord);
     textureOut[outCoord] = float4(outColor / 255.0, 1.0f);
 }
