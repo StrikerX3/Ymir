@@ -13,6 +13,7 @@ struct CommandLineOptions {
     bool startFastForward;
     bool enableDebugTracing;
     bool enableGPUDebugging;
+    bool debugShaders;
 };
 
 } // namespace app
