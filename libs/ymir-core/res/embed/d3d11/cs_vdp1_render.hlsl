@@ -889,7 +889,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     uint2 fbPos = pos;
     uint2 baseFBAddr = 0;
     if (dblInterlaceEnable) {
-        if ((pos.y & 1) == dblInterlaceDrawLine) {
+        if ((pos.y & 1) != dblInterlaceDrawLine) {
             if (!deinterlace) {
                 return;
             }

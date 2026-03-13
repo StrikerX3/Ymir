@@ -1014,6 +1014,11 @@ void Direct3D11VDPRenderer::VDP1BeginFrame() {
     if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Draw) {
         VDP1UpdateVRAM();
     }
+
+    const VDP1Regs &regs1 = m_state.regs1;
+    auto &config = m_context->cpuVDP1RenderConfig;
+    config.params.dblInterlaceEnable = regs1.dblInterlaceEnable;
+    config.params.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
 }
 
 void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Control control) {
@@ -1316,8 +1321,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateRenderConfig() {
     config.params.fbSizeV = std::countr_zero(regs1.fbSizeV) - 8;
     config.params.pixel8Bits = regs1.pixel8Bits;
     config.params.doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
-    config.params.dblInterlaceEnable = regs1.dblInterlaceEnable;
-    config.params.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
+    // config.params.dblInterlaceEnable = regs1.dblInterlaceEnable;
+    // config.params.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
     config.params.evenOddCoordSelect = regs1.evenOddCoordSelect;
 
     m_context->VDP1Context.ModifyResource(
