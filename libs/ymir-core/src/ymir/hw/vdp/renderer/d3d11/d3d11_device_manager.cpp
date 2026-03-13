@@ -19,8 +19,9 @@ static std::string_view GetEmbedFSFile(const std::string &path) {
     return {contents.begin(), contents.end()};
 }
 
-DeviceManager::DeviceManager(ID3D11Device *device)
-    : m_device(device) {
+DeviceManager::DeviceManager(ID3D11Device *device, bool debug)
+    : m_device(device)
+    , m_debug(debug) {
     assert(device != nullptr);
 
     device->GetImmediateContext(&m_immediateCtx);
@@ -351,7 +352,7 @@ bool DeviceManager::CreateVertexShader(ID3D11VertexShader *&vsOut, const char *p
                                        D3D_SHADER_MACRO *macros) {
     assert(vsOut == nullptr);
 
-    auto &shaderCache = D3DShaderCache::Instance(false);
+    auto &shaderCache = D3DShaderCache::Instance(m_debug);
     vsOut = shaderCache.GetVertexShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     if (vsOut != nullptr) {
         m_resources.push_back(vsOut);
@@ -364,7 +365,7 @@ bool DeviceManager::CreatePixelShader(ID3D11PixelShader *&psOut, const char *pat
                                       D3D_SHADER_MACRO *macros) {
     assert(psOut == nullptr);
 
-    auto &shaderCache = D3DShaderCache::Instance(false);
+    auto &shaderCache = D3DShaderCache::Instance(m_debug);
     psOut = shaderCache.GetPixelShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     if (psOut != nullptr) {
         m_resources.push_back(psOut);
@@ -377,7 +378,7 @@ bool DeviceManager::CreateComputeShader(ID3D11ComputeShader *&csOut, const char 
                                         D3D_SHADER_MACRO *macros) {
     assert(csOut == nullptr);
 
-    auto &shaderCache = D3DShaderCache::Instance(false);
+    auto &shaderCache = D3DShaderCache::Instance(m_debug);
     csOut = shaderCache.GetComputeShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     if (csOut != nullptr) {
         m_resources.push_back(csOut);

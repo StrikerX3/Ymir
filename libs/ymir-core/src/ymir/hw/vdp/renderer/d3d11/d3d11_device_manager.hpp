@@ -21,7 +21,7 @@ enum class BufferType {
 /// @brief Manages a D3D11 device's resources with automatic reference counting and cleanup.
 class DeviceManager {
 public:
-    DeviceManager(ID3D11Device *device);
+    DeviceManager(ID3D11Device *device, bool debug);
     ~DeviceManager();
 
     /// @brief Returns a pointer to the managed D3D11 device.
@@ -252,6 +252,8 @@ public:
 private:
     ID3D11Device *m_device = nullptr;
     ID3D11DeviceContext *m_immediateCtx = nullptr;
+
+    bool m_debug;
 
     std::mutex m_mtxImmCtx{};
 

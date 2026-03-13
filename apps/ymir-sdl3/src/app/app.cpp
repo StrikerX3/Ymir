@@ -760,10 +760,12 @@ void App::RunEmulator() {
 
     int vsync = 1;
     {
+        if (m_options.enableGPUDebugging) {
 #if YMIR_PLATFORM_HAS_DIRECT3D
-        // TODO(d3d11): enable this conditionally
-        SDL_SetHint(SDL_HINT_RENDER_DIRECT3D11_DEBUG, "1");
+            SDL_SetHint(SDL_HINT_RENDER_DIRECT3D11_DEBUG, "1");
 #endif
+        }
+
         gfx::Backend &graphicsBackend = settings.video.graphicsBackend;
         SDL_Renderer *renderer = m_graphicsService.CreateRenderer(graphicsBackend, screen.window, vsync);
         if (renderer == nullptr) {
@@ -798,7 +800,7 @@ void App::RunEmulator() {
         auto *device =
             static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
         if (device != nullptr) {
-            /*auto *renderer = */ vdp.UseDirect3D11Renderer(device, true);
+            /*auto *renderer = */ vdp.UseDirect3D11Renderer(device, true, m_options.enableGPUDebugging);
         }
     }
 #endif

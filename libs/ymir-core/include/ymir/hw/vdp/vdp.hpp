@@ -194,9 +194,10 @@ public:
     /// @param[in] device the `ID3D11Device` instance to use
     /// @param[in] restoreState whether to restore the D3D11 context state after executing command lists. This parameter
     /// is passed directly to `ID3D11Context::ExecuteCommandList`.
+    /// @param[in] debug whether to enable debug features (e.g. compile shaders in debug mode)
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
-    d3d11::Direct3D11VDPRenderer *UseDirect3D11Renderer(ID3D11Device *device, bool restoreState) {
-        return UseRenderer<d3d11::Direct3D11VDPRenderer>(m_state, vdp2DebugRenderOptions, device, restoreState);
+    d3d11::Direct3D11VDPRenderer *UseDirect3D11Renderer(ID3D11Device *device, bool restoreState, bool debug) {
+        return UseRenderer<d3d11::Direct3D11VDPRenderer>(m_state, vdp2DebugRenderOptions, device, restoreState, debug);
     }
 #endif
 
