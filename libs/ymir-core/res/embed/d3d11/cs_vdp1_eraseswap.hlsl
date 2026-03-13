@@ -56,6 +56,7 @@ void WriteMesh16(uint address, uint data) {
 
 static const uint drawFB = BitExtract(config.params, 7, 1);
 static const uint drawFBOffset = drawFB * 256 * 1024;
+static const uint deinterlaceFBOffset = 2 * 256 * 1024;
 static const bool vblankErase = BitTest(config.params, 8);
 static const uint vblankEraseMaxY = BitExtract(config.params, 9, 9);
 static const uint vblankEraseMaxX = BitExtract(config.params, 18, 10);
@@ -65,6 +66,8 @@ static const uint eraseX1 = BitExtract(config.erase, 0, 6) << 3;
 static const uint eraseY1 = BitExtract(config.erase, 6, 9) << scaleV;
 static const uint eraseX3 = BitExtract(config.erase, 15, 7) << 3;
 static const uint eraseY3 = BitExtract(config.erase, 22, 9) << scaleV;
+static const bool dblInterlaceEnable = BitTest(config.params, 4);
+static const bool deinterlace = BitTest(config.params, 29);
 static const bool transparentMeshes = BitTest(config.params, 30);
 
 [numthreads(32, 32, 1)]
@@ -89,5 +92,11 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     WriteFB16(address, config.eraseWriteValue);
     if (transparentMeshes) {
         WriteMesh16(address, 0);
+    }
+    if (deinterlace && dblInterlaceEnable) {
+        WriteFB16(deinterlaceFBOffset + address, config.eraseWriteValue);
+        if (transparentMeshes) {
+            WriteMesh16(deinterlaceFBOffset + address, 0);
+        }
     }
 }

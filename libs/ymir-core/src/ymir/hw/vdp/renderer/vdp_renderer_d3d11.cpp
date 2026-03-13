@@ -335,8 +335,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP1LineBinIndices, "[Ymir D3D11] VDP1 line parameter bin indices SRV");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
-                                                    &m_context->uavVDP1PolyOut, sizeof(m_state.spriteFB),
-                                                    m_state.spriteFB.data(), 0, 0);
+                                                    &m_context->uavVDP1PolyOut, kVDP1FBRAMSize * 2 * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -346,8 +345,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->uavVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output UAV");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1MeshOut, &m_context->srvVDP1MeshOut,
-                                                    &m_context->uavVDP1MeshOut, sizeof(m_state.spriteFB),
-                                                    m_state.spriteFB.data(), 0, 0);
+                                                    &m_context->uavVDP1MeshOut, kVDP1FBRAMSize * 2 * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1846,11 +1844,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     auto &ctx = m_context->VDP2Context;
 
-    m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY;
+    const bool deinterlace = m_enhancements.deinterlace && m_state.regs2.TVMD.IsInterlaced();
+    const uint32 yShift = deinterlace ? 1u : 0u;
+
+    m_context->cpuVDP2RenderConfig.startY = m_nextVDP2BGY << yShift;
     VDP2UploadRenderConfig();
 
     // Determine how many lines to draw and update next scanline counter
-    const uint32 numLines = y - m_nextVDP2BGY + 1;
+    const uint32 numLines = (y - m_nextVDP2BGY + 1) << yShift;
     m_nextVDP2BGY = y + 1;
 
     // Compute rotation parameters if any RBGs are enabled
@@ -1875,7 +1876,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs, m_context->uavVDP2SpriteAttrs});
     ctx.CSSetShaderResources({m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut, m_context->srvVDP1MeshOut}, 3);
     ctx.CSSetShader(m_context->csVDP2Sprite);
-    ctx.Dispatch(m_HRes / 32, numLines, 1);
+    ctx.Dispatch(m_HRes / 32, numLines, m_enhancements.transparentMeshes ? 2 : 1);
 
     // Draw NBGs and RBGs
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});

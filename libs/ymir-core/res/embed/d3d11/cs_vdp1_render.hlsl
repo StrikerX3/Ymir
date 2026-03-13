@@ -180,6 +180,7 @@ uint Color555ToUint16(uint4 color) {
 static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
 static const uint drawFB = BitExtract(config.params, 7, 1);
 static const uint drawFBOffset = drawFB * 256 * 1024;
+static const uint deinterlaceFBOffset = 2 * 256 * 1024;
 static const bool pixel8Bits = BitTest(config.params, 2);
 static const bool doubleDensity = BitTest(config.params, 3);
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
@@ -886,17 +887,20 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshDa
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 pos = id.xy;
     uint2 fbPos = pos;
+    uint2 baseFBAddr = 0;
     if (dblInterlaceEnable) {
         if ((pos.y & 1) == dblInterlaceDrawLine) {
-            // TODO: if deinterlace, add framebuffer address shift to point to alternate half
+            if (!deinterlace) {
+                return;
+            }
+            baseFBAddr = deinterlaceFBOffset;
             // TODO: on SH2 writes, copy FBRAM to both buffers
             // TODO: on VDP2 sprite drawing, read from both buffers, alternating every line
-            return;
         }
         fbPos.y >>= 1;
     }
 
-    const uint fbAddr = fbPos.y * fbSizeH + fbPos.x;
+    const uint fbAddr = baseFBAddr + fbPos.y * fbSizeH + fbPos.x;
 
     uint pixelData;
     uint meshData;

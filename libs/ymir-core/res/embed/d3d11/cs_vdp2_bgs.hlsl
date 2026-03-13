@@ -175,6 +175,11 @@ uint ReadVRAM32(uint address) {
 static const uint kResolutionsH[4] = { 320, 352, 640, 704 };
 static const uint kResolutionsV[4] = { 224, 240, 256, 256 };
 
+static const uint kInterlaceModeNone = 0;
+static const uint kInterlaceModeInvalid = 1;
+static const uint kInterlaceModeSingleDensity = 2;
+static const uint kInterlaceModeDoubleDensity = 3;
+
 static const uint interlaceMode = BitExtract(config.displayParams, 0, 2);
 static const uint oddField = BitExtract(config.displayParams, 2, 1);
 static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
@@ -187,9 +192,12 @@ static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
 
 uint GetY(uint y, bool doubleDensityOnly) {
-    const bool interlaced = doubleDensityOnly ? interlaceMode == 3 : interlaceMode >= 2;
-    if (interlaced && !exclusiveMonitor) {
-        return (y << 1) | (oddField /* TODO & !deinterlace */);
+    const bool interlaced = doubleDensityOnly
+        ? interlaceMode == kInterlaceModeDoubleDensity
+        : interlaceMode >= kInterlaceModeSingleDensity;
+
+    if (!deinterlace && interlaced && !exclusiveMonitor) {
+        return (y << 1) | oddField;
     } else {
         return y;
     }
@@ -630,6 +638,9 @@ uint4 FetchScrollRBGPixel(uint4 bgParams, uint2 scrollPos, uint2 pageShift, uint
 
 uint4 DrawNBG(uint2 pos, uint index) {
     pos.y = GetY(pos.y, true);
+    if (deinterlace && interlaceMode == kInterlaceModeSingleDensity) {
+        pos.y >>= 1;
+    }
 
     const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
@@ -925,6 +936,9 @@ uint4 DrawBitmapRBG(uint2 pos, uint index, uint rotSel) {
 uint4 DrawRBG(uint2 pos, uint index) {
     if (hiResH) {
         pos.x >>= 1;
+    }
+    if (deinterlace && interlaceMode >= kInterlaceModeSingleDensity) {
+        pos.y >>= 1;
     }
 
     const BGRenderState state = bgRenderState[0];

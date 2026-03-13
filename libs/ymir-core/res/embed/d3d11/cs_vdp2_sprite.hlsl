@@ -73,6 +73,11 @@ static const uint kPixelAttrBitSpriteNormalShadow = 5;
 static const uint kPixelAttrBitSpecColorCalc = 6;
 static const uint kPixelAttrBitTransparent = 7;
 
+static const uint kInterlaceModeNone = 0;
+static const uint kInterlaceModeInvalid = 1;
+static const uint kInterlaceModeSingleDensity = 2;
+static const uint kInterlaceModeDoubleDensity = 3;
+
 static const uint kWindowLogicOR = 0;
 static const uint kWindowLogicAND = 1;
 
@@ -127,6 +132,7 @@ static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
 static const bool hiResH = BitTest(config.displayParams, 6);
 static const uint spriteDisplayFB = BitExtract(config.displayParams, 29, 1);
 static const uint spriteFBBaseOffset = spriteDisplayFB * 256 * 1024;
+static const uint deinterlaceFBBaseOffset = 2 * 256 * 1024;
 
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
@@ -157,8 +163,8 @@ uint ReadMesh16(uint address) {
 
 uint GetY(uint y) {
     const bool interlaced = interlaceMode >= 2;
-    if (interlaced && !exclusiveMonitor) {
-        return (y << 1) | (oddField /* TODO & !deinterlace */);
+    if (!deinterlace && interlaced && !exclusiveMonitor) {
+        return (y << 1) | oddField;
     } else {
         return y;
     }
@@ -458,11 +464,25 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
     const bool mixedFormat = BitTest(config.displayParams, 16);
     const bool useSpriteWindow = BitTest(config.displayParams, 17);
 
-    const uint2 spritePos = rotate ? Extract16PairS(rotParamState[0].spriteCoords) :
-                            inHalfResH ? uint2(pos.x << 1, pos.y) :
-                            outHalfResH ? uint2(pos.x >> 1, pos.y) :
-                            pos;
-    const uint fbAddr = spritePos.x + spritePos.y * fbSizeH;
+    uint2 spritePos;
+    uint baseFBAddr = 0;
+    if (rotate) {
+        spritePos = Extract16PairS(rotParamState[0].spriteCoords);
+    } else {
+        spritePos = pos;
+        if (inHalfResH) {
+            spritePos.x <<= 1;
+        } else if (outHalfResH) {
+            spritePos.x >>= 1;
+        }
+        if (deinterlace && interlaceMode >= kInterlaceModeSingleDensity) {
+            if (interlaceMode == kInterlaceModeDoubleDensity && (spritePos.y & 1) != oddField) {
+                baseFBAddr = deinterlaceFBBaseOffset;
+            }
+            spritePos.y >>= 1;
+        }
+    }
+    const uint fbAddr = baseFBAddr + spritePos.x + spritePos.y * fbSizeH;
 
     if (InsideWindows(pos)) {
         return kTransparentPixel;
@@ -532,11 +552,6 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
 
 [numthreads(32, 1, 2)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    if (id.z == 1 && !transparentMeshes) {
-        // Don't bother drawing transparent mesh layer if disabled
-        return;
-    }
-
     const uint2 drawCoord = uint2(id.x, id.y + config.startY);
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z + 6);
     bgOut[outCoord] = DrawSprite(drawCoord, outCoord.xy, id.z);
