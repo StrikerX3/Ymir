@@ -44,11 +44,14 @@ Buffer<uint> lineBins : register(t3);
 Buffer<uint> lineBinIndices : register(t4);
 
 RWByteAddressBuffer fbOut : register(u0);
-RWByteAddressBuffer meshOut : register(u1);
 
 // -----------------------------------------------------------------------------
 
 static const uint2 kVDP1MaxFBSize = uint2(1024, 512);
+
+static const uint kFBSize = 256 * 1024;
+static const uint kDeinterlaceFBOffset = 2 * kFBSize;
+static const uint kMeshFBOffset = 2 * 2 * kFBSize;
 
 static const uint2 kBinSize = uint2(8, 8);
 static const uint2 kBinCount = (kVDP1MaxFBSize + kBinSize - 1) / kBinSize;
@@ -130,37 +133,23 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
+#ifndef YMIR_BYPASS_ENHANCEMENTS
 uint ReadMesh8(uint address) {
-    const uint value = meshOut.Load(address & ~3);
-    return (value >> ((address & 3) * 8)) & 0xFF;
+    return ReadFB8(kMeshFBOffset + address);
 }
 
 uint ReadMesh16(uint address) {
-    const uint value = meshOut.Load(address & ~3);
-    return ByteSwap16(value >> ((address & 2) * 8));
+    return ReadFB16(kMeshFBOffset + address);
 }
 
 void WriteMesh8(uint address, uint data) {
-    const uint shift = (address & 3) * 8;
-    const uint mask = ~(0xFF << shift);
-    data = (data & 0xFF) << shift;
-
-    address &= ~3;
-    uint dummy;
-    meshOut.InterlockedAnd(address, mask, dummy);
-    meshOut.InterlockedOr(address, data, dummy);
+    WriteFB8(kMeshFBOffset + address, data);
 }
 
 void WriteMesh16(uint address, uint data) {
-    const uint shift = (address & 2) * 8;
-    const uint mask = ~(0xFFFF << shift);
-    data = ByteSwap16(data) << shift;
-
-    address &= ~3;
-    uint dummy;
-    meshOut.InterlockedAnd(address, mask, dummy);
-    meshOut.InterlockedOr(address, data, dummy);
+    WriteFB16(kMeshFBOffset + address, data);
 }
+#endif
 
 uint4 Uint16ToColor555(uint rawValue) {
     return uint4(
@@ -179,14 +168,25 @@ uint Color555ToUint16(uint4 color) {
 
 static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
 static const uint drawFB = BitExtract(config.params, 7, 1);
-static const uint drawFBOffset = drawFB * 256 * 1024;
-static const uint deinterlaceFBOffset = 2 * 256 * 1024;
+static const uint drawFBOffset = drawFB * kFBSize;
 static const bool pixel8Bits = BitTest(config.params, 2);
 static const bool doubleDensity = BitTest(config.params, 3);
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
 static const uint dblInterlaceDrawLine = BitExtract(config.params, 5, 1);
+#ifdef YMIR_BYPASS_ENHANCEMENTS
+static const bool deinterlace = false;
+static const bool transparentMeshes = false;
+#else
 static const bool deinterlace = BitTest(config.params, 29);
 static const bool transparentMeshes = BitTest(config.params, 30);
+#endif
+
+struct PixelData {
+    uint pixel;
+#ifndef YMIR_BYPASS_ENHANCEMENTS
+    uint mesh;
+#endif
+};
 
 // Steps over the texels of a texture.
 struct TextureStepper {
@@ -557,7 +557,7 @@ bool IsPixelClipped(const LineParams vdp1line, uint2 coord, bool userClippingEna
     return false;
 }
 
-void PlotPixel(uint2 coord, inout uint pixelData, inout uint meshData, const uint cmdModeColor, const GouraudStepper gouraudStepper) {
+void PlotPixel(uint2 coord, inout PixelData pixelData, const uint cmdModeColor, const GouraudStepper gouraudStepper) {
     const bool gouraudEnable = BitTest(cmdModeColor, 2);
     const bool meshEnable = BitTest(cmdModeColor, 8);
     const bool msbOn = BitTest(cmdModeColor, 15);
@@ -573,7 +573,7 @@ void PlotPixel(uint2 coord, inout uint pixelData, inout uint meshData, const uin
         if (pixel8Bits && !BitTest(coord.x, 0)) {
             bit >>= 8;
         }
-        pixelData |= bit;
+        pixelData.pixel |= bit;
     } else {
         uint value;
         if (pixel8Bits) {
@@ -581,14 +581,18 @@ void PlotPixel(uint2 coord, inout uint pixelData, inout uint meshData, const uin
 
             // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
 
+#ifndef YMIR_BYPASS_ENHANCEMENTS
             if (transparentMeshes && meshEnable) {
-                meshData = value;
+                pixelData.mesh = value;
             } else {
-                pixelData = value;
+#endif
+                pixelData.pixel = value;
+#ifndef YMIR_BYPASS_ENHANCEMENTS
                 if (transparentMeshes) {
-                    meshData = 0;
+                    pixelData.mesh = 0;
                 }
             }
+#endif
         } else {
             const uint rawColor = BitExtract(cmdModeColor, 16, 16);
             const uint colorCalcBits = BitExtract(cmdModeColor, 0, 2);
@@ -612,7 +616,7 @@ void PlotPixel(uint2 coord, inout uint pixelData, inout uint meshData, const uin
                     break;
                 case 1: // Shadow
                     // Halve destination luminosity if it's not transparent
-                    dstColor = Uint16ToColor555(pixelData);
+                    dstColor = Uint16ToColor555(pixelData.pixel);
                     if (dstColor.a) {
                         dstColor.r >>= 1u;
                         dstColor.g >>= 1u;
@@ -629,7 +633,7 @@ void PlotPixel(uint2 coord, inout uint pixelData, inout uint meshData, const uin
                 case 3: // Half-transparency
                     // If background is not transparent, blend half of original graphic and half of background
                     // Otherwise, draw original graphic as is
-                    dstColor = Uint16ToColor555(pixelData);
+                    dstColor = Uint16ToColor555(pixelData.pixel);
                     if (dstColor.a) {
                         dstColor.r = (srcColor.r + dstColor.r) >> 1u;
                         dstColor.g = (srcColor.g + dstColor.g) >> 1u;
@@ -642,14 +646,18 @@ void PlotPixel(uint2 coord, inout uint pixelData, inout uint meshData, const uin
 
             const uint value = Color555ToUint16(dstColor);
 
+#ifndef YMIR_BYPASS_ENHANCEMENTS
             if (transparentMeshes && meshEnable) {
-                meshData = value;
+                pixelData.mesh = value;
             } else {
-                pixelData = value;
+#endif
+                pixelData.pixel = value;
+#ifndef YMIR_BYPASS_ENHANCEMENTS
                 if (transparentMeshes) {
-                    meshData = 0;
+                    pixelData.mesh = 0;
                 }
             }
+#endif
         }
     }
 }
@@ -758,7 +766,7 @@ uint FindEndCode(uint charAddress, uint uStart, uint uEnd, uint texV, uint charS
     return charSizeH;
 }
 
-void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshData) {
+void DrawLine(uint2 pos, uint lineIndex, inout PixelData pixelData) {
     LineParams vdp1line = lineParams[lineIndex];
     const uint cmdIndex = BitExtract(vdp1line.params, 0, 10);
 
@@ -856,11 +864,11 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshDa
 
                     if ((!hasEndCode || !endCodesEnabled) && (!transparent || transparentPixelDisable)) {
                         const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
-                        PlotPixel(pos, pixelData, meshData, texModeColor, gouraudStepper);
+                        PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
                     }
                 }
             } else {
-                PlotPixel(pos, pixelData, meshData, cmdModeColor, gouraudStepper);
+                PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
             }
         }
     }
@@ -899,11 +907,11 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshDa
 
                         if ((!hasEndCode || !endCodesEnabled) && (!transparent || transparentPixelDisable)) {
                             const uint texModeColor = BitExtract(cmdModeColor, 0, 16) | (color << 16);
-                            PlotPixel(pos, pixelData, meshData, texModeColor, gouraudStepper);
+                            PlotPixel(pos, pixelData, texModeColor, gouraudStepper);
                         }
                     }
                 } else {
-                    PlotPixel(pos, pixelData, meshData, cmdModeColor, gouraudStepper);
+                    PlotPixel(pos, pixelData, cmdModeColor, gouraudStepper);
                 }
             }
         }
@@ -914,13 +922,13 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshDa
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 pos = id.xy;
     uint2 fbPos = pos;
-    uint2 baseFBAddr = 0;
+    uint baseFBAddr = 0;
     if (dblInterlaceEnable) {
         if ((pos.y & 1) != dblInterlaceDrawLine) {
             if (!deinterlace) {
                 return;
             }
-            baseFBAddr = deinterlaceFBOffset;
+            baseFBAddr = kDeinterlaceFBOffset;
             // TODO: on SH2 writes, copy FBRAM to both buffers
             // TODO: on VDP2 sprite drawing, read from both buffers, alternating every line
         }
@@ -929,18 +937,21 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
 
     const uint fbAddr = baseFBAddr + fbPos.y * fbSizeH + fbPos.x;
 
-    uint pixelData;
-    uint meshData;
+    PixelData pixelData;
     if (pixel8Bits) {
-        pixelData = ReadFB8(drawFBOffset + fbAddr);
+        pixelData.pixel = ReadFB8(drawFBOffset + fbAddr);
+#ifndef YMIR_BYPASS_ENHANCEMENTS
         if (transparentMeshes) {
-            meshData = ReadMesh8(drawFBOffset + fbAddr);
+            pixelData.mesh = ReadMesh8(drawFBOffset + fbAddr);
         }
+#endif
     } else {
-        pixelData = ReadFB16(drawFBOffset + (fbAddr << 1));
+        pixelData.pixel = ReadFB16(drawFBOffset + (fbAddr << 1));
+#ifndef YMIR_BYPASS_ENHANCEMENTS
         if (transparentMeshes) {
-            meshData = ReadMesh16(drawFBOffset + (fbAddr << 1));
+            pixelData.mesh = ReadMesh16(drawFBOffset + (fbAddr << 1));
         }
+#endif
     }
 
     const uint2 binPos = pos / kBinSize;
@@ -964,18 +975,22 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
             continue;
         }
 
-        DrawLine(pos, lineIndex, pixelData, meshData);
+        DrawLine(pos, lineIndex, pixelData);
     }
 
     if (pixel8Bits) {
-        WriteFB8(drawFBOffset + fbAddr, pixelData);
+        WriteFB8(drawFBOffset + fbAddr, pixelData.pixel);
+#ifndef YMIR_BYPASS_ENHANCEMENTS
         if (transparentMeshes) {
-            WriteMesh8(drawFBOffset + fbAddr, meshData);
+            WriteMesh8(drawFBOffset + fbAddr, pixelData.mesh);
         }
+#endif
     } else {
-        WriteFB16(drawFBOffset + (fbAddr << 1), pixelData);
+        WriteFB16(drawFBOffset + (fbAddr << 1), pixelData.pixel);
+#ifndef YMIR_BYPASS_ENHANCEMENTS
         if (transparentMeshes) {
-            WriteMesh16(drawFBOffset + (fbAddr << 1), meshData);
+            WriteMesh16(drawFBOffset + (fbAddr << 1), pixelData.mesh);
         }
+#endif
     }
 }

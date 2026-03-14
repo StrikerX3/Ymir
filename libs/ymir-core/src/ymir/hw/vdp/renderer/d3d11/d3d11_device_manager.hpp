@@ -195,7 +195,7 @@ public:
     /// @param[in] macros list of macros
     /// @return `true` if the vertex shader was created, `false` if there was an error
     bool CreateVertexShader(ID3D11VertexShader *&vsOut, const char *path, const char *entrypoint = "VSMain",
-                            D3D_SHADER_MACRO *macros = nullptr);
+                            const D3D_SHADER_MACRO *macros = nullptr);
 
     /// @brief Creates a pixel shader.
     /// @param[out] psOut a pointer to the pixel shader resource to create
@@ -204,7 +204,7 @@ public:
     /// @param[in] macros list of macros
     /// @return `true` if the pixel shader was created, `false` if there was an error
     bool CreatePixelShader(ID3D11PixelShader *&psOut, const char *path, const char *entrypoint = "PSMain",
-                           D3D_SHADER_MACRO *macros = nullptr);
+                           const D3D_SHADER_MACRO *macros = nullptr);
 
     /// @brief Creates a compute shader.
     /// @param[out] csOut a pointer to the compute shader resource to create
@@ -213,7 +213,7 @@ public:
     /// @param[in] macros list of macros
     /// @return `true` if the compute shader was created, `false` if there was an error
     bool CreateComputeShader(ID3D11ComputeShader *&csOut, const char *path, const char *entrypoint = "CSMain",
-                             D3D_SHADER_MACRO *macros = nullptr);
+                             const D3D_SHADER_MACRO *macros = nullptr);
 
     /// @brief Enqueues a command list for execution in the immediate context.
     /// @param[in] cmdList the command list to enqueue

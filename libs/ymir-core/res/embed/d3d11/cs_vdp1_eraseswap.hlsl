@@ -12,7 +12,12 @@ cbuffer Config : register(b0) {
 }
 
 RWByteAddressBuffer fbOut : register(u0);
-RWByteAddressBuffer meshOut : register(u1);
+
+// -----------------------------------------------------------------------------
+
+static const uint kFBSize = 256 * 1024;
+static const uint kDeinterlaceFBOffset = 2 * kFBSize;
+static const uint kMeshFBOffset = 2 * 2 * kFBSize;
 
 // -----------------------------------------------------------------------------
 
@@ -41,22 +46,16 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
+#ifndef YMIR_BYPASS_ENHANCEMENTS
 void WriteMesh16(uint address, uint data) {
-    const uint shift = (address & 2) * 8;
-    const uint mask = ~(0xFFFF << shift);
-    data = ByteSwap16(data) << shift;
-
-    address &= ~3;
-    uint dummy;
-    meshOut.InterlockedAnd(address, mask, dummy);
-    meshOut.InterlockedOr(address, data, dummy);
+    WriteFB16(kMeshFBOffset + address, data);
 }
+#endif
 
 // -----------------------------------------------------------------------------
 
 static const uint drawFB = BitExtract(config.params, 7, 1);
-static const uint drawFBOffset = drawFB * 256 * 1024;
-static const uint deinterlaceFBOffset = 2 * 256 * 1024;
+static const uint drawFBOffset = drawFB * kFBSize;
 static const bool vblankErase = BitTest(config.params, 8);
 static const uint vblankEraseMaxY = BitExtract(config.params, 9, 9);
 static const uint vblankEraseMaxX = BitExtract(config.params, 18, 10);
@@ -67,8 +66,10 @@ static const uint eraseY1 = BitExtract(config.erase, 6, 9) << scaleV;
 static const uint eraseX3 = BitExtract(config.erase, 15, 7) << 3;
 static const uint eraseY3 = BitExtract(config.erase, 22, 9) << scaleV;
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
+#ifndef YMIR_BYPASS_ENHANCEMENTS
 static const bool deinterlace = BitTest(config.params, 29);
 static const bool transparentMeshes = BitTest(config.params, 30);
+#endif
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
@@ -90,13 +91,15 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     }
 
     WriteFB16(address, config.eraseWriteValue);
+#ifndef YMIR_BYPASS_ENHANCEMENTS
     if (transparentMeshes) {
         WriteMesh16(address, 0);
     }
     if (deinterlace && dblInterlaceEnable) {
-        WriteFB16(deinterlaceFBOffset + address, config.eraseWriteValue);
+        WriteFB16(kDeinterlaceFBOffset + address, config.eraseWriteValue);
         if (transparentMeshes) {
-            WriteMesh16(deinterlaceFBOffset + address, 0);
+            WriteMesh16(kDeinterlaceFBOffset + address, 0);
         }
     }
+#endif
 }

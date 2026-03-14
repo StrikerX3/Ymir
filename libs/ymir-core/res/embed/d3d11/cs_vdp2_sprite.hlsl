@@ -52,7 +52,6 @@ Buffer<uint4> cramColor : register(t1);
 StructuredBuffer<BGRenderState> bgRenderState : register(t2);
 StructuredBuffer<RotParamState> rotParamState : register(t3);
 ByteAddressBuffer spriteFB : register(t4);
-ByteAddressBuffer meshFB : register(t5);
 
 // The alpha channel of the BG output is used for pixel attributes as follows:
 // bits  use
@@ -80,6 +79,9 @@ static const uint kInterlaceModeDoubleDensity = 3;
 
 static const uint kWindowLogicOR = 0;
 static const uint kWindowLogicAND = 1;
+
+static const uint kVDP1FBRAMSize = 256 * 1024;
+static const uint kVDP1MeshFBOffset = kVDP1FBRAMSize * 2 * 2;
 
 static const uint kCRAMAddressMask = ((config.displayParams >> 4) & 3) == 1 ? 0x7FF : 0x3FF;
 
@@ -154,13 +156,11 @@ uint ReadSprite16(uint address) {
 }
 
 uint ReadMesh8(uint address) {
-    address += spriteFBBaseOffset;
-    return BitExtract(meshFB.Load(address & ~3), (address & 3) * 8, 8);
+    return ReadSprite8(kVDP1MeshFBOffset + address);
 }
 
 uint ReadMesh16(uint address) {
-    address += spriteFBBaseOffset;
-    return ByteSwap16(BitExtract(meshFB.Load(address & ~3), (address & 2) * 8, 16));
+    return ReadSprite16(kVDP1MeshFBOffset + address);
 }
 
 uint GetY(uint y) {

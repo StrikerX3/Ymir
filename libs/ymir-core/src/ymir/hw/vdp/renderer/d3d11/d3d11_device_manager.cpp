@@ -349,7 +349,7 @@ HRESULT DeviceManager::CreateStructuredBuffer(ID3D11Buffer *&bufOut, ID3D11Shade
 }
 
 bool DeviceManager::CreateVertexShader(ID3D11VertexShader *&vsOut, const char *path, const char *entrypoint,
-                                       D3D_SHADER_MACRO *macros) {
+                                       const D3D_SHADER_MACRO *macros) {
     assert(vsOut == nullptr);
 
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
@@ -362,7 +362,7 @@ bool DeviceManager::CreateVertexShader(ID3D11VertexShader *&vsOut, const char *p
 }
 
 bool DeviceManager::CreatePixelShader(ID3D11PixelShader *&psOut, const char *path, const char *entrypoint,
-                                      D3D_SHADER_MACRO *macros) {
+                                      const D3D_SHADER_MACRO *macros) {
     assert(psOut == nullptr);
 
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
@@ -375,7 +375,7 @@ bool DeviceManager::CreatePixelShader(ID3D11PixelShader *&psOut, const char *pat
 }
 
 bool DeviceManager::CreateComputeShader(ID3D11ComputeShader *&csOut, const char *path, const char *entrypoint,
-                                        D3D_SHADER_MACRO *macros) {
+                                        const D3D_SHADER_MACRO *macros) {
     assert(csOut == nullptr);
 
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
