@@ -276,6 +276,9 @@ struct GouraudChannelStepper {
     int intInc;
     int fracInc;
 
+    int baseValue;
+    int baseAccum;
+
     void Setup(uint length, int start, int end) {
         const int delta = end - start;
         const uint absDelta = abs(delta);
@@ -314,6 +317,14 @@ struct GouraudChannelStepper {
             }
         }
         accum = ~accum;
+
+        baseValue = value;
+        baseAccum = accum;
+    }
+
+    void Reset() {
+        value = baseValue;
+        accum = baseAccum;
     }
 
     // Skips the specified number of pixels.
@@ -347,6 +358,12 @@ struct GouraudStepper {
         stepperR.Setup(length, gouraudStart.r, gouraudEnd.r);
         stepperG.Setup(length, gouraudStart.g, gouraudEnd.g);
         stepperB.Setup(length, gouraudStart.b, gouraudEnd.b);
+    }
+
+    void Reset() {
+        stepperR.Reset();
+        stepperG.Reset();
+        stepperB.Reset();
     }
 
     // Skips the specified number of pixels.
@@ -764,6 +781,7 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshDa
     LineStepper lineStepper = NewLineStepper(vdp1line.coordStart, vdp1line.coordEnd, antiAlias);
 
     GouraudStepper gouraudStepper;
+    bool gouraudInit = true;
 
     TextureStepper uStepper;
     uint charAddress;
@@ -811,8 +829,12 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshDa
 
         if (all(lineStepper.Coord() == int2(pos))) {
             if (gouraudEnable) {
-                // TODO: initialize gouraud stepper only once
-                gouraudStepper.Setup(lineStepper.Length() + 1, gouraudStart, gouraudEnd);
+                if (gouraudInit) {
+                    gouraudInit = false;
+                    gouraudStepper.Setup(lineStepper.Length() + 1, gouraudStart, gouraudEnd);
+                } else {
+                    gouraudStepper.Reset();
+                }
                 gouraudStepper.Skip(steps);
             }
 
@@ -851,7 +873,12 @@ void DrawLine(uint2 pos, uint lineIndex, inout uint pixelData, inout uint meshDa
 
             if (lineStepper.NeedsAA() && all(lineStepper.AACoord() == int2(pos))) {
                 if (gouraudEnable) {
-                    gouraudStepper.Setup(lineStepper.Length() + 1, gouraudStart, gouraudEnd);
+                    if (gouraudInit) {
+                        gouraudInit = false;
+                        gouraudStepper.Setup(lineStepper.Length() + 1, gouraudStart, gouraudEnd);
+                    } else {
+                        gouraudStepper.Reset();
+                    }
                     gouraudStepper.Skip(steps);
                 }
 
