@@ -23,11 +23,11 @@ public:
     // TODO: persist shader blobs to disk
 
     ID3D11VertexShader *GetVertexShader(ID3D11Device *device, std::string_view code, std::string_view entrypoint,
-                                        D3D_SHADER_MACRO *macros);
+                                        const D3D_SHADER_MACRO *macros);
     ID3D11PixelShader *GetPixelShader(ID3D11Device *device, std::string_view code, std::string_view entrypoint,
-                                      D3D_SHADER_MACRO *macros);
+                                      const D3D_SHADER_MACRO *macros);
     ID3D11ComputeShader *GetComputeShader(ID3D11Device *device, std::string_view code, std::string_view entrypoint,
-                                          D3D_SHADER_MACRO *macros);
+                                          const D3D_SHADER_MACRO *macros);
 
 private:
     explicit D3DShaderCache(bool debug) noexcept
@@ -57,7 +57,7 @@ private:
         };
 
         static CacheKey From(ShaderType type, std::string_view code, std::string_view entrypoint,
-                             D3D_SHADER_MACRO *macros);
+                             const D3D_SHADER_MACRO *macros);
 
         bool operator==(const CacheKey &key) const = default;
     };
@@ -70,7 +70,7 @@ private:
     std::unordered_map<CacheKey, ID3DBlob *, CacheKey::Hash> m_cache;
 
     ID3DBlob *GetOrCompileShader(ShaderType type, std::string_view code, std::string_view entrypoint,
-                                 D3D_SHADER_MACRO *macros);
+                                 const D3D_SHADER_MACRO *macros);
 };
 
 } // namespace ymir::vdp::d3d11

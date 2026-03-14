@@ -56,9 +56,17 @@ struct Direct3D11VDPRenderer::Context {
     // =========================================================================
     // VDP1 resources
     //
-    // FBRAM is the actual data present in the VDP1's FBRAM (seen by the CPU).
-    // PolyOut is the buffer used internally by the renderer to output polygons at any resolution.
-    // Both buffers have essentially the same format, but only the FBRAM makes it out of the GPU.
+    // AccFB is the buffer used internally by the renderer for hardware-accurate FBRAM output.
+    // EnhFB is the buffer used internally by the renderer for enhanced FBRAM output.
+    // FBRAMDown/FBRAMUp are staging buffers meant for CPU<->GPU transfers of FBRAM data.
+    //
+    // All buffers have the same data format used by the Saturn's FBRAM.
+    //
+    // Rendering is done to both AccFB (without any scaling or enhancements) and EnhFB (with all enhancements).
+    // On framebuffer swap, FBRAM is copied to the next draw buffer in AccFB and EnhFB, and the display AccFB is
+    // copied to FBRAM.
+    // VDP2 uses EnhFB to render the sprite layer.
+    // EnhFB is skipped if no enhancements or scaling is applied; AccFB is used by VDP2 instead in this case.
 
     // -------------------------------------------------------------------------
     // VDP1 - shared resources
@@ -74,14 +82,16 @@ struct Direct3D11VDPRenderer::Context {
     bool dirtyVDP1FBRAMUp = true;           //< VDP1 FBRAM upload staging buffer dirty flag
 
     // -------------------------------------------------------------------------
-    // VDP1 - framebuffer erase/swap shader
+    // VDP1 - framebuffer erase shader
 
-    ID3D11ComputeShader *csVDP1EraseSwap = nullptr; //< VDP1 polygon erase/swap compute shader
+    ID3D11ComputeShader *csVDP1EraseAcc = nullptr; //< Hardware-accurate VDP1 polygon erase compute shader
+    ID3D11ComputeShader *csVDP1EraseEnh = nullptr; //< Enhanced VDP1 polygon erase compute shader
 
     // -------------------------------------------------------------------------
     // VDP1 - polygon rendering shader
 
-    ID3D11ComputeShader *csVDP1Render = nullptr; //< VDP1 polygon drawing compute shader
+    ID3D11ComputeShader *csVDP1RenderAcc = nullptr; //< Hardware-accurate VDP1 polygon drawing compute shader
+    ID3D11ComputeShader *csVDP1RenderEnh = nullptr; //< Enhanced VDP1 polygon drawing compute shader
 
     ID3D11Buffer *bufVDP1VRAM = nullptr;                              //< VDP1 VRAM buffer
     ID3D11ShaderResourceView *srvVDP1VRAM = nullptr;                  //< SRV for VDP1 VRAM buffer
@@ -107,13 +117,16 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *bufVDP1LineBinIndices = nullptr;             //< VDP1 line bin indices structured buffer
     ID3D11ShaderResourceView *srvVDP1LineBinIndices = nullptr; //< SRV for VDP1 line bin indices
 
-    ID3D11Buffer *bufVDP1PolyOut = nullptr;              //< VDP1 polygon output buffer
-    ID3D11ShaderResourceView *srvVDP1PolyOut = nullptr;  //< SRV for VDP1 polygon output buffer
-    ID3D11UnorderedAccessView *uavVDP1PolyOut = nullptr; //< UAV for VDP1 polygon output buffer
+    // Hardware-accurate FBRAM output. Just the 512 KiB of raw framebuffer data.
+    ID3D11Buffer *bufVDP1AccFB = nullptr;              //< VDP1 framebuffer output buffer
+    ID3D11ShaderResourceView *srvVDP1AccFB = nullptr;  //< SRV for VDP1 framebuffer output buffer
+    ID3D11UnorderedAccessView *uavVDP1AccFB = nullptr; //< UAV for VDP1 framebuffer output buffer
 
-    ID3D11Buffer *bufVDP1MeshOut = nullptr;              //< VDP1 mesh polygon output buffer
-    ID3D11ShaderResourceView *srvVDP1MeshOut = nullptr;  //< SRV for VDP1 mesh polygon output buffer
-    ID3D11UnorderedAccessView *uavVDP1MeshOut = nullptr; //< UAV for VDP1 mesh polygon output buffer
+    // Enhanced FBRAM output (deinterlaced, transparent meshes, upscaled, etc.).
+    // Indexing: [framebuffer index][deinterlace field][sprite/mesh buffer]
+    ID3D11Buffer *bufVDP1EnhFB = nullptr;              //< VDP1 internal framebuffer output buffer
+    ID3D11ShaderResourceView *srvVDP1EnhFB = nullptr;  //< SRV for VDP1 internal framebuffer output buffer
+    ID3D11UnorderedAccessView *uavVDP1EnhFB = nullptr; //< UAV for VDP1 internal framebuffer output buffer
 
     // =========================================================================
 
@@ -253,22 +266,39 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1FBRAMUp, "[Ymir D3D11] VDP1 FBRAM upload staging buffer");
 
     // -------------------------------------------------------------------------
-    // VDP1 - framebuffer erase/swap shader
+    // VDP1 - framebuffer erase shader
 
-    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseSwap, "d3d11/cs_vdp1_eraseswap.hlsl")) {
+    static constexpr std::array<D3D_SHADER_MACRO, 2> kBypassEnhancementsMacro = {
+        {{"YMIR_BYPASS_ENHANCEMENTS", "1"}, {nullptr, nullptr}}};
+
+    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseAcc, "d3d11/cs_vdp1_eraseswap.hlsl", "CSMain",
+                                    kBypassEnhancementsMacro.data())) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1EraseSwap, "[Ymir D3D11] VDP1 polygon erase/swap compute shader");
+    SetDebugName(m_context->csVDP1EraseAcc, "[Ymir D3D11] VDP1 polygon erase compute shader (hardware-accurate)");
+
+    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseEnh, "d3d11/cs_vdp1_eraseswap.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->csVDP1EraseEnh, "[Ymir D3D11] VDP1 polygon erase compute shader (enhanced)");
 
     // -------------------------------------------------------------------------
     // VDP1 - polygon rendering shader
 
-    if (!devMgr.CreateComputeShader(m_context->csVDP1Render, "d3d11/cs_vdp1_render.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP1RenderAcc, "d3d11/cs_vdp1_render.hlsl", "CSMain",
+                                    kBypassEnhancementsMacro.data())) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1Render, "[Ymir D3D11] VDP1 polygon rendering compute shader");
+    SetDebugName(m_context->csVDP1RenderAcc, "[Ymir D3D11] VDP1 polygon rendering compute shader (hardware-accurate)");
+
+    if (!devMgr.CreateComputeShader(m_context->csVDP1RenderEnh, "d3d11/cs_vdp1_render.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->csVDP1RenderEnh, "[Ymir D3D11] VDP1 polygon rendering compute shader (enhanced)");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM, nullptr,
                                                     m_state.mem1.VRAM.size(), m_state.mem1.VRAM.data(), 0, 0);
@@ -334,25 +364,26 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1LineBinIndices, "[Ymir D3D11] VDP1 line parameter bin indices buffer");
     SetDebugName(m_context->srvVDP1LineBinIndices, "[Ymir D3D11] VDP1 line parameter bin indices SRV");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1PolyOut, &m_context->srvVDP1PolyOut,
-                                                    &m_context->uavVDP1PolyOut, kVDP1FBRAMSize * 2 * 2, nullptr, 0, 0);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1AccFB, &m_context->srvVDP1AccFB,
+                                                    &m_context->uavVDP1AccFB, kVDP1FBRAMSize * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output buffer");
-    SetDebugName(m_context->srvVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output SRV");
-    SetDebugName(m_context->uavVDP1PolyOut, "[Ymir D3D11] VDP1 polygon output UAV");
+    SetDebugName(m_context->bufVDP1AccFB, "[Ymir D3D11] VDP1 hardware-accurate framebuffer output buffer");
+    SetDebugName(m_context->srvVDP1AccFB, "[Ymir D3D11] VDP1 hardware-accurate framebuffer output SRV");
+    SetDebugName(m_context->uavVDP1AccFB, "[Ymir D3D11] VDP1 hardware-accurate framebuffer output UAV");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1MeshOut, &m_context->srvVDP1MeshOut,
-                                                    &m_context->uavVDP1MeshOut, kVDP1FBRAMSize * 2 * 2, nullptr, 0, 0);
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, &m_context->srvVDP1EnhFB, &m_context->uavVDP1EnhFB,
+                                           kVDP1FBRAMSize * 2 * 2 * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1MeshOut, "[Ymir D3D11] VDP1 mesh polygon output buffer");
-    SetDebugName(m_context->srvVDP1MeshOut, "[Ymir D3D11] VDP1 mesh polygon output SRV");
-    SetDebugName(m_context->uavVDP1MeshOut, "[Ymir D3D11] VDP1 mesh polygon output UAV");
+    SetDebugName(m_context->bufVDP1EnhFB, "[Ymir D3D11] VDP1 enhanced framebuffer output buffer");
+    SetDebugName(m_context->srvVDP1EnhFB, "[Ymir D3D11] VDP1 enhanced framebuffer output SRV");
+    SetDebugName(m_context->uavVDP1EnhFB, "[Ymir D3D11] VDP1 enhanced framebuffer output UAV");
 
     // =========================================================================
 
@@ -976,12 +1007,17 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
 
         VDP1UpdateRenderConfig();
 
-        // Dispatch erase/swap shader
+        // Dispatch erase shader
         ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
         ctx.CSSetShaderResources({});
-        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1MeshOut});
-        ctx.CSSetShader(m_context->csVDP1EraseSwap);
+        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1AccFB});
+        ctx.CSSetShader(m_context->csVDP1EraseAcc);
         ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
+        if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
+            ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB});
+            ctx.CSSetShader(m_context->csVDP1EraseEnh);
+            ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
+        }
     }
 
     // Cleanup
@@ -1195,10 +1231,16 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP1VRAM, m_context->srvVDP1LineParams, m_context->srvVDP1CommandTable,
                               m_context->srvVDP1LineBins, m_context->srvVDP1LineBinIndices});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1PolyOut, m_context->uavVDP1MeshOut});
-    ctx.CSSetShader(m_context->csVDP1Render);
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1AccFB});
+    ctx.CSSetShader(m_context->csVDP1RenderAcc);
     ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
                  (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
+    if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
+        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB});
+        ctx.CSSetShader(m_context->csVDP1RenderEnh);
+        ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
+                     (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
+    }
 
     m_context->cpuVDP1LineParamsCount = 0;
     m_context->cpuVDP1CommandTableTail = m_context->cpuVDP1CommandTableHead;
@@ -1371,7 +1413,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DownloadFBRAM(size_t fbIndex) {
         .back = 1,
     };
     m_context->VDP1Context.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown, 0, 0, 0, 0,
-                                                                       m_context->bufVDP1PolyOut, 0, &srcBox);
+                                                                       m_context->bufVDP1AccFB, 0, &srcBox);
     m_context->dirtyVDP1FBRAMDown = true;
 }
 
@@ -1413,9 +1455,24 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
         .bottom = 1,
         .back = 1,
     };
-    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1PolyOut, 0,
+    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1AccFB, 0,
                                                     static_cast<UINT>(fbIndex * kVDP1FBRAMSize), 0, 0,
                                                     m_context->bufVDP1FBRAMUp, 0, &srcBox);
+    if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
+        // TODO: if any scaling is > 1, use shader instead of CopySubresourceRegion
+        for (uint32 ofs = 0; ofs < 4; ofs += 2) {
+            if ((ofs & 2) && !m_enhancements.deinterlace) {
+                continue;
+            }
+            ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1EnhFB, 0,
+                                                            static_cast<UINT>((fbIndex + ofs) * kVDP1FBRAMSize), 0, 0,
+                                                            m_context->bufVDP1FBRAMUp, 0, &srcBox);
+        }
+        if (m_enhancements.transparentMeshes) {
+            // TODO: clear the portions of the framebuffer that were written to
+            // - set bitmap on VDP1WriteFB
+        }
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -1885,11 +1942,14 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     m_context->cpuVDP2RenderConfig.startY = startY << yShift;
     VDP2UploadRenderConfig();
 
+    const bool hasEnhancements = m_enhancements.deinterlace || m_enhancements.transparentMeshes;
+
     // Draw sprite layer
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig});
     ctx.CSSetShaderResources({m_context->srvVDP2VRAM, m_context->srvVDP2ColorCache, m_context->srvVDP2BGRenderState});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs, m_context->uavVDP2SpriteAttrs});
-    ctx.CSSetShaderResources({m_context->srvVDP2RotParams, m_context->srvVDP1PolyOut, m_context->srvVDP1MeshOut}, 3);
+    ctx.CSSetShaderResources(
+        {m_context->srvVDP2RotParams, hasEnhancements ? m_context->srvVDP1EnhFB : m_context->srvVDP1AccFB}, 3);
     ctx.CSSetShader(m_context->csVDP2Sprite);
     ctx.Dispatch(m_HRes / 32, numLines, m_enhancements.transparentMeshes ? 2 : 1);
 
