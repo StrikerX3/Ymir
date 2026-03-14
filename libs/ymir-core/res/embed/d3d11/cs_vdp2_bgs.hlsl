@@ -999,7 +999,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         colorCalcWindowOut[outCoord.xy] = InsideWindows(config.windows >> 5, true, drawCoord);
     } else if (id.z == 7) {
         if (id.x < 2) {
-            lineColorOut[outCoord.xy] = DrawLineBackScreen(drawCoord.x, drawCoord.y);
+            lineColorOut[drawCoord] = DrawLineBackScreen(drawCoord.x, drawCoord.y);
         }
     }
 }

@@ -201,7 +201,7 @@ uint3 GetLineColor(uint layer, uint2 pos) {
     if (layer == kLayerRBG0 || (layer == kLayerNBG0_RBG1 && IsBGLayerEnabled(kBGLayerRBG1))) {
         return rbgLineColorIn[uint3(pos, layer - kLayerRBG0)].rgb;
     }
-    return lineColorIn[uint2(0, pos.y)].rgb;
+    return lineColorIn[uint2(0, GetLoResInputY(pos.y))].rgb;
 }
 
 int GetColorCalcRatio(uint layer, uint2 pos) {
@@ -243,6 +243,8 @@ uint4 GetLayerOutput(uint layer, uint2 pos) {
             return bgIn[uint3(pos.xy, GetBGLayerIndex(layer))];
         case kLayerBack:
             return lineColorIn[uint2(1, GetLoResInputY(pos.y))]; // the attribute byte doesn't matter
+        case kLayerLine:
+            return lineColorIn[uint2(0, GetLoResInputY(pos.y))]; // the attribute byte doesn't matter
         default:
             return kTransparentPixel; // should never happpen
     }
@@ -351,7 +353,7 @@ uint3 Compose(uint2 basePos) {
         }
 
         if (layer0LineColorEnabled) {
-            const uint3 lineColor = GetLineColor(layerStack[0], pos);
+            const uint3 lineColor = GetLineColor(layerStack[0], basePos);
             if (IsColorCalcEnabled(kLayerLine, pos)) {
                 layer1Pixel = (layer1Pixel + lineColor) >> 1;
             } else {
@@ -359,7 +361,7 @@ uint3 Compose(uint2 basePos) {
             }
         }
     } else if (layer0LineColorEnabled) {
-        layer1Pixel = GetLineColor(layerStack[0], pos);
+        layer1Pixel = GetLineColor(layerStack[0], basePos);
     }
 
     // Blend layer 1 with sprite mesh layer colors
