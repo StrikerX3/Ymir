@@ -179,32 +179,34 @@ struct alignas(16) VDP2RenderConfig {
     // Top Y coordinate of target rendering area
     D3DUint startY;
 
-    struct {                             //  bits  use
-        D3DUint layerEnabled : 6;        //   0-5  Layer enable state based on BGON and other factors:
-                                         //        bit  RBG0+RBG1   RBG0        RBG1        no RBGs
-                                         //          0  Sprite      Sprite      Sprite      Sprite
-                                         //          1  RBG0        RBG0        -           -
-                                         //          2  RBG1        NBG0        RBG1        NBG0
-                                         //          3  EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
-                                         //          4  -           NBG2        NBG2        NBG2
-                                         //          5  -           NBG3        NBG3        NBG3
-        D3DUint lineColorEnableRBG0 : 1; //     6  Line color screen enable for RBG0
-        D3DUint lineColorEnableRBG1 : 1; //     7  Line color screen enable for RBG1
-        D3DUint bgEnabled : 6;           //  8-13  Individual layer enable flags
-                                         //        bit  layer
-                                         //          8  NBG0
-                                         //          9  NBG1
-                                         //         10  NBG2
-                                         //         11  NBG3
-                                         //         12  RBG0
-                                         //         13  RBG1
-        D3DUint mosaicH : 4;             // 14-17  Horizontal mosaic size (minus one)
-        D3DUint mosaicV : 4;             // 18-21  Vertical mosaic size (minus one)
-        D3DUint palMode : 1;             //    22  Display standard (VDP2 TVSTAT.PAL)   0=NTSC; 1=PAL
-        D3DUint hresMode : 3;            // 23-25  Horizontal resolution mode (VDP2 TVMD.HRESO2-0)
-        D3DUint vresMode : 2;            // 26-27  Vertical resolution mode (VDP2 TVMD.VRESO1-0)
-        D3DUint deinterlace : 1;         //    28  Deinterlace
-        D3DUint transparentMeshes : 1;   //    29  Render mesh sprites as transparent
+    struct {                              //  bits  use
+        D3DUint layerEnabled : 6;         //   0-5  Layer enable state based on BGON and other factors:
+                                          //        bit  RBG0+RBG1   RBG0        RBG1        no RBGs
+                                          //          0  Sprite      Sprite      Sprite      Sprite
+                                          //          1  RBG0        RBG0        -           -
+                                          //          2  RBG1        NBG0        RBG1        NBG0
+                                          //          3  EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+                                          //          4  -           NBG2        NBG2        NBG2
+                                          //          5  -           NBG3        NBG3        NBG3
+        D3DUint lineColorEnableRBG0 : 1;  //     6  Line color screen enable for RBG0
+        D3DUint lineColorEnableRBG1 : 1;  //     7  Line color screen enable for RBG1
+        D3DUint bgEnabled : 6;            //  8-13  Individual layer enable flags
+                                          //        bit  layer
+                                          //          8  NBG0
+                                          //          9  NBG1
+                                          //         10  NBG2
+                                          //         11  NBG3
+                                          //         12  RBG0
+                                          //         13  RBG1
+        D3DUint mosaicH : 4;              // 14-17  Horizontal mosaic size (minus one)
+        D3DUint mosaicV : 4;              // 18-21  Vertical mosaic size (minus one)
+        D3DUint palMode : 1;              //    22  Display standard (VDP2 TVSTAT.PAL)   0=NTSC; 1=PAL
+        D3DUint hresMode : 3;             // 23-25  Horizontal resolution mode (VDP2 TVMD.HRESO2-0)
+        D3DUint vresMode : 2;             // 26-27  Vertical resolution mode   (VDP2 TVMD.VRESO1-0)
+        D3DUint deinterlace : 1;          //    28  Deinterlace
+        D3DUint transparentMeshes : 1;    //    29  Render mesh sprites as transparent
+        D3DUint dblInterlaceEnable : 1;   //    30  VDP1 double interlace enable flag (VDP1 FBCR.DIE)
+        D3DUint dblInterlaceDrawLine : 1; //    30  VDP1 double interlace draw line   (VDP1 FBCR.DIL)
     } extraParams;
 
     struct {                       //  bits  use

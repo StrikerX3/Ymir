@@ -1016,9 +1016,13 @@ void Direct3D11VDPRenderer::VDP1BeginFrame() {
     }
 
     const VDP1Regs &regs1 = m_state.regs1;
-    auto &config = m_context->cpuVDP1RenderConfig;
-    config.params.dblInterlaceEnable = regs1.dblInterlaceEnable;
-    config.params.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
+    auto &config1 = m_context->cpuVDP1RenderConfig;
+    config1.params.dblInterlaceEnable = regs1.dblInterlaceEnable;
+    config1.params.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
+
+    auto &config2 = m_context->cpuVDP2RenderConfig;
+    config2.extraParams.dblInterlaceEnable = regs1.dblInterlaceEnable;
+    config2.extraParams.dblInterlaceDrawLine = regs1.dblInterlaceDrawLine;
 }
 
 void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Control control) {

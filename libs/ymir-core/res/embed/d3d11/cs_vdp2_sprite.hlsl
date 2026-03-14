@@ -133,6 +133,8 @@ static const bool hiResH = BitTest(config.displayParams, 6);
 static const uint spriteDisplayFB = BitExtract(config.displayParams, 29, 1);
 static const uint spriteFBBaseOffset = spriteDisplayFB * 256 * 1024;
 static const uint deinterlaceFBBaseOffset = 2 * 256 * 1024;
+static const bool dblInterlaceEnable = BitTest(config.extraParams, 30);
+static const bool dblInterlaceDrawLine = BitTest(config.extraParams, 31);
 
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
@@ -476,7 +478,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
             spritePos.x >>= 1;
         }
         if (deinterlace && interlaceMode >= kInterlaceModeSingleDensity) {
-            if (interlaceMode == kInterlaceModeDoubleDensity && (spritePos.y & 1) != oddField) {
+            if (dblInterlaceEnable && (spritePos.y & 1) == dblInterlaceDrawLine) {
                 baseFBAddr = deinterlaceFBBaseOffset;
             }
             spritePos.y >>= 1;
