@@ -197,6 +197,18 @@ struct DirtyBitmap {
         m_bitmap.fill(0);
     }
 
+    /// @brief Returns a pointer to the raw data of this bitmap.
+    /// @return a pointer to the raw bitmap
+    const TEntry *GetData() const {
+        return m_bitmap.data();
+    }
+
+    /// @brief Returns the size of the bitmap in bits.
+    /// @return the number of bits in the bitmap
+    size_t Size() const {
+        return numBits;
+    }
+
 private:
     alignas(16) std::array<TEntry, kNumEntries> m_bitmap = {};
 };
