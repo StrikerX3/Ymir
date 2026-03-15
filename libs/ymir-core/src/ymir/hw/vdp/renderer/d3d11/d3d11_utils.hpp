@@ -8,8 +8,10 @@
 #include <array>
 #include <bit>
 #include <concepts>
+#include <set>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace d3dutil {
 
@@ -84,6 +86,21 @@ FORCE_INLINE void SafeRelease(std::array<T *, N> &objects) {
 template <typename T>
     requires std::derived_from<T, IUnknown>
 FORCE_INLINE void SafeRelease(std::vector<T *> &objects) {
+    for (auto &object : objects) {
+        if (object != nullptr) {
+            object->Release();
+        }
+    }
+    objects.clear();
+}
+
+/// @brief Safely releases a set of objects, handling `nullptr`s gracefully.
+///
+/// @tparam T the type of objects in the set
+/// @param[in] objects the set of objects to release. The set is cleared afterwards.
+template <typename T>
+    requires std::derived_from<T, IUnknown>
+FORCE_INLINE void SafeRelease(std::set<T *> &objects) {
     for (auto &object : objects) {
         if (object != nullptr) {
             object->Release();

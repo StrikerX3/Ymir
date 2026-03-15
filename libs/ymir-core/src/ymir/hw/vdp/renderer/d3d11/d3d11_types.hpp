@@ -97,6 +97,12 @@ struct alignas(16) VDP1RenderConfig {
         D3DUint writeValue : 16; //  0-15  Erase write value
     } erase;
     static_assert(sizeof(Erase) == sizeof(D3DUint) * 2);
+
+    struct Scaling {
+        D3DUint scaleH : 3; // Horizontal scaling factor (minus one)
+        D3DUint scaleV : 3; // Vertical scaling factor (minus one)
+    } scaling;
+    static_assert(sizeof(Scaling) == sizeof(D3DUint));
 };
 
 struct VDP1LineParams {
@@ -235,6 +241,11 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint nbg2 : 10; //   0-9  Base Y for NBG2 fractional Y scroll coordinates
         D3DUint nbg3 : 10; // 10-19  Base Y for NBG3 fractional Y scroll coordinates
     } fracScrollYBases;
+
+    struct {
+        D3DUint scaleH : 3; // Horizontal scaling factor (minus one)
+        D3DUint scaleV : 3; // Vertical scaling factor (minus one)
+    } scaling;
 };
 
 struct VDP2BGRenderParams {

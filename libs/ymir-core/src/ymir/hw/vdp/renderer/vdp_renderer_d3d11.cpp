@@ -609,6 +609,110 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
 Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
+FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
+    auto &devMgr = m_context->DeviceManager;
+
+    devMgr.Release(m_context->bufVDP1EnhFB);
+    devMgr.Release(m_context->srvVDP1EnhFB);
+    devMgr.Release(m_context->uavVDP1EnhFB);
+    m_context->bufVDP1EnhFB = nullptr;
+    m_context->srvVDP1EnhFB = nullptr;
+    m_context->uavVDP1EnhFB = nullptr;
+
+    const uint32 scaleH = m_enhancements.scaleH + 1;
+    const uint32 scaleV = m_enhancements.scaleV + 1;
+
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, &m_context->srvVDP1EnhFB, &m_context->uavVDP1EnhFB,
+                                           kVDP1FBRAMSize * 2 * 2 * 2 * scaleH * scaleV, nullptr, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1EnhFB, "[Ymir D3D11] VDP1 enhanced framebuffer output buffer");
+    SetDebugName(m_context->srvVDP1EnhFB, "[Ymir D3D11] VDP1 enhanced framebuffer output SRV");
+    SetDebugName(m_context->uavVDP1EnhFB, "[Ymir D3D11] VDP1 enhanced framebuffer output UAV");
+
+    // ---
+
+    devMgr.Release(m_context->texVDP2BGs);
+    devMgr.Release(m_context->srvVDP2BGs);
+    devMgr.Release(m_context->uavVDP2BGs);
+    m_context->texVDP2BGs = nullptr;
+    m_context->srvVDP2BGs = nullptr;
+    m_context->uavVDP2BGs = nullptr;
+
+    if (HRESULT hr =
+            devMgr.CreateTexture2D(m_context->texVDP2BGs, &m_context->srvVDP2BGs, &m_context->uavVDP2BGs,
+                                   vdp::kMaxResH * scaleH, vdp::kMaxResV * scaleV, 8, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->texVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG/sprite texture array");
+    SetDebugName(m_context->srvVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG/sprite SRV");
+    SetDebugName(m_context->uavVDP2BGs, "[Ymir D3D11] VDP2 NBG/RBG/sprite UAV");
+
+    // ---
+
+    devMgr.Release(m_context->texVDP2RotLineColors);
+    devMgr.Release(m_context->srvVDP2RotLineColors);
+    devMgr.Release(m_context->uavVDP2RotLineColors);
+    m_context->texVDP2RotLineColors = nullptr;
+    m_context->srvVDP2RotLineColors = nullptr;
+    m_context->uavVDP2RotLineColors = nullptr;
+
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2RotLineColors, &m_context->srvVDP2RotLineColors,
+                                            &m_context->uavVDP2RotLineColors, vdp::kMaxNormalResH * scaleH,
+                                            vdp::kMaxNormalResV * scaleV, 2, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->texVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL texture array");
+    SetDebugName(m_context->srvVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL SRV");
+    SetDebugName(m_context->uavVDP2RotLineColors, "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
+
+    // ---
+
+    devMgr.Release(m_context->texVDP2SpriteAttrs);
+    devMgr.Release(m_context->srvVDP2SpriteAttrs);
+    devMgr.Release(m_context->uavVDP2SpriteAttrs);
+    m_context->texVDP2SpriteAttrs = nullptr;
+    m_context->srvVDP2SpriteAttrs = nullptr;
+    m_context->uavVDP2SpriteAttrs = nullptr;
+
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2SpriteAttrs, &m_context->srvVDP2SpriteAttrs,
+                                            &m_context->uavVDP2SpriteAttrs, vdp::kVDP1MaxFBSizeH * scaleH,
+                                            vdp::kVDP1MaxFBSizeV * scaleV, 0, DXGI_FORMAT_R8_UINT, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->texVDP2SpriteAttrs, "[Ymir D3D11] VDP2 sprite attributes texture");
+    SetDebugName(m_context->srvVDP2SpriteAttrs, "[Ymir D3D11] VDP2 sprite attributes SRV");
+    SetDebugName(m_context->uavVDP2SpriteAttrs, "[Ymir D3D11] VDP2 sprite attributes UAV");
+
+    // ---
+
+    devMgr.Release(m_context->texVDP2Output);
+    devMgr.Release(m_context->uavVDP2Output);
+    m_context->texVDP2Output = nullptr;
+    m_context->uavVDP2Output = nullptr;
+
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2Output, nullptr, &m_context->uavVDP2Output,
+                                            vdp::kMaxResH * scaleH, vdp::kMaxResV * scaleV, 0,
+                                            DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->texVDP2Output, "[Ymir D3D11] VDP2 framebuffer texture");
+    SetDebugName(m_context->uavVDP2Output, "[Ymir D3D11] VDP2 framebuffer SRV");
+
+    HwCallbacks.OutputTextureRecreated();
+}
+
 void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
     m_context->DeviceManager.ExecutePendingCommandLists(m_restoreState, HwCallbacks);
 }
@@ -656,9 +760,15 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
 void Direct3D11VDPRenderer::UpdateEnhancements() {
     m_context->cpuVDP1RenderConfig.params.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP1RenderConfig.params.transparentMeshes = m_enhancements.transparentMeshes;
+    m_context->cpuVDP1RenderConfig.scaling.scaleH = m_enhancements.scaleH;
+    m_context->cpuVDP1RenderConfig.scaling.scaleV = m_enhancements.scaleV;
 
     m_context->cpuVDP2RenderConfig.extraParams.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP2RenderConfig.extraParams.transparentMeshes = m_enhancements.transparentMeshes;
+    m_context->cpuVDP2RenderConfig.scaling.scaleH = m_enhancements.scaleH;
+    m_context->cpuVDP2RenderConfig.scaling.scaleV = m_enhancements.scaleV;
+
+    RecreateScaledObjects();
 }
 
 // -----------------------------------------------------------------------------

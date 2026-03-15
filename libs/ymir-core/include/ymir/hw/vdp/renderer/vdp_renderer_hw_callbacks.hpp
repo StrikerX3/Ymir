@@ -21,6 +21,11 @@ using CBHardwarePreExecuteCommandList = util::OptionalCallback<void(bool first)>
 /// @param[in] last `true` if processing the last command in the list
 using CBHardwarePostExecuteCommandList = util::OptionalCallback<void(bool last)>;
 
+/// @brief Type of callback invoked when the output texture is recreated.
+/// Can be used to update texture references if cached or wrapped by other frontend objects.
+/// This callback is invoked by the emulator or renderer thread.
+using CBHardwareOutputTextureRecreated = util::OptionalCallback<void()>;
+
 /// @brief Callbacks specific to hardware VDP renderers.
 struct HardwareRendererCallbacks {
     /// @brief Callback invoked when a command list is prepared. This callback is invoked by the renderer thread (which
@@ -34,6 +39,10 @@ struct HardwareRendererCallbacks {
     /// @brief Callback invoked after a command list is processed. This callback is invoked by the same thread that
     /// invokes `HardwareVDPRendererBase::ExecutePendingCommandLists()`.
     CBHardwarePostExecuteCommandList PostExecuteCommandList;
+
+    /// @brief Callback invoked when the output texture is recreated. This callback is invoked by the renderer thread
+    /// (which may be the emulator thread or a dedicated thread).
+    CBHardwareOutputTextureRecreated OutputTextureRecreated;
 };
 
 } // namespace ymir::vdp

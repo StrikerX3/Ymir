@@ -128,6 +128,19 @@ public:
         }
     }
 
+    /// @brief Configures the callback to invoke when the output texture is recreated in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwareOutputTextureRecreatedCallback(CBHardwareOutputTextureRecreated callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.OutputTextureRecreated = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.OutputTextureRecreated = callback;
+        }
+    }
+
     /// @brief Retrieves a reference to the current VDP renderer.
     /// @return a reference to the current VDP renderer instance, guaranteed to be valid
     IVDPRenderer &GetRenderer() {

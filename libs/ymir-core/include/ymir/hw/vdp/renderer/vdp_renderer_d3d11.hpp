@@ -57,6 +57,11 @@ public:
                           bool restoreState, bool debug);
     ~Direct3D11VDPRenderer();
 
+private:
+    /// @brief Recreates all scaled objects using the current scaling parameters from the `Enhancements` instance.
+    void RecreateScaledObjects();
+
+public:
     // -------------------------------------------------------------------------
     // Hardware rendering
 
