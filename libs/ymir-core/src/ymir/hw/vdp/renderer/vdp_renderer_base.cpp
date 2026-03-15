@@ -252,6 +252,12 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 //                     B   PN3 ...3....          Cyberbots - Fullmetal Madness, in-game
                 //                     A   CP3 ...3....  no      Cyberbots - Fullmetal Madness, in-game
                 //                     B   CP3 .......7  no      Cyberbots - Fullmetal Madness, in-game
+                // 17 hi   1x  pal256  B1  PN0 0...              Dark Savior, title screen
+                //                     B0  CP0 0123      no      Dark Savior, title screen
+                //                     B1  CP0 .1.3      no      Dark Savior, title screen
+                //                     B1  PN1 ..2.              Dark Savior, title screen
+                //                     A0  CP1 0123      no      Dark Savior, title screen
+                //                     A1  CP1 0123      no      Dark Savior, title screen
                 // clang-format on
                 //
                 // Seems like the bitmap "delay" is caused by configuring out-of-phase reads for an NBG in different
@@ -340,7 +346,7 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // - CP access happens entirely before PN access
                 // - CP access occurs in illegal time slot
                 if ((bgPN & (1u << pnIndex)) != 0 &&
-                    (bgCP < bgPN || (bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) != bgCP)) {
+                    (bgCP < bgPN || (bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) == 0)) {
                     bgParams.charPatDelay = true;
                     break;
                 }
