@@ -6,6 +6,7 @@ struct Config {
     uint2 spriteParams;
     uint windows;
     uint fracScrollYBases;
+    uint scale;
 };
 
 struct ComposeParams {
@@ -85,6 +86,7 @@ static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
 
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
+static const uint scale = BitExtract(config.scale, 0, 3) + 1;
 
 // The alpha channel of the layer textures contains pixel attributes:
 // bits  use
@@ -412,7 +414,7 @@ uint3 Compose(uint2 basePos) {
 
 [numthreads(32, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = uint2(id.x, id.y + config.startY);
+    const uint2 drawCoord = uint2(id.x, id.y + config.startY * scale);
     const uint2 outCoord = uint2(drawCoord.x, GetOutputY(drawCoord.y));
     const uint3 outColor = Compose(drawCoord);
     textureOut[outCoord] = float4(outColor / 255.0, 1.0f);
