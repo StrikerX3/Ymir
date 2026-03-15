@@ -206,7 +206,7 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint deinterlace : 1;          //    28  Deinterlace
         D3DUint transparentMeshes : 1;    //    29  Render mesh sprites as transparent
         D3DUint dblInterlaceEnable : 1;   //    30  VDP1 double interlace enable flag (VDP1 FBCR.DIE)
-        D3DUint dblInterlaceDrawLine : 1; //    30  VDP1 double interlace draw line   (VDP1 FBCR.DIL)
+        D3DUint dblInterlaceDrawLine : 1; //    31  VDP1 double interlace draw line   (VDP1 FBCR.DIL)
     } extraParams;
 
     struct {                       //  bits  use
@@ -232,8 +232,8 @@ struct alignas(16) VDP2RenderConfig {
     } windows;
 
     struct {               //  bits  use
-        D3DUint nbg2 : 10; //   0-9  Base Y for NBG2
-        D3DUint nbg3 : 10; // 10-19  Base Y for NBG3
+        D3DUint nbg2 : 10; //   0-9  Base Y for NBG2 fractional Y scroll coordinates
+        D3DUint nbg3 : 10; // 10-19  Base Y for NBG3 fractional Y scroll coordinates
     } fracScrollYBases;
 };
 
