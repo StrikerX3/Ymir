@@ -252,9 +252,15 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 //                     B   PN3 ...3....          Cyberbots - Fullmetal Madness, in-game
                 //                     A   CP3 ...3....  no      Cyberbots - Fullmetal Madness, in-game
                 //                     B   CP3 .......7  no      Cyberbots - Fullmetal Madness, in-game
-                // 17 lo   1x  pal256  B1  PN1 ..2.45..          BattleSport, loading screen
+                // 17 hi   1x  pal256  B1  PN0 0...              Dark Savior, title screen
+                //                     B0  CP0 0123      no      Dark Savior, title screen
+                //                     B1  CP0 .1.3      no      Dark Savior, title screen
+                //                     B1  PN1 ..2.              Dark Savior, title screen
+                //                     A0  CP1 0123      no      Dark Savior, title screen
+                //                     A1  CP1 0123      no      Dark Savior, title screen
+                // 18 lo   1x  pal256  B1  PN1 ..2.45..          BattleSport, loading screen
                 //                     B1  CP1 ......67  no      BattleSport, loading screen
-                // 18 lo   1x  pal256  B1  PN3 ..2.45..          Daisuki, intro animation
+                // 19 lo   1x  pal256  B1  PN3 ..2.45..          Daisuki, intro animation
                 //                     B1  CP3 ......67  no      Daisuki, intro animation
                 // clang-format on
                 //
@@ -276,7 +282,7 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // In case #15, the CP2 access in bank A0 is assigned to T3, which is illegal for PN at T0.
                 // Case #16 shows legal accesses. Note that there are CP0-CP3 accesses in both the T0-T3 and T4-T7
                 // ranges, but this does not cause the T4-T7 accesses to be shifted.
-                // Cases #17 and #18 have more PN accesses than necessary and show that only the first PN access matters
+                // Cases #18 and #19 have more PN accesses than necessary and show that only the first PN access matters
                 // for the delay checks. In both cases, the first PN access occurs on T2, which makes the CP accesses in
                 // T6 and T7 valid. PN accesses on T4 and T5 would make those CP accesses invalid.
 
@@ -347,7 +353,7 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // - CP access happens entirely before PN access
                 // - CP access occurs in illegal time slot
                 if ((bgPN & (1u << pnIndex)) != 0 &&
-                    (bgCP < bgPN || (bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) != bgCP)) {
+                    (bgCP < bgPN || (bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) == 0)) {
                     bgParams.charPatDelay = true;
                     break;
                 }
