@@ -6,7 +6,7 @@ struct Config {
     uint2 spriteParams;
     uint windows;
     uint fracScrollYBases;
-    uint scaling;
+    uint scale;
 };
 
 struct Window {
@@ -134,15 +134,9 @@ static const uint spriteDisplayFB = BitExtract(config.displayParams, 29, 1);
 static const bool dblInterlaceEnable = BitTest(config.extraParams, 30);
 static const bool dblInterlaceDrawLine = BitTest(config.extraParams, 31);
 
-#ifdef YMIR_BYPASS_ENHANCEMENTS
-static const bool deinterlace = false;
-static const bool transparentMeshes = false;
-static const uint scale = 1;
-#else
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
-static const uint scale = BitExtract(config.scaling, 0, 3) + 1;
-#endif
+static const uint scale = BitExtract(config.scale, 0, 3) + 1;
 
 static const uint kVDP1FBRAMSize = 256 * 1024 * scale * scale;
 static const uint kSpriteFBBaseOffset = spriteDisplayFB * kVDP1FBRAMSize;
