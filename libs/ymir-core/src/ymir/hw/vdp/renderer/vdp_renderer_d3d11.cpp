@@ -83,17 +83,23 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *bufVDP1FBRAMUp = nullptr; //< VDP1 FBRAM upload staging buffer (CPU->GPU transfers)
     bool dirtyVDP1FBRAMUp = true;           //< VDP1 FBRAM upload staging buffer dirty flag
 
+    ID3D11Buffer *bufVDP1FBRAMBitmap = nullptr;             //< VDP1 FBRAM CPU write bitmap buffer
+    ID3D11ShaderResourceView *srvVDP1FBRAMBitmap = nullptr; //< SRV for VDP1 FBRAM CPU write bitmap buffer
+    DirtyBitmap<kVDP1FBRAMSize> dirtyVDP1FBRAMBitmap = {};  //< VDP1 FBRAM CPU write bitmap
+
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase shader
 
-    ID3D11ComputeShader *csVDP1EraseAcc = nullptr; //< Accurate VDP1 polygon erase compute shader
-    ID3D11ComputeShader *csVDP1EraseEnh = nullptr; //< Enhanced VDP1 polygon erase compute shader
+    ID3D11ComputeShader *csVDP1EraseAcc = nullptr; //< Accurate VDP1 framebuffer erase compute shader
+    ID3D11ComputeShader *csVDP1EraseEnh = nullptr; //< Enhanced VDP1 framebuffer erase compute shader
+
+    ID3D11ComputeShader *csVDP1CPUWrite = nullptr; //< VDP1 CPU write mesh erase compute shader
 
     // -------------------------------------------------------------------------
     // VDP1 - rendering shader
 
-    ID3D11ComputeShader *csVDP1RenderAcc = nullptr; //< Accurate VDP1 polygon drawing compute shader
-    ID3D11ComputeShader *csVDP1RenderEnh = nullptr; //< Enhanced VDP1 polygon drawing compute shader
+    ID3D11ComputeShader *csVDP1RenderAcc = nullptr; //< Accurate VDP1 rendering compute shader
+    ID3D11ComputeShader *csVDP1RenderEnh = nullptr; //< Enhanced VDP1 rendering compute shader
 
     ID3D11Buffer *bufVDP1VRAM = nullptr;             //< VDP1 VRAM buffer
     ID3D11ShaderResourceView *srvVDP1VRAM = nullptr; //< SRV for VDP1 VRAM buffer
@@ -281,21 +287,37 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1FBRAMUp, "[Ymir D3D11] VDP1 FBRAM upload staging buffer");
 
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMBitmap, &m_context->srvVDP1FBRAMBitmap, nullptr,
+                                           m_context->dirtyVDP1FBRAMBitmap.Size() / 8,
+                                           m_context->dirtyVDP1FBRAMBitmap.GetData(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->bufVDP1FBRAMBitmap, "[Ymir D3D11] VDP1 FBRAM CPU write bitmap buffer");
+
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase shader
 
-    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseAcc, "d3d11/cs_vdp1_eraseswap.hlsl", "CSMain",
+    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseAcc, "d3d11/cs_vdp1_erase.hlsl", "CSMain",
                                     kBypassEnhancementsMacro.data())) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->csVDP1EraseAcc, "[Ymir D3D11] VDP1 framebuffer erase compute shader (accurate)");
 
-    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseEnh, "d3d11/cs_vdp1_eraseswap.hlsl")) {
+    if (!devMgr.CreateComputeShader(m_context->csVDP1EraseEnh, "d3d11/cs_vdp1_erase.hlsl")) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->csVDP1EraseEnh, "[Ymir D3D11] VDP1 framebuffer erase compute shader (enhanced)");
+
+    if (!devMgr.CreateComputeShader(m_context->csVDP1CPUWrite, "d3d11/cs_vdp1_cpuwrite.hlsl")) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->csVDP1CPUWrite, "[Ymir D3D11] VDP1 CPU write mesh erase compute shader");
 
     // -------------------------------------------------------------------------
     // VDP1 - rendering shader
@@ -692,10 +714,13 @@ void Direct3D11VDPRenderer::VDP1DebugSyncFB() {
 
 void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {
     m_context->dirtyVDP1FBRAMUp = true;
+    m_context->dirtyVDP1FBRAMBitmap.Set(address);
 }
 
 void Direct3D11VDPRenderer::VDP1WriteFB(uint32 address, uint16 value) {
     m_context->dirtyVDP1FBRAMUp = true;
+    m_context->dirtyVDP1FBRAMBitmap.Set(address);
+    m_context->dirtyVDP1FBRAMBitmap.Set(address | 1);
 }
 
 void Direct3D11VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {
@@ -1010,6 +1035,19 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
             ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
         }
     }
+
+    // Erase portions of the mesh buffer corresponding to areas written by the SH-2
+    if (m_enhancements.transparentMeshes && m_context->dirtyVDP1FBRAMBitmap.AnySet()) {
+        ctx.ModifyResource(m_context->bufVDP1FBRAMBitmap, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, m_context->dirtyVDP1FBRAMBitmap.GetData(),
+                   m_context->dirtyVDP1FBRAMBitmap.Size() / 8);
+        });
+        ctx.CSSetShaderResources({m_context->srvVDP1FBRAMBitmap});
+        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB});
+        ctx.CSSetShader(m_context->csVDP1CPUWrite);
+        ctx.Dispatch(kVDP1FBRAMSize / 256, 1, 1);
+    }
+    m_context->dirtyVDP1FBRAMBitmap.ClearAll();
 
     // Cleanup
     ctx.CSSetUnorderedAccessViews({});
