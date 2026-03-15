@@ -319,6 +319,8 @@ int App::Run(const CommandLineOptions &options) {
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
         videoSettings.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
+        // TODO: observe scaling setting
+        m_context.EnqueueEvent(events::emu::SetResolutionScaling(2, 2));
     }
 
     // Profile priority:

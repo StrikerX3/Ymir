@@ -25,9 +25,11 @@ struct Enhancements {
     /// with half-transparency on top of other graphics.
     bool transparentMeshes = false;
 
-    /// @brief Internal resolution scaling factors (minus one).
-    // uint16 scaleH = 0, scaleV = 0;
-    uint16 scaleH = 1, scaleV = 1;
+    /// @brief Internal horizontal resolution scaling factor (minus one).
+    uint16 scaleH : 3 = 0;
+
+    /// @brief Internal vertical resolution scaling factor (minus one).
+    uint16 scaleV : 3 = 0;
 };
 
 /// @brief VDP2 debug rendering options.

@@ -64,6 +64,15 @@ EmuEvent SetTransparentMeshes(bool enable) {
     });
 }
 
+EmuEvent SetResolutionScaling(uint16 h, uint16 v) {
+    return RunFunction([=](SharedContext &ctx) {
+        ctx.saturn.instance->VDP.ModifyEnhancements([&](vdp::config::Enhancements &enhancements) {
+            enhancements.scaleH = std::clamp<uint16>(h, 1, 8) - 1;
+            enhancements.scaleV = std::clamp<uint16>(v, 1, 8) - 1;
+        });
+    });
+}
+
 EmuEvent SetDebugTrace(bool enable) {
     return RunFunction([=](SharedContext &ctx) {
         ctx.saturn.instance->EnableDebugTracing(enable);
