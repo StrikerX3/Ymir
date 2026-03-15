@@ -1206,7 +1206,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
             ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
             ctx.CSSetShader(m_context->csVDP1EraseEnh.get());
-            ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
+            ctx.Dispatch((width * m_currScaleH + 31) / 32, (height * m_currScaleV + 31) / 32, 1);
         }
     }
 
@@ -1219,7 +1219,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         ctx.CSSetShaderResources({m_context->srvVDP1FBRAMBitmap.get()});
         ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
         ctx.CSSetShader(m_context->csVDP1CPUWrite.get());
-        ctx.Dispatch(kVDP1FBRAMSize / 256, 1, 1);
+        ctx.Dispatch(kVDP1FBRAMSize * m_currScaleH * m_currScaleV / 256, 1, 1);
     }
     m_context->dirtyVDP1FBRAMBitmap.ClearAll();
 
@@ -1442,8 +1442,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
         ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
         ctx.CSSetShader(m_context->csVDP1RenderEnh.get());
-        ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
-                     (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
+        ctx.Dispatch((m_VDP1State.sysClipH * m_currScaleH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
+                     (m_VDP1State.sysClipV * m_currScaleV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
     }
 
     m_context->cpuVDP1LineParamsCount = 0;
@@ -2162,7 +2162,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
                               hasEnhancements ? m_context->srvVDP1EnhFB.get() : m_context->srvVDP1AccFB.get()},
                              3);
     ctx.CSSetShader(m_context->csVDP2Sprite.get());
-    ctx.Dispatch(m_HRes / 32, numLines, m_enhancements.transparentMeshes ? 2 : 1);
+    ctx.Dispatch(m_HRes * m_currScaleH / 32, numLines * m_currScaleV, m_enhancements.transparentMeshes ? 2 : 1);
 
     // Draw NBGs and RBGs
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
@@ -2172,7 +2172,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs.get(), m_context->uavVDP2RotLineColors.get(),
                                    m_context->uavVDP2LineColors.get(), m_context->uavVDP2CCWindow.get()});
     ctx.CSSetShader(m_context->csVDP2BGs.get());
-    ctx.Dispatch(m_HRes / 32, numLines, 1);
+    ctx.Dispatch(m_HRes * m_currScaleH / 32, numLines * m_currScaleV, 1);
 
     // Update fracScrollY bases for the next frame
     if (m_setSCYN2) {
@@ -2209,7 +2209,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
                               m_context->srvVDP2LineColors.get(), m_context->srvVDP2SpriteAttrs.get(),
                               m_context->srvVDP2ComposeParams.get(), m_context->srvVDP2CCWindow.get()});
     ctx.CSSetShader(m_context->csVDP2Compose.get());
-    ctx.Dispatch(m_HRes / 32, numLines, 1);
+    ctx.Dispatch(m_HRes * m_currScaleH / 32, numLines * m_currScaleV, 1);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {
