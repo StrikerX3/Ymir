@@ -961,6 +961,16 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup framebuffer and render callbacks
 
+    struct OutputTextureResizedCallbackData {
+        vdp::VDP &vdp;
+        SDL_Texture *&hwFbTexture;
+        services::GraphicsService &graphicsService;
+    } outputTextureResizedCallbackData = {
+        .vdp = vdp,
+        .hwFbTexture = hwFbTexture,
+        .graphicsService = m_graphicsService,
+    };
+
     {
         auto &renderer = vdp.GetRenderer();
         auto &callbacks = renderer.Callbacks;
@@ -1085,6 +1095,29 @@ void App::RunEmulator() {
                 }
             },
         });
+
+        vdp.SetHardwareOutputTextureRecreatedCallback(
+            {&outputTextureResizedCallbackData, [](void *ctx) {
+                 auto &data = *static_cast<OutputTextureResizedCallbackData *>(ctx);
+                 SDL_DestroyTexture(data.hwFbTexture);
+                 data.hwFbTexture = nullptr;
+                 if (auto *d3d11Renderer = data.vdp.GetRendererAs<vdp::VDPRendererType::Direct3D11>()) {
+                     SDL_PropertiesID texProps = SDL_CreateProperties();
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, vdp::kMaxResH);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, vdp::kMaxResV);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_ABGR8888);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STATIC);
+                     SDL_SetPointerProperty(texProps, SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER,
+                                            d3d11Renderer->GetVDP2OutputTexture());
+                     data.hwFbTexture = SDL_CreateTextureWithProperties(data.graphicsService.GetRenderer(), texProps);
+                     if (data.hwFbTexture == nullptr) {
+                         // TODO: report error
+                         // ShowStartupFailure("Could not create SDL texture from D3D11 texture: {}", SDL_GetError());
+                         return;
+                     }
+                     SDL_SetTextureScaleMode(data.hwFbTexture, SDL_SCALEMODE_NEAREST);
+                 }
+             }});
     }
 
     // ---------------------------------

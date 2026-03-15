@@ -24,6 +24,10 @@ struct Enhancements {
     /// When enabled, VDP1 sprites drawn in mesh mode are instead rendered to a separate sprite buffer that is blended
     /// with half-transparency on top of other graphics.
     bool transparentMeshes = false;
+
+    /// @brief Internal resolution scaling factors (minus one).
+    // uint16 scaleH = 0, scaleV = 0;
+    uint16 scaleH = 1, scaleV = 1;
 };
 
 /// @brief VDP2 debug rendering options.

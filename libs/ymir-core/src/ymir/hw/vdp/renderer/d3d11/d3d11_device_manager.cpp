@@ -25,7 +25,7 @@ DeviceManager::DeviceManager(ID3D11Device *device, bool debug)
     assert(device != nullptr);
 
     device->GetImmediateContext(&m_immediateCtx);
-    m_resources.push_back(m_immediateCtx);
+    m_resources.insert(m_immediateCtx);
 }
 
 DeviceManager::~DeviceManager() {
@@ -38,7 +38,7 @@ HRESULT DeviceManager::CreateDeferredContext(ID3D11DeviceContext *&ctx) {
 
     const HRESULT hr = m_device->CreateDeferredContext(0, &ctx);
     if (SUCCEEDED(hr)) {
-        m_resources.push_back(ctx);
+        m_resources.insert(ctx);
     }
     return hr;
 }
@@ -81,7 +81,7 @@ HRESULT DeviceManager::CreateTexture2D(ID3D11Texture2D *&texOut, UINT width, UIN
 
     const HRESULT hr = m_device->CreateTexture2D(&texDesc, texInitData.data(), &texOut);
     if (SUCCEEDED(hr)) {
-        m_resources.push_back(texOut);
+        m_resources.insert(texOut);
     }
     return hr;
 }
@@ -106,7 +106,7 @@ HRESULT DeviceManager::CreateTexture2DSRV(ID3D11ShaderResourceView *&srvOut, ID3
 
     const HRESULT hr = m_device->CreateShaderResourceView(tex, &srvDesc, &srvOut);
     if (SUCCEEDED(hr)) {
-        m_resources.push_back(srvOut);
+        m_resources.insert(srvOut);
     }
     return hr;
 }
@@ -129,7 +129,7 @@ HRESULT DeviceManager::CreateTexture2DUAV(ID3D11UnorderedAccessView *&uavOut, ID
 
     const HRESULT hr = m_device->CreateUnorderedAccessView(tex, &uavDesc, &uavOut);
     if (SUCCEEDED(hr)) {
-        m_resources.push_back(uavOut);
+        m_resources.insert(uavOut);
     }
     return hr;
 }
@@ -211,7 +211,7 @@ HRESULT DeviceManager::CreateBuffer(ID3D11Buffer *&bufOut, BufferType type, UINT
 
     const HRESULT hr = m_device->CreateBuffer(&desc, initData == nullptr ? nullptr : &initDataDesc, &bufOut);
     if (SUCCEEDED(hr)) {
-        m_resources.push_back(bufOut);
+        m_resources.insert(bufOut);
     }
     return hr;
 }
@@ -236,7 +236,7 @@ inline HRESULT DeviceManager::CreateBufferSRV(ID3D11ShaderResourceView *&srvOut,
 
     const HRESULT hr = m_device->CreateShaderResourceView(buffer, &srvDesc, &srvOut);
     if (SUCCEEDED(hr)) {
-        m_resources.push_back(srvOut);
+        m_resources.insert(srvOut);
     }
     return hr;
 }
@@ -255,7 +255,7 @@ HRESULT DeviceManager::CreateBufferUAV(ID3D11UnorderedAccessView *&uavOut, ID3D1
 
     const HRESULT hr = m_device->CreateUnorderedAccessView(buffer, &uavDesc, &uavOut);
     if (SUCCEEDED(hr)) {
-        m_resources.push_back(uavOut);
+        m_resources.insert(uavOut);
     }
     return hr;
 }
@@ -355,7 +355,7 @@ bool DeviceManager::CreateVertexShader(ID3D11VertexShader *&vsOut, const char *p
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
     vsOut = shaderCache.GetVertexShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     if (vsOut != nullptr) {
-        m_resources.push_back(vsOut);
+        m_resources.insert(vsOut);
         return true;
     }
     return false;
@@ -368,7 +368,7 @@ bool DeviceManager::CreatePixelShader(ID3D11PixelShader *&psOut, const char *pat
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
     psOut = shaderCache.GetPixelShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     if (psOut != nullptr) {
-        m_resources.push_back(psOut);
+        m_resources.insert(psOut);
         return true;
     }
     return false;
@@ -381,10 +381,17 @@ bool DeviceManager::CreateComputeShader(ID3D11ComputeShader *&csOut, const char 
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
     csOut = shaderCache.GetComputeShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     if (csOut != nullptr) {
-        m_resources.push_back(csOut);
+        m_resources.insert(csOut);
         return true;
     }
     return false;
+}
+
+void DeviceManager::Release(IUnknown *object) {
+    if (auto it = m_resources.find(object); it != m_resources.end()) {
+        m_resources.erase(it);
+    }
+    SafeRelease(object);
 }
 
 void DeviceManager::EnqueueCommandList(ID3D11CommandList *cmdList) {

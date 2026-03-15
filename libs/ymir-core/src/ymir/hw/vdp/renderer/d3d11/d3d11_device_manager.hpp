@@ -6,6 +6,7 @@
 
 #include <concepts>
 #include <mutex>
+#include <set>
 #include <vector>
 
 namespace ymir::vdp::d3d11 {
@@ -215,6 +216,10 @@ public:
     bool CreateComputeShader(ID3D11ComputeShader *&csOut, const char *path, const char *entrypoint = "CSMain",
                              const D3D_SHADER_MACRO *macros = nullptr);
 
+    /// @brief Safely releases the specified object.
+    /// @param[in] object the object to release
+    void Release(IUnknown *object);
+
     /// @brief Enqueues a command list for execution in the immediate context.
     /// @param[in] cmdList the command list to enqueue
     void EnqueueCommandList(ID3D11CommandList *cmdList);
@@ -260,7 +265,7 @@ private:
     std::mutex m_mtxCmdList{};
     std::vector<ID3D11CommandList *> m_cmdListQueue;
 
-    std::vector<IUnknown *> m_resources;
+    std::set<IUnknown *> m_resources;
 };
 
 } // namespace ymir::vdp::d3d11
