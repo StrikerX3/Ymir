@@ -53,10 +53,12 @@ struct Direct3D11VDPRenderer::Context {
 
     ID3D11VertexShader *vsIdentity = nullptr; //< Identity/passthrough vertex shader, required to run pixel shaders
 
+    std::array<ID3D11Buffer *, 4> bufVRAMPages = {}; //< VDP1/VDP2 VRAM upload buffers (1, 2, 4, 8 pages)
+
     // =========================================================================
     // VDP1 resources
     //
-    // AccFB is the buffer used internally by the renderer for hardware-accurate FBRAM output.
+    // AccFB is the buffer used internally by the renderer for accurate FBRAM output.
     // EnhFB is the buffer used internally by the renderer for enhanced FBRAM output.
     // FBRAMDown/FBRAMUp are staging buffers meant for CPU<->GPU transfers of FBRAM data.
     //
@@ -84,19 +86,18 @@ struct Direct3D11VDPRenderer::Context {
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase shader
 
-    ID3D11ComputeShader *csVDP1EraseAcc = nullptr; //< Hardware-accurate VDP1 polygon erase compute shader
+    ID3D11ComputeShader *csVDP1EraseAcc = nullptr; //< Accurate VDP1 polygon erase compute shader
     ID3D11ComputeShader *csVDP1EraseEnh = nullptr; //< Enhanced VDP1 polygon erase compute shader
 
     // -------------------------------------------------------------------------
-    // VDP1 - polygon rendering shader
+    // VDP1 - rendering shader
 
-    ID3D11ComputeShader *csVDP1RenderAcc = nullptr; //< Hardware-accurate VDP1 polygon drawing compute shader
+    ID3D11ComputeShader *csVDP1RenderAcc = nullptr; //< Accurate VDP1 polygon drawing compute shader
     ID3D11ComputeShader *csVDP1RenderEnh = nullptr; //< Enhanced VDP1 polygon drawing compute shader
 
-    ID3D11Buffer *bufVDP1VRAM = nullptr;                              //< VDP1 VRAM buffer
-    ID3D11ShaderResourceView *srvVDP1VRAM = nullptr;                  //< SRV for VDP1 VRAM buffer
-    DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};                   //< Dirty bitmap for VDP1 VRAM
-    std::array<ID3D11Buffer *, kVDP1VRAMPages> bufVDP1VRAMPages = {}; //< VDP1 VRAM page buffers
+    ID3D11Buffer *bufVDP1VRAM = nullptr;             //< VDP1 VRAM buffer
+    ID3D11ShaderResourceView *srvVDP1VRAM = nullptr; //< SRV for VDP1 VRAM buffer
+    DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};  //< Dirty bitmap for VDP1 VRAM
 
     ID3D11Buffer *bufVDP1LineParams = nullptr;             //< VDP1 line parameters structured buffer
     ID3D11ShaderResourceView *srvVDP1LineParams = nullptr; //< SRV for VDP1 line parameters
@@ -117,7 +118,7 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *bufVDP1LineBinIndices = nullptr;             //< VDP1 line bin indices structured buffer
     ID3D11ShaderResourceView *srvVDP1LineBinIndices = nullptr; //< SRV for VDP1 line bin indices
 
-    // Hardware-accurate FBRAM output. Just the 512 KiB of raw framebuffer data.
+    // Accurate FBRAM output. Just 512 KiB of raw framebuffer data.
     ID3D11Buffer *bufVDP1AccFB = nullptr;              //< VDP1 framebuffer output buffer
     ID3D11ShaderResourceView *srvVDP1AccFB = nullptr;  //< SRV for VDP1 framebuffer output buffer
     ID3D11UnorderedAccessView *uavVDP1AccFB = nullptr; //< UAV for VDP1 framebuffer output buffer
@@ -136,10 +137,9 @@ struct Direct3D11VDPRenderer::Context {
     ID3D11Buffer *cbufVDP2RenderConfig = nullptr; //< VDP2 rendering configuration constant buffer
     VDP2RenderConfig cpuVDP2RenderConfig{};       //< CPU-side VDP2 rendering configuration
 
-    ID3D11Buffer *bufVDP2VRAM = nullptr;                              //< VDP2 VRAM buffer
-    ID3D11ShaderResourceView *srvVDP2VRAM = nullptr;                  //< SRV for VDP2 VRAM buffer
-    DirtyBitmap<kVDP2VRAMPages> dirtyVDP2VRAM = {};                   //< Dirty bitmap for VDP2 VRAM
-    std::array<ID3D11Buffer *, kVDP2VRAMPages> bufVDP2VRAMPages = {}; //< VDP2 VRAM page buffers
+    ID3D11Buffer *bufVDP2VRAM = nullptr;             //< VDP2 VRAM buffer
+    ID3D11ShaderResourceView *srvVDP2VRAM = nullptr; //< SRV for VDP2 VRAM buffer
+    DirtyBitmap<kVDP2VRAMPages> dirtyVDP2VRAM = {};  //< Dirty bitmap for VDP2 VRAM
 
     ID3D11Buffer *bufVDP2RotRegs = nullptr;             //< VDP2 rotation registers structured buffer
     ID3D11ShaderResourceView *srvVDP2RotRegs = nullptr; //< SRV for VDP2 rotation registers
@@ -229,6 +229,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
     auto &devMgr = m_context->DeviceManager;
 
+    static constexpr std::array<D3D_SHADER_MACRO, 2> kBypassEnhancementsMacro = {
+        {{"YMIR_BYPASS_ENHANCEMENTS", "1"}, {nullptr, nullptr}}};
+
     // -------------------------------------------------------------------------
     // Basics
 
@@ -237,6 +240,19 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         return;
     }
     SetDebugName(m_context->vsIdentity, "[Ymir D3D11] Identity vertex shader");
+
+    for (uint32 i = 0; auto &buf : m_context->bufVRAMPages) {
+        const uint32 pageCount = 1u << i;
+        if (HRESULT hr = devMgr.CreateByteAddressBuffer(buf, nullptr, nullptr, 1u << (kVRAMPageBits + i), nullptr, 0,
+                                                        D3D11_CPU_ACCESS_WRITE);
+            FAILED(hr)) {
+            // TODO: report error
+            return;
+        }
+        SetDebugName(buf, fmt::format("[Ymir D3D11] VDP1/VDP2 VRAM upload buffer ({} {})", pageCount,
+                                      pageCount > 1 ? "pages" : "page"));
+        ++i;
+    }
 
     // -------------------------------------------------------------------------
     // VDP1 - shared resources
@@ -268,37 +284,34 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP1 - framebuffer erase shader
 
-    static constexpr std::array<D3D_SHADER_MACRO, 2> kBypassEnhancementsMacro = {
-        {{"YMIR_BYPASS_ENHANCEMENTS", "1"}, {nullptr, nullptr}}};
-
     if (!devMgr.CreateComputeShader(m_context->csVDP1EraseAcc, "d3d11/cs_vdp1_eraseswap.hlsl", "CSMain",
                                     kBypassEnhancementsMacro.data())) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1EraseAcc, "[Ymir D3D11] VDP1 polygon erase compute shader (hardware-accurate)");
+    SetDebugName(m_context->csVDP1EraseAcc, "[Ymir D3D11] VDP1 framebuffer erase compute shader (accurate)");
 
     if (!devMgr.CreateComputeShader(m_context->csVDP1EraseEnh, "d3d11/cs_vdp1_eraseswap.hlsl")) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1EraseEnh, "[Ymir D3D11] VDP1 polygon erase compute shader (enhanced)");
+    SetDebugName(m_context->csVDP1EraseEnh, "[Ymir D3D11] VDP1 framebuffer erase compute shader (enhanced)");
 
     // -------------------------------------------------------------------------
-    // VDP1 - polygon rendering shader
+    // VDP1 - rendering shader
 
     if (!devMgr.CreateComputeShader(m_context->csVDP1RenderAcc, "d3d11/cs_vdp1_render.hlsl", "CSMain",
                                     kBypassEnhancementsMacro.data())) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1RenderAcc, "[Ymir D3D11] VDP1 polygon rendering compute shader (hardware-accurate)");
+    SetDebugName(m_context->csVDP1RenderAcc, "[Ymir D3D11] VDP1 rendering compute shader (accurate)");
 
     if (!devMgr.CreateComputeShader(m_context->csVDP1RenderEnh, "d3d11/cs_vdp1_render.hlsl")) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1RenderEnh, "[Ymir D3D11] VDP1 polygon rendering compute shader (enhanced)");
+    SetDebugName(m_context->csVDP1RenderEnh, "[Ymir D3D11] VDP1 rendering compute shader (enhanced)");
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1VRAM, &m_context->srvVDP1VRAM, nullptr,
                                                     m_state.mem1.VRAM.size(), m_state.mem1.VRAM.data(), 0, 0);
@@ -308,17 +321,6 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1VRAM, "[Ymir D3D11] VDP1 VRAM buffer");
     SetDebugName(m_context->srvVDP1VRAM, "[Ymir D3D11] VDP1 VRAM SRV");
-
-    for (uint32 i = 0; auto &buf : m_context->bufVDP1VRAMPages) {
-        if (HRESULT hr = devMgr.CreateByteAddressBuffer(buf, nullptr, nullptr, 1u << kVRAMPageBits, nullptr, 0,
-                                                        D3D11_CPU_ACCESS_WRITE);
-            FAILED(hr)) {
-            // TODO: report error
-            return;
-        }
-        SetDebugName(buf, fmt::format("[Ymir D3D11] VDP1 VRAM page buffer #{}", i));
-        ++i;
-    }
 
     if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1LineParams, &m_context->srvVDP1LineParams, nullptr,
                                                    m_context->cpuVDP1LineParams.size(),
@@ -370,9 +372,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1AccFB, "[Ymir D3D11] VDP1 hardware-accurate framebuffer output buffer");
-    SetDebugName(m_context->srvVDP1AccFB, "[Ymir D3D11] VDP1 hardware-accurate framebuffer output SRV");
-    SetDebugName(m_context->uavVDP1AccFB, "[Ymir D3D11] VDP1 hardware-accurate framebuffer output UAV");
+    SetDebugName(m_context->bufVDP1AccFB, "[Ymir D3D11] VDP1 accurate framebuffer output buffer");
+    SetDebugName(m_context->srvVDP1AccFB, "[Ymir D3D11] VDP1 accurate framebuffer output SRV");
+    SetDebugName(m_context->uavVDP1AccFB, "[Ymir D3D11] VDP1 accurate framebuffer output UAV");
 
     if (HRESULT hr =
             devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, &m_context->srvVDP1EnhFB, &m_context->uavVDP1EnhFB,
@@ -405,17 +407,6 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP2VRAM, "[Ymir D3D11] VDP2 VRAM buffer");
     SetDebugName(m_context->srvVDP2VRAM, "[Ymir D3D11] VDP2 VRAM SRV");
-
-    for (uint32 i = 0; auto &buf : m_context->bufVDP2VRAMPages) {
-        if (HRESULT hr = devMgr.CreateByteAddressBuffer(buf, nullptr, nullptr, 1u << kVRAMPageBits, nullptr, 0,
-                                                        D3D11_CPU_ACCESS_WRITE);
-            FAILED(hr)) {
-            // TODO: report error
-            return;
-        }
-        SetDebugName(buf, fmt::format("[Ymir D3D11] VDP2 VRAM page buffer #{}", i));
-        ++i;
-    }
 
     if (HRESULT hr = devMgr.CreatePrimitiveBuffer(m_context->bufVDP2RotRegs, &m_context->srvVDP2RotRegs,
                                                   DXGI_FORMAT_R32G32_UINT, m_context->cpuVDP2RotRegs.size(),
@@ -1385,19 +1376,24 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 
     m_context->dirtyVDP1VRAM.Process([&](uint64 offset, uint64 count) {
         uint32 vramOffset = offset << kVRAMPageBits;
-        static constexpr uint32 kBufSize = 1u << kVRAMPageBits;
-        static constexpr D3D11_BOX kSrcBox{0, 0, 0, kBufSize, 1, 1};
-        // TODO: coalesce larger segments by using larger staging buffers
-        while (count > 0) {
-            ID3D11Buffer *bufStaging = m_context->bufVDP1VRAMPages[offset];
-            ++offset;
-            --count;
+        static constexpr uint32 kBaseBufSize = 1u << kVRAMPageBits;
 
-            m_context->VDP1Context.ModifyResource(bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                memcpy(mappedResource.pData, &m_state.mem1.VRAM[vramOffset], kBufSize);
-            });
-            ctx->CopySubresourceRegion(m_context->bufVDP1VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
-            vramOffset += kBufSize;
+        for (uint32 i = m_context->bufVRAMPages.size() - 1; i <= m_context->bufVRAMPages.size() - 1; --i) {
+            ID3D11Buffer *bufStaging = m_context->bufVRAMPages[i];
+            const uint32 bufSize = kBaseBufSize << i;
+            const D3D11_BOX srcBox{0, 0, 0, bufSize, 1, 1};
+            const uint32 steps = 1u << i;
+            while (count >= steps) {
+                offset += steps;
+                count -= steps;
+
+                m_context->VDP1Context.ModifyResource(
+                    bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                        memcpy(mappedResource.pData, &m_state.mem1.VRAM[vramOffset], bufSize);
+                    });
+                ctx->CopySubresourceRegion(m_context->bufVDP1VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &srcBox);
+                vramOffset += bufSize;
+            }
         }
     });
 }
@@ -2009,19 +2005,24 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {
 
     m_context->dirtyVDP2VRAM.Process([&](uint64 offset, uint64 count) {
         uint32 vramOffset = offset << kVRAMPageBits;
-        static constexpr uint32 kBufSize = 1u << kVRAMPageBits;
-        static constexpr D3D11_BOX kSrcBox{0, 0, 0, kBufSize, 1, 1};
-        // TODO: coalesce larger segments by using larger staging buffers
-        while (count > 0) {
-            ID3D11Buffer *bufStaging = m_context->bufVDP2VRAMPages[offset];
-            ++offset;
-            --count;
+        static constexpr uint32 kBaseBufSize = 1u << kVRAMPageBits;
 
-            m_context->VDP2Context.ModifyResource(bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                memcpy(mappedResource.pData, &m_state.mem2.VRAM[vramOffset], kBufSize);
-            });
-            ctx->CopySubresourceRegion(m_context->bufVDP2VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &kSrcBox);
-            vramOffset += kBufSize;
+        for (uint32 i = m_context->bufVRAMPages.size() - 1; i <= m_context->bufVRAMPages.size() - 1; --i) {
+            ID3D11Buffer *bufStaging = m_context->bufVRAMPages[i];
+            const uint32 bufSize = kBaseBufSize << i;
+            const D3D11_BOX srcBox{0, 0, 0, bufSize, 1, 1};
+            const uint32 steps = 1u << i;
+            while (count >= steps) {
+                offset += steps;
+                count -= steps;
+
+                m_context->VDP2Context.ModifyResource(
+                    bufStaging, 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                        memcpy(mappedResource.pData, &m_state.mem2.VRAM[vramOffset], bufSize);
+                    });
+                ctx->CopySubresourceRegion(m_context->bufVDP2VRAM, 0, vramOffset, 0, 0, bufStaging, 0, &srcBox);
+                vramOffset += bufSize;
+            }
         }
     });
 }

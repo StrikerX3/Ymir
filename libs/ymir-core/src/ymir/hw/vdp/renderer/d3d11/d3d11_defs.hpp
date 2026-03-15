@@ -6,7 +6,7 @@
 
 namespace ymir::vdp::d3d11 {
 
-inline constexpr uint32 kVRAMPageBits = 12;
+inline constexpr uint32 kVRAMPageBits = 10;
 
 inline constexpr uint32 kVDP1FBRAMPages = kVDP1FBRAMSize >> kVRAMPageBits;
 inline constexpr uint32 kVDP1VRAMPages = kVDP1VRAMSize >> kVRAMPageBits;
