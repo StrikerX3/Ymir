@@ -2,7 +2,7 @@ struct Config {
     uint params;
     uint erase;
     uint eraseWriteValue;
-    uint _reserved;
+    uint scale;
 };
 
 struct LineParams {
@@ -48,10 +48,6 @@ RWByteAddressBuffer fbOut : register(u0);
 // -----------------------------------------------------------------------------
 
 static const uint2 kVDP1MaxFBSize = uint2(1024, 512);
-
-static const uint kFBSize = 256 * 1024;
-static const uint kDeinterlaceFBOffset = 2 * kFBSize;
-static const uint kMeshFBOffset = 2 * 2 * kFBSize;
 
 static const uint2 kBinSize = uint2(8, 8);
 static const uint2 kBinCount = (kVDP1MaxFBSize + kBinSize - 1) / kBinSize;
@@ -133,6 +129,35 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
+uint4 Uint16ToColor555(uint rawValue) {
+    return uint4(
+        BitExtract(rawValue, 0, 5),
+        BitExtract(rawValue, 5, 5),
+        BitExtract(rawValue, 10, 5),
+        BitExtract(rawValue, 15, 1)
+    );
+}
+
+uint Color555ToUint16(uint4 color) {
+    return color.r | (color.g << 5) | (color.b << 10) | (color.a << 15);
+}
+
+// -----------------------------------------------------------------------------
+
+#ifdef YMIR_BYPASS_ENHANCEMENTS
+static const bool deinterlace = false;
+static const bool transparentMeshes = false;
+static const uint scale = 1;
+#else
+static const bool deinterlace = BitTest(config.params, 29);
+static const bool transparentMeshes = BitTest(config.params, 30);
+static const uint scale = BitExtract(config.scale, 0, 3) + 1;
+#endif
+
+static const uint kFBSize = 256 * 1024 * scale * scale;
+static const uint kDeinterlaceFBOffset = kFBSize * 2;
+static const uint kMeshFBOffset = kFBSize * 2 * 2;
+
 #ifndef YMIR_BYPASS_ENHANCEMENTS
 uint ReadMesh8(uint address) {
     return ReadFB8(kMeshFBOffset + address);
@@ -151,35 +176,13 @@ void WriteMesh16(uint address, uint data) {
 }
 #endif
 
-uint4 Uint16ToColor555(uint rawValue) {
-    return uint4(
-        BitExtract(rawValue, 0, 5),
-        BitExtract(rawValue, 5, 5),
-        BitExtract(rawValue, 10, 5),
-        BitExtract(rawValue, 15, 1)
-    );
-}
-
-uint Color555ToUint16(uint4 color) {
-    return color.r | (color.g << 5) | (color.b << 10) | (color.a << 15);
-}
-
-// -----------------------------------------------------------------------------
-
-static const uint fbSizeH = 512 << BitExtract(config.params, 0, 1);
+static const uint fbSizeH = (512 << BitExtract(config.params, 0, 1)) * scale;
 static const uint drawFB = BitExtract(config.params, 7, 1);
 static const uint drawFBOffset = drawFB * kFBSize;
 static const bool pixel8Bits = BitTest(config.params, 2);
 static const bool doubleDensity = BitTest(config.params, 3);
 static const bool dblInterlaceEnable = BitTest(config.params, 4);
 static const uint dblInterlaceDrawLine = BitExtract(config.params, 5, 1);
-#ifdef YMIR_BYPASS_ENHANCEMENTS
-static const bool deinterlace = false;
-static const bool transparentMeshes = false;
-#else
-static const bool deinterlace = BitTest(config.params, 29);
-static const bool transparentMeshes = BitTest(config.params, 30);
-#endif
 
 struct PixelData {
     uint pixel;
@@ -454,7 +457,7 @@ struct LineStepper {
 
     // Retrieves the current X and Y coordinates.
     int2 Coord() {
-        return pos & 0x7FF;
+        return pos /*& 0x7FF*/;
     }
 
     // Returns the X and Y coordinates of the antialiased pixel.
@@ -531,14 +534,14 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
 // -----------------------------------------------------------------------------
 
 bool IsPixelUserClipped(const LineParams vdp1line, uint2 coord) {
-    const uint2 userClip0 = Extract16PairU(vdp1line.userClip0);
-    const uint2 userClip1 = Extract16PairU(vdp1line.userClip1);
+    const uint2 userClip0 = Extract16PairU(vdp1line.userClip0) * scale;
+    const uint2 userClip1 = Extract16PairU(vdp1line.userClip1) * scale + scale - 1;
     return any(coord < userClip0) || any(coord > userClip1);
 }
 
 bool IsPixelSystemClipped(const LineParams vdp1line, uint2 coord) {
-    const uint2 sysClip = Extract16PairU(vdp1line.sysClip);
-    return any(coord < 0) || any(coord > sysClip);
+    const uint2 sysClip = Extract16PairU(vdp1line.sysClip) * scale + scale - 1;
+    return any(coord > sysClip);
 }
 
 bool IsPixelClipped(const LineParams vdp1line, uint2 coord, bool userClippingEnable, bool clippingMode) {
@@ -954,7 +957,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
 #endif
     }
 
-    const uint2 binPos = pos / kBinSize;
+    const uint2 binPos = pos / kBinSize / scale;
     const uint binIndex = binPos.y * kBinCount.x + binPos.x;
     const uint binOffset = lineBinIndices[binIndex];
     const uint numLines = lineBinIndices[binIndex + 1] - binOffset;

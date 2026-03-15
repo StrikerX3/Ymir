@@ -64,12 +64,10 @@ EmuEvent SetTransparentMeshes(bool enable) {
     });
 }
 
-EmuEvent SetResolutionScaling(uint16 h, uint16 v) {
+EmuEvent SetResolutionScaling(uint16 scale) {
     return RunFunction([=](SharedContext &ctx) {
-        ctx.saturn.instance->VDP.ModifyEnhancements([&](vdp::config::Enhancements &enhancements) {
-            enhancements.scaleH = std::clamp<uint16>(h, 1, 8) - 1;
-            enhancements.scaleV = std::clamp<uint16>(v, 1, 8) - 1;
-        });
+        ctx.saturn.instance->VDP.ModifyEnhancements(
+            [&](vdp::config::Enhancements &enhancements) { enhancements.scale = std::clamp<uint16>(scale, 1, 8) - 1; });
     });
 }
 

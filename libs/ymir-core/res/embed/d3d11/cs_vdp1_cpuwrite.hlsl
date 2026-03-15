@@ -2,7 +2,7 @@ struct Config {
     uint params;
     uint erase;
     uint eraseWriteValue;
-    uint _reserved;
+    uint scaling;
 };
 
 // -----------------------------------------------------------------------------
@@ -54,11 +54,13 @@ void WriteMesh8(uint address, uint data) {
 
 // -----------------------------------------------------------------------------
 
-static const uint drawFB = BitExtract(config.params, 7, 1);
-static const uint drawFBOffset = drawFB * kFBSize;
-static const bool dblInterlaceEnable = BitTest(config.params, 4);
 static const bool deinterlace = BitTest(config.params, 29);
 // NOTE: transparent meshes is assumed to be enabled
+static const uint scale = BitExtract(config.scaling, 0, 3) + 1;
+
+static const uint drawFB = BitExtract(config.params, 7, 1);
+static const uint drawFBOffset = drawFB * kFBSize * scale * scale;
+static const bool dblInterlaceEnable = BitTest(config.params, 4);
 
 [numthreads(256, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {

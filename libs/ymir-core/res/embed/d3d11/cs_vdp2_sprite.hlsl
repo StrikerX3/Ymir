@@ -6,6 +6,7 @@ struct Config {
     uint2 spriteParams;
     uint windows;
     uint fracScrollYBases;
+    uint scaling;
 };
 
 struct Window {
@@ -80,9 +81,6 @@ static const uint kInterlaceModeDoubleDensity = 3;
 static const uint kWindowLogicOR = 0;
 static const uint kWindowLogicAND = 1;
 
-static const uint kVDP1FBRAMSize = 256 * 1024;
-static const uint kVDP1MeshFBOffset = kVDP1FBRAMSize * 2 * 2;
-
 static const uint kCRAMAddressMask = ((config.displayParams >> 4) & 3) == 1 ? 0x7FF : 0x3FF;
 
 static const uint4 kTransparentPixel = uint4(0, 0, 0, 1 << kPixelAttrBitTransparent);
@@ -133,25 +131,35 @@ static const uint oddField = BitExtract(config.displayParams, 2, 1);
 static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
 static const bool hiResH = BitTest(config.displayParams, 6);
 static const uint spriteDisplayFB = BitExtract(config.displayParams, 29, 1);
-static const uint spriteFBBaseOffset = spriteDisplayFB * 256 * 1024;
-static const uint deinterlaceFBBaseOffset = 2 * 256 * 1024;
 static const bool dblInterlaceEnable = BitTest(config.extraParams, 30);
 static const bool dblInterlaceDrawLine = BitTest(config.extraParams, 31);
 
+#ifdef YMIR_BYPASS_ENHANCEMENTS
+static const bool deinterlace = false;
+static const bool transparentMeshes = false;
+static const uint scale = 1;
+#else
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
+static const uint scale = BitExtract(config.scaling, 0, 3) + 1;
+#endif
+
+static const uint kVDP1FBRAMSize = 256 * 1024 * scale * scale;
+static const uint kSpriteFBBaseOffset = spriteDisplayFB * kVDP1FBRAMSize;
+static const uint kDeinterlaceFBBaseOffset = kVDP1FBRAMSize * 2;
+static const uint kVDP1MeshFBOffset = kVDP1FBRAMSize * 2 * 2;
 
 uint ReadVRAM16(uint address) {
     return ByteSwap16(BitExtract(vram.Load(address & ~3), (address & 2) * 8, 16));
 }
 
 uint ReadSprite8(uint address) {
-    address += spriteFBBaseOffset;
+    address += kSpriteFBBaseOffset;
     return BitExtract(spriteFB.Load(address & ~3), (address & 3) * 8, 8);
 }
 
 uint ReadSprite16(uint address) {
-    address += spriteFBBaseOffset;
+    address += kSpriteFBBaseOffset;
     return ByteSwap16(BitExtract(spriteFB.Load(address & ~3), (address & 2) * 8, 16));
 }
 
@@ -231,6 +239,9 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
         start.x >>= 1;
         end.x >>= 1;
     }
+
+    start *= scale;
+    end = end * scale + scale - 1;
 
     const int2 spos = int2(pos);
     const bool inside = all(spos >= start) && all(spos <= end);
@@ -460,7 +471,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
     const bool meshLayer = index == 1;
     const bool rotate = BitTest(config.displayParams, 7);
     const uint type = BitExtract(config.displayParams, 9, 4);
-    const uint fbSizeH = 512 << BitExtract(config.displayParams, 13, 1);
+    const uint fbSizeH = (512 << BitExtract(config.displayParams, 13, 1)) * scale;
     const bool inHalfResH = BitTest(config.displayParams, 14);
     const bool outHalfResH = BitTest(config.displayParams, 15);
     const bool mixedFormat = BitTest(config.displayParams, 16);
@@ -479,7 +490,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
         }
         if (deinterlace && interlaceMode >= kInterlaceModeSingleDensity) {
             if (dblInterlaceEnable && (spritePos.y & 1) == dblInterlaceDrawLine) {
-                baseFBAddr = deinterlaceFBBaseOffset;
+                baseFBAddr = kDeinterlaceFBBaseOffset;
             }
             spritePos.y >>= 1;
         }
@@ -554,7 +565,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
 
 [numthreads(32, 1, 2)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = uint2(id.x, id.y + config.startY);
+    const uint2 drawCoord = uint2(id.x, id.y + config.startY * scale);
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z + 6);
     bgOut[outCoord] = DrawSprite(drawCoord, outCoord.xy, id.z);
 }

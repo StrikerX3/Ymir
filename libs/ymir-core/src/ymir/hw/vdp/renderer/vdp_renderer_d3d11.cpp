@@ -701,20 +701,18 @@ Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
 
 FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
 
-    const uint32 scaleH = m_enhancements.scaleH + 1;
-    const uint32 scaleV = m_enhancements.scaleV + 1;
-    if (m_currScaleH == scaleH && m_currScaleV == scaleV) {
+    const uint32 scale = m_enhancements.scale + 1;
+    if (m_currScale == scale) {
         return;
     }
 
-    m_currScaleH = scaleH;
-    m_currScaleV = scaleV;
+    m_currScale = scale;
 
     auto &devMgr = m_context->DeviceManager;
 
     if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, m_context->srvVDP1EnhFB.put(),
                                                     m_context->uavVDP1EnhFB.put(),
-                                                    kVDP1FBRAMSize * 2 * 2 * 2 * scaleH * scaleV, nullptr, 0, 0);
+                                                    kVDP1FBRAMSize * 2 * 2 * 2 * scale * scale, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -727,7 +725,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
 
     if (HRESULT hr =
             devMgr.CreateTexture2D(m_context->texVDP2BGs, m_context->srvVDP2BGs.put(), m_context->uavVDP2BGs.put(),
-                                   vdp::kMaxResH * scaleH, vdp::kMaxResV * scaleV, 8, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+                                   vdp::kMaxResH * scale, vdp::kMaxResV * scale, 8, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -739,8 +737,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     // ---
 
     if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2RotLineColors, m_context->srvVDP2RotLineColors.put(),
-                                            m_context->uavVDP2RotLineColors.put(), vdp::kMaxNormalResH * scaleH,
-                                            vdp::kMaxNormalResV * scaleV, 2, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+                                            m_context->uavVDP2RotLineColors.put(), vdp::kMaxNormalResH * scale,
+                                            vdp::kMaxNormalResV * scale, 2, DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -752,8 +750,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     // ---
 
     if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2SpriteAttrs, m_context->srvVDP2SpriteAttrs.put(),
-                                            m_context->uavVDP2SpriteAttrs.put(), vdp::kVDP1MaxFBSizeH * scaleH,
-                                            vdp::kVDP1MaxFBSizeV * scaleV, 0, DXGI_FORMAT_R8_UINT, 0, 0);
+                                            m_context->uavVDP2SpriteAttrs.put(), vdp::kVDP1MaxFBSizeH * scale,
+                                            vdp::kVDP1MaxFBSizeV * scale, 0, DXGI_FORMAT_R8_UINT, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -765,8 +763,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     // ---
 
     if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2Output, nullptr, m_context->uavVDP2Output.put(),
-                                            vdp::kMaxResH * scaleH, vdp::kMaxResV * scaleV, 0,
-                                            DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
+                                            vdp::kMaxResH * scale, vdp::kMaxResV * scale, 0, DXGI_FORMAT_R8G8B8A8_UNORM,
+                                            D3D11_BIND_SHADER_RESOURCE, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -824,13 +822,11 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
 void Direct3D11VDPRenderer::UpdateEnhancements() {
     m_context->cpuVDP1RenderConfig.params.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP1RenderConfig.params.transparentMeshes = m_enhancements.transparentMeshes;
-    m_context->cpuVDP1RenderConfig.scaling.scaleH = m_enhancements.scaleH;
-    m_context->cpuVDP1RenderConfig.scaling.scaleV = m_enhancements.scaleV;
+    m_context->cpuVDP1RenderConfig.scale = m_enhancements.scale;
 
     m_context->cpuVDP2RenderConfig.extraParams.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP2RenderConfig.extraParams.transparentMeshes = m_enhancements.transparentMeshes;
-    m_context->cpuVDP2RenderConfig.scaling.scaleH = m_enhancements.scaleH;
-    m_context->cpuVDP2RenderConfig.scaling.scaleV = m_enhancements.scaleV;
+    m_context->cpuVDP2RenderConfig.scale = m_enhancements.scale;
 
     RecreateScaledObjects();
 }
@@ -1193,7 +1189,7 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         m_doVDP1Erase = false;
         const auto &erase = m_context->cpuVDP1RenderConfig.erase;
         const uint32 width = (erase.x3 << 3) - (erase.x1 << 3) + 1;
-        const uint32 height = erase.y3 - erase.x1 + 1;
+        const uint32 height = erase.y3 - erase.y1 + 1;
 
         VDP1UpdateRenderConfig();
 
@@ -1203,25 +1199,13 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         ctx.CSSetUnorderedAccessViews({m_context->uavVDP1AccFB.get()});
         ctx.CSSetShader(m_context->csVDP1EraseAcc.get());
         ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
-        if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
+        if (m_enhancements.AnyEnabled()) {
             ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
             ctx.CSSetShader(m_context->csVDP1EraseEnh.get());
-            ctx.Dispatch((width * m_currScaleH + 31) / 32, (height * m_currScaleV + 31) / 32, 1);
+            ctx.Dispatch((width * m_currScale + m_currScale - 1 + 31) / 32,
+                         (height * m_currScale + m_currScale - 1 + 31) / 32, 1);
         }
     }
-
-    // Erase portions of the mesh buffer corresponding to areas written by the SH-2
-    if (m_enhancements.transparentMeshes && m_context->dirtyVDP1FBRAMBitmap.AnySet()) {
-        ctx.ModifyResource(m_context->bufVDP1FBRAMBitmap.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-            memcpy(mappedResource.pData, m_context->dirtyVDP1FBRAMBitmap.GetData(),
-                   m_context->dirtyVDP1FBRAMBitmap.Size() / 8);
-        });
-        ctx.CSSetShaderResources({m_context->srvVDP1FBRAMBitmap.get()});
-        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
-        ctx.CSSetShader(m_context->csVDP1CPUWrite.get());
-        ctx.Dispatch(kVDP1FBRAMSize * m_currScaleH * m_currScaleV / 256, 1, 1);
-    }
-    m_context->dirtyVDP1FBRAMBitmap.ClearAll();
 
     // Cleanup
     ctx.CSSetUnorderedAccessViews({});
@@ -1320,10 +1304,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
     if (coord1.y() < 0 && coord2.y() < 0) {
         return;
     }
-    if (coord1.x() > m_VDP1State.sysClipH && coord2.x() > m_VDP1State.sysClipH) {
+    const uint32 sysClipH = m_VDP1State.sysClipH * m_currScale + m_currScale - 1;
+    if (coord1.x() > sysClipH && coord2.x() > sysClipH) {
         return;
     }
-    if (coord1.y() > m_VDP1State.sysClipV && coord2.y() > m_VDP1State.sysClipV) {
+    const uint32 sysClipV = m_VDP1State.sysClipV * m_currScale + m_currScale - 1;
+    if (coord1.y() > sysClipV && coord2.y() > sysClipV) {
         return;
     }
 
@@ -1359,10 +1345,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
 
     static constexpr sint32 kMaxX = kVDP1BinCountX - 1;
     static constexpr sint32 kMaxY = kVDP1BinCountY - 1;
-    const uint32 lowerBoundX = std::clamp<sint32>(topLeft.x() / kVDP1BinSizeX, 0, kMaxX);
-    const uint32 lowerBoundY = std::clamp<sint32>(topLeft.y() / kVDP1BinSizeY, 0, kMaxY);
-    const uint32 upperBoundX = std::clamp<sint32>(bottomRight.x() / kVDP1BinSizeX, 0, kMaxX);
-    const uint32 upperBoundY = std::clamp<sint32>(bottomRight.y() / kVDP1BinSizeY, 0, kMaxY);
+    const uint32 lowerBoundX = std::clamp<sint32>(topLeft.x() / m_currScale / kVDP1BinSizeX, 0, kMaxX);
+    const uint32 lowerBoundY = std::clamp<sint32>(topLeft.y() / m_currScale / kVDP1BinSizeY, 0, kMaxY);
+    const uint32 upperBoundX = std::clamp<sint32>(bottomRight.x() / m_currScale / kVDP1BinSizeX, 0, kMaxX);
+    const uint32 upperBoundY = std::clamp<sint32>(bottomRight.y() / m_currScale / kVDP1BinSizeY, 0, kMaxY);
     for (uint32 y = lowerBoundY; y <= upperBoundY; ++y) {
         for (uint32 x = lowerBoundX; x <= upperBoundX; ++x) {
             const size_t binIndex = y * kVDP1BinCountX + x;
@@ -1439,11 +1425,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     ctx.CSSetShader(m_context->csVDP1RenderAcc.get());
     ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
                  (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
-    if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
+    if (m_enhancements.AnyEnabled()) {
         ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
         ctx.CSSetShader(m_context->csVDP1RenderEnh.get());
-        ctx.Dispatch((m_VDP1State.sysClipH * m_currScaleH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
-                     (m_VDP1State.sysClipV * m_currScaleV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
+        ctx.Dispatch((m_VDP1State.sysClipH * m_currScale + m_currScale - 1 + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
+                     (m_VDP1State.sysClipV * m_currScale + m_currScale - 1 + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
     }
 
     m_context->cpuVDP1LineParamsCount = 0;
@@ -1667,7 +1653,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
     ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1AccFB.get(), 0,
                                                     static_cast<UINT>(fbIndex * kVDP1FBRAMSize), 0, 0,
                                                     m_context->bufVDP1FBRAMUp.get(), 0, &srcBox);
-    if (m_enhancements.deinterlace || m_enhancements.transparentMeshes) {
+    if (m_enhancements.AnyEnabled()) {
         // TODO: if any scaling is > 1, use shader instead of CopySubresourceRegion
         for (uint32 ofs = 0; ofs < 4; ofs += 2) {
             if ((ofs & 2) && !m_enhancements.deinterlace) {
@@ -1677,10 +1663,20 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
                                                             static_cast<UINT>((fbIndex + ofs) * kVDP1FBRAMSize), 0, 0,
                                                             m_context->bufVDP1FBRAMUp.get(), 0, &srcBox);
         }
-        if (m_enhancements.transparentMeshes) {
-            // TODO: clear the portions of the framebuffer that were written to
-            // - set bitmap on VDP1WriteFB
+
+        // Erase portions of the mesh buffer corresponding to areas written by the SH-2
+        if (m_enhancements.transparentMeshes && m_context->dirtyVDP1FBRAMBitmap.AnySet()) {
+            ctx.ModifyResource(m_context->bufVDP1FBRAMBitmap.get(), 0,
+                               [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+                                   memcpy(mappedResource.pData, m_context->dirtyVDP1FBRAMBitmap.GetData(),
+                                          m_context->dirtyVDP1FBRAMBitmap.Size() / 8);
+                               });
+            ctx.CSSetShaderResources({m_context->srvVDP1FBRAMBitmap.get()});
+            ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
+            ctx.CSSetShader(m_context->csVDP1CPUWrite.get());
+            ctx.Dispatch(kVDP1FBRAMSize * m_currScale * m_currScale / 256, 1, 1);
         }
+        m_context->dirtyVDP1FBRAMBitmap.ClearAll();
     }
 }
 
@@ -1702,6 +1698,12 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
 
     sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
     sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
+
+    xa = xa * m_currScale;
+    ya = ya * m_currScale;
+
+    xb = xb * m_currScale + m_currScale - 1; // TODO: check this
+    yb = yb * m_currScale + m_currScale - 1;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, ya};
@@ -1799,6 +1801,18 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     qxd += ctx.localCoordX;
     qyd += ctx.localCoordY;
 
+    qxa = qxa * m_currScale;
+    qya = qya * m_currScale;
+
+    qxb = qxb * m_currScale + m_currScale - 1; // TODO: check this
+    qyb = qyb * m_currScale;
+
+    qxc = qxc * m_currScale + m_currScale - 1; // TODO: check this
+    qyc = qyc * m_currScale + m_currScale - 1; // TODO: check this
+
+    qxd = qxd * m_currScale;
+    qyd = qyd * m_currScale + m_currScale - 1; // TODO: check this
+
     const CoordS32 coordA{qxa, qya};
     const CoordS32 coordB{qxb, qyb};
     const CoordS32 coordC{qxc, qyc};
@@ -1824,6 +1838,15 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
     sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+
+    xa *= m_currScale;
+    ya *= m_currScale;
+    xb *= m_currScale;
+    yb *= m_currScale;
+    xc *= m_currScale;
+    yc *= m_currScale;
+    xd *= m_currScale;
+    yd *= m_currScale;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1851,6 +1874,25 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
+    xa *= m_currScale;
+    ya *= m_currScale;
+    xb *= m_currScale;
+    yb *= m_currScale;
+    xc *= m_currScale;
+    yc *= m_currScale;
+    xd *= m_currScale;
+    yd *= m_currScale;
+
+    // Add padding to rectangular polygons that look like they're meant to clear the screen
+    if (m_currScale > 1 && (xa == 0 || xb == (m_HRes - 1) * m_currScale) && xa == xd && xb == xc && xa < xb) {
+        xb += m_currScale - 1;
+        xc += m_currScale - 1;
+    }
+    if (m_currScale > 1 && (ya == 0 || yc == (m_VRes - 1) * m_currScale) && ya == yb && yc == yd && ya < yc) {
+        yc += m_currScale - 1;
+        yd += m_currScale - 1;
+    }
+
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
     const CoordS32 coordC{xc, yc};
@@ -1876,6 +1918,15 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
     sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
     sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+
+    xa *= m_currScale;
+    ya *= m_currScale;
+    xb *= m_currScale;
+    yb *= m_currScale;
+    xc *= m_currScale;
+    yc *= m_currScale;
+    xd *= m_currScale;
+    yd *= m_currScale;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -1947,6 +1998,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
     sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
     sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+
+    xa *= m_currScale;
+    ya *= m_currScale;
+    xb *= m_currScale;
+    yb *= m_currScale;
 
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
@@ -2151,7 +2207,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     m_context->cpuVDP2RenderConfig.startY = startY << yShift;
     VDP2UploadRenderConfig();
 
-    const bool hasEnhancements = m_enhancements.deinterlace || m_enhancements.transparentMeshes;
+    const bool hasEnhancements = m_enhancements.AnyEnabled();
 
     // Draw sprite layer
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
@@ -2162,7 +2218,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
                               hasEnhancements ? m_context->srvVDP1EnhFB.get() : m_context->srvVDP1AccFB.get()},
                              3);
     ctx.CSSetShader(m_context->csVDP2Sprite.get());
-    ctx.Dispatch(m_HRes * m_currScaleH / 32, numLines * m_currScaleV, m_enhancements.transparentMeshes ? 2 : 1);
+    ctx.Dispatch((m_HRes * m_currScale + m_currScale - 1) / 32, numLines * m_currScale,
+                 m_enhancements.transparentMeshes ? 2 : 1);
 
     // Draw NBGs and RBGs
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
@@ -2172,7 +2229,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs.get(), m_context->uavVDP2RotLineColors.get(),
                                    m_context->uavVDP2LineColors.get(), m_context->uavVDP2CCWindow.get()});
     ctx.CSSetShader(m_context->csVDP2BGs.get());
-    ctx.Dispatch(m_HRes * m_currScaleH / 32, numLines * m_currScaleV, 1);
+    ctx.Dispatch((m_HRes * m_currScale + m_currScale - 1) / 32, numLines * m_currScale, 1);
 
     // Update fracScrollY bases for the next frame
     if (m_setSCYN2) {
@@ -2209,7 +2266,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
                               m_context->srvVDP2LineColors.get(), m_context->srvVDP2SpriteAttrs.get(),
                               m_context->srvVDP2ComposeParams.get(), m_context->srvVDP2CCWindow.get()});
     ctx.CSSetShader(m_context->csVDP2Compose.get());
-    ctx.Dispatch(m_HRes * m_currScaleH / 32, numLines * m_currScaleV, 1);
+    ctx.Dispatch((m_HRes * m_currScale + m_currScale - 1) / 32, numLines * m_currScale, 1);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateVRAM() {

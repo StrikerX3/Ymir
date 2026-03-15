@@ -155,8 +155,7 @@ private:
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     bool m_restoreState;
 
-    uint32 m_currScaleH = 1;
-    uint32 m_currScaleV = 1;
+    sint32 m_currScale = 1;
 
     // -------------------------------------------------------------------------
     // Configuration

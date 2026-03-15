@@ -2,7 +2,7 @@ struct Config {
     uint params;
     uint erase;
     uint eraseWriteValue;
-    uint _reserved;
+    uint scaling;
 };
 
 // -----------------------------------------------------------------------------
@@ -12,12 +12,6 @@ cbuffer Config : register(b0) {
 }
 
 RWByteAddressBuffer fbOut : register(u0);
-
-// -----------------------------------------------------------------------------
-
-static const uint kFBSize = 256 * 1024;
-static const uint kDeinterlaceFBOffset = 2 * kFBSize;
-static const uint kMeshFBOffset = 2 * 2 * kFBSize;
 
 // -----------------------------------------------------------------------------
 
@@ -46,35 +40,43 @@ void WriteFB16(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
+// -----------------------------------------------------------------------------
+
+#ifndef YMIR_BYPASS_ENHANCEMENTS
+static const bool deinterlace = BitTest(config.params, 29);
+static const bool transparentMeshes = BitTest(config.params, 30);
+static const uint scale = BitExtract(config.scaling, 0, 3) + 1;
+#else
+static const uint scale = 1;
+#endif
+
+static const uint kFBSize = 256 * 1024 * scale * scale;
+static const uint kDeinterlaceFBOffset = 2 * kFBSize;
+static const uint kMeshFBOffset = 2 * 2 * kFBSize;
+
+static const uint drawFB = BitExtract(config.params, 7, 1);
+static const uint drawFBOffset = drawFB * kFBSize;
+static const bool vblankErase = BitTest(config.params, 8);
+static const uint vblankEraseMaxY = BitExtract(config.params, 9, 9) * scale + scale - 1;
+static const uint vblankEraseMaxX = BitExtract(config.params, 18, 10) * scale + scale - 1;
+static const uint offsetShift = BitExtract(config.params, 28, 1) + 8;
+static const uint eraseScaleV = BitExtract(config.erase, 31, 1);
+static const uint eraseX1 = (BitExtract(config.erase, 0, 6) << 3) * scale;
+static const uint eraseY1 = (BitExtract(config.erase, 6, 9) << eraseScaleV) * scale;
+static const uint eraseX3 = (BitExtract(config.erase, 15, 7) << 3) * scale + scale;
+static const uint eraseY3 = (BitExtract(config.erase, 22, 9) << eraseScaleV) * scale + scale;
+static const bool dblInterlaceEnable = BitTest(config.params, 4);
+
 #ifndef YMIR_BYPASS_ENHANCEMENTS
 void WriteMesh16(uint address, uint data) {
     WriteFB16(kMeshFBOffset + address, data);
 }
 #endif
 
-// -----------------------------------------------------------------------------
-
-static const uint drawFB = BitExtract(config.params, 7, 1);
-static const uint drawFBOffset = drawFB * kFBSize;
-static const bool vblankErase = BitTest(config.params, 8);
-static const uint vblankEraseMaxY = BitExtract(config.params, 9, 9);
-static const uint vblankEraseMaxX = BitExtract(config.params, 18, 10);
-static const uint offsetShift = BitExtract(config.params, 28, 1) + 8;
-static const uint scaleV = BitExtract(config.erase, 31, 1);
-static const uint eraseX1 = BitExtract(config.erase, 0, 6) << 3;
-static const uint eraseY1 = BitExtract(config.erase, 6, 9) << scaleV;
-static const uint eraseX3 = BitExtract(config.erase, 15, 7) << 3;
-static const uint eraseY3 = BitExtract(config.erase, 22, 9) << scaleV;
-static const bool dblInterlaceEnable = BitTest(config.params, 4);
-#ifndef YMIR_BYPASS_ENHANCEMENTS
-static const bool deinterlace = BitTest(config.params, 29);
-static const bool transparentMeshes = BitTest(config.params, 30);
-#endif
-
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 pos = uint2(id.x + eraseX1, id.y + eraseY1);
-    const uint address = drawFBOffset + ((id.y << offsetShift) + id.x) * 2;
+    const uint address = drawFBOffset + ((id.y << offsetShift) * scale + id.x) * 2;
 
     // Bail out if out of range
     if (id.x >= eraseX3 - eraseX1 + 1 || id.y > eraseY3 - eraseY1 + 1) {

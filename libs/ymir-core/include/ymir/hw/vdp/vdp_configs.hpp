@@ -25,11 +25,14 @@ struct Enhancements {
     /// with half-transparency on top of other graphics.
     bool transparentMeshes = false;
 
-    /// @brief Internal horizontal resolution scaling factor (minus one).
-    uint16 scaleH : 3 = 0;
+    /// @brief Internal resolution scaling factor (minus one).
+    uint16 scale : 3 = 0;
 
-    /// @brief Internal vertical resolution scaling factor (minus one).
-    uint16 scaleV : 3 = 0;
+    /// @brief Determines if any enhancement is enabled.
+    /// @return `true` if any enhancement is active, `false` otherwise
+    bool AnyEnabled() const {
+        return deinterlace || transparentMeshes || scale != 0;
+    }
 };
 
 /// @brief VDP2 debug rendering options.
