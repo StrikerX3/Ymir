@@ -332,6 +332,9 @@ if (WIN32)
         res/embed/d3d11/cs_vdp2_sprite.hlsl
         res/embed/d3d11/vs_identity.hlsl
     )
+
+    find_package(wil CONFIG REQUIRED)
+    target_link_libraries(ymir-core PRIVATE WIL::WIL)
 endif ()
 
 if (APPLE)

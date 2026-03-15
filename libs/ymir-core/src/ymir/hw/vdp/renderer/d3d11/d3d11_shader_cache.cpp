@@ -31,15 +31,16 @@ static constexpr const char *GetShaderTargetForType(ShaderType type) {
     }
 }
 
-ID3D11VertexShader *D3DShaderCache::GetVertexShader(ID3D11Device *device, std::string_view code,
-                                                    std::string_view entrypoint, const D3D_SHADER_MACRO *macros) {
+wil::com_ptr_nothrow<ID3D11VertexShader> D3DShaderCache::GetVertexShader(ID3D11Device *device, std::string_view code,
+                                                                         std::string_view entrypoint,
+                                                                         const D3D_SHADER_MACRO *macros) {
     ID3DBlob *blob = GetOrCompileShader(ShaderType::VertexShader, code, entrypoint, macros);
     if (blob == nullptr) {
         return nullptr;
     }
 
-    ID3D11VertexShader *shader = nullptr;
-    if (HRESULT hr = device->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &shader);
+    wil::com_ptr_nothrow<ID3D11VertexShader> shader = nullptr;
+    if (HRESULT hr = device->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, shader.put());
         FAILED(hr)) {
         // TODO: report error
         return nullptr;
@@ -48,15 +49,16 @@ ID3D11VertexShader *D3DShaderCache::GetVertexShader(ID3D11Device *device, std::s
     return shader;
 }
 
-ID3D11PixelShader *D3DShaderCache::GetPixelShader(ID3D11Device *device, std::string_view code,
-                                                  std::string_view entrypoint, const D3D_SHADER_MACRO *macros) {
+wil::com_ptr_nothrow<ID3D11PixelShader> D3DShaderCache::GetPixelShader(ID3D11Device *device, std::string_view code,
+                                                                       std::string_view entrypoint,
+                                                                       const D3D_SHADER_MACRO *macros) {
     ID3DBlob *blob = GetOrCompileShader(ShaderType::PixelShader, code, entrypoint, macros);
     if (blob == nullptr) {
         return nullptr;
     }
 
-    ID3D11PixelShader *shader = nullptr;
-    if (HRESULT hr = device->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &shader);
+    wil::com_ptr_nothrow<ID3D11PixelShader> shader = nullptr;
+    if (HRESULT hr = device->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, shader.put());
         FAILED(hr)) {
         // TODO: report error
         return nullptr;
@@ -65,34 +67,30 @@ ID3D11PixelShader *D3DShaderCache::GetPixelShader(ID3D11Device *device, std::str
     return shader;
 }
 
-ID3D11ComputeShader *D3DShaderCache::GetComputeShader(ID3D11Device *device, std::string_view code,
-                                                      std::string_view entrypoint, const D3D_SHADER_MACRO *macros) {
+wil::com_ptr_nothrow<ID3D11ComputeShader> D3DShaderCache::GetComputeShader(ID3D11Device *device, std::string_view code,
+                                                                           std::string_view entrypoint,
+                                                                           const D3D_SHADER_MACRO *macros) {
     ID3DBlob *blob = GetOrCompileShader(ShaderType::ComputeShader, code, entrypoint, macros);
     if (blob == nullptr) {
         return nullptr;
     }
 
-    ID3D11ComputeShader *shader = nullptr;
-    if (HRESULT hr = device->CreateComputeShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, &shader);
+    wil::com_ptr_nothrow<ID3D11ComputeShader> shader = nullptr;
+    if (HRESULT hr =
+            device->CreateComputeShader(blob->GetBufferPointer(), blob->GetBufferSize(), nullptr, shader.put());
         FAILED(hr)) {
         // TODO: report error
         return nullptr;
     }
 
     return shader;
-}
-
-D3DShaderCache::~D3DShaderCache() {
-    for (auto &[_, value] : m_cache) {
-        SafeRelease(value);
-    }
 }
 
 ID3DBlob *D3DShaderCache::GetOrCompileShader(ShaderType type, std::string_view code, std::string_view entrypoint,
                                              const D3D_SHADER_MACRO *macros) {
     const CacheKey key = CacheKey::From(type, code, entrypoint, macros);
     if (auto it = m_cache.find(key); it != m_cache.end()) {
-        return it->second;
+        return it->second.get();
     }
 
     ID3DBlob *blob = nullptr;

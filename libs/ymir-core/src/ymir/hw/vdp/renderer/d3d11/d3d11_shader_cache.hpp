@@ -9,6 +9,8 @@
 #include <string_view>
 #include <unordered_map>
 
+#include <wil/com.h>
+
 namespace ymir::vdp::d3d11 {
 
 enum class ShaderType { VertexShader, PixelShader, ComputeShader };
@@ -22,19 +24,20 @@ public:
 
     // TODO: persist shader blobs to disk
 
-    ID3D11VertexShader *GetVertexShader(ID3D11Device *device, std::string_view code, std::string_view entrypoint,
-                                        const D3D_SHADER_MACRO *macros);
-    ID3D11PixelShader *GetPixelShader(ID3D11Device *device, std::string_view code, std::string_view entrypoint,
-                                      const D3D_SHADER_MACRO *macros);
-    ID3D11ComputeShader *GetComputeShader(ID3D11Device *device, std::string_view code, std::string_view entrypoint,
-                                          const D3D_SHADER_MACRO *macros);
+    wil::com_ptr_nothrow<ID3D11VertexShader> GetVertexShader(ID3D11Device *device, std::string_view code,
+                                                             std::string_view entrypoint,
+                                                             const D3D_SHADER_MACRO *macros);
+    wil::com_ptr_nothrow<ID3D11PixelShader> GetPixelShader(ID3D11Device *device, std::string_view code,
+                                                           std::string_view entrypoint, const D3D_SHADER_MACRO *macros);
+    wil::com_ptr_nothrow<ID3D11ComputeShader> GetComputeShader(ID3D11Device *device, std::string_view code,
+                                                               std::string_view entrypoint,
+                                                               const D3D_SHADER_MACRO *macros);
 
 private:
     explicit D3DShaderCache(bool debug) noexcept
         : m_debug(debug) {}
     D3DShaderCache(const D3DShaderCache &) = delete;
     D3DShaderCache(D3DShaderCache &&) = delete;
-    ~D3DShaderCache();
 
     static D3DShaderCache s_debugInstance;
     static D3DShaderCache s_normalInstance;
@@ -67,7 +70,7 @@ private:
         ID3DBlob *blob;
     };
 
-    std::unordered_map<CacheKey, ID3DBlob *, CacheKey::Hash> m_cache;
+    std::unordered_map<CacheKey, wil::com_ptr_nothrow<ID3DBlob>, CacheKey::Hash> m_cache;
 
     ID3DBlob *GetOrCompileShader(ShaderType type, std::string_view code, std::string_view entrypoint,
                                  const D3D_SHADER_MACRO *macros);

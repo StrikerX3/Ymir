@@ -6,8 +6,9 @@
 
 #include <concepts>
 #include <mutex>
-#include <set>
 #include <vector>
+
+#include <wil/com.h>
 
 namespace ymir::vdp::d3d11 {
 
@@ -34,13 +35,13 @@ public:
     /// @brief Retrieves the immediate context.
     /// @return a pointer to the immediate context
     ID3D11DeviceContext *GetImmediateContext() {
-        return m_immediateCtx;
+        return m_immediateCtx.get();
     }
 
     /// @brief Creates a deferred context.
     /// @param[out] ctx a pointer to the device context resource to create
     /// @return the result of the attempt to create a deferred context
-    HRESULT CreateDeferredContext(ID3D11DeviceContext *&ctx);
+    HRESULT CreateDeferredContext(wil::com_ptr_nothrow<ID3D11DeviceContext> &ctx);
 
     /// @brief Creates a 2D texture (or array).
     /// @param[out] texOut a pointer to the texture resource to create
@@ -51,26 +52,8 @@ public:
     /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of the attempt to create the texture
-    HRESULT CreateTexture2D(ID3D11Texture2D *&texOut, UINT width, UINT height, UINT arraySize, DXGI_FORMAT format,
-                            UINT bindFlags, UINT cpuAccessFlags);
-
-    /// @brief Creates a shader resource view for a 2D texture resource.
-    /// @param[out] srvOut the pointer to the SRV resource to create
-    /// @param[in] tex the texture to bind to
-    /// @param[in] format the texture pixel format
-    /// @param[in] arraySize the texture array size. Set to 0 for a single texture. 1 or more creates a 2D texture array
-    /// @return the result of the attempt to create the UAV
-    HRESULT CreateTexture2DSRV(ID3D11ShaderResourceView *&srvOut, ID3D11Texture2D *tex, DXGI_FORMAT format,
-                               UINT arraySize = 0);
-
-    /// @brief Creates an unordered access view for a 2D texture resource.
-    /// @param[out] uavOut the pointer to the UAV resource to create
-    /// @param[in] tex the texture to bind to
-    /// @param[in] format the texture pixel format
-    /// @param[in] arraySize the texture array size. Set to 0 for a single texture. 1 or more creates a 2D texture array
-    /// @return the result of the attempt to create the UAV
-    HRESULT CreateTexture2DUAV(ID3D11UnorderedAccessView *&uavOut, ID3D11Texture2D *tex, DXGI_FORMAT format,
-                               UINT arraySize = 0);
+    HRESULT CreateTexture2D(wil::com_ptr_nothrow<ID3D11Texture2D> &texOut, UINT width, UINT height, UINT arraySize,
+                            DXGI_FORMAT format, UINT bindFlags, UINT cpuAccessFlags);
 
     /// @brief Convenience function that creates a 2D texture (or array) along with SRV and UAV bound to it.
     /// @param[out] texOut pointer to the 2D texture resource to create
@@ -84,7 +67,7 @@ public:
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of creating the texture and bound resources. If a resource fails to create, returns the error
     /// code of that resource. Resources are created in the order: Texture -> SRV (if specified) -> UAV (if specified).
-    HRESULT CreateTexture2D(ID3D11Texture2D *&texOut, ID3D11ShaderResourceView **srvOutOpt,
+    HRESULT CreateTexture2D(wil::com_ptr_nothrow<ID3D11Texture2D> &texOut, ID3D11ShaderResourceView **srvOutOpt,
                             ID3D11UnorderedAccessView **uavOutOpt, UINT width, UINT height, UINT arraySize,
                             DXGI_FORMAT format, UINT bindFlags, UINT cpuAccessFlags);
 
@@ -97,28 +80,8 @@ public:
     /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of the attempt to create the buffer
-    HRESULT CreateBuffer(ID3D11Buffer *&bufOut, BufferType type, UINT elementSize, UINT numElements,
-                         const void *initData, UINT bindFlags, UINT cpuAccessFlags);
-
-    /// @brief Creates a shader resource view for the given buffer.
-    /// @param[out] srvOut the pointer to the SRV resource to create
-    /// @param[in] buffer the buffer to bind to
-    /// @param[in] format the format of the buffer's contents
-    /// @param[in] numElements the number of elements in the buffer
-    /// @param[in] raw whether to allow raw views of the buffer
-    /// @return the result of the attempt to create the SRV
-    HRESULT CreateBufferSRV(ID3D11ShaderResourceView *&srvOut, ID3D11Buffer *buffer, DXGI_FORMAT format,
-                            UINT numElements, bool raw);
-
-    /// @brief Creates an unordered access view for the given buffer.
-    /// @param[out] uavOut the pointer to the UAV resource to create
-    /// @param[in] buffer the buffer to bind to
-    /// @param[in] format the format of the buffer's contents
-    /// @param[in] numElements the number of elements in the buffer
-    /// @param[in] raw whether to allow raw views of the buffer
-    /// @return the result of the attempt to create the UAV
-    HRESULT CreateBufferUAV(ID3D11UnorderedAccessView *&uavOut, ID3D11Buffer *buffer, DXGI_FORMAT format,
-                            UINT numElements, bool raw);
+    HRESULT CreateBuffer(wil::com_ptr_nothrow<ID3D11Buffer> &bufOut, BufferType type, UINT elementSize,
+                         UINT numElements, const void *initData, UINT bindFlags, UINT cpuAccessFlags);
 
     /// @brief Creates a constant buffer with the given initial data.
     /// @tparam T the type of the initial data. Size must be a multiple of 16.
@@ -127,7 +90,7 @@ public:
     /// @return the result of the attempt to create the buffer
     template <typename T>
         requires((alignof(T) & 15) == 0)
-    HRESULT CreateConstantBuffer(ID3D11Buffer *&bufOut, const T &initData) {
+    HRESULT CreateConstantBuffer(wil::com_ptr_nothrow<ID3D11Buffer> &bufOut, const T &initData) {
         return CreateBuffer(bufOut, BufferType::Constant, sizeof(T), 1, &initData, D3D11_BIND_CONSTANT_BUFFER,
                             D3D11_CPU_ACCESS_WRITE);
     }
@@ -141,7 +104,7 @@ public:
     /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of the attempt to create the buffer
-    HRESULT CreateByteAddressBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt,
+    HRESULT CreateByteAddressBuffer(wil::com_ptr_nothrow<ID3D11Buffer> &bufOut, ID3D11ShaderResourceView **srvOutOpt,
                                     ID3D11UnorderedAccessView **uavOutOpt, UINT size, const void *initData,
                                     UINT bindFlags, UINT cpuAccessFlags);
 
@@ -154,8 +117,9 @@ public:
     /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of the attempt to create the buffer
-    HRESULT CreatePrimitiveBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt, DXGI_FORMAT format,
-                                  UINT numElements, const void *initData, UINT bindFlags, UINT cpuAccessFlags);
+    HRESULT CreatePrimitiveBuffer(wil::com_ptr_nothrow<ID3D11Buffer> &bufOut, ID3D11ShaderResourceView **srvOutOpt,
+                                  DXGI_FORMAT format, UINT numElements, const void *initData, UINT bindFlags,
+                                  UINT cpuAccessFlags);
 
     /// @brief Creates a structured buffer that can be bound as a `[RW]StructuredBuffer<T>`.
     /// @param[out] bufOut pointer to the buffer resource to create
@@ -167,7 +131,7 @@ public:
     /// @param[in] bindFlags resource bind flags (`D3D11_BIND_FLAG`)
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of the attempt to create the buffer
-    HRESULT CreateStructuredBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt,
+    HRESULT CreateStructuredBuffer(wil::com_ptr_nothrow<ID3D11Buffer> &bufOut, ID3D11ShaderResourceView **srvOutOpt,
                                    ID3D11UnorderedAccessView **uavOutOpt, UINT numElements, const void *initData,
                                    UINT elementSize, UINT bindFlags, UINT cpuAccessFlags);
 
@@ -182,7 +146,7 @@ public:
     /// @param[in] cpuAccessFlags CPU access flags (`D3D11_CPU_ACCESS_FLAG`)
     /// @return the result of the attempt to create the buffer
     template <typename T>
-    HRESULT CreateStructuredBuffer(ID3D11Buffer *&bufOut, ID3D11ShaderResourceView **srvOutOpt,
+    HRESULT CreateStructuredBuffer(wil::com_ptr_nothrow<ID3D11Buffer> &bufOut, ID3D11ShaderResourceView **srvOutOpt,
                                    ID3D11UnorderedAccessView **uavOutOpt, UINT numElements, const T *initData,
                                    UINT bindFlags, UINT cpuAccessFlags) {
         return CreateStructuredBuffer(bufOut, srvOutOpt, uavOutOpt, numElements, initData, sizeof(T), bindFlags,
@@ -195,8 +159,8 @@ public:
     /// @param[in] entrypoint name of the entrypoint function
     /// @param[in] macros list of macros
     /// @return `true` if the vertex shader was created, `false` if there was an error
-    bool CreateVertexShader(ID3D11VertexShader *&vsOut, const char *path, const char *entrypoint = "VSMain",
-                            const D3D_SHADER_MACRO *macros = nullptr);
+    bool CreateVertexShader(wil::com_ptr_nothrow<ID3D11VertexShader> &vsOut, const char *path,
+                            const char *entrypoint = "VSMain", const D3D_SHADER_MACRO *macros = nullptr);
 
     /// @brief Creates a pixel shader.
     /// @param[out] psOut a pointer to the pixel shader resource to create
@@ -204,8 +168,8 @@ public:
     /// @param[in] entrypoint name of the entrypoint function
     /// @param[in] macros list of macros
     /// @return `true` if the pixel shader was created, `false` if there was an error
-    bool CreatePixelShader(ID3D11PixelShader *&psOut, const char *path, const char *entrypoint = "PSMain",
-                           const D3D_SHADER_MACRO *macros = nullptr);
+    bool CreatePixelShader(wil::com_ptr_nothrow<ID3D11PixelShader> &psOut, const char *path,
+                           const char *entrypoint = "PSMain", const D3D_SHADER_MACRO *macros = nullptr);
 
     /// @brief Creates a compute shader.
     /// @param[out] csOut a pointer to the compute shader resource to create
@@ -213,16 +177,12 @@ public:
     /// @param[in] entrypoint name of the entrypoint function
     /// @param[in] macros list of macros
     /// @return `true` if the compute shader was created, `false` if there was an error
-    bool CreateComputeShader(ID3D11ComputeShader *&csOut, const char *path, const char *entrypoint = "CSMain",
-                             const D3D_SHADER_MACRO *macros = nullptr);
-
-    /// @brief Safely releases the specified object.
-    /// @param[in] object the object to release
-    void Release(IUnknown *object);
+    bool CreateComputeShader(wil::com_ptr_nothrow<ID3D11ComputeShader> &csOut, const char *path,
+                             const char *entrypoint = "CSMain", const D3D_SHADER_MACRO *macros = nullptr);
 
     /// @brief Enqueues a command list for execution in the immediate context.
     /// @param[in] cmdList the command list to enqueue
-    void EnqueueCommandList(ID3D11CommandList *cmdList);
+    void EnqueueCommandList(wil::com_ptr_nothrow<ID3D11CommandList> &&cmdList);
 
     /// @brief Executes all pending command lists.
     /// @param[in] restoreState whether to restore the context state after executing each command list
@@ -251,21 +211,19 @@ public:
         requires std::invocable<Fn, ID3D11DeviceContext *>
     void RunOnImmediateContext(Fn &&fn) {
         std::unique_lock lock{m_mtxImmCtx};
-        fn(m_immediateCtx);
+        fn(m_immediateCtx.get());
     }
 
 private:
     ID3D11Device *m_device = nullptr;
-    ID3D11DeviceContext *m_immediateCtx = nullptr;
+    wil::com_ptr_nothrow<ID3D11DeviceContext> m_immediateCtx = nullptr;
 
     bool m_debug;
 
     std::mutex m_mtxImmCtx{};
 
     std::mutex m_mtxCmdList{};
-    std::vector<ID3D11CommandList *> m_cmdListQueue;
-
-    std::set<IUnknown *> m_resources;
+    std::vector<wil::com_ptr_nothrow<ID3D11CommandList>> m_cmdListQueue;
 };
 
 } // namespace ymir::vdp::d3d11

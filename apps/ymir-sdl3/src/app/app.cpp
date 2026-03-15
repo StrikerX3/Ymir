@@ -1098,6 +1098,7 @@ void App::RunEmulator() {
 
         vdp.SetHardwareOutputTextureRecreatedCallback(
             {&outputTextureResizedCallbackData, [](void *ctx) {
+                 // TODO: deduplicate code
                  auto &data = *static_cast<OutputTextureResizedCallbackData *>(ctx);
                  SDL_DestroyTexture(data.hwFbTexture);
                  data.hwFbTexture = nullptr;

@@ -81,8 +81,8 @@ void ContextManager::CSSetShader(ID3D11ComputeShader *shader) {
     }
 }
 
-HRESULT ContextManager::FinishCommandList(ID3D11CommandList *&cmdList) {
-    const HRESULT hr = m_deferredCtx->FinishCommandList(FALSE, &cmdList);
+HRESULT ContextManager::FinishCommandList(wil::com_ptr_nothrow<ID3D11CommandList> &cmdList) {
+    const HRESULT hr = m_deferredCtx->FinishCommandList(FALSE, cmdList.put());
     Reset();
     return hr;
 }

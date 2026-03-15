@@ -20,7 +20,7 @@ public:
     void Reset();
 
     ID3D11DeviceContext *GetDeferredContext() const {
-        return m_deferredCtx;
+        return m_deferredCtx.get();
     }
 
     void Dispatch(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGroupCountZ) {
@@ -61,12 +61,12 @@ public:
     void CSSetShaderResources(std::initializer_list<ID3D11ShaderResourceView *> srvs, uint32 offset = 0);
     void CSSetShader(ID3D11ComputeShader *shader);
 
-    HRESULT FinishCommandList(ID3D11CommandList *&cmdList);
+    HRESULT FinishCommandList(wil::com_ptr_nothrow<ID3D11CommandList> &cmdList);
 
 private:
     DeviceManager &m_devMgr;
 
-    ID3D11DeviceContext *m_deferredCtx = nullptr;
+    wil::com_ptr_nothrow<ID3D11DeviceContext> m_deferredCtx = nullptr;
 
     struct ResourceSet {
         void Reset() {
