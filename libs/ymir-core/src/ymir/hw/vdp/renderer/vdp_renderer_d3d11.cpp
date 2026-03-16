@@ -1304,11 +1304,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
     if (coord1.y() < 0 && coord2.y() < 0) {
         return;
     }
-    const uint32 sysClipH = m_VDP1State.sysClipH * m_currScale + m_currScale - 1;
+    const sint32 sysClipH = m_VDP1State.sysClipH * m_currScale + m_currScale - 1;
     if (coord1.x() > sysClipH && coord2.x() > sysClipH) {
         return;
     }
-    const uint32 sysClipV = m_VDP1State.sysClipV * m_currScale + m_currScale - 1;
+    const sint32 sysClipV = m_VDP1State.sysClipV * m_currScale + m_currScale - 1;
     if (coord1.y() > sysClipV && coord2.y() > sysClipV) {
         return;
     }
