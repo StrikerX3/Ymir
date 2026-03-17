@@ -672,6 +672,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Munch, "
                            "Oliver Stadler, "
                            "rifter, "
+                           "Rustle, "
                            "TheCoolPup, "
                            "Zrat.");
     ImGui::Unindent();
