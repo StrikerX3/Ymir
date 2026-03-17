@@ -2227,7 +2227,6 @@ void App::RunEmulator() {
                         settings.video.fullScreen = !settings.video.fullScreen;
                         settings.MakeDirty();
                     }
-
                 }
                 if (!io.WantCaptureMouse || inputContext.IsCapturing()) {
                     if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
