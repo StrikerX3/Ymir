@@ -44,6 +44,7 @@ Introduced save state file version 12.
 - Build: Remove duplicate binary from macOS packages.
 - GameDB: Double the MC68EC000 clock rate and force fast bus timings to fix crashes in Vampire Savior - The Lord of Vampire. (#699)
 - GameDB: Force fast bus timings to fix crashes in Deep Fear. (#740)
+- Input: Fixed analog to D-Pad axis conversion to not overwrite whenever an input was released in opposite direction. (#754; @PringleElUno)
 - MIDI: Defend against crashes when the library fails to initialize.
 - SH2: Fix `@(disp.PC)` loads being decoded as stores for watchpoints.
 - SH2: Fix `ldc/lds @Rm` decoding from the wrong position for watchpoints.

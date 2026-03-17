@@ -615,6 +615,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "GlaireDaggers, "
                            "lvsweat, "
                            "mmkzer0, "
+                           "PringleElUno, "
                            "ronan22, "
                            "SternXD, "
                            "tegaidogun, "

@@ -172,20 +172,11 @@ void InputContext::ProcessPrimitive(uint32 id, GamepadButton button, bool presse
                 ProcessPrimitive(id, axis, 0.0f);
             }
         };
-        switch (button)
-        {
-        case GamepadButton::DpadLeft: convertDpad(GamepadAxis1D::DPadX, GamepadButton::DpadRight, -1.0f);
-            break;
-
-        case GamepadButton::DpadRight: convertDpad(GamepadAxis1D::DPadX, GamepadButton::DpadLeft, +1.0f);
-            break;
-
-        case GamepadButton::DpadUp: convertDpad(GamepadAxis1D::DPadY, GamepadButton::DpadDown, -1.0f); 
-            break;
-
-        case GamepadButton::DpadDown: convertDpad(GamepadAxis1D::DPadY, GamepadButton::DpadUp, +1.0f);
-            break;
-
+        switch (button) {
+        case GamepadButton::DpadLeft: convertDpad(GamepadAxis1D::DPadX, GamepadButton::DpadRight, -1.0f); break;
+        case GamepadButton::DpadRight: convertDpad(GamepadAxis1D::DPadX, GamepadButton::DpadLeft, +1.0f); break;
+        case GamepadButton::DpadUp: convertDpad(GamepadAxis1D::DPadY, GamepadButton::DpadDown, -1.0f); break;
+        case GamepadButton::DpadDown: convertDpad(GamepadAxis1D::DPadY, GamepadButton::DpadUp, +1.0f); break;
         default: break;
         }
     }
