@@ -160,11 +160,32 @@ void InputContext::ProcessPrimitive(uint32 id, GamepadButton button, bool presse
         ProcessEvent({.element = {id, button}, .buttonPressed = pressed});
 
         // Convert D-Pad buttons into axis primitives
-        switch (button) {
-        case GamepadButton::DpadLeft: ProcessPrimitive(id, GamepadAxis1D::DPadX, pressed ? -1.0f : 0.0f); break;
-        case GamepadButton::DpadRight: ProcessPrimitive(id, GamepadAxis1D::DPadX, pressed ? +1.0f : 0.0f); break;
-        case GamepadButton::DpadUp: ProcessPrimitive(id, GamepadAxis1D::DPadY, pressed ? -1.0f : 0.0f); break;
-        case GamepadButton::DpadDown: ProcessPrimitive(id, GamepadAxis1D::DPadY, pressed ? +1.0f : 0.0f); break;
+        // Preserves the opposite direction if still pressed when releasing D-pad Input
+        auto convertDpad = [&](GamepadAxis1D axis, GamepadButton oppositeButton, float value) {
+            const auto btnIndex = static_cast<size_t>(oppositeButton);
+
+            if (pressed) {
+                ProcessPrimitive(id, axis, value);
+            } else if (m_gamepadButtonStates[id][btnIndex]) {
+                ProcessPrimitive(id, axis, -value);
+            } else {
+                ProcessPrimitive(id, axis, 0.0f);
+            }
+        };
+        switch (button)
+        {
+        case GamepadButton::DpadLeft: convertDpad(GamepadAxis1D::DPadX, GamepadButton::DpadRight, -1.0f);
+            break;
+
+        case GamepadButton::DpadRight: convertDpad(GamepadAxis1D::DPadX, GamepadButton::DpadLeft, +1.0f);
+            break;
+
+        case GamepadButton::DpadUp: convertDpad(GamepadAxis1D::DPadY, GamepadButton::DpadDown, -1.0f); 
+            break;
+
+        case GamepadButton::DpadDown: convertDpad(GamepadAxis1D::DPadY, GamepadButton::DpadUp, +1.0f);
+            break;
+
         default: break;
         }
     }
