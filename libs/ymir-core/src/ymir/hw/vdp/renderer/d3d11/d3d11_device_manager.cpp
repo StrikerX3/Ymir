@@ -32,15 +32,11 @@ DeviceManager::~DeviceManager() {
 }
 
 HRESULT DeviceManager::CreateDeferredContext(wil::com_ptr_nothrow<ID3D11DeviceContext> &ctx) {
-    assert(ctx == nullptr);
-
     return m_device->CreateDeferredContext(0, &ctx);
 }
 
 HRESULT DeviceManager::CreateTexture2D(wil::com_ptr_nothrow<ID3D11Texture2D> &texOut, UINT width, UINT height,
                                        UINT arraySize, DXGI_FORMAT format, UINT bindFlags, UINT cpuAccessFlags) {
-    assert(texOut == nullptr);
-
     if (arraySize == 0) {
         arraySize = 1;
     }
@@ -132,8 +128,6 @@ HRESULT DeviceManager::CreateTexture2D(wil::com_ptr_nothrow<ID3D11Texture2D> &te
 
 HRESULT DeviceManager::CreateBuffer(wil::com_ptr_nothrow<ID3D11Buffer> &bufOut, BufferType type, UINT elementSize,
                                     UINT numElements, const void *initData, UINT bindFlags, UINT cpuAccessFlags) {
-    assert(bufOut.get() == nullptr);
-
     const bool constant = type == BufferType::Constant;
     const bool structured = type == BufferType::Structured;
     const bool raw = type == BufferType::Raw;
@@ -304,8 +298,6 @@ HRESULT DeviceManager::CreateStructuredBuffer(wil::com_ptr_nothrow<ID3D11Buffer>
 
 bool DeviceManager::CreateVertexShader(wil::com_ptr_nothrow<ID3D11VertexShader> &vsOut, const char *path,
                                        const char *entrypoint, const D3D_SHADER_MACRO *macros) {
-    assert(vsOut == nullptr);
-
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
     vsOut = shaderCache.GetVertexShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     return !!vsOut;
@@ -313,8 +305,6 @@ bool DeviceManager::CreateVertexShader(wil::com_ptr_nothrow<ID3D11VertexShader> 
 
 bool DeviceManager::CreatePixelShader(wil::com_ptr_nothrow<ID3D11PixelShader> &psOut, const char *path,
                                       const char *entrypoint, const D3D_SHADER_MACRO *macros) {
-    assert(psOut == nullptr);
-
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
     psOut = shaderCache.GetPixelShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     return !!psOut;
@@ -322,8 +312,6 @@ bool DeviceManager::CreatePixelShader(wil::com_ptr_nothrow<ID3D11PixelShader> &p
 
 bool DeviceManager::CreateComputeShader(wil::com_ptr_nothrow<ID3D11ComputeShader> &csOut, const char *path,
                                         const char *entrypoint, const D3D_SHADER_MACRO *macros) {
-    assert(csOut == nullptr);
-
     auto &shaderCache = D3DShaderCache::Instance(m_debug);
     csOut = shaderCache.GetComputeShader(m_device, GetEmbedFSFile(path), entrypoint, macros);
     return !!csOut;
