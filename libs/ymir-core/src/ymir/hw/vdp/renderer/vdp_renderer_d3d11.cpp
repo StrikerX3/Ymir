@@ -143,6 +143,12 @@ struct Direct3D11VDPRenderer::Context {
     /// @brief CPU-side VDP1 command table tail index.
     size_t cpuVDP1CommandTableTail = 0;
 
+    /// @brief Determines if the VDP1 command table is full.
+    /// @return `true` if the command table is full (`head == tail-1`), `false` otherwise
+    bool IsVDP1CommandTableFull() const {
+        return (cpuVDP1CommandTableHead + 1) % cpuVDP1CommandTable.size() == cpuVDP1CommandTableTail;
+    }
+
     /// @brief VDP1 line parameter bins structured buffer.
     wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1LineBins = nullptr;
     /// @brief SRV for VDP1 line parameter bins.
@@ -1445,6 +1451,62 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     m_context->cpuVDP1LineBinsUsage = 0;
 }
 
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
+                                                      const VDP1LineExtras &extras) {
+    // Round scale to the nearest integer
+    const uint32 thickness = (m_currScale * 2 + kScaleOne) >> (kScaleFracBits + 1);
+    if (thickness == 1) {
+        // A single line is enough at this scale
+        VDP1AddLine(cmdIndex, coord1, coord2, extras);
+        return;
+    }
+
+    // Find perpendicular vector
+    const CoordS32 lineVec{coord2.x() - coord1.x(), coord2.y() - coord1.y()};
+    float perpVecX = lineVec.y();
+    float perpVecY = -lineVec.x();
+    const float perpVecRcpLen = 1.0f / sqrtf(perpVecX * perpVecX + perpVecY * perpVecY);
+
+    // Expand the quad both ways with a bias towards the "positive" side.
+    //
+    // Assuming a horizontal line from left to right:
+    //   1-------2
+    // We want to expand it to:
+    //   A-------B
+    //   1- - - -2
+    //   D-------C
+    // The perpendicular vector points in the direction A->D, so:
+    //  A = coord1 - perpVec * ((thickness - 1) >> 1)
+    //  B = coord2 - perpVec * ((thickness - 1) >> 1)
+    //  C = coord2 + perpVec * (thickness >> 1)
+    //  D = coord1 + perpVec * (thickness >> 1)
+    // The thickness asymmetry imposes a bias towards the positive direction (C-D).
+    const sint32 posFactor = thickness >> 1u;
+    const sint32 negFactor = (thickness - 1u) >> 1u;
+    const sint32 posXOfs = perpVecX * (posFactor + 0.5f) * perpVecRcpLen;
+    const sint32 posYOfs = perpVecY * (posFactor + 0.5f) * perpVecRcpLen;
+    const sint32 negXOfs = perpVecX * (negFactor + 0.5f) * perpVecRcpLen;
+    const sint32 negYOfs = perpVecY * (negFactor + 0.5f) * perpVecRcpLen;
+    const CoordS32 coordA{coord1.x() - negXOfs, coord1.y() - negYOfs};
+    const CoordS32 coordB{coord2.x() - negXOfs, coord2.y() - negYOfs};
+    const CoordS32 coordC{coord2.x() + posXOfs, coord2.y() + posYOfs};
+    const CoordS32 coordD{coord1.x() + posXOfs, coord1.y() + posYOfs};
+
+    VDP1LineExtras innerExtras = extras;
+    innerExtras.antiAliased = true;
+
+    QuadStepper quad{coordA, coordB, coordC, coordD};
+    for (; quad.CanStep(); quad.Step()) {
+        const CoordS32 coordL = quad.LeftEdge().Coord();
+        const CoordS32 coordR = quad.RightEdge().Coord();
+        VDP1AddLine(cmdIndex, coordL, coordR, innerExtras);
+    }
+
+    if (m_context->IsVDP1CommandTableFull()) {
+        VDP1SubmitLines();
+    }
+}
+
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB,
                                                            CoordS32 coordC, CoordS32 coordD) {
     const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
@@ -1485,9 +1547,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(size_t cmdIndex, Coor
         VDP1AddLine(cmdIndex, coordL, coordR, extras);
     }
 
-    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
-                              m_context->cpuVDP1CommandTableTail;
-    if (cmdTableFull) {
+    if (m_context->IsVDP1CommandTableFull()) {
         VDP1SubmitLines();
     }
 }
@@ -1545,9 +1605,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawTexturedQuad(size_t cmdIndex, C
         VDP1AddLine(cmdIndex, coordL, coordR, extras);
     }
 
-    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
-                              m_context->cpuVDP1CommandTableTail;
-    if (cmdTableFull) {
+    if (m_context->IsVDP1CommandTableFull()) {
         VDP1SubmitLines();
     }
 }
@@ -1961,29 +2019,27 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
         extras.gouraudStart = gouraudA;
         extras.gouraudEnd = gouraudB;
     }
-    VDP1AddLine(cmdIndex, coordA, coordB, extras);
+    VDP1DrawLine(cmdIndex, coordA, coordB, extras);
 
     if (mode.gouraudEnable) {
         extras.gouraudStart = gouraudB;
         extras.gouraudEnd = gouraudC;
     }
-    VDP1AddLine(cmdIndex, coordB, coordC, extras);
+    VDP1DrawLine(cmdIndex, coordB, coordC, extras);
 
     if (mode.gouraudEnable) {
         extras.gouraudStart = gouraudC;
         extras.gouraudEnd = gouraudD;
     }
-    VDP1AddLine(cmdIndex, coordC, coordD, extras);
+    VDP1DrawLine(cmdIndex, coordC, coordD, extras);
 
     if (mode.gouraudEnable) {
         extras.gouraudStart = gouraudD;
         extras.gouraudEnd = gouraudA;
     }
-    VDP1AddLine(cmdIndex, coordD, coordA, extras);
+    VDP1DrawLine(cmdIndex, coordD, coordA, extras);
 
-    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
-                              m_context->cpuVDP1CommandTableTail;
-    if (cmdTableFull) {
+    if (m_context->IsVDP1CommandTableFull()) {
         VDP1SubmitLines();
     }
 }
@@ -2024,11 +2080,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         extras.gouraudEnd.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 2u);
     }
 
-    VDP1AddLine(cmdIndex, coordA, coordB, extras);
+    VDP1DrawLine(cmdIndex, coordA, coordB, extras);
 
-    const bool cmdTableFull = (m_context->cpuVDP1CommandTableHead + 1) % m_context->cpuVDP1CommandTable.size() ==
-                              m_context->cpuVDP1CommandTableTail;
-    if (cmdTableFull) {
+    if (m_context->IsVDP1CommandTableFull()) {
         VDP1SubmitLines();
     }
 }

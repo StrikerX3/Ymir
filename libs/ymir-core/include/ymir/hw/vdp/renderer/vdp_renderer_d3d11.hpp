@@ -231,6 +231,15 @@ private:
     /// Clears the pending line list afterwards.
     void VDP1SubmitLines();
 
+    /// @brief Draws a line with the given coordinates.
+    /// If internal resolution scaling is active, the line is expanded to a quad to add thickness equal to the scaling
+    /// factor rounded to the nearest integer.
+    /// @param[in] cmdIndex the command index
+    /// @param[in] coord1 the line's starting coordinates
+    /// @param[in] coord2 the line's ending coordinates
+    /// @param[in] extras additional line parameters
+    void VDP1DrawLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2, const VDP1LineExtras &extras);
+
     /// @brief Draws a solid untextured quad with the given coordinates.
     /// @param[in] cmdIndex the command index
     /// @param[in] coordA the coordinate of the vertex A
