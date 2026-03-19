@@ -84,9 +84,17 @@ static const bool interlaced = BitExtract(config.displayParams, 0, 2) >= 2;
 static const uint oddField = BitExtract(config.displayParams, 2, 1);
 static const bool exclusiveMonitor = BitTest(config.displayParams, 3);
 
+static const uint kScaleBits = 12;
+static const uint kScaleOne = 1 << kScaleBits;
+
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
-static const uint scale = BitExtract(config.scale, 0, 3) + 1;
+static const uint scale = BitExtract(config.scale, 0, 16);
+static const uint scaleStep = BitExtract(config.scale, 16, 16);
+
+uint ScaleUp(uint value) {
+    return (value * scale) >> kScaleBits;
+}
 
 // The alpha channel of the layer textures contains pixel attributes:
 // bits  use
@@ -119,6 +127,7 @@ uint GetOutputY(uint y) {
 }
 
 uint GetLoResInputY(uint y) {
+    y = (y * scaleStep) >> kScaleBits;
     if (deinterlace && interlaced) {
         return y >> 1;
     } else {
@@ -167,7 +176,7 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
         // Color calculation is disabled for this layer
         return false;
     }
-    if (colorCalcWindowIn[pos].r != 0) {
+    if (colorCalcWindowIn[uint2((pos.x * scaleStep) >> kScaleBits, GetLoResInputY(pos.y))].r != 0) {
         // Inside color calculation window
         return false;
     }
@@ -201,7 +210,7 @@ bool IsLineColorEnabled(uint layer, uint2 pos) {
 
 uint3 GetLineColor(uint layer, uint2 pos) {
     if (layer == kLayerRBG0 || (layer == kLayerNBG0_RBG1 && IsBGLayerEnabled(kBGLayerRBG1))) {
-        return rbgLineColorIn[uint3(pos, layer - kLayerRBG0)].rgb;
+        return rbgLineColorIn[uint3((pos * scaleStep) >> kScaleBits, layer - kLayerRBG0)].rgb;
     }
     return lineColorIn[uint2(0, GetLoResInputY(pos.y))].rgb;
 }
@@ -414,7 +423,7 @@ uint3 Compose(uint2 basePos) {
 
 [numthreads(32, 1, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = uint2(id.x, id.y + config.startY * scale);
+    const uint2 drawCoord = uint2(id.x, id.y + ScaleUp(config.startY));
     const uint2 outCoord = uint2(drawCoord.x, GetOutputY(drawCoord.y));
     const uint3 outColor = Compose(drawCoord);
     textureOut[outCoord] = float4(outColor / 255.0, 1.0f);

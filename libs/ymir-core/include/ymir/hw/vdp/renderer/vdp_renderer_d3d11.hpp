@@ -155,7 +155,38 @@ private:
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     bool m_restoreState;
 
-    sint32 m_currScale = 1;
+    /// @brief Specifies the number of fractional bits used for the internal resolution scaling factor.
+    ///
+    /// With a variable scale ranging from 1.0x to 8.0x:
+    /// - 11 fractional bits lose accuracy at 410 pixels (floor(4096 / 10) + 1).
+    /// - 12 fractional bits lose accuracy at 820 pixels (floor(8192 / 10) + 1).
+    ///
+    /// The maximum supported Saturn display resolution is 704x512 pixels, therefore we need 12 fractional bits to
+    /// support the desired scaling factor range without loss of precision.
+    /// More bits provide no benefit, so we stick to 12 bits.
+    static constexpr uint32 kScaleFracBits = 12u;
+
+    /// @brief The value 1.0 with `kScaleFracBits` fractional bits.
+    static constexpr uint32 kScaleOne = 1u << kScaleFracBits;
+
+    /// @brief The current scaling factor (`scaleNum / scaleDen`) with `kScaleFracBits` fractional bits.
+    sint32 m_currScale = kScaleOne;
+
+    /// @brief The reciprocal of the scaling factor (`scaleDen / scaleNum`) with `kScaleFracBits` fractional bits.
+    /// Represents the logical screen position increment taken per physical pixel.
+    sint32 m_currRcpScale = kScaleOne;
+
+    /// @brief Sets the scaling factor to `num / den`.
+    /// The factor is clamped to [1.0, 8.0].
+    ///
+    /// @param[in] num the scaling factor numerator
+    /// @param[in] den the scaling factor denominator
+    /// @return `true` if the scale factor has changed, `false` otherwise
+    bool CalcScale(uint32 num, uint32 den);
+
+    sint32 ScaleUp(sint32 value) const;
+    sint32 ScaleUpBiasCeil(sint32 value) const;
+    sint32 ScaleDown(sint32 value) const;
 
     // -------------------------------------------------------------------------
     // Configuration

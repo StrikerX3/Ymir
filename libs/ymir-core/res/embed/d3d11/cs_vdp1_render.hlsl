@@ -144,17 +144,24 @@ uint Color555ToUint16(uint4 color) {
 
 // -----------------------------------------------------------------------------
 
-#ifdef YMIR_BYPASS_ENHANCEMENTS
-static const bool deinterlace = false;
-static const bool transparentMeshes = false;
-static const uint scale = 1;
-#else
+static const uint kScaleBits = 12;
+static const uint kScaleOne = 1 << kScaleBits;
+static const uint kCoarseScaleBits = 6;
+static const uint kCoarseScaleShift = kScaleBits - kCoarseScaleBits;
+
+#ifndef YMIR_BYPASS_ENHANCEMENTS
 static const bool deinterlace = BitTest(config.params, 29);
 static const bool transparentMeshes = BitTest(config.params, 30);
-static const uint scale = BitExtract(config.scale, 0, 3) + 1;
+static const uint scale = BitExtract(config.scale, 0, 16);
+static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
+static const uint kFBSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
+#else
+static const bool deinterlace = false;
+static const bool transparentMeshes = false;
+static const uint scale = kScaleOne;
+static const uint kFBSize = 256 * 1024;
 #endif
 
-static const uint kFBSize = 256 * 1024 * scale * scale;
 static const uint kDeinterlaceFBOffset = kFBSize * 2;
 static const uint kMeshFBOffset = kFBSize * 2 * 2;
 
@@ -174,9 +181,41 @@ void WriteMesh8(uint address, uint data) {
 void WriteMesh16(uint address, uint data) {
     WriteFB16(kMeshFBOffset + address, data);
 }
+
+uint ScaleUp(uint value) {
+    return (value * scale) >> kScaleBits;
+}
+
+uint2 ScaleUp(uint2 value) {
+    return (value * scale) >> kScaleBits;
+}
+
+uint2 ScaleUpBiasCeil(uint2 value) {
+    return (value * scale + scale - 1) >> kScaleBits;
+}
+
+uint2 ScaleDown(uint2 value) {
+    return (value << kScaleBits) / scale;
+}
+#else
+uint ScaleUp(uint value) {
+    return value;
+}
+
+uint2 ScaleUp(uint2 value) {
+    return value;
+}
+
+uint2 ScaleUpBiasCeil(uint2 value) {
+    return value;
+}
+
+uint2 ScaleDown(uint2 value) {
+    return value;
+}
 #endif
 
-static const uint fbSizeH = (512 << BitExtract(config.params, 0, 1)) * scale;
+static const uint fbSizeH = ScaleUp(512 << BitExtract(config.params, 0, 1));
 static const uint drawFB = BitExtract(config.params, 7, 1);
 static const uint drawFBOffset = drawFB * kFBSize;
 static const bool pixel8Bits = BitTest(config.params, 2);
@@ -534,13 +573,13 @@ LineStepper NewLineStepper(int2 coord1, int2 coord2, bool antiAlias = false) {
 // -----------------------------------------------------------------------------
 
 bool IsPixelUserClipped(const LineParams vdp1line, uint2 coord) {
-    const uint2 userClip0 = Extract16PairU(vdp1line.userClip0) * scale;
-    const uint2 userClip1 = Extract16PairU(vdp1line.userClip1) * scale + scale - 1;
+    const uint2 userClip0 = ScaleUp(Extract16PairU(vdp1line.userClip0));
+    const uint2 userClip1 = ScaleUpBiasCeil(Extract16PairU(vdp1line.userClip1));
     return any(coord < userClip0) || any(coord > userClip1);
 }
 
 bool IsPixelSystemClipped(const LineParams vdp1line, uint2 coord) {
-    const uint2 sysClip = Extract16PairU(vdp1line.sysClip) * scale + scale - 1;
+    const uint2 sysClip = ScaleUpBiasCeil(Extract16PairU(vdp1line.sysClip));
     return any(coord > sysClip);
 }
 
@@ -957,7 +996,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
 #endif
     }
 
-    const uint2 binPos = pos / kBinSize / scale;
+    const uint2 binPos = ScaleDown(pos) / kBinSize;
     const uint binIndex = binPos.y * kBinCount.x + binPos.x;
     const uint binOffset = lineBinIndices[binIndex];
     const uint numLines = lineBinIndices[binIndex + 1] - binOffset;

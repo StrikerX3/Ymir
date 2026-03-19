@@ -189,9 +189,17 @@ static const bool palMode = BitTest(config.displayParams, 22);
 static const uint displayResH = kResolutionsH[BitExtract(config.extraParams, 23, 2)]; // 3rd bit intentionally ignored
 static const uint displayResV = exclusiveMonitor ? 480 : kResolutionsV[BitExtract(config.extraParams, 26, palMode ? 2 : 1)];
 
+static const uint kScaleBits = 12;
+static const uint kScaleOne = 1 << kScaleBits;
+
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
-static const uint scale = BitExtract(config.scale, 0, 3) + 1;
+static const uint scaleFactor = BitExtract(config.scale, 0, 16);
+static const uint scaleStep = BitExtract(config.scale, 16, 16);
+
+uint ScaleUp(uint value) {
+    return (value * scaleFactor) >> kScaleBits;
+}
 
 uint GetY(uint y, bool doubleDensityOnly) {
     const bool interlaced = doubleDensityOnly
@@ -643,11 +651,13 @@ uint4 DrawNBG(uint2 pos, uint index) {
     if (deinterlace && interlaceMode == kInterlaceModeSingleDensity) {
         pos.y >>= 1;
     }
+    uint2 fracScreenPos = pos * scaleStep;
+    uint2 screenPos = fracScreenPos >> kScaleBits;
 
     const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
 
-    if (InsideWindows(nbgParams.z >> 18, true, pos)) {
+    if (InsideWindows(nbgParams.z >> 18, true, screenPos)) {
         return kTransparentPixel;
     }
 
@@ -687,7 +697,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
             lineScrollTableInc += 4;
         }
 
-        const uint baseTableAddr = lineScrollTableAddress + (pos.y >> lineScrollIntervalShift) * lineScrollTableInc;
+        const uint baseTableAddr = lineScrollTableAddress + (screenPos.y >> lineScrollIntervalShift) * lineScrollTableInc;
         if (lineScrollXEnable) {
             const uint tableAddr = baseTableAddr + lineScrollXOffset;
             baseFracScroll.x = BitExtract(ReadVRAM32(tableAddr), 8, 19);
@@ -696,6 +706,8 @@ uint4 DrawNBG(uint2 pos, uint index) {
             const uint tableAddr = baseTableAddr + lineScrollYOffset;
             baseFracScroll.y = BitExtract(ReadVRAM32(tableAddr), 8, 19);
             pos.y &= (1 << lineScrollIntervalShift) - 1; // reset cumulative scrollIncV increment
+            fracScreenPos.y = pos.y * scaleStep;
+            screenPos.y = fracScreenPos.y >> kScaleBits;
         }
         if (lineZoomEnable) {
             const uint tableAddr = baseTableAddr + lineZoomOffset;
@@ -706,6 +718,8 @@ uint4 DrawNBG(uint2 pos, uint index) {
     if (index >= 2) {
         // Adjust cumulative scrollIncV increment relative to last write
         pos.y -= BitExtract(config.fracScrollYBases, (index - 2) * 10, 10);
+        fracScreenPos.y = pos.y * scaleStep;
+        screenPos.y = fracScreenPos.y >> kScaleBits;
     }
 
     if (vcellScrollEnable && !mosaicEnable) {
@@ -714,7 +728,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
         const bool vcellScrollRepeat = BitTest(nbgParams.y, 29);
 
         const uint scrollX = baseFracScroll.x >> 8;
-        int offset = (pos.x + (scrollX & 7)) >> 3;
+        int offset = (screenPos.x + (scrollX & 7)) >> 3;
         if (vcellScrollRepeat && offset > 0) {
             --offset;
         }
@@ -730,7 +744,7 @@ uint4 DrawNBG(uint2 pos, uint index) {
         baseFracScroll.y += vcellScrollY;
     }
 
-    const uint2 fracScrollPos = baseFracScroll + state.nbgScrollAmount[index] + scrollInc * pos;
+    const uint2 fracScrollPos = baseFracScroll + state.nbgScrollAmount[index] + ((scrollInc * fracScreenPos) >> kScaleBits);
     uint2 scrollPos = fracScrollPos >> 8;
     if (mosaicEnable) {
         const uint2 mosaic = uint2(BitExtract(config.extraParams, 14, 4) + 1, BitExtract(config.extraParams, 18, 4) + 1);
@@ -746,13 +760,13 @@ uint4 DrawNBG(uint2 pos, uint index) {
             // Read previous character.
             // If we're at the start of the line, read last character from previous line.
             // If at the start of the screen, read last character in the screen.
-            if (pos.x >= 8) {
+            if (screenPos.x >= 8) {
                 // Not at left edge of the screen - read character to the left
                 scrollPos.x -= 8;
             } else {
                 // Left edge of the screen - read rightmost character from previous row
                 scrollPos.x += displayResH - 8;
-                if (pos.y >= 8) {
+                if (screenPos.y >= 8) {
                     // Not at top edge of the screen - read previous row
                     scrollPos.y -= 8;
                 } else {
@@ -942,6 +956,8 @@ uint4 DrawRBG(uint2 pos, uint index) {
     if (deinterlace && interlaceMode >= kInterlaceModeSingleDensity) {
         pos.y >>= 1;
     }
+    uint2 fracScreenPos = pos * scaleStep;
+    uint2 screenPos = fracScreenPos >> kScaleBits;
 
     const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
@@ -951,12 +967,12 @@ uint4 DrawRBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
 
-    if (InsideWindows(rbgParams.z >> 18, true, pos)) {
+    if (InsideWindows(rbgParams.z >> 18, true, screenPos)) {
         return kTransparentPixel;
     }
 
-    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
-    const uint rotIndex = GetRotIndex(pos, rotSel);
+    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, screenPos) : kRotParamB;
+    const uint rotIndex = GetRotIndex(screenPos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
 
     // Handle transparent pixels in coefficient table
@@ -966,7 +982,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
     }
 
     const bool bitmap = BitTest(rbgParams.x, 31);
-    return bitmap ? DrawBitmapRBG(pos, index, rotSel) : DrawScrollRBG(pos, index, rotSel);
+    return bitmap ? DrawBitmapRBG(screenPos, index, rotSel) : DrawScrollRBG(screenPos, index, rotSel);
 }
 
 // -----------------------------------------------------------------------------
@@ -991,15 +1007,17 @@ uint4 DrawLineBackScreen(uint index, uint y) {
 
 [numthreads(32, 1, 8)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = uint2(id.x, id.y + config.startY * scale);
+    const uint2 drawCoord = uint2(id.x, id.y + ScaleUp(config.startY));
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y, false), id.z);
     if (id.z <= 3) {
         bgOut[outCoord] = DrawNBG(drawCoord, id.z);
     } else if (id.z <= 5) {
         bgOut[outCoord] = DrawRBG(drawCoord, id.z - 4);
     } else if (id.z == 6) {
+        // TODO: shouldn't be scaled
         colorCalcWindowOut[outCoord.xy] = InsideWindows(config.windows >> 5, true, drawCoord);
     } else if (id.z == 7) {
+        // TODO: shouldn't be scaled
         if (id.x < 2) {
             lineColorOut[drawCoord] = DrawLineBackScreen(drawCoord.x, drawCoord.y);
         }

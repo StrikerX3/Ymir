@@ -2,7 +2,7 @@ struct Config {
     uint params;
     uint erase;
     uint eraseWriteValue;
-    uint scaling;
+    uint scale;
 };
 
 // -----------------------------------------------------------------------------
@@ -42,41 +42,74 @@ void WriteFB16(uint address, uint data) {
 
 // -----------------------------------------------------------------------------
 
+static const uint kScaleBits = 12;
+static const uint kScaleOne = 1 << kScaleBits;
+static const uint kCoarseScaleBits = 6;
+static const uint kCoarseScaleShift = kScaleBits - kCoarseScaleBits;
+
 #ifndef YMIR_BYPASS_ENHANCEMENTS
 static const bool deinterlace = BitTest(config.params, 29);
 static const bool transparentMeshes = BitTest(config.params, 30);
-static const uint scale = BitExtract(config.scaling, 0, 3) + 1;
+static const uint scale = BitExtract(config.scale, 0, 16);
+static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
+static const uint kFBSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
 #else
-static const uint scale = 1;
+static const bool deinterlace = false;
+static const bool transparentMeshes = false;
+static const uint scale = kScaleOne;
+static const uint kFBSize = 256 * 1024;
 #endif
 
-static const uint kFBSize = 256 * 1024 * scale * scale;
 static const uint kDeinterlaceFBOffset = 2 * kFBSize;
 static const uint kMeshFBOffset = 2 * 2 * kFBSize;
-
-static const uint drawFB = BitExtract(config.params, 7, 1);
-static const uint drawFBOffset = drawFB * kFBSize;
-static const bool vblankErase = BitTest(config.params, 8);
-static const uint vblankEraseMaxY = BitExtract(config.params, 9, 9) * scale + scale - 1;
-static const uint vblankEraseMaxX = BitExtract(config.params, 18, 10) * scale + scale - 1;
-static const uint offsetShift = BitExtract(config.params, 28, 1) + 8;
-static const uint eraseScaleV = BitExtract(config.erase, 31, 1);
-static const uint eraseX1 = (BitExtract(config.erase, 0, 6) << 3) * scale;
-static const uint eraseY1 = (BitExtract(config.erase, 6, 9) << eraseScaleV) * scale;
-static const uint eraseX3 = (BitExtract(config.erase, 15, 7) << 3) * scale + scale;
-static const uint eraseY3 = (BitExtract(config.erase, 22, 9) << eraseScaleV) * scale + scale;
-static const bool dblInterlaceEnable = BitTest(config.params, 4);
 
 #ifndef YMIR_BYPASS_ENHANCEMENTS
 void WriteMesh16(uint address, uint data) {
     WriteFB16(kMeshFBOffset + address, data);
 }
+
+uint ScaleUp(uint value) {
+    return (value * scale) >> kScaleBits;
+}
+
+uint ScaleUpBiasCeil(uint value) {
+    return (value * scale + scale - 1) >> kScaleBits;
+}
+
+uint ScaleUpPlusOne(uint value) {
+    return (value * scale + scale) >> kScaleBits;
+}
+#else
+uint ScaleUp(uint value) {
+    return value;
+}
+
+uint ScaleUpBiasCeil(uint value) {
+    return value;
+}
+
+uint ScaleUpPlusOne(uint value) {
+    return value;
+}
 #endif
+
+static const uint drawFB = BitExtract(config.params, 7, 1);
+static const uint drawFBOffset = drawFB * kFBSize;
+static const bool vblankErase = BitTest(config.params, 8);
+static const uint vblankEraseMaxY = ScaleUpBiasCeil(BitExtract(config.params, 9, 9));
+static const uint vblankEraseMaxX = ScaleUpBiasCeil(BitExtract(config.params, 18, 10));
+static const uint offsetShift = BitExtract(config.params, 28, 1) + 8;
+static const uint eraseScaleV = BitExtract(config.erase, 31, 1);
+static const uint eraseX1 = ScaleUp(BitExtract(config.erase, 0, 6) << 3);
+static const uint eraseY1 = ScaleUp(BitExtract(config.erase, 6, 9) << eraseScaleV);
+static const uint eraseX3 = ScaleUpPlusOne(BitExtract(config.erase, 15, 7) << 3);
+static const uint eraseY3 = ScaleUpPlusOne(BitExtract(config.erase, 22, 9) << eraseScaleV);
+static const bool dblInterlaceEnable = BitTest(config.params, 4);
 
 [numthreads(32, 32, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint2 pos = uint2(id.x + eraseX1, id.y + eraseY1);
-    const uint address = drawFBOffset + ((id.y << offsetShift) * scale + id.x) * 2;
+    const uint address = drawFBOffset + (id.y * ScaleUp(1 << offsetShift) + id.x) * 2;
 
     // Bail out if out of range
     if (id.x >= eraseX3 - eraseX1 + 1 || id.y > eraseY3 - eraseY1 + 1) {

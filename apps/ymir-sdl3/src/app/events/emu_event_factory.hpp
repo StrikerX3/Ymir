@@ -97,7 +97,7 @@ EmuEvent SetAreaCode(uint8 areaCode);
 
 EmuEvent SetDeinterlace(bool enable);
 EmuEvent SetTransparentMeshes(bool enable);
-EmuEvent SetResolutionScaling(uint16 scale);
+EmuEvent SetResolutionScaling(uint32 num, uint32 den);
 
 EmuEvent SetDebugTrace(bool enable);
 EmuEvent DumpMemory();

@@ -134,14 +134,32 @@ static const uint spriteDisplayFB = BitExtract(config.displayParams, 29, 1);
 static const bool dblInterlaceEnable = BitTest(config.extraParams, 30);
 static const bool dblInterlaceDrawLine = BitTest(config.extraParams, 31);
 
+static const uint kScaleBits = 12;
+static const uint kScaleOne = 1 << kScaleBits;
+static const uint kCoarseScaleBits = 6;
+static const uint kCoarseScaleShift = kScaleBits - kCoarseScaleBits;
+
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
-static const uint scale = BitExtract(config.scale, 0, 3) + 1;
+static const uint scale = BitExtract(config.scale, 0, 16);
+static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
 
-static const uint kVDP1FBRAMSize = 256 * 1024 * scale * scale;
+static const uint kVDP1FBRAMSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
 static const uint kSpriteFBBaseOffset = spriteDisplayFB * kVDP1FBRAMSize;
 static const uint kDeinterlaceFBBaseOffset = kVDP1FBRAMSize * 2;
 static const uint kVDP1MeshFBOffset = kVDP1FBRAMSize * 2 * 2;
+
+uint ScaleUp(uint value) {
+    return (value * scale) >> kScaleBits;
+}
+
+int2 ScaleUp(int2 value) {
+    return (value * int(scale)) >> int(kScaleBits);
+}
+
+int2 ScaleUpBiasCeil(int2 value) {
+    return (value * int(scale) + int(scale) - 1) >> int(kScaleBits);
+}
 
 uint ReadVRAM16(uint address) {
     return ByteSwap16(BitExtract(vram.Load(address & ~3), (address & 2) * 8, 16));
@@ -234,8 +252,8 @@ bool InsideWindow(Window window, bool invert, uint2 pos) {
         end.x >>= 1;
     }
 
-    start *= scale;
-    end = end * scale + scale - 1;
+    start = ScaleUp(start);
+    end = ScaleUpBiasCeil(end);
 
     const int2 spos = int2(pos);
     const bool inside = all(spos >= start) && all(spos <= end);
@@ -465,7 +483,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
     const bool meshLayer = index == 1;
     const bool rotate = BitTest(config.displayParams, 7);
     const uint type = BitExtract(config.displayParams, 9, 4);
-    const uint fbSizeH = (512 << BitExtract(config.displayParams, 13, 1)) * scale;
+    const uint fbSizeH = ScaleUp(512 << BitExtract(config.displayParams, 13, 1));
     const bool inHalfResH = BitTest(config.displayParams, 14);
     const bool outHalfResH = BitTest(config.displayParams, 15);
     const bool mixedFormat = BitTest(config.displayParams, 16);
@@ -559,7 +577,7 @@ uint4 DrawSprite(uint2 pos, uint2 outPos, uint index) {
 
 [numthreads(32, 1, 2)]
 void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 drawCoord = uint2(id.x, id.y + config.startY * scale);
+    const uint2 drawCoord = uint2(id.x, id.y + ScaleUp(config.startY));
     const uint3 outCoord = uint3(drawCoord.x, GetY(drawCoord.y), id.z + 6);
     bgOut[outCoord] = DrawSprite(drawCoord, outCoord.xy, id.z);
 }

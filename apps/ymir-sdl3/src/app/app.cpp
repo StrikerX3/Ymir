@@ -320,7 +320,7 @@ int App::Run(const CommandLineOptions &options) {
         videoSettings.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
         // TODO: observe scaling setting
-        m_context.EnqueueEvent(events::emu::SetResolutionScaling(2));
+        m_context.EnqueueEvent(events::emu::SetResolutionScaling(2, 1));
     }
 
     // Profile priority:
