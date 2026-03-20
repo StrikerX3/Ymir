@@ -105,7 +105,7 @@ struct Direct3D11VDPRenderer::Context {
     /// @brief Enhanced VDP1 framebuffer erase compute shader.
     wil::com_ptr_nothrow<ID3D11ComputeShader> csVDP1EraseEnh = nullptr;
 
-    /// @brief VDP1 CPU write mesh erase compute shader.
+    /// @brief VDP1 CPU write copy compute shader.
     wil::com_ptr_nothrow<ID3D11ComputeShader> csVDP1CPUWrite = nullptr;
 
     // -------------------------------------------------------------------------
@@ -414,7 +414,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->csVDP1CPUWrite.get(), "[Ymir D3D11] VDP1 CPU write mesh erase compute shader");
+    SetDebugName(m_context->csVDP1CPUWrite.get(), "[Ymir D3D11] VDP1 CPU write copy compute shader");
 
     // -------------------------------------------------------------------------
     // VDP1 - rendering shader
