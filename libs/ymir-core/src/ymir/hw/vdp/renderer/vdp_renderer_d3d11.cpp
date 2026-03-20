@@ -833,7 +833,8 @@ void Direct3D11VDPRenderer::UpdateEnhancements() {
 
     m_context->cpuVDP1RenderConfig.params.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP1RenderConfig.params.transparentMeshes = m_enhancements.transparentMeshes;
-    m_context->cpuVDP1RenderConfig.scale = m_scaleFactor;
+    m_context->cpuVDP1RenderConfig.scale.factor = m_scaleFactor;
+    m_context->cpuVDP1RenderConfig.scale.step = m_scaleStep;
 
     m_context->cpuVDP2RenderConfig.extraParams.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP2RenderConfig.extraParams.transparentMeshes = m_enhancements.transparentMeshes;

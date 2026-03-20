@@ -98,7 +98,10 @@ struct alignas(16) VDP1RenderConfig {
     } erase;
     static_assert(sizeof(Erase) == sizeof(D3DUint) * 2);
 
-    D3DUint scale : 16; // Internal resolution scaling factor (12 frac bits)
+    struct {
+        D3DUint factor : 16; // Internal resolution scaling factor (12 frac bits)
+        D3DUint step : 16;   // Internal resolution scaling logical screen dot step per physical pixel (12 frac bits)
+    } scale;
 };
 
 struct VDP1LineParams {
