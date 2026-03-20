@@ -713,7 +713,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     // Resort to a coarser scaling factor to avoid overflows in shader code.
     static constexpr uint32 kCoarseBits = 6u;
     static constexpr uint32 kCoarseScaleShift = (kScaleFracBits > kCoarseBits) ? (kScaleFracBits - kCoarseBits) : 0u;
-    const uint32 coarseScale = (m_currScale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
+    const uint32 coarseScale = (m_scaleFactor + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
     auto applyCoarseScale = [&](auto value) { return (value * coarseScale) >> kCoarseBits; };
     m_context->bufVDP1EnhFBSize = applyCoarseScale(applyCoarseScale(kVDP1FBRAMSize * 2 * 2 * 2));
 
@@ -833,12 +833,12 @@ void Direct3D11VDPRenderer::UpdateEnhancements() {
 
     m_context->cpuVDP1RenderConfig.params.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP1RenderConfig.params.transparentMeshes = m_enhancements.transparentMeshes;
-    m_context->cpuVDP1RenderConfig.scale = m_currScale;
+    m_context->cpuVDP1RenderConfig.scale = m_scaleFactor;
 
     m_context->cpuVDP2RenderConfig.extraParams.deinterlace = m_enhancements.deinterlace;
     m_context->cpuVDP2RenderConfig.extraParams.transparentMeshes = m_enhancements.transparentMeshes;
-    m_context->cpuVDP2RenderConfig.scale.factor = m_currScale;
-    m_context->cpuVDP2RenderConfig.scale.step = m_currRcpScale;
+    m_context->cpuVDP2RenderConfig.scale.factor = m_scaleFactor;
+    m_context->cpuVDP2RenderConfig.scale.step = m_scaleStep;
 
     RecreateScaledObjects();
 }
@@ -1454,7 +1454,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
                                                       const VDP1LineExtras &extras) {
     // Round scale to the nearest integer
-    const uint32 thickness = (m_currScale * 2 + kScaleOne) >> (kScaleFracBits + 1);
+    const uint32 thickness = (m_scaleFactor * 2 + kScaleOne) >> (kScaleFracBits + 1);
     if (thickness == 1) {
         // A single line is enough at this scale
         VDP1AddLine(cmdIndex, coord1, coord2, extras);
@@ -1940,7 +1940,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     // Pad rectangular polygons that look like they're meant to clear the screen
     bool padX = false;
     bool padY = false;
-    if (m_currScale > kScaleOne) {
+    if (m_scaleFactor > kScaleOne) {
         padX = (xa == 0 || xb == m_HRes - 1) && xa == xd && xb == xc && xa < xb;
         padY = (ya == 0 || yc == m_VRes - 1) && ya == yb && yc == yd && ya < yc;
     }
@@ -2195,45 +2195,45 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
 }
 
 FORCE_INLINE bool Direct3D11VDPRenderer::CalcScale(uint32 num, uint32 den) {
-    const uint32 prevScale = m_currScale;
+    const uint32 prevScale = m_scaleFactor;
 
     // Avoid division by zero; default to 1.0x
     if (den == 0) {
-        m_currScale = kScaleOne;
-        m_currRcpScale = kScaleOne;
-        return prevScale != m_currScale;
+        m_scaleFactor = kScaleOne;
+        m_scaleStep = kScaleOne;
+        return prevScale != m_scaleFactor;
     }
 
     // Factors less than or equal to 1.0x are clamped to 1.0x
     if (num <= den) {
-        m_currScale = kScaleOne;
-        m_currRcpScale = kScaleOne;
-        return prevScale != m_currScale;
+        m_scaleFactor = kScaleOne;
+        m_scaleStep = kScaleOne;
+        return prevScale != m_scaleFactor;
     }
 
     // Factors greater than or equal to 8.0x are clamped to 8.0x
     if (num >= den * 8u) {
-        m_currScale = kScaleOne * 8u;
-        m_currRcpScale = kScaleOne / 8u;
-        return prevScale != m_currScale;
+        m_scaleFactor = kScaleOne * 8u;
+        m_scaleStep = kScaleOne / 8u;
+        return prevScale != m_scaleFactor;
     }
 
     // These are effectively equivalent to round(num / den) and round(den / num) without loss of precision
-    m_currScale = ((num << (kScaleFracBits + 1)) + den) / (den << 1u);
-    m_currRcpScale = ((den << (kScaleFracBits + 1)) + num) / (num << 1u);
-    return prevScale != m_currScale;
+    m_scaleFactor = ((num << (kScaleFracBits + 1)) + den) / (den << 1u);
+    m_scaleStep = ((den << (kScaleFracBits + 1)) + num) / (num << 1u);
+    return prevScale != m_scaleFactor;
 }
 
 FORCE_INLINE sint32 Direct3D11VDPRenderer::ScaleUp(sint32 value) const {
-    return (value * m_currScale) >> kScaleFracBits;
+    return (value * m_scaleFactor) >> kScaleFracBits;
 }
 
 FORCE_INLINE sint32 Direct3D11VDPRenderer::ScaleUpBiasCeil(sint32 value) const {
-    return (value * m_currScale + m_currScale - 1) >> kScaleFracBits;
+    return (value * m_scaleFactor + m_scaleFactor - 1) >> kScaleFracBits;
 }
 
 FORCE_INLINE sint32 Direct3D11VDPRenderer::ScaleDown(sint32 value) const {
-    return (value << kScaleFracBits) / m_currScale;
+    return (value << kScaleFracBits) / m_scaleFactor;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {

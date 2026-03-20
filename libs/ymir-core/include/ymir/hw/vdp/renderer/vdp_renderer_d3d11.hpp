@@ -170,11 +170,11 @@ private:
     static constexpr uint32 kScaleOne = 1u << kScaleFracBits;
 
     /// @brief The current scaling factor (`scaleNum / scaleDen`) with `kScaleFracBits` fractional bits.
-    sint32 m_currScale = kScaleOne;
+    sint32 m_scaleFactor = kScaleOne;
 
     /// @brief The reciprocal of the scaling factor (`scaleDen / scaleNum`) with `kScaleFracBits` fractional bits.
     /// Represents the logical screen position increment taken per physical pixel.
-    sint32 m_currRcpScale = kScaleOne;
+    sint32 m_scaleStep = kScaleOne;
 
     /// @brief Sets the scaling factor to `num / den`.
     /// The factor is clamped to [1.0, 8.0].
