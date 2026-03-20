@@ -781,7 +781,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     SetDebugName(m_context->texVDP2Output.get(), "[Ymir D3D11] VDP2 framebuffer texture");
     SetDebugName(m_context->uavVDP2Output.get(), "[Ymir D3D11] VDP2 framebuffer SRV");
 
-    HwCallbacks.OutputTextureRecreated();
+    m_context->DeviceManager.RunSync([&] { HwCallbacks.OutputTextureRecreated(); });
 }
 
 void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
