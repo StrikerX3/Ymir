@@ -133,6 +133,10 @@ struct Direct3D11VDPRenderer::Context {
     std::array<VDP1LineParams, 8192> cpuVDP1LineParams{};
     /// @brief CPU-side VDP1 line parameters count.
     size_t cpuVDP1LineParamsCount = 0;
+    /// @brief Maximum VDP1 horizontal system clip of the lines to be drawn.
+    uint16 cpuVDP1MaxSysClipH = 0;
+    /// @brief Maximum VDP1 vertical system clip of the lines to be drawn.
+    uint16 cpuVDP1MaxSysClipV = 0;
 
     /// @brief VDP1 command table structured buffer.
     wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1CommandTable = nullptr;
@@ -1384,6 +1388,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
         return;
     }
 
+    if (m_context->cpuVDP1MaxSysClipH == 0 && m_context->cpuVDP1MaxSysClipV == 0) {
+        // Nothing drawn to the screen
+        return;
+    }
+
     auto &ctx = m_context->VDP1Context;
 
     // Upload polygons
@@ -1432,13 +1441,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
                               m_context->srvVDP1LineBinIndices.get()});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP1AccFB.get()});
     ctx.CSSetShader(m_context->csVDP1RenderAcc.get());
-    ctx.Dispatch((m_VDP1State.sysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
-                 (m_VDP1State.sysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
+    ctx.Dispatch((m_context->cpuVDP1MaxSysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
+                 (m_context->cpuVDP1MaxSysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
     if (m_enhancements.AnyEnabled()) {
         ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
         ctx.CSSetShader(m_context->csVDP1RenderEnh.get());
-        ctx.Dispatch((ScaleUpBiasCeil(m_VDP1State.sysClipH) + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
-                     (ScaleUpBiasCeil(m_VDP1State.sysClipV) + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
+        ctx.Dispatch((ScaleUpBiasCeil(m_context->cpuVDP1MaxSysClipH) + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
+                     (ScaleUpBiasCeil(m_context->cpuVDP1MaxSysClipV) + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
     }
 
     m_context->cpuVDP1LineParamsCount = 0;
@@ -1447,6 +1456,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
         bin.clear();
     }
     m_context->cpuVDP1LineBinsUsage = 0;
+
+    m_context->cpuVDP1MaxSysClipH = m_VDP1State.sysClipH;
+    m_context->cpuVDP1MaxSysClipV = m_VDP1State.sysClipV;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
@@ -2085,6 +2097,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAdd
     auto &ctx = m_VDP1State;
     ctx.sysClipH = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14));
     ctx.sysClipV = bit::extract<0, 8>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16));
+    m_context->cpuVDP1MaxSysClipH = std::max<uint32>(m_context->cpuVDP1MaxSysClipH, ctx.sysClipH);
+    m_context->cpuVDP1MaxSysClipV = std::max<uint32>(m_context->cpuVDP1MaxSysClipV, ctx.sysClipV);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
