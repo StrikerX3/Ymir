@@ -38,8 +38,6 @@ enum class VDP2VRAMSyncMode {
     Frame,    //< Synchronizes at the end of a VDP2 frame
 };
 
-using D3DColor = std::array<uint8, 4>;
-
 /// @brief A VDP renderer using Direct3D 11.
 /// Requires a valid `ID3D11Device *` that has been created with support for deferred contexts.
 /// The device must remain valid for the lifetime of the renderer. If the `ID3DDevice11` needs to be recreated or
@@ -299,6 +297,10 @@ private:
     /// and updates dirty flags as needed.
     void VDP2CalcVCellScrollDelay();
 
+    /// @brief Renders the LNCL and BACK screen colors for the given line.
+    /// @param[in] y the line to render
+    void VDP2DrawLineColorBackScreens(uint32 y);
+
     /// @brief Renders NBG/RBG lines [`m_nextVDP2BGY`..`y`] and updates `m_nextVDP2BGY` to point to the next scanline.
     /// @param[in] y the bottommost line to render
     void VDP2RenderBGLines(uint32 y);
@@ -335,6 +337,9 @@ private:
 
     /// @brief Updates rotation parameter states if dirty.
     void VDP2UpdateRotParamStates();
+
+    /// @brief Uploads the LNCL/BACK screen texture to the GPU.
+    void VDP2UploadLineColorBackTexture();
 
     /// @brief Updates VDP2 compositor parameters if dirty.
     void VDP2UpdateComposeParams();

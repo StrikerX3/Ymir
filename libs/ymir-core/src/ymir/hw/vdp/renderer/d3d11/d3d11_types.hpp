@@ -42,6 +42,14 @@ union D3DUint4 {
 };
 static_assert(sizeof(D3DUint4) == sizeof(D3DUint) * 4);
 
+union alignas(D3DUint) D3DColorRGBA8 {
+    std::array<uint8, 4> array;
+    struct {
+        uint8 r, g, b, a;
+    };
+};
+static_assert(sizeof(D3DColorRGBA8) == sizeof(D3DUint));
+
 union D3DInt2 {
     std::array<D3DInt, 2> array;
     struct {

@@ -231,12 +231,12 @@ struct Direct3D11VDPRenderer::Context {
     /// @brief UAV for RBG0-1 LNCL texture array.
     wil::com_ptr_nothrow<ID3D11UnorderedAccessView> uavVDP2RotLineColors = nullptr;
 
-    /// @brief LNCL screen texture (0,y=LNCL; 1,y=BACK)
+    /// @brief LNCL/BACK screen texture (0,y=LNCL; 1,y=BACK)
     wil::com_ptr_nothrow<ID3D11Texture2D> texVDP2LineColors = nullptr;
-    /// @brief SRV for LNCL screen texture.
+    /// @brief SRV for LNCL/BACK screen texture.
     wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP2LineColors = nullptr;
-    /// @brief UAV for LNCL screen texture
-    wil::com_ptr_nothrow<ID3D11UnorderedAccessView> uavVDP2LineColors = nullptr;
+    /// @brief CPU-side LNCL/BACK screen texture (0,y=LNCL; 1,y=BACK).
+    std::array<std::array<D3DColorRGBA8, 2>, kMaxNormalResV> cpuVDP2LineColors{};
 
     /// @brief Sprite attributes texture.
     wil::com_ptr_nothrow<ID3D11Texture2D> texVDP2SpriteAttrs = nullptr;
@@ -289,7 +289,7 @@ struct Direct3D11VDPRenderer::Context {
     /// @brief SRV for VDP2 CRAM color cache buffer.
     wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP2ColorCache = nullptr;
     /// @brief CPU-side VDP2 CRAM color cache.
-    std::array<D3DColor, kColorCacheSize> cpuVDP2ColorCache;
+    std::array<D3DColorRGBA8, kColorCacheSize> cpuVDP2ColorCache;
 
     /// @brief VDP2 NBG/RBG render state structured buffer.
     wil::com_ptr_nothrow<ID3D11Buffer> bufVDP2BGRenderState = nullptr;
@@ -576,16 +576,15 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2RotLineColors.get(), "[Ymir D3D11] VDP2 RBG0-1 LNCL SRV");
     SetDebugName(m_context->uavVDP2RotLineColors.get(), "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
 
-    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2LineColors, m_context->srvVDP2LineColors.put(),
-                                            m_context->uavVDP2LineColors.put(), 2, vdp::kMaxNormalResV, 0,
-                                            DXGI_FORMAT_R8G8B8A8_UINT, 0, 0);
+    if (HRESULT hr =
+            devMgr.CreateTexture2D(m_context->texVDP2LineColors, m_context->srvVDP2LineColors.put(), nullptr, 2,
+                                   vdp::kMaxNormalResV, 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
     SetDebugName(m_context->texVDP2LineColors.get(), "[Ymir D3D11] VDP2 line color/back screen texture");
     SetDebugName(m_context->srvVDP2LineColors.get(), "[Ymir D3D11] VDP2 line color/back screen SRV");
-    SetDebugName(m_context->uavVDP2LineColors.get(), "[Ymir D3D11] VDP2 line color/back screen UAV");
 
     if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2SpriteAttrs, m_context->srvVDP2SpriteAttrs.put(),
                                             m_context->uavVDP2SpriteAttrs.put(), vdp::kVDP1MaxFBSizeH,
@@ -936,20 +935,20 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
         const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
-        colorCache[address >> 1u][0] = color8.r;
-        colorCache[address >> 1u][1] = color8.g;
-        colorCache[address >> 1u][2] = color8.b;
-        colorCache[address >> 1u][3] = color8.msb;
+        colorCache[address >> 1u].r = color8.r;
+        colorCache[address >> 1u].g = color8.g;
+        colorCache[address >> 1u].b = color8.b;
+        colorCache[address >> 1u].a = color8.msb;
         break;
     }
     case 1: {
         const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
-        colorCache[address >> 1u][0] = color8.r;
-        colorCache[address >> 1u][1] = color8.g;
-        colorCache[address >> 1u][2] = color8.b;
-        colorCache[address >> 1u][3] = color8.msb;
+        colorCache[address >> 1u].r = color8.r;
+        colorCache[address >> 1u].g = color8.g;
+        colorCache[address >> 1u].b = color8.b;
+        colorCache[address >> 1u].a = color8.msb;
         break;
     }
     case 2: [[fallthrough]];
@@ -957,10 +956,10 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
     default: {
         const auto value = m_state.mem2.ReadCRAM<uint32>(address & ~3u);
         const Color888 color8{.u32 = value};
-        colorCache[address >> 1u][0] = color8.r;
-        colorCache[address >> 1u][1] = color8.g;
-        colorCache[address >> 1u][2] = color8.b;
-        colorCache[address >> 1u][3] = color8.msb;
+        colorCache[address >> 1u].r = color8.r;
+        colorCache[address >> 1u].g = color8.g;
+        colorCache[address >> 1u].b = color8.b;
+        colorCache[address >> 1u].a = color8.msb;
         break;
     }
     }
@@ -975,20 +974,20 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
         const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
-        colorCache[address >> 1u][0] = color8.r;
-        colorCache[address >> 1u][1] = color8.g;
-        colorCache[address >> 1u][2] = color8.b;
-        colorCache[address >> 1u][3] = color8.msb;
+        colorCache[address >> 1u].r = color8.r;
+        colorCache[address >> 1u].g = color8.g;
+        colorCache[address >> 1u].b = color8.b;
+        colorCache[address >> 1u].a = color8.msb;
         break;
     }
     case 1: {
         const auto value = m_state.mem2.ReadCRAM<uint16>(address & ~1u);
         const Color555 color5{.u16 = value};
         const Color888 color8 = ConvertRGB555to888(color5);
-        colorCache[address >> 1u][0] = color8.r;
-        colorCache[address >> 1u][1] = color8.g;
-        colorCache[address >> 1u][2] = color8.b;
-        colorCache[address >> 1u][3] = color8.msb;
+        colorCache[address >> 1u].r = color8.r;
+        colorCache[address >> 1u].g = color8.g;
+        colorCache[address >> 1u].b = color8.b;
+        colorCache[address >> 1u].a = color8.msb;
         break;
     }
     case 2: [[fallthrough]];
@@ -996,10 +995,10 @@ void Direct3D11VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
     default: {
         const auto value = m_state.mem2.ReadCRAM<uint32>(address & ~3u);
         const Color888 color8{.u32 = value};
-        colorCache[address >> 1u][0] = color8.r;
-        colorCache[address >> 1u][1] = color8.g;
-        colorCache[address >> 1u][2] = color8.b;
-        colorCache[address >> 1u][3] = color8.msb;
+        colorCache[address >> 1u].r = color8.r;
+        colorCache[address >> 1u].g = color8.g;
+        colorCache[address >> 1u].b = color8.b;
+        colorCache[address >> 1u].a = color8.msb;
         break;
     }
     }
@@ -1088,10 +1087,10 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
                     const auto value = m_state.mem2.ReadCRAM<uint16>(i * sizeof(uint16));
                     const Color555 color5{.u16 = value};
                     const Color888 color8 = ConvertRGB555to888(color5);
-                    colorCache[i][0] = color8.r;
-                    colorCache[i][1] = color8.g;
-                    colorCache[i][2] = color8.b;
-                    colorCache[i][3] = color8.msb;
+                    colorCache[i].r = color8.r;
+                    colorCache[i].g = color8.g;
+                    colorCache[i].b = color8.b;
+                    colorCache[i].a = color8.msb;
                 }
                 break;
             case 1:
@@ -1099,10 +1098,10 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
                     const auto value = m_state.mem2.ReadCRAM<uint16>(i * sizeof(uint16));
                     const Color555 color5{.u16 = value};
                     const Color888 color8 = ConvertRGB555to888(color5);
-                    colorCache[i][0] = color8.r;
-                    colorCache[i][1] = color8.g;
-                    colorCache[i][2] = color8.b;
-                    colorCache[i][3] = color8.msb;
+                    colorCache[i].r = color8.r;
+                    colorCache[i].g = color8.g;
+                    colorCache[i].b = color8.b;
+                    colorCache[i].a = color8.msb;
                 }
                 break;
             case 2: [[fallthrough]];
@@ -1111,10 +1110,10 @@ void Direct3D11VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
                 for (uint32 i = 0; i < 1024; ++i) {
                     const auto value = m_state.mem2.ReadCRAM<uint32>(i * sizeof(uint32));
                     const Color888 color8{.u32 = value};
-                    colorCache[i][0] = color8.r;
-                    colorCache[i][1] = color8.g;
-                    colorCache[i][2] = color8.b;
-                    colorCache[i][3] = color8.msb;
+                    colorCache[i].r = color8.r;
+                    colorCache[i].g = color8.g;
+                    colorCache[i].b = color8.b;
+                    colorCache[i].a = color8.msb;
                 }
                 break;
             }
@@ -2139,6 +2138,7 @@ void Direct3D11VDPRenderer::VDP2BeginFrame() {
 void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     VDP2CalcAccessPatterns();
     VDP2CalcVCellScrollDelay();
+    VDP2DrawLineColorBackScreens(y);
     VDP2UpdateRotationParameterBases(y);
     VDP2UpdateRotationPageBaseAddresses(m_state.regs2);
 
@@ -2263,6 +2263,30 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2CalcVCellScrollDelay() {
     IVDPRenderer::VDP2CalcVCellScrollDelay(m_state.regs2);
 }
 
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2DrawLineColorBackScreens(uint32 y) {
+    const VDP2Regs &regs = m_state.regs2;
+
+    // Read line color screen color
+    const LineBackScreenParams &lineParams = regs.lineScreenParams;
+    if (lineParams.perLine || y == 0) {
+        const uint32 address = lineParams.baseAddress + y * sizeof(uint16);
+        const uint32 cramAddress = m_state.mem2.ReadVRAM<uint16>(address);
+        m_context->cpuVDP2LineColors[y][0] = m_context->cpuVDP2ColorCache[cramAddress];
+    }
+
+    // Read back screen color
+    const LineBackScreenParams &backParams = regs.backScreenParams;
+    if (backParams.perLine || y == 0) {
+        const uint32 address = backParams.baseAddress + y * sizeof(Color555);
+        const Color555 color5{.u16 = m_state.mem2.ReadVRAM<uint16>(address)};
+        const Color888 color8 = ConvertRGB555to888(color5);
+        m_context->cpuVDP2LineColors[y][1].r = color8.r;
+        m_context->cpuVDP2LineColors[y][1].g = color8.g;
+        m_context->cpuVDP2LineColors[y][1].b = color8.b;
+        m_context->cpuVDP2LineColors[y][1].a = color8.msb;
+    }
+}
+
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     // Bail out if there's nothing to render
     if (y < m_nextVDP2BGY) {
@@ -2324,8 +2348,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.CSSetShaderResources({m_context->srvVDP2VRAM.get(), m_context->srvVDP2ColorCache.get(),
                               m_context->srvVDP2BGRenderState.get(), m_context->srvVDP2RotRegs.get(),
                               m_context->srvVDP2RotParams.get()});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs.get(), m_context->uavVDP2RotLineColors.get(),
-                                   m_context->uavVDP2LineColors.get(), m_context->uavVDP2CCWindow.get()});
+    ctx.CSSetUnorderedAccessViews(
+        {m_context->uavVDP2BGs.get(), m_context->uavVDP2RotLineColors.get(), m_context->uavVDP2CCWindow.get()});
     ctx.CSSetShader(m_context->csVDP2BGs.get());
     ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, ScaleUpBiasCeil(numLines), 1);
 
@@ -2352,6 +2376,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2ComposeLines(uint32 y) {
 
     m_context->cpuVDP2RenderConfig.startY = m_nextVDP2ComposeY;
     VDP2UploadRenderConfig();
+    VDP2UploadLineColorBackTexture();
 
     // Determine how many lines to draw and update next scanline counter
     const uint32 numLines = y - m_nextVDP2ComposeY + 1;
@@ -2790,6 +2815,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateRotParamStates() {
     m_context->VDP2Context.ModifyResource(
         m_context->bufVDP2RotRegs.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
             memcpy(mappedResource.pData, &m_context->cpuVDP2RotRegs, sizeof(m_context->cpuVDP2RotRegs));
+        });
+}
+
+FORCE_INLINE void Direct3D11VDPRenderer::VDP2UploadLineColorBackTexture() {
+    m_context->VDP2Context.ModifyResource(
+        m_context->texVDP2LineColors.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &m_context->cpuVDP2LineColors, sizeof(m_context->cpuVDP2LineColors));
         });
 }
 
