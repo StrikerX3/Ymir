@@ -185,8 +185,6 @@ struct Direct3D11VDPRenderer::Context {
     wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1EnhFB = nullptr;
     /// @brief UAV for VDP1 internal framebuffer output buffer.
     wil::com_ptr_nothrow<ID3D11UnorderedAccessView> uavVDP1EnhFB = nullptr;
-    /// @brief Size of VDP1 internal framebuffer output buffer.
-    uint32 bufVDP1EnhFBSize = 0;
 
     // =========================================================================
 
@@ -499,10 +497,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP1AccFB.get(), "[Ymir D3D11] VDP1 accurate framebuffer output SRV");
     SetDebugName(m_context->uavVDP1AccFB.get(), "[Ymir D3D11] VDP1 accurate framebuffer output UAV");
 
-    m_context->bufVDP1EnhFBSize = kVDP1FBRAMSize;
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, m_context->srvVDP1EnhFB.put(),
-                                                    m_context->uavVDP1EnhFB.put(),
-                                                    m_context->bufVDP1EnhFBSize * 2 * 2 * 2, nullptr, 0, 0);
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, m_context->srvVDP1EnhFB.put(),
+                                           m_context->uavVDP1EnhFB.put(), kVDP1FBRAMSize * 2 * 2 * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -721,13 +718,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     static constexpr uint32 kCoarseScaleShift = (kScaleFracBits > kCoarseBits) ? (kScaleFracBits - kCoarseBits) : 0u;
     const uint32 coarseScale = (m_scaleFactor + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
     auto applyCoarseScale = [&](auto value) { return (value * coarseScale) >> kCoarseBits; };
-    m_context->bufVDP1EnhFBSize = applyCoarseScale(applyCoarseScale(kVDP1FBRAMSize));
+    const size_t fbramSize = applyCoarseScale(applyCoarseScale(kVDP1FBRAMSize));
 
     auto &devMgr = m_context->DeviceManager;
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, m_context->srvVDP1EnhFB.put(),
-                                                    m_context->uavVDP1EnhFB.put(),
-                                                    m_context->bufVDP1EnhFBSize * 2 * 2 * 2, nullptr, 0, 0);
+    if (HRESULT hr =
+            devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, m_context->srvVDP1EnhFB.put(),
+                                           m_context->uavVDP1EnhFB.put(), fbramSize * 2 * 2 * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
