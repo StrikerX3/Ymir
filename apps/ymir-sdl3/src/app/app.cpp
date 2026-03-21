@@ -320,6 +320,8 @@ int App::Run(const CommandLineOptions &options) {
         videoSettings.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
         // TODO: observe scaling setting
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(987, 224));
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(918, 224));
         m_context.EnqueueEvent(events::emu::SetResolutionScaling(2, 1));
     }
 
