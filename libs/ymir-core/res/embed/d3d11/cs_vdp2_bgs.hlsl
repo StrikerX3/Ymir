@@ -313,11 +313,13 @@ bool InsideWindows(uint windowParams, bool hasSpriteWindow, uint2 pos) {
         return false;
     }
 
+    const uint2 screenPos = (pos * scaleStep) >> kScaleBits;
+
     const bool windowLogicAND = windowLogic == kWindowLogicAND;
 
     bool inside = windowLogicAND;
     if (window0Enable) {
-        const bool insideW0 = InsideWindow(windows[0], window0Invert, pos);
+        const bool insideW0 = InsideWindow(windows[0], window0Invert, screenPos);
         if (windowLogicAND) {
             inside = inside && insideW0;
         } else {
@@ -325,7 +327,7 @@ bool InsideWindows(uint windowParams, bool hasSpriteWindow, uint2 pos) {
         }
     }
     if (window1Enable) {
-        const bool insideW1 = InsideWindow(windows[1], window1Invert, pos);
+        const bool insideW1 = InsideWindow(windows[1], window1Invert, screenPos);
         if (windowLogicAND) {
             inside = inside && insideW1;
         } else {
@@ -649,15 +651,16 @@ uint4 DrawNBG(uint2 pos, uint index) {
     if (deinterlace && interlaceMode == kInterlaceModeSingleDensity) {
         pos.y >>= 1;
     }
-    uint2 fracScreenPos = pos * scaleStep;
-    uint2 screenPos = fracScreenPos >> kScaleBits;
 
     const BGRenderState state = bgRenderState[0];
     const uint4 nbgParams = state.nbgParams[index];
 
-    if (InsideWindows(nbgParams.z >> 18, true, screenPos)) {
+    if (InsideWindows(nbgParams.z >> 18, true, pos)) {
         return kTransparentPixel;
     }
+
+    uint2 fracScreenPos = pos * scaleStep;
+    uint2 screenPos = fracScreenPos >> kScaleBits;
 
     const uint2 pageShift = uint2(BitExtract(nbgParams.w, 4, 1), BitExtract(nbgParams.w, 5, 1));
     const uint twoWordChar = BitExtract(nbgParams.w, 7, 1);
@@ -793,11 +796,12 @@ uint SelectRotationParameter(uint4 rbgParams, uint2 pos) {
         case kRotParamModeB:
             return kRotParamB;
         case kRotParamModeCoeff:{
+                const uint2 screenPos = (pos * scaleStep) >> kScaleBits;
                 const bool coeffTableEnable = BitTest(rotRegs[0].x, 0);
                 if (!coeffTableEnable) {
                     return kRotParamA;
                 }
-                const uint rotIndex = GetRotIndex(pos, 0);
+                const uint rotIndex = GetRotIndex(screenPos, 0);
                 const uint coeffData = rotParamState[rotIndex].coeffData;
                 const bool transparent = BitTest(coeffData, 7);
                 return transparent ? kRotParamB : kRotParamA;
@@ -954,8 +958,6 @@ uint4 DrawRBG(uint2 pos, uint index) {
     if (deinterlace && interlaceMode >= kInterlaceModeSingleDensity) {
         pos.y >>= 1;
     }
-    uint2 fracScreenPos = pos * scaleStep;
-    uint2 screenPos = fracScreenPos >> kScaleBits;
 
     const BGRenderState state = bgRenderState[0];
     const uint4 rbgParams = state.rbgParams[index];
@@ -965,11 +967,13 @@ uint4 DrawRBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
 
-    if (InsideWindows(rbgParams.z >> 18, true, screenPos)) {
+    if (InsideWindows(rbgParams.z >> 18, true, pos)) {
         return kTransparentPixel;
     }
 
-    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, screenPos) : kRotParamB;
+    const uint2 screenPos = (pos * scaleStep) >> kScaleBits;
+
+    const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
     const uint rotIndex = GetRotIndex(screenPos, rotSel);
     const RotParamState rotState = rotParamState[rotIndex];
 
