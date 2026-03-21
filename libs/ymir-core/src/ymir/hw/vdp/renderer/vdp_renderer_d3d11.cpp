@@ -2268,17 +2268,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2DrawLineColorBackScreens(uint32 y) 
     const VDP2Regs &regs = m_state.regs2;
 
     // Read line color screen color
-    const LineBackScreenParams &lineParams = regs.lineScreenParams;
-    if (lineParams.perLine || y == 0) {
-        const uint32 address = lineParams.baseAddress + y * sizeof(uint16);
+    {
+        const LineBackScreenParams &lineParams = regs.lineScreenParams;
+        const uint32 lnclY = lineParams.perLine ? y : 0;
+        const uint32 address = lineParams.baseAddress + lnclY * sizeof(uint16);
         const uint32 cramAddress = m_state.mem2.ReadVRAM<uint16>(address);
         m_context->cpuVDP2LineColors[y][0] = m_context->cpuVDP2ColorCache[cramAddress];
     }
 
     // Read back screen color
-    const LineBackScreenParams &backParams = regs.backScreenParams;
-    if (backParams.perLine || y == 0) {
-        const uint32 address = backParams.baseAddress + y * sizeof(Color555);
+    {
+        const LineBackScreenParams &backParams = regs.backScreenParams;
+        const uint32 backY = backParams.perLine ? y : 0;
+        const uint32 address = backParams.baseAddress + backY * sizeof(Color555);
         const Color555 color5{.u16 = m_state.mem2.ReadVRAM<uint16>(address)};
         const Color888 color8 = ConvertRGB555to888(color5);
         m_context->cpuVDP2LineColors[y][1].r = color8.r;
