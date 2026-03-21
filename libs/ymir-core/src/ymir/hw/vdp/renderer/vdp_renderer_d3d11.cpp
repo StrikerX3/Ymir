@@ -273,14 +273,12 @@ struct Direct3D11VDPRenderer::Context {
     std::array<VDP2RotParamBase, kMaxNormalResV * 2> cpuVDP2RotParamBases{};
 
     // -------------------------------------------------------------------------
-    // VDP2 - Sprite layer shader
+    // VDP2 - NBG/RBG/sprite layer shaders
 
     /// @brief Sprite layer compute shader.
     wil::com_ptr_nothrow<ID3D11ComputeShader> csVDP2Sprite = nullptr;
-
-    // -------------------------------------------------------------------------
-    // VDP2 - NBG/RBG layer shader
-
+    /// @brief Color calculation window shader.
+    wil::com_ptr_nothrow<ID3D11ComputeShader> csVDP2CCWindow = nullptr;
     /// @brief NBG/RBG compute shader.
     wil::com_ptr_nothrow<ID3D11ComputeShader> csVDP2BGs = nullptr;
 
@@ -638,7 +636,7 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2RotParamBases.get(), "[Ymir D3D11] VDP2 rotation parameter bases SRV");
 
     // -------------------------------------------------------------------------
-    // VDP2 - Sprite layer shader
+    // VDP2 - NBG/RBG/sprite layer shaders
 
     if (!devMgr.CreateComputeShader(m_context->csVDP2Sprite, "d3d11/cs_vdp2_sprite.hlsl", "CSMain", nullptr)) {
         // TODO: report error
@@ -646,8 +644,11 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->csVDP2Sprite.get(), "[Ymir D3D11] VDP2 sprite layer compute shader");
 
-    // -------------------------------------------------------------------------
-    // VDP2 - NBG/RBG shader
+    if (!devMgr.CreateComputeShader(m_context->csVDP2CCWindow, "d3d11/cs_vdp2_ccwindow.hlsl", "CSMain", nullptr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(m_context->csVDP2CCWindow.get(), "[Ymir D3D11] VDP2 color calculation window compute shader");
 
     if (!devMgr.CreateComputeShader(m_context->csVDP2BGs, "d3d11/cs_vdp2_bgs.hlsl", "CSMain", nullptr)) {
         // TODO: report error
@@ -2343,13 +2344,20 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, ScaleUpBiasCeil(numLines),
                  m_enhancements.transparentMeshes ? 2 : 1);
 
+    // Draw color calculation window
+    ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
+    ctx.CSSetShaderResources(
+        {m_context->srvVDP2VRAM.get(), m_context->srvVDP2BGRenderState.get(), m_context->srvVDP2BGs.get()});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2CCWindow.get()});
+    ctx.CSSetShader(m_context->csVDP2CCWindow.get());
+    ctx.Dispatch((m_HRes + 31) / 32, numLines, 1);
+
     // Draw NBGs and RBGs
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
     ctx.CSSetShaderResources({m_context->srvVDP2VRAM.get(), m_context->srvVDP2ColorCache.get(),
                               m_context->srvVDP2BGRenderState.get(), m_context->srvVDP2RotRegs.get(),
                               m_context->srvVDP2RotParams.get()});
-    ctx.CSSetUnorderedAccessViews(
-        {m_context->uavVDP2BGs.get(), m_context->uavVDP2RotLineColors.get(), m_context->uavVDP2CCWindow.get()});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs.get(), m_context->uavVDP2RotLineColors.get()});
     ctx.CSSetShader(m_context->csVDP2BGs.get());
     ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, ScaleUpBiasCeil(numLines), 1);
 
