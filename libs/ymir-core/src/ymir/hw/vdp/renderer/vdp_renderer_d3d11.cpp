@@ -2346,9 +2346,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
 
     // Draw color calculation window
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
+    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2CCWindow.get()});
     ctx.CSSetShaderResources(
         {m_context->srvVDP2VRAM.get(), m_context->srvVDP2BGRenderState.get(), m_context->srvVDP2BGs.get()});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP2CCWindow.get()});
     ctx.CSSetShader(m_context->csVDP2CCWindow.get());
     ctx.Dispatch((m_HRes + 31) / 32, numLines, 1);
 
