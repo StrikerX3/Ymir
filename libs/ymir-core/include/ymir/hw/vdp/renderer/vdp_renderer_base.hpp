@@ -72,6 +72,7 @@ public:
     /// @param[in] enhancements the enhancements configuration to apply
     void ConfigureEnhancements(const config::Enhancements &enhancements) {
         m_enhancements = enhancements;
+        m_hasEnhancements = enhancements.AnyEnabled();
         UpdateEnhancements();
     }
 
@@ -319,6 +320,10 @@ protected:
 
     /// @brief Current VDP enhancements configuration.
     config::Enhancements m_enhancements;
+
+    /// @brief Indicated whether any enhancements are currently enabled.
+    /// Updated automatically whenever the enhancements are changed.
+    bool m_hasEnhancements = false;
 
     // -------------------------------------------------------------------------
     // VDP1

@@ -200,9 +200,10 @@ private:
 
     /// @brief Adds a command to the ring buffer.
     ///
+    /// @param[in] enhanced `true` to use the enhanced VDP1 buffers, `false` for the accurate buffers
     /// @param[in] cmdAddress the command address in VDP1 VRAM
     /// @return the index of the command in the ring buffer
-    size_t VDP1AddCommand(uint32 cmdAddress);
+    size_t VDP1AddCommand(bool enhanced, uint32 cmdAddress);
 
     /// @brief Specifies additional VDP1 line parameters.
     struct VDP1LineExtras {
@@ -219,40 +220,47 @@ private:
     /// @brief Adds a line with the specified coordinates to the current batch.
     /// Submits the current batch and creates a new one if necessary.
     ///
+    /// @param[in] enhanced `true` to use the enhanced VDP1 buffers, `false` for the accurate buffers
     /// @param[in] cmdIndex the index of the VDP1 command in the table
     /// @param[in] coord1 the line's starting coordinates
     /// @param[in] coord2 the line's ending coordinates
     /// @param[in] extras additional line parameters
-    void VDP1AddLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2, const VDP1LineExtras &extras);
+    void VDP1AddLine(bool enhanced, size_t cmdIndex, CoordS32 coord1, CoordS32 coord2, const VDP1LineExtras &extras);
 
     /// @brief Submits all pending lines for rendering.
     /// Clears the pending line list afterwards.
-    void VDP1SubmitLines();
+    /// @param[in] enhanced `true` to use the enhanced VDP1 buffers, `false` for the accurate buffers
+    void VDP1SubmitLines(bool enhanced);
 
     /// @brief Draws a line with the given coordinates.
     /// If internal resolution scaling is active, the line is expanded to a quad to add thickness equal to the scaling
     /// factor rounded to the nearest integer.
+    /// @param[in] enhanced `true` to use the enhanced VDP1 buffers, `false` for the accurate buffers
     /// @param[in] cmdIndex the command index
     /// @param[in] coord1 the line's starting coordinates
     /// @param[in] coord2 the line's ending coordinates
     /// @param[in] extras additional line parameters
-    void VDP1DrawLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2, const VDP1LineExtras &extras);
+    void VDP1DrawLine(bool enhanced, size_t cmdIndex, CoordS32 coord1, CoordS32 coord2, const VDP1LineExtras &extras);
 
     /// @brief Draws a solid untextured quad with the given coordinates.
+    /// @param[in] enhanced `true` to use the enhanced VDP1 buffers, `false` for the accurate buffers
     /// @param[in] cmdIndex the command index
     /// @param[in] coordA the coordinate of the vertex A
     /// @param[in] coordB the coordinate of the vertex B
     /// @param[in] coordC the coordinate of the vertex C
     /// @param[in] coordD the coordinate of the vertex D
-    void VDP1DrawSolidQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
+    void VDP1DrawSolidQuad(bool enhanced, size_t cmdIndex, CoordS32 coordA, CoordS32 coordB, CoordS32 coordC,
+                           CoordS32 coordD);
 
     /// @brief Draws a textured quad with the given coordinates.
+    /// @param[in] enhanced `true` to use the enhanced VDP1 buffers, `false` for the accurate buffers
     /// @param[in] cmdIndex the command index
     /// @param[in] coordA the coordinate of the vertex A
     /// @param[in] coordB the coordinate of the vertex B
     /// @param[in] coordC the coordinate of the vertex C
     /// @param[in] coordD the coordinate of the vertex D
-    void VDP1DrawTexturedQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
+    void VDP1DrawTexturedQuad(bool enhanced, size_t cmdIndex, CoordS32 coordA, CoordS32 coordB, CoordS32 coordC,
+                              CoordS32 coordD);
 
     /// @brief Updates the VDP1 rendering configuration constants.
     void VDP1UpdateRenderConfig();

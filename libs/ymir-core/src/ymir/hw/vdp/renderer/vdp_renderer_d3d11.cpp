@@ -125,66 +125,84 @@ struct Direct3D11VDPRenderer::Context {
     /// @brief Dirty bitmap for VDP1 VRAM.
     DirtyBitmap<kVDP1VRAMPages> dirtyVDP1VRAM = {};
 
-    /// @brief VDP1 line parameters structured buffer.
-    wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1LineParams = nullptr;
-    /// @brief SRV for VDP1 line parameters.
-    wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1LineParams = nullptr;
-    /// @brief CPU-side VDP1 line parameters.
-    std::array<VDP1LineParams, 8192> cpuVDP1LineParams{};
-    /// @brief CPU-side VDP1 line parameters count.
-    size_t cpuVDP1LineParamsCount = 0;
-    /// @brief Maximum VDP1 horizontal system clip of the lines to be drawn.
-    uint16 cpuVDP1MaxSysClipH = 0;
-    /// @brief Maximum VDP1 vertical system clip of the lines to be drawn.
-    uint16 cpuVDP1MaxSysClipV = 0;
+    struct VDP1RenderData {
+        /// @brief VDP1 line parameters structured buffer.
+        wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1LineParams = nullptr;
+        /// @brief SRV for VDP1 line parameters.
+        wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1LineParams = nullptr;
+        /// @brief CPU-side VDP1 line parameters.
+        std::array<VDP1LineParams, 8192> cpuVDP1LineParams{};
+        /// @brief CPU-side VDP1 line parameters count.
+        size_t cpuVDP1LineParamsCount = 0;
+        /// @brief Maximum VDP1 horizontal system clip of the lines to be drawn.
+        uint16 cpuVDP1MaxSysClipH = 0;
+        /// @brief Maximum VDP1 vertical system clip of the lines to be drawn.
+        uint16 cpuVDP1MaxSysClipV = 0;
 
-    /// @brief VDP1 command table structured buffer.
-    wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1CommandTable = nullptr;
-    /// @brief SRV for VDP1 command table.
-    wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1CommandTable = nullptr;
-    /// @brief CPU-side VDP1 command table (ring buffer).
-    std::array<VDP1CommandEntry, 1024> cpuVDP1CommandTable{};
-    /// @brief CPU-side VDP1 command table head index.
-    size_t cpuVDP1CommandTableHead = 0;
-    /// @brief CPU-side VDP1 command table tail index.
-    size_t cpuVDP1CommandTableTail = 0;
+        void UpdateMaxSysClip(uint16 h, uint16 v) {
+            cpuVDP1MaxSysClipH = std::max(cpuVDP1MaxSysClipH, h);
+            cpuVDP1MaxSysClipV = std::max(cpuVDP1MaxSysClipV, v);
+        }
 
-    /// @brief Determines if the VDP1 command table is full.
-    /// @return `true` if the command table is full (`head == tail-1`), `false` otherwise
-    bool IsVDP1CommandTableFull() const {
-        return (cpuVDP1CommandTableHead + 1) % cpuVDP1CommandTable.size() == cpuVDP1CommandTableTail;
-    }
+        /// @brief VDP1 command table structured buffer.
+        wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1CommandTable = nullptr;
+        /// @brief SRV for VDP1 command table.
+        wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1CommandTable = nullptr;
+        /// @brief CPU-side VDP1 command table (ring buffer).
+        std::array<VDP1CommandEntry, 1024> cpuVDP1CommandTable{};
+        /// @brief CPU-side VDP1 command table head index.
+        size_t cpuVDP1CommandTableHead = 0;
+        /// @brief CPU-side VDP1 command table tail index.
+        size_t cpuVDP1CommandTableTail = 0;
 
-    /// @brief VDP1 line parameter bins structured buffer.
-    wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1LineBins = nullptr;
-    /// @brief SRV for VDP1 line parameter bins.
-    wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1LineBins = nullptr;
-    /// @brief CPU-side VDP1 line parameter bins buffer.
-    std::array<std::vector<uint16>, kVDP1NumBins> cpuVDP1LineBins{};
-    /// @brief Number of bin entries used so far.
-    size_t cpuVDP1LineBinsUsage = 0;
+        /// @brief Allocates a command in the ring buffer.
+        /// Will overrun the buffer if full.
+        /// @return the command index
+        size_t AllocateCommand() {
+            const size_t index = cpuVDP1CommandTableHead;
+            cpuVDP1CommandTableHead = (cpuVDP1CommandTableHead + 1) % cpuVDP1CommandTable.size();
+            assert(cpuVDP1CommandTableHead != cpuVDP1CommandTableTail);
 
-    /// @brief VDP1 line bin indices structured buffer.
-    wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1LineBinIndices = nullptr;
-    /// @brief SRV for VDP1 line bin indices.
-    wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1LineBinIndices = nullptr;
+            return index;
+        }
 
-    /// @brief VDP1 framebuffer output buffer.
-    /// Used for accurate FBRAM output. Contains just 512 KiB of raw framebuffer data. No extras.
-    wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1AccFB = nullptr;
-    /// @brief SRV for VDP1 framebuffer output buffer.
-    wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1AccFB = nullptr;
-    /// @brief UAV for VDP1 framebuffer output buffer.
-    wil::com_ptr_nothrow<ID3D11UnorderedAccessView> uavVDP1AccFB = nullptr;
+        /// @brief Determines if the VDP1 command table is full.
+        /// @return `true` if the command table is full (`head == tail-1`), `false` otherwise
+        bool IsCommandTableFull() const {
+            return (cpuVDP1CommandTableHead + 1) % cpuVDP1CommandTable.size() == cpuVDP1CommandTableTail;
+        }
 
-    /// @brief VDP1 internal framebuffer output buffer.
-    /// Used for enhanced FBRAM output: deinterlacing, transparent meshes, upscaling, and so on.
-    /// Indexing: [framebuffer index][deinterlace field][sprite/mesh buffer]
-    wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1EnhFB = nullptr;
-    /// @brief SRV for VDP1 internal framebuffer output buffer.
-    wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1EnhFB = nullptr;
-    /// @brief UAV for VDP1 internal framebuffer output buffer.
-    wil::com_ptr_nothrow<ID3D11UnorderedAccessView> uavVDP1EnhFB = nullptr;
+        /// @brief VDP1 line parameter bins structured buffer.
+        wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1LineBins = nullptr;
+        /// @brief SRV for VDP1 line parameter bins.
+        wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1LineBins = nullptr;
+        /// @brief CPU-side VDP1 line parameter bins buffer.
+        std::array<std::vector<uint16>, kVDP1NumBins> cpuVDP1LineBins{};
+        /// @brief Number of bin entries used so far.
+        size_t cpuVDP1LineBinsUsage = 0;
+
+        /// @brief VDP1 line bin indices structured buffer.
+        wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1LineBinIndices = nullptr;
+        /// @brief SRV for VDP1 line bin indices.
+        wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1LineBinIndices = nullptr;
+
+        /// @brief VDP1 framebuffer output buffer.
+        /// Used for accurate FBRAM output.
+        /// The accurate version contains just 512 KiB of raw framebuffer data. No extras.
+        /// The enhanced version contains the scaled framebuffer along with auxiliary buffers for deinterlacing,
+        /// transparent meshes.
+        /// Indexing for enhanced version: [framebuffer index][deinterlace field][sprite/mesh buffer]
+        wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1FBOut = nullptr;
+        /// @brief SRV for VDP1 framebuffer output buffer.
+        wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1FBOut = nullptr;
+        /// @brief UAV for VDP1 framebuffer output buffer.
+        wil::com_ptr_nothrow<ID3D11UnorderedAccessView> uavVDP1FBOut = nullptr;
+    };
+
+    /// @brief Accurate VDP1 rendering data.
+    VDP1RenderData dataVDP1Acc{};
+    /// @brief Enhanced VDP1 rendering data.
+    VDP1RenderData dataVDP1Enh{};
 
     // =========================================================================
 
@@ -421,6 +439,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     // -------------------------------------------------------------------------
     // VDP1 - rendering shader
 
+    static constexpr std::array<uint16, kVDP1BinBufferSize> kEmptyBinData = {};
+    static constexpr std::array<uint32, kVDP1NumBins + 1> kEmptyBins = {};
+
     if (!devMgr.CreateComputeShader(m_context->csVDP1RenderAcc, "d3d11/cs_vdp1_render.hlsl", "CSMain",
                                     kBypassEnhancementsMacro.data())) {
         // TODO: report error
@@ -443,70 +464,113 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->bufVDP1VRAM.get(), "[Ymir D3D11] VDP1 VRAM buffer");
     SetDebugName(m_context->srvVDP1VRAM.get(), "[Ymir D3D11] VDP1 VRAM SRV");
 
-    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1LineParams, m_context->srvVDP1LineParams.put(),
-                                                   nullptr, m_context->cpuVDP1LineParams.size(),
-                                                   m_context->cpuVDP1LineParams.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    // -------------------------------------------------------------------------
+
+    auto &vdp1Acc = m_context->dataVDP1Acc;
+
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(vdp1Acc.bufVDP1LineParams, vdp1Acc.srvVDP1LineParams.put(), nullptr,
+                                                   vdp1Acc.cpuVDP1LineParams.size(), vdp1Acc.cpuVDP1LineParams.data(),
+                                                   0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1LineParams.get(), "[Ymir D3D11] VDP1 line parameters buffer");
-    SetDebugName(m_context->srvVDP1LineParams.get(), "[Ymir D3D11] VDP1 line parameters SRV");
+    SetDebugName(vdp1Acc.bufVDP1LineParams.get(), "[Ymir D3D11] VDP1 accurate line parameters buffer");
+    SetDebugName(vdp1Acc.srvVDP1LineParams.get(), "[Ymir D3D11] VDP1 accurate line parameters SRV");
 
-    if (HRESULT hr = devMgr.CreateStructuredBuffer(m_context->bufVDP1CommandTable, m_context->srvVDP1CommandTable.put(),
-                                                   nullptr, m_context->cpuVDP1CommandTable.size(),
-                                                   m_context->cpuVDP1CommandTable.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(vdp1Acc.bufVDP1CommandTable, vdp1Acc.srvVDP1CommandTable.put(),
+                                                   nullptr, vdp1Acc.cpuVDP1CommandTable.size(),
+                                                   vdp1Acc.cpuVDP1CommandTable.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1CommandTable.get(), "[Ymir D3D11] VDP1 command table ring buffer");
-    SetDebugName(m_context->srvVDP1CommandTable.get(), "[Ymir D3D11] VDP1 command table SRV");
+    SetDebugName(vdp1Acc.bufVDP1CommandTable.get(), "[Ymir D3D11] VDP1 accurate command table ring buffer");
+    SetDebugName(vdp1Acc.srvVDP1CommandTable.get(), "[Ymir D3D11] VDP1 accurate command table SRV");
 
-    static constexpr std::array<uint16, kVDP1BinBufferSize> kEmptyBinData = {};
+    if (HRESULT hr =
+            devMgr.CreatePrimitiveBuffer(vdp1Acc.bufVDP1LineBins, vdp1Acc.srvVDP1LineBins.put(), DXGI_FORMAT_R16_UINT,
+                                         kEmptyBinData.size(), kEmptyBinData.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(vdp1Acc.bufVDP1LineBins.get(), "[Ymir D3D11] VDP1 accurate line parameter bins buffer");
+    SetDebugName(vdp1Acc.srvVDP1LineBins.get(), "[Ymir D3D11] VDP1 accurate line parameter bins SRV");
 
-    if (HRESULT hr = devMgr.CreatePrimitiveBuffer(m_context->bufVDP1LineBins, m_context->srvVDP1LineBins.put(),
-                                                  DXGI_FORMAT_R16_UINT, kEmptyBinData.size(), kEmptyBinData.data(), 0,
+    if (HRESULT hr = devMgr.CreatePrimitiveBuffer(vdp1Acc.bufVDP1LineBinIndices, vdp1Acc.srvVDP1LineBinIndices.put(),
+                                                  DXGI_FORMAT_R32_UINT, kEmptyBins.size(), kEmptyBins.data(), 0,
                                                   D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1LineBins.get(), "[Ymir D3D11] VDP1 line parameter bins buffer");
-    SetDebugName(m_context->srvVDP1LineBins.get(), "[Ymir D3D11] VDP1 line parameter bins SRV");
+    SetDebugName(vdp1Acc.bufVDP1LineBinIndices.get(), "[Ymir D3D11] VDP1 accurate line parameter bin indices buffer");
+    SetDebugName(vdp1Acc.srvVDP1LineBinIndices.get(), "[Ymir D3D11] VDP1 accurate line parameter bin indices SRV");
 
-    static constexpr std::array<uint32, kVDP1NumBins + 1> kEmptyBins = {};
-
-    if (HRESULT hr = devMgr.CreatePrimitiveBuffer(m_context->bufVDP1LineBinIndices,
-                                                  m_context->srvVDP1LineBinIndices.put(), DXGI_FORMAT_R32_UINT,
-                                                  kEmptyBins.size(), kEmptyBins.data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(vdp1Acc.bufVDP1FBOut, vdp1Acc.srvVDP1FBOut.put(),
+                                                    vdp1Acc.uavVDP1FBOut.put(), kVDP1FBRAMSize * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1LineBinIndices.get(), "[Ymir D3D11] VDP1 line parameter bin indices buffer");
-    SetDebugName(m_context->srvVDP1LineBinIndices.get(), "[Ymir D3D11] VDP1 line parameter bin indices SRV");
+    SetDebugName(vdp1Acc.bufVDP1FBOut.get(), "[Ymir D3D11] VDP1 accurate framebuffer output buffer");
+    SetDebugName(vdp1Acc.srvVDP1FBOut.get(), "[Ymir D3D11] VDP1 accurate framebuffer output SRV");
+    SetDebugName(vdp1Acc.uavVDP1FBOut.get(), "[Ymir D3D11] VDP1 accurate framebuffer output UAV");
 
-    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1AccFB, m_context->srvVDP1AccFB.put(),
-                                                    m_context->uavVDP1AccFB.put(), kVDP1FBRAMSize * 2, nullptr, 0, 0);
+    // -------------------------------------------------------------------------
+
+    auto &vdp1Enh = m_context->dataVDP1Enh;
+
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(vdp1Enh.bufVDP1LineParams, vdp1Enh.srvVDP1LineParams.put(), nullptr,
+                                                   vdp1Enh.cpuVDP1LineParams.size(), vdp1Enh.cpuVDP1LineParams.data(),
+                                                   0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1AccFB.get(), "[Ymir D3D11] VDP1 accurate framebuffer output buffer");
-    SetDebugName(m_context->srvVDP1AccFB.get(), "[Ymir D3D11] VDP1 accurate framebuffer output SRV");
-    SetDebugName(m_context->uavVDP1AccFB.get(), "[Ymir D3D11] VDP1 accurate framebuffer output UAV");
+    SetDebugName(vdp1Enh.bufVDP1LineParams.get(), "[Ymir D3D11] VDP1 enhanced line parameters buffer");
+    SetDebugName(vdp1Enh.srvVDP1LineParams.get(), "[Ymir D3D11] VDP1 enhanced line parameters SRV");
+
+    if (HRESULT hr = devMgr.CreateStructuredBuffer(vdp1Enh.bufVDP1CommandTable, vdp1Enh.srvVDP1CommandTable.put(),
+                                                   nullptr, vdp1Enh.cpuVDP1CommandTable.size(),
+                                                   vdp1Enh.cpuVDP1CommandTable.data(), 0, D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(vdp1Enh.bufVDP1CommandTable.get(), "[Ymir D3D11] VDP1 enhanced command table ring buffer");
+    SetDebugName(vdp1Enh.srvVDP1CommandTable.get(), "[Ymir D3D11] VDP1 enhanced command table SRV");
 
     if (HRESULT hr =
-            devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, m_context->srvVDP1EnhFB.put(),
-                                           m_context->uavVDP1EnhFB.put(), kVDP1FBRAMSize * 2 * 2 * 2, nullptr, 0, 0);
+            devMgr.CreatePrimitiveBuffer(vdp1Enh.bufVDP1LineBins, vdp1Enh.srvVDP1LineBins.put(), DXGI_FORMAT_R16_UINT,
+                                         kEmptyBinData.size(), kEmptyBinData.data(), 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1EnhFB.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output buffer");
-    SetDebugName(m_context->srvVDP1EnhFB.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output SRV");
-    SetDebugName(m_context->uavVDP1EnhFB.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output UAV");
+    SetDebugName(vdp1Enh.bufVDP1LineBins.get(), "[Ymir D3D11] VDP1 enhanced line parameter bins buffer");
+    SetDebugName(vdp1Enh.srvVDP1LineBins.get(), "[Ymir D3D11] VDP1 enhanced line parameter bins SRV");
+
+    if (HRESULT hr = devMgr.CreatePrimitiveBuffer(vdp1Enh.bufVDP1LineBinIndices, vdp1Enh.srvVDP1LineBinIndices.put(),
+                                                  DXGI_FORMAT_R32_UINT, kEmptyBins.size(), kEmptyBins.data(), 0,
+                                                  D3D11_CPU_ACCESS_WRITE);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(vdp1Enh.bufVDP1LineBinIndices.get(), "[Ymir D3D11] VDP1 enhanced line parameter bin indices buffer");
+    SetDebugName(vdp1Enh.srvVDP1LineBinIndices.get(), "[Ymir D3D11] VDP1 enhanced line parameter bin indices SRV");
+
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(vdp1Enh.bufVDP1FBOut, vdp1Enh.srvVDP1FBOut.put(),
+                                                    vdp1Enh.uavVDP1FBOut.put(), kVDP1FBRAMSize * 2, nullptr, 0, 0);
+        FAILED(hr)) {
+        // TODO: report error
+        return;
+    }
+    SetDebugName(vdp1Enh.bufVDP1FBOut.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output buffer");
+    SetDebugName(vdp1Enh.srvVDP1FBOut.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output SRV");
+    SetDebugName(vdp1Enh.uavVDP1FBOut.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output UAV");
 
     // =========================================================================
 
@@ -722,16 +786,17 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
 
     auto &devMgr = m_context->DeviceManager;
 
-    if (HRESULT hr =
-            devMgr.CreateByteAddressBuffer(m_context->bufVDP1EnhFB, m_context->srvVDP1EnhFB.put(),
-                                           m_context->uavVDP1EnhFB.put(), fbramSize * 2 * 2 * 2, nullptr, 0, 0);
+    auto &vdp1Enh = m_context->dataVDP1Enh;
+
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(vdp1Enh.bufVDP1FBOut, vdp1Enh.srvVDP1FBOut.put(),
+                                                    vdp1Enh.uavVDP1FBOut.put(), fbramSize * 2 * 2 * 2, nullptr, 0, 0);
         FAILED(hr)) {
         // TODO: report error
         return;
     }
-    SetDebugName(m_context->bufVDP1EnhFB.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output buffer");
-    SetDebugName(m_context->srvVDP1EnhFB.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output SRV");
-    SetDebugName(m_context->uavVDP1EnhFB.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output UAV");
+    SetDebugName(vdp1Enh.bufVDP1FBOut.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output buffer");
+    SetDebugName(vdp1Enh.srvVDP1FBOut.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output SRV");
+    SetDebugName(vdp1Enh.uavVDP1FBOut.get(), "[Ymir D3D11] VDP1 enhanced framebuffer output UAV");
 
     // ---
 
@@ -1180,7 +1245,10 @@ void Direct3D11VDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {
 
 void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
     // Submit partial batch
-    VDP1SubmitLines();
+    VDP1SubmitLines(false);
+    if (m_hasEnhancements) {
+        VDP1SubmitLines(true);
+    }
 
     // This function is invoked after the displayFB bit is flipped.
     // The display framebuffer has the frame that the VDP1 has just drawn.
@@ -1207,11 +1275,11 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         // Dispatch erase shader
         ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig.get()});
         ctx.CSSetShaderResources({});
-        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1AccFB.get()});
+        ctx.CSSetUnorderedAccessViews({m_context->dataVDP1Acc.uavVDP1FBOut.get()});
         ctx.CSSetShader(m_context->csVDP1EraseAcc.get());
         ctx.Dispatch((width + 31) / 32, (height + 31) / 32, 1);
-        if (m_enhancements.AnyEnabled()) {
-            ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
+        if (m_hasEnhancements) {
+            ctx.CSSetUnorderedAccessViews({m_context->dataVDP1Enh.uavVDP1FBOut.get()});
             ctx.CSSetShader(m_context->csVDP1EraseEnh.get());
             ctx.Dispatch((ScaleUpBiasCeil(width) + 31) / 32, (ScaleUpBiasCeil(height) + 31) / 32, 1);
         }
@@ -1285,15 +1353,11 @@ void Direct3D11VDPRenderer::VDP1EndFrame() {
     Callbacks.VDP1DrawFinished();
 }
 
-FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(uint32 cmdAddress) {
-    auto &table = m_context->cpuVDP1CommandTable;
-    size_t &head = m_context->cpuVDP1CommandTableHead;
+FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(bool enhanced, uint32 cmdAddress) {
+    auto &data = enhanced ? m_context->dataVDP1Enh : m_context->dataVDP1Acc;
 
-    const size_t index = head;
-    head = (head + 1) % table.size();
-    assert(head != m_context->cpuVDP1CommandTableTail);
-
-    auto &entry = m_context->cpuVDP1CommandTable[index];
+    const size_t index = data.AllocateCommand();
+    auto &entry = data.cpuVDP1CommandTable[index];
     entry.cmdctrl = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x00);
     entry.cmdpmod = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x04);
     entry.cmdcolr = m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x06);
@@ -1305,7 +1369,7 @@ FORCE_INLINE size_t Direct3D11VDPRenderer::VDP1AddCommand(uint32 cmdAddress) {
     return index;
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(bool enhanced, size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
                                                      const VDP1LineExtras &extras) {
     // Discard if completely out of bounds
     if (coord1.x() < 0 && coord2.x() < 0) {
@@ -1314,22 +1378,24 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
     if (coord1.y() < 0 && coord2.y() < 0) {
         return;
     }
-    const sint32 sysClipH = ScaleUpBiasCeil(m_VDP1State.sysClipH);
+    const sint32 sysClipH = enhanced ? ScaleUpBiasCeil(m_VDP1State.sysClipH) : m_VDP1State.sysClipH;
     if (coord1.x() > sysClipH && coord2.x() > sysClipH) {
         return;
     }
-    const sint32 sysClipV = ScaleUpBiasCeil(m_VDP1State.sysClipV);
+    const sint32 sysClipV = enhanced ? ScaleUpBiasCeil(m_VDP1State.sysClipV) : m_VDP1State.sysClipV;
     if (coord1.y() > sysClipV && coord2.y() > sysClipV) {
         return;
     }
 
+    auto &data = enhanced ? m_context->dataVDP1Enh : m_context->dataVDP1Acc;
+
     // Write polygon parameters to list
-    const size_t index = m_context->cpuVDP1LineParamsCount;
-    ++m_context->cpuVDP1LineParamsCount;
+    const size_t index = data.cpuVDP1LineParamsCount;
+    ++data.cpuVDP1LineParamsCount;
 
-    bool full = m_context->cpuVDP1LineParamsCount == m_context->cpuVDP1LineParams.size();
+    bool full = data.cpuVDP1LineParamsCount == data.cpuVDP1LineParams.size();
 
-    auto &entry = m_context->cpuVDP1LineParams[index];
+    auto &entry = data.cpuVDP1LineParams[index];
     entry.coordStart.x = coord1.x();
     entry.coordStart.y = coord1.y();
     entry.coordEnd.x = coord2.x();
@@ -1350,42 +1416,50 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(size_t cmdIndex, CoordS32 c
 
     // Add line to bins
     // TODO: only to bins that the line actually crosses
-    const CoordS32 topLeft{std::min(coord1.x(), coord2.x()), std::min(coord1.y(), coord2.y())};
-    const CoordS32 bottomRight{std::max(coord1.x(), coord2.x()), std::max(coord1.y(), coord2.y())};
+    CoordS32 topLeft{std::min(coord1.x(), coord2.x()), std::min(coord1.y(), coord2.y())};
+    CoordS32 bottomRight{std::max(coord1.x(), coord2.x()), std::max(coord1.y(), coord2.y())};
+    if (enhanced) {
+        topLeft.x() = ScaleDown(topLeft.x());
+        topLeft.y() = ScaleDown(topLeft.y());
+        bottomRight.x() = ScaleDown(bottomRight.x());
+        bottomRight.y() = ScaleDown(bottomRight.y());
+    }
 
     static constexpr sint32 kMaxX = kVDP1BinCountX - 1;
     static constexpr sint32 kMaxY = kVDP1BinCountY - 1;
-    const uint32 lowerBoundX = std::clamp<sint32>(ScaleDown(topLeft.x()) / kVDP1BinSizeX, 0, kMaxX);
-    const uint32 lowerBoundY = std::clamp<sint32>(ScaleDown(topLeft.y()) / kVDP1BinSizeY, 0, kMaxY);
-    const uint32 upperBoundX = std::clamp<sint32>(ScaleDown(bottomRight.x()) / kVDP1BinSizeX, 0, kMaxX);
-    const uint32 upperBoundY = std::clamp<sint32>(ScaleDown(bottomRight.y()) / kVDP1BinSizeY, 0, kMaxY);
+    const uint32 lowerBoundX = std::clamp<sint32>(topLeft.x() / kVDP1BinSizeX, 0, kMaxX);
+    const uint32 lowerBoundY = std::clamp<sint32>(topLeft.y() / kVDP1BinSizeY, 0, kMaxY);
+    const uint32 upperBoundX = std::clamp<sint32>(bottomRight.x() / kVDP1BinSizeX, 0, kMaxX);
+    const uint32 upperBoundY = std::clamp<sint32>(bottomRight.y() / kVDP1BinSizeY, 0, kMaxY);
     for (uint32 y = lowerBoundY; y <= upperBoundY; ++y) {
         for (uint32 x = lowerBoundX; x <= upperBoundX; ++x) {
             const size_t binIndex = y * kVDP1BinCountX + x;
-            auto &bin = m_context->cpuVDP1LineBins[binIndex];
+            auto &bin = data.cpuVDP1LineBins[binIndex];
             bin.push_back(index);
-            ++m_context->cpuVDP1LineBinsUsage;
+            ++data.cpuVDP1LineBinsUsage;
         }
     }
 
     // Mark as full if there's not enough room for a full screen's worth of bins
-    if (m_context->cpuVDP1LineBinsUsage >= kVDP1BinBufferSize - kVDP1NumBins) {
+    if (data.cpuVDP1LineBinsUsage >= kVDP1BinBufferSize - kVDP1NumBins) {
         full = true;
     }
 
-    // Submit batch if the line list, the command table or a bin is full
+    // Submit batch if either the line list or bin list is full
     if (full) {
-        VDP1SubmitLines();
+        VDP1SubmitLines(enhanced);
     }
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
-    if (m_context->cpuVDP1LineParamsCount == 0) {
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines(bool enhanced) {
+    auto &data = enhanced ? m_context->dataVDP1Enh : m_context->dataVDP1Acc;
+
+    if (data.cpuVDP1LineParamsCount == 0) {
         // Nothing to submit; don't waste time
         return;
     }
 
-    if (m_context->cpuVDP1MaxSysClipH == 0 && m_context->cpuVDP1MaxSysClipV == 0) {
+    if (data.cpuVDP1MaxSysClipH == 0 && data.cpuVDP1MaxSysClipV == 0) {
         // Nothing drawn to the screen
         return;
     }
@@ -1393,78 +1467,83 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines() {
     auto &ctx = m_context->VDP1Context;
 
     // Upload polygons
-    m_context->VDP1Context.ModifyResource(m_context->bufVDP1LineParams.get(), 0,
-                                          [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-                                              memcpy(mappedResource.pData, &m_context->cpuVDP1LineParams,
-                                                     sizeof(VDP1LineParams) * m_context->cpuVDP1LineParamsCount);
-                                          });
     m_context->VDP1Context.ModifyResource(
-        m_context->bufVDP1CommandTable.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
-            memcpy(mappedResource.pData, &m_context->cpuVDP1CommandTable, sizeof(m_context->cpuVDP1CommandTable));
+        data.bufVDP1LineParams.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &data.cpuVDP1LineParams, sizeof(VDP1LineParams) * data.cpuVDP1LineParamsCount);
         });
     m_context->VDP1Context.ModifyResource(
-        m_context->bufVDP1LineBins.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+        data.bufVDP1CommandTable.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
+            memcpy(mappedResource.pData, &data.cpuVDP1CommandTable, sizeof(data.cpuVDP1CommandTable));
+        });
+    m_context->VDP1Context.ModifyResource(
+        data.bufVDP1LineBins.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
             // Concatenate the vectors into a single sequence
-            auto *data = static_cast<char *>(mappedResource.pData);
-            for (auto &bin : m_context->cpuVDP1LineBins) {
+            auto *outData = static_cast<char *>(mappedResource.pData);
+            for (auto &bin : data.cpuVDP1LineBins) {
                 if (bin.empty()) {
                     continue;
                 }
                 const size_t bytes = bin.size() * sizeof(std::decay_t<decltype(bin)>::value_type);
-                memcpy(data, bin.data(), bytes);
-                data += bytes;
+                memcpy(outData, bin.data(), bytes);
+                outData += bytes;
             }
         });
-    m_context->VDP1Context.ModifyResource(m_context->bufVDP1LineBinIndices.get(), 0,
+    m_context->VDP1Context.ModifyResource(data.bufVDP1LineBinIndices.get(), 0,
                                           [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
                                               // Synthesize index sequence from bin vectors
-                                              auto *data = static_cast<char *>(mappedResource.pData);
+                                              auto *outData = static_cast<char *>(mappedResource.pData);
                                               size_t index = 0;
-                                              util::WriteNE<uint32>(data, index);
-                                              data += sizeof(uint32);
-                                              for (const auto &bin : m_context->cpuVDP1LineBins) {
+                                              util::WriteNE<uint32>(outData, index);
+                                              outData += sizeof(uint32);
+                                              for (const auto &bin : data.cpuVDP1LineBins) {
                                                   index += bin.size();
-                                                  util::WriteNE<uint32>(data, index);
-                                                  data += sizeof(uint32);
+                                                  util::WriteNE<uint32>(outData, index);
+                                                  outData += sizeof(uint32);
                                               }
                                           });
 
     VDP1UpdateRenderConfig();
 
+    uint32 width = data.cpuVDP1MaxSysClipH;
+    uint32 height = data.cpuVDP1MaxSysClipV;
+    if (enhanced) {
+        width = ScaleUpBiasCeil(width);
+        height = ScaleUpBiasCeil(height);
+    }
+
     // Render polygons
     ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig.get()});
-    ctx.CSSetShaderResources({m_context->srvVDP1VRAM.get(), m_context->srvVDP1LineParams.get(),
-                              m_context->srvVDP1CommandTable.get(), m_context->srvVDP1LineBins.get(),
-                              m_context->srvVDP1LineBinIndices.get()});
-    ctx.CSSetUnorderedAccessViews({m_context->uavVDP1AccFB.get()});
-    ctx.CSSetShader(m_context->csVDP1RenderAcc.get());
-    ctx.Dispatch((m_context->cpuVDP1MaxSysClipH + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
-                 (m_context->cpuVDP1MaxSysClipV + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
-    if (m_enhancements.AnyEnabled()) {
-        ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
-        ctx.CSSetShader(m_context->csVDP1RenderEnh.get());
-        ctx.Dispatch((ScaleUpBiasCeil(m_context->cpuVDP1MaxSysClipH) + kVDP1BinSizeX - 1) / kVDP1BinSizeX,
-                     (ScaleUpBiasCeil(m_context->cpuVDP1MaxSysClipV) + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
-    }
+    ctx.CSSetShaderResources({m_context->srvVDP1VRAM.get(), data.srvVDP1LineParams.get(),
+                              data.srvVDP1CommandTable.get(), data.srvVDP1LineBins.get(),
+                              data.srvVDP1LineBinIndices.get()});
+    ctx.CSSetUnorderedAccessViews({data.uavVDP1FBOut.get()});
+    ctx.CSSetShader(enhanced ? m_context->csVDP1RenderEnh.get() : m_context->csVDP1RenderAcc.get());
+    ctx.Dispatch((width + kVDP1BinSizeX - 1) / kVDP1BinSizeX, (height + kVDP1BinSizeY - 1) / kVDP1BinSizeY, 1);
 
-    m_context->cpuVDP1LineParamsCount = 0;
-    m_context->cpuVDP1CommandTableTail = m_context->cpuVDP1CommandTableHead;
-    for (auto &bin : m_context->cpuVDP1LineBins) {
+    data.cpuVDP1LineParamsCount = 0;
+    data.cpuVDP1CommandTableTail = data.cpuVDP1CommandTableHead;
+    for (auto &bin : data.cpuVDP1LineBins) {
         bin.clear();
     }
-    m_context->cpuVDP1LineBinsUsage = 0;
+    data.cpuVDP1LineBinsUsage = 0;
 
-    m_context->cpuVDP1MaxSysClipH = m_VDP1State.sysClipH;
-    m_context->cpuVDP1MaxSysClipV = m_VDP1State.sysClipV;
+    data.cpuVDP1MaxSysClipH = m_VDP1State.sysClipH;
+    data.cpuVDP1MaxSysClipV = m_VDP1State.sysClipV;
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawLine(size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawLine(bool enhanced, size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
                                                       const VDP1LineExtras &extras) {
+    if (!enhanced) {
+        // No enhancements means no scaling, so draw a single line
+        VDP1AddLine(false, cmdIndex, coord1, coord2, extras);
+        return;
+    }
+
     // Round scale to the nearest integer
     const uint32 thickness = (m_scaleFactor * 2 + kScaleOne) >> (kScaleFracBits + 1);
     if (thickness == 1) {
         // A single line is enough at this scale
-        VDP1AddLine(cmdIndex, coord1, coord2, extras);
+        VDP1AddLine(enhanced, cmdIndex, coord1, coord2, extras);
         return;
     }
 
@@ -1506,17 +1585,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawLine(size_t cmdIndex, CoordS32 
     for (; quad.CanStep(); quad.Step()) {
         const CoordS32 coordL = quad.LeftEdge().Coord();
         const CoordS32 coordR = quad.RightEdge().Coord();
-        VDP1AddLine(cmdIndex, coordL, coordR, innerExtras);
+        VDP1AddLine(enhanced, cmdIndex, coordL, coordR, innerExtras);
     }
 
-    if (m_context->IsVDP1CommandTableFull()) {
-        VDP1SubmitLines();
+    auto &data = enhanced ? m_context->dataVDP1Enh : m_context->dataVDP1Acc;
+    if (data.IsCommandTableFull()) {
+        VDP1SubmitLines(enhanced);
     }
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB,
-                                                           CoordS32 coordC, CoordS32 coordD) {
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(bool enhanced, size_t cmdIndex, CoordS32 coordA,
+                                                           CoordS32 coordB, CoordS32 coordC, CoordS32 coordD) {
+    const auto &data = enhanced ? m_context->dataVDP1Enh : m_context->dataVDP1Acc;
+    const VDP1CommandEntry &cmd = data.cpuVDP1CommandTable[cmdIndex];
 
     const VDP1Command::Control control{.u16 = cmd.cmdctrl};
     const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
@@ -1551,17 +1632,18 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawSolidQuad(size_t cmdIndex, Coor
             extras.gouraudEnd = quad.RightEdge().GouraudValue();
         }
 
-        VDP1AddLine(cmdIndex, coordL, coordR, extras);
+        VDP1AddLine(enhanced, cmdIndex, coordL, coordR, extras);
     }
 
-    if (m_context->IsVDP1CommandTableFull()) {
-        VDP1SubmitLines();
+    if (data.IsCommandTableFull()) {
+        VDP1SubmitLines(enhanced);
     }
 }
 
-FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawTexturedQuad(size_t cmdIndex, CoordS32 coordA, CoordS32 coordB,
-                                                              CoordS32 coordC, CoordS32 coordD) {
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawTexturedQuad(bool enhanced, size_t cmdIndex, CoordS32 coordA,
+                                                              CoordS32 coordB, CoordS32 coordC, CoordS32 coordD) {
+    const auto &data = enhanced ? m_context->dataVDP1Enh : m_context->dataVDP1Acc;
+    const VDP1CommandEntry &cmd = data.cpuVDP1CommandTable[cmdIndex];
 
     const VDP1Command::Control control{.u16 = cmd.cmdctrl};
     const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
@@ -1609,11 +1691,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawTexturedQuad(size_t cmdIndex, C
             extras.gouraudEnd = quad.RightEdge().GouraudValue();
         }
 
-        VDP1AddLine(cmdIndex, coordL, coordR, extras);
+        VDP1AddLine(enhanced, cmdIndex, coordL, coordR, extras);
     }
 
-    if (m_context->IsVDP1CommandTableFull()) {
-        VDP1SubmitLines();
+    if (data.IsCommandTableFull()) {
+        VDP1SubmitLines(enhanced);
     }
 }
 
@@ -1668,7 +1750,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UpdateVRAM() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DownloadFBRAM(size_t fbIndex) {
-    // Copy FBRAM to staging buffer
+    // Copy accurate FBRAM to staging buffer
     const D3D11_BOX srcBox{
         .left = static_cast<UINT>(fbIndex * kVDP1FBRAMSize),
         .top = 0,
@@ -1677,8 +1759,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1DownloadFBRAM(size_t fbIndex) {
         .bottom = 1,
         .back = 1,
     };
-    m_context->VDP1Context.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1FBRAMDown.get(), 0, 0, 0, 0,
-                                                                       m_context->bufVDP1AccFB.get(), 0, &srcBox);
+    m_context->VDP1Context.GetDeferredContext()->CopySubresourceRegion(
+        m_context->bufVDP1FBRAMDown.get(), 0, 0, 0, 0, m_context->dataVDP1Acc.bufVDP1FBOut.get(), 0, &srcBox);
     m_context->dirtyVDP1FBRAMDown = true;
 }
 
@@ -1706,6 +1788,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
     }
     m_context->dirtyVDP1FBRAMUp = false;
 
+    // Simply copy the entire FBRAM to the accurate buffer
     auto &ctx = m_context->VDP1Context;
     ctx.ModifyResource(m_context->bufVDP1FBRAMUp.get(), 0, [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
         const auto &fbram = m_state.spriteFB[fbIndex];
@@ -1720,13 +1803,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
         .bottom = 1,
         .back = 1,
     };
-    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1AccFB.get(), 0,
+    ctx.GetDeferredContext()->CopySubresourceRegion(m_context->dataVDP1Acc.bufVDP1FBOut.get(), 0,
                                                     static_cast<UINT>(fbIndex * kVDP1FBRAMSize), 0, 0,
                                                     m_context->bufVDP1FBRAMUp.get(), 0, &srcBox);
 
-    // Copy CPU writes to internal FBRAM
+    // For the enhanced buffer, use a shader to copy CPU writes to internal FBRAM with scaling
     if (m_context->dirtyVDP1FBRAMBitmap.AnySet()) {
-        if (m_enhancements.AnyEnabled()) {
+        if (m_hasEnhancements) {
             ctx.ModifyResource(m_context->bufVDP1FBRAMBitmap.get(), 0,
                                [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
                                    memcpy(mappedResource.pData, m_context->dirtyVDP1FBRAMBitmap.GetData(),
@@ -1737,7 +1820,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
 
             ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig.get()});
             ctx.CSSetShaderResources({m_context->srvVDP1FBRAMBitmap.get(), m_context->srvVDP1FBRAMUp.get()});
-            ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
+            ctx.CSSetUnorderedAccessViews({m_context->dataVDP1Enh.uavVDP1FBOut.get()});
             ctx.CSSetShader(m_context->csVDP1CPUWrite.get());
             ctx.Dispatch((ScaleUpBiasCeil(m_state.regs1.fbSizeH) + 31) / 32,
                          (ScaleUpBiasCeil(m_state.regs1.fbSizeV) + 31) / 32, 1);
@@ -1751,8 +1834,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
         return;
     }
 
-    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+    const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
     const VDP1Command::Size size{.u16 = cmd.cmdsize};
     const uint32 charSizeH = size.H * 8;
@@ -1765,18 +1848,32 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
     sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
 
-    xa = ScaleUp(xa);
-    ya = ScaleUp(ya);
-
-    xb = ScaleUpBiasCeil(xb); // TODO: check this
-    yb = ScaleUpBiasCeil(yb);
-
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, ya};
     const CoordS32 coordC{xb, yb};
     const CoordS32 coordD{xa, yb};
 
-    VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
+    VDP1DrawTexturedQuad(false, cmdIndex, coordA, coordB, coordC, coordD);
+
+    if (m_hasEnhancements) {
+        const size_t enhCmdIndex = m_context->dataVDP1Enh.AllocateCommand();
+        m_context->dataVDP1Enh.cpuVDP1CommandTable[enhCmdIndex] = cmd;
+
+        if (m_scaleFactor > kScaleOne) {
+            xa = ScaleUp(xa);
+            ya = ScaleUp(ya);
+
+            xb = ScaleUpBiasCeil(xb); // TODO: check this
+            yb = ScaleUpBiasCeil(yb);
+        }
+
+        const CoordS32 enhCoordA{xa, ya};
+        const CoordS32 enhCoordB{xb, ya};
+        const CoordS32 enhCoordC{xb, yb};
+        const CoordS32 enhCoordD{xa, yb};
+
+        VDP1DrawTexturedQuad(true, enhCmdIndex, enhCoordA, enhCoordB, enhCoordC, enhCoordD);
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -1784,8 +1881,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
         return;
     }
 
-    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+    const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
     const VDP1Command::Size size{.u16 = cmd.cmdsize};
 
@@ -1867,24 +1964,38 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
     qxd += ctx.localCoordX;
     qyd += ctx.localCoordY;
 
-    qxa = ScaleUp(qxa);
-    qya = ScaleUp(qya);
-
-    qxb = ScaleUpBiasCeil(qxb); // TODO: check this
-    qyb = ScaleUp(qyb);
-
-    qxc = ScaleUpBiasCeil(qxc); // TODO: check this
-    qyc = ScaleUpBiasCeil(qyc); // TODO: check this
-
-    qxd = ScaleUp(qxd);
-    qyd = ScaleUpBiasCeil(qyd); // TODO: check this
-
     const CoordS32 coordA{qxa, qya};
     const CoordS32 coordB{qxb, qyb};
     const CoordS32 coordC{qxc, qyc};
     const CoordS32 coordD{qxd, qyd};
 
-    VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
+    VDP1DrawTexturedQuad(false, cmdIndex, coordA, coordB, coordC, coordD);
+
+    if (m_hasEnhancements) {
+        const size_t enhCmdIndex = m_context->dataVDP1Enh.AllocateCommand();
+        m_context->dataVDP1Enh.cpuVDP1CommandTable[enhCmdIndex] = cmd;
+
+        if (m_scaleFactor > kScaleOne) {
+            qxa = ScaleUp(qxa);
+            qya = ScaleUp(qya);
+
+            qxb = ScaleUpBiasCeil(qxb); // TODO: check this
+            qyb = ScaleUp(qyb);
+
+            qxc = ScaleUpBiasCeil(qxc); // TODO: check this
+            qyc = ScaleUpBiasCeil(qyc); // TODO: check this
+
+            qxd = ScaleUp(qxd);
+            qyd = ScaleUpBiasCeil(qyd); // TODO: check this
+        }
+
+        const CoordS32 enhCoordA{qxa, qya};
+        const CoordS32 enhCoordB{qxb, qyb};
+        const CoordS32 enhCoordC{qxc, qyc};
+        const CoordS32 enhCoordD{qxd, qyd};
+
+        VDP1DrawTexturedQuad(true, enhCmdIndex, enhCoordA, enhCoordB, enhCoordC, enhCoordD);
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control) {
@@ -1892,8 +2003,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
         return;
     }
 
-    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+    const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
     sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
@@ -1905,21 +2016,35 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
-    xa = ScaleUp(xa);
-    ya = ScaleUp(ya);
-    xb = ScaleUp(xb);
-    yb = ScaleUp(yb);
-    xc = ScaleUp(xc);
-    yc = ScaleUp(yc);
-    xd = ScaleUp(xd);
-    yd = ScaleUp(yd);
-
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
     const CoordS32 coordC{xc, yc};
     const CoordS32 coordD{xd, yd};
 
-    VDP1DrawTexturedQuad(cmdIndex, coordA, coordB, coordC, coordD);
+    VDP1DrawTexturedQuad(false, cmdIndex, coordA, coordB, coordC, coordD);
+
+    if (m_hasEnhancements) {
+        const size_t enhCmdIndex = m_context->dataVDP1Enh.AllocateCommand();
+        m_context->dataVDP1Enh.cpuVDP1CommandTable[enhCmdIndex] = cmd;
+
+        if (m_scaleFactor > kScaleOne) {
+            xa = ScaleUp(xa);
+            ya = ScaleUp(ya);
+            xb = ScaleUp(xb);
+            yb = ScaleUp(yb);
+            xc = ScaleUp(xc);
+            yc = ScaleUp(yc);
+            xd = ScaleUp(xd);
+            yd = ScaleUp(yd);
+        }
+
+        const CoordS32 enhCoordA{xa, ya};
+        const CoordS32 enhCoordB{xb, yb};
+        const CoordS32 enhCoordC{xc, yc};
+        const CoordS32 enhCoordD{xd, yd};
+
+        VDP1DrawTexturedQuad(true, enhCmdIndex, enhCoordA, enhCoordB, enhCoordC, enhCoordD);
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
@@ -1927,8 +2052,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
         return;
     }
 
-    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
+    const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
     auto &ctx = m_VDP1State;
     sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
@@ -1940,29 +2065,39 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
-    // Pad rectangular polygons that look like they're meant to clear the screen
-    bool padX = false;
-    bool padY = false;
-    if (m_scaleFactor > kScaleOne) {
-        padX = (xa == 0 || xb == m_HRes - 1) && xa == xd && xb == xc && xa < xb;
-        padY = (ya == 0 || yc == m_VRes - 1) && ya == yb && yc == yd && ya < yc;
-    }
-
-    xa = ScaleUp(xa);
-    ya = ScaleUp(ya);
-    xb = padX ? ScaleUpBiasCeil(xb) : ScaleUp(xb);
-    yb = ScaleUp(yb);
-    xc = padX ? ScaleUpBiasCeil(xc) : ScaleUp(xc);
-    yc = padY ? ScaleUpBiasCeil(yc) : ScaleUp(yc);
-    xd = ScaleUp(xd);
-    yd = padY ? ScaleUpBiasCeil(yd) : ScaleUp(yd);
-
     const CoordS32 coordA{xa, ya};
     const CoordS32 coordB{xb, yb};
     const CoordS32 coordC{xc, yc};
     const CoordS32 coordD{xd, yd};
 
-    VDP1DrawSolidQuad(cmdIndex, coordA, coordB, coordC, coordD);
+    VDP1DrawSolidQuad(false, cmdIndex, coordA, coordB, coordC, coordD);
+
+    if (m_hasEnhancements) {
+        const size_t enhCmdIndex = m_context->dataVDP1Enh.AllocateCommand();
+        m_context->dataVDP1Enh.cpuVDP1CommandTable[enhCmdIndex] = cmd;
+
+        if (m_scaleFactor > kScaleOne) {
+            // Pad rectangular polygons that look like they're meant to clear the screen
+            const bool padX = (xa == 0 || xb == m_HRes - 1) && xa == xd && xb == xc && xa < xb;
+            const bool padY = (ya == 0 || yc == m_VRes - 1) && ya == yb && yc == yd && ya < yc;
+
+            xa = ScaleUp(xa);
+            ya = ScaleUp(ya);
+            xb = padX ? ScaleUpBiasCeil(xb) : ScaleUp(xb);
+            yb = ScaleUp(yb);
+            xc = padX ? ScaleUpBiasCeil(xc) : ScaleUp(xc);
+            yc = padY ? ScaleUpBiasCeil(yc) : ScaleUp(yc);
+            xd = ScaleUp(xd);
+            yd = padY ? ScaleUpBiasCeil(yd) : ScaleUp(yd);
+        }
+
+        const CoordS32 enhCoordA{xa, ya};
+        const CoordS32 enhCoordB{xb, yb};
+        const CoordS32 enhCoordC{xc, yc};
+        const CoordS32 enhCoordD{xd, yd};
+
+        VDP1DrawSolidQuad(true, enhCmdIndex, enhCoordA, enhCoordB, enhCoordC, enhCoordD);
+    }
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
@@ -1970,32 +2105,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
         return;
     }
 
-    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
-
-    auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-    sint32 xc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
-    sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
-    sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
-    sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
-
-    xa = ScaleUp(xa);
-    ya = ScaleUp(ya);
-    xb = ScaleUp(xb);
-    yb = ScaleUp(yb);
-    xc = ScaleUp(xc);
-    yc = ScaleUp(yc);
-    xd = ScaleUp(xd);
-    yd = ScaleUp(yd);
-
-    const CoordS32 coordA{xa, ya};
-    const CoordS32 coordB{xb, yb};
-    const CoordS32 coordC{xc, yc};
-    const CoordS32 coordD{xd, yd};
+    const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
     const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
 
@@ -2018,32 +2129,96 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
         gouraudD.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 6u);
     }
 
+    auto &ctx = m_VDP1State;
+    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
+    sint32 xc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14)) + ctx.localCoordX;
+    sint32 yc = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16)) + ctx.localCoordY;
+    sint32 xd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
+    sint32 yd = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
+
+    const CoordS32 coordA{xa, ya};
+    const CoordS32 coordB{xb, yb};
+    const CoordS32 coordC{xc, yc};
+    const CoordS32 coordD{xd, yd};
+
     if (mode.gouraudEnable) {
         extras.gouraudStart = gouraudA;
         extras.gouraudEnd = gouraudB;
     }
-    VDP1DrawLine(cmdIndex, coordA, coordB, extras);
+    VDP1DrawLine(false, cmdIndex, coordA, coordB, extras);
 
     if (mode.gouraudEnable) {
         extras.gouraudStart = gouraudB;
         extras.gouraudEnd = gouraudC;
     }
-    VDP1DrawLine(cmdIndex, coordB, coordC, extras);
+    VDP1DrawLine(false, cmdIndex, coordB, coordC, extras);
 
     if (mode.gouraudEnable) {
         extras.gouraudStart = gouraudC;
         extras.gouraudEnd = gouraudD;
     }
-    VDP1DrawLine(cmdIndex, coordC, coordD, extras);
+    VDP1DrawLine(false, cmdIndex, coordC, coordD, extras);
 
     if (mode.gouraudEnable) {
         extras.gouraudStart = gouraudD;
         extras.gouraudEnd = gouraudA;
     }
-    VDP1DrawLine(cmdIndex, coordD, coordA, extras);
+    VDP1DrawLine(false, cmdIndex, coordD, coordA, extras);
 
-    if (m_context->IsVDP1CommandTableFull()) {
-        VDP1SubmitLines();
+    if (m_context->dataVDP1Acc.IsCommandTableFull()) {
+        VDP1SubmitLines(false);
+    }
+
+    if (m_hasEnhancements) {
+        const size_t enhCmdIndex = m_context->dataVDP1Enh.AllocateCommand();
+        m_context->dataVDP1Enh.cpuVDP1CommandTable[enhCmdIndex] = cmd;
+
+        if (m_scaleFactor > kScaleOne) {
+            xa = ScaleUp(xa);
+            ya = ScaleUp(ya);
+            xb = ScaleUp(xb);
+            yb = ScaleUp(yb);
+            xc = ScaleUp(xc);
+            yc = ScaleUp(yc);
+            xd = ScaleUp(xd);
+            yd = ScaleUp(yd);
+        }
+
+        const CoordS32 enhCoordA{xa, ya};
+        const CoordS32 enhCoordB{xb, yb};
+        const CoordS32 enhCoordC{xc, yc};
+        const CoordS32 enhCoordD{xd, yd};
+
+        if (mode.gouraudEnable) {
+            extras.gouraudStart = gouraudA;
+            extras.gouraudEnd = gouraudB;
+        }
+        VDP1DrawLine(true, enhCmdIndex, enhCoordA, enhCoordB, extras);
+
+        if (mode.gouraudEnable) {
+            extras.gouraudStart = gouraudB;
+            extras.gouraudEnd = gouraudC;
+        }
+        VDP1DrawLine(true, enhCmdIndex, enhCoordB, enhCoordC, extras);
+
+        if (mode.gouraudEnable) {
+            extras.gouraudStart = gouraudC;
+            extras.gouraudEnd = gouraudD;
+        }
+        VDP1DrawLine(true, enhCmdIndex, enhCoordC, enhCoordD, extras);
+
+        if (mode.gouraudEnable) {
+            extras.gouraudStart = gouraudD;
+            extras.gouraudEnd = gouraudA;
+        }
+        VDP1DrawLine(true, enhCmdIndex, enhCoordD, enhCoordA, extras);
+
+        if (m_context->dataVDP1Enh.IsCommandTableFull()) {
+            VDP1SubmitLines(true);
+        }
     }
 }
 
@@ -2052,22 +2227,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         return;
     }
 
-    const size_t cmdIndex = VDP1AddCommand(cmdAddress);
-    const VDP1CommandEntry &cmd = m_context->cpuVDP1CommandTable[cmdIndex];
-
-    auto &ctx = m_VDP1State;
-    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
-    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
-    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
-    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
-
-    xa = ScaleUp(xa);
-    ya = ScaleUp(ya);
-    xb = ScaleUp(xb);
-    yb = ScaleUp(yb);
-
-    const CoordS32 coordA{xa, ya};
-    const CoordS32 coordB{xb, yb};
+    const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
+    const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
     const VDP1Command::DrawMode mode{.u16 = cmd.cmdpmod};
 
@@ -2083,10 +2244,40 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         extras.gouraudEnd.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 2u);
     }
 
-    VDP1DrawLine(cmdIndex, coordA, coordB, extras);
+    auto &ctx = m_VDP1State;
+    sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
+    sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
+    sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
+    sint32 yb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
 
-    if (m_context->IsVDP1CommandTableFull()) {
-        VDP1SubmitLines();
+    const CoordS32 coordA{xa, ya};
+    const CoordS32 coordB{xb, yb};
+
+    VDP1DrawLine(false, cmdIndex, coordA, coordB, extras);
+
+    if (m_context->dataVDP1Acc.IsCommandTableFull()) {
+        VDP1SubmitLines(false);
+    }
+
+    if (m_hasEnhancements) {
+        const size_t enhCmdIndex = m_context->dataVDP1Enh.AllocateCommand();
+        m_context->dataVDP1Enh.cpuVDP1CommandTable[enhCmdIndex] = cmd;
+
+        if (m_scaleFactor > kScaleOne) {
+            xa = ScaleUp(xa);
+            ya = ScaleUp(ya);
+            xb = ScaleUp(xb);
+            yb = ScaleUp(yb);
+        }
+
+        const CoordS32 enhCoordA{xa, ya};
+        const CoordS32 enhCoordB{xb, yb};
+
+        VDP1DrawLine(true, enhCmdIndex, enhCoordA, enhCoordB, extras);
+
+        if (m_context->dataVDP1Enh.IsCommandTableFull()) {
+            VDP1SubmitLines(true);
+        }
     }
 }
 
@@ -2094,8 +2285,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAdd
     auto &ctx = m_VDP1State;
     ctx.sysClipH = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14));
     ctx.sysClipV = bit::extract<0, 8>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16));
-    m_context->cpuVDP1MaxSysClipH = std::max<uint32>(m_context->cpuVDP1MaxSysClipH, ctx.sysClipH);
-    m_context->cpuVDP1MaxSysClipV = std::max<uint32>(m_context->cpuVDP1MaxSysClipV, ctx.sysClipV);
+    m_context->dataVDP1Acc.UpdateMaxSysClip(ctx.sysClipH, ctx.sysClipV);
+    m_context->dataVDP1Enh.UpdateMaxSysClip(ctx.sysClipH, ctx.sysClipV);
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
@@ -2239,7 +2430,7 @@ FORCE_INLINE sint32 Direct3D11VDPRenderer::ScaleUpBiasCeil(sint32 value) const {
 }
 
 FORCE_INLINE sint32 Direct3D11VDPRenderer::ScaleDown(sint32 value) const {
-    return (value << kScaleFracBits) / m_scaleFactor;
+    return (value * m_scaleStep) >> kScaleFracBits;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateEnabledBGs() {
@@ -2279,7 +2470,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2DrawLineColorBackScreens(uint32 y) 
         const uint32 lnclY = lineParams.perLine ? y : 0;
         const uint32 address = lineParams.baseAddress + lnclY * sizeof(uint16);
         const uint32 cramAddress = m_state.mem2.ReadVRAM<uint16>(address);
-        m_context->cpuVDP2LineColors[y][0] = m_context->cpuVDP2ColorCache[cramAddress];
+        m_context->cpuVDP2LineColors[y][0] = m_context->cpuVDP2ColorCache[cramAddress & 0x7FF];
     }
 
     // Read back screen color
@@ -2340,16 +2531,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     m_context->cpuVDP2RenderConfig.startY = startY << yShift;
     VDP2UploadRenderConfig();
 
-    const bool hasEnhancements = m_enhancements.AnyEnabled();
-
     // Draw sprite layer
+    const auto &vdp1Data = m_hasEnhancements ? m_context->dataVDP1Enh : m_context->dataVDP1Acc;
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
     ctx.CSSetShaderResources(
         {m_context->srvVDP2VRAM.get(), m_context->srvVDP2ColorCache.get(), m_context->srvVDP2BGRenderState.get()});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs.get(), m_context->uavVDP2SpriteAttrs.get()});
-    ctx.CSSetShaderResources({m_context->srvVDP2RotParams.get(),
-                              hasEnhancements ? m_context->srvVDP1EnhFB.get() : m_context->srvVDP1AccFB.get()},
-                             3);
+    ctx.CSSetShaderResources({m_context->srvVDP2RotParams.get(), vdp1Data.srvVDP1FBOut.get()}, 3);
     ctx.CSSetShader(m_context->csVDP2Sprite.get());
     ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, numScaledLines, m_enhancements.transparentMeshes ? 2 : 1);
 
