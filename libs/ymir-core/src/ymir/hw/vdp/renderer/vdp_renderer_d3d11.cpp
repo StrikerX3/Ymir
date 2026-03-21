@@ -2304,8 +2304,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
     const uint32 startY = m_nextVDP2BGY;
 
     // Determine how many lines to draw and update next scanline counter
-    const uint32 baseNumLines = y - m_nextVDP2BGY + 1;
+    const uint32 baseNumLines = y - startY + 1;
     const uint32 numLines = baseNumLines << yShift;
+    const uint32 baseNumScaledLines = ScaleUpBiasCeil(y) - ScaleUp(startY) + 1;
+    const uint32 numScaledLines = baseNumScaledLines << yShift;
     m_nextVDP2BGY = y + 1;
 
     // Compute rotation parameters if any RBGs are enabled
@@ -2341,8 +2343,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
                               hasEnhancements ? m_context->srvVDP1EnhFB.get() : m_context->srvVDP1AccFB.get()},
                              3);
     ctx.CSSetShader(m_context->csVDP2Sprite.get());
-    ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, ScaleUpBiasCeil(numLines),
-                 m_enhancements.transparentMeshes ? 2 : 1);
+    ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, numScaledLines, m_enhancements.transparentMeshes ? 2 : 1);
 
     // Draw color calculation window
     ctx.CSSetConstantBuffers({m_context->cbufVDP2RenderConfig.get()});
@@ -2359,7 +2360,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2RenderBGLines(uint32 y) {
                               m_context->srvVDP2RotParams.get()});
     ctx.CSSetUnorderedAccessViews({m_context->uavVDP2BGs.get(), m_context->uavVDP2RotLineColors.get()});
     ctx.CSSetShader(m_context->csVDP2BGs.get());
-    ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, ScaleUpBiasCeil(numLines), 1);
+    ctx.Dispatch((ScaleUpBiasCeil(m_HRes) + 31) / 32, numScaledLines, 1);
 
     // Update fracScrollY bases for the next frame
     if (m_setSCYN2) {
