@@ -198,6 +198,14 @@ uint ScaleUp(uint value) {
     return (value * scaleFactor) >> kScaleBits;
 }
 
+uint ScaleDown(uint value) {
+    return (value * scaleStep) >> kScaleBits;
+}
+
+uint2 ScaleDown(uint2 value) {
+    return (value * scaleStep) >> kScaleBits;
+}
+
 uint GetY(uint y, bool doubleDensityOnly) {
     const bool interlaced = doubleDensityOnly
         ? interlaceMode == kInterlaceModeDoubleDensity
@@ -312,7 +320,7 @@ bool InsideWindows(uint windowParams, bool hasSpriteWindow, uint2 pos) {
         return false;
     }
 
-    const uint2 screenPos = (pos * scaleStep) >> kScaleBits;
+    const uint2 screenPos = ScaleDown(pos);
 
     const bool windowLogicAND = windowLogic == kWindowLogicAND;
 
@@ -788,7 +796,7 @@ uint SelectRotationParameter(uint4 rbgParams, uint2 pos) {
         case kRotParamModeB:
             return kRotParamB;
         case kRotParamModeCoeff:{
-                const uint2 screenPos = (pos * scaleStep) >> kScaleBits;
+                const uint2 screenPos = ScaleDown(pos);
                 const bool coeffTableEnable = BitTest(rotRegs[0].x, 0);
                 if (!coeffTableEnable) {
                     return kRotParamA;
@@ -963,7 +971,7 @@ uint4 DrawRBG(uint2 pos, uint index) {
         return kTransparentPixel;
     }
 
-    const uint2 screenPos = (pos * scaleStep) >> kScaleBits;
+    const uint2 screenPos = ScaleDown(pos);
 
     const uint rotSel = index == 0 ? SelectRotationParameter(rbgParams, pos) : kRotParamB;
     const uint rotIndex = GetRotIndex(screenPos, rotSel);

@@ -50,13 +50,13 @@ static const uint kCoarseScaleShift = kScaleBits - kCoarseScaleBits;
 #ifndef YMIR_BYPASS_ENHANCEMENTS
 static const bool deinterlace = BitTest(config.params, 29);
 static const bool transparentMeshes = BitTest(config.params, 30);
-static const uint scale = BitExtract(config.scale, 0, 16);
-static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
-static const uint kFBSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
+static const uint scaleFactor = BitExtract(config.scale, 0, 16);
+static const uint coarseScaleFactor = (scaleFactor + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
+static const uint kFBSize = (((256 * 1024 * coarseScaleFactor) >> kCoarseScaleBits) * coarseScaleFactor) >> kCoarseScaleBits;
 #else
 static const bool deinterlace = false;
 static const bool transparentMeshes = false;
-static const uint scale = kScaleOne;
+static const uint scaleFactor = kScaleOne;
 static const uint kFBSize = 256 * 1024;
 #endif
 
@@ -69,15 +69,15 @@ void WriteMesh16(uint address, uint data) {
 }
 
 uint ScaleUp(uint value) {
-    return (value * scale) >> kScaleBits;
+    return (value * scaleFactor) >> kScaleBits;
 }
 
 uint ScaleUpBiasCeil(uint value) {
-    return (value * scale + scale - 1) >> kScaleBits;
+    return (value * scaleFactor + scaleFactor - 1) >> kScaleBits;
 }
 
 uint ScaleUpPlusOne(uint value) {
-    return (value * scale + scale) >> kScaleBits;
+    return (value * scaleFactor + scaleFactor) >> kScaleBits;
 }
 #else
 uint ScaleUp(uint value) {

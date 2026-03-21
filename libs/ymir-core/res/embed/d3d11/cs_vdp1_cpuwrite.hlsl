@@ -44,11 +44,20 @@ static const uint offsetShift = BitExtract(config.params, 28, 1) + 8;
 static const uint offsetMask = (1 << offsetShift) - 1;
 static const bool deinterlace = BitTest(config.params, 29);
 static const bool transparentMeshes = BitTest(config.params, 30);
-static const uint scale = BitExtract(config.scale, 0, 16);
+static const uint scaleFactor = BitExtract(config.scale, 0, 16);
 static const uint scaleStep = BitExtract(config.scale, 16, 16);
-static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
-static const uint fbSizeH = ((512 << BitExtract(config.params, 0, 1)) * scale) >> kScaleBits;
-static const uint fbSizeV = ((256 << BitExtract(config.params, 1, 1)) * scale) >> kScaleBits;
+static const uint coarseScale = (scaleFactor + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
+
+uint ScaleUp(uint value) {
+    return (value * scaleFactor) >> kScaleBits;
+}
+
+uint2 ScaleDown(uint2 value) {
+    return (value * scaleStep) >> kScaleBits;
+}
+
+static const uint fbSizeH = ScaleUp(512 << BitExtract(config.params, 0, 1));
+static const uint fbSizeV = ScaleUp(256 << BitExtract(config.params, 1, 1));
 
 static const uint kFBSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
 static const uint kDeinterlaceFBOffset = 2 * kFBSize;
@@ -107,13 +116,13 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     const uint numBits = pixel8Bits ? 1 : 2;
     const uint posShift = pixel8Bits ? 0 : 1;
 
-    const uint2 pos = (id.xy * scaleStep) >> kScaleBits;
+    const uint2 pos = ScaleDown(id.xy);
     const uint address = (pos.y * (1 << offsetShift) + pos.x) << posShift;
 
     const uint bits = BitExtract(cpuWriteBitmap.Load(address >> 3), address & 31, numBits);
     if (bits != 0) {
         uint inAddress = address;
-        uint outAddress = drawFBOffset + ((id.y * (((1 << offsetShift) * scale) >> kScaleBits) + id.x) << posShift);
+        uint outAddress = drawFBOffset + ((id.y * ScaleUp(1 << offsetShift) + id.x) << posShift);
 
         if (bits == 3) {
             // 16-bit write

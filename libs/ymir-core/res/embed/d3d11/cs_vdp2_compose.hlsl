@@ -88,11 +88,19 @@ static const uint kScaleOne = 1 << kScaleBits;
 
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
-static const uint scale = BitExtract(config.scale, 0, 16);
+static const uint scaleFactor = BitExtract(config.scale, 0, 16);
 static const uint scaleStep = BitExtract(config.scale, 16, 16);
 
 uint ScaleUp(uint value) {
-    return (value * scale) >> kScaleBits;
+    return (value * scaleFactor) >> kScaleBits;
+}
+
+uint ScaleDown(uint value) {
+    return (value * scaleStep) >> kScaleBits;
+}
+
+uint2 ScaleDown(uint2 value) {
+    return (value * scaleStep) >> kScaleBits;
 }
 
 // The alpha channel of the layer textures contains pixel attributes:
@@ -126,7 +134,7 @@ uint GetOutputY(uint y) {
 }
 
 uint GetLoResInputY(uint y) {
-    y = (y * scaleStep) >> kScaleBits;
+    y = ScaleDown(y);
     if (deinterlace && interlaced) {
         return y >> 1;
     } else {
@@ -175,7 +183,7 @@ bool IsColorCalcEnabled(uint layer, uint2 pos) {
         // Color calculation is disabled for this layer
         return false;
     }
-    if (colorCalcWindowIn[uint2((pos.x * scaleStep) >> kScaleBits, GetLoResInputY(pos.y))].r != 0) {
+    if (colorCalcWindowIn[uint2(ScaleDown(pos.x), GetLoResInputY(pos.y))].r != 0) {
         // Inside color calculation window
         return false;
     }
@@ -209,7 +217,7 @@ bool IsLineColorEnabled(uint layer, uint2 pos) {
 
 uint3 GetLineColor(uint layer, uint2 pos) {
     if (layer == kLayerRBG0 || (layer == kLayerNBG0_RBG1 && IsBGLayerEnabled(kBGLayerRBG1))) {
-        return rbgLineColorIn[uint3((pos * scaleStep) >> kScaleBits, layer - kLayerRBG0)].rgb;
+        return rbgLineColorIn[uint3(ScaleDown(pos), layer - kLayerRBG0)].rgb;
     }
     return lineColorIn[uint2(0, GetLoResInputY(pos.y))].rgb;
 }

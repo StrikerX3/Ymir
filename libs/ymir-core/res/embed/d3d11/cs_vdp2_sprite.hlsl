@@ -140,24 +140,24 @@ static const uint kCoarseScaleShift = kScaleBits - kCoarseScaleBits;
 
 static const bool deinterlace = BitTest(config.extraParams, 28);
 static const bool transparentMeshes = BitTest(config.extraParams, 29);
-static const uint scale = BitExtract(config.scale, 0, 16);
-static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
+static const uint scaleFactor = BitExtract(config.scale, 0, 16);
+static const uint coarseScaleFactor = (scaleFactor + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
 
-static const uint kVDP1FBRAMSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
+static const uint kVDP1FBRAMSize = (((256 * 1024 * coarseScaleFactor) >> kCoarseScaleBits) * coarseScaleFactor) >> kCoarseScaleBits;
 static const uint kSpriteFBBaseOffset = spriteDisplayFB * kVDP1FBRAMSize;
 static const uint kDeinterlaceFBBaseOffset = kVDP1FBRAMSize * 2;
 static const uint kVDP1MeshFBOffset = kVDP1FBRAMSize * 2 * 2;
 
 uint ScaleUp(uint value) {
-    return (value * scale) >> kScaleBits;
+    return (value * scaleFactor) >> kScaleBits;
 }
 
 int2 ScaleUp(int2 value) {
-    return (value * int(scale)) >> int(kScaleBits);
+    return (value * int(scaleFactor)) >> int(kScaleBits);
 }
 
 int2 ScaleUpBiasCeil(int2 value) {
-    return (value * int(scale) + int(scale) - 1) >> int(kScaleBits);
+    return (value * int(scaleFactor) + int(scaleFactor) - 1) >> int(kScaleBits);
 }
 
 uint ReadVRAM16(uint address) {
