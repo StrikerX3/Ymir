@@ -5,7 +5,6 @@ struct Config {
     uint vcellScrollParams;
     uint2 spriteParams;
     uint windows;
-    uint fracScrollYBases;
     uint scale;
 };
 
@@ -714,13 +713,6 @@ uint4 DrawNBG(uint2 pos, uint index) {
             const uint tableAddr = baseTableAddr + lineZoomOffset;
             scrollInc.x = BitExtract(ReadVRAM32(tableAddr), 8, 11);
         }
-    }
-
-    if (index >= 2) {
-        // Adjust cumulative scrollIncV increment relative to last write
-        pos.y -= BitExtract(config.fracScrollYBases, (index - 2) * 10, 10);
-        fracScreenPos.y = pos.y * scaleStep;
-        screenPos.y = fracScreenPos.y >> kScaleBits;
     }
 
     if (vcellScrollEnable && !mosaicEnable) {

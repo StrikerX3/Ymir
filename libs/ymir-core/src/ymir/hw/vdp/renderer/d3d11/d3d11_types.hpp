@@ -244,11 +244,6 @@ struct alignas(16) VDP2RenderConfig {
         D3DUint colorCalcSWInvert : 1;    //    11  Color calc. SW invert      0=disable; 1=enable
     } windows;
 
-    struct {               //  bits  use
-        D3DUint nbg2 : 10; //   0-9  Base Y for NBG2 fractional Y scroll coordinates
-        D3DUint nbg3 : 10; // 10-19  Base Y for NBG3 fractional Y scroll coordinates
-    } fracScrollYBases;
-
     struct {
         D3DUint factor : 16; // Internal resolution scaling factor (12 frac bits)
         D3DUint step : 16;   // Internal resolution scaling logical screen dot step per physical pixel (12 frac bits)
