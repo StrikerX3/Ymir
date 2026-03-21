@@ -15,8 +15,8 @@ jobs:
       prerelease-version: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Parse semver string
-        id: version 
-        uses: booxmedialtd/ws-action-parse-semver@v1
+        id: version
+        uses: booxmedialtd/ws-action-parse-semver@7784200024d6b3fc01253e617ec0168daf603de3
         with:
           input_string: '${{ github.ref_name }}'
           version_extractor_regex: '^v(.*)$'
@@ -40,14 +40,14 @@ jobs:
 
     steps:
       - name: Download Ymir artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@79dac248aac9d0059f86eae9d8b5bfab4e95e97c
         with:
           path: ymir
           pattern: ymir-*
           merge-multiple: true
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
         with:
           draft: true
           files: |
