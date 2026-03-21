@@ -220,7 +220,7 @@ struct DirtyBitmap {
         return m_bitmap.data();
     }
 
-    /// @brief Returns the size of the bitmap in bits.
+    /// @brief Returns the number of bits in the bitmap.
     /// @return the number of bits in the bitmap
     size_t Size() const {
         return numBits;

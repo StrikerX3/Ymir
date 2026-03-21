@@ -12,6 +12,7 @@ cbuffer Config : register(b0) {
 }
 
 ByteAddressBuffer cpuWriteBitmap : register(t0);
+ByteAddressBuffer fbram : register(t1);
 
 RWByteAddressBuffer fbOut : register(u0);
 
@@ -31,6 +32,43 @@ uint ByteSwap16(uint val) {
            ((val << 8) & 0xFF00);
 }
 
+// -----------------------------------------------------------------------------
+
+static const uint kScaleBits = 12;
+static const uint kScaleOne = 1 << kScaleBits;
+static const uint kCoarseScaleBits = 6;
+static const uint kCoarseScaleShift = kScaleBits - kCoarseScaleBits;
+
+static const bool pixel8Bits = BitTest(config.params, 2);
+static const uint offsetShift = BitExtract(config.params, 28, 1) + 8;
+static const uint offsetMask = (1 << offsetShift) - 1;
+static const bool deinterlace = BitTest(config.params, 29);
+static const bool transparentMeshes = BitTest(config.params, 30);
+static const uint scale = BitExtract(config.scale, 0, 16);
+static const uint scaleStep = BitExtract(config.scale, 16, 16);
+static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
+static const uint fbSizeH = ((512 << BitExtract(config.params, 0, 1)) * scale) >> kScaleBits;
+static const uint fbSizeV = ((256 << BitExtract(config.params, 1, 1)) * scale) >> kScaleBits;
+
+static const uint kFBSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
+static const uint kDeinterlaceFBOffset = 2 * kFBSize;
+static const uint kMeshFBOffset = 2 * 2 * kFBSize;
+
+static const uint drawFB = BitExtract(config.params, 7, 1);
+static const uint displayFB = drawFB ^ 1;
+static const uint drawFBOffset = drawFB * kFBSize;
+static const bool dblInterlaceEnable = BitTest(config.params, 4);
+
+uint ReadFBUp8(uint address) {
+    const uint value = fbram.Load(address & ~3);
+    return (value >> ((address & 3) * 8)) & 0xFF;
+}
+
+uint ReadFBUp16(uint address) {
+    const uint value = fbram.Load(address & ~3);
+    return ByteSwap16(value >> ((address & 2) * 8));
+}
+
 void WriteFB8(uint address, uint data) {
     const uint shift = (address & 3) * 8;
     const uint mask = ~(0xFF << shift);
@@ -42,39 +80,74 @@ void WriteFB8(uint address, uint data) {
     fbOut.InterlockedOr(address, data, dummy);
 }
 
-// -----------------------------------------------------------------------------
+void WriteFB16(uint address, uint data) {
+    const uint shift = (address & 2) * 8;
+    const uint mask = ~(0xFFFF << shift);
+    data = ByteSwap16(data) << shift;
 
-static const uint kScaleBits = 12;
-static const uint kScaleOne = 1 << kScaleBits;
-static const uint kCoarseScaleBits = 6;
-static const uint kCoarseScaleShift = kScaleBits - kCoarseScaleBits;
-
-static const bool deinterlace = BitTest(config.params, 29);
-// NOTE: transparent meshes is assumed to be enabled
-static const uint scale = BitExtract(config.scale, 0, 16);
-static const uint coarseScale = (scale + (1 << kCoarseScaleShift) - 1) >> kCoarseScaleShift;
-
-static const uint kFBSize = (((256 * 1024 * coarseScale) >> kCoarseScaleBits) * coarseScale) >> kCoarseScaleBits;
-static const uint kDeinterlaceFBOffset = 2 * kFBSize;
-static const uint kMeshFBOffset = 2 * 2 * kFBSize;
-
-static const uint drawFB = BitExtract(config.params, 7, 1);
-static const uint drawFBOffset = drawFB * kFBSize;
-static const bool dblInterlaceEnable = BitTest(config.params, 4);
+    address &= ~3;
+    uint dummy;
+    fbOut.InterlockedAnd(address, mask, dummy);
+    fbOut.InterlockedOr(address, data, dummy);
+}
 
 void WriteMesh8(uint address, uint data) {
     WriteFB8(kMeshFBOffset + address, data);
 }
 
-[numthreads(256, 1, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID) {
-    const uint2 pos = id.xy;
-    const uint address = drawFBOffset + id.x;
+void WriteMesh16(uint address, uint data) {
+    WriteFB16(kMeshFBOffset + address, data);
+}
 
-    if (BitTest(cpuWriteBitmap.Load(id.x >> 5), id.x & 31)) {
-        WriteMesh8(address, 0);
-        if (deinterlace && dblInterlaceEnable) {
-            WriteMesh8(kDeinterlaceFBOffset + address, 0);
+[numthreads(32, 32, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= fbSizeH || id.y >= fbSizeV) {
+        return;
+    }
+    const uint numBits = pixel8Bits ? 1 : 2;
+    const uint posShift = pixel8Bits ? 0 : 1;
+
+    const uint2 pos = (id.xy * scaleStep) >> kScaleBits;
+    const uint address = (pos.y * (1 << offsetShift) + pos.x) << posShift;
+
+    const uint bits = BitExtract(cpuWriteBitmap.Load(address >> 3), address & 31, numBits);
+    if (bits != 0) {
+        uint inAddress = address;
+        uint outAddress = drawFBOffset + ((id.y * (((1 << offsetShift) * scale) >> kScaleBits) + id.x) << posShift);
+
+        if (bits == 3) {
+            // 16-bit write
+            const uint data = ReadFBUp16(inAddress);
+
+            WriteFB16(outAddress, data);
+            if (transparentMeshes) {
+                WriteMesh16(outAddress, 0);
+            }
+            if (deinterlace && dblInterlaceEnable) {
+                WriteFB16(kDeinterlaceFBOffset + outAddress, data);
+                if (transparentMeshes) {
+                    WriteMesh16(kDeinterlaceFBOffset + outAddress, 0);
+                }
+            }
+        } else {
+            // 8-bit write (upper or lower byte of 16-bit word, or pixel data is 8 bits)
+            if (!pixel8Bits && bits == 2) {
+                // Lower byte of 16-bit word
+                inAddress++;
+                outAddress++;
+            }
+            const uint data = ReadFBUp8(inAddress);
+
+            WriteFB8(outAddress, data);
+            if (transparentMeshes) {
+                WriteMesh8(outAddress, 0);
+            }
+            if (deinterlace && dblInterlaceEnable) {
+                WriteFB8(kDeinterlaceFBOffset + outAddress, data);
+                if (transparentMeshes) {
+                    WriteMesh8(kDeinterlaceFBOffset + outAddress, 0);
+                }
+            }
         }
     }
 }

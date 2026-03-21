@@ -87,6 +87,8 @@ struct Direct3D11VDPRenderer::Context {
 
     /// @brief VDP1 FBRAM upload staging buffer (CPU->GPU transfers).
     wil::com_ptr_nothrow<ID3D11Buffer> bufVDP1FBRAMUp = nullptr;
+    /// @brief SRV for VDP1 FBRAM upload staging buffer.
+    wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP1FBRAMUp = nullptr;
     /// @brief VDP1 FBRAM upload staging buffer dirty flag.
     bool dirtyVDP1FBRAMUp = true;
 
@@ -375,9 +377,9 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     }
     SetDebugName(m_context->bufVDP1FBRAMDown.get(), "[Ymir D3D11] VDP1 FBRAM download staging buffer");
 
-    if (HRESULT hr =
-            devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMUp, nullptr, nullptr, kVDP1FBRAMSize,
-                                           m_state.spriteFB[m_state.displayFB ^ 1].data(), 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateByteAddressBuffer(m_context->bufVDP1FBRAMUp, m_context->srvVDP1FBRAMUp.put(), nullptr,
+                                                    kVDP1FBRAMSize, m_state.spriteFB[m_state.displayFB ^ 1].data(), 0,
+                                                    D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -1717,28 +1719,24 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1UploadFBRAM(size_t fbIndex) {
     ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1AccFB.get(), 0,
                                                     static_cast<UINT>(fbIndex * kVDP1FBRAMSize), 0, 0,
                                                     m_context->bufVDP1FBRAMUp.get(), 0, &srcBox);
-    if (m_enhancements.AnyEnabled()) {
-        // TODO: if any scaling is > 1, use shader instead of CopySubresourceRegion
-        for (uint32 ofs = 0; ofs < 4; ofs += 2) {
-            if ((ofs & 2) && !m_enhancements.deinterlace) {
-                continue;
-            }
-            ctx.GetDeferredContext()->CopySubresourceRegion(m_context->bufVDP1EnhFB.get(), 0,
-                                                            static_cast<UINT>((fbIndex + ofs) * kVDP1FBRAMSize), 0, 0,
-                                                            m_context->bufVDP1FBRAMUp.get(), 0, &srcBox);
-        }
 
-        // Erase portions of the mesh buffer corresponding to areas written by the SH-2
-        if (m_enhancements.transparentMeshes && m_context->dirtyVDP1FBRAMBitmap.AnySet()) {
+    // Copy CPU writes to internal FBRAM
+    if (m_context->dirtyVDP1FBRAMBitmap.AnySet()) {
+        if (m_enhancements.AnyEnabled()) {
             ctx.ModifyResource(m_context->bufVDP1FBRAMBitmap.get(), 0,
                                [&](const D3D11_MAPPED_SUBRESOURCE &mappedResource) {
                                    memcpy(mappedResource.pData, m_context->dirtyVDP1FBRAMBitmap.GetData(),
                                           m_context->dirtyVDP1FBRAMBitmap.Size() / 8);
                                });
-            ctx.CSSetShaderResources({m_context->srvVDP1FBRAMBitmap.get()});
+
+            VDP1UpdateRenderConfig();
+
+            ctx.CSSetConstantBuffers({m_context->cbufVDP1RenderConfig.get()});
+            ctx.CSSetShaderResources({m_context->srvVDP1FBRAMBitmap.get(), m_context->srvVDP1FBRAMUp.get()});
             ctx.CSSetUnorderedAccessViews({m_context->uavVDP1EnhFB.get()});
             ctx.CSSetShader(m_context->csVDP1CPUWrite.get());
-            ctx.Dispatch((m_context->bufVDP1EnhFBSize + 255) / 256, 1, 1);
+            ctx.Dispatch((ScaleUpBiasCeil(m_state.regs1.fbSizeH) + 31) / 32,
+                         (ScaleUpBiasCeil(m_state.regs1.fbSizeV) + 31) / 32, 1);
         }
         m_context->dirtyVDP1FBRAMBitmap.ClearAll();
     }
