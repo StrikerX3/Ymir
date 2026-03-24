@@ -1036,6 +1036,23 @@ uint64 VDP::VDP1ProcessCommand() {
     // Every command costs 16 cycles to fetch, even if skipped
     cycles += 16;
 
+    // Stop processing table if we encounter an all-zeros command
+    bool valid = control.u16 != 0;
+    if (!valid) {
+        for (uint32 i = 0; i < 32; i += 2) {
+            const auto value = VDP1ReadVRAM<uint16>(cmdAddress + i);
+            if (value != 0) {
+                valid = true;
+                break;
+            }
+        }
+        if (!valid) {
+            devlog::warn<grp::vdp1_cmd>("Possible empty command table found; aborting");
+            VDP1EndFrame();
+            return cycles;
+        }
+    }
+
     devlog::trace<grp::vdp1_cmd>("Processing command {:04X} @ {:05X}", control.u16, cmdAddress);
     if (control.end) [[unlikely]] {
         devlog::trace<grp::vdp1_cmd>("End of command list");
