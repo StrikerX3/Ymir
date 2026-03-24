@@ -25,19 +25,6 @@ struct ID3D11Texture2D;
 
 namespace ymir::vdp::d3d11 {
 
-/// @brief VDP1 VRAM write synchronization modes.
-enum class VDP1VRAMSyncMode {
-    Command, //< Synchronizes before running each VDP1 command
-    Draw,    //< Synchronizes at the start of a VDP1 draw sequence
-    Swap,    //< Synchronizes on VDP1 framebuffer swap
-};
-
-/// @brief VDP2 VRAM write synchronization modes.
-enum class VDP2VRAMSyncMode {
-    Scanline, //< Synchronizes after processing each VDP2 scanline
-    Frame,    //< Synchronizes at the end of a VDP2 frame
-};
-
 /// @brief A VDP renderer using Direct3D 11.
 /// Requires a valid `ID3D11Device *` that has been created with support for deferred contexts.
 /// The device must remain valid for the lifetime of the renderer. If the `ID3DDevice11` needs to be recreated or
@@ -185,15 +172,6 @@ private:
     sint32 ScaleUp(sint32 value) const;
     sint32 ScaleUpBiasCeil(sint32 value) const;
     sint32 ScaleDown(sint32 value) const;
-
-    // -------------------------------------------------------------------------
-    // Configuration
-
-    /// @brief VDP1 VRAM synchronization mode.
-    VDP1VRAMSyncMode m_VDP1VRAMSyncMode = VDP1VRAMSyncMode::Command;
-
-    /// @brief VDP2 VRAM synchronization mode.
-    VDP2VRAMSyncMode m_VDP2VRAMSyncMode = VDP2VRAMSyncMode::Scanline;
 
     // -------------------------------------------------------------------------
     // VDP1 rendering

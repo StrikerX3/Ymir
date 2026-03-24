@@ -3,6 +3,7 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
 #include "vdp_renderer_hw_callbacks.hpp"
+#include "vdp_renderer_hw_defs.hpp"
 
 namespace ymir::vdp {
 
@@ -27,6 +28,12 @@ public:
 
     /// @brief Hardware renderer-specific callbacks.
     HardwareRendererCallbacks HwCallbacks;
+
+    /// @brief VDP1 VRAM synchronization mode.
+    VDP1VRAMSyncMode VDP1VRAMSyncMode = VDP1VRAMSyncMode::Command;
+
+    /// @brief VDP2 VRAM synchronization mode.
+    VDP2VRAMSyncMode VDP2VRAMSyncMode = VDP2VRAMSyncMode::Scanline;
 
     // -------------------------------------------------------------------------
     // Hardware rendering

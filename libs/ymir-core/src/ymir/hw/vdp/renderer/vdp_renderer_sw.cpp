@@ -840,7 +840,7 @@ template <bool countCycles>
 FORCE_INLINE void SoftwareVDPRenderer::VDP1DoEraseFramebuffer(uint64 cycles) {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
 
     devlog::trace<grp::vdp1>("Erasing framebuffer {} - {}x{} to {}x{} -> {:04X}  {}x{}  {}-bit", m_state.displayFB,
                              regs1.eraseX1Latch, regs1.eraseY1Latch, regs1.eraseX3Latch, regs1.eraseY3Latch,
@@ -921,7 +921,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelClipped(CoordS32 coord, bool u
 template <bool deinterlace>
 FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelUserClipped(CoordS32 coord) const {
     auto [x, y] = coord;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x < ctx.userClipX0 || x > ctx.userClipX1) {
         return true;
     }
@@ -934,7 +934,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelUserClipped(CoordS32 coord) co
 template <bool deinterlace>
 FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelSystemClipped(CoordS32 coord) const {
     auto [x, y] = coord;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x < 0 || x > ctx.sysClipH) {
         return true;
     }
@@ -948,7 +948,7 @@ template <bool deinterlace>
 FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2) const {
     auto [x1, y1] = coord1;
     auto [x2, y2] = coord2;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x1 < 0 && x2 < 0) {
         return true;
     }
@@ -971,7 +971,7 @@ bool SoftwareVDPRenderer::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coor
     auto [x2, y2] = coord2;
     auto [x3, y3] = coord3;
     auto [x4, y4] = coord4;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x1 < 0 && x2 < 0 && x3 < 0 && x4 < 0) {
         return true;
     }
@@ -1107,7 +1107,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 co
     }
 
     LineStepper line{coord1, coord2, antiAlias};
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << m_VDP1doubleV) | m_VDP1doubleV);
 
     VDP1PixelParams pixelParams{
@@ -1150,7 +1150,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
     }
 
     const VDP1Regs &regs1 = VDP1GetRegs();
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
 
     const uint32 charSizeH = std::max<uint32>(lineParams.charSizeH, 1u);
     const auto mode = lineParams.mode;
@@ -1465,7 +1465,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Comman
     const uint32 charSizeH = size.H * 8;
     const uint32 charSizeV = size.V;
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
@@ -1493,7 +1493,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Comman
 
     const VDP1Command::Size size{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0A)};
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
 
@@ -1592,7 +1592,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Com
 
     const VDP1Command::Size size{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0A)};
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
     const sint32 xb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
@@ -1620,7 +1620,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
         return;
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const VDP1Command::DrawMode mode{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x04)};
 
     const uint16 color = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x06);
@@ -1725,7 +1725,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
         return;
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const VDP1Command::DrawMode mode{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x04)};
 
     const uint16 color = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x06);
@@ -1795,7 +1795,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         return;
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const VDP1Command::DrawMode mode{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x04)};
 
     const uint16 color = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x06);
@@ -1837,14 +1837,14 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.sysClipH = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
     ctx.sysClipV = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
     devlog::trace<grp::vdp1_cmd>("[{:05X}] Set system clipping: {}x{}", cmdAddress, ctx.sysClipH, ctx.sysClipV);
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.userClipX0 = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
     ctx.userClipY0 = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
     ctx.userClipX1 = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
@@ -1854,7 +1854,7 @@ void SoftwareVDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.localCoordX = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
     ctx.localCoordY = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
     devlog::trace<grp::vdp1_cmd>("[{:05X}] Set local coordinates: {}x{}", cmdAddress, ctx.localCoordX, ctx.localCoordY);

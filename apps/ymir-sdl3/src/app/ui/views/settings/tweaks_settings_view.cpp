@@ -30,6 +30,10 @@ void TweaksSettingsView::Display() {
 
         auto &settings = GetSettings();
 
+        auto &videoEnh = settings.video.enhancements;
+        auto &swRenderer = settings.video.swRenderer;
+        auto &hwRenderer = settings.video.hwRenderer;
+
         fmt::memory_buffer buf{};
         auto inserter = std::back_inserter(buf);
 
@@ -41,8 +45,8 @@ void TweaksSettingsView::Display() {
         // Video
 
         fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Deinterlace", settings.video.deinterlace));
-        fmt::format_to(inserter, "- {}\n", checkbox("Transparent meshes", settings.video.transparentMeshes));
+        fmt::format_to(inserter, "- {}\n", checkbox("Deinterlace", videoEnh.deinterlace));
+        fmt::format_to(inserter, "- {}\n", checkbox("Transparent meshes", videoEnh.transparentMeshes));
 
         // =============================================================================================================
 
@@ -57,12 +61,40 @@ void TweaksSettingsView::Display() {
         // -------------------------------------------------------------------------------------------------------------
         // Video
 
+        auto vdp1VRAMSyncMode = [](ymir::vdp::VDP1VRAMSyncMode mode) {
+            using enum ymir::vdp::VDP1VRAMSyncMode;
+            switch (mode) {
+            case Command: return "Command";
+            case Draw: return "Draw";
+            case Swap: return "Swap";
+            default: return "(invalid setting)";
+            }
+        };
+
+        auto vdp2VRAMSyncMode = [](ymir::vdp::VDP2VRAMSyncMode mode) {
+            using enum ymir::vdp::VDP2VRAMSyncMode;
+            switch (mode) {
+            case Scanline: return "Scanline";
+            case Frame: return "Frame";
+            default: return "(invalid setting)";
+            }
+        };
+
         fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", settings.video.threadedVDP1.Get()));
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", settings.video.threadedVDP2.Get()));
-        fmt::format_to(
-            inserter, "  - {}\n",
-            checkbox("Use dedicated thread for deinterlaced rendering", settings.video.threadedDeinterlacer.Get()));
+        fmt::format_to(inserter, "- {}\n",
+                       checkbox("Use hardware acceleration", settings.video.useHardwareAcceleration.Get()));
+        if (settings.video.useHardwareAcceleration) {
+            fmt::format_to(inserter, "- VDP1 VRAM sync mode: {}\n",
+                           vdp1VRAMSyncMode(hwRenderer.vdp1VRAMSyncMode.Get()));
+            fmt::format_to(inserter, "- VDP2 VRAM sync mode: {}\n",
+                           vdp2VRAMSyncMode(hwRenderer.vdp2VRAMSyncMode.Get()));
+        } else {
+            fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", swRenderer.threadedVDP1.Get()));
+            fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", swRenderer.threadedVDP2.Get()));
+            fmt::format_to(
+                inserter, "  - {}\n",
+                checkbox("Use dedicated thread for deinterlaced rendering", swRenderer.threadedDeinterlacer.Get()));
+        }
 
         // -------------------------------------------------------------------------------------------------------------
         // Audio
@@ -114,8 +146,8 @@ void TweaksSettingsView::DisplayEnhancements() {
     ImGui::TextUnformatted("Presets:");
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Recommended##enhancements"))) {
-        settings.video.deinterlace = false;
-        settings.video.transparentMeshes = true;
+        settings.video.enhancements.deinterlace = false;
+        settings.video.enhancements.transparentMeshes = true;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted(
@@ -125,8 +157,8 @@ void TweaksSettingsView::DisplayEnhancements() {
 
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Best quality##enhancements"))) {
-        settings.video.deinterlace = true;
-        settings.video.transparentMeshes = true;
+        settings.video.enhancements.deinterlace = true;
+        settings.video.enhancements.transparentMeshes = true;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes quality with no regard for performance.");
@@ -135,8 +167,8 @@ void TweaksSettingsView::DisplayEnhancements() {
 
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Best performance##enhancements"))) {
-        settings.video.deinterlace = false;
-        settings.video.transparentMeshes = false;
+        settings.video.enhancements.deinterlace = false;
+        settings.video.enhancements.transparentMeshes = false;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes performance with no regard for quality.");
@@ -149,8 +181,8 @@ void TweaksSettingsView::DisplayEnhancements() {
     ImGui::SeparatorText("Video");
     ImGui::PopFont();
 
-    widgets::settings::video::Deinterlace(m_context);
-    widgets::settings::video::TransparentMeshes(m_context);
+    widgets::settings::video::enhancements::Deinterlace(m_context);
+    widgets::settings::video::enhancements::TransparentMeshes(m_context);
 }
 
 void TweaksSettingsView::DisplayAccuracyOptions() {
@@ -248,7 +280,20 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::SeparatorText("Video");
     ImGui::PopFont();
 
-    widgets::settings::video::ThreadedVDP(m_context);
+    widgets::settings::video::UseHardwareAcceleration(m_context);
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+    ImGui::SeparatorText("Software renderer");
+    ImGui::PopFont();
+
+    widgets::settings::video::swrenderer::ThreadedVDP(m_context);
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+    ImGui::SeparatorText("Hardware renderer");
+    ImGui::PopFont();
+
+    widgets::settings::video::hwrenderer::VDP1VRAMSyncMode(m_context);
+    widgets::settings::video::hwrenderer::VDP2VRAMSyncMode(m_context);
     // TODO: renderer backend options
 
     // -----------------------------------------------------------------------------------------------------------------

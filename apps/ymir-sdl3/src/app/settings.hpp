@@ -3,6 +3,7 @@
 #include <ymir/core/configuration.hpp>
 
 #include <ymir/hw/smpc/peripheral/peripheral_defs.hpp>
+#include <ymir/hw/vdp/renderer/vdp_renderer_hw_defs.hpp>
 #include <ymir/sys/backup_ram_defs.hpp>
 
 #include <ymir/db/ipl_db.hpp>
@@ -480,12 +481,26 @@ struct Settings {
         display::DisplayMode fullScreenMode;
         bool borderlessFullScreen;
 
-        util::Observable<bool> deinterlace;
-        util::Observable<bool> transparentMeshes;
+        util::Observable<bool> useHardwareAcceleration;
 
-        util::Observable<bool> threadedVDP1;
-        util::Observable<bool> threadedVDP2;
-        util::Observable<bool> threadedDeinterlacer;
+        struct SoftwareRenderer {
+            util::Observable<bool> threadedVDP1;
+            util::Observable<bool> threadedVDP2;
+            util::Observable<bool> threadedDeinterlacer;
+        } swRenderer;
+
+        struct HardwareRenderer {
+            util::Observable<ymir::vdp::VDP1VRAMSyncMode> vdp1VRAMSyncMode;
+            util::Observable<ymir::vdp::VDP2VRAMSyncMode> vdp2VRAMSyncMode;
+        } hwRenderer;
+
+        struct Enhancements {
+            util::Observable<bool> deinterlace;
+            util::Observable<bool> transparentMeshes;
+            // TODO: scaling options:
+            // util::Observable<bool> scaleToFit; // true=scale image to fit window height; false=use scaleFactor
+            // util::Observable<float> scaleFactor;
+        } enhancements;
     } video;
 
     struct Audio {

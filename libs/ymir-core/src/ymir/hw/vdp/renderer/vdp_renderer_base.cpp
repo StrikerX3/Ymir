@@ -27,7 +27,6 @@ namespace grp {
 } // namespace grp
 
 void IVDPRenderer::Reset(bool hard) {
-    m_VDP1State.Reset();
     for (auto &state : m_nbgLayerStates) {
         state.Reset();
     }
@@ -45,15 +44,6 @@ void IVDPRenderer::Reset(bool hard) {
 }
 
 void IVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
-    state.vdp1State.sysClipH = m_VDP1State.sysClipH;
-    state.vdp1State.sysClipV = m_VDP1State.sysClipV;
-    state.vdp1State.userClipX0 = m_VDP1State.userClipX0;
-    state.vdp1State.userClipY0 = m_VDP1State.userClipY0;
-    state.vdp1State.userClipX1 = m_VDP1State.userClipX1;
-    state.vdp1State.userClipY1 = m_VDP1State.userClipY1;
-    state.vdp1State.localCoordX = m_VDP1State.localCoordX;
-    state.vdp1State.localCoordY = m_VDP1State.localCoordY;
-
     for (size_t i = 0; i < 4; i++) {
         state.normBGLayerStates[i].fracScrollX = m_nbgLayerStates[i].fracScrollX;
         state.normBGLayerStates[i].fracScrollY = m_nbgLayerStates[i].fracScrollY;
@@ -91,15 +81,6 @@ bool IVDPRenderer::ValidateState(const state::VDPState::VDPRendererState &state)
 }
 
 void IVDPRenderer::LoadState(const state::VDPState::VDPRendererState &state) {
-    m_VDP1State.sysClipH = state.vdp1State.sysClipH;
-    m_VDP1State.sysClipV = state.vdp1State.sysClipV;
-    m_VDP1State.userClipX0 = state.vdp1State.userClipX0;
-    m_VDP1State.userClipY0 = state.vdp1State.userClipY0;
-    m_VDP1State.userClipX1 = state.vdp1State.userClipX1;
-    m_VDP1State.userClipY1 = state.vdp1State.userClipY1;
-    m_VDP1State.localCoordX = state.vdp1State.localCoordX;
-    m_VDP1State.localCoordY = state.vdp1State.localCoordY;
-
     for (size_t i = 0; i < 4; i++) {
         m_nbgLayerStates[i].fracScrollX = state.normBGLayerStates[i].fracScrollX;
         m_nbgLayerStates[i].fracScrollY = state.normBGLayerStates[i].fracScrollY;

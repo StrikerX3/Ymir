@@ -256,7 +256,7 @@ struct Direct3D11VDPRenderer::Context {
     /// @brief SRV for LNCL/BACK screen texture.
     wil::com_ptr_nothrow<ID3D11ShaderResourceView> srvVDP2LineColors = nullptr;
     /// @brief CPU-side LNCL/BACK screen texture (0,y=LNCL; 1,y=BACK).
-    std::array<std::array<D3DColorRGBA8, 2>, kMaxNormalResV> cpuVDP2LineColors{};
+    std::array<std::array<D3DColorRGBA8, 2>, kMaxResV> cpuVDP2LineColors{};
 
     /// @brief Sprite attributes texture.
     wil::com_ptr_nothrow<ID3D11Texture2D> texVDP2SpriteAttrs = nullptr;
@@ -354,6 +354,16 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
 
     static constexpr std::array<D3D_SHADER_MACRO, 2> kBypassEnhancementsMacro = {
         {{"YMIR_BYPASS_ENHANCEMENTS", "1"}, {nullptr, nullptr}}};
+
+    // -------------------------------------------------------------------------
+    // Transfer current state to local copies
+
+    // TODO: check what else needs to be synced
+    // TODO: avoid this as much as possible
+    m_context->dataVDP1Acc.cpuVDP1MaxSysClipH = m_state.state1.sysClipH;
+    m_context->dataVDP1Acc.cpuVDP1MaxSysClipV = m_state.state1.sysClipV;
+    m_context->dataVDP1Enh.cpuVDP1MaxSysClipH = m_state.state1.sysClipH;
+    m_context->dataVDP1Enh.cpuVDP1MaxSysClipV = m_state.state1.sysClipV;
 
     // -------------------------------------------------------------------------
     // Basics
@@ -639,9 +649,8 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->srvVDP2RotLineColors.get(), "[Ymir D3D11] VDP2 RBG0-1 LNCL SRV");
     SetDebugName(m_context->uavVDP2RotLineColors.get(), "[Ymir D3D11] VDP2 RBG0-1 LNCL UAV");
 
-    if (HRESULT hr =
-            devMgr.CreateTexture2D(m_context->texVDP2LineColors, m_context->srvVDP2LineColors.put(), nullptr, 2,
-                                   vdp::kMaxNormalResV, 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, D3D11_CPU_ACCESS_WRITE);
+    if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2LineColors, m_context->srvVDP2LineColors.put(), nullptr,
+                                            2, vdp::kMaxResV, 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, D3D11_CPU_ACCESS_WRITE);
         FAILED(hr)) {
         // TODO: report error
         return;
@@ -770,10 +779,16 @@ Direct3D11VDPRenderer::Direct3D11VDPRenderer(VDPState &state, config::VDP2DebugR
     SetDebugName(m_context->texVDP2Output.get(), "[Ymir D3D11] VDP2 framebuffer texture");
     SetDebugName(m_context->uavVDP2Output.get(), "[Ymir D3D11] VDP2 framebuffer SRV");
 
+    m_context->DeviceManager.RunSync(
+        [&] { HwCallbacks.OutputTextureCreated(*this, m_context->texVDP2Output.get(), vdp::kMaxResH, vdp::kMaxResV); });
+
     m_valid = true;
 }
 
-Direct3D11VDPRenderer::~Direct3D11VDPRenderer() = default;
+Direct3D11VDPRenderer::~Direct3D11VDPRenderer() {
+    m_context->DeviceManager.RunSync(
+        [&] { HwCallbacks.OutputTextureDestroyed(*this, m_context->texVDP2Output.get()); });
+}
 
 FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     // 12 bits is too much for the double scaling on the VDP1 framebuffer size.
@@ -839,6 +854,9 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
 
     // ---
 
+    m_context->DeviceManager.RunSync(
+        [&] { HwCallbacks.OutputTextureDestroyed(*this, m_context->texVDP2Output.get()); });
+
     if (HRESULT hr = devMgr.CreateTexture2D(m_context->texVDP2Output, nullptr, m_context->uavVDP2Output.put(),
                                             ScaleUp(vdp::kMaxResH), ScaleUp(vdp::kMaxResV), 0,
                                             DXGI_FORMAT_R8G8B8A8_UNORM, D3D11_BIND_SHADER_RESOURCE, 0);
@@ -849,7 +867,10 @@ FORCE_INLINE void Direct3D11VDPRenderer::RecreateScaledObjects() {
     SetDebugName(m_context->texVDP2Output.get(), "[Ymir D3D11] VDP2 framebuffer texture");
     SetDebugName(m_context->uavVDP2Output.get(), "[Ymir D3D11] VDP2 framebuffer SRV");
 
-    m_context->DeviceManager.RunSync([&] { HwCallbacks.OutputTextureRecreated(); });
+    m_context->DeviceManager.RunSync([&] {
+        HwCallbacks.OutputTextureCreated(*this, m_context->texVDP2Output.get(), ScaleUp(vdp::kMaxResH),
+                                         ScaleUp(vdp::kMaxResV));
+    });
 }
 
 void Direct3D11VDPRenderer::ExecutePendingCommandLists() {
@@ -889,8 +910,6 @@ void Direct3D11VDPRenderer::ResetImpl(bool hard) {
     m_doVDP1Erase = false;
 
     m_context->Reset();
-
-    m_VDP1State.Reset();
 }
 
 // -----------------------------------------------------------------------------
@@ -934,14 +953,7 @@ bool Direct3D11VDPRenderer::ValidateStateImpl(const state::VDPState::VDPRenderer
     return true;
 }
 
-void Direct3D11VDPRenderer::LoadStateImpl(const state::VDPState::VDPRendererState &state) {
-    VDP2UpdateEnabledBGs();
-    m_context->dirtyVDP2VRAM.SetAll();
-    m_context->dirtyVDP2CRAM = true;
-    m_context->dirtyVDP2BGRenderState = true;
-    m_context->dirtyVDP2RotParamState = true;
-    m_context->dirtyVDP2ComposeParams = true;
-}
+void Direct3D11VDPRenderer::LoadStateImpl(const state::VDPState::VDPRendererState &state) {}
 
 // -----------------------------------------------------------------------------
 // VDP1 memory and register writes
@@ -1306,13 +1318,13 @@ void Direct3D11VDPRenderer::VDP1SwapFramebuffer() {
         VDP1CopyDownloadedFBRAM();
     }
 
-    if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Swap) {
+    if (VDP1VRAMSyncMode == VDP1VRAMSyncMode::Swap) {
         VDP1UpdateVRAM();
     }
 }
 
 void Direct3D11VDPRenderer::VDP1BeginFrame() {
-    if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Draw) {
+    if (VDP1VRAMSyncMode == VDP1VRAMSyncMode::Draw) {
         VDP1UpdateVRAM();
     }
 
@@ -1327,7 +1339,7 @@ void Direct3D11VDPRenderer::VDP1BeginFrame() {
 }
 
 void Direct3D11VDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Control control) {
-    if (m_VDP1VRAMSyncMode == VDP1VRAMSyncMode::Command) {
+    if (VDP1VRAMSyncMode == VDP1VRAMSyncMode::Command) {
         VDP1UpdateVRAM();
     }
 
@@ -1378,11 +1390,11 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(bool enhanced, size_t cmdIn
     if (coord1.y() < 0 && coord2.y() < 0) {
         return;
     }
-    const sint32 sysClipH = enhanced ? ScaleUpBiasCeil(m_VDP1State.sysClipH) : m_VDP1State.sysClipH;
+    const sint32 sysClipH = enhanced ? ScaleUpBiasCeil(m_state.state1.sysClipH) : m_state.state1.sysClipH;
     if (coord1.x() > sysClipH && coord2.x() > sysClipH) {
         return;
     }
-    const sint32 sysClipV = enhanced ? ScaleUpBiasCeil(m_VDP1State.sysClipV) : m_VDP1State.sysClipV;
+    const sint32 sysClipV = enhanced ? ScaleUpBiasCeil(m_state.state1.sysClipV) : m_state.state1.sysClipV;
     if (coord1.y() > sysClipV && coord2.y() > sysClipV) {
         return;
     }
@@ -1394,18 +1406,19 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(bool enhanced, size_t cmdIn
     ++data.cpuVDP1LineParamsCount;
 
     bool full = data.cpuVDP1LineParamsCount == data.cpuVDP1LineParams.size();
+    assert(data.cpuVDP1LineParamsCount <= data.cpuVDP1LineParams.size());
 
     auto &entry = data.cpuVDP1LineParams[index];
     entry.coordStart.x = coord1.x();
     entry.coordStart.y = coord1.y();
     entry.coordEnd.x = coord2.x();
     entry.coordEnd.y = coord2.y();
-    entry.sysClipH = m_VDP1State.sysClipH;
-    entry.sysClipV = m_VDP1State.sysClipV;
-    entry.userClipX0 = m_VDP1State.userClipX0;
-    entry.userClipY0 = m_VDP1State.userClipY0;
-    entry.userClipX1 = m_VDP1State.userClipX1;
-    entry.userClipY1 = m_VDP1State.userClipY1;
+    entry.sysClipH = m_state.state1.sysClipH;
+    entry.sysClipV = m_state.state1.sysClipV;
+    entry.userClipX0 = m_state.state1.userClipX0;
+    entry.userClipY0 = m_state.state1.userClipY0;
+    entry.userClipX1 = m_state.state1.userClipX1;
+    entry.userClipY1 = m_state.state1.userClipY1;
     entry.cmdIndex = cmdIndex;
     entry.antiAlias = extras.antiAliased;
     entry.gouraud = extras.gouraud;
@@ -1439,6 +1452,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1AddLine(bool enhanced, size_t cmdIn
             ++data.cpuVDP1LineBinsUsage;
         }
     }
+    assert(data.cpuVDP1LineBinsUsage <= kVDP1BinBufferSize);
 
     // Mark as full if there's not enough room for a full screen's worth of bins
     if (data.cpuVDP1LineBinsUsage >= kVDP1BinBufferSize - kVDP1NumBins) {
@@ -1460,7 +1474,13 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines(bool enhanced) {
     }
 
     if (data.cpuVDP1MaxSysClipH == 0 && data.cpuVDP1MaxSysClipV == 0) {
-        // Nothing drawn to the screen
+        // Nothing drawn to the screen; clear buffers
+        data.cpuVDP1LineParamsCount = 0;
+        data.cpuVDP1CommandTableTail = data.cpuVDP1CommandTableHead;
+        for (auto &bin : data.cpuVDP1LineBins) {
+            bin.clear();
+        }
+        data.cpuVDP1LineBinsUsage = 0;
         return;
     }
 
@@ -1527,8 +1547,8 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1SubmitLines(bool enhanced) {
     }
     data.cpuVDP1LineBinsUsage = 0;
 
-    data.cpuVDP1MaxSysClipH = m_VDP1State.sysClipH;
-    data.cpuVDP1MaxSysClipV = m_VDP1State.sysClipV;
+    data.cpuVDP1MaxSysClipH = m_state.state1.sysClipH;
+    data.cpuVDP1MaxSysClipV = m_state.state1.sysClipV;
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1DrawLine(bool enhanced, size_t cmdIndex, CoordS32 coord1, CoordS32 coord2,
@@ -1841,7 +1861,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddr
     const uint32 charSizeH = size.H * 8;
     const uint32 charSizeV = size.V;
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
@@ -1886,7 +1906,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddr
 
     const VDP1Command::Size size{.u16 = cmd.cmdsize};
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C));
     const sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E));
 
@@ -2006,7 +2026,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdA
     const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
     const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
     sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
@@ -2055,7 +2075,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) 
     const size_t cmdIndex = VDP1AddCommand(false, cmdAddress);
     const VDP1CommandEntry &cmd = m_context->dataVDP1Acc.cpuVDP1CommandTable[cmdIndex];
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
     sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
@@ -2129,7 +2149,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress
         gouraudD.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 6u);
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
     sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
@@ -2244,7 +2264,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         extras.gouraudEnd.u16 = m_state.mem1.ReadVRAM<uint16>(gouraudTable + 2u);
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     sint32 xa = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     sint32 ya = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
     sint32 xb = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
@@ -2282,7 +2302,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.sysClipH = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14));
     ctx.sysClipV = bit::extract<0, 8>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x16));
     m_context->dataVDP1Acc.UpdateMaxSysClip(ctx.sysClipH, ctx.sysClipV);
@@ -2290,7 +2310,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAdd
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.userClipX0 = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C));
     ctx.userClipX1 = bit::extract<0, 9>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x14));
     ctx.userClipY0 = bit::extract<0, 8>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E));
@@ -2298,7 +2318,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddre
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.localCoordX = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0C));
     ctx.localCoordY = bit::sign_extend<13>(m_state.mem1.ReadVRAM<uint16>(cmdAddress + 0x0E));
 }
@@ -2345,7 +2365,7 @@ void Direct3D11VDPRenderer::VDP2RenderLine(uint32 y) {
     // lines up to Y-1 then sync the state, unless Y=0, in which case we just sync the state.
 
     if (y > 0) {
-        const bool renderBGs = (m_VDP2VRAMSyncMode == VDP2VRAMSyncMode::Scanline && m_context->dirtyVDP2VRAM) ||
+        const bool renderBGs = (VDP2VRAMSyncMode == VDP2VRAMSyncMode::Scanline && m_context->dirtyVDP2VRAM) ||
                                m_context->dirtyVDP2CRAM || m_context->dirtyVDP2BGRenderState ||
                                m_context->dirtyVDP2RotParamState || m_context->dirtyVDP2ComposeParams;
         const bool compose = m_context->dirtyVDP2ComposeParams;
@@ -2367,7 +2387,7 @@ void Direct3D11VDPRenderer::VDP2EndFrame() {
     VDP2ComposeLines(m_VRes - 1);
 
     VDP2UpdateState();
-    if (m_VDP2VRAMSyncMode == VDP2VRAMSyncMode::Frame) {
+    if (VDP2VRAMSyncMode == VDP2VRAMSyncMode::Frame) {
         VDP2UpdateVRAM();
     }
 
@@ -3078,7 +3098,7 @@ FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateComposeParams() {
 }
 
 FORCE_INLINE void Direct3D11VDPRenderer::VDP2UpdateState() {
-    if (m_VDP2VRAMSyncMode == VDP2VRAMSyncMode::Scanline) {
+    if (VDP2VRAMSyncMode == VDP2VRAMSyncMode::Scanline) {
         VDP2UpdateVRAM();
     }
     VDP2UpdateCRAM();

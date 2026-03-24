@@ -326,41 +326,7 @@ protected:
     bool m_hasEnhancements = false;
 
     // -------------------------------------------------------------------------
-    // VDP1
-
-    struct VDP1State {
-        VDP1State() {
-            Reset();
-        }
-
-        void Reset() {
-            sysClipH = kVDP1DefaultFBSizeH;
-            sysClipV = kVDP1DefaultFBSizeV;
-
-            userClipX0 = 0;
-            userClipY0 = 0;
-
-            userClipX1 = kVDP1DefaultFBSizeH;
-            userClipY1 = kVDP1DefaultFBSizeV;
-
-            localCoordX = 0;
-            localCoordY = 0;
-        }
-
-        // System clipping dimensions
-        uint16 sysClipH, sysClipV;
-
-        // User clipping area
-        uint16 userClipX0, userClipY0; // Top-left
-        uint16 userClipX1, userClipY1; // Bottom-right
-
-        // Local coordinates offset
-        sint32 localCoordX;
-        sint32 localCoordY;
-    } m_VDP1State;
-
-    // -------------------------------------------------------------------------
-    // VDP2
+    // Renderer state
 
     /// @brief Layer states for NBGs 0-3.
     std::array<NBGLayerState, 4> m_nbgLayerStates;

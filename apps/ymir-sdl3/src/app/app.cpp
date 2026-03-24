@@ -315,10 +315,15 @@ int App::Run(const CommandLineOptions &options) {
     {
         auto &videoSettings = settings.video;
 
-        videoSettings.deinterlace.Observe(
+        videoSettings.enhancements.deinterlace.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
-        videoSettings.transparentMeshes.Observe(
+        videoSettings.enhancements.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
+
+        videoSettings.hwRenderer.vdp1VRAMSyncMode.Observe(
+            [&](ymir::vdp::VDP1VRAMSyncMode mode) { m_context.EnqueueEvent(events::emu::SetVDP1VRAMSyncMode(mode)); });
+        videoSettings.hwRenderer.vdp2VRAMSyncMode.Observe(
+            [&](ymir::vdp::VDP2VRAMSyncMode mode) { m_context.EnqueueEvent(events::emu::SetVDP2VRAMSyncMode(mode)); });
         // TODO: observe scaling setting
         // m_context.EnqueueEvent(events::emu::SetResolutionScaling(987, 224));
         // m_context.EnqueueEvent(events::emu::SetResolutionScaling(918, 224));
@@ -569,6 +574,8 @@ void App::RunEmulator() {
         }
     });
 
+    screen.debugShaders = m_options.debugShaders;
+
     // ---------------------------------
     // Initialize SDL subsystems
 
@@ -606,9 +613,6 @@ void App::RunEmulator() {
         // Observe changes to the UI scale options at this point to avoid "destroying"
         guiSettings.overrideUIScale.Observe([&](bool) { rescaleUIPending = true; });
         guiSettings.uiScale.Observe([&](double) { rescaleUIPending = true; });
-
-        settings.video.deinterlace.Observe(
-            [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
     }
 
     const ImGuiStyle &style = ImGui::GetStyle();
@@ -794,20 +798,11 @@ void App::RunEmulator() {
         SDL_SetWindowFullscreen(screen.window, fullScreen);
         ApplyFullscreenMode();
     });
+    settings.video.useHardwareAcceleration.ObserveAndNotify(
+        [&](bool enable) { m_context.EnqueueEvent(events::emu::SwitchVDPRenderer()); });
 
     auto &vdp = m_context.saturn.instance->VDP;
 
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
-    // TODO(d3d11): configure this when hardware rendering is enabled with D3D11 backend
-    {
-        SDL_PropertiesID props = SDL_GetRendererProperties(m_graphicsService.GetRenderer());
-        auto *device =
-            static_cast<ID3D11Device *>(SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
-        if (device != nullptr) {
-            /*auto *renderer = */ vdp.UseDirect3D11Renderer(device, true, m_options.debugShaders);
-        }
-    }
-#endif
     ScopeGuard sgReleaseVDPRenderer{[&] { vdp.UseNullRenderer(); }};
 
     // ---------------------------------
@@ -836,27 +831,7 @@ void App::RunEmulator() {
     };
 
     // Hardware framebuffer texture
-    // TODO: manage with GraphicsService - bind as is, don't recreate
     SDL_Texture *hwFbTexture = nullptr;
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
-    // TODO(d3d11): configure this when hardware rendering is enabled with D3D11 backend
-    if (auto *d3d11Renderer = vdp.GetRendererAs<vdp::VDPRendererType::Direct3D11>()) {
-        SDL_PropertiesID texProps = SDL_CreateProperties();
-        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, vdp::kMaxResH);
-        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, vdp::kMaxResV);
-        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_ABGR8888);
-        SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STATIC);
-        SDL_SetPointerProperty(texProps, SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER,
-                               d3d11Renderer->GetVDP2OutputTexture());
-        hwFbTexture = SDL_CreateTextureWithProperties(m_graphicsService.GetRenderer(), texProps);
-        if (hwFbTexture == nullptr) {
-            ShowStartupFailure("Could not create SDL texture from D3D11 texture: {}", SDL_GetError());
-            return;
-        }
-        SDL_SetTextureScaleMode(hwFbTexture, SDL_SCALEMODE_NEAREST);
-    }
-    ScopeGuard sgDestroySDLTexture{[&] { SDL_DestroyTexture(hwFbTexture); }};
-#endif
 
     // TODO: gfx::TextureHandle fbTexture = <select between swFbTexture and hwFbTexture>;
 
@@ -888,6 +863,18 @@ void App::RunEmulator() {
         assert(hwFbTexture != nullptr || m_graphicsService.IsTextureHandleValid(swFbTexture));
         assert(renderer != nullptr);
 
+        SDL_Texture *fbTexture;
+        if (hwFbTexture != nullptr && vdp.GetRenderer().IsHardwareRenderer()) {
+            fbTexture = hwFbTexture;
+        } else {
+            fbTexture = m_graphicsService.GetSDLTexture(swFbTexture);
+        }
+        float tw, th;
+        SDL_GetTextureSize(fbTexture, &tw, &th);
+
+        const float wScale = tw / vdp::kMaxResH;
+        const float hScale = th / vdp::kMaxResV;
+
         // Recreate render target texture if scale changed
         if (scale != screen.fbScale) {
             screen.fbScale = scale;
@@ -901,19 +888,14 @@ void App::RunEmulator() {
         SDL_Texture *prevRenderTarget = SDL_GetRenderTarget(renderer);
 
         // Render scaled framebuffer into display texture
-        SDL_FRect srcRect{.x = 0.0f, .y = 0.0f, .w = (float)screen.width, .h = (float)screen.height};
+        SDL_FRect srcRect{.x = 0.0f, .y = 0.0f, .w = (float)screen.width * wScale, .h = (float)screen.height * hScale};
         SDL_FRect dstRect{.x = 0.0f,
                           .y = 0.0f,
                           .w = (float)screen.width * screen.fbScale,
                           .h = (float)screen.height * screen.fbScale};
 
         SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
-        // TODO: SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(fbTexture), &srcRect, &dstRect);
-        if (hwFbTexture != nullptr) {
-            SDL_RenderTexture(renderer, hwFbTexture, &srcRect, &dstRect);
-        } else {
-            SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(swFbTexture), &srcRect, &dstRect);
-        }
+        SDL_RenderTexture(renderer, fbTexture, &srcRect, &dstRect);
 
         // Restore render target
         SDL_SetRenderTarget(renderer, prevRenderTarget);
@@ -965,12 +947,10 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup framebuffer and render callbacks
 
-    struct OutputTextureResizedCallbackData {
-        vdp::VDP &vdp;
+    struct HardwareOutputTextureCreatedCallbackData {
         SDL_Texture *&hwFbTexture;
         services::GraphicsService &graphicsService;
-    } outputTextureResizedCallbackData = {
-        .vdp = vdp,
+    } hardwareOutputTextureCreatedCallbackData = {
         .hwFbTexture = hwFbTexture,
         .graphicsService = m_graphicsService,
     };
@@ -1100,20 +1080,20 @@ void App::RunEmulator() {
             },
         });
 
-        vdp.SetHardwareOutputTextureRecreatedCallback(
-            {&outputTextureResizedCallbackData, [](void *ctx) {
-                 // TODO: deduplicate code
-                 auto &data = *static_cast<OutputTextureResizedCallbackData *>(ctx);
-                 SDL_DestroyTexture(data.hwFbTexture);
-                 data.hwFbTexture = nullptr;
-                 if (auto *d3d11Renderer = data.vdp.GetRendererAs<vdp::VDPRendererType::Direct3D11>()) {
+        vdp.SetHardwareOutputTextureCreatedCallback(
+            {&hardwareOutputTextureCreatedCallbackData,
+             [](ymir::vdp::IVDPRenderer &vdpRenderer, void *texture, uint32 width, uint32 height, void *ctx) {
+                 devlog::debug<grp::base>("{} output texture created: {}x{}", vdpRenderer.GetName(), width, height);
+
+                 auto &data = *static_cast<HardwareOutputTextureCreatedCallbackData *>(ctx);
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+                 if (auto *d3d11Renderer = vdpRenderer.As<vdp::VDPRendererType::Direct3D11>()) {
                      SDL_PropertiesID texProps = SDL_CreateProperties();
-                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, vdp::kMaxResH);
-                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, vdp::kMaxResV);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, width);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, height);
                      SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_ABGR8888);
                      SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STATIC);
-                     SDL_SetPointerProperty(texProps, SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER,
-                                            d3d11Renderer->GetVDP2OutputTexture());
+                     SDL_SetPointerProperty(texProps, SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER, texture);
                      data.hwFbTexture = SDL_CreateTextureWithProperties(data.graphicsService.GetRenderer(), texProps);
                      if (data.hwFbTexture == nullptr) {
                          // TODO: report error
@@ -1122,6 +1102,16 @@ void App::RunEmulator() {
                      }
                      SDL_SetTextureScaleMode(data.hwFbTexture, SDL_SCALEMODE_NEAREST);
                  }
+#endif
+             }});
+
+        vdp.SetHardwareOutputTextureDestroyedCallback(
+            {&hwFbTexture, [](ymir::vdp::IVDPRenderer &vdpRenderer, void *texture, void *ctx) {
+                 devlog::debug<grp::base>("{} output texture destroyed", vdpRenderer.GetName());
+
+                 auto *&hwFbTexture = *static_cast<SDL_Texture **>(ctx);
+                 SDL_DestroyTexture(hwFbTexture);
+                 hwFbTexture = nullptr;
              }});
     }
 
@@ -2591,6 +2581,11 @@ void App::RunEmulator() {
                 ImGui_ImplSDLRenderer3_Shutdown();
                 ImGui_ImplSDL3_Shutdown();
 
+                // Free VDP renderer before recreating SDL renderer and wait for the command to be processed
+                util::Event evtRendererSwitched{false};
+                m_context.EnqueueEvent(events::emu::UseNullVDPRenderer(evtRendererSwitched));
+                evtRendererSwitched.Wait();
+
                 // TODO: recreate window when switching back from OpenGL to another API
                 if (m_graphicsService.CreateRenderer(backend, screen.window, vsync)) {
                     settings.video.graphicsBackend = backend;
@@ -2600,6 +2595,9 @@ void App::RunEmulator() {
                                                          gfx::GraphicsBackendName(backend), SDL_GetError()));
                     m_graphicsService.CreateRenderer(prevBackend, screen.window, vsync);
                 }
+
+                // Recreate VDP renderer
+                m_context.EnqueueEvent(events::emu::SwitchVDPRenderer());
 
                 SDL_Renderer *renderer = m_graphicsService.GetRenderer();
                 ImGui_ImplSDL3_InitForSDLRenderer(screen.window, renderer);

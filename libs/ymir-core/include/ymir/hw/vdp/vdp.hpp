@@ -11,6 +11,8 @@
 #include "vdp_callbacks.hpp"
 #include "vdp_internal_callbacks.hpp"
 
+#include "vdp_devlog.hpp"
+
 #include "renderer/common/vdp1_steppers.hpp"
 
 #include <ymir/core/configuration.hpp>
@@ -128,16 +130,29 @@ public:
         }
     }
 
-    /// @brief Configures the callback to invoke when the output texture is recreated in hardware renderers.
+    /// @brief Configures the callback to invoke when the output texture is created in hardware renderers.
     ///
     /// @param[in] callback the callback to register
-    void SetHardwareOutputTextureRecreatedCallback(CBHardwareOutputTextureRecreated callback) {
+    void SetHardwareOutputTextureCreatedCallback(CBHardwareOutputTextureCreated callback) {
         if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
             // Apply directly to renderer
-            hwRenderer->HwCallbacks.OutputTextureRecreated = callback;
+            hwRenderer->HwCallbacks.OutputTextureCreated = callback;
         } else {
             // Remember for next instantiation.
-            m_hwRendererCallbacks.OutputTextureRecreated = callback;
+            m_hwRendererCallbacks.OutputTextureCreated = callback;
+        }
+    }
+
+    /// @brief Configures the callback to invoke when the output texture is destroyed in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwareOutputTextureDestroyedCallback(CBHardwareOutputTextureDestroyed callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.OutputTextureDestroyed = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.OutputTextureDestroyed = callback;
         }
     }
 
@@ -330,6 +345,9 @@ private:
         renderer->VDP2SetField(m_state.regs2.TVSTAT.ODD);
 
         m_renderer.reset(renderer);
+
+        devlog::info<grp::config>("Switched to {} VDP renderer", renderer->GetName());
+
         return renderer;
     }
 

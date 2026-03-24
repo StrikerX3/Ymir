@@ -144,6 +144,38 @@ struct VDP2Memory {
     }
 };
 
+/// @brief Internal VDP1 state.
+struct VDP1State {
+    VDP1State() {
+        Reset();
+    }
+
+    void Reset() {
+        sysClipH = kVDP1DefaultFBSizeH;
+        sysClipV = kVDP1DefaultFBSizeV;
+
+        userClipX0 = 0;
+        userClipY0 = 0;
+
+        userClipX1 = kVDP1DefaultFBSizeH;
+        userClipY1 = kVDP1DefaultFBSizeV;
+
+        localCoordX = 0;
+        localCoordY = 0;
+    }
+
+    // System clipping dimensions
+    uint16 sysClipH, sysClipV;
+
+    // User clipping area
+    uint16 userClipX0, userClipY0; // Top-left
+    uint16 userClipX1, userClipY1; // Bottom-right
+
+    // Local coordinates offset
+    sint32 localCoordX;
+    sint32 localCoordY;
+};
+
 /// @brief Contains the entire state of the VDP1 and VDP2.
 struct VDPState {
     VDPState()
@@ -165,6 +197,7 @@ struct VDPState {
 
         regs1.Reset();
         regs2.Reset();
+        state1.Reset();
 
         HPhase = HorizontalPhase::Active;
         VPhase = VerticalPhase::Active;
@@ -345,6 +378,15 @@ struct VDPState {
         state.regs2.borderColorModeLatch = regs2.borderColorModeLatch;
         state.regs2.VCNTLatch = regs2.VCNTLatch;
         state.regs2.VCNTLatched = regs2.VCNTLatched;
+
+        state.renderer.vdp1State.sysClipH = state1.sysClipH;
+        state.renderer.vdp1State.sysClipV = state1.sysClipV;
+        state.renderer.vdp1State.userClipX0 = state1.userClipX0;
+        state.renderer.vdp1State.userClipY0 = state1.userClipY0;
+        state.renderer.vdp1State.userClipX1 = state1.userClipX1;
+        state.renderer.vdp1State.userClipY1 = state1.userClipY1;
+        state.renderer.vdp1State.localCoordX = state1.localCoordX;
+        state.renderer.vdp1State.localCoordY = state1.localCoordY;
 
         switch (HPhase) {
         default:
@@ -560,6 +602,15 @@ struct VDPState {
         regs2.VCNTLatch = state.regs2.VCNTLatch;
         regs2.VCNTLatched = state.regs2.VCNTLatched;
 
+        state1.sysClipH = state.renderer.vdp1State.sysClipH;
+        state1.sysClipV = state.renderer.vdp1State.sysClipV;
+        state1.userClipX0 = state.renderer.vdp1State.userClipX0;
+        state1.userClipY0 = state.renderer.vdp1State.userClipY0;
+        state1.userClipX1 = state.renderer.vdp1State.userClipX1;
+        state1.userClipY1 = state.renderer.vdp1State.userClipY1;
+        state1.localCoordX = state.renderer.vdp1State.localCoordX;
+        state1.localCoordY = state.renderer.vdp1State.localCoordY;
+
         regs2.accessPatternsDirty = true;
 
         switch (state.HPhase) {
@@ -590,10 +641,11 @@ struct VDPState {
     uint8 displayFB; // index of current sprite display buffer, CPU-accessible; opposite buffer is drawn into by VDP1
 
     // -------------------------------------------------------------------------
-    // Registers
+    // Registers and state
 
     VDP1Regs regs1;
     VDP2Regs regs2;
+    VDP1State state1;
 
     template <mem_primitive T>
     FORCE_INLINE uint32 MapVDP1FBAddress(uint32 address) const {

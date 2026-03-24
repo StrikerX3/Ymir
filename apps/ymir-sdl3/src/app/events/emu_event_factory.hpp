@@ -5,6 +5,7 @@
 
 #include "app/ui/state/debug/memory_viewer_state.hpp"
 #include <ymir/hw/smpc/peripheral/peripheral_defs.hpp>
+#include <ymir/hw/vdp/renderer/vdp_renderer_hw_defs.hpp>
 
 #include "emu_event.hpp"
 
@@ -98,6 +99,10 @@ EmuEvent SetAreaCode(uint8 areaCode);
 EmuEvent SetDeinterlace(bool enable);
 EmuEvent SetTransparentMeshes(bool enable);
 EmuEvent SetResolutionScaling(uint32 num, uint32 den);
+EmuEvent SetVDP1VRAMSyncMode(ymir::vdp::VDP1VRAMSyncMode mode);
+EmuEvent SetVDP2VRAMSyncMode(ymir::vdp::VDP2VRAMSyncMode mode);
+EmuEvent UseNullVDPRenderer(util::Event &event); // event is signaled when this command is processed
+EmuEvent SwitchVDPRenderer();
 
 EmuEvent SetDebugTrace(bool enable);
 EmuEvent DumpMemory();

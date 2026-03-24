@@ -36,6 +36,8 @@ Introduced save state file version 12.
 - Video: Add option to enable/disable video synchronization in full screen mode.
 - Video: Allow selecting full screen resolution and target display. (#705)
 - Video: Allow switching graphics backends for GUI rendering.
+- Video: Preliminary support for hardware-accelerated rendering.
+- VDP1, VDP2: Implemented Direct3D 11 hardware renderer.
 
 ### Fixes
 
