@@ -1006,9 +1006,22 @@ void VDP::VDP1BeginFrame() {
     m_state.regs1.currCommandAddress = 0;
     m_state.regs1.currFrameEnded = false;
 
-    m_renderer->VDP1BeginFrame();
+    // Don't even bother processing if the table starts with an empty command
+    bool valid = false;
+    for (uint32 i = 0; i < 32; i += 2) {
+        const auto value = VDP1ReadVRAM<uint16>(i);
+        if (value != 0) {
+            valid = true;
+            break;
+        }
+    }
+    if (valid) {
+        m_renderer->VDP1BeginFrame();
 
-    m_VDP1State.drawing = true;
+        m_VDP1State.drawing = true;
+    } else {
+        devlog::warn<grp::vdp1_cmd>("Possible empty command table found; aborting");
+    }
 }
 
 void VDP::VDP1EndFrame() {
@@ -1035,23 +1048,6 @@ uint64 VDP::VDP1ProcessCommand() {
 
     // Every command costs 16 cycles to fetch, even if skipped
     cycles += 16;
-
-    // Stop processing table if we encounter an all-zeros command
-    bool valid = control.u16 != 0;
-    if (!valid) {
-        for (uint32 i = 0; i < 32; i += 2) {
-            const auto value = VDP1ReadVRAM<uint16>(cmdAddress + i);
-            if (value != 0) {
-                valid = true;
-                break;
-            }
-        }
-        if (!valid) {
-            devlog::warn<grp::vdp1_cmd>("Possible empty command table found; aborting");
-            VDP1EndFrame();
-            return cycles;
-        }
-    }
 
     devlog::trace<grp::vdp1_cmd>("Processing command {:04X} @ {:05X}", control.u16, cmdAddress);
     if (control.end) [[unlikely]] {
