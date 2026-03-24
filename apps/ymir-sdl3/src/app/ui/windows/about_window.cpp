@@ -671,6 +671,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Mored4u, "
                            "Munch, "
                            "Oliver Stadler, "
+                           "Phillip O'Toole, "
                            "rifter, "
                            "Rustle, "
                            "TheCoolPup, "
