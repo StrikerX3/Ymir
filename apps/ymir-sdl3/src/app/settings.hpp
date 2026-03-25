@@ -499,7 +499,7 @@ struct Settings {
             util::Observable<bool> transparentMeshes;
             // TODO: scaling options:
             // util::Observable<bool> scaleToFit; // true=scale image to fit window height; false=use scaleFactor
-            // util::Observable<float> scaleFactor;
+            util::Observable<uint8> scaleFactor; // integers from 1 to 8
         } enhancements;
     } video;
 

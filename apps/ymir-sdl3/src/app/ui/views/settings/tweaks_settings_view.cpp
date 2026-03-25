@@ -30,7 +30,7 @@ void TweaksSettingsView::Display() {
 
         auto &settings = GetSettings();
 
-        auto &videoEnh = settings.video.enhancements;
+        auto &enhancements = settings.video.enhancements;
         auto &swRenderer = settings.video.swRenderer;
         auto &hwRenderer = settings.video.hwRenderer;
 
@@ -45,8 +45,11 @@ void TweaksSettingsView::Display() {
         // Video
 
         fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Deinterlace", videoEnh.deinterlace));
-        fmt::format_to(inserter, "- {}\n", checkbox("Transparent meshes", videoEnh.transparentMeshes));
+        fmt::format_to(inserter, "- {}\n", checkbox("Deinterlace", enhancements.deinterlace));
+        fmt::format_to(inserter, "- {}\n", checkbox("Transparent meshes", enhancements.transparentMeshes));
+        if (settings.video.useHardwareAcceleration) {
+            fmt::format_to(inserter, "- Internal resolution scaling: {}x\n", enhancements.scaleFactor.Get());
+        }
 
         // =============================================================================================================
 
@@ -183,6 +186,7 @@ void TweaksSettingsView::DisplayEnhancements() {
 
     widgets::settings::video::enhancements::Deinterlace(m_context);
     widgets::settings::video::enhancements::TransparentMeshes(m_context);
+    widgets::settings::video::enhancements::ResolutionScaling(m_context);
 }
 
 void TweaksSettingsView::DisplayAccuracyOptions() {

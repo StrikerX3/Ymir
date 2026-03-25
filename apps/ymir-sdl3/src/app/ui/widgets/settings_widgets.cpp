@@ -13,6 +13,8 @@
 
 #include <fmt/format.h>
 
+#include <cinttypes>
+
 using namespace ymir;
 
 namespace app::ui::widgets {
@@ -266,6 +268,41 @@ namespace settings::video {
             widgets::ExplanationTooltip(
                 "When enabled, meshes (checkerboard patterns) will be rendered as transparent polygons instead.",
                 ctx.displayScale);
+        }
+
+        void ResolutionScaling(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            auto &videoSettings = settings.video;
+            uint8 scaleFactor = videoSettings.enhancements.scaleFactor.Get();
+            static constexpr uint8 kMin = config_defaults::video::kMinScaleFactor;
+            static constexpr uint8 kMax = config_defaults::video::kMaxScaleFactor;
+
+            ImGui::AlignTextToFramePadding();
+            if (!videoSettings.useHardwareAcceleration) {
+                ImGui::BeginDisabled();
+            }
+            ImGui::TextUnformatted("Internal resolution factor:");
+            if (!videoSettings.useHardwareAcceleration) {
+                ImGui::EndDisabled();
+                widgets::ImportantTooltip(ctx.colors.notice, "This enhancement requires hardware acceleration to work.",
+                                          ctx.displayScale);
+            }
+            widgets::ExplanationTooltip(
+                "Increases internal resolution for sharper graphics.\n"
+                "Video memory usage and processing power requirements grow quadratically as the scaling factor is "
+                "applied to both the horizontal and vertical dimensions of the display simultaneously.\n"
+                "\n"
+                "For 1080p displays, 3x to 4x should be enough for maximum fidelity.\n"
+                "For 4K displays, 5x is ideal.\n"
+                "\n"
+                "Requires hardware acceleration.",
+                ctx.displayScale);
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth((kMax - kMin) * 35.0f * ctx.displayScale);
+            if (settings.MakeDirty(ImGui::SliderScalar("##scale_factor", ImGuiDataType_U8, &scaleFactor, &kMin, &kMax,
+                                                       "%" PRIu8 "x", ImGuiSliderFlags_AlwaysClamp))) {
+                videoSettings.enhancements.scaleFactor = scaleFactor;
+            }
         }
 
     } // namespace enhancements

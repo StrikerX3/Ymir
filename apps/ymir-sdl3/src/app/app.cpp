@@ -319,15 +319,16 @@ int App::Run(const CommandLineOptions &options) {
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
         videoSettings.enhancements.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
+        videoSettings.enhancements.scaleFactor.Observe(
+            [&](uint8 value) { m_context.EnqueueEvent(events::emu::SetResolutionScaling(value, 1)); });
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(987, 224));
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(918, 224));
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(2, 1));
 
         videoSettings.hwRenderer.vdp1VRAMSyncMode.Observe(
             [&](ymir::vdp::VDP1VRAMSyncMode mode) { m_context.EnqueueEvent(events::emu::SetVDP1VRAMSyncMode(mode)); });
         videoSettings.hwRenderer.vdp2VRAMSyncMode.Observe(
             [&](ymir::vdp::VDP2VRAMSyncMode mode) { m_context.EnqueueEvent(events::emu::SetVDP2VRAMSyncMode(mode)); });
-        // TODO: observe scaling setting
-        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(987, 224));
-        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(918, 224));
-        m_context.EnqueueEvent(events::emu::SetResolutionScaling(2, 1));
     }
 
     // Profile priority:

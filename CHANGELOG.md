@@ -31,12 +31,15 @@ Introduced save state file version 12.
 - MIDI: Force RtMidi to use dummy API if it fails to initialize, allowing Ymir to run without MIDI drivers.
 - Save states: Added actions to undo a save state and restore an undone save state. (#700, #727; @Fueziwa)
 - Save states: Store one extra save state per slot for undo. (#700, #727; @Fueziwa)
+- Settings: Added hardware rendering options.
+- Settings: Added internal resolution scaling setting ranging from 1x to 8x.
 - Settings: Show currently loaded profile path in Settings > General.
 - System: You can now select a preferred system variant (Saturn, HiSaturn, V-Saturn or Dev Kit) and Ymir will automatically pick a matching IPL ROM. (#637, #725; @Fueziwa)
 - Video: Add option to enable/disable video synchronization in full screen mode.
 - Video: Allow selecting full screen resolution and target display. (#705)
 - Video: Allow switching graphics backends for GUI rendering.
 - Video: Preliminary support for hardware-accelerated rendering.
+- VDP1, VDP2: Added internal resolution scaling to hardware renderer. (#60)
 - VDP1, VDP2: Implemented Direct3D 11 hardware renderer.
 
 ### Fixes

@@ -1113,6 +1113,7 @@ void Settings::ResetToDefaults() {
     video.hwRenderer.vdp2VRAMSyncMode = ymir::vdp::VDP2VRAMSyncMode::Scanline;
     video.enhancements.deinterlace = false;
     video.enhancements.transparentMeshes = false;
+    video.enhancements.scaleFactor = config_defaults::video::kDefaultScaleFactor;
 
     audio.volume = 0.8;
     audio.mute = false;
@@ -1623,8 +1624,12 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
 
         if (configVersion >= 5) {
             if (auto tblEnhancements = tblVideo["Enhancements"]) {
+                uint8 scaleFactor;
                 Parse(tblEnhancements, "Deinterlace", video.enhancements.deinterlace);
                 Parse(tblEnhancements, "TransparentMeshes", video.enhancements.transparentMeshes);
+                Parse(tblEnhancements, "ScaleFactor", scaleFactor);
+                video.enhancements.scaleFactor = std::clamp<uint8>(scaleFactor, config_defaults::video::kMinScaleFactor,
+                                                                   config_defaults::video::kMaxScaleFactor);
             }
         } else {
             Parse(tblVideo, "Deinterlace", video.enhancements.deinterlace);
@@ -2034,6 +2039,7 @@ SettingsSaveResult Settings::Save() {
             {"Enhancements", toml::table{{
                 {"Deinterlace", video.enhancements.deinterlace.Get()},
                 {"TransparentMeshes", video.enhancements.transparentMeshes.Get()},
+                {"ScaleFactor", video.enhancements.scaleFactor.Get()},
             }}},
         }}},
 
