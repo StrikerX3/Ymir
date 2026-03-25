@@ -292,8 +292,9 @@ namespace settings::video {
                 "Video memory usage and processing power requirements grow exponentially as the scaling factor is "
                 "applied to both the horizontal and vertical dimensions of the display simultaneously.\n"
                 "\n"
-                "For 1080p displays, 3x to 4x should be enough for maximum fidelity.\n"
-                "For 4K displays, 5x is ideal.\n"
+                "For 720p and 1080p displays, 3x to 4x should be enough for maximum fidelity.\n"
+                "For 1440p displays, 6x to 7x is ideal.\n"
+                "For 4K displays, 8x is good.\n" // but really should be 9x to 10x
                 "\n"
                 "Requires hardware acceleration.",
                 ctx.displayScale);
