@@ -289,7 +289,7 @@ namespace settings::video {
             }
             widgets::ExplanationTooltip(
                 "Increases internal resolution for sharper graphics.\n"
-                "Video memory usage and processing power requirements grow quadratically as the scaling factor is "
+                "Video memory usage and processing power requirements grow exponentially as the scaling factor is "
                 "applied to both the horizontal and vertical dimensions of the display simultaneously.\n"
                 "\n"
                 "For 1080p displays, 3x to 4x should be enough for maximum fidelity.\n"
