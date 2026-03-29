@@ -68,7 +68,7 @@ struct SystemMemory {
 
     /// @brief Retrieves the internal backup memory instance.
     /// @return the object representing the system's internal backup memory
-    bup::IBackupMemory &GetInternalBackupRAM() {
+    bup::BackupMemory &GetInternalBackupRAM() {
         return m_internalBackupRAM;
     }
 
