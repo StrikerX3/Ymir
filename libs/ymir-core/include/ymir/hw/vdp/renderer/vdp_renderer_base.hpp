@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+@file
+@brief Defines `IVDPRenderer`, the base class for VDP1 and VDP2 renderers.
+*/
+
 #include "vdp_renderer_defs.hpp"
 
 #include <ymir/hw/vdp/vdp1_defs.hpp>
@@ -29,6 +34,15 @@ public:
     // -------------------------------------------------------------------------
     // Basics
 
+    /// @brief Determines if the necessary resources for this VDP renderer have been created successfully, allowing the
+    /// renderer to be used normally.
+    /// @return `true` if the renderer is valid, `false` if it failed to create.
+    virtual bool IsValid() const = 0;
+
+    /// @brief Determines if this is a hardware renderer.
+    /// @return `true` if this is a hardware renderer, `false` if software or null renderer.
+    virtual bool IsHardwareRenderer() const = 0;
+
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     void Reset(bool hard);
@@ -36,6 +50,7 @@ public:
 protected:
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// Invoked by calls to `Reset(bool)`.
+    ///
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     virtual void ResetImpl(bool hard) = 0;
 
@@ -136,6 +151,8 @@ public:
     virtual void VDP1EraseFramebuffer(uint64 cycles = 0) = 0;
 
     /// @brief Swaps the VDP1 framebuffers.
+    /// This function is invoked after the framebuffer selector bit is flipped -- the VDP1 will draw to `displayFB^1`
+    /// and the VDP2 will read data from `displayFB`.
     virtual void VDP1SwapFramebuffer() = 0;
 
     /// @brief Signals the start of a VDP1 frame.
@@ -195,8 +212,8 @@ public:
     // -------------------------------------------------------------------------
     // Type casting and information
 
-    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to the corresponding concrete type.
-    /// Returns `nullptr` otherwise.
+    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to a pointer to the corresponding
+    /// concrete type. Returns `nullptr` otherwise.
     ///
     /// @tparam type the type to cast as
     /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
@@ -210,19 +227,15 @@ public:
         }
     }
 
-    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to the corresponding concrete type.
-    /// Returns `nullptr` otherwise.
+    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to a pointer to the corresponding
+    /// concrete type. Returns `nullptr` otherwise.
     ///
     /// @tparam type the type to cast as
     /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
     /// `nullptr` if this renderer's type doesn't match.
     template <VDPRendererType type>
-    FORCE_INLINE const typename detail::VDPRendererType_t<type> *As() const {
-        if (m_type == type) {
-            return static_cast<detail::VDPRendererType_t<type> *>(this);
-        } else {
-            return nullptr;
-        }
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *As() const {
+        return const_cast<IVDPRenderer *>(this)->As<type>();
     }
 
     /// @brief Retrieves a human-readable name for this renderer.

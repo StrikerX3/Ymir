@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+@file
+@brief Null VDP1 and VDP2 renderer implementation.
+
+Does nothing, but invokes all standard renderer callbacks at appropriate times.
+*/
+
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
 namespace ymir::vdp {
@@ -11,6 +18,14 @@ public:
 
     // -------------------------------------------------------------------------
     // Basics
+
+    bool IsValid() const override {
+        return true;
+    }
+
+    bool IsHardwareRenderer() const override {
+        return false;
+    }
 
 protected:
     void ResetImpl(bool hard) override {}

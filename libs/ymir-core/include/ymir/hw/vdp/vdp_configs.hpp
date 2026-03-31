@@ -24,6 +24,15 @@ struct Enhancements {
     /// When enabled, VDP1 sprites drawn in mesh mode are instead rendered to a separate sprite buffer that is blended
     /// with half-transparency on top of other graphics.
     bool transparentMeshes = false;
+
+    /// @brief Determines if any enhancement is enabled:
+    /// - `deinterlace` is set to `true`
+    /// - `transparentMeshes` is set to `true`
+    /// resolution scale factor is greater than 1.0x
+    /// @return `true` if any enhancement is active, `false` otherwise
+    bool AnyEnabled() const {
+        return deinterlace || transparentMeshes;
+    }
 };
 
 /// @brief VDP2 debug rendering options.

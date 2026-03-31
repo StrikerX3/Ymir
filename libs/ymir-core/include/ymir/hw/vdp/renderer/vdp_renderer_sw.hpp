@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+@file
+@brief Software VDP1 and VDP2 renderer implementation.
+*/
+
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
 #include <ymir/hw/vdp/vdp1_regs.hpp>
@@ -27,8 +32,12 @@
 
 namespace ymir::vdp {
 
-// Invoked when the software VDP2 renderer finishes rendering a frame.
-// Framebuffer data is in little-endian XRGB8888 format.
+/// @brief Invoked when the software VDP2 renderer finishes rendering a frame.
+/// Framebuffer data is in little-endian XRGB8888 format.
+///
+/// @param[in] fb a pointer to the framebuffer data
+/// @param[in] width the width of the framebuffer (in pixels)
+/// @param[in] height the height of the framebuffer (in pixels)
 using CBSoftwareFrameComplete = util::OptionalCallback<void(uint32 *fb, uint32 width, uint32 height)>;
 
 /// @brief Callbacks specific to the software VDP renderer.
@@ -44,6 +53,14 @@ public:
 
     // -------------------------------------------------------------------------
     // Basics
+
+    bool IsValid() const override {
+        return true;
+    }
+
+    bool IsHardwareRenderer() const override {
+        return false;
+    }
 
 protected:
     void ResetImpl(bool hard) override;
@@ -790,19 +807,19 @@ private:
         // Derived from mapIndices, CHCTLA/CHCTLB.xxCHSZ, PNCR.xxPNB and PLSZ.xxPLSZn
         std::array<std::array<uint32, 16>, 2> pageBaseAddresses;
 
-        // Precomputed screen coordinates (with 16 fractional bits).
-        alignas(16) std::array<CoordS32, kMaxResH / 2> screenCoords;
+        // Precomputed screen coordinates (26.0).
+        alignas(16) std::array<CoordS32, kMaxNormalResH> screenCoords;
 
-        // Precomputed sprite coordinates (without fractional bits).
-        alignas(16) std::array<CoordS32, kMaxResH / 2> spriteCoords;
+        // Precomputed sprite coordinates (13.0).
+        alignas(16) std::array<CoordS32, kMaxNormalResH> spriteCoords;
 
         // Precomputed coefficient table line color.
         // Filled in only if the coefficient table is enabled and using line color data.
-        alignas(16) std::array<Color888, kMaxResH / 2> lineColor;
+        alignas(16) std::array<Color888, kMaxNormalResH> lineColor;
 
         // Prefetched coefficient table transparency bits.
         // Filled in only if the coefficient table is enabled.
-        alignas(16) std::array<bool, kMaxResH / 2> transparent;
+        alignas(16) std::array<bool, kMaxNormalResH> transparent;
     };
 
     enum RotParamSelector { RotParamA, RotParamB };
@@ -816,7 +833,7 @@ private:
         LYR_NBG2,
         LYR_NBG3,
         LYR_Back,
-        LYR_LineColor,
+        LYR_LineColor, // not really used
     };
 
     // Cached CRAM colors converted from RGB555 to RGB888.
@@ -869,7 +886,7 @@ private:
     std::array<RotationParamLineState, 2> m_rotParamLineStates;
 
     // Line colors per RBG per pixel.
-    std::array<std::array<Color888, kMaxResH / 2>, 2> m_rbgLineColors;
+    std::array<std::array<Color888, kMaxNormalResH>, 2> m_rbgLineColors;
 
     // Window state for NBGs and RBGs.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.

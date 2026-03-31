@@ -10,7 +10,10 @@
 namespace ymir::vdp {
 
 /// @brief VDP renderer type enumeration.
-enum class VDPRendererType { Null, Software };
+enum class VDPRendererType {
+    Null,
+    Software,
+};
 
 /// @brief Retrieves the name of a given VDP renderer type.
 /// @param[in] type the VDP renderer type
@@ -24,7 +27,10 @@ inline std::string_view GetRendererName(VDPRendererType type) {
 }
 
 /// @brief All supported VDP renderer types.
-inline constexpr VDPRendererType kTypes[] = {VDPRendererType::Null, VDPRendererType::Software};
+inline constexpr VDPRendererType kRendererTypes[] = {
+    VDPRendererType::Null,
+    VDPRendererType::Software,
+};
 
 // Forward declarations of concrete VDP renderer implementations.
 // See the vdp_renderer_* headers.

@@ -104,6 +104,28 @@ public:
         return const_cast<VDP *>(this)->GetRenderer();
     }
 
+    /// @brief If the current renderer has the specified `VDPRendererType`, returns a pointer to it cast to the
+    /// corresponding concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    template <VDPRendererType type>
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *GetRendererAs() {
+        return m_renderer->As<type>();
+    }
+
+    /// @brief If the current renderer has the specified `VDPRendererType`, returns a pointer to it cast to the
+    /// corresponding concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    template <VDPRendererType type>
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *GetRendererAs() const {
+        return const_cast<VDP *>(this)->GetRendererAs<type>();
+    }
+
     /// @brief Switches to the null renderer.
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
     NullVDPRenderer *UseNullRenderer() {
@@ -214,6 +236,10 @@ private:
         if (renderer == nullptr) {
             return nullptr;
         }
+        if (!renderer->IsValid()) {
+            delete renderer;
+            return nullptr;
+        }
 
         const config::RendererCallbacks callbacks = m_renderer->Callbacks;
         if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
@@ -225,8 +251,13 @@ private:
             renderer->SwCallbacks = m_swRendererCallbacks;
         }
         renderer->ConfigureEnhancements(m_enhancements);
+        renderer->VDP2SetResolution(m_HRes, m_VRes, m_exclusiveMonitor);
+        renderer->VDP2SetField(m_state.regs2.TVSTAT.ODD);
 
         m_renderer.reset(renderer);
+
+        devlog::info<grp::config>("Switched to {} VDP renderer", renderer->GetName());
+
         return renderer;
     }
 
