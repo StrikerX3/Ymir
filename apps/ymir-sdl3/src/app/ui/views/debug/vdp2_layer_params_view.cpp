@@ -427,7 +427,7 @@ void VDP2LayerParamsView::Display() {
             ImGui::TableNextColumn();
             if (regs2.bgEnabled[i]) {
                 if (i < 2) {
-                    printYesNo(regs2.bgParams[i + 1].verticalCellScrollEnable);
+                    printYesNo(regs2.bgParams[i + 1].vcellScrollEnable);
                 } else {
                     ImGui::TextUnformatted("-");
                 }

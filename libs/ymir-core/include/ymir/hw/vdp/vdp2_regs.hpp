@@ -48,7 +48,7 @@ struct VDP2Regs {
             param.Reset();
         }
 
-        verticalCellScrollTableAddress = 0;
+        vcellScrollTableAddress = 0;
         cellScrollTableAddress = 0;
 
         mosaicH = 1;
@@ -1822,13 +1822,13 @@ struct VDP2Regs {
 
     FORCE_INLINE uint16 ReadSCRCTL() const {
         uint16 value = 0;
-        bit::deposit_into<0>(value, bgParams[1].verticalCellScrollEnable);
+        bit::deposit_into<0>(value, bgParams[1].vcellScrollEnable);
         bit::deposit_into<1>(value, bgParams[1].lineScrollXEnable);
         bit::deposit_into<2>(value, bgParams[1].lineScrollYEnable);
         bit::deposit_into<3>(value, bgParams[1].lineZoomEnable);
         bit::deposit_into<4, 5>(value, bgParams[1].lineScrollInterval);
 
-        bit::deposit_into<8>(value, bgParams[2].verticalCellScrollEnable);
+        bit::deposit_into<8>(value, bgParams[2].vcellScrollEnable);
         bit::deposit_into<9>(value, bgParams[2].lineScrollXEnable);
         bit::deposit_into<10>(value, bgParams[2].lineScrollYEnable);
         bit::deposit_into<11>(value, bgParams[2].lineZoomEnable);
@@ -1837,13 +1837,13 @@ struct VDP2Regs {
     }
 
     FORCE_INLINE void WriteSCRCTL(uint16 value) {
-        bgParams[1].verticalCellScrollEnable = bit::test<0>(value);
+        bgParams[1].vcellScrollEnable = bit::test<0>(value);
         bgParams[1].lineScrollXEnable = bit::test<1>(value);
         bgParams[1].lineScrollYEnable = bit::test<2>(value);
         bgParams[1].lineZoomEnable = bit::test<3>(value);
         bgParams[1].lineScrollInterval = bit::extract<4, 5>(value);
 
-        bgParams[2].verticalCellScrollEnable = bit::test<8>(value);
+        bgParams[2].vcellScrollEnable = bit::test<8>(value);
         bgParams[2].lineScrollXEnable = bit::test<9>(value);
         bgParams[2].lineScrollYEnable = bit::test<10>(value);
         bgParams[2].lineZoomEnable = bit::test<11>(value);
@@ -1863,19 +1863,19 @@ struct VDP2Regs {
     //      0        -             Reserved, must be zero
 
     FORCE_INLINE uint16 ReadVCSTAU() const {
-        return bit::extract<17, 19>(verticalCellScrollTableAddress);
+        return bit::extract<17, 19>(vcellScrollTableAddress);
     }
 
     FORCE_INLINE void WriteVCSTAU(uint16 value) {
-        bit::deposit_into<17, 19>(verticalCellScrollTableAddress, bit::extract<0, 2>(value));
+        bit::deposit_into<17, 19>(vcellScrollTableAddress, bit::extract<0, 2>(value));
     }
 
     FORCE_INLINE uint16 ReadVCSTAL() const {
-        return bit::extract<2, 16>(verticalCellScrollTableAddress) << 1u;
+        return bit::extract<2, 16>(vcellScrollTableAddress) << 1u;
     }
 
     FORCE_INLINE void WriteVCSTAL(uint16 value) {
-        bit::deposit_into<2, 16>(verticalCellScrollTableAddress, bit::extract<1, 15>(value));
+        bit::deposit_into<2, 16>(vcellScrollTableAddress, bit::extract<1, 15>(value));
     }
 
     // 1800A0   LSTA0U  NBG0 Line Scroll Table Address (upper)
@@ -3310,7 +3310,7 @@ struct VDP2Regs {
     // Vertical cell scroll table base address.
     // Only valid for NBG0 and NBG1.
     // Derived from VCSTAU/L
-    uint32 verticalCellScrollTableAddress;
+    uint32 vcellScrollTableAddress;
 
     // Current vertical cell scroll table address.
     // Reset at the start of every frame and incremented every cell or 8 bitmap pixels.

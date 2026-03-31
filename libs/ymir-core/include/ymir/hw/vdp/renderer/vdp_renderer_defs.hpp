@@ -121,9 +121,9 @@ struct NormBGLayerState {
         fracScrollY = 0;
         scrollIncH = 0x100;
         lineScrollTableAddress = 0;
-        vertCellScrollOffset = 0;
-        vertCellScrollDelay = 0;
-        vertCellScrollRepeat = 0;
+        vcellScrollOffset = 0;
+        vcellScrollDelay = 0;
+        vcellScrollRepeat = 0;
         mosaicCounterY = 0;
     }
 
@@ -150,17 +150,17 @@ struct NormBGLayerState {
     // Vertical cell scroll offset.
     // Only valid for NBG0 and NBG1.
     // Based on CYCA0/A1/B0/B1 parameters.
-    uint32 vertCellScrollOffset;
+    uint32 vcellScrollOffset;
 
     // Is the vertical cell scroll read delayed by one cycle?
     // Only valid for NBG0 and NBG1.
     // Based on CYCA0/A1/B0/B1 parameters.
-    bool vertCellScrollDelay;
+    bool vcellScrollDelay;
 
     // Is the first vertical cell scroll entry repeated?
     // Only valid for NBG0.
     // Based on CYCA0/A1/B0/B1 parameters.
-    bool vertCellScrollRepeat;
+    bool vcellScrollRepeat;
 
     // Vertical mosaic counter.
     // Reset at the start of every frame and incremented every line.

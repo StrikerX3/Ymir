@@ -890,7 +890,7 @@ private:
 
     // Vertical cell scroll increment.
     // Based on CYCA0/A1/B0/B1 parameters.
-    uint32 m_vertCellScrollInc;
+    uint32 m_vcellScrollInc;
 
     // Current display framebuffer.
     std::array<uint32, kMaxResH * kMaxResV> m_framebuffer;
