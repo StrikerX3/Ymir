@@ -2451,7 +2451,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // --- bitmap NBGs ---
                 //  # Res  ZM  Color  Bnk  CP mapping    Delay?  Game screen
                 //  1 hi   1x  pal256  A   CP0 01..      no      Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
-                //                     B   CP0 ..23      yes     Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
+                //                     B   CP0 ..23      skip    Capcom Generation - Dai-5-shuu Kakutouka-tachi, art screens
                 //  2 hi   1x  pal256  B0  CP1 01..      no      3D Baseball, in-game (team nameplates during intro)
                 //                     B1  CP1 ..23      no      3D Baseball, in-game (team nameplates during intro)
                 //  3 hi   1x  pal256  A   CP0 01..      no      Doukyuusei - if, title screen
@@ -2478,53 +2478,83 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // 12 lo   1x  rgb888  A   CP0 01234567  no      Street Fighter Zero 3, Capcom logo FMV
                 //                     B0  CP0 01234567  no      Street Fighter Zero 3, Capcom logo FMV
                 // --- scroll NBGs ---
-                // 13 lo   1x  pal256  -   PN0 ........          DoDonPachi, title screen background
-                //                     A   CP0 01......  no      DoDonPachi, title screen background
-                // 14 lo   1x  pal16   -   PN1 ........          Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
-                //                     B0  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
-                //                     B1  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
-                // 15 lo   1x  pal16   A0  PN2 0.......          World Heroes Perfect, menus and intro animation
-                //                     A0  CP2 ...3....  yes     World Heroes Perfect, menus and intro animation
-                //                     B   CP2 .1......  no      World Heroes Perfect, menus and intro animation
-                // 16 lo   1x  pal16   B   PN0 0.......          Cyberbots - Fullmetal Madness, in-game
-                //                     A   CP0 0.......  no      Cyberbots - Fullmetal Madness, in-game
-                //                     B   CP0 ....4...  no      Cyberbots - Fullmetal Madness, in-game
-                //                     B   PN1 .1......          Cyberbots - Fullmetal Madness, in-game
-                //                     A   CP1 .1......  no      Cyberbots - Fullmetal Madness, in-game
-                //                     B   CP1 .....5..  no      Cyberbots - Fullmetal Madness, in-game
-                //                     B   PN2 ..2.....          Cyberbots - Fullmetal Madness, in-game
-                //                     A   CP2 ..2.....  no      Cyberbots - Fullmetal Madness, in-game
-                //                     B   CP2 ......6.  no      Cyberbots - Fullmetal Madness, in-game
-                //                     B   PN3 ...3....          Cyberbots - Fullmetal Madness, in-game
-                //                     A   CP3 ...3....  no      Cyberbots - Fullmetal Madness, in-game
-                //                     B   CP3 .......7  no      Cyberbots - Fullmetal Madness, in-game
-                // 17 lo   1x  pal256  B1  PN1 ..2.45..          BattleSport, loading screen
-                //                     B1  CP1 ......67  no      BattleSport, loading screen
-                // 18 lo   1x  pal256  B1  PN3 ..2.45..          Daisuki, intro animation
-                //                     B1  CP3 ......67  no      Daisuki, intro animation
+                //  # Res  ZM  Cell  Color  Bnk  CP mapping    Delay?  Game screen
+                // 13 lo   1x  1x1   pal256  -   PN0 ........          DoDonPachi, title screen background
+                //                           A   CP0 01......  no      DoDonPachi, title screen background
+                // 14 lo   1x  1x1   pal16   -   PN1 ........          Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
+                //                           B0  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
+                //                           B1  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
+                // 15 lo   1x  1x1   pal16   A0  PN2 0.......          World Heroes Perfect, menus and intro animation
+                //                           A0  CP2 ...3....  skip    World Heroes Perfect, menus and intro animation
+                //                           B   CP2 .1......  no      World Heroes Perfect, menus and intro animation
+                // 16 lo   1x  1x1   pal16   B   PN0 0.......          Cyberbots - Fullmetal Madness, in-game
+                //                           A   CP0 0.......  no      Cyberbots - Fullmetal Madness, in-game
+                //                           B   CP0 ....4...  no      Cyberbots - Fullmetal Madness, in-game
+                //                           B   PN1 .1......          Cyberbots - Fullmetal Madness, in-game
+                //                           A   CP1 .1......  no      Cyberbots - Fullmetal Madness, in-game
+                //                           B   CP1 .....5..  no      Cyberbots - Fullmetal Madness, in-game
+                //                           B   PN2 ..2.....          Cyberbots - Fullmetal Madness, in-game
+                //                           A   CP2 ..2.....  no      Cyberbots - Fullmetal Madness, in-game
+                //                           B   CP2 ......6.  no      Cyberbots - Fullmetal Madness, in-game
+                //                           B   PN3 ...3....          Cyberbots - Fullmetal Madness, in-game
+                //                           A   CP3 ...3....  no      Cyberbots - Fullmetal Madness, in-game
+                //                           B   CP3 .......7  no      Cyberbots - Fullmetal Madness, in-game
+                // 17 lo   1x  1x1   pal256  B1  PN1 ..2.45..          BattleSport, loading screen
+                //                           B1  CP1 ......67  no      BattleSport, loading screen
+                // 18 lo   1x  1x1   pal256  B1  PN3 ..2.45..          Daisuki, intro animation
+                //                           B1  CP3 ......67  no      Daisuki, intro animation
+                // 19 lo   1x  2x2   pal16   B1  PN2 ..2.....          X-Men vs. Street Fighter, attract mode
+                //                           A0  CP2 ..2.....  no      X-Men vs. Street Fighter, attract mode
+                //                           A1  CP2 ..2.....  no      X-Men vs. Street Fighter, attract mode
+                //                           B0  CP2 ..2.....  no      X-Men vs. Street Fighter, attract mode
+                //                           B1  CP2 ....4...  no      X-Men vs. Street Fighter, attract mode
+                // 20 lo   1x  1x1   pal16   B1  PN3 ...3....          X-Men vs. Street Fighter, attract mode
+                //                           A0  CP3 ...3....  no      X-Men vs. Street Fighter, attract mode
+                //                           A1  CP3 ...3....  no      X-Men vs. Street Fighter, attract mode
+                //                           B0  CP3 ...3....  no      X-Men vs. Street Fighter, attract mode
+                //                           B1  CP3 .....5..  delay   X-Men vs. Street Fighter, attract mode
                 // clang-format on
+                //
+                // skip:  All CP reads are one cell ahead  -> graphics shifted one cell to the left
+                // delay: All CP reads are one cell behind -> graphics shifted one cell to the right
+                //
+                // ---
                 //
                 // Seems like the bitmap "delay" is caused by configuring out-of-phase reads for an NBG in different
                 // banks, and it only seems to happen in hi-res modes.
                 //
                 // In case #1, CP0 is assigned to T0-T1 on bank A and T2-T3 on bank B. This is out of phase and on
                 // different VRAM chips, so bank B reads are delayed.
+                //
                 // In case #2, CP1 is assigned to T0-T1 on bank B0 and T2-T3 on bank B1. Despite being out of phase,
                 // they're accessed on the same VRAM chip, so there is no delay.
+                //
                 // In case #3 we have the same display settings but CP0 gets two cycles and CP1 gets two cycles.
                 // These cause no "delay" because they're different NBGs.
+                //
                 // Case #4 has no delay because all reads for the same NBG are assigned to the same cycle slot.
+                //
                 // Cases #5 and #6 include more reads than necessary for the NBG, but because they all start on the same
                 // slot, no delay occurs.
                 //
+                // ---
+                //
                 // For scroll NBGs, the delay only occurs if CP accesses are assigned to illegal timing slots.
+                //
                 // Cases #13 and #14 illustrate that the PN access is actually optional (perhaps only for NBG0-1?).
+                //
                 // In case #15, the CP2 access in bank A0 is assigned to T3, which is illegal for PN at T0.
+                //
                 // Case #16 shows legal accesses. Note that there are CP0-CP3 accesses in both the T0-T3 and T4-T7
                 // ranges, but this does not cause the T4-T7 accesses to be shifted.
+                //
                 // Cases #17 and #18 have more PN accesses than necessary and show that only the first PN access matters
                 // for the delay checks. In both cases, the first PN access occurs on T2, which makes the CP accesses in
                 // T6 and T7 valid. PN accesses on T4 and T5 would make those CP accesses invalid.
+                //
+                // Cases #19 and #20 contrast with case #15 in that the illegal CP accesses occur on T4-T7 instead of
+                // T0-T3. In these cases, instead of a shift, there is a character read delay. Also, there is no
+                // shuffling of cells (no delay) when using 2x2 characters as seen in case #19.
 
                 auto &bgParams = regs2.bgParams[bgIndex + 1];
                 if (bgParams.bitmap && hires) {
@@ -2554,7 +2584,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
     // Apply delays to the NBGs
     for (uint32 i = 0; i < 4; ++i) {
         auto &bgParams = regs2.bgParams[i + 1];
-        bgParams.charPatDelay = false;
+        bgParams.charPatDelay.fill(false);
         const uint8 bgCP = cp[i];
         const uint8 bgPN = pn[i];
 
@@ -2576,7 +2606,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
         // Apply the delay
         if (hires) {
             // Valid character pattern access masks per timing for high resolution modes
-            static constexpr uint8 kPatterns[2][4] = {
+            static constexpr uint8 kHiResPatterns[2][4] = {
                 // 1x1 character patterns
                 // T0      T1      T2      T3
                 {0b0111, 0b1110, 0b1101, 0b1011},
@@ -2586,36 +2616,38 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 {0b0111, 0b1110, 0b1100, 0b1000},
             };
 
-            for (uint8 pnIndex = 0; pnIndex < 4; ++pnIndex) {
-                // Delay happens when either:
-                // - CP access happens entirely before PN access
-                // - CP access occurs in illegal time slot
-                if ((bgPN & (1u << pnIndex)) != 0) {
-                    if (bgCP < bgPN || (bgCP & kPatterns[bgParams.cellSizeShift][pnIndex]) != bgCP) {
-                        bgParams.charPatDelay = true;
-                    }
-                    break;
+            const uint8 pnIndex = std::countr_zero(bgPN);
+            if (pnIndex < 4) {
+                if (bgCP < bgPN) {
+                    // CP access happens entirely before PN access
+                    bgParams.charPatDelay.fill(true);
+                } else if ((bgCP & kHiResPatterns[bgParams.cellSizeShift][pnIndex]) != bgCP) {
+                    // CP access occurs in illegal time slot
+                    bgParams.charPatDelay.fill(true);
                 }
             }
         } else {
             // Valid character pattern access masks per timing for normal resolution modes
-            static constexpr uint8 kPatterns[8] = {
+            static constexpr uint8 kLoResPatterns[8] = {
                 //  T0          T1          T2          T3          T4          T5          T6          T7
                 0b11110111, 0b11101111, 0b11001111, 0b10001111, 0b00001111, 0b00001110, 0b00001100, 0b00001000,
             };
 
-            for (uint8 pnIndex = 0; pnIndex < 8; ++pnIndex) {
-                if ((bgPN & (1u << pnIndex)) != 0) {
-                    for (uint8 bankIndex = 0; bankIndex < 4; ++bankIndex) {
-                        const uint8 bgCPBank = cpBank[i][bankIndex];
-                        if (bgCPBank != 0 && (bgCPBank & kPatterns[pnIndex]) == 0) {
+            const uint8 pnIndex = std::countr_zero(bgPN);
+            if (pnIndex < 8) {
+                for (uint8 bankIndex = 0; bankIndex < 4; ++bankIndex) {
+                    const uint8 bgCPBank = cpBank[i][bankIndex];
+                    if (bgCPBank != 0 && (bgCPBank & kLoResPatterns[pnIndex]) == 0) {
+                        if ((bgCPBank & ~kLoResPatterns[pnIndex]) >= 0b10000) {
+                            if (bgParams.cellSizeShift == 0) {
+                                // Illegal CP access in T4-T7 with 1x1 character cells -- shift right
+                                bgParams.charPatDelay[bankIndex] = true;
+                            }
+                        } else {
+                            // Illegal CP access in T0-T3 -- shift left
                             bgParams.vramDataOffset[bankIndex] = 8u;
                         }
                     }
-                    if ((bgCP & kPatterns[pnIndex]) == 0) {
-                        bgParams.charPatDelay = true;
-                    }
-                    break;
                 }
             }
         }
@@ -5333,12 +5365,12 @@ SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, std::span<
                 : VDP2FetchOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, pageAddress, charIndex);
 
         // Send character to pipeline
-        vramFetcher.currChar = bgParams.charPatDelay ? vramFetcher.nextChar : ch;
+        vramFetcher.currChar = bgParams.charPatDelay[bank] ? vramFetcher.nextChar : ch;
         vramFetcher.nextChar = ch;
     } else if constexpr (fourCellChar) {
         // Each cell of a 2x2 character is fetched individually.
         // With the delay, the fetch is done between the first and the second half of the character.
-        if (bgParams.charPatDelay && vramFetcher.lastCellX != cellX) {
+        if (bgParams.charPatDelay[bank] && vramFetcher.lastCellX != cellX) {
             vramFetcher.lastCellX = cellX;
             if (cellX == 1) {
                 vramFetcher.currChar = vramFetcher.nextChar;

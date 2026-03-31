@@ -366,8 +366,45 @@ void VDP2VRAMDelayView::Display() {
             if (ImGui::TableNextColumn()) {
                 if (regs2.bgEnabled[i]) {
                     const auto &bgParams = regs2.bgParams[i + 1];
-                    if (!bgParams.bitmap && bgParams.charPatDelay) {
-                        ImGui::TextColored(colorBad, "yes");
+                    if (!bgParams.bitmap) {
+                        std::vector<const char *> delayedBanks{};
+
+                        if (regs2.vramControl.partitionVRAMA) {
+                            if (bgParams.charPatDelay[0] && bgParams.charPatDelay[1]) {
+                                delayedBanks.push_back("A0/1");
+                            } else if (bgParams.charPatDelay[0]) {
+                                delayedBanks.push_back("A0");
+                            } else if (bgParams.charPatDelay[1]) {
+                                delayedBanks.push_back("A1");
+                            }
+                        } else if (bgParams.charPatDelay[0]) {
+                            delayedBanks.push_back("A");
+                        }
+                        if (regs2.vramControl.partitionVRAMB) {
+                            if (bgParams.charPatDelay[2] && bgParams.charPatDelay[3]) {
+                                delayedBanks.push_back("B0/1");
+                            } else if (bgParams.charPatDelay[2]) {
+                                delayedBanks.push_back("B0");
+                            } else if (bgParams.charPatDelay[3]) {
+                                delayedBanks.push_back("B1");
+                            }
+                        } else if (bgParams.charPatDelay[2]) {
+                            delayedBanks.push_back("B");
+                        }
+
+                        if (delayedBanks.empty()) {
+                            ImGui::TextColored(colorGood, "no");
+                        } else {
+                            bool first = true;
+                            for (const char *bank : delayedBanks) {
+                                if (first) {
+                                    first = false;
+                                } else {
+                                    ImGui::SameLine(0.0f, spaceWidth);
+                                }
+                                ImGui::TextColored(colorBad, "%s", bank);
+                            }
+                        }
                     } else {
                         ImGui::TextColored(colorGood, "no");
                     }
