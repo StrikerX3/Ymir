@@ -124,6 +124,7 @@ add_library(ymir-core
     include/ymir/hw/vdp/vdp_callbacks.hpp
     include/ymir/hw/vdp/vdp_configs.hpp
     include/ymir/hw/vdp/vdp_defs.hpp
+    include/ymir/hw/vdp/vdp_devlog.hpp
     include/ymir/hw/vdp/vdp_internal_callbacks.hpp
     include/ymir/hw/vdp/vdp_state.hpp
     include/ymir/hw/vdp/vdp1_defs.hpp
