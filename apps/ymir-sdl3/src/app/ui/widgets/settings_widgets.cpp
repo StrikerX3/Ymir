@@ -105,89 +105,98 @@ namespace settings::video {
         ImGui::PopID();
     }
 
-    void Deinterlace(SharedContext &ctx) {
-        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
-        auto &videoSettings = settings.video;
-        bool deinterlace = videoSettings.deinterlace.Get();
-        if (settings.MakeDirty(ImGui::Checkbox("Deinterlace video", &deinterlace))) {
-            videoSettings.deinterlace = deinterlace;
-        }
-        widgets::ExplanationTooltip(
-            "When enabled, interlaced high-resolution modes will be rendered in progressive mode.\n"
-            "Noticeably impacts performance in those modes when enabled.\n"
-            "It is highly recommended to enable the \"Threaded VDP2 renderer\" and \"Use dedicated thread for "
-            "deinterlaced rendering\" options alongside this to lessen the performance impact.\n"
-            "A quad-core CPU or better is recommended to use this option.\n"
-            "\n"
-            "Very few games may exhibit graphics artifacts when this option is enabled. These are the known cases so "
-            "far:\n"
-            "- True Pinball displays the bottom half of the board interleaved with the top half at the top of the "
-            "screen\n"
-            "- Shienryuu and Pro-Pinball: The Web's graphics jitter",
-            ctx.displayScale);
-    }
+    namespace swrenderer {
 
-    void TransparentMeshes(SharedContext &ctx) {
-        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
-        auto &videoSettings = settings.video;
-        bool transparentMeshes = videoSettings.transparentMeshes.Get();
-        if (settings.MakeDirty(ImGui::Checkbox("Transparent meshes", &transparentMeshes))) {
-            videoSettings.transparentMeshes = transparentMeshes;
-        }
-        widgets::ExplanationTooltip(
-            "When enabled, meshes (checkerboard patterns) will be rendered as transparent polygons instead.",
-            ctx.displayScale);
-    }
-
-    void ThreadedVDP(SharedContext &ctx) {
-        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
-        bool threadedVDP1 = settings.video.threadedVDP1;
-        if (settings.MakeDirty(ImGui::Checkbox("Threaded VDP1 renderer", &threadedVDP1))) {
-            ctx.EnqueueEvent(events::emu::EnableThreadedVDP1(threadedVDP1));
-        }
-        widgets::ExplanationTooltip("Runs the software VDP1 renderer in a dedicated thread.\n"
-                                    "Slightly improves performance.\n"
-                                    "When disabled, VDP1 rendering is done on the emulator thread.",
-                                    ctx.displayScale);
-
-        bool threadedVDP2 = settings.video.threadedVDP2;
-        if (settings.MakeDirty(ImGui::Checkbox("Threaded VDP2 renderer", &threadedVDP2))) {
-            ctx.EnqueueEvent(events::emu::EnableThreadedVDP2(threadedVDP2));
-        }
-        widgets::ExplanationTooltip(
-            "Runs the software VDP2 renderer in a dedicated thread.\n"
-            "Greatly improves performance and seems to cause no issues to games.\n"
-            "When disabled, VDP2 rendering is done on the emulator thread.\n"
-            "\n"
-            "It is HIGHLY recommended to leave this option enabled as there are no known drawbacks.",
-            ctx.displayScale);
-
-        ImGui::Indent();
-        {
-            if (!threadedVDP2) {
-                ImGui::BeginDisabled();
+        void ThreadedVDP(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            bool threadedVDP1 = settings.video.swRenderer.threadedVDP1;
+            if (settings.MakeDirty(ImGui::Checkbox("Threaded VDP1 renderer", &threadedVDP1))) {
+                ctx.EnqueueEvent(events::emu::EnableThreadedVDP1(threadedVDP1));
             }
+            widgets::ExplanationTooltip("Runs the software VDP1 renderer in a dedicated thread.\n"
+                                        "Slightly improves performance.\n"
+                                        "When disabled, VDP1 rendering is done on the emulator thread.",
+                                        ctx.displayScale);
 
-            bool threadedDeinterlacer = settings.video.threadedDeinterlacer;
-            if (settings.MakeDirty(
-                    ImGui::Checkbox("Use dedicated thread for deinterlaced rendering", &threadedDeinterlacer))) {
-                ctx.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(threadedDeinterlacer));
+            bool threadedVDP2 = settings.video.swRenderer.threadedVDP2;
+            if (settings.MakeDirty(ImGui::Checkbox("Threaded VDP2 renderer", &threadedVDP2))) {
+                ctx.EnqueueEvent(events::emu::EnableThreadedVDP2(threadedVDP2));
             }
             widgets::ExplanationTooltip(
-                "If threaded VDP2 rendering and the deinterlace enhancement are both enabled, runs the deinterlacer on "
-                "a dedicated thread.\n"
-                "Significantly improves performance of the enhancement on CPUs with enough spare cores.\n"
-                "Requires a quad-core CPU or better for best results.\n"
+                "Runs the software VDP2 renderer in a dedicated thread.\n"
+                "Greatly improves performance and seems to cause no issues to games.\n"
+                "When disabled, VDP2 rendering is done on the emulator thread.\n"
                 "\n"
-                "It is HIGHLY recommended to leave this option enabled if your CPU meets the requirements.",
+                "It is HIGHLY recommended to leave this option enabled as there are no known drawbacks.",
                 ctx.displayScale);
 
-            if (!threadedVDP2) {
-                ImGui::EndDisabled();
+            ImGui::Indent();
+            {
+                if (!threadedVDP2) {
+                    ImGui::BeginDisabled();
+                }
+
+                bool threadedDeinterlacer = settings.video.swRenderer.threadedDeinterlacer;
+                if (settings.MakeDirty(
+                        ImGui::Checkbox("Use dedicated thread for deinterlaced rendering", &threadedDeinterlacer))) {
+                    ctx.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(threadedDeinterlacer));
+                }
+                widgets::ExplanationTooltip(
+                    "If threaded VDP2 rendering and the deinterlace enhancement are both enabled, runs the "
+                    "deinterlacer on a dedicated thread.\n"
+                    "Significantly improves performance of the enhancement on CPUs with enough spare cores.\n"
+                    "Requires a quad-core CPU or better for best results.\n"
+                    "\n"
+                    "It is HIGHLY recommended to leave this option enabled if your CPU meets the requirements.",
+                    ctx.displayScale);
+
+                if (!threadedVDP2) {
+                    ImGui::EndDisabled();
+                }
             }
+            ImGui::Unindent();
         }
-        ImGui::Unindent();
-    }
+
+    } // namespace swrenderer
+
+    namespace enhancements {
+
+        void Deinterlace(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            auto &videoSettings = settings.video;
+            bool deinterlace = videoSettings.enhancements.deinterlace.Get();
+            if (settings.MakeDirty(ImGui::Checkbox("Deinterlace video", &deinterlace))) {
+                videoSettings.enhancements.deinterlace = deinterlace;
+            }
+            widgets::ExplanationTooltip(
+                "When enabled, interlaced high-resolution modes will be rendered in progressive mode.\n"
+                "Noticeably impacts performance in those modes when enabled.\n"
+                "It is highly recommended to enable the \"Threaded VDP2 renderer\" and \"Use dedicated thread for "
+                "deinterlaced rendering\" options alongside this to lessen the performance impact.\n"
+                "A quad-core CPU or better is recommended to use this option.\n"
+                "\n"
+                "Very few games may exhibit graphics artifacts when this option is enabled. These are the known cases "
+                "so "
+                "far:\n"
+                "- True Pinball displays the bottom half of the board interleaved with the top half at the top of the "
+                "screen\n"
+                "- Shienryuu and Pro-Pinball: The Web's graphics jitter",
+                ctx.displayScale);
+        }
+
+        void TransparentMeshes(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            auto &videoSettings = settings.video;
+            bool transparentMeshes = videoSettings.enhancements.transparentMeshes.Get();
+            if (settings.MakeDirty(ImGui::Checkbox("Transparent meshes", &transparentMeshes))) {
+                videoSettings.enhancements.transparentMeshes = transparentMeshes;
+            }
+            widgets::ExplanationTooltip(
+                "When enabled, meshes (checkerboard patterns) will be rendered as transparent polygons instead.",
+                ctx.displayScale);
+        }
+
+    } // namespace enhancements
 
 } // namespace settings::video
 

@@ -315,9 +315,9 @@ int App::Run(const CommandLineOptions &options) {
     {
         auto &videoSettings = settings.video;
 
-        videoSettings.deinterlace.Observe(
+        videoSettings.enhancements.deinterlace.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
-        videoSettings.transparentMeshes.Observe(
+        videoSettings.enhancements.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
     }
 
@@ -602,9 +602,6 @@ void App::RunEmulator() {
         // Observe changes to the UI scale options at this point to avoid "destroying"
         guiSettings.overrideUIScale.Observe([&](bool) { rescaleUIPending = true; });
         guiSettings.uiScale.Observe([&](double) { rescaleUIPending = true; });
-
-        settings.video.deinterlace.Observe(
-            [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
     }
 
     const ImGuiStyle &style = ImGui::GetStyle();

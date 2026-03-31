@@ -239,16 +239,16 @@ void VideoSettingsView::Display() {
     ImGui::SeparatorText("Enhancements");
     ImGui::PopFont();
 
-    widgets::settings::video::Deinterlace(m_context);
-    widgets::settings::video::TransparentMeshes(m_context);
+    widgets::settings::video::enhancements::Deinterlace(m_context);
+    widgets::settings::video::enhancements::TransparentMeshes(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
-    ImGui::SeparatorText("Performance");
+    ImGui::SeparatorText("Software renderer");
     ImGui::PopFont();
 
-    widgets::settings::video::ThreadedVDP(m_context);
+    widgets::settings::video::swrenderer::ThreadedVDP(m_context);
 }
 
 } // namespace app::ui
