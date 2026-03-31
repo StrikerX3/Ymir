@@ -137,7 +137,7 @@ add_library(ymir-core
     include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
 
-    include/ymir/hw/vdp/renderer/sw/vdp1_steppers.hpp
+    include/ymir/hw/vdp/renderer/common/vdp1_steppers.hpp
 
     include/ymir/media/cdrom_crc.hpp
     include/ymir/media/disc.hpp
