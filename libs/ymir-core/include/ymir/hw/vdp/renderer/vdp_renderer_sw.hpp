@@ -165,6 +165,7 @@ private:
     uint32 m_HRes;
     uint32 m_VRes;
     bool m_exclusiveMonitor;
+    bool m_resolutionChanged = false;
 
     // Complementary (alternate) VDP1 framebuffers, for deinterlaced rendering.
     // When deinterlace mode is enabled, if the system is using double-density interlace, this buffer will contain the

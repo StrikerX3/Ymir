@@ -127,8 +127,49 @@ matches the given type or `nullptr` otherwise.
 
 All renderer callbacks (including renderer-specific callbacks) are preserved when switching renderers.
 
+All renderers (including the null renderer) invoke the `ymir::vdp::config::RendererCallbacks::VDP2ResolutionChanged`
+callback whenever the VDP2 resolution is changed. It has the following signature:
+
+```cpp
+void VDP2ResolutionChanged(uint32 width, uint32 height, void *userContext)
+```
+
+where:
+- `width` and `height` specify the dimensions of the framebuffer
+- `userContext` is a user-provided context pointer
+
+This callback must be registered by the frontend in order to adjust the screen size.
 
 
+@subsection sw_renderer Software renderer
+
+- Implementation class: `ymir::vdp::SoftwareVDPRenderer`
+- Enum value: `ymir::vdp::VDPRendererType::Software`
+- Instantiation: `ymir::vdp::VDP::UseSoftwareRenderer()`
+
+The software renderer is the reference implementation for the Saturn's VDP1 and VDP2 graphics chips. It aims to be
+pixel-perfect, easy to use and flexible enough to support basic graphics enhancements.
+
+The software VDP renderer invokes the frame completed callback once a frame finishes rendering immediately after the
+VDP2 frame finished callback. The callback signature is:
+
+```cpp
+void SoftwareFrame(uint32 *fb, uint32 width, uint32 height, void *userContext)
+```
+
+where:
+- `fb` is a pointer to the rendered framebuffer in little-endian XBGR8888 format (`..BBGGRR`)
+- `width` and `height` specify the dimensions of the framebuffer
+- `userContext` is a user-provided context pointer
+
+The dimensions are passed in for convenience. They will always match the latest resolution received by the VDP2
+resolution changed callback.
+
+Use `ymir::vdp::VDP::SetSoftwareRenderCallback` to bind this callback, or set it directly in the software renderer
+instance.
+
+@note The most significant byte of the framebuffer data is set to 0xFF for convenience, so that it is fully opaque in
+case your framebuffer texture has an alpha channel (ABGR8888 format).
 @subsection recv_video_audio Receiving video frames and audio samples
 
 In order to receive video and audio, you must configure callbacks in `ymir::vdp::VDP` and `ymir::scsp::SCSP`, accessible
@@ -154,24 +195,6 @@ where
 
 Both callbacks must be set directly in the renderer instance. They only need to be set once; they are transferred over
 to new renderer instances when switching renderers.
-
-The software VDP renderer additionally invokes the frame completed callback once a frame finishes rendering immediately
-after the VDP2 frame finished callback. The callback signature is:
-
-```cpp
-void SoftwareFrame(uint32 *fb, uint32 width, uint32 height, void *userContext)
-```
-
-where:
-- `fb` is a pointer to the rendered framebuffer in little-endian XBGR8888 format (`..BBGGRR`)
-- `width` and `height` specify the dimensions of the framebuffer
-- `userContext` is a user-provided context pointer
-
-Use `ymir::vdp::VDP::SetSoftwareRenderCallback` to bind this callback, or set it directly in the software renderer
-instance. As with the frame finished callbacks, this callback is transferred to new software renderer instances.
-
-@note The most significant byte of the framebuffer data is set to 0xFF for convenience, so that it is fully opaque in
-case your framebuffer texture has an alpha channel (ABGR8888 format).
 
 The SCSP invokes the sample callback on every sample (signed 16-bit PCM, stereo, 44100 Hz).
 The callback signature is:
@@ -308,5 +331,5 @@ you plan to run it in a dedicated thread.
 As noted above, the input, video and audio callbacks as well as debug tracers are invoked from the emulator thread.
 Provide proper synchronization between the emulator thread and the main/GUI thread when handling these events.
 
-The VDP1 and VDP2 renderers may optionally run in their own threads. They are thread-safe within the core.
+The software VDP1 and VDP2 renderers may optionally run in their own threads. They are thread-safe within the core.
 */
