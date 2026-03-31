@@ -58,6 +58,7 @@ Introduced save state file version 12.
 - VDP2: Apply VRAM access shift per bank to scroll NBGs with invalid timing patterns. Fixes World Heroes Perfect title screen shift and Cyberbots - Fullmetal Madness HUD shift and broken background in stage 2. (#756)
 - VDP2: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
 - VDP2: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
+- VDP2: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
 - VDP2: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 - VDP2: Illegal CP accesses in low-res modes are handled differently between T0-T3 and T4-T7. Fixes gaps in backgrounds in X-Men vs. Street Fighter. (#775)
 - VDP2: Use only the first PN access to check for valid CP accesses. Fixes graphics shift in Daisuki and BattleSport. (#769, #770)
