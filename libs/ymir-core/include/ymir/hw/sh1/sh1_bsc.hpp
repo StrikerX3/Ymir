@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -29,7 +29,7 @@ struct BusStateController {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::BSC &state) const {
+    void SaveState(savestate::SH1SaveState::BSC &state) const {
         state.BCR = BCR.u16;
         state.WCR1 = WCR1.u16;
         state.WCR2 = WCR2.u16;
@@ -42,11 +42,11 @@ struct BusStateController {
         state.RTCOR = RTCOR;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::BSC &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::BSC &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::BSC &state) {
+    void LoadState(const savestate::SH1SaveState::BSC &state) {
         BCR.u16 = state.BCR & 0xF800;
         WCR1.u16 = (state.WCR1 & 0xFF02) | 0x00FD;
         WCR2.u16 = state.WCR2;

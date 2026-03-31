@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -32,7 +32,7 @@ struct IntegratedTimerPulseUnit {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::ITU &state) const {
+    void SaveState(savestate::SH1SaveState::ITU &state) const {
         for (uint32 i = 0; i < 5; ++i) {
             state.timers[i].TCR = timers[i].ReadTCR();
             state.timers[i].TIOR = timers[i].ReadTIOR();
@@ -58,11 +58,11 @@ struct IntegratedTimerPulseUnit {
         state.TOCR = ReadTOCR();
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::ITU &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::ITU &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::ITU &state) {
+    void LoadState(const savestate::SH1SaveState::ITU &state) {
         for (uint32 i = 0; i < 5; ++i) {
             timers[i].WriteTCR(state.timers[i].TCR);
             timers[i].WriteTIOR(state.timers[i].TIOR);

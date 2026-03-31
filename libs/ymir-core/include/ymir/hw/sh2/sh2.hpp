@@ -25,7 +25,7 @@
 #include <ymir/sys/bus.hpp>
 #include <ymir/sys/system_features.hpp>
 
-#include <ymir/state/state_sh2.hpp>
+#include <ymir/savestate/savestate_sh2.hpp>
 
 #include <ymir/debug/debug_break.hpp>
 #include <ymir/debug/sh2_tracer_base.hpp>
@@ -105,9 +105,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH2State &state) const;
-    [[nodiscard]] bool ValidateState(const state::SH2State &state) const;
-    void LoadState(const state::SH2State &state);
+    void SaveState(savestate::SH2SaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SH2SaveState &state) const;
+    void LoadState(const savestate::SH2SaveState &state);
 
     // -------------------------------------------------------------------------
     // Debugger

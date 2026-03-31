@@ -414,7 +414,7 @@ void SH2::PurgeCache() {
 // -----------------------------------------------------------------------------
 // Save states
 
-void SH2::SaveState(state::SH2State &state) const {
+void SH2::SaveState(savestate::SH2SaveState &state) const {
     state.R = R;
     state.PC = PC;
     state.PR = PR;
@@ -447,11 +447,11 @@ void SH2::SaveState(state::SH2State &state) const {
     state.sleep = m_sleep;
 }
 
-bool SH2::ValidateState(const state::SH2State &state) const {
+bool SH2::ValidateState(const savestate::SH2SaveState &state) const {
     return true;
 }
 
-void SH2::LoadState(const state::SH2State &state) {
+void SH2::LoadState(const savestate::SH2SaveState &state) {
     R = state.R;
     PC = state.PC;
     PR = state.PR;

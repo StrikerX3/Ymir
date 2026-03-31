@@ -43,7 +43,7 @@ void IVDPRenderer::Reset(bool hard) {
     ResetImpl(hard);
 }
 
-void IVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
+void IVDPRenderer::SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) {
     for (size_t i = 0; i < 4; i++) {
         state.nbgLayerStates[i].fracScrollX = m_nbgLayerStates[i].fracScrollX;
         state.nbgLayerStates[i].fracScrollY = m_nbgLayerStates[i].fracScrollY;
@@ -67,11 +67,11 @@ void IVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
     SaveStateImpl(state);
 }
 
-bool IVDPRenderer::ValidateState(const state::VDPState::VDPRendererState &state) const {
+bool IVDPRenderer::ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const {
     return ValidateStateImpl(state);
 }
 
-void IVDPRenderer::LoadState(const state::VDPState::VDPRendererState &state) {
+void IVDPRenderer::LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state) {
     for (size_t i = 0; i < 4; i++) {
         m_nbgLayerStates[i].fracScrollX = state.nbgLayerStates[i].fracScrollX;
         m_nbgLayerStates[i].fracScrollY = state.nbgLayerStates[i].fracScrollY;

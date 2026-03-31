@@ -6,9 +6,9 @@
 
 #include <ymir/core/hash.hpp>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SystemState {
+struct SystemSaveState {
     core::config::sys::VideoStandard videoStandard;
     sys::ClockSpeed clockSpeed;
     bool slaveSH2Enabled;
@@ -19,4 +19,4 @@ struct SystemState {
     alignas(16) std::array<uint8, sys::kWRAMHighSize> WRAMHigh;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

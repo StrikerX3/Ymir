@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh2.hpp>
+#include <ymir/savestate/savestate_sh2.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -311,7 +311,7 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH2State::Cache &state) const {
+    void SaveState(savestate::SH2SaveState::Cache &state) const {
         state.CCR = ReadCCR();
         for (size_t i = 0; i < 64; i++) {
             for (size_t j = 0; j < 4; j++) {
@@ -322,7 +322,7 @@ public:
         state.lru = m_lru;
     }
 
-    void LoadState(const state::SH2State::Cache &state) {
+    void LoadState(const savestate::SH2SaveState::Cache &state) {
         WriteCCR<true>(state.CCR);
         for (size_t i = 0; i < 64; i++) {
             for (size_t j = 0; j < 4; j++) {

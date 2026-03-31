@@ -324,7 +324,7 @@ add_executable(ymir-sdl3
     src/app/ui/windows/debug/vdp2_vram_delay_window.hpp
 
     src/serdes/cereal_archive_vector.hpp
-    src/serdes/state_cereal.hpp
+    src/serdes/cereal_savestate.hpp
 
     src/util/file_loader.cpp
     src/util/file_loader.hpp

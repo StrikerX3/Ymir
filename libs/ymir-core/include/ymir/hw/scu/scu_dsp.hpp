@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_scu.hpp>
+#include <ymir/savestate/savestate_scu.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -313,9 +313,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCUDSPState &state) const;
-    [[nodiscard]] bool ValidateState(const state::SCUDSPState &state) const;
-    void LoadState(const state::SCUDSPState &state);
+    void SaveState(savestate::SCUDSPState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SCUDSPState &state) const;
+    void LoadState(const savestate::SCUDSPState &state);
 
     // -------------------------------------------------------------------------
     // Debugger

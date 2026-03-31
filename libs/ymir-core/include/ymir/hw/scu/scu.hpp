@@ -6,7 +6,7 @@
 
 #include <ymir/core/scheduler.hpp>
 
-#include <ymir/state/state_scu.hpp>
+#include <ymir/savestate/savestate_scu.hpp>
 
 #include <ymir/debug/scu_tracer_base.hpp>
 
@@ -153,9 +153,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCUState &state) const;
-    [[nodiscard]] bool ValidateState(const state::SCUState &state) const;
-    void LoadState(const state::SCUState &state);
+    void SaveState(savestate::SCUSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SCUSaveState &state) const;
+    void LoadState(const savestate::SCUSaveState &state);
 
 private:
     sys::SH2Bus &m_bus;

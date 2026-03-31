@@ -373,7 +373,7 @@ void SCU::DumpDSPRegs(std::ostream &out) const {
     write(m_dsp.dmaAddrInc);
 }
 
-void SCU::SaveState(state::SCUState &state) const {
+void SCU::SaveState(savestate::SCUSaveState &state) const {
     for (size_t i = 0; i < 3; i++) {
         m_dmaChannels[i].SaveState(state.dma[i]);
     }
@@ -381,13 +381,13 @@ void SCU::SaveState(state::SCUState &state) const {
 
     state.cartData.clear();
     switch (m_cartSlot.GetCartridgeType()) {
-    case cart::CartType::None: state.cartType = state::SCUState::CartType::None; break;
-    case cart::CartType::BackupMemory: state.cartType = state::SCUState::CartType::BackupMemory; break;
+    case cart::CartType::None: state.cartType = savestate::SCUSaveState::CartType::None; break;
+    case cart::CartType::BackupMemory: state.cartType = savestate::SCUSaveState::CartType::BackupMemory; break;
     case cart::CartType::DRAM8Mbit: //
     {
         const cart::DRAM8MbitCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::DRAM8Mbit>();
         assert(cart != nullptr);
-        state.cartType = state::SCUState::CartType::DRAM8Mbit;
+        state.cartType = savestate::SCUSaveState::CartType::DRAM8Mbit;
         state.cartData.resize(1_MiB);
         cart->DumpRAM(std::span<uint8, 1_MiB>(state.cartData.begin(), 1_MiB));
         break;
@@ -396,7 +396,7 @@ void SCU::SaveState(state::SCUState &state) const {
     {
         const cart::DRAM32MbitCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::DRAM32Mbit>();
         assert(cart != nullptr);
-        state.cartType = state::SCUState::CartType::DRAM32Mbit;
+        state.cartType = savestate::SCUSaveState::CartType::DRAM32Mbit;
         state.cartData.resize(4_MiB);
         cart->DumpRAM(std::span<uint8, 4_MiB>(state.cartData.begin(), 4_MiB));
         break;
@@ -405,7 +405,7 @@ void SCU::SaveState(state::SCUState &state) const {
     {
         const cart::DRAM48MbitCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::DRAM48Mbit>();
         assert(cart != nullptr);
-        state.cartType = state::SCUState::CartType::DRAM48Mbit;
+        state.cartType = savestate::SCUSaveState::CartType::DRAM48Mbit;
         state.cartData.resize(6_MiB);
         cart->DumpRAM(std::span<uint8, 6_MiB>(state.cartData.begin(), 6_MiB));
         break;
@@ -415,7 +415,7 @@ void SCU::SaveState(state::SCUState &state) const {
         const cart::ROMCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::ROM>();
         assert(cart != nullptr);
         static constexpr size_t size = cart::kROMCartSize;
-        state.cartType = state::SCUState::CartType::ROM;
+        state.cartType = savestate::SCUSaveState::CartType::ROM;
         state.cartData.resize(size);
         cart->DumpROM(std::span<uint8, size>(state.cartData.begin(), size));
         break;
@@ -438,7 +438,7 @@ void SCU::SaveState(state::SCUState &state) const {
     state.wramSizeSelect = m_WRAMSizeSelect;
 }
 
-bool SCU::ValidateState(const state::SCUState &state) const {
+bool SCU::ValidateState(const savestate::SCUSaveState &state) const {
     for (size_t i = 0; i < 3; i++) {
         if (!m_dmaChannels[i].ValidateState(state.dma[i])) {
             return false;
@@ -449,12 +449,12 @@ bool SCU::ValidateState(const state::SCUState &state) const {
     }
 
     switch (state.cartType) {
-    case state::SCUState::CartType::DRAM8Mbit:
+    case savestate::SCUSaveState::CartType::DRAM8Mbit:
         if (state.cartData.size() != 1_MiB) {
             return false;
         }
         break;
-    case state::SCUState::CartType::DRAM32Mbit:
+    case savestate::SCUSaveState::CartType::DRAM32Mbit:
         if (state.cartData.size() != 4_MiB) {
             return false;
         }
@@ -465,32 +465,32 @@ bool SCU::ValidateState(const state::SCUState &state) const {
     return true;
 }
 
-void SCU::LoadState(const state::SCUState &state) {
+void SCU::LoadState(const savestate::SCUSaveState &state) {
     for (size_t i = 0; i < 3; i++) {
         m_dmaChannels[i].LoadState(state.dma[i]);
     }
     m_dsp.LoadState(state.dsp);
 
     switch (state.cartType) {
-    case state::SCUState::CartType::DRAM8Mbit: //
+    case savestate::SCUSaveState::CartType::DRAM8Mbit: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::DRAM8MbitCartridge>();
         cart->LoadRAM(std::span<const uint8, 1_MiB>(state.cartData.begin(), 1_MiB));
         break;
     }
-    case state::SCUState::CartType::DRAM32Mbit: //
+    case savestate::SCUSaveState::CartType::DRAM32Mbit: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::DRAM32MbitCartridge>();
         cart->LoadRAM(std::span<const uint8, 4_MiB>(state.cartData.begin(), 4_MiB));
         break;
     }
-    case state::SCUState::CartType::DRAM48Mbit: //
+    case savestate::SCUSaveState::CartType::DRAM48Mbit: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::DRAM48MbitCartridge>();
         cart->LoadRAM(std::span<const uint8, 6_MiB>(state.cartData.begin(), 6_MiB));
         break;
     }
-    case state::SCUState::CartType::ROM: //
+    case savestate::SCUSaveState::CartType::ROM: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::ROMCartridge>();
         cart->LoadROM(std::span<const uint8, 4_MiB>(state.cartData.begin(), 4_MiB));

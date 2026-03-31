@@ -5,9 +5,9 @@
 #include <array>
 #include <vector>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SCUDMAState {
+struct SCUDMASaveState {
     uint32 srcAddr;
     uint32 dstAddr;
     uint32 xferCount;
@@ -93,8 +93,8 @@ struct SCUDSPState {
     uint64 cyclesSpillover;
 };
 
-struct SCUState {
-    std::array<SCUDMAState, 3> dma;
+struct SCUSaveState {
+    std::array<SCUDMASaveState, 3> dma;
     SCUDSPState dsp;
 
     enum class CartType { None = 0, BackupMemory = 1, DRAM8Mbit = 2, DRAM32Mbit = 3, DRAM48Mbit = 5, ROM = 4 };
@@ -117,4 +117,4 @@ struct SCUState {
     bool wramSizeSelect;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

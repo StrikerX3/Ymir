@@ -3,7 +3,7 @@
 #include <ymir/core/hash.hpp>
 #include <ymir/core/types.hpp>
 
-#include <ymir/state/state_cdblock.hpp>
+#include <ymir/savestate/savestate_cdblock.hpp>
 
 #include <ymir/util/bit_ops.hpp>
 
@@ -262,9 +262,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::CDBlockState::FilesystemState &state) const;
-    [[nodiscard]] bool ValidateState(const state::CDBlockState::FilesystemState &state) const;
-    void LoadState(const state::CDBlockState::FilesystemState &state);
+    void SaveState(savestate::CDBlockSaveState::FilesystemSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::CDBlockSaveState::FilesystemSaveState &state) const;
+    void LoadState(const savestate::CDBlockSaveState::FilesystemSaveState &state);
 
 private:
     const Filesystem &m_fs;

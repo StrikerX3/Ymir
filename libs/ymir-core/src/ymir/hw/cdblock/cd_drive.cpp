@@ -117,7 +117,7 @@ XXH128Hash CDDrive::GetDiscHash() const {
 // -----------------------------------------------------------------------------
 // Save states
 
-void CDDrive::SaveState(state::CDDriveState &state) const {
+void CDDrive::SaveState(savestate::CDDriveSaveState &state) const {
     state.autoCloseTray = m_autoCloseTray;
 
     state.sectorDataBuffer = m_sectorDataBuffer;
@@ -141,14 +141,14 @@ void CDDrive::SaveState(state::CDDriveState &state) const {
     state.status.absFrac = m_status.absFrac;
 
     switch (m_state) {
-    case TxState::Reset: state.state = state::CDDriveState::TxState::Reset; break;
-    case TxState::PreTx: state.state = state::CDDriveState::TxState::PreTx; break;
-    case TxState::TxBegin: state.state = state::CDDriveState::TxState::TxBegin; break;
-    case TxState::TxByte: state.state = state::CDDriveState::TxState::TxByte; break;
-    case TxState::TxInter1: state.state = state::CDDriveState::TxState::TxInter1; break;
-    case TxState::TxInterN: state.state = state::CDDriveState::TxState::TxInterN; break;
-    case TxState::TxEnd: state.state = state::CDDriveState::TxState::TxEnd; break;
-    default: state.state = state::CDDriveState::TxState::PreTx; break;
+    case TxState::Reset: state.state = savestate::CDDriveSaveState::TxState::Reset; break;
+    case TxState::PreTx: state.state = savestate::CDDriveSaveState::TxState::PreTx; break;
+    case TxState::TxBegin: state.state = savestate::CDDriveSaveState::TxState::TxBegin; break;
+    case TxState::TxByte: state.state = savestate::CDDriveSaveState::TxState::TxByte; break;
+    case TxState::TxInter1: state.state = savestate::CDDriveSaveState::TxState::TxInter1; break;
+    case TxState::TxInterN: state.state = savestate::CDDriveSaveState::TxState::TxInterN; break;
+    case TxState::TxEnd: state.state = savestate::CDDriveSaveState::TxState::TxEnd; break;
+    default: state.state = savestate::CDDriveSaveState::TxState::PreTx; break;
     }
 
     state.currFAD = m_currFAD;
@@ -165,22 +165,22 @@ void CDDrive::SaveState(state::CDDriveState &state) const {
     state.readSpeed = m_readSpeed;
 }
 
-bool CDDrive::ValidateState(const state::CDDriveState &state) const {
+bool CDDrive::ValidateState(const savestate::CDDriveSaveState &state) const {
     switch (state.state) {
-    case state::CDDriveState::TxState::Reset: break;
-    case state::CDDriveState::TxState::PreTx: break;
-    case state::CDDriveState::TxState::TxBegin: break;
-    case state::CDDriveState::TxState::TxByte: break;
-    case state::CDDriveState::TxState::TxInter1: break;
-    case state::CDDriveState::TxState::TxInterN: break;
-    case state::CDDriveState::TxState::TxEnd: break;
+    case savestate::CDDriveSaveState::TxState::Reset: break;
+    case savestate::CDDriveSaveState::TxState::PreTx: break;
+    case savestate::CDDriveSaveState::TxState::TxBegin: break;
+    case savestate::CDDriveSaveState::TxState::TxByte: break;
+    case savestate::CDDriveSaveState::TxState::TxInter1: break;
+    case savestate::CDDriveSaveState::TxState::TxInterN: break;
+    case savestate::CDDriveSaveState::TxState::TxEnd: break;
     default: return false;
     }
 
     return true;
 }
 
-void CDDrive::LoadState(const state::CDDriveState &state) {
+void CDDrive::LoadState(const savestate::CDDriveSaveState &state) {
     m_autoCloseTray = state.autoCloseTray;
 
     m_sectorDataBuffer = state.sectorDataBuffer;
@@ -204,13 +204,13 @@ void CDDrive::LoadState(const state::CDDriveState &state) {
     m_status.absFrac = state.status.absFrac;
 
     switch (state.state) {
-    case state::CDDriveState::TxState::Reset: m_state = TxState::Reset; break;
-    case state::CDDriveState::TxState::PreTx: m_state = TxState::PreTx; break;
-    case state::CDDriveState::TxState::TxBegin: m_state = TxState::TxBegin; break;
-    case state::CDDriveState::TxState::TxByte: m_state = TxState::TxByte; break;
-    case state::CDDriveState::TxState::TxInter1: m_state = TxState::TxInter1; break;
-    case state::CDDriveState::TxState::TxInterN: m_state = TxState::TxInterN; break;
-    case state::CDDriveState::TxState::TxEnd: m_state = TxState::TxEnd; break;
+    case savestate::CDDriveSaveState::TxState::Reset: m_state = TxState::Reset; break;
+    case savestate::CDDriveSaveState::TxState::PreTx: m_state = TxState::PreTx; break;
+    case savestate::CDDriveSaveState::TxState::TxBegin: m_state = TxState::TxBegin; break;
+    case savestate::CDDriveSaveState::TxState::TxByte: m_state = TxState::TxByte; break;
+    case savestate::CDDriveSaveState::TxState::TxInter1: m_state = TxState::TxInter1; break;
+    case savestate::CDDriveSaveState::TxState::TxInterN: m_state = TxState::TxInterN; break;
+    case savestate::CDDriveSaveState::TxState::TxEnd: m_state = TxState::TxEnd; break;
     default: m_state = TxState::PreTx; break;
     }
 

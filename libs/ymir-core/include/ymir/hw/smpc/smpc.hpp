@@ -6,7 +6,7 @@
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
 
-#include <ymir/state/state_smpc.hpp>
+#include <ymir/savestate/savestate_smpc.hpp>
 
 #include <ymir/hw/smpc/smpc_internal_callbacks.hpp>
 #include <ymir/hw/vdp/vdp_internal_callbacks.hpp>
@@ -78,9 +78,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SMPCState &state) const;
-    [[nodiscard]] bool ValidateState(const state::SMPCState &state) const;
-    void LoadState(const state::SMPCState &state);
+    void SaveState(savestate::SMPCSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SMPCSaveState &state) const;
+    void LoadState(const savestate::SMPCSaveState &state);
 
 private:
     std::array<uint8, 7> IREG;

@@ -396,7 +396,7 @@ void Saturn::EnableDebugTracing(bool enable) {
     }
 }
 
-void Saturn::SaveState(state::State &state) const {
+void Saturn::SaveState(savestate::SaveState &state) const {
     m_scheduler.SaveState(state.scheduler);
     m_system.SaveState(state.system);
     mem.SaveState(state.system);
@@ -423,7 +423,7 @@ void Saturn::SaveState(state::State &state) const {
     state.discHash = GetDiscHash();
 }
 
-bool Saturn::LoadState(const state::State &state, bool skipROMChecks) {
+bool Saturn::LoadState(const savestate::SaveState &state, bool skipROMChecks) {
     if (!m_scheduler.ValidateState(state.scheduler)) {
         return false;
     }

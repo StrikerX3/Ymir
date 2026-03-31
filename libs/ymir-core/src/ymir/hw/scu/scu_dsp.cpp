@@ -253,7 +253,7 @@ bool SCUDSP::RunDMA(uint64 cycles) {
     return false;
 }
 
-void SCUDSP::SaveState(state::SCUDSPState &state) const {
+void SCUDSP::SaveState(savestate::SCUDSPState &state) const {
     for (size_t i = 0; i < programRAM.size(); ++i) {
         state.programRAM[i] = programRAM[i].u32;
     }
@@ -291,14 +291,14 @@ void SCUDSP::SaveState(state::SCUDSPState &state) const {
     state.cyclesSpillover = m_cyclesSpillover;
 }
 
-bool SCUDSP::ValidateState(const state::SCUDSPState &state) const {
+bool SCUDSP::ValidateState(const savestate::SCUDSPState &state) const {
     if (state.dmaAddrInc != 0 && (!bit::is_power_of_two(state.dmaAddrInc) || state.dmaAddrInc == 1)) {
         return false;
     }
     return true;
 }
 
-void SCUDSP::LoadState(const state::SCUDSPState &state) {
+void SCUDSP::LoadState(const savestate::SCUDSPState &state) {
     for (size_t i = 0; i < programRAM.size(); ++i) {
         programRAM[i].u32 = state.programRAM[i];
     }

@@ -4,9 +4,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct YGRState {
+struct YGRSaveState {
     struct FIFOState {
         std::array<uint16, 6> data;
         uint32 readPos;
@@ -32,4 +32,4 @@ struct YGRState {
     } regs;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

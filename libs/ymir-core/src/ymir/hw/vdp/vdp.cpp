@@ -462,7 +462,7 @@ FORCE_INLINE void VDP::VDP2WriteReg(uint32 address, uint16 value) {
 // -----------------------------------------------------------------------------
 // Save states
 
-void VDP::SaveState(state::VDPState &state) const {
+void VDP::SaveState(savestate::VDPSaveState &state) const {
     m_renderer->PreSaveStateSync();
 
     m_state.SaveState(state);
@@ -479,7 +479,7 @@ void VDP::SaveState(state::VDPState &state) const {
     state.renderer.displayFB = m_state.displayFB;
 }
 
-bool VDP::ValidateState(const state::VDPState &state) const {
+bool VDP::ValidateState(const savestate::VDPSaveState &state) const {
     if (!m_state.ValidateState(state)) {
         return false;
     }
@@ -489,7 +489,7 @@ bool VDP::ValidateState(const state::VDPState &state) const {
     return true;
 }
 
-void VDP::LoadState(const state::VDPState &state) {
+void VDP::LoadState(const savestate::VDPSaveState &state) {
     m_state.LoadState(state);
     m_renderer->LoadState(state.renderer);
 

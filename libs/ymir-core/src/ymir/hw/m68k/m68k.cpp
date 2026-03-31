@@ -68,7 +68,7 @@ void MC68EC000::SetExternalInterruptLevel(uint8 level) {
     m_externalInterruptLevel = level;
 }
 
-void MC68EC000::SaveState(state::M68KState &state) const {
+void MC68EC000::SaveState(savestate::M68KSaveState &state) const {
     state.DA = regs.DA;
     state.SP_swap = SP_swap;
     state.PC = PC;
@@ -77,11 +77,11 @@ void MC68EC000::SaveState(state::M68KState &state) const {
     state.extIntrLevel = m_externalInterruptLevel;
 }
 
-bool MC68EC000::ValidateState(const state::M68KState &state) const {
+bool MC68EC000::ValidateState(const savestate::M68KSaveState &state) const {
     return true;
 }
 
-void MC68EC000::LoadState(const state::M68KState &state) {
+void MC68EC000::LoadState(const savestate::M68KSaveState &state) {
     regs.DA = state.DA;
     SP_swap = state.SP_swap;
     PC = state.PC;

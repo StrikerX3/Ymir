@@ -705,7 +705,7 @@ EmuEvent LoadState(uint32 slotIndex) {
         // At this point the ROMs have been loaded and validated
 
         // Cache current emulator state for undo before loading
-        auto undoLoadState = std::make_unique<state::State>();
+        auto undoLoadState = std::make_unique<savestate::SaveState>();
         ctx.saturn.instance->SaveState(*undoLoadState);
 
         if (ctx.saturn.instance->LoadState(state, true)) {

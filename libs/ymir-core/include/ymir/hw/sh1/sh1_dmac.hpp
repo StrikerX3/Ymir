@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -47,7 +47,7 @@ struct DMAController {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::DMAC &state) const {
+    void SaveState(savestate::SH1SaveState::DMAC &state) const {
         for (uint32 i = 0; i < 4; ++i) {
             state.channels[i].SAR = channels[i].srcAddress;
             state.channels[i].DAR = channels[i].dstAddress;
@@ -60,11 +60,11 @@ struct DMAController {
         state.NMIFread = DMAOR.NMIFread;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::DMAC &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::DMAC &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::DMAC &state) {
+    void LoadState(const savestate::SH1SaveState::DMAC &state) {
         for (uint32 i = 0; i < 4; ++i) {
             channels[i].srcAddress = state.channels[i].SAR;
             channels[i].dstAddress = state.channels[i].DAR;

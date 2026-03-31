@@ -4,7 +4,7 @@
 
 #include "system_internal_callbacks.hpp"
 
-#include <ymir/state/state_system.hpp>
+#include <ymir/savestate/savestate_system.hpp>
 
 #include <vector>
 
@@ -34,12 +34,12 @@ struct System {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SystemState &state) const {
+    void SaveState(savestate::SystemSaveState &state) const {
         state.videoStandard = videoStandard;
         state.clockSpeed = clockSpeed;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SystemState &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SystemSaveState &state) const {
         if (state.videoStandard != core::config::sys::VideoStandard::NTSC &&
             state.videoStandard != core::config::sys::VideoStandard::PAL) {
             return false;
@@ -50,7 +50,7 @@ struct System {
         return true;
     }
 
-    void LoadState(const state::SystemState &state) {
+    void LoadState(const savestate::SystemSaveState &state) {
         videoStandard = state.videoStandard;
         clockSpeed = state.clockSpeed;
 

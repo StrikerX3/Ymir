@@ -4,9 +4,11 @@
 
 #include <ymir/core/types.hpp>
 
-namespace ymir::state {
+#include <array>
 
-struct SchedulerState {
+namespace ymir::savestate {
+
+struct SchedulerSaveState {
     struct EventState {
         uint64 target;
         uint64 countNumerator;
@@ -18,4 +20,4 @@ struct SchedulerState {
     alignas(16) std::array<EventState, core::kNumScheduledEvents> events;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

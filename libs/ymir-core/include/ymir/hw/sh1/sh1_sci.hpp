@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -24,7 +24,7 @@ struct SerialCommunicationInterface {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::SCI &state) const {
+    void SaveState(savestate::SH1SaveState::SCI &state) const {
         for (uint32 i = 0; i < 2; ++i) {
             state.channels[i].SMR = channels[i].ReadSMR();
             state.channels[i].BRR = channels[i].ReadBRR();
@@ -49,11 +49,11 @@ struct SerialCommunicationInterface {
         }
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::SCI &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::SCI &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::SCI &state) {
+    void LoadState(const savestate::SH1SaveState::SCI &state) {
         for (uint32 i = 0; i < 2; ++i) {
             channels[i].WriteSMR(state.channels[i].SMR);
             channels[i].WriteBRR(state.channels[i].BRR);

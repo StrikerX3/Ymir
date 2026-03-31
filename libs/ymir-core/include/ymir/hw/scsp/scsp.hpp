@@ -14,7 +14,7 @@
 #include <ymir/sys/bus.hpp>
 #include <ymir/sys/clocks.hpp>
 
-#include <ymir/state/state_scsp.hpp>
+#include <ymir/savestate/savestate_scsp.hpp>
 
 #include <ymir/hw/hw_defs.hpp>
 
@@ -180,9 +180,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCSPState &state) const;
-    [[nodiscard]] bool ValidateState(const state::SCSPState &state) const;
-    void LoadState(const state::SCSPState &state);
+    void SaveState(savestate::SCSPSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SCSPSaveState &state) const;
+    void LoadState(const savestate::SCSPSaveState &state);
 
 private:
     struct QueuedMidiMessage {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ymir/savestate/savestate_sh2.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
@@ -404,7 +406,7 @@ struct FreeRunningTimer {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH2State::FRT &state) const {
+    void SaveState(savestate::SH2SaveState::FRT &state) const {
         state.TIER = ReadTIER();
         state.FTCSR = ReadFTCSR<true>();
         state.FRC = FRC;
@@ -418,7 +420,7 @@ struct FreeRunningTimer {
         state.FTCSR_mask = FTCSR.mask;
     }
 
-    void LoadState(const state::SH2State::FRT &state) {
+    void LoadState(const savestate::SH2SaveState::FRT &state) {
         WriteTIER(state.TIER);
         WriteFTCSR<true>(state.FTCSR);
         FRC = state.FRC;

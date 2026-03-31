@@ -13,7 +13,7 @@ comprising the main system memory and 32 KiB of internal backup memory for stori
 #include <ymir/sys/backup_ram.hpp>
 #include <ymir/sys/bus.hpp>
 
-#include <ymir/state/state_system.hpp>
+#include <ymir/savestate/savestate_system.hpp>
 
 #include <ymir/core/hash.hpp>
 #include <ymir/core/types.hpp>
@@ -95,13 +95,13 @@ struct SystemMemory {
     /// `ymir::Saturn::SaveState` method that saves the entire system state.
     ///
     /// @param[out] state the state object to store into
-    void SaveState(state::SystemState &state) const;
+    void SaveState(savestate::SystemSaveState &state) const;
 
     /// @brief Validates the given state object.
     /// @param[in] state the state object to validate
     /// @param[in] skipROMChecks skip IPL block ROM validation
     /// @return `true` if the state is valid
-    [[nodiscard]] bool ValidateState(const state::SystemState &state, bool skipROMChecks = false) const;
+    [[nodiscard]] bool ValidateState(const savestate::SystemSaveState &state, bool skipROMChecks = false) const;
 
     /// @brief Loads the system memory state from the given state object.
     ///
@@ -109,7 +109,7 @@ struct SystemMemory {
     /// `ymir::Saturn::LoadState` method that loads and validates the entire system state.
     ///
     /// @param[in] state the state object to load from
-    void LoadState(const state::SystemState &state);
+    void LoadState(const savestate::SystemSaveState &state);
 
     // -------------------------------------------------------------------------
     // Memory

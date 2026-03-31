@@ -3,7 +3,7 @@
 #include <ymir/core/configuration.hpp>
 #include <ymir/sys/clocks.hpp>
 
-#include <ymir/state/state_smpc.hpp>
+#include <ymir/savestate/savestate_smpc.hpp>
 
 #include <ymir/util/date_time.hpp>
 
@@ -49,9 +49,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SMPCState &state) const;
-    [[nodiscard]] bool ValidateState(const state::SMPCState &state) const;
-    void LoadState(const state::SMPCState &state);
+    void SaveState(savestate::SMPCSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SMPCSaveState &state) const;
+    void LoadState(const savestate::SMPCSaveState &state);
 
 private:
     friend class ymir::smpc::SMPC;

@@ -89,11 +89,11 @@ public:
 
     /// @brief Insert an undo load state onto the stack.
     /// @param[in] state the state to push
-    void PushUndoLoadState(std::unique_ptr<ymir::state::State> &&state);
+    void PushUndoLoadState(std::unique_ptr<ymir::savestate::SaveState> &&state);
 
     /// @brief Removes an undo load state from the stack.
     /// @param[in] state the state to push
-    std::unique_ptr<ymir::state::State> PopUndoLoadState();
+    std::unique_ptr<ymir::savestate::SaveState> PopUndoLoadState();
 
     /// @brief Determines if there is a valid "undo load state" state.
     /// @return `true` if the load state backup is stored, `false` otherwise.
@@ -108,7 +108,7 @@ private:
     std::mutex m_invalidSlotLock{};
 
     // Undo load state support - stores the emulator state before loading
-    std::unique_ptr<ymir::state::State> m_undoLoadState{};
+    std::unique_ptr<ymir::savestate::SaveState> m_undoLoadState{};
 };
 
 } // namespace app::services

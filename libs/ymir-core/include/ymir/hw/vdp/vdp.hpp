@@ -20,7 +20,7 @@
 #include <ymir/sys/bus.hpp>
 #include <ymir/sys/system.hpp>
 
-#include <ymir/state/state_vdp.hpp>
+#include <ymir/savestate/savestate_vdp.hpp>
 
 #include <ymir/hw/smpc/smpc_internal_callbacks.hpp>
 
@@ -202,9 +202,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::VDPState &state) const;
-    [[nodiscard]] bool ValidateState(const state::VDPState &state) const;
-    void LoadState(const state::VDPState &state);
+    void SaveState(savestate::VDPSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::VDPSaveState &state) const;
+    void LoadState(const savestate::VDPSaveState &state);
 
 private:
     VDPState m_state;

@@ -12,7 +12,7 @@ See @ref index for instructions on how to use the emulator.
 #include <ymir/core/hash.hpp>
 #include <ymir/core/scheduler.hpp>
 
-#include <ymir/state/state.hpp>
+#include <ymir/savestate/savestate.hpp>
 
 #include <ymir/debug/debug_break.hpp>
 
@@ -247,7 +247,7 @@ struct Saturn {
 
     /// @brief Saves the complete system state into the given state object.
     /// @param[out] state the state object to store into
-    void SaveState(state::State &state) const;
+    void SaveState(savestate::SaveState &state) const;
 
     /// @brief Validates and loads a complete system state from the given state object.
     ///
@@ -260,7 +260,7 @@ struct Saturn {
     /// @param[in] state the state object to load from
     /// @param[in] skipROMChecks skip IPL/CD block ROM validations
     /// @return `true` if the state was loaded successfully
-    [[nodiscard]] bool LoadState(const state::State &state, bool skipROMChecks = false);
+    [[nodiscard]] bool LoadState(const savestate::SaveState &state, bool skipROMChecks = false);
 
     // -------------------------------------------------------------------------
     // Debugger

@@ -5,9 +5,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SH1State {
+struct SH1SaveState {
     alignas(16) std::array<uint32, 16> R;
 
     uint32 PC;
@@ -170,4 +170,4 @@ struct SH1State {
     bool TIOCB3;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

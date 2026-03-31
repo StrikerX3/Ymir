@@ -4,7 +4,7 @@
 #include "vdp2_regs.hpp"
 #include "vdp_defs.hpp"
 
-#include <ymir/state/state_vdp.hpp>
+#include <ymir/savestate/savestate_vdp.hpp>
 
 #include <ymir/hw/hw_defs.hpp>
 
@@ -206,7 +206,7 @@ struct VDPState {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::VDPState &state) const {
+    void SaveState(savestate::VDPSaveState &state) const {
         state.VRAM1 = mem1.VRAM;
         state.VRAM2 = mem2.VRAM;
         state.CRAM = mem2.CRAM;
@@ -390,46 +390,48 @@ struct VDPState {
 
         switch (HPhase) {
         default:
-        case HorizontalPhase::Active: state.HPhase = state::VDPState::HorizontalPhase::Active; break;
-        case HorizontalPhase::RightBorder: state.HPhase = state::VDPState::HorizontalPhase::RightBorder; break;
-        case HorizontalPhase::Sync: state.HPhase = state::VDPState::HorizontalPhase::Sync; break;
-        case HorizontalPhase::LeftBorder: state.HPhase = state::VDPState::HorizontalPhase::LeftBorder; break;
+        case HorizontalPhase::Active: state.HPhase = savestate::VDPSaveState::HorizontalPhase::Active; break;
+        case HorizontalPhase::RightBorder: state.HPhase = savestate::VDPSaveState::HorizontalPhase::RightBorder; break;
+        case HorizontalPhase::Sync: state.HPhase = savestate::VDPSaveState::HorizontalPhase::Sync; break;
+        case HorizontalPhase::LeftBorder: state.HPhase = savestate::VDPSaveState::HorizontalPhase::LeftBorder; break;
         }
 
         switch (VPhase) {
         default:
-        case VerticalPhase::Active: state.VPhase = state::VDPState::VerticalPhase::Active; break;
-        case VerticalPhase::BottomBorder: state.VPhase = state::VDPState::VerticalPhase::BottomBorder; break;
-        case VerticalPhase::BlankingAndSync: state.VPhase = state::VDPState::VerticalPhase::BlankingAndSync; break;
-        case VerticalPhase::VCounterSkip: state.VPhase = state::VDPState::VerticalPhase::VCounterSkip; break;
-        case VerticalPhase::TopBorder: state.VPhase = state::VDPState::VerticalPhase::TopBorder; break;
-        case VerticalPhase::LastLine: state.VPhase = state::VDPState::VerticalPhase::LastLine; break;
+        case VerticalPhase::Active: state.VPhase = savestate::VDPSaveState::VerticalPhase::Active; break;
+        case VerticalPhase::BottomBorder: state.VPhase = savestate::VDPSaveState::VerticalPhase::BottomBorder; break;
+        case VerticalPhase::BlankingAndSync:
+            state.VPhase = savestate::VDPSaveState::VerticalPhase::BlankingAndSync;
+            break;
+        case VerticalPhase::VCounterSkip: state.VPhase = savestate::VDPSaveState::VerticalPhase::VCounterSkip; break;
+        case VerticalPhase::TopBorder: state.VPhase = savestate::VDPSaveState::VerticalPhase::TopBorder; break;
+        case VerticalPhase::LastLine: state.VPhase = savestate::VDPSaveState::VerticalPhase::LastLine; break;
         }
     }
 
-    [[nodiscard]] bool ValidateState(const state::VDPState &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::VDPSaveState &state) const {
         switch (state.HPhase) {
-        case state::VDPState::HorizontalPhase::Active: break;
-        case state::VDPState::HorizontalPhase::RightBorder: break;
-        case state::VDPState::HorizontalPhase::Sync: break;
-        case state::VDPState::HorizontalPhase::LeftBorder: break;
+        case savestate::VDPSaveState::HorizontalPhase::Active: break;
+        case savestate::VDPSaveState::HorizontalPhase::RightBorder: break;
+        case savestate::VDPSaveState::HorizontalPhase::Sync: break;
+        case savestate::VDPSaveState::HorizontalPhase::LeftBorder: break;
         default: return false;
         }
 
         switch (state.VPhase) {
-        case state::VDPState::VerticalPhase::Active: break;
-        case state::VDPState::VerticalPhase::BottomBorder: break;
-        case state::VDPState::VerticalPhase::BlankingAndSync: break;
-        case state::VDPState::VerticalPhase::VCounterSkip: break;
-        case state::VDPState::VerticalPhase::TopBorder: break;
-        case state::VDPState::VerticalPhase::LastLine: break;
+        case savestate::VDPSaveState::VerticalPhase::Active: break;
+        case savestate::VDPSaveState::VerticalPhase::BottomBorder: break;
+        case savestate::VDPSaveState::VerticalPhase::BlankingAndSync: break;
+        case savestate::VDPSaveState::VerticalPhase::VCounterSkip: break;
+        case savestate::VDPSaveState::VerticalPhase::TopBorder: break;
+        case savestate::VDPSaveState::VerticalPhase::LastLine: break;
         default: return false;
         }
 
         return true;
     }
 
-    void LoadState(const state::VDPState &state) {
+    void LoadState(const savestate::VDPSaveState &state) {
         mem1.VRAM = state.VRAM1;
         mem2.VRAM = state.VRAM2;
         mem2.CRAM = state.CRAM;
@@ -615,20 +617,20 @@ struct VDPState {
 
         switch (state.HPhase) {
         default:
-        case state::VDPState::HorizontalPhase::Active: HPhase = HorizontalPhase::Active; break;
-        case state::VDPState::HorizontalPhase::RightBorder: HPhase = HorizontalPhase::RightBorder; break;
-        case state::VDPState::HorizontalPhase::Sync: HPhase = HorizontalPhase::Sync; break;
-        case state::VDPState::HorizontalPhase::LeftBorder: HPhase = HorizontalPhase::LeftBorder; break;
+        case savestate::VDPSaveState::HorizontalPhase::Active: HPhase = HorizontalPhase::Active; break;
+        case savestate::VDPSaveState::HorizontalPhase::RightBorder: HPhase = HorizontalPhase::RightBorder; break;
+        case savestate::VDPSaveState::HorizontalPhase::Sync: HPhase = HorizontalPhase::Sync; break;
+        case savestate::VDPSaveState::HorizontalPhase::LeftBorder: HPhase = HorizontalPhase::LeftBorder; break;
         }
 
         switch (state.VPhase) {
         default:
-        case state::VDPState::VerticalPhase::Active: VPhase = VerticalPhase::Active; break;
-        case state::VDPState::VerticalPhase::BottomBorder: VPhase = VerticalPhase::BottomBorder; break;
-        case state::VDPState::VerticalPhase::BlankingAndSync: VPhase = VerticalPhase::BlankingAndSync; break;
-        case state::VDPState::VerticalPhase::VCounterSkip: VPhase = VerticalPhase::VCounterSkip; break;
-        case state::VDPState::VerticalPhase::TopBorder: VPhase = VerticalPhase::TopBorder; break;
-        case state::VDPState::VerticalPhase::LastLine: VPhase = VerticalPhase::LastLine; break;
+        case savestate::VDPSaveState::VerticalPhase::Active: VPhase = VerticalPhase::Active; break;
+        case savestate::VDPSaveState::VerticalPhase::BottomBorder: VPhase = VerticalPhase::BottomBorder; break;
+        case savestate::VDPSaveState::VerticalPhase::BlankingAndSync: VPhase = VerticalPhase::BlankingAndSync; break;
+        case savestate::VDPSaveState::VerticalPhase::VCounterSkip: VPhase = VerticalPhase::VCounterSkip; break;
+        case savestate::VDPSaveState::VerticalPhase::TopBorder: VPhase = VerticalPhase::TopBorder; break;
+        case savestate::VDPSaveState::VerticalPhase::LastLine: VPhase = VerticalPhase::LastLine; break;
         }
     }
 

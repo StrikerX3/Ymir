@@ -11,7 +11,7 @@
 #include <ymir/hw/vdp/vdp_configs.hpp>
 #include <ymir/hw/vdp/vdp_state.hpp>
 
-#include <ymir/state/state_vdp.hpp>
+#include <ymir/savestate/savestate_vdp.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -85,33 +85,33 @@ public:
 
     /// @brief Save the renderer state.
     /// @param[in] state the state object
-    void SaveState(state::VDPState::VDPRendererState &state);
+    void SaveState(savestate::VDPSaveState::VDPRendererSaveState &state);
 
     /// @brief Validates the renderer state.
     /// @param[in] state the state object
     /// @return `true` if the given state is valid, `false` otherwise
-    bool ValidateState(const state::VDPState::VDPRendererState &state) const;
+    bool ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const;
 
     /// @brief Loads the renderer state.
     /// @param[in] state the state object
-    void LoadState(const state::VDPState::VDPRendererState &state);
+    void LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state);
 
 protected:
     /// @brief Save the renderer state.
-    /// Invoked by calls to `SaveState(ymir::state::VDPState::VDPRendererState &)`.
+    /// Invoked by calls to `SaveState(ymir::savestate::VDPSaveState::VDPRendererSaveState &)`.
     /// @param[in] state the state object
-    virtual void SaveStateImpl(state::VDPState::VDPRendererState &state) = 0;
+    virtual void SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
 
     /// @brief Validates the renderer state.
-    /// Invoked by calls to `ValidateState(const ymir::state::VDPState::VDPRendererState &) const`.
+    /// Invoked by calls to `ValidateState(const ymir::savestate::VDPSaveState::VDPRendererSaveState &) const`.
     /// @param[in] state the state object
     /// @return `true` if the given state is valid, `false` otherwise
-    virtual bool ValidateStateImpl(const state::VDPState::VDPRendererState &state) const = 0;
+    virtual bool ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const = 0;
 
     /// @brief Loads the renderer state.
-    /// Invoked by calls to `LoadState(const ymir::state::VDPState::VDPRendererState &)`.
+    /// Invoked by calls to `LoadState(const ymir::savestate::VDPSaveState::VDPRendererSaveState &)`.
     /// @param[in] state the state object
-    virtual void LoadStateImpl(const state::VDPState::VDPRendererState &state) = 0;
+    virtual void LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
 
 public:
     // -------------------------------------------------------------------------

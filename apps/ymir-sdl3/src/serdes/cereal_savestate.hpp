@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state.hpp>
+#include <ymir/savestate/savestate.hpp>
 
 #include <ymir/util/size_ops.hpp>
 
@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <string>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
 // Current save state format version.
 // Increment once per release if there are any changes to the serializers.
@@ -30,16 +30,16 @@ namespace ymir::state {
 //  12 = 0.3.0
 inline constexpr uint32 kVersion = 12;
 
-} // namespace ymir::state
+} // namespace ymir::savestate
 
 // -----------------------------------------------------------------------------
 
-CEREAL_CLASS_VERSION(ymir::state::State, ymir::state::kVersion);
+CEREAL_CLASS_VERSION(ymir::savestate::SaveState, ymir::savestate::kVersion);
 
-namespace ymir::state {
+namespace ymir::savestate {
 
 template <class Archive>
-void serialize(Archive &ar, SchedulerState &s, const uint32 version) {
+void serialize(Archive &ar, SchedulerSaveState &s, const uint32 version) {
     // v10:
     // - Changed fields
     //   - events increased from 6 to 7; new event was never used before this version
@@ -47,7 +47,7 @@ void serialize(Archive &ar, SchedulerState &s, const uint32 version) {
     if (version >= 10) {
         ar(s.events);
     } else {
-        std::array<SchedulerState::EventState, 6> events{};
+        std::array<SchedulerSaveState::EventState, 6> events{};
         ar(events);
         std::copy(events.begin(), events.end(), s.events.begin());
         s.events[6].target = ~static_cast<uint64>(0);
@@ -58,12 +58,12 @@ void serialize(Archive &ar, SchedulerState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SchedulerState::EventState &s) {
+void serialize(Archive &ar, SchedulerSaveState::EventState &s) {
     ar(s.target, s.countNumerator, s.countDenominator, s.id);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SystemState &s) {
+void serialize(Archive &ar, SystemSaveState &s) {
     ar(s.videoStandard, s.clockSpeed);
     ar(s.slaveSH2Enabled);
     ar(s.iplRomHash);
@@ -71,7 +71,7 @@ void serialize(Archive &ar, SystemState &s) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State &s, const uint32 version) {
+void serialize(Archive &ar, SH2SaveState &s, const uint32 version) {
     // v6:
     // - New fields
     //   - bool sleep = false
@@ -94,22 +94,22 @@ void serialize(Archive &ar, SH2State &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::BSC &s) {
+void serialize(Archive &ar, SH2SaveState::BSC &s) {
     ar(s.BCR1, s.BCR2, s.WCR, s.MCR, s.RTCSR, s.RTCNT, s.RTCOR);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::DMAC &s) {
+void serialize(Archive &ar, SH2SaveState::DMAC &s) {
     ar(s.DMAOR, s.channels);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::DMAC::Channel &s) {
+void serialize(Archive &ar, SH2SaveState::DMAC::Channel &s) {
     ar(s.SAR, s.DAR, s.TCR, s.CHCR, s.DRCR);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::WDT &s, const uint32 version) {
+void serialize(Archive &ar, SH2SaveState::WDT &s, const uint32 version) {
     // v6:
     // - New fields
     //   - uint8 busValue = 0
@@ -133,7 +133,7 @@ void serialize(Archive &ar, SH2State::WDT &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::DIVU &s, const uint32 version) {
+void serialize(Archive &ar, SH2SaveState::DIVU &s, const uint32 version) {
     // v5:
     // - New fields
     //   - VCRDIV = INTC.vectors[static_cast<size_t>(InterruptSource::DIVU_OVFI)]
@@ -141,12 +141,12 @@ void serialize(Archive &ar, SH2State::DIVU &s, const uint32 version) {
     ar(s.DVSR, s.DVDNT, s.DVCR, s.DVDNTH, s.DVDNTL, s.DVDNTUH, s.DVDNTUL);
     if (version >= 5) {
         ar(s.VCRDIV);
-        // VCRDIV is filled in with INTC.vectors[DIVU_OVFI] for version prior to 5 in the SH2State serializer above
+        // VCRDIV is filled in with INTC.vectors[DIVU_OVFI] for version prior to 5 in the SH2SaveState serializer above
     }
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::FRT &s, const uint32 version) {
+void serialize(Archive &ar, SH2SaveState::FRT &s, const uint32 version) {
     // v5:
     // - New fields
     //   - FTCSR_mask = 0x00
@@ -162,22 +162,22 @@ void serialize(Archive &ar, SH2State::FRT &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::INTC &s) {
+void serialize(Archive &ar, SH2SaveState::INTC &s) {
     ar(s.ICR, s.levels, s.vectors, s.pendingSource, s.pendingLevel, s.NMI, s.extVec);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::Cache &s) {
+void serialize(Archive &ar, SH2SaveState::Cache &s) {
     ar(s.CCR, s.entries, s.lru);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH2State::Cache::Entry &s) {
+void serialize(Archive &ar, SH2SaveState::Cache::Entry &s) {
     ar(s.tags, s.lines);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCUState &s, const uint32 version) {
+void serialize(Archive &ar, SCUSaveState &s, const uint32 version) {
     // v8:
     // - New fields
     //   - abusIntrsPendingAck = intrStatus >> 16  (or 0 if abusIntrAck == true in versions 7 and below)
@@ -192,7 +192,7 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
     //   - timer1Enable renamed to timerEnable; no changes to value
     // v4:
     // - New fields
-    //   - enum SCUState::CartType: added ROM
+    //   - enum SCUSaveState::CartType: added ROM
 
     for (auto &dma : s.dma) {
         serialize(ar, dma, version);
@@ -203,16 +203,16 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
     if (version >= 4) {
         // From version 4 onwards, carts have a fixed size.
         switch (s.cartType) {
-        case SCUState::CartType::DRAM8Mbit: s.cartData.resize(1_MiB); break;
-        case SCUState::CartType::DRAM32Mbit: s.cartData.resize(4_MiB); break;
-        case SCUState::CartType::DRAM48Mbit:
+        case SCUSaveState::CartType::DRAM8Mbit: s.cartData.resize(1_MiB); break;
+        case SCUSaveState::CartType::DRAM32Mbit: s.cartData.resize(4_MiB); break;
+        case SCUSaveState::CartType::DRAM48Mbit:
             if (version >= 10) {
                 s.cartData.resize(6_MiB);
             } else {
                 throw cereal::Exception("48 Mbit DRAM cart is not available in save state versions 9 and earlier");
             }
             break;
-        case SCUState::CartType::ROM: s.cartData.resize(2_MiB);
+        case SCUSaveState::CartType::ROM: s.cartData.resize(2_MiB);
         default: s.cartData.clear(); break;
         }
     } else {
@@ -223,12 +223,12 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
         cereal::size_type size;
         ar(size);
         switch (s.cartType) {
-        case SCUState::CartType::DRAM8Mbit:
+        case SCUSaveState::CartType::DRAM8Mbit:
             if (size != 1_MiB) {
                 throw cereal::Exception("Unexpected 8 Mbit DRAM cart data array size");
             }
             break;
-        case SCUState::CartType::DRAM32Mbit:
+        case SCUSaveState::CartType::DRAM32Mbit:
             if (size != 4_MiB) {
                 throw cereal::Exception("Unexpected 32 Mbit DRAM cart data array size");
             }
@@ -270,7 +270,7 @@ void serialize(Archive &ar, SCUState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCUDMAState &s, const uint32 version) {
+void serialize(Archive &ar, SCUDMASaveState &s, const uint32 version) {
     // v10:
     // - New fields
     //   - xfer
@@ -292,7 +292,7 @@ void serialize(Archive &ar, SCUDMAState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCUDMAState::Transfer &s, const uint32 version) {
+void serialize(Archive &ar, SCUDMASaveState::Transfer &s, const uint32 version) {
     // v9:
     // - Struct newly introduced
     // - New fields
@@ -377,7 +377,7 @@ void serialize(Archive &ar, SCUDSPState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SMPCState &s, const uint32 version) {
+void serialize(Archive &ar, SMPCSaveState &s, const uint32 version) {
     // v9:
     // - New fields
     //   - commandEventState = 0
@@ -395,27 +395,27 @@ void serialize(Archive &ar, SMPCState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SMPCState::INTBACK &s) {
+void serialize(Archive &ar, SMPCSaveState::INTBACKSaveState &s) {
     ar(s.getPeripheralData, s.optimize, s.port1mode, s.port2mode);
     ar(s.report, s.reportOffset, s.inProgress);
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState &s, const uint32 version) {
-    // VDPState
-    // --------
+void serialize(Archive &ar, VDPSaveState &s, const uint32 version) {
+    // VDPSaveState
+    // ------------
     // v12:
     // - New fields
     //   - VDP2VCNTLatch = 0x3FF
     //   - VDP2VCNTLatched = false
     // - Removed fields
-    //   - VDP1TimingPenalty -> moved to VDP1State
-    //   - VDP1FBCRChanged -> moved to VDP1RegsState
+    //   - VDP1TimingPenalty -> moved to VDP1SaveState
+    //   - VDP1FBCRChanged -> moved to VDP1RegsSaveState
     //   - displayEnabled -> moved to regs2.displayEnabledLatch
     //   - borderColorMode -> moved to regs2.borderColorModeLatch
     // v9:
     // - New fields
-    //   - enum VDPState::VerticalPhase: added VCounterSkip (= 5)
+    //   - enum VDPSaveState::VerticalPhase: added VCounterSkip (= 5)
     //   - displayEnabled = regs2.TVMD.DISP (= TVMD & 0x8000)
     //   - borderColorMode = regs2.TVMD.BDCLMD (= TVMD & 0x100)
     // v7:
@@ -426,32 +426,32 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     // - Removed fields
     //   - uint16 VCounter -> moved to regs2.VCNT
     //
-    // VDP1State
+    // VDP1SaveState
     // -------------
     // - Struct created
     //
-    // VDP1RegsState
-    // -------------
+    // VDP1RegsSaveState
+    // -----------------
     // v12:
     // - Added fields
-    //   - FBCRChanged = handled in VDPState serializer
-    //   - eraseWriteValueLatch = handled in VDPState serializer
-    //   - eraseX1Latch, eraseY1Latch = handled in VDPState serializer
-    //   - eraseX3Latch, eraseY3Latch = handled in VDPState serializer
+    //   - FBCRChanged = handled in VDPSaveState serializer
+    //   - eraseWriteValueLatch = handled in VDPSaveState serializer
+    //   - eraseX1Latch, eraseY1Latch = handled in VDPSaveState serializer
+    //   - eraseX3Latch, eraseY3Latch = handled in VDPSaveState serializer
     // v9:
     // - Removed fields
     //   - bool manualSwap
     //   - bool manualErase
     //
-    // VDP2RegsState
-    // -------------
+    // VDP2RegsSaveState
+    // -----------------
     // v12:
     // - Added fields
-    //   - VCNTLatch -> moved from VDPState::VDP2VCNTLatch
-    //   - VCNTLatched -> moved from VDPState::VDP2VCNTLatched
+    //   - VCNTLatch -> moved from VDPSaveState::VDP2VCNTLatch
+    //   - VCNTLatched -> moved from VDPSaveState::VDP2VCNTLatched
     //
-    // VDPRendererState
-    // ----------------
+    // VDPRendererSaveState
+    // --------------------
     // v12:
     // - New fields
     //   - vdp1State = new struct
@@ -468,8 +468,8 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
     // - Removed fields
     //   - bool vdp1Done
     //
-    // VDPRendererState::VDP1RenderState
-    // ---------------------------------
+    // VDPRendererSaveState::VDP1RenderSaveState
+    // -----------------------------------------
     // v12:
     // - Removed fields
     //   - rendering -> moved to vdp1State.drawing
@@ -603,13 +603,13 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
             upperBound = 255;
         }
         if (s.regs2.VCNT >= lowerBound && s.regs2.VCNT < upperBound) {
-            s.VPhase = VDPState::VerticalPhase::VCounterSkip;
+            s.VPhase = VDPSaveState::VerticalPhase::VCounterSkip;
         }
 
         // Replace obsolete horizontal phases
         switch (static_cast<uint8>(s.HPhase)) {
-        case 3 /*VBlankOut*/: s.HPhase = VDPState::HorizontalPhase::Sync; break;
-        case 5 /*LastDot*/: s.HPhase = VDPState::HorizontalPhase::LeftBorder; break;
+        case 3 /*VBlankOut*/: s.HPhase = VDPSaveState::HorizontalPhase::Sync; break;
+        case 5 /*LastDot*/: s.HPhase = VDPSaveState::HorizontalPhase::LeftBorder; break;
         default: break;
         }
     }
@@ -724,7 +724,7 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState::NBGLayerState &s, const uint32 version) {
+void serialize(Archive &ar, VDPSaveState::VDPRendererSaveState::NBGLayerSaveState &s, const uint32 version) {
     // v12:
     // - Removed fields
     //   - scrollAmountV
@@ -752,7 +752,7 @@ void serialize(Archive &ar, VDPState::VDPRendererState::NBGLayerState &s, const 
     //       nbgLayerStates[2].fracScrollY -= (regs2.SCYIN2 << 8u);
     //       nbgLayerStates[3].fracScrollY -= (regs2.SCYIN3 << 8u);
 
-    // NOTE: fracScrollX/Y compensation happens in the VDPState serializer
+    // NOTE: fracScrollX/Y compensation happens in the VDPSaveState serializer
     ar(s.fracScrollX, s.fracScrollY, s.scrollIncH);
     if (version >= 7 && version < 12) {
         uint32 scrollAmountV;
@@ -774,7 +774,7 @@ void serialize(Archive &ar, VDPState::VDPRendererState::NBGLayerState &s, const 
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState::RotationParamState &s, const uint32 version) {
+void serialize(Archive &ar, VDPSaveState::VDPRendererSaveState::RotationParamSaveState &s, const uint32 version) {
     // v9:
     // - Changed fields
     //   - pageBaseAddresses changed from std::array<uint32, 16> to std::array<std::array<uint32, 16>, 2>
@@ -803,13 +803,13 @@ void serialize(Archive &ar, VDPState::VDPRendererState::RotationParamState &s, c
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState::LineBackLayerState &s) {
+void serialize(Archive &ar, VDPSaveState::VDPRendererSaveState::LineBackLayerSaveState &s) {
     ar(s.lineColor);
     ar(s.backColor);
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState::Character &s) {
+void serialize(Archive &ar, VDPSaveState::VDPRendererSaveState::CharacterSaveState &s) {
     // v7:
     // - Struct created
     ar(s.charNum, s.palNum);
@@ -818,7 +818,7 @@ void serialize(Archive &ar, VDPState::VDPRendererState::Character &s) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState::VRAMFetcherState &s, const uint32 version) {
+void serialize(Archive &ar, VDPSaveState::VDPRendererSaveState::VRAMFetcherSaveState &s, const uint32 version) {
     // v12:
     // - Renamed fields
     //   - bitmapData -> charData
@@ -847,13 +847,13 @@ void serialize(Archive &ar, VDPState::VDPRendererState::VRAMFetcherState &s, con
 }
 
 template <class Archive>
-void serialize(Archive &ar, M68KState &s) {
+void serialize(Archive &ar, M68KSaveState &s) {
     ar(s.DA, s.SP_swap, s.PC, s.SR);
     ar(s.prefetchQueue, s.extIntrLevel);
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCSPState &s, const uint32 version) {
+void serialize(Archive &ar, SCSPSaveState &s, const uint32 version) {
     // v6:
     // - New fields
     //   - SCILV = {0,0,0}
@@ -1019,7 +1019,7 @@ void serialize(Archive &ar, SCSPState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCSPSlotState &s, const uint32 version) {
+void serialize(Archive &ar, SCSPSlotSaveState &s, const uint32 version) {
     // v6:
     // - New fields
     //   - currEGLevel = egLevel
@@ -1145,7 +1145,7 @@ void serialize(Archive &ar, SCSPSlotState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCSPDSP &s, const uint32 version) {
+void serialize(Archive &ar, SCSPDSPSaveState &s, const uint32 version) {
     // v6:
     // - New fields
     //   - PC = 0x68
@@ -1185,7 +1185,7 @@ void serialize(Archive &ar, SCSPDSP &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SCSPTimer &s) {
+void serialize(Archive &ar, SCSPTimerSaveState &s) {
     ar(s.incrementInterval);
     ar(s.reload);
     ar(s.doReload);
@@ -1193,7 +1193,7 @@ void serialize(Archive &ar, SCSPTimer &s) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDBlockState &s, State &root, const uint32 version) {
+void serialize(Archive &ar, CDBlockSaveState &s, SaveState &root, const uint32 version) {
     // v10:
     // - Removed fields
     //   - discHash moved to the root of the structure
@@ -1210,7 +1210,7 @@ void serialize(Archive &ar, CDBlockState &s, State &root, const uint32 version) 
     //   - fs
     // v5:
     // - New fields
-    //   - enum CDBlockState::TransferType: added PutSector (= 6)
+    //   - enum CDBlockSaveState::TransferType: added PutSector (= 6)
     //   - scratchBufferPutIndex = 0
     // - Removed fields
     //   - scratchBuffer moved into the buffers array
@@ -1252,8 +1252,8 @@ void serialize(Archive &ar, CDBlockState &s, State &root, const uint32 version) 
         ar(s.scratchBufferPutIndex);
     } else {
         // scratchBuffer was moved into the buffers array immediately after the partition buffers
-        auto buffers = std::make_unique<std::array<CDBlockState::BufferState, cdblock::kNumBuffers>>();
-        auto scratchBuffer = std::make_unique<CDBlockState::BufferState>();
+        auto buffers = std::make_unique<std::array<CDBlockSaveState::BufferSaveState, cdblock::kNumBuffers>>();
+        auto scratchBuffer = std::make_unique<CDBlockSaveState::BufferSaveState>();
         for (auto &buffer : *buffers) {
             serialize(ar, buffer, version);
         }
@@ -1286,7 +1286,7 @@ void serialize(Archive &ar, CDBlockState &s, State &root, const uint32 version) 
 
     if (version < 9) {
         s.xferGetLength = s.getSectorLength;
-        if (s.xferType == CDBlockState::TransferType::GetThenDeleteSector) {
+        if (s.xferType == CDBlockSaveState::TransferType::GetThenDeleteSector) {
             s.xferDelCount = (s.xferLength + s.getSectorLength - 1) / s.getSectorLength;
         } else {
             s.xferDelCount = 0;
@@ -1295,7 +1295,7 @@ void serialize(Archive &ar, CDBlockState &s, State &root, const uint32 version) 
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDBlockState::StatusState &s, const uint32 version) {
+void serialize(Archive &ar, CDBlockSaveState::StatusSaveState &s, const uint32 version) {
     // v9:
     // - Changed fields
     //   - statusCode no longer includes flags (&= 0xF)
@@ -1314,7 +1314,7 @@ void serialize(Archive &ar, CDBlockState::StatusState &s, const uint32 version) 
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDBlockState::BufferState &s, const uint32 version) {
+void serialize(Archive &ar, CDBlockSaveState::BufferSaveState &s, const uint32 version) {
     ar(s.data, s.size);
     ar(s.frameAddress);
     ar(s.fileNum, s.chanNum, s.submode, s.codingInfo);
@@ -1322,7 +1322,7 @@ void serialize(Archive &ar, CDBlockState::BufferState &s, const uint32 version) 
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDBlockState::FilterState &s) {
+void serialize(Archive &ar, CDBlockSaveState::FilterSaveState &s) {
     // v5:
     // - Changed fields:
     //   - trueOutput renamed to passOutput; no changes to value
@@ -1337,7 +1337,7 @@ void serialize(Archive &ar, CDBlockState::FilterState &s) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDBlockState::FilesystemState &s, const uint32 version) {
+void serialize(Archive &ar, CDBlockSaveState::FilesystemSaveState &s, const uint32 version) {
     // v8:
     // - Struct newly introduced
     // - New fields:
@@ -1353,7 +1353,7 @@ void serialize(Archive &ar, CDBlockState::FilesystemState &s, const uint32 versi
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1380,7 +1380,7 @@ void serialize(Archive &ar, SH1State &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::BSC &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::BSC &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1398,7 +1398,7 @@ void serialize(Archive &ar, SH1State::BSC &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::DMAC &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::DMAC &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1413,7 +1413,7 @@ void serialize(Archive &ar, SH1State::DMAC &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::DMAC::Channel &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::DMAC::Channel &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1428,7 +1428,7 @@ void serialize(Archive &ar, SH1State::DMAC::Channel &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::ITU &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::ITU &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1446,7 +1446,7 @@ void serialize(Archive &ar, SH1State::ITU &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::ITU::Timer &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::ITU::Timer &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1467,7 +1467,7 @@ void serialize(Archive &ar, SH1State::ITU::Timer &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::TPC &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::TPC &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1481,7 +1481,7 @@ void serialize(Archive &ar, SH1State::TPC &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::WDT &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::WDT &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1496,7 +1496,7 @@ void serialize(Archive &ar, SH1State::WDT &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::SCI &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::SCI &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1509,7 +1509,7 @@ void serialize(Archive &ar, SH1State::SCI &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::SCI::Channel &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::SCI::Channel &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1530,7 +1530,7 @@ void serialize(Archive &ar, SH1State::SCI::Channel &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::AD &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::AD &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1545,7 +1545,7 @@ void serialize(Archive &ar, SH1State::AD &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::PFC &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::PFC &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1560,7 +1560,7 @@ void serialize(Archive &ar, SH1State::PFC &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, SH1State::INTC &s, const uint32 version) {
+void serialize(Archive &ar, SH1SaveState::INTC &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1577,7 +1577,7 @@ void serialize(Archive &ar, SH1State::INTC &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, YGRState &s, const uint32 version) {
+void serialize(Archive &ar, YGRSaveState &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1589,7 +1589,7 @@ void serialize(Archive &ar, YGRState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, YGRState::FIFOState &s, const uint32 version) {
+void serialize(Archive &ar, YGRSaveState::FIFOState &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1602,7 +1602,7 @@ void serialize(Archive &ar, YGRState::FIFOState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, YGRState::Registers &s, const uint32 version) {
+void serialize(Archive &ar, YGRSaveState::Registers &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1622,7 +1622,7 @@ void serialize(Archive &ar, YGRState::Registers &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDDriveState &s, const uint32 version) {
+void serialize(Archive &ar, CDDriveSaveState &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1643,7 +1643,7 @@ void serialize(Archive &ar, CDDriveState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, CDDriveState::CDStatusState &s, const uint32 version) {
+void serialize(Archive &ar, CDDriveSaveState::CDStatusSaveState &s, const uint32 version) {
     // v10:
     // - Struct newly introduced
 
@@ -1664,7 +1664,7 @@ void serialize(Archive &ar, CDDriveState::CDStatusState &s, const uint32 version
 }
 
 template <class Archive>
-void serialize(Archive &ar, State &s, const uint32 version) {
+void serialize(Archive &ar, SaveState &s, const uint32 version) {
     // v10:
     // - Every component now has a 4-byte magic field to check for data alignment
     // - New fields:
@@ -1729,8 +1729,8 @@ void serialize(Archive &ar, State &s, const uint32 version) {
         magic("cCDD"), serialize(ar, s.cddrive, version);
         magic("cRAM"), ar(s.cdblockDRAM);
     } else {
-        // Passing in the root of the save state structure to allow the CDBlockState serializer to load the disc hash
-        // into the field that was moved to the root State struct.
+        // Passing in the root of the save state structure to allow the CDBlockSaveState serializer to load the disc
+        // hash into the field that was moved to the root State struct.
         magic("cCDB"), serialize(ar, s.cdblock, s, version);
         s.sh1SpilloverCycles = 0;
         s.sh1FracCycles = 0;
@@ -1758,4 +1758,4 @@ void serialize(Archive &ar, State &s, const uint32 version) {
     }
 }
 
-} // namespace ymir::state
+} // namespace ymir::savestate

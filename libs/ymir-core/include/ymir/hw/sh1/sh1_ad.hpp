@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -36,7 +36,7 @@ struct ADConverter {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::AD &state) const {
+    void SaveState(savestate::SH1SaveState::AD &state) const {
         state.ADDR = m_dataRegs;
         state.ADCSR = ReadADCSR<true>();
         state.ADCR = ReadADCR();
@@ -46,11 +46,11 @@ struct ADConverter {
         state.convEndedMask = convEndedMask;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::AD &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::AD &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::AD &state) {
+    void LoadState(const savestate::SH1SaveState::AD &state) {
         m_dataRegs = state.ADDR;
         WriteADCSR<true>(state.ADCSR);
         WriteADCR(state.ADCR);

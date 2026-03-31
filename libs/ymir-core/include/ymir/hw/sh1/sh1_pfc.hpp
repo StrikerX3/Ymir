@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -28,7 +28,7 @@ struct PinFunctionController {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::PFC &state) const {
+    void SaveState(savestate::SH1SaveState::PFC &state) const {
         state.PAIOR = ReadPAIOR();
         state.PBIOR = ReadPBIOR();
         state.PACR1 = ReadPACR1();
@@ -38,11 +38,11 @@ struct PinFunctionController {
         state.CASCR = ReadCASCR();
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::PFC &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::PFC &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::PFC &state) {
+    void LoadState(const savestate::SH1SaveState::PFC &state) {
         WritePAIOR(state.PAIOR);
         WritePBIOR(state.PBIOR);
         WritePACR1(state.PACR1);

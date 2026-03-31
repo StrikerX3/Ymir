@@ -251,11 +251,11 @@ void SoftwareVDPRenderer::PostLoadStateSync() {
     }
 }
 
-void SoftwareVDPRenderer::SaveStateImpl(state::VDPState::VDPRendererState &state) {
+void SoftwareVDPRenderer::SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) {
     state.vdp1State.doubleV = m_VDP1doubleV;
     state.vdp1State.meshFB = m_meshFB;
 
-    auto copyChar = [&](state::VDPState::VDPRendererState::Character &dst, const Character &src) {
+    auto copyChar = [&](savestate::VDPSaveState::VDPRendererSaveState::CharacterSaveState &dst, const Character &src) {
         dst.charNum = src.charNum;
         dst.palNum = src.palNum >> 4u;
         dst.specColorCalc = src.specColorCalc;
@@ -279,15 +279,15 @@ void SoftwareVDPRenderer::SaveStateImpl(state::VDPState::VDPRendererState &state
     state.vcellScrollInc = m_state.regs2.vcellScrollInc;
 }
 
-bool SoftwareVDPRenderer::ValidateStateImpl(const state::VDPState::VDPRendererState &state) const {
+bool SoftwareVDPRenderer::ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const {
     return true;
 }
 
-void SoftwareVDPRenderer::LoadStateImpl(const state::VDPState::VDPRendererState &state) {
+void SoftwareVDPRenderer::LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) {
     m_VDP1doubleV = state.vdp1State.doubleV;
     m_meshFB = state.vdp1State.meshFB;
 
-    auto copyChar = [&](Character &dst, const state::VDPState::VDPRendererState::Character &src) {
+    auto copyChar = [&](Character &dst, const savestate::VDPSaveState::VDPRendererSaveState::CharacterSaveState &src) {
         dst.charNum = src.charNum;
         dst.palNum = src.palNum << 4u;
         dst.specColorCalc = src.specColorCalc;

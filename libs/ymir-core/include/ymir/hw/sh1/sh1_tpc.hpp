@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -28,7 +28,7 @@ struct TimingPatternController {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::TPC &state) const {
+    void SaveState(savestate::SH1SaveState::TPC &state) const {
         state.TPMR = ReadTPMR();
         state.TPCR = ReadTPCR();
         state.NDERB = ReadNDERB();
@@ -37,11 +37,11 @@ struct TimingPatternController {
         state.NDRA = NDR.A;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::TPC &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::TPC &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::TPC &state) {
+    void LoadState(const savestate::SH1SaveState::TPC &state) {
         WriteTPMR(state.TPMR);
         WriteTPCR(state.TPCR);
         WriteNDERB(state.NDERB);

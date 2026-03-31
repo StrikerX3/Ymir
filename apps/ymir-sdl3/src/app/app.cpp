@@ -105,7 +105,7 @@
 #include <app/ui/widgets/settings_widgets.hpp>
 #include <app/ui/widgets/system_widgets.hpp>
 
-#include <serdes/state_cereal.hpp>
+#include <serdes/cereal_savestate.hpp>
 
 #include <util/file_loader.hpp>
 #include <util/math.hpp>
@@ -5440,7 +5440,7 @@ void App::LoadSaveStates() {
             if (in) {
                 cereal::PortableBinaryInputArchive archive{in};
                 try {
-                    auto state = std::make_unique<ymir::state::State>();
+                    auto state = std::make_unique<ymir::savestate::SaveState>();
                     archive(*state);
                     entry.state.swap(state);
 
@@ -5522,7 +5522,7 @@ void App::PersistSaveState(size_t slotIndex) {
     // ensure to not dereference empty slots
     auto *slot = saves.Peek(slotIndex);
     if (slot) {
-        auto save = [&](const std::unique_ptr<ymir::state::State> &state, std::string name) {
+        auto save = [&](const std::unique_ptr<ymir::savestate::SaveState> &state, std::string name) {
             if (state) {
                 // Create directory for this game's save states
                 auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);

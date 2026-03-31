@@ -8,7 +8,7 @@
 
 #include <ymir/sys/bus.hpp>
 
-#include <ymir/state/state_ygr.hpp>
+#include <ymir/savestate/savestate_ygr.hpp>
 
 #include <ymir/debug/ygr_tracer_base.hpp>
 
@@ -68,9 +68,9 @@ struct YGR {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::YGRState &state) const;
-    [[nodiscard]] bool ValidateState(const state::YGRState &state) const;
-    void LoadState(const state::YGRState &state);
+    void SaveState(savestate::YGRSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::YGRSaveState &state) const;
+    void LoadState(const savestate::YGRSaveState &state);
 
     // -------------------------------------------------------------------------
     // Debugger

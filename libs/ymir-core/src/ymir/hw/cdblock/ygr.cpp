@@ -600,7 +600,7 @@ void YGR::HostPokeByte(uint32 address, uint8 value) {
 // -----------------------------------------------------------------------------
 // Save states
 
-void YGR::SaveState(state::YGRState &state) const {
+void YGR::SaveState(savestate::YGRSaveState &state) const {
     state.fifo.data = m_fifo.data;
     state.fifo.readPos = m_fifo.readPos;
     state.fifo.writePos = m_fifo.writePos;
@@ -622,7 +622,7 @@ void YGR::SaveState(state::YGRState &state) const {
     state.regs.HIRQMASK = m_regs.HIRQMASK;
 }
 
-bool YGR::ValidateState(const state::YGRState &state) const {
+bool YGR::ValidateState(const savestate::YGRSaveState &state) const {
     if (state.fifo.readPos >= m_fifo.data.size()) {
         return false;
     }
@@ -635,7 +635,7 @@ bool YGR::ValidateState(const state::YGRState &state) const {
     return true;
 }
 
-void YGR::LoadState(const state::YGRState &state) {
+void YGR::LoadState(const savestate::YGRSaveState &state) {
     m_fifo.data = state.fifo.data;
     m_fifo.readPos = state.fifo.readPos;
     m_fifo.writePos = state.fifo.writePos;

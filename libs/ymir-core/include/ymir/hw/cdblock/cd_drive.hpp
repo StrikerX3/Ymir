@@ -6,7 +6,7 @@
 #include <ymir/hw/sh1/sh1_internal_callbacks.hpp>
 #include <ymir/sys/system_internal_callbacks.hpp>
 
-#include <ymir/state/state_cd_drive.hpp>
+#include <ymir/savestate/savestate_cd_drive.hpp>
 
 #include <ymir/debug/cd_drive_tracer_base.hpp>
 
@@ -133,9 +133,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::CDDriveState &state) const;
-    [[nodiscard]] bool ValidateState(const state::CDDriveState &state) const;
-    void LoadState(const state::CDDriveState &state);
+    void SaveState(savestate::CDDriveSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::CDDriveSaveState &state) const;
+    void LoadState(const savestate::CDDriveSaveState &state);
 
     // -------------------------------------------------------------------------
     // Debugger

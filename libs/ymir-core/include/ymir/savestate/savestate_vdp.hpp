@@ -6,16 +6,16 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct VDPState {
+struct VDPSaveState {
     alignas(16) std::array<uint8, vdp::kVDP1VRAMSize> VRAM1;
     alignas(16) std::array<uint8, vdp::kVDP2VRAMSize> VRAM2;
     alignas(16) std::array<uint8, vdp::kVDP2CRAMSize> CRAM;
     alignas(16) std::array<std::array<uint8, vdp::kVDP1FBRAMSize>, 2> spriteFB;
     uint8 displayFB;
 
-    struct VDP1State {
+    struct VDP1SaveState {
         bool drawing;
 
         bool doDisplayErase;
@@ -25,7 +25,7 @@ struct VDPState {
         uint64 timingPenalty;
     } vdp1State;
 
-    struct VDP1RegsState {
+    struct VDP1RegsSaveState {
         uint16 TVMR;
         uint16 FBCR;
         uint16 PTMR;
@@ -43,7 +43,7 @@ struct VDPState {
         uint16 eraseX3Latch, eraseY3Latch;
     } regs1;
 
-    struct VDP2RegsState {
+    struct VDP2RegsSaveState {
         uint16 TVMD;
         uint16 EXTEN;
         uint16 TVSTAT;
@@ -212,8 +212,8 @@ struct VDPState {
     };
     VerticalPhase VPhase;
 
-    struct VDPRendererState {
-        struct VDP1RenderState {
+    struct VDPRendererSaveState {
+        struct VDP1RenderSaveState {
             uint16 sysClipH;
             uint16 sysClipV;
             uint16 doubleV;
@@ -229,7 +229,7 @@ struct VDPState {
             std::array<std::array<std::array<uint8, vdp::kVDP1FBRAMSize>, 2>, 2> meshFB;
         };
 
-        struct NBGLayerState {
+        struct NBGLayerSaveState {
             uint32 fracScrollX;
             uint32 fracScrollY;
             uint32 scrollIncH;
@@ -240,18 +240,18 @@ struct VDPState {
             uint8 mosaicCounterY;
         };
 
-        struct RotationParamState {
+        struct RotationParamSaveState {
             std::array<std::array<uint32, 16>, 2> pageBaseAddresses;
             sint32 Xst, Yst;
             uint32 KA;
         };
 
-        struct LineBackLayerState {
+        struct LineBackLayerSaveState {
             uint32 lineColor;
             uint32 backColor;
         };
 
-        struct Character {
+        struct CharacterSaveState {
             uint16 charNum;
             uint8 palNum;
             bool specColorCalc;
@@ -260,9 +260,9 @@ struct VDPState {
             bool flipV;
         };
 
-        struct VRAMFetcherState {
-            Character currChar;
-            Character nextChar;
+        struct VRAMFetcherSaveState {
+            CharacterSaveState currChar;
+            CharacterSaveState nextChar;
             uint32 lastCharIndex;
             uint8 lastCellX;
             alignas(uint64) std::array<uint8, 8> charData;
@@ -270,15 +270,15 @@ struct VDPState {
             uint32 lastVCellScroll;
         };
 
-        VDP1RenderState vdp1State;
-        std::array<NBGLayerState, 4> nbgLayerStates;
-        std::array<RotationParamState, 2> rotParamStates;
-        LineBackLayerState lineBackLayerState;
-        std::array<std::array<VRAMFetcherState, 6>, 2> vramFetchers;
+        VDP1RenderSaveState vdp1State;
+        std::array<NBGLayerSaveState, 4> nbgLayerStates;
+        std::array<RotationParamSaveState, 2> rotParamStates;
+        LineBackLayerSaveState lineBackLayerState;
+        std::array<std::array<VRAMFetcherSaveState, 6>, 2> vramFetchers;
         uint32 vcellScrollInc;
 
         uint8 displayFB;
     } renderer;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

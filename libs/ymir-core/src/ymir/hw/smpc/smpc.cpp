@@ -167,7 +167,7 @@ void SMPC::SetAreaCode(uint8 areaCode) {
     m_areaCode = areaCode;
 }
 
-void SMPC::SaveState(state::SMPCState &state) const {
+void SMPC::SaveState(savestate::SMPCSaveState &state) const {
     state.IREG = IREG;
     state.OREG = OREG;
     state.COMREG = ReadCOMREG();
@@ -195,7 +195,7 @@ void SMPC::SaveState(state::SMPCState &state) const {
     m_rtc.SaveState(state);
 }
 
-bool SMPC::ValidateState(const state::SMPCState &state) const {
+bool SMPC::ValidateState(const savestate::SMPCSaveState &state) const {
     if (!m_rtc.ValidateState(state)) {
         return false;
     }
@@ -206,7 +206,7 @@ bool SMPC::ValidateState(const state::SMPCState &state) const {
     return true;
 }
 
-void SMPC::LoadState(const state::SMPCState &state) {
+void SMPC::LoadState(const savestate::SMPCSaveState &state) {
     IREG = state.IREG;
     OREG = state.OREG;
     WriteCOMREG<true>(state.COMREG);

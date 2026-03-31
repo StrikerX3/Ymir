@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_scsp_timer.hpp>
+#include <ymir/savestate/savestate_scsp_timer.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -54,7 +54,7 @@ struct Timer {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCSPTimer &state) const {
+    void SaveState(savestate::SCSPTimerSaveState &state) const {
         state.incrementInterval = incrementInterval;
         state.reload = reload;
 
@@ -62,11 +62,11 @@ struct Timer {
         state.counter = counter;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SCSPTimer &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SCSPTimerSaveState &state) const {
         return true;
     }
 
-    void LoadState(const state::SCSPTimer &state) {
+    void LoadState(const savestate::SCSPTimerSaveState &state) {
         incrementInterval = state.incrementInterval & 0x7;
         incrementMask = (1ull << incrementInterval) - 1;
         reload = state.reload;

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "state_m68k.hpp"
-#include "state_scsp_dsp.hpp"
-#include "state_scsp_slot.hpp"
-#include "state_scsp_timer.hpp"
+#include "savestate_m68k.hpp"
+#include "savestate_scsp_dsp.hpp"
+#include "savestate_scsp_slot.hpp"
+#include "savestate_scsp_timer.hpp"
 
 #include <ymir/hw/m68k/m68k_defs.hpp>
 #include <ymir/hw/scsp/scsp_midi_defs.hpp>
@@ -12,10 +12,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SCSPState {
-
+struct SCSPSaveState {
     alignas(16) std::array<uint8, m68k::kM68KWRAMSize> WRAM;
 
     alignas(16) std::array<uint8, 2352 * 15> cddaBuffer;
@@ -23,11 +22,11 @@ struct SCSPState {
     uint32 cddaWritePos;
     bool cddaReady;
 
-    M68KState m68k;
+    M68KSaveState m68k;
     uint64 m68kSpilloverCycles;
     bool m68kEnabled;
 
-    alignas(16) std::array<SCSPSlotState, 32> slots;
+    alignas(16) std::array<SCSPSlotSaveState, 32> slots;
 
     bool KYONEX;
     bool KYONEXExec;
@@ -37,7 +36,7 @@ struct SCSPState {
     bool MEM4MB;
     uint8 MSLC;
 
-    std::array<SCSPTimer, 3> timers;
+    std::array<SCSPTimerSaveState, 3> timers;
 
     uint16 MCIEB;
     uint16 MCIPD;
@@ -58,7 +57,7 @@ struct SCSPState {
     alignas(16) std::array<uint16, 64> SOUS;
     uint32 soundStackIndex;
 
-    SCSPDSP dsp;
+    SCSPDSPSaveState dsp;
 
     uint64 m68kCycles;
     uint64 sampleCounter;
@@ -79,4 +78,4 @@ struct SCSPState {
     sint32 expectedOutputPacketSize;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

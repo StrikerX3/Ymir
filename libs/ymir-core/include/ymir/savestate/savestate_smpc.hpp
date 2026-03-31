@@ -4,9 +4,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SMPCState {
+struct SMPCSaveState {
     alignas(16) std::array<uint8, 7> IREG;
     alignas(16) std::array<uint8, 32> OREG;
     uint8 COMREG;
@@ -19,7 +19,7 @@ struct SMPCState {
     uint8 IOSEL;
     uint8 EXLE;
 
-    struct INTBACK {
+    struct INTBACKSaveState {
         bool getPeripheralData;
         bool optimize;
         uint8 port1mode;
@@ -38,4 +38,4 @@ struct SMPCState {
     uint64 rtcSysClockCount;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

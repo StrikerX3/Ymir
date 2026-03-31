@@ -130,7 +130,7 @@ uint32 CDBlock::PartitionManager::CalculateSize(uint8 partitionIndex, uint32 sta
     return size;
 }
 
-void CDBlock::PartitionManager::SaveState(state::CDBlockState &state) const {
+void CDBlock::PartitionManager::SaveState(savestate::CDBlockSaveState &state) const {
     size_t bufferIndex = 0;
     for (size_t i = 0; i < m_partitions.size(); i++) {
         for (const auto &buffer : m_partitions[i]) {
@@ -148,7 +148,7 @@ void CDBlock::PartitionManager::SaveState(state::CDBlockState &state) const {
     state.reservedBuffers = m_reservedBuffers;
 }
 
-bool CDBlock::PartitionManager::ValidateState(const state::CDBlockState &state) const {
+bool CDBlock::PartitionManager::ValidateState(const savestate::CDBlockSaveState &state) const {
     uint32 usedBuffers = 0u;
     for (const auto &buffer : state.buffers) {
         if (buffer.partitionIndex < kNumPartitions) {
@@ -163,7 +163,7 @@ bool CDBlock::PartitionManager::ValidateState(const state::CDBlockState &state) 
     return true;
 }
 
-void CDBlock::PartitionManager::LoadState(const state::CDBlockState &state) {
+void CDBlock::PartitionManager::LoadState(const savestate::CDBlockSaveState &state) {
     for (auto &partition : m_partitions) {
         partition.clear();
     }

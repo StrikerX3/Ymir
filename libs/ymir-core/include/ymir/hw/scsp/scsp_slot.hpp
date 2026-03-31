@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_scsp_slot.hpp>
+#include <ymir/savestate/savestate_scsp_slot.hpp>
 
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/data_ops.hpp>
@@ -449,9 +449,9 @@ struct alignas(128) Slot {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCSPSlotState &state) const;
-    [[nodiscard]] bool ValidateState(const state::SCSPSlotState &state) const;
-    void LoadState(const state::SCSPSlotState &state);
+    void SaveState(savestate::SCSPSlotSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SCSPSlotSaveState &state) const;
+    void LoadState(const savestate::SCSPSlotSaveState &state);
 
     // -------------------------------------------------------------------------
     // Parameters

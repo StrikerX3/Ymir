@@ -88,7 +88,7 @@ void Slot::Reset() {
     UpdateMask();
 }
 
-void Slot::SaveState(state::SCSPSlotState &state) const {
+void Slot::SaveState(savestate::SCSPSlotSaveState &state) const {
     state.SA = startAddress;
     state.LSA = loopStartAddress;
     state.LEA = loopEndAddress;
@@ -98,18 +98,18 @@ void Slot::SaveState(state::SCSPSlotState &state) const {
 
     switch (loopControl) {
     default: [[fallthrough]];
-    case LoopControl::Off: state.LPCTL = state::SCSPSlotState::LoopControl::Off; break;
-    case LoopControl::Normal: state.LPCTL = state::SCSPSlotState::LoopControl::Normal; break;
-    case LoopControl::Reverse: state.LPCTL = state::SCSPSlotState::LoopControl::Reverse; break;
-    case LoopControl::Alternate: state.LPCTL = state::SCSPSlotState::LoopControl::Alternate; break;
+    case LoopControl::Off: state.LPCTL = savestate::SCSPSlotSaveState::LoopControl::Off; break;
+    case LoopControl::Normal: state.LPCTL = savestate::SCSPSlotSaveState::LoopControl::Normal; break;
+    case LoopControl::Reverse: state.LPCTL = savestate::SCSPSlotSaveState::LoopControl::Reverse; break;
+    case LoopControl::Alternate: state.LPCTL = savestate::SCSPSlotSaveState::LoopControl::Alternate; break;
     }
 
     switch (soundSource) {
     default: [[fallthrough]];
-    case SoundSource::SoundRAM: state.SSCTL = state::SCSPSlotState::SoundSource::SoundRAM; break;
-    case SoundSource::Noise: state.SSCTL = state::SCSPSlotState::SoundSource::Noise; break;
-    case SoundSource::Silence: state.SSCTL = state::SCSPSlotState::SoundSource::Silence; break;
-    case SoundSource::Unknown: state.SSCTL = state::SCSPSlotState::SoundSource::Unknown; break;
+    case SoundSource::SoundRAM: state.SSCTL = savestate::SCSPSlotSaveState::SoundSource::SoundRAM; break;
+    case SoundSource::Noise: state.SSCTL = savestate::SCSPSlotSaveState::SoundSource::Noise; break;
+    case SoundSource::Silence: state.SSCTL = savestate::SCSPSlotSaveState::SoundSource::Silence; break;
+    case SoundSource::Unknown: state.SSCTL = savestate::SCSPSlotSaveState::SoundSource::Unknown; break;
     }
 
     state.AR = attackRate;
@@ -138,10 +138,10 @@ void Slot::SaveState(state::SCSPSlotState &state) const {
     auto castWaveform = [](Waveform waveform) {
         switch (waveform) {
         default: [[fallthrough]];
-        case Waveform::Saw: return state::SCSPSlotState::Waveform::Saw;
-        case Waveform::Square: return state::SCSPSlotState::Waveform::Square;
-        case Waveform::Triangle: return state::SCSPSlotState::Waveform::Triangle;
-        case Waveform::Noise: return state::SCSPSlotState::Waveform::Noise;
+        case Waveform::Saw: return savestate::SCSPSlotSaveState::Waveform::Saw;
+        case Waveform::Square: return savestate::SCSPSlotSaveState::Waveform::Square;
+        case Waveform::Triangle: return savestate::SCSPSlotSaveState::Waveform::Triangle;
+        case Waveform::Noise: return savestate::SCSPSlotSaveState::Waveform::Noise;
         }
     };
 
@@ -167,10 +167,10 @@ void Slot::SaveState(state::SCSPSlotState &state) const {
 
     switch (egState) {
     default: [[fallthrough]];
-    case EGState::Attack: state.egState = state::SCSPSlotState::EGState::Attack; break;
-    case EGState::Decay1: state.egState = state::SCSPSlotState::EGState::Decay1; break;
-    case EGState::Decay2: state.egState = state::SCSPSlotState::EGState::Decay2; break;
-    case EGState::Release: state.egState = state::SCSPSlotState::EGState::Release; break;
+    case EGState::Attack: state.egState = savestate::SCSPSlotSaveState::EGState::Attack; break;
+    case EGState::Decay1: state.egState = savestate::SCSPSlotSaveState::EGState::Decay1; break;
+    case EGState::Decay2: state.egState = savestate::SCSPSlotSaveState::EGState::Decay2; break;
+    case EGState::Release: state.egState = savestate::SCSPSlotSaveState::EGState::Release; break;
     }
 
     state.egLevel = egLevel;
@@ -196,29 +196,29 @@ void Slot::SaveState(state::SCSPSlotState &state) const {
     state.finalLevel = finalLevel;
 }
 
-bool Slot::ValidateState(const state::SCSPSlotState &state) const {
+bool Slot::ValidateState(const savestate::SCSPSlotSaveState &state) const {
     switch (state.LPCTL) {
-    case state::SCSPSlotState::LoopControl::Off: break;
-    case state::SCSPSlotState::LoopControl::Normal: break;
-    case state::SCSPSlotState::LoopControl::Reverse: break;
-    case state::SCSPSlotState::LoopControl::Alternate: break;
+    case savestate::SCSPSlotSaveState::LoopControl::Off: break;
+    case savestate::SCSPSlotSaveState::LoopControl::Normal: break;
+    case savestate::SCSPSlotSaveState::LoopControl::Reverse: break;
+    case savestate::SCSPSlotSaveState::LoopControl::Alternate: break;
     default: return false;
     }
 
     switch (state.SSCTL) {
-    case state::SCSPSlotState::SoundSource::SoundRAM: break;
-    case state::SCSPSlotState::SoundSource::Noise: break;
-    case state::SCSPSlotState::SoundSource::Silence: break;
-    case state::SCSPSlotState::SoundSource::Unknown: break;
+    case savestate::SCSPSlotSaveState::SoundSource::SoundRAM: break;
+    case savestate::SCSPSlotSaveState::SoundSource::Noise: break;
+    case savestate::SCSPSlotSaveState::SoundSource::Silence: break;
+    case savestate::SCSPSlotSaveState::SoundSource::Unknown: break;
     default: return false;
     }
 
-    auto checkWaveform = [](state::SCSPSlotState::Waveform waveform) {
+    auto checkWaveform = [](savestate::SCSPSlotSaveState::Waveform waveform) {
         switch (waveform) {
-        case state::SCSPSlotState::Waveform::Saw: return true;
-        case state::SCSPSlotState::Waveform::Square: return true;
-        case state::SCSPSlotState::Waveform::Triangle: return true;
-        case state::SCSPSlotState::Waveform::Noise: return true;
+        case savestate::SCSPSlotSaveState::Waveform::Saw: return true;
+        case savestate::SCSPSlotSaveState::Waveform::Square: return true;
+        case savestate::SCSPSlotSaveState::Waveform::Triangle: return true;
+        case savestate::SCSPSlotSaveState::Waveform::Noise: return true;
         default: return false;
         }
     };
@@ -230,17 +230,17 @@ bool Slot::ValidateState(const state::SCSPSlotState &state) const {
     }
 
     switch (state.egState) {
-    case state::SCSPSlotState::EGState::Attack: break;
-    case state::SCSPSlotState::EGState::Decay1: break;
-    case state::SCSPSlotState::EGState::Decay2: break;
-    case state::SCSPSlotState::EGState::Release: break;
+    case savestate::SCSPSlotSaveState::EGState::Attack: break;
+    case savestate::SCSPSlotSaveState::EGState::Decay1: break;
+    case savestate::SCSPSlotSaveState::EGState::Decay2: break;
+    case savestate::SCSPSlotSaveState::EGState::Release: break;
     default: return false;
     }
 
     return true;
 }
 
-void Slot::LoadState(const state::SCSPSlotState &state) {
+void Slot::LoadState(const savestate::SCSPSlotSaveState &state) {
     startAddress = state.SA & 0xFFFFF;
     loopStartAddress = state.LSA & 0xFFFF;
     loopEndAddress = state.LEA & 0xFFFF;
@@ -250,18 +250,18 @@ void Slot::LoadState(const state::SCSPSlotState &state) {
 
     switch (state.LPCTL) {
     default: [[fallthrough]];
-    case state::SCSPSlotState::LoopControl::Off: loopControl = LoopControl::Off; break;
-    case state::SCSPSlotState::LoopControl::Normal: loopControl = LoopControl::Normal; break;
-    case state::SCSPSlotState::LoopControl::Reverse: loopControl = LoopControl::Reverse; break;
-    case state::SCSPSlotState::LoopControl::Alternate: loopControl = LoopControl::Alternate; break;
+    case savestate::SCSPSlotSaveState::LoopControl::Off: loopControl = LoopControl::Off; break;
+    case savestate::SCSPSlotSaveState::LoopControl::Normal: loopControl = LoopControl::Normal; break;
+    case savestate::SCSPSlotSaveState::LoopControl::Reverse: loopControl = LoopControl::Reverse; break;
+    case savestate::SCSPSlotSaveState::LoopControl::Alternate: loopControl = LoopControl::Alternate; break;
     }
 
     switch (state.SSCTL) {
     default: [[fallthrough]];
-    case state::SCSPSlotState::SoundSource::SoundRAM: soundSource = SoundSource::SoundRAM; break;
-    case state::SCSPSlotState::SoundSource::Noise: soundSource = SoundSource::Noise; break;
-    case state::SCSPSlotState::SoundSource::Silence: soundSource = SoundSource::Silence; break;
-    case state::SCSPSlotState::SoundSource::Unknown: soundSource = SoundSource::Unknown; break;
+    case savestate::SCSPSlotSaveState::SoundSource::SoundRAM: soundSource = SoundSource::SoundRAM; break;
+    case savestate::SCSPSlotSaveState::SoundSource::Noise: soundSource = SoundSource::Noise; break;
+    case savestate::SCSPSlotSaveState::SoundSource::Silence: soundSource = SoundSource::Silence; break;
+    case savestate::SCSPSlotSaveState::SoundSource::Unknown: soundSource = SoundSource::Unknown; break;
     }
 
     attackRate = state.AR & 0x1F;
@@ -287,13 +287,13 @@ void Slot::LoadState(const state::SCSPSlotState &state) {
     freqNumSwitch = state.FNS & 0x7FF;
     maskMode = state.MM;
 
-    auto castWaveform = [](state::SCSPSlotState::Waveform waveform) {
+    auto castWaveform = [](savestate::SCSPSlotSaveState::Waveform waveform) {
         switch (waveform) {
         default: [[fallthrough]];
-        case state::SCSPSlotState::Waveform::Saw: return Waveform::Saw;
-        case state::SCSPSlotState::Waveform::Square: return Waveform::Square;
-        case state::SCSPSlotState::Waveform::Triangle: return Waveform::Triangle;
-        case state::SCSPSlotState::Waveform::Noise: return Waveform::Noise;
+        case savestate::SCSPSlotSaveState::Waveform::Saw: return Waveform::Saw;
+        case savestate::SCSPSlotSaveState::Waveform::Square: return Waveform::Square;
+        case savestate::SCSPSlotSaveState::Waveform::Triangle: return Waveform::Triangle;
+        case savestate::SCSPSlotSaveState::Waveform::Noise: return Waveform::Noise;
         }
     };
 
@@ -320,18 +320,18 @@ void Slot::LoadState(const state::SCSPSlotState &state) {
 
     switch (state.egState) {
     default: [[fallthrough]];
-    case state::SCSPSlotState::EGState::Attack: egState = EGState::Attack; break;
-    case state::SCSPSlotState::EGState::Decay1: egState = EGState::Decay1; break;
-    case state::SCSPSlotState::EGState::Decay2: egState = EGState::Decay2; break;
-    case state::SCSPSlotState::EGState::Release: egState = EGState::Release; break;
+    case savestate::SCSPSlotSaveState::EGState::Attack: egState = EGState::Attack; break;
+    case savestate::SCSPSlotSaveState::EGState::Decay1: egState = EGState::Decay1; break;
+    case savestate::SCSPSlotSaveState::EGState::Decay2: egState = EGState::Decay2; break;
+    case savestate::SCSPSlotSaveState::EGState::Release: egState = EGState::Release; break;
     }
 
     switch (state.egState) {
     default: [[fallthrough]];
-    case state::SCSPSlotState::EGState::Attack: currEGRate = attackRate; break;
-    case state::SCSPSlotState::EGState::Decay1: currEGRate = decay1Rate; break;
-    case state::SCSPSlotState::EGState::Decay2: currEGRate = decay2Rate; break;
-    case state::SCSPSlotState::EGState::Release: currEGRate = releaseRate; break;
+    case savestate::SCSPSlotSaveState::EGState::Attack: currEGRate = attackRate; break;
+    case savestate::SCSPSlotSaveState::EGState::Decay1: currEGRate = decay1Rate; break;
+    case savestate::SCSPSlotSaveState::EGState::Decay2: currEGRate = decay2Rate; break;
+    case savestate::SCSPSlotSaveState::EGState::Release: currEGRate = releaseRate; break;
     }
 
     egLevel = state.egLevel & 0x3FF;

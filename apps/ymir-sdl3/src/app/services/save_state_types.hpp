@@ -19,13 +19,13 @@
 #include <chrono>
 #include <memory>
 
-#include <ymir/state/state.hpp>
+#include <ymir/savestate/savestate.hpp>
 
 namespace app::savestates {
 
 /// @brief A single save state entry with a timestamp.
 struct Entry {
-    std::unique_ptr<ymir::state::State> state{};
+    std::unique_ptr<ymir::savestate::SaveState> state{};
     std::chrono::system_clock::time_point timestamp{};
 };
 
