@@ -232,7 +232,6 @@ struct VDPState {
         struct NBGLayerState {
             uint32 fracScrollX;
             uint32 fracScrollY;
-            uint32 scrollAmountV;
             uint32 scrollIncH;
             uint32 lineScrollTableAddress;
             uint32 vcellScrollOffset;

@@ -253,7 +253,6 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
     for (size_t i = 0; i < 4; i++) {
         state.nbgLayerStates[i].fracScrollX = m_nbgLayerStates[i].fracScrollX;
         state.nbgLayerStates[i].fracScrollY = m_nbgLayerStates[i].fracScrollY;
-        state.nbgLayerStates[i].scrollAmountV = m_nbgLayerStates[i].scrollAmountV;
         state.nbgLayerStates[i].scrollIncH = m_nbgLayerStates[i].scrollIncH;
         state.nbgLayerStates[i].lineScrollTableAddress = m_nbgLayerStates[i].lineScrollTableAddress;
         state.nbgLayerStates[i].vcellScrollOffset = m_nbgLayerStates[i].vcellScrollOffset;
@@ -306,7 +305,6 @@ void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &sta
     for (size_t i = 0; i < 4; i++) {
         m_nbgLayerStates[i].fracScrollX = state.nbgLayerStates[i].fracScrollX;
         m_nbgLayerStates[i].fracScrollY = state.nbgLayerStates[i].fracScrollY;
-        m_nbgLayerStates[i].scrollAmountV = state.nbgLayerStates[i].scrollAmountV;
         m_nbgLayerStates[i].scrollIncH = state.nbgLayerStates[i].scrollIncH;
         m_nbgLayerStates[i].lineScrollTableAddress = state.nbgLayerStates[i].lineScrollTableAddress;
         m_nbgLayerStates[i].vcellScrollOffset = state.nbgLayerStates[i].vcellScrollOffset;
@@ -438,27 +436,13 @@ void SoftwareVDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
         }
         break;
 
-    case 0x074: [[fallthrough]]; // SCYIN0
-    case 0x076:                  // SCYDN0
-        if (!m_threadedVDP2Rendering) {
-            m_nbgLayerStates[0].scrollAmountV = m_state.regs2.bgParams[1].scrollAmountV;
-        }
-        break;
-    case 0x084: [[fallthrough]]; // SCYIN1
-    case 0x086:                  // SCYDN1
-        if (!m_threadedVDP2Rendering) {
-            m_nbgLayerStates[1].scrollAmountV = m_state.regs2.bgParams[2].scrollAmountV;
-        }
-        break;
     case 0x092: // SCYN2
         if (!m_threadedVDP2Rendering) {
-            m_nbgLayerStates[2].scrollAmountV = m_state.regs2.bgParams[3].scrollAmountV;
             m_nbgLayerStates[2].fracScrollY = 0;
         }
         break;
     case 0x096: // SCYN3
         if (!m_threadedVDP2Rendering) {
-            m_nbgLayerStates[3].scrollAmountV = m_state.regs2.bgParams[4].scrollAmountV;
             m_nbgLayerStates[3].fracScrollY = 0;
         }
         break;
@@ -761,20 +745,10 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
                 } else {
                     rctx.vdp2.regs.Write(event.write.address, event.write.value);
                     switch (event.write.address) {
-                    case 0x074: [[fallthrough]]; // SCYIN0
-                    case 0x076:                  // SCYDN0
-                        m_nbgLayerStates[0].scrollAmountV = rctx.vdp2.regs.bgParams[1].scrollAmountV;
-                        break;
-                    case 0x084: [[fallthrough]]; // SCYIN1
-                    case 0x086:                  // SCYDN1
-                        m_nbgLayerStates[1].scrollAmountV = rctx.vdp2.regs.bgParams[2].scrollAmountV;
-                        break;
                     case 0x092: // SCYN2
-                        m_nbgLayerStates[2].scrollAmountV = rctx.vdp2.regs.bgParams[3].scrollAmountV;
                         m_nbgLayerStates[2].fracScrollY = 0;
                         break;
                     case 0x096: // SCYN3
-                        m_nbgLayerStates[3].scrollAmountV = rctx.vdp2.regs.bgParams[4].scrollAmountV;
                         m_nbgLayerStates[3].fracScrollY = 0;
                         break;
                     }
@@ -1912,7 +1886,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2InitNormalBG() {
     NBGLayerState &bgState = m_nbgLayerStates[index];
     bgState.fracScrollX = 0;
     bgState.fracScrollY = 0;
-    bgState.scrollAmountV = bgParams.scrollAmountV;
     if (!m_enhancements.deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && regs2.TVSTAT.ODD) {
         bgState.fracScrollY += bgParams.scrollIncV;
     }
@@ -4624,7 +4597,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
 
     const bool altLine = deinterlace && altField && regs.TVMD.LSMDn == InterlaceMode::DoubleDensity;
     uint32 fracScrollX = bgState.fracScrollX + bgParams.scrollAmountH;
-    const uint32 fracScrollY = bgState.fracScrollY + bgState.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
+    const uint32 fracScrollY = bgState.fracScrollY + bgParams.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
 
     uint32 cellScrollTableAddress = regs.vcellScrollTableAddress + bgState.vcellScrollOffset;
     const bool vcellScrollEnable = useVCellScroll && bgParams.vcellScrollEnable;
@@ -4728,7 +4701,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
     const bool doubleDensity = regs.TVMD.LSMDn == InterlaceMode::DoubleDensity;
     const bool altLine = deinterlace && altField && doubleDensity && !bgParams.lineScrollYEnable;
     uint32 fracScrollX = bgState.fracScrollX + bgParams.scrollAmountH;
-    const uint32 fracScrollY = bgState.fracScrollY + bgState.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
+    const uint32 fracScrollY = bgState.fracScrollY + bgParams.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
 
     uint32 cellScrollTableAddress = regs.vcellScrollTableAddress + bgState.vcellScrollOffset;
     const bool vcellScrollEnable = useVCellScroll && bgParams.vcellScrollEnable;
