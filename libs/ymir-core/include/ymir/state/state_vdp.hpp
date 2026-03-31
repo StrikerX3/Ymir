@@ -229,7 +229,7 @@ struct VDPState {
             std::array<std::array<std::array<uint8, vdp::kVDP1FBRAMSize>, 2>, 2> meshFB;
         };
 
-        struct NormBGLayerState {
+        struct NBGLayerState {
             uint32 fracScrollX;
             uint32 fracScrollY;
             uint32 scrollAmountV;
@@ -272,7 +272,7 @@ struct VDPState {
         };
 
         VDP1RenderState vdp1State;
-        std::array<NormBGLayerState, 4> normBGLayerStates;
+        std::array<NBGLayerState, 4> nbgLayerStates;
         std::array<RotationParamState, 2> rotParamStates;
         LineBackLayerState lineBackLayerState;
         std::array<std::array<VRAMFetcherState, 6>, 2> vramFetchers;

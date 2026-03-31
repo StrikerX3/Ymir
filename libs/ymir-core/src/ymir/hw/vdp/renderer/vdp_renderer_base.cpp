@@ -3,7 +3,7 @@
 namespace ymir::vdp {
 
 void IVDPRenderer::Reset(bool hard) {
-    for (auto &state : m_normBGLayerStates) {
+    for (auto &state : m_nbgLayerStates) {
         state.Reset();
     }
     for (auto &state : m_rotParamStates) {

@@ -668,7 +668,7 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
             rs.vdp1State.meshFB[1][1].fill(0);
         }
 
-        for (auto &state : rs.normBGLayerStates) {
+        for (auto &state : rs.nbgLayerStates) {
             serialize(ar, state, version);
         }
         for (auto &state : rs.rotParamStates) {
@@ -701,22 +701,22 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
 
         if (version < 4) {
             // Compensate for the removal of SCXIN/SCYIN from fracScrollX/Y
-            rs.normBGLayerStates[0].fracScrollX -= (s.regs2.SCXIN0 << 8u) | (s.regs2.SCXDN0 >> 8u);
-            rs.normBGLayerStates[1].fracScrollX -= (s.regs2.SCXIN1 << 8u) | (s.regs2.SCXDN1 >> 8u);
-            rs.normBGLayerStates[2].fracScrollX -= (s.regs2.SCXIN2 << 8u);
-            rs.normBGLayerStates[3].fracScrollX -= (s.regs2.SCXIN3 << 8u);
+            rs.nbgLayerStates[0].fracScrollX -= (s.regs2.SCXIN0 << 8u) | (s.regs2.SCXDN0 >> 8u);
+            rs.nbgLayerStates[1].fracScrollX -= (s.regs2.SCXIN1 << 8u) | (s.regs2.SCXDN1 >> 8u);
+            rs.nbgLayerStates[2].fracScrollX -= (s.regs2.SCXIN2 << 8u);
+            rs.nbgLayerStates[3].fracScrollX -= (s.regs2.SCXIN3 << 8u);
 
-            rs.normBGLayerStates[0].fracScrollY -= (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
-            rs.normBGLayerStates[1].fracScrollY -= (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
-            rs.normBGLayerStates[2].fracScrollY -= (s.regs2.SCYIN2 << 8u);
-            rs.normBGLayerStates[3].fracScrollY -= (s.regs2.SCYIN3 << 8u);
+            rs.nbgLayerStates[0].fracScrollY -= (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
+            rs.nbgLayerStates[1].fracScrollY -= (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
+            rs.nbgLayerStates[2].fracScrollY -= (s.regs2.SCYIN2 << 8u);
+            rs.nbgLayerStates[3].fracScrollY -= (s.regs2.SCYIN3 << 8u);
         }
         if (version < 7) {
             // Compensate for the lack of scrollAmountV in earlier versions
-            rs.normBGLayerStates[0].scrollAmountV = (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
-            rs.normBGLayerStates[1].scrollAmountV = (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
-            rs.normBGLayerStates[2].scrollAmountV = (s.regs2.SCYIN2 << 8u);
-            rs.normBGLayerStates[3].scrollAmountV = (s.regs2.SCYIN3 << 8u);
+            rs.nbgLayerStates[0].scrollAmountV = (s.regs2.SCYIN0 << 8u) | (s.regs2.SCYDN0 >> 8u);
+            rs.nbgLayerStates[1].scrollAmountV = (s.regs2.SCYIN1 << 8u) | (s.regs2.SCYDN1 >> 8u);
+            rs.nbgLayerStates[2].scrollAmountV = (s.regs2.SCYIN2 << 8u);
+            rs.nbgLayerStates[3].scrollAmountV = (s.regs2.SCYIN3 << 8u);
         }
     }
 
@@ -731,13 +731,13 @@ void serialize(Archive &ar, VDPState &s, const uint32 version) {
 }
 
 template <class Archive>
-void serialize(Archive &ar, VDPState::VDPRendererState::NormBGLayerState &s, const uint32 version) {
+void serialize(Archive &ar, VDPState::VDPRendererState::NBGLayerState &s, const uint32 version) {
     // v7:
     // - New fields
-    //   - normBGLayerStates[0].scrollAmountV = (regs2.SCYIN0 << 8u) | (regs2.SCYDN0 >> 8u);
-    //   - normBGLayerStates[1].scrollAmountV = (regs2.SCYIN1 << 8u) | (regs2.SCYDN1 >> 8u);
-    //   - normBGLayerStates[2].scrollAmountV = (regs2.SCYIN2 << 8u);
-    //   - normBGLayerStates[3].scrollAmountV = (regs2.SCYIN3 << 8u);
+    //   - nbgLayerStates[0].scrollAmountV = (regs2.SCYIN0 << 8u) | (regs2.SCYDN0 >> 8u);
+    //   - nbgLayerStates[1].scrollAmountV = (regs2.SCYIN1 << 8u) | (regs2.SCYDN1 >> 8u);
+    //   - nbgLayerStates[2].scrollAmountV = (regs2.SCYIN2 << 8u);
+    //   - nbgLayerStates[3].scrollAmountV = (regs2.SCYIN3 << 8u);
     //   - vcellScrollDelay = false
     //   - vcellScrollRepeat = false
     // v4:
@@ -746,15 +746,15 @@ void serialize(Archive &ar, VDPState::VDPRendererState::NormBGLayerState &s, con
     // - Changed fields
     //   - fracScrollX and fracScrollY no longer include the values of SC[XY][ID]N#. Therefore, they need to be
     //     compensated for as follows:
-    //       normBGLayerStates[0].fracScrollX -= (regs2.SCXIN0 << 8u) | (regs2.SCXDN0 >> 8u);
-    //       normBGLayerStates[1].fracScrollX -= (regs2.SCXIN1 << 8u) | (regs2.SCXDN1 >> 8u);
-    //       normBGLayerStates[2].fracScrollX -= (regs2.SCXIN2 << 8u);
-    //       normBGLayerStates[3].fracScrollX -= (regs2.SCXIN3 << 8u);
+    //       nbgLayerStates[0].fracScrollX -= (regs2.SCXIN0 << 8u) | (regs2.SCXDN0 >> 8u);
+    //       nbgLayerStates[1].fracScrollX -= (regs2.SCXIN1 << 8u) | (regs2.SCXDN1 >> 8u);
+    //       nbgLayerStates[2].fracScrollX -= (regs2.SCXIN2 << 8u);
+    //       nbgLayerStates[3].fracScrollX -= (regs2.SCXIN3 << 8u);
     //
-    //       normBGLayerStates[0].fracScrollY -= (regs2.SCYIN0 << 8u) | (regs2.SCYDN0 >> 8u);
-    //       normBGLayerStates[1].fracScrollY -= (regs2.SCYIN1 << 8u) | (regs2.SCYDN1 >> 8u);
-    //       normBGLayerStates[2].fracScrollY -= (regs2.SCYIN2 << 8u);
-    //       normBGLayerStates[3].fracScrollY -= (regs2.SCYIN3 << 8u);
+    //       nbgLayerStates[0].fracScrollY -= (regs2.SCYIN0 << 8u) | (regs2.SCYDN0 >> 8u);
+    //       nbgLayerStates[1].fracScrollY -= (regs2.SCYIN1 << 8u) | (regs2.SCYDN1 >> 8u);
+    //       nbgLayerStates[2].fracScrollY -= (regs2.SCYIN2 << 8u);
+    //       nbgLayerStates[3].fracScrollY -= (regs2.SCYIN3 << 8u);
 
     // NOTE: fracScrollX/Y and scrollAmountV compensation happens in the VDPState serializer
     ar(s.fracScrollX, s.fracScrollY, s.scrollIncH);
