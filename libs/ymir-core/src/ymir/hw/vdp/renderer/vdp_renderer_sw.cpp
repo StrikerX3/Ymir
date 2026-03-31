@@ -1472,10 +1472,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1Cmd_Handle(uint32 cmdAddress, VDP1Com
         VDP1Cmd_DrawDistortedSprite<deinterlace, transparentMeshes>(cmdAddress, control);
         break;
 
-    case DrawPolygon: VDP1Cmd_DrawPolygon<deinterlace, transparentMeshes>(cmdAddress, control); break;
+    case DrawPolygon: VDP1Cmd_DrawPolygon<deinterlace, transparentMeshes>(cmdAddress); break;
     case DrawPolylines: [[fallthrough]];
-    case DrawPolylinesAlt: VDP1Cmd_DrawPolylines<deinterlace, transparentMeshes>(cmdAddress, control); break;
-    case DrawLine: VDP1Cmd_DrawLine<deinterlace, transparentMeshes>(cmdAddress, control); break;
+    case DrawPolylinesAlt: VDP1Cmd_DrawPolylines<deinterlace, transparentMeshes>(cmdAddress); break;
+    case DrawLine: VDP1Cmd_DrawLine<deinterlace, transparentMeshes>(cmdAddress); break;
 
     case UserClipping: [[fallthrough]];
     case UserClippingAlt: VDP1Cmd_SetUserClipping(cmdAddress); break;
@@ -1646,7 +1646,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Com
 }
 
 template <bool deinterlace, bool transparentMeshes>
-void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control) {
+void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
     if (!m_layerEnabled[0]) {
         return;
     }
@@ -1727,7 +1727,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Co
 }
 
 template <bool deinterlace, bool transparentMeshes>
-void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control) {
+void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
     if (!m_layerEnabled[0]) {
         return;
     }
@@ -1796,7 +1796,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::
 }
 
 template <bool deinterlace, bool transparentMeshes>
-void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control) {
+void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
     if (!m_layerEnabled[0]) {
         return;
     }

@@ -641,9 +641,9 @@ private:
     TPL_TRAITS void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);
     TPL_TRAITS void VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control);
 
-    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress);
+    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress);
+    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress);
 
     void VDP1Cmd_SetSystemClipping(uint32 cmdAddress);
     void VDP1Cmd_SetUserClipping(uint32 cmdAddress);
