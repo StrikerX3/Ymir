@@ -62,6 +62,7 @@ Introduced save state file version 12.
 - VDP2: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
 - VDP2: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 - VDP2: Illegal CP accesses in low-res modes are handled differently between T0-T3 and T4-T7. Fixes gaps in backgrounds in X-Men vs. Street Fighter. (#775)
+- VDP2: Sprite special pattern detection was short by one bit.
 - VDP2: Use only the first PN access to check for valid CP accesses. Fixes graphics shift in Daisuki and BattleSport. (#769, #770)
 
 
