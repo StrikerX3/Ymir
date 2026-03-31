@@ -110,6 +110,7 @@ void VDP2VRAMDelayView::Display() {
 
         const uint32 max = hires ? 4 : 8;
         std::array<uint8, 4> firstPN = {0xFF, 0xFF, 0xFF, 0xFF};
+        std::array<uint8, 4> lastCP = {0xFF, 0xFF, 0xFF, 0xFF};
         for (uint32 bank = 0; bank < 4; ++bank) {
             if (bank == 1 && !regs2.vramControl.partitionVRAMA) {
                 continue;
@@ -131,6 +132,17 @@ void VDP2VRAMDelayView::Display() {
                     }
                     break;
                 }
+                case vdp::CyclePatterns::CharPatNBG0:
+                case vdp::CyclePatterns::CharPatNBG1:
+                case vdp::CyclePatterns::CharPatNBG2:
+                case vdp::CyclePatterns::CharPatNBG3: {
+                    const uint32 index =
+                        static_cast<uint32>(timings[i]) - static_cast<uint32>(vdp::CyclePatterns::CharPatNBG0);
+                    if (!regs2.bgParams[index + 1].bitmap) {
+                        lastCP[index] = i;
+                    }
+                    break;
+                }
                 default: break;
                 }
             }
@@ -147,6 +159,7 @@ void VDP2VRAMDelayView::Display() {
             ImGui::TextUnformatted(name);
 
             auto cp = [&](const char *name, uint32 bg, uint32 timing) {
+                assert(lastCP[bg] != 0xFF);
                 const auto &bgParams = regs2.bgParams[bg + 1];
                 bool valid;
                 if (bgParams.bitmap) {
@@ -163,7 +176,8 @@ void VDP2VRAMDelayView::Display() {
                         // T0      T1      T2      T3
                         {0b0111, 0b1110, 0b1100, 0b1000},
                     };
-                    valid = bit::test<0>(kPatterns[bgParams.cellSizeShift][timing] >> firstPN[bg]);
+                    valid = bit::test<0>(kPatterns[bgParams.cellSizeShift][timing] >> firstPN[bg]) &&
+                            lastCP[bg] >= firstPN[bg];
                 } else {
                     static constexpr uint8 kPatterns[8] = {
                         //  T0          T1          T2          T3          T4          T5          T6          T7
