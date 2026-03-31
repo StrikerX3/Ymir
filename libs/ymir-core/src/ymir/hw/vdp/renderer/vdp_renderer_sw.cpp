@@ -103,8 +103,6 @@ void SoftwareVDPRenderer::ResetImpl(bool hard) {
         m_framebuffer.fill(0xFF000000);
     }
 
-    m_VDP1State.Reset();
-
     m_layerEnabled.fill(false);
     for (auto &state : m_layerStates) {
         state[0].Reset();
@@ -249,15 +247,7 @@ void SoftwareVDPRenderer::PostLoadStateSync() {
 }
 
 void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
-    state.vdp1State.sysClipH = m_VDP1State.sysClipH;
-    state.vdp1State.sysClipV = m_VDP1State.sysClipV;
-    state.vdp1State.doubleV = m_VDP1State.doubleV;
-    state.vdp1State.userClipX0 = m_VDP1State.userClipX0;
-    state.vdp1State.userClipY0 = m_VDP1State.userClipY0;
-    state.vdp1State.userClipX1 = m_VDP1State.userClipX1;
-    state.vdp1State.userClipY1 = m_VDP1State.userClipY1;
-    state.vdp1State.localCoordX = m_VDP1State.localCoordX;
-    state.vdp1State.localCoordY = m_VDP1State.localCoordY;
+    state.vdp1State.doubleV = m_VDP1doubleV;
     state.vdp1State.meshFB = m_meshFB;
 
     for (size_t i = 0; i < 4; i++) {
@@ -310,15 +300,7 @@ bool SoftwareVDPRenderer::ValidateState(const state::VDPState::VDPRendererState 
 }
 
 void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &state) {
-    m_VDP1State.sysClipH = state.vdp1State.sysClipH;
-    m_VDP1State.sysClipV = state.vdp1State.sysClipV;
-    m_VDP1State.doubleV = state.vdp1State.doubleV;
-    m_VDP1State.userClipX0 = state.vdp1State.userClipX0;
-    m_VDP1State.userClipY0 = state.vdp1State.userClipY0;
-    m_VDP1State.userClipX1 = state.vdp1State.userClipX1;
-    m_VDP1State.userClipY1 = state.vdp1State.userClipY1;
-    m_VDP1State.localCoordX = state.vdp1State.localCoordX;
-    m_VDP1State.localCoordY = state.vdp1State.localCoordY;
+    m_VDP1doubleV = state.vdp1State.doubleV;
     m_meshFB = state.vdp1State.meshFB;
 
     for (size_t i = 0; i < 4; i++) {
@@ -522,8 +504,7 @@ void SoftwareVDPRenderer::VDP1SwapFramebuffer() {
 void SoftwareVDPRenderer::VDP1BeginFrame() {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
-    // TODO: move doubleV to this class
-    m_VDP1State.doubleV =
+    m_VDP1doubleV =
         m_enhancements.deinterlace && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity && !regs1.dblInterlaceEnable;
 }
 
@@ -656,16 +637,16 @@ void SoftwareVDPRenderer::VDP1RenderThread() {
             case EvtType::SwapBuffers: rctx.swapBuffersSignal.Set(); break;
             case EvtType::Command: (this->*m_fnVDP1HandleCommand)(event.command.address, event.command.control); break;
 
-            case EvtType::VRAMWriteByte: rctx.vdp1.VRAM[event.write.address] = event.write.value; break;
+            case EvtType::VRAMWriteByte: rctx.vdp1.mem.VRAM[event.write.address] = event.write.value; break;
             case EvtType::VRAMWriteWord:
-                util::WriteBE<uint16>(&rctx.vdp1.VRAM[event.write.address], event.write.value);
+                util::WriteBE<uint16>(&rctx.vdp1.mem.VRAM[event.write.address], event.write.value);
                 break;
             case EvtType::RegWrite: rctx.vdp1.regs.Write<false>(event.write.address, event.write.value); break;
 
             case EvtType::PreSaveStateSync: rctx.preSaveSyncSignal.Set(); break;
             case EvtType::PostLoadStateSync:
                 rctx.vdp1.regs = m_state.regs1;
-                rctx.vdp1.VRAM = m_state.VRAM1;
+                rctx.vdp1.mem = m_state.mem1;
                 rctx.postLoadSyncSignal.Set();
                 break;
 
@@ -728,15 +709,15 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
             }
             case EvtType::VDP2EndFrame: rctx.renderFinishedSignal.Set(); break;
 
-            case EvtType::VDP2VRAMWriteByte: rctx.vdp2.VRAM[event.write.address] = event.write.value; break;
+            case EvtType::VDP2VRAMWriteByte: rctx.vdp2.mem.VRAM[event.write.address] = event.write.value; break;
             case EvtType::VDP2VRAMWriteWord:
-                util::WriteBE<uint16>(&rctx.vdp2.VRAM[event.write.address], event.write.value);
+                util::WriteBE<uint16>(&rctx.vdp2.mem.VRAM[event.write.address], event.write.value);
                 break;
             case EvtType::VDP2CRAMWriteByte:
                 // Update CRAM cache if color RAM mode changed is in one of the RGB555 modes
                 if (rctx.vdp2.regs.vramControl.colorRAMMode <= 1) {
-                    const uint8 oldValue = rctx.vdp2.CRAM[event.write.address];
-                    rctx.vdp2.CRAM[event.write.address] = event.write.value;
+                    const uint8 oldValue = rctx.vdp2.mem.CRAM[event.write.address];
+                    rctx.vdp2.mem.CRAM[event.write.address] = event.write.value;
 
                     if (oldValue != event.write.value) {
                         const uint32 cramAddress = event.write.address & ~1;
@@ -745,14 +726,14 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
                         rctx.vdp2.CRAMCache[cramAddress / sizeof(uint16)] = ConvertRGB555to888(color5);
                     }
                 } else {
-                    rctx.vdp2.CRAM[event.write.address] = event.write.value;
+                    rctx.vdp2.mem.CRAM[event.write.address] = event.write.value;
                 }
                 break;
             case EvtType::VDP2CRAMWriteWord:
                 // Update CRAM cache if color RAM mode is in one of the RGB555 modes
                 if (rctx.vdp2.regs.vramControl.colorRAMMode <= 1) {
-                    const uint16 oldValue = util::ReadBE<uint16>(&rctx.vdp2.CRAM[event.write.address]);
-                    util::WriteBE<uint16>(&rctx.vdp2.CRAM[event.write.address], event.write.value);
+                    const uint16 oldValue = util::ReadBE<uint16>(&rctx.vdp2.mem.CRAM[event.write.address]);
+                    util::WriteBE<uint16>(&rctx.vdp2.mem.CRAM[event.write.address], event.write.value);
 
                     if (oldValue != event.write.value) {
                         const uint32 cramAddress = event.write.address & ~1;
@@ -760,7 +741,7 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
                         rctx.vdp2.CRAMCache[cramAddress / sizeof(uint16)] = ConvertRGB555to888(color5);
                     }
                 } else {
-                    util::WriteBE<uint16>(&rctx.vdp2.CRAM[event.write.address], event.write.value);
+                    util::WriteBE<uint16>(&rctx.vdp2.mem.CRAM[event.write.address], event.write.value);
                 }
                 break;
             case EvtType::VDP2RegWrite:
@@ -771,7 +752,7 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
 
                     const uint8 newMode = rctx.vdp2.regs.vramControl.colorRAMMode;
                     if (newMode != oldMode && newMode <= 1) {
-                        for (uint32 addr = 0; addr < rctx.vdp2.CRAM.size(); addr += sizeof(uint16)) {
+                        for (uint32 addr = 0; addr < rctx.vdp2.mem.CRAM.size(); addr += sizeof(uint16)) {
                             const uint16 colorValue = VDP2ReadRendererCRAM<uint16>(addr);
                             const Color555 color5{.u16 = colorValue};
                             rctx.vdp2.CRAMCache[addr / sizeof(uint16)] = ConvertRGB555to888(color5);
@@ -803,11 +784,10 @@ void SoftwareVDPRenderer::VDP2RenderThread() {
             case EvtType::PreSaveStateSync: rctx.preSaveSyncSignal.Set(); break;
             case EvtType::PostLoadStateSync:
                 rctx.vdp2.regs = m_state.regs2;
-                rctx.vdp2.VRAM = m_state.VRAM2;
-                rctx.vdp2.CRAM = m_state.CRAM;
+                rctx.vdp2.mem = m_state.mem2;
                 rctx.postLoadSyncSignal.Set();
                 VDP2UpdateEnabledBGs();
-                for (uint32 addr = 0; addr < rctx.vdp2.CRAM.size(); addr += sizeof(uint16)) {
+                for (uint32 addr = 0; addr < rctx.vdp2.mem.CRAM.size(); addr += sizeof(uint16)) {
                     const uint16 colorValue = VDP2ReadRendererCRAM<uint16>(addr);
                     const Color555 color5{.u16 = colorValue};
                     rctx.vdp2.CRAMCache[addr / sizeof(uint16)] = ConvertRGB555to888(color5);
@@ -848,23 +828,22 @@ void SoftwareVDPRenderer::VDP2DeinterlaceRenderThread() {
 template <mem_primitive T>
 FORCE_INLINE T SoftwareVDPRenderer::VDP1ReadRendererVRAM(uint32 address) {
     if (m_threadedVDP1Rendering) {
-        return util::ReadBE<T>(&m_vdp1RenderingContext.vdp1.VRAM[address & 0x7FFFF]);
+        return m_vdp1RenderingContext.vdp1.mem.ReadVRAM<T>(address);
     } else {
-        return m_state.VDP1ReadVRAM<T>(address);
+        return m_state.mem1.ReadVRAM<T>(address);
     }
 }
 
 FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &SoftwareVDPRenderer::VDP2GetRendererVRAM() {
-    return m_threadedVDP2Rendering ? m_vdp2RenderingContext.vdp2.VRAM : m_state.VRAM2;
+    return m_threadedVDP2Rendering ? m_vdp2RenderingContext.vdp2.mem.VRAM : m_state.mem2.VRAM;
 }
 
 template <mem_primitive T>
 FORCE_INLINE T SoftwareVDPRenderer::VDP2ReadRendererVRAM(uint32 address) {
     if (m_threadedVDP2Rendering) {
-        address = m_state.MapVDP2VRAMAddress<T>(address);
-        return util::ReadBE<T>(&m_vdp2RenderingContext.vdp2.VRAM[address]);
+        return m_vdp2RenderingContext.vdp2.mem.ReadVRAM<T>(address);
     } else {
-        return m_state.VDP2ReadVRAM<T>(address);
+        return m_state.mem2.ReadVRAM<T>(address);
     }
 }
 
@@ -876,10 +855,9 @@ FORCE_INLINE T SoftwareVDPRenderer::VDP2ReadRendererCRAM(uint32 address) {
         return value;
     } else {
         if (m_threadedVDP2Rendering) {
-            address = MapRendererCRAMAddress<T>(address);
-            return util::ReadBE<T>(&m_vdp2RenderingContext.vdp2.CRAM[address]);
+            return m_vdp2RenderingContext.vdp2.mem.ReadCRAM<T>(address);
         } else {
-            return m_state.VDP2ReadCRAM<T>(address);
+            return m_state.mem2.ReadCRAM<T>(address);
         }
     }
 }
@@ -895,10 +873,10 @@ FORCE_INLINE Color888 SoftwareVDPRenderer::VDP2ReadRendererColor5to8(uint32 addr
 template <mem_primitive T>
 FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateCRAMCache(uint32 address) {
     address &= ~1;
-    const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.CRAM[address])};
+    const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.mem2.CRAM[address])};
     m_CRAMCache[address / sizeof(uint16)] = ConvertRGB555to888(color5);
     if constexpr (std::is_same_v<T, uint32>) {
-        const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.CRAM[address + 2])};
+        const Color555 color5{.u16 = util::ReadBE<uint16>(&m_state.mem2.CRAM[address + 2])};
         m_CRAMCache[(address + 2) / sizeof(uint16)] = ConvertRGB555to888(color5);
     }
 }
@@ -922,7 +900,7 @@ template <bool countCycles>
 FORCE_INLINE void SoftwareVDPRenderer::VDP1DoEraseFramebuffer(uint64 cycles) {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
 
     devlog::trace<grp::vdp1>("Erasing framebuffer {} - {}x{} to {}x{} -> {:04X}  {}x{}  {}-bit", m_state.displayFB,
                              regs1.eraseX1Latch, regs1.eraseY1Latch, regs1.eraseX3Latch, regs1.eraseY3Latch,
@@ -1003,11 +981,11 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelClipped(CoordS32 coord, bool u
 template <bool deinterlace>
 FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelUserClipped(CoordS32 coord) const {
     auto [x, y] = coord;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x < ctx.userClipX0 || x > ctx.userClipX1) {
         return true;
     }
-    if (y < (ctx.userClipY0 << ctx.doubleV) || y > (ctx.userClipY1 << ctx.doubleV)) {
+    if (y < (ctx.userClipY0 << m_VDP1doubleV) || y > (ctx.userClipY1 << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1016,11 +994,11 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelUserClipped(CoordS32 coord) co
 template <bool deinterlace>
 FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsPixelSystemClipped(CoordS32 coord) const {
     auto [x, y] = coord;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x < 0 || x > ctx.sysClipH) {
         return true;
     }
-    if (y < 0 || y > (ctx.sysClipV << ctx.doubleV)) {
+    if (y < 0 || y > (ctx.sysClipV << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1030,7 +1008,7 @@ template <bool deinterlace>
 FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsLineSystemClipped(CoordS32 coord1, CoordS32 coord2) const {
     auto [x1, y1] = coord1;
     auto [x2, y2] = coord2;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x1 < 0 && x2 < 0) {
         return true;
     }
@@ -1040,7 +1018,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1IsLineSystemClipped(CoordS32 coord1, 
     if (x1 > ctx.sysClipH && x2 > ctx.sysClipH) {
         return true;
     }
-    if (y1 > (ctx.sysClipV << ctx.doubleV) && y2 > (ctx.sysClipV << ctx.doubleV)) {
+    if (y1 > (ctx.sysClipV << m_VDP1doubleV) && y2 > (ctx.sysClipV << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1053,7 +1031,7 @@ bool SoftwareVDPRenderer::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coor
     auto [x2, y2] = coord2;
     auto [x3, y3] = coord3;
     auto [x4, y4] = coord4;
-    const auto &ctx = m_VDP1State;
+    const auto &ctx = m_state.state1;
     if (x1 < 0 && x2 < 0 && x3 < 0 && x4 < 0) {
         return true;
     }
@@ -1063,8 +1041,8 @@ bool SoftwareVDPRenderer::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coor
     if (x1 > ctx.sysClipH && x2 > ctx.sysClipH && x3 > ctx.sysClipH && x4 > ctx.sysClipH) {
         return true;
     }
-    if (y1 > (ctx.sysClipV << ctx.doubleV) && y2 > (ctx.sysClipV << ctx.doubleV) &&
-        y3 > (ctx.sysClipV << ctx.doubleV) && y4 > (ctx.sysClipV << ctx.doubleV)) {
+    if (y1 > (ctx.sysClipV << m_VDP1doubleV) && y2 > (ctx.sysClipV << m_VDP1doubleV) &&
+        y3 > (ctx.sysClipV << m_VDP1doubleV) && y4 > (ctx.sysClipV << m_VDP1doubleV)) {
         return true;
     }
     return false;
@@ -1189,8 +1167,8 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 co
     }
 
     LineStepper line{coord1, coord2, antiAlias};
-    auto &ctx = m_VDP1State;
-    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
+    auto &ctx = m_state.state1;
+    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << m_VDP1doubleV) | m_VDP1doubleV);
 
     VDP1PixelParams pixelParams{
         .mode = lineParams.mode,
@@ -1232,7 +1210,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
     }
 
     const VDP1Regs &regs1 = VDP1GetRegs();
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
 
     const uint32 charSizeH = std::max<uint32>(lineParams.charSizeH, 1u);
     const auto mode = lineParams.mode;
@@ -1245,7 +1223,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
     const uint32 v = lineParams.texVStepper.Value();
 
     LineStepper line{coord1, coord2, true};
-    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << ctx.doubleV) | ctx.doubleV);
+    const uint32 skipSteps = line.SystemClip(ctx.sysClipH, (ctx.sysClipV << m_VDP1doubleV) | m_VDP1doubleV);
 
     VDP1PixelParams pixelParams{
         .mode = mode,
@@ -1435,7 +1413,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
         .charSizeV = charSizeV,
     };
 
-    const bool flipV = control.flipV;
     QuadStepper quad{coordA, coordB, coordC, coordD};
 
     if (mode.gouraudEnable) {
@@ -1456,7 +1433,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
         lineParams.gouraudRight = &quad.RightEdge().Gouraud();
     }
 
-    quad.SetupTexture(lineParams.texVStepper, charSizeV, flipV);
+    quad.SetupTexture(lineParams.texVStepper, charSizeV, control.flipV);
 
     // Optimization for the case where the quad goes outside the system clipping area.
     // Skip rendering the rest of the quad when a line is clipped after plotting at least one line.
@@ -1517,7 +1494,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Comman
     const uint32 charSizeH = size.H * 8;
     const uint32 charSizeV = size.V;
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
@@ -1526,7 +1503,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Comman
     const sint32 rx = xa + std::max(charSizeH, 1u) - 1u; // right X
     const sint32 by = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
 
     const CoordS32 coordA{lx, ty << doubleV};
     const CoordS32 coordB{rx, ty << doubleV};
@@ -1547,7 +1524,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Comman
 
     const VDP1Command::Size size{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0A)};
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
 
@@ -1625,7 +1602,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Comman
     qxd += ctx.localCoordX;
     qyd += ctx.localCoordY;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
 
     const CoordS32 coordA{qxa, qya << doubleV};
     const CoordS32 coordB{qxb, qyb << doubleV};
@@ -1646,7 +1623,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Com
 
     const VDP1Command::Size size{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0A)};
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
     const sint32 xb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x10)) + ctx.localCoordX;
@@ -1656,7 +1633,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Com
     const sint32 xd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x18)) + ctx.localCoordX;
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -1674,7 +1651,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Co
         return;
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const VDP1Command::DrawMode mode{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x04)};
 
     const uint16 color = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x06);
@@ -1688,7 +1665,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Co
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -1755,7 +1732,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::
         return;
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const VDP1Command::DrawMode mode{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x04)};
 
     const uint16 color = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x06);
@@ -1769,7 +1746,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::
     const sint32 yd = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1A)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
     const CoordS32 coordC{xc, yc << doubleV};
@@ -1824,7 +1801,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Contr
         return;
     }
 
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     const VDP1Command::DrawMode mode{.u16 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x04)};
 
     const uint16 color = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x06);
@@ -1834,7 +1811,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Contr
     const sint32 yb = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x12)) + ctx.localCoordY;
     const uint32 gouraudTable = static_cast<uint32>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x1C)) << 3u;
 
-    const sint32 doubleV = ctx.doubleV;
+    const sint32 doubleV = m_VDP1doubleV;
     const CoordS32 coordA{xa, ya << doubleV};
     const CoordS32 coordB{xb, yb << doubleV};
 
@@ -1866,14 +1843,14 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Contr
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.sysClipH = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
     ctx.sysClipV = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
     devlog::trace<grp::vdp1_cmd>("[{:05X}] Set system clipping: {}x{}", cmdAddress, ctx.sysClipH, ctx.sysClipV);
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.userClipX0 = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
     ctx.userClipY0 = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
     ctx.userClipX1 = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
@@ -1883,7 +1860,7 @@ void SoftwareVDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetLocalCoordinates(uint32 cmdAddress) {
-    auto &ctx = m_VDP1State;
+    auto &ctx = m_state.state1;
     ctx.localCoordX = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
     ctx.localCoordY = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
     devlog::trace<grp::vdp1_cmd>("[{:05X}] Set local coordinates: {}x{}", cmdAddress, ctx.localCoordX, ctx.localCoordY);
@@ -1910,9 +1887,9 @@ FORCE_INLINE const VDP2Regs &SoftwareVDPRenderer::VDP2GetRegs() const {
 
 FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &SoftwareVDPRenderer::VDP2GetVRAM() {
     if (m_threadedVDP2Rendering) {
-        return m_vdp2RenderingContext.vdp2.VRAM;
+        return m_vdp2RenderingContext.vdp2.mem.VRAM;
     } else {
-        return m_state.VRAM2;
+        return m_state.mem2.VRAM;
     }
 }
 

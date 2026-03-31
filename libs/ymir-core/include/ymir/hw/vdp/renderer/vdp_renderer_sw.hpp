@@ -280,22 +280,12 @@ private:
 
         struct VDP1 {
             VDP1Regs regs;
-            alignas(16) std::array<uint8, kVDP1VRAMSize> VRAM;
+            VDP1Memory mem;
         } vdp1;
 
         void Reset() {
             vdp1.regs.Reset();
-            for (uint32 addr = 0; addr < vdp1.VRAM.size(); addr++) {
-                if ((addr & 0x1F) == 0) {
-                    vdp1.VRAM[addr] = 0x80;
-                } else if ((addr & 0x1F) == 1) {
-                    vdp1.VRAM[addr] = 0x00;
-                } else if ((addr & 2) == 2) {
-                    vdp1.VRAM[addr] = 0x55;
-                } else {
-                    vdp1.VRAM[addr] = 0xAA;
-                }
-            }
+            vdp1.mem.Reset();
         }
 
         void EnqueueEvent(VDP1RenderEvent &&event) {
@@ -481,8 +471,7 @@ private:
 
         struct VDP2 {
             VDP2Regs regs;
-            alignas(16) std::array<uint8, kVDP2VRAMSize> VRAM;
-            alignas(16) std::array<uint8, kVDP2CRAMSize> CRAM;
+            VDP2Memory mem{regs};
 
             // Cached CRAM colors converted from RGB555 to RGB888.
             // Only valid when color RAM mode is one of the RGB555 modes.
@@ -493,8 +482,7 @@ private:
 
         void Reset() {
             vdp2.regs.Reset();
-            vdp2.VRAM.fill(0);
-            vdp2.CRAM.fill(0);
+            vdp2.mem.Reset();
             vdp2.CRAMCache.fill({.u32 = 0});
             displayFB = 0;
         }
@@ -581,37 +569,7 @@ private:
     // -------------------------------------------------------------------------
     // VDP1
 
-    struct VDP1State {
-        VDP1State() {
-            Reset();
-        }
-
-        void Reset() {
-            sysClipH = 512;
-            sysClipV = 256;
-
-            userClipX0 = 0;
-            userClipY0 = 0;
-
-            userClipX1 = 512;
-            userClipY1 = 256;
-
-            localCoordX = 0;
-            localCoordY = 0;
-        }
-
-        // System clipping dimensions
-        uint16 sysClipH, sysClipV;
-        uint16 doubleV;
-
-        // User clipping area
-        uint16 userClipX0, userClipY0; // Top-left
-        uint16 userClipX1, userClipY1; // Bottom-right
-
-        // Local coordinates offset
-        sint32 localCoordX;
-        sint32 localCoordY;
-    } m_VDP1State;
+    uint16 m_VDP1doubleV;
 
     struct VDP1PixelParams {
         VDP1Command::DrawMode mode;
@@ -840,7 +798,7 @@ private:
 
     template <mem_primitive T>
     FORCE_INLINE uint32 MapRendererCRAMAddress(uint32 address) const {
-        m_state.MapVDP2CRAMAddress<T>(address);
+        m_state.mem2.MapCRAMAddress<T>(address);
         return kVDP2CRAMAddressMapping[m_vdp2RenderingContext.vdp2.regs.vramControl.colorRAMMode >> 1][address & 0xFFF];
     }
 

@@ -17,9 +17,169 @@
 
 namespace ymir::vdp {
 
+/// @brief No-op memory function.
+/// @tparam T value type
+/// @param[in] address address to read or write
+/// @param[in] value value being read or written
+template <mem_primitive T>
+inline void NoopMemFn(uint32 address, T value) {}
+
+/// @brief VDP1 memory arrays and accessors.
+struct VDP1Memory {
+    alignas(16) std::array<uint8, kVDP1VRAMSize> VRAM;
+
+    // Hard reset
+    void Reset() {
+        for (uint32 addr = 0; addr < VRAM.size(); addr++) {
+            if ((addr & 0x1F) == 0) {
+                VRAM[addr] = 0x80;
+            } else if ((addr & 0x1F) == 1) {
+                VRAM[addr] = 0x00;
+            } else if ((addr & 2) == 2) {
+                VRAM[addr] = 0x55;
+            } else {
+                VRAM[addr] = 0xAA;
+            }
+        }
+    }
+
+    template <mem_primitive T>
+    FORCE_INLINE uint32 MapVRAMAddress(uint32 address) const {
+        address &= 0x7FFFF & ~(sizeof(T) - 1);
+        return address;
+    }
+
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE T ReadVRAM(uint32 address, TMemFn &&memFn = NoopMemFn) const {
+        address = MapVRAMAddress<T>(address);
+        const T value = util::ReadBE<T>(&VRAM[address]);
+        memFn(address, value);
+        return value;
+    }
+
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE void WriteVRAM(uint32 address, T value, TMemFn &&memFn = NoopMemFn) {
+        address = MapVRAMAddress<T>(address);
+        util::WriteBE<T>(&VRAM[address], value);
+        memFn(address, value);
+    }
+};
+
+/// @brief VDP2 memory arrays and accessors.
+struct VDP2Memory {
+    alignas(16) std::array<uint8, kVDP2VRAMSize> VRAM; // 4x 128 KiB banks: A0, A1, B0, B1
+    alignas(16) std::array<uint8, kVDP2CRAMSize> CRAM;
+    const VDP2Regs &regs;
+
+    VDP2Memory(const VDP2Regs &regs)
+        : regs(regs) {}
+
+    VDP2Memory operator=(const VDP2Memory &rhs) {
+        VRAM = rhs.VRAM;
+        CRAM = rhs.CRAM;
+        return *this;
+    }
+
+    // Hard reset
+    void Reset() {
+        VRAM.fill(0);
+        CRAM.fill(0);
+    }
+
+    template <mem_primitive T>
+    static void NoopMemFn(uint32 address, T value) {}
+
+    template <mem_primitive T>
+    FORCE_INLINE uint32 MapVRAMAddress(uint32 address) const {
+        // TODO: handle VRSIZE.VRAMSZ
+        address &= 0x7FFFF & ~(sizeof(T) - 1);
+        return address;
+    }
+
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE T ReadVRAM(uint32 address, TMemFn &&memFn = NoopMemFn) const {
+        address = MapVRAMAddress<T>(address);
+        const T value = util::ReadBE<T>(&VRAM[address]);
+        memFn(address, value);
+        return value;
+    }
+
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE void WriteVRAM(uint32 address, T value, TMemFn &&memFn = NoopMemFn) {
+        address = MapVRAMAddress<T>(address);
+        util::WriteBE<T>(&VRAM[address], value);
+        memFn(address, value);
+    }
+
+    template <mem_primitive T>
+    FORCE_INLINE uint32 MapCRAMAddress(uint32 address) const {
+        address &= 0xFFF & ~(sizeof(T) - 1);
+        return kVDP2CRAMAddressMapping[regs.vramControl.colorRAMMode >> 1][address];
+    }
+
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE T ReadCRAM(uint32 address, TMemFn &&memFn = NoopMemFn) const {
+        if constexpr (std::is_same_v<T, uint32>) {
+            uint32 value = ReadCRAM<uint16>(address + 0) << 16u;
+            value |= ReadCRAM<uint16>(address + 2) << 0u;
+            memFn(address, value);
+            return value;
+        }
+        address = MapCRAMAddress<T>(address);
+        const T value = util::ReadBE<T>(&CRAM[address]);
+        memFn(address, value);
+        return value;
+    }
+
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE void WriteCRAM(uint32 address, T value, TMemFn &&memFn = NoopMemFn) {
+        address = MapCRAMAddress<T>(address);
+        util::WriteBE<T>(&CRAM[address], value);
+        memFn(address, value);
+        if (regs.vramControl.colorRAMMode == 0) {
+            address ^= 0x800;
+            util::WriteBE<T>(&CRAM[address], value);
+            memFn(address, value);
+        }
+    }
+};
+
+/// @brief Internal VDP1 state.
+struct VDP1State {
+    VDP1State() {
+        Reset();
+    }
+
+    void Reset() {
+        sysClipH = kVDP1DefaultFBSizeH;
+        sysClipV = kVDP1DefaultFBSizeV;
+
+        userClipX0 = 0;
+        userClipY0 = 0;
+
+        userClipX1 = kVDP1DefaultFBSizeH;
+        userClipY1 = kVDP1DefaultFBSizeV;
+
+        localCoordX = 0;
+        localCoordY = 0;
+    }
+
+    // System clipping dimensions
+    uint16 sysClipH, sysClipV;
+
+    // User clipping area
+    uint16 userClipX0, userClipY0; // Top-left
+    uint16 userClipX1, userClipY1; // Bottom-right
+
+    // Local coordinates offset
+    sint32 localCoordX;
+    sint32 localCoordY;
+};
+
 /// @brief Contains the entire state of the VDP1 and VDP2.
 struct VDPState {
-    VDPState() {
+    VDPState()
+        : mem2(regs2) {
         Reset(true);
     }
 
@@ -27,20 +187,8 @@ struct VDPState {
     /// @param hard whether to do a hard (`true`) or soft (`false`) reset
     void Reset(bool hard) {
         if (hard) {
-            for (uint32 addr = 0; addr < VRAM1.size(); addr++) {
-                if ((addr & 0x1F) == 0) {
-                    VRAM1[addr] = 0x80;
-                } else if ((addr & 0x1F) == 1) {
-                    VRAM1[addr] = 0x00;
-                } else if ((addr & 2) == 2) {
-                    VRAM1[addr] = 0x55;
-                } else {
-                    VRAM1[addr] = 0xAA;
-                }
-            }
-
-            VRAM2.fill(0);
-            CRAM.fill(0);
+            mem1.Reset();
+            mem2.Reset();
             for (auto &fb : spriteFB) {
                 fb.fill(0);
             }
@@ -49,6 +197,7 @@ struct VDPState {
 
         regs1.Reset();
         regs2.Reset();
+        state1.Reset();
 
         HPhase = HorizontalPhase::Active;
         VPhase = VerticalPhase::Active;
@@ -58,9 +207,9 @@ struct VDPState {
     // Save states
 
     void SaveState(state::VDPState &state) const {
-        state.VRAM1 = VRAM1;
-        state.VRAM2 = VRAM2;
-        state.CRAM = CRAM;
+        state.VRAM1 = mem1.VRAM;
+        state.VRAM2 = mem2.VRAM;
+        state.CRAM = mem2.CRAM;
         state.spriteFB = spriteFB;
         state.displayFB = displayFB;
 
@@ -230,6 +379,15 @@ struct VDPState {
         state.regs2.VCNTLatch = regs2.VCNTLatch;
         state.regs2.VCNTLatched = regs2.VCNTLatched;
 
+        state.renderer.vdp1State.sysClipH = state1.sysClipH;
+        state.renderer.vdp1State.sysClipV = state1.sysClipV;
+        state.renderer.vdp1State.userClipX0 = state1.userClipX0;
+        state.renderer.vdp1State.userClipY0 = state1.userClipY0;
+        state.renderer.vdp1State.userClipX1 = state1.userClipX1;
+        state.renderer.vdp1State.userClipY1 = state1.userClipY1;
+        state.renderer.vdp1State.localCoordX = state1.localCoordX;
+        state.renderer.vdp1State.localCoordY = state1.localCoordY;
+
         switch (HPhase) {
         default:
         case HorizontalPhase::Active: state.HPhase = state::VDPState::HorizontalPhase::Active; break;
@@ -272,9 +430,9 @@ struct VDPState {
     }
 
     void LoadState(const state::VDPState &state) {
-        VRAM1 = state.VRAM1;
-        VRAM2 = state.VRAM2;
-        CRAM = state.CRAM;
+        mem1.VRAM = state.VRAM1;
+        mem2.VRAM = state.VRAM2;
+        mem2.CRAM = state.CRAM;
         spriteFB = state.spriteFB;
         displayFB = state.displayFB;
 
@@ -444,6 +602,15 @@ struct VDPState {
         regs2.VCNTLatch = state.regs2.VCNTLatch;
         regs2.VCNTLatched = state.regs2.VCNTLatched;
 
+        state1.sysClipH = state.renderer.vdp1State.sysClipH;
+        state1.sysClipV = state.renderer.vdp1State.sysClipV;
+        state1.userClipX0 = state.renderer.vdp1State.userClipX0;
+        state1.userClipY0 = state.renderer.vdp1State.userClipY0;
+        state1.userClipX1 = state.renderer.vdp1State.userClipX1;
+        state1.userClipY1 = state.renderer.vdp1State.userClipY1;
+        state1.localCoordX = state.renderer.vdp1State.localCoordX;
+        state1.localCoordY = state.renderer.vdp1State.localCoordY;
+
         regs2.accessPatternsDirty = true;
 
         switch (state.HPhase) {
@@ -468,19 +635,17 @@ struct VDPState {
     // -------------------------------------------------------------------------
     // Memory
 
-    alignas(16) std::array<uint8, kVDP1VRAMSize> VRAM1;
-    alignas(16) std::array<uint8, kVDP2VRAMSize> VRAM2; // 4x 128 KiB banks: A0, A1, B0, B1
-    alignas(16) std::array<uint8, kVDP2CRAMSize> CRAM;
+    VDP1Memory mem1;
+    VDP2Memory mem2;
     alignas(16) std::array<SpriteFB, 2> spriteFB;
     uint8 displayFB; // index of current sprite display buffer, CPU-accessible; opposite buffer is drawn into by VDP1
 
     // -------------------------------------------------------------------------
+    // Registers and state
 
-    template <mem_primitive T>
-    FORCE_INLINE uint32 MapVDP1VRAMAddress(uint32 address) const {
-        address &= 0x7FFFF & ~(sizeof(T) - 1);
-        return address;
-    }
+    VDP1Regs regs1;
+    VDP2Regs regs2;
+    VDP1State state1;
 
     template <mem_primitive T>
     FORCE_INLINE uint32 MapVDP1FBAddress(uint32 address) const {
@@ -488,76 +653,36 @@ struct VDPState {
         return address;
     }
 
-    FORCE_INLINE uint32 MapVDP1RegAddress(uint32 address) const {
-        address &= 0x7FFFF & ~(sizeof(uint16) - 1);
-        return address;
-    }
-
-    // -------------------------------------------------------------------------
-
-    template <mem_primitive T>
-    FORCE_INLINE uint32 MapVDP2VRAMAddress(uint32 address) const {
-        // TODO: handle VRSIZE.VRAMSZ
-        address &= 0x7FFFF & ~(sizeof(T) - 1);
-        return address;
-    }
-
-    template <mem_primitive T>
-    FORCE_INLINE uint32 MapVDP2CRAMAddress(uint32 address) const {
-        address &= 0xFFF & ~(sizeof(T) - 1);
-        return kVDP2CRAMAddressMapping[regs2.vramControl.colorRAMMode >> 1][address];
-    }
-
-    FORCE_INLINE uint32 MapVDP2RegAddress(uint32 address) const {
-        address &= 0x1FF & ~(sizeof(uint16) - 1);
-        return address;
-    }
-
-    template <mem_primitive T>
-    static void DefaultMemFn(uint32 address, T value) {}
-
-    // -------------------------------------------------------------------------
-
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE T VDP1ReadVRAM(uint32 address, TMemFn &&memFn = DefaultMemFn) const {
-        address = MapVDP1VRAMAddress<T>(address);
-        const T value = util::ReadBE<T>(&VRAM1[address]);
-        memFn(address, value);
-        return value;
-    }
-
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE void VDP1WriteVRAM(uint32 address, T value, TMemFn &&memFn = DefaultMemFn) {
-        address = MapVDP1VRAMAddress<T>(address);
-        util::WriteBE<T>(&VRAM1[address], value);
-        memFn(address, value);
-    }
-
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE T VDP1ReadFB(uint32 address, TMemFn &&memFn = DefaultMemFn) const {
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE T VDP1ReadFB(uint32 address, TMemFn &&memFn = NoopMemFn) const {
         address = MapVDP1FBAddress<T>(address);
         const T value = util::ReadBE<T>(&spriteFB[displayFB ^ 1][address]);
         memFn(address, value);
         return value;
     }
 
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE void VDP1WriteFB(uint32 address, T value, TMemFn &&memFn = DefaultMemFn) {
+    template <mem_primitive T, typename TMemFn = decltype(NoopMemFn<T>)>
+    FORCE_INLINE void VDP1WriteFB(uint32 address, T value, TMemFn &&memFn = NoopMemFn) {
         address = MapVDP1FBAddress<T>(address);
         util::WriteBE<T>(&spriteFB[displayFB ^ 1][address], value);
         memFn(address, value);
     }
 
-    template <bool peek, typename TMemFn = decltype(DefaultMemFn<uint16>)>
-    FORCE_INLINE uint16 VDP1ReadReg(uint32 address, TMemFn &&memFn = DefaultMemFn) const {
+    FORCE_INLINE uint32 MapVDP1RegAddress(uint32 address) const {
+        address &= 0x7FFFF & ~(sizeof(uint16) - 1);
+        return address;
+    }
+
+    template <bool peek, typename TMemFn = decltype(NoopMemFn<uint16>)>
+    FORCE_INLINE uint16 VDP1ReadReg(uint32 address, TMemFn &&memFn = NoopMemFn) const {
         address = MapVDP1RegAddress(address);
         const uint16 value = regs1.Read<peek>(address);
         memFn(address, value);
         return value;
     }
 
-    template <bool poke, typename TMemFn = decltype(DefaultMemFn<uint16>)>
-    FORCE_INLINE void VDP1WriteReg(uint32 address, uint16 value, TMemFn &&memFn = DefaultMemFn) {
+    template <bool poke, typename TMemFn = decltype(NoopMemFn<uint16>)>
+    FORCE_INLINE void VDP1WriteReg(uint32 address, uint16 value, TMemFn &&memFn = NoopMemFn) {
         address = MapVDP1RegAddress(address);
         regs1.Write<poke>(address, value);
         memFn(address, value);
@@ -565,61 +690,25 @@ struct VDPState {
 
     // -------------------------------------------------------------------------
 
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE T VDP2ReadVRAM(uint32 address, TMemFn &&memFn = DefaultMemFn) const {
-        address = MapVDP2VRAMAddress<T>(address);
-        const T value = util::ReadBE<T>(&VRAM2[address]);
-        memFn(address, value);
-        return value;
+    FORCE_INLINE uint32 MapVDP2RegAddress(uint32 address) const {
+        address &= 0x1FF & ~(sizeof(uint16) - 1);
+        return address;
     }
 
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE void VDP2WriteVRAM(uint32 address, T value, TMemFn &&memFn = DefaultMemFn) {
-        address = MapVDP2VRAMAddress<T>(address);
-        util::WriteBE<T>(&VRAM2[address], value);
-        memFn(address, value);
-    }
-
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE T VDP2ReadCRAM(uint32 address, TMemFn &&memFn = DefaultMemFn) const {
-        address = MapVDP2CRAMAddress<T>(address);
-        const T value = util::ReadBE<T>(&CRAM[address]);
-        memFn(address, value);
-        return value;
-    }
-
-    template <mem_primitive T, typename TMemFn = decltype(DefaultMemFn<T>)>
-    FORCE_INLINE void VDP2WriteCRAM(uint32 address, T value, TMemFn &&memFn = DefaultMemFn) {
-        address = MapVDP2CRAMAddress<T>(address);
-        util::WriteBE<T>(&CRAM[address], value);
-        memFn(address, value);
-        if (regs2.vramControl.colorRAMMode == 0) {
-            address ^= 0x800;
-            util::WriteBE<T>(&CRAM[address], value);
-            memFn(address, value);
-        }
-    }
-
-    template <bool peek, typename TMemFn = decltype(DefaultMemFn<uint16>)>
-    FORCE_INLINE uint16 VDP2ReadReg(uint32 address, TMemFn &&memFn = DefaultMemFn) const {
+    template <bool peek, typename TMemFn = decltype(NoopMemFn<uint16>)>
+    FORCE_INLINE uint16 VDP2ReadReg(uint32 address, TMemFn &&memFn = NoopMemFn) const {
         address = MapVDP2RegAddress(address);
         const uint16 value = regs2.Read<peek>(address);
         memFn(address, value);
         return value;
     }
 
-    template <bool poke, typename TMemFn = decltype(DefaultMemFn<uint16>)>
-    FORCE_INLINE void VDP2WriteReg(uint32 address, uint16 value, TMemFn &&memFn = DefaultMemFn) {
+    template <bool poke, typename TMemFn = decltype(NoopMemFn<uint16>)>
+    FORCE_INLINE void VDP2WriteReg(uint32 address, uint16 value, TMemFn &&memFn = NoopMemFn) {
         address = MapVDP2RegAddress(address);
         regs2.Write(address, value);
         memFn(address, value);
     }
-
-    // -------------------------------------------------------------------------
-    // Registers
-
-    VDP1Regs regs1;
-    VDP2Regs regs2;
 
     // -------------------------------------------------------------------------
     // Timings and signals
