@@ -793,8 +793,8 @@ void App::RunEmulator() {
     // nearest interpolation with an integer scale, then rendering the display texture onto the screen with linear
     // interpolation.
 
-    // Framebuffer texture
-    const gfx::TextureHandle fbTexture =
+    // Software framebuffer texture
+    const gfx::TextureHandle swFbTexture =
         m_graphicsService.CreateTexture(SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_STREAMING, vdp::kMaxResH,
                                         vdp::kMaxResV, [&](SDL_Texture *tex, bool recreated) {
                                             SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
@@ -802,8 +802,8 @@ void App::RunEmulator() {
                                                 screen.CopyFramebufferToTexture(tex);
                                             }
                                         });
-    if (fbTexture == gfx::kInvalidTextureHandle) {
-        ShowStartupFailure("Failed to create framebuffer texture: {}", SDL_GetError());
+    if (swFbTexture == gfx::kInvalidTextureHandle) {
+        ShowStartupFailure("Failed to create software framebuffer texture: {}", SDL_GetError());
         return;
     };
 
@@ -831,7 +831,7 @@ void App::RunEmulator() {
         SDL_Renderer *renderer = m_graphicsService.GetRenderer();
 
         assert(m_graphicsService.IsTextureHandleValid(dispTexture));
-        assert(m_graphicsService.IsTextureHandleValid(fbTexture));
+        assert(m_graphicsService.IsTextureHandleValid(swFbTexture));
         assert(renderer != nullptr);
 
         // Recreate render target texture if scale changed
@@ -854,7 +854,7 @@ void App::RunEmulator() {
                           .h = (float)screen.height * screen.fbScale};
 
         SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
-        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(fbTexture), &srcRect, &dstRect);
+        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(swFbTexture), &srcRect, &dstRect);
 
         // Restore render target
         SDL_SetRenderTarget(renderer, prevRenderTarget);
@@ -2571,7 +2571,7 @@ void App::RunEmulator() {
                 std::unique_lock lock{screen.mtxFramebuffer};
                 screen.framebuffers[1] = screen.framebuffers[0];
             }
-            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(fbTexture));
+            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(swFbTexture));
         }
 
         auto now = clk::now();
