@@ -64,15 +64,6 @@ void IVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
     state.lineBackLayerState.lineColor = m_lineBackLayerState.lineColor.u32;
     state.lineBackLayerState.backColor = m_lineBackLayerState.backColor.u32;
 
-    auto copyChar = [&](state::VDPState::VDPRendererState::Character &dst, const Character &src) {
-        dst.charNum = src.charNum;
-        dst.palNum = src.palNum;
-        dst.specColorCalc = src.specColorCalc;
-        dst.specPriority = src.specPriority;
-        dst.flipH = src.flipH;
-        dst.flipV = src.flipV;
-    };
-
     SaveStateImpl(state);
 }
 
