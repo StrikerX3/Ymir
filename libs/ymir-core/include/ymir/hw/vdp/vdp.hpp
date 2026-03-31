@@ -293,7 +293,7 @@ private:
     template <mem_primitive_16 T>
     void VDP1WriteVRAM(uint32 address, T value);
 
-    template <mem_primitive_16 T>
+    template <mem_primitive_16 T, bool peek>
     T VDP1ReadFB(uint32 address) const;
 
     template <mem_primitive_16 T>

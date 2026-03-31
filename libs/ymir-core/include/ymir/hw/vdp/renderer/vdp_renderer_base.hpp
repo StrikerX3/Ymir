@@ -109,6 +109,15 @@ public:
     /// @param[in] value the value to write
     virtual void VDP1WriteVRAM(uint32 address, uint16 value) = 0;
 
+    /// @brief Synchronizes the VDP1 FBRAM for reads.
+    virtual void VDP1SyncFB() = 0;
+
+    /// @brief Synchronizes the VDP1 FBRAM for debug reads.
+    /// Debug reads may not necessarily come from the emulator thread.
+    /// Synchronization is not required to occur immediately. Implementations may choose to delay synchronization to a
+    /// more convenient time, such as the next framebuffer swap.
+    virtual void VDP1DebugSyncFB() = 0;
+
     /// @brief Writes a byte to VDP1 framebuffer RAM.
     /// @param[in] address the address to write at
     /// @param[in] value the value to write

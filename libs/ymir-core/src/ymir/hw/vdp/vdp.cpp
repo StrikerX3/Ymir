@@ -79,19 +79,31 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
     // VDP1 framebuffer
     bus.MapBoth(
         0x5C8'0000, 0x5CF'FFFF, this,
-        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).VDP1ReadFB<uint8>(address); },
-        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP1ReadFB<uint16>(address); },
-        [](uint32 address, void *ctx) -> uint32 {
-            uint32 value = cast(ctx).VDP1ReadFB<uint16>(address + 0) << 16u;
-            value |= cast(ctx).VDP1ReadFB<uint16>(address + 2) << 0u;
-            return value;
-        },
-
         [](uint32 address, uint8 value, void *ctx) { cast(ctx).VDP1WriteFB<uint8>(address, value); },
         [](uint32 address, uint16 value, void *ctx) { cast(ctx).VDP1WriteFB<uint16>(address, value); },
         [](uint32 address, uint32 value, void *ctx) {
             cast(ctx).VDP1WriteFB<uint16>(address + 0, value >> 16u);
             cast(ctx).VDP1WriteFB<uint16>(address + 2, value >> 0u);
+        });
+
+    bus.MapNormal(
+        0x5C8'0000, 0x5CF'FFFF, this,
+        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).VDP1ReadFB<uint8, false>(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP1ReadFB<uint16, false>(address); },
+        [](uint32 address, void *ctx) -> uint32 {
+            uint32 value = cast(ctx).VDP1ReadFB<uint16, false>(address + 0) << 16u;
+            value |= cast(ctx).VDP1ReadFB<uint16, false>(address + 2) << 0u;
+            return value;
+        });
+
+    bus.MapSideEffectFree(
+        0x5C8'0000, 0x5CF'FFFF, this,
+        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).VDP1ReadFB<uint8, true>(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP1ReadFB<uint16, true>(address); },
+        [](uint32 address, void *ctx) -> uint32 {
+            uint32 value = cast(ctx).VDP1ReadFB<uint16, true>(address + 0) << 16u;
+            value |= cast(ctx).VDP1ReadFB<uint16, true>(address + 2) << 0u;
+            return value;
         });
 
     // VDP1 registers
@@ -328,8 +340,13 @@ FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
     }
 }
 
-template <mem_primitive_16 T>
+template <mem_primitive_16 T, bool peek>
 FORCE_INLINE T VDP::VDP1ReadFB(uint32 address) const {
+    if constexpr (peek) {
+        m_renderer->VDP1DebugSyncFB();
+    } else {
+        m_renderer->VDP1SyncFB();
+    }
     return m_state.VDP1ReadFB<T>(address);
 }
 
