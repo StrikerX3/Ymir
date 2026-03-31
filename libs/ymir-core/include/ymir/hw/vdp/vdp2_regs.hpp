@@ -2645,13 +2645,13 @@ struct VDP2Regs {
     //
     //   bits   r/w  code          description
     //     15        -             Reserved, must be zero
-    //  14-12     W  N3CAOS2-0     NBG3 Color RAM Adress Offset
+    //  14-12     W  N3CAOS2-0     NBG3 Color RAM Address Offset
     //     11        -             Reserved, must be zero
-    //   10-8     W  N2CAOS2-0     NBG2 Color RAM Adress Offset
+    //   10-8     W  N2CAOS2-0     NBG2 Color RAM Address Offset
     //      7        -             Reserved, must be zero
-    //    6-4     W  N1CAOS2-0     NBG1/EXBG Color RAM Adress Offset
+    //    6-4     W  N1CAOS2-0     NBG1/EXBG Color RAM Address Offset
     //      3        -             Reserved, must be zero
-    //    2-0     W  N0CAOS2-0     NBG0/RBG1 Color RAM Adress Offset
+    //    2-0     W  N0CAOS2-0     NBG0/RBG1 Color RAM Address Offset
 
     FORCE_INLINE uint16 ReadCRAOFA() const {
         uint16 value = 0;
@@ -2673,9 +2673,9 @@ struct VDP2Regs {
     //
     //   bits   r/w  code          description
     //   15-7        -             Reserved, must be zero
-    //    6-4     W  SPCAOS2-0     Sprite Color RAM Adress Offset
+    //    6-4     W  SPCAOS2-0     Sprite Color RAM Address Offset
     //      3        -             Reserved, must be zero
-    //    2-0     W  R0CAOS2-0     RBG0 Color RAM Adress Offset
+    //    2-0     W  R0CAOS2-0     RBG0 Color RAM Address Offset
 
     FORCE_INLINE uint16 ReadCRAOFB() const {
         uint16 value = 0;
@@ -3320,8 +3320,8 @@ struct VDP2Regs {
     // Applies to all backgrounds with the mosaic effect enabled.
     // Rotation backgrounds only use the horizontal dimension.
     // Derived from MZCTL.MZSZH/V
-    uint8 mosaicH; // Horizontal mosaic size
-    uint8 mosaicV; // Vertical mosaic size
+    uint8 mosaicH; // Horizontal mosaic size (MZCTL.MZSZH + 1)
+    uint8 mosaicV; // Vertical mosaic size (MZCTL.MZSZV + 1)
 
     // Color offset enable for:
     // [0] Sprite
@@ -3354,6 +3354,8 @@ struct VDP2Regs {
     // Derived from CCTL, CCRNA/B, CCRR and CCRLB
     ColorCalcParams colorCalcParams;
 
+    // Special function codes A and B.
+    // Derived from SFCODE
     std::array<SpecialFunctionCodes, 2> specialFunctionCodes;
 
     // Enables transparent shadow sprites.

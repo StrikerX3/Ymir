@@ -242,7 +242,7 @@ private:
     // Current enhancements configuration.
     config::Enhancements m_enhancements;
 
-    /// @brief The current softwarre renderer callbacks configuration.
+    /// @brief The current software renderer callbacks configuration.
     SoftwareRendererCallbacks m_swRendererCallbacks;
 
     // -------------------------------------------------------------------------

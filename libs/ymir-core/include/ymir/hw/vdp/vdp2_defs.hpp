@@ -214,10 +214,12 @@ struct alignas(128) BGParams {
     // Page shifts are either 0 or 1, used when determining which plane a particular (x,y) coordinate belongs to.
     // A shift of 0 corresponds to 1 page per plane dimension.
     // A shift of 1 corresponds to 2 pages per plane dimension.
+    // Only valid for NBGs.
     uint32 pageShiftH; // Horizontal page shift, derived from PLSZ.xxPLSZn
     uint32 pageShiftV; // Vertical page shift, derived from PLSZ.xxPLSZn
 
     // Bitmap dimensions, when the screen is in bitmap mode.
+    // Only valid for NBGs.
     uint32 bitmapSizeH; // Horizontal bitmap dots, derived from CHCTLA/CHCTLB.xxBMSZ
     uint32 bitmapSizeV; // Vertical bitmap dots, derived from CHCTLA/CHCTLB.xxBMSZ
 
@@ -225,14 +227,14 @@ struct alignas(128) BGParams {
     // Used in scroll NBGs.
     // Scroll amounts for NBGs 2 and 3 do not have a fractional part, but the values are still stored with 8 fractional
     // bits here for consistency and ease of implementation.
-    uint32 scrollAmountH; // Horizontal scroll amount with 8 fractional bits, derived from SCXINn and SCXDNn
-    uint32 scrollAmountV; // Vertical scroll amount with 8 fractional bits, derived from SCYINn and SCYDNn
+    uint32 scrollAmountH; // Horizontal scroll amount in 11.8 fixed-point format, derived from SCXINn and SCXDNn
+    uint32 scrollAmountV; // Vertical scroll amount in 11.8 fixed-point format, derived from SCYINn and SCYDNn
 
     // Screen scroll increment per pixel, in 11.8 fixed-point format.
     // NBGs 2 and 3 do not have increment registers; they always increment each coordinate by 1.0, which is stored here
     // for consistency and ease of implementation.
-    uint32 scrollIncH; // Horizontal scroll increment with 8 fractional bits, derived from ZMXINn and ZMXDNn
-    uint32 scrollIncV; // Vertical scroll increment with 8 fractional bits, derived from ZMYINn and ZMYDNn
+    uint32 scrollIncH; // Horizontal scroll increment in 11.8 fixed-point format, derived from ZMXINn and ZMXDNn
+    uint32 scrollIncV; // Vertical scroll increment in 11.8 fixed-point format, derived from ZMYINn and ZMYDNn
 
     // Indices for NBG planes A-D, derived from MPOFN and MPABN0-MPCDN3.
     std::array<uint16, 4> mapIndices;
@@ -242,6 +244,7 @@ struct alignas(128) BGParams {
     std::array<uint32, 4> pageBaseAddresses;
 
     // Base address of bitmap data.
+    // Only valid for NBGs.
     // Derived from MPOFN
     uint32 bitmapBaseAddress;
 
@@ -915,7 +918,7 @@ struct VRAMControl {
     // Derived from RAMCTL.CRKTE
     bool colorRAMCoeffTableEnable;
 
-    // Determines if rotation parameter coefficients are per dot or not.
+    // Determines if rotation parameter coefficients are per dot (true) or per line (false).
     // Derived from RAMCTL.VRAMD, VRBMD and CRKTE
     bool perDotRotationCoeffs;
 
