@@ -782,6 +782,10 @@ void App::RunEmulator() {
         ApplyFullscreenMode();
     });
 
+    auto &vdp = m_context.saturn.instance->VDP;
+
+    ScopeGuard sgReleaseVDPRenderer{[&] { vdp.UseNullRenderer(); }};
+
     // ---------------------------------
     // Create textures to render on
 
@@ -907,7 +911,6 @@ void App::RunEmulator() {
     // Setup framebuffer and render callbacks
 
     {
-        auto &vdp = m_context.saturn.instance->VDP;
         auto &renderer = vdp.GetRenderer();
         auto &callbacks = renderer.Callbacks;
 
@@ -3187,7 +3190,6 @@ void App::RunEmulator() {
                     }
 
                     if (ImGui::BeginMenu("VDP")) {
-                        auto &vdp = m_context.saturn.instance->VDP;
                         auto layerMenuItem = [&](const char *name, vdp::Layer layer) {
                             const bool enabled = vdp.IsLayerEnabled(layer);
                             if (ImGui::MenuItem(name, nullptr, enabled)) {
@@ -3942,7 +3944,7 @@ void App::EmulatorThread() {
 
             case SetThreadPriority: util::BoostCurrentThreadPriority(std::get<bool>(evt.value)); break;
 
-            case Shutdown: return;
+            case Shutdown: m_context.saturn.instance->VDP.UseNullRenderer(); return;
             }
         }
 
