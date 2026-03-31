@@ -15,6 +15,7 @@ Introduced save state file version 12.
 - Backup RAM: Support in-memory and copy-on-write memory-mapped files in addition to regular memory-mapped files.
 - Build: Support Profile-Guided Optimization (PGO) builds. (#742; @mmkzer0)
 - Debugger: Allow scrolling the SH2 disassembly view. (#743; @mmkzer0)
+- Debugger: Colorize VRAM access timing slots in the delay viewer.
 - Debugger: Implement keyboard navigation and interactions in the SH2 disassembly view:
     - Up/down arrow keys: move cursor up/down one instruction.
     - Page up/down: move cursor up/down one page.

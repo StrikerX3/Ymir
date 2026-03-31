@@ -2480,9 +2480,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 // --- scroll NBGs ---
                 // 13 lo   1x  pal256  -   PN0 ........          DoDonPachi, title screen background
                 //                     A   CP0 01......  no      DoDonPachi, title screen background
-                // 14 lo   1x  pal16   -   PN1 ........          Groove on Fight, scrolling background in Options screen
-                //                     B0  CP1 0123....  no      Groove on Fight, scrolling background in Options screen
-                //                     B1  CP1 0123....  no      Groove on Fight, scrolling background in Options screen
+                // 14 lo   1x  pal16   -   PN1 ........          Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
+                //                     B0  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
+                //                     B1  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
                 // 15 lo   1x  pal16   A0  PN2 0.......          World Heroes Perfect, menus and intro animation
                 //                     A0  CP2 ...3....  yes     World Heroes Perfect, menus and intro animation
                 //                     B   CP2 .1......  no      World Heroes Perfect, menus and intro animation
@@ -2600,7 +2600,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
         } else {
             // Valid character pattern access masks per timing for normal resolution modes
             static constexpr uint8 kPatterns[8] = {
-                //   T0          T1          T2          T3          T4          T5          T6          T7
+                //  T0          T1          T2          T3          T4          T5          T6          T7
                 0b11110111, 0b11101111, 0b11001111, 0b10001111, 0b00001111, 0b00001110, 0b00001100, 0b00001000,
             };
 

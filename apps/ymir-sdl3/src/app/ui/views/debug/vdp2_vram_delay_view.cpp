@@ -108,36 +108,96 @@ void VDP2VRAMDelayView::Display() {
         ImGui::TableSetupColumn("T7", ImGuiTableColumnFlags_WidthFixed, paddingWidth * 2 + hexCharWidth * 3);
         ImGui::TableHeadersRow();
 
-        auto drawBank = [&](const char *name, const std::array<vdp::CyclePatterns::Type, 8> &timings, bool enabled) {
+        const uint32 max = hires ? 4 : 8;
+        std::array<uint8, 4> firstPN = {0xFF, 0xFF, 0xFF, 0xFF};
+        for (uint32 bank = 0; bank < 4; ++bank) {
+            if (bank == 1 && !regs2.vramControl.partitionVRAMA) {
+                continue;
+            }
+            if (bank == 3 && !regs2.vramControl.partitionVRAMB) {
+                continue;
+            }
+            const auto &timings = regs2.cyclePatterns.timings[bank];
+            for (uint32 i = 0; i < max; ++i) {
+                switch (timings[i]) {
+                case vdp::CyclePatterns::PatNameNBG0:
+                case vdp::CyclePatterns::PatNameNBG1:
+                case vdp::CyclePatterns::PatNameNBG2:
+                case vdp::CyclePatterns::PatNameNBG3: {
+                    const uint32 index =
+                        static_cast<uint32>(timings[i]) - static_cast<uint32>(vdp::CyclePatterns::PatNameNBG0);
+                    if (!regs2.bgParams[index + 1].bitmap && firstPN[index] == 0xFF) {
+                        firstPN[index] = i;
+                    }
+                    break;
+                }
+                default: break;
+                }
+            }
+        }
+
+        auto drawBank = [&](const char *name, uint32 bankIndex, bool enabled) {
+            auto &timings = regs2.cyclePatterns.timings[bankIndex];
+
             if (!enabled) {
                 ImGui::BeginDisabled();
             }
             ImGui::TableNextRow();
-            if (ImGui::TableNextColumn()) {
-                ImGui::TextUnformatted(name);
-            }
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(name);
 
-            const uint32 max = hires ? 4 : 8;
-            for (uint32 i = 0; i < max; ++i) {
-                if (ImGui::TableNextColumn()) {
-                    ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-                    switch (timings[i]) {
-                    case vdp::CyclePatterns::PatNameNBG0: ImGui::TextUnformatted("PN0"); break;
-                    case vdp::CyclePatterns::PatNameNBG1: ImGui::TextUnformatted("PN1"); break;
-                    case vdp::CyclePatterns::PatNameNBG2: ImGui::TextUnformatted("PN2"); break;
-                    case vdp::CyclePatterns::PatNameNBG3: ImGui::TextUnformatted("PN3"); break;
-                    case vdp::CyclePatterns::CharPatNBG0: ImGui::TextUnformatted("CP0"); break;
-                    case vdp::CyclePatterns::CharPatNBG1: ImGui::TextUnformatted("CP1"); break;
-                    case vdp::CyclePatterns::CharPatNBG2: ImGui::TextUnformatted("CP2"); break;
-                    case vdp::CyclePatterns::CharPatNBG3: ImGui::TextUnformatted("CP3"); break;
-                    case vdp::CyclePatterns::VCellScrollNBG0: ImGui::TextUnformatted("VC0"); break;
-                    case vdp::CyclePatterns::VCellScrollNBG1: ImGui::TextUnformatted("VC1"); break;
-                    case vdp::CyclePatterns::CPU: ImGui::TextUnformatted("SH2"); break;
-                    case vdp::CyclePatterns::NoAccess: ImGui::TextUnformatted("-"); break;
-                    default: ImGui::Text("(%X)", timings[i]); break;
-                    }
-                    ImGui::PopFont();
+            auto cp = [&](const char *name, uint32 bg, uint32 timing) {
+                const auto &bgParams = regs2.bgParams[bg + 1];
+                bool valid;
+                if (bgParams.bitmap) {
+                    valid = bgParams.vramDataOffset[bankIndex] == 0;
+                } else if (firstPN[bg] == 0xFF) {
+                    valid = true;
+                } else if (hires) {
+                    static constexpr uint8 kPatterns[2][4] = {
+                        // 1x1 character patterns
+                        // T0      T1      T2      T3
+                        {0b0111, 0b1110, 0b1101, 0b1011},
+
+                        // 2x2 character patterns
+                        // T0      T1      T2      T3
+                        {0b0111, 0b1110, 0b1100, 0b1000},
+                    };
+                    valid = bit::test<0>(kPatterns[bgParams.cellSizeShift][timing] >> firstPN[bg]);
+                } else {
+                    static constexpr uint8 kPatterns[8] = {
+                        //  T0          T1          T2          T3          T4          T5          T6          T7
+                        0b11110111, 0b11101111, 0b11001111, 0b10001111, 0b00001111, 0b00001110, 0b00001100, 0b00001000,
+                    };
+                    valid = bit::test<0>(kPatterns[firstPN[bg]] >> timing);
                 }
+
+                if (valid) {
+                    ImGui::TextColored(m_context.colors.green, "%s", name);
+                } else {
+                    ImGui::TextColored(m_context.colors.red, "%s", name);
+                }
+            };
+
+            for (uint32 i = 0; i < max; ++i) {
+                ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+                ImGui::TableNextColumn();
+                switch (timings[i]) {
+                case vdp::CyclePatterns::PatNameNBG0: ImGui::TextColored(m_context.colors.yellow, "PN0"); break;
+                case vdp::CyclePatterns::PatNameNBG1: ImGui::TextColored(m_context.colors.yellow, "PN1"); break;
+                case vdp::CyclePatterns::PatNameNBG2: ImGui::TextColored(m_context.colors.yellow, "PN2"); break;
+                case vdp::CyclePatterns::PatNameNBG3: ImGui::TextColored(m_context.colors.yellow, "PN3"); break;
+                case vdp::CyclePatterns::CharPatNBG0: cp("CP0", 0, i); break;
+                case vdp::CyclePatterns::CharPatNBG1: cp("CP1", 1, i); break;
+                case vdp::CyclePatterns::CharPatNBG2: cp("CP2", 2, i); break;
+                case vdp::CyclePatterns::CharPatNBG3: cp("CP3", 3, i); break;
+                case vdp::CyclePatterns::VCellScrollNBG0: ImGui::TextColored(m_context.colors.purple, "VC0"); break;
+                case vdp::CyclePatterns::VCellScrollNBG1: ImGui::TextColored(m_context.colors.purple, "VC1"); break;
+                case vdp::CyclePatterns::CPU: ImGui::TextColored(m_context.colors.cyan, "SH2"); break;
+                case vdp::CyclePatterns::NoAccess: ImGui::TextUnformatted("-"); break;
+                default: ImGui::Text("(%X)", timings[i]); break;
+                }
+                ImGui::PopFont();
             }
             if (!enabled) {
                 ImGui::EndDisabled();
@@ -145,10 +205,10 @@ void VDP2VRAMDelayView::Display() {
         };
 
         // All CYCxn registers
-        drawBank("A0", regs2.cyclePatterns.timings[0], true);
-        drawBank("A1", regs2.cyclePatterns.timings[1], regs2.vramControl.partitionVRAMA);
-        drawBank("B0", regs2.cyclePatterns.timings[2], true);
-        drawBank("B1", regs2.cyclePatterns.timings[3], regs2.vramControl.partitionVRAMB);
+        drawBank("A0", 0, true);
+        drawBank("A1", 1, regs2.vramControl.partitionVRAMA);
+        drawBank("B0", 2, true);
+        drawBank("B1", 3, regs2.vramControl.partitionVRAMB);
 
         ImGui::EndTable();
     }
