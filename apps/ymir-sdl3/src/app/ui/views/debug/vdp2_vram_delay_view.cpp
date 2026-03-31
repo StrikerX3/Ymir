@@ -69,25 +69,30 @@ void VDP2VRAMDelayView::Display() {
         ImGui::TableSetupColumn("Assignment");
         ImGui::TableHeadersRow();
 
-        auto rotDataBankSel = [](const char *name, vdp::RotDataBankSel sel) {
-            ImGui::TableNextRow();
-            if (ImGui::TableNextColumn()) {
-                ImGui::TextUnformatted(name);
+        auto rotDataBankSel = [](const char *name, vdp::RotDataBankSel sel, bool enabled) {
+            if (!enabled) {
+                ImGui::BeginDisabled();
             }
-            if (ImGui::TableNextColumn()) {
-                switch (sel) {
-                case vdp::RotDataBankSel::Unused: ImGui::TextUnformatted("-"); break;
-                case vdp::RotDataBankSel::Coefficients: ImGui::TextUnformatted("Coefficients"); break;
-                case vdp::RotDataBankSel::PatternName: ImGui::TextUnformatted("Pattern name data"); break;
-                case vdp::RotDataBankSel::Character: ImGui::TextUnformatted("Character pattern data"); break;
-                }
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(name);
+
+            ImGui::TableNextColumn();
+            switch (sel) {
+            case vdp::RotDataBankSel::Unused: ImGui::TextUnformatted("-"); break;
+            case vdp::RotDataBankSel::Coefficients: ImGui::TextUnformatted("Coefficients"); break;
+            case vdp::RotDataBankSel::PatternName: ImGui::TextUnformatted("Pattern name data"); break;
+            case vdp::RotDataBankSel::Character: ImGui::TextUnformatted("Character pattern data"); break;
+            }
+            if (!enabled) {
+                ImGui::EndDisabled();
             }
         };
 
-        rotDataBankSel("A0", regs2.vramControl.rotDataBankSelA0);
-        rotDataBankSel("A1", regs2.vramControl.rotDataBankSelA1);
-        rotDataBankSel("B0", regs2.vramControl.rotDataBankSelB0);
-        rotDataBankSel("B1", regs2.vramControl.rotDataBankSelB1);
+        rotDataBankSel("A0", regs2.vramControl.rotDataBankSelA0, true);
+        rotDataBankSel("A1", regs2.vramControl.rotDataBankSelA1, regs2.vramControl.partitionVRAMA);
+        rotDataBankSel("B0", regs2.vramControl.rotDataBankSelB0, true);
+        rotDataBankSel("B1", regs2.vramControl.rotDataBankSelB1, regs2.vramControl.partitionVRAMB);
 
         ImGui::EndTable();
     }
