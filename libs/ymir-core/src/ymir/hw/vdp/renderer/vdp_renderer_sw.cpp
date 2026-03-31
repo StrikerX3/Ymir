@@ -1373,29 +1373,60 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
         lineParams.gouraudRight = &quad.RightEdge().Gouraud();
     }
 
-    quad.SetupTexture(lineParams.texVStepper, charSizeV, control.flipV);
+    const bool flipV = control.flipV;
+    quad.SetupTexture(lineParams.texVStepper, charSizeV, flipV);
 
     // Optimization for the case where the quad goes outside the system clipping area.
     // Skip rendering the rest of the quad when a line is clipped after plotting at least one line.
     // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
-    bool plottedLine = false;
+    //
+    // This also handles a degenerate case with a bowtie quad sitting outside the corner of the screen with two points
+    // poking into the screen area in a configuration similar to this:
+    //
+    //                       D
+    //                        B
+    //   +-----------------+
+    //   |            A    |
+    //   |               C |
+    //   |                 |
+    //   |                 |
+    //   |                 |
+    //   +-----------------+
+    //
+    // In this case, the line gets fully clipped partway through the quad, but comes back into view at the end, so we
+    // need to check for two sequences of plotted lines rather than one.
+    bool linePlotted = false;
+    int plottedSegmentsCount = 0;
+    const int plottedSegmentsMax = quad.IsDegenerate() ? 2 : 1;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         // Plot lines between the interpolated points
         const CoordS32 coordL = quad.LeftEdge().Coord();
         const CoordS32 coordR = quad.RightEdge().Coord();
+
         while (lineParams.texVStepper.ShouldStepTexel()) {
             lineParams.texVStepper.StepTexel();
         }
         lineParams.texVStepper.StepPixel();
+
+        if (mode.gouraudEnable) {
+            lineParams.gouraudLeft = &quad.LeftEdge().Gouraud();
+            lineParams.gouraudRight = &quad.RightEdge().Gouraud();
+        }
+
         if (VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
-            plottedLine = true;
-        } else if (plottedLine) {
+            if (!linePlotted) {
+                linePlotted = true;
+                ++plottedSegmentsCount;
+            }
+        } else if (plottedSegmentsCount >= plottedSegmentsMax) {
             // No more lines can be drawn past this point
             break;
+        } else {
+            linePlotted = false;
         }
     }
 }
@@ -1438,20 +1469,18 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawNormalSprite(uint32 cmdAddress, VDP1Comman
     const sint32 xa = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C)) + ctx.localCoordX;
     const sint32 ya = bit::sign_extend<13>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E)) + ctx.localCoordY;
 
-    const sint32 lx = xa;                                // left X
-    const sint32 ty = ya;                                // top Y
-    const sint32 rx = xa + std::max(charSizeH, 1u) - 1u; // right X
-    const sint32 by = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
+    const sint32 xb = xa + std::max(charSizeH, 1u) - 1u; // right X
+    const sint32 yb = ya + std::max(charSizeV, 1u) - 1u; // bottom Y
 
     const sint32 doubleV = m_VDP1doubleV;
 
-    const CoordS32 coordA{lx, ty << doubleV};
-    const CoordS32 coordB{rx, ty << doubleV};
-    const CoordS32 coordC{rx, by << doubleV};
-    const CoordS32 coordD{lx, by << doubleV};
+    const CoordS32 coordA{xa, ya << doubleV};
+    const CoordS32 coordB{xb, ya << doubleV};
+    const CoordS32 coordC{xb, yb << doubleV};
+    const CoordS32 coordD{xa, yb << doubleV};
 
     devlog::trace<grp::vdp1_cmd>("[{:05X}] Draw normal sprite: {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d} {:3d}x{:<3d}",
-                                 cmdAddress, lx, ty, rx, ty, rx, by, lx, by);
+                                 cmdAddress, xa, ya, xb, ya, xb, yb, xa, yb);
 
     VDP1PlotTexturedQuad<deinterlace, transparentMeshes>(cmdAddress, control, size, coordA, coordB, coordC, coordD);
 }
@@ -1645,23 +1674,47 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
     // The first few lines of the quad could also be clipped; that is accounted for by requiring at least one
     // plotted line. The point is to skip the calculations once the quad iterator reaches a point where no more lines
     // can be plotted because they all sit outside the system clip area.
-    bool plottedLine = false;
+    //
+    // This also handles a degenerate case with a bowtie quad sitting outside the corner of the screen with two points
+    // poking into the screen area in a configuration similar to this:
+    //
+    //                       D
+    //                        B
+    //   +-----------------+
+    //   |            A    |
+    //   |               C |
+    //   |                 |
+    //   |                 |
+    //   |                 |
+    //   +-----------------+
+    //
+    // In this case, the line gets fully clipped partway through the quad, but comes back into view at the end, so we
+    // need to check for two sequences of plotted lines rather than one.
+    bool linePlotted = false;
+    int plottedSegmentsCount = 0;
+    const int plottedSegmentsMax = quad.IsDegenerate() ? 2 : 1;
 
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
+        // Plot lines between the interpolated points
         const CoordS32 coordL = quad.LeftEdge().Coord();
         const CoordS32 coordR = quad.RightEdge().Coord();
 
-        // Plot lines between the interpolated points
         if (mode.gouraudEnable) {
             lineParams.gouraudLeft = quad.LeftEdge().GouraudValue();
             lineParams.gouraudRight = quad.RightEdge().GouraudValue();
         }
+
         if (VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
-            plottedLine = true;
-        } else if (plottedLine) {
+            if (!linePlotted) {
+                linePlotted = true;
+                ++plottedSegmentsCount;
+            }
+        } else if (plottedSegmentsCount >= plottedSegmentsMax) {
             // No more lines can be drawn past this point
             break;
+        } else {
+            linePlotted = false;
         }
     }
 }
@@ -1705,32 +1758,33 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
         .color = color,
     };
 
-    const Color555 A{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 0u)};
-    const Color555 B{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 2u)};
-    const Color555 C{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
-    const Color555 D{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
-    devlog::trace<grp::vdp1_cmd>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)A.r, (uint8)A.g,
-                                 (uint8)A.b, (uint8)B.r, (uint8)B.g, (uint8)B.b, (uint8)C.r, (uint8)C.g, (uint8)C.b,
-                                 (uint8)D.r, (uint8)D.g, (uint8)D.b);
+    const Color555 gouraudA{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 0u)};
+    const Color555 gouraudB{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 2u)};
+    const Color555 gouraudC{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 4u)};
+    const Color555 gouraudD{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 6u)};
+    devlog::trace<grp::vdp1_cmd>("Gouraud colors: ({},{},{}) ({},{},{}) ({},{},{}) ({},{},{})", (uint8)gouraudA.r,
+                                 (uint8)gouraudA.g, (uint8)gouraudA.b, (uint8)gouraudB.r, (uint8)gouraudB.g,
+                                 (uint8)gouraudB.b, (uint8)gouraudC.r, (uint8)gouraudC.g, (uint8)gouraudC.b,
+                                 (uint8)gouraudD.r, (uint8)gouraudD.g, (uint8)gouraudD.b);
 
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = A;
-        lineParams.gouraudRight = B;
+        lineParams.gouraudLeft = gouraudA;
+        lineParams.gouraudRight = gouraudB;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams);
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = B;
-        lineParams.gouraudRight = C;
+        lineParams.gouraudLeft = gouraudB;
+        lineParams.gouraudRight = gouraudC;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordB, coordC, lineParams);
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = C;
-        lineParams.gouraudRight = D;
+        lineParams.gouraudLeft = gouraudC;
+        lineParams.gouraudRight = gouraudD;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordC, coordD, lineParams);
     if (mode.gouraudEnable) {
-        lineParams.gouraudLeft = D;
-        lineParams.gouraudRight = A;
+        lineParams.gouraudLeft = gouraudD;
+        lineParams.gouraudRight = gouraudA;
     }
     VDP1PlotLine<false, deinterlace, transparentMeshes>(coordD, coordA, lineParams);
 }
