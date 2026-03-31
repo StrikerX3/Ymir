@@ -105,7 +105,7 @@ add_library(ymir-core
     include/ymir/hw/smpc/rtc.hpp
     include/ymir/hw/smpc/smpc.hpp
     include/ymir/hw/smpc/smpc_internal_callbacks.hpp
-    
+
     include/ymir/hw/smpc/peripheral/peripheral_base.hpp
     include/ymir/hw/smpc/peripheral/peripheral_callbacks.hpp
     include/ymir/hw/smpc/peripheral/peripheral_defs.hpp
@@ -147,7 +147,7 @@ add_library(ymir-core
     include/ymir/media/media_defs.hpp
     include/ymir/media/saturn_header.hpp
     include/ymir/media/subheader.hpp
-    
+
     include/ymir/media/loader/loader.hpp
     include/ymir/media/loader/loader_bin_cue.hpp
     include/ymir/media/loader/loader_chd.hpp
@@ -192,7 +192,7 @@ add_library(ymir-core
     include/ymir/sys/system.hpp
     include/ymir/sys/system_features.hpp
     include/ymir/sys/system_internal_callbacks.hpp
-    
+
     include/ymir/util/arith_ops.hpp
     include/ymir/util/backup_datetime.hpp
     include/ymir/util/bit_ops.hpp
@@ -235,16 +235,16 @@ add_library(ymir-core
     src/ymir/hw/cdblock/cdblock_partition_manager.cpp
     src/ymir/hw/cdblock/cd_drive.cpp
     src/ymir/hw/cdblock/ygr.cpp
-    
+
     src/ymir/hw/m68k/m68k.cpp
     src/ymir/hw/m68k/m68k_addr_modes.hpp
     src/ymir/hw/m68k/m68k_decode.cpp
     src/ymir/hw/m68k/m68k_disasm.cpp
-    
+
     src/ymir/hw/scsp/scsp.cpp
     src/ymir/hw/scsp/scsp_dsp.cpp
     src/ymir/hw/scsp/scsp_slot.cpp
-    
+
     src/ymir/hw/scu/scu.cpp
     src/ymir/hw/scu/scu_devlog.hpp
     src/ymir/hw/scu/scu_dsp.cpp
