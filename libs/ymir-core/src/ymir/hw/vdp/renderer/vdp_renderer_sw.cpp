@@ -297,8 +297,8 @@ void SoftwareVDPRenderer::SaveState(state::VDPState::VDPRendererState &state) {
             copyChar(state.vramFetchers[i][j].nextChar, m_vramFetchers[i][j].nextChar);
             state.vramFetchers[i][j].lastCharIndex = m_vramFetchers[i][j].lastCharIndex;
             state.vramFetchers[i][j].lastCellX = m_vramFetchers[i][j].lastCellX;
-            state.vramFetchers[i][j].bitmapData = m_vramFetchers[i][j].bitmapData;
-            state.vramFetchers[i][j].bitmapDataAddress = m_vramFetchers[i][j].bitmapDataAddress;
+            state.vramFetchers[i][j].charData = m_vramFetchers[i][j].charData;
+            state.vramFetchers[i][j].charDataAddress = m_vramFetchers[i][j].charDataAddress;
             state.vramFetchers[i][j].lastVCellScroll = m_vramFetchers[i][j].lastVCellScroll;
         }
     }
@@ -358,8 +358,8 @@ void SoftwareVDPRenderer::LoadState(const state::VDPState::VDPRendererState &sta
             copyChar(m_vramFetchers[i][j].nextChar, state.vramFetchers[i][j].nextChar);
             m_vramFetchers[i][j].lastCharIndex = state.vramFetchers[i][j].lastCharIndex;
             m_vramFetchers[i][j].lastCellX = state.vramFetchers[i][j].lastCellX;
-            m_vramFetchers[i][j].bitmapData = state.vramFetchers[i][j].bitmapData;
-            m_vramFetchers[i][j].bitmapDataAddress = state.vramFetchers[i][j].bitmapDataAddress;
+            m_vramFetchers[i][j].charData = state.vramFetchers[i][j].charData;
+            m_vramFetchers[i][j].charDataAddress = state.vramFetchers[i][j].charDataAddress;
             m_vramFetchers[i][j].lastVCellScroll = state.vramFetchers[i][j].lastVCellScroll;
         }
     }
@@ -2833,9 +2833,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2PrepareLine(uint32 y) {
 
     for (auto &field : m_vramFetchers) {
         for (auto &fetcher : field) {
-            fetcher.lastCharIndex = 0xFFFFFFFF;     // force-fetch first character
-            fetcher.lastCellX = 0xFF;               // align 2x2 char fetcher
-            fetcher.bitmapDataAddress = 0xFFFFFFFF; // force-fetch first bitmap chunk
+            fetcher.lastCharIndex = 0xFFFFFFFF;   // force-fetch first character
+            fetcher.lastCellX = 0xFF;             // align 2x2 char fetcher
+            fetcher.charDataAddress = 0xFFFFFFFF; // force-fetch first character data chunk
         }
     }
 }
@@ -4911,13 +4911,14 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
             static constexpr bool extChar = charMode == CharacterMode::OneWordExtended;
 
             const uint16 charData = rotParams.screenOverPatternName;
-            const Character ch = VDP2ExtractOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, charData);
+            vramFetcher.currChar = VDP2ExtractOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, charData);
 
             const uint32 dotX = bit::extract<0, 2>(scrollX);
             const uint32 dotY = bit::extract<0, 2>(scrollY);
             const CoordU32 dotCoord{dotX, dotY};
 
-            const Pixel pixel = VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, ch, dotCoord, 0);
+            const Pixel pixel =
+                VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, vramFetcher.currChar, dotCoord, 0);
             if (!doubleResH || !windowState[xx]) {
                 layerState.pixels.SetPixel(xx, pixel);
             }
@@ -5626,29 +5627,29 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitma
         util::unreachable();
     };
 
-    auto fetchBitmapData = [&](uint32 address) {
+    auto fetchCharData = [&](uint32 address) {
         const uint32 bank = (address >> 17u) & 3u;
         if (!bgParams.charPatAccess[bank]) {
-            vramFetcher.bitmapData.fill(0);
+            vramFetcher.charData.fill(0);
             return;
         }
 
         const uint32 offset = bgParams.vramDataOffset[bank];
 
-        if (vramFetcher.UpdateBitmapDataAddress(address)) {
+        if (vramFetcher.UpdateCharacterDataAddress(address)) {
             address += offset;
 
             // TODO: handle VRSIZE.VRAMSZ
             auto &vram = VDP2GetRendererVRAM();
-            std::copy_n(&vram[address & 0x7FFF8], 8, vramFetcher.bitmapData.begin());
+            std::copy_n(&vram[address & 0x7FFF8], 8, vramFetcher.charData.begin());
         }
     };
 
     uint8 colorData;
     if constexpr (colorFormat == ColorFormat::Palette16) {
         const uint32 dotAddress = bitmapBaseAddress + (dotOffset >> 1u);
-        fetchBitmapData(dotAddress);
-        const uint8 dotData = (vramFetcher.bitmapData[dotAddress & 7] >> ((~dotX & 1) * 4)) & 0xF;
+        fetchCharData(dotAddress);
+        const uint8 dotData = (vramFetcher.charData[dotAddress & 7] >> ((~dotX & 1) * 4)) & 0xF;
         const uint32 colorIndex = palNum | dotData;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
@@ -5657,8 +5658,8 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitma
 
     } else if constexpr (colorFormat == ColorFormat::Palette256) {
         const uint32 dotAddress = bitmapBaseAddress + dotOffset;
-        fetchBitmapData(dotAddress);
-        const uint8 dotData = vramFetcher.bitmapData[dotAddress & 7];
+        fetchCharData(dotAddress);
+        const uint8 dotData = vramFetcher.charData[dotAddress & 7];
         const uint32 colorIndex = palNum | dotData;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
@@ -5667,8 +5668,8 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitma
 
     } else if constexpr (colorFormat == ColorFormat::Palette2048) {
         const uint32 dotAddress = bitmapBaseAddress + dotOffset * sizeof(uint16);
-        fetchBitmapData(dotAddress);
-        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.bitmapData[dotAddress & 6]);
+        fetchCharData(dotAddress);
+        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.charData[dotAddress & 6]);
         const uint32 colorIndex = dotData & 0x7FF;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
@@ -5677,16 +5678,16 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitma
 
     } else if constexpr (colorFormat == ColorFormat::RGB555) {
         const uint32 dotAddress = bitmapBaseAddress + dotOffset * sizeof(uint16);
-        fetchBitmapData(dotAddress);
-        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.bitmapData[dotAddress & 6]);
+        fetchCharData(dotAddress);
+        const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.charData[dotAddress & 6]);
         pixel.color = ConvertRGB555to888(Color555{.u16 = dotData});
         pixel.transparent = bgParams.enableTransparency && bit::extract<15>(dotData) == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
 
     } else if constexpr (colorFormat == ColorFormat::RGB888) {
         const uint32 dotAddress = bitmapBaseAddress + dotOffset * sizeof(uint32);
-        fetchBitmapData(dotAddress);
-        const uint32 dotData = util::ReadBE<uint32>(&vramFetcher.bitmapData[dotAddress & 4]);
+        fetchCharData(dotAddress);
+        const uint32 dotData = util::ReadBE<uint32>(&vramFetcher.charData[dotAddress & 4]);
         pixel.color = Color888{.u32 = dotData};
         pixel.transparent = bgParams.enableTransparency && bit::extract<31>(dotData) == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
