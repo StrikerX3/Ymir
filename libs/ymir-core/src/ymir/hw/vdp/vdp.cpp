@@ -845,6 +845,7 @@ void VDP::BeginHPhaseLeftBorder() {
 
         // End VBlank erase if in progress
         if (m_VDP1State.doVBlankErase) {
+            m_state.regs1.LatchEraseParameters();
             m_renderer->VDP1EraseFramebuffer(m_VBlankEraseCyclesPerLine * m_VBlankEraseLines[m_VTimingField]);
         }
 
@@ -898,6 +899,7 @@ void VDP::BeginVPhaseBlankingAndSync() {
         m_VDP1State.doDisplayErase = false;
         // TODO: erase line by line instead of the entire framebuffer in one go
         // No need to count cycles here; there's always enough cycles in the display area to clear the entire screen
+        m_state.regs1.LatchEraseParameters();
         m_renderer->VDP1EraseFramebuffer(0);
     }
 }
@@ -936,21 +938,19 @@ void VDP::BeginVPhaseLastLine() {
 void VDP::VDP1SwapFramebuffer() {
     devlog::trace<grp::vdp1>("Swapping framebuffers - draw {}, display {}", m_state.displayFB, m_state.displayFB ^ 1);
 
-    m_renderer->VDP1SwapFramebuffer();
-
     m_state.regs1.prevCommandAddress = m_state.regs1.currCommandAddress;
     m_state.regs1.prevFrameEnded = m_state.regs1.currFrameEnded;
     m_state.regs1.currFrameEnded = false;
 
     m_state.displayFB ^= 1;
 
+    // TODO: latch PTM, EOS, DIE, DIL
+
+    m_renderer->VDP1SwapFramebuffer();
+
     if (bit::test<1>(m_state.regs1.plotTrigger)) {
         VDP1BeginFrame();
     }
-
-    // TODO: latch PTM, EOS, DIE, DIL
-
-    m_state.regs1.LatchEraseParameters();
 }
 
 void VDP::VDP1BeginFrame() {
