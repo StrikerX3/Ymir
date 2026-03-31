@@ -98,6 +98,12 @@ public:
         return *m_renderer;
     }
 
+    /// @brief Retrieves a reference to the current VDP renderer.
+    /// @return a reference to the current VDP renderer instance, guaranteed to be valid
+    const IVDPRenderer &GetRenderer() const {
+        return const_cast<VDP *>(this)->GetRenderer();
+    }
+
     /// @brief Switches to the null renderer.
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
     NullVDPRenderer *UseNullRenderer() {
