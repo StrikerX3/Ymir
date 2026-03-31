@@ -20,7 +20,7 @@ struct ISCSPTracer {
 
     /// @brief Invoked for each slot when the SCSP outputs a sample.
     /// @param[in] index the slot index
-    /// @param[in] left the slot output sample
+    /// @param[in] sample the slot output sample
     virtual void SlotSample(uint32 index, sint16 sample) = 0;
 
     /// @brief Invoked when KYONEX is processed.

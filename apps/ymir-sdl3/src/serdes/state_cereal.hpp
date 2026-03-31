@@ -27,7 +27,7 @@ namespace ymir::state {
 //   9 = 0.1.8
 //  10 = 0.2.0
 //  11 = 0.2.1
-//  12 = 0.2.2
+//  12 = 0.3.0
 inline constexpr uint32 kVersion = 12;
 
 } // namespace ymir::state
