@@ -822,6 +822,10 @@ void serialize(Archive &ar, VDPState::VDPRendererState::Character &s) {
 
 template <class Archive>
 void serialize(Archive &ar, VDPState::VDPRendererState::VRAMFetcherState &s, const uint32 version) {
+    // v12:
+    // - Renamed fields
+    //   - bitmapData -> charData
+    //   - bitmapDataAddress -> charDataAddress
     // v10:
     // - New fields
     //   - lastCellX = 0
