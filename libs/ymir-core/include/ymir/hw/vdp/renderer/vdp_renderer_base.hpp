@@ -7,9 +7,9 @@
 
 #include "vdp_renderer_defs.hpp"
 
-#include <ymir/hw/vdp/vdp1_defs.hpp>
 #include <ymir/hw/vdp/vdp_callbacks.hpp>
 #include <ymir/hw/vdp/vdp_configs.hpp>
+#include <ymir/hw/vdp/vdp_state.hpp>
 
 #include <ymir/state/state_vdp.hpp>
 
@@ -85,17 +85,35 @@ public:
 
     /// @brief Save the renderer state.
     /// @param[in] state the state object
-    virtual void SaveState(state::VDPState::VDPRendererState &state) = 0;
+    void SaveState(state::VDPState::VDPRendererState &state);
 
     /// @brief Validates the renderer state.
     /// @param[in] state the state object
     /// @return `true` if the given state is valid, `false` otherwise
-    virtual bool ValidateState(const state::VDPState::VDPRendererState &state) const = 0;
+    bool ValidateState(const state::VDPState::VDPRendererState &state) const;
 
     /// @brief Loads the renderer state.
     /// @param[in] state the state object
-    virtual void LoadState(const state::VDPState::VDPRendererState &state) = 0;
+    void LoadState(const state::VDPState::VDPRendererState &state);
 
+protected:
+    /// @brief Save the renderer state.
+    /// Invoked by calls to `SaveState(ymir::state::VDPState::VDPRendererState &)`.
+    /// @param[in] state the state object
+    virtual void SaveStateImpl(state::VDPState::VDPRendererState &state) = 0;
+
+    /// @brief Validates the renderer state.
+    /// Invoked by calls to `ValidateState(const ymir::state::VDPState::VDPRendererState &) const`.
+    /// @param[in] state the state object
+    /// @return `true` if the given state is valid, `false` otherwise
+    virtual bool ValidateStateImpl(const state::VDPState::VDPRendererState &state) const = 0;
+
+    /// @brief Loads the renderer state.
+    /// Invoked by calls to `LoadState(const ymir::state::VDPState::VDPRendererState &)`.
+    /// @param[in] state the state object
+    virtual void LoadStateImpl(const state::VDPState::VDPRendererState &state) = 0;
+
+public:
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
 
@@ -288,12 +306,46 @@ protected:
     /// @brief States for Rotation Parameters A and B.
     std::array<RotationParamState, 2> m_rotParamStates;
 
+    /// @brief Page base addresses for RBG planes A-P using Rotation Parameters A and B.
+    /// Indexing: [RotParam A/B][RBG0-1][Plane A-P]
+    /// Derived from `mapIndices`, `CHCTLA/CHCTLB.xxCHSZ`, `PNCR.xxPNB` and `PLSZ.xxPLSZn`.
+    std::array<std::array<std::array<uint32, 16>, 2>, 2> m_rbgPageBaseAddresses;
+
     /// @brief State for the line color and back screens.
     LineBackLayerState m_lineBackLayerState;
 
-    // VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
-    // Entry [0] is primary and [1] is alternate field for deinterlacing.
-    std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
+    /// @brief Layer enable state based on BGON and other factors.
+    /// ```
+    ///     RBG0+RBG1   RBG0        RBG1        no RBGs
+    /// [0] Sprite      Sprite      Sprite      Sprite
+    /// [1] RBG0        RBG0        -           -
+    /// [2] RBG1        NBG0        RBG1        NBG0
+    /// [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+    /// [4] -           NBG2        NBG2        NBG2
+    /// [5] -           NBG3        NBG3        NBG3
+    /// ```
+    std::array<bool, 6> m_layerEnabled;
+
+    // Rotation coefficient data access permissions per VRAM bank.
+    // Derived from RAMCTL.RDBS(A-B)(0-1)(1-0), RAMCTL.VRAMD and RAMCTL.VRBMD
+    std::array<bool, 4> m_coeffAccess;
+
+    /// @brief Computes the access patterns for NBGs and RBGs.
+    /// @param[in] regs2 the VDP2 register state to update
+    void VDP2CalcAccessPatterns(VDP2Regs &regs2);
+
+    /// @brief Computes vertical cell scroll access delays for NBGs 0 and 1.
+    /// @param regs2 the VDP2 register state to use
+    void VDP2CalcVCellScrollDelay(VDP2Regs &regs2);
+
+    /// @brief Updates the background enable states in `m_layerEnabled`.
+    /// @param[in] regs2 the VDP2 register state to use
+    /// @param[in] debugRenderOpts the VDP2 debug rendering options to use
+    void VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts);
+
+    /// @brief Updates the page base addresses for RBGs.
+    /// @param[in] regs2 the VDP2 register state to use
+    void VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2);
 
 private:
     const VDPRendererType m_type;
