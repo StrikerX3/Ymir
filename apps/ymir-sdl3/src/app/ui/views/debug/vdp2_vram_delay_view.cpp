@@ -164,8 +164,8 @@ void VDP2VRAMDelayView::Display() {
             ImGui::TextUnformatted(name);
 
             auto cp = [&](const char *name, uint32 bg, uint32 timing) {
-                assert(lastCP[bg] != 0xFF);
                 const auto &bgParams = regs2.bgParams[bg + 1];
+                assert(bgParams.bitmap || lastCP[bg] != 0xFF);
                 bool valid;
                 if (bgParams.bitmap) {
                     valid = bgParams.vramDataOffset[bankIndex] == 0;
