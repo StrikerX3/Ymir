@@ -26,11 +26,16 @@ Introduces save state file version 14.
 - Media: Added support for MP3 and OGG audio tracks to CUE loader. (#920; @surajrbhardwaj)
 - SH2: Interrupt recalculation microoptimizations.
 - SMPC: Remove direct dependency to filesystem API for data persistence.
+- Settings: Added hardware rendering options.
+- Settings: Added internal resolution scaling setting ranging from 1x to 16x.
 - VDP1: Software renderer performance microoptimizations:
     - Do these once per command instead of per pixel:
         - Determine double density mode
         - Get references to VDP1 registers
         - Shift/mask color bank values
+- VDP1, VDP2: Added internal resolution scaling to hardware renderer. (#60)
+- VDP1, VDP2: Implemented Direct3D 11 hardware renderer.
+- Video: Preliminary support for hardware-accelerated rendering.
 
 ### Fixes
 

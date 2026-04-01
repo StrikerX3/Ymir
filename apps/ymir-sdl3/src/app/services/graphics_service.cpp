@@ -2,6 +2,8 @@
 
 #include <ymir/util/scope_guard.hpp>
 
+#include <SDL3/SDL_hints.h>
+
 #include <cassert>
 #include <limits>
 
@@ -24,6 +26,9 @@ SDL_Renderer *GraphicsService::CreateRenderer(Backend backend, SDL_Window *windo
     SDL_SetPointerProperty(rendererProps, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, window);
     SDL_SetStringProperty(rendererProps, SDL_PROP_RENDERER_CREATE_NAME_STRING, GraphicsBackendRendererID(backend));
     SDL_SetNumberProperty(rendererProps, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, vsync);
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+    SDL_SetHint(SDL_HINT_RENDER_DIRECT3D_THREADSAFE, "1");
+#endif
 
     if (m_renderer != nullptr) {
         DestroyResources();

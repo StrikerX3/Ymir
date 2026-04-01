@@ -18,6 +18,7 @@
 #include <ymir/util/inline.hpp>
 
 #include <array>
+#include <functional>
 #include <ostream>
 #include <string_view>
 
@@ -42,6 +43,15 @@ public:
     /// @brief Determines if this is a hardware renderer.
     /// @return `true` if this is a hardware renderer, `false` if software or null renderer.
     virtual bool IsHardwareRenderer() const = 0;
+
+    /// @brief Executes the specified function synchronously in the caller thread.
+    ///
+    /// `RunSync` ensures thread safety when accessing graphics resources. It is mandatory to use this function in the
+    /// frontend when using graphics APIs concurrently with a hardware VDP renderer to avoid crashes or memory
+    /// corruption.
+    ///
+    /// @param[in] fn the function to invoke
+    virtual void RunSync(std::function<void()> fn) = 0;
 
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
@@ -80,11 +90,13 @@ public:
     virtual void SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
 
     /// @brief Validates the renderer state.
+    /// Invoked by calls to `ValidateState(const ymir::state::VDPState::VDPRendererState &) const`.
     /// @param[in] state the state object
     /// @return `true` if the given state is valid, `false` otherwise
     virtual bool ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const = 0;
 
     /// @brief Loads the renderer state.
+    /// Invoked by calls to `LoadState(const ymir::state::VDPState::VDPRendererState &)`.
     /// @param[in] state the state object
     virtual void LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
 
@@ -242,6 +254,26 @@ public:
     template <VDPRendererType type>
     FORCE_INLINE typename detail::VDPRendererType_t<type> *As() const {
         return const_cast<IVDPRenderer *>(this)->As<type>();
+    }
+
+    /// @brief If this renderer object is a hardware renderer, casts it to `HardwareVDPRendererBase *`.
+    /// Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    virtual HardwareVDPRendererBase *AsHardwareRenderer() {
+        return nullptr;
+    }
+
+    /// @brief If this renderer object is a hardware renderer, casts it to `HardwareVDPRendererBase *`.
+    /// concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    HardwareVDPRendererBase *AsHardwareRenderer() const {
+        return const_cast<IVDPRenderer *>(this)->AsHardwareRenderer();
     }
 
     /// @brief Retrieves a human-readable name for this renderer.
