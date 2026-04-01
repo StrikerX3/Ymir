@@ -138,6 +138,9 @@ add_library(ymir-core
     include/ymir/hw/vdp/renderer/vdp_renderer.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_base.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_defs.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_hw_base.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_hw_callbacks.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_hw_defs.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
 
@@ -304,6 +307,59 @@ add_library(ymir-core
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
 )
+
+## Add graphics APIs and resources
+if (WIN32)
+    if (Ymir_FF_D3D11_RENDERER)
+        ## Direct3D 11 on Windows
+        target_sources(ymir-core PRIVATE
+            include/ymir/hw/vdp/renderer/vdp_renderer_d3d11.hpp
+
+            src/ymir/hw/vdp/renderer/vdp_renderer_d3d11.cpp
+
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_context_manager.cpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_context_manager.hpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_defs.hpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_device_manager.cpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_device_manager.hpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_shader_cache.cpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_shader_cache.hpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_types.hpp
+            src/ymir/hw/vdp/renderer/d3d11/d3d11_utils.hpp
+        )
+        target_link_libraries(ymir-core PRIVATE "d3d11.lib" "d3dcompiler.lib" "dxguid.lib")
+        target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_DIRECT3D=1")
+
+        list(APPEND YMIR_CORE_RESOURCES
+            res/embed/d3d11/cs_vdp1_cpuwrite.hlsl
+            res/embed/d3d11/cs_vdp1_erase.hlsl
+            res/embed/d3d11/cs_vdp1_render.hlsl
+            res/embed/d3d11/cs_vdp2_bgs.hlsl
+            res/embed/d3d11/cs_vdp2_ccwindow.hlsl
+            res/embed/d3d11/cs_vdp2_compose.hlsl
+            res/embed/d3d11/cs_vdp2_rotparams.hlsl
+            res/embed/d3d11/cs_vdp2_sprite.hlsl
+            res/embed/d3d11/vs_identity.hlsl
+        )
+
+        find_package(wil CONFIG REQUIRED)
+        target_link_libraries(ymir-core PRIVATE WIL::WIL)
+    endif ()
+endif ()
+
+if (APPLE)
+    # TODO: add Metal sources and libraries
+    target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_METAL=1")
+endif ()
+
+# TODO: check if Vulkan is actually supported by the target platform
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_VULKAN=1")
+
+# SDL Renderer forces OpenGL to an ancient version.
+# Leave it out for now until we replace SDL Renderer with our own graphics platform.
+#target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_OPENGL=1")
+
+
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
                       VERSION ${Ymir_core_VERSION}
@@ -316,6 +372,7 @@ target_compile_features(ymir-core PUBLIC cxx_std_20)
 
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
+    ymir-core::rc
     fmt::fmt
     mio
     concurrentqueue
@@ -328,6 +385,15 @@ if (WIN32)
         synchronization
     )
 endif ()
+
+## Create embedded resource library
+cmrc_add_resource_library(ymir-core-rc
+    ALIAS ymir-core::rc
+    NAMESPACE Ymir_core_rc
+    WHENCE res/embed
+
+    ${YMIR_CORE_RESOURCES}
+)
 
 
 # Build precompiled header
@@ -412,8 +478,11 @@ target_compile_definitions(ymir-core PUBLIC "Ymir_EXTRA_INLINING=$<BOOL:${Ymir_E
 target_compile_definitions(ymir-core PUBLIC "TOML_EXCEPTIONS=0")
 
 ## Define feature flags macros
-## Template:
-## target_compile_definitions(ymir-core PUBLIC "Ymir_FF_[NAME]=$<BOOL:${Ymir_FF_[NAME]}>")
+foreach (VAR ITEMS
+    "Ymir_FF_D3D11_RENDERER"
+)
+    target_compile_definitions(ymir-core PUBLIC "${VAR}=$<BOOL:${${VAR}}>")
+endforeach ()
 
 ## Generate the export header and attach it to the target
 include(GenerateExportHeader)
@@ -444,4 +513,5 @@ endif ()
 if (MSVC)
     vs_set_filters(TARGET ymir-core)
     set_target_properties(ymir-core PROPERTIES FOLDER "Ymir")
+    set_target_properties(ymir-core-rc PROPERTIES FOLDER "Ymir")
 endif ()

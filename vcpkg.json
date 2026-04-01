@@ -45,6 +45,10 @@
     "tomlplusplus",
     "zlib",
     "zstd",
+    {
+      "name": "wil",
+      "platform": "windows"
+    },
     "miniz"
   ]
 }

@@ -8,21 +8,6 @@
 
 namespace app::gfx {
 
-#ifdef _WIN32
-    #define YMIR_PLATFORM_HAS_DIRECT3D
-#endif
-
-#ifdef __APPLE__
-    #define YMIR_PLATFORM_HAS_METAL
-#endif
-
-#define YMIR_PLATFORM_HAS_VULKAN
-
-// OpenGL is offered as a fallback option only, not recommended
-#if !defined(__APPLE__) && !defined(_WIN32)
-    #define YMIR_PLATFORM_HAS_OPENGL
-#endif
-
 /// @brief Graphics backend options.
 enum class Backend {
     Default,
@@ -57,8 +42,34 @@ inline constexpr Backend kGraphicsBackends[] = {
 #endif
 };
 
+inline constexpr bool GraphicsBackendSupportsGPURendering(Backend backend) {
+    switch (backend) {
+    default: [[fallthrough]];
+    case Backend::Default:
+#if defined(_WIN32) && defined(YMIR_PLATFORM_HAS_DIRECT3D)
+        return true;
+#else
+        return false;
+#endif
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+    case Backend::Direct3D11: return true;
+    case Backend::Direct3D12: return false;
+#endif
+#ifdef YMIR_PLATFORM_HAS_METAL
+    case Backend::Metal: return false;
+#endif
+#ifdef YMIR_PLATFORM_HAS_VULKAN
+    case Backend::Vulkan: return false;
+#endif
+#ifdef YMIR_PLATFORM_HAS_OPENGL
+    case Backend::OpenGL: return false;
+#endif
+    }
+}
+
 inline constexpr const char *GraphicsBackendName(Backend backend) {
     switch (backend) {
+    default: [[fallthrough]];
     case Backend::Default: return "Default";
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return "Direct3D 11";
@@ -73,12 +84,12 @@ inline constexpr const char *GraphicsBackendName(Backend backend) {
 #ifdef YMIR_PLATFORM_HAS_OPENGL
     case Backend::OpenGL: return "OpenGL";
 #endif
-    default: return "Default";
     }
 }
 
 inline constexpr const char *GraphicsBackendRendererID(Backend backend) {
     switch (backend) {
+    default: [[fallthrough]];
     case Backend::Default: return nullptr;
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return "direct3d11";
@@ -93,7 +104,6 @@ inline constexpr const char *GraphicsBackendRendererID(Backend backend) {
 #ifdef YMIR_PLATFORM_HAS_OPENGL
     case Backend::OpenGL: return "opengl";
 #endif
-    default: return nullptr;
     }
 }
 

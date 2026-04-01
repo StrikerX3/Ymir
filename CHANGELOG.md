@@ -21,11 +21,16 @@ Uses save state file version 13.
 - Input: Introduce a small amount of jitter to the Virtua Gun aim in Death Crimson. Greatly improves shot detection in the game. (#787)
 - SH2: Interrupt recalculation microoptimizations.
 - SMPC: Remove direct dependency to filesystem API for data persistence.
+- Settings: Added hardware rendering options.
+- Settings: Added internal resolution scaling setting ranging from 1x to 8x.
 - VDP1: Software renderer performance microoptimizations:
     - Do these once per command instead of per pixel:
         - Determine double density mode
         - Get references to VDP1 registers
         - Shift/mask color bank values
+- VDP1, VDP2: Added internal resolution scaling to hardware renderer. (#60)
+- VDP1, VDP2: Implemented Direct3D 11 hardware renderer.
+- Video: Preliminary support for hardware-accelerated rendering.
 
 ### Fixes
 
@@ -296,20 +301,20 @@ Introduced save state file version 12.
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
 - VDP1: Stop processing commands if encountering an all-zeros entry. Fixes invalid clipping coordinates in Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. (#761)
 - VDP2: Apply VRAM access shift per bank to scroll NBGs with invalid timing patterns. Fixes World Heroes Perfect title screen shift and Cyberbots - Fullmetal Madness HUD shift and broken background in stage 2. (#756)
-- VDP2: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
 - VDP2: Compute vertical cell scroll delays/offsets when enabling/disabling the effect in addition to access cycle changes.
-- VDP2: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
 - VDP2: Convert the "allow bitmap data access during SH-2 cycles" hack into a game-specific flag and enable it only for games that display issues with the strict timing checks:
     - Lunar - Silver Star Story
     - Mechanical Violator Hakaider
     - Shin Kaitei Gunkan
-- VDP2: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
-- VDP2: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 - VDP2: Illegal scroll CP accesses cause a shift if there aren't enough valid accesses in other banks and the illegal accesses occurs in the same bank as the PN access. Fixes fog background shift in Sonic 3D Blast. (#798)
 - VDP2: Illegal scroll CP accesses in low-res modes are handled differently between T0-T3 and T4-T7. Fixes gaps in backgrounds in X-Men vs. Street Fighter. (#775)
 - VDP2: Multiple VC accesses in the same timing slot do not cause extra delays. Fixes FMV glitches in Girls in Motion Puzzle Vol. 1 - Hiyake no Omoide + Himekuri. (#466)
 - VDP2: Sprite special pattern detection was short by one bit.
 - VDP2: Use only the first PN access to check for valid CP accesses. Fixes graphics shift in Daisuki and BattleSport. (#769, #770)
+- VDP2-SW: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
+- VDP2-SW: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
+- VDP2-SW: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
+- VDP2-SW: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 
 
 ## Version 0.2.1

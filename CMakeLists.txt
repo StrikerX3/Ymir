@@ -35,6 +35,7 @@ option(Ymir_FEATUREFLAG_DEFAULT "Enable all feature flags by default" ${Ymir_DEV
 ## Selectively enable in-development features
 ## Template:
 ## option(Ymir_FF_[NAME] "[description]" ${Ymir_FEATUREFLAG_DEFAULT})
+option(Ymir_FF_D3D11_RENDERER "Enable the Direct3D GPU renderer" ${Ymir_FEATUREFLAG_DEFAULT})
 
 if (Ymir_LIBRARY_ONLY)
     message(STATUS "Ymir: Library-only build")
@@ -48,8 +49,10 @@ message(STATUS "Ymir: Devlog ${Ymir_ENABLE_DEVLOG}")
 message(STATUS "Ymir: Extra inlining ${Ymir_EXTRA_INLINING}")
 message(STATUS "Ymir: Update checks ${Ymir_ENABLE_UPDATE_CHECKS}")
 
-#message(STATUS "Ymir: Feature flags:")
-#message(STATUS "- [Name]: ${Ymir_FF_[NAME]}")
+message(STATUS "Ymir: Feature flags:")
+# Template:
+# message(STATUS "- [Name]: ${Ymir_FF_[NAME]}")
+message(STATUS "- Direct3D 11 VDP1/VDP2 renderer: ${Ymir_FF_D3D11_RENDERER}")
 
 # Create Universal Binary on MacOS
 #if (APPLE)

@@ -25,13 +25,26 @@ struct Enhancements {
     /// with half-transparency on top of other graphics.
     bool transparentMeshes = false;
 
+    /// @brief Internal resolution scaling numerator.
+    /// The fraction `scaleNum / scaleDen` is clamped to [1.0, 8.0].
+    /// If either value is zero, the default scale of 1.0x is used.
+    /// Does not apply to the software renderer.
+    uint16 scaleNum = 0;
+
+    /// @brief Internal resolution scaling denominator.
+    /// The fraction `scaleNum / scaleDen` is clamped to [1.0, 8.0].
+    /// If either value is zero, the default scale of 1.0x is used.
+    /// Does not apply to the software renderer.
+    uint16 scaleDen = 0;
+
     /// @brief Determines if any enhancement is enabled:
     /// - `deinterlace` is set to `true`
     /// - `transparentMeshes` is set to `true`
+    /// - `scaleNum` and `scaleDen` are non-zero and `scaleNum` is greater than `scaleDen`, in other words, the internal
     /// resolution scale factor is greater than 1.0x
     /// @return `true` if any enhancement is active, `false` otherwise
     bool AnyEnabled() const {
-        return deinterlace || transparentMeshes;
+        return deinterlace || transparentMeshes || (scaleNum != 0 && scaleDen != 0 && scaleNum > scaleDen);
     }
 };
 
