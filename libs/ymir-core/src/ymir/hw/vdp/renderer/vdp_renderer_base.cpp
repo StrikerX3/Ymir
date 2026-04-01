@@ -475,10 +475,7 @@ void IVDPRenderer::VDP2CalcAccessPatterns(VDP2Regs &regs2) {
                 const auto timing = regs2.cyclePatterns.timings[bank][index];
                 if (timing == CyclePatterns::PatNameNBG0 + nbg) {
                     bgParams.patNameAccess[bank] = true;
-                } else if (timing == CyclePatterns::CharPatNBG0 + nbg
-                           // HACK: allow bitmap data access during SH-2 cycles. Probably wrong.
-                           // Fixes flickering FMVs in Shin Kaitei Gunkan and Lunar - Silver Star Story
-                           || (bgParams.bitmap && timing == CyclePatterns::CPU)) {
+                } else if (timing == CyclePatterns::CharPatNBG0 + nbg) {
                     bgParams.charPatAccess[bank] = true;
                 }
             }
