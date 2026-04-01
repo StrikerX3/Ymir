@@ -79,7 +79,6 @@ void SCU::Reset(bool hard) {
         m_scheduler.Cancel(m_timer1Event);
         m_timer1Reload = 0;
         m_timer1Mode = false;
-        m_timer1Triggered = true;
         m_timerEnable = false;
     }
 
@@ -182,15 +181,13 @@ void SCU::UpdateHBlank(bool hb, bool vb) {
         m_intrStatus.VDP2_HBlankIN = 1;
         UpdateMasterInterruptLevel();
         if (m_timerEnable) {
-            if (m_timer0Counter == m_timer0Compare) {
-                TriggerTimer0();
-            }
-            if (m_timer1Triggered && (!m_timer1Mode || m_timer0Counter == m_timer0Compare)) {
-                m_timer1Triggered = false;
-                m_scheduler.ScheduleFromNow(m_timer1Event, m_timer1Reload);
-            }
             ++m_timer0Counter;
+            CheckTimer0();
+            if (!m_scheduler.IsScheduled(m_timer1Event)) {
+                m_scheduler.ScheduleFromNow(m_timer1Event, m_timer1Reload + 1u);
+            }
         }
+
         TriggerDMATransfer(DMATrigger::HBlankIN);
     }
     if (!vb) {
@@ -210,6 +207,7 @@ void SCU::UpdateVBlank(bool vb) {
     } else {
         m_intrStatus.VDP2_VBlankOUT = 1;
         m_timer0Counter = 0;
+        CheckTimer0();
         TriggerDMATransfer(DMATrigger::VBlankOUT);
         m_cbExternalSlaveInterrupt(4, 0x42); // TODO: make this behavior optional
     }
@@ -430,9 +428,8 @@ void SCU::SaveState(savestate::SCUSaveState &state) const {
 
     state.timer0Compare = m_timer0Compare;
     state.timer0Counter = m_timer0Counter;
-    state.timer1Reload = m_timer1Reload;
+    state.timer1Reload = bit::extract<2, 10>(m_timer1Reload);
     state.timer1Mode = m_timer1Mode;
-    state.timer1Triggered = m_timer1Triggered;
     state.timerEnable = m_timerEnable;
 
     state.wramSizeSelect = m_WRAMSizeSelect;
@@ -507,8 +504,7 @@ void SCU::LoadState(const savestate::SCUSaveState &state) {
 
     m_timer0Compare = state.timer0Compare;
     m_timer0Counter = state.timer0Counter;
-    m_timer1Reload = state.timer1Reload;
-    m_timer1Triggered = state.timer1Triggered;
+    m_timer1Reload = (((state.timer1Reload - 1) & 0x1FF) + 1) << 2u;
     m_timer1Mode = state.timer1Mode;
     m_timerEnable = state.timerEnable;
 
@@ -1158,11 +1154,16 @@ void SCU::TriggerDMATransfer(DMATrigger trigger) {
     RecalcDMAChannel();
 }
 
+FORCE_INLINE void SCU::CheckTimer0() {
+    if (m_timerEnable && m_timer0Counter == m_timer0Compare) {
+        TriggerTimer0();
+    }
+}
+
 FORCE_INLINE void SCU::TickTimer1() {
-    if (m_timerEnable) {
+    if (!m_timer1Mode || (m_timerEnable && m_timer0Counter == m_timer0Compare)) {
         TriggerTimer1();
     }
-    m_timer1Triggered = true;
 }
 
 template <mem_primitive T, bool peek>
@@ -1671,9 +1672,17 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x9A: // (T1MD) Timer 1 Mode (bits 8-15)
         m_timer1Mode = bit::test<0>(value);
         break;
-    case 0x9B: // (T1MD) Timer 1 Mode (bits 0-7)
+    case 0x9B: { // (T1MD) Timer 1 Mode (bits 0-7)
+        const bool wasEnabled = m_timerEnable;
         m_timerEnable = bit::test<0>(value);
+        if (!m_timerEnable) {
+            m_timer0Counter = 0;
+        }
+        if (!wasEnabled && m_timerEnable) {
+            CheckTimer0();
+        }
         break;
+    }
 
     case 0xA0: break; // (IMS) Interrupt Mask (bits 24-31)
     case 0xA1: break; // (IMS) Interrupt Mask (bits 16-23)
@@ -1939,10 +1948,18 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x98: // (T1MD) Timer 1 Mode (bits 16-31)
         // Nothing to write
         break;
-    case 0x9A: // (T1MD) Timer 1 Mode (bits 0-15)
+    case 0x9A: { // (T1MD) Timer 1 Mode (bits 0-15)
+        const bool wasEnabled = m_timerEnable;
         m_timerEnable = bit::test<0>(value);
         m_timer1Mode = bit::test<8>(value);
+        if (!m_timerEnable) {
+            m_timer0Counter = 0;
+        }
+        if (!wasEnabled && m_timerEnable) {
+            CheckTimer0();
+        }
         break;
+    }
 
     case 0xA0: // (IMS) Interrupt Mask (bits 16-31)
         // Nothing to write
@@ -2134,10 +2151,18 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x94: // (T1S) Timer 1 Set Data
         WriteTimer1Reload(value);
         break;
-    case 0x98: // (T1MD) Timer 1 Mode
+    case 0x98: { // (T1MD) Timer 1 Mode
+        const bool wasEnabled = m_timerEnable;
         m_timerEnable = bit::test<0>(value);
         m_timer1Mode = bit::test<8>(value);
+        if (!m_timerEnable) {
+            m_timer0Counter = 0;
+        }
+        if (!wasEnabled && m_timerEnable) {
+            CheckTimer0();
+        }
         break;
+    }
 
     case 0xA0: // (IMS) Interrupt Mask
         m_intrMask.u32 = value & 0x0000BFFF;

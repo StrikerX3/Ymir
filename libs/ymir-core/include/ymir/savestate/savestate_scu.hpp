@@ -111,7 +111,6 @@ struct SCUSaveState {
     uint16 timer0Compare;
     uint16 timer1Reload;
     bool timer1Mode;
-    bool timer1Triggered;
     bool timerEnable;
 
     bool wramSizeSelect;

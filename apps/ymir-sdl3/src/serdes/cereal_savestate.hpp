@@ -178,6 +178,9 @@ void serialize(Archive &ar, SH2SaveState::Cache::Entry &s) {
 
 template <class Archive>
 void serialize(Archive &ar, SCUSaveState &s, const uint32 version) {
+    // v12:
+    // - Removed fields
+    //   - timer1Triggered
     // v8:
     // - New fields
     //   - abusIntrsPendingAck = intrStatus >> 16  (or 0 if abusIntrAck == true in versions 7 and below)
@@ -260,10 +263,9 @@ void serialize(Archive &ar, SCUSaveState &s, const uint32 version) {
     }
     ar(s.timer0Counter, s.timer0Compare);
     ar(s.timer1Reload);
-    if (version >= 8) {
-        ar(s.timer1Triggered);
-    } else {
-        s.timer1Triggered = true;
+    if (version >= 8 && version < 12) {
+        bool timer1Triggered;
+        ar(timer1Triggered);
     }
     ar(s.timerEnable, s.timer1Mode);
     ar(s.wramSizeSelect);
