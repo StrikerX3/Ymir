@@ -293,7 +293,7 @@ protected:
     /// @brief Current VDP enhancements configuration.
     config::Enhancements m_enhancements;
 
-    /// @brief Indicated whether any enhancements are currently enabled.
+    /// @brief Indicates whether any enhancements are currently enabled.
     /// Updated automatically whenever the enhancements are changed.
     bool m_hasEnhancements = false;
 
