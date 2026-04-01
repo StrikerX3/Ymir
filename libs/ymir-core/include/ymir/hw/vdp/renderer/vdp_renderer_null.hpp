@@ -27,6 +27,10 @@ public:
         return false;
     }
 
+    void RunSync(std::function<void()> fn) override {
+        fn();
+    }
+
     void Reset(bool hard) override {}
 
     // -------------------------------------------------------------------------

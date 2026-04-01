@@ -116,6 +116,8 @@ currently supports these rendering backends:
 - **Null** (`ymir::vdp::NullVDPRenderer`): renders nothing, but invokes all standard renderer callbacks.
 - **Software** (`ymir::vdp::SoftwareVDPRenderer`): CPU-only renderer. Can use dedicated threads or run directly in the
 emulator thread. Requires additional callback configuration to receive the framebuffer data.
+- **Direct3D 11** (`ymir::vdp::Direct3D11VDPRenderer`): Direct3D 11 hardware-accelerated renderer. Requires a pointer to
+a `ID3D11Device` instance with support for deferred contexts and Shader Model 5.0 pixel and compute shaders.
 
 Renderers can be selected through one of the `Use*Renderer()` methods in `ymir::vdp::VDP`. The methods return a pointer
 to the concrete renderer instance, allowing you to perform additional configuration if necessary.
@@ -139,6 +141,11 @@ where:
 - `userContext` is a user-provided context pointer
 
 This callback must be registered by the frontend in order to adjust the screen size.
+
+`ymir::vdp::IVDPRenderer::RunSync(std::function<void()>)` executes the given function in the caller thread and may enter
+a critical section or hold a mutex if necessary to control access to non-thread-safe graphics objects (such as Direct3D
+11's immediate context). Any usage of graphics APIs by the frontend application must be done inside the function passed
+to `RunSync` to avoid race conditions, memory corruption and crashes.
 
 
 @subsection sw_renderer Software renderer
@@ -170,6 +177,71 @@ instance.
 
 @note The most significant byte of the framebuffer data is set to 0xFF for convenience, so that it is fully opaque in
 case your framebuffer texture has an alpha channel (ABGR8888 format).
+
+
+@subsection hw_renderer Hardware renderers
+
+All hardware-accelerated renderers are frontend-agnostic and make use of raw graphics APIs available on each platform.
+In order to instantiate them, you'll generally need to provide a high-level object representing a graphics device or
+context and some additional API-specific configuration. Renderers may require certain features to be available, such as
+multithreading or minimum shader model version.
+
+Hardware renderers build command lists that must be executed on the thread where graphics is managed (typically the main
+or GUI thread) by invoking `ymir::vdp::HardwareVDPRendererBase::ExecutePendingCommandList()` at an appropriate time in
+the thread, which will execute all pending command lists. The application may have to flush graphics state prior to
+executing the command lists or may wish to compute statistics on everry command list executed. This can be easily
+achieved with the pre- and post-execution callbacks that are invoked immediately before and after a command list is
+executed:
+
+```cpp
+void PreExecuteCommandList(bool first, void *userContext)
+void PostExecuteCommandList(bool last, void *userContext)
+```
+
+where
+- `first` and `last` indicate if the command is the first or last in the list respectively
+- `userContext` is a user-provided context pointer
+
+These callbacks are invoked in the same thread that invokes `ExecutePendingCommandList()` and can be configured in the
+VDP with `ymir::vdp::VDP::SetHardwarePreExecuteCommandListCallback(ymir::vdp::CBHardwarePreExecuteCommandList callback)`
+and `ymir::vdp::VDP::SetHardwarePostExecuteCommandListCallback(ymir::vdp::CBHardwarePostExecuteCommandList callback)`
+or directly in the hardware renderer instance in the `ymir::vdp::HardwareVDPRendererBase::HwCallbacks` field.
+
+Whenever a command list is prepared, the hardware renderer invokes another callback function to notify the frontend. The
+callback signature is:
+
+```cpp
+void CommandListReady(bool vdp2FrameEnd, void *userContext)
+```
+
+where
+- `vdp2FrameEnd` indicates that the command list completes a VDP2 frame
+- `userContext` is a user-provided context pointer
+
+This callback is invoked by the renderer thread (which may be the emulator thread) and can be configured through the VDP
+with `ymir::vdp::VDP::SetHardwareCommandListReadyCallback(ymir::vdp::CBHardwareCommandListReady callback)` or directly
+in the hardware renderer instance in the `ymir::vdp::HardwareVDPRendererBase::HwCallbacks` field.
+
+Each renderer exposes a handle or pointer to a texture containing the VDP2 framebuffer output, ready to be rendered to
+the screen however the application sees fit.
+
+
+
+@subsection d3d11_renderer Direct3D 11 renderer
+
+- Implementation class: `ymir::vdp::Direct3D11VDPRenderer`
+- Enum value: `ymir::vdp::VDPRendererType::Direct3D11`
+- Instantiation: `ymir::vdp::VDP::UseDirect3D11Renderer(ID3D11Device *device, bool restoreState)`
+
+The Direct3D 11 VDP renderer requires a pointer to an `ID3D11Device` instantiated with support for deferred contexts and
+Shader Model 5.0 pixel and compute shaders. The `restoreState` parameter indicates if the deferred context state should
+be restored after executing each command list. Set this to `false` if your frontend application manages the state.
+
+`ymir::vdp::Direct3D11VDPRenderer::GetVDP2OutputTexture()` returns an `ID3D11Texture2D *` with the VDP2 framebuffer
+output texture.
+
+
+
 @subsection recv_video_audio Receiving video frames and audio samples
 
 In order to receive video and audio, you must configure callbacks in `ymir::vdp::VDP` and `ymir::scsp::SCSP`, accessible
@@ -181,6 +253,9 @@ instance obtained with `ymir::vdp::VDP::GetRenderer()` via the field `ymir::vdp:
 The software renderer defines additional callbacks in `ymir::vdp::SoftwareRendererCallbacks`. These can be configured in
 `ymir::vdp::SoftwareVDPRenderer::SwCallbacks` but can also be configured directly in the `ymir::vdp::VDP` instance for
 convenience, which avoids the need to type-checking and casting.
+
+All hardware renderers use callbacks from the `ymir::vdp::HardwareRendererCallbacks`. Similar to software renderer
+callbacks, these are managed and automatically configured by the VDP when hardware renderers are instantiated.
 
 All renderers invoke the VDP1 and VDP2 frame complete callbacks when their respective frames are finished. The VDP1
 frame complete callback is invoked whenever a framebuffer swap occurs, while the VDP2 frame complete callback is invoked
@@ -195,6 +270,9 @@ where
 
 Both callbacks must be set directly in the renderer instance. They only need to be set once; they are transferred over
 to new renderer instances when switching renderers.
+
+Software and hardware renderers output frames in their own ways. See the corresponding sections above for details on
+their framebuffer management mechanisms.
 
 The SCSP invokes the sample callback on every sample (signed 16-bit PCM, stereo, 44100 Hz).
 The callback signature is:
@@ -332,4 +410,5 @@ As noted above, the input, video and audio callbacks as well as debug tracers ar
 Provide proper synchronization between the emulator thread and the main/GUI thread when handling these events.
 
 The software VDP1 and VDP2 renderers may optionally run in their own threads. They are thread-safe within the core.
+Hardware renderers may run in the emulator thread or a dedicated thread, depending on the implementation.
 */

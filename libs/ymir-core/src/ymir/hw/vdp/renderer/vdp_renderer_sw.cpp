@@ -1897,7 +1897,7 @@ FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &SoftwareVDPRenderer::VDP2GetVRAM(
 }
 
 void SoftwareVDPRenderer::VDP2InitFrame() {
-    const VDP2Regs &regs2 = VDP2GetRegs();
+    VDP2Regs &regs2 = VDP2GetRegs();
     if (!regs2.bgEnabled[5]) {
         VDP2InitNormalBG<0>();
     }

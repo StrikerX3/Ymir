@@ -63,16 +63,18 @@ Ymir - Sega Saturn emulator
 Usage:
   Ymir [OPTION...] path to disc image
 
-  -d, --disc arg      Path to Saturn disc image (.ccd, .chd, .cue, .iso, 
-                      .mds)
-  -p, --profile arg   Path to profile directory
-  -u, --user          Force user profile
-  -h, --help          Display help text
-  -f, --fullscreen    Start in fullscreen mode
-  -P, --paused        Start paused
-  -F, --fast-forward  Start in fast-forward mode
-  -D, --debug         Start with debug tracing enabled
-  -E, --exceptions    Capture all unhandled exceptions
+  -d, --disc arg        Path to Saturn disc image (.ccd, .chd, .cue, .iso,
+                        .mds)
+  -p, --profile arg     Path to profile directory
+  -u, --user            Force user profile
+  -h, --help            Display help text
+  -f, --fullscreen      Start in fullscreen mode
+  -P, --paused          Start paused
+  -F, --fast-forward    Start in fast-forward mode
+  -D, --debug           Start with debug tracing enabled
+  -G, --graphics-debug  Enable graphics API debug logs
+  -S, --shaders-debug   Compile shaders in debug mode
+  -E, --exceptions      Capture all unhandled exceptions
 
 ```
 

@@ -315,6 +315,30 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, SDL_PixelForma
     }
 }
 
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, ymir::vdp::VDP1VRAMSyncMode &value) {
+    value = ymir::vdp::VDP1VRAMSyncMode::Command;
+    if (auto opt = node.value<std::string>()) {
+        if (*opt == "Command"s) {
+            value = ymir::vdp::VDP1VRAMSyncMode::Command;
+        } else if (*opt == "Draw"s) {
+            value = ymir::vdp::VDP1VRAMSyncMode::Draw;
+        } else if (*opt == "Swap"s) {
+            value = ymir::vdp::VDP1VRAMSyncMode::Swap;
+        }
+    }
+}
+
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, ymir::vdp::VDP2VRAMSyncMode &value) {
+    value = ymir::vdp::VDP2VRAMSyncMode::Scanline;
+    if (auto opt = node.value<std::string>()) {
+        if (*opt == "Scanline"s) {
+            value = ymir::vdp::VDP2VRAMSyncMode::Scanline;
+        } else if (*opt == "Frame"s) {
+            value = ymir::vdp::VDP2VRAMSyncMode::Frame;
+        }
+    }
+}
+
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Audio::MidiPort::Type &value) {
     value = Settings::Audio::MidiPort::Type::None;
     if (auto opt = node.value<std::string>()) {
@@ -562,6 +586,23 @@ FORCE_INLINE static const char *ToTOML(const SDL_PixelFormat value) {
     case SDL_PIXELFORMAT_P010: return "P010";
     case SDL_PIXELFORMAT_EXTERNAL_OES: return "ExternalOES";
     case SDL_PIXELFORMAT_MJPG: return "MJPG";
+    }
+}
+
+FORCE_INLINE static const char *ToTOML(const ymir::vdp::VDP1VRAMSyncMode value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case ymir::vdp::VDP1VRAMSyncMode::Command: return "Command";
+    case ymir::vdp::VDP1VRAMSyncMode::Draw: return "Draw";
+    case ymir::vdp::VDP1VRAMSyncMode::Swap: return "Swap";
+    }
+}
+
+FORCE_INLINE static const char *ToTOML(const ymir::vdp::VDP2VRAMSyncMode value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case ymir::vdp::VDP2VRAMSyncMode::Scanline: return "Scanline";
+    case ymir::vdp::VDP2VRAMSyncMode::Frame: return "Frame";
     }
 }
 
@@ -1068,11 +1109,15 @@ void Settings::ResetToDefaults() {
     video.fullScreenMode.pixelFormat = SDL_PIXELFORMAT_UNKNOWN;
     video.fullScreenMode.refreshRate = 0.0f;
     video.fullScreenMode.pixelDensity = 0.0f;
+    video.useHardwareAcceleration = false;
     video.swRenderer.threadedVDP1 = true;
     video.swRenderer.threadedVDP2 = true;
     video.swRenderer.threadedDeinterlacer = true;
+    video.hwRenderer.vdp1VRAMSyncMode = ymir::vdp::VDP1VRAMSyncMode::Command;
+    video.hwRenderer.vdp2VRAMSyncMode = ymir::vdp::VDP2VRAMSyncMode::Scanline;
     video.enhancements.deinterlace = false;
     video.enhancements.transparentMeshes = false;
+    video.enhancements.scaleFactor = config_defaults::video::kDefaultScaleFactor;
 
     audio.volume = 0.8;
     audio.mute = false;
@@ -1563,6 +1608,11 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                 Parse(tblSwRenderer, "ThreadedVDP2", video.swRenderer.threadedVDP2);
                 Parse(tblSwRenderer, "ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer);
             }
+            if (auto tblHwRenderer = tblVideo["HardwareRenderer"]) {
+                Parse(tblHwRenderer, "VDP1VRAMSyncMode", video.hwRenderer.vdp1VRAMSyncMode);
+                Parse(tblHwRenderer, "VDP2VRAMSyncMode", video.hwRenderer.vdp2VRAMSyncMode);
+            }
+            Parse(tblVideo, "UseHardwareAcceleration", video.useHardwareAcceleration);
         } else {
             if (configVersion >= 4) {
                 Parse(tblVideo, "ThreadedVDP1", video.swRenderer.threadedVDP1);
@@ -1579,8 +1629,12 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
 
         if (configVersion >= 5) {
             if (auto tblEnhancements = tblVideo["Enhancements"]) {
+                uint8 scaleFactor;
                 Parse(tblEnhancements, "Deinterlace", video.enhancements.deinterlace);
                 Parse(tblEnhancements, "TransparentMeshes", video.enhancements.transparentMeshes);
+                Parse(tblEnhancements, "ScaleFactor", scaleFactor);
+                video.enhancements.scaleFactor = std::clamp<uint8>(scaleFactor, config_defaults::video::kMinScaleFactor,
+                                                                   config_defaults::video::kMaxScaleFactor);
             }
         } else {
             Parse(tblVideo, "Deinterlace", video.enhancements.deinterlace);
@@ -1982,9 +2036,15 @@ SettingsSaveResult Settings::Save() {
                 {"ThreadedVDP2", video.swRenderer.threadedVDP2.Get()},
                 {"ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer.Get()},
             }}},
+            {"HardwareRenderer", toml::table{{
+                {"VDP1VRAMSyncMode", video.hwRenderer.vdp1VRAMSyncMode.Get()},
+                {"VDP2VRAMSyncMode", video.hwRenderer.vdp2VRAMSyncMode.Get()},
+            }}},
+            {"UseHardwareAcceleration", video.useHardwareAcceleration.Get()},
             {"Enhancements", toml::table{{
                 {"Deinterlace", video.enhancements.deinterlace.Get()},
                 {"TransparentMeshes", video.enhancements.transparentMeshes.Get()},
+                {"ScaleFactor", video.enhancements.scaleFactor.Get()},
             }}},
         }}},
 

@@ -4,6 +4,7 @@
 
 #include <app/shared_context.hpp>
 
+#include <app/services/graphics_service.hpp>
 #include <app/services/save_state_service.hpp>
 
 #include <memory>
@@ -61,6 +62,67 @@ EmuEvent SetTransparentMeshes(bool enable) {
     return RunFunction([=](SharedContext &ctx) {
         ctx.saturn.instance->VDP.ModifyEnhancements(
             [&](vdp::config::Enhancements &enhancements) { enhancements.transparentMeshes = enable; });
+    });
+}
+
+EmuEvent SetResolutionScaling(uint32 num, uint32 den) {
+    return RunFunction([=](SharedContext &ctx) {
+        ctx.saturn.instance->VDP.ModifyEnhancements([&](vdp::config::Enhancements &enhancements) {
+            enhancements.scaleNum = num;
+            enhancements.scaleDen = den;
+        });
+    });
+}
+
+EmuEvent SetVDP1VRAMSyncMode(ymir::vdp::VDP1VRAMSyncMode mode) {
+    return RunFunction([=](SharedContext &ctx) {
+        if (auto *renderer = ctx.saturn.instance->VDP.GetHardwareRenderer()) {
+            renderer->VDP1VRAMSyncMode = mode;
+        }
+    });
+}
+
+EmuEvent SetVDP2VRAMSyncMode(ymir::vdp::VDP2VRAMSyncMode mode) {
+    return RunFunction([=](SharedContext &ctx) {
+        if (auto *renderer = ctx.saturn.instance->VDP.GetHardwareRenderer()) {
+            renderer->VDP2VRAMSyncMode = mode;
+        }
+    });
+}
+
+EmuEvent UseNullVDPRenderer(util::Event &event) {
+    return RunFunction([&event](SharedContext &ctx) {
+        auto &vdp = ctx.saturn.instance->VDP;
+        vdp.UseNullRenderer();
+        event.Set();
+    });
+}
+
+EmuEvent SwitchVDPRenderer() {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &vdp = ctx.saturn.instance->VDP;
+        if (settings.video.useHardwareAcceleration) {
+            auto &gfx = ctx.serviceLocator.GetRequired<services::GraphicsService>();
+            SDL_Renderer *renderer = gfx.GetRenderer();
+            SDL_PropertiesID props = SDL_GetRendererProperties(renderer);
+            std::string rendererName = SDL_GetStringProperty(props, SDL_PROP_RENDERER_NAME_STRING, "");
+            bool succeeded = false;
+            if (rendererName == "direct3d11") {
+                auto *device = static_cast<ID3D11Device *>(
+                    SDL_GetPointerProperty(props, SDL_PROP_RENDERER_D3D11_DEVICE_POINTER, nullptr));
+                if (device != nullptr) {
+                    /*auto *renderer = */ vdp.UseDirect3D11Renderer(device, true, ctx.screen.debugShaders);
+                    succeeded = true;
+                }
+            }
+            // Fall back to software renderer in case of failure
+            if (!succeeded) {
+                vdp.UseSoftwareRenderer();
+            }
+        } else {
+            vdp.UseSoftwareRenderer();
+        }
     });
 }
 

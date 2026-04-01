@@ -319,6 +319,16 @@ int App::Run(const CommandLineOptions &options) {
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
         videoSettings.enhancements.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
+        videoSettings.enhancements.scaleFactor.Observe(
+            [&](uint8 value) { m_context.EnqueueEvent(events::emu::SetResolutionScaling(value, 1)); });
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(987, 224));
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(918, 224));
+        // m_context.EnqueueEvent(events::emu::SetResolutionScaling(2, 1));
+
+        videoSettings.hwRenderer.vdp1VRAMSyncMode.Observe(
+            [&](ymir::vdp::VDP1VRAMSyncMode mode) { m_context.EnqueueEvent(events::emu::SetVDP1VRAMSyncMode(mode)); });
+        videoSettings.hwRenderer.vdp2VRAMSyncMode.Observe(
+            [&](ymir::vdp::VDP2VRAMSyncMode mode) { m_context.EnqueueEvent(events::emu::SetVDP2VRAMSyncMode(mode)); });
     }
 
     // Profile priority:
@@ -565,6 +575,8 @@ void App::RunEmulator() {
         }
     });
 
+    screen.debugShaders = m_options.debugShaders;
+
     // ---------------------------------
     // Initialize SDL subsystems
 
@@ -757,6 +769,12 @@ void App::RunEmulator() {
 
     int vsync = 1;
     {
+        if (m_options.enableGPUDebugging) {
+#if YMIR_PLATFORM_HAS_DIRECT3D
+            SDL_SetHint(SDL_HINT_RENDER_DIRECT3D11_DEBUG, "1");
+#endif
+        }
+
         gfx::Backend &graphicsBackend = settings.video.graphicsBackend;
         SDL_Renderer *renderer = m_graphicsService.CreateRenderer(graphicsBackend, screen.window, vsync);
         if (renderer == nullptr) {
@@ -781,6 +799,8 @@ void App::RunEmulator() {
         SDL_SetWindowFullscreen(screen.window, fullScreen);
         ApplyFullscreenMode();
     });
+    settings.video.useHardwareAcceleration.ObserveAndNotify(
+        [&](bool enable) { m_context.EnqueueEvent(events::emu::SwitchVDPRenderer()); });
 
     auto &vdp = m_context.saturn.instance->VDP;
 
@@ -811,6 +831,11 @@ void App::RunEmulator() {
         return;
     };
 
+    // Hardware framebuffer texture
+    SDL_Texture *hwFbTexture = nullptr;
+
+    // TODO: gfx::TextureHandle fbTexture = <select between swFbTexture and hwFbTexture>;
+
     // Display texture, containing the scaled framebuffer to be displayed on the screen
     const gfx::TextureHandle dispTexture = m_graphicsService.CreateTexture(
         SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_TARGET, vdp::kMaxResH * screen.fbScale,
@@ -835,8 +860,21 @@ void App::RunEmulator() {
         SDL_Renderer *renderer = m_graphicsService.GetRenderer();
 
         assert(m_graphicsService.IsTextureHandleValid(dispTexture));
-        assert(m_graphicsService.IsTextureHandleValid(swFbTexture));
+        // TODO: assert(m_graphicsService.IsTextureHandleValid(fbTexture));
+        assert(hwFbTexture != nullptr || m_graphicsService.IsTextureHandleValid(swFbTexture));
         assert(renderer != nullptr);
+
+        SDL_Texture *fbTexture;
+        if (hwFbTexture != nullptr && vdp.GetRenderer().IsHardwareRenderer()) {
+            fbTexture = hwFbTexture;
+        } else {
+            fbTexture = m_graphicsService.GetSDLTexture(swFbTexture);
+        }
+        float tw, th;
+        SDL_GetTextureSize(fbTexture, &tw, &th);
+
+        const float wScale = tw / vdp::kMaxResH;
+        const float hScale = th / vdp::kMaxResV;
 
         // Recreate render target texture if scale changed
         if (scale != screen.fbScale) {
@@ -851,14 +889,14 @@ void App::RunEmulator() {
         SDL_Texture *prevRenderTarget = SDL_GetRenderTarget(renderer);
 
         // Render scaled framebuffer into display texture
-        SDL_FRect srcRect{.x = 0.0f, .y = 0.0f, .w = (float)screen.width, .h = (float)screen.height};
+        SDL_FRect srcRect{.x = 0.0f, .y = 0.0f, .w = (float)screen.width * wScale, .h = (float)screen.height * hScale};
         SDL_FRect dstRect{.x = 0.0f,
                           .y = 0.0f,
                           .w = (float)screen.width * screen.fbScale,
                           .h = (float)screen.height * screen.fbScale};
 
         SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
-        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(swFbTexture), &srcRect, &dstRect);
+        SDL_RenderTexture(renderer, fbTexture, &srcRect, &dstRect);
 
         // Restore render target
         SDL_SetRenderTarget(renderer, prevRenderTarget);
@@ -909,6 +947,14 @@ void App::RunEmulator() {
 
     // ---------------------------------
     // Setup framebuffer and render callbacks
+
+    struct HardwareOutputTextureCreatedCallbackData {
+        SDL_Texture *&hwFbTexture;
+        services::GraphicsService &graphicsService;
+    } hardwareOutputTextureCreatedCallbackData = {
+        .hwFbTexture = hwFbTexture,
+        .graphicsService = m_graphicsService,
+    };
 
     {
         auto &renderer = vdp.GetRenderer();
@@ -1006,6 +1052,71 @@ void App::RunEmulator() {
                 }
             },
         });
+
+        vdp.SetHardwareCommandListReadyCallback({
+            this,
+            [](bool vdp2FrameEnd, void *ctx) {
+                if (vdp2FrameEnd) {
+                    auto &app = *static_cast<App *>(ctx);
+                    auto &sharedCtx = app.m_context;
+                    auto &screen = sharedCtx.screen;
+                    if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
+                        screen.frameRequestEvent.Wait();
+                        screen.frameRequestEvent.Reset();
+                    }
+                    if (screen.videoSync) {
+                        screen.frameReadyEvent.Set();
+                    }
+                }
+            },
+        });
+
+        vdp.SetHardwarePreExecuteCommandListCallback({
+            &m_graphicsService,
+            [](bool first, void *ctx) {
+                if (first) {
+                    auto &graphicsService = *static_cast<services::GraphicsService *>(ctx);
+                    SDL_Renderer *renderer = graphicsService.GetRenderer();
+                    if (renderer != nullptr) {
+                        SDL_FlushRenderer(renderer);
+                    }
+                }
+            },
+        });
+
+        vdp.SetHardwareOutputTextureCreatedCallback(
+            {&hardwareOutputTextureCreatedCallbackData,
+             [](ymir::vdp::IVDPRenderer &vdpRenderer, void *texture, uint32 width, uint32 height, void *ctx) {
+                 devlog::debug<grp::base>("{} output texture created: {}x{}", vdpRenderer.GetName(), width, height);
+
+                 auto &data = *static_cast<HardwareOutputTextureCreatedCallbackData *>(ctx);
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+                 if (auto *d3d11Renderer = vdpRenderer.As<vdp::VDPRendererType::Direct3D11>()) {
+                     SDL_PropertiesID texProps = SDL_CreateProperties();
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, width);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, height);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, SDL_PIXELFORMAT_ABGR8888);
+                     SDL_SetNumberProperty(texProps, SDL_PROP_TEXTURE_CREATE_ACCESS_NUMBER, SDL_TEXTUREACCESS_STATIC);
+                     SDL_SetPointerProperty(texProps, SDL_PROP_TEXTURE_CREATE_D3D11_TEXTURE_POINTER, texture);
+                     data.hwFbTexture = SDL_CreateTextureWithProperties(data.graphicsService.GetRenderer(), texProps);
+                     if (data.hwFbTexture == nullptr) {
+                         // TODO: report error
+                         // ShowStartupFailure("Could not create SDL texture from D3D11 texture: {}", SDL_GetError());
+                         return;
+                     }
+                     SDL_SetTextureScaleMode(data.hwFbTexture, SDL_SCALEMODE_NEAREST);
+                 }
+#endif
+             }});
+
+        vdp.SetHardwareOutputTextureDestroyedCallback(
+            {&hwFbTexture, [](ymir::vdp::IVDPRenderer &vdpRenderer, void *texture, void *ctx) {
+                 devlog::debug<grp::base>("{} output texture destroyed", vdpRenderer.GetName());
+
+                 auto *&hwFbTexture = *static_cast<SDL_Texture **>(ctx);
+                 SDL_DestroyTexture(hwFbTexture);
+                 hwFbTexture = nullptr;
+             }});
     }
 
     // ---------------------------------
@@ -1965,6 +2076,9 @@ void App::RunEmulator() {
         screen.frameRequestEvent.Set();
         m_context.EnqueueEvent(events::emu::SetPaused(false));
         m_context.EnqueueEvent(events::emu::Shutdown());
+        if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
+            hwrenderer->DiscardPendingCommandLists();
+        }
         if (m_emuThread.joinable()) {
             m_emuThread.join();
         }
@@ -2471,6 +2585,11 @@ void App::RunEmulator() {
                 ImGui_ImplSDLRenderer3_Shutdown();
                 ImGui_ImplSDL3_Shutdown();
 
+                // Free VDP renderer before recreating SDL renderer and wait for the command to be processed
+                util::Event evtRendererSwitched{false};
+                m_context.EnqueueEvent(events::emu::UseNullVDPRenderer(evtRendererSwitched));
+                evtRendererSwitched.Wait();
+
                 // TODO: recreate window when switching back from OpenGL to another API
                 if (m_graphicsService.CreateRenderer(backend, screen.window, vsync)) {
                     settings.video.graphicsBackend = backend;
@@ -2480,6 +2599,9 @@ void App::RunEmulator() {
                                                          gfx::GraphicsBackendName(backend), SDL_GetError()));
                     m_graphicsService.CreateRenderer(prevBackend, screen.window, vsync);
                 }
+
+                // Recreate VDP renderer
+                m_context.EnqueueEvent(events::emu::SwitchVDPRenderer());
 
                 SDL_Renderer *renderer = m_graphicsService.GetRenderer();
                 ImGui_ImplSDL3_InitForSDLRenderer(screen.window, renderer);
@@ -2585,7 +2707,9 @@ void App::RunEmulator() {
         }
 
         // Update display
-        if (screen.updated || screen.videoSync) {
+        if (auto *hwrenderer = vdp.GetHardwareRenderer()) {
+            hwrenderer->ExecutePendingCommandLists();
+        } else if (screen.updated || screen.videoSync) {
             if (screen.videoSync && screen.expectFrame && !m_context.paused) {
                 screen.frameReadyEvent.Wait();
                 screen.frameReadyEvent.Reset();
@@ -2596,6 +2720,8 @@ void App::RunEmulator() {
                 std::unique_lock lock{screen.mtxFramebuffer};
                 screen.framebuffers[1] = screen.framebuffers[0];
             }
+
+            // Update framebuffer texture
             screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(swFbTexture));
         }
 
@@ -3649,172 +3775,177 @@ void App::RunEmulator() {
 
         SDL_Renderer *renderer = m_graphicsService.GetRenderer();
 
-        // Clear screen
-        const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
-        SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
-        SDL_RenderClear(renderer);
+        vdp.GetRenderer().RunSync([&] {
+            // Clear screen
+            const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
+            SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
+            SDL_RenderClear(renderer);
 
-        // Draw Saturn screen
-        if (!settings.video.displayVideoOutputInWindow) {
-            const auto &videoSettings = settings.video;
-            const bool forceAspectRatio = videoSettings.forceAspectRatio;
-            const double forcedAspect = videoSettings.forcedAspect;
-            const bool aspectRatioChanged = forceAspectRatio && forcedAspect != prevForcedAspect;
-            const bool forceAspectRatioChanged = prevForceAspectRatio != forceAspectRatio;
-            const bool screenSizeChanged = aspectRatioChanged || forceAspectRatioChanged || screen.resolutionChanged;
-            const bool fitWindowToScreen =
-                (videoSettings.autoResizeWindow && screenSizeChanged) || fitWindowToScreenNow;
-            const bool horzDisplay = videoSettings.rotation == Settings::Video::DisplayRotation::Normal ||
-                                     videoSettings.rotation == Settings::Video::DisplayRotation::_180;
+            // Draw Saturn screen
+            if (!settings.video.displayVideoOutputInWindow) {
+                const auto &videoSettings = settings.video;
+                const bool forceAspectRatio = videoSettings.forceAspectRatio;
+                const double forcedAspect = videoSettings.forcedAspect;
+                const bool aspectRatioChanged = forceAspectRatio && forcedAspect != prevForcedAspect;
+                const bool forceAspectRatioChanged = prevForceAspectRatio != forceAspectRatio;
+                const bool screenSizeChanged =
+                    aspectRatioChanged || forceAspectRatioChanged || screen.resolutionChanged;
+                const bool fitWindowToScreen =
+                    (videoSettings.autoResizeWindow && screenSizeChanged) || fitWindowToScreenNow;
+                const bool horzDisplay = videoSettings.rotation == Settings::Video::DisplayRotation::Normal ||
+                                         videoSettings.rotation == Settings::Video::DisplayRotation::_180;
 
-            float menuBarHeight = drawMainMenu ? ImGui::GetFrameHeight() : 0.0f;
+                float menuBarHeight = drawMainMenu ? ImGui::GetFrameHeight() : 0.0f;
 
-            // Get window size
-            int ww, wh;
-            SDL_GetWindowSize(screen.window, &ww, &wh);
+                // Get window size
+                int ww, wh;
+                SDL_GetWindowSize(screen.window, &ww, &wh);
 
+#if defined(__APPLE__)
+                // Logical->Physical window-coordinate fix primarily for MacOS Retina displays
+                const float pixelDensity = SDL_GetWindowPixelDensity(screen.window);
+                ww *= pixelDensity;
+                wh *= pixelDensity;
+
+                menuBarHeight *= pixelDensity;
+#endif
+
+                wh -= menuBarHeight;
+
+                double baseWidth = forceAspectRatio ? std::ceil(screen.height * screen.scaleY * forcedAspect)
+                                                    : screen.width * screen.scaleX;
+                double baseHeight = screen.height * screen.scaleY;
+                if (!horzDisplay) {
+                    std::swap(baseWidth, baseHeight);
+                }
+
+                double scale;
+                if (forceScreenScale) {
+                    const bool doubleRes = screen.width >= 640 || screen.height >= 400;
+                    scale = doubleRes ? forcedScreenScale : forcedScreenScale * 2;
+                } else {
+                    // Compute maximum scale to fit the display given the constraints above
+                    double scaleFactor = 1.0;
+
+                    const double scaleX = (double)ww / baseWidth;
+                    const double scaleY = (double)wh / baseHeight;
+                    scale = std::max(1.0, std::min(scaleX, scaleY));
+
+                    // Preserve the previous scale if the aspect ratio changed or the force option was just
+                    // enabled/disabled when fitting the window to the screen
+                    if (fitWindowToScreen) {
+                        int screenWidth = screen.width;
+                        int screenHeight = screen.height;
+                        int screenScaleX = screen.scaleX;
+                        int screenScaleY = screen.scaleY;
+                        if (screen.resolutionChanged) {
+                            // Handle double resolution scaling
+                            const bool currDoubleRes = screen.prevWidth >= 640 || screen.prevHeight >= 400;
+                            const bool nextDoubleRes = screen.width >= 640 || screen.height >= 400;
+                            if (currDoubleRes != nextDoubleRes) {
+                                scaleFactor = nextDoubleRes ? 0.5 : 2.0;
+                            }
+                            screenWidth = screen.prevWidth;
+                            screenHeight = screen.prevHeight;
+                            screenScaleX = screen.prevScaleX;
+                            screenScaleY = screen.prevScaleY;
+                        }
+                        if (screenSizeChanged) {
+                            double baseWidth = forceAspectRatio
+                                                   ? std::ceil(screenHeight * screenScaleY * prevForcedAspect)
+                                                   : screenWidth * screenScaleX;
+                            double baseHeight = screenHeight * screenScaleY;
+                            if (!horzDisplay) {
+                                std::swap(baseWidth, baseHeight);
+                            }
+                            const double scaleX = (double)ww / baseWidth;
+                            const double scaleY = (double)wh / baseHeight;
+                            scale = std::max(1.0, std::min(scaleX, scaleY));
+                        }
+                    }
+                    scale *= scaleFactor;
+                    if (videoSettings.forceIntegerScaling) {
+                        scale = floor(scale);
+                    }
+                }
+                int scaledWidth = baseWidth * scale;
+                int scaledHeight = baseHeight * scale;
+
+                // Resize window without moving the display position relative to the screen
+                if (fitWindowToScreen && (ww != scaledWidth || wh != scaledHeight)) {
+                    int wx, wy;
+                    SDL_GetWindowPosition(screen.window, &wx, &wy);
+
+                    // Get window decoration borders in order to prevent moving it off the screen
+                    int wbt = 0;
+                    int wbl = 0;
+                    SDL_GetWindowBordersSize(screen.window, &wbt, &wbl, nullptr, nullptr);
+
+                    int dx = scaledWidth - ww;
+                    int dy = scaledHeight - wh;
+                    SDL_SetWindowSize(screen.window, scaledWidth, scaledHeight + menuBarHeight);
+
+                    int nwx = std::max(wx - dx / 2, wbt);
+                    int nwy = std::max(wy - dy / 2, wbl);
+                    SDL_SetWindowPosition(screen.window, nwx, nwy);
+                }
+                if (!horzDisplay) {
+                    std::swap(scaledWidth, scaledHeight);
+                }
+
+                // Render framebuffer to display texture
+                renderDispTexture(scaledWidth, scaledHeight);
+
+                // Determine how much slack there is on each axis in order to center the image on the window
+                const int slackX = ww - scaledWidth;
+                const int slackY = wh - scaledHeight;
+
+                double rotAngle;
+                switch (videoSettings.rotation) {
+                default: [[fallthrough]];
+                case Settings::Video::DisplayRotation::Normal: rotAngle = 0.0; break;
+                case Settings::Video::DisplayRotation::_90CW: rotAngle = 90.0; break;
+                case Settings::Video::DisplayRotation::_180: rotAngle = 180.0; break;
+                case Settings::Video::DisplayRotation::_90CCW: rotAngle = 270.0; break;
+                }
+
+                // Draw the texture
+                SDL_FRect srcRect{.x = 0.0f,
+                                  .y = 0.0f,
+                                  .w = (float)(screen.width * screen.fbScale),
+                                  .h = (float)(screen.height * screen.fbScale)};
+                SDL_FRect dstRect{.x = floorf(slackX * 0.5f),
+                                  .y = floorf(slackY * 0.5f + menuBarHeight),
+                                  .w = (float)scaledWidth,
+                                  .h = (float)scaledHeight};
+                SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
+                SDL_RenderTextureRotated(renderer, dispTexturePtr, &srcRect, &dstRect, rotAngle, nullptr,
+                                         SDL_FLIP_NONE);
+
+                screen.scale = scale;
+                screen.dCenterX = dstRect.x + dstRect.w * 0.5f;
+                screen.dCenterY = dstRect.y + dstRect.h * 0.5f;
+                screen.dSizeX = dstRect.w;
+                screen.dSizeY = dstRect.h;
+            }
+
+            screen.resolutionChanged = false;
+
+            // Render ImGui widgets
 #if defined(__APPLE__)
             // Logical->Physical window-coordinate fix primarily for MacOS Retina displays
             const float pixelDensity = SDL_GetWindowPixelDensity(screen.window);
-            ww *= pixelDensity;
-            wh *= pixelDensity;
-
-            menuBarHeight *= pixelDensity;
+            SDL_SetRenderScale(renderer, pixelDensity, pixelDensity);
 #endif
 
-            wh -= menuBarHeight;
-
-            double baseWidth = forceAspectRatio ? std::ceil(screen.height * screen.scaleY * forcedAspect)
-                                                : screen.width * screen.scaleX;
-            double baseHeight = screen.height * screen.scaleY;
-            if (!horzDisplay) {
-                std::swap(baseWidth, baseHeight);
-            }
-
-            double scale;
-            if (forceScreenScale) {
-                const bool doubleRes = screen.width >= 640 || screen.height >= 400;
-                scale = doubleRes ? forcedScreenScale : forcedScreenScale * 2;
-            } else {
-                // Compute maximum scale to fit the display given the constraints above
-                double scaleFactor = 1.0;
-
-                const double scaleX = (double)ww / baseWidth;
-                const double scaleY = (double)wh / baseHeight;
-                scale = std::max(1.0, std::min(scaleX, scaleY));
-
-                // Preserve the previous scale if the aspect ratio changed or the force option was just enabled/disabled
-                // when fitting the window to the screen
-                if (fitWindowToScreen) {
-                    int screenWidth = screen.width;
-                    int screenHeight = screen.height;
-                    int screenScaleX = screen.scaleX;
-                    int screenScaleY = screen.scaleY;
-                    if (screen.resolutionChanged) {
-                        // Handle double resolution scaling
-                        const bool currDoubleRes = screen.prevWidth >= 640 || screen.prevHeight >= 400;
-                        const bool nextDoubleRes = screen.width >= 640 || screen.height >= 400;
-                        if (currDoubleRes != nextDoubleRes) {
-                            scaleFactor = nextDoubleRes ? 0.5 : 2.0;
-                        }
-                        screenWidth = screen.prevWidth;
-                        screenHeight = screen.prevHeight;
-                        screenScaleX = screen.prevScaleX;
-                        screenScaleY = screen.prevScaleY;
-                    }
-                    if (screenSizeChanged) {
-                        double baseWidth = forceAspectRatio ? std::ceil(screenHeight * screenScaleY * prevForcedAspect)
-                                                            : screenWidth * screenScaleX;
-                        double baseHeight = screenHeight * screenScaleY;
-                        if (!horzDisplay) {
-                            std::swap(baseWidth, baseHeight);
-                        }
-                        const double scaleX = (double)ww / baseWidth;
-                        const double scaleY = (double)wh / baseHeight;
-                        scale = std::max(1.0, std::min(scaleX, scaleY));
-                    }
-                }
-                scale *= scaleFactor;
-                if (videoSettings.forceIntegerScaling) {
-                    scale = floor(scale);
-                }
-            }
-            int scaledWidth = baseWidth * scale;
-            int scaledHeight = baseHeight * scale;
-
-            // Resize window without moving the display position relative to the screen
-            if (fitWindowToScreen && (ww != scaledWidth || wh != scaledHeight)) {
-                int wx, wy;
-                SDL_GetWindowPosition(screen.window, &wx, &wy);
-
-                // Get window decoration borders in order to prevent moving it off the screen
-                int wbt = 0;
-                int wbl = 0;
-                SDL_GetWindowBordersSize(screen.window, &wbt, &wbl, nullptr, nullptr);
-
-                int dx = scaledWidth - ww;
-                int dy = scaledHeight - wh;
-                SDL_SetWindowSize(screen.window, scaledWidth, scaledHeight + menuBarHeight);
-
-                int nwx = std::max(wx - dx / 2, wbt);
-                int nwy = std::max(wy - dy / 2, wbl);
-                SDL_SetWindowPosition(screen.window, nwx, nwy);
-            }
-            if (!horzDisplay) {
-                std::swap(scaledWidth, scaledHeight);
-            }
-
-            // Render framebuffer to display texture
-            renderDispTexture(scaledWidth, scaledHeight);
-
-            // Determine how much slack there is on each axis in order to center the image on the window
-            const int slackX = ww - scaledWidth;
-            const int slackY = wh - scaledHeight;
-
-            double rotAngle;
-            switch (videoSettings.rotation) {
-            default: [[fallthrough]];
-            case Settings::Video::DisplayRotation::Normal: rotAngle = 0.0; break;
-            case Settings::Video::DisplayRotation::_90CW: rotAngle = 90.0; break;
-            case Settings::Video::DisplayRotation::_180: rotAngle = 180.0; break;
-            case Settings::Video::DisplayRotation::_90CCW: rotAngle = 270.0; break;
-            }
-
-            // Draw the texture
-            SDL_FRect srcRect{.x = 0.0f,
-                              .y = 0.0f,
-                              .w = (float)(screen.width * screen.fbScale),
-                              .h = (float)(screen.height * screen.fbScale)};
-            SDL_FRect dstRect{.x = floorf(slackX * 0.5f),
-                              .y = floorf(slackY * 0.5f + menuBarHeight),
-                              .w = (float)scaledWidth,
-                              .h = (float)scaledHeight};
-            SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
-            SDL_RenderTextureRotated(renderer, dispTexturePtr, &srcRect, &dstRect, rotAngle, nullptr, SDL_FLIP_NONE);
-
-            screen.scale = scale;
-            screen.dCenterX = dstRect.x + dstRect.w * 0.5f;
-            screen.dCenterY = dstRect.y + dstRect.h * 0.5f;
-            screen.dSizeX = dstRect.w;
-            screen.dSizeY = dstRect.h;
-        }
-
-        screen.resolutionChanged = false;
-
-        // Render ImGui widgets
-#if defined(__APPLE__)
-        // Logical->Physical window-coordinate fix primarily for MacOS Retina displays
-        const float pixelDensity = SDL_GetWindowPixelDensity(screen.window);
-        SDL_SetRenderScale(renderer, pixelDensity, pixelDensity);
-#endif
-
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+            ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 
 #if defined(__APPLE__)
-        SDL_SetRenderScale(renderer, 1.0f, 1.0f);
+            SDL_SetRenderScale(renderer, 1.0f, 1.0f);
 #endif
 
-        SDL_RenderPresent(renderer);
+            SDL_RenderPresent(renderer);
+        });
 
         // Process ImGui INI file write requests
         // TODO: compress and include in state blob

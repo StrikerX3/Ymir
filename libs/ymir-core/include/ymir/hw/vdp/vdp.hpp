@@ -89,6 +89,71 @@ public:
         }
     }
 
+    /// @brief Configures the callback to invoke when command lists are ready in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwareCommandListReadyCallback(CBHardwareCommandListReady callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.CommandListReady = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.CommandListReady = callback;
+        }
+    }
+
+    /// @brief Configures the callback to invoke immediately before executing command lists in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwarePreExecuteCommandListCallback(CBHardwarePreExecuteCommandList callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.PreExecuteCommandList = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.PreExecuteCommandList = callback;
+        }
+    }
+
+    /// @brief Configures the callback to invoke immediately after executing command lists in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwarePostExecuteCommandListCallback(CBHardwarePostExecuteCommandList callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.PostExecuteCommandList = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.PostExecuteCommandList = callback;
+        }
+    }
+
+    /// @brief Configures the callback to invoke when the output texture is created in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwareOutputTextureCreatedCallback(CBHardwareOutputTextureCreated callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.OutputTextureCreated = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.OutputTextureCreated = callback;
+        }
+    }
+
+    /// @brief Configures the callback to invoke when the output texture is destroyed in hardware renderers.
+    ///
+    /// @param[in] callback the callback to register
+    void SetHardwareOutputTextureDestroyedCallback(CBHardwareOutputTextureDestroyed callback) {
+        if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            // Apply directly to renderer
+            hwRenderer->HwCallbacks.OutputTextureDestroyed = callback;
+        } else {
+            // Remember for next instantiation.
+            m_hwRendererCallbacks.OutputTextureDestroyed = callback;
+        }
+    }
+
     /// @brief Retrieves a reference to the current VDP renderer.
     /// @return a reference to the current VDP renderer instance, guaranteed to be valid
     IVDPRenderer &GetRenderer() {
@@ -124,6 +189,14 @@ public:
         return const_cast<VDP *>(this)->GetRendererAs<type>();
     }
 
+    /// @brief If the current renderer is a hardware renderer, returns a `HardwareVDPRendererBase *` to it.
+    /// Returns `nullptr` otherwise.
+    /// @return a pointer to the hardware renderer, or `nullptr` if it is not a hardware renderer.
+    HardwareVDPRendererBase *GetHardwareRenderer() {
+        assert(m_renderer.get() != nullptr); // should always be valid
+        return m_renderer->AsHardwareRenderer();
+    }
+
     /// @brief Switches to the null renderer.
     /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
     NullVDPRenderer *UseNullRenderer() {
@@ -141,6 +214,19 @@ public:
         }
         return renderer;
     }
+
+#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+    /// @brief Switches to the Direct3D 11 renderer.
+    /// @param[in] device the `ID3D11Device` instance to use
+    /// @param[in] restoreState whether to restore the D3D11 context state after executing command lists. This parameter
+    /// is passed directly to `ID3D11Context::ExecuteCommandList`.
+    /// @param[in] debug whether to enable debug features (e.g. compile shaders in debug mode)
+    /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
+    d3d11::Direct3D11VDPRenderer *UseDirect3D11Renderer(ID3D11Device *device, bool restoreState, bool debug) {
+        return UseRenderer<d3d11::Direct3D11VDPRenderer>(m_state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig,
+                                                         device, restoreState, debug);
+    }
+#endif
 
     /// @brief Retrieves the enhancements configured for this VDP instance.
     /// @return the current enhancements configuration
@@ -223,8 +309,8 @@ private:
     /// @brief Attempts to replaces the renderer with an instance of the given renderer.
     ///
     /// This method copies over the callbacks from the current to the new renderer, including software renderer
-    /// callbacks via `m_swRendererCallbacks`. This is for convenience, as it allows the frontend to configure these
-    /// callbacks only once to be reused across all renderers.
+    /// callbacks via `m_swRendererCallbacks` and hardware renderers via `m_hwRendererCallbacks`. This is for
+    /// convenience, as it allows the frontend to configure these callbacks only once to be reused across all renderers.
     ///
     /// The callbacks are stored directly in the renderers for performance.
     ///
@@ -251,11 +337,16 @@ private:
         const config::RendererCallbacks callbacks = m_renderer->Callbacks;
         if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
             m_swRendererCallbacks = swRenderer->SwCallbacks;
+        } else if (auto *hwRenderer = m_renderer->AsHardwareRenderer()) {
+            m_hwRendererCallbacks = hwRenderer->HwCallbacks;
         }
 
         renderer->Callbacks = callbacks;
         if constexpr (std::is_same_v<T, SoftwareVDPRenderer>) {
             renderer->SwCallbacks = m_swRendererCallbacks;
+        }
+        if constexpr (std::is_base_of_v<HardwareVDPRendererBase, T>) {
+            renderer->HwCallbacks = m_hwRendererCallbacks;
         }
         renderer->ConfigureEnhancements(m_enhancements);
         renderer->VDP2SetResolution(m_HRes, m_VRes, m_exclusiveMonitor);
@@ -290,6 +381,9 @@ private:
 
     /// @brief The current software renderer callbacks configuration.
     SoftwareRendererCallbacks m_swRendererCallbacks;
+
+    /// @brief The current hardware renderer callbacks configuration.
+    HardwareRendererCallbacks m_hwRendererCallbacks;
 
     // -------------------------------------------------------------------------
     // VDP1 memory/register access

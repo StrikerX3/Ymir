@@ -32,6 +32,7 @@ void TweaksSettingsView::Display() {
 
         auto &enhancements = settings.video.enhancements;
         auto &swRenderer = settings.video.swRenderer;
+        auto &hwRenderer = settings.video.hwRenderer;
 
         fmt::memory_buffer buf{};
         auto inserter = std::back_inserter(buf);
@@ -46,6 +47,9 @@ void TweaksSettingsView::Display() {
         fmt::format_to(inserter, "### Video\n");
         fmt::format_to(inserter, "- {}\n", checkbox("Deinterlace", enhancements.deinterlace));
         fmt::format_to(inserter, "- {}\n", checkbox("Transparent meshes", enhancements.transparentMeshes));
+        if (settings.video.useHardwareAcceleration) {
+            fmt::format_to(inserter, "- Internal resolution scaling: {}x\n", enhancements.scaleFactor.Get());
+        }
 
         // =============================================================================================================
 
@@ -60,12 +64,40 @@ void TweaksSettingsView::Display() {
         // -------------------------------------------------------------------------------------------------------------
         // Video
 
+        auto vdp1VRAMSyncMode = [](ymir::vdp::VDP1VRAMSyncMode mode) {
+            using enum ymir::vdp::VDP1VRAMSyncMode;
+            switch (mode) {
+            case Command: return "Command";
+            case Draw: return "Draw";
+            case Swap: return "Swap";
+            default: return "(invalid setting)";
+            }
+        };
+
+        auto vdp2VRAMSyncMode = [](ymir::vdp::VDP2VRAMSyncMode mode) {
+            using enum ymir::vdp::VDP2VRAMSyncMode;
+            switch (mode) {
+            case Scanline: return "Scanline";
+            case Frame: return "Frame";
+            default: return "(invalid setting)";
+            }
+        };
+
         fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", swRenderer.threadedVDP1.Get()));
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", swRenderer.threadedVDP2.Get()));
-        fmt::format_to(
-            inserter, "  - {}\n",
-            checkbox("Use dedicated thread for deinterlaced rendering", swRenderer.threadedDeinterlacer.Get()));
+        fmt::format_to(inserter, "- {}\n",
+                       checkbox("Use hardware acceleration", settings.video.useHardwareAcceleration.Get()));
+        if (settings.video.useHardwareAcceleration) {
+            fmt::format_to(inserter, "- VDP1 VRAM sync mode: {}\n",
+                           vdp1VRAMSyncMode(hwRenderer.vdp1VRAMSyncMode.Get()));
+            fmt::format_to(inserter, "- VDP2 VRAM sync mode: {}\n",
+                           vdp2VRAMSyncMode(hwRenderer.vdp2VRAMSyncMode.Get()));
+        } else {
+            fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", swRenderer.threadedVDP1.Get()));
+            fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", swRenderer.threadedVDP2.Get()));
+            fmt::format_to(
+                inserter, "  - {}\n",
+                checkbox("Use dedicated thread for deinterlaced rendering", swRenderer.threadedDeinterlacer.Get()));
+        }
 
         // -------------------------------------------------------------------------------------------------------------
         // Audio
@@ -154,6 +186,7 @@ void TweaksSettingsView::DisplayEnhancements() {
 
     widgets::settings::video::enhancements::Deinterlace(m_context);
     widgets::settings::video::enhancements::TransparentMeshes(m_context);
+    widgets::settings::video::enhancements::ResolutionScaling(m_context);
 }
 
 void TweaksSettingsView::DisplayAccuracyOptions() {
@@ -251,13 +284,20 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::SeparatorText("Video");
     ImGui::PopFont();
 
+    widgets::settings::video::UseHardwareAcceleration(m_context);
+
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
     ImGui::SeparatorText("Software renderer");
     ImGui::PopFont();
 
     widgets::settings::video::swrenderer::ThreadedVDP(m_context);
 
-    // TODO: hardware renderer options
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+    ImGui::SeparatorText("Hardware renderer");
+    ImGui::PopFont();
+
+    widgets::settings::video::hwrenderer::VDP1VRAMSyncMode(m_context);
+    widgets::settings::video::hwrenderer::VDP2VRAMSyncMode(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 

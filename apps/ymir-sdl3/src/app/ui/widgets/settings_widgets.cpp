@@ -13,6 +13,8 @@
 
 #include <fmt/format.h>
 
+#include <cinttypes>
+
 using namespace ymir;
 
 namespace app::ui::widgets {
@@ -105,6 +107,43 @@ namespace settings::video {
         ImGui::PopID();
     }
 
+    void UseHardwareAcceleration(SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        bool useHwAccel = settings.video.useHardwareAcceleration;
+        // TODO: check this properly
+        const bool supported = settings.video.graphicsBackend == gfx::Backend::Direct3D11 ||
+                               settings.video.graphicsBackend == gfx::Backend::Default;
+
+        if (!supported) {
+            ImGui::BeginDisabled();
+        }
+        if (settings.MakeDirty(ImGui::Checkbox("Use hardware acceleration", &useHwAccel))) {
+            settings.video.useHardwareAcceleration = useHwAccel;
+        }
+        widgets::ExplanationTooltip("Enables use of GPU compute shaders to accelerate VDP1 and VDP2 rendering.\n"
+                                    "Greatly improves performance and enables additional enhancements.\n"
+                                    "\n"
+                                    "NOTE: Support for hardware acceleration is currently EXPERIMENTAL. You may "
+                                    "encounter bugs, stability and performance issues.",
+                                    ctx.displayScale);
+        if (!supported) {
+            ImGui::EndDisabled();
+        }
+        ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+        ImGui::TextColored(ctx.colors.notice, "Shaders are compiled upon enabling this option for the first time. This "
+                                              "process may take a few seconds to complete.\n");
+        ImGui::TextColored(
+            ctx.colors.warn,
+            "Hardware acceleration is EXPERIMENTAL. It is currently implemented only for Direct3D 11 and may have "
+            "stability, performance or quality issues.\n"
+            "Known issues:\n"
+            "- Severe GUI performance degradation at higher scaling factors\n"
+            "- Switching hardware acceleration on and off may break graphics temporarily until assets are reloaded by "
+            "the game\n"
+            "If you encounter any issues, discuss them on our Discord server.");
+        ImGui::PopTextWrapPos();
+    }
+
     namespace swrenderer {
 
         void ThreadedVDP(SharedContext &ctx) {
@@ -159,6 +198,53 @@ namespace settings::video {
 
     } // namespace swrenderer
 
+    namespace hwrenderer {
+
+        void VDP1VRAMSyncMode(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            ymir::vdp::VDP1VRAMSyncMode mode = settings.video.hwRenderer.vdp1VRAMSyncMode.Get();
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("VDP1 VRAM sync mode:");
+            widgets::ExplanationTooltip(
+                "Selects how often to synchronize VDP1 VRAM writes:\n"
+                "- Command: synchronizes before processing each command (slowest, most accurate)\n"
+                "- Draw: synchronizes before each draw invocation\n"
+                "- Swap: synchronizes before each framebuffer swap (fastest, least accurate)",
+                ctx.displayScale);
+            auto option = [&](const char *name, ymir::vdp::VDP1VRAMSyncMode value) {
+                ImGui::SameLine();
+                if (settings.MakeDirty(ImGui::RadioButton(name, mode == value))) {
+                    settings.video.hwRenderer.vdp1VRAMSyncMode = value;
+                }
+            };
+            option("Command", ymir::vdp::VDP1VRAMSyncMode::Command);
+            option("Draw", ymir::vdp::VDP1VRAMSyncMode::Draw);
+            option("Swap", ymir::vdp::VDP1VRAMSyncMode::Swap);
+        }
+
+        void VDP2VRAMSyncMode(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            ymir::vdp::VDP2VRAMSyncMode mode = settings.video.hwRenderer.vdp2VRAMSyncMode.Get();
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("VDP2 VRAM sync mode:");
+            widgets::ExplanationTooltip("Selects how often to synchronize VDP2 VRAM writes:\n"
+                                        "- Scanline: synchronizes after each scanline (slowest, most accurate)\n"
+                                        "- Frame: synchronizes after each frame (fastest, least accurate)",
+                                        ctx.displayScale);
+            auto option = [&](const char *name, ymir::vdp::VDP2VRAMSyncMode value) {
+                ImGui::SameLine();
+                if (settings.MakeDirty(ImGui::RadioButton(name, mode == value))) {
+                    settings.video.hwRenderer.vdp2VRAMSyncMode = value;
+                }
+            };
+            option("Scanline", ymir::vdp::VDP2VRAMSyncMode::Scanline);
+            option("Frame", ymir::vdp::VDP2VRAMSyncMode::Frame);
+        }
+
+    } // namespace hwrenderer
+
     namespace enhancements {
 
         void Deinterlace(SharedContext &ctx) {
@@ -194,6 +280,42 @@ namespace settings::video {
             widgets::ExplanationTooltip(
                 "When enabled, meshes (checkerboard patterns) will be rendered as transparent polygons instead.",
                 ctx.displayScale);
+        }
+
+        void ResolutionScaling(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            auto &videoSettings = settings.video;
+            uint8 scaleFactor = videoSettings.enhancements.scaleFactor.Get();
+            static constexpr uint8 kMin = config_defaults::video::kMinScaleFactor;
+            static constexpr uint8 kMax = config_defaults::video::kMaxScaleFactor;
+
+            ImGui::AlignTextToFramePadding();
+            if (!videoSettings.useHardwareAcceleration) {
+                ImGui::BeginDisabled();
+            }
+            ImGui::TextUnformatted("Internal resolution factor:");
+            if (!videoSettings.useHardwareAcceleration) {
+                ImGui::EndDisabled();
+                widgets::ImportantTooltip(ctx.colors.notice, "This enhancement requires hardware acceleration to work.",
+                                          ctx.displayScale);
+            }
+            widgets::ExplanationTooltip(
+                "Increases internal resolution for sharper graphics.\n"
+                "Video memory usage and processing power requirements grow exponentially as the scaling factor is "
+                "applied to both the horizontal and vertical dimensions of the display simultaneously.\n"
+                "\n"
+                "For 720p and 1080p displays, 3x to 4x should be enough for maximum fidelity.\n"
+                "For 1440p displays, 6x to 7x is ideal.\n"
+                "For 4K displays, 8x is good.\n" // but really should be 9x to 10x
+                "\n"
+                "Requires hardware acceleration.",
+                ctx.displayScale);
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth((kMax - kMin) * 35.0f * ctx.displayScale);
+            if (settings.MakeDirty(ImGui::SliderScalar("##scale_factor", ImGuiDataType_U8, &scaleFactor, &kMin, &kMax,
+                                                       "%" PRIu8 "x", ImGuiSliderFlags_AlwaysClamp))) {
+                videoSettings.enhancements.scaleFactor = scaleFactor;
+            }
         }
 
     } // namespace enhancements

@@ -61,4 +61,12 @@ namespace input {
 
 } // namespace input
 
+namespace video {
+
+    inline constexpr uint8 kMinScaleFactor = 1u;
+    inline constexpr uint8 kMaxScaleFactor = 8u;
+    inline constexpr uint8 kDefaultScaleFactor = 1u;
+
+} // namespace video
+
 } // namespace app::config_defaults
