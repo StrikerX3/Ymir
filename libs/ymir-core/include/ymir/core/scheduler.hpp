@@ -220,11 +220,7 @@ public:
     FORCE_INLINE bool IsScheduled(EventID id) const {
         assert(id < kNumScheduledEvents);
         const Event &event = m_events[id];
-        if (event.target == kNoDeadline) {
-            return false;
-        }
-        const uint64 scaledCurrCount = m_currCount * event.countNumerator / event.countDenominator;
-        return scaledCurrCount < event.target;
+        return event.target != kNoDeadline;
     }
 
     /// @brief Advances the scheduler by the specified count and fire scheduled events.
