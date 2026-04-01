@@ -13,8 +13,6 @@
 
 #include "vdp_devlog.hpp"
 
-#include "renderer/common/vdp1_steppers.hpp"
-
 #include <ymir/core/configuration.hpp>
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
