@@ -16,7 +16,7 @@
 #include <ymir/hw/cdblock/cdblock_internal_callbacks.hpp>
 #include <ymir/sys/system_internal_callbacks.hpp>
 
-#include <ymir/state/state_cdblock.hpp>
+#include <ymir/savestate/savestate_cdblock.hpp>
 
 #include <ymir/hw/hw_defs.hpp>
 
@@ -55,9 +55,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::CDBlockState &state) const;
-    [[nodiscard]] bool ValidateState(const state::CDBlockState &state) const;
-    void LoadState(const state::CDBlockState &state);
+    void SaveState(savestate::CDBlockSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::CDBlockSaveState &state) const;
+    void LoadState(const savestate::CDBlockSaveState &state);
 
 private:
     CBTriggerExternalInterrupt0 m_cbTriggerExternalInterrupt0;
@@ -294,9 +294,9 @@ private:
         // -------------------------------------------------------------------------
         // Save states
 
-        void SaveState(state::CDBlockState &state) const;
-        [[nodiscard]] bool ValidateState(const state::CDBlockState &state) const;
-        void LoadState(const state::CDBlockState &state);
+        void SaveState(savestate::CDBlockSaveState &state) const;
+        [[nodiscard]] bool ValidateState(const savestate::CDBlockSaveState &state) const;
+        void LoadState(const savestate::CDBlockSaveState &state);
 
     private:
         std::array<std::deque<Buffer>, kNumPartitions> m_partitions;

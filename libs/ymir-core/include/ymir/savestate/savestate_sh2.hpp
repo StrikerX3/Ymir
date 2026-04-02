@@ -4,9 +4,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SH2State {
+struct SH2SaveState {
     alignas(16) std::array<uint32, 16> R;
 
     uint32 PC;
@@ -22,6 +22,7 @@ struct SH2State {
 
     uint32 delaySlotTarget;
     bool delaySlot;
+    bool intrAllow;
 
     struct BSC {
         uint16 BCR1;
@@ -108,4 +109,4 @@ struct SH2State {
     bool sleep;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

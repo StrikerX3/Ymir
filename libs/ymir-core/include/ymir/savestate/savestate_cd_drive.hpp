@@ -5,9 +5,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct CDDriveState {
+struct CDDriveSaveState {
     bool autoCloseTray;
 
     std::array<uint8, 2352> sectorDataBuffer;
@@ -18,7 +18,7 @@ struct CDDriveState {
     std::array<uint8, 13> statusData;
     uint8 statusPos;
 
-    struct CDStatusState {
+    struct CDStatusSaveState {
         uint8 operation;
         uint8 subcodeQ;
         uint8 trackNum;
@@ -49,4 +49,4 @@ struct CDDriveState {
     uint8 readSpeed;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

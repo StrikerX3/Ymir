@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state.hpp>
+#include <ymir/savestate/savestate.hpp>
 
 #include <ymir/util/event.hpp>
 
@@ -56,7 +56,7 @@ public:
     bool PopState();
 
     // Next state to be processed. Should be filled in by the emulator before invoking ProcessState()
-    ymir::state::State NextState;
+    ymir::savestate::SaveState NextState;
 
     int LZ4Accel = 64; // LZ4 acceleration factor (1 to 65537)
 

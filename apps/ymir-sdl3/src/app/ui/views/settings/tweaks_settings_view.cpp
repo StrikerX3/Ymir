@@ -30,6 +30,9 @@ void TweaksSettingsView::Display() {
 
         auto &settings = GetSettings();
 
+        auto &enhancements = settings.video.enhancements;
+        auto &swRenderer = settings.video.swRenderer;
+
         fmt::memory_buffer buf{};
         auto inserter = std::back_inserter(buf);
 
@@ -41,8 +44,8 @@ void TweaksSettingsView::Display() {
         // Video
 
         fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Deinterlace", settings.video.deinterlace));
-        fmt::format_to(inserter, "- {}\n", checkbox("Transparent meshes", settings.video.transparentMeshes));
+        fmt::format_to(inserter, "- {}\n", checkbox("Deinterlace", enhancements.deinterlace));
+        fmt::format_to(inserter, "- {}\n", checkbox("Transparent meshes", enhancements.transparentMeshes));
 
         // =============================================================================================================
 
@@ -58,11 +61,11 @@ void TweaksSettingsView::Display() {
         // Video
 
         fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", settings.video.threadedVDP1.Get()));
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", settings.video.threadedVDP2.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", swRenderer.threadedVDP1.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", swRenderer.threadedVDP2.Get()));
         fmt::format_to(
             inserter, "  - {}\n",
-            checkbox("Use dedicated thread for deinterlaced rendering", settings.video.threadedDeinterlacer.Get()));
+            checkbox("Use dedicated thread for deinterlaced rendering", swRenderer.threadedDeinterlacer.Get()));
 
         // -------------------------------------------------------------------------------------------------------------
         // Audio
@@ -114,8 +117,8 @@ void TweaksSettingsView::DisplayEnhancements() {
     ImGui::TextUnformatted("Presets:");
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Recommended##enhancements"))) {
-        settings.video.deinterlace = false;
-        settings.video.transparentMeshes = true;
+        settings.video.enhancements.deinterlace = false;
+        settings.video.enhancements.transparentMeshes = true;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted(
@@ -125,8 +128,8 @@ void TweaksSettingsView::DisplayEnhancements() {
 
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Best quality##enhancements"))) {
-        settings.video.deinterlace = true;
-        settings.video.transparentMeshes = true;
+        settings.video.enhancements.deinterlace = true;
+        settings.video.enhancements.transparentMeshes = true;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes quality with no regard for performance.");
@@ -135,8 +138,8 @@ void TweaksSettingsView::DisplayEnhancements() {
 
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Best performance##enhancements"))) {
-        settings.video.deinterlace = false;
-        settings.video.transparentMeshes = false;
+        settings.video.enhancements.deinterlace = false;
+        settings.video.enhancements.transparentMeshes = false;
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes performance with no regard for quality.");
@@ -149,8 +152,8 @@ void TweaksSettingsView::DisplayEnhancements() {
     ImGui::SeparatorText("Video");
     ImGui::PopFont();
 
-    widgets::settings::video::Deinterlace(m_context);
-    widgets::settings::video::TransparentMeshes(m_context);
+    widgets::settings::video::enhancements::Deinterlace(m_context);
+    widgets::settings::video::enhancements::TransparentMeshes(m_context);
 }
 
 void TweaksSettingsView::DisplayAccuracyOptions() {
@@ -248,8 +251,13 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::SeparatorText("Video");
     ImGui::PopFont();
 
-    widgets::settings::video::ThreadedVDP(m_context);
-    // TODO: renderer backend options
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+    ImGui::SeparatorText("Software renderer");
+    ImGui::PopFont();
+
+    widgets::settings::video::swrenderer::ThreadedVDP(m_context);
+
+    // TODO: hardware renderer options
 
     // -----------------------------------------------------------------------------------------------------------------
 

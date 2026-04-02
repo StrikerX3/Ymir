@@ -31,10 +31,10 @@ jobs:
     outputs:
       should_run: ${{ steps.should_run.outputs.should_run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: print latest_commit
         run: echo ${{ github.sha }}
-  
+
       - id: should_run
         continue-on-error: true
         name: check latest commit is less than a day
@@ -48,7 +48,7 @@ jobs:
     outputs:
       build-version: ${{ steps.get-sha.outputs.short-sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           sparse-checkout: .
       - name: Get short commit SHA
@@ -71,29 +71,27 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
       - name: Create/update ${{ env.NIGHTLY_TAG_NAME }} tag
         run: |
           git tag -f ${{ env.NIGHTLY_TAG_NAME }}
           git push origin -f --tags
 
       - name: Download Ymir artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           path: ymir
           pattern: ymir-*
           merge-multiple: true
 
       - name: Delete existing release
-        uses: author/action-rollback@stable
-        with:
-          tag: ${{ env.NIGHTLY_TAG_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true  # in case this fails if the release doesn't exist
+        run: |
+          gh release delete ${{ env.NIGHTLY_TAG_NAME }} --yes --cleanup-tag
 
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@1853d73993c8ca1b2c9c1a7fede39682d0ab5c2a
         with:
           name: Latest nightly release
           draft: false
@@ -103,12 +101,12 @@ jobs:
           tag_name: ${{ env.NIGHTLY_TAG_NAME }}
           body: |
             This is a nightly release built from the latest commit. Before you use these builds, **make sure to backup your data, especially the save states!**
-          
+
             Save states are constantly evolving and are only guaranteed to be compatible on stable (numbered) releases.
             The file format may be changed without notice, so be careful when using save states from nightly releases.
 
             You can find the changelog for this build [here](https://github.com/StrikerX3/Ymir/blob/latest-nightly/CHANGELOG.md).
-            
+
             > [!IMPORTANT]
             > Windows users: install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)) before running the emulator. This is **mandatory** to avoid crashes on startup.
             >
@@ -121,4 +119,4 @@ jobs:
             <!-- @@ Build-Timestamp [${{ needs.build-all.outputs.build-timestamp }}] @@ -->
           files: |
             ymir/*
-          
+

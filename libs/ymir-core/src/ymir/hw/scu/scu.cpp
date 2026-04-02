@@ -79,7 +79,6 @@ void SCU::Reset(bool hard) {
         m_scheduler.Cancel(m_timer1Event);
         m_timer1Reload = 0;
         m_timer1Mode = false;
-        m_timer1Triggered = true;
         m_timerEnable = false;
     }
 
@@ -182,15 +181,13 @@ void SCU::UpdateHBlank(bool hb, bool vb) {
         m_intrStatus.VDP2_HBlankIN = 1;
         UpdateMasterInterruptLevel();
         if (m_timerEnable) {
-            if (m_timer0Counter == m_timer0Compare) {
-                TriggerTimer0();
-            }
-            if (m_timer1Triggered && (!m_timer1Mode || m_timer0Counter == m_timer0Compare)) {
-                m_timer1Triggered = false;
-                m_scheduler.ScheduleFromNow(m_timer1Event, m_timer1Reload);
-            }
             ++m_timer0Counter;
+            CheckTimer0();
+            if (!m_scheduler.IsScheduled(m_timer1Event)) {
+                m_scheduler.ScheduleFromNow(m_timer1Event, m_timer1Reload + 1u);
+            }
         }
+
         TriggerDMATransfer(DMATrigger::HBlankIN);
     }
     if (!vb) {
@@ -210,6 +207,7 @@ void SCU::UpdateVBlank(bool vb) {
     } else {
         m_intrStatus.VDP2_VBlankOUT = 1;
         m_timer0Counter = 0;
+        CheckTimer0();
         TriggerDMATransfer(DMATrigger::VBlankOUT);
         m_cbExternalSlaveInterrupt(4, 0x42); // TODO: make this behavior optional
     }
@@ -373,7 +371,7 @@ void SCU::DumpDSPRegs(std::ostream &out) const {
     write(m_dsp.dmaAddrInc);
 }
 
-void SCU::SaveState(state::SCUState &state) const {
+void SCU::SaveState(savestate::SCUSaveState &state) const {
     for (size_t i = 0; i < 3; i++) {
         m_dmaChannels[i].SaveState(state.dma[i]);
     }
@@ -381,13 +379,13 @@ void SCU::SaveState(state::SCUState &state) const {
 
     state.cartData.clear();
     switch (m_cartSlot.GetCartridgeType()) {
-    case cart::CartType::None: state.cartType = state::SCUState::CartType::None; break;
-    case cart::CartType::BackupMemory: state.cartType = state::SCUState::CartType::BackupMemory; break;
+    case cart::CartType::None: state.cartType = savestate::SCUSaveState::CartType::None; break;
+    case cart::CartType::BackupMemory: state.cartType = savestate::SCUSaveState::CartType::BackupMemory; break;
     case cart::CartType::DRAM8Mbit: //
     {
         const cart::DRAM8MbitCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::DRAM8Mbit>();
         assert(cart != nullptr);
-        state.cartType = state::SCUState::CartType::DRAM8Mbit;
+        state.cartType = savestate::SCUSaveState::CartType::DRAM8Mbit;
         state.cartData.resize(1_MiB);
         cart->DumpRAM(std::span<uint8, 1_MiB>(state.cartData.begin(), 1_MiB));
         break;
@@ -396,7 +394,7 @@ void SCU::SaveState(state::SCUState &state) const {
     {
         const cart::DRAM32MbitCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::DRAM32Mbit>();
         assert(cart != nullptr);
-        state.cartType = state::SCUState::CartType::DRAM32Mbit;
+        state.cartType = savestate::SCUSaveState::CartType::DRAM32Mbit;
         state.cartData.resize(4_MiB);
         cart->DumpRAM(std::span<uint8, 4_MiB>(state.cartData.begin(), 4_MiB));
         break;
@@ -405,7 +403,7 @@ void SCU::SaveState(state::SCUState &state) const {
     {
         const cart::DRAM48MbitCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::DRAM48Mbit>();
         assert(cart != nullptr);
-        state.cartType = state::SCUState::CartType::DRAM48Mbit;
+        state.cartType = savestate::SCUSaveState::CartType::DRAM48Mbit;
         state.cartData.resize(6_MiB);
         cart->DumpRAM(std::span<uint8, 6_MiB>(state.cartData.begin(), 6_MiB));
         break;
@@ -415,7 +413,7 @@ void SCU::SaveState(state::SCUState &state) const {
         const cart::ROMCartridge *cart = m_cartSlot.GetCartridge().As<cart::CartType::ROM>();
         assert(cart != nullptr);
         static constexpr size_t size = cart::kROMCartSize;
-        state.cartType = state::SCUState::CartType::ROM;
+        state.cartType = savestate::SCUSaveState::CartType::ROM;
         state.cartData.resize(size);
         cart->DumpROM(std::span<uint8, size>(state.cartData.begin(), size));
         break;
@@ -430,15 +428,14 @@ void SCU::SaveState(state::SCUState &state) const {
 
     state.timer0Compare = m_timer0Compare;
     state.timer0Counter = m_timer0Counter;
-    state.timer1Reload = m_timer1Reload;
+    state.timer1Reload = bit::extract<2, 10>(m_timer1Reload);
     state.timer1Mode = m_timer1Mode;
-    state.timer1Triggered = m_timer1Triggered;
     state.timerEnable = m_timerEnable;
 
     state.wramSizeSelect = m_WRAMSizeSelect;
 }
 
-bool SCU::ValidateState(const state::SCUState &state) const {
+bool SCU::ValidateState(const savestate::SCUSaveState &state) const {
     for (size_t i = 0; i < 3; i++) {
         if (!m_dmaChannels[i].ValidateState(state.dma[i])) {
             return false;
@@ -449,12 +446,12 @@ bool SCU::ValidateState(const state::SCUState &state) const {
     }
 
     switch (state.cartType) {
-    case state::SCUState::CartType::DRAM8Mbit:
+    case savestate::SCUSaveState::CartType::DRAM8Mbit:
         if (state.cartData.size() != 1_MiB) {
             return false;
         }
         break;
-    case state::SCUState::CartType::DRAM32Mbit:
+    case savestate::SCUSaveState::CartType::DRAM32Mbit:
         if (state.cartData.size() != 4_MiB) {
             return false;
         }
@@ -465,32 +462,32 @@ bool SCU::ValidateState(const state::SCUState &state) const {
     return true;
 }
 
-void SCU::LoadState(const state::SCUState &state) {
+void SCU::LoadState(const savestate::SCUSaveState &state) {
     for (size_t i = 0; i < 3; i++) {
         m_dmaChannels[i].LoadState(state.dma[i]);
     }
     m_dsp.LoadState(state.dsp);
 
     switch (state.cartType) {
-    case state::SCUState::CartType::DRAM8Mbit: //
+    case savestate::SCUSaveState::CartType::DRAM8Mbit: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::DRAM8MbitCartridge>();
         cart->LoadRAM(std::span<const uint8, 1_MiB>(state.cartData.begin(), 1_MiB));
         break;
     }
-    case state::SCUState::CartType::DRAM32Mbit: //
+    case savestate::SCUSaveState::CartType::DRAM32Mbit: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::DRAM32MbitCartridge>();
         cart->LoadRAM(std::span<const uint8, 4_MiB>(state.cartData.begin(), 4_MiB));
         break;
     }
-    case state::SCUState::CartType::DRAM48Mbit: //
+    case savestate::SCUSaveState::CartType::DRAM48Mbit: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::DRAM48MbitCartridge>();
         cart->LoadRAM(std::span<const uint8, 6_MiB>(state.cartData.begin(), 6_MiB));
         break;
     }
-    case state::SCUState::CartType::ROM: //
+    case savestate::SCUSaveState::CartType::ROM: //
     {
         auto *cart = m_cartSlot.InsertCartridge<cart::ROMCartridge>();
         cart->LoadROM(std::span<const uint8, 4_MiB>(state.cartData.begin(), 4_MiB));
@@ -507,8 +504,7 @@ void SCU::LoadState(const state::SCUState &state) {
 
     m_timer0Compare = state.timer0Compare;
     m_timer0Counter = state.timer0Counter;
-    m_timer1Reload = state.timer1Reload;
-    m_timer1Triggered = state.timer1Triggered;
+    m_timer1Reload = (((state.timer1Reload - 1) & 0x1FF) + 1) << 2u;
     m_timer1Mode = state.timer1Mode;
     m_timerEnable = state.timerEnable;
 
@@ -1158,11 +1154,16 @@ void SCU::TriggerDMATransfer(DMATrigger trigger) {
     RecalcDMAChannel();
 }
 
+FORCE_INLINE void SCU::CheckTimer0() {
+    if (m_timerEnable && m_timer0Counter == m_timer0Compare) {
+        TriggerTimer0();
+    }
+}
+
 FORCE_INLINE void SCU::TickTimer1() {
-    if (m_timerEnable) {
+    if (!m_timer1Mode || (m_timerEnable && m_timer0Counter == m_timer0Compare)) {
         TriggerTimer1();
     }
-    m_timer1Triggered = true;
 }
 
 template <mem_primitive T, bool peek>
@@ -1671,9 +1672,17 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x9A: // (T1MD) Timer 1 Mode (bits 8-15)
         m_timer1Mode = bit::test<0>(value);
         break;
-    case 0x9B: // (T1MD) Timer 1 Mode (bits 0-7)
+    case 0x9B: { // (T1MD) Timer 1 Mode (bits 0-7)
+        const bool wasEnabled = m_timerEnable;
         m_timerEnable = bit::test<0>(value);
+        if (!m_timerEnable) {
+            m_timer0Counter = 0;
+        }
+        if (!wasEnabled && m_timerEnable) {
+            CheckTimer0();
+        }
         break;
+    }
 
     case 0xA0: break; // (IMS) Interrupt Mask (bits 24-31)
     case 0xA1: break; // (IMS) Interrupt Mask (bits 16-23)
@@ -1939,10 +1948,18 @@ FORCE_INLINE void SCU::WriteRegWord(uint32 address, uint16 value) {
     case 0x98: // (T1MD) Timer 1 Mode (bits 16-31)
         // Nothing to write
         break;
-    case 0x9A: // (T1MD) Timer 1 Mode (bits 0-15)
+    case 0x9A: { // (T1MD) Timer 1 Mode (bits 0-15)
+        const bool wasEnabled = m_timerEnable;
         m_timerEnable = bit::test<0>(value);
         m_timer1Mode = bit::test<8>(value);
+        if (!m_timerEnable) {
+            m_timer0Counter = 0;
+        }
+        if (!wasEnabled && m_timerEnable) {
+            CheckTimer0();
+        }
         break;
+    }
 
     case 0xA0: // (IMS) Interrupt Mask (bits 16-31)
         // Nothing to write
@@ -2134,10 +2151,18 @@ FORCE_INLINE void SCU::WriteRegLong(uint32 address, uint32 value) {
     case 0x94: // (T1S) Timer 1 Set Data
         WriteTimer1Reload(value);
         break;
-    case 0x98: // (T1MD) Timer 1 Mode
+    case 0x98: { // (T1MD) Timer 1 Mode
+        const bool wasEnabled = m_timerEnable;
         m_timerEnable = bit::test<0>(value);
         m_timer1Mode = bit::test<8>(value);
+        if (!m_timerEnable) {
+            m_timer0Counter = 0;
+        }
+        if (!wasEnabled && m_timerEnable) {
+            CheckTimer0();
+        }
         break;
+    }
 
     case 0xA0: // (IMS) Interrupt Mask
         m_intrMask.u32 = value & 0x0000BFFF;

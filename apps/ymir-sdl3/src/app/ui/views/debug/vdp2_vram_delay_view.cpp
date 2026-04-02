@@ -69,25 +69,30 @@ void VDP2VRAMDelayView::Display() {
         ImGui::TableSetupColumn("Assignment");
         ImGui::TableHeadersRow();
 
-        auto rotDataBankSel = [](const char *name, vdp::RotDataBankSel sel) {
-            ImGui::TableNextRow();
-            if (ImGui::TableNextColumn()) {
-                ImGui::TextUnformatted(name);
+        auto rotDataBankSel = [](const char *name, vdp::RotDataBankSel sel, bool enabled) {
+            if (!enabled) {
+                ImGui::BeginDisabled();
             }
-            if (ImGui::TableNextColumn()) {
-                switch (sel) {
-                case vdp::RotDataBankSel::Unused: ImGui::TextUnformatted("-"); break;
-                case vdp::RotDataBankSel::Coefficients: ImGui::TextUnformatted("Coefficients"); break;
-                case vdp::RotDataBankSel::PatternName: ImGui::TextUnformatted("Pattern name data"); break;
-                case vdp::RotDataBankSel::Character: ImGui::TextUnformatted("Character pattern data"); break;
-                }
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(name);
+
+            ImGui::TableNextColumn();
+            switch (sel) {
+            case vdp::RotDataBankSel::Unused: ImGui::TextUnformatted("-"); break;
+            case vdp::RotDataBankSel::Coefficients: ImGui::TextUnformatted("Coefficients"); break;
+            case vdp::RotDataBankSel::PatternName: ImGui::TextUnformatted("Pattern name data"); break;
+            case vdp::RotDataBankSel::Character: ImGui::TextUnformatted("Character pattern data"); break;
+            }
+            if (!enabled) {
+                ImGui::EndDisabled();
             }
         };
 
-        rotDataBankSel("A0", regs2.vramControl.rotDataBankSelA0);
-        rotDataBankSel("A1", regs2.vramControl.rotDataBankSelA1);
-        rotDataBankSel("B0", regs2.vramControl.rotDataBankSelB0);
-        rotDataBankSel("B1", regs2.vramControl.rotDataBankSelB1);
+        rotDataBankSel("A0", regs2.vramControl.rotDataBankSelA0, true);
+        rotDataBankSel("A1", regs2.vramControl.rotDataBankSelA1, regs2.vramControl.partitionVRAMA);
+        rotDataBankSel("B0", regs2.vramControl.rotDataBankSelB0, true);
+        rotDataBankSel("B1", regs2.vramControl.rotDataBankSelB1, regs2.vramControl.partitionVRAMB);
 
         ImGui::EndTable();
     }
@@ -108,36 +113,110 @@ void VDP2VRAMDelayView::Display() {
         ImGui::TableSetupColumn("T7", ImGuiTableColumnFlags_WidthFixed, paddingWidth * 2 + hexCharWidth * 3);
         ImGui::TableHeadersRow();
 
-        auto drawBank = [&](const char *name, const std::array<vdp::CyclePatterns::Type, 8> &timings, bool enabled) {
+        const uint32 max = hires ? 4 : 8;
+        std::array<uint8, 4> firstPN = {0xFF, 0xFF, 0xFF, 0xFF};
+        std::array<uint8, 4> lastCP = {0xFF, 0xFF, 0xFF, 0xFF};
+        for (uint32 bank = 0; bank < 4; ++bank) {
+            if (bank == 1 && !regs2.vramControl.partitionVRAMA) {
+                continue;
+            }
+            if (bank == 3 && !regs2.vramControl.partitionVRAMB) {
+                continue;
+            }
+            const auto &timings = regs2.cyclePatterns.timings[bank];
+            for (uint32 i = 0; i < max; ++i) {
+                switch (timings[i]) {
+                case vdp::CyclePatterns::PatNameNBG0:
+                case vdp::CyclePatterns::PatNameNBG1:
+                case vdp::CyclePatterns::PatNameNBG2:
+                case vdp::CyclePatterns::PatNameNBG3: {
+                    const uint32 index =
+                        static_cast<uint32>(timings[i]) - static_cast<uint32>(vdp::CyclePatterns::PatNameNBG0);
+                    if (!regs2.bgParams[index + 1].bitmap && firstPN[index] == 0xFF) {
+                        firstPN[index] = i;
+                    }
+                    break;
+                }
+                case vdp::CyclePatterns::CharPatNBG0:
+                case vdp::CyclePatterns::CharPatNBG1:
+                case vdp::CyclePatterns::CharPatNBG2:
+                case vdp::CyclePatterns::CharPatNBG3: {
+                    const uint32 index =
+                        static_cast<uint32>(timings[i]) - static_cast<uint32>(vdp::CyclePatterns::CharPatNBG0);
+                    if (!regs2.bgParams[index + 1].bitmap) {
+                        lastCP[index] = i;
+                    }
+                    break;
+                }
+                default: break;
+                }
+            }
+        }
+
+        auto drawBank = [&](const char *name, uint32 bankIndex, bool enabled) {
+            auto &timings = regs2.cyclePatterns.timings[bankIndex];
+
             if (!enabled) {
                 ImGui::BeginDisabled();
             }
             ImGui::TableNextRow();
-            if (ImGui::TableNextColumn()) {
-                ImGui::TextUnformatted(name);
-            }
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(name);
 
-            const uint32 max = hires ? 4 : 8;
-            for (uint32 i = 0; i < max; ++i) {
-                if (ImGui::TableNextColumn()) {
-                    ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-                    switch (timings[i]) {
-                    case vdp::CyclePatterns::PatNameNBG0: ImGui::TextUnformatted("PN0"); break;
-                    case vdp::CyclePatterns::PatNameNBG1: ImGui::TextUnformatted("PN1"); break;
-                    case vdp::CyclePatterns::PatNameNBG2: ImGui::TextUnformatted("PN2"); break;
-                    case vdp::CyclePatterns::PatNameNBG3: ImGui::TextUnformatted("PN3"); break;
-                    case vdp::CyclePatterns::CharPatNBG0: ImGui::TextUnformatted("CP0"); break;
-                    case vdp::CyclePatterns::CharPatNBG1: ImGui::TextUnformatted("CP1"); break;
-                    case vdp::CyclePatterns::CharPatNBG2: ImGui::TextUnformatted("CP2"); break;
-                    case vdp::CyclePatterns::CharPatNBG3: ImGui::TextUnformatted("CP3"); break;
-                    case vdp::CyclePatterns::VCellScrollNBG0: ImGui::TextUnformatted("VC0"); break;
-                    case vdp::CyclePatterns::VCellScrollNBG1: ImGui::TextUnformatted("VC1"); break;
-                    case vdp::CyclePatterns::CPU: ImGui::TextUnformatted("SH2"); break;
-                    case vdp::CyclePatterns::NoAccess: ImGui::TextUnformatted("-"); break;
-                    default: ImGui::Text("(%X)", timings[i]); break;
-                    }
-                    ImGui::PopFont();
+            auto cp = [&](const char *name, uint32 bg, uint32 timing) {
+                const auto &bgParams = regs2.bgParams[bg + 1];
+                assert(bgParams.bitmap || lastCP[bg] != 0xFF);
+                bool valid;
+                if (bgParams.bitmap) {
+                    valid = bgParams.vramDataOffset[bankIndex] == 0;
+                } else if (firstPN[bg] == 0xFF) {
+                    valid = true;
+                } else if (hires) {
+                    static constexpr uint8 kPatterns[2][4] = {
+                        // 1x1 character patterns
+                        // T0      T1      T2      T3
+                        {0b0111, 0b1110, 0b1101, 0b1011},
+
+                        // 2x2 character patterns
+                        // T0      T1      T2      T3
+                        {0b0111, 0b1110, 0b1100, 0b1000},
+                    };
+                    valid = bit::test<0>(kPatterns[bgParams.cellSizeShift][timing] >> firstPN[bg]) &&
+                            lastCP[bg] >= firstPN[bg];
+                } else {
+                    static constexpr uint8 kPatterns[8] = {
+                        //  T0          T1          T2          T3          T4          T5          T6          T7
+                        0b11110111, 0b11101111, 0b11001111, 0b10001111, 0b00001111, 0b00001110, 0b00001100, 0b00001000,
+                    };
+                    valid = bit::test<0>(kPatterns[firstPN[bg]] >> timing);
                 }
+
+                if (valid) {
+                    ImGui::TextColored(m_context.colors.green, "%s", name);
+                } else {
+                    ImGui::TextColored(m_context.colors.red, "%s", name);
+                }
+            };
+
+            for (uint32 i = 0; i < max; ++i) {
+                ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+                ImGui::TableNextColumn();
+                switch (timings[i]) {
+                case vdp::CyclePatterns::PatNameNBG0: ImGui::TextColored(m_context.colors.yellow, "PN0"); break;
+                case vdp::CyclePatterns::PatNameNBG1: ImGui::TextColored(m_context.colors.yellow, "PN1"); break;
+                case vdp::CyclePatterns::PatNameNBG2: ImGui::TextColored(m_context.colors.yellow, "PN2"); break;
+                case vdp::CyclePatterns::PatNameNBG3: ImGui::TextColored(m_context.colors.yellow, "PN3"); break;
+                case vdp::CyclePatterns::CharPatNBG0: cp("CP0", 0, i); break;
+                case vdp::CyclePatterns::CharPatNBG1: cp("CP1", 1, i); break;
+                case vdp::CyclePatterns::CharPatNBG2: cp("CP2", 2, i); break;
+                case vdp::CyclePatterns::CharPatNBG3: cp("CP3", 3, i); break;
+                case vdp::CyclePatterns::VCellScrollNBG0: ImGui::TextColored(m_context.colors.purple, "VC0"); break;
+                case vdp::CyclePatterns::VCellScrollNBG1: ImGui::TextColored(m_context.colors.purple, "VC1"); break;
+                case vdp::CyclePatterns::CPU: ImGui::TextColored(m_context.colors.cyan, "SH2"); break;
+                case vdp::CyclePatterns::NoAccess: ImGui::TextUnformatted("-"); break;
+                default: ImGui::Text("(%X)", timings[i]); break;
+                }
+                ImGui::PopFont();
             }
             if (!enabled) {
                 ImGui::EndDisabled();
@@ -145,10 +224,10 @@ void VDP2VRAMDelayView::Display() {
         };
 
         // All CYCxn registers
-        drawBank("A0", regs2.cyclePatterns.timings[0], true);
-        drawBank("A1", regs2.cyclePatterns.timings[1], regs2.vramControl.partitionVRAMA);
-        drawBank("B0", regs2.cyclePatterns.timings[2], true);
-        drawBank("B1", regs2.cyclePatterns.timings[3], regs2.vramControl.partitionVRAMB);
+        drawBank("A0", 0, true);
+        drawBank("A1", 1, regs2.vramControl.partitionVRAMA);
+        drawBank("B0", 2, true);
+        drawBank("B1", 3, regs2.vramControl.partitionVRAMB);
 
         ImGui::EndTable();
     }
@@ -168,163 +247,135 @@ void VDP2VRAMDelayView::Display() {
         ImGui::TableHeadersRow();
 
         ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("Type");
-        }
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Type");
         for (uint32 i = 0; i < 4; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i]) {
-                    if (regs2.bgParams[i + 1].bitmap) {
-                        ImGui::TextUnformatted("Bitmap");
-                    } else {
-                        ImGui::TextUnformatted("Scroll");
-                    }
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                if (regs2.bgParams[i + 1].bitmap) {
+                    ImGui::TextUnformatted("Bitmap");
+                } else {
+                    ImGui::TextUnformatted("Scroll");
                 }
             }
         }
         for (uint32 i = 0; i < 2; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i + 4]) {
-                    if (regs2.bgParams[i].bitmap) {
-                        ImGui::TextUnformatted("Bitmap");
-                    } else {
-                        ImGui::TextUnformatted("Scroll");
-                    }
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                if (regs2.bgParams[i].bitmap) {
+                    ImGui::TextUnformatted("Bitmap");
+                } else {
+                    ImGui::TextUnformatted("Scroll");
                 }
             }
         }
 
         ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("Reduction");
-        }
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Reduction");
         for (uint32 i = 0; i < 4; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i]) {
-                    if (i == 0) {
-                        ImGui::TextUnformatted(regs2.ZMCTL.N0ZMQT ? "1/4x" : regs2.ZMCTL.N0ZMHF ? "1/2x" : "1x");
-                    } else if (i == 1) {
-                        ImGui::TextUnformatted(regs2.ZMCTL.N1ZMQT ? "1/4x" : regs2.ZMCTL.N1ZMHF ? "1/2x" : "1x");
-                    } else {
-                        ImGui::TextUnformatted("1x");
-                    }
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                if (i == 0) {
+                    ImGui::TextUnformatted(regs2.ZMCTL.N0ZMQT ? "1/4x" : regs2.ZMCTL.N0ZMHF ? "1/2x" : "1x");
+                } else if (i == 1) {
+                    ImGui::TextUnformatted(regs2.ZMCTL.N1ZMQT ? "1/4x" : regs2.ZMCTL.N1ZMHF ? "1/2x" : "1x");
+                } else {
+                    ImGui::TextUnformatted("1x");
                 }
             }
         }
         for (uint32 i = 0; i < 2; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i + 4]) {
-                    ImGui::TextUnformatted("n/a");
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                ImGui::TextUnformatted("n/a");
+            }
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Char pat size");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                if (regs2.bgParams[i + 1].bitmap) {
+                    ImGui::TextUnformatted("-");
+                } else {
+                    const uint8 size = 1u << regs2.bgParams[i + 1].cellSizeShift;
+                    ImGui::Text("%ux%u", size, size);
+                }
+            }
+        }
+        for (uint32 i = 0; i < 2; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                if (regs2.bgParams[i].bitmap) {
+                    ImGui::TextUnformatted("-");
+                } else {
+                    const uint8 size = 1u << regs2.bgParams[i].cellSizeShift;
+                    ImGui::Text("%ux%u", size, size);
                 }
             }
         }
 
         ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("Char pat size");
-        }
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Color format");
         for (uint32 i = 0; i < 4; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i]) {
-                    if (regs2.bgParams[i + 1].bitmap) {
-                        ImGui::TextUnformatted("-");
-                    } else {
-                        const uint8 size = 1u << regs2.bgParams[i + 1].cellSizeShift;
-                        ImGui::Text("%ux%u", size, size);
-                    }
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                switch (regs2.bgParams[i + 1].colorFormat) {
+                case vdp::ColorFormat::Palette16: ImGui::TextUnformatted("Pal 16"); break;
+                case vdp::ColorFormat::Palette256: ImGui::TextUnformatted("Pal 256"); break;
+                case vdp::ColorFormat::Palette2048: ImGui::TextUnformatted("Pal 2048"); break;
+                case vdp::ColorFormat::RGB555: ImGui::TextUnformatted("RGB 5:5:5"); break;
+                case vdp::ColorFormat::RGB888: ImGui::TextUnformatted("RGB 8:8:8"); break;
                 }
             }
         }
         for (uint32 i = 0; i < 2; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i + 4]) {
-                    if (regs2.bgParams[i].bitmap) {
-                        ImGui::TextUnformatted("-");
-                    } else {
-                        const uint8 size = 1u << regs2.bgParams[i].cellSizeShift;
-                        ImGui::Text("%ux%u", size, size);
-                    }
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                switch (regs2.bgParams[i].colorFormat) {
+                case vdp::ColorFormat::Palette16: ImGui::TextUnformatted("Pal 16"); break;
+                case vdp::ColorFormat::Palette256: ImGui::TextUnformatted("Pal 256"); break;
+                case vdp::ColorFormat::Palette2048: ImGui::TextUnformatted("Pal 2048"); break;
+                case vdp::ColorFormat::RGB555: ImGui::TextUnformatted("RGB 5:5:5"); break;
+                case vdp::ColorFormat::RGB888: ImGui::TextUnformatted("RGB 8:8:8"); break;
                 }
             }
         }
 
         ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("Color format");
-        }
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("CP delayed?");
         for (uint32 i = 0; i < 4; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i]) {
-                    switch (regs2.bgParams[i + 1].colorFormat) {
-                    case vdp::ColorFormat::Palette16: ImGui::TextUnformatted("Pal 16"); break;
-                    case vdp::ColorFormat::Palette256: ImGui::TextUnformatted("Pal 256"); break;
-                    case vdp::ColorFormat::Palette2048: ImGui::TextUnformatted("Pal 2048"); break;
-                    case vdp::ColorFormat::RGB555: ImGui::TextUnformatted("RGB 5:5:5"); break;
-                    case vdp::ColorFormat::RGB888: ImGui::TextUnformatted("RGB 8:8:8"); break;
-                    }
-                }
-            }
-        }
-        for (uint32 i = 0; i < 2; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i + 4]) {
-                    switch (regs2.bgParams[i].colorFormat) {
-                    case vdp::ColorFormat::Palette16: ImGui::TextUnformatted("Pal 16"); break;
-                    case vdp::ColorFormat::Palette256: ImGui::TextUnformatted("Pal 256"); break;
-                    case vdp::ColorFormat::Palette2048: ImGui::TextUnformatted("Pal 2048"); break;
-                    case vdp::ColorFormat::RGB555: ImGui::TextUnformatted("RGB 5:5:5"); break;
-                    case vdp::ColorFormat::RGB888: ImGui::TextUnformatted("RGB 8:8:8"); break;
-                    }
-                }
-            }
-        }
-
-        ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("CP delayed?");
-        }
-        for (uint32 i = 0; i < 4; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i]) {
-                    const auto &bgParams = regs2.bgParams[i + 1];
-                    if (!bgParams.bitmap && bgParams.charPatDelay) {
-                        ImGui::TextColored(colorBad, "yes");
-                    } else {
-                        ImGui::TextColored(colorGood, "no");
-                    }
-                }
-            }
-        }
-        ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("Access shift?");
-        }
-        for (uint32 i = 0; i < 4; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i]) {
-                    const auto &bgParams = regs2.bgParams[i + 1];
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                const auto &bgParams = regs2.bgParams[i + 1];
+                if (!bgParams.bitmap) {
                     std::vector<const char *> delayedBanks{};
 
                     if (regs2.vramControl.partitionVRAMA) {
-                        if (bgParams.vramDataOffset[0] > 0 && bgParams.vramDataOffset[1] > 0) {
+                        if (bgParams.charPatDelay[0] && bgParams.charPatDelay[1]) {
                             delayedBanks.push_back("A0/1");
-                        } else if (bgParams.vramDataOffset[0] > 0) {
+                        } else if (bgParams.charPatDelay[0]) {
                             delayedBanks.push_back("A0");
-                        } else if (bgParams.vramDataOffset[1] > 0) {
+                        } else if (bgParams.charPatDelay[1]) {
                             delayedBanks.push_back("A1");
                         }
-                    } else if (bgParams.vramDataOffset[0] > 0) {
+                    } else if (bgParams.charPatDelay[0]) {
                         delayedBanks.push_back("A");
                     }
                     if (regs2.vramControl.partitionVRAMB) {
-                        if (bgParams.vramDataOffset[2] > 0 && bgParams.vramDataOffset[3] > 0) {
+                        if (bgParams.charPatDelay[2] && bgParams.charPatDelay[3]) {
                             delayedBanks.push_back("B0/1");
-                        } else if (bgParams.vramDataOffset[2] > 0) {
+                        } else if (bgParams.charPatDelay[2]) {
                             delayedBanks.push_back("B0");
-                        } else if (bgParams.vramDataOffset[3] > 0) {
+                        } else if (bgParams.charPatDelay[3]) {
                             delayedBanks.push_back("B1");
                         }
-                    } else if (bgParams.vramDataOffset[2] > 0) {
+                    } else if (bgParams.charPatDelay[2]) {
                         delayedBanks.push_back("B");
                     }
 
@@ -341,38 +392,67 @@ void VDP2VRAMDelayView::Display() {
                             ImGui::TextColored(colorBad, "%s", bank);
                         }
                     }
+                } else {
+                    ImGui::TextColored(colorGood, "no");
                 }
             }
         }
-
         ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("VC delayed?");
-        }
-        for (uint32 i = 0; i < 2; i++) {
-            if (ImGui::TableNextColumn()) {
-                if (regs2.bgEnabled[i]) {
-                    if (regs2.bgParams[i + 1].verticalCellScrollEnable) {
-                        if (nbgLayerStates[i].vertCellScrollDelay) {
-                            ImGui::TextColored(colorBad, "yes");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Access shift?");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                const auto &bgParams = regs2.bgParams[i + 1];
+                std::vector<const char *> delayedBanks{};
+
+                if (regs2.vramControl.partitionVRAMA) {
+                    if (bgParams.vramDataOffset[0] > 0 && bgParams.vramDataOffset[1] > 0) {
+                        delayedBanks.push_back("A0/1");
+                    } else if (bgParams.vramDataOffset[0] > 0) {
+                        delayedBanks.push_back("A0");
+                    } else if (bgParams.vramDataOffset[1] > 0) {
+                        delayedBanks.push_back("A1");
+                    }
+                } else if (bgParams.vramDataOffset[0] > 0) {
+                    delayedBanks.push_back("A");
+                }
+                if (regs2.vramControl.partitionVRAMB) {
+                    if (bgParams.vramDataOffset[2] > 0 && bgParams.vramDataOffset[3] > 0) {
+                        delayedBanks.push_back("B0/1");
+                    } else if (bgParams.vramDataOffset[2] > 0) {
+                        delayedBanks.push_back("B0");
+                    } else if (bgParams.vramDataOffset[3] > 0) {
+                        delayedBanks.push_back("B1");
+                    }
+                } else if (bgParams.vramDataOffset[2] > 0) {
+                    delayedBanks.push_back("B");
+                }
+
+                if (delayedBanks.empty()) {
+                    ImGui::TextColored(colorGood, "no");
+                } else {
+                    bool first = true;
+                    for (const char *bank : delayedBanks) {
+                        if (first) {
+                            first = false;
                         } else {
-                            ImGui::TextColored(colorGood, "no");
+                            ImGui::SameLine(0.0f, spaceWidth);
                         }
-                    } else {
-                        ImGui::TextUnformatted("-");
+                        ImGui::TextColored(colorBad, "%s", bank);
                     }
                 }
             }
         }
 
         ImGui::TableNextRow();
-        if (ImGui::TableNextColumn()) {
-            ImGui::TextUnformatted("VC repeated?");
-        }
-        if (ImGui::TableNextColumn()) {
-            if (regs2.bgEnabled[0]) {
-                if (regs2.bgParams[1].verticalCellScrollEnable) {
-                    if (nbgLayerStates[0].vertCellScrollRepeat) {
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("VC delayed?");
+        for (uint32 i = 0; i < 2; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                if (regs2.bgParams[i + 1].vcellScrollEnable) {
+                    if (nbgLayerStates[i].vcellScrollDelay) {
                         ImGui::TextColored(colorBad, "yes");
                     } else {
                         ImGui::TextColored(colorGood, "no");
@@ -380,6 +460,23 @@ void VDP2VRAMDelayView::Display() {
                 } else {
                     ImGui::TextUnformatted("-");
                 }
+            }
+        }
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("VC repeated?");
+
+        ImGui::TableNextColumn();
+        if (regs2.bgEnabled[0]) {
+            if (regs2.bgParams[1].vcellScrollEnable) {
+                if (nbgLayerStates[0].vcellScrollRepeat) {
+                    ImGui::TextColored(colorBad, "yes");
+                } else {
+                    ImGui::TextColored(colorGood, "no");
+                }
+            } else {
+                ImGui::TextUnformatted("-");
             }
         }
 

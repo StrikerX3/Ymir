@@ -46,7 +46,7 @@ on:
 permissions:
   packages: write
 
-env: 
+env:
   USERNAME: StrikerX3
   VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
   FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
@@ -61,7 +61,7 @@ jobs:
       project-version-unfiltered: ${{ steps.project-version.outputs.project-version-unfiltered }}
       build-timestamp: ${{ steps.project-version.outputs.build-timestamp }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           sparse-checkout: |
             CMakeLists.txt
@@ -117,9 +117,9 @@ jobs:
 
     steps:
       # Set up MASM for lzma
-      - uses: glslang/setup-masm@v1
+      - uses: glslang/setup-masm@83f52fc3599c361e8428805627dc749f2717ce75
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -134,14 +134,14 @@ jobs:
 
       - name: Configure MSVC
         if: ${{ matrix.c_compiler == 'cl' }}
-        uses: TheMrMilchmann/setup-msvc-dev@v3
+        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c
         with:
           arch: ${{ matrix.architecture.target }}
 
       - name: Bootstrap vcpkg
         shell: pwsh
         run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat
-      
+
       - name: Add NuGet sources to vcpkg
         shell: pwsh
         run: |
@@ -196,7 +196,7 @@ jobs:
       #  run: ctest --build-config ${{ matrix.build_type }}
 
       - name: Get gamecontrollerdb.txt
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: mdqinc/SDL_GameControllerDB
           sparse-checkout: |
@@ -230,14 +230,14 @@ jobs:
           Compress-Archive -Path "README.md","CHANGELOG.md","TROUBLESHOOTING.md","gamecontrollerdb.txt","$licensesDir/","build/apps/ymir-sdl3/ymir-sdl3.exe" -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
 
       - name: Upload Ymir artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: ${{ steps.strings.outputs.ymir-artifact-name }}
           path: ${{ steps.strings.outputs.ymir-artifact-name }}.zip
 
       - name: Upload debug symbols
         if: ${{ inputs.debug-symbols }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: ${{ steps.strings.outputs.ymir-debug-symbols-name }}
           path: build/apps/ymir-sdl3/ymir-sdl3.pdb
@@ -272,7 +272,7 @@ jobs:
             cpp_compiler: "clang++-15"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -305,7 +305,7 @@ jobs:
 
       - name: Add NuGet sources to vcpkg
         shell: bash
-        env: 
+        env:
           VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
           USERNAME: StrikerX3
           FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
@@ -359,7 +359,7 @@ jobs:
       #  run: ctest --build-config ${{ matrix.build_type }}
 
       - name: Get gamecontrollerdb.txt
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: mdqinc/SDL_GameControllerDB
           sparse-checkout: |
@@ -389,7 +389,7 @@ jobs:
           tar cJvfh ${{ steps.strings.outputs.ymir-artifact-name }}.tar.xz README.md CHANGELOG.md TROUBLESHOOTING.md gamecontrollerdb.txt licenses/ -C build/apps/ymir-sdl3 ymir-sdl3
 
       - name: Upload Ymir artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: ${{ steps.strings.outputs.ymir-artifact-name }}
           path: ${{ steps.strings.outputs.ymir-artifact-name }}.tar.xz
@@ -420,7 +420,7 @@ jobs:
           #  isa_name: "'x86_64;arm64'"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -442,7 +442,7 @@ jobs:
 
       - name: Add NuGet sources to vcpkg
         shell: bash
-        env: 
+        env:
           VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
           USERNAME: StrikerX3
           FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
@@ -489,7 +489,7 @@ jobs:
       #  run: ctest --build-config ${{ matrix.build_type }}
 
       - name: Get gamecontrollerdb.txt
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           repository: mdqinc/SDL_GameControllerDB
           sparse-checkout: |
@@ -524,7 +524,7 @@ jobs:
           zip -r ${{ github.workspace }}/${{ steps.strings.outputs.ymir-artifact-name }}.zip ymir-sdl3.app
 
       - name: Upload Ymir artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: ${{ steps.strings.outputs.ymir-artifact-name }}
           path: ${{ steps.strings.outputs.ymir-artifact-name }}.zip

@@ -259,7 +259,7 @@ bool CDBlock::IsTrayOpen() const {
     return GetStatusCode() == kStatusCodeOpen;
 }
 
-void CDBlock::SaveState(state::CDBlockState &state) const {
+void CDBlock::SaveState(savestate::CDBlockSaveState &state) const {
     state.CR = m_CR;
     state.HIRQ = m_HIRQ;
     state.HIRQMASK = m_HIRQMASK;
@@ -298,15 +298,15 @@ void CDBlock::SaveState(state::CDBlockState &state) const {
     state.mpegAuthStatus = m_mpegAuthStatus;
 
     switch (m_xferType) {
-    case TransferType::None: state.xferType = state::CDBlockState::TransferType::None; break;
-    case TransferType::TOC: state.xferType = state::CDBlockState::TransferType::TOC; break;
-    case TransferType::GetSector: state.xferType = state::CDBlockState::TransferType::GetSector; break;
+    case TransferType::None: state.xferType = savestate::CDBlockSaveState::TransferType::None; break;
+    case TransferType::TOC: state.xferType = savestate::CDBlockSaveState::TransferType::TOC; break;
+    case TransferType::GetSector: state.xferType = savestate::CDBlockSaveState::TransferType::GetSector; break;
     case TransferType::GetThenDeleteSector:
-        state.xferType = state::CDBlockState::TransferType::GetThenDeleteSector;
+        state.xferType = savestate::CDBlockSaveState::TransferType::GetThenDeleteSector;
         break;
-    case TransferType::PutSector: state.xferType = state::CDBlockState::TransferType::PutSector; break;
-    case TransferType::FileInfo: state.xferType = state::CDBlockState::TransferType::FileInfo; break;
-    case TransferType::Subcode: state.xferType = state::CDBlockState::TransferType::Subcode; break;
+    case TransferType::PutSector: state.xferType = savestate::CDBlockSaveState::TransferType::PutSector; break;
+    case TransferType::FileInfo: state.xferType = savestate::CDBlockSaveState::TransferType::FileInfo; break;
+    case TransferType::Subcode: state.xferType = savestate::CDBlockSaveState::TransferType::Subcode; break;
     }
 
     state.xferPos = m_xferPos;
@@ -394,7 +394,7 @@ void CDBlock::SaveState(state::CDBlockState &state) const {
     m_fsState.SaveState(state.fs);
 }
 
-bool CDBlock::ValidateState(const state::CDBlockState &state) const {
+bool CDBlock::ValidateState(const savestate::CDBlockSaveState &state) const {
     if (!m_partitionManager.ValidateState(state)) {
         return false;
     }
@@ -404,7 +404,7 @@ bool CDBlock::ValidateState(const state::CDBlockState &state) const {
     return true;
 }
 
-void CDBlock::LoadState(const state::CDBlockState &state) {
+void CDBlock::LoadState(const savestate::CDBlockSaveState &state) {
     m_CR = state.CR;
     m_HIRQ = state.HIRQ;
     m_HIRQMASK = state.HIRQMASK;
@@ -444,13 +444,15 @@ void CDBlock::LoadState(const state::CDBlockState &state) {
 
     switch (state.xferType) {
     default: [[fallthrough]];
-    case state::CDBlockState::TransferType::None: m_xferType = TransferType::None; break;
-    case state::CDBlockState::TransferType::TOC: m_xferType = TransferType::TOC; break;
-    case state::CDBlockState::TransferType::GetSector: m_xferType = TransferType::GetSector; break;
-    case state::CDBlockState::TransferType::GetThenDeleteSector: m_xferType = TransferType::GetThenDeleteSector; break;
-    case state::CDBlockState::TransferType::PutSector: m_xferType = TransferType::PutSector; break;
-    case state::CDBlockState::TransferType::FileInfo: m_xferType = TransferType::FileInfo; break;
-    case state::CDBlockState::TransferType::Subcode: m_xferType = TransferType::Subcode; break;
+    case savestate::CDBlockSaveState::TransferType::None: m_xferType = TransferType::None; break;
+    case savestate::CDBlockSaveState::TransferType::TOC: m_xferType = TransferType::TOC; break;
+    case savestate::CDBlockSaveState::TransferType::GetSector: m_xferType = TransferType::GetSector; break;
+    case savestate::CDBlockSaveState::TransferType::GetThenDeleteSector:
+        m_xferType = TransferType::GetThenDeleteSector;
+        break;
+    case savestate::CDBlockSaveState::TransferType::PutSector: m_xferType = TransferType::PutSector; break;
+    case savestate::CDBlockSaveState::TransferType::FileInfo: m_xferType = TransferType::FileInfo; break;
+    case savestate::CDBlockSaveState::TransferType::Subcode: m_xferType = TransferType::Subcode; break;
     }
 
     m_xferPos = state.xferPos;

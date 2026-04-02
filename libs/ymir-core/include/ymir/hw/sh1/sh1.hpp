@@ -24,7 +24,7 @@
 
 #include <ymir/sys/bus.hpp>
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 // TODO: breakpoints, watchpoints, tracers
 
@@ -99,9 +99,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State &state) const;
-    [[nodiscard]] bool ValidateState(const state::SH1State &state, bool skipROMChecks = false) const;
-    void LoadState(const state::SH1State &state);
+    void SaveState(savestate::SH1SaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState &state, bool skipROMChecks = false) const;
+    void LoadState(const savestate::SH1SaveState &state);
 
     // -------------------------------------------------------------------------
     // Debugger

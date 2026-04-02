@@ -6,7 +6,7 @@
 
 #include <ymir/core/scheduler.hpp>
 
-#include <ymir/state/state_scu.hpp>
+#include <ymir/savestate/savestate_scu.hpp>
 
 #include <ymir/debug/scu_tracer_base.hpp>
 
@@ -153,9 +153,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCUState &state) const;
-    [[nodiscard]] bool ValidateState(const state::SCUState &state) const;
-    void LoadState(const state::SCUState &state);
+    void SaveState(savestate::SCUSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SCUSaveState &state) const;
+    void LoadState(const savestate::SCUSaveState &state);
 
 private:
     sys::SH2Bus &m_bus;
@@ -232,9 +232,8 @@ private:
     // Raises interrupt when counter == 0 depending on mode:
     // - false: every line
     // - true: only if Timer 0 counter matched on previous line
-    uint16 m_timer1Reload; // 2 fractional bits
+    uint16 m_timer1Reload; // in system cycles (one tick/pixel takes 4 system cycles)
     bool m_timer1Mode;
-    bool m_timer1Triggered;
     bool m_timerEnable; // Enables both timers
 
     FORCE_INLINE uint16 ReadTimer0Counter() const {
@@ -250,29 +249,53 @@ private:
     }
 
     FORCE_INLINE void WriteTimer0Compare(uint16 value) {
+        const uint16 prevCompare = m_timer0Compare;
         m_timer0Compare = bit::extract<0, 9>(value);
+        if (prevCompare != m_timer0Compare) {
+            CheckTimer0();
+        }
     }
     FORCE_INLINE void WriteTimer0CompareHi(uint8 value) {
+        const uint16 prevCompare = m_timer0Compare;
         bit::deposit_into<8, 9>(m_timer0Compare, value);
+        if (prevCompare != m_timer0Compare) {
+            CheckTimer0();
+        }
     }
     FORCE_INLINE void WriteTimer0CompareLo(uint8 value) {
+        const uint16 prevCompare = m_timer0Compare;
         bit::deposit_into<0, 7>(m_timer0Compare, value);
+        if (prevCompare != m_timer0Compare) {
+            CheckTimer0();
+        }
     }
 
     FORCE_INLINE uint16 ReadTimer1Reload() const {
-        return m_timer1Reload >> 2u;
+        return bit::extract<2, 10>(m_timer1Reload);
     }
 
     FORCE_INLINE void WriteTimer1Reload(uint16 value) {
         m_timer1Reload = bit::extract<0, 8>(value) << 2u;
+        if (m_timer1Reload == 0) {
+            m_timer1Reload = 0x800;
+        }
     }
     FORCE_INLINE void WriteTimer1ReloadHi(uint8 value) {
         bit::deposit_into<10>(m_timer1Reload, value);
+        bit::deposit_into<11>(m_timer1Reload, 0);
+        if (m_timer1Reload == 0) {
+            m_timer1Reload = 0x800;
+        }
     }
     FORCE_INLINE void WriteTimer1ReloadLo(uint8 value) {
         bit::deposit_into<2, 9>(m_timer1Reload, value);
+        bit::deposit_into<11>(m_timer1Reload, 0);
+        if (m_timer1Reload == 0) {
+            m_timer1Reload = 0x800;
+        }
     }
 
+    void CheckTimer0();
     void TickTimer1();
 
     // -------------------------------------------------------------------------

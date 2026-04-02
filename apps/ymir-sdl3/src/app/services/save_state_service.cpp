@@ -25,7 +25,7 @@ savestates::Entry *SaveStateService::Push(std::size_t slotIndex) noexcept {
     auto &slot = m_slots[slotIndex];
     std::swap(slot.backup, slot.primary);
     if (!slot.primary.state) {
-        slot.primary.state = std::make_unique<ymir::state::State>();
+        slot.primary.state = std::make_unique<ymir::savestate::SaveState>();
     }
 
     return &slot.primary;
@@ -96,12 +96,12 @@ std::mutex &SaveStateService::SlotMutex(std::size_t slotIndex) noexcept {
     return m_invalidSlotLock;
 }
 
-void SaveStateService::PushUndoLoadState(std::unique_ptr<ymir::state::State> &&state) {
+void SaveStateService::PushUndoLoadState(std::unique_ptr<ymir::savestate::SaveState> &&state) {
     m_undoLoadState.swap(state);
 }
 
-std::unique_ptr<ymir::state::State> SaveStateService::PopUndoLoadState() {
-    std::unique_ptr<ymir::state::State> out{};
+std::unique_ptr<ymir::savestate::SaveState> SaveStateService::PopUndoLoadState() {
+    std::unique_ptr<ymir::savestate::SaveState> out{};
     out.swap(m_undoLoadState);
     return out;
 }

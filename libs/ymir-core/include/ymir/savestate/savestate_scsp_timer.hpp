@@ -2,9 +2,9 @@
 
 #include <ymir/core/types.hpp>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SCSPTimer {
+struct SCSPTimerSaveState {
     uint8 incrementInterval;
     uint8 reload;
 
@@ -12,4 +12,4 @@ struct SCSPTimer {
     uint8 counter;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

@@ -491,16 +491,16 @@ const FileInfo &FilesystemState::GetFileInfo(uint32 fileID) const {
     return currDirContents[fileID].GetFileInfo();
 }
 
-void FilesystemState::SaveState(state::CDBlockState::FilesystemState &state) const {
+void FilesystemState::SaveState(savestate::CDBlockSaveState::FilesystemSaveState &state) const {
     state.currDirectory = m_currDirectory;
     state.currFileOffset = m_currFileOffset;
 }
 
-bool FilesystemState::ValidateState(const state::CDBlockState::FilesystemState &state) const {
+bool FilesystemState::ValidateState(const savestate::CDBlockSaveState::FilesystemSaveState &state) const {
     return true;
 }
 
-void FilesystemState::LoadState(const state::CDBlockState::FilesystemState &state) {
+void FilesystemState::LoadState(const savestate::CDBlockSaveState::FilesystemSaveState &state) {
     m_currDirectory = state.currDirectory;
     m_currFileOffset = state.currFileOffset;
 }

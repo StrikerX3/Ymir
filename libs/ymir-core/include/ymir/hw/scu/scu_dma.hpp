@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_scu.hpp>
+#include <ymir/savestate/savestate_scu.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -114,7 +114,7 @@ struct DMAChannel {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCUDMAState &state) const {
+    void SaveState(savestate::SCUDMASaveState &state) const {
         state.srcAddr = srcAddr;
         state.dstAddr = dstAddr;
         state.xferCount = xferCount;
@@ -147,7 +147,7 @@ struct DMAChannel {
         state.xfer.started = xfer.started;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SCUDMAState &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SCUDMASaveState &state) const {
         if (state.xferCount > 1048576) {
             // TODO: should limit to 4096 for channels 1 and 2
             return false;
@@ -176,7 +176,7 @@ struct DMAChannel {
         return true;
     }
 
-    void LoadState(const state::SCUDMAState &state) {
+    void LoadState(const savestate::SCUDMASaveState &state) {
         srcAddr = state.srcAddr;
         dstAddr = state.dstAddr;
         xferCount = state.xferCount;

@@ -15,6 +15,7 @@ Introduced save state file version 12.
 - Backup RAM: Support in-memory and copy-on-write memory-mapped files in addition to regular memory-mapped files.
 - Build: Support Profile-Guided Optimization (PGO) builds. (#742; @mmkzer0)
 - Debugger: Allow scrolling the SH2 disassembly view. (#743; @mmkzer0)
+- Debugger: Colorize VRAM access timing slots in the delay viewer.
 - Debugger: Implement keyboard navigation and interactions in the SH2 disassembly view:
     - Up/down arrow keys: move cursor up/down one instruction.
     - Page up/down: move cursor up/down one page.
@@ -44,18 +45,29 @@ Introduced save state file version 12.
 - Build: Remove duplicate binary from macOS packages.
 - GameDB: Double the MC68EC000 clock rate and force fast bus timings to fix crashes in Vampire Savior - The Lord of Vampire. (#699)
 - GameDB: Force fast bus timings to fix crashes in Deep Fear. (#740)
+- Input: Fixed analog to D-Pad axis conversion to not overwrite whenever an input was released in opposite direction. (#754; @PringleElUno)
 - MIDI: Defend against crashes when the library fails to initialize.
+- SCU: Timer fixes. (thanks to @celeriyacon)
+- SH2: Block interrupts on instructions following LDC/LDS/STC/STS. (thanks to @celeriyacon)
+- SH2: Cache emulation fixes. (thanks to @celeriyacon)
 - SH2: Fix `@(disp.PC)` loads being decoded as stores for watchpoints.
-- SH2: Fix `ldc/lds @Rm` decoding from the wrong position for watchpoints.
+- SH2: Fix `ldc/lds @Rm` decoding from the wrong opcode bits for watchpoints.
+- SH2: Interrupt prioritization and triggering fixes. (thanks to @celeriyacon)
 - VDP1: Fix handling of zero horizontal character size in CMDSIZE.
 - VDP1: Increase PTM=1 drawing delay and apply it only during VBlank. Fixes flickering graphics on Earthworm Jim 2. (#745)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
 - VDP1: Rework cycle counting method and increase cycle budget per frame. Fixes slowdowns in Road Rash and graphics glitches in multiple games, including Virtua Cop and Burning Rangers. (#704, #721, #722)
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
+- VDP1: Stop processing commands if encountering an all-zeros entry. Fixes invalid clipping coordinates in Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. (#761)
 - VDP2: Apply VRAM access shift per bank to scroll NBGs with invalid timing patterns. Fixes World Heroes Perfect title screen shift and Cyberbots - Fullmetal Madness HUD shift and broken background in stage 2. (#756)
 - VDP2: Clear normal shadow flag on transparent sprite pixels. Fixes shadows extending vertically across the screen in Tokyo Shadow. (#752)
+- VDP2: Compute vertical cell scroll delays/offsets when enabling/disabling the effect in addition to access cycle changes.
 - VDP2: Consolidate sprite data handling and fix 16-bit readout of 8-bit sprite data. Fixes garbled graphics in NBA Live 98 in-game.
+- VDP2: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
 - VDP2: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
+- VDP2: Illegal CP accesses in low-res modes are handled differently between T0-T3 and T4-T7. Fixes gaps in backgrounds in X-Men vs. Street Fighter. (#775)
+- VDP2: Sprite special pattern detection was short by one bit.
+- VDP2: Use only the first PN access to check for valid CP accesses. Fixes graphics shift in Daisuki and BattleSport. (#769, #770)
 
 
 ## Version 0.2.1

@@ -94,7 +94,7 @@ void DSP::DumpRegs(std::ostream &out) const {
     write(m_readWriteAddr);
 }
 
-void DSP::SaveState(state::SCSPDSP &state) const {
+void DSP::SaveState(savestate::SCSPDSPSaveState &state) const {
     for (size_t i = 0; i < program.size(); i++) {
         state.MPRO[i] = program[i].u64;
     }
@@ -132,11 +132,11 @@ void DSP::SaveState(state::SCSPDSP &state) const {
     state.readWriteAddr = m_readWriteAddr;
 }
 
-bool DSP::ValidateState(const state::SCSPDSP &state) const {
+bool DSP::ValidateState(const savestate::SCSPDSPSaveState &state) const {
     return true;
 }
 
-void DSP::LoadState(const state::SCSPDSP &state) {
+void DSP::LoadState(const savestate::SCSPDSPSaveState &state) {
     m_programLength = 0;
     for (size_t i = 0; i < program.size(); i++) {
         program[i].u64 = state.MPRO[i];

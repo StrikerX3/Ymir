@@ -11,14 +11,14 @@
 #include "vdp_callbacks.hpp"
 #include "vdp_internal_callbacks.hpp"
 
-#include "renderer/sw/vdp1_steppers.hpp"
+#include "vdp_devlog.hpp"
 
 #include <ymir/core/configuration.hpp>
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
 #include <ymir/sys/system.hpp>
 
-#include <ymir/state/state_vdp.hpp>
+#include <ymir/savestate/savestate_vdp.hpp>
 
 #include <ymir/hw/smpc/smpc_internal_callbacks.hpp>
 
@@ -94,6 +94,34 @@ public:
     IVDPRenderer &GetRenderer() {
         assert(m_renderer.get() != nullptr); // should always be valid
         return *m_renderer;
+    }
+
+    /// @brief Retrieves a reference to the current VDP renderer.
+    /// @return a reference to the current VDP renderer instance, guaranteed to be valid
+    const IVDPRenderer &GetRenderer() const {
+        return const_cast<VDP *>(this)->GetRenderer();
+    }
+
+    /// @brief If the current renderer has the specified `VDPRendererType`, returns a pointer to it cast to the
+    /// corresponding concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    template <VDPRendererType type>
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *GetRendererAs() {
+        return m_renderer->As<type>();
+    }
+
+    /// @brief If the current renderer has the specified `VDPRendererType`, returns a pointer to it cast to the
+    /// corresponding concrete type. Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    template <VDPRendererType type>
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *GetRendererAs() const {
+        return const_cast<VDP *>(this)->GetRendererAs<type>();
     }
 
     /// @brief Switches to the null renderer.
@@ -172,9 +200,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::VDPState &state) const;
-    [[nodiscard]] bool ValidateState(const state::VDPState &state) const;
-    void LoadState(const state::VDPState &state);
+    void SaveState(savestate::VDPSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::VDPSaveState &state) const;
+    void LoadState(const savestate::VDPSaveState &state);
 
 private:
     VDPState m_state;
@@ -206,6 +234,10 @@ private:
         if (renderer == nullptr) {
             return nullptr;
         }
+        if (!renderer->IsValid()) {
+            delete renderer;
+            return nullptr;
+        }
 
         const config::RendererCallbacks callbacks = m_renderer->Callbacks;
         if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
@@ -217,8 +249,13 @@ private:
             renderer->SwCallbacks = m_swRendererCallbacks;
         }
         renderer->ConfigureEnhancements(m_enhancements);
+        renderer->VDP2SetResolution(m_HRes, m_VRes, m_exclusiveMonitor);
+        renderer->VDP2SetField(m_state.regs2.TVSTAT.ODD);
 
         m_renderer.reset(renderer);
+
+        devlog::info<grp::config>("Switched to {} VDP renderer", renderer->GetName());
+
         return renderer;
     }
 
@@ -242,7 +279,7 @@ private:
     // Current enhancements configuration.
     config::Enhancements m_enhancements;
 
-    /// @brief The current softwarre renderer callbacks configuration.
+    /// @brief The current software renderer callbacks configuration.
     SoftwareRendererCallbacks m_swRendererCallbacks;
 
     // -------------------------------------------------------------------------
@@ -254,7 +291,7 @@ private:
     template <mem_primitive_16 T>
     void VDP1WriteVRAM(uint32 address, T value);
 
-    template <mem_primitive_16 T>
+    template <mem_primitive_16 T, bool peek>
     T VDP1ReadFB(uint32 address) const;
 
     template <mem_primitive_16 T>
@@ -406,7 +443,7 @@ public:
         [[nodiscard]] const VDP1Regs &GetVDP1Regs() const;
         [[nodiscard]] const VDP2Regs &GetVDP2Regs() const;
 
-        [[nodiscard]] const std::array<NormBGLayerState, 4> &GetNBGLayerStates() const;
+        [[nodiscard]] const std::array<NBGLayerState, 4> &GetNBGLayerStates() const;
 
         [[nodiscard]] uint16 GetLatchedEraseWriteValue() const;
         [[nodiscard]] uint16 GetLatchedEraseX1() const;

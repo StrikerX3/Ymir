@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+@file
+@brief Null VDP1 and VDP2 renderer implementation.
+
+Does nothing, but invokes all standard renderer callbacks at appropriate times.
+*/
+
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
 namespace ymir::vdp {
@@ -12,32 +19,37 @@ public:
     // -------------------------------------------------------------------------
     // Basics
 
+    bool IsValid() const override {
+        return true;
+    }
+
+    bool IsHardwareRenderer() const override {
+        return false;
+    }
+
 protected:
     void ResetImpl(bool hard) override {}
 
 public:
-    // -------------------------------------------------------------------------
-    // Configuration
-
-    void ConfigureEnhancements(const config::Enhancements &enhancements) override {}
-
     // -------------------------------------------------------------------------
     // Save states
 
     void PreSaveStateSync() override {}
     void PostLoadStateSync() override {}
 
-    void SaveState(state::VDPState::VDPRendererState &state) override {}
-    bool ValidateState(const state::VDPState::VDPRendererState &state) const override {
+    void SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) override {}
+    bool ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const override {
         return true;
     }
-    void LoadState(const state::VDPState::VDPRendererState &state) override {}
+    void LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) override {}
 
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
 
     void VDP1WriteVRAM(uint32 address, uint8 value) override {}
     void VDP1WriteVRAM(uint32 address, uint16 value) override {}
+    void VDP1SyncFB() override {}
+    void VDP1DebugSyncFB() override {}
     void VDP1WriteFB(uint32 address, uint8 value) override {}
     void VDP1WriteFB(uint32 address, uint16 value) override {}
     void VDP1WriteReg(uint32 address, uint16 value) override {}
@@ -74,7 +86,9 @@ public:
         Callbacks.VDP1DrawFinished();
     }
 
-    void VDP2SetResolution(uint32 h, uint32 v, bool exclusive) override {}
+    void VDP2SetResolution(uint32 h, uint32 v, bool exclusive) override {
+        Callbacks.VDP2ResolutionChanged(h, v);
+    }
     void VDP2SetField(bool odd) override {}
     void VDP2LatchTVMD() override {}
     void VDP2BeginFrame() override {}

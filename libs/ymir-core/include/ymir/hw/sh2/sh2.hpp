@@ -25,7 +25,7 @@
 #include <ymir/sys/bus.hpp>
 #include <ymir/sys/system_features.hpp>
 
-#include <ymir/state/state_sh2.hpp>
+#include <ymir/savestate/savestate_sh2.hpp>
 
 #include <ymir/debug/debug_break.hpp>
 #include <ymir/debug/sh2_tracer_base.hpp>
@@ -105,9 +105,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH2State &state) const;
-    [[nodiscard]] bool ValidateState(const state::SH2State &state) const;
-    void LoadState(const state::SH2State &state);
+    void SaveState(savestate::SH2SaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SH2SaveState &state) const;
+    void LoadState(const savestate::SH2SaveState &state);
 
     // -------------------------------------------------------------------------
     // Debugger
@@ -717,14 +717,15 @@ private:
     template <mem_primitive T, bool poke, bool debug, bool enableCache>
     void MemWrite(uint32 address, T value);
 
+    // TODO: should be a 32-bit read (two 16-bit instructions per fetch)
     template <bool enableCache>
     uint16 FetchInstruction(uint32 address);
 
     template <bool enableCache>
     uint8 MemReadByte(uint32 address);
-    template <bool enableCache>
+    template <bool enableCache, bool instrFetch = false>
     uint16 MemReadWord(uint32 address);
-    template <bool enableCache>
+    template <bool enableCache, bool instrFetch = false>
     uint32 MemReadLong(uint32 address);
 
     template <bool debug, bool enableCache>
@@ -855,6 +856,9 @@ private:
     // Raises the interrupt signal of the specified source.
     FORCE_INLINE void RaiseInterrupt(InterruptSource source) {
         const uint8 level = INTC.GetLevel(source);
+        if (level == 0) {
+            return;
+        }
         if (level < INTC.pending.level) {
             return;
         }
@@ -873,10 +877,6 @@ private:
         }
     }
 
-    // Updates the pending interrupt level if it matches one of the specified sources.
-    template <InterruptSource source, InterruptSource... sources>
-    void UpdateInterruptLevels();
-
     // Recalculates the highest priority interrupt to be serviced.
     void RecalcInterrupts();
 
@@ -885,6 +885,10 @@ private:
     // This value is updated when any of these variables is changed, which happens less often than once per instruction.
     // There's no need to store this in the save state struct since its value can be derived as above.
     bool m_intrPending;
+
+    // Whether an interrupt is allowed to be serviced on the next instruction.
+    // All LDC, LDS, STC and STS instructions block interrupts on the following instruction.
+    bool m_intrAllow = true;
 
     // -------------------------------------------------------------------------
     // Cache

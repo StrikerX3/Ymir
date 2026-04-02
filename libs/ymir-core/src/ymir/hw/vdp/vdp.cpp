@@ -6,70 +6,8 @@
 
 namespace ymir::vdp {
 
-namespace grp {
-
-    // -----------------------------------------------------------------------------
-    // Dev log groups
-
-    // Hierarchy:
-    //
-    // base
-    //   phase
-    //   intr
-    //     intr_hb
-    //   vdp1
-    //     vdp1_regs
-    //     vdp1_cmd
-    //   vdp2
-    //     vdp2_regs
-    //     vdp2_render
-
-    struct base {
-        static constexpr bool enabled = true;
-        static constexpr devlog::Level level = devlog::level::debug;
-        static constexpr std::string_view name = "VDP";
-    };
-
-    struct phase : public base {
-        static constexpr std::string_view name = "VDP-Phase";
-    };
-
-    struct intr : public base {
-        static constexpr std::string_view name = "VDP-Interrupt";
-    };
-
-    struct intr_hb : public intr {
-        static constexpr devlog::Level level = devlog::level::debug;
-    };
-
-    struct vdp1 : public base {
-        static constexpr std::string_view name = "VDP1";
-    };
-
-    struct vdp1_regs : public vdp1 {
-        static constexpr std::string_view name = "VDP1-Regs";
-    };
-
-    struct vdp1_cmd : public vdp1 {
-        static constexpr std::string_view name = "VDP1-Command";
-    };
-
-    struct vdp2 : public base {
-        static constexpr std::string_view name = "VDP2";
-    };
-
-    struct vdp2_regs : public vdp2 {
-        static constexpr std::string_view name = "VDP2-Regs";
-    };
-
-    struct vdp2_render : public vdp2 {
-        static constexpr std::string_view name = "VDP2-Render";
-    };
-
-} // namespace grp
-
 VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
-    : m_renderer(std::make_unique<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions))
+    : m_renderer(std::make_unique<NullVDPRenderer>())
     , m_config(config)
     , m_scheduler(scheduler) {
 
@@ -93,13 +31,15 @@ VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
     m_phaseUpdateEvent = scheduler.RegisterEvent(core::events::VDPPhase, this, OnPhaseUpdateEvent);
 
     Reset(true);
+
+    UseSoftwareRenderer();
 }
 
 VDP::~VDP() = default;
 
 void VDP::Reset(bool hard) {
-    m_HRes = 320;
-    m_VRes = 224;
+    m_HRes = vdp::kDefaultResH;
+    m_VRes = vdp::kDefaultResV;
     m_exclusiveMonitor = false;
 
     m_state.Reset(hard);
@@ -139,19 +79,31 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
     // VDP1 framebuffer
     bus.MapBoth(
         0x5C8'0000, 0x5CF'FFFF, this,
-        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).VDP1ReadFB<uint8>(address); },
-        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP1ReadFB<uint16>(address); },
-        [](uint32 address, void *ctx) -> uint32 {
-            uint32 value = cast(ctx).VDP1ReadFB<uint16>(address + 0) << 16u;
-            value |= cast(ctx).VDP1ReadFB<uint16>(address + 2) << 0u;
-            return value;
-        },
-
         [](uint32 address, uint8 value, void *ctx) { cast(ctx).VDP1WriteFB<uint8>(address, value); },
         [](uint32 address, uint16 value, void *ctx) { cast(ctx).VDP1WriteFB<uint16>(address, value); },
         [](uint32 address, uint32 value, void *ctx) {
             cast(ctx).VDP1WriteFB<uint16>(address + 0, value >> 16u);
             cast(ctx).VDP1WriteFB<uint16>(address + 2, value >> 0u);
+        });
+
+    bus.MapNormal(
+        0x5C8'0000, 0x5CF'FFFF, this,
+        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).VDP1ReadFB<uint8, false>(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP1ReadFB<uint16, false>(address); },
+        [](uint32 address, void *ctx) -> uint32 {
+            uint32 value = cast(ctx).VDP1ReadFB<uint16, false>(address + 0) << 16u;
+            value |= cast(ctx).VDP1ReadFB<uint16, false>(address + 2) << 0u;
+            return value;
+        });
+
+    bus.MapSideEffectFree(
+        0x5C8'0000, 0x5CF'FFFF, this,
+        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).VDP1ReadFB<uint8, true>(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).VDP1ReadFB<uint16, true>(address); },
+        [](uint32 address, void *ctx) -> uint32 {
+            uint32 value = cast(ctx).VDP1ReadFB<uint16, true>(address + 0) << 16u;
+            value |= cast(ctx).VDP1ReadFB<uint16, true>(address + 2) << 0u;
+            return value;
         });
 
     // VDP1 registers
@@ -352,15 +304,15 @@ void VDP::Advance(uint64 cycles) {
 }
 
 void VDP::DumpVDP1VRAM(std::ostream &out) const {
-    out.write((const char *)m_state.VRAM1.data(), m_state.VRAM1.size());
+    out.write((const char *)m_state.mem1.VRAM.data(), m_state.mem1.VRAM.size());
 }
 
 void VDP::DumpVDP2VRAM(std::ostream &out) const {
-    out.write((const char *)m_state.VRAM2.data(), m_state.VRAM2.size());
+    out.write((const char *)m_state.mem2.VRAM.data(), m_state.mem2.VRAM.size());
 }
 
 void VDP::DumpVDP2CRAM(std::ostream &out) const {
-    out.write((const char *)m_state.CRAM.data(), m_state.CRAM.size());
+    out.write((const char *)m_state.mem2.CRAM.data(), m_state.mem2.CRAM.size());
 }
 
 void VDP::DumpVDP1Framebuffers(std::ostream &out) const {
@@ -376,20 +328,25 @@ void VDP::DumpVDP1Framebuffers(std::ostream &out) const {
 
 template <mem_primitive_16 T>
 FORCE_INLINE T VDP::VDP1ReadVRAM(uint32 address) const {
-    return m_state.VDP1ReadVRAM<T>(address);
+    return m_state.mem1.ReadVRAM<T>(address);
 }
 
 template <mem_primitive_16 T>
 FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
-    m_state.VDP1WriteVRAM<T>(address, value,
-                             [&](uint32 address, T value) { m_renderer->VDP1WriteVRAM(address, value); });
+    m_state.mem1.WriteVRAM<T>(address, value,
+                              [&](uint32 address, T value) { m_renderer->VDP1WriteVRAM(address, value); });
     if (m_stallVDP1OnVRAMWrites && m_VDP1State.drawing) {
         m_VDP1TimingPenaltyCycles += kVDP1TimingPenaltyPerWrite;
     }
 }
 
-template <mem_primitive_16 T>
+template <mem_primitive_16 T, bool peek>
 FORCE_INLINE T VDP::VDP1ReadFB(uint32 address) const {
+    if constexpr (peek) {
+        m_renderer->VDP1DebugSyncFB();
+    } else {
+        m_renderer->VDP1SyncFB();
+    }
     return m_state.VDP1ReadFB<T>(address);
 }
 
@@ -451,18 +408,18 @@ FORCE_INLINE void VDP::VDP1WriteReg(uint32 address, uint16 value) {
 
 template <mem_primitive_16 T>
 FORCE_INLINE T VDP::VDP2ReadVRAM(uint32 address) const {
-    return m_state.VDP2ReadVRAM<T>(address);
+    return m_state.mem2.ReadVRAM<T>(address);
 }
 
 template <mem_primitive_16 T>
 FORCE_INLINE void VDP::VDP2WriteVRAM(uint32 address, T value) {
-    m_state.VDP2WriteVRAM<T>(address, value,
-                             [&](uint32 address, T value) { m_renderer->VDP2WriteVRAM(address, value); });
+    m_state.mem2.WriteVRAM<T>(address, value,
+                              [&](uint32 address, T value) { m_renderer->VDP2WriteVRAM(address, value); });
 }
 
 template <mem_primitive_16 T, bool peek>
 FORCE_INLINE T VDP::VDP2ReadCRAM(uint32 address) const {
-    return m_state.VDP2ReadCRAM<T>(address, [&](uint32 address, T value) {
+    return m_state.mem2.ReadCRAM<T>(address, [&](uint32 address, T value) {
         if constexpr (!peek) {
             devlog::trace<grp::vdp2_regs>("{}-bit VDP2 CRAM read from {:03X} = {:X}", sizeof(T) * 8, address, value);
         }
@@ -471,7 +428,7 @@ FORCE_INLINE T VDP::VDP2ReadCRAM(uint32 address) const {
 
 template <mem_primitive_16 T, bool poke>
 FORCE_INLINE void VDP::VDP2WriteCRAM(uint32 address, T value) {
-    m_state.VDP2WriteCRAM<T>(address, value, [&](uint32 address, T value) {
+    m_state.mem2.WriteCRAM<T>(address, value, [&](uint32 address, T value) {
         m_renderer->VDP2WriteCRAM(address, value);
         if constexpr (!poke) {
             devlog::trace<grp::vdp2_regs>("{}-bit VDP2 CRAM write to {:05X} = {:X}", sizeof(T) * 8, address, value);
@@ -505,7 +462,7 @@ FORCE_INLINE void VDP::VDP2WriteReg(uint32 address, uint16 value) {
 // -----------------------------------------------------------------------------
 // Save states
 
-void VDP::SaveState(state::VDPState &state) const {
+void VDP::SaveState(savestate::VDPSaveState &state) const {
     m_renderer->PreSaveStateSync();
 
     m_state.SaveState(state);
@@ -522,7 +479,7 @@ void VDP::SaveState(state::VDPState &state) const {
     state.renderer.displayFB = m_state.displayFB;
 }
 
-bool VDP::ValidateState(const state::VDPState &state) const {
+bool VDP::ValidateState(const savestate::VDPSaveState &state) const {
     if (!m_state.ValidateState(state)) {
         return false;
     }
@@ -532,7 +489,7 @@ bool VDP::ValidateState(const state::VDPState &state) const {
     return true;
 }
 
-void VDP::LoadState(const state::VDPState &state) {
+void VDP::LoadState(const savestate::VDPSaveState &state) {
     m_state.LoadState(state);
     m_renderer->LoadState(state.renderer);
 
@@ -888,6 +845,7 @@ void VDP::BeginHPhaseLeftBorder() {
 
         // End VBlank erase if in progress
         if (m_VDP1State.doVBlankErase) {
+            m_state.regs1.LatchEraseParameters();
             m_renderer->VDP1EraseFramebuffer(m_VBlankEraseCyclesPerLine * m_VBlankEraseLines[m_VTimingField]);
         }
 
@@ -941,6 +899,7 @@ void VDP::BeginVPhaseBlankingAndSync() {
         m_VDP1State.doDisplayErase = false;
         // TODO: erase line by line instead of the entire framebuffer in one go
         // No need to count cycles here; there's always enough cycles in the display area to clear the entire screen
+        m_state.regs1.LatchEraseParameters();
         m_renderer->VDP1EraseFramebuffer(0);
     }
 }
@@ -979,21 +938,19 @@ void VDP::BeginVPhaseLastLine() {
 void VDP::VDP1SwapFramebuffer() {
     devlog::trace<grp::vdp1>("Swapping framebuffers - draw {}, display {}", m_state.displayFB, m_state.displayFB ^ 1);
 
-    m_renderer->VDP1SwapFramebuffer();
-
     m_state.regs1.prevCommandAddress = m_state.regs1.currCommandAddress;
     m_state.regs1.prevFrameEnded = m_state.regs1.currFrameEnded;
     m_state.regs1.currFrameEnded = false;
 
     m_state.displayFB ^= 1;
 
+    // TODO: latch PTM, EOS, DIE, DIL
+
+    m_renderer->VDP1SwapFramebuffer();
+
     if (bit::test<1>(m_state.regs1.plotTrigger)) {
         VDP1BeginFrame();
     }
-
-    // TODO: latch PTM, EOS, DIE, DIL
-
-    m_state.regs1.LatchEraseParameters();
 }
 
 void VDP::VDP1BeginFrame() {
@@ -1006,9 +963,22 @@ void VDP::VDP1BeginFrame() {
     m_state.regs1.currCommandAddress = 0;
     m_state.regs1.currFrameEnded = false;
 
-    m_renderer->VDP1BeginFrame();
+    // Don't even bother processing if the table starts with a handful of empty commands
+    bool valid = false;
+    for (uint32 i = 0; i < 32 * 4; i += 2) {
+        const auto value = VDP1ReadVRAM<uint16>(i);
+        if (value != 0) {
+            valid = true;
+            break;
+        }
+    }
+    if (valid) {
+        m_renderer->VDP1BeginFrame();
 
-    m_VDP1State.drawing = true;
+        m_VDP1State.drawing = true;
+    } else {
+        devlog::warn<grp::vdp1_cmd>("Possible empty command table found; aborting");
+    }
 }
 
 void VDP::VDP1EndFrame() {
@@ -1260,7 +1230,7 @@ const VDP2Regs &VDP::Probe::GetVDP2Regs() const {
     return m_vdp.m_state.regs2;
 }
 
-const std::array<NormBGLayerState, 4> &VDP::Probe::GetNBGLayerStates() const {
+const std::array<NBGLayerState, 4> &VDP::Probe::GetNBGLayerStates() const {
     return m_vdp.m_renderer->GetNBGLayerStates();
 }
 

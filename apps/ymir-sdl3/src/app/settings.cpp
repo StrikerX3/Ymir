@@ -36,7 +36,10 @@ concept arithmetic_type = std::integral<T> || std::floating_point<T>;
 // - Removed "Video.IncludeVDP1InRenderThread"
 // - Renamed "Video.ThreadedVDP" to "Video.ThreadedVDP2"
 // - Moved "Input.Gamepad*" to "Input.Gamepad.*"
-inline constexpr int kConfigVersion = 4;
+// v4:
+// - Moved "Video.ThreadedVDP1", "Video.ThreadedVD2" and "Video.ThreadedDeinterlacer" to "Video.SoftwareRenderer.*"
+// - Moved "Video.Deinterlace" and "Video.TransparentMeshes" to "Video.Enhancements.*"
+inline constexpr int kConfigVersion = 5;
 
 namespace grp {
 
@@ -1061,11 +1064,11 @@ void Settings::ResetToDefaults() {
     video.fullScreenMode.pixelFormat = SDL_PIXELFORMAT_UNKNOWN;
     video.fullScreenMode.refreshRate = 0.0f;
     video.fullScreenMode.pixelDensity = 0.0f;
-    video.deinterlace = false;
-    video.transparentMeshes = false;
-    video.threadedVDP1 = true;
-    video.threadedVDP2 = true;
-    video.threadedDeinterlacer = true;
+    video.swRenderer.threadedVDP1 = true;
+    video.swRenderer.threadedVDP2 = true;
+    video.swRenderer.threadedDeinterlacer = true;
+    video.enhancements.deinterlace = false;
+    video.enhancements.transparentMeshes = false;
 
     audio.volume = 0.8;
     audio.mute = false;
@@ -1101,9 +1104,9 @@ void Settings::BindConfiguration(ymir::core::Configuration &config) {
     system.rtc.virtHardResetStrategy.Observe([&](auto value) { config.rtc.virtHardResetStrategy = value; });
     system.rtc.virtHardResetTimestamp.Observe([&](auto value) { config.rtc.virtHardResetTimestamp = value; });
 
-    video.threadedVDP1.Observe([&](auto value) { config.video.threadedVDP1 = value; });
-    video.threadedVDP2.Observe([&](auto value) { config.video.threadedVDP2 = value; });
-    video.threadedDeinterlacer.Observe([&](auto value) { config.video.threadedDeinterlacer = value; });
+    video.swRenderer.threadedVDP1.Observe([&](auto value) { config.video.threadedVDP1 = value; });
+    video.swRenderer.threadedVDP2.Observe([&](auto value) { config.video.threadedVDP2 = value; });
+    video.swRenderer.threadedDeinterlacer.Observe([&](auto value) { config.video.threadedDeinterlacer = value; });
 
     audio.interpolation.Observe([&](auto value) { config.audio.interpolation = value; });
     audio.threadedSCSP.Observe([&](auto value) { config.audio.threadedSCSP = value; });
@@ -1209,6 +1212,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblSystem, "InternalBackupRAMImagePath", system.internalBackupRAMImagePath);
         Parse(tblSystem, "InternalBackupRAMPerGame", system.internalBackupRAMPerGame);
         system.internalBackupRAMImagePath = Absolute(ProfilePath::PersistentState, system.internalBackupRAMImagePath);
+        m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(system.emulateSH2Cache));
 
         auto &ipl = system.ipl;
         if (auto tblIPL = tblSystem["IPL"]) {
@@ -1549,19 +1553,35 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
             Parse(tblFullScreenMode, "Borderless", video.borderlessFullScreen);
         }
 
-        if (configVersion >= 4) {
-            Parse(tblVideo, "ThreadedVDP1", video.threadedVDP1);
-            Parse(tblVideo, "ThreadedVDP2", video.threadedVDP2);
+        if (configVersion >= 5) {
+            if (auto tblSwRenderer = tblVideo["SoftwareRenderer"]) {
+                Parse(tblSwRenderer, "ThreadedVDP1", video.swRenderer.threadedVDP1);
+                Parse(tblSwRenderer, "ThreadedVDP2", video.swRenderer.threadedVDP2);
+                Parse(tblSwRenderer, "ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer);
+            }
         } else {
-            Parse(tblVideo, "ThreadedVDP", video.threadedVDP2);
+            if (configVersion >= 4) {
+                Parse(tblVideo, "ThreadedVDP1", video.swRenderer.threadedVDP1);
+                Parse(tblVideo, "ThreadedVDP2", video.swRenderer.threadedVDP2);
+            } else {
+                Parse(tblVideo, "ThreadedVDP", video.swRenderer.threadedVDP2);
+            }
+            Parse(tblVideo, "ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer);
         }
-        Parse(tblVideo, "ThreadedDeinterlacer", video.threadedDeinterlacer);
+
         if (configVersion <= 2) {
             parseUIScaleOptions(tblVideo);
         }
 
-        Parse(tblVideo, "Deinterlace", video.deinterlace);
-        Parse(tblVideo, "TransparentMeshes", video.transparentMeshes);
+        if (configVersion >= 5) {
+            if (auto tblEnhancements = tblVideo["Enhancements"]) {
+                Parse(tblEnhancements, "Deinterlace", video.enhancements.deinterlace);
+                Parse(tblEnhancements, "TransparentMeshes", video.enhancements.transparentMeshes);
+            }
+        } else {
+            Parse(tblVideo, "Deinterlace", video.enhancements.deinterlace);
+            Parse(tblVideo, "TransparentMeshes", video.enhancements.transparentMeshes);
+        }
     }
 
     if (auto tblAudio = data["Audio"]) {
@@ -1953,11 +1973,15 @@ SettingsSaveResult Settings::Save() {
                 {"PixelDensity", video.fullScreenMode.pixelDensity},
                 {"Borderless", video.borderlessFullScreen},
             }}},
-            {"Deinterlace", video.deinterlace.Get()},
-            {"TransparentMeshes", video.transparentMeshes.Get()},
-            {"ThreadedVDP1", video.threadedVDP1.Get()},
-            {"ThreadedVDP2", video.threadedVDP2.Get()},
-            {"ThreadedDeinterlacer", video.threadedDeinterlacer.Get()},
+            {"SoftwareRenderer", toml::table{{
+                {"ThreadedVDP1", video.swRenderer.threadedVDP1.Get()},
+                {"ThreadedVDP2", video.swRenderer.threadedVDP2.Get()},
+                {"ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer.Get()},
+            }}},
+            {"Enhancements", toml::table{{
+                {"Deinterlace", video.enhancements.deinterlace.Get()},
+                {"TransparentMeshes", video.enhancements.transparentMeshes.Get()},
+            }}},
         }}},
 
         {"Audio", toml::table{{

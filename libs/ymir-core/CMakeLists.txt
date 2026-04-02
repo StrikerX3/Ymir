@@ -105,7 +105,7 @@ add_library(ymir-core
     include/ymir/hw/smpc/rtc.hpp
     include/ymir/hw/smpc/smpc.hpp
     include/ymir/hw/smpc/smpc_internal_callbacks.hpp
-    
+
     include/ymir/hw/smpc/peripheral/peripheral_base.hpp
     include/ymir/hw/smpc/peripheral/peripheral_callbacks.hpp
     include/ymir/hw/smpc/peripheral/peripheral_defs.hpp
@@ -124,6 +124,7 @@ add_library(ymir-core
     include/ymir/hw/vdp/vdp_callbacks.hpp
     include/ymir/hw/vdp/vdp_configs.hpp
     include/ymir/hw/vdp/vdp_defs.hpp
+    include/ymir/hw/vdp/vdp_devlog.hpp
     include/ymir/hw/vdp/vdp_internal_callbacks.hpp
     include/ymir/hw/vdp/vdp_state.hpp
     include/ymir/hw/vdp/vdp1_defs.hpp
@@ -137,7 +138,7 @@ add_library(ymir-core
     include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
 
-    include/ymir/hw/vdp/renderer/sw/vdp1_steppers.hpp
+    include/ymir/hw/vdp/renderer/common/vdp1_steppers.hpp
 
     include/ymir/media/cdrom_crc.hpp
     include/ymir/media/disc.hpp
@@ -147,7 +148,7 @@ add_library(ymir-core
     include/ymir/media/media_defs.hpp
     include/ymir/media/saturn_header.hpp
     include/ymir/media/subheader.hpp
-    
+
     include/ymir/media/loader/loader.hpp
     include/ymir/media/loader/loader_bin_cue.hpp
     include/ymir/media/loader/loader_chd.hpp
@@ -165,22 +166,22 @@ add_library(ymir-core
     include/ymir/media/binary_reader/binary_reader_subview.hpp
     include/ymir/media/binary_reader/binary_reader_zero.hpp
 
-    include/ymir/state/state.hpp
-    include/ymir/state/state_cdblock.hpp
-    include/ymir/state/state_cd_drive.hpp
-    include/ymir/state/state_m68k.hpp
-    include/ymir/state/state_scheduler.hpp
-    include/ymir/state/state_scsp.hpp
-    include/ymir/state/state_scsp_dsp.hpp
-    include/ymir/state/state_scsp_slot.hpp
-    include/ymir/state/state_scsp_timer.hpp
-    include/ymir/state/state_scu.hpp
-    include/ymir/state/state_sh1.hpp
-    include/ymir/state/state_sh2.hpp
-    include/ymir/state/state_smpc.hpp
-    include/ymir/state/state_system.hpp
-    include/ymir/state/state_vdp.hpp
-    include/ymir/state/state_ygr.hpp
+    include/ymir/savestate/savestate.hpp
+    include/ymir/savestate/savestate_cdblock.hpp
+    include/ymir/savestate/savestate_cd_drive.hpp
+    include/ymir/savestate/savestate_m68k.hpp
+    include/ymir/savestate/savestate_scheduler.hpp
+    include/ymir/savestate/savestate_scsp.hpp
+    include/ymir/savestate/savestate_scsp_dsp.hpp
+    include/ymir/savestate/savestate_scsp_slot.hpp
+    include/ymir/savestate/savestate_scsp_timer.hpp
+    include/ymir/savestate/savestate_scu.hpp
+    include/ymir/savestate/savestate_sh1.hpp
+    include/ymir/savestate/savestate_sh2.hpp
+    include/ymir/savestate/savestate_smpc.hpp
+    include/ymir/savestate/savestate_system.hpp
+    include/ymir/savestate/savestate_vdp.hpp
+    include/ymir/savestate/savestate_ygr.hpp
 
     include/ymir/sys/backup_ram.hpp
     include/ymir/sys/backup_ram_defs.hpp
@@ -192,7 +193,7 @@ add_library(ymir-core
     include/ymir/sys/system.hpp
     include/ymir/sys/system_features.hpp
     include/ymir/sys/system_internal_callbacks.hpp
-    
+
     include/ymir/util/arith_ops.hpp
     include/ymir/util/backup_datetime.hpp
     include/ymir/util/bit_ops.hpp
@@ -206,6 +207,7 @@ add_library(ymir-core
     include/ymir/util/dev_log.hpp
     include/ymir/util/event.hpp
     include/ymir/util/function_info.hpp
+    include/ymir/util/hashing.hpp
     include/ymir/util/inline.hpp
     include/ymir/util/lsn_denormals.hpp
     include/ymir/util/process.hpp
@@ -235,16 +237,16 @@ add_library(ymir-core
     src/ymir/hw/cdblock/cdblock_partition_manager.cpp
     src/ymir/hw/cdblock/cd_drive.cpp
     src/ymir/hw/cdblock/ygr.cpp
-    
+
     src/ymir/hw/m68k/m68k.cpp
     src/ymir/hw/m68k/m68k_addr_modes.hpp
     src/ymir/hw/m68k/m68k_decode.cpp
     src/ymir/hw/m68k/m68k_disasm.cpp
-    
+
     src/ymir/hw/scsp/scsp.cpp
     src/ymir/hw/scsp/scsp_dsp.cpp
     src/ymir/hw/scsp/scsp_slot.cpp
-    
+
     src/ymir/hw/scu/scu.cpp
     src/ymir/hw/scu/scu_devlog.hpp
     src/ymir/hw/scu/scu_dsp.cpp

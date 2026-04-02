@@ -14,9 +14,19 @@ namespace settings::video {
 
     void GraphicsBackendCombo(SharedContext &ctx);
     void DisplayRotation(SharedContext &ctx, bool newLine = false);
-    void Deinterlace(SharedContext &ctx);
-    void TransparentMeshes(SharedContext &ctx);
-    void ThreadedVDP(SharedContext &ctx);
+
+    namespace swrenderer {
+
+        void ThreadedVDP(SharedContext &ctx);
+
+    } // namespace swrenderer
+
+    namespace enhancements {
+
+        void Deinterlace(SharedContext &ctx);
+        void TransparentMeshes(SharedContext &ctx);
+
+    } // namespace enhancements
 
 } // namespace settings::video
 

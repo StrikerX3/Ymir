@@ -83,7 +83,10 @@ vary according to the resolution and character pattern size:
 If the NBG requires multiple pattern name access timing slots, the CP access is restricted by the first valid PN access.
 (TODO: check 1/2x and 1/4x reductions.)
 
-In high resolution modes the CP access must happen at the same time as or after the PN access, otherwise it is delayed.
+In low resolution modes, illegal CP accesses in T0-T3 cause character reads to skip one cell, shifting graphics to the
+left. Illegal CP accesses in T4-T7 cause character reads to be delayed by one cell, shifting graphics to the right.
+
+In high resolution modes the CP access must not happen before the PN access, otherwise it is delayed.
 
 Character pattern reads may need more than one CP cycle to fully read the requested data. The base number of access
 cycles required is one, and it is increased (multiplied) by the following factors:

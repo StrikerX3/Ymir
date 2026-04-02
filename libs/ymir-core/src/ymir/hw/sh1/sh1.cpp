@@ -291,7 +291,7 @@ void SH1::DumpRAM(std::ostream &out) {
 // -----------------------------------------------------------------------------
 // Save states
 
-void SH1::SaveState(state::SH1State &state) const {
+void SH1::SaveState(savestate::SH1SaveState &state) const {
     state.R = R;
     state.PC = PC;
     state.PR = PR;
@@ -324,7 +324,7 @@ void SH1::SaveState(state::SH1State &state) const {
     state.TIOCB3 = m_TIOCB3;
 }
 
-bool SH1::ValidateState(const state::SH1State &state, bool skipROMChecks) const {
+bool SH1::ValidateState(const savestate::SH1SaveState &state, bool skipROMChecks) const {
     if (!skipROMChecks && m_romHash != state.romHash) {
         return false;
     }
@@ -358,7 +358,7 @@ bool SH1::ValidateState(const state::SH1State &state, bool skipROMChecks) const 
     return true;
 }
 
-void SH1::LoadState(const state::SH1State &state) {
+void SH1::LoadState(const savestate::SH1SaveState &state) {
     R = state.R;
     PC = state.PC;
     PR = state.PR;

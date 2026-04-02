@@ -605,6 +605,14 @@ private:
     sint32 m_accumTarget;
 };
 
+FORCE_INLINE sint32 CrossProduct(CoordS32 vecA, CoordS32 vecB) {
+    return vecA.x() * vecB.y() - vecA.y() * vecB.x();
+}
+
+FORCE_INLINE CoordS32 VectorFromPoints(CoordS32 pointA, CoordS32 pointB) {
+    return {pointB.x() - pointA.x(), pointB.y() - pointA.y()};
+}
+
 // Dual edge iterator for a quad with vertices A-B-C-D arranged in clockwise order from top-left:
 //
 //    A-->B
@@ -626,6 +634,35 @@ struct QuadStepper {
 
         m_edgeL.Setup(coordA, coordD, m_dmaj);
         m_edgeR.Setup(coordB, coordC, m_dmaj);
+
+        // Determine if quad is degenerate by checking cross products of pairs of consecutive edges
+
+        const CoordS32 vecAB = VectorFromPoints(coordA, coordB);
+        const CoordS32 vecBC = VectorFromPoints(coordB, coordC);
+        const CoordS32 vecCD = VectorFromPoints(coordC, coordD);
+        const CoordS32 vecDA = VectorFromPoints(coordD, coordA);
+
+        const sint32 crossABC = CrossProduct(vecAB, vecBC);
+        const sint32 crossBCD = CrossProduct(vecBC, vecCD);
+        const sint32 crossCDA = CrossProduct(vecCD, vecDA);
+        const sint32 crossDAB = CrossProduct(vecDA, vecAB);
+
+        // Produces -1 for negatives or 0 for positives/zeros
+        const sint32 signABC = crossABC >> 31;
+        const sint32 signBCD = crossBCD >> 31;
+        const sint32 signCDA = crossCDA >> 31;
+        const sint32 signDAB = crossDAB >> 31;
+
+        if (crossABC == 0 || crossBCD == 0 || crossCDA == 0 || crossDAB == 0) {
+            // If any of the cross products is zero, two edges are colinear or two points coincide.
+            // This results in a triangle, a line or a point, all of which are considered non-degenerate.
+            m_degenerate = false;
+        } else {
+            // The quad is regular if all cross product signs match.
+            // If all signs match, the sum of the signs will be either 0 or 4.
+            const sint32 signSum = signABC + signBCD + signCDA + signDAB;
+            m_degenerate = (signSum & ~4) == 0;
+        }
     }
 
     // Sets up texture interpolation for the given texture vertical size and parameters.
@@ -642,6 +679,11 @@ struct QuadStepper {
     FORCE_INLINE void SetupGouraud(Color555 colorA, Color555 colorB, Color555 colorC, Color555 colorD) {
         m_edgeL.SetupGouraud(colorA, colorD);
         m_edgeR.SetupGouraud(colorB, colorC);
+    }
+
+    // Determines if the quad is degenerate (concave or self-intersecting).
+    FORCE_INLINE bool IsDegenerate() const {
+        return m_degenerate;
     }
 
     // Retrieves the left edge.
@@ -676,6 +718,8 @@ private:
 
     uint32 m_dmaj;
     uint32 m_step;
+
+    bool m_degenerate;
 };
 
 } // namespace ymir::vdp

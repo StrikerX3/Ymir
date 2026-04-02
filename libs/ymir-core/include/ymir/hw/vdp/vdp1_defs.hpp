@@ -11,6 +11,15 @@
 
 namespace ymir::vdp {
 
+inline constexpr uint32 kVDP1MinFBSizeH = 512;
+inline constexpr uint32 kVDP1MinFBSizeV = 256;
+
+inline constexpr uint32 kVDP1MaxFBSizeH = 1024;
+inline constexpr uint32 kVDP1MaxFBSizeV = 512;
+
+inline constexpr uint32 kVDP1DefaultFBSizeH = 512;
+inline constexpr uint32 kVDP1DefaultFBSizeV = 256;
+
 // VDP1 command structure in VRAM
 //   00  CMDCTRL  Control Words
 //   02  CMDLINK  Link Specification

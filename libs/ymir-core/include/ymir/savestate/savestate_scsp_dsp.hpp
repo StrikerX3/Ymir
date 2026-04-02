@@ -4,9 +4,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SCSPDSP {
+struct SCSPDSPSaveState {
     alignas(16) std::array<uint64, 128> MPRO;
     alignas(16) std::array<sint32, 128> TEMP;
     alignas(16) std::array<sint32, 32> MEMS;
@@ -42,4 +42,4 @@ struct SCSPDSP {
     uint32 readWriteAddr;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

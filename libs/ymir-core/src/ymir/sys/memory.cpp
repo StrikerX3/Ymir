@@ -51,20 +51,20 @@ void SystemMemory::DumpWRAMHigh(std::ostream &out) const {
     out.write((const char *)WRAMHigh.data(), WRAMHigh.size());
 }
 
-void SystemMemory::SaveState(state::SystemState &state) const {
+void SystemMemory::SaveState(savestate::SystemSaveState &state) const {
     state.iplRomHash = m_iplHash;
     state.WRAMLow = WRAMLow;
     state.WRAMHigh = WRAMHigh;
 }
 
-bool SystemMemory::ValidateState(const state::SystemState &state, bool skipROMChecks) const {
+bool SystemMemory::ValidateState(const savestate::SystemSaveState &state, bool skipROMChecks) const {
     if (!skipROMChecks && state.iplRomHash != m_iplHash) {
         return false;
     }
     return true;
 }
 
-void SystemMemory::LoadState(const state::SystemState &state) {
+void SystemMemory::LoadState(const savestate::SystemSaveState &state) {
     WRAMLow = state.WRAMLow;
     WRAMHigh = state.WRAMHigh;
 }

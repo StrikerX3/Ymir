@@ -1,38 +1,38 @@
 #pragma once
 
-#include "state_cd_drive.hpp"
-#include "state_cdblock.hpp"
-#include "state_scheduler.hpp"
-#include "state_scsp.hpp"
-#include "state_scu.hpp"
-#include "state_sh1.hpp"
-#include "state_sh2.hpp"
-#include "state_smpc.hpp"
-#include "state_system.hpp"
-#include "state_vdp.hpp"
-#include "state_ygr.hpp"
+#include "savestate_cd_drive.hpp"
+#include "savestate_cdblock.hpp"
+#include "savestate_scheduler.hpp"
+#include "savestate_scsp.hpp"
+#include "savestate_scu.hpp"
+#include "savestate_sh1.hpp"
+#include "savestate_sh2.hpp"
+#include "savestate_smpc.hpp"
+#include "savestate_system.hpp"
+#include "savestate_vdp.hpp"
+#include "savestate_ygr.hpp"
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct State {
-    SchedulerState scheduler;
-    SystemState system;
-    SH2State msh2;
-    SH2State ssh2;
-    SCUState scu;
-    SMPCState smpc;
-    VDPState vdp;
-    SCSPState scsp;
+struct SaveState {
+    SchedulerSaveState scheduler;
+    SystemSaveState system;
+    SH2SaveState msh2;
+    SH2SaveState ssh2;
+    SCUSaveState scu;
+    SMPCSaveState smpc;
+    VDPSaveState vdp;
+    SCSPSaveState scsp;
 
     bool cdblockLLE;
 
     // This field is only valid when cdblockLLE is false
-    CDBlockState cdblock;
+    CDBlockSaveState cdblock;
 
     // These fields are only valid when cdblockLLE is true
-    SH1State sh1;
-    YGRState ygr;
-    CDDriveState cddrive;
+    SH1SaveState sh1;
+    YGRSaveState ygr;
+    CDDriveSaveState cddrive;
     std::array<uint8, 512 * 1024> cdblockDRAM;
 
     XXH128Hash discHash;
@@ -56,4 +56,4 @@ struct State {
     uint64 sh1FracCycles;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

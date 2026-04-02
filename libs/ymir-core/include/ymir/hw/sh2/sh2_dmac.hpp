@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh2.hpp>
+#include <ymir/savestate/savestate_sh2.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -199,7 +199,7 @@ struct DMAChannel {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH2State::DMAC::Channel &state) const {
+    void SaveState(savestate::SH2SaveState::DMAC::Channel &state) const {
         state.SAR = srcAddress;
         state.DAR = dstAddress;
         state.TCR = xferCount;
@@ -207,7 +207,7 @@ struct DMAChannel {
         state.DRCR = ReadDRCR();
     }
 
-    void LoadState(const state::SH2State::DMAC::Channel &state) {
+    void LoadState(const savestate::SH2SaveState::DMAC::Channel &state) {
         srcAddress = state.SAR;
         dstAddress = state.DAR;
         xferCount = state.TCR;

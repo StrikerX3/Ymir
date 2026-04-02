@@ -7,14 +7,14 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct CDBlockState {
+struct CDBlockSaveState {
     alignas(16) std::array<uint16, 4> CR;
     uint16 HIRQ;
     uint16 HIRQMASK;
 
-    struct StatusState {
+    struct StatusSaveState {
         uint8 statusCode;
         uint32 frameAddress;
         uint8 flags;
@@ -76,7 +76,7 @@ struct CDBlockState {
 
     uint32 xferExtraCount;
 
-    struct BufferState {
+    struct BufferSaveState {
         alignas(16) std::array<uint8, 2352> data;
         uint16 size;
         uint32 frameAddress;
@@ -90,11 +90,11 @@ struct CDBlockState {
         // All buffers are stored sequentially
         uint8 partitionIndex;
     };
-    alignas(16) std::array<BufferState, cdblock::kNumBuffers + 1> buffers; // 200 buffers + 1 scratch buffer
+    alignas(16) std::array<BufferSaveState, cdblock::kNumBuffers + 1> buffers; // 200 buffers + 1 scratch buffer
     uint32 scratchBufferPutIndex;
     uint32 reservedBuffers;
 
-    struct FilterState {
+    struct FilterSaveState {
         uint32 startFrameAddress;
         uint32 frameAddressCount;
 
@@ -112,7 +112,7 @@ struct CDBlockState {
         uint8 passOutput;
         uint8 failOutput;
     };
-    alignas(16) std::array<FilterState, cdblock::kNumFilters> filters;
+    alignas(16) std::array<FilterSaveState, cdblock::kNumFilters> filters;
 
     uint8 cdDeviceConnection;
     uint8 lastCDWritePartition;
@@ -124,10 +124,10 @@ struct CDBlockState {
 
     bool processingCommand;
 
-    struct FilesystemState {
+    struct FilesystemSaveState {
         uint32 currDirectory;
         uint32 currFileOffset;
     } fs;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

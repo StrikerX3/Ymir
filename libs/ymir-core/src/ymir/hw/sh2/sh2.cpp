@@ -266,6 +266,7 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     FRT.Reset();
     INTC.Reset();
     m_intrPending = false;
+    m_intrAllow = true;
 
     m_delaySlotTarget = 0;
     m_delaySlot = false;
@@ -414,7 +415,7 @@ void SH2::PurgeCache() {
 // -----------------------------------------------------------------------------
 // Save states
 
-void SH2::SaveState(state::SH2State &state) const {
+void SH2::SaveState(savestate::SH2SaveState &state) const {
     state.R = R;
     state.PC = PC;
     state.PR = PR;
@@ -425,6 +426,7 @@ void SH2::SaveState(state::SH2State &state) const {
     state.VBR = VBR;
     state.delaySlotTarget = m_delaySlotTarget;
     state.delaySlot = m_delaySlot;
+    state.intrAllow = m_intrAllow;
 
     state.bsc.BCR1 = BCR1.u16;
     state.bsc.BCR2 = BCR2.u16;
@@ -447,11 +449,11 @@ void SH2::SaveState(state::SH2State &state) const {
     state.sleep = m_sleep;
 }
 
-bool SH2::ValidateState(const state::SH2State &state) const {
+bool SH2::ValidateState(const savestate::SH2SaveState &state) const {
     return true;
 }
 
-void SH2::LoadState(const state::SH2State &state) {
+void SH2::LoadState(const savestate::SH2SaveState &state) {
     R = state.R;
     PC = state.PC;
     PR = state.PR;
@@ -462,6 +464,7 @@ void SH2::LoadState(const state::SH2State &state) {
     VBR = state.VBR;
     m_delaySlotTarget = state.delaySlotTarget;
     m_delaySlot = state.delaySlot;
+    m_intrAllow = state.intrAllow;
 
     BCR1.u15 = state.bsc.BCR1; // Do not change the MASTER bit
     BCR2.u16 = state.bsc.BCR2;
@@ -732,14 +735,14 @@ FLATTEN FORCE_INLINE uint8 SH2::MemReadByte(uint32 address) {
     return MemRead<uint8, false, false, enableCache>(address);
 }
 
-template <bool enableCache>
+template <bool enableCache, bool instrFetch>
 FLATTEN FORCE_INLINE uint16 SH2::MemReadWord(uint32 address) {
-    return MemRead<uint16, false, false, enableCache>(address);
+    return MemRead<uint16, instrFetch, false, enableCache>(address);
 }
 
-template <bool enableCache>
+template <bool enableCache, bool instrFetch>
 FLATTEN FORCE_INLINE uint32 SH2::MemReadLong(uint32 address) {
-    return MemRead<uint32, false, false, enableCache>(address);
+    return MemRead<uint32, instrFetch, false, enableCache>(address);
 }
 
 template <bool debug, bool enableCache>
@@ -1153,8 +1156,14 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
     switch (address) {
     case 0x10:
         FRT.WriteTIER(value);
-        if (INTC.pending.source == InterruptSource::FRT_OVI || INTC.pending.source == InterruptSource::FRT_OCI ||
-            INTC.pending.source == InterruptSource::FRT_ICI) {
+        if (FRT.FTCSR.ICF && FRT.TIER.ICIE) {
+            RaiseInterrupt(InterruptSource::FRT_ICI);
+        } else if ((FRT.FTCSR.OCFA && FRT.TIER.OCIAE) || (FRT.FTCSR.OCFB && FRT.TIER.OCIBE)) {
+            RaiseInterrupt(InterruptSource::FRT_OCI);
+        } else if (FRT.FTCSR.OVF && FRT.TIER.OVIE) {
+            RaiseInterrupt(InterruptSource::FRT_OVI);
+        } else if (INTC.pending.source == InterruptSource::FRT_OVI || INTC.pending.source == InterruptSource::FRT_OCI ||
+                   INTC.pending.source == InterruptSource::FRT_ICI) {
             RecalcInterrupts();
         }
         break;
@@ -1200,7 +1209,49 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
         INTC.SetLevel(SCI_RXI, sciIntrLevel);
         INTC.SetLevel(SCI_TXI, sciIntrLevel);
         INTC.SetLevel(SCI_TEI, sciIntrLevel);
-        UpdateInterruptLevels<FRT_ICI, FRT_OCI, FRT_OVI, SCI_ERI, SCI_RXI, SCI_TXI, SCI_TEI>();
+        // TODO: SCI ERI, RXI, TXI, TEI
+        // if (sciIntrLevel > 0) {
+        //     /*if (...) {
+        //         RaiseInterrupt(InterruptSource::SCI_ERI);
+        //     } else {
+        //         LowerInterrupt(InterruptSource::SCI_ERI);
+        //     }*/
+        //     /*if (...) {
+        //         RaiseInterrupt(InterruptSource::SCI_RXI);
+        //     } else {
+        //         LowerInterrupt(InterruptSource::SCI_RXI);
+        //     }*/
+        //     /*if (...) {
+        //         RaiseInterrupt(InterruptSource::SCI_TXI);
+        //     } else {
+        //         LowerInterrupt(InterruptSource::SCI_TXI);
+        //     }*/
+        //     /*if (...) {
+        //         RaiseInterrupt(InterruptSource::SCI_TEI);
+        //     } else {
+        //         LowerInterrupt(InterruptSource::SCI_TEI);
+        //     }*/
+        // } else {
+        //     LowerInterrupt(InterruptSource::SCI_ERI);
+        //     LowerInterrupt(InterruptSource::SCI_RXI);
+        //     LowerInterrupt(InterruptSource::SCI_TXI);
+        //     LowerInterrupt(InterruptSource::SCI_TEI);
+        // }
+        if (frtIntrLevel > 0) {
+            if (FRT.FTCSR.ICF && FRT.TIER.ICIE) {
+                RaiseInterrupt(InterruptSource::FRT_ICI);
+            }
+            if ((FRT.FTCSR.OCFA && FRT.TIER.OCIAE) || (FRT.FTCSR.OCFB && FRT.TIER.OCIBE)) {
+                RaiseInterrupt(InterruptSource::FRT_OCI);
+            }
+            if (FRT.FTCSR.OVF && FRT.TIER.OVIE) {
+                RaiseInterrupt(InterruptSource::FRT_OVI);
+            }
+        } else {
+            LowerInterrupt(InterruptSource::FRT_ICI);
+            LowerInterrupt(InterruptSource::FRT_OCI);
+            LowerInterrupt(InterruptSource::FRT_OVI);
+        }
         break;
     }
     case 0x61: /* IPRB bits 7-0 are all reserved */ break;
@@ -1251,7 +1302,23 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
         INTC.SetLevel(DMAC0_XferEnd, dmacIntrLevel);
         INTC.SetLevel(DMAC1_XferEnd, dmacIntrLevel);
         INTC.SetLevel(DIVU_OVFI, divuIntrLevel);
-        UpdateInterruptLevels<DMAC0_XferEnd, DMAC1_XferEnd, DIVU_OVFI>();
+        if (INTC.GetLevel(InterruptSource::DIVU_OVFI) > 0 && DIVU.DVCR.OVF && DIVU.DVCR.OVFIE) {
+            RaiseInterrupt(InterruptSource::DIVU_OVFI);
+        } else {
+            LowerInterrupt(InterruptSource::DIVU_OVFI);
+        }
+        if (INTC.GetLevel(InterruptSource::DMAC0_XferEnd) > 0 && m_dmaChannels[0].xferEnded &&
+            m_dmaChannels[0].irqEnable) {
+            RaiseInterrupt(InterruptSource::DMAC0_XferEnd);
+        } else {
+            LowerInterrupt(InterruptSource::DMAC0_XferEnd);
+        }
+        if (INTC.GetLevel(InterruptSource::DMAC1_XferEnd) > 0 && m_dmaChannels[1].xferEnded &&
+            m_dmaChannels[1].irqEnable) {
+            RaiseInterrupt(InterruptSource::DMAC1_XferEnd);
+        } else {
+            LowerInterrupt(InterruptSource::DMAC1_XferEnd);
+        }
         break;
     }
     case 0xE3: //
@@ -1260,7 +1327,24 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteByte(uint32 address, uint8 value) {
 
         using enum InterruptSource;
         INTC.SetLevel(WDT_ITI, wdtIntrLevel);
-        UpdateInterruptLevels<WDT_ITI>();
+        if (wdtIntrLevel > 0) {
+            // Watchdog timer
+            if (WDT.WTCSR.OVF && !WDT.WTCSR.WT_nIT) {
+                RaiseInterrupt(InterruptSource::WDT_ITI);
+            } else {
+                LowerInterrupt(InterruptSource::WDT_ITI);
+            }
+
+            // TODO: BSC REF CMI
+            /*if (...) {
+                RaiseInterrupt(InterruptSource::BSC_REF_CMI);
+            } else {
+                LowerInterrupt(InterruptSource::BSC_REF_CMI);
+            }*/
+        } else {
+            LowerInterrupt(InterruptSource::WDT_ITI);
+            // LowerInterrupt(InterruptSource::BSC_REF_CMI);
+        }
         break;
     }
     case 0xE4: INTC.SetVector(InterruptSource::WDT_ITI, bit::extract<0, 6>(value)); break;
@@ -1406,7 +1490,10 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
         break;
 
     case 0x108:
-    case 0x128: DIVU.DVCR.Write(value); break;
+    case 0x128:
+        DIVU.DVCR.Write(value);
+        RecalcInterrupts();
+        break;
 
     case 0x10C:
     case 0x12C:
@@ -1437,7 +1524,9 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
     case 0x18C:
         m_dmaChannels[0].WriteCHCR<poke>(value);
         if constexpr (!poke) {
-            if (!DMAOR.DME || !m_dmaChannels[0].xferEnded || !m_dmaChannels[0].irqEnable) {
+            if (m_dmaChannels[0].xferEnded && m_dmaChannels[0].irqEnable) {
+                RaiseInterrupt(InterruptSource::DMAC0_XferEnd);
+            } else {
                 LowerInterrupt(InterruptSource::DMAC0_XferEnd);
             }
         }
@@ -1449,7 +1538,9 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
     case 0x19C:
         m_dmaChannels[1].WriteCHCR<poke>(value);
         if constexpr (!poke) {
-            if (!DMAOR.DME || !m_dmaChannels[1].xferEnded || !m_dmaChannels[1].irqEnable) {
+            if (m_dmaChannels[1].xferEnded && m_dmaChannels[1].irqEnable) {
+                RaiseInterrupt(InterruptSource::DMAC1_XferEnd);
+            } else {
                 LowerInterrupt(InterruptSource::DMAC1_XferEnd);
             }
         }
@@ -1461,8 +1552,14 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
     case 0x1B0:
         DMAOR.Write<poke>(value);
         if constexpr (!poke) {
-            if (!DMAOR.DME) {
+            if (m_dmaChannels[0].xferEnded && m_dmaChannels[0].irqEnable) {
+                RaiseInterrupt(InterruptSource::DMAC0_XferEnd);
+            } else {
                 LowerInterrupt(InterruptSource::DMAC0_XferEnd);
+            }
+            if (m_dmaChannels[1].xferEnded && m_dmaChannels[1].irqEnable) {
+                RaiseInterrupt(InterruptSource::DMAC1_XferEnd);
+            } else {
                 LowerInterrupt(InterruptSource::DMAC1_XferEnd);
             }
         }
@@ -1734,30 +1831,12 @@ FORCE_INLINE void SH2::SetExternalInterrupt(uint8 level, uint8 vector) {
 
     if (level > 0) {
         INTC.UpdateIRLVector();
-        UpdateInterruptLevels<source>();
         RaiseInterrupt(source);
         devlog::trace<grp::exec>(m_logPrefix, "Set IRL vector/level to {:02X}/{:X}; pending level {:X}", vector, level,
                                  INTC.pending.level);
     } else {
         INTC.SetVector(source, 0);
         LowerInterrupt(source);
-    }
-}
-
-template <InterruptSource source, InterruptSource... sources>
-FLATTEN FORCE_INLINE void SH2::UpdateInterruptLevels() {
-    if (INTC.pending.source == source) {
-        const uint8 newLevel = INTC.GetLevel(source);
-        if (newLevel < INTC.pending.level) {
-            // Interrupt may no longer have the highest priority; recalculate
-            RecalcInterrupts();
-        } else {
-            // Interrupt still has the highest priority; update level
-            INTC.pending.level = newLevel;
-        }
-    }
-    if constexpr (sizeof...(sources) > 1) {
-        UpdateInterruptLevels<sources...>();
     }
 }
 
@@ -1784,67 +1863,62 @@ void SH2::RecalcInterrupts() {
     // IRLs
     if (INTC.GetLevel(InterruptSource::IRL) > 0) {
         RaiseInterrupt(InterruptSource::IRL);
-        // fallthrough; IRL may have lower priority than other interrupts
     }
 
     // Division overflow
-    if (DIVU.DVCR.OVF && DIVU.DVCR.OVFIE) {
+    if (INTC.GetLevel(InterruptSource::DIVU_OVFI) > 0 && DIVU.DVCR.OVF && DIVU.DVCR.OVFIE) {
         RaiseInterrupt(InterruptSource::DIVU_OVFI);
-        return;
     }
 
     // DMA channel transfer end
-    if (DMAOR.DME && m_dmaChannels[0].xferEnded && m_dmaChannels[0].irqEnable) {
-        RaiseInterrupt(InterruptSource::DMAC0_XferEnd);
-        return;
-    }
-    if (DMAOR.DME && m_dmaChannels[1].xferEnded && m_dmaChannels[1].irqEnable) {
-        RaiseInterrupt(InterruptSource::DMAC1_XferEnd);
-        return;
-    }
-
-    // Watchdog timer
-    if (WDT.WTCSR.OVF && !WDT.WTCSR.WT_nIT) {
-        RaiseInterrupt(InterruptSource::WDT_ITI);
-        return;
+    if (INTC.GetLevel(InterruptSource::DMAC0_XferEnd) > 0) {
+        if (m_dmaChannels[0].xferEnded && m_dmaChannels[0].irqEnable) {
+            RaiseInterrupt(InterruptSource::DMAC0_XferEnd);
+        }
+        if (m_dmaChannels[1].xferEnded && m_dmaChannels[1].irqEnable) {
+            RaiseInterrupt(InterruptSource::DMAC1_XferEnd);
+        }
     }
 
-    // TODO: BSC REF CMI
-    /*if (...) {
-        RaiseInterrupt(InterruptSource::BSC_REF_CMI);
-        return;
-    }*/
+    if (INTC.GetLevel(InterruptSource::WDT_ITI) > 0) {
+        // Watchdog timer
+        if (WDT.WTCSR.OVF && !WDT.WTCSR.WT_nIT) {
+            RaiseInterrupt(InterruptSource::WDT_ITI);
+        }
+
+        // TODO: BSC REF CMI
+        /*if (...) {
+            RaiseInterrupt(InterruptSource::BSC_REF_CMI);
+        }*/
+    }
 
     // TODO: SCI ERI, RXI, TXI, TEI
-    /*if (...) {
-        RaiseInterrupt(InterruptSource::SCI_ERI);
-        return;
-    }*/
-    /*if (...) {
-        RaiseInterrupt(InterruptSource::SCI_RXI);
-        return;
-    }*/
-    /*if (...) {
-        RaiseInterrupt(InterruptSource::SCI_TXI);
-        return;
-    }*/
-    /*if (...) {
-        RaiseInterrupt(InterruptSource::SCI_TEI);
-        return;
-    }*/
+    // if (INTC.GetLevel(InterruptSource::SCI_ERI) > 0) {
+    //     /*if (...) {
+    //         RaiseInterrupt(InterruptSource::SCI_ERI);
+    //     }*/
+    //     /*if (...) {
+    //         RaiseInterrupt(InterruptSource::SCI_RXI);
+    //     }*/
+    //     /*if (...) {
+    //         RaiseInterrupt(InterruptSource::SCI_TXI);
+    //     }*/
+    //     /*if (...) {
+    //         RaiseInterrupt(InterruptSource::SCI_TEI);
+    //     }*/
+    // }
 
     // Free-running timer interrupts
-    if (FRT.FTCSR.ICF && FRT.TIER.ICIE) {
-        RaiseInterrupt(InterruptSource::FRT_ICI);
-        return;
-    }
-    if ((FRT.FTCSR.OCFA && FRT.TIER.OCIAE) || (FRT.FTCSR.OCFB && FRT.TIER.OCIBE)) {
-        RaiseInterrupt(InterruptSource::FRT_OCI);
-        return;
-    }
-    if (FRT.FTCSR.OVF && FRT.TIER.OVIE) {
-        RaiseInterrupt(InterruptSource::FRT_OVI);
-        return;
+    if (INTC.GetLevel(InterruptSource::FRT_ICI) > 0) {
+        if (FRT.FTCSR.ICF && FRT.TIER.ICIE) {
+            RaiseInterrupt(InterruptSource::FRT_ICI);
+        }
+        if ((FRT.FTCSR.OCFA && FRT.TIER.OCIAE) || (FRT.FTCSR.OCFB && FRT.TIER.OCIBE)) {
+            RaiseInterrupt(InterruptSource::FRT_OCI);
+        }
+        if (FRT.FTCSR.OVF && FRT.TIER.OVIE) {
+            RaiseInterrupt(InterruptSource::FRT_OVI);
+        }
     }
 }
 
@@ -1944,7 +2018,7 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
 
 template <bool debug, bool enableCache>
 FORCE_INLINE uint64 SH2::InterpretNext() {
-    if (m_intrPending) [[unlikely]] {
+    if (m_intrPending && m_intrAllow) [[unlikely]] {
         // Service interrupt
         const uint8 vecNum = INTC.GetVector(INTC.pending.source);
         TraceInterrupt<debug>(m_tracer, vecNum, INTC.pending.level, INTC.pending.source, PC);
@@ -1970,6 +2044,7 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
         }
         return cycles + 1;
     }
+    m_intrAllow = true;
 
     // TODO: emulate or approximate fetch - decode - execute - memory access - writeback pipeline
 
@@ -2694,7 +2769,7 @@ FORCE_INLINE uint64 SH2::MOVWI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = pc + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache, true>(address));
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2705,7 +2780,7 @@ FORCE_INLINE uint64 SH2::MOVLI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = (pc & ~3u) + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    R[args.rn] = MemReadLong<enableCache>(address);
+    R[args.rn] = MemReadLong<enableCache, true>(address);
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2807,6 +2882,7 @@ FORCE_INLINE uint64 SH2::XTRCT(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCGBR(const DecodedArgs &args) {
     GBR = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2816,6 +2892,7 @@ template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCSR(const DecodedArgs &args) {
     SR.u32 = R[args.rm] & 0x000003F3;
     m_intrPending = !delaySlot && INTC.pending.level > SR.ILevel;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2824,6 +2901,7 @@ FORCE_INLINE uint64 SH2::LDCSR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCVBR(const DecodedArgs &args) {
     VBR = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2832,6 +2910,7 @@ FORCE_INLINE uint64 SH2::LDCVBR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMACH(const DecodedArgs &args) {
     MAC.H = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2840,6 +2919,7 @@ FORCE_INLINE uint64 SH2::LDSMACH(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMACL(const DecodedArgs &args) {
     MAC.L = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2848,6 +2928,7 @@ FORCE_INLINE uint64 SH2::LDSMACL(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSPR(const DecodedArgs &args) {
     PR = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2856,6 +2937,7 @@ FORCE_INLINE uint64 SH2::LDSPR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
     R[args.rn] = GBR;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2864,6 +2946,7 @@ FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
     R[args.rn] = SR.u32;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2872,6 +2955,7 @@ FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
     R[args.rn] = VBR;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2880,6 +2964,7 @@ FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
     R[args.rn] = MAC.H;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2888,6 +2973,7 @@ FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
     R[args.rn] = MAC.L;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2896,6 +2982,7 @@ FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STSPR(const DecodedArgs &args) {
     R[args.rn] = PR;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2907,6 +2994,7 @@ FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address) + 2;
     GBR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2919,6 +3007,7 @@ FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
     SR.u32 = MemReadLong<enableCache>(address) & 0x000003F3;
     m_intrPending = !delaySlot && INTC.pending.level > SR.ILevel;
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2930,6 +3019,7 @@ FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address) + 2;
     VBR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2941,6 +3031,7 @@ FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     MAC.H = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2952,6 +3043,7 @@ FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     MAC.L = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2963,6 +3055,7 @@ FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     PR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2974,6 +3067,7 @@ FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, GBR);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2985,6 +3079,7 @@ FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, SR.u32);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2996,6 +3091,7 @@ FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, VBR);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -3007,6 +3103,7 @@ FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, MAC.H);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -3018,6 +3115,7 @@ FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, MAC.L);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -3029,6 +3127,7 @@ FORCE_INLINE uint64 SH2::STSMPR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, PR);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }

@@ -136,105 +136,112 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
         return UpdateResult::Failed(fmt::format("Web request failed: {}", curl_easy_strerror(err)));
     }
 
-    // Parse response
-    UpdateInfo info{};
-    auto res = nlohmann::json::parse(body);
-    if (channel == ReleaseChannel::Stable) {
-        auto value = res["tag_name"].get<std::string>();
-        if (value.starts_with("v")) {
-            value = value.substr(1);
-        }
-
-        if (!semver::parse(value, info.version)) {
-            return UpdateResult::Failed(fmt::format("Could not parse {} as semantic version", value));
-        }
-    } else { // channel == ReleaseChannel::Nightly
-        auto body = res["body"].get<std::string>();
-        auto start = body.cbegin();
-        auto end = body.cend();
-
-        std::smatch match;
-        while (std::regex_search(start, end, match, g_buildPropertyPattern)) {
-            auto key = match[1].str();
-            auto value = match[2].str();
-            std::transform(key.begin(), key.end(), key.begin(), tolower);
-            if (key == "version-string") {
-                if (value.starts_with("v")) {
-                    value = value.substr(1);
-                }
-
-                if (!semver::parse(value, info.version)) {
-                    return UpdateResult::Failed(fmt::format("Could not parse {} as semantic version", value));
-                }
-            } else if (key == "build-timestamp") {
-                if (auto updateTimestamp = util::parse8601(value)) {
-                    info.timestamp = *updateTimestamp;
-                } else {
-                    return UpdateResult::Failed(fmt::format("Could not parse {} as build timestamp", value));
-                }
+    try {
+        // Parse response
+        UpdateInfo info{};
+        auto res = nlohmann::json::parse(body);
+        if (channel == ReleaseChannel::Stable) {
+            if (!res["tag_name"].is_string()) {
+                return UpdateResult::Failed(
+                    "Could not retrieve latest stable version information: \"tag_name\" not found in response");
             }
-            start = match.suffix().first;
-        }
-    }
+            auto value = res["tag_name"].get<std::string>();
+            if (value.starts_with("v")) {
+                value = value.substr(1);
+            }
 
-    // Find matching download
-    std::string assetPrefix = "";
+            if (!semver::parse(value, info.version)) {
+                return UpdateResult::Failed(fmt::format("Could not parse {} as semantic version", value));
+            }
+        } else { // channel == ReleaseChannel::Nightly
+            if (!res["body"].is_string()) {
+                return UpdateResult::Failed(
+                    "Could not retrieve latest nightly version information: \"body\" not found in response");
+            }
+            auto body = res["body"].get<std::string>();
+            auto start = body.cbegin();
+            auto end = body.cend();
+
+            std::smatch match;
+            while (std::regex_search(start, end, match, g_buildPropertyPattern)) {
+                auto key = match[1].str();
+                auto value = match[2].str();
+                std::transform(key.begin(), key.end(), key.begin(), tolower);
+                if (key == "version-string") {
+                    if (value.starts_with("v")) {
+                        value = value.substr(1);
+                    }
+
+                    if (!semver::parse(value, info.version)) {
+                        return UpdateResult::Failed(fmt::format("Could not parse {} as semantic version", value));
+                    }
+                } else if (key == "build-timestamp") {
+                    if (auto updateTimestamp = util::parse8601(value)) {
+                        info.timestamp = *updateTimestamp;
+                    } else {
+                        return UpdateResult::Failed(fmt::format("Could not parse {} as build timestamp", value));
+                    }
+                }
+                start = match.suffix().first;
+            }
+        }
+
+        // Find matching download
+        std::string assetPrefix = "";
 #if defined(_WIN32)
     #if defined(_M_X64) || defined(__x86_64__)
         #if Ymir_AVX2
-    assetPrefix = "ymir-windows-x86_64-AVX2-";
+        assetPrefix = "ymir-windows-x86_64-AVX2-";
         #else
-    assetPrefix = "ymir-windows-x86_64-SSE2-";
+        assetPrefix = "ymir-windows-x86_64-SSE2-";
         #endif
     #elif defined(_M_ARM64) || defined(__aarch64__)
-    assetPrefix = "ymir-windows-ARM64-";
+        assetPrefix = "ymir-windows-ARM64-";
     #endif
 #elif defined(__linux__)
     #if defined(_M_X64) || defined(__x86_64__)
         #if Ymir_AVX2
-    assetPrefix = "ymir-linux-x86_64-AVX2-";
+        assetPrefix = "ymir-linux-x86_64-AVX2-";
         #else
-    assetPrefix = "ymir-linux-x86_64-SSE2-";
+        assetPrefix = "ymir-linux-x86_64-SSE2-";
         #endif
     #elif defined(_M_ARM64) || defined(__aarch64__)
-    assetPrefix = "ymir-linux-AArch64-NEON-";
+        assetPrefix = "ymir-linux-AArch64-NEON-";
     #endif
 #elif defined(__APPLE__)
     #if defined(_M_X64) || defined(__x86_64__)
-    assetPrefix = "ymir-macos-x64-";
+        assetPrefix = "ymir-macos-x64-";
     #elif defined(_M_ARM64) || defined(__aarch64__)
-    assetPrefix = "ymir-macos-arm64-";
+        assetPrefix = "ymir-macos-arm64-";
     #endif
 #endif
 
-    for (auto &asset : res["assets"]) {
-        try {
+        for (auto &asset : res["assets"]) {
             auto name = asset["name"].get<std::string>();
             if (name.starts_with(assetPrefix)) {
                 info.downloadURL = asset["browser_download_url"].get<std::string>();
                 break;
             }
-        } catch (const nlohmann::json::exception &e) {
-            return UpdateResult::Failed(fmt::format("Failed to parse response: {}", e.what()));
         }
-    }
-    info.releaseNotesURL = res["html_url"];
+        info.releaseNotesURL = res["html_url"];
 
-    // Write update info to cache
-    {
-        UpdateInfoJSON infoJSON{.version = info.version.to_string(),
-                                .buildTimestamp = info.timestamp.count(),
-                                .downloadURL = info.downloadURL,
-                                .releaseNotesURL = info.releaseNotesURL,
-                                .lastCheckTimestamp = std::chrono::duration_cast<std::chrono::seconds>(
-                                                          std::chrono::system_clock::now().time_since_epoch())
-                                                          .count()};
-        nlohmann::json j = infoJSON;
-        std::ofstream out{updateFilePath};
-        out << j;
+        // Write update info to cache
+        {
+            UpdateInfoJSON infoJSON{.version = info.version.to_string(),
+                                    .buildTimestamp = info.timestamp.count(),
+                                    .downloadURL = info.downloadURL,
+                                    .releaseNotesURL = info.releaseNotesURL,
+                                    .lastCheckTimestamp = std::chrono::duration_cast<std::chrono::seconds>(
+                                                              std::chrono::system_clock::now().time_since_epoch())
+                                                              .count()};
+            nlohmann::json j = infoJSON;
+            std::ofstream out{updateFilePath};
+            out << j;
+        }
+        return UpdateResult::Ok(info);
+    } catch (const nlohmann::json::exception &e) {
+        return UpdateResult::Failed(fmt::format("Failed to parse response: {}", e.what()));
     }
-
-    return UpdateResult::Ok(info);
 }
 
 CURLcode UpdateChecker::DoRequest(std::string &out, const char *url) {

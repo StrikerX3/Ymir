@@ -7,7 +7,7 @@
 
 #include "scheduler_defs.hpp"
 
-#include <ymir/state/state_scheduler.hpp>
+#include <ymir/savestate/savestate_scheduler.hpp>
 
 #include <ymir/util/inline.hpp>
 
@@ -220,11 +220,7 @@ public:
     FORCE_INLINE bool IsScheduled(EventID id) const {
         assert(id < kNumScheduledEvents);
         const Event &event = m_events[id];
-        if (event.target == kNoDeadline) {
-            return false;
-        }
-        const uint64 scaledCurrCount = m_currCount * event.countNumerator / event.countDenominator;
-        return scaledCurrCount < event.target;
+        return event.target != kNoDeadline;
     }
 
     /// @brief Advances the scheduler by the specified count and fire scheduled events.
@@ -244,7 +240,7 @@ public:
     /// This function should not be used directly. Use `ymir::Saturn::SaveState` with the full state object instead.
     ///
     /// @param[in] state the state object
-    void SaveState(state::SchedulerState &state) const {
+    void SaveState(savestate::SchedulerSaveState &state) const {
         state.currCount = m_currCount;
         for (size_t i = 0; i < kNumScheduledEvents; i++) {
             state.events[i].id = m_userIDs[i];
@@ -257,7 +253,7 @@ public:
     /// @brief Validates the given state object.
     /// @param state the state object
     /// @return `true` if the state object is valid
-    [[nodiscard]] bool ValidateState(const state::SchedulerState &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SchedulerSaveState &state) const {
         for (size_t i = 0; i < kNumScheduledEvents; i++) {
             const size_t eventIndex = m_eventPtrs[state.events[i].id];
             if (eventIndex == kInvalidEvent) {
@@ -274,7 +270,7 @@ public:
     /// This function does not validate the state.
     ///
     /// @param state the state object
-    void LoadState(const state::SchedulerState &state) {
+    void LoadState(const savestate::SchedulerSaveState &state) {
         m_currCount = state.currCount;
         for (size_t i = 0; i < kNumScheduledEvents; i++) {
             const size_t eventIndex = m_eventPtrs[state.events[i].id];

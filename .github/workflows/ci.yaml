@@ -35,10 +35,10 @@ jobs:
 
     steps:
       # Set up MASM for lzma
-      - uses: glslang/setup-masm@v1
+      - uses: glslang/setup-masm@83f52fc3599c361e8428805627dc749f2717ce75
         if: ${{ matrix.arch.name == 'x64' }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -108,7 +108,7 @@ jobs:
             runner: ubuntu-22.04-arm
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -184,7 +184,7 @@ jobs:
           #   runner: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 
@@ -196,7 +196,7 @@ jobs:
 
       # TODO: configure vcpkg cache
 
-      - uses: cross-platform-actions/action@v0.32.0
+      - uses: cross-platform-actions/action@492b0c80085400348c599edace11141a4ee73524
         env:
           CXX: clang++21
           CC: clang21
@@ -250,7 +250,7 @@ jobs:
           #  isa_name: "'x86_64;arm64'"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
 

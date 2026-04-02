@@ -27,7 +27,9 @@ namespace util {
 /// Example usage:
 ///
 /// ```cpp
-/// // A simple blocking queue that blocks consumer thread until there are
+/// // A simple blocking queue implementation using two Events signaling the queue is not full or not empty.
+/// // The consumer thread is blocked while the queue is empty.
+/// // The producer thread is blocked while the queue is full.
 /// template <typename T>
 /// class BlockingQueue {
 ///     // Inserts a value in the queue.
@@ -65,8 +67,6 @@ namespace util {
 ///     util::Event m_queueNotFullEvent{true};
 ///     util::Event m_queueNotEmptyEvent{false};
 /// };
-///
-///
 /// ```
 class Event {
 #if defined(_WIN32) || defined(__linux__) || defined(__FreeBSD__)

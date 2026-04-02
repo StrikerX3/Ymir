@@ -3,7 +3,7 @@
 #include "m68k_decode.hpp"
 #include "m68k_defs.hpp"
 
-#include <ymir/state/state_m68k.hpp>
+#include <ymir/savestate/savestate_m68k.hpp>
 
 #include <ymir/core/types.hpp>
 #include <ymir/hw/hw_defs.hpp>
@@ -39,9 +39,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::M68KState &state) const;
-    [[nodiscard]] bool ValidateState(const state::M68KState &state) const;
-    void LoadState(const state::M68KState &state);
+    void SaveState(savestate::M68KSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::M68KSaveState &state) const;
+    void LoadState(const savestate::M68KSaveState &state);
 
 private:
     // -------------------------------------------------------------------------

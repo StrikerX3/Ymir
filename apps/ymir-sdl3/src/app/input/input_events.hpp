@@ -2,6 +2,8 @@
 
 #include "input_primitives.hpp"
 
+#include <ymir/util/hashing.hpp>
+
 #include <ymir/core/types.hpp>
 
 namespace app::input {
@@ -211,38 +213,20 @@ struct std::hash<app::input::InputElement> {
     std::size_t operator()(const app::input::InputElement &e) const noexcept {
         using Type = app::input::InputElement::Type;
 
-        std::size_t hash = std::hash<uint8>{}(static_cast<uint8>(e.type));
+        std::size_t hash = 0;
+        util::hash_combine(hash, e.type);
         switch (e.type) {
-        case Type::None: hash = 0; break;
-        case Type::KeyCombo:
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.keyCombo.key));
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.keyCombo.modifiers));
-            break;
+        case Type::None: break;
+        case Type::KeyCombo: util::hash_combine(hash, e.keyCombo.key, e.keyCombo.modifiers); break;
         case Type::MouseCombo:
-            hash ^= std::hash<uint32>{}(e.mouseCombo.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseCombo.mouseCombo.button));
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseCombo.mouseCombo.modifiers));
+            util::hash_combine(hash, e.mouseCombo.id, e.mouseCombo.mouseCombo.button,
+                               e.mouseCombo.mouseCombo.modifiers);
             break;
-        case Type::MouseAxis1D:
-            hash ^= std::hash<uint32>{}(e.mouseAxis1D.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseAxis1D.axis));
-            break;
-        case Type::MouseAxis2D:
-            hash ^= std::hash<uint32>{}(e.mouseAxis2D.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.mouseAxis2D.axis));
-            break;
-        case Type::GamepadButton:
-            hash ^= std::hash<uint32>{}(e.gamepadButton.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadButton.button));
-            break;
-        case Type::GamepadAxis1D:
-            hash ^= std::hash<uint32>{}(e.gamepadAxis1D.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadAxis1D.axis));
-            break;
-        case Type::GamepadAxis2D:
-            hash ^= std::hash<uint32>{}(e.gamepadAxis2D.id);
-            hash ^= std::hash<uint8>{}(static_cast<uint8>(e.gamepadAxis2D.axis));
-            break;
+        case Type::MouseAxis1D: util::hash_combine(hash, e.mouseAxis1D.id, e.mouseAxis1D.axis); break;
+        case Type::MouseAxis2D: util::hash_combine(hash, e.mouseAxis2D.id, e.mouseAxis2D.axis); break;
+        case Type::GamepadButton: util::hash_combine(hash, e.gamepadButton.id, e.gamepadButton.button); break;
+        case Type::GamepadAxis1D: util::hash_combine(hash, e.gamepadAxis1D.id, e.gamepadAxis1D.axis); break;
+        case Type::GamepadAxis2D: util::hash_combine(hash, e.gamepadAxis2D.id, e.gamepadAxis2D.axis); break;
         }
         return hash;
     }

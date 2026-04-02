@@ -568,21 +568,21 @@ EmuEvent SetCDBlockLLE(bool enable) {
 EmuEvent EnableThreadedVDP1(bool enable) {
     return RunFunction([=](SharedContext &ctx) {
         auto &settings = ctx.serviceLocator.GetRequired<Settings>();
-        settings.video.threadedVDP1 = enable;
+        settings.video.swRenderer.threadedVDP1 = enable;
     });
 }
 
 EmuEvent EnableThreadedVDP2(bool enable) {
     return RunFunction([=](SharedContext &ctx) {
         auto &settings = ctx.serviceLocator.GetRequired<Settings>();
-        settings.video.threadedVDP2 = enable;
+        settings.video.swRenderer.threadedVDP2 = enable;
     });
 }
 
 EmuEvent EnableThreadedDeinterlacer(bool enable) {
     return RunFunction([=](SharedContext &ctx) {
         auto &settings = ctx.serviceLocator.GetRequired<Settings>();
-        settings.video.threadedDeinterlacer = enable;
+        settings.video.swRenderer.threadedDeinterlacer = enable;
     });
 }
 
@@ -705,7 +705,7 @@ EmuEvent LoadState(uint32 slotIndex) {
         // At this point the ROMs have been loaded and validated
 
         // Cache current emulator state for undo before loading
-        auto undoLoadState = std::make_unique<state::State>();
+        auto undoLoadState = std::make_unique<savestate::SaveState>();
         ctx.saturn.instance->SaveState(*undoLoadState);
 
         if (ctx.saturn.instance->LoadState(state, true)) {

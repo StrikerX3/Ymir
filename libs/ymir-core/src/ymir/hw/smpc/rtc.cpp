@@ -102,16 +102,16 @@ void RTC::UpdateClockRatios(const sys::ClockRatios &clockRatios) {
     m_sysClockRateDen = clockRatios.RTCDen;
 }
 
-void RTC::SaveState(state::SMPCState &state) const {
+void RTC::SaveState(savestate::SMPCSaveState &state) const {
     state.rtcTimestamp = m_timestamp;
     state.rtcSysClockCount = m_sysClockCount;
 }
 
-bool RTC::ValidateState(const state::SMPCState &state) const {
+bool RTC::ValidateState(const savestate::SMPCSaveState &state) const {
     return true;
 }
 
-void RTC::LoadState(const state::SMPCState &state) {
+void RTC::LoadState(const savestate::SMPCSaveState &state) {
     m_timestamp = state.rtcTimestamp;
     m_sysClockCount = state.rtcSysClockCount;
 }

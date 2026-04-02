@@ -109,14 +109,8 @@
 @namespace ymir::smpc::rtc
 @brief RTC (Real-Time Clock) emulation.
 
-@namespace ymir::state
+@namespace ymir::savestate
 @brief Ymir save state structure definitions.
-
-@namespace ymir::state::v1
-@brief Ymir save state version 1.
-
-@namespace ymir::state::v2
-@brief Ymir save state version 2.
 
 @namespace ymir::sys
 @brief Sega Saturn system components emulation.

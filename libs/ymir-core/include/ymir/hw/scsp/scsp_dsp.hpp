@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_scsp_dsp.hpp>
+#include <ymir/savestate/savestate_scsp_dsp.hpp>
 
 #include "scsp_dsp_instr.hpp"
 
@@ -237,9 +237,9 @@ public:
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SCSPDSP &state) const;
-    [[nodiscard]] bool ValidateState(const state::SCSPDSP &state) const;
-    void LoadState(const state::SCSPDSP &state);
+    void SaveState(savestate::SCSPDSPSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::SCSPDSPSaveState &state) const;
+    void LoadState(const savestate::SCSPDSPSaveState &state);
 
 private:
     // -------------------------------------------------------------------------

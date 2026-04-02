@@ -49,12 +49,13 @@ Code contributions must follow the code standards and formatting guidelines desc
 ### Coding guidelines
 
 Avoid static initializers and global objects. These should only be used for process-wide features, usually dealing directly with operating system functionality such as controlling the mouse cursor or managing virtual memory.
-Ymir puts everything into objects for a good reason - you can run multiple emulator cores in a single process for advanced features like parallel frame search or reuse components to create a VDP debugger with an independent VDP renderer.
+Ymir puts everything into objects for a good reason - you can run multiple emulator cores in a single process for advanced features like parallel frame search or reuse components to create a VDP debugger with an independent VDP renderer, for example.
 
 Do use classes and light OOP. Prefer composition over inheritance and avoid `virtual` functions if possible, especially in hot paths.
 Avoid tightly coupling objects - use callbacks, interfaces or similar forms of indirection.
 
 Keep emulation and frontend code separated. The core does not have to concern itself with frontend logic except for supporting code. This allows the core to be ported to as many systems as possible.
+OS-specific features (such as graphics APIs, virtual memory management or synchronization primitives) may be used in the core library if they offer better performance or more features than the standard C++ library equivalents.
 
 Put emulator types under the `ymir` namespace, preferably nested in its component namespace (e.g. `ymir::vdp` for all VDP types). Use further nesting to avoid name clashes or group related functionality if necessary.
 
@@ -65,21 +66,30 @@ If you use plain `enum`s, prefix every entry with a common name or put them in a
 
 Do use and extend existing utility classes throughout the code base. Utility types in [ymir-core](/libs/ymir-core/include/ymir/util) are also available in library consumers such as the SDL3 frontend app.
 
-Do use Ymir's core types (`uint8..64` and `sint8..64`). Prefer these sized ints if the values are known to have a specific bit width.
+Do use Ymir's [core types](/libs/ymir-core/include/ymir/core/types.hpp) (`uint8..64` and `sint8..64`). Prefer these sized ints if the values are known to have a specific bit width.
 
-Do write comments explaining complex implementations (the "why") and separate logical chunks of code for clarity.
+Do write comments explaining complex implementations (the "why") and to separate logical chunks of code for clarity. Line separators should extend to 80 columns.
 
 Do write Doxygen documentation blocks using triple-slash comments (`///`) or double-asterisk multiline blocks (`/** ... */`) and at-directives (`@brief`, `@param[in,out]`, `@return`, etc.).
 
 In hot code paths, performance trumps clean code. Use all tricks under your sleeve, but don't abuse undefined or compiler-specific behavior.
 Intrinsics and OS-specific functions are OK, relying on member function pointer layouts of a particular compiler is not.
+
 Keep in mind Ymir compiles with MSVC, GCC and Clang on Windows, Linux, macOS and FreeBSD.
-If you rely on OS-specific behavior, you should implemented equivalent versions for all of these OSes. See [util/event.cpp](/libs/ymir-core/src/ymir/util/event.cpp) for an example.
+If you rely on OS-specific behavior, you should implemented equivalent versions for all of these OSes and/or provide a generic fallback implementation relying on the standard C++ library.
+See [util/event.cpp](/libs/ymir-core/src/ymir/util/event.cpp) for an example that covers all bases - Windows, Linux, macOS, FreeBSD and a generic implementation.
 
 Accuracy trumps performance, unless it comes at a high cost for little benefit. If the accurate option is too expensive, provide runtime configuration and generate separate code paths for both options.
 See [saturn.hpp](/libs/ymir-core/include/ymir/sys/saturn.hpp) (`m_runFrameFn` and other function pointers), [sh2.hpp](/libs/ymir-core/include/ymir/hw/sh2/sh2.hpp) (`template <bool debug>`) and [scsp.hpp](/libs/ymir-core/include/ymir/hw/scsp/scsp.hpp) (`OnSlotTickEvent`, `OnSampleTickEvent`, `OnTransitionalTickEvent`) for examples.
 
+Any changes to the current hot code paths (SH2 interpreter, VDP2 software renderer, SCSP DSP) must be benchmarked to ensure no performance regressions.
+
 Adhere to the code formatting rules. Use `clang-format` to format the code.
+
+When adding new dependencies, prefer the ones available through vcpkg. Failing that, add them as a git submodule under [vendor/](/vendor).
+If cloning submodules, use HTTPS, not SSH, as some build pipelines won't be able to clone GitHub repos without an SSH key.
+Make a custom CMakeLists.txt if the dependency's own file doesn't behave well as a dependency or if you only need a subset of functionality from the library.
+See existing vendored dependencies for examples and the comments in [vendor/CMakeLists.txt](/vendor/CMakeLists.txt) for more details.
 
 ### Code formatting/style
 
@@ -91,7 +101,7 @@ Make sure to run your IDE's automatic code formatting or run `clang-format` on a
 - All source file names must use `lower_snake_case`. We use `.cpp` for C++ source files and `.hpp` for C++ header files. C source/header files must use the `.c`/`.h` extensions.
 - All class, struct and enum names must use `PascalCase`.
   - Abstract classes that represent interfaces must be prefixed with a capital `I`. For example, `IBackupMemory`.
-- All functions must use `PascalCase` (both free and member functions), except for frequently-used utility functions such as `bit::extract` with uses `lower_snake_case` like C++ library functions.
+- All functions must use `PascalCase` (both free and member functions), except for frequently-used utility functions such as `bit::extract` which uses `lower_snake_case` like C++ library functions.
 - Local variables must use `camelCase`.
 - Template type parameters must be either single-letter capitals like `T` or `U` if they represent an unspecified/unconstrained generic type or use `PascalCase` prefixed with capital `T`, such as `TTemplateType`.
 - Template non-type parameters must use `camelCase`.

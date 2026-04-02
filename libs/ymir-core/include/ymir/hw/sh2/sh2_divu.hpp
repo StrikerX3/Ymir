@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh2.hpp>
+#include <ymir/savestate/savestate_sh2.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -244,7 +244,7 @@ struct DivisionUnit {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH2State::DIVU &state) const {
+    void SaveState(savestate::SH2SaveState::DIVU &state) const {
         state.DVSR = DVSR;
         state.DVDNT = DVDNT;
         state.DVCR = DVCR.Read();
@@ -255,7 +255,7 @@ struct DivisionUnit {
         state.DVDNTUL = DVDNTUL;
     }
 
-    void LoadState(const state::SH2State::DIVU &state) {
+    void LoadState(const savestate::SH2SaveState::DIVU &state) {
         DVSR = state.DVSR;
         DVDNT = state.DVDNT;
         DVCR.Write(state.DVCR);

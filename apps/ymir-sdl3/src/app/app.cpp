@@ -105,7 +105,7 @@
 #include <app/ui/widgets/settings_widgets.hpp>
 #include <app/ui/widgets/system_widgets.hpp>
 
-#include <serdes/state_cereal.hpp>
+#include <serdes/cereal_savestate.hpp>
 
 #include <util/file_loader.hpp>
 #include <util/math.hpp>
@@ -315,9 +315,9 @@ int App::Run(const CommandLineOptions &options) {
     {
         auto &videoSettings = settings.video;
 
-        videoSettings.deinterlace.Observe(
+        videoSettings.enhancements.deinterlace.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
-        videoSettings.transparentMeshes.Observe(
+        videoSettings.enhancements.transparentMeshes.Observe(
             [&](bool value) { m_context.EnqueueEvent(events::emu::SetTransparentMeshes(value)); });
     }
 
@@ -602,9 +602,6 @@ void App::RunEmulator() {
         // Observe changes to the UI scale options at this point to avoid "destroying"
         guiSettings.overrideUIScale.Observe([&](bool) { rescaleUIPending = true; });
         guiSettings.uiScale.Observe([&](double) { rescaleUIPending = true; });
-
-        settings.video.deinterlace.Observe(
-            [&](bool value) { m_context.EnqueueEvent(events::emu::SetDeinterlace(value)); });
     }
 
     const ImGuiStyle &style = ImGui::GetStyle();
@@ -785,6 +782,10 @@ void App::RunEmulator() {
         ApplyFullscreenMode();
     });
 
+    auto &vdp = m_context.saturn.instance->VDP;
+
+    ScopeGuard sgReleaseVDPRenderer{[&] { vdp.UseNullRenderer(); }};
+
     // ---------------------------------
     // Create textures to render on
 
@@ -796,8 +797,8 @@ void App::RunEmulator() {
     // nearest interpolation with an integer scale, then rendering the display texture onto the screen with linear
     // interpolation.
 
-    // Framebuffer texture
-    const gfx::TextureHandle fbTexture =
+    // Software framebuffer texture
+    const gfx::TextureHandle swFbTexture =
         m_graphicsService.CreateTexture(SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_STREAMING, vdp::kMaxResH,
                                         vdp::kMaxResV, [&](SDL_Texture *tex, bool recreated) {
                                             SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
@@ -805,8 +806,8 @@ void App::RunEmulator() {
                                                 screen.CopyFramebufferToTexture(tex);
                                             }
                                         });
-    if (fbTexture == gfx::kInvalidTextureHandle) {
-        ShowStartupFailure("Failed to create framebuffer texture: {}", SDL_GetError());
+    if (swFbTexture == gfx::kInvalidTextureHandle) {
+        ShowStartupFailure("Failed to create software framebuffer texture: {}", SDL_GetError());
         return;
     };
 
@@ -834,7 +835,7 @@ void App::RunEmulator() {
         SDL_Renderer *renderer = m_graphicsService.GetRenderer();
 
         assert(m_graphicsService.IsTextureHandleValid(dispTexture));
-        assert(m_graphicsService.IsTextureHandleValid(fbTexture));
+        assert(m_graphicsService.IsTextureHandleValid(swFbTexture));
         assert(renderer != nullptr);
 
         // Recreate render target texture if scale changed
@@ -857,7 +858,7 @@ void App::RunEmulator() {
                           .h = (float)screen.height * screen.fbScale};
 
         SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
-        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(fbTexture), &srcRect, &dstRect);
+        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(swFbTexture), &srcRect, &dstRect);
 
         // Restore render target
         SDL_SetRenderTarget(renderer, prevRenderTarget);
@@ -910,80 +911,101 @@ void App::RunEmulator() {
     // Setup framebuffer and render callbacks
 
     {
-        auto &vdp = m_context.saturn.instance->VDP;
         auto &renderer = vdp.GetRenderer();
         auto &callbacks = renderer.Callbacks;
 
-        callbacks.VDP1DrawFinished = {&m_context, [](void *ctx) {
-                                          auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-                                          auto &screen = sharedCtx.screen;
-                                          ++screen.VDP1DrawCalls;
-                                      }};
+        callbacks.VDP1DrawFinished = {
+            &m_context,
+            [](void *ctx) {
+                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                auto &screen = sharedCtx.screen;
+                ++screen.VDP1DrawCalls;
+            },
+        };
 
-        callbacks.VDP1FramebufferSwap = {&m_context, [](void *ctx) {
-                                             auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-                                             auto &screen = sharedCtx.screen;
-                                             ++screen.VDP1Frames;
-                                         }};
+        callbacks.VDP1FramebufferSwap = {
+            &m_context,
+            [](void *ctx) {
+                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                auto &screen = sharedCtx.screen;
+                ++screen.VDP1Frames;
+            },
+        };
 
-        callbacks.VDP2DrawFinished = {&m_context, [](void *ctx) {
-                                          auto &sharedCtx = *static_cast<SharedContext *>(ctx);
-                                          auto &screen = sharedCtx.screen;
-                                          ++screen.VDP2Frames;
-                                      }};
+        callbacks.VDP2ResolutionChanged = {
+            &m_context,
+            [](uint32 width, uint32 height, void *ctx) {
+                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                auto &screen = sharedCtx.screen;
+                if (width != screen.width || height != screen.height) {
+                    screen.SetResolution(width, height);
+                }
+            },
+        };
 
-        vdp.SetSoftwareRenderCallback(
-            {this, [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
-                 auto &app = *static_cast<App *>(ctx);
-                 auto &sharedCtx = app.m_context;
-                 auto &screen = sharedCtx.screen;
-                 auto &settings = app.m_settings;
-                 if (width != screen.width || height != screen.height) {
-                     screen.SetResolution(width, height);
-                 }
+        callbacks.VDP2DrawFinished = {
+            &m_context,
+            [](void *ctx) {
+                auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+                auto &screen = sharedCtx.screen;
+                ++screen.VDP2Frames;
 
-                 if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
-                     screen.frameRequestEvent.Wait();
-                     screen.frameRequestEvent.Reset();
-                 }
-                 if (settings.video.reduceLatency || !screen.updated || screen.videoSync) {
-                     std::unique_lock lock{screen.mtxFramebuffer};
-                     std::copy_n(fb, width * height, screen.framebuffers[0].data());
-                     screen.updated = true;
-                     if (screen.videoSync) {
-                         screen.frameReadyEvent.Set();
-                     }
-                 }
+                // Limit emulation speed if requested and not using video sync.
+                // When video sync is enabled, frame pacing is done by the GUI thread.
+                if (sharedCtx.emuSpeed.limitSpeed && !screen.videoSync &&
+                    sharedCtx.emuSpeed.GetCurrentSpeedFactor() != 1.0) {
 
-                 // Limit emulation speed if requested and not using video sync.
-                 // When video sync is enabled, frame pacing is done by the GUI thread.
-                 if (sharedCtx.emuSpeed.limitSpeed && !screen.videoSync &&
-                     sharedCtx.emuSpeed.GetCurrentSpeedFactor() != 1.0) {
+                    const auto frameInterval = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        screen.frameInterval / sharedCtx.emuSpeed.GetCurrentSpeedFactor());
 
-                     const auto frameInterval = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                         screen.frameInterval / sharedCtx.emuSpeed.GetCurrentSpeedFactor());
+                    // Sleep until 1ms before the next frame presentation time, then spin wait for the deadline.
+                    // Skip waiting if the frame target is too far into the future.
+                    auto now = clk::now();
+                    if (now < screen.nextEmuFrameTarget + frameInterval) {
+                        if (now < screen.nextEmuFrameTarget - 1ms) {
+                            std::this_thread::sleep_until(screen.nextEmuFrameTarget - 1ms);
+                        }
+                        while (clk::now() < screen.nextEmuFrameTarget) {
+                        }
+                    }
 
-                     // Sleep until 1ms before the next frame presentation time, then spin wait for the deadline.
-                     // Skip waiting if the frame target is too far into the future.
-                     auto now = clk::now();
-                     if (now < screen.nextEmuFrameTarget + frameInterval) {
-                         if (now < screen.nextEmuFrameTarget - 1ms) {
-                             std::this_thread::sleep_until(screen.nextEmuFrameTarget - 1ms);
-                         }
-                         while (clk::now() < screen.nextEmuFrameTarget) {
-                         }
-                     }
+                    now = clk::now();
+                    if (now > screen.nextEmuFrameTarget + frameInterval) {
+                        // The delay was too long for some reason; set next frame target time relative to now
+                        screen.nextEmuFrameTarget = now + frameInterval;
+                    } else {
+                        // The delay was on time; increment by the interval
+                        screen.nextEmuFrameTarget += frameInterval;
+                    }
+                }
+            },
+        };
 
-                     now = clk::now();
-                     if (now > screen.nextEmuFrameTarget + frameInterval) {
-                         // The delay was too long for some reason; set next frame target time relative to now
-                         screen.nextEmuFrameTarget = now + frameInterval;
-                     } else {
-                         // The delay was on time; increment by the interval
-                         screen.nextEmuFrameTarget += frameInterval;
-                     }
-                 }
-             }});
+        vdp.SetSoftwareRenderCallback({
+            this,
+            [](uint32 *fb, uint32 width, uint32 height, void *ctx) {
+                auto &app = *static_cast<App *>(ctx);
+                auto &sharedCtx = app.m_context;
+                auto &screen = sharedCtx.screen;
+                auto &settings = app.m_settings;
+                if (width != screen.width || height != screen.height) {
+                    screen.SetResolution(width, height);
+                }
+
+                if (sharedCtx.emuSpeed.limitSpeed && screen.videoSync) {
+                    screen.frameRequestEvent.Wait();
+                    screen.frameRequestEvent.Reset();
+                }
+                if (settings.video.reduceLatency || !screen.updated || screen.videoSync) {
+                    std::unique_lock lock{screen.mtxFramebuffer};
+                    std::copy_n(fb, width * height, screen.framebuffers[0].data());
+                    screen.updated = true;
+                    if (screen.videoSync) {
+                        screen.frameReadyEvent.Set();
+                    }
+                }
+            },
+        });
     }
 
     // ---------------------------------
@@ -2574,7 +2596,7 @@ void App::RunEmulator() {
                 std::unique_lock lock{screen.mtxFramebuffer};
                 screen.framebuffers[1] = screen.framebuffers[0];
             }
-            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(fbTexture));
+            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(swFbTexture));
         }
 
         auto now = clk::now();
@@ -3190,7 +3212,6 @@ void App::RunEmulator() {
                     }
 
                     if (ImGui::BeginMenu("VDP")) {
-                        auto &vdp = m_context.saturn.instance->VDP;
                         auto layerMenuItem = [&](const char *name, vdp::Layer layer) {
                             const bool enabled = vdp.IsLayerEnabled(layer);
                             if (ImGui::MenuItem(name, nullptr, enabled)) {
@@ -3299,7 +3320,8 @@ void App::RunEmulator() {
 
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
                 ImGui::SetNextWindowSizeConstraints(
-                    (horzDisplay ? ImVec2(320, 224) : ImVec2(224, 320)), ImVec2(FLT_MAX, FLT_MAX),
+                    (horzDisplay ? ImVec2(vdp::kMinResH, vdp::kMinResV) : ImVec2(vdp::kMinResV, vdp::kMinResH)),
+                    ImVec2(FLT_MAX, FLT_MAX),
                     [](ImGuiSizeCallbackData *data) {
                         double aspectRatio = *(double *)data->UserData;
                         data->DesiredSize.y =
@@ -3944,7 +3966,7 @@ void App::EmulatorThread() {
 
             case SetThreadPriority: util::BoostCurrentThreadPriority(std::get<bool>(evt.value)); break;
 
-            case Shutdown: return;
+            case Shutdown: m_context.saturn.instance->VDP.UseNullRenderer(); return;
             }
         }
 
@@ -5418,7 +5440,7 @@ void App::LoadSaveStates() {
             if (in) {
                 cereal::PortableBinaryInputArchive archive{in};
                 try {
-                    auto state = std::make_unique<ymir::state::State>();
+                    auto state = std::make_unique<ymir::savestate::SaveState>();
                     archive(*state);
                     entry.state.swap(state);
 
@@ -5500,7 +5522,7 @@ void App::PersistSaveState(size_t slotIndex) {
     // ensure to not dereference empty slots
     auto *slot = saves.Peek(slotIndex);
     if (slot) {
-        auto save = [&](const std::unique_ptr<ymir::state::State> &state, std::string name) {
+        auto save = [&](const std::unique_ptr<ymir::savestate::SaveState> &state, std::string name) {
             if (state) {
                 // Create directory for this game's save states
                 auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);

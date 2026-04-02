@@ -4,9 +4,9 @@
 
 #include <array>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct M68KState {
+struct M68KSaveState {
     alignas(16) std::array<uint32, 8 + 8> DA;
     uint32 SP_swap;
     uint32 PC;
@@ -16,4 +16,4 @@ struct M68KState {
     uint8 extIntrLevel;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

@@ -340,7 +340,7 @@ void SCSP::SetCPUEnabled(bool enabled) {
     }
 }
 
-void SCSP::SaveState(state::SCSPState &state) const {
+void SCSP::SaveState(savestate::SCSPSaveState &state) const {
     state.WRAM = m_WRAM;
     state.cddaBuffer = m_cddaBuffer;
     state.cddaReadPos = m_cddaReadPos;
@@ -405,7 +405,7 @@ void SCSP::SaveState(state::SCSPState &state) const {
     state.expectedOutputPacketSize = m_expectedOutputPacketSize;
 }
 
-bool SCSP::ValidateState(const state::SCSPState &state) const {
+bool SCSP::ValidateState(const savestate::SCSPSaveState &state) const {
     if (state.cddaReadPos >= m_cddaBuffer.size()) {
         return false;
     }
@@ -447,7 +447,7 @@ bool SCSP::ValidateState(const state::SCSPState &state) const {
     return true;
 }
 
-void SCSP::LoadState(const state::SCSPState &state) {
+void SCSP::LoadState(const savestate::SCSPSaveState &state) {
     m_WRAM = state.WRAM;
     m_cddaBuffer = state.cddaBuffer;
     m_cddaReadPos = state.cddaReadPos % m_cddaBuffer.size();

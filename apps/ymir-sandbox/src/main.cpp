@@ -33,6 +33,189 @@
 
 using namespace util;
 
+// Steps over the pixels of a line.
+struct AltLineStepper {
+    FORCE_INLINE AltLineStepper(ymir::vdp::CoordS32 coord1, ymir::vdp::CoordS32 coord2, bool antiAlias = false) {
+        auto [x1, y1] = coord1;
+        auto [x2, y2] = coord2;
+
+        m_x = x1;
+        m_y = y1;
+        m_xStart = x1;
+        m_yStart = y1;
+        m_xEnd = x2;
+        m_yEnd = y2;
+        m_antiAlias = antiAlias;
+
+        sint32 dx = x2 - x1;
+        sint32 dy = y2 - y1;
+        sint32 adx = abs(dx);
+        sint32 ady = abs(dy);
+        m_dmaj = std::max(adx, ady);
+        m_length = m_dmaj + 1;
+        m_step = 0;
+
+        const bool xMajor = adx >= ady;
+        if (xMajor) {
+            m_xMajInc = dx >= 0 ? +1 : -1;
+            m_yMajInc = 0;
+            m_xMinInc = 0;
+            m_yMinInc = dy >= 0 ? +1 : -1;
+        } else {
+            m_xMajInc = 0;
+            m_yMajInc = dy >= 0 ? +1 : -1;
+            m_xMinInc = dx >= 0 ? +1 : -1;
+            m_yMinInc = 0;
+            std::swap(dx, dy);
+            std::swap(adx, ady);
+        }
+        m_num = ady << 1;
+        m_den = adx << 1;
+        m_accum = adx + 1;
+        m_accumTarget = 0;
+        if (!antiAlias && dx < 0) {
+            ++m_accumTarget;
+        }
+        m_accum += m_num;
+
+        m_x -= m_xMajInc;
+        m_y -= m_yMajInc;
+
+        if (antiAlias) {
+            --m_accum;
+            --m_accumTarget;
+            const bool samesign = (x1 > x2) == (y1 > y2);
+            if (xMajor) {
+                m_aaXInc = samesign ? 0 : -m_xMajInc;
+                m_aaYInc = samesign ? -m_yMinInc : 0;
+            } else {
+                m_aaXInc = samesign ? 0 : -m_xMinInc;
+                m_aaYInc = samesign ? -m_yMajInc : 0;
+            }
+        }
+    }
+
+    // Computes how many steps are needed from the start of the line to reach the target pixel.
+    // Aligns the major coordinate only.
+    FORCE_INLINE uint32 StepsToTarget(ymir::vdp::CoordS32 targetPos, bool aa) const {
+        const sint32 dx = (targetPos.x() - m_xStart - (aa ? m_aaXInc : 0)) * m_xMajInc;
+        const sint32 dy = (targetPos.y() - m_yStart - (aa ? m_aaYInc : 0)) * m_yMajInc;
+
+        const sint32 delta = dx + dy;
+
+        if (delta < 0 || delta >= m_length) {
+            return m_length;
+        }
+        return delta;
+    }
+
+    // Sets the slope step to the specified coordinate.
+    // Clamped to the length of the line.
+    FORCE_INLINE void SetStep(uint32 step) {
+        step = std::min(step, m_dmaj);
+
+        const sint32 stepDelta = step + 1 - m_step;
+        if (stepDelta == 0) {
+            return;
+        }
+
+        m_step = step + 1;
+        m_x += m_xMajInc * stepDelta;
+        m_y += m_yMajInc * stepDelta;
+
+        // TODO: mask to 13 bits
+
+        m_accum -= m_num * stepDelta;
+        if (m_den != 0) {
+            const sint32 count = (m_accumTarget - m_accum + m_den) / m_den;
+            m_accum += m_den * count;
+            m_x += m_xMinInc * count;
+            m_y += m_yMinInc * count;
+        }
+    }
+
+    // Determines if the current step needs antialiasing.
+    FORCE_INLINE bool NeedsAA() const {
+        return m_antiAlias && m_step > 1 && m_accum - m_den + m_num > m_accumTarget;
+    }
+
+    // Retrieves the current X coordinate.
+    FORCE_INLINE sint32 X() const {
+        return m_x & 0x7FF;
+    }
+
+    // Retrieves the current Y coordinate.
+    FORCE_INLINE sint32 Y() const {
+        return m_y & 0x7FF;
+    }
+
+    // Retrieves the current X and Y coordinates.
+    FORCE_INLINE ymir::vdp::CoordS32 Coord() const {
+        return {m_x, m_y};
+    }
+
+    // Returns the X coordinate of the antialiased pixel.
+    FORCE_INLINE sint32 AAX() const {
+        return m_x + m_aaXInc;
+    }
+
+    // Returns the Y coordinate of the antialiased pixel.
+    FORCE_INLINE sint32 AAY() const {
+        return m_y + m_aaYInc;
+    }
+
+    // Returns the X and Y coordinates of the antialiased pixel.
+    FORCE_INLINE ymir::vdp::CoordS32 AACoord() const {
+        return {AAX(), AAY()};
+    }
+
+    // Retrieves the total number of steps in the slope, that is, the longest of the vertical and horizontal spans.
+    FORCE_INLINE uint32 Length() const {
+        return m_dmaj;
+    }
+
+private:
+    sint32 m_num;
+    sint32 m_den;
+    sint32 m_accum;
+    sint32 m_accumTarget;
+
+    sint32 m_xMajInc;
+    sint32 m_yMajInc;
+    sint32 m_xMinInc;
+    sint32 m_yMinInc;
+
+    sint32 m_x;
+    sint32 m_y;
+    sint32 m_xStart;
+    sint32 m_yStart;
+    sint32 m_xEnd;
+    sint32 m_yEnd;
+
+    uint32 m_dmaj;
+    uint32 m_step;
+    uint32 m_length;
+
+    sint32 m_aaXInc;
+    sint32 m_aaYInc;
+    bool m_antiAlias;
+};
+
+FORCE_INLINE sint32 cross2D(ymir::vdp::CoordS32 vecA, ymir::vdp::CoordS32 vecB) {
+    return vecA.x() * vecB.y() - vecA.y() * vecB.x();
+}
+
+FORCE_INLINE sint32 square(sint32 value) {
+    return value * value;
+}
+
+FORCE_INLINE static sint32 PointToLineDistance(ymir::vdp::CoordS32 pointCoord, ymir::vdp::CoordS32 lineCoord1,
+                                               ymir::vdp::CoordS32 lineCoord2) {
+    const ymir::vdp::CoordS32 l21 = {lineCoord2.x() - lineCoord1.x(), lineCoord2.y() - lineCoord1.y()};
+    const ymir::vdp::CoordS32 l1p = {lineCoord1.x() - pointCoord.x(), lineCoord1.y() - pointCoord.y()};
+    return cross2D(l21, l1p) / sqrt(square(l21.x()) + square(l21.y()));
+}
+
 struct Sandbox {
     Sandbox(uint32 width, uint32 height)
         : framebuffer(width * height)
@@ -41,14 +224,15 @@ struct Sandbox {
         // A = 32x38  B = 225x52  C = 431x254  D = 59x273
         // A = 260x272  B = 135x195  C = 240x129  D = 346x192
         // A = 181x241  B = 373x29  C = 95x37  D = 52x103
-        , ax(181)
-        , ay(241)
-        , bx(373)
-        , by(29)
-        , cx(95)
-        , cy(37)
-        , dx(52)
-        , dy(103)
+        // A = 88x225  B = 94x213  C = 35x165  D = 25x175
+        , ax(138)
+        , ay(95)
+        , bx(144)
+        , by(83)
+        , cx(85)
+        , cy(35)
+        , dx(75)
+        , dy(45)
         , lastTicks(SDL_GetTicks()) {
         keys.fill(false);
         prevKeys = keys;
@@ -203,6 +387,16 @@ struct Sandbox {
             cy = 144;
             dx = 255;
             dy = 27;
+        }
+        if (keys[SDL_SCANCODE_0] && !prevKeys[SDL_SCANCODE_0]) {
+            ax = 489;
+            ay = 112;
+            bx = 676;
+            by = -82;
+            cx = 361;
+            cy = 17;
+            dx = 583;
+            dy = -77;
         }
 
         if (keyRepeat[SDL_SCANCODE_KP_PLUS]) {
@@ -414,6 +608,11 @@ struct Sandbox {
             DrawPixel(dx, dy, 0xff4fb6);
         }
 
+        const sint32 winding = cross2D({coordB.x() - coordA.x(), coordB.y() - coordA.y()},
+                                       {coordC.x() - coordB.x(), coordC.y() - coordB.y()}) >= 0
+                                   ? +1
+                                   : -1;
+
         // bool swapped;
         uint32 texSize = polygonFillMode == 2 ? 8 : polygonFillMode == 3 ? 32 : 256;
         // uint32 texShift = polygonFillMode == 2 ? 13 : polygonFillMode == 3 ? 11 : 8;
@@ -434,11 +633,20 @@ struct Sandbox {
 
             bool firstPixel = true;
             if (lineIndex % lineStep == lineOffset) {
-                LineStepper line{coordL, coordR};
+                AltLineStepper altLine{coordL, coordR, true};
+                const uint32 altSteps = altLine.StepsToTarget({targetX, targetY}, false);
+                const uint32 altStepsAA = altLine.StepsToTarget({targetX, targetY}, true);
+
+                uint32 currSteps = 0;
+
+                // TODO: AA option affects line interpolation; can't instantiate line steppers without it
+                // TODO: fix AA offset
+
+                LineStepper line{coordL, coordR, true};
                 TextureStepper texUStepper;
                 texUStepper.Setup(line.Length() + 1, 0, texSize);
                 bool needsAA = false;
-                for (; line.CanStep(); needsAA = line.Step()) {
+                for (line.Step(); line.CanStep(); needsAA = line.Step()) {
                     auto [x, y] = line.Coord();
                     while (texUStepper.ShouldStepTexel()) {
                         texUStepper.StepTexel();
@@ -446,9 +654,11 @@ struct Sandbox {
                     texUStepper.StepPixel();
                     const uint32 u = texUStepper.Value();
 
+                    const bool match = false && altSteps <= line.Length() && currSteps == altSteps;
+
                     uint32 color;
                     switch (polygonFillMode) {
-                    case 0: color = firstPixel ? 0xc7997c : first ? 0x96674a : 0x75492e; break;
+                    case 0: color = match ? 0xff00ff : firstPixel ? 0xc7997c : first ? 0x96674a : 0x75492e; break;
                     case 1:
                         color = (u & 0xFF) | ((v & 0xFF) << 8u) | (firstPixel * 0xFF0000) | (first * 0x7F0000);
                         break;
@@ -459,12 +669,45 @@ struct Sandbox {
                         break;
                     }
 
+                    const sint32 dist = PointToLineDistance({targetX, targetY}, coordL, coordR) * winding;
+                    if (dist < 0) {
+                        color &= 0xFFFF00;
+                        // color |= bit::reverse((uint8)std::clamp<uint32>(255 + dist, 0, 255));
+                        color |= 255 - std::clamp<uint32>(-dist, 0, 255);
+                    } else if (dist > 0) {
+                        color &= 0xFF00FF;
+                        // color |= bit::reverse((uint8)std::clamp<uint32>(255 - dist, 0, 255)) << 8;
+                        color |= (255 - std::clamp<uint32>(dist, 0, 255)) << 8;
+                    } else {
+                        color = 0xFFFFFF;
+                    }
+
                     DrawPixel(x, y, color);
                     if (antialias && needsAA) {
                         auto [aax, aay] = line.AACoord();
-                        DrawPixel(aax, aay, color);
+                        DrawPixel(aax, aay, color /*^ 0xFFFFFF*/);
                     }
                     firstPixel = false;
+
+                    currSteps++;
+                }
+
+                if (altSteps <= line.Length()) {
+                    altLine.SetStep(altSteps);
+                    auto [x, y] = altLine.Coord();
+                    // if (x == targetX && y == targetY) {
+                    DrawPixel(x, y, 0xFFFF00);
+                    //}
+                }
+
+                if (altStepsAA <= line.Length()) {
+                    altLine.SetStep(altStepsAA);
+                    if (altLine.NeedsAA()) {
+                        auto [aax, aay] = altLine.AACoord();
+                        // if (aax == targetX && aay == targetY) {
+                        DrawPixel(aax, aay, 0xFF00FF);
+                        //}
+                    }
                 }
             }
             lineIndex++;
@@ -527,6 +770,8 @@ struct Sandbox {
     double cx, cy;
     double dx, dy;
 
+    sint32 targetX, targetY;
+
     bool edgesOnTop = true;
     bool antialias = true;
     bool altUVCalc = false;
@@ -553,6 +798,9 @@ static void runSandbox() {
     const uint32 screenWidth = 500;
     const uint32 screenHeight = 300;
     const uint32 scale = 3;
+    // const uint32 screenWidth = 250;
+    // const uint32 screenHeight = 150;
+    // const uint32 scale = 6;
 
     // ---------------------------------
     // Initialize SDL video subsystem
@@ -634,6 +882,8 @@ static void runSandbox() {
 
     Sandbox sandbox{screenWidth, screenHeight};
 
+    // SDL_HideCursor();
+
     while (running) {
         SDL_Event evt{};
         while (SDL_PollEvent(&evt)) {
@@ -648,6 +898,16 @@ static void runSandbox() {
             case SDL_EVENT_QUIT: running = false; break;
             }
         }
+
+        float mx, my;
+        SDL_MouseButtonFlags mb = SDL_GetMouseState(&mx, &my);
+        // if (mb & SDL_BUTTON_LMASK)
+
+        mx = (int)(mx / scale);
+        my = (int)(my / scale);
+
+        sandbox.targetX = mx;
+        sandbox.targetY = my;
 
         sandbox.Frame();
 
@@ -670,8 +930,16 @@ static void runSandbox() {
         SDL_RenderClear(renderer);
         SDL_RenderTexture(renderer, texture, nullptr, nullptr);
 
+        SDL_FRect mouseTarget;
+        mouseTarget.x = mx * scale;
+        mouseTarget.y = my * scale;
+        mouseTarget.w = scale;
+        mouseTarget.h = scale;
+        SDL_SetRenderDrawColor(renderer, 255, 0, 255, 224);
+        // SDL_RenderRect(renderer, &mouseTarget);
+
         if (showHelp) {
-            SDL_FRect rect{187, 49, 10, 10};
+            SDL_FRect rect{187, 59, 10, 10};
             SDL_SetRenderDrawColor(renderer, 255, 82, 79, 128);
             SDL_RenderFillRect(renderer, &rect);
 
@@ -703,7 +971,7 @@ static void runSandbox() {
             SDL_RenderDebugText(
                 renderer, 5, 35,
                 fmt::format("[B] Use {} UV calculation", (sandbox.altUVCalc ? "alternate" : "primary")).c_str());
-            SDL_RenderDebugText(renderer, 5, 45, "[123456789] Select preset shape");
+            SDL_RenderDebugText(renderer, 5, 45, "[1234567890] Select preset shape");
 
             SDL_RenderDebugText(
                 renderer, 5, 60,
@@ -962,7 +1230,7 @@ struct sample_struct {
 
 // clang-format off
 const sample_struct g_samples[] = {
-   // VRAM                      Color-RAM             HW-framebuffer as bmp     W    H 
+   // VRAM                      Color-RAM             HW-framebuffer as bmp     W    H
     { "srally3.bin",            "srally3_cram.bin",   "srally3.bmp",            352, 224 },
     { "gouraud_lines.bin",      "lzsscube_cram.bin",  "gouraud_lines.bmp",      320, 224 },
     { "twisted2.bin",           "lines_cram.bin",     "twisted2.bmp",           352, 224 },
@@ -1255,7 +1523,7 @@ static void runCurlSandbox() {
 }
 
 int main(int argc, char **argv) {
-    // runSandbox();
+    runSandbox();
     // runBUPSandbox();
     // runInputSandbox();
     // if (argc >= 2) {
@@ -1270,7 +1538,7 @@ int main(int argc, char **argv) {
     //     //   - track FAD range should include INDEX 00
     //     //   - starting FAD should point to INDEX 01 (when seeking to track)
     // }
-    runCurlSandbox();
+    /// runCurlSandbox();
 
     return EXIT_SUCCESS;
 }

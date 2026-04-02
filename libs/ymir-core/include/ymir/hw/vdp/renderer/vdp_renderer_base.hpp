@@ -1,12 +1,17 @@
 #pragma once
 
+/**
+@file
+@brief Defines `IVDPRenderer`, the base class for VDP1 and VDP2 renderers.
+*/
+
 #include "vdp_renderer_defs.hpp"
 
-#include <ymir/hw/vdp/vdp1_defs.hpp>
 #include <ymir/hw/vdp/vdp_callbacks.hpp>
 #include <ymir/hw/vdp/vdp_configs.hpp>
+#include <ymir/hw/vdp/vdp_state.hpp>
 
-#include <ymir/state/state_vdp.hpp>
+#include <ymir/savestate/savestate_vdp.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -29,6 +34,15 @@ public:
     // -------------------------------------------------------------------------
     // Basics
 
+    /// @brief Determines if the necessary resources for this VDP renderer have been created successfully, allowing the
+    /// renderer to be used normally.
+    /// @return `true` if the renderer is valid, `false` if it failed to create.
+    virtual bool IsValid() const = 0;
+
+    /// @brief Determines if this is a hardware renderer.
+    /// @return `true` if this is a hardware renderer, `false` if software or null renderer.
+    virtual bool IsHardwareRenderer() const = 0;
+
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     void Reset(bool hard);
@@ -36,6 +50,7 @@ public:
 protected:
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// Invoked by calls to `Reset(bool)`.
+    ///
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     virtual void ResetImpl(bool hard) = 0;
 
@@ -45,8 +60,17 @@ public:
 
     /// @brief Applies the enhancements configuration to this renderer.
     /// @param[in] enhancements the enhancements configuration to apply
-    virtual void ConfigureEnhancements(const config::Enhancements &enhancements) = 0;
+    void ConfigureEnhancements(const config::Enhancements &enhancements) {
+        m_enhancements = enhancements;
+        m_hasEnhancements = enhancements.AnyEnabled();
+        UpdateEnhancements();
+    }
 
+protected:
+    /// @brief Updates enhancement configurations.
+    virtual void UpdateEnhancements() {}
+
+public:
     /// @brief Renderer callback functions. Automatically configured by the VDP when a new renderer is created.
     config::RendererCallbacks Callbacks;
 
@@ -61,17 +85,35 @@ public:
 
     /// @brief Save the renderer state.
     /// @param[in] state the state object
-    virtual void SaveState(state::VDPState::VDPRendererState &state) = 0;
+    void SaveState(savestate::VDPSaveState::VDPRendererSaveState &state);
 
     /// @brief Validates the renderer state.
     /// @param[in] state the state object
     /// @return `true` if the given state is valid, `false` otherwise
-    virtual bool ValidateState(const state::VDPState::VDPRendererState &state) const = 0;
+    bool ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const;
 
     /// @brief Loads the renderer state.
     /// @param[in] state the state object
-    virtual void LoadState(const state::VDPState::VDPRendererState &state) = 0;
+    void LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state);
 
+protected:
+    /// @brief Save the renderer state.
+    /// Invoked by calls to `SaveState(ymir::savestate::VDPSaveState::VDPRendererSaveState &)`.
+    /// @param[in] state the state object
+    virtual void SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
+
+    /// @brief Validates the renderer state.
+    /// Invoked by calls to `ValidateState(const ymir::savestate::VDPSaveState::VDPRendererSaveState &) const`.
+    /// @param[in] state the state object
+    /// @return `true` if the given state is valid, `false` otherwise
+    virtual bool ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const = 0;
+
+    /// @brief Loads the renderer state.
+    /// Invoked by calls to `LoadState(const ymir::savestate::VDPSaveState::VDPRendererSaveState &)`.
+    /// @param[in] state the state object
+    virtual void LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
+
+public:
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
 
@@ -84,6 +126,15 @@ public:
     /// @param[in] address the address to write at
     /// @param[in] value the value to write
     virtual void VDP1WriteVRAM(uint32 address, uint16 value) = 0;
+
+    /// @brief Synchronizes the VDP1 FBRAM for reads.
+    virtual void VDP1SyncFB() = 0;
+
+    /// @brief Synchronizes the VDP1 FBRAM for debug reads.
+    /// Debug reads may not necessarily come from the emulator thread.
+    /// Synchronization is not required to occur immediately. Implementations may choose to delay synchronization to a
+    /// more convenient time, such as the next framebuffer swap.
+    virtual void VDP1DebugSyncFB() = 0;
 
     /// @brief Writes a byte to VDP1 framebuffer RAM.
     /// @param[in] address the address to write at
@@ -136,6 +187,8 @@ public:
     virtual void VDP1EraseFramebuffer(uint64 cycles = 0) = 0;
 
     /// @brief Swaps the VDP1 framebuffers.
+    /// This function is invoked after the framebuffer selector bit is flipped -- the VDP1 will draw to `displayFB^1`
+    /// and the VDP2 will read data from `displayFB`.
     virtual void VDP1SwapFramebuffer() = 0;
 
     /// @brief Signals the start of a VDP1 frame.
@@ -180,9 +233,9 @@ public:
     virtual void UpdateEnabledLayers() = 0;
 
     /// @brief Retrieves a read-only reference to the current states of the NBG layers.
-    /// @return a reference to an array of `NormBGLayerState` objects for NBG0-NBG3.
-    const std::array<NormBGLayerState, 4> &GetNBGLayerStates() const {
-        return m_normBGLayerStates;
+    /// @return a reference to an array of `NBGLayerState` objects for NBG0-NBG3.
+    const std::array<NBGLayerState, 4> &GetNBGLayerStates() const {
+        return m_nbgLayerStates;
     }
 
     // -------------------------------------------------------------------------
@@ -195,8 +248,8 @@ public:
     // -------------------------------------------------------------------------
     // Type casting and information
 
-    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to the corresponding concrete type.
-    /// Returns `nullptr` otherwise.
+    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to a pointer to the corresponding
+    /// concrete type. Returns `nullptr` otherwise.
     ///
     /// @tparam type the type to cast as
     /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
@@ -210,19 +263,15 @@ public:
         }
     }
 
-    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to the corresponding concrete type.
-    /// Returns `nullptr` otherwise.
+    /// @brief If this renderer object has the specified `VDPRendererType`, casts it to a pointer to the corresponding
+    /// concrete type. Returns `nullptr` otherwise.
     ///
     /// @tparam type the type to cast as
     /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
     /// `nullptr` if this renderer's type doesn't match.
     template <VDPRendererType type>
-    FORCE_INLINE const typename detail::VDPRendererType_t<type> *As() const {
-        if (m_type == type) {
-            return static_cast<detail::VDPRendererType_t<type> *>(this);
-        } else {
-            return nullptr;
-        }
+    FORCE_INLINE typename detail::VDPRendererType_t<type> *As() const {
+        return const_cast<IVDPRenderer *>(this)->As<type>();
     }
 
     /// @brief Retrieves a human-readable name for this renderer.
@@ -238,18 +287,65 @@ public:
     }
 
 protected:
+    // -------------------------------------------------------------------------
+    // Configuration
+
+    /// @brief Current VDP enhancements configuration.
+    config::Enhancements m_enhancements;
+
+    /// @brief Indicates whether any enhancements are currently enabled.
+    /// Updated automatically whenever the enhancements are changed.
+    bool m_hasEnhancements = false;
+
+    // -------------------------------------------------------------------------
+    // Renderer state
+
     /// @brief Layer states for NBGs 0-3.
-    std::array<NormBGLayerState, 4> m_normBGLayerStates;
+    std::array<NBGLayerState, 4> m_nbgLayerStates;
 
     /// @brief States for Rotation Parameters A and B.
     std::array<RotationParamState, 2> m_rotParamStates;
 
+    /// @brief Page base addresses for RBG planes A-P using Rotation Parameters A and B.
+    /// Indexing: [RotParam A/B][RBG0-1][Plane A-P]
+    /// Derived from `mapIndices`, `CHCTLA/CHCTLB.xxCHSZ`, `PNCR.xxPNB` and `PLSZ.xxPLSZn`.
+    std::array<std::array<std::array<uint32, 16>, 2>, 2> m_rbgPageBaseAddresses;
+
     /// @brief State for the line color and back screens.
     LineBackLayerState m_lineBackLayerState;
 
-    // VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
-    // Entry [0] is primary and [1] is alternate field for deinterlacing.
-    std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
+    /// @brief Layer enable state based on BGON and other factors.
+    /// ```
+    ///     RBG0+RBG1   RBG0        RBG1        no RBGs
+    /// [0] Sprite      Sprite      Sprite      Sprite
+    /// [1] RBG0        RBG0        -           -
+    /// [2] RBG1        NBG0        RBG1        NBG0
+    /// [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
+    /// [4] -           NBG2        NBG2        NBG2
+    /// [5] -           NBG3        NBG3        NBG3
+    /// ```
+    std::array<bool, 6> m_layerEnabled;
+
+    // Rotation coefficient data access permissions per VRAM bank.
+    // Derived from RAMCTL.RDBS(A-B)(0-1)(1-0), RAMCTL.VRAMD and RAMCTL.VRBMD
+    std::array<bool, 4> m_coeffAccess;
+
+    /// @brief Computes the access patterns for NBGs and RBGs.
+    /// @param[in] regs2 the VDP2 register state to update
+    void VDP2CalcAccessPatterns(VDP2Regs &regs2);
+
+    /// @brief Computes vertical cell scroll access delays for NBGs 0 and 1.
+    /// @param regs2 the VDP2 register state to use
+    void VDP2CalcVCellScrollDelay(VDP2Regs &regs2);
+
+    /// @brief Updates the background enable states in `m_layerEnabled`.
+    /// @param[in] regs2 the VDP2 register state to use
+    /// @param[in] debugRenderOpts the VDP2 debug rendering options to use
+    void VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts);
+
+    /// @brief Updates the page base addresses for RBGs.
+    /// @param[in] regs2 the VDP2 register state to use
+    void VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2);
 
 private:
     const VDPRendererType m_type;

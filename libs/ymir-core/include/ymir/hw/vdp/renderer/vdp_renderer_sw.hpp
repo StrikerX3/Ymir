@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+@file
+@brief Software VDP1 and VDP2 renderer implementation.
+*/
+
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
 #include <ymir/hw/vdp/vdp1_regs.hpp>
@@ -8,7 +13,7 @@
 #include <ymir/hw/vdp/vdp_defs.hpp>
 #include <ymir/hw/vdp/vdp_state.hpp>
 
-#include <ymir/hw/vdp/renderer/sw/vdp1_steppers.hpp>
+#include <ymir/hw/vdp/renderer/common/vdp1_steppers.hpp>
 
 #include <ymir/hw/hw_defs.hpp>
 
@@ -27,8 +32,12 @@
 
 namespace ymir::vdp {
 
-// Invoked when the software VDP2 renderer finishes rendering a frame.
-// Framebuffer data is in little-endian XRGB8888 format.
+/// @brief Invoked when the software VDP2 renderer finishes rendering a frame.
+/// Framebuffer data is in little-endian XRGB8888 format.
+///
+/// @param[in] fb a pointer to the framebuffer data
+/// @param[in] width the width of the framebuffer (in pixels)
+/// @param[in] height the height of the framebuffer (in pixels)
 using CBSoftwareFrameComplete = util::OptionalCallback<void(uint32 *fb, uint32 width, uint32 height)>;
 
 /// @brief Callbacks specific to the software VDP renderer.
@@ -45,6 +54,14 @@ public:
     // -------------------------------------------------------------------------
     // Basics
 
+    bool IsValid() const override {
+        return true;
+    }
+
+    bool IsHardwareRenderer() const override {
+        return false;
+    }
+
 protected:
     void ResetImpl(bool hard) override;
 
@@ -52,7 +69,7 @@ public:
     // -------------------------------------------------------------------------
     // Configuration
 
-    void ConfigureEnhancements(const config::Enhancements &enhancements) override;
+    void UpdateEnhancements() override;
 
     /// @brief Software renderer callbacks.
     SoftwareRendererCallbacks SwCallbacks;
@@ -77,9 +94,9 @@ public:
     void PreSaveStateSync() override;
     void PostLoadStateSync() override;
 
-    void SaveState(state::VDPState::VDPRendererState &state) override;
-    bool ValidateState(const state::VDPState::VDPRendererState &state) const override;
-    void LoadState(const state::VDPState::VDPRendererState &state) override;
+    void SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) override;
+    bool ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const override;
+    void LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) override;
 
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
@@ -89,6 +106,9 @@ public:
 
     template <mem_primitive_16 T>
     void VDP1WriteVRAMImpl(uint32 address, T value);
+
+    void VDP1SyncFB() override {}
+    void VDP1DebugSyncFB() override {}
 
     void VDP1WriteFB(uint32 address, uint8 value) override;
     void VDP1WriteFB(uint32 address, uint16 value) override;
@@ -148,6 +168,7 @@ private:
     uint32 m_HRes;
     uint32 m_VRes;
     bool m_exclusiveMonitor;
+    bool m_resolutionChanged = false;
 
     // Complementary (alternate) VDP1 framebuffers, for deinterlaced rendering.
     // When deinterlace mode is enabled, if the system is using double-density interlace, this buffer will contain the
@@ -262,22 +283,12 @@ private:
 
         struct VDP1 {
             VDP1Regs regs;
-            alignas(16) std::array<uint8, kVDP1VRAMSize> VRAM;
+            VDP1Memory mem;
         } vdp1;
 
         void Reset() {
             vdp1.regs.Reset();
-            for (uint32 addr = 0; addr < vdp1.VRAM.size(); addr++) {
-                if ((addr & 0x1F) == 0) {
-                    vdp1.VRAM[addr] = 0x80;
-                } else if ((addr & 0x1F) == 1) {
-                    vdp1.VRAM[addr] = 0x00;
-                } else if ((addr & 2) == 2) {
-                    vdp1.VRAM[addr] = 0x55;
-                } else {
-                    vdp1.VRAM[addr] = 0xAA;
-                }
-            }
+            vdp1.mem.Reset();
         }
 
         void EnqueueEvent(VDP1RenderEvent &&event) {
@@ -463,8 +474,7 @@ private:
 
         struct VDP2 {
             VDP2Regs regs;
-            alignas(16) std::array<uint8, kVDP2VRAMSize> VRAM;
-            alignas(16) std::array<uint8, kVDP2CRAMSize> CRAM;
+            VDP2Memory mem{regs};
 
             // Cached CRAM colors converted from RGB555 to RGB888.
             // Only valid when color RAM mode is one of the RGB555 modes.
@@ -475,8 +485,7 @@ private:
 
         void Reset() {
             vdp2.regs.Reset();
-            vdp2.VRAM.fill(0);
-            vdp2.CRAM.fill(0);
+            vdp2.mem.Reset();
             vdp2.CRAMCache.fill({.u32 = 0});
             displayFB = 0;
         }
@@ -539,9 +548,6 @@ private:
     // -------------------------------------------------------------------------
     // Configuration
 
-    // Local copy of the current VDP enhancements configuration.
-    config::Enhancements m_enhancements;
-
     // Runs the deinterlacer in a dedicated thread.
     bool m_threadedDeinterlacer = false;
 
@@ -566,37 +572,7 @@ private:
     // -------------------------------------------------------------------------
     // VDP1
 
-    struct VDP1State {
-        VDP1State() {
-            Reset();
-        }
-
-        void Reset() {
-            sysClipH = 512;
-            sysClipV = 256;
-
-            userClipX0 = 0;
-            userClipY0 = 0;
-
-            userClipX1 = 512;
-            userClipY1 = 256;
-
-            localCoordX = 0;
-            localCoordY = 0;
-        }
-
-        // System clipping dimensions
-        uint16 sysClipH, sysClipV;
-        uint16 doubleV;
-
-        // User clipping area
-        uint16 userClipX0, userClipY0; // Top-left
-        uint16 userClipX1, userClipY1; // Bottom-right
-
-        // Local coordinates offset
-        sint32 localCoordX;
-        sint32 localCoordY;
-    } m_VDP1State;
+    uint16 m_VDP1doubleV;
 
     struct VDP1PixelParams {
         VDP1Command::DrawMode mode;
@@ -668,9 +644,9 @@ private:
     TPL_TRAITS void VDP1Cmd_DrawScaledSprite(uint32 cmdAddress, VDP1Command::Control control);
     TPL_TRAITS void VDP1Cmd_DrawDistortedSprite(uint32 cmdAddress, VDP1Command::Control control);
 
-    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress, VDP1Command::Control control);
-    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress, VDP1Command::Control control);
+    TPL_TRAITS void VDP1Cmd_DrawPolygon(uint32 cmdAddress);
+    TPL_TRAITS void VDP1Cmd_DrawPolylines(uint32 cmdAddress);
+    TPL_TRAITS void VDP1Cmd_DrawLine(uint32 cmdAddress);
 
     void VDP1Cmd_SetSystemClipping(uint32 cmdAddress);
     void VDP1Cmd_SetUserClipping(uint32 cmdAddress);
@@ -777,32 +753,24 @@ private:
         }
 
         void Reset() {
-            for (auto &addrs : pageBaseAddresses) {
-                addrs.fill(0);
-            }
             screenCoords.fill({});
             lineColor.fill({.u32 = 0});
             transparent.fill(false);
         }
 
-        // Page base addresses for RBG planes A-P using Rotation Parameters A and B.
-        // Indexing: [RBG0-1][Plane A-P]
-        // Derived from mapIndices, CHCTLA/CHCTLB.xxCHSZ, PNCR.xxPNB and PLSZ.xxPLSZn
-        std::array<std::array<uint32, 16>, 2> pageBaseAddresses;
+        // Precomputed screen coordinates (26.0).
+        alignas(16) std::array<CoordS32, kMaxNormalResH> screenCoords;
 
-        // Precomputed screen coordinates (with 16 fractional bits).
-        alignas(16) std::array<CoordS32, kMaxResH / 2> screenCoords;
-
-        // Precomputed sprite coordinates (without fractional bits).
-        alignas(16) std::array<CoordS32, kMaxResH / 2> spriteCoords;
+        // Precomputed sprite coordinates (13.0).
+        alignas(16) std::array<CoordS32, kMaxNormalResH> spriteCoords;
 
         // Precomputed coefficient table line color.
         // Filled in only if the coefficient table is enabled and using line color data.
-        alignas(16) std::array<Color888, kMaxResH / 2> lineColor;
+        alignas(16) std::array<Color888, kMaxNormalResH> lineColor;
 
         // Prefetched coefficient table transparency bits.
         // Filled in only if the coefficient table is enabled.
-        alignas(16) std::array<bool, kMaxResH / 2> transparent;
+        alignas(16) std::array<bool, kMaxNormalResH> transparent;
     };
 
     enum RotParamSelector { RotParamA, RotParamB };
@@ -816,7 +784,7 @@ private:
         LYR_NBG2,
         LYR_NBG3,
         LYR_Back,
-        LYR_LineColor,
+        LYR_LineColor, // not really used
     };
 
     // Cached CRAM colors converted from RGB555 to RGB888.
@@ -825,22 +793,16 @@ private:
 
     template <mem_primitive T>
     FORCE_INLINE uint32 MapRendererCRAMAddress(uint32 address) const {
-        m_state.MapVDP2CRAMAddress<T>(address);
+        m_state.mem2.MapCRAMAddress<T>(address);
         return kVDP2CRAMAddressMapping[m_vdp2RenderingContext.vdp2.regs.vramControl.colorRAMMode >> 1][address & 0xFFF];
     }
 
     template <mem_primitive T>
     void VDP2UpdateCRAMCache(uint32 address);
 
-    // Layer enabled by BGON and other factors.
-    //     RBG0+RBG1   RBG0        RBG1        no RBGs
-    // [0] Sprite      Sprite      Sprite      Sprite
-    // [1] RBG0        RBG0        -           -
-    // [2] RBG1        NBG0        RBG1        NBG0
-    // [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
-    // [4] -           NBG2        NBG2        NBG2
-    // [5] -           NBG3        NBG3        NBG3
-    std::array<bool, 6> m_layerEnabled;
+    /// @brief VRAM fetcher states for NBGs 0-3 and rotation parameters A/B.
+    /// Entry [0] is primary and [1] is alternate field for deinterlacing.
+    std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
 
     // Common layer states.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
@@ -869,7 +831,7 @@ private:
     std::array<RotationParamLineState, 2> m_rotParamLineStates;
 
     // Line colors per RBG per pixel.
-    std::array<std::array<Color888, kMaxResH / 2>, 2> m_rbgLineColors;
+    std::array<std::array<Color888, kMaxNormalResH>, 2> m_rbgLineColors;
 
     // Window state for NBGs and RBGs.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
@@ -887,10 +849,6 @@ private:
     // Window state for color calculation.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     alignas(16) std::array<std::array<bool, kMaxResH>, 2> m_colorCalcWindow;
-
-    // Vertical cell scroll increment.
-    // Based on CYCA0/A1/B0/B1 parameters.
-    uint32 m_vertCellScrollInc;
 
     // Current display framebuffer.
     std::array<uint32, kMaxResH * kMaxResV> m_framebuffer;
@@ -911,8 +869,6 @@ private:
     template <uint32 index>
     void VDP2InitNormalBG();
 
-    void VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2);
-
     // Updates the enabled backgrounds.
     void VDP2UpdateEnabledBGs();
 
@@ -927,7 +883,7 @@ private:
     // y is the scanline to draw
     // bgParams contains the parameters for the BG to draw.
     // bgState is a reference to the background layer state for the background.
-    void VDP2UpdateLineScreenScroll(uint32 y, const BGParams &bgParams, NormBGLayerState &bgState);
+    void VDP2UpdateLineScreenScroll(uint32 y, const BGParams &bgParams, NBGLayerState &bgState);
 
     // Loads rotation parameter tables and calculates coefficients and increments.
     //
@@ -967,11 +923,6 @@ private:
     template <bool altField, bool logicOR, bool hasSpriteWindow>
     void VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWindow> &windowSet,
                              const std::array<WindowParams, 2> &windowParams, std::span<bool> windowState);
-
-    // Computes the access patterns for NBGs and RBGs.
-    //
-    // regs2 is a reference to the set of VDP2 registers to use as reference
-    void VDP2CalcAccessPatterns(VDP2Regs &regs2);
 
     // Prepares the specified VDP2 scanline for rendering.
     //
@@ -1074,7 +1025,7 @@ private:
     template <CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll,
               bool deinterlace>
     void VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
-                                const NormBGLayerState &bgState, VRAMFetcher &vramFetcher,
+                                const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
                                 std::span<const bool> windowState, bool altField);
 
     // Draws a normal bitmap BG scanline.
@@ -1093,7 +1044,7 @@ private:
     // deinterlace determines whether to deinterlace video output
     template <ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll, bool deinterlace>
     void VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
-                                const NormBGLayerState &bgState, VRAMFetcher &vramFetcher,
+                                const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
                                 std::span<const bool> windowState, bool altField);
 
     // Draws a rotation scroll BG scanline.
@@ -1210,27 +1161,45 @@ private:
     // Fetches a pixel in the specified cell in a 2x2 character pattern.
     //
     // cramOffset is the base CRAM offset computed from CRAOFA/CRAOFB.xxCAOSn and vramControl.colorRAMMode.
-    // ch is the character's parameters.
+    // vramFetcher is the corresponding background layer's VRAM fetcher.
     // dotCoord specify the coordinates of the pixel within the cell, ranging from 0 to 7.
     // cellIndex is the index of the cell in the character pattern, ranging from 0 to 3.
     //
     // colorFormat is the value of CHCTLA/CHCTLB.xxCHCNn.
     // colorMode is the CRAM color mode.
     template <ColorFormat colorFormat, uint32 colorMode>
-    Pixel VDP2FetchCharacterPixel(const BGParams &bgParams, Character ch, CoordU32 dotCoord, uint32 cellIndex);
+    Pixel VDP2FetchCharacterPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, CoordU32 dotCoord,
+                                  uint32 cellIndex);
 
     // Fetches a bitmap pixel at the given coordinates.
     //
     // bgParams contains the parameters for the BG to draw.
-    // dotCoord specify the coordinates of the pixel within the bitmap.
     // vramFetcher is the corresponding background layer's VRAM fetcher.
+    // bitmapBaseAddress is the base address of bitmap data.
+    // dotCoord specify the coordinates of the pixel within the bitmap.
     //
     // colorFormat is the color format for pixel data.
-    // bitmapBaseAddress is the base address of bitmap data.
     // colorMode is the CRAM color mode.
     template <ColorFormat colorFormat, uint32 colorMode>
-    Pixel VDP2FetchBitmapPixel(const BGParams &bgParams, uint32 bitmapBaseAddress, CoordU32 dotCoord,
-                               VRAMFetcher &vramFetcher);
+    Pixel VDP2FetchBitmapPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 bitmapBaseAddress,
+                               CoordU32 dotCoord);
+
+    // Fetches a pixel from VRAM.
+    //
+    // bgParams contains the parameters for the BG to draw.
+    // vramFetcher is the corresponding background layer's VRAM fetcher.
+    // baseAddress is the base address of pixel data.
+    // linePitch is the number of bytes per row of pixel data.
+    // dotCoord specify the coordinates of the pixel within the cell, ranging from 0 to 7, or bitmap picture.
+    // palNum is the palette number from the character data or supplementary bitmap register.
+    // specColorCalc is the special color calculation bit from the character data or supplementary bitmap register.
+    // specPriority is the special priority bit from the character data or supplementary bitmap register.
+    //
+    // colorFormat is the color format for pixel data.
+    // colorMode is the CRAM color mode.
+    template <ColorFormat colorFormat, uint32 colorMode>
+    Pixel VDP2FetchPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 baseAddress, uint32 linePitch,
+                         CoordU32 dotCoord, uint32 palNum, bool specColorCalc, bool specPriority);
 
     // Fetches a color from CRAM using the current color mode specified by vramControl.colorRAMMode.
     //

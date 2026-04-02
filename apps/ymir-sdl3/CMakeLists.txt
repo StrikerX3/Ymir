@@ -324,7 +324,7 @@ add_executable(ymir-sdl3
     src/app/ui/windows/debug/vdp2_vram_delay_window.hpp
 
     src/serdes/cereal_archive_vector.hpp
-    src/serdes/state_cereal.hpp
+    src/serdes/cereal_savestate.hpp
 
     src/util/file_loader.cpp
     src/util/file_loader.hpp
@@ -482,9 +482,7 @@ if (Ymir_AVX2)
     if (MSVC)
         target_compile_options(ymir-sdl3 PUBLIC "/arch:AVX2")
     else ()
-        target_compile_options(ymir-sdl3 PUBLIC "-mavx2")
-        target_compile_options(ymir-sdl3 PUBLIC "-mfma")
-        target_compile_options(ymir-sdl3 PUBLIC "-mbmi")
+        target_compile_options(ymir-sdl3 PUBLIC "-mavx2" "-mfma" "-mpopcnt" "-mlzcnt" "-mbmi" "-mbmi2")
     endif ()
 endif ()
 

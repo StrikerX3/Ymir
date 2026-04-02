@@ -4,9 +4,9 @@
 
 #include <ymir/util/bit_ops.hpp>
 
-namespace ymir::state {
+namespace ymir::savestate {
 
-struct SCSPSlotState {
+struct SCSPSlotSaveState {
     uint32 SA;
     uint16 LSA;
     uint16 LEA;
@@ -91,4 +91,4 @@ struct SCSPSlotState {
     sint32 finalLevel;
 };
 
-} // namespace ymir::state
+} // namespace ymir::savestate

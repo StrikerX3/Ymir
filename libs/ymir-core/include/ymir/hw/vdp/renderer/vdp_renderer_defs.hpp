@@ -10,7 +10,10 @@
 namespace ymir::vdp {
 
 /// @brief VDP renderer type enumeration.
-enum class VDPRendererType { Null, Software };
+enum class VDPRendererType {
+    Null,
+    Software,
+};
 
 /// @brief Retrieves the name of a given VDP renderer type.
 /// @param[in] type the VDP renderer type
@@ -24,7 +27,10 @@ inline std::string_view GetRendererName(VDPRendererType type) {
 }
 
 /// @brief All supported VDP renderer types.
-inline constexpr VDPRendererType kTypes[] = {VDPRendererType::Null, VDPRendererType::Software};
+inline constexpr VDPRendererType kRendererTypes[] = {
+    VDPRendererType::Null,
+    VDPRendererType::Software,
+};
 
 // Forward declarations of concrete VDP renderer implementations.
 // See the vdp_renderer_* headers.
@@ -63,7 +69,7 @@ namespace detail {
 /// @brief Describes a Pattern Name Data entry - parameters for a character or tile.
 struct Character {
     uint16 charNum = 0;         // Character number, 15 bits
-    uint8 palNum = 0;           // Palette number, 7 bits
+    uint16 palNum = 0;          // Palette number, 7 bits (shifted left by 4 for optimized rendering performance)
     bool specColorCalc = false; // Special color calculation
     bool specPriority = false;  // Special priority
     bool flipH = false;         // Horizontal flip
@@ -81,16 +87,16 @@ struct VRAMFetcher {
         nextChar = {};
         lastCharIndex = 0xFFFFFFFF;
 
-        bitmapData.fill(0);
-        bitmapDataAddress = 0xFFFFFFFF;
+        charData.fill(0);
+        charDataAddress = 0xFFFFFFFF;
 
         lastVCellScroll = 0xFFFFFFFF;
     }
 
-    bool UpdateBitmapDataAddress(uint32 address) {
+    bool UpdateCharacterDataAddress(uint32 address) {
         address &= ~7;
-        if (address != bitmapDataAddress) {
-            bitmapDataAddress = address;
+        if (address != charDataAddress) {
+            charDataAddress = address;
             return true;
         }
         return false;
@@ -102,17 +108,17 @@ struct VRAMFetcher {
     uint32 lastCharIndex;
     uint8 lastCellX;
 
-    // Bitmap data (for bitmap BGs)
-    alignas(uint64) std::array<uint8, 8> bitmapData;
-    uint32 bitmapDataAddress;
+    // Character data (scroll and bitmap BGs)
+    alignas(uint64) std::array<uint8, 8> charData;
+    uint32 charDataAddress;
 
     // Vertical cell scroll data
     uint32 lastVCellScroll;
 };
 
 /// @brief NBG layer state, including coordinate counters, increments and addresses.
-struct NormBGLayerState {
-    NormBGLayerState() {
+struct NBGLayerState {
+    NBGLayerState() {
         Reset();
     }
 
@@ -121,9 +127,9 @@ struct NormBGLayerState {
         fracScrollY = 0;
         scrollIncH = 0x100;
         lineScrollTableAddress = 0;
-        vertCellScrollOffset = 0;
-        vertCellScrollDelay = 0;
-        vertCellScrollRepeat = 0;
+        vcellScrollOffset = 0;
+        vcellScrollDelay = 0;
+        vcellScrollRepeat = 0;
         mosaicCounterY = 0;
     }
 
@@ -134,13 +140,8 @@ struct NormBGLayerState {
     // Reset at the start of every frame and updated every scanline.
     uint32 fracScrollY;
 
-    // Vertical scroll amount with 8 fractional bits.
-    // Initialized at VBlank OUT.
-    // Derived from SCYINn and SCYDNn
-    uint32 scrollAmountV;
-
     // Fractional X scroll coordinate increment.
-    // Applied every pixel and updated every scanline.
+    // Applied every pixel and updated at the start of the frame or every line when line zoom is enabled.
     uint32 scrollIncH;
 
     // Current line scroll table address.
@@ -150,17 +151,17 @@ struct NormBGLayerState {
     // Vertical cell scroll offset.
     // Only valid for NBG0 and NBG1.
     // Based on CYCA0/A1/B0/B1 parameters.
-    uint32 vertCellScrollOffset;
+    uint32 vcellScrollOffset;
 
     // Is the vertical cell scroll read delayed by one cycle?
     // Only valid for NBG0 and NBG1.
     // Based on CYCA0/A1/B0/B1 parameters.
-    bool vertCellScrollDelay;
+    bool vcellScrollDelay;
 
     // Is the first vertical cell scroll entry repeated?
     // Only valid for NBG0.
     // Based on CYCA0/A1/B0/B1 parameters.
-    bool vertCellScrollRepeat;
+    bool vcellScrollRepeat;
 
     // Vertical mosaic counter.
     // Reset at the start of every frame and incremented every line.

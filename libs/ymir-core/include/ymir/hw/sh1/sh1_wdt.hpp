@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -76,7 +76,7 @@ struct WatchdogTimer {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::WDT &state) const {
+    void SaveState(savestate::SH1SaveState::WDT &state) const {
         state.TCSR = ReadTCSR<true>();
         state.TCNT = TCNT;
         state.RSTCSR = ReadRSTCSR();
@@ -85,11 +85,11 @@ struct WatchdogTimer {
         state.cycleCount = m_cycleCount;
     }
 
-    [[nodiscard]] bool ValidateState(const state::SH1State::WDT &state) const {
+    [[nodiscard]] bool ValidateState(const savestate::SH1SaveState::WDT &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::WDT &state) {
+    void LoadState(const savestate::SH1SaveState::WDT &state) {
         WriteTCSR<true>(state.TCSR);
         TCNT = state.TCNT;
         WriteRSTCSR<true>(state.RSTCSR);

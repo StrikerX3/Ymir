@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ymir/state/state_sh1.hpp>
+#include <ymir/savestate/savestate_sh1.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -218,7 +218,7 @@ struct InterruptController {
     // -------------------------------------------------------------------------
     // Save states
 
-    void SaveState(state::SH1State::INTC &state) const {
+    void SaveState(savestate::SH1SaveState::INTC &state) const {
         state.ICR = ReadICR();
         state.levels = m_levels;
         state.vectors = m_vectors;
@@ -228,11 +228,11 @@ struct InterruptController {
         state.irqs = irqs;
     }
 
-    bool ValidateState(const state::SH1State::INTC &state) const {
+    bool ValidateState(const savestate::SH1SaveState::INTC &state) const {
         return true;
     }
 
-    void LoadState(const state::SH1State::INTC &state) {
+    void LoadState(const savestate::SH1SaveState::INTC &state) {
         WriteICR<true, true, true>(state.ICR);
         m_levels = state.levels;
         m_vectors = state.vectors;

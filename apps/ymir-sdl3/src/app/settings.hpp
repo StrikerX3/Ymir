@@ -480,12 +480,16 @@ struct Settings {
         display::DisplayMode fullScreenMode;
         bool borderlessFullScreen;
 
-        util::Observable<bool> deinterlace;
-        util::Observable<bool> transparentMeshes;
+        struct SoftwareRenderer {
+            util::Observable<bool> threadedVDP1;
+            util::Observable<bool> threadedVDP2;
+            util::Observable<bool> threadedDeinterlacer;
+        } swRenderer;
 
-        util::Observable<bool> threadedVDP1;
-        util::Observable<bool> threadedVDP2;
-        util::Observable<bool> threadedDeinterlacer;
+        struct Enhancements {
+            util::Observable<bool> deinterlace;
+            util::Observable<bool> transparentMeshes;
+        } enhancements;
     } video;
 
     struct Audio {
