@@ -732,14 +732,14 @@ FLATTEN FORCE_INLINE uint8 SH2::MemReadByte(uint32 address) {
     return MemRead<uint8, false, false, enableCache>(address);
 }
 
-template <bool enableCache>
+template <bool enableCache, bool instrFetch>
 FLATTEN FORCE_INLINE uint16 SH2::MemReadWord(uint32 address) {
-    return MemRead<uint16, false, false, enableCache>(address);
+    return MemRead<uint16, instrFetch, false, enableCache>(address);
 }
 
-template <bool enableCache>
+template <bool enableCache, bool instrFetch>
 FLATTEN FORCE_INLINE uint32 SH2::MemReadLong(uint32 address) {
-    return MemRead<uint32, false, false, enableCache>(address);
+    return MemRead<uint32, instrFetch, false, enableCache>(address);
 }
 
 template <bool debug, bool enableCache>
@@ -2694,7 +2694,7 @@ FORCE_INLINE uint64 SH2::MOVWI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = pc + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
+    R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache, true>(address));
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2705,7 +2705,7 @@ FORCE_INLINE uint64 SH2::MOVLI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = (pc & ~3u) + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
-    R[args.rn] = MemReadLong<enableCache>(address);
+    R[args.rn] = MemReadLong<enableCache, true>(address);
     AdvancePC<delaySlot>();
     return cycles;
 }

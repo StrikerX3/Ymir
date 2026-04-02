@@ -1212,6 +1212,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblSystem, "InternalBackupRAMImagePath", system.internalBackupRAMImagePath);
         Parse(tblSystem, "InternalBackupRAMPerGame", system.internalBackupRAMPerGame);
         system.internalBackupRAMImagePath = Absolute(ProfilePath::PersistentState, system.internalBackupRAMImagePath);
+        m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(system.emulateSH2Cache));
 
         auto &ipl = system.ipl;
         if (auto tblIPL = tblSystem["IPL"]) {

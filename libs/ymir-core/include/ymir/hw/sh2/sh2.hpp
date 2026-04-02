@@ -717,14 +717,15 @@ private:
     template <mem_primitive T, bool poke, bool debug, bool enableCache>
     void MemWrite(uint32 address, T value);
 
+    // TODO: should be a 32-bit read (two 16-bit instructions per fetch)
     template <bool enableCache>
     uint16 FetchInstruction(uint32 address);
 
     template <bool enableCache>
     uint8 MemReadByte(uint32 address);
-    template <bool enableCache>
+    template <bool enableCache, bool instrFetch = false>
     uint16 MemReadWord(uint32 address);
-    template <bool enableCache>
+    template <bool enableCache, bool instrFetch = false>
     uint32 MemReadLong(uint32 address);
 
     template <bool debug, bool enableCache>
