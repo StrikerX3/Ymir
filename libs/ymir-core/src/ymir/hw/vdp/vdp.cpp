@@ -963,9 +963,9 @@ void VDP::VDP1BeginFrame() {
     m_state.regs1.currCommandAddress = 0;
     m_state.regs1.currFrameEnded = false;
 
-    // Don't even bother processing if the table starts with an empty command
+    // Don't even bother processing if the table starts with a handful of empty commands
     bool valid = false;
-    for (uint32 i = 0; i < 32; i += 2) {
+    for (uint32 i = 0; i < 32 * 4; i += 2) {
         const auto value = VDP1ReadVRAM<uint16>(i);
         if (value != 0) {
             valid = true;
