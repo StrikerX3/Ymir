@@ -93,7 +93,7 @@ jobs:
         continue-on-error: true  # in case this fails if the release doesn't exist
 
       - name: Release
-        uses: softprops/action-gh-release@1853d73993c8ca1b2c9c1a7fede39682d0ab5c2a
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
         with:
           name: Latest nightly release
           draft: false
