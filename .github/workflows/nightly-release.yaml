@@ -85,12 +85,10 @@ jobs:
           merge-multiple: true
 
       - name: Delete existing release
-        uses: author/action-rollback@f4473931b1155b601092ec00eb1fa4882b80219f
-        with:
-          tag: ${{ env.NIGHTLY_TAG_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true  # in case this fails if the release doesn't exist
+        run: |
+          gh release delete ${{ env.NIGHTLY_TAG_NAME }} --yes --cleanup-tag
 
       - name: Release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
