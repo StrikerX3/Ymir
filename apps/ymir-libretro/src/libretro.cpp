@@ -3,7 +3,7 @@
 #include <ymir/sys/saturn.hpp>
 
 #include <ymir/media/loader/loader.hpp>
-#include <ymir/state/state.hpp>
+#include <ymir/savestate/savestate.hpp>
 
 #include <ymir/core/configuration.hpp>
 #include <ymir/hw/smpc/peripheral/peripheral_report.hpp>
@@ -297,7 +297,7 @@ static struct {
     bool is_pal = false;
 
     // Save state reuse: avoids multi-MB heap alloc/free per serialize call
-    std::unique_ptr<ymir::state::State> reusable_state;
+    std::unique_ptr<ymir::savestate::SaveState> reusable_state;
     size_t cached_state_size = 0;
 
     // Device type per port
@@ -1318,7 +1318,7 @@ struct StateReader {
     }
 };
 
-void write_scu(StateWriter &w, const ymir::state::SCUState &s) {
+void write_scu(StateWriter &w, const ymir::savestate::SCUSaveState &s) {
     for (const auto &dma : s.dma)
         w.pod(dma);
     w.pod(s.dsp);
@@ -1333,12 +1333,11 @@ void write_scu(StateWriter &w, const ymir::state::SCUState &s) {
     w.pod(s.timer0Compare);
     w.pod(s.timer1Reload);
     w.pod(s.timer1Mode);
-    w.pod(s.timer1Triggered);
     w.pod(s.timerEnable);
     w.pod(s.wramSizeSelect);
 }
 
-bool read_scu(StateReader &r, ymir::state::SCUState &s) {
+bool read_scu(StateReader &r, ymir::savestate::SCUSaveState &s) {
     for (auto &dma : s.dma)
         if (!r.pod(dma))
             return false;
@@ -1351,10 +1350,10 @@ bool read_scu(StateReader &r, ymir::state::SCUState &s) {
     return r.pod(s.intrMask) && r.pod(s.intrStatus) && r.pod(s.abusIntrsPendingAck)
         && r.pod(s.pendingIntrLevel) && r.pod(s.pendingIntrIndex) && r.pod(s.timer0Counter)
         && r.pod(s.timer0Compare) && r.pod(s.timer1Reload) && r.pod(s.timer1Mode)
-        && r.pod(s.timer1Triggered) && r.pod(s.timerEnable) && r.pod(s.wramSizeSelect);
+        && r.pod(s.timerEnable) && r.pod(s.wramSizeSelect);
 }
 
-void write_smpc(StateWriter &w, const ymir::state::SMPCState &s) {
+void write_smpc(StateWriter &w, const ymir::savestate::SMPCSaveState &s) {
     w.pod(s.IREG);
     w.pod(s.OREG);
     w.pod(s.COMREG);
@@ -1380,7 +1379,7 @@ void write_smpc(StateWriter &w, const ymir::state::SMPCState &s) {
     w.pod(s.rtcSysClockCount);
 }
 
-bool read_smpc(StateReader &r, ymir::state::SMPCState &s) {
+bool read_smpc(StateReader &r, ymir::savestate::SMPCSaveState &s) {
     return r.pod(s.IREG) && r.pod(s.OREG) && r.pod(s.COMREG) && r.pod(s.SR) && r.pod(s.SF)
         && r.pod(s.PDR1) && r.pod(s.PDR2) && r.pod(s.DDR1) && r.pod(s.DDR2) && r.pod(s.IOSEL)
         && r.pod(s.EXLE) && r.pod(s.intback.getPeripheralData) && r.pod(s.intback.optimize)
@@ -1390,7 +1389,7 @@ bool read_smpc(StateReader &r, ymir::state::SMPCState &s) {
         && r.pod(s.commandEventState) && r.pod(s.rtcTimestamp) && r.pod(s.rtcSysClockCount);
 }
 
-size_t write_state(const ymir::state::State &s, uint8_t *buf) {
+size_t write_state(const ymir::savestate::SaveState &s, uint8_t *buf) {
     StateWriter w{buf};
     w.pod(kStateMagic);
     w.pod(kStateVersion);
@@ -1416,7 +1415,7 @@ size_t write_state(const ymir::state::State &s, uint8_t *buf) {
     return w.pos;
 }
 
-bool read_state(ymir::state::State &s, const uint8_t *buf, size_t size) {
+bool read_state(ymir::savestate::SaveState &s, const uint8_t *buf, size_t size) {
     StateReader r{buf, 0, size};
     uint32_t magic, version;
     if (!r.pod(magic) || magic != kStateMagic)
@@ -1445,7 +1444,7 @@ RETRO_API size_t retro_serialize_size(void) {
 
     if (core.cached_state_size == 0) {
         if (!core.reusable_state)
-            core.reusable_state = std::make_unique<ymir::state::State>();
+            core.reusable_state = std::make_unique<ymir::savestate::SaveState>();
         core.saturn->SaveState(*core.reusable_state);
         core.cached_state_size = write_state(*core.reusable_state, nullptr) + 4096;
     }
@@ -1457,7 +1456,7 @@ RETRO_API bool retro_serialize(void *data, size_t size) {
         return false;
 
     if (!core.reusable_state)
-        core.reusable_state = std::make_unique<ymir::state::State>();
+        core.reusable_state = std::make_unique<ymir::savestate::SaveState>();
     core.saturn->SaveState(*core.reusable_state);
     write_state(*core.reusable_state, static_cast<uint8_t *>(data));
     return true;
@@ -1468,7 +1467,7 @@ RETRO_API bool retro_unserialize(const void *data, size_t size) {
         return false;
 
     if (!core.reusable_state)
-        core.reusable_state = std::make_unique<ymir::state::State>();
+        core.reusable_state = std::make_unique<ymir::savestate::SaveState>();
     if (!read_state(*core.reusable_state, static_cast<const uint8_t *>(data), size)) {
         LOG(RETRO_LOG_ERROR, "[Ymir] Failed to deserialize save state.\n");
         return false;
