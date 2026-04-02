@@ -856,6 +856,9 @@ private:
     // Raises the interrupt signal of the specified source.
     FORCE_INLINE void RaiseInterrupt(InterruptSource source) {
         const uint8 level = INTC.GetLevel(source);
+        if (level == 0) {
+            return;
+        }
         if (level < INTC.pending.level) {
             return;
         }
@@ -873,10 +876,6 @@ private:
             RecalcInterrupts();
         }
     }
-
-    // Updates the pending interrupt level if it matches one of the specified sources.
-    template <InterruptSource source, InterruptSource... sources>
-    void UpdateInterruptLevels();
 
     // Recalculates the highest priority interrupt to be serviced.
     void RecalcInterrupts();
