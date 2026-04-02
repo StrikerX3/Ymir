@@ -22,6 +22,7 @@ struct SH2SaveState {
 
     uint32 delaySlotTarget;
     bool delaySlot;
+    bool intrAllow;
 
     struct BSC {
         uint16 BCR1;

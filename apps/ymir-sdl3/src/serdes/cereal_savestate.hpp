@@ -72,12 +72,20 @@ void serialize(Archive &ar, SystemSaveState &s) {
 
 template <class Archive>
 void serialize(Archive &ar, SH2SaveState &s, const uint32 version) {
+    // v12:
+    // - New fields
+    //   - bool intrAllow = true
     // v6:
     // - New fields
     //   - bool sleep = false
 
     ar(s.R, s.PC, s.PR, s.MACL, s.MACH, s.SR, s.GBR, s.VBR);
     ar(s.delaySlot, s.delaySlotTarget);
+    if (version >= 12) {
+        ar(s.intrAllow);
+    } else {
+        s.intrAllow = true;
+    }
     ar(s.bsc, s.dmac);
     serialize(ar, s.wdt, version);
     serialize(ar, s.divu, version);

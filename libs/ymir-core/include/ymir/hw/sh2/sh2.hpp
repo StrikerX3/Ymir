@@ -887,6 +887,10 @@ private:
     // There's no need to store this in the save state struct since its value can be derived as above.
     bool m_intrPending;
 
+    // Whether an interrupt is allowed to be serviced on the next instruction.
+    // All LDC, LDS, STC and STS instructions block interrupts on the following instruction.
+    bool m_intrAllow = true;
+
     // -------------------------------------------------------------------------
     // Cache
 

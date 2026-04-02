@@ -266,6 +266,7 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     FRT.Reset();
     INTC.Reset();
     m_intrPending = false;
+    m_intrAllow = true;
 
     m_delaySlotTarget = 0;
     m_delaySlot = false;
@@ -425,6 +426,7 @@ void SH2::SaveState(savestate::SH2SaveState &state) const {
     state.VBR = VBR;
     state.delaySlotTarget = m_delaySlotTarget;
     state.delaySlot = m_delaySlot;
+    state.intrAllow = m_intrAllow;
 
     state.bsc.BCR1 = BCR1.u16;
     state.bsc.BCR2 = BCR2.u16;
@@ -462,6 +464,7 @@ void SH2::LoadState(const savestate::SH2SaveState &state) {
     VBR = state.VBR;
     m_delaySlotTarget = state.delaySlotTarget;
     m_delaySlot = state.delaySlot;
+    m_intrAllow = state.intrAllow;
 
     BCR1.u15 = state.bsc.BCR1; // Do not change the MASTER bit
     BCR2.u16 = state.bsc.BCR2;
@@ -1406,7 +1409,10 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
         break;
 
     case 0x108:
-    case 0x128: DIVU.DVCR.Write(value); break;
+    case 0x128:
+        DIVU.DVCR.Write(value);
+        RecalcInterrupts();
+        break;
 
     case 0x10C:
     case 0x12C:
@@ -1944,7 +1950,7 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
 
 template <bool debug, bool enableCache>
 FORCE_INLINE uint64 SH2::InterpretNext() {
-    if (m_intrPending) [[unlikely]] {
+    if (m_intrPending && m_intrAllow) [[unlikely]] {
         // Service interrupt
         const uint8 vecNum = INTC.GetVector(INTC.pending.source);
         TraceInterrupt<debug>(m_tracer, vecNum, INTC.pending.level, INTC.pending.source, PC);
@@ -1970,6 +1976,7 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
         }
         return cycles + 1;
     }
+    m_intrAllow = true;
 
     // TODO: emulate or approximate fetch - decode - execute - memory access - writeback pipeline
 
@@ -2807,6 +2814,7 @@ FORCE_INLINE uint64 SH2::XTRCT(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCGBR(const DecodedArgs &args) {
     GBR = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2816,6 +2824,7 @@ template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCSR(const DecodedArgs &args) {
     SR.u32 = R[args.rm] & 0x000003F3;
     m_intrPending = !delaySlot && INTC.pending.level > SR.ILevel;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2824,6 +2833,7 @@ FORCE_INLINE uint64 SH2::LDCSR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCVBR(const DecodedArgs &args) {
     VBR = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2832,6 +2842,7 @@ FORCE_INLINE uint64 SH2::LDCVBR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMACH(const DecodedArgs &args) {
     MAC.H = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2840,6 +2851,7 @@ FORCE_INLINE uint64 SH2::LDSMACH(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMACL(const DecodedArgs &args) {
     MAC.L = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2848,6 +2860,7 @@ FORCE_INLINE uint64 SH2::LDSMACL(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSPR(const DecodedArgs &args) {
     PR = R[args.rm];
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2856,6 +2869,7 @@ FORCE_INLINE uint64 SH2::LDSPR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
     R[args.rn] = GBR;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2864,6 +2878,7 @@ FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
     R[args.rn] = SR.u32;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2872,6 +2887,7 @@ FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
     R[args.rn] = VBR;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2880,6 +2896,7 @@ FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
     R[args.rn] = MAC.H;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2888,6 +2905,7 @@ FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
     R[args.rn] = MAC.L;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2896,6 +2914,7 @@ FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
 template <bool delaySlot>
 FORCE_INLINE uint64 SH2::STSPR(const DecodedArgs &args) {
     R[args.rn] = PR;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return 1;
 }
@@ -2907,6 +2926,7 @@ FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address) + 2;
     GBR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2919,6 +2939,7 @@ FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
     SR.u32 = MemReadLong<enableCache>(address) & 0x000003F3;
     m_intrPending = !delaySlot && INTC.pending.level > SR.ILevel;
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2930,6 +2951,7 @@ FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address) + 2;
     VBR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2941,6 +2963,7 @@ FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     MAC.H = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2952,6 +2975,7 @@ FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     MAC.L = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2963,6 +2987,7 @@ FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     PR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2974,6 +2999,7 @@ FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, GBR);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2985,6 +3011,7 @@ FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, SR.u32);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -2996,6 +3023,7 @@ FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, VBR);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -3007,6 +3035,7 @@ FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, MAC.H);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -3018,6 +3047,7 @@ FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, MAC.L);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
@@ -3029,6 +3059,7 @@ FORCE_INLINE uint64 SH2::STSMPR(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, PR);
+    m_intrAllow = false;
     AdvancePC<delaySlot>();
     return cycles;
 }
