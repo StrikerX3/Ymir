@@ -732,7 +732,7 @@ void Saturn::ConfigureAccessCycles(bool fastTimings) {
         // The timings below pass misctest, but are too slow in practice
 
         // mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 4, 4); // Default timings for all regions
-
+        //
         // mainBus.SetAccessCycles(0x000'0000, 0x00F'FFFF, 9, 9);   // IPL/BIOS ROM
         // mainBus.SetAccessCycles(0x018'0000, 0x01F'FFFF, 9, 9);   // Internal Backup RAM
         // mainBus.SetAccessCycles(0x020'0000, 0x02F'FFFF, 8, 8);   // Low Work RAM
