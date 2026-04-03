@@ -231,7 +231,17 @@ struct VDP2State {
     // Derived from RAMCTL.RDBS(A-B)(0-1)(1-0), RAMCTL.VRAMD and RAMCTL.VRBMD
     std::array<bool, 4> coeffAccess;
 
-    /// @brief Computes the access patterns for NBGs and RBGs.
+    /// @brief Computes access delays and permissions based on VRAM access patterns for NBGs and RBGs and more factors:
+    /// - CYCA0L, CYCA0U, CYCA1L, CYCA1U, CYCB0L, CYCB0U, CYCB1L, CYCB1U: access pattern timings
+    /// - RAMCTL.VR(A/B)MD: VRAM bank A0/A1 and B0/B1 partitioning
+    /// - RAMCTL.RDBS(A0/A1/B0/B1)n: rotation data assignments per VRAM bank
+    /// - TVMD.HRESOn: normal vs. high resolution
+    /// - BGON.xxON: NBG/RBG enable
+    /// - CHCTL(A/B).xxBMEN: NBG/RBG bitmap enable
+    /// - CHCTL(A/B).xxCHSZ: NBG/RBG 1x1 vs. 2x2 character patterns
+    /// - CHCTL(A/B).xxCHCNn: NBG/RBG color format
+    /// - ZMCTL.NxZM(QT/HF): scroll reduction (1/2x, 1/4x)
+    ///
     /// @param[in] regs2 the VDP2 registers to use
     void CalcAccessPatterns(VDP2Regs &regs2) {
         if (!regs2.accessPatternsDirty) [[likely]] {
@@ -645,7 +655,10 @@ struct VDP2State {
         coeffAccess[3] = isCoeff(vramCtl.partitionVRAMB ? vramCtl.rotDataBankSelB1 : vramCtl.rotDataBankSelB0);
     }
 
-    /// @brief Computes vertical cell scroll access delays for NBGs 0 and 1.
+    /// @brief Computes vertical cell scroll access delays for NBGs 0 and 1 based on these factors:
+    /// - CYCA0L, CYCA0U, CYCA1L, CYCA1U, CYCB0L, CYCB0U, CYCB1L, CYCB1U: access pattern timings
+    /// - SCRCTL.NnVCSC: vertical cell scroll enable
+    ///
     /// @param[in] regs2 the VDP2 registers to use
     void CalcVCellScrollDelay(VDP2Regs &regs2) {
         if (!regs2.vcellScrollDirty) [[likely]] {
