@@ -1759,3 +1759,54 @@ TestData{
     // Rotation coefficient accesses
     {false, false, false, false},
 },
+
+TestData{
+    "Rayman :: The Swamps of Forgetfulness :: VC in illegal slot causes delay",
+    0x1FFD5555, // 010,012 CYCA0L/U  PN1 -   -   VC1 CP1 CP1 CP1 CP1
+    0xFFFFFFFF, // 014,016 CYCA1L/U  -   -   -   -   -   -   -   -
+    0x44440FFF, // 018,01A CYCB0L/U  CP0 CP0 CP0 CP0 PN0 -   -   -
+    0xFFFFFFFF, // 01C,01E CYCB1L/U  -   -   -   -   -   -   -   -
+    0x1000, // 00E RAMCTL  A, B, no rotparams
+    0x8000, // 000 TVMD    lo-res
+    0x0003, // 020 BGON    NBG0, NBG1
+    0x3111, // 028 CHCTLA  NBG0 = pal256 scroll 2x2   NBG1 = rgb555 scroll 2x2
+    0x0000, // 02A CHCTLB
+    0x0000, // 098 ZMCTL   NBG0 = 1x reduction        NBG1 = 1x reduction
+    0x0F00, // 09A SCRCTL  NBG0 =                     NBG1 =
+
+    // Expected
+    {{
+        // NBG0
+        {
+            .check = true,
+            .bitmap = false,
+            .patNameAccess = {false, false, true, true},
+            .charPatAccess = {false, false, true, true},
+            .charPatDelay = {false, false, false, false},
+            .vramDataOffset = {0, 0, 0, 0},
+            .vcellScrollDelay = false,
+            .vcellScrollRepeat = false,
+            .vcellScrollOffset = 0,
+        },
+        // NBG1
+        {
+            .check = true,
+            .bitmap = false,
+            .patNameAccess = {true, true, false, false},
+            .charPatAccess = {true, true, false, false},
+            .charPatDelay = {false, false, false, false},
+            .vramDataOffset = {0, 0, 0, 0},
+            .vcellScrollDelay = true,
+            .vcellScrollRepeat = false,
+            .vcellScrollOffset = 0,
+        },
+        // NBG2
+        {},
+        // NBG3
+        {},
+    }},
+    // Vertical cell scroll increment
+    4,
+    // Rotation coefficient accesses
+    {false, false, false, false},
+},
