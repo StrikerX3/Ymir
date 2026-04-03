@@ -1024,17 +1024,21 @@ uint64 VDP::VDP1ProcessCommand() {
     using enum VDP1Command::JumpType;
     switch (control.jumpMode) {
     case Next: cmdAddress += 0x20; break;
-    case Assign:
-        cmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
-        devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", cmdAddress);
+    case Assign: {
+        const uint32 nextCmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
+        devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", nextCmdAddress);
 
-        // HACK: Sonic R attempts to jump back to 0 in some cases
-        if (cmdAddress == 0) {
+        // HACK: Avoid infinite loops
+        // - Sonic R attempts to jump back to 0 in some cases
+        // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
+        if (nextCmdAddress == 0 || nextCmdAddress == cmdAddress) {
             devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
             VDP1EndFrame();
             return cycles;
         }
+        cmdAddress = nextCmdAddress;
         break;
+    }
     case Call:
         // Nested calls seem to not update the return address
         if (m_state.regs1.returnAddress == kVDP1NoReturn) {
