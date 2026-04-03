@@ -430,20 +430,15 @@ void SoftwareVDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {
 }
 
 void SoftwareVDPRenderer::VDP1SwapFramebuffer() {
-    if (m_threadedVDP2Rendering) {
-        m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::VDP1SwapFramebuffer());
-    }
     if (m_threadedVDP1Rendering) {
         m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::SwapBuffers());
-    }
-
-    if (m_threadedVDP2Rendering) {
-        m_vdp2RenderingContext.framebufferSwapSignal.Wait();
-        m_vdp2RenderingContext.framebufferSwapSignal.Reset();
-    }
-    if (m_threadedVDP1Rendering) {
         m_vdp1RenderingContext.swapBuffersSignal.Wait();
         m_vdp1RenderingContext.swapBuffersSignal.Reset();
+    }
+    if (m_threadedVDP2Rendering) {
+        m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::VDP1SwapFramebuffer());
+        m_vdp2RenderingContext.framebufferSwapSignal.Wait();
+        m_vdp2RenderingContext.framebufferSwapSignal.Reset();
     }
 
     Callbacks.VDP1FramebufferSwap();
