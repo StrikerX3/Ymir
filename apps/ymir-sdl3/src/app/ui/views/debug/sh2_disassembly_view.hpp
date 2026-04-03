@@ -13,6 +13,7 @@ public:
 
     void Display();
     void JumpTo(uint32 address);
+    void JumpToPC();
 
 private:
     SharedContext &m_context;
@@ -113,10 +114,14 @@ private:
     struct Cursor {
         uint32 address = 0;
         uint32 viewportTopAddress = 0;
+        uint32 currentPC = 0;
     } m_cursor;
 
-    // Moves the cursor to the specified address and adjusts the viewport accordingly
-    void MoveCursor(uint32 address, uint32 lineCount);
+    /// @brief Adjusts the viewport to display the specified address.
+    /// @param[in] address the target address
+    /// @param[in] lineCount the number of lines in the viewport
+    /// @param[in] setCursor whether to also set the cursor position
+    void MoveView(uint32 address, uint32 lineCount, bool setCursor);
 };
 
 } // namespace app::ui

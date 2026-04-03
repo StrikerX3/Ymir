@@ -162,9 +162,13 @@ void SH2DebugToolbarView::Display() {
     auto doJump = [&] {
         // Align to even addresses
         m_jumpAddress = m_jumpAddress & ~1u;
-        m_model.jumpAddress = m_jumpAddress;
-        m_model.jumpRequested = true;
-        m_model.followPC = false;
+        m_model.JumpTo(m_jumpAddress);
+    };
+
+    auto doJumpToPC = [&] {
+        // Align to even addresses
+        m_jumpAddress = probe.PC() & ~1u;
+        m_model.JumpToPC();
     };
 
     // Input field to jump to address
@@ -173,8 +177,7 @@ void SH2DebugToolbarView::Display() {
 
     ImGui::SameLine();
     if (ImGui::Button("PC##goto")) {
-        m_jumpAddress = probe.PC();
-        doJump();
+        doJumpToPC();
     }
 
     ImGui::SameLine();

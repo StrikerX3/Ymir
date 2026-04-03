@@ -131,37 +131,33 @@ void SH2DisassemblyView::Display() {
         if (m_model.jumpRequested) {
             m_model.jumpRequested = false;
             m_model.followPC = false; // stop following PC when responding to manual jumps
-            MoveCursor(m_model.jumpAddress, lines);
-        } else if (m_model.followPC && m_cursor.address != pc) {
-            MoveCursor(pc, lines);
-        } else if (!m_model.followPC || m_context.paused) {
+            MoveView(m_model.jumpAddress, lines, true);
+        } else if (m_model.jumpToPCRequested || (m_model.followPC && m_cursor.currentPC != pc)) {
+            m_model.jumpToPCRequested = false;
+            MoveView(pc, lines, false);
+        } else {
             // Handle keyboard navigation
             // The cursor can be freely moved when not following PC or while the emulator is paused
             if (childWindowFocused) {
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address - sizeof(uint16), lines);
+                    MoveView(m_cursor.address - sizeof(uint16), lines, true);
                 }
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address + sizeof(uint16), lines);
+                    MoveView(m_cursor.address + sizeof(uint16), lines, true);
                 }
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_Home)) {
                     const uint32 slideCount = lines * kSlideOffsetTop + 0.5f;
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.viewportTopAddress - slideCount * sizeof(uint16), lines);
+                    MoveView(m_cursor.viewportTopAddress - slideCount * sizeof(uint16), lines, true);
                 }
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_End)) {
                     const uint32 slideCount = lines * kSlideOffsetBottom + 0.5f;
-                    MoveCursor(m_cursor.viewportTopAddress + (lines - slideCount - 1) * sizeof(uint16), lines);
+                    MoveView(m_cursor.viewportTopAddress + (lines - slideCount - 1) * sizeof(uint16), lines, true);
                 }
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address - lines * sizeof(uint16), lines);
+                    MoveView(m_cursor.address - lines * sizeof(uint16), lines, true);
                 }
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address + lines * sizeof(uint16), lines);
+                    MoveView(m_cursor.address + lines * sizeof(uint16), lines, true);
                 }
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
                     toggleBreakpoint(m_cursor.address);
@@ -169,15 +165,11 @@ void SH2DisassemblyView::Display() {
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
                     toggleBreakpoint(m_cursor.address);
                 }
-                /*if (io.KeyMods == ImGuiMod_Shift && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
-                    toggleWatchpoint(m_cursor.address);
-                }*/
             }
 
             // Handle mouse inputs
             if (childWindowHovered) {
                 if (io.MouseWheel) {
-                    m_model.followPC = false;
                     const sint32 scrollAmount = io.MouseWheel * 3 * sizeof(uint16);
                     m_cursor.viewportTopAddress -= scrollAmount;
                     m_cursor.address -= scrollAmount;
@@ -444,8 +436,7 @@ void SH2DisassemblyView::Display() {
                 ImGui::SameLine(0.0f, 0.0f);
 
                 if (lineClicked && !mouseHandled && (!m_model.followPC || m_context.paused)) {
-                    m_model.followPC = false;
-                    MoveCursor(address, lines);
+                    MoveView(address, lines, true);
                 }
             };
 
@@ -1078,14 +1069,15 @@ void SH2DisassemblyView::Display() {
     ImGui::EndChild();
 }
 
-void SH2DisassemblyView::JumpTo(uint32 address) {
-    m_model.jumpRequested = true;
-    m_model.jumpAddress = address & ~1u;
-}
-
-void SH2DisassemblyView::MoveCursor(uint32 address, uint32 lineCount) {
+void SH2DisassemblyView::MoveView(uint32 address, uint32 lineCount, bool setCursor) {
     address &= ~1u; // force-align to instruction boundary
-    m_cursor.address = address;
+    if (setCursor) {
+        m_cursor.address = address;
+    }
+    if (m_model.followPC) {
+        m_cursor.currentPC = m_sh2.GetProbe().PC();
+        m_cursor.address = address;
+    }
 
     const uint32 slideCountTop = lineCount * kSlideOffsetTop + 0.5f;
     const uint32 slideCountBtm = lineCount * kSlideOffsetBottom + 0.5f;
@@ -1134,7 +1126,7 @@ void SH2DisassemblyView::MoveCursor(uint32 address, uint32 lineCount) {
 
     // The cursor is outside the sliding window threshold; recenter it
     const size_t recenterIndex = lineCount * kRecenterOffset + 0.5f;
-    m_cursor.viewportTopAddress = m_cursor.address - recenterIndex * sizeof(uint16);
+    m_cursor.viewportTopAddress = address - recenterIndex * sizeof(uint16);
 }
 
 } // namespace app::ui

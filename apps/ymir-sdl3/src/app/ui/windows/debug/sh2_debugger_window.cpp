@@ -28,7 +28,7 @@ void SH2DebuggerWindow::RequestOpen(bool triggeredByEvent, bool requestFocus) {
         RequestFocus();
     }
     if (triggeredByEvent && m_debuggerModel.followPCOnEvents) {
-        m_debuggerModel.followPC = true;
+        m_debuggerModel.JumpToPC();
     }
 }
 
