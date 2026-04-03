@@ -353,8 +353,8 @@ struct VDP2State {
                     //                     B0  CP0 01234567  no      Street Fighter Zero 3, Capcom logo FMV
                     // --- scroll NBGs ---
                     //  # Res  ZM  Cell  Color  Bnk  CP mapping    Delay?  Game screen
-                    // 13 lo   1x  1x1   pal256  -   PN0 ........          DoDonPachi, title screen background
-                    //                           A   CP0 01......  no      DoDonPachi, title screen background
+                    // 13 lo   1x  1x1   pal256  B0  PN2 0.......          DoDonPachi, title screen background
+                    //                           B1  CP0 0.......  no      DoDonPachi, title screen background
                     // 14 lo   1x  1x1   pal16   -   PN1 ........          Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
                     //                           B0  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
                     //                           B1  CP1 0123....  no      Gouketsuji Ichizoku 3 - Groove on Fight, scrolling background in Options screen
@@ -421,9 +421,14 @@ struct VDP2State {
                     //
                     // For scroll NBGs, the delay only occurs if CP accesses are assigned to illegal timing slots.
                     //
-                    // Cases #13 and #14 illustrate that the PN access is actually optional (perhaps only for NBG0-1?).
+                    // Case #13 is a normal, valid scroll NBG PN/CP access pair.
                     //
-                    // In case #15, the CP2 access in bank A0 is assigned to T3, which is illegal for PN at T0.
+                    // In case #14, PN0 is assigned more times than needed for NBG0, but this doesn't cause any
+                    // problems. Also, the CP0 access on T3 is illegal but causes no issues because of the legal
+                    // accesses on T0-T2.
+                    //
+                    // In case #15, the CP2 access in bank A0 is assigned to T3, which is illegal for PN at T0. Because
+                    // this is assigned to the first half (T0-T3), one CP read is skipped in the line.
                     //
                     // Case #16 shows legal accesses. Note that there are CP0-CP3 accesses in both the T0-T3 and T4-T7
                     // ranges, but this does not cause the T4-T7 accesses to be shifted.
@@ -433,7 +438,7 @@ struct VDP2State {
                     // accesses in T6 and T7 valid. PN accesses on T4 and T5 would make those CP accesses invalid.
                     //
                     // Cases #20 and #21 contrast with case #15 in that the illegal CP accesses occur on T4-T7 instead
-                    // of T0-T3. In these cases, instead of a shift, there is a character read delay. Also, there is no
+                    // of T0-T3. In these cases, instead of a skip, there is a character read delay. Also, there is no
                     // shuffling of cells (no delay) when using 2x2 characters as seen in case #20.
 
                     auto &bgParams = regs2.bgParams[bgIndex + 1];
@@ -677,6 +682,8 @@ struct VDP2State {
 
         regs2.vcellScrollInc = 0;
         uint32 vcellAccessOffset = 0;
+        nbgLayerStates[0].vcellScrollOffset = 0;
+        nbgLayerStates[1].vcellScrollOffset = 0;
 
         // Update cycle accesses
         for (uint32 bank = 0; bank < 4; ++bank) {

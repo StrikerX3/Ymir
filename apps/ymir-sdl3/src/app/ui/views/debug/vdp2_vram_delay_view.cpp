@@ -15,7 +15,8 @@ VDP2VRAMDelayView::VDP2VRAMDelayView(SharedContext &context, vdp::VDP &vdp)
 void VDP2VRAMDelayView::Display() {
     auto &probe = m_vdp.GetProbe();
     const auto &regs2 = probe.GetVDP2Regs();
-    const auto &nbgLayerStates = probe.GetNBGLayerStates();
+    const auto &state2 = probe.GetVDP2State();
+    const auto &nbgLayerStates = state2.nbgLayerStates;
 
     const float paddingWidth = ImGui::GetStyle().FramePadding.x;
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);

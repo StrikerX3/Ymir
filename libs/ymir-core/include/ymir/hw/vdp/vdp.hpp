@@ -376,8 +376,8 @@ private:
     // -------------------------------------------------------------------------
     // VDP1 state
 
-    struct VDP1State {
-        VDP1State() {
+    struct VDP1ControlState {
+        VDP1ControlState() {
             Reset();
         }
 
@@ -397,7 +397,7 @@ private:
         // Command processing cycles spilled over from previous executions.
         // Deducted from future executions to compensate for overshooting the target cycle count.
         uint64 spilloverCycles;
-    } m_VDP1State;
+    } m_VDP1CtlState;
 
     // Hacky VDP1 command execution timing penalty accrued from external writes to VRAM
     // TODO: count pulled out of thin air
@@ -442,8 +442,8 @@ public:
 
         [[nodiscard]] const VDP1Regs &GetVDP1Regs() const;
         [[nodiscard]] const VDP2Regs &GetVDP2Regs() const;
-
-        [[nodiscard]] const std::array<NBGLayerState, 4> &GetNBGLayerStates() const;
+        [[nodiscard]] const VDP1State &GetVDP1State() const;
+        [[nodiscard]] const VDP2State &GetVDP2State() const;
 
         [[nodiscard]] uint16 GetLatchedEraseWriteValue() const;
         [[nodiscard]] uint16 GetLatchedEraseX1() const;
