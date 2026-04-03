@@ -62,10 +62,8 @@ public:
         return false;
     }
 
-protected:
-    void ResetImpl(bool hard) override;
+    void Reset(bool hard) override;
 
-public:
     // -------------------------------------------------------------------------
     // Configuration
 
@@ -94,9 +92,9 @@ public:
     void PreSaveStateSync() override;
     void PostLoadStateSync() override;
 
-    void SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) override;
-    bool ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const override;
-    void LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) override;
+    void SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) override;
+    bool ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const override;
+    void LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state) override;
 
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
@@ -703,9 +701,9 @@ private:
         }
     };
 
-    // Layer state, containing the pixel output for the current scanline.
-    struct alignas(4096) LayerState {
-        LayerState() {
+    // Layer output, containing the pixel output for the current scanline.
+    struct alignas(4096) LayerOutput {
+        LayerOutput() {
             Reset();
         }
 
@@ -746,9 +744,9 @@ private:
         alignas(16) std::array<bool, kMaxResH> window;
     };
 
-    // Scaneline state for Rotation Parameters A and B.
-    struct RotationParamLineState {
-        RotationParamLineState() {
+    // Scanline output for Rotation Parameters A and B.
+    struct RotationParamLineOutput {
+        RotationParamLineOutput() {
             Reset();
         }
 
@@ -775,7 +773,7 @@ private:
 
     enum RotParamSelector { RotParamA, RotParamB };
 
-    // Layer state indices
+    // Layer output indices
     enum LayerIndex : uint8 {
         LYR_Sprite,
         LYR_RBG0,
@@ -804,7 +802,7 @@ private:
     /// Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<std::array<VRAMFetcher, 6>, 2> m_vramFetchers;
 
-    // Common layer states.
+    // Common layer outputs.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     //     RBG0+RBG1   RBG0        RBG1        no RBGs
     // [0] Sprite      Sprite      Sprite      Sprite
@@ -813,22 +811,22 @@ private:
     // [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
     // [4] -           NBG2        NBG2        NBG2
     // [5] -           NBG3        NBG3        NBG3
-    std::array<std::array<LayerState, 6>, 2> m_layerStates;
+    std::array<std::array<LayerOutput, 6>, 2> m_layerOutputs;
 
     // Sprite layer attributes.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<SpriteLayerAttributes, 2> m_spriteLayerAttrs;
 
-    // Transparent mesh layer states.
+    // Transparent mesh layer outputs.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
-    std::array<LayerState, 2> m_meshLayerState;
+    std::array<LayerOutput, 2> m_meshLayerOutput;
 
     // Transparent mesh sprite layer attributes.
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     std::array<SpriteLayerAttributes, 2> m_meshLayerAttrs;
 
-    // Scanline states for Rotation Parameters A and B.
-    std::array<RotationParamLineState, 2> m_rotParamLineStates;
+    // Scanline outputs for Rotation Parameters A and B.
+    std::array<RotationParamLineOutput, 2> m_rotParamLineOutputs;
 
     // Line colors per RBG per pixel.
     std::array<std::array<Color888, kMaxNormalResH>, 2> m_rbgLineColors;
@@ -1010,7 +1008,7 @@ private:
     //
     // y is the scanline to draw
     // bgParams contains the parameters for the BG to draw.
-    // layerState is a reference to the common layer state for the background.
+    // layerOut is a reference to the layer output for the background.
     // bgState is a reference to the background layer state for the background.
     // vramFetcher is the corresponding background layer's VRAM fetcher.
     // windowState is a reference to the window state for the layer.
@@ -1024,15 +1022,14 @@ private:
     // deinterlace determines whether to deinterlace video output
     template <CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll,
               bool deinterlace>
-    void VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
-                                const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
-                                std::span<const bool> windowState, bool altField);
+    void VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut, const NBGLayerState &bgState,
+                                VRAMFetcher &vramFetcher, std::span<const bool> windowState, bool altField);
 
     // Draws a normal bitmap BG scanline.
     //
     // y is the scanline to draw
     // bgParams contains the parameters for the BG to draw.
-    // layerState is a reference to the common layer state for the background.
+    // layerOut is a reference to the layer output for the background.
     // bgState is a reference to the background layer state for the background.
     // vramFetcher is the corresponding background layer's VRAM fetcher.
     // windowState is a reference to the window state for the layer.
@@ -1043,15 +1040,14 @@ private:
     // useVCellScroll determines whether to use the vertical cell scroll effect
     // deinterlace determines whether to deinterlace video output
     template <ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll, bool deinterlace>
-    void VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
-                                const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
-                                std::span<const bool> windowState, bool altField);
+    void VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut, const NBGLayerState &bgState,
+                                VRAMFetcher &vramFetcher, std::span<const bool> windowState, bool altField);
 
     // Draws a rotation scroll BG scanline.
     //
     // y is the scanline to draw.
     // bgParams contains the parameters for the BG to draw.
-    // layerState is a reference to the common layer state for the background.
+    // layerOut is a reference to the layer output for the background.
     // windowState is a reference to the window state for the layer.
     // altField selects the complementary field when rendering deinterlaced frames
     // vramFetcher is the corresponding background layer's VRAM fetcher.
@@ -1062,14 +1058,14 @@ private:
     // colorFormat is the color format for cell data.
     // colorMode is the CRAM color mode.
     template <uint32 bgIndex, CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode>
-    void VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams, LayerState &layerState, VRAMFetcher &vramFetcher,
+    void VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut, VRAMFetcher &vramFetcher,
                                   std::span<const bool> windowState, bool altField);
 
     // Draws a rotation bitmap BG scanline.
     //
     // y is the scanline to draw.
     // bgParams contains the parameters for the BG to draw.
-    // layerState is a reference to the common layer state for the background.
+    // layerOut is a reference to the layer output for the background.
     // windowState is a reference to the window state for the layer.
     // altField selects the complementary field when rendering deinterlaced frames
     //
@@ -1077,7 +1073,7 @@ private:
     // colorFormat is the color format for bitmap data.
     // colorMode is the CRAM color mode.
     template <uint32 bgIndex, ColorFormat colorFormat, uint32 colorMode>
-    void VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams, LayerState &layerState,
+    void VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut,
                                   std::span<const bool> windowState, bool altField);
 
     // Stores the line color for the specified pixel of the RBG.
