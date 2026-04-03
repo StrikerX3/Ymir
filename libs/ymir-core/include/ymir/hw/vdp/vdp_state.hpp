@@ -526,11 +526,16 @@ struct VDP2State {
                             if ((bgCPBank & ~kLoResPatterns[pnIndex]) >= 0b10000) {
                                 if (bgParams.cellSizeShift == 0) {
                                     // Illegal CP access in T4-T7 with 1x1 character cells -- shift right
-                                    bgParams.charPatDelay[bankIndex] = true;
+                                    bgParams.charPatDelay.fill(true);
                                 }
                             } else {
-                                // Illegal CP access in T0-T3 -- shift left
-                                bgParams.vramDataOffset[bankIndex] = 8u;
+                                // Illegal CP access in T0-T3
+                                // If PN happens before first CP, shift left, otherwise shift right
+                                if (pnIndex < std::countr_zero(bgCP)) {
+                                    bgParams.vramDataOffset.fill(8u);
+                                } else {
+                                    bgParams.charPatDelay.fill(true);
+                                }
                             }
                         }
                     }
