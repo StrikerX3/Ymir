@@ -181,7 +181,7 @@ void SCU::UpdateHBlank(bool hb, bool vb) {
         m_intrStatus.VDP2_HBlankIN = 1;
         UpdateMasterInterruptLevel();
         if (m_timerEnable) {
-            ++m_timer0Counter;
+            m_timer0Counter = (m_timer0Counter + 1) & 0x1FF;
             CheckTimer0();
             if (!m_scheduler.IsScheduled(m_timer1Event)) {
                 m_scheduler.ScheduleFromNow(m_timer1Event, m_timer1Reload + 1u);
