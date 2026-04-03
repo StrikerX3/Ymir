@@ -845,7 +845,6 @@ void VDP::BeginHPhaseLeftBorder() {
 
         // End VBlank erase if in progress
         if (m_VDP1CtlState.doVBlankErase) {
-            m_state.regs1.LatchEraseParameters();
             m_renderer->VDP1EraseFramebuffer(m_VBlankEraseCyclesPerLine * m_VBlankEraseLines[m_VTimingField]);
         }
 
@@ -899,7 +898,6 @@ void VDP::BeginVPhaseBlankingAndSync() {
         m_VDP1CtlState.doDisplayErase = false;
         // TODO: erase line by line instead of the entire framebuffer in one go
         // No need to count cycles here; there's always enough cycles in the display area to clear the entire screen
-        m_state.regs1.LatchEraseParameters();
         m_renderer->VDP1EraseFramebuffer(0);
     }
 }
@@ -945,6 +943,8 @@ void VDP::VDP1SwapFramebuffer() {
     m_state.displayFB ^= 1;
 
     // TODO: latch PTM, EOS, DIE, DIL
+
+    m_state.regs1.LatchEraseParameters();
 
     m_renderer->VDP1SwapFramebuffer();
 
