@@ -55,7 +55,8 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"MK-81304", {.flags = ForceSH2Cache}}, // Dark Savior (USA)
     {"T-5013H",  {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
     {"T-10621G", {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
-    
+    {"T-10301G", {.flags = ForceSH2Cache}}, // Steamgear Mash (Japan)
+
     {"MK-81804", {.flags = FastBusTimings}}, // Deep Fear (Europe, USA)
     {"GS-9189",  {.flags = FastBusTimings}}, // Deep Fear (Japan)
 
