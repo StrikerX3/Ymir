@@ -1189,14 +1189,14 @@ struct NBGLayerState {
         mosaicCounterY = 0;
     }
 
-    // Initial fractional X scroll coordinate.
+    // Initial fractional X scroll coordinate (11.8).
     uint32 fracScrollX;
 
-    // Fractional Y scroll coordinate.
+    // Fractional Y scroll coordinate (11.8).
     // Reset at the start of every frame and updated every scanline.
     uint32 fracScrollY;
 
-    // Fractional X scroll coordinate increment.
+    // Fractional X scroll coordinate increment (11.8).
     // Applied every pixel and updated at the start of the frame or every line when line zoom is enabled.
     uint32 scrollIncH;
 
