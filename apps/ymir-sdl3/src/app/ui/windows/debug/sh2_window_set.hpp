@@ -17,8 +17,8 @@ namespace app::ui {
 
 struct SH2WindowSet {
     SH2WindowSet(SharedContext &context, bool master)
-        : debugger(context, master)
-        , breakpoints(context, master)
+        : debugger(context, master, debuggerModel)
+        , breakpoints(context, master, debuggerModel.breakpoints)
         , watchpoints(context, master)
         , interrupts(context, master)
         , interruptTrace(context, master)
@@ -28,7 +28,10 @@ struct SH2WindowSet {
         , timers(context, master)
         , power(context, master)
         , dmaController(context, master)
-        , dmaControllerTrace(context, master) {}
+        , dmaControllerTrace(context, master) {
+
+        debuggerModel.breakpoints.Bind(context.saturn.GetSH2(master));
+    }
 
     void DisplayAll() {
         debugger.Display();
@@ -44,6 +47,8 @@ struct SH2WindowSet {
         dmaController.Display();
         dmaControllerTrace.Display();
     }
+
+    SH2DebuggerModel debuggerModel;
 
     SH2DebuggerWindow debugger;
     SH2BreakpointsWindow breakpoints;

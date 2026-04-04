@@ -8,7 +8,7 @@ namespace app::ui {
 
 class SH2BreakpointsWindow : public SH2WindowBase {
 public:
-    SH2BreakpointsWindow(SharedContext &context, bool master);
+    SH2BreakpointsWindow(SharedContext &context, bool master, SH2BreakpointsManager &bkptManager);
 
 protected:
     void PrepareWindow() override;

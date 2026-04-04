@@ -12,10 +12,11 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master)
+SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master, SH2DebuggerModel &debuggerModel)
     : SH2WindowBase(context, master)
-    , m_disasmView(context, m_sh2, m_debuggerModel)
-    , m_toolbarView(context, m_sh2, m_debuggerModel)
+    , m_debuggerModel(debuggerModel)
+    , m_disasmView(context, m_sh2, debuggerModel)
+    , m_toolbarView(context, m_sh2, debuggerModel)
     , m_regsView(context, m_sh2) {
 
     m_windowConfig.name = fmt::format("{}SH2 debugger", master ? 'M' : 'S');
@@ -41,29 +42,60 @@ void SH2DebuggerWindow::LoadState(std::filesystem::path path) {
     }();
 
     {
-        std::set<uint32> breakpoints{};
+        std::map<uint32, SH2Breakpoint> breakpoints{};
         {
+            // Line format:
+            // [!]<address>
+            //   [!]        disabled breakpoint (optional; enabled if omitted)
+            //   <address>  breakpoint address
+            //
+            // TODO: add condition expression
+
             const auto breakpointsFile =
                 path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
             std::ifstream in{breakpointsFile, std::ios::binary};
-            in >> std::hex;
-            while (true) {
+            std::string line{};
+            while (std::getline(in, line)) {
+                if (line.empty()) {
+                    continue;
+                }
+
+                const bool enabled = line[0] != '!';
+                if (!enabled) {
+                    line = line.substr(1);
+                }
+
+                std::istringstream lineIn{line};
                 uint32 address;
-                in >> address;
-                if (!in) {
+                lineIn >> std::hex >> address;
+                if (!lineIn) {
                     break;
                 }
-                breakpoints.insert(address);
+
+                SH2Breakpoint &bkpt = breakpoints[address];
+                bkpt.enabled = enabled;
             }
         }
 
         std::unique_lock lock{m_context.locks.breakpoints};
-        m_sh2.ReplaceBreakpoints(breakpoints);
+        m_debuggerModel.breakpoints.ReplaceBreakpoints(breakpoints);
     }
 
     {
         std::map<uint32, debug::WatchpointFlags> watchpoints{};
         {
+            // Line format:
+            // [!]<address> [R8] [R16] [R32] [W8] [W16] [W32]
+            //   [!]        disabled watchpoint (optional; enabled if omitted)
+            //   <address>  watchpoint address
+            //   [R8]       trigger on 8-bit reads
+            //   [R16]      trigger on 16-bit reads
+            //   [R32]      trigger on 32-bit reads
+            //   [W8]       trigger on 8-bit writes
+            //   [W16]      trigger on 16-bit writes
+            //   [W32]      trigger on 32-bit writes
+            //
+            // TODO: add condition expression
             const auto watchpointsFile =
                 path / fmt::format("{}sh2-watchpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
             std::ifstream in{watchpointsFile, std::ios::binary};
@@ -108,11 +140,7 @@ void SH2DebuggerWindow::SaveState(std::filesystem::path path) {
     }();
 
     {
-        std::set<uint32> breakpoints{};
-        {
-            std::unique_lock lock{m_context.locks.breakpoints};
-            breakpoints = m_sh2.GetBreakpoints();
-        }
+        const std::map<uint32, SH2Breakpoint> breakpoints = m_debuggerModel.breakpoints.GetBreakpoints();
 
         const auto breakpointsFile =
             path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
@@ -122,8 +150,12 @@ void SH2DebuggerWindow::SaveState(std::filesystem::path path) {
         } else {
             std::ofstream out{breakpointsFile, std::ios::binary};
             out << std::hex;
-            for (uint32 address : breakpoints) {
-                out << address << "\n";
+            for (auto &[address, bkpt] : breakpoints) {
+                if (!bkpt.enabled) {
+                    out << '!';
+                }
+                out << address;
+                out << '\n';
             }
         }
     }

@@ -117,9 +117,15 @@ void SH2DisassemblyView::Display() {
         const uint32 lines = availArea.y / (lineHeight + itemSpacing) + 1;
         // TODO: branch arrows
 
-        auto toggleBreakpoint = [&](uint32 address) {
+        auto toggleSetBreakpoint = [&](uint32 address) {
             std::unique_lock lock{m_context.locks.breakpoints};
-            m_sh2.ToggleBreakpoint(address);
+            m_model.breakpoints.ToggleBreakpointSet(address);
+            m_context.debuggers.MakeDirty();
+        };
+
+        auto toggleEnableBreakpoint = [&](uint32 address) {
+            std::unique_lock lock{m_context.locks.breakpoints};
+            m_model.breakpoints.ToggleBreakpointEnable(address);
             m_context.debuggers.MakeDirty();
         };
 
@@ -141,29 +147,26 @@ void SH2DisassemblyView::Display() {
             if (childWindowFocused) {
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
                     MoveView(m_cursor.address - sizeof(uint16), lines, true);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
                     MoveView(m_cursor.address + sizeof(uint16), lines, true);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_Home)) {
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_Home)) {
                     const uint32 slideCount = lines * kSlideOffsetTop + 0.5f;
                     MoveView(m_cursor.viewportTopAddress - slideCount * sizeof(uint16), lines, true);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_End)) {
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_End)) {
                     const uint32 slideCount = lines * kSlideOffsetBottom + 0.5f;
                     MoveView(m_cursor.viewportTopAddress + (lines - slideCount - 1) * sizeof(uint16), lines, true);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
                     MoveView(m_cursor.address - lines * sizeof(uint16), lines, true);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
                     MoveView(m_cursor.address + lines * sizeof(uint16), lines, true);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
-                    toggleBreakpoint(m_cursor.address);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
-                    toggleBreakpoint(m_cursor.address);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
+                    toggleSetBreakpoint(m_cursor.address);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
+                    toggleSetBreakpoint(m_cursor.address);
+                } else if (io.KeyMods == ImGuiMod_Shift && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
+                    toggleEnableBreakpoint(m_cursor.address);
+                } else if (io.KeyMods == ImGuiMod_Shift && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
+                    toggleEnableBreakpoint(m_cursor.address);
                 }
             }
 
@@ -192,10 +195,8 @@ void SH2DisassemblyView::Display() {
             const bool lineClicked = ImGui::IsItemClicked();
             ImGui::SetCursorScreenPos(basePos);
 
-            const bool isBreakpointSet = [&] {
-                std::unique_lock lock{m_context.locks.breakpoints};
-                return m_sh2.IsBreakpointSet(address);
-            }();
+            const bool isBreakpointSet = m_model.breakpoints.IsBreakpointSet(address);
+            const bool isBreakpointEnabled = m_model.breakpoints.IsBreakpointEnabled(address);
 
             auto memRead = [&](uint32 address) -> uint32 {
                 switch (disasm.opSize) {
@@ -258,6 +259,7 @@ void SH2DisassemblyView::Display() {
                     color = m_colors.disasm.prBgColor;
                 } else if (isBreakpointSet) {
                     color = m_colors.disasm.bkptBgColor;
+                    filled &= isBreakpointEnabled;
                 } else if (address == m_cursor.address && !childWindowFocused) {
                     color = m_colors.disasm.cursorBgColor;
                     filled = false;
@@ -305,19 +307,25 @@ void SH2DisassemblyView::Display() {
 
                 if (ImGui::InvisibleButton(fmt::format("toggle_bkpt_{}", address).c_str(),
                                            ImVec2(lineHeight, lineHeight))) {
-                    toggleBreakpoint(address);
+                    if (io.KeyMods & ImGuiMod_Shift) {
+                        toggleEnableBreakpoint(address);
+                    } else {
+                        toggleSetBreakpoint(address);
+                    }
                     mouseHandled = true;
                 }
                 {
                     const bool visible = isBreakpointSet;
                     const bool hovered = ImGui::IsItemHovered();
                     const bool active = ImGui::IsItemActive();
+                    const bool filled = m_context.saturn.IsDebugTracingEnabled() && visible && isBreakpointEnabled;
                     mouseHandled |= hovered || active;
 
                     if (ImGui::BeginItemTooltip()) {
                         ImGui::Separator();
                         ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.medium);
                         ImGui::TextUnformatted("Click to toggle breakpoint (F9, B)");
+                        ImGui::TextUnformatted("Shift-click to enable/disable breakpoint (Shift-F9, Shift-B)");
                         ImGui::PopFont();
                         ImGui::EndTooltip();
                     }
@@ -335,7 +343,7 @@ void SH2DisassemblyView::Display() {
                         const float circleRadiusFactor = active ? 0.20f : hovered ? 0.30f : 0.25f;
                         const float circleRadius = lineHeight * circleRadiusFactor;
 
-                        if (m_context.saturn.IsDebugTracingEnabled() && visible) {
+                        if (filled) {
                             drawList->AddCircleFilled(center, circleRadius, color);
                         } else {
                             drawList->AddCircle(center, circleRadius, color, 0,
@@ -1020,6 +1028,10 @@ void SH2DisassemblyView::Display() {
                     if (isBreakpointSet) {
                         drawSepOnce();
                         ImGui::TextColored(m_colors.disasm.bkptHoveredIconColor, "Breakpoint set");
+                        if (!isBreakpointEnabled) {
+                            ImGui::SameLine();
+                            ImGui::TextDisabled("(disabled)");
+                        }
                     }
                     if (address == pr) {
                         drawSepOnce();

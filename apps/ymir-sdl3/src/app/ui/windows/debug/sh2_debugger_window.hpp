@@ -12,7 +12,7 @@ namespace app::ui {
 
 class SH2DebuggerWindow : public SH2WindowBase {
 public:
-    SH2DebuggerWindow(SharedContext &context, bool master);
+    SH2DebuggerWindow(SharedContext &context, bool master, SH2DebuggerModel &debuggerModel);
 
     void RequestOpen(bool triggeredByEvent, bool requestFocus);
 
@@ -24,7 +24,8 @@ protected:
     void DrawContents() override;
 
 private:
-    SH2DebuggerModel m_debuggerModel;
+    SH2DebuggerModel &m_debuggerModel;
+
     SH2DisassemblyView m_disasmView;
     SH2DebugToolbarView m_toolbarView;
     SH2RegistersView m_regsView;
