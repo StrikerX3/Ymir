@@ -846,7 +846,7 @@ struct VDPState {
         state.regs2.TVSTAT = regs2.ReadTVSTAT<true>();
         state.regs2.VRSIZE = regs2.ReadVRSIZE();
         state.regs2.HCNT = regs2.ReadHCNT();
-        state.regs2.VCNT = regs2.ReadVCNT();
+        state.regs2.VCNT = regs2.VCNT;
         state.regs2.RAMCTL = regs2.ReadRAMCTL();
         state.regs2.CYCA0L = regs2.ReadCYCA0L();
         state.regs2.CYCA0U = regs2.ReadCYCA0U();
