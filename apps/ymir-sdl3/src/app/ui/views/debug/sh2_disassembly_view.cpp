@@ -125,7 +125,7 @@ void SH2DisassemblyView::Display() {
 
         auto toggleEnableBreakpoint = [&](uint32 address) {
             std::unique_lock lock{m_context.locks.breakpoints};
-            m_model.breakpoints.ToggleBreakpointEnable(address);
+            m_model.breakpoints.ToggleBreakpointEnabled(address);
             m_context.debuggers.MakeDirty();
         };
 

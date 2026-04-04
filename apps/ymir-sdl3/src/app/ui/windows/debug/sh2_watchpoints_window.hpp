@@ -8,7 +8,7 @@ namespace app::ui {
 
 class SH2WatchpointsWindow : public SH2WindowBase {
 public:
-    SH2WatchpointsWindow(SharedContext &context, bool master);
+    SH2WatchpointsWindow(SharedContext &context, bool master, SH2WatchpointsManager &wtptManager);
 
 protected:
     void PrepareWindow() override;

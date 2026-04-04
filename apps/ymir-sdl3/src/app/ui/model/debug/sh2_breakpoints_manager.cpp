@@ -76,21 +76,22 @@ bool SH2BreakpointsManager::ToggleBreakpointSet(uint32 address) {
     return true;
 }
 
-bool SH2BreakpointsManager::ToggleBreakpointEnable(uint32 address) {
+bool SH2BreakpointsManager::ToggleBreakpointEnabled(uint32 address) {
     address &= ~1u;
     auto it = m_breakpoints.find(address);
     if (it == m_breakpoints.end()) {
         return false;
     }
-    m_breakpoints[address].enabled ^= true;
+    auto &bkpt = m_breakpoints[address];
+    bkpt.enabled ^= true;
     if (m_sh2) {
-        if (m_breakpoints[address].enabled) {
+        if (bkpt.enabled) {
             m_sh2->AddBreakpoint(address);
         } else {
             m_sh2->RemoveBreakpoint(address);
         }
     }
-    return m_breakpoints[address].enabled;
+    return bkpt.enabled;
 }
 
 void SH2BreakpointsManager::ClearAllBreakpoints() {
@@ -112,7 +113,7 @@ bool SH2BreakpointsManager::IsBreakpointSet(uint32 address) const {
     return m_breakpoints.contains(address);
 }
 
-bool SH2BreakpointsManager::EnableBreakpoint(uint32 address, bool enable) {
+bool SH2BreakpointsManager::SetBreakpointEnabled(uint32 address, bool enable) {
     address &= ~1u;
     auto it = m_breakpoints.find(address);
     if (it == m_breakpoints.end()) {

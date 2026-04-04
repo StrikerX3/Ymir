@@ -3,6 +3,7 @@
 #include <ymir/core/types.hpp>
 
 #include <map>
+#include <set>
 
 // -----------------------------------------------------------------------------
 // Forward declarations
@@ -24,6 +25,9 @@ struct SH2Breakpoint {
 };
 
 /// @brief Manages breakpoints on an SH2 instance.
+///
+/// None of the method in this class are thread-safe. Methods touch the bound SH2 instance are annotated as such and
+/// require additional synchronization if the emulator runs in its own thread.
 class SH2BreakpointsManager {
 public:
     /// @brief Binds the given SH2 instance to this manager.
@@ -35,11 +39,17 @@ public:
     void Unbind();
 
     /// @brief Sets a breakpoint at the specified address.
+    ///
+    /// Updates the SH2 instance.
+    ///
     /// @param[in] address the address (force-aligned to 16-bit)
     /// @return `true` if the breakpoint was newly set, `false` if it was already set
     bool SetBreakpoint(uint32 address);
 
     /// @brief Clears a breakpoint at the specified address.
+    ///
+    /// Updates the SH2 instance.
+    ///
     /// @param[in] address the address (force-aligned to 16-bit)
     /// @return `true` if the breakpoint was cleared, `false` if it wasn't set
     bool ClearBreakpoint(uint32 address);
@@ -50,25 +60,38 @@ public:
     /// If `address` and `newAddress` point to the same location after force-alignment, the function does nothing and
     /// returns `true`.
     ///
+    /// Updates the SH2 instance.
+    ///
     /// @param[in] address the source address (force-aligned to 16-bit)
     /// @param[in] newAddress the destination address (force-aligned to 16-bit)
     /// @return `true` if the breakpoint exists and was moved, `false` otherwise
     bool MoveBreakpoint(uint32 address, uint32 newAddress);
 
     /// @brief Toggles (sets or clears) a breakpoint at the specified address.
+    ///
+    /// Updates the SH2 instance.
+    ///
     /// @param[in] address the address (force-aligned to 16-bit)
     /// @return `true` if the breakpoint was set, `false` if cleared
     bool ToggleBreakpointSet(uint32 address);
 
     /// @brief Toggles (enables or disables) a breakpoint at the specified address.
+    ///
+    /// Updates the SH2 instance.
+    ///
     /// @param[in] address the address (force-aligned to 16-bit)
     /// @return `true` if the breakpoint was enabled, `false` if disabled or not set
-    bool ToggleBreakpointEnable(uint32 address);
+    bool ToggleBreakpointEnabled(uint32 address);
 
     /// @brief Clears all breakpoints.
+    ///
+    /// Updates the SH2 instance.
     void ClearAllBreakpoints();
 
     /// @brief Replaces all breakpoints.
+    ///
+    /// Updates the SH2 instance.
+    ///
     /// @param[in] breakpoints the breakpoints to use
     void ReplaceBreakpoints(std::map<uint32, SH2Breakpoint> breakpoints);
 
@@ -87,10 +110,12 @@ public:
     /// If disabled, a breakpoint remains registered on this manager, but is not applied to the SH2 instance.
     /// If there is no breakpoint at the specified address, this function has no effect and returns `false`.
     ///
+    /// Updates the SH2 instance.
+    ///
     /// @param[in] address the address (force-aligned to 16-bit)
     /// @param[in] enable whether to enable (`true`) or disable (`false`) the breakpoint
     /// @return `true` if the breakpoint exists, `false` otherwise
-    bool EnableBreakpoint(uint32 address, bool enable);
+    bool SetBreakpointEnabled(uint32 address, bool enable);
 
     /// @brief Checks if a breakpoint is enabled at the specified address.
     /// @param[in] address the address (force-aligned to 16-bit)

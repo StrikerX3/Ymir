@@ -21,7 +21,7 @@ Introduced save state file version 12.
     - Page up/down: move cursor up/down one page.
     - Home/end: move cursor to the top/bottom of the viewport.
     - The cursor is kept below 15% of the top and above 35% of the bottom of the viewport.
-- Debugger: Manage SH2 breakpoints on the frontend and allow enabling/disabling them without removing from the list.
+- Debugger: Manage SH2 breakpoints and watchpoints on the frontend and allow enabling/disabling them without removing from the list.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - Input: Added support for mouse events.

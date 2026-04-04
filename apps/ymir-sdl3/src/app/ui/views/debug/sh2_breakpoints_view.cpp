@@ -101,7 +101,7 @@ void SH2BreakpointsView::Display() {
             bool enabled = bkpt.enabled;
             if (ImGui::Checkbox(fmt::format("##enabled_{}", baseAddress).c_str(), &enabled)) {
                 std::unique_lock lock{m_context.locks.breakpoints};
-                m_bkptManager.ToggleBreakpointEnable(baseAddress);
+                m_bkptManager.ToggleBreakpointEnabled(baseAddress);
                 m_context.debuggers.MakeDirty();
             }
 

@@ -77,6 +77,7 @@ add_executable(ymir-sdl3
     src/app/ui/model/debug/sh2_breakpoints_manager.cpp
     src/app/ui/model/debug/sh2_breakpoints_manager.hpp
     src/app/ui/model/debug/sh2_debugger_model.hpp
+    src/app/ui/model/debug/sh2_watchpoints_manager.cpp
     src/app/ui/model/debug/sh2_watchpoints_manager.hpp
 
     src/app/ui/state/debug/memory_viewer_state.hpp

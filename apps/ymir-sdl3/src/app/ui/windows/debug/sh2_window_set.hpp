@@ -19,7 +19,7 @@ struct SH2WindowSet {
     SH2WindowSet(SharedContext &context, bool master)
         : debugger(context, master, debuggerModel)
         , breakpoints(context, master, debuggerModel.breakpoints)
-        , watchpoints(context, master)
+        , watchpoints(context, master, debuggerModel.watchpoints)
         , interrupts(context, master)
         , interruptTrace(context, master)
         , exceptionVectors(context, master)
@@ -30,7 +30,9 @@ struct SH2WindowSet {
         , dmaController(context, master)
         , dmaControllerTrace(context, master) {
 
-        debuggerModel.breakpoints.Bind(context.saturn.GetSH2(master));
+        auto &sh2 = context.saturn.GetSH2(master);
+        debuggerModel.breakpoints.Bind(sh2);
+        debuggerModel.watchpoints.Bind(sh2);
     }
 
     void DisplayAll() {
