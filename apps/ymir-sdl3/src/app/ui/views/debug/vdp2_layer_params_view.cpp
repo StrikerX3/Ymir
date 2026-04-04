@@ -15,6 +15,7 @@ VDP2LayerParamsView::VDP2LayerParamsView(SharedContext &context, vdp::VDP &vdp)
 void VDP2LayerParamsView::Display() {
     auto &probe = m_vdp.GetProbe();
     const auto &regs2 = probe.GetVDP2Regs();
+    const auto &state2 = probe.GetVDP2State();
 
     auto printYesNo = [&](bool value) {
         if (value) {
@@ -62,6 +63,16 @@ void VDP2LayerParamsView::Display() {
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
     ImGui::Text("VCNT: %d", regs2.ReadVCNT());
+
+    auto [width, height] = probe.GetResolution();
+    auto interlaceMode = probe.GetInterlaceMode();
+
+    static constexpr const char *kInterlaceNames[]{"progressive", "(invalid)", "single-density interlace",
+                                                   "double-density interlace"};
+
+    ImGui::TextUnformatted("Resolution:");
+    ImGui::SameLine();
+    ImGui::Text("%ux%u %s", width, height, kInterlaceNames[static_cast<uint8>(interlaceMode)]);
 
     if (ImGui::BeginTable("layers", 7, ImGuiTableFlags_SizingFixedFit)) {
         ImGui::TableSetupColumn("");
@@ -497,6 +508,79 @@ void VDP2LayerParamsView::Display() {
                 } else {
                     ImGui::TextUnformatted("-");
                 }
+            }
+        }
+        for (uint32 i = 0; i < 2; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                ImGui::TextUnformatted("-");
+            }
+        }
+
+        // -------------------------------------------------------------------------------------------------------------
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Scroll X");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                ImGui::Text("%.3f",
+                            (state2.nbgLayerStates[i].fracScrollX + regs2.bgParams[i + 1].scrollAmountH) / 256.0f);
+            }
+        }
+        for (uint32 i = 0; i < 2; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                ImGui::TextUnformatted("-");
+            }
+        }
+
+        // -------------------------------------------------------------------------------------------------------------
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Scroll Y");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                ImGui::Text("%.3f", regs2.bgParams[i + 1].scrollAmountV / 256.0f);
+            }
+        }
+        for (uint32 i = 0; i < 2; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                ImGui::TextUnformatted("-");
+            }
+        }
+
+        // -------------------------------------------------------------------------------------------------------------
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Scroll X inc.");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                ImGui::Text("%.3f", state2.nbgLayerStates[i].scrollIncH / 256.0f);
+            }
+        }
+        for (uint32 i = 0; i < 2; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i + 4]) {
+                ImGui::TextUnformatted("-");
+            }
+        }
+
+        // -------------------------------------------------------------------------------------------------------------
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Scroll Y inc.");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                ImGui::Text("%.3f", regs2.bgParams[i + 1].scrollIncV / 256.0f);
             }
         }
         for (uint32 i = 0; i < 2; i++) {
