@@ -2,7 +2,8 @@
 
 #include <app/shared_context.hpp>
 
-#include <app/ui/views/debug/sh2_debugger_model.hpp>
+#include <app/ui/model/debug/sh2_debugger_model.hpp>
+
 #include <app/ui/views/debug/sh2_disasm_dump_view.hpp>
 
 namespace app::ui {

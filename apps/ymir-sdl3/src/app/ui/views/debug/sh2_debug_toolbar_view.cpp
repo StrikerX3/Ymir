@@ -1,13 +1,13 @@
 #include "sh2_debug_toolbar_view.hpp"
 
-#include "sh2_debugger_model.hpp"
-
 #include <ymir/hw/sh2/sh2.hpp>
 
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 
 #include <app/ui/fonts/IconsMaterialSymbols.h>
+
+#include <app/ui/model/debug/sh2_debugger_model.hpp>
 
 #include <app/ui/widgets/common_widgets.hpp>
 

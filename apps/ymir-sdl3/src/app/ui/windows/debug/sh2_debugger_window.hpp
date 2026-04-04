@@ -2,8 +2,9 @@
 
 #include "sh2_window_base.hpp"
 
+#include <app/ui/model/debug/sh2_debugger_model.hpp>
+
 #include <app/ui/views/debug/sh2_debug_toolbar_view.hpp>
-#include <app/ui/views/debug/sh2_debugger_model.hpp>
 #include <app/ui/views/debug/sh2_disassembly_view.hpp>
 #include <app/ui/views/debug/sh2_registers_view.hpp>
 
