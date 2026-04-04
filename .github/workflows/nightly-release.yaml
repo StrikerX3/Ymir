@@ -72,6 +72,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
       - name: Create/update ${{ env.NIGHTLY_TAG_NAME }} tag
         run: |
           git tag -f ${{ env.NIGHTLY_TAG_NAME }}
