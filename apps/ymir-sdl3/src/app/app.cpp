@@ -2318,14 +2318,6 @@ void App::RunEmulator() {
                 // evt.gdevice.type;
                 // evt.gdevice.which;
                 break;
-            case SDL_EVENT_GAMEPAD_AXIS_MOTION: //
-            {
-                const int playerIndex = gamepadPlayerIndices.GetPlayerIndex(evt.gaxis.which);
-                const float value = evt.gaxis.value < 0 ? evt.gaxis.value / 32768.0f : evt.gaxis.value / 32767.0f;
-                inputContext.ProcessPrimitive(playerIndex, input::SDL3ToGamepadAxis1D((SDL_GamepadAxis)evt.gaxis.axis),
-                                              value);
-                break;
-            }
             case SDL_EVENT_GAMEPAD_BUTTON_DOWN: [[fallthrough]];
             case SDL_EVENT_GAMEPAD_BUTTON_UP: //
             {
@@ -2413,6 +2405,30 @@ void App::RunEmulator() {
             rescaleUIPending = false;
             const float windowScale = SDL_GetWindowDisplayScale(screen.window);
             RescaleUI(windowScale);
+        }
+
+        // Read all gamepad axes
+        for (auto &[id, gamepad] : gamepads) {
+            const int playerIndex = gamepadPlayerIndices.GetPlayerIndex(id);
+            const sint16 lx = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTX);
+            const sint16 ly = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFTY);
+            const sint16 rx = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTX);
+            const sint16 ry = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHTY);
+            const uint16 lt = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER);
+            const uint16 rt = SDL_GetGamepadAxis(gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER);
+
+            static constexpr auto bipolar = [](sint16 value) -> float {
+                return value < 0 ? value / 32768.0f : value / 32767.0f;
+            };
+            static constexpr auto monopolar = [](uint16 value) -> float { return value / 32767.0f; };
+
+            inputContext.ProcessPrimitive(playerIndex, input::GamepadAxis1D::LeftStickX, bipolar(lx));
+            inputContext.ProcessPrimitive(playerIndex, input::GamepadAxis1D::LeftStickY, bipolar(ly));
+            inputContext.ProcessPrimitive(playerIndex, input::GamepadAxis1D::RightStickX, bipolar(rx));
+            inputContext.ProcessPrimitive(playerIndex, input::GamepadAxis1D::RightStickY, bipolar(ry));
+            inputContext.ProcessPrimitive(playerIndex, input::GamepadAxis1D::LeftTrigger, monopolar(lt));
+            inputContext.ProcessPrimitive(playerIndex, input::GamepadAxis1D::RightTrigger, monopolar(rt));
+            break;
         }
 
         // Process all axis changes
