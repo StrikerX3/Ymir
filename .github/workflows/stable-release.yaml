@@ -46,9 +46,12 @@ jobs:
           pattern: ymir-*
           merge-multiple: true
 
-      - name: Release
-        uses: softprops/action-gh-release@1853d73993c8ca1b2c9c1a7fede39682d0ab5c2a
-        with:
-          draft: true
-          files: |
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --draft \
+            --latest \
+            --title "Ymir v${{ needs.parse-version.outputs.build-version }}" \
             ymir/*
