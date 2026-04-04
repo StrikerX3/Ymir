@@ -55,5 +55,5 @@ jobs:
           gh release create ${{ github.ref_name }} \
             --draft \
             --latest \
-            --title "Ymir v${{ needs.parse-version.outputs.build-version }}" \
+            --title "Ymir ${{ github.ref_name }}" \
             ymir/*
