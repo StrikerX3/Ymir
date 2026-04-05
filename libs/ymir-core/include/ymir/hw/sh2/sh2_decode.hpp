@@ -9,7 +9,7 @@ namespace ymir::sh2 {
 enum class OpcodeType : uint16 {
     NOP,        // 0    0000 0000 0000 1001   nop
     SLEEP,      // 0    0000 0000 0001 1011   sleep
-    MOV_R,      // nm   0110 nnnn mmmm 0010   mov      Rm, Rn
+    MOV_R,      // nm   0110 nnnn mmmm 0011   mov      Rm, Rn
     MOVB_L,     // nm   0110 nnnn mmmm 0000   mov.b    @Rm, Rn
     MOVW_L,     // nm   0110 nnnn mmmm 0001   mov.w    @Rm, Rn
     MOVL_L,     // nm   0110 nnnn mmmm 0010   mov.l    @Rm, Rn
@@ -54,9 +54,9 @@ enum class OpcodeType : uint16 {
     SWAPB,      // nm   0110 nnnn mmmm 1000   swap.b   Rm,   Rn
     SWAPW,      // nm   0110 nnnn mmmm 1001   swap.w   Rm,   Rn
     XTRCT,      // nm   0010 nnnn mmmm 1101   xtrct    Rm,   Rn
-    LDC_GBR_R,  // m    0110 mmmm 0001 1110   ldc      Rm,   GBR
+    LDC_GBR_R,  // m    0100 mmmm 0001 1110   ldc      Rm,   GBR
     LDC_SR_R,   // m    0100 mmmm 0000 1110   ldc      Rm,   SR
-    LDC_VBR_R,  // m    0110 mmmm 0010 1110   ldc      Rm,   VBR
+    LDC_VBR_R,  // m    0100 mmmm 0010 1110   ldc      Rm,   VBR
     LDS_MACH_R, // m    0100 mmmm 0000 1010   lds      Rm,   MACH
     LDS_MACL_R, // m    0100 mmmm 0001 1010   lds      Rm,   MACL
     LDS_PR_R,   // m    0100 mmmm 0010 1010   lds      Rm,   PR
@@ -120,7 +120,7 @@ enum class OpcodeType : uint16 {
     MULU,       // nm   0010 nnnn mmmm 1110   mulu.w   Rm, Rn
     DMULS,      // nm   0011 nnnn mmmm 1101   dmuls.l  Rm, Rn
     DMULU,      // nm   0011 nnnn mmmm 0101   dmulu.l  Rm, Rn
-    DIV0S,      // nm   0010 nnnn mmmm 0110   div0s    Rm, Rn
+    DIV0S,      // nm   0010 nnnn mmmm 0111   div0s    Rm, Rn
     DIV0U,      // 0    0000 0000 0001 1001   div0u
     DIV1,       // nm   0011 nnnn mmmm 0100   div1     Rm, Rn
     CMP_EQ_I,   // i    1000 1000 iiii iiii   cmp/eq   #imm, R0
@@ -153,7 +153,7 @@ enum class OpcodeType : uint16 {
 
     Delay_NOP,        // 0    0000 0000 0000 1001   nop
     Delay_SLEEP,      // 0    0000 0000 0001 1011   sleep
-    Delay_MOV_R,      // nm   0110 nnnn mmmm 0010   mov      Rm, Rn
+    Delay_MOV_R,      // nm   0110 nnnn mmmm 0011   mov      Rm, Rn
     Delay_MOVB_L,     // nm   0110 nnnn mmmm 0000   mov.b    @Rm, Rn
     Delay_MOVW_L,     // nm   0110 nnnn mmmm 0001   mov.w    @Rm, Rn
     Delay_MOVL_L,     // nm   0110 nnnn mmmm 0010   mov.l    @Rm, Rn
@@ -169,8 +169,8 @@ enum class OpcodeType : uint16 {
     Delay_MOVB_M,     // nm   0010 nnnn mmmm 0100   mov.b    Rm, @-Rn
     Delay_MOVW_M,     // nm   0010 nnnn mmmm 0101   mov.w    Rm, @-Rn
     Delay_MOVL_M,     // nm   0010 nnnn mmmm 0110   mov.l    Rm, @-Rn
-    Delay_MOVB_P,     // nm   0110 nnnn mmmm 0110   mov.b    @Rm+, Rn
-    Delay_MOVW_P,     // nm   0110 nnnn mmmm 0110   mov.w    @Rm+, Rn
+    Delay_MOVB_P,     // nm   0110 nnnn mmmm 0100   mov.b    @Rm+, Rn
+    Delay_MOVW_P,     // nm   0110 nnnn mmmm 0101   mov.w    @Rm+, Rn
     Delay_MOVL_P,     // nm   0110 nnnn mmmm 0110   mov.l    @Rm+, Rn
     Delay_MOVB_S,     // nm   0010 nnnn mmmm 0000   mov.b    Rm, @Rn
     Delay_MOVW_S,     // nm   0010 nnnn mmmm 0001   mov.w    Rm, @Rn
@@ -198,9 +198,9 @@ enum class OpcodeType : uint16 {
     Delay_SWAPB,      // nm   0110 nnnn mmmm 1000   swap.b   Rm, Rn
     Delay_SWAPW,      // nm   0110 nnnn mmmm 1001   swap.w   Rm, Rn
     Delay_XTRCT,      // nm   0010 nnnn mmmm 1101   xtrct    Rm, Rn
-    Delay_LDC_GBR_R,  // m    0110 mmmm 0001 1110   ldc      Rm,   GBR
+    Delay_LDC_GBR_R,  // m    0100 mmmm 0001 1110   ldc      Rm,   GBR
     Delay_LDC_SR_R,   // m    0100 mmmm 0000 1110   ldc      Rm,   SR
-    Delay_LDC_VBR_R,  // m    0110 mmmm 0010 1110   ldc      Rm,   VBR
+    Delay_LDC_VBR_R,  // m    0100 mmmm 0010 1110   ldc      Rm,   VBR
     Delay_LDS_MACH_R, // m    0100 mmmm 0000 1010   lds      Rm,   MACH
     Delay_LDS_MACL_R, // m    0100 mmmm 0001 1010   lds      Rm,   MACL
     Delay_LDS_PR_R,   // m    0100 mmmm 0010 1010   lds      Rm,   PR
@@ -217,7 +217,7 @@ enum class OpcodeType : uint16 {
     Delay_LDS_MACL_M, // m    0100 mmmm 0001 0110   lds.l    @Rm+, MACL
     Delay_LDS_PR_M,   // m    0100 mmmm 0010 0110   lds.l    @Rm+, PR
     Delay_STC_GBR_M,  // n    0100 nnnn 0001 0011   stc.l    GBR,  @-Rn
-    Delay_STC_SR_M,   // n    0100 nnnn 0000 0010   stc.l    SR,   @-Rn
+    Delay_STC_SR_M,   // n    0100 nnnn 0000 0011   stc.l    SR,   @-Rn
     Delay_STC_VBR_M,  // n    0100 nnnn 0010 0011   stc.l    VBR,  @-Rn
     Delay_STS_MACH_M, // n    0100 nnnn 0000 0010   sts.l    MACH, @-Rn
     Delay_STS_MACL_M, // n    0100 nnnn 0001 0010   sts.l    MACL, @-Rn
@@ -228,13 +228,13 @@ enum class OpcodeType : uint16 {
     Delay_ADDV,       // nm   0011 nnnn mmmm 1110   addv     Rm, Rn
     Delay_AND_R,      // nm   0010 nnnn mmmm 1001   and      Rm, Rn
     Delay_AND_I,      // i    1100 1001 iiii iiii   and      #imm, R0
-    Delay_AND_M,      // i    1100 1001 iiii iiii   and.b    #imm, @(R0,GBR)
+    Delay_AND_M,      // i    1100 1101 iiii iiii   and.b    #imm, @(R0,GBR)
     Delay_NEG,        // nm   0110 nnnn mmmm 1011   neg      Rm, Rn
     Delay_NEGC,       // nm   0110 nnnn mmmm 1010   negc     Rm, Rn
     Delay_NOT,        // nm   0110 nnnn mmmm 0111   not      Rm, Rn
     Delay_OR_R,       // nm   0010 nnnn mmmm 1011   or       Rm, Rn
     Delay_OR_I,       // i    1100 1011 iiii iiii   or       #imm, R0
-    Delay_OR_M,       // i    1100 1001 iiii iiii   or.b     #imm, @(R0,GBR)
+    Delay_OR_M,       // i    1100 1111 iiii iiii   or.b     #imm, @(R0,GBR)
     Delay_ROTCL,      // n    0100 nnnn 0010 0100   rotcl    Rn
     Delay_ROTCR,      // n    0100 nnnn 0010 0101   rotcr    Rn
     Delay_ROTL,       // n    0100 nnnn 0000 0100   rotl     Rn
@@ -254,7 +254,7 @@ enum class OpcodeType : uint16 {
     Delay_SUBV,       // nm   0011 nnnn mmmm 1011   subv     Rm, Rn
     Delay_XOR_R,      // nm   0010 nnnn mmmm 1010   xor      Rm, Rn
     Delay_XOR_I,      // i    1100 1010 iiii iiii   xor      #imm, R0
-    Delay_XOR_M,      // i    1100 1001 iiii iiii   xor.b    #imm, @(R0,GBR)
+    Delay_XOR_M,      // i    1100 1110 iiii iiii   xor.b    #imm, @(R0,GBR)
     Delay_DT,         // n    0100 nnnn 0001 0000   dt       Rn
     Delay_CLRMAC,     // 0    0000 0000 0010 1000   clrmac
     Delay_MACW,       // nm   0100 nnnn mmmm 1111   mac.w    @Rm+, @Rn+
@@ -264,7 +264,7 @@ enum class OpcodeType : uint16 {
     Delay_MULU,       // nm   0010 nnnn mmmm 1110   mulu.w   Rm, Rn
     Delay_DMULS,      // nm   0011 nnnn mmmm 1101   dmuls.l  Rm, Rn
     Delay_DMULU,      // nm   0011 nnnn mmmm 0101   dmulu.l  Rm, Rn
-    Delay_DIV0S,      // nm   0010 nnnn mmmm 0110   div0s    Rm, Rn
+    Delay_DIV0S,      // nm   0010 nnnn mmmm 0111   div0s    Rm, Rn
     Delay_DIV0U,      // 0    0000 0000 0001 1001   div0u
     Delay_DIV1,       // nm   0011 nnnn mmmm 0100   div1     Rm, Rn
     Delay_CMP_EQ_I,   // i    1000 1000 iiii iiii   cmp/eq   #imm, R0
