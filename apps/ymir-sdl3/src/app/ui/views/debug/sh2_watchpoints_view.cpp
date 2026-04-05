@@ -203,6 +203,10 @@ void SH2WatchpointsView::Display() {
                 m_wtptManager.ToggleWatchpointEnabled(prevAddress);
                 m_context.debuggers.MakeDirty();
             }
+            if (ImGui::BeginItemTooltip()) {
+                ImGui::TextUnformatted("Enable/disable watchpoint");
+                ImGui::EndTooltip();
+            }
 
             ImGui::SameLine();
 

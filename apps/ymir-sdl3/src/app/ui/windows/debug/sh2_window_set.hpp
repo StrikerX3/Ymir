@@ -18,7 +18,7 @@ namespace app::ui {
 struct SH2WindowSet {
     SH2WindowSet(SharedContext &context, bool master)
         : debugger(context, master, debuggerModel)
-        , breakpoints(context, master, debuggerModel.breakpoints)
+        , breakpoints(context, master, debuggerModel)
         , watchpoints(context, master, debuggerModel.watchpoints)
         , interrupts(context, master)
         , interruptTrace(context, master)

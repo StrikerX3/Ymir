@@ -4,9 +4,9 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2BreakpointsWindow::SH2BreakpointsWindow(SharedContext &context, bool master, SH2BreakpointsManager &bkptManager)
+SH2BreakpointsWindow::SH2BreakpointsWindow(SharedContext &context, bool master, SH2DebuggerModel &model)
     : SH2WindowBase(context, master)
-    , m_breakpointsView(context, bkptManager) {
+    , m_breakpointsView(context, model) {
 
     m_windowConfig.name = fmt::format("{}SH2 breakpoints", master ? 'M' : 'S');
     // m_windowConfig.flags = ImGuiWindowFlags_MenuBar;
