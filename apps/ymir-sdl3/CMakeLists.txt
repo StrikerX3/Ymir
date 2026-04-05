@@ -34,6 +34,8 @@ add_executable(ymir-sdl3
     src/app/debug/scsp_tracer.hpp
     src/app/debug/scu_tracer.cpp
     src/app/debug/scu_tracer.hpp
+    src/app/debug/sh2_exec_analyst.cpp
+    src/app/debug/sh2_exec_analyst.hpp
     src/app/debug/sh2_tracer.cpp
     src/app/debug/sh2_tracer.hpp
     src/app/debug/ygr_tracer.cpp
@@ -76,6 +78,7 @@ add_executable(ymir-sdl3
 
     src/app/ui/model/debug/sh2_breakpoints_manager.cpp
     src/app/ui/model/debug/sh2_breakpoints_manager.hpp
+    src/app/ui/model/debug/sh2_debugger_model.cpp
     src/app/ui/model/debug/sh2_debugger_model.hpp
     src/app/ui/model/debug/sh2_watchpoints_manager.cpp
     src/app/ui/model/debug/sh2_watchpoints_manager.hpp
@@ -131,6 +134,10 @@ add_executable(ymir-sdl3
     src/app/ui/views/debug/sh2_cache_entries_view.hpp
     src/app/ui/views/debug/sh2_cache_register_view.cpp
     src/app/ui/views/debug/sh2_cache_register_view.hpp
+    src/app/ui/views/debug/sh2_call_stack_view.cpp
+    src/app/ui/views/debug/sh2_call_stack_view.hpp
+    src/app/ui/views/debug/sh2_data_stack_view.cpp
+    src/app/ui/views/debug/sh2_data_stack_view.hpp
     src/app/ui/views/debug/sh2_debug_toolbar_view.cpp
     src/app/ui/views/debug/sh2_debug_toolbar_view.hpp
     src/app/ui/views/debug/sh2_disasm_dump_view.cpp

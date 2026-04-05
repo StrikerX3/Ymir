@@ -5003,20 +5003,50 @@ void App::PersistWindowGeometry() {
 }
 
 void App::LoadDebuggerState() {
-    const auto path = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
-    if (std::filesystem::is_directory(path)) {
-        m_masterSH2WindowSet.debugger.LoadState(path);
-        m_slaveSH2WindowSet.debugger.LoadState(path);
+    const auto discHash = [&] {
+        std::unique_lock lock{m_context.locks.disc};
+        return ymir::ToString(m_context.saturn.GetDiscHash());
+    }();
+    const auto basePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
+    if (std::filesystem::is_directory(basePath)) {
+        {
+            std::unique_lock lock{m_context.locks.breakpoints};
+            const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
+            const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
+            m_masterSH2WindowSet.debuggerModel.breakpoints.LoadState(msh2Path);
+            m_slaveSH2WindowSet.debuggerModel.breakpoints.LoadState(ssh2Path);
+        }
+        {
+            std::unique_lock lock{m_context.locks.watchpoints};
+            const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
+            const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
+            m_masterSH2WindowSet.debuggerModel.watchpoints.LoadState(msh2Path);
+            m_slaveSH2WindowSet.debuggerModel.watchpoints.LoadState(ssh2Path);
+        }
         m_context.debuggers.dirty = false;
         m_context.debuggers.dirtyTimestamp = clk::now();
     }
 }
 
 void App::SaveDebuggerState() {
-    const auto path = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
-    std::filesystem::create_directories(path);
-    m_masterSH2WindowSet.debugger.SaveState(path);
-    m_slaveSH2WindowSet.debugger.SaveState(path);
+    const auto discHash = [&] {
+        std::unique_lock lock{m_context.locks.disc};
+        return ymir::ToString(m_context.saturn.GetDiscHash());
+    }();
+    const auto basePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
+    std::filesystem::create_directories(basePath);
+    {
+        const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
+        const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
+        m_masterSH2WindowSet.debuggerModel.breakpoints.SaveState(msh2Path);
+        m_slaveSH2WindowSet.debuggerModel.breakpoints.SaveState(ssh2Path);
+    }
+    {
+        const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
+        const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
+        m_masterSH2WindowSet.debuggerModel.watchpoints.SaveState(msh2Path);
+        m_slaveSH2WindowSet.debuggerModel.watchpoints.SaveState(ssh2Path);
+    }
     m_context.debuggers.dirty = false;
 }
 

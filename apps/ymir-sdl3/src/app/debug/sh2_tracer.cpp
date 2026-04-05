@@ -16,12 +16,48 @@ void SH2Tracer::ResetDMACounter(uint32 channel) {
     m_dmaCounter[channel] = 0;
 }
 
+void SH2Tracer::Attached() {
+    execAnalyst.Clear();
+}
+
+void SH2Tracer::Detached() {
+    execAnalyst.Clear();
+}
+
+void SH2Tracer::Reset(uint32 pc, uint32 sp, bool watchdogInitiated) {
+    execAnalyst.Reset(pc, sp);
+}
+
 void SH2Tracer::ExecuteInstruction(uint32 pc, uint16 opcode, bool delaySlot) {
     if (!traceInstructions) {
         return;
     }
 
     instructions.Write({pc, opcode, delaySlot});
+}
+
+void SH2Tracer::DelaySlot(uint32 pc, uint32 target) {
+    execAnalyst.DelaySlot(pc, target);
+}
+
+void SH2Tracer::Branch(uint32 pc, uint32 target) {
+    execAnalyst.Branch(pc, target);
+}
+
+void SH2Tracer::BranchDelay(uint32 target) {
+    execAnalyst.BranchDelay(target);
+}
+
+void SH2Tracer::Call(uint32 target) {
+    execAnalyst.Call(target);
+}
+
+void SH2Tracer::Return(uint32 target) {
+    execAnalyst.Return(target);
+}
+
+void SH2Tracer::ReturnFromException(uint32 target) {
+    execAnalyst.ReturnFromException(target);
 }
 
 void SH2Tracer::Interrupt(uint8 vecNum, uint8 level, sh2::InterruptSource source, uint32 pc) {
@@ -32,12 +68,38 @@ void SH2Tracer::Interrupt(uint8 vecNum, uint8 level, sh2::InterruptSource source
     interrupts.Write({vecNum, level, source, pc, m_interruptCounter++});
 }
 
-void SH2Tracer::Exception(uint8 vecNum, uint32 pc, uint32 sr) {
+void SH2Tracer::Exception(uint8 vecNum, uint32 oldPC, uint32 oldSR, uint32 oldSP, uint32 newPC) {
+    execAnalyst.Exception(vecNum, oldPC, oldSP, newPC);
+
     if (!traceExceptions) {
         return;
     }
 
-    exceptions.Write({vecNum, pc, sr});
+    exceptions.Write({vecNum, oldPC, oldSR});
+}
+
+void SH2Tracer::Trap(uint8 vecNum, uint32 oldPC, uint32 oldSP, uint32 newPC) {
+    execAnalyst.Trap(vecNum, oldPC, oldSP, newPC);
+}
+
+void SH2Tracer::ChangeStack(uint32 newSP) {
+    execAnalyst.ChangeStack(newSP);
+}
+
+void SH2Tracer::ResizeStack(uint32 oldSP, uint32 newSP) {
+    execAnalyst.ResizeStack(oldSP, newSP);
+}
+
+void SH2Tracer::PushRegisterToStack(uint8 rn, uint32 oldSP, uint32 newSP) {
+    execAnalyst.PushRegisterToStack(rn, oldSP, newSP);
+}
+
+void SH2Tracer::PushToStack(ymir::debug::SH2StackValueType type, uint32 newSP) {
+    execAnalyst.PushToStack(type, newSP);
+}
+
+void SH2Tracer::PopFromStack(uint32 newSP) {
+    execAnalyst.PopFromStack(newSP);
 }
 
 void SH2Tracer::Begin32x32Division(sint32 dividend, sint32 divisor, bool overflowIntrEnable) {

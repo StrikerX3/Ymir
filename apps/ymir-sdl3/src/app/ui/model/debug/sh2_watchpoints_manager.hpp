@@ -4,6 +4,7 @@
 
 #include <ymir/core/types.hpp>
 
+#include <filesystem>
 #include <map>
 
 // -----------------------------------------------------------------------------
@@ -129,6 +130,17 @@ public:
     /// @param[in] address the address (force-aligned to 16-bit)
     /// @return `true` if the condition passes, `false` if it fails or there is no watchpoint at the address
     bool CheckWatchpointCondition(uint32 address) const;
+
+    /// @brief Loads watchpoints from the given file.
+    ///
+    /// Updates the SH2 instance.
+    ///
+    /// @param[in] path the watchpoints file
+    void LoadState(std::filesystem::path path);
+
+    /// @brief Saves watchpoints to the given file.
+    /// @param[in] path the watchpoints file
+    void SaveState(std::filesystem::path path) const;
 
 private:
     ymir::sh2::SH2 *m_sh2 = nullptr;

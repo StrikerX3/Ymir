@@ -2,6 +2,7 @@
 
 #include <ymir/core/types.hpp>
 
+#include <filesystem>
 #include <map>
 #include <set>
 
@@ -129,6 +130,17 @@ public:
     /// @param[in] address the address (force-aligned to 16-bit)
     /// @return `true` if the condition passes, `false` if it fails or there is no breakpoint at the address
     bool CheckBreakpointCondition(uint32 address) const;
+
+    /// @brief Loads breakpoints from the given file.
+    ///
+    /// Updates the SH2 instance.
+    ///
+    /// @param[in] path the breakpoints file
+    void LoadState(std::filesystem::path path);
+
+    /// @brief Saves breakpoints to the given file.
+    /// @param[in] path the breakpoints file
+    void SaveState(std::filesystem::path path) const;
 
 private:
     ymir::sh2::SH2 *m_sh2 = nullptr;

@@ -124,8 +124,8 @@ struct TestSubject : debug::ISH2Tracer {
         interrupts.push_back({vecNum, level, source, pc});
     }
 
-    void Exception(uint8 vecNum, uint32 pc, uint32 sr) override {
-        exceptions.push_back({vecNum, pc, sr});
+    void Exception(uint8 vecNum, uint32 oldPC, uint32 oldSR, uint32 oldSP, uint32 newPC) override {
+        exceptions.push_back({vecNum, oldPC, oldSR});
     }
 
     // -------------------------------------------------------------------------

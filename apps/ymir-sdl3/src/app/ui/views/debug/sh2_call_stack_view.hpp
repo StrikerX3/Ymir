@@ -1,22 +1,23 @@
 #pragma once
 
-#include <app/shared_context.hpp>
+#include <app/debug/sh2_tracer.hpp>
 
 #include <app/ui/model/debug/sh2_debugger_model.hpp>
 
+#include <app/shared_context.hpp>
+
 namespace app::ui {
 
-class SH2RegistersView {
+class SH2CallStackView {
 public:
-    SH2RegistersView(SharedContext &context, ymir::sh2::SH2 &sh2, SH2DebuggerModel &model);
+    SH2CallStackView(SharedContext &context, ymir::sh2::SH2 &sh2, SH2Tracer &tracer, SH2DebuggerModel &model);
 
     void Display();
-
-    float GetViewWidth();
 
 private:
     SharedContext &m_context;
     ymir::sh2::SH2 &m_sh2;
+    SH2Tracer &m_tracer;
     SH2DebuggerModel &m_model;
 };
 

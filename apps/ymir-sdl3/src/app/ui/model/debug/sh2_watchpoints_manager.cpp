@@ -2,9 +2,16 @@
 
 #include <ymir/hw/sh2/sh2.hpp>
 
+#include <fmt/format.h>
+
+#include <fstream>
+#include <iostream>
+
+using namespace ymir;
+
 namespace app::ui {
 
-void SH2WatchpointsManager::Bind(ymir::sh2::SH2 &sh2) {
+void SH2WatchpointsManager::Bind(sh2::SH2 &sh2) {
     m_sh2 = &sh2;
     m_sh2->ReplaceWatchpoints(BuildActiveWatchpointsSet());
 }
@@ -16,7 +23,7 @@ void SH2WatchpointsManager::Unbind() {
     }
 }
 
-void SH2WatchpointsManager::AddWatchpoint(uint32 address, ymir::debug::WatchpointFlags flags) {
+void SH2WatchpointsManager::AddWatchpoint(uint32 address, debug::WatchpointFlags flags) {
     address &= ~1u;
     m_watchpoints[address].flags |= flags;
     if (m_sh2) {
@@ -24,10 +31,10 @@ void SH2WatchpointsManager::AddWatchpoint(uint32 address, ymir::debug::Watchpoin
     }
 }
 
-void SH2WatchpointsManager::RemoveWatchpoint(uint32 address, ymir::debug::WatchpointFlags flags) {
+void SH2WatchpointsManager::RemoveWatchpoint(uint32 address, debug::WatchpointFlags flags) {
     address &= ~1u;
     m_watchpoints[address].flags &= ~flags;
-    if (m_watchpoints[address].flags == ymir::debug::WatchpointFlags::None) {
+    if (m_watchpoints[address].flags == debug::WatchpointFlags::None) {
         m_watchpoints.erase(address);
     }
     if (m_sh2) {
@@ -47,7 +54,7 @@ void SH2WatchpointsManager::ClearWatchpoint(uint32 address) {
 bool SH2WatchpointsManager::MoveWatchpoint(uint32 address, uint32 newAddress) {
     address &= ~1u;
     newAddress &= ~1u;
-    if (GetWatchpointFlags(address) == ymir::debug::WatchpointFlags::None) {
+    if (GetWatchpointFlags(address) == debug::WatchpointFlags::None) {
         return false;
     }
     auto it = m_watchpoints.find(address);
@@ -101,11 +108,11 @@ void SH2WatchpointsManager::ReplaceWatchpoints(std::map<uint32, SH2Watchpoint> w
     }
 }
 
-ymir::debug::WatchpointFlags SH2WatchpointsManager::GetWatchpointFlags(uint32 address) const {
+debug::WatchpointFlags SH2WatchpointsManager::GetWatchpointFlags(uint32 address) const {
     address &= ~1u;
     auto it = m_watchpoints.find(address);
     if (it == m_watchpoints.end()) {
-        return ymir::debug::WatchpointFlags::None;
+        return debug::WatchpointFlags::None;
     } else {
         return it->second.flags;
     }
@@ -142,8 +149,109 @@ bool SH2WatchpointsManager::CheckWatchpointCondition(uint32 address) const {
     return true;
 }
 
-std::map<uint32, ymir::debug::WatchpointFlags> SH2WatchpointsManager::BuildActiveWatchpointsSet() const {
-    std::map<uint32, ymir::debug::WatchpointFlags> wtpts{};
+void SH2WatchpointsManager::LoadState(std::filesystem::path path) {
+    if (m_sh2 == nullptr) {
+        return;
+    }
+
+    // Line format:
+    // [!]<address> [R8] [R16] [R32] [W8] [W16] [W32]
+    //   [!]        disabled watchpoint (optional; enabled if omitted)
+    //   <address>  watchpoint address
+    //   [R8]       trigger on 8-bit reads
+    //   [R16]      trigger on 16-bit reads
+    //   [R32]      trigger on 32-bit reads
+    //   [W8]       trigger on 8-bit writes
+    //   [W16]      trigger on 16-bit writes
+    //   [W32]      trigger on 32-bit writes
+    //
+    // TODO: add condition expression
+
+    std::map<uint32, SH2Watchpoint> map{};
+    {
+        std::ifstream in{path, std::ios::binary};
+        std::string line{};
+        while (std::getline(in, line)) {
+            if (line.empty()) {
+                continue;
+            }
+
+            const bool enabled = line[0] != '!';
+            if (!enabled) {
+                line = line.substr(1);
+            }
+
+            std::istringstream lineIn{line};
+            uint32 address;
+            lineIn >> std::hex >> address;
+
+            SH2Watchpoint &wtpt = map[address];
+            wtpt.enabled = enabled;
+
+            std::string item{};
+            while (lineIn) {
+                lineIn >> item;
+                if (item == "R8") {
+                    wtpt.flags |= debug::WatchpointFlags::Read8;
+                } else if (item == "R16") {
+                    wtpt.flags |= debug::WatchpointFlags::Read16;
+                } else if (item == "R32") {
+                    wtpt.flags |= debug::WatchpointFlags::Read32;
+                } else if (item == "W8") {
+                    wtpt.flags |= debug::WatchpointFlags::Write8;
+                } else if (item == "W16") {
+                    wtpt.flags |= debug::WatchpointFlags::Write16;
+                } else if (item == "W32") {
+                    wtpt.flags |= debug::WatchpointFlags::Write32;
+                }
+            }
+        }
+    }
+
+    ReplaceWatchpoints(map);
+}
+
+void SH2WatchpointsManager::SaveState(std::filesystem::path path) const {
+    const std::map<uint32, SH2Watchpoint> map = GetWatchpoints();
+
+    if (map.empty()) {
+        std::filesystem::remove(path);
+    } else {
+        std::ofstream out{path, std::ios::binary};
+        std::string flagsStr{};
+        flagsStr.reserve(6);
+        for (const auto [address, wtpt] : map) {
+            flagsStr.clear();
+            if (!wtpt.enabled) {
+                out << '!';
+            }
+            out << std::hex << address;
+            BitmaskEnum bmFlags{wtpt.flags};
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Read8)) {
+                out << " R8";
+            }
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Read16)) {
+                out << " R16";
+            }
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Read32)) {
+                out << " R32";
+            }
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Write8)) {
+                out << " W8";
+            }
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Write16)) {
+                out << " W16";
+            }
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Write32)) {
+                out << " W32";
+            }
+            out << '\n';
+        }
+    }
+}
+
+std::map<uint32, debug::WatchpointFlags> SH2WatchpointsManager::BuildActiveWatchpointsSet() const {
+    std::map<uint32, debug::WatchpointFlags> wtpts{};
     for (auto &[addr, wtpt] : m_watchpoints) {
         if (wtpt.enabled) {
             wtpts.insert({addr, wtpt.flags});

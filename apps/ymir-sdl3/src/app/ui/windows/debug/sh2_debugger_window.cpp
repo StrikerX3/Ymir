@@ -12,12 +12,14 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master, SH2DebuggerModel &debuggerModel)
+SH2DebuggerWindow::SH2DebuggerWindow(SharedContext &context, bool master, SH2DebuggerModel &model)
     : SH2WindowBase(context, master)
-    , m_debuggerModel(debuggerModel)
-    , m_disasmView(context, m_sh2, debuggerModel)
-    , m_toolbarView(context, m_sh2, debuggerModel)
-    , m_regsView(context, m_sh2) {
+    , m_model(model)
+    , m_disasmView(context, m_sh2, model)
+    , m_toolbarView(context, m_sh2, model)
+    , m_regsView(context, m_sh2, model)
+    , m_dataStackView(context, m_sh2, m_tracer, model)
+    , m_callStackView(context, m_sh2, m_tracer, model) {
 
     m_windowConfig.name = fmt::format("{}SH2 debugger", master ? 'M' : 'S');
     m_windowConfig.flags = ImGuiWindowFlags_MenuBar;
@@ -28,188 +30,8 @@ void SH2DebuggerWindow::RequestOpen(bool triggeredByEvent, bool requestFocus) {
     if (requestFocus) {
         RequestFocus();
     }
-    if (triggeredByEvent && m_debuggerModel.followPCOnEvents) {
-        m_debuggerModel.JumpToPC();
-    }
-}
-
-void SH2DebuggerWindow::LoadState(std::filesystem::path path) {
-    // TODO: this feels like the wrong place for this...
-
-    const auto discHash = [&] {
-        std::unique_lock lock{m_context.locks.disc};
-        return ToString(m_context.saturn.GetDiscHash());
-    }();
-
-    {
-        std::map<uint32, SH2Breakpoint> breakpoints{};
-        {
-            // Line format:
-            // [!]<address>
-            //   [!]        disabled breakpoint (optional; enabled if omitted)
-            //   <address>  breakpoint address
-            //
-            // TODO: add condition expression
-
-            const auto breakpointsFile =
-                path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
-            std::ifstream in{breakpointsFile, std::ios::binary};
-            std::string line{};
-            while (std::getline(in, line)) {
-                if (line.empty()) {
-                    continue;
-                }
-
-                const bool enabled = line[0] != '!';
-                if (!enabled) {
-                    line = line.substr(1);
-                }
-
-                std::istringstream lineIn{line};
-                uint32 address;
-                lineIn >> std::hex >> address;
-                if (!lineIn) {
-                    break;
-                }
-
-                SH2Breakpoint &bkpt = breakpoints[address];
-                bkpt.enabled = enabled;
-            }
-        }
-
-        std::unique_lock lock{m_context.locks.breakpoints};
-        m_debuggerModel.breakpoints.ReplaceBreakpoints(breakpoints);
-    }
-
-    {
-        std::map<uint32, SH2Watchpoint> watchpoints{};
-        {
-            // Line format:
-            // [!]<address> [R8] [R16] [R32] [W8] [W16] [W32]
-            //   [!]        disabled watchpoint (optional; enabled if omitted)
-            //   <address>  watchpoint address
-            //   [R8]       trigger on 8-bit reads
-            //   [R16]      trigger on 16-bit reads
-            //   [R32]      trigger on 32-bit reads
-            //   [W8]       trigger on 8-bit writes
-            //   [W16]      trigger on 16-bit writes
-            //   [W32]      trigger on 32-bit writes
-            //
-            // TODO: add condition expression
-            const auto watchpointsFile =
-                path / fmt::format("{}sh2-watchpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
-            std::ifstream in{watchpointsFile, std::ios::binary};
-            std::string line{};
-            while (std::getline(in, line)) {
-                if (line.empty()) {
-                    continue;
-                }
-
-                const bool enabled = line[0] != '!';
-                if (!enabled) {
-                    line = line.substr(1);
-                }
-
-                std::istringstream lineIn{line};
-                uint32 address;
-                lineIn >> std::hex >> address;
-
-                SH2Watchpoint &wtpt = watchpoints[address];
-                wtpt.enabled = enabled;
-
-                std::string item{};
-                while (lineIn) {
-                    lineIn >> item;
-                    if (item == "R8") {
-                        wtpt.flags |= debug::WatchpointFlags::Read8;
-                    } else if (item == "R16") {
-                        wtpt.flags |= debug::WatchpointFlags::Read16;
-                    } else if (item == "R32") {
-                        wtpt.flags |= debug::WatchpointFlags::Read32;
-                    } else if (item == "W8") {
-                        wtpt.flags |= debug::WatchpointFlags::Write8;
-                    } else if (item == "W16") {
-                        wtpt.flags |= debug::WatchpointFlags::Write16;
-                    } else if (item == "W32") {
-                        wtpt.flags |= debug::WatchpointFlags::Write32;
-                    }
-                }
-            }
-        }
-
-        std::unique_lock lock{m_context.locks.watchpoints};
-        m_debuggerModel.watchpoints.ReplaceWatchpoints(watchpoints);
-    }
-}
-
-void SH2DebuggerWindow::SaveState(std::filesystem::path path) {
-    // TODO: this feels like the wrong place for this...
-
-    const auto discHash = [&] {
-        std::unique_lock lock{m_context.locks.disc};
-        return ToString(m_context.saturn.GetDiscHash());
-    }();
-
-    {
-        const std::map<uint32, SH2Breakpoint> breakpoints = m_debuggerModel.breakpoints.GetBreakpoints();
-
-        const auto breakpointsFile =
-            path / fmt::format("{}sh2-breakpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
-
-        if (breakpoints.empty()) {
-            std::filesystem::remove(breakpointsFile);
-        } else {
-            std::ofstream out{breakpointsFile, std::ios::binary};
-            for (auto &[address, bkpt] : breakpoints) {
-                if (!bkpt.enabled) {
-                    out << '!';
-                }
-                out << std::hex << address;
-                out << '\n';
-            }
-        }
-    }
-
-    {
-        const std::map<uint32, SH2Watchpoint> watchpoints = m_debuggerModel.watchpoints.GetWatchpoints();
-
-        const auto watchpointsFile =
-            path / fmt::format("{}sh2-watchpoints-{}.txt", (m_sh2.IsMaster() ? 'm' : 's'), discHash);
-
-        if (watchpoints.empty()) {
-            std::filesystem::remove(watchpointsFile);
-        } else {
-            std::ofstream out{watchpointsFile, std::ios::binary};
-            std::string flagsStr{};
-            flagsStr.reserve(6);
-            for (const auto [address, wtpt] : watchpoints) {
-                flagsStr.clear();
-                if (!wtpt.enabled) {
-                    out << '!';
-                }
-                out << std::hex << address;
-                BitmaskEnum bmFlags{wtpt.flags};
-                if (bmFlags.AnyOf(debug::WatchpointFlags::Read8)) {
-                    out << " R8";
-                }
-                if (bmFlags.AnyOf(debug::WatchpointFlags::Read16)) {
-                    out << " R16";
-                }
-                if (bmFlags.AnyOf(debug::WatchpointFlags::Read32)) {
-                    out << " R32";
-                }
-                if (bmFlags.AnyOf(debug::WatchpointFlags::Write8)) {
-                    out << " W8";
-                }
-                if (bmFlags.AnyOf(debug::WatchpointFlags::Write16)) {
-                    out << " W16";
-                }
-                if (bmFlags.AnyOf(debug::WatchpointFlags::Write32)) {
-                    out << " W32";
-                }
-                out << '\n';
-            }
-        }
+    if (triggeredByEvent && m_model.followPCOnEvents) {
+        m_model.JumpToPC();
     }
 }
 
@@ -233,6 +55,34 @@ void SH2DebuggerWindow::DrawContents() {
         if (ImGui::TableNextColumn()) {
             // ImGui::SeparatorText("Registers");
             m_regsView.Display();
+
+            ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.small);
+            const float lineHeight = ImGui::GetTextLineHeightWithSpacing();
+            ImGui::PopFont();
+
+            const float minStackHeight = lineHeight * 5;
+
+            if (m_model.settings.displayDataStack) {
+                const float y0 = ImGui::GetCursorPosY();
+                ImGui::SeparatorText("Data stack");
+                const float y1 = ImGui::GetCursorPosY();
+                const float sepHeight = y1 - y0;
+                const float availHeight = ImGui::GetContentRegionAvail().y;
+                const float dataStackHeight = std::max(minStackHeight, (availHeight - sepHeight) * 0.65f);
+                if (ImGui::BeginChild("data_stack", ImVec2(0, dataStackHeight))) {
+                    m_dataStackView.Display();
+                }
+                ImGui::EndChild();
+            }
+
+            if (m_model.settings.displayCallStack) {
+                ImGui::SeparatorText("Call stack");
+                const float callStackHeight = std::max(minStackHeight, ImGui::GetContentRegionAvail().y);
+                if (ImGui::BeginChild("call_stack", ImVec2(0, callStackHeight))) {
+                    m_callStackView.Display();
+                }
+                ImGui::EndChild();
+            }
         }
 
         ImGui::EndTable();
@@ -248,23 +98,18 @@ void SH2DebuggerWindow::DrawContents() {
         // Step into
         m_context.EnqueueEvent(m_sh2.IsMaster() ? events::emu::StepMSH2() : events::emu::StepSSH2());
     }
-    if (ImGui::Shortcut(ImGuiKey_F8, baseFlags) || ImGui::Shortcut(ImGuiKey_S, baseFlags)) {
+    if (ImGui::Shortcut(ImGuiKey_F8, baseFlags)) {
         // TODO: Step out
     }
-    if (ImGui::Shortcut(ImGuiKey_F9, baseFlags)) {
-        // TODO: Toggle breakpoint at cursor
-        // m_context.EnqueueEvent(events::emu::debug::ToggleSH2Breakpoint(m_sh2.IsMaster(),
-        // m_disasmView.GetCursorAddress()));
-    }
-    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_F9, baseFlags)) {
+    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_F9)) {
         // Open breakpoints
         m_context.EnqueueEvent(events::gui::OpenSH2BreakpointsWindow(m_sh2.IsMaster()));
     }
-    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F9, baseFlags)) {
+    if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F9)) {
         // Open watchpoints
         m_context.EnqueueEvent(events::gui::OpenSH2WatchpointsWindow(m_sh2.IsMaster()));
     }
-    if (ImGui::Shortcut(ImGuiKey_F11, baseFlags)) {
+    if (ImGui::Shortcut(ImGuiKey_F11)) {
         // Toggle debug tracing
         m_context.EnqueueEvent(events::emu::SetDebugTrace(!m_context.saturn.IsDebugTracingEnabled()));
     }

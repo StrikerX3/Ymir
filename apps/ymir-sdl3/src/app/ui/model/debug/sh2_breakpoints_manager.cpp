@@ -2,9 +2,16 @@
 
 #include <ymir/hw/sh2/sh2.hpp>
 
+#include <fmt/format.h>
+
+#include <fstream>
+#include <iostream>
+
+using namespace ymir;
+
 namespace app::ui {
 
-void SH2BreakpointsManager::Bind(ymir::sh2::SH2 &sh2) {
+void SH2BreakpointsManager::Bind(sh2::SH2 &sh2) {
     m_sh2 = &sh2;
     m_sh2->ReplaceBreakpoints(BuildActiveBreakpointsSet());
 }
@@ -142,6 +149,64 @@ bool SH2BreakpointsManager::IsBreakpointEnabled(uint32 address) const {
 bool SH2BreakpointsManager::CheckBreakpointCondition(uint32 address) const {
     // TODO: run condition check
     return true;
+}
+
+void SH2BreakpointsManager::LoadState(std::filesystem::path path) {
+    if (m_sh2 == nullptr) {
+        return;
+    }
+
+    std::map<uint32, SH2Breakpoint> map{};
+    {
+        // Line format:
+        // [!]<address>
+        //   [!]        disabled breakpoint (optional; enabled if omitted)
+        //   <address>  breakpoint address
+        //
+        // TODO: add condition expression
+
+        std::ifstream in{path, std::ios::binary};
+        std::string line{};
+        while (std::getline(in, line)) {
+            if (line.empty()) {
+                continue;
+            }
+
+            const bool enabled = line[0] != '!';
+            if (!enabled) {
+                line = line.substr(1);
+            }
+
+            std::istringstream lineIn{line};
+            uint32 address;
+            lineIn >> std::hex >> address;
+            if (!lineIn) {
+                break;
+            }
+
+            SH2Breakpoint &bkpt = map[address];
+            bkpt.enabled = enabled;
+        }
+    }
+
+    ReplaceBreakpoints(map);
+}
+
+void SH2BreakpointsManager::SaveState(std::filesystem::path path) const {
+    const std::map<uint32, SH2Breakpoint> map = GetBreakpoints();
+
+    if (map.empty()) {
+        std::filesystem::remove(path);
+    } else {
+        std::ofstream out{path, std::ios::binary};
+        for (auto &[address, bkpt] : map) {
+            if (!bkpt.enabled) {
+                out << '!';
+            }
+            out << std::hex << address;
+            out << '\n';
+        }
+    }
 }
 
 std::set<uint32> SH2BreakpointsManager::BuildActiveBreakpointsSet() const {

@@ -112,11 +112,71 @@ namespace config {
 // -----------------------------------------------------------------------------
 // Debugger
 
+FORCE_INLINE static void TraceReset(debug::ISH2Tracer *tracer, uint32 pc, uint32 sp, bool watchdogInitiated) {
+    if (tracer) {
+        return tracer->Reset(pc, sp, watchdogInitiated);
+    }
+}
+
 template <bool debug>
 FORCE_INLINE static void TraceExecuteInstruction(debug::ISH2Tracer *tracer, uint32 pc, uint16 opcode, bool delaySlot) {
     if constexpr (debug) {
         if (tracer) {
             return tracer->ExecuteInstruction(pc, opcode, delaySlot);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceDelaySlot(debug::ISH2Tracer *tracer, uint32 pc, uint32 target) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->DelaySlot(pc, target);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceBranch(debug::ISH2Tracer *tracer, uint32 pc, uint32 target) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->Branch(pc, target);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceBranchDelay(debug::ISH2Tracer *tracer, uint32 target) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->BranchDelay(target);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceCall(debug::ISH2Tracer *tracer, uint32 target) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->Call(target);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceReturn(debug::ISH2Tracer *tracer, uint32 target) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->Return(target);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceReturnFromException(debug::ISH2Tracer *tracer, uint32 target) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->ReturnFromException(target);
         }
     }
 }
@@ -132,10 +192,67 @@ FORCE_INLINE static void TraceInterrupt(debug::ISH2Tracer *tracer, uint8 vecNum,
 }
 
 template <bool debug>
-FORCE_INLINE static void TraceException(debug::ISH2Tracer *tracer, uint8 vecNum, uint32 pc, uint32 sr) {
+FORCE_INLINE static void TraceException(debug::ISH2Tracer *tracer, uint8 vecNum, uint32 oldPC, uint32 oldSR,
+                                        uint32 oldSP, uint32 newPC) {
     if constexpr (debug) {
         if (tracer) {
-            return tracer->Exception(vecNum, pc, sr);
+            return tracer->Exception(vecNum, oldPC, oldSR, oldSP, newPC);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceTrap(debug::ISH2Tracer *tracer, uint8 vecNum, uint32 oldPC, uint32 oldSP, uint32 newPC) {
+    if constexpr (debug) {
+        if (tracer) {
+            return tracer->Trap(vecNum, oldPC, oldSP, newPC);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceChangeStack(debug::ISH2Tracer *tracer, bool isSP, uint32 newSP) {
+    if constexpr (debug) {
+        if (tracer && isSP) {
+            return tracer->ChangeStack(newSP);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TraceResizeStack(debug::ISH2Tracer *tracer, bool isSP, uint32 oldSP, uint32 newSP) {
+    if constexpr (debug) {
+        if (tracer && isSP) {
+            return tracer->ResizeStack(oldSP, newSP);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TracePushRegisterToStack(debug::ISH2Tracer *tracer, bool isSP, uint8 rn, uint32 oldSP,
+                                                  uint32 newSP) {
+    if constexpr (debug) {
+        if (tracer && isSP) {
+            return tracer->PushRegisterToStack(rn, oldSP, newSP);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TracePushToStack(debug::ISH2Tracer *tracer, bool isSP, debug::SH2StackValueType type,
+                                          uint32 newSP) {
+    if constexpr (debug) {
+        if (tracer && isSP) {
+            return tracer->PushToStack(type, newSP);
+        }
+    }
+}
+
+template <bool debug>
+FORCE_INLINE static void TracePopFromStack(debug::ISH2Tracer *tracer, bool isSP, uint32 newSP) {
+    if constexpr (debug) {
+        if (tracer && isSP) {
+            return tracer->PopFromStack(newSP);
         }
     }
 }
@@ -272,6 +389,8 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     m_delaySlot = false;
 
     m_cache.Reset();
+
+    TraceReset(m_tracer, PC, R[15], watchdogInitiated);
 }
 
 void SH2::MapMemory(sys::SH2Bus &bus) {
@@ -1987,9 +2106,10 @@ FORCE_INLINE void SH2::SetupDelaySlot(uint32 targetAddress) {
     m_intrFlags.values.pending = false;
 }
 
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE void SH2::AdvancePC() {
     if constexpr (delaySlot) {
+        TraceDelaySlot<debug>(m_tracer, PC, m_delaySlotTarget);
         PC = m_delaySlotTarget;
         m_delaySlot = false;
         m_intrFlags.values.pending = INTC.pending.level > SR.ILevel;
@@ -2005,10 +2125,11 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
     const uint32 address3 = VBR + (static_cast<uint32>(vectorNumber) << 2u);
     const uint64 cycles = AccessCycles<true, enableCache>(address1) + AccessCycles<true, enableCache>(address2) +
                           AccessCycles<false, enableCache>(address3) + 5;
-    TraceException<debug>(m_tracer, vectorNumber, PC, SR.u32);
     MemWriteLong<debug, enableCache>(address1, SR.u32);
     MemWriteLong<debug, enableCache>(address2, PC);
-    PC = MemReadLong<enableCache>(address3);
+    const uint32 target = MemReadLong<enableCache>(address3);
+    TraceException<debug>(m_tracer, vectorNumber, PC, SR.u32, R[15], target);
+    PC = target;
     R[15] -= 8;
     return cycles;
 }
@@ -2048,19 +2169,20 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
 
     // TODO: emulate or approximate fetch - decode - execute - memory access - writeback pipeline
 
-    const uint16 instr = FetchInstruction<enableCache>(PC);
-    TraceExecuteInstruction<debug>(m_tracer, PC, instr, m_delaySlot);
+    const uint32 pc = PC;
+    const uint16 instr = FetchInstruction<enableCache>(pc);
+    TraceExecuteInstruction<debug>(m_tracer, pc, instr, m_delaySlot);
 
     const OpcodeType opcode = DecodeTable::s_instance.opcodes[m_delaySlot][instr];
     const DecodedArgs &args = DecodeTable::s_instance.args[instr];
 
     // TODO: check program execution
     switch (opcode) {
-    case OpcodeType::NOP: return NOP<false>();
+    case OpcodeType::NOP: return NOP<debug, false>();
 
     case OpcodeType::SLEEP: return SLEEP();
 
-    case OpcodeType::MOV_R: return MOV<false>(args);
+    case OpcodeType::MOV_R: return MOV<debug, false>(args);
     case OpcodeType::MOVB_L: return MOVBL<debug, enableCache, false>(args);
     case OpcodeType::MOVW_L: return MOVWL<debug, enableCache, false>(args);
     case OpcodeType::MOVL_L: return MOVLL<debug, enableCache, false>(args);
@@ -2091,34 +2213,34 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::MOVB_SG: return MOVBSG<debug, enableCache, false>(args);
     case OpcodeType::MOVW_SG: return MOVWSG<debug, enableCache, false>(args);
     case OpcodeType::MOVL_SG: return MOVLSG<debug, enableCache, false>(args);
-    case OpcodeType::MOV_I: return MOVI<false>(args);
+    case OpcodeType::MOV_I: return MOVI<debug, false>(args);
     case OpcodeType::MOVW_I: return MOVWI<debug, enableCache, false>(args);
     case OpcodeType::MOVL_I: return MOVLI<debug, enableCache, false>(args);
-    case OpcodeType::MOVA: return MOVA<false>(args);
-    case OpcodeType::MOVT: return MOVT<false>(args);
-    case OpcodeType::CLRT: return CLRT<false>();
-    case OpcodeType::SETT: return SETT<false>();
+    case OpcodeType::MOVA: return MOVA<debug, false>(args);
+    case OpcodeType::MOVT: return MOVT<debug, false>(args);
+    case OpcodeType::CLRT: return CLRT<debug, false>();
+    case OpcodeType::SETT: return SETT<debug, false>();
 
-    case OpcodeType::EXTUB: return EXTUB<false>(args);
-    case OpcodeType::EXTUW: return EXTUW<false>(args);
-    case OpcodeType::EXTSB: return EXTSB<false>(args);
-    case OpcodeType::EXTSW: return EXTSW<false>(args);
-    case OpcodeType::SWAPB: return SWAPB<false>(args);
-    case OpcodeType::SWAPW: return SWAPW<false>(args);
-    case OpcodeType::XTRCT: return XTRCT<false>(args);
+    case OpcodeType::EXTUB: return EXTUB<debug, false>(args);
+    case OpcodeType::EXTUW: return EXTUW<debug, false>(args);
+    case OpcodeType::EXTSB: return EXTSB<debug, false>(args);
+    case OpcodeType::EXTSW: return EXTSW<debug, false>(args);
+    case OpcodeType::SWAPB: return SWAPB<debug, false>(args);
+    case OpcodeType::SWAPW: return SWAPW<debug, false>(args);
+    case OpcodeType::XTRCT: return XTRCT<debug, false>(args);
 
-    case OpcodeType::LDC_GBR_R: return LDCGBR<false>(args);
-    case OpcodeType::LDC_SR_R: return LDCSR<false>(args);
-    case OpcodeType::LDC_VBR_R: return LDCVBR<false>(args);
-    case OpcodeType::LDS_MACH_R: return LDSMACH<false>(args);
-    case OpcodeType::LDS_MACL_R: return LDSMACL<false>(args);
-    case OpcodeType::LDS_PR_R: return LDSPR<false>(args);
-    case OpcodeType::STC_GBR_R: return STCGBR<false>(args);
-    case OpcodeType::STC_SR_R: return STCSR<false>(args);
-    case OpcodeType::STC_VBR_R: return STCVBR<false>(args);
-    case OpcodeType::STS_MACH_R: return STSMACH<false>(args);
-    case OpcodeType::STS_MACL_R: return STSMACL<false>(args);
-    case OpcodeType::STS_PR_R: return STSPR<false>(args);
+    case OpcodeType::LDC_GBR_R: return LDCGBR<debug, false>(args);
+    case OpcodeType::LDC_SR_R: return LDCSR<debug, false>(args);
+    case OpcodeType::LDC_VBR_R: return LDCVBR<debug, false>(args);
+    case OpcodeType::LDS_MACH_R: return LDSMACH<debug, false>(args);
+    case OpcodeType::LDS_MACL_R: return LDSMACL<debug, false>(args);
+    case OpcodeType::LDS_PR_R: return LDSPR<debug, false>(args);
+    case OpcodeType::STC_GBR_R: return STCGBR<debug, false>(args);
+    case OpcodeType::STC_SR_R: return STCSR<debug, false>(args);
+    case OpcodeType::STC_VBR_R: return STCVBR<debug, false>(args);
+    case OpcodeType::STS_MACH_R: return STSMACH<debug, false>(args);
+    case OpcodeType::STS_MACL_R: return STSMACL<debug, false>(args);
+    case OpcodeType::STS_PR_R: return STSPR<debug, false>(args);
     case OpcodeType::LDC_GBR_M: return LDCMGBR<debug, enableCache, false>(args);
     case OpcodeType::LDC_SR_M: return LDCMSR<debug, enableCache, false>(args);
     case OpcodeType::LDC_VBR_M: return LDCMVBR<debug, enableCache, false>(args);
@@ -2132,91 +2254,91 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::STS_MACL_M: return STSMMACL<debug, enableCache, false>(args);
     case OpcodeType::STS_PR_M: return STSMPR<debug, enableCache, false>(args);
 
-    case OpcodeType::ADD: return ADD<false>(args);
-    case OpcodeType::ADD_I: return ADDI<false>(args);
-    case OpcodeType::ADDC: return ADDC<false>(args);
-    case OpcodeType::ADDV: return ADDV<false>(args);
-    case OpcodeType::AND_R: return AND<false>(args);
-    case OpcodeType::AND_I: return ANDI<false>(args);
+    case OpcodeType::ADD: return ADD<debug, false>(args);
+    case OpcodeType::ADD_I: return ADDI<debug, false>(args);
+    case OpcodeType::ADDC: return ADDC<debug, false>(args);
+    case OpcodeType::ADDV: return ADDV<debug, false>(args);
+    case OpcodeType::AND_R: return AND<debug, false>(args);
+    case OpcodeType::AND_I: return ANDI<debug, false>(args);
     case OpcodeType::AND_M: return ANDM<debug, enableCache, false>(args);
-    case OpcodeType::NEG: return NEG<false>(args);
-    case OpcodeType::NEGC: return NEGC<false>(args);
-    case OpcodeType::NOT: return NOT<false>(args);
-    case OpcodeType::OR_R: return OR<false>(args);
-    case OpcodeType::OR_I: return ORI<false>(args);
+    case OpcodeType::NEG: return NEG<debug, false>(args);
+    case OpcodeType::NEGC: return NEGC<debug, false>(args);
+    case OpcodeType::NOT: return NOT<debug, false>(args);
+    case OpcodeType::OR_R: return OR<debug, false>(args);
+    case OpcodeType::OR_I: return ORI<debug, false>(args);
     case OpcodeType::OR_M: return ORM<debug, enableCache, false>(args);
-    case OpcodeType::ROTCL: return ROTCL<false>(args);
-    case OpcodeType::ROTCR: return ROTCR<false>(args);
-    case OpcodeType::ROTL: return ROTL<false>(args);
-    case OpcodeType::ROTR: return ROTR<false>(args);
-    case OpcodeType::SHAL: return SHAL<false>(args);
-    case OpcodeType::SHAR: return SHAR<false>(args);
-    case OpcodeType::SHLL: return SHLL<false>(args);
-    case OpcodeType::SHLL2: return SHLL2<false>(args);
-    case OpcodeType::SHLL8: return SHLL8<false>(args);
-    case OpcodeType::SHLL16: return SHLL16<false>(args);
-    case OpcodeType::SHLR: return SHLR<false>(args);
-    case OpcodeType::SHLR2: return SHLR2<false>(args);
-    case OpcodeType::SHLR8: return SHLR8<false>(args);
-    case OpcodeType::SHLR16: return SHLR16<false>(args);
-    case OpcodeType::SUB: return SUB<false>(args);
-    case OpcodeType::SUBC: return SUBC<false>(args);
-    case OpcodeType::SUBV: return SUBV<false>(args);
-    case OpcodeType::XOR_R: return XOR<false>(args);
-    case OpcodeType::XOR_I: return XORI<false>(args);
+    case OpcodeType::ROTCL: return ROTCL<debug, false>(args);
+    case OpcodeType::ROTCR: return ROTCR<debug, false>(args);
+    case OpcodeType::ROTL: return ROTL<debug, false>(args);
+    case OpcodeType::ROTR: return ROTR<debug, false>(args);
+    case OpcodeType::SHAL: return SHAL<debug, false>(args);
+    case OpcodeType::SHAR: return SHAR<debug, false>(args);
+    case OpcodeType::SHLL: return SHLL<debug, false>(args);
+    case OpcodeType::SHLL2: return SHLL2<debug, false>(args);
+    case OpcodeType::SHLL8: return SHLL8<debug, false>(args);
+    case OpcodeType::SHLL16: return SHLL16<debug, false>(args);
+    case OpcodeType::SHLR: return SHLR<debug, false>(args);
+    case OpcodeType::SHLR2: return SHLR2<debug, false>(args);
+    case OpcodeType::SHLR8: return SHLR8<debug, false>(args);
+    case OpcodeType::SHLR16: return SHLR16<debug, false>(args);
+    case OpcodeType::SUB: return SUB<debug, false>(args);
+    case OpcodeType::SUBC: return SUBC<debug, false>(args);
+    case OpcodeType::SUBV: return SUBV<debug, false>(args);
+    case OpcodeType::XOR_R: return XOR<debug, false>(args);
+    case OpcodeType::XOR_I: return XORI<debug, false>(args);
     case OpcodeType::XOR_M: return XORM<debug, enableCache, false>(args);
 
-    case OpcodeType::DT: return DT<false>(args);
+    case OpcodeType::DT: return DT<debug, false>(args);
 
-    case OpcodeType::CLRMAC: return CLRMAC<false>();
+    case OpcodeType::CLRMAC: return CLRMAC<debug, false>();
     case OpcodeType::MACW: return MACW<debug, enableCache, false>(args);
     case OpcodeType::MACL: return MACL<debug, enableCache, false>(args);
-    case OpcodeType::MUL: return MULL<false>(args);
-    case OpcodeType::MULS: return MULS<false>(args);
-    case OpcodeType::MULU: return MULU<false>(args);
-    case OpcodeType::DMULS: return DMULS<false>(args);
-    case OpcodeType::DMULU: return DMULU<false>(args);
+    case OpcodeType::MUL: return MULL<debug, false>(args);
+    case OpcodeType::MULS: return MULS<debug, false>(args);
+    case OpcodeType::MULU: return MULU<debug, false>(args);
+    case OpcodeType::DMULS: return DMULS<debug, false>(args);
+    case OpcodeType::DMULU: return DMULU<debug, false>(args);
 
-    case OpcodeType::DIV0S: return DIV0S<false>(args);
-    case OpcodeType::DIV0U: return DIV0U<false>();
-    case OpcodeType::DIV1: return DIV1<false>(args);
+    case OpcodeType::DIV0S: return DIV0S<debug, false>(args);
+    case OpcodeType::DIV0U: return DIV0U<debug, false>();
+    case OpcodeType::DIV1: return DIV1<debug, false>(args);
 
-    case OpcodeType::CMP_EQ_I: return CMPIM<false>(args);
-    case OpcodeType::CMP_EQ_R: return CMPEQ<false>(args);
-    case OpcodeType::CMP_GE: return CMPGE<false>(args);
-    case OpcodeType::CMP_GT: return CMPGT<false>(args);
-    case OpcodeType::CMP_HI: return CMPHI<false>(args);
-    case OpcodeType::CMP_HS: return CMPHS<false>(args);
-    case OpcodeType::CMP_PL: return CMPPL<false>(args);
-    case OpcodeType::CMP_PZ: return CMPPZ<false>(args);
-    case OpcodeType::CMP_STR: return CMPSTR<false>(args);
+    case OpcodeType::CMP_EQ_I: return CMPIM<debug, false>(args);
+    case OpcodeType::CMP_EQ_R: return CMPEQ<debug, false>(args);
+    case OpcodeType::CMP_GE: return CMPGE<debug, false>(args);
+    case OpcodeType::CMP_GT: return CMPGT<debug, false>(args);
+    case OpcodeType::CMP_HI: return CMPHI<debug, false>(args);
+    case OpcodeType::CMP_HS: return CMPHS<debug, false>(args);
+    case OpcodeType::CMP_PL: return CMPPL<debug, false>(args);
+    case OpcodeType::CMP_PZ: return CMPPZ<debug, false>(args);
+    case OpcodeType::CMP_STR: return CMPSTR<debug, false>(args);
     case OpcodeType::TAS: return TAS<debug, enableCache, false>(args);
-    case OpcodeType::TST_R: return TST<false>(args);
-    case OpcodeType::TST_I: return TSTI<false>(args);
+    case OpcodeType::TST_R: return TST<debug, false>(args);
+    case OpcodeType::TST_I: return TSTI<debug, false>(args);
     case OpcodeType::TST_M: return TSTM<debug, enableCache, false>(args);
 
-    case OpcodeType::BF: return BF(args);
-    case OpcodeType::BFS: return BFS(args);
-    case OpcodeType::BT: return BT(args);
-    case OpcodeType::BTS: return BTS(args);
-    case OpcodeType::BRA: return BRA(args);
-    case OpcodeType::BRAF: return BRAF(args);
-    case OpcodeType::BSR: return BSR(args);
-    case OpcodeType::BSRF: return BSRF(args);
-    case OpcodeType::JMP: return JMP(args);
-    case OpcodeType::JSR: return JSR(args);
+    case OpcodeType::BF: return BF<debug>(args);
+    case OpcodeType::BFS: return BFS<debug>(args);
+    case OpcodeType::BT: return BT<debug>(args);
+    case OpcodeType::BTS: return BTS<debug>(args);
+    case OpcodeType::BRA: return BRA<debug>(args);
+    case OpcodeType::BRAF: return BRAF<debug>(args);
+    case OpcodeType::BSR: return BSR<debug>(args);
+    case OpcodeType::BSRF: return BSRF<debug>(args);
+    case OpcodeType::JMP: return JMP<debug>(args);
+    case OpcodeType::JSR: return JSR<debug>(args);
     case OpcodeType::TRAPA: return TRAPA<debug, enableCache>(args);
 
     case OpcodeType::RTE: return RTE<debug, enableCache>();
-    case OpcodeType::RTS: return RTS();
+    case OpcodeType::RTS: return RTS<debug>();
 
     case OpcodeType::Illegal: return EnterException<debug, enableCache>(xvGenIllegalInstr);
 
-    case OpcodeType::Delay_NOP: return NOP<true>();
+    case OpcodeType::Delay_NOP: return NOP<debug, true>();
 
     case OpcodeType::Delay_SLEEP: return SLEEP();
 
-    case OpcodeType::Delay_MOV_R: return MOV<true>(args);
+    case OpcodeType::Delay_MOV_R: return MOV<debug, true>(args);
     case OpcodeType::Delay_MOVB_L: return MOVBL<debug, enableCache, true>(args);
     case OpcodeType::Delay_MOVW_L: return MOVWL<debug, enableCache, true>(args);
     case OpcodeType::Delay_MOVL_L: return MOVLL<debug, enableCache, true>(args);
@@ -2247,34 +2369,34 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::Delay_MOVB_SG: return MOVBSG<debug, enableCache, true>(args);
     case OpcodeType::Delay_MOVW_SG: return MOVWSG<debug, enableCache, true>(args);
     case OpcodeType::Delay_MOVL_SG: return MOVLSG<debug, enableCache, true>(args);
-    case OpcodeType::Delay_MOV_I: return MOVI<true>(args);
+    case OpcodeType::Delay_MOV_I: return MOVI<debug, true>(args);
     case OpcodeType::Delay_MOVW_I: return MOVWI<debug, enableCache, true>(args);
     case OpcodeType::Delay_MOVL_I: return MOVLI<debug, enableCache, true>(args);
-    case OpcodeType::Delay_MOVA: return MOVA<true>(args);
-    case OpcodeType::Delay_MOVT: return MOVT<true>(args);
-    case OpcodeType::Delay_CLRT: return CLRT<true>();
-    case OpcodeType::Delay_SETT: return SETT<true>();
+    case OpcodeType::Delay_MOVA: return MOVA<debug, true>(args);
+    case OpcodeType::Delay_MOVT: return MOVT<debug, true>(args);
+    case OpcodeType::Delay_CLRT: return CLRT<debug, true>();
+    case OpcodeType::Delay_SETT: return SETT<debug, true>();
 
-    case OpcodeType::Delay_EXTUB: return EXTUB<true>(args);
-    case OpcodeType::Delay_EXTUW: return EXTUW<true>(args);
-    case OpcodeType::Delay_EXTSB: return EXTSB<true>(args);
-    case OpcodeType::Delay_EXTSW: return EXTSW<true>(args);
-    case OpcodeType::Delay_SWAPB: return SWAPB<true>(args);
-    case OpcodeType::Delay_SWAPW: return SWAPW<true>(args);
-    case OpcodeType::Delay_XTRCT: return XTRCT<true>(args);
+    case OpcodeType::Delay_EXTUB: return EXTUB<debug, true>(args);
+    case OpcodeType::Delay_EXTUW: return EXTUW<debug, true>(args);
+    case OpcodeType::Delay_EXTSB: return EXTSB<debug, true>(args);
+    case OpcodeType::Delay_EXTSW: return EXTSW<debug, true>(args);
+    case OpcodeType::Delay_SWAPB: return SWAPB<debug, true>(args);
+    case OpcodeType::Delay_SWAPW: return SWAPW<debug, true>(args);
+    case OpcodeType::Delay_XTRCT: return XTRCT<debug, true>(args);
 
-    case OpcodeType::Delay_LDC_GBR_R: return LDCGBR<true>(args);
-    case OpcodeType::Delay_LDC_SR_R: return LDCSR<true>(args);
-    case OpcodeType::Delay_LDC_VBR_R: return LDCVBR<true>(args);
-    case OpcodeType::Delay_LDS_MACH_R: return LDSMACH<true>(args);
-    case OpcodeType::Delay_LDS_MACL_R: return LDSMACL<true>(args);
-    case OpcodeType::Delay_LDS_PR_R: return LDSPR<true>(args);
-    case OpcodeType::Delay_STC_GBR_R: return STCGBR<true>(args);
-    case OpcodeType::Delay_STC_SR_R: return STCSR<true>(args);
-    case OpcodeType::Delay_STC_VBR_R: return STCVBR<true>(args);
-    case OpcodeType::Delay_STS_MACH_R: return STSMACH<true>(args);
-    case OpcodeType::Delay_STS_MACL_R: return STSMACL<true>(args);
-    case OpcodeType::Delay_STS_PR_R: return STSPR<true>(args);
+    case OpcodeType::Delay_LDC_GBR_R: return LDCGBR<debug, true>(args);
+    case OpcodeType::Delay_LDC_SR_R: return LDCSR<debug, true>(args);
+    case OpcodeType::Delay_LDC_VBR_R: return LDCVBR<debug, true>(args);
+    case OpcodeType::Delay_LDS_MACH_R: return LDSMACH<debug, true>(args);
+    case OpcodeType::Delay_LDS_MACL_R: return LDSMACL<debug, true>(args);
+    case OpcodeType::Delay_LDS_PR_R: return LDSPR<debug, true>(args);
+    case OpcodeType::Delay_STC_GBR_R: return STCGBR<debug, true>(args);
+    case OpcodeType::Delay_STC_SR_R: return STCSR<debug, true>(args);
+    case OpcodeType::Delay_STC_VBR_R: return STCVBR<debug, true>(args);
+    case OpcodeType::Delay_STS_MACH_R: return STSMACH<debug, true>(args);
+    case OpcodeType::Delay_STS_MACL_R: return STSMACL<debug, true>(args);
+    case OpcodeType::Delay_STS_PR_R: return STSPR<debug, true>(args);
     case OpcodeType::Delay_LDC_GBR_M: return LDCMGBR<debug, enableCache, true>(args);
     case OpcodeType::Delay_LDC_SR_M: return LDCMSR<debug, enableCache, true>(args);
     case OpcodeType::Delay_LDC_VBR_M: return LDCMVBR<debug, enableCache, true>(args);
@@ -2288,67 +2410,67 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::Delay_STS_MACL_M: return STSMMACL<debug, enableCache, true>(args);
     case OpcodeType::Delay_STS_PR_M: return STSMPR<debug, enableCache, true>(args);
 
-    case OpcodeType::Delay_ADD: return ADD<true>(args);
-    case OpcodeType::Delay_ADD_I: return ADDI<true>(args);
-    case OpcodeType::Delay_ADDC: return ADDC<true>(args);
-    case OpcodeType::Delay_ADDV: return ADDV<true>(args);
-    case OpcodeType::Delay_AND_R: return AND<true>(args);
-    case OpcodeType::Delay_AND_I: return ANDI<true>(args);
+    case OpcodeType::Delay_ADD: return ADD<debug, true>(args);
+    case OpcodeType::Delay_ADD_I: return ADDI<debug, true>(args);
+    case OpcodeType::Delay_ADDC: return ADDC<debug, true>(args);
+    case OpcodeType::Delay_ADDV: return ADDV<debug, true>(args);
+    case OpcodeType::Delay_AND_R: return AND<debug, true>(args);
+    case OpcodeType::Delay_AND_I: return ANDI<debug, true>(args);
     case OpcodeType::Delay_AND_M: return ANDM<debug, enableCache, true>(args);
-    case OpcodeType::Delay_NEG: return NEG<true>(args);
-    case OpcodeType::Delay_NEGC: return NEGC<true>(args);
-    case OpcodeType::Delay_NOT: return NOT<true>(args);
-    case OpcodeType::Delay_OR_R: return OR<true>(args);
-    case OpcodeType::Delay_OR_I: return ORI<true>(args);
+    case OpcodeType::Delay_NEG: return NEG<debug, true>(args);
+    case OpcodeType::Delay_NEGC: return NEGC<debug, true>(args);
+    case OpcodeType::Delay_NOT: return NOT<debug, true>(args);
+    case OpcodeType::Delay_OR_R: return OR<debug, true>(args);
+    case OpcodeType::Delay_OR_I: return ORI<debug, true>(args);
     case OpcodeType::Delay_OR_M: return ORM<debug, enableCache, true>(args);
-    case OpcodeType::Delay_ROTCL: return ROTCL<true>(args);
-    case OpcodeType::Delay_ROTCR: return ROTCR<true>(args);
-    case OpcodeType::Delay_ROTL: return ROTL<true>(args);
-    case OpcodeType::Delay_ROTR: return ROTR<true>(args);
-    case OpcodeType::Delay_SHAL: return SHAL<true>(args);
-    case OpcodeType::Delay_SHAR: return SHAR<true>(args);
-    case OpcodeType::Delay_SHLL: return SHLL<true>(args);
-    case OpcodeType::Delay_SHLL2: return SHLL2<true>(args);
-    case OpcodeType::Delay_SHLL8: return SHLL8<true>(args);
-    case OpcodeType::Delay_SHLL16: return SHLL16<true>(args);
-    case OpcodeType::Delay_SHLR: return SHLR<true>(args);
-    case OpcodeType::Delay_SHLR2: return SHLR2<true>(args);
-    case OpcodeType::Delay_SHLR8: return SHLR8<true>(args);
-    case OpcodeType::Delay_SHLR16: return SHLR16<true>(args);
-    case OpcodeType::Delay_SUB: return SUB<true>(args);
-    case OpcodeType::Delay_SUBC: return SUBC<true>(args);
-    case OpcodeType::Delay_SUBV: return SUBV<true>(args);
-    case OpcodeType::Delay_XOR_R: return XOR<true>(args);
-    case OpcodeType::Delay_XOR_I: return XORI<true>(args);
+    case OpcodeType::Delay_ROTCL: return ROTCL<debug, true>(args);
+    case OpcodeType::Delay_ROTCR: return ROTCR<debug, true>(args);
+    case OpcodeType::Delay_ROTL: return ROTL<debug, true>(args);
+    case OpcodeType::Delay_ROTR: return ROTR<debug, true>(args);
+    case OpcodeType::Delay_SHAL: return SHAL<debug, true>(args);
+    case OpcodeType::Delay_SHAR: return SHAR<debug, true>(args);
+    case OpcodeType::Delay_SHLL: return SHLL<debug, true>(args);
+    case OpcodeType::Delay_SHLL2: return SHLL2<debug, true>(args);
+    case OpcodeType::Delay_SHLL8: return SHLL8<debug, true>(args);
+    case OpcodeType::Delay_SHLL16: return SHLL16<debug, true>(args);
+    case OpcodeType::Delay_SHLR: return SHLR<debug, true>(args);
+    case OpcodeType::Delay_SHLR2: return SHLR2<debug, true>(args);
+    case OpcodeType::Delay_SHLR8: return SHLR8<debug, true>(args);
+    case OpcodeType::Delay_SHLR16: return SHLR16<debug, true>(args);
+    case OpcodeType::Delay_SUB: return SUB<debug, true>(args);
+    case OpcodeType::Delay_SUBC: return SUBC<debug, true>(args);
+    case OpcodeType::Delay_SUBV: return SUBV<debug, true>(args);
+    case OpcodeType::Delay_XOR_R: return XOR<debug, true>(args);
+    case OpcodeType::Delay_XOR_I: return XORI<debug, true>(args);
     case OpcodeType::Delay_XOR_M: return XORM<debug, enableCache, true>(args);
 
-    case OpcodeType::Delay_DT: return DT<true>(args);
+    case OpcodeType::Delay_DT: return DT<debug, true>(args);
 
-    case OpcodeType::Delay_CLRMAC: return CLRMAC<true>();
+    case OpcodeType::Delay_CLRMAC: return CLRMAC<debug, true>();
     case OpcodeType::Delay_MACW: return MACW<debug, enableCache, true>(args);
     case OpcodeType::Delay_MACL: return MACL<debug, enableCache, true>(args);
-    case OpcodeType::Delay_MUL: return MULL<true>(args);
-    case OpcodeType::Delay_MULS: return MULS<true>(args);
-    case OpcodeType::Delay_MULU: return MULU<true>(args);
-    case OpcodeType::Delay_DMULS: return DMULS<true>(args);
-    case OpcodeType::Delay_DMULU: return DMULU<true>(args);
+    case OpcodeType::Delay_MUL: return MULL<debug, true>(args);
+    case OpcodeType::Delay_MULS: return MULS<debug, true>(args);
+    case OpcodeType::Delay_MULU: return MULU<debug, true>(args);
+    case OpcodeType::Delay_DMULS: return DMULS<debug, true>(args);
+    case OpcodeType::Delay_DMULU: return DMULU<debug, true>(args);
 
-    case OpcodeType::Delay_DIV0S: return DIV0S<true>(args);
-    case OpcodeType::Delay_DIV0U: return DIV0U<true>();
-    case OpcodeType::Delay_DIV1: return DIV1<true>(args);
+    case OpcodeType::Delay_DIV0S: return DIV0S<debug, true>(args);
+    case OpcodeType::Delay_DIV0U: return DIV0U<debug, true>();
+    case OpcodeType::Delay_DIV1: return DIV1<debug, true>(args);
 
-    case OpcodeType::Delay_CMP_EQ_I: return CMPIM<true>(args);
-    case OpcodeType::Delay_CMP_EQ_R: return CMPEQ<true>(args);
-    case OpcodeType::Delay_CMP_GE: return CMPGE<true>(args);
-    case OpcodeType::Delay_CMP_GT: return CMPGT<true>(args);
-    case OpcodeType::Delay_CMP_HI: return CMPHI<true>(args);
-    case OpcodeType::Delay_CMP_HS: return CMPHS<true>(args);
-    case OpcodeType::Delay_CMP_PL: return CMPPL<true>(args);
-    case OpcodeType::Delay_CMP_PZ: return CMPPZ<true>(args);
-    case OpcodeType::Delay_CMP_STR: return CMPSTR<true>(args);
+    case OpcodeType::Delay_CMP_EQ_I: return CMPIM<debug, true>(args);
+    case OpcodeType::Delay_CMP_EQ_R: return CMPEQ<debug, true>(args);
+    case OpcodeType::Delay_CMP_GE: return CMPGE<debug, true>(args);
+    case OpcodeType::Delay_CMP_GT: return CMPGT<debug, true>(args);
+    case OpcodeType::Delay_CMP_HI: return CMPHI<debug, true>(args);
+    case OpcodeType::Delay_CMP_HS: return CMPHS<debug, true>(args);
+    case OpcodeType::Delay_CMP_PL: return CMPPL<debug, true>(args);
+    case OpcodeType::Delay_CMP_PZ: return CMPPZ<debug, true>(args);
+    case OpcodeType::Delay_CMP_STR: return CMPSTR<debug, true>(args);
     case OpcodeType::Delay_TAS: return TAS<debug, enableCache, true>(args);
-    case OpcodeType::Delay_TST_R: return TST<true>(args);
-    case OpcodeType::Delay_TST_I: return TSTI<true>(args);
+    case OpcodeType::Delay_TST_R: return TST<debug, true>(args);
+    case OpcodeType::Delay_TST_I: return TSTI<debug, true>(args);
     case OpcodeType::Delay_TST_M: return TSTM<debug, enableCache, true>(args);
 
     case OpcodeType::IllegalSlot: return EnterException<debug, enableCache>(xvSlotIllegalInstr);
@@ -2363,9 +2485,9 @@ template uint64 SH2::InterpretNext<true, false>();
 template uint64 SH2::InterpretNext<true, true>();
 
 // nop
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::NOP() {
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -2396,10 +2518,11 @@ FORCE_INLINE uint64 SH2::SLEEP() {
 }
 
 // mov Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOV(const DecodedArgs &args) {
     R[args.rn] = R[args.rm];
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -2409,7 +2532,8 @@ FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2420,7 +2544,8 @@ FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
-        AdvancePC<delaySlot>();
+        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2432,7 +2557,8 @@ FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<enableCache>(address);
-        AdvancePC<delaySlot>();
+        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2443,7 +2569,8 @@ FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2454,7 +2581,8 @@ FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
-        AdvancePC<delaySlot>();
+        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2466,7 +2594,8 @@ FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<enableCache>(address);
-        AdvancePC<delaySlot>();
+        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2477,7 +2606,7 @@ FORCE_INLINE uint64 SH2::MOVBL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     R[0] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2488,7 +2617,7 @@ FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2500,7 +2629,8 @@ FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<enableCache>(address);
-        AdvancePC<delaySlot>();
+        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2511,7 +2641,7 @@ FORCE_INLINE uint64 SH2::MOVBLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     R[0] = bit::sign_extend<8>(MemReadByte<enableCache>(address));
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2522,7 +2652,7 @@ FORCE_INLINE uint64 SH2::MOVWLG(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<enableCache>(address));
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2534,7 +2664,7 @@ FORCE_INLINE uint64 SH2::MOVLLG(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[0] = MemReadLong<enableCache>(address);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2545,8 +2675,9 @@ FORCE_INLINE uint64 SH2::MOVBM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 1;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteByte<debug, enableCache>(address, R[args.rm]);
-    R[args.rn] -= 1;
-    AdvancePC<delaySlot>();
+    TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
+    R[args.rn] = address;
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2557,8 +2688,9 @@ FORCE_INLINE uint64 SH2::MOVWM(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[args.rm]);
-        R[args.rn] -= 2;
-        AdvancePC<delaySlot>();
+        TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
+        R[args.rn] = address;
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2570,8 +2702,9 @@ FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
-        R[args.rn] -= 4;
-        AdvancePC<delaySlot>();
+        TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
+        R[args.rn] = address;
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2585,7 +2718,8 @@ FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
     if (args.rn != args.rm) {
         R[args.rm] += 1;
     }
-    AdvancePC<delaySlot>();
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2599,7 +2733,8 @@ FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
         if (args.rn != args.rm) {
             R[args.rm] += 2;
         }
-        AdvancePC<delaySlot>();
+        TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2614,7 +2749,8 @@ FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
         if (args.rn != args.rm) {
             R[args.rm] += 4;
         }
-        AdvancePC<delaySlot>();
+        TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2625,7 +2761,7 @@ FORCE_INLINE uint64 SH2::MOVBS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteByte<debug, enableCache>(address, R[args.rm]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2636,7 +2772,7 @@ FORCE_INLINE uint64 SH2::MOVWS(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[args.rm]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2648,7 +2784,7 @@ FORCE_INLINE uint64 SH2::MOVLS(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2659,7 +2795,7 @@ FORCE_INLINE uint64 SH2::MOVBS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteByte<debug, enableCache>(address, R[args.rm]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2670,7 +2806,7 @@ FORCE_INLINE uint64 SH2::MOVWS0(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[args.rm]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2682,7 +2818,7 @@ FORCE_INLINE uint64 SH2::MOVLS0(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2693,7 +2829,7 @@ FORCE_INLINE uint64 SH2::MOVBS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteByte<debug, enableCache>(address, R[0]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2704,7 +2840,7 @@ FORCE_INLINE uint64 SH2::MOVWS4(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[0]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2716,7 +2852,7 @@ FORCE_INLINE uint64 SH2::MOVLS4(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[args.rm]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2727,7 +2863,7 @@ FORCE_INLINE uint64 SH2::MOVBSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteByte<debug, enableCache>(address, R[0]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2738,7 +2874,7 @@ FORCE_INLINE uint64 SH2::MOVWSG(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, enableCache>(address, R[0]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
@@ -2750,16 +2886,17 @@ FORCE_INLINE uint64 SH2::MOVLSG(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, enableCache>(address, R[0]);
-        AdvancePC<delaySlot>();
+        AdvancePC<debug, delaySlot>();
     }
     return cycles;
 }
 
 // mov #imm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVI(const DecodedArgs &args) {
     R[args.rn] = args.dispImm;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -2770,7 +2907,8 @@ FORCE_INLINE uint64 SH2::MOVWI(const DecodedArgs &args) {
     const uint32 address = pc + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     R[args.rn] = bit::sign_extend<16>(MemReadWord<enableCache, true>(address));
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -2781,209 +2919,224 @@ FORCE_INLINE uint64 SH2::MOVLI(const DecodedArgs &args) {
     const uint32 address = (pc & ~3u) + args.dispImm;
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     R[args.rn] = MemReadLong<enableCache, true>(address);
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // mova @(disp,PC), R0
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVA(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = (pc & ~3u) + args.dispImm;
     R[0] = address;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // movt Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVT(const DecodedArgs &args) {
     R[args.rn] = SR.T;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // clrt
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CLRT() {
     SR.T = 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // sett
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SETT() {
     SR.T = 1;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // exts.b Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTSB(const DecodedArgs &args) {
     R[args.rn] = bit::sign_extend<8>(R[args.rm]);
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // exts.w Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTSW(const DecodedArgs &args) {
     R[args.rn] = bit::sign_extend<16>(R[args.rm]);
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // extu.b Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTUB(const DecodedArgs &args) {
     R[args.rn] = R[args.rm] & 0xFF;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // extu.w Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTUW(const DecodedArgs &args) {
     R[args.rn] = R[args.rm] & 0xFFFF;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // swap.b Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SWAPB(const DecodedArgs &args) {
     const uint32 tmp0 = R[args.rm] & 0xFFFF0000;
     const uint32 tmp1 = (R[args.rm] & 0xFF) << 8u;
     R[args.rn] = ((R[args.rm] >> 8u) & 0xFF) | tmp1 | tmp0;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // swap.w Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SWAPW(const DecodedArgs &args) {
     const uint32 tmp = R[args.rm] >> 16u;
     R[args.rn] = (R[args.rm] << 16u) | tmp;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // xtrct Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::XTRCT(const DecodedArgs &args) {
     R[args.rn] = (R[args.rn] >> 16u) | (R[args.rm] << 16u);
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // ldc Rm, GBR
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCGBR(const DecodedArgs &args) {
     GBR = R[args.rm];
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // ldc Rm, SR
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCSR(const DecodedArgs &args) {
     SR.u32 = R[args.rm] & 0x000003F3;
     m_intrFlags.values.pending = !delaySlot && INTC.pending.level > SR.ILevel;
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // ldc Rm, VBR
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCVBR(const DecodedArgs &args) {
     VBR = R[args.rm];
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // lds Rm, MACH
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMACH(const DecodedArgs &args) {
     MAC.H = R[args.rm];
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // lds Rm, MACL
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMACL(const DecodedArgs &args) {
     MAC.L = R[args.rm];
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // lds Rm, PR
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSPR(const DecodedArgs &args) {
     PR = R[args.rm];
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // stc GBR, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
     R[args.rn] = GBR;
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // stc SR, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
     R[args.rn] = SR.u32;
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // stc VBR, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
     R[args.rn] = VBR;
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // sts MACH, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
     R[args.rn] = MAC.H;
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // sts MACL, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
     R[args.rn] = MAC.L;
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // sts PR, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSPR(const DecodedArgs &args) {
     R[args.rn] = PR;
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -2994,8 +3147,9 @@ FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address) + 2;
     GBR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3007,8 +3161,9 @@ FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
     SR.u32 = MemReadLong<enableCache>(address) & 0x000003F3;
     m_intrFlags.values.pending = !delaySlot && INTC.pending.level > SR.ILevel;
     R[args.rm] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3019,8 +3174,9 @@ FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address) + 2;
     VBR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3031,8 +3187,9 @@ FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     MAC.H = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3043,8 +3200,9 @@ FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     MAC.L = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3055,8 +3213,9 @@ FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address);
     PR = MemReadLong<enableCache>(address);
     R[args.rm] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3064,11 +3223,12 @@ FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
+    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::GBR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, GBR);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3076,11 +3236,12 @@ FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
     R[args.rn] -= 4;
+    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::SR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, SR.u32);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3088,11 +3249,12 @@ FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
+    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::VBR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address) + 1;
     MemWriteLong<debug, enableCache>(address, VBR);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3100,11 +3262,12 @@ FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
     R[args.rn] -= 4;
+    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::MACH, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, MAC.H);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3112,11 +3275,12 @@ FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
     R[args.rn] -= 4;
+    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::MACL, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, MAC.L);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3124,70 +3288,80 @@ FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
 template <bool debug, bool enableCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMPR(const DecodedArgs &args) {
     R[args.rn] -= 4;
+    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::PR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<true, enableCache>(address);
     MemWriteLong<debug, enableCache>(address, PR);
     m_intrFlags.values.allow = false;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // add Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ADD(const DecodedArgs &args) {
-    R[args.rn] += R[args.rm];
-    AdvancePC<delaySlot>();
+    const uint32 newValue = R[args.rn] + R[args.rm];
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    R[args.rn] = newValue;
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // add #imm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ADDI(const DecodedArgs &args) {
-    R[args.rn] += args.dispImm;
-    AdvancePC<delaySlot>();
+    const uint32 newValue = R[args.rn] + args.dispImm;
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    R[args.rn] = newValue;
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // addc Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ADDC(const DecodedArgs &args) {
     const uint32 tmp1 = R[args.rn] + R[args.rm];
     const uint32 tmp0 = R[args.rn];
-    R[args.rn] = tmp1 + SR.T;
+    const uint32 newValue = tmp1 + SR.T;
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    R[args.rn] = newValue;
     SR.T = (tmp0 > tmp1) || (tmp1 > R[args.rn]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // addv Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ADDV(const DecodedArgs &args) {
     const bool dst = static_cast<sint32>(R[args.rn]) < 0;
     const bool src = static_cast<sint32>(R[args.rm]) < 0;
 
-    R[args.rn] += R[args.rm];
+    const uint32 newValue = R[args.rn] + R[args.rm];
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    R[args.rn] = newValue;
 
     bool ans = static_cast<sint32>(R[args.rn]) < 0;
     ans ^= dst;
     SR.T = (src == dst) & ans;
 
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // and Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::AND(const DecodedArgs &args) {
     R[args.rn] &= R[args.rm];
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // and #imm, R0
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ANDI(const DecodedArgs &args) {
     R[0] &= args.dispImm;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -3199,49 +3373,53 @@ FORCE_INLINE uint64 SH2::ANDM(const DecodedArgs &args) {
     uint8 tmp = MemReadByte<enableCache>(address);
     tmp &= args.dispImm;
     MemWriteByte<debug, enableCache>(address, tmp);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // neg Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::NEG(const DecodedArgs &args) {
     R[args.rn] = -R[args.rm];
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // negc Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::NEGC(const DecodedArgs &args) {
     const uint32 tmp = -R[args.rm];
     R[args.rn] = tmp - SR.T;
     SR.T = (0 < tmp) || (tmp < R[args.rn]);
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // not Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::NOT(const DecodedArgs &args) {
     R[args.rn] = ~R[args.rm];
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // or Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::OR(const DecodedArgs &args) {
     R[args.rn] |= R[args.rm];
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // or #imm, R0
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ORI(const DecodedArgs &args) {
     R[0] |= args.dispImm;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -3253,181 +3431,202 @@ FORCE_INLINE uint64 SH2::ORM(const DecodedArgs &args) {
     uint8 tmp = MemReadByte<enableCache>(address);
     tmp |= args.dispImm;
     MemWriteByte<debug, enableCache>(address, tmp);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // rotcl Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ROTCL(const DecodedArgs &args) {
     const bool tmp = R[args.rn] >> 31u;
     R[args.rn] = (R[args.rn] << 1u) | SR.T;
     SR.T = tmp;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // rotcr Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ROTCR(const DecodedArgs &args) {
     const bool tmp = R[args.rn] & 1u;
     R[args.rn] = (R[args.rn] >> 1u) | (SR.T << 31u);
     SR.T = tmp;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // rotl Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ROTL(const DecodedArgs &args) {
     SR.T = R[args.rn] >> 31u;
     R[args.rn] = (R[args.rn] << 1u) | SR.T;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // rotr Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::ROTR(const DecodedArgs &args) {
     SR.T = R[args.rn] & 1u;
     R[args.rn] = (R[args.rn] >> 1u) | (SR.T << 31u);
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shal Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHAL(const DecodedArgs &args) {
     SR.T = R[args.rn] >> 31u;
     R[args.rn] <<= 1u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shar Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHAR(const DecodedArgs &args) {
     SR.T = R[args.rn] & 1u;
     R[args.rn] = static_cast<sint32>(R[args.rn]) >> 1;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shll Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL(const DecodedArgs &args) {
     SR.T = R[args.rn] >> 31u;
     R[args.rn] <<= 1u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shll2 Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL2(const DecodedArgs &args) {
     R[args.rn] <<= 2u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shll8 Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL8(const DecodedArgs &args) {
     R[args.rn] <<= 8u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shll16 Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL16(const DecodedArgs &args) {
     R[args.rn] <<= 16u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shlr Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR(const DecodedArgs &args) {
     SR.T = R[args.rn] & 1u;
     R[args.rn] >>= 1u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shlr2 Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR2(const DecodedArgs &args) {
     R[args.rn] >>= 2u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shlr8 Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR8(const DecodedArgs &args) {
     R[args.rn] >>= 8u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // shlr16 Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR16(const DecodedArgs &args) {
     R[args.rn] >>= 16u;
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // sub Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SUB(const DecodedArgs &args) {
-    R[args.rn] -= R[args.rm];
-    AdvancePC<delaySlot>();
+    const uint32 newValue = R[args.rn] - R[args.rm];
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    R[args.rn] = newValue;
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // subc Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SUBC(const DecodedArgs &args) {
     const uint32 tmp1 = R[args.rn] - R[args.rm];
     const uint32 tmp0 = R[args.rn];
-    R[args.rn] = tmp1 - SR.T;
+    const uint32 newValue = tmp1 - SR.T;
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    R[args.rn] = newValue;
     SR.T = (tmp0 < tmp1) || (tmp1 < R[args.rn]);
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // subv Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::SUBV(const DecodedArgs &args) {
-
     const bool dst = static_cast<sint32>(R[args.rn]) < 0;
     const bool src = static_cast<sint32>(R[args.rm]) < 0;
+    const uint32 newValue = R[args.rn] - R[args.rm];
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
 
-    R[args.rn] -= R[args.rm];
+    R[args.rn] = newValue;
 
     bool ans = static_cast<sint32>(R[args.rn]) < 0;
     ans ^= dst;
     SR.T = (src != dst) & ans;
 
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // xor Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::XOR(const DecodedArgs &args) {
     R[args.rn] ^= R[args.rm];
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // xor #imm, R0
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::XORI(const DecodedArgs &args) {
     R[0] ^= args.dispImm;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -3439,24 +3638,25 @@ FORCE_INLINE uint64 SH2::XORM(const DecodedArgs &args) {
     uint8 tmp = MemReadByte<enableCache>(address);
     tmp ^= args.dispImm;
     MemWriteByte<debug, enableCache>(address, tmp);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // dt Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::DT(const DecodedArgs &args) {
-    R[args.rn]--;
+    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], R[15] - 1);
+    --R[args.rn];
     SR.T = R[args.rn] == 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // clrmac
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CLRMAC() {
     MAC.u64 = 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -3467,10 +3667,12 @@ FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
     uint64 cycles = AccessCycles<false, enableCache>(address2);
     const sint32 op2 = static_cast<sint16>(MemReadWord<enableCache>(address2));
     R[args.rn] += 2;
+    TracePopFromStack<debug>(m_tracer, args.rn == 15, R[15]);
     const uint32 address1 = R[args.rm];
     cycles += AccessCycles<false, enableCache>(address1);
     const sint32 op1 = static_cast<sint16>(MemReadWord<enableCache>(address1));
     R[args.rm] += 2;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
 
     const sint32 mul = op1 * op2;
     if (SR.S) {
@@ -3486,7 +3688,7 @@ FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
         MAC.u64 += mul;
     }
 
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
@@ -3497,10 +3699,12 @@ FORCE_INLINE uint64 SH2::MACL(const DecodedArgs &args) {
     uint64 cycles = AccessCycles<false, enableCache>(address2);
     const sint64 op2 = static_cast<sint64>(static_cast<sint32>(MemReadLong<enableCache>(address2)));
     R[args.rn] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rn == 15, R[15]);
     const uint32 address1 = R[args.rm];
     cycles += AccessCycles<false, enableCache>(address1);
     const sint64 op1 = static_cast<sint64>(static_cast<sint32>(MemReadLong<enableCache>(address1)));
     R[args.rm] += 4;
+    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
 
     const sint64 mul = op1 * op2;
     sint64 result = mul + MAC.u64;
@@ -3513,74 +3717,74 @@ FORCE_INLINE uint64 SH2::MACL(const DecodedArgs &args) {
     }
     MAC.u64 = result;
 
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // mul.l Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::MULL(const DecodedArgs &args) {
     MAC.L = R[args.rm] * R[args.rn];
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 2;
 }
 
 // muls.w Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::MULS(const DecodedArgs &args) {
     MAC.L = bit::sign_extend<16>(R[args.rm]) * bit::sign_extend<16>(R[args.rn]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // mulu.w Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::MULU(const DecodedArgs &args) {
     auto cast = [](uint32 val) { return static_cast<uint32>(static_cast<uint16>(val)); };
     MAC.L = cast(R[args.rm]) * cast(R[args.rn]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // dmuls.l Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::DMULS(const DecodedArgs &args) {
     auto cast = [](uint32 val) { return static_cast<sint64>(static_cast<sint32>(val)); };
     MAC.u64 = cast(R[args.rm]) * cast(R[args.rn]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 2;
 }
 
 // dmulu.l Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::DMULU(const DecodedArgs &args) {
     MAC.u64 = static_cast<uint64>(R[args.rm]) * static_cast<uint64>(R[args.rn]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 2;
 }
 
 // div0s r{}, Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::DIV0S(const DecodedArgs &args) {
     SR.M = static_cast<sint32>(R[args.rm]) < 0;
     SR.Q = static_cast<sint32>(R[args.rn]) < 0;
     SR.T = SR.M != SR.Q;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // div0u
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::DIV0U() {
     SR.M = 0;
     SR.Q = 0;
     SR.T = 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // div1 Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::DIV1(const DecodedArgs &args) {
     const bool oldQ = SR.Q;
     SR.Q = static_cast<sint32>(R[args.rn]) < 0;
@@ -3609,76 +3813,78 @@ FORCE_INLINE uint64 SH2::DIV1(const DecodedArgs &args) {
 
     SR.T = SR.Q == SR.M;
 
-    AdvancePC<delaySlot>();
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/eq #imm, R0
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPIM(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[0]) == args.dispImm;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/eq Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPEQ(const DecodedArgs &args) {
     SR.T = R[args.rn] == R[args.rm];
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/ge Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPGE(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) >= static_cast<sint32>(R[args.rm]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/gt Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPGT(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) > static_cast<sint32>(R[args.rm]);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/hi Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPHI(const DecodedArgs &args) {
     SR.T = R[args.rn] > R[args.rm];
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/hs Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPHS(const DecodedArgs &args) {
     SR.T = R[args.rn] >= R[args.rm];
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/pl Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPPL(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) > 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/pz Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPPZ(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) >= 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // cmp/str Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPSTR(const DecodedArgs &args) {
     const uint32 tmp = R[args.rm] ^ R[args.rn];
     const uint8 hh = tmp >> 24u;
@@ -3686,7 +3892,7 @@ FORCE_INLINE uint64 SH2::CMPSTR(const DecodedArgs &args) {
     const uint8 lh = tmp >> 8u;
     const uint8 ll = tmp >> 0u;
     SR.T = !(hh && hl && lh && ll);
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -3701,23 +3907,23 @@ FORCE_INLINE uint64 SH2::TAS(const DecodedArgs &args) {
     // TODO: disable bus lock on this write
     MemWriteByte<debug, enableCache>(address, tmp | 0x80);
 
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // tst Rm, Rn
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::TST(const DecodedArgs &args) {
     SR.T = (R[args.rn] & R[args.rm]) == 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
 // tst #imm, R0
-template <bool delaySlot>
+template <bool debug, bool delaySlot>
 FORCE_INLINE uint64 SH2::TSTI(const DecodedArgs &args) {
     SR.T = (R[0] & args.dispImm) == 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return 1;
 }
 
@@ -3728,14 +3934,17 @@ FORCE_INLINE uint64 SH2::TSTM(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<false, enableCache>(address) + 2;
     const uint8 tmp = MemReadByte<enableCache>(address);
     SR.T = (tmp & args.dispImm) == 0;
-    AdvancePC<delaySlot>();
+    AdvancePC<debug, delaySlot>();
     return cycles;
 }
 
 // bf <label>
+template <bool debug>
 FORCE_INLINE uint64 SH2::BF(const DecodedArgs &args) {
     if (!SR.T) {
-        PC += args.dispImm;
+        const uint32 target = PC + args.dispImm;
+        TraceBranch<debug>(m_tracer, PC, target);
+        PC = target;
         return 3;
     } else {
         PC += 2;
@@ -3744,18 +3953,24 @@ FORCE_INLINE uint64 SH2::BF(const DecodedArgs &args) {
 }
 
 // bf/s <label>
+template <bool debug>
 FORCE_INLINE uint64 SH2::BFS(const DecodedArgs &args) {
     if (!SR.T) {
-        SetupDelaySlot(PC + args.dispImm);
+        const uint32 target = PC + args.dispImm;
+        TraceBranchDelay<debug>(m_tracer, target);
+        SetupDelaySlot(target);
     }
     PC += 2;
     return !SR.T ? 2 : 1;
 }
 
 // bt <label>
+template <bool debug>
 FORCE_INLINE uint64 SH2::BT(const DecodedArgs &args) {
     if (SR.T) {
-        PC += args.dispImm;
+        const uint32 target = PC + args.dispImm;
+        TraceBranch<debug>(m_tracer, PC, target);
+        PC = target;
         return 3;
     } else {
         PC += 2;
@@ -3764,55 +3979,76 @@ FORCE_INLINE uint64 SH2::BT(const DecodedArgs &args) {
 }
 
 // bt/s <label>
+template <bool debug>
 FORCE_INLINE uint64 SH2::BTS(const DecodedArgs &args) {
     if (SR.T) {
-        SetupDelaySlot(PC + args.dispImm);
+        const uint32 target = PC + args.dispImm;
+        TraceBranchDelay<debug>(m_tracer, target);
+        SetupDelaySlot(target);
     }
     PC += 2;
     return SR.T ? 2 : 1;
 }
 
 // bra <label>
+template <bool debug>
 FORCE_INLINE uint64 SH2::BRA(const DecodedArgs &args) {
-    SetupDelaySlot(PC + args.dispImm);
+    const uint32 target = PC + args.dispImm;
+    TraceBranchDelay<debug>(m_tracer, target);
+    SetupDelaySlot(target);
     PC += 2;
     return 2;
 }
 
 // braf Rm
+template <bool debug>
 FORCE_INLINE uint64 SH2::BRAF(const DecodedArgs &args) {
-    SetupDelaySlot(PC + R[args.rm] + 4);
+    const uint32 target = PC + R[args.rm] + 4;
+    TraceBranchDelay<debug>(m_tracer, target);
+    SetupDelaySlot(target);
     PC += 2;
     return 2;
 }
 
 // bsr <label>
+template <bool debug>
 FORCE_INLINE uint64 SH2::BSR(const DecodedArgs &args) {
     PR = PC + 4;
-    SetupDelaySlot(PC + args.dispImm);
+    const uint32 target = PC + args.dispImm;
+    TraceCall<debug>(m_tracer, target);
+    SetupDelaySlot(target);
     PC += 2;
     return 2;
 }
 
 // bsrf Rm
+template <bool debug>
 FORCE_INLINE uint64 SH2::BSRF(const DecodedArgs &args) {
     PR = PC + 4;
-    SetupDelaySlot(PC + R[args.rm] + 4);
+    const uint32 target = PC + R[args.rm] + 4;
+    TraceCall<debug>(m_tracer, target);
+    SetupDelaySlot(target);
     PC += 2;
     return 2;
 }
 
 // jmp @Rm
+template <bool debug>
 FORCE_INLINE uint64 SH2::JMP(const DecodedArgs &args) {
+    const uint32 target = R[args.rm];
+    TraceBranchDelay<debug>(m_tracer, target);
     SetupDelaySlot(R[args.rm]);
     PC += 2;
     return 2;
 }
 
 // jsr @Rm
+template <bool debug>
 FORCE_INLINE uint64 SH2::JSR(const DecodedArgs &args) {
     PR = PC + 4;
-    SetupDelaySlot(R[args.rm]);
+    const uint32 target = R[args.rm];
+    TraceCall<debug>(m_tracer, target);
+    SetupDelaySlot(target);
     PC += 2;
     return 2;
 }
@@ -3828,7 +4064,9 @@ FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
                           AccessCycles<false, enableCache>(address3) + 5;
     MemWriteLong<debug, enableCache>(address1, SR.u32);
     MemWriteLong<debug, enableCache>(address2, PC + 2);
-    PC = MemReadLong<enableCache>(address3);
+    const uint32 target = MemReadLong<enableCache>(address3);
+    TraceTrap<debug>(m_tracer, args.dispImm >> 2u, PC, R[15], target);
+    PC = target;
     R[15] -= 8;
     devlog::trace<grp::intr>(m_logPrefix, "[PC = {:08X}] Entering TRAPA handler", PC);
     return cycles;
@@ -3840,7 +4078,9 @@ FORCE_INLINE uint64 SH2::RTE() {
     const uint32 address1 = R[15];
     const uint32 address2 = R[15] + 4;
     const uint64 cycles = AccessCycles<false, enableCache>(address1) + AccessCycles<false, enableCache>(address2) + 2;
-    SetupDelaySlot(MemReadLong<enableCache>(address1));
+    const uint32 target = MemReadLong<enableCache>(address1);
+    TraceReturnFromException<debug>(m_tracer, target);
+    SetupDelaySlot(target);
     SR.u32 = MemReadLong<enableCache>(address2) & 0x000003F3;
     PC += 2;
     R[15] += 8;
@@ -3850,7 +4090,9 @@ FORCE_INLINE uint64 SH2::RTE() {
 }
 
 // rts
+template <bool debug>
 FORCE_INLINE uint64 SH2::RTS() {
+    TraceReturn<debug>(m_tracer, PR);
     SetupDelaySlot(PR);
     PC += 2;
     return 2;

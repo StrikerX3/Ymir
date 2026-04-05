@@ -2,6 +2,8 @@
 
 #include <ymir/debug/sh2_tracer_base.hpp>
 
+#include <app/debug/sh2_exec_analyst.hpp>
+
 #include <util/ring_buffer.hpp>
 
 namespace app {
@@ -104,6 +106,8 @@ struct SH2Tracer final : ymir::debug::ISH2Tracer {
 
     std::array<DMAStatistics, 2> dmaStats;
 
+    SH2ExecAnalyst execAnalyst;
+
 private:
     uint32 m_interruptCounter = 0;
     uint32 m_divisionCounter = 0;
@@ -112,9 +116,26 @@ private:
     // -------------------------------------------------------------------------
     // ISH2Tracer implementation
 
+    void Attached() final;
+    void Detached() final;
+
+    void Reset(uint32 pc, uint32 sp, bool watchdogInitiated) final;
+
     void ExecuteInstruction(uint32 pc, uint16 opcode, bool delaySlot) final;
+    void DelaySlot(uint32 pc, uint32 target) final;
+    void Branch(uint32 pc, uint32 target) final;
+    void BranchDelay(uint32 target) final;
+    void Call(uint32 target) final;
+    void Return(uint32 target) final;
+    void ReturnFromException(uint32 target) final;
     void Interrupt(uint8 vecNum, uint8 level, ymir::sh2::InterruptSource source, uint32 pc) final;
-    void Exception(uint8 vecNum, uint32 pc, uint32 sr) final;
+    void Exception(uint8 vecNum, uint32 oldPC, uint32 oldSR, uint32 oldSP, uint32 newPC) final;
+    void Trap(uint8 vecNum, uint32 oldPC, uint32 oldSP, uint32 newPC) final;
+    void ChangeStack(uint32 newSP) final;
+    void ResizeStack(uint32 oldSP, uint32 newSP) final;
+    void PushRegisterToStack(uint8 rn, uint32 oldSP, uint32 newSP) final;
+    void PushToStack(ymir::debug::SH2StackValueType type, uint32 newSP) final;
+    void PopFromStack(uint32 newSP) final;
 
     void Begin32x32Division(sint32 dividend, sint32 divisor, bool overflowIntrEnable) final;
     void Begin64x32Division(sint64 dividend, sint32 divisor, bool overflowIntrEnable) final;

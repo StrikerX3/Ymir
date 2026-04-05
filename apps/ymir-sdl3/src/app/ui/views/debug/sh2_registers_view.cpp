@@ -8,9 +8,10 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2RegistersView::SH2RegistersView(SharedContext &context, sh2::SH2 &sh2)
+SH2RegistersView::SH2RegistersView(SharedContext &context, sh2::SH2 &sh2, SH2DebuggerModel &model)
     : m_context(context)
-    , m_sh2(sh2) {}
+    , m_sh2(sh2)
+    , m_model(model) {}
 
 void SH2RegistersView::Display() {
     ImGui::BeginGroup();
@@ -23,7 +24,8 @@ void SH2RegistersView::Display() {
     }
 
     // Check if we can fit all registers in a single column
-    const bool tallLayout = ImGui::GetContentRegionAvail().y >= ImGui::GetFrameHeightWithSpacing() * 25;
+    const bool noStackViews = !m_model.settings.displayDataStack && !m_model.settings.displayCallStack;
+    const bool tallLayout = noStackViews && ImGui::GetContentRegionAvail().y >= ImGui::GetFrameHeightWithSpacing() * 25;
 
     // Compute several layout sizes
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
@@ -197,8 +199,9 @@ void SH2RegistersView::Display() {
 }
 
 float SH2RegistersView::GetViewWidth() {
-    const bool tallLayout = ImGui::GetContentRegionAvail().y - ImGui::GetStyle().CellPadding.y * 2 >=
-                            ImGui::GetFrameHeightWithSpacing() * 25;
+    const bool noStackViews = !m_model.settings.displayDataStack && !m_model.settings.displayCallStack;
+    const bool tallLayout = noStackViews && ImGui::GetContentRegionAvail().y - ImGui::GetStyle().CellPadding.y * 2 >=
+                                                ImGui::GetFrameHeightWithSpacing() * 25;
 
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
     const float hexCharWidth = ImGui::CalcTextSize("F").x;
