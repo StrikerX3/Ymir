@@ -175,7 +175,6 @@ void SH2DisassemblyView::Display() {
                 if (io.MouseWheel) {
                     const sint32 scrollAmount = io.MouseWheel * 3 * sizeof(uint16);
                     m_cursor.viewportTopAddress -= scrollAmount;
-                    m_cursor.address -= scrollAmount;
                 }
             }
         }
