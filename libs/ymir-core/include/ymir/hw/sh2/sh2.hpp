@@ -319,7 +319,7 @@ public:
 
     // --- Misc
 
-    // Suspends (disabled) the CPU in debug mode.
+    // Suspends (disables) the CPU in debug mode.
     void SetCPUSuspended(bool suspend) {
         m_debugSuspend = suspend;
     }
