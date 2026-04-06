@@ -2443,13 +2443,12 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
     // VDP1 scaling:
     // 2x horz resolution: VDP1 TVM=000 and VDP2 HRESO=01x
     // 1/2x horz readout:  VDP1 TVM=001 and VDP2 HRESO=00x
-    const bool doubleResH =
-        !regs1.hdtvEnable && !regs1.fbRotEnable && !regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b010;
-    const bool halfResH =
-        !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
-    const uint32 xShift = doubleResH ? 1 : 0;
-    const uint32 xSpriteShift = halfResH ? 1 : 0;
-    const uint32 maxX = std::min<uint32>(m_HRes >> xShift, kMaxNormalResH);
+    const bool exclMon = (regs2.TVMD.HRESOn & 0b100) != 0;
+    const bool doubleResH = !regs1.hdtvEnable && !rotate && !regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b010;
+    const bool halfResH = !regs1.hdtvEnable && !rotate && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
+    const uint32 xOutputShift = doubleResH || exclMon ? 1 : 0;
+    const uint32 xReadoutShift = halfResH ? 1 : 0;
+    const uint32 maxX = m_HRes >> xOutputShift;
 
     const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
 
@@ -2465,7 +2464,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
     [[maybe_unused]] const auto &meshFB = m_meshFB[altField][fbIndex];
 
     for (uint32 x = 0; x < maxX; x++) {
-        const uint32 xx = x << xShift;
+        const uint32 xx = x << xOutputShift;
 
         uint32 spriteFBOffset;
         if constexpr (rotate) {
@@ -2492,7 +2491,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
             }
             spriteFBOffset = coord.x() + coord.y() * regs1.fbSizeH;
         } else {
-            spriteFBOffset = (x << xSpriteShift) + y * regs1.fbSizeH;
+            spriteFBOffset = (x << xReadoutShift) + y * regs1.fbSizeH;
         }
 
         VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, false>(xx, params, spriteFB, spriteFBOffset);
