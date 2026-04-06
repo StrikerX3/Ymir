@@ -27,21 +27,19 @@ public:
         return false;
     }
 
-protected:
-    void ResetImpl(bool hard) override {}
+    void Reset(bool hard) override {}
 
-public:
     // -------------------------------------------------------------------------
     // Save states
 
     void PreSaveStateSync() override {}
     void PostLoadStateSync() override {}
 
-    void SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) override {}
-    bool ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const override {
+    void SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) override {}
+    bool ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const override {
         return true;
     }
-    void LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) override {}
+    void LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state) override {}
 
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes

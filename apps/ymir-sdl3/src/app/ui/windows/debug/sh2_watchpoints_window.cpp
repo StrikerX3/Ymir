@@ -4,9 +4,9 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2WatchpointsWindow::SH2WatchpointsWindow(SharedContext &context, bool master)
+SH2WatchpointsWindow::SH2WatchpointsWindow(SharedContext &context, bool master, SH2WatchpointsManager &wtptManager)
     : SH2WindowBase(context, master)
-    , m_watchpointsView(context, m_sh2) {
+    , m_watchpointsView(context, wtptManager) {
 
     m_windowConfig.name = fmt::format("{}SH2 watchpoints", master ? 'M' : 'S');
     // m_windowConfig.flags = ImGuiWindowFlags_MenuBar;

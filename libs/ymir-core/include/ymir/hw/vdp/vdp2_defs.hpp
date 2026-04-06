@@ -5,17 +5,69 @@
 @brief General VDP2 definitions.
 */
 
+#include "vdp_common_defs.hpp"
+
 #include <ymir/core/types.hpp>
 
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/inline.hpp>
+#include <ymir/util/size_ops.hpp>
 #include <ymir/util/unreachable.hpp>
 
 #include <array>
 #include <cassert>
 
 namespace ymir::vdp {
+
+// -----------------------------------------------------------------------------
+// Display resolutions
+
+inline constexpr uint32 kDefaultResH = 320; // Default/initial horizontal resolution
+inline constexpr uint32 kDefaultResV = 224; // Default/initial vertical resolution
+
+inline constexpr uint32 kMinResH = 320; // Minimum horizontal resolution
+inline constexpr uint32 kMinResV = 224; // Minimum vertical resolution
+
+inline constexpr uint32 kMaxNormalResH = 352; // Maximum horizontal resolution in normal mode
+inline constexpr uint32 kMaxNormalResV = 256; // Maximum vertical resolution in normal mode
+
+inline constexpr uint32 kMaxResH = 704; // Maximum horizontal resolution
+inline constexpr uint32 kMaxResV = 512; // Maximum vertical resolution
+
+// -----------------------------------------------------------------------------
+// Memory
+
+inline constexpr std::size_t kVDP2VRAMSize = 512_KiB;
+inline constexpr std::size_t kVDP2CRAMSize = 4_KiB;
+
+// RAMCTL.CRMD modes 2 and 3 shuffle address bits as follows:
+//   11 10 09 08 07 06 05 04 03 02 01 00 -- input
+//   01 11 10 09 08 07 06 05 04 03 02 00 -- output
+// In short, bits 11-02 are shifted right and bit 01 is shifted to the top.
+// This results in the lower 2 bytes of every longword to be stored at 000..3FF and the upper 2 bytes at 400..7FF.
+inline constexpr auto kVDP2CRAMAddressMapping = [] {
+    std::array<std::array<uint32, kVDP2CRAMSize>, 2> addrs{};
+    for (uint32 addr = 0; addr < kVDP2CRAMSize; addr++) {
+        addrs[0][addr] = addr;
+        addrs[1][addr] = (bit::extract<1>(addr) << 11u) | (bit::extract<2, 11>(addr) << 1u) | bit::extract<0>(addr);
+    }
+    return addrs;
+}();
+
+// -----------------------------------------------------------------------------
+// Display phases
+
+enum class HorizontalPhase { Active, RightBorder, Sync, LeftBorder };
+enum class VerticalPhase { Active, BottomBorder, BlankingAndSync, VCounterSkip, TopBorder, LastLine };
+
+// -----------------------------------------------------------------------------
+// Layers
+
+enum class Layer { Sprite, RBG0, NBG0_RBG1, NBG1_EXBG, NBG2, NBG3 };
+
+// -----------------------------------------------------------------------------
+// VDP2 data structures
 
 // Character color formats
 enum class ColorFormat : uint8 {
@@ -1115,6 +1167,95 @@ union RegZMCTL {
         uint16 N1ZMQT : 1;
         uint16 _rsvd10_15 : 6;
     };
+};
+
+// -----------------------------------------------------------------------------
+// Internal VDP2 state
+
+/// @brief NBG layer state, including coordinate counters, increments and addresses.
+struct NBGLayerState {
+    NBGLayerState() {
+        Reset();
+    }
+
+    void Reset() {
+        fracScrollX = 0;
+        fracScrollY = 0;
+        scrollIncH = 0x100;
+        lineScrollTableAddress = 0;
+        vcellScrollOffset = 0;
+        vcellScrollDelay = 0;
+        vcellScrollRepeat = 0;
+        mosaicCounterY = 0;
+    }
+
+    // Initial fractional X scroll coordinate (11.8).
+    uint32 fracScrollX;
+
+    // Fractional Y scroll coordinate (11.8).
+    // Reset at the start of every frame and updated every scanline.
+    uint32 fracScrollY;
+
+    // Fractional X scroll coordinate increment (11.8).
+    // Applied every pixel and updated at the start of the frame or every line when line zoom is enabled.
+    uint32 scrollIncH;
+
+    // Current line scroll table address.
+    // Reset at the start of every frame and incremented every 1/2/4/8/16 lines.
+    uint32 lineScrollTableAddress;
+
+    // Vertical cell scroll offset.
+    // Only valid for NBG0 and NBG1.
+    // Based on CYCA0/A1/B0/B1 parameters.
+    uint32 vcellScrollOffset;
+
+    // Is the vertical cell scroll read delayed by one cycle?
+    // Only valid for NBG0 and NBG1.
+    // Based on CYCA0/A1/B0/B1 parameters.
+    bool vcellScrollDelay;
+
+    // Is the first vertical cell scroll entry repeated?
+    // Only valid for NBG0.
+    // Based on CYCA0/A1/B0/B1 parameters.
+    bool vcellScrollRepeat;
+
+    // Vertical mosaic counter.
+    // Reset at the start of every frame and incremented every line.
+    // The value is mod mosaicV.
+    uint8 mosaicCounterY;
+};
+
+/// @brief Rotation Parameters A and B counters and coordinates.
+struct RotationParamState {
+    RotationParamState() {
+        Reset();
+    }
+
+    void Reset() {
+        Xst = Yst = 0;
+        KA = 0;
+    }
+
+    // Current base screen coordinates (signed 13.10 fixed point), updated every scanline.
+    sint32 Xst, Yst;
+
+    // Current base coefficient address (unsigned 16.10 fixed point), updated every scanline.
+    uint32 KA;
+};
+
+/// @brief LNCL and BACK screen colors for the current scanline.
+struct LineBackLayerState {
+    LineBackLayerState() {
+        Reset();
+    }
+
+    void Reset() {
+        lineColor.u32 = 0;
+        backColor.u32 = 0;
+    }
+
+    Color888 lineColor;
+    Color888 backColor;
 };
 
 } // namespace ymir::vdp

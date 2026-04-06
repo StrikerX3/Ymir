@@ -1,18 +1,20 @@
 #pragma once
 
+#include <app/ui/model/debug/sh2_watchpoints_manager.hpp>
+
 #include <app/shared_context.hpp>
 
 namespace app::ui {
 
 class SH2WatchpointsView {
 public:
-    SH2WatchpointsView(SharedContext &context, ymir::sh2::SH2 &sh2);
+    SH2WatchpointsView(SharedContext &context, SH2WatchpointsManager &wtptManager);
 
     void Display();
 
 private:
     SharedContext &m_context;
-    ymir::sh2::SH2 &m_sh2;
+    SH2WatchpointsManager &m_wtptManager;
 
     uint32 m_address = 0x00000000;
     bool m_read8 = true;

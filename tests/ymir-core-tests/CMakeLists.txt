@@ -6,6 +6,8 @@ add_executable(ymir-core-tests
     src/hw/sh2/sh2_divu_tests.cpp
     src/hw/sh2/sh2_intc_tests.cpp
     src/hw/sh2/sh2_macwl_tests.cpp
+
+    src/hw/vdp/vdp_vram_access_patterns_tests.cpp
 )
 add_executable(ymir::ymir-core-tests ALIAS ymir-core-tests)
 set_target_properties(ymir-core-tests PROPERTIES

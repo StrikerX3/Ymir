@@ -117,9 +117,15 @@ void SH2DisassemblyView::Display() {
         const uint32 lines = availArea.y / (lineHeight + itemSpacing) + 1;
         // TODO: branch arrows
 
-        auto toggleBreakpoint = [&](uint32 address) {
+        auto toggleSetBreakpoint = [&](uint32 address) {
             std::unique_lock lock{m_context.locks.breakpoints};
-            m_sh2.ToggleBreakpoint(address);
+            m_model.breakpoints.ToggleBreakpointSet(address);
+            m_context.debuggers.MakeDirty();
+        };
+
+        auto toggleEnableBreakpoint = [&](uint32 address) {
+            std::unique_lock lock{m_context.locks.breakpoints};
+            m_model.breakpoints.ToggleBreakpointEnabled(address);
             m_context.debuggers.MakeDirty();
         };
 
@@ -130,57 +136,45 @@ void SH2DisassemblyView::Display() {
 
         if (m_model.jumpRequested) {
             m_model.jumpRequested = false;
-            m_model.followPC = false; // stop following PC when responding to manual jumps
-            MoveCursor(m_model.jumpAddress, lines);
-        } else if (m_model.followPC && m_cursor.address != pc) {
-            MoveCursor(pc, lines);
-        } else if (!m_model.followPC || m_context.paused) {
+            MoveView(m_model.jumpAddress, lines, true);
+        } else if (m_model.jumpToPCRequested || (m_model.followPC && m_cursor.currentPC != pc)) {
+            m_model.jumpToPCRequested = false;
+            m_model.jumpAddress = pc;
+            MoveView(pc, lines, false);
+        } else {
             // Handle keyboard navigation
             // The cursor can be freely moved when not following PC or while the emulator is paused
             if (childWindowFocused) {
                 if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_UpArrow)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address - sizeof(uint16), lines);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address + sizeof(uint16), lines);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_Home)) {
+                    MoveView(m_cursor.address - sizeof(uint16), lines, true);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+                    MoveView(m_cursor.address + sizeof(uint16), lines, true);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_Home)) {
                     const uint32 slideCount = lines * kSlideOffsetTop + 0.5f;
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.viewportTopAddress - slideCount * sizeof(uint16), lines);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_End)) {
+                    MoveView(m_cursor.viewportTopAddress - slideCount * sizeof(uint16), lines, true);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_End)) {
                     const uint32 slideCount = lines * kSlideOffsetBottom + 0.5f;
-                    MoveCursor(m_cursor.viewportTopAddress + (lines - slideCount - 1) * sizeof(uint16), lines);
+                    MoveView(m_cursor.viewportTopAddress + (lines - slideCount - 1) * sizeof(uint16), lines, true);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
+                    MoveView(m_cursor.address - lines * sizeof(uint16), lines, true);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
+                    MoveView(m_cursor.address + lines * sizeof(uint16), lines, true);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
+                    toggleSetBreakpoint(m_cursor.address);
+                } else if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
+                    toggleSetBreakpoint(m_cursor.address);
+                } else if (io.KeyMods == ImGuiMod_Shift && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
+                    toggleEnableBreakpoint(m_cursor.address);
+                } else if (io.KeyMods == ImGuiMod_Shift && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
+                    toggleEnableBreakpoint(m_cursor.address);
                 }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageUp)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address - lines * sizeof(uint16), lines);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_PageDown)) {
-                    m_model.followPC = false;
-                    MoveCursor(m_cursor.address + lines * sizeof(uint16), lines);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
-                    toggleBreakpoint(m_cursor.address);
-                }
-                if (io.KeyMods == 0 && ImGui::IsKeyPressed(ImGuiKey_B, false)) {
-                    toggleBreakpoint(m_cursor.address);
-                }
-                /*if (io.KeyMods == ImGuiMod_Shift && ImGui::IsKeyPressed(ImGuiKey_F9, false)) {
-                    toggleWatchpoint(m_cursor.address);
-                }*/
             }
 
             // Handle mouse inputs
             if (childWindowHovered) {
                 if (io.MouseWheel) {
-                    m_model.followPC = false;
                     const sint32 scrollAmount = io.MouseWheel * 3 * sizeof(uint16);
                     m_cursor.viewportTopAddress -= scrollAmount;
-                    m_cursor.address -= scrollAmount;
                 }
             }
         }
@@ -200,10 +194,8 @@ void SH2DisassemblyView::Display() {
             const bool lineClicked = ImGui::IsItemClicked();
             ImGui::SetCursorScreenPos(basePos);
 
-            const bool isBreakpointSet = [&] {
-                std::unique_lock lock{m_context.locks.breakpoints};
-                return m_sh2.IsBreakpointSet(address);
-            }();
+            const bool isBreakpointSet = m_model.breakpoints.IsBreakpointSet(address);
+            const bool isBreakpointEnabled = m_model.breakpoints.IsBreakpointEnabled(address);
 
             auto memRead = [&](uint32 address) -> uint32 {
                 switch (disasm.opSize) {
@@ -266,6 +258,7 @@ void SH2DisassemblyView::Display() {
                     color = m_colors.disasm.prBgColor;
                 } else if (isBreakpointSet) {
                     color = m_colors.disasm.bkptBgColor;
+                    filled &= isBreakpointEnabled;
                 } else if (address == m_cursor.address && !childWindowFocused) {
                     color = m_colors.disasm.cursorBgColor;
                     filled = false;
@@ -313,19 +306,25 @@ void SH2DisassemblyView::Display() {
 
                 if (ImGui::InvisibleButton(fmt::format("toggle_bkpt_{}", address).c_str(),
                                            ImVec2(lineHeight, lineHeight))) {
-                    toggleBreakpoint(address);
+                    if (io.KeyMods & ImGuiMod_Shift) {
+                        toggleEnableBreakpoint(address);
+                    } else {
+                        toggleSetBreakpoint(address);
+                    }
                     mouseHandled = true;
                 }
                 {
                     const bool visible = isBreakpointSet;
                     const bool hovered = ImGui::IsItemHovered();
                     const bool active = ImGui::IsItemActive();
+                    const bool filled = m_context.saturn.IsDebugTracingEnabled() && visible && isBreakpointEnabled;
                     mouseHandled |= hovered || active;
 
                     if (ImGui::BeginItemTooltip()) {
                         ImGui::Separator();
                         ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.medium);
                         ImGui::TextUnformatted("Click to toggle breakpoint (F9, B)");
+                        ImGui::TextUnformatted("Shift-click to enable/disable breakpoint (Shift-F9, Shift-B)");
                         ImGui::PopFont();
                         ImGui::EndTooltip();
                     }
@@ -343,7 +342,7 @@ void SH2DisassemblyView::Display() {
                         const float circleRadiusFactor = active ? 0.20f : hovered ? 0.30f : 0.25f;
                         const float circleRadius = lineHeight * circleRadiusFactor;
 
-                        if (m_context.saturn.IsDebugTracingEnabled() && visible) {
+                        if (filled) {
                             drawList->AddCircleFilled(center, circleRadius, color);
                         } else {
                             drawList->AddCircle(center, circleRadius, color, 0,
@@ -444,8 +443,7 @@ void SH2DisassemblyView::Display() {
                 ImGui::SameLine(0.0f, 0.0f);
 
                 if (lineClicked && !mouseHandled && (!m_model.followPC || m_context.paused)) {
-                    m_model.followPC = false;
-                    MoveCursor(address, lines);
+                    MoveView(address, lines, true);
                 }
             };
 
@@ -1029,6 +1027,10 @@ void SH2DisassemblyView::Display() {
                     if (isBreakpointSet) {
                         drawSepOnce();
                         ImGui::TextColored(m_colors.disasm.bkptHoveredIconColor, "Breakpoint set");
+                        if (!isBreakpointEnabled) {
+                            ImGui::SameLine();
+                            ImGui::TextDisabled("(disabled)");
+                        }
                     }
                     if (address == pr) {
                         drawSepOnce();
@@ -1078,14 +1080,15 @@ void SH2DisassemblyView::Display() {
     ImGui::EndChild();
 }
 
-void SH2DisassemblyView::JumpTo(uint32 address) {
-    m_model.jumpRequested = true;
-    m_model.jumpAddress = address & ~1u;
-}
-
-void SH2DisassemblyView::MoveCursor(uint32 address, uint32 lineCount) {
+void SH2DisassemblyView::MoveView(uint32 address, uint32 lineCount, bool setCursor) {
     address &= ~1u; // force-align to instruction boundary
-    m_cursor.address = address;
+    if (setCursor) {
+        m_cursor.address = address;
+    }
+    if (m_model.followPC) {
+        m_cursor.currentPC = m_sh2.GetProbe().PC();
+        m_cursor.address = address;
+    }
 
     const uint32 slideCountTop = lineCount * kSlideOffsetTop + 0.5f;
     const uint32 slideCountBtm = lineCount * kSlideOffsetBottom + 0.5f;
@@ -1134,7 +1137,7 @@ void SH2DisassemblyView::MoveCursor(uint32 address, uint32 lineCount) {
 
     // The cursor is outside the sliding window threshold; recenter it
     const size_t recenterIndex = lineCount * kRecenterOffset + 0.5f;
-    m_cursor.viewportTopAddress = m_cursor.address - recenterIndex * sizeof(uint16);
+    m_cursor.viewportTopAddress = address - recenterIndex * sizeof(uint16);
 }
 
 } // namespace app::ui

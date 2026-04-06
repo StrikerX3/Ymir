@@ -39,6 +39,8 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
       - name: Download Ymir artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
@@ -46,9 +48,12 @@ jobs:
           pattern: ymir-*
           merge-multiple: true
 
-      - name: Release
-        uses: softprops/action-gh-release@1853d73993c8ca1b2c9c1a7fede39682d0ab5c2a
-        with:
-          draft: true
-          files: |
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --draft \
+            --latest \
+            --title "Ymir ${{ github.ref_name }}" \
             ymir/*

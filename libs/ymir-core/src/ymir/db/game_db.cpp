@@ -50,12 +50,17 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-16804G", {.flags = Cart_BackupRAM, .cartReason = "Required for saving games"}},   // Dezaemon 2 (Japan)
     {"GS-9197",  {.flags = Cart_BackupRAM, .cartReason = "Required for saving replays"}}, // Sega Ages - Galaxy Force II (Japan)
 
-    {"GS-9019",  {.flags = ForceSH2Cache}}, // Astal (Japan)
-    {"MK-81019", {.flags = ForceSH2Cache}}, // Astal (USA)
-    {"MK-81304", {.flags = ForceSH2Cache}}, // Dark Savior (USA)
-    {"T-5013H",  {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
-    {"T-10621G", {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
-    
+    {"GS-9019",    {.flags = ForceSH2Cache}}, // Astal (Japan)
+    {"MK-81019",   {.flags = ForceSH2Cache}}, // Astal (USA)
+    {"GS-9172",    {.flags = ForceSH2Cache}}, // Chisato Moritaka - Watarase Bashi & Lala Sunshine (Japan) (Disc 1)
+    {"MK-81304",   {.flags = ForceSH2Cache}}, // Dark Savior (USA)
+    {"T-13305G",   {.flags = ForceSH2Cache}}, // Dragon Ball Z - Idainaru Dragon Ball Densetsu (Japan)
+    {"T-6002G",    {.flags = ForceSH2Cache}}, // Metal Fighter Miku (Japan)
+    {"T-5013H",    {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
+    {"T-10621G",   {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
+    {"T-7001H-50", {.flags = ForceSH2Cache}}, // Spot Goes to Hollywood (Europe)
+    {"T-10301G",   {.flags = ForceSH2Cache}}, // Steamgear Mash (Japan)
+
     {"MK-81804", {.flags = FastBusTimings}}, // Deep Fear (Europe, USA)
     {"GS-9189",  {.flags = FastBusTimings}}, // Deep Fear (Japan)
 

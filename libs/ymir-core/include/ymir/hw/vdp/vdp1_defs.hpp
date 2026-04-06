@@ -7,9 +7,16 @@
 
 #include <ymir/core/types.hpp>
 
+#include <ymir/util/size_ops.hpp>
+
 #include <ymir/util/inline.hpp>
 
+#include <array>
+
 namespace ymir::vdp {
+
+// -----------------------------------------------------------------------------
+// Framebuffer sizes
 
 inline constexpr uint32 kVDP1MinFBSizeH = 512;
 inline constexpr uint32 kVDP1MinFBSizeV = 256;
@@ -19,6 +26,17 @@ inline constexpr uint32 kVDP1MaxFBSizeV = 512;
 
 inline constexpr uint32 kVDP1DefaultFBSizeH = 512;
 inline constexpr uint32 kVDP1DefaultFBSizeV = 256;
+
+// -----------------------------------------------------------------------------
+// Memory
+
+inline constexpr std::size_t kVDP1VRAMSize = 512_KiB;
+inline constexpr std::size_t kVDP1FBRAMSize = 256_KiB;
+
+using SpriteFB = std::array<uint8, kVDP1FBRAMSize>;
+
+// -----------------------------------------------------------------------------
+// VDP1 commands
 
 // VDP1 command structure in VRAM
 //   00  CMDCTRL  Control Words

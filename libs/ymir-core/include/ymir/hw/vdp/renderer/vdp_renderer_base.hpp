@@ -45,16 +45,8 @@ public:
 
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
-    void Reset(bool hard);
+    virtual void Reset(bool hard) = 0;
 
-protected:
-    /// @brief Resets the renderer in response to a soft or hard reset.
-    /// Invoked by calls to `Reset(bool)`.
-    ///
-    /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
-    virtual void ResetImpl(bool hard) = 0;
-
-public:
     // -------------------------------------------------------------------------
     // Configuration
 
@@ -83,37 +75,19 @@ public:
     /// @brief Performs any necessary synchronization after loading a state.
     virtual void PostLoadStateSync() = 0;
 
-    /// @brief Save the renderer state.
+    /// @brief Saves the renderer state.
     /// @param[in] state the state object
-    void SaveState(savestate::VDPSaveState::VDPRendererSaveState &state);
+    virtual void SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
 
     /// @brief Validates the renderer state.
     /// @param[in] state the state object
     /// @return `true` if the given state is valid, `false` otherwise
-    bool ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const;
+    virtual bool ValidateState(const savestate::VDPSaveState::VDPRendererSaveState &state) const = 0;
 
     /// @brief Loads the renderer state.
     /// @param[in] state the state object
-    void LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state);
+    virtual void LoadState(const savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
 
-protected:
-    /// @brief Save the renderer state.
-    /// Invoked by calls to `SaveState(ymir::savestate::VDPSaveState::VDPRendererSaveState &)`.
-    /// @param[in] state the state object
-    virtual void SaveStateImpl(savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
-
-    /// @brief Validates the renderer state.
-    /// Invoked by calls to `ValidateState(const ymir::savestate::VDPSaveState::VDPRendererSaveState &) const`.
-    /// @param[in] state the state object
-    /// @return `true` if the given state is valid, `false` otherwise
-    virtual bool ValidateStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) const = 0;
-
-    /// @brief Loads the renderer state.
-    /// Invoked by calls to `LoadState(const ymir::savestate::VDPSaveState::VDPRendererSaveState &)`.
-    /// @param[in] state the state object
-    virtual void LoadStateImpl(const savestate::VDPSaveState::VDPRendererSaveState &state) = 0;
-
-public:
     // -------------------------------------------------------------------------
     // VDP1 memory and register writes
 
@@ -232,12 +206,6 @@ public:
     /// pulled from the `m_vdp2DebugRenderOptions.enabledLayers` field.
     virtual void UpdateEnabledLayers() = 0;
 
-    /// @brief Retrieves a read-only reference to the current states of the NBG layers.
-    /// @return a reference to an array of `NBGLayerState` objects for NBG0-NBG3.
-    const std::array<NBGLayerState, 4> &GetNBGLayerStates() const {
-        return m_nbgLayerStates;
-    }
-
     // -------------------------------------------------------------------------
     // Utilities
 
@@ -296,56 +264,6 @@ protected:
     /// @brief Indicates whether any enhancements are currently enabled.
     /// Updated automatically whenever the enhancements are changed.
     bool m_hasEnhancements = false;
-
-    // -------------------------------------------------------------------------
-    // Renderer state
-
-    /// @brief Layer states for NBGs 0-3.
-    std::array<NBGLayerState, 4> m_nbgLayerStates;
-
-    /// @brief States for Rotation Parameters A and B.
-    std::array<RotationParamState, 2> m_rotParamStates;
-
-    /// @brief Page base addresses for RBG planes A-P using Rotation Parameters A and B.
-    /// Indexing: [RotParam A/B][RBG0-1][Plane A-P]
-    /// Derived from `mapIndices`, `CHCTLA/CHCTLB.xxCHSZ`, `PNCR.xxPNB` and `PLSZ.xxPLSZn`.
-    std::array<std::array<std::array<uint32, 16>, 2>, 2> m_rbgPageBaseAddresses;
-
-    /// @brief State for the line color and back screens.
-    LineBackLayerState m_lineBackLayerState;
-
-    /// @brief Layer enable state based on BGON and other factors.
-    /// ```
-    ///     RBG0+RBG1   RBG0        RBG1        no RBGs
-    /// [0] Sprite      Sprite      Sprite      Sprite
-    /// [1] RBG0        RBG0        -           -
-    /// [2] RBG1        NBG0        RBG1        NBG0
-    /// [3] EXBG        NBG1/EXBG   NBG1/EXBG   NBG1/EXBG
-    /// [4] -           NBG2        NBG2        NBG2
-    /// [5] -           NBG3        NBG3        NBG3
-    /// ```
-    std::array<bool, 6> m_layerEnabled;
-
-    // Rotation coefficient data access permissions per VRAM bank.
-    // Derived from RAMCTL.RDBS(A-B)(0-1)(1-0), RAMCTL.VRAMD and RAMCTL.VRBMD
-    std::array<bool, 4> m_coeffAccess;
-
-    /// @brief Computes the access patterns for NBGs and RBGs.
-    /// @param[in] regs2 the VDP2 register state to update
-    void VDP2CalcAccessPatterns(VDP2Regs &regs2);
-
-    /// @brief Computes vertical cell scroll access delays for NBGs 0 and 1.
-    /// @param regs2 the VDP2 register state to use
-    void VDP2CalcVCellScrollDelay(VDP2Regs &regs2);
-
-    /// @brief Updates the background enable states in `m_layerEnabled`.
-    /// @param[in] regs2 the VDP2 register state to use
-    /// @param[in] debugRenderOpts the VDP2 debug rendering options to use
-    void VDP2UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts);
-
-    /// @brief Updates the page base addresses for RBGs.
-    /// @param[in] regs2 the VDP2 register state to use
-    void VDP2UpdateRotationPageBaseAddresses(VDP2Regs &regs2);
 
 private:
     const VDPRendererType m_type;

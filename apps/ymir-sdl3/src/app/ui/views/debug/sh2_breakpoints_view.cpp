@@ -12,9 +12,9 @@ using namespace ymir;
 
 namespace app::ui {
 
-SH2BreakpointsView::SH2BreakpointsView(SharedContext &context, sh2::SH2 &sh2)
+SH2BreakpointsView::SH2BreakpointsView(SharedContext &context, SH2DebuggerModel &model)
     : m_context(context)
-    , m_sh2(sh2) {}
+    , m_model(model) {}
 
 void SH2BreakpointsView::Display() {
     const float fontSize = m_context.fontSizes.medium;
@@ -50,14 +50,14 @@ void SH2BreakpointsView::Display() {
             ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown)) {
 
             std::unique_lock lock{m_context.locks.breakpoints};
-            m_sh2.AddBreakpoint(m_address);
+            m_model.breakpoints.SetBreakpoint(m_address);
             m_context.debuggers.MakeDirty();
         }
     }
     ImGui::SameLine();
     if (ImGui::Button(ICON_MS_ADD)) {
         std::unique_lock lock{m_context.locks.breakpoints};
-        m_sh2.AddBreakpoint(m_address);
+        m_model.breakpoints.SetBreakpoint(m_address);
         m_context.debuggers.MakeDirty();
     }
     if (ImGui::BeginItemTooltip()) {
@@ -68,7 +68,7 @@ void SH2BreakpointsView::Display() {
     ImGui::SameLine();
     if (ImGui::Button(ICON_MS_REMOVE)) {
         std::unique_lock lock{m_context.locks.breakpoints};
-        m_sh2.RemoveBreakpoint(m_address);
+        m_model.breakpoints.ClearBreakpoint(m_address);
         m_context.debuggers.MakeDirty();
     }
     if (ImGui::BeginItemTooltip()) {
@@ -79,7 +79,7 @@ void SH2BreakpointsView::Display() {
     ImGui::SameLine();
     if (ImGui::Button(ICON_MS_CLEAR_ALL)) {
         std::unique_lock lock{m_context.locks.breakpoints};
-        m_sh2.ClearBreakpoints();
+        m_model.breakpoints.ClearAllBreakpoints();
         m_context.debuggers.MakeDirty();
     }
     if (ImGui::BeginItemTooltip()) {
@@ -91,32 +91,49 @@ void SH2BreakpointsView::Display() {
     ImGui::SeparatorText("Active breakpoints");
     ImGui::PopFont();
 
-    std::vector<uint32> breakpoints{};
-    {
-        std::unique_lock lock{m_context.locks.breakpoints};
-        auto &currBreakpoints = m_sh2.GetBreakpoints();
-        breakpoints.insert(breakpoints.end(), currBreakpoints.begin(), currBreakpoints.end());
-    }
-
-    if (ImGui::BeginTable("bkpts", 2, ImGuiTableFlags_SizingFixedFit)) {
-        for (size_t i = 0; i < breakpoints.size(); ++i) {
-            uint32 address = breakpoints[i];
+    if (ImGui::BeginTable("bkpts", 4, ImGuiTableFlags_SizingFixedFit)) {
+        const auto breakpoints = m_model.breakpoints.GetBreakpoints();
+        for (auto &[baseAddress, bkpt] : breakpoints) {
+            uint32 address = baseAddress;
             ImGui::TableNextRow();
-            if (ImGui::TableNextColumn()) {
-                const uint32 prevAddress = address;
-                if (drawHex32(i, address)) {
-                    std::unique_lock lock{m_context.locks.breakpoints};
-                    m_sh2.RemoveBreakpoint(prevAddress);
-                    m_sh2.AddBreakpoint(address);
-                    m_context.debuggers.MakeDirty();
-                }
+
+            ImGui::TableNextColumn();
+            bool enabled = bkpt.enabled;
+            if (ImGui::Checkbox(fmt::format("##enabled_{}", baseAddress).c_str(), &enabled)) {
+                std::unique_lock lock{m_context.locks.breakpoints};
+                m_model.breakpoints.ToggleBreakpointEnabled(baseAddress);
+                m_context.debuggers.MakeDirty();
             }
-            if (ImGui::TableNextColumn()) {
-                if (ImGui::Button(fmt::format(ICON_MS_DELETE "##{}", i).c_str())) {
-                    std::unique_lock lock{m_context.locks.breakpoints};
-                    m_sh2.RemoveBreakpoint(address);
-                    m_context.debuggers.MakeDirty();
-                }
+            if (ImGui::BeginItemTooltip()) {
+                ImGui::TextUnformatted("Enable/disable breakpoint");
+                ImGui::EndTooltip();
+            }
+
+            ImGui::TableNextColumn();
+            if (drawHex32(address, address)) {
+                std::unique_lock lock{m_context.locks.breakpoints};
+                m_model.breakpoints.MoveBreakpoint(baseAddress, address);
+                m_context.debuggers.MakeDirty();
+            }
+
+            ImGui::TableNextColumn();
+            if (ImGui::Button(fmt::format(ICON_MS_JUMP_TO_ELEMENT "##{}", baseAddress).c_str())) {
+                m_model.JumpTo(baseAddress);
+            }
+            if (ImGui::BeginItemTooltip()) {
+                ImGui::TextUnformatted("Jump to address");
+                ImGui::EndTooltip();
+            }
+
+            ImGui::TableNextColumn();
+            if (ImGui::Button(fmt::format(ICON_MS_DELETE "##{}", baseAddress).c_str())) {
+                std::unique_lock lock{m_context.locks.breakpoints};
+                m_model.breakpoints.ClearBreakpoint(address);
+                m_context.debuggers.MakeDirty();
+            }
+            if (ImGui::BeginItemTooltip()) {
+                ImGui::TextUnformatted("Remove");
+                ImGui::EndTooltip();
             }
         }
 

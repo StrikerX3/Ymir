@@ -21,8 +21,15 @@ Introduced save state file version 12.
     - Page up/down: move cursor up/down one page.
     - Home/end: move cursor to the top/bottom of the viewport.
     - The cursor is kept below 15% of the top and above 35% of the bottom of the viewport.
+- Debugger: Manage SH2 breakpoints and watchpoints on the frontend and allow enabling/disabling them without removing from the list.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
+- GameDB: Force-enable SH2 cache emulation to fix issues with multiple games:
+    - Chisato Moritaka - Watarase Bashi & Lala Sunshine -- crash at startup (#604)
+    - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
+    - Metal Fighter Miku -- black screen after start menu (#466)
+    - Steamgear Mash -- flickering graphics (#440)
+    - Spot Goes to Hollywood -- glitched graphics in European version only (#520)
 - Input: Added support for mouse events.
 - Input: Mouse capture support for light gun and mouse peripherals, supporting these modes:
     - System mouse: binds the system mouse cursor to a single peripheral. Mouse cursor is still available to interact with the GUI.
@@ -66,6 +73,7 @@ Introduced save state file version 12.
 - VDP2: Fix and optimize per-dot coefficient access checks. Fixes graphics glitches in Radiant Silvergun when starting a new game after interrupting the AKA-O boss fight in attract mode.
 - VDP2: Fix NBG per dot special priority calculations. Fixes priority issues in Mr. Bones. (#703)
 - VDP2: Illegal CP accesses in low-res modes are handled differently between T0-T3 and T4-T7. Fixes gaps in backgrounds in X-Men vs. Street Fighter. (#775)
+- VDP2: Multiple VC accesses in the same timing slot do not cause extra delays. Fixes FMV glitches in Girls in Motion Puzzle Vol. 1 - Hiyake no Omoide + Himekuri. (#466)
 - VDP2: Sprite special pattern detection was short by one bit.
 - VDP2: Use only the first PN access to check for valid CP accesses. Fixes graphics shift in Daisuki and BattleSport. (#769, #770)
 

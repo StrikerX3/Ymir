@@ -3834,12 +3834,12 @@ FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
     return cycles;
 }
 
+// rte
 template <bool debug, bool enableCache>
 FORCE_INLINE uint64 SH2::RTE() {
     const uint32 address1 = R[15];
     const uint32 address2 = R[15] + 4;
     const uint64 cycles = AccessCycles<false, enableCache>(address1) + AccessCycles<false, enableCache>(address2) + 2;
-    // rte
     SetupDelaySlot(MemReadLong<enableCache>(address1));
     SR.u32 = MemReadLong<enableCache>(address2) & 0x000003F3;
     PC += 2;

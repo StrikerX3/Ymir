@@ -1,13 +1,13 @@
 #include "sh2_debug_toolbar_view.hpp"
 
-#include "sh2_debugger_model.hpp"
-
 #include <ymir/hw/sh2/sh2.hpp>
 
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 
 #include <app/ui/fonts/IconsMaterialSymbols.h>
+
+#include <app/ui/model/debug/sh2_debugger_model.hpp>
 
 #include <app/ui/widgets/common_widgets.hpp>
 
@@ -46,11 +46,6 @@ void SH2DebugToolbarView::Display() {
     const bool enabled = master || m_context.saturn.IsSlaveSH2Enabled();
     const bool paused = m_context.paused;
     auto &probe = m_sh2.GetProbe();
-
-    // Keep jump address in sync with PC when following PC
-    if (m_model.followPC) {
-        m_jumpAddress = probe.PC() & ~1u;
-    }
 
     ImGui::BeginDisabled(!enabled);
     {
@@ -161,10 +156,14 @@ void SH2DebugToolbarView::Display() {
 
     auto doJump = [&] {
         // Align to even addresses
-        m_jumpAddress = m_jumpAddress & ~1u;
-        m_model.jumpAddress = m_jumpAddress;
-        m_model.jumpRequested = true;
-        m_model.followPC = false;
+        m_model.jumpAddress = m_model.jumpAddress & ~1u;
+        m_model.JumpTo(m_model.jumpAddress);
+    };
+
+    auto doJumpToPC = [&] {
+        // Align to even addresses
+        m_model.jumpAddress = probe.PC() & ~1u;
+        m_model.JumpToPC();
     };
 
     // Input field to jump to address
@@ -173,20 +172,19 @@ void SH2DebugToolbarView::Display() {
 
     ImGui::SameLine();
     if (ImGui::Button("PC##goto")) {
-        m_jumpAddress = probe.PC();
-        doJump();
+        doJumpToPC();
     }
 
     ImGui::SameLine();
     if (ImGui::Button("PR##goto")) {
-        m_jumpAddress = probe.PR();
+        m_model.jumpAddress = probe.PR();
         doJump();
     }
 
     ImGui::SameLine();
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
     ImGui::SetNextItemWidth(regFieldWidth);
-    ImGui::InputScalar("##goto_address", ImGuiDataType_U32, &m_jumpAddress, nullptr, nullptr, "%08X",
+    ImGui::InputScalar("##goto_address", ImGuiDataType_U32, &m_model.jumpAddress, nullptr, nullptr, "%08X",
                        ImGuiInputTextFlags_CharsHexadecimal);
     if (ImGui::IsItemDeactivatedAfterEdit()) {
         doJump();

@@ -122,6 +122,7 @@ add_library(ymir-core
 
     include/ymir/hw/vdp/vdp.hpp
     include/ymir/hw/vdp/vdp_callbacks.hpp
+    include/ymir/hw/vdp/vdp_common_defs.hpp
     include/ymir/hw/vdp/vdp_configs.hpp
     include/ymir/hw/vdp/vdp_defs.hpp
     include/ymir/hw/vdp/vdp_devlog.hpp
@@ -272,7 +273,6 @@ add_library(ymir-core
 
     src/ymir/hw/vdp/vdp.cpp
 
-    src/ymir/hw/vdp/renderer/vdp_renderer_base.cpp
     src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
 
     src/ymir/media/cdrom_crc.cpp

@@ -46,7 +46,7 @@ void VDP::Reset(bool hard) {
     m_renderer->Reset(hard);
 
     m_VDP1TimingPenaltyCycles = 0;
-    m_VDP1State.Reset();
+    m_VDP1CtlState.Reset();
 
     UpdateResolution<false>();
 
@@ -258,7 +258,7 @@ void VDP::MapMemory(sys::SH2Bus &bus) {
 }
 
 void VDP::Advance(uint64 cycles) {
-    if (m_VDP1State.drawing) {
+    if (m_VDP1CtlState.drawing) {
         // HACK: give VDP1 way more cycles than needed to compensate for some optimizations not accounted for in VDP
         // cost estimations
         // TODO: include cycle counts for:
@@ -282,20 +282,20 @@ void VDP::Advance(uint64 cycles) {
         }
 
         // Compensate spillover cycles
-        if (cycles <= m_VDP1State.spilloverCycles) {
+        if (cycles <= m_VDP1CtlState.spilloverCycles) {
             // Not enough cycles to cover the overspending from last iteration.
-            m_VDP1State.spilloverCycles -= cycles;
+            m_VDP1CtlState.spilloverCycles -= cycles;
             return;
         }
 
         // Our budget is however many cycles we've been requested to run minus the spillover from a previous command.
-        uint64 cycleBudget = cycles - m_VDP1State.spilloverCycles;
-        while (cycleBudget > 0 && m_VDP1State.drawing) {
+        uint64 cycleBudget = cycles - m_VDP1CtlState.spilloverCycles;
+        while (cycleBudget > 0 && m_VDP1CtlState.drawing) {
             const uint64 cyclesSpent = VDP1ProcessCommand();
             if (cyclesSpent >= cycleBudget) {
                 // Spent all available cycles.
                 // Store excess cycles spent to deduct from next iterations.
-                m_VDP1State.spilloverCycles = cyclesSpent - cycleBudget;
+                m_VDP1CtlState.spilloverCycles = cyclesSpent - cycleBudget;
                 break;
             }
             cycleBudget -= cyclesSpent;
@@ -335,7 +335,7 @@ template <mem_primitive_16 T>
 FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
     m_state.mem1.WriteVRAM<T>(address, value,
                               [&](uint32 address, T value) { m_renderer->VDP1WriteVRAM(address, value); });
-    if (m_stallVDP1OnVRAMWrites && m_VDP1State.drawing) {
+    if (m_stallVDP1OnVRAMWrites && m_VDP1CtlState.drawing) {
         m_VDP1TimingPenaltyCycles += kVDP1TimingPenaltyPerWrite;
     }
 }
@@ -395,7 +395,7 @@ FORCE_INLINE void VDP::VDP1WriteReg(uint32 address, uint16 value) {
                 break;
             case 0x0C: // ENDR
                 // TODO: schedule drawing termination after 30 cycles
-                m_VDP1State.drawing = false;
+                m_VDP1CtlState.drawing = false;
                 m_VDP1TimingPenaltyCycles = 0;
                 break;
             }
@@ -470,10 +470,10 @@ void VDP::SaveState(savestate::VDPSaveState &state) const {
     // TODO: figure out how to save/load states between different renderers
     // - also figure out how much state can be derived from the registers alone to remove redundancy
 
-    state.vdp1State.drawing = m_VDP1State.drawing;
-    state.vdp1State.doDisplayErase = m_VDP1State.doDisplayErase;
-    state.vdp1State.doVBlankErase = m_VDP1State.doVBlankErase;
-    state.vdp1State.spilloverCycles = m_VDP1State.spilloverCycles;
+    state.vdp1State.drawing = m_VDP1CtlState.drawing;
+    state.vdp1State.doDisplayErase = m_VDP1CtlState.doDisplayErase;
+    state.vdp1State.doVBlankErase = m_VDP1CtlState.doVBlankErase;
+    state.vdp1State.spilloverCycles = m_VDP1CtlState.spilloverCycles;
     state.vdp1State.timingPenalty = m_VDP1TimingPenaltyCycles;
 
     state.renderer.displayFB = m_state.displayFB;
@@ -495,10 +495,10 @@ void VDP::LoadState(const savestate::VDPSaveState &state) {
 
     m_renderer->PostLoadStateSync();
 
-    m_VDP1State.drawing = state.vdp1State.drawing;
-    m_VDP1State.doDisplayErase = state.vdp1State.doDisplayErase;
-    m_VDP1State.doVBlankErase = state.vdp1State.doVBlankErase;
-    m_VDP1State.spilloverCycles = state.vdp1State.spilloverCycles;
+    m_VDP1CtlState.drawing = state.vdp1State.drawing;
+    m_VDP1CtlState.doDisplayErase = state.vdp1State.doDisplayErase;
+    m_VDP1CtlState.doVBlankErase = state.vdp1State.doVBlankErase;
+    m_VDP1CtlState.spilloverCycles = state.vdp1State.spilloverCycles;
     m_VDP1TimingPenaltyCycles = state.vdp1State.timingPenalty;
 
     m_state.displayFB = state.renderer.displayFB;
@@ -788,7 +788,7 @@ void VDP::BeginHPhaseRightBorder() {
     if (m_state.regs2.VCNT == m_VTimings[m_VTimingField][static_cast<uint32>(VerticalPhase::Active)]) {
         devlog::trace<grp::intr>("## HBlank IN + VBlank IN  VBE={:d}", m_state.regs1.vblankErase);
 
-        m_VDP1State.doVBlankErase = m_state.regs1.vblankErase;
+        m_VDP1CtlState.doVBlankErase = m_state.regs1.vblankErase;
 
         // If we just entered the bottom blanking vertical phase, switch fields
         if (m_state.regs2.TVMD.LSMDn != InterlaceMode::None) {
@@ -818,7 +818,7 @@ void VDP::BeginHPhaseLeftBorder() {
     devlog::trace<grp::phase>("(VCNT = {:3d})  Entering left border phase", m_state.regs2.VCNT);
 
     if (m_state.VPhase == VerticalPhase::LastLine) {
-        auto &ctx1 = m_VDP1State;
+        auto &ctx1 = m_VDP1CtlState;
 
         devlog::trace<grp::intr>("## HBlank end + VBlank OUT  FCM={:d} FCT={:d} VBE={:d} PTM={:d} changed={}",
                                  m_state.regs1.fbSwapMode, m_state.regs1.fbSwapTrigger, m_state.regs1.vblankErase,
@@ -844,8 +844,7 @@ void VDP::BeginHPhaseLeftBorder() {
         m_state.regs1.fbParamsChanged = false;
 
         // End VBlank erase if in progress
-        if (m_VDP1State.doVBlankErase) {
-            m_state.regs1.LatchEraseParameters();
+        if (m_VDP1CtlState.doVBlankErase) {
             m_renderer->VDP1EraseFramebuffer(m_VBlankEraseCyclesPerLine * m_VBlankEraseLines[m_VTimingField]);
         }
 
@@ -895,11 +894,10 @@ void VDP::BeginVPhaseBlankingAndSync() {
     m_renderer->VDP2EndFrame();
 
     // Begin erasing display framebuffer during display
-    if (m_VDP1State.doDisplayErase) {
-        m_VDP1State.doDisplayErase = false;
+    if (m_VDP1CtlState.doDisplayErase) {
+        m_VDP1CtlState.doDisplayErase = false;
         // TODO: erase line by line instead of the entire framebuffer in one go
         // No need to count cycles here; there's always enough cycles in the display area to clear the entire screen
-        m_state.regs1.LatchEraseParameters();
         m_renderer->VDP1EraseFramebuffer(0);
     }
 }
@@ -946,6 +944,8 @@ void VDP::VDP1SwapFramebuffer() {
 
     // TODO: latch PTM, EOS, DIE, DIL
 
+    m_state.regs1.LatchEraseParameters();
+
     m_renderer->VDP1SwapFramebuffer();
 
     if (bit::test<1>(m_state.regs1.plotTrigger)) {
@@ -975,7 +975,7 @@ void VDP::VDP1BeginFrame() {
     if (valid) {
         m_renderer->VDP1BeginFrame();
 
-        m_VDP1State.drawing = true;
+        m_VDP1CtlState.drawing = true;
     } else {
         devlog::warn<grp::vdp1_cmd>("Possible empty command table found; aborting");
     }
@@ -984,7 +984,7 @@ void VDP::VDP1BeginFrame() {
 void VDP::VDP1EndFrame() {
     devlog::trace<grp::vdp1>("End VDP1 frame on framebuffer {}", m_state.displayFB ^ 1);
 
-    m_VDP1State.drawing = false;
+    m_VDP1CtlState.drawing = false;
     m_VDP1TimingPenaltyCycles = 0;
 
     m_state.regs1.currFrameEnded = true;
@@ -994,7 +994,7 @@ void VDP::VDP1EndFrame() {
 }
 
 uint64 VDP::VDP1ProcessCommand() {
-    if (!m_VDP1State.drawing) {
+    if (!m_VDP1CtlState.drawing) {
         return 0;
     }
 
@@ -1024,17 +1024,21 @@ uint64 VDP::VDP1ProcessCommand() {
     using enum VDP1Command::JumpType;
     switch (control.jumpMode) {
     case Next: cmdAddress += 0x20; break;
-    case Assign:
-        cmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
-        devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", cmdAddress);
+    case Assign: {
+        const uint32 nextCmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
+        devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", nextCmdAddress);
 
-        // HACK: Sonic R attempts to jump back to 0 in some cases
-        if (cmdAddress == 0) {
+        // HACK: Avoid infinite loops
+        // - Sonic R attempts to jump back to 0 in some cases
+        // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
+        if (nextCmdAddress == 0 || nextCmdAddress == cmdAddress) {
             devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
             VDP1EndFrame();
             return cycles;
         }
+        cmdAddress = nextCmdAddress;
         break;
+    }
     case Call:
         // Nested calls seem to not update the return address
         if (m_state.regs1.returnAddress == kVDP1NoReturn) {
@@ -1230,8 +1234,12 @@ const VDP2Regs &VDP::Probe::GetVDP2Regs() const {
     return m_vdp.m_state.regs2;
 }
 
-const std::array<NBGLayerState, 4> &VDP::Probe::GetNBGLayerStates() const {
-    return m_vdp.m_renderer->GetNBGLayerStates();
+const VDP1State &VDP::Probe::GetVDP1State() const {
+    return m_vdp.m_state.state1;
+}
+
+const VDP2State &VDP::Probe::GetVDP2State() const {
+    return m_vdp.m_state.state2;
 }
 
 uint16 VDP::Probe::GetLatchedEraseWriteValue() const {

@@ -74,6 +74,12 @@ add_executable(ymir-sdl3
 
     src/app/ui/fonts/IconsMaterialSymbols.h
 
+    src/app/ui/model/debug/sh2_breakpoints_manager.cpp
+    src/app/ui/model/debug/sh2_breakpoints_manager.hpp
+    src/app/ui/model/debug/sh2_debugger_model.hpp
+    src/app/ui/model/debug/sh2_watchpoints_manager.cpp
+    src/app/ui/model/debug/sh2_watchpoints_manager.hpp
+
     src/app/ui/state/debug/memory_viewer_state.hpp
 
     src/app/ui/views/backup_memory_view.cpp
