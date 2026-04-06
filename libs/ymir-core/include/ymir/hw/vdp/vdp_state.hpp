@@ -691,29 +691,28 @@ struct VDP2State {
         nbgLayerStates[1].vcellScrollOffset = 0;
 
         // Update cycle accesses
-        for (uint32 bank = 0; bank < 4; ++bank) {
-            for (uint32 slotIndex = 0; slotIndex < 8; ++slotIndex) {
+        for (uint32 slotIndex = 0; slotIndex < 8; ++slotIndex) {
+            std::array<bool, 2> vcellScrollAccesses = {false, false};
+            for (uint32 bank = 0; bank < 4; ++bank) {
                 const auto access = regs2.cyclePatterns.timings[bank][slotIndex];
                 switch (access) {
-                case CyclePatterns::VCellScrollNBG0:
-                    if (regs2.bgParams[1].vcellScrollEnable) {
-                        regs2.vcellScrollInc += sizeof(uint32);
-                        nbgLayerStates[0].vcellScrollOffset = vcellAccessOffset;
-                        nbgLayerStates[0].vcellScrollDelay = slotIndex >= 3;
-                        nbgLayerStates[0].vcellScrollRepeat = slotIndex >= 2;
-                        vcellAccessOffset += sizeof(uint32);
-                    }
-                    break;
-                case CyclePatterns::VCellScrollNBG1:
-                    if (regs2.bgParams[2].vcellScrollEnable) {
-                        regs2.vcellScrollInc += sizeof(uint32);
-                        nbgLayerStates[1].vcellScrollOffset = vcellAccessOffset;
-                        nbgLayerStates[1].vcellScrollDelay = slotIndex >= 3;
-                        vcellAccessOffset += sizeof(uint32);
-                    }
-                    break;
+                case CyclePatterns::VCellScrollNBG0: vcellScrollAccesses[0] = true; break;
+                case CyclePatterns::VCellScrollNBG1: vcellScrollAccesses[1] = true; break;
                 default: break;
                 }
+            }
+            if (regs2.bgParams[1].vcellScrollEnable && vcellScrollAccesses[0]) {
+                regs2.vcellScrollInc += sizeof(uint32);
+                nbgLayerStates[0].vcellScrollOffset = vcellAccessOffset;
+                nbgLayerStates[0].vcellScrollDelay = slotIndex >= 3;
+                nbgLayerStates[0].vcellScrollRepeat = slotIndex >= 2;
+                vcellAccessOffset += sizeof(uint32);
+            }
+            if (regs2.bgParams[2].vcellScrollEnable && vcellScrollAccesses[1]) {
+                regs2.vcellScrollInc += sizeof(uint32);
+                nbgLayerStates[1].vcellScrollOffset = vcellAccessOffset;
+                nbgLayerStates[1].vcellScrollDelay = slotIndex >= 3;
+                vcellAccessOffset += sizeof(uint32);
             }
         }
     }

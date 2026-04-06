@@ -1810,3 +1810,44 @@ TestData{
     // Rotation coefficient accesses
     {false, false, false, false},
 },
+
+TestData{
+    "Girls in Motion Puzzle Vol. 1 - Hiyake no Omoide + Himekur :: Yanoman logo FMV :: Multiple VC accesses in the same slot don't cause VC read skips",
+    0xCEEEEEEE, // 010,012 CYCA0L/U  VC0 SH2 SH2 SH2 SH2 SH2 SH2 SH2
+    0xFFFFFFFF, // 014,016 CYCA1L/U  -   -   -   -   -   -   -   -
+    0x44444444, // 018,01A CYCB0L/U  CP0 CP0 CP0 CP0 CP0 CP0 CP0 CP0
+    0xCFFFFFFF, // 01C,01E CYCB1L/U  VC0 -   -   -   -   -   -   -
+    0x2200, // 00E RAMCTL  A, B0/B1, no rotparams
+    0x8000, // 000 TVMD    lo-res
+    0x0101, // 020 BGON    NBG0
+    0x0042, // 028 CHCTLA  NBG0 = rgb888 bitmap
+    0x0000, // 02A CHCTLB
+    0x0000, // 098 ZMCTL
+    0x0007, // 09A SCRCTL  NBG0 =
+
+    // Expected
+    {{
+        // NBG0
+        {
+            .check = true,
+            .bitmap = true,
+            .patNameAccess = {false, false, false, false},
+            .charPatAccess = {false, false, true, false},
+            .charPatDelay = {false, false, false, false},
+            .vramDataOffset = {0, 0, 0, 0},
+            .vcellScrollDelay = false,
+            .vcellScrollRepeat = false,
+            .vcellScrollOffset = 0,
+        },
+        // NBG1
+        {},
+        // NBG2
+        {},
+        // NBG3
+        {},
+    }},
+    // Vertical cell scroll increment
+    4,
+    // Rotation coefficient accesses
+    {false, false, false, false},
+},
