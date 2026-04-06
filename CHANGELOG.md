@@ -25,6 +25,7 @@ Introduced save state file version 12.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - GameDB: Force-enable SH2 cache emulation to fix issues with multiple games:
+    - Chisato Moritaka - Watarase Bashi & Lala Sunshine -- crash at startup (#604)
     - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
     - Metal Fighter Miku -- black screen after start menu (#466)
     - Steamgear Mash -- flickering graphics (#440)

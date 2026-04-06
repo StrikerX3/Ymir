@@ -52,6 +52,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
 
     {"GS-9019",    {.flags = ForceSH2Cache}}, // Astal (Japan)
     {"MK-81019",   {.flags = ForceSH2Cache}}, // Astal (USA)
+    {"GS-9172",    {.flags = ForceSH2Cache}}, // Chisato Moritaka - Watarase Bashi & Lala Sunshine (Japan) (Disc 1)
     {"MK-81304",   {.flags = ForceSH2Cache}}, // Dark Savior (USA)
     {"T-13305G",   {.flags = ForceSH2Cache}}, // Dragon Ball Z - Idainaru Dragon Ball Densetsu (Japan)
     {"T-6002G",    {.flags = ForceSH2Cache}}, // Metal Fighter Miku (Japan)
