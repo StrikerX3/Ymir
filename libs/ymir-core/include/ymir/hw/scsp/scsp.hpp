@@ -784,7 +784,10 @@ private:
             uint8 byte = bit::extract<0, 7>(value);
             m_midiOutputBuffer[m_midiOutputSize++] = byte;
 
-            if (m_expectedOutputPacketSize == -1) {
+            if (m_midiOutputSize >= kMidiBufferSize) {
+                // broken MIDI command stream; just flush it as is, unlikely to work anyway
+                FlushMidiOutput(true);
+            } else if (m_expectedOutputPacketSize == -1) {
                 // currently building a SysEx message (note that these can actually be broken up into multiple packets
                 // afaik) flush if either we hit a terminator byte *or* buffer hits maximum size
                 if (byte == 0xF7 || m_midiOutputSize == kMidiBufferSize) {

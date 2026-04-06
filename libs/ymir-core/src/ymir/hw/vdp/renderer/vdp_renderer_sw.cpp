@@ -2449,7 +2449,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
         !regs1.hdtvEnable && !regs1.fbRotEnable && regs1.pixel8Bits && (regs2.TVMD.HRESOn & 0b110) == 0b000;
     const uint32 xShift = doubleResH ? 1 : 0;
     const uint32 xSpriteShift = halfResH ? 1 : 0;
-    const uint32 maxX = m_HRes >> xShift;
+    const uint32 maxX = std::min<uint32>(m_HRes >> xShift, kMaxNormalResH);
 
     const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
 
