@@ -28,6 +28,7 @@ Introduced save state file version 12.
     - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
     - Metal Fighter Miku -- black screen after start menu (#466)
     - Steamgear Mash -- flickering graphics (#440)
+    - Spot Goes to Hollywood -- glitched graphics in European version only (#520)
 - Input: Added support for mouse events.
 - Input: Mouse capture support for light gun and mouse peripherals, supporting these modes:
     - System mouse: binds the system mouse cursor to a single peripheral. Mouse cursor is still available to interact with the GUI.
