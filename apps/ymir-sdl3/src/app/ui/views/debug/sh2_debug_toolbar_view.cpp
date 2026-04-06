@@ -47,11 +47,6 @@ void SH2DebugToolbarView::Display() {
     const bool paused = m_context.paused;
     auto &probe = m_sh2.GetProbe();
 
-    // Keep jump address in sync with PC when following PC
-    if (m_model.followPC) {
-        m_jumpAddress = probe.PC() & ~1u;
-    }
-
     ImGui::BeginDisabled(!enabled);
     {
         if (ImGui::Button(ICON_MS_STEP)) {
@@ -161,13 +156,13 @@ void SH2DebugToolbarView::Display() {
 
     auto doJump = [&] {
         // Align to even addresses
-        m_jumpAddress = m_jumpAddress & ~1u;
-        m_model.JumpTo(m_jumpAddress);
+        m_model.jumpAddress = m_model.jumpAddress & ~1u;
+        m_model.JumpTo(m_model.jumpAddress);
     };
 
     auto doJumpToPC = [&] {
         // Align to even addresses
-        m_jumpAddress = probe.PC() & ~1u;
+        m_model.jumpAddress = probe.PC() & ~1u;
         m_model.JumpToPC();
     };
 
@@ -182,14 +177,14 @@ void SH2DebugToolbarView::Display() {
 
     ImGui::SameLine();
     if (ImGui::Button("PR##goto")) {
-        m_jumpAddress = probe.PR();
+        m_model.jumpAddress = probe.PR();
         doJump();
     }
 
     ImGui::SameLine();
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
     ImGui::SetNextItemWidth(regFieldWidth);
-    ImGui::InputScalar("##goto_address", ImGuiDataType_U32, &m_jumpAddress, nullptr, nullptr, "%08X",
+    ImGui::InputScalar("##goto_address", ImGuiDataType_U32, &m_model.jumpAddress, nullptr, nullptr, "%08X",
                        ImGuiInputTextFlags_CharsHexadecimal);
     if (ImGui::IsItemDeactivatedAfterEdit()) {
         doJump();

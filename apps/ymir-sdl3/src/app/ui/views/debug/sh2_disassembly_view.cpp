@@ -136,10 +136,10 @@ void SH2DisassemblyView::Display() {
 
         if (m_model.jumpRequested) {
             m_model.jumpRequested = false;
-            m_model.followPC = false; // stop following PC when responding to manual jumps
             MoveView(m_model.jumpAddress, lines, true);
         } else if (m_model.jumpToPCRequested || (m_model.followPC && m_cursor.currentPC != pc)) {
             m_model.jumpToPCRequested = false;
+            m_model.jumpAddress = pc;
             MoveView(pc, lines, false);
         } else {
             // Handle keyboard navigation

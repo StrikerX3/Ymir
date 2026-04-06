@@ -19,8 +19,6 @@ private:
     ymir::sh2::SH2 &m_sh2;
     SH2DebuggerModel &m_model;
     SH2DisasmDumpView m_disasmDumpView;
-
-    uint32 m_jumpAddress = 0;
 };
 
 } // namespace app::ui
