@@ -3651,8 +3651,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         return;
     }
 
-    // NOTE: Compose line buffers are stored as member variables to avoid stack overflow on threads with limited stack
-    // space (e.g. 512 KiB on macOS). Only the necessary entries are initialized and used.
+    // NOTE: All arrays here are intentionally left uninitialized for performance.
+    // Compose line buffers are stored as member variables to avoid stack overflow on threads with limited stack
+    // space. Only the necessary entries are initialized and used.
     auto &scanline_layers = m_composeLineBuffers.scanline_layers;
     auto &scanline_layerPrios = m_composeLineBuffers.scanline_layerPrios;
 
