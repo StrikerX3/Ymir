@@ -24,12 +24,6 @@ Introduced save state file version 12.
 - Debugger: Manage SH2 breakpoints and watchpoints on the frontend and allow enabling/disabling them without removing from the list.
 - Debugger: Optimize SH2 breakpoints and watchpoints when debug tracing is enabled. They no longer become more expensive with the amount of entries added and the baseline cost is lower than before.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
-- GameDB: Force-enable SH2 cache emulation to fix issues with multiple games:
-    - Chisato Moritaka - Watarase Bashi & Lala Sunshine -- crash at startup (#604)
-    - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
-    - Metal Fighter Miku -- black screen after start menu (#466)
-    - Steamgear Mash -- flickering graphics (#440)
-    - Spot Goes to Hollywood -- glitched graphics in European version only (#520)
 - Input: Added support for mouse events.
 - Input: Mouse capture support for light gun and mouse peripherals, supporting these modes:
     - System mouse: binds the system mouse cursor to a single peripheral. Mouse cursor is still available to interact with the GUI.
@@ -51,6 +45,12 @@ Introduced save state file version 12.
 - Build: Perform ad-hoc signature on macOS binaries to work around the "damaged" app warning. (#698; thanks to @Wunkolo)
 - Build: Remove duplicate binary from macOS packages.
 - GameDB: Double the MC68EC000 clock rate and force fast bus timings to fix crashes in Vampire Savior - The Lord of Vampire. (#699)
+- GameDB: Force-enable SH2 cache emulation to fix issues with multiple games:
+    - Chisato Moritaka - Watarase Bashi & Lala Sunshine -- crash at startup (#604)
+    - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
+    - Metal Fighter Miku -- black screen after start menu (#466)
+    - Steamgear Mash -- flickering graphics (#440)
+    - Spot Goes to Hollywood -- glitched graphics in European version only (#520)
 - GameDB: Force fast bus timings to fix crashes in Deep Fear. (#740)
 - Input: Fixed analog to D-Pad axis conversion to not overwrite whenever an input was released in opposite direction. (#754; @PringleElUno)
 - MIDI: Defend against crashes when the library fails to initialize.
