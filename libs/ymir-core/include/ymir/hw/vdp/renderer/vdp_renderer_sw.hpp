@@ -848,6 +848,28 @@ private:
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     alignas(16) std::array<std::array<bool, kMaxResH>, 2> m_colorCalcWindow;
 
+    // Pre-allocated buffers for VDP2ComposeLine to avoid stack overflow.
+    // These arrays are intentionally left uninitialized; only the necessary entries are initialized and used per call.
+    struct ComposeLineBuffers {
+        alignas(16) std::array<std::array<LayerIndex, 3>, kMaxResH> scanline_layers;
+        alignas(16) std::array<std::array<uint8, 3>, kMaxResH> scanline_layerPrios;
+        alignas(16) std::array<uint8, kMaxResH> scanline_meshLayers;
+        alignas(16) std::array<Color888, kMaxResH> layer0Pixels;
+        alignas(16) std::array<bool, kMaxResH> layer0ColorCalcEnabled;
+        alignas(16) std::array<bool, kMaxResH> layer0BlendMeshLayer;
+        alignas(16) std::array<Color888, kMaxResH> layer1Pixels;
+        alignas(16) std::array<bool, kMaxResH> layer1BlendMeshLayer;
+        alignas(16) std::array<bool, kMaxResH> layer0LineColorEnabled;
+        alignas(16) std::array<Color888, kMaxResH> layer0LineColors;
+        alignas(16) std::array<bool, kMaxResH> layer1ColorCalcEnabled;
+        alignas(16) std::array<Color888, kMaxResH> layer2Pixels;
+        alignas(16) std::array<bool, kMaxResH> layer2BlendMeshLayer;
+        alignas(16) std::array<uint8, kMaxResH> scanline_ratio;
+        alignas(16) std::array<bool, kMaxResH> layer0ShadowEnabled;
+        alignas(16) std::array<bool, kMaxResH> layer0ColorOffsetEnabled;
+    };
+    ComposeLineBuffers m_composeLineBuffers;
+
     // Current display framebuffer.
     std::array<uint32, kMaxResH * kMaxResV> m_framebuffer;
 
