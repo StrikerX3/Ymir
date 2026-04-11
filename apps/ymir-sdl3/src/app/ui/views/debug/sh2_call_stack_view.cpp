@@ -6,8 +6,6 @@
 
 #include <fmt/format.h>
 
-#include <ranges>
-
 using namespace ymir;
 
 namespace app::ui {
@@ -42,11 +40,13 @@ void SH2CallStackView::Display() {
     };
 
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.small);
-    /*const*/ auto callStack = m_tracer.execAnalyst.GetCurrentCallStack();
+    const auto callStack = m_tracer.execAnalyst.GetCurrentCallStack();
     ImGui::TextColored(m_model.colors.address, "%08X", pc);
     ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
     ImGui::TextColored(colors.pc, "<current PC>");
-    for (auto &entry : std::ranges::reverse_view(callStack)) {
+    // for (auto &entry : std::ranges::reverse_view(callStack)) { // Clang 15 doesn't support this :(
+    for (auto it = callStack.rbegin(); it != callStack.rend(); ++it) {
+        auto &entry = *it;
         ImGui::TextColored(m_model.colors.address, "%08X", entry.address);
         ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
         switch (entry.type) {
