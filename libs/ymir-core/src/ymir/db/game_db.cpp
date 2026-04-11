@@ -66,6 +66,8 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
 
     {"T-7029H-50", {.flags = StallVDP1OnVRAMWrites}}, // Mega Man X3 (Europe)
     {"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan)
+
+    {"T-9513G", {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan)
 };
 
 static const std::unordered_map<XXH128Hash, GameInfo> kGameInfosByHash = {

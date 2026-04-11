@@ -175,6 +175,15 @@ public:
         return m_stallVDP1OnVRAMWrites;
     }
 
+    // Enable or disable VDP1 slowdown.
+    void SetSlowVDP1(bool enable) {
+        m_VDP1CyclesShift = enable ? 0 : 2;
+    }
+
+    bool IsSlowVDP1() const {
+        return m_VDP1CyclesShift == 0;
+    }
+
     // -------------------------------------------------------------------------
     // Memory dumps
 
@@ -404,6 +413,7 @@ private:
     static constexpr uint64 kVDP1TimingPenaltyPerWrite = 22;
     uint64 m_VDP1TimingPenaltyCycles; // accumulated cycle penalty
     bool m_stallVDP1OnVRAMWrites = false;
+    uint64 m_VDP1CyclesShift = 2;
 
     void VDP1SwapFramebuffer();
     void VDP1BeginFrame();

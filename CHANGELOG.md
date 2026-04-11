@@ -66,6 +66,7 @@ Introduced save state file version 12.
 - VDP1: Increase PTM=1 drawing delay and apply it only during VBlank. Fixes flickering graphics on Earthworm Jim 2. (#745)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
 - VDP1: Rework cycle counting method and increase cycle budget per frame. Fixes slowdowns in Road Rash and graphics glitches in multiple games, including Virtua Cop and Burning Rangers. (#704, #721, #722)
+- VDP1: Slow down VDP1 to fix no-boot regressing in Jikkyou Oshaberi Parodius. (#283)
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
 - VDP1: Stop processing commands if encountering an all-zeros entry. Fixes invalid clipping coordinates in Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. (#761)
 - VDP2: Apply VRAM access shift per bank to scroll NBGs with invalid timing patterns. Fixes World Heroes Perfect title screen shift and Cyberbots - Fullmetal Madness HUD shift and broken background in stage 2. (#756)

@@ -268,7 +268,7 @@ void VDP::Advance(uint64 cycles) {
         // TODO: pixel- and texel-level cycle counting
         // - VRAM access penalties (for Mega Man X3)
         // - high-speed shrink, end codes, user clipping (all of these reduce costs)
-        cycles <<= 2;
+        cycles <<= m_VDP1CyclesShift;
 
         // Apply timing penalty
         if (m_VDP1TimingPenaltyCycles > 0) {
