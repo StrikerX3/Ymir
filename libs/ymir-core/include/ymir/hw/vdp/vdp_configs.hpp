@@ -145,6 +145,12 @@ struct VDP2DebugRender {
     std::array<bool, 6> enabledLayers;
 };
 
+struct VDP2AccessPatternsConfig {
+    /// @brief When set to `true`, allows bitmap CP access during SH2 cycles.
+    /// This fixes issues with certain games due to bad SCU DMA timings.
+    bool relaxedBitmapCPAccessChecks = false;
+};
+
 /// @brief Frontend renderer callbacks.
 struct RendererCallbacks {
     /// @brief Invoked when the VDP1 finishes drawing a frame.

@@ -243,7 +243,8 @@ struct VDP2State {
     /// - ZMCTL.NxZM(QT/HF): scroll reduction (1/2x, 1/4x)
     ///
     /// @param[in] regs2 the VDP2 registers to use
-    void CalcAccessPatterns(VDP2Regs &regs2) {
+    /// @param[in] config access patterns configuration
+    void CalcAccessPatterns(VDP2Regs &regs2, const config::VDP2AccessPatternsConfig &config) {
         if (!regs2.accessPatternsDirty) [[likely]] {
             return;
         }
@@ -635,6 +636,12 @@ struct VDP2State {
                         bgParams.patNameAccess[bank] = true;
                     } else if (timing == CyclePatterns::CharPatNBG0 + nbg) {
                         bgParams.charPatAccess[bank] = true;
+                    } else if (config.relaxedBitmapCPAccessChecks && timing == CyclePatterns::CPU == bgParams.bitmap) {
+                        // HACK: allow bitmap data access during SH-2 cycles. Fixes flickering FMVs in:
+                        // - Shin Kaitei Gunkan
+                        // - Lunar - Silver Star Story
+                        // - Dark Savior
+                        bgParams.charPatAccess[bank] = true;
                     }
                 }
             }
@@ -720,7 +727,7 @@ struct VDP2State {
     /// @brief Updates the background enable states in `layerEnabled`.
     /// @param[in] regs2 the VDP2 registers to use
     /// @param[in] debugRenderOpts the VDP2 debug rendering options to use
-    void UpdateEnabledBGs(const VDP2Regs &regs2, config::VDP2DebugRender &debugRenderOpts) {
+    void UpdateEnabledBGs(const VDP2Regs &regs2, const config::VDP2DebugRender &debugRenderOpts) {
         const auto &enabledLayers = debugRenderOpts.enabledLayers;
 
         // Sprite layer is always enabled, unless forcibly disabled

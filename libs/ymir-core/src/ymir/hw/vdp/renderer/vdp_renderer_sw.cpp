@@ -57,10 +57,12 @@ namespace grp {
 
 } // namespace grp
 
-SoftwareVDPRenderer::SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions)
+SoftwareVDPRenderer::SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+                                         const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig)
     : IVDPRenderer(VDPRendererType::Software)
     , m_state(state)
-    , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions) {
+    , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
+    , m_vdp2AccessPatternsConfig(vdp2AccessPatternsConfig) {
 
     UpdateFunctionPointers();
 
@@ -502,7 +504,7 @@ void SoftwareVDPRenderer::VDP2BeginFrame() {
 void SoftwareVDPRenderer::VDP2RenderLine(uint32 y) {
     if (m_threadedVDP2Rendering) {
         m_vdp2RenderingContext.EnqueueEvent(VDP2RenderEvent::VDP2DrawLine(y));
-        m_state.state2.CalcAccessPatterns(m_state.regs2);
+        m_state.state2.CalcAccessPatterns(m_state.regs2, m_vdp2AccessPatternsConfig);
         m_state.state2.CalcVCellScrollDelay(m_state.regs2);
     } else {
         const bool interlaced = m_state.regs2.TVMD.IsInterlaced();
@@ -2296,7 +2298,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2PrepareLine(uint32 y) {
         return;
     }
 
-    m_state.state2.CalcAccessPatterns(regs2);
+    m_state.state2.CalcAccessPatterns(regs2, m_vdp2AccessPatternsConfig);
     m_state.state2.CalcVCellScrollDelay(regs2);
     if (regs2.bgEnabled[4] || regs2.bgEnabled[5]) {
         VDP2CalcRotationParameterTables(y);

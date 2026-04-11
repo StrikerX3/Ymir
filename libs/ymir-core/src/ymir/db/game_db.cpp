@@ -53,7 +53,8 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"GS-9019",    {.flags = ForceSH2Cache}}, // Astal (Japan)
     {"MK-81019",   {.flags = ForceSH2Cache}}, // Astal (USA)
     {"GS-9172",    {.flags = ForceSH2Cache}}, // Chisato Moritaka - Watarase Bashi & Lala Sunshine (Japan) (Disc 1)
-    {"MK-81304",   {.flags = ForceSH2Cache}}, // Dark Savior (USA)
+    {"MK-81304",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (USA, Europe)
+    {"T-22101G",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (Japan)
     {"T-13305G",   {.flags = ForceSH2Cache}}, // Dragon Ball Z - Idainaru Dragon Ball Densetsu (Japan)
     {"T-6002G",    {.flags = ForceSH2Cache}}, // Metal Fighter Miku (Japan)
     {"T-5013H",    {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
@@ -68,6 +69,11 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan)
 
     {"T-9513G", {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan)
+
+    {"T-27901G",  {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan)
+    {"ST-27901G", {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan) (Demo)
+    {"GS-9088",   {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Mechanical Violator Hakaider - Last Judgement (Japan)
+    {"T-2105G",   {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Shin Kaitei Gunkan - Koutetsu no Kodoku (Japan)
 };
 
 static const std::unordered_map<XXH128Hash, GameInfo> kGameInfosByHash = {

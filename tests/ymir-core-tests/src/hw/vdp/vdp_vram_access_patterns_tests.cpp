@@ -10,6 +10,7 @@ using namespace ymir;
 struct TestSubject {
     mutable vdp::VDP2Regs regs2;
     mutable vdp::VDP2State state2;
+    vdp::config::VDP2AccessPatternsConfig accPatCfg;
 };
 
 struct NBGData {
@@ -75,7 +76,7 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "VDP2 VRAM access patterns tests", "[v
         regs2.WriteZMCTL(testData.ZMCTL);
         regs2.WriteSCRCTL(testData.SCRCTL);
 
-        state2.CalcAccessPatterns(regs2);
+        state2.CalcAccessPatterns(regs2, accPatCfg);
         state2.CalcVCellScrollDelay(regs2);
 
         for (uint32 i = 0; i < 4; ++i) {

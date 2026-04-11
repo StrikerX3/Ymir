@@ -48,7 +48,8 @@ struct SoftwareRendererCallbacks {
 
 class SoftwareVDPRenderer : public IVDPRenderer {
 public:
-    SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions);
+    SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+                        const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig);
     ~SoftwareVDPRenderer();
 
     // -------------------------------------------------------------------------
@@ -162,6 +163,7 @@ public:
 private:
     VDPState &m_state;
     config::VDP2DebugRender &m_vdp2DebugRenderOptions;
+    const config::VDP2AccessPatternsConfig &m_vdp2AccessPatternsConfig;
 
     uint32 m_HRes;
     uint32 m_VRes;
