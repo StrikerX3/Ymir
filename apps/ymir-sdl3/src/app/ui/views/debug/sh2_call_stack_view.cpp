@@ -42,7 +42,7 @@ void SH2CallStackView::Display() {
     };
 
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.small);
-    const auto callStack = m_tracer.execAnalyst.GetCurrentCallStack();
+    /*const*/ auto callStack = m_tracer.execAnalyst.GetCurrentCallStack();
     ImGui::TextColored(m_model.colors.address, "%08X", pc);
     ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
     ImGui::TextColored(colors.pc, "<current PC>");
