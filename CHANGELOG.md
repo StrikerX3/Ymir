@@ -51,8 +51,8 @@ Introduced save state file version 12.
     - Chisato Moritaka - Watarase Bashi & Lala Sunshine -- crash at startup (#604)
     - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
     - Metal Fighter Miku -- black screen after start menu (#466)
-    - Steamgear Mash -- flickering graphics (#440)
     - Spot Goes to Hollywood -- glitched graphics in European version only (#520)
+    - Steamgear Mash -- flickering graphics (#440)
 - GameDB: Force fast bus timings to fix crashes in Deep Fear. (#740)
 - Input: Fixed analog to D-Pad axis conversion to not overwrite whenever an input was released in opposite direction. (#754; @PringleElUno)
 - MIDI: Defend against crashes when the library fails to initialize.
