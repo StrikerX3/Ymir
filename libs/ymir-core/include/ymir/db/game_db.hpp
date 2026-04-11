@@ -48,6 +48,15 @@ struct GameInfo {
         FastMC68EC000 = 1ull << 5ull,         ///< Overclocked MC68EC000 required to fix stability issues
         StallVDP1OnVRAMWrites = 1ull << 6ull, ///< Stall/slow down VDP1 drawing on VDP1 VRAM writes
         SlowVDP1 = 1ull << 7ull,              ///< Slow down VDP1 processing overall
+
+        // Proper fixes for each flag:
+        // - ForceSH2Cache: SH-2 cache emulation *is* the accurate choice, so the flag should stay as is
+        //   - it simply forces-on the cache emulation option, which isn't needed by most games and introduces a
+        //     noticeable performance penalty for no gain.
+        // - FastBusTimings: advanced bus timing emulation
+        // - FastMC68EC000: advanced bus timing emulation on the SH2 and SCSP sides, probably
+        // - StallVDP1OnVRAMWrites: advanced bus timing emulation plus accurate VDP1 timings
+        // - SlowVDP1: accurate VDP1 timings
     };
 
     Flags flags = Flags::None;        ///< Game compatibility flags
