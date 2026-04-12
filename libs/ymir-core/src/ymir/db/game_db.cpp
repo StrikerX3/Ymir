@@ -36,7 +36,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"610636008",  {.flags = Cart_DRAM8Mbit}}, // "Tech Saturn 1997.6 (Japan)
     {"T-3108G",    {.flags = Cart_DRAM8Mbit}}, // The King of Fighters '96 (Japan)
     {"T-3121G",    {.flags = Cart_DRAM8Mbit}}, // The King of Fighters '97 (Japan)
-    {"T-1515G",    {.flags = Cart_DRAM8Mbit}}, // Waku Waku 7 (Japan)
+    {"T-1515G",    {.flags = Cart_DRAM8Mbit | ForceSH2Cache}}, // Waku Waku 7 (Japan)
 
     {"T-1245G", {.flags = Cart_DRAM32Mbit}}, // Dungeons and Dragons Collection (Japan)
     {"T-1248G", {.flags = Cart_DRAM32Mbit}}, // Final Fight Revenge (Japan)
@@ -52,6 +52,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
 
     {"GS-9019",    {.flags = ForceSH2Cache}}, // Astal (Japan)
     {"MK-81019",   {.flags = ForceSH2Cache}}, // Astal (USA)
+    {"MK-81501",   {.flags = ForceSH2Cache}}, // Baku Baku Animal - World Zookeeper Contest (Europe)
     {"GS-9172",    {.flags = ForceSH2Cache}}, // Chisato Moritaka - Watarase Bashi & Lala Sunshine (Japan) (Disc 1)
     {"MK-81304",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (USA, Europe)
     {"T-22101G",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (Japan)

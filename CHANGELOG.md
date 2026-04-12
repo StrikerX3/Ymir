@@ -48,11 +48,13 @@ Introduced save state file version 12.
 - Build: Remove duplicate binary from macOS packages.
 - GameDB: Double the MC68EC000 clock rate and force fast bus timings to fix crashes in Vampire Savior - The Lord of Vampire. (#699)
 - GameDB: Force-enable SH2 cache emulation to fix issues with multiple games:
+    - Baku Baku Animal - World Zookeeper Contest (Europe only) -- freeze when trying to play FMVs from the Options menu (#642)
     - Chisato Moritaka - Watarase Bashi & Lala Sunshine -- crash at startup (#604)
     - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
     - Metal Fighter Miku -- black screen after start menu (#466)
     - Spot Goes to Hollywood -- glitched graphics in European version only (#520)
     - Steamgear Mash -- flickering graphics (#440)
+    - Waku Waku 7 -- flickering sprites (#424)
 - GameDB: Force fast bus timings to fix crashes in Deep Fear. (#740)
 - Input: Fixed analog to D-Pad axis conversion to not overwrite whenever an input was released in opposite direction. (#754; @PringleElUno)
 - MIDI: Defend against crashes when the library fails to initialize.
