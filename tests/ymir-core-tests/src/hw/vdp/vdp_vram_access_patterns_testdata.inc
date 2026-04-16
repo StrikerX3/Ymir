@@ -1851,3 +1851,74 @@ TestData{
     // Rotation coefficient accesses
     {false, false, false, false},
 },
+
+TestData{
+    "Sonic 3D Blast :: Rusty Ruins :: Mixed valid/invalid scroll CP accesses in low-res modes don't cause delay if there are enough valid accesses",
+    0x44556677, // 010,012 CYCA0L/U  CP0 CP0 CP1 CP1 CP2 CP2 CP3 CP3
+    0x44556677, // 014,016 CYCA1L/U  CP0 CP0 CP1 CP1 CP2 CP2 CP3 CP3
+    0x66554477, // 018,01A CYCB0L/U  CP2 CP2 CP1 CP1 CP0 CP0 CP3 CP3
+    0x01EE23EE, // 01C,01E CYCB1L/U  PN0 PN1 SH2 SH2 PN2 PN3 SH2 SH2
+    0x1300, // 00E RAMCTL  A0/A1, B0/B1, no rotparams
+    0x8000, // 000 TVMD    lo-res
+    0x000F, // 020 BGON    NBG0, NBG1, NBG2, NBG3
+    0x1010, // 028 CHCTLA  NBG0 = pal256 scroll 1x1   NBG1 = pal256 scroll 1x1
+    0x0002, // 02A CHCTLB  NBG2 = pal256 scroll 1x1   NBG3 = pal16 scroll 1x1
+    0x0000, // 098 ZMCTL   NBG0 = 1x reduction        NBG1 = 1x reduction
+    0x0000, // 09A SCRCTL  NBG0 =                     NBG1 =
+
+    // Expected
+    {{
+        // NBG0
+        {
+            .check = true,
+            .bitmap = false,
+            .patNameAccess = {false, false, false, true},
+            .charPatAccess = {true, true, true, false},
+            .charPatDelay = {false, false, false, false},
+            .vramDataOffset = {0, 0, 0, 0},
+            .vcellScrollDelay = false,
+            .vcellScrollRepeat = false,
+            .vcellScrollOffset = 0,
+        },
+        // NBG1
+        {
+            .check = true,
+            .bitmap = false,
+            .patNameAccess = {false, false, false, true},
+            .charPatAccess = {true, true, true, false},
+            .charPatDelay = {false, false, false, false},
+            .vramDataOffset = {0, 0, 0, 0},
+            .vcellScrollDelay = false,
+            .vcellScrollRepeat = false,
+            .vcellScrollOffset = 0,
+        },
+        // NBG2
+        {
+            .check = true,
+            .bitmap = false,
+            .patNameAccess = {false, false, false, true},
+            .charPatAccess = {true, true, true, false},
+            .charPatDelay = {false, false, false, false},
+            .vramDataOffset = {0, 0, 0, 0},
+            .vcellScrollDelay = false,
+            .vcellScrollRepeat = false,
+            .vcellScrollOffset = 0,
+        },
+        // NBG3
+        {
+            .check = true,
+            .bitmap = false,
+            .patNameAccess = {false, false, false, true},
+            .charPatAccess = {true, true, true, false},
+            .charPatDelay = {true, true, true, true},
+            .vramDataOffset = {0, 0, 0, 0},
+            .vcellScrollDelay = false,
+            .vcellScrollRepeat = false,
+            .vcellScrollOffset = 0,
+        },
+    }},
+    // Vertical cell scroll increment
+    0,
+    // Rotation coefficient accesses
+    {false, false, false, false},
+},

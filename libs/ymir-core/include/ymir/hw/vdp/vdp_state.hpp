@@ -273,6 +273,14 @@ struct VDP2State {
             {0, 0, 0, 0},
         }};
 
+        // Pattern name access masks per bank
+        std::array<std::array<uint8, 4>, 4> pnBank = {{
+            {0, 0, 0, 0},
+            {0, 0, 0, 0},
+            {0, 0, 0, 0},
+            {0, 0, 0, 0},
+        }};
+
         // First CP access timing slot per NBG. 0xFF means no accesses found.
         std::array<uint8, 4> firstCPAccessTiming = {0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -306,6 +314,7 @@ struct VDP2State {
                 {
                     const uint8 bgIndex = static_cast<uint8>(timing) - static_cast<uint8>(CyclePatterns::PatNameNBG0);
                     pn[bgIndex] |= 1u << i;
+                    pnBank[bgIndex][bankIndex] |= 1u << i;
                     break;
                 }
 
@@ -467,12 +476,39 @@ struct VDP2State {
             }
         }
 
+        // Determine how many character pattern accesses are needed for this NBG
+        std::array<uint8, 4> expectedCPAccesses{};
+        for (uint32 nbg = 0; nbg < 4; ++nbg) {
+            auto &bgParams = regs2.bgParams[nbg + 1];
+            uint8 &expectedCount = expectedCPAccesses[nbg];
+
+            // Start with a base count of 1
+            expectedCount = 1;
+
+            // Apply ZMCTL modifiers
+            // FIXME: Applying these disables background graphics in Baku Baku Animal - World Zookeeper
+            /*if ((nbg == 0 && ZMCTL.N0ZMQT) || (nbg == 1 && ZMCTL.N1ZMQT)) {
+                expectedCount *= 4;
+            } else if ((nbg == 0 && ZMCTL.N0ZMHF) || (nbg == 1 && ZMCTL.N1ZMHF)) {
+                expectedCount *= 2;
+            }*/
+
+            // Apply color format modifiers
+            switch (bgParams.colorFormat) {
+            case ColorFormat::Palette16: break;
+            case ColorFormat::Palette256: expectedCount *= 2; break;
+            case ColorFormat::Palette2048: expectedCount *= 4; break;
+            case ColorFormat::RGB555: expectedCount *= 4; break;
+            case ColorFormat::RGB888: expectedCount *= 8; break;
+            }
+        }
+
         // Apply delays to the NBGs
-        for (uint32 i = 0; i < 4; ++i) {
-            auto &bgParams = regs2.bgParams[i + 1];
+        for (uint32 nbg = 0; nbg < 4; ++nbg) {
+            auto &bgParams = regs2.bgParams[nbg + 1];
             bgParams.charPatDelay.fill(false);
-            const uint8 bgCP = cp[i];
-            const uint8 bgPN = pn[i];
+            const uint8 bgCP = cp[nbg];
+            const uint8 bgPN = pn[nbg];
 
             // Skip bitmap NBGs as they're handled above
             if (bgParams.bitmap) {
@@ -485,7 +521,7 @@ struct VDP2State {
             }
 
             // Skip NBG0 and NBG1 if the pattern name access happens on T0
-            if (i < 2 && bit::test<0>(bgPN)) {
+            if (nbg < 2 && bit::test<0>(bgPN)) {
                 continue;
             }
 
@@ -520,10 +556,18 @@ struct VDP2State {
                 };
 
                 const uint8 pnIndex = std::countr_zero(bgPN);
+
+                // A delay occurs if there aren't enough valid CP accesses or if there is an invalid CP accesses in the
+                // same bank as the PN access
+                const bool enoughValidAccesses =
+                    std::popcount<uint8>(bgCP & kLoResPatterns[pnIndex]) >= expectedCPAccesses[nbg];
+
                 if (pnIndex < 8) {
                     for (uint8 bankIndex = 0; bankIndex < 4; ++bankIndex) {
-                        const uint8 bgCPBank = cpBank[i][bankIndex];
-                        if (bgCPBank != 0 && (bgCPBank & kLoResPatterns[pnIndex]) == 0) {
+                        const uint8 bgCPBank = cpBank[nbg][bankIndex];
+                        const uint8 bgPNBank = pnBank[nbg][bankIndex];
+                        if (bgCPBank != 0 && (bgCPBank & kLoResPatterns[pnIndex]) == 0 &&
+                            (!enoughValidAccesses || bgPNBank != 0)) {
                             if ((bgCPBank & ~kLoResPatterns[pnIndex]) >= 0b10000) {
                                 if (bgParams.cellSizeShift == 0) {
                                     // Illegal CP access in T4-T7 with 1x1 character cells -- shift right
@@ -589,29 +633,8 @@ struct VDP2State {
                     continue;
                 }
 
-                // Determine how many character pattern accesses are needed for this NBG
-
-                // Start with a base count of 1
-                uint8 expectedCount = 1;
-
-                // Apply ZMCTL modifiers
-                // FIXME: Applying these disables background graphics in Baku Baku Animal - World Zookeeper
-                /*if ((nbg == 0 && ZMCTL.N0ZMQT) || (nbg == 1 && ZMCTL.N1ZMQT)) {
-                    expectedCount *= 4;
-                } else if ((nbg == 0 && ZMCTL.N0ZMHF) || (nbg == 1 && ZMCTL.N1ZMHF)) {
-                    expectedCount *= 2;
-                }*/
-
-                // Apply color format modifiers
-                switch (bgParams.colorFormat) {
-                case ColorFormat::Palette16: break;
-                case ColorFormat::Palette256: expectedCount *= 2; break;
-                case ColorFormat::Palette2048: expectedCount *= 4; break;
-                case ColorFormat::RGB555: expectedCount *= 4; break;
-                case ColorFormat::RGB888: expectedCount *= 8; break;
-                }
-
                 // Check for maximum 8 cycles on normal resolution, 4 cycles on high resolution/exclusive monitor modes
+                const uint8 expectedCount = expectedCPAccesses[nbg];
                 const uint32 max = hires ? 4 : 8;
                 if (expectedCount > max) [[unlikely]] {
                     continue;

@@ -1,8 +1,12 @@
 #include "vdp2_vram_delay_view.hpp"
 
+#include <app/ui/widgets/common_widgets.hpp>
+
 #include <ymir/hw/vdp/vdp.hpp>
 
 #include <imgui.h>
+
+#include <SDL3/SDL_clipboard.h>
 
 using namespace ymir;
 
@@ -354,29 +358,47 @@ void VDP2VRAMDelayView::Display() {
             ImGui::TableNextColumn();
             if (regs2.bgEnabled[i]) {
                 const auto &bgParams = regs2.bgParams[i + 1];
-                if (!bgParams.bitmap) {
-                    std::vector<const char *> delayedBanks{};
+                // Only scroll BGs are affected by this.
+                // The delay applies to all banks at once.
+                if (!bgParams.bitmap && bgParams.charPatDelay[0]) {
+                    ImGui::TextColored(colorBad, "yes");
+                } else {
+                    ImGui::TextColored(colorGood, "no");
+                }
+            }
+        }
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Access shift?");
+        for (uint32 i = 0; i < 4; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                const auto &bgParams = regs2.bgParams[i + 1];
+                std::vector<const char *> delayedBanks{};
 
+                // For bitmap BGs, the shift is applied per bank.
+                // For scroll BGs, the shift is applied to all banks.
+                if (bgParams.bitmap) {
                     if (regs2.vramControl.partitionVRAMA) {
-                        if (bgParams.charPatDelay[0] && bgParams.charPatDelay[1]) {
+                        if (bgParams.vramDataOffset[0] > 0 && bgParams.vramDataOffset[1] > 0) {
                             delayedBanks.push_back("A0/1");
-                        } else if (bgParams.charPatDelay[0]) {
+                        } else if (bgParams.vramDataOffset[0] > 0) {
                             delayedBanks.push_back("A0");
-                        } else if (bgParams.charPatDelay[1]) {
+                        } else if (bgParams.vramDataOffset[1] > 0) {
                             delayedBanks.push_back("A1");
                         }
-                    } else if (bgParams.charPatDelay[0]) {
+                    } else if (bgParams.vramDataOffset[0] > 0) {
                         delayedBanks.push_back("A");
                     }
                     if (regs2.vramControl.partitionVRAMB) {
-                        if (bgParams.charPatDelay[2] && bgParams.charPatDelay[3]) {
+                        if (bgParams.vramDataOffset[2] > 0 && bgParams.vramDataOffset[3] > 0) {
                             delayedBanks.push_back("B0/1");
-                        } else if (bgParams.charPatDelay[2]) {
+                        } else if (bgParams.vramDataOffset[2] > 0) {
                             delayedBanks.push_back("B0");
-                        } else if (bgParams.charPatDelay[3]) {
+                        } else if (bgParams.vramDataOffset[3] > 0) {
                             delayedBanks.push_back("B1");
                         }
-                    } else if (bgParams.charPatDelay[2]) {
+                    } else if (bgParams.vramDataOffset[2] > 0) {
                         delayedBanks.push_back("B");
                     }
 
@@ -394,53 +416,10 @@ void VDP2VRAMDelayView::Display() {
                         }
                     }
                 } else {
-                    ImGui::TextColored(colorGood, "no");
-                }
-            }
-        }
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::TextUnformatted("Access shift?");
-        for (uint32 i = 0; i < 4; i++) {
-            ImGui::TableNextColumn();
-            if (regs2.bgEnabled[i]) {
-                const auto &bgParams = regs2.bgParams[i + 1];
-                std::vector<const char *> delayedBanks{};
-
-                if (regs2.vramControl.partitionVRAMA) {
-                    if (bgParams.vramDataOffset[0] > 0 && bgParams.vramDataOffset[1] > 0) {
-                        delayedBanks.push_back("A0/1");
-                    } else if (bgParams.vramDataOffset[0] > 0) {
-                        delayedBanks.push_back("A0");
-                    } else if (bgParams.vramDataOffset[1] > 0) {
-                        delayedBanks.push_back("A1");
-                    }
-                } else if (bgParams.vramDataOffset[0] > 0) {
-                    delayedBanks.push_back("A");
-                }
-                if (regs2.vramControl.partitionVRAMB) {
-                    if (bgParams.vramDataOffset[2] > 0 && bgParams.vramDataOffset[3] > 0) {
-                        delayedBanks.push_back("B0/1");
-                    } else if (bgParams.vramDataOffset[2] > 0) {
-                        delayedBanks.push_back("B0");
-                    } else if (bgParams.vramDataOffset[3] > 0) {
-                        delayedBanks.push_back("B1");
-                    }
-                } else if (bgParams.vramDataOffset[2] > 0) {
-                    delayedBanks.push_back("B");
-                }
-
-                if (delayedBanks.empty()) {
-                    ImGui::TextColored(colorGood, "no");
-                } else {
-                    bool first = true;
-                    for (const char *bank : delayedBanks) {
-                        if (first) {
-                            first = false;
-                        } else {
-                            ImGui::SameLine(0.0f, spaceWidth);
-                        }
-                        ImGui::TextColored(colorBad, "%s", bank);
+                    if (bgParams.vramDataOffset[0] != 0u) {
+                        ImGui::TextColored(colorBad, "yes");
+                    } else {
+                        ImGui::TextColored(colorGood, "no");
                     }
                 }
             }
@@ -483,6 +462,265 @@ void VDP2VRAMDelayView::Display() {
 
         ImGui::EndTable();
     }
+
+    if (ImGui::Button("Generate test case")) {
+        const auto &state2 = probe.GetVDP2State();
+        const uint32 CYCA0 = (regs2.ReadCYCA0L() << 16u) | regs2.ReadCYCA0U();
+        const uint32 CYCA1 = (regs2.ReadCYCA1L() << 16u) | regs2.ReadCYCA1U();
+        const uint32 CYCB0 = (regs2.ReadCYCB0L() << 16u) | regs2.ReadCYCB0U();
+        const uint32 CYCB1 = (regs2.ReadCYCB1L() << 16u) | regs2.ReadCYCB1U();
+        const uint16 RAMCTL = regs2.ReadRAMCTL();
+        const uint16 TVMD = regs2.ReadTVMD();
+        const uint16 BGON = regs2.ReadBGON();
+        const uint16 CHCTLA = regs2.ReadCHCTLA();
+        const uint16 CHCTLB = regs2.ReadCHCTLB();
+        const uint16 ZMCTL = regs2.ReadZMCTL();
+        const uint16 SCRCTL = regs2.ReadSCRCTL();
+
+        auto formatOneCYC = [&](uint16 cyc) -> const char * {
+            switch (static_cast<vdp::CyclePatterns::Type>(cyc)) {
+            case vdp::CyclePatterns::PatNameNBG0: return "PN0";
+            case vdp::CyclePatterns::PatNameNBG1: return "PN1";
+            case vdp::CyclePatterns::PatNameNBG2: return "PN2";
+            case vdp::CyclePatterns::PatNameNBG3: return "PN3";
+            case vdp::CyclePatterns::CharPatNBG0: return "CP0";
+            case vdp::CyclePatterns::CharPatNBG1: return "CP1";
+            case vdp::CyclePatterns::CharPatNBG2: return "CP2";
+            case vdp::CyclePatterns::CharPatNBG3: return "CP3";
+            case vdp::CyclePatterns::VCellScrollNBG0: return "VC0";
+            case vdp::CyclePatterns::VCellScrollNBG1: return "VC1";
+            case vdp::CyclePatterns::CPU: return "SH2";
+            case vdp::CyclePatterns::NoAccess: return "-  ";
+            default: return "???"; // should never happen
+            }
+        };
+
+        auto formatCYC = [&](uint32 value) -> std::string {
+            return fmt::format("{} {} {} {} {} {} {} {}", formatOneCYC(bit::extract<28, 31>(value)),
+                               formatOneCYC(bit::extract<24, 27>(value)), formatOneCYC(bit::extract<20, 23>(value)),
+                               formatOneCYC(bit::extract<16, 19>(value)), formatOneCYC(bit::extract<12, 15>(value)),
+                               formatOneCYC(bit::extract<8, 11>(value)), formatOneCYC(bit::extract<4, 7>(value)),
+                               formatOneCYC(bit::extract<0, 3>(value)));
+        };
+
+        auto formatRAMCTL = [&]() -> std::string {
+            const bool partA = regs2.vramControl.partitionVRAMA;
+            const bool partB = regs2.vramControl.partitionVRAMB;
+            const auto partAText = partA ? "A0/A1" : "A";
+            const auto partBText = partB ? "B0/B1" : "B";
+
+            auto inUse = [](vdp::RotDataBankSel sel, bool enable) {
+                return enable && sel != vdp::RotDataBankSel::Unused;
+            };
+
+            std::string rotParamsText;
+            if (inUse(regs2.vramControl.rotDataBankSelA0, true) || inUse(regs2.vramControl.rotDataBankSelA1, partA) ||
+                inUse(regs2.vramControl.rotDataBankSelB0, true) || inUse(regs2.vramControl.rotDataBankSelB1, partB)) {
+
+                fmt::memory_buffer buf{};
+                auto out = std::back_inserter(buf);
+                std::string sep = "";
+
+                auto append = [&](const char *bankName, vdp::RotDataBankSel sel, bool enable) {
+                    if (enable) {
+                        switch (sel) {
+                        case vdp::RotDataBankSel::Unused: break;
+                        case vdp::RotDataBankSel::Coefficients:
+                            fmt::format_to(out, "{}{}=coeff", sep, bankName);
+                            sep = " ";
+                            break;
+                        case vdp::RotDataBankSel::PatternName:
+                            fmt::format_to(out, "{}{}=patname", sep, bankName);
+                            sep = " ";
+                            break;
+                        case vdp::RotDataBankSel::Character:
+                            fmt::format_to(out, "{}{}=charpat", sep, bankName);
+                            sep = " ";
+                            break;
+                        }
+                    }
+                };
+
+                append((partA ? "A0" : "A"), regs2.vramControl.rotDataBankSelA0, true);
+                append((partA ? "A1" : "A"), regs2.vramControl.rotDataBankSelA1, partA);
+                append((partB ? "B0" : "B"), regs2.vramControl.rotDataBankSelB0, true);
+                append((partB ? "B1" : "B"), regs2.vramControl.rotDataBankSelB1, partB);
+
+                rotParamsText = fmt::format("rot: {}", fmt::to_string(buf));
+            } else {
+                rotParamsText = "no rotparams";
+            }
+            // A0/A1, B0/B1, rot: A0=charpat A1=patname B0=coeff
+            return fmt::format("{}, {}, {}", partAText, partBText, rotParamsText);
+        };
+        auto formatTVMD = [&]() -> std::string { return hires ? "hi-res" : "lo-res"; };
+        auto formatBGON = [&]() -> std::string {
+            fmt::memory_buffer buf{};
+            auto out = std::back_inserter(buf);
+            std::string sep = "";
+            for (uint32 i = 0; i < 6; ++i) {
+                const char prefix = i < 4 ? 'N' : 'R';
+                const uint32 index = i < 4 ? i : i - 4;
+                if (regs2.bgEnabled[i]) {
+                    fmt::format_to(out, "{}{}BG{}", sep, prefix, index);
+                    sep = ", ";
+                }
+            }
+            return fmt::to_string(buf);
+        };
+        auto formatNBGCH = [&](size_t index) -> std::string {
+            if (!regs2.bgEnabled[index]) {
+                return "";
+            }
+
+            const auto &bgParams = regs2.bgParams[index + 1];
+            auto formatNBGColorMode = [&]() -> const char * {
+                switch (bgParams.colorFormat) {
+                case vdp::ColorFormat::Palette16: return "pal16";
+                case vdp::ColorFormat::Palette256: return "pal256";
+                case vdp::ColorFormat::Palette2048: return "pal2048";
+                case vdp::ColorFormat::RGB555: return "rgb555";
+                case vdp::ColorFormat::RGB888: return "rgb888";
+                default: return "invalid";
+                }
+            };
+            auto formatNBGType = [&]() -> const char * {
+                if (bgParams.bitmap) {
+                    return "bitmap";
+                } else if (bgParams.cellSizeShift) {
+                    return "scroll 2x2";
+                } else {
+                    return "scroll 1x1";
+                }
+            };
+            return fmt::format("NBG{} = {} {}", index, formatNBGColorMode(), formatNBGType());
+        };
+        auto formatNBGZM = [&](size_t index) -> std::string {
+            if (!regs2.bgEnabled[index]) {
+                return "";
+            }
+
+            const auto &bgParams = regs2.bgParams[index + 1];
+            if (bgParams.bitmap) {
+                return "";
+            }
+
+            auto formatReduction = [&]() -> const char * {
+                switch (index) {
+                case 0: return regs2.ZMCTL.N0ZMQT ? "1/4" : regs2.ZMCTL.N0ZMHF ? "1/2" : "1";
+                case 1: return regs2.ZMCTL.N1ZMQT ? "1/4" : regs2.ZMCTL.N1ZMHF ? "1/2" : "1";
+                default: return "1";
+                }
+            };
+            return fmt::format("NBG{} = {}x reduction", index, formatReduction());
+        };
+        auto formatNBGSCR = [&](size_t index) -> std::string {
+            if (!regs2.bgEnabled[index]) {
+                return "";
+            }
+
+            fmt::memory_buffer buf{};
+            auto out = std::back_inserter(buf);
+            std::string sep = "";
+
+            auto append = [&](const char *name, bool enable) {
+                if (enable) {
+                    fmt::format_to(out, "{}{}", sep, name);
+                    sep = " ";
+                }
+            };
+
+            const auto &bgParams = regs2.bgParams[index + 1];
+            append("VC", bgParams.vcellScrollEnable);
+            append("LX", bgParams.lineScrollXEnable);
+            append("LY", bgParams.lineScrollYEnable);
+            append("ZX", bgParams.lineZoomEnable);
+            return fmt::format("NBG{} = ", index, fmt::to_string(buf));
+        };
+        auto formatCHCTLA = [&] { return fmt::format("{:25s}  {}", formatNBGCH(0), formatNBGCH(1)); };
+        auto formatCHCTLB = [&] { return fmt::format("{:25s}  {}", formatNBGCH(2), formatNBGCH(3)); };
+        auto formatZMCTL = [&] { return fmt::format("{:25s}  {}", formatNBGZM(0), formatNBGZM(1)); };
+        auto formatSCRCTL = [&] { return fmt::format("{:25s}  {}", formatNBGSCR(0), formatNBGSCR(1)); };
+        auto formatNBGExpect = [&](size_t index) -> std::string {
+            if (!regs2.bgEnabled[index]) {
+                return "{}";
+            }
+
+            const auto &bgParams = regs2.bgParams[index + 1];
+            const auto &bgState = state2.nbgLayerStates[index];
+            return fmt::format(R"({{
+            .check = true,
+            .bitmap = {},
+            .patNameAccess = {{{}, {}, {}, {}}},
+            .charPatAccess = {{{}, {}, {}, {}}},
+            .charPatDelay = {{{}, {}, {}, {}}},
+            .vramDataOffset = {{{}, {}, {}, {}}},
+            .vcellScrollDelay = {},
+            .vcellScrollRepeat = {},
+            .vcellScrollOffset = {},
+        }})",
+                               bgParams.bitmap, bgParams.patNameAccess[0], bgParams.patNameAccess[1],
+                               bgParams.patNameAccess[2], bgParams.patNameAccess[3], bgParams.charPatAccess[0],
+                               bgParams.charPatAccess[1], bgParams.charPatAccess[2], bgParams.charPatAccess[3],
+                               bgParams.charPatDelay[0], bgParams.charPatDelay[1], bgParams.charPatDelay[2],
+                               bgParams.charPatDelay[3], bgParams.vramDataOffset[0], bgParams.vramDataOffset[1],
+                               bgParams.vramDataOffset[2], bgParams.vramDataOffset[3], bgState.vcellScrollDelay,
+                               bgState.vcellScrollRepeat, bgState.vcellScrollOffset);
+        };
+
+#define CYC_ARG(x) x, formatCYC(x)
+#define REG_ARG(x) x, format##x()
+
+        auto testcase = fmt::format(
+            R"(TestData{{
+    "<game name> :: <scene> :: <test description>",
+    0x{:08X}, // 010,012 CYCA0L/U  {}
+    0x{:08X}, // 014,016 CYCA1L/U  {}
+    0x{:08X}, // 018,01A CYCB0L/U  {}
+    0x{:08X}, // 01C,01E CYCB1L/U  {}
+    0x{:04X}, // 00E RAMCTL  {}
+    0x{:04X}, // 000 TVMD    {}
+    0x{:04X}, // 020 BGON    {}
+    0x{:04X}, // 028 CHCTLA  {}
+    0x{:04X}, // 02A CHCTLB  {}
+    0x{:04X}, // 098 ZMCTL   {}
+    0x{:04X}, // 09A SCRCTL  {}
+
+    // Expected
+    {{{{
+        // NBG0
+        {},
+        // NBG1
+        {},
+        // NBG2
+        {},
+        // NBG3
+        {},
+    }}}},
+    // Vertical cell scroll increment
+    {},
+    // Rotation coefficient accesses
+    {{{}, {}, {}, {}}},
+}},
+)",
+            CYC_ARG(CYCA0), CYC_ARG(CYCA1), CYC_ARG(CYCB0), CYC_ARG(CYCB1), REG_ARG(RAMCTL), REG_ARG(TVMD),
+            REG_ARG(BGON), REG_ARG(CHCTLA), REG_ARG(CHCTLB), REG_ARG(ZMCTL), REG_ARG(SCRCTL), formatNBGExpect(0),
+            formatNBGExpect(1), formatNBGExpect(2), formatNBGExpect(3), regs2.vcellScrollInc, state2.coeffAccess[0],
+            state2.coeffAccess[1], state2.coeffAccess[2], state2.coeffAccess[3]);
+
+#undef CYC_ARG
+#undef REG_ARG
+
+        SDL_SetClipboardText(testcase.c_str());
+    }
+    widgets::ExplanationTooltip(
+        "Generates test case code and copies it to the clipboard.\n"
+        "Helps developers add test cases to cover edge cases.\n"
+        "When pasting this on GitHub, make sure to wrap it in a code block (triple backticks) like this:\n"
+        "```cpp\n"
+        "<Ctrl+V>\n"
+        "```",
+        m_context.displayScale);
 }
 
 } // namespace app::ui
