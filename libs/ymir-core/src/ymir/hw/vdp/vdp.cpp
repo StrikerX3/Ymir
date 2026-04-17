@@ -940,13 +940,17 @@ void VDP::VDP1SwapFramebuffer() {
     m_state.regs1.prevFrameEnded = m_state.regs1.currFrameEnded;
     m_state.regs1.currFrameEnded = false;
 
-    m_state.displayFB ^= 1;
-
     // TODO: latch PTM, EOS, DIE, DIL
 
     m_state.regs1.LatchEraseParameters();
 
     m_renderer->VDP1SwapFramebuffer();
+
+    // NOTE: this flip needs to happen *after* the renderer processes the framebuffer swap.
+    // Renderers may rely on this flag to determine which framebuffer to read when rendering the sprite layer on VDP2,
+    // and may use multithreading to draw VDP1 and VDP2 graphics. If the flag is flipped before the renderer has a
+    // chance to process graphics, it may cause such renderers to display the incorrect VDP1 framebuffer on VDP2.
+    m_state.displayFB ^= 1;
 
     if (bit::test<1>(m_state.regs1.plotTrigger)) {
         VDP1BeginFrame();

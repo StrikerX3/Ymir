@@ -161,8 +161,10 @@ public:
     virtual void VDP1EraseFramebuffer(uint64 cycles = 0) = 0;
 
     /// @brief Swaps the VDP1 framebuffers.
-    /// This function is invoked after the framebuffer selector bit is flipped -- the VDP1 will draw to `displayFB^1`
-    /// and the VDP2 will read data from `displayFB`.
+    /// This function is invoked before the framebuffer selector bit is flipped -- the VDP1 will draw to `displayFB`
+    /// and the VDP2 will read data from `displayFB ^ 1`.
+    /// If the renderer uses threading, it must ensure that the swap process is completely finished by the time this
+    /// method returns as the VDP controller will flip the `displayFB` bit immediately afterwards.
     virtual void VDP1SwapFramebuffer() = 0;
 
     /// @brief Signals the start of a VDP1 frame.
