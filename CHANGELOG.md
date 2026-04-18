@@ -51,6 +51,7 @@ Introduced save state file version 12.
     - Baku Baku Animal - World Zookeeper Contest (Europe only) -- freeze when trying to play FMVs from the Options menu (#642)
     - Chisato Moritaka - Watarase Bashi & Lala Sunshine -- crash at startup (#604)
     - Dragon Ball Z - Idainaru Dragon Ball Densetsu -- black screen after starting a new game (#538)
+    - Emit Vol. 3 - Watashi ni Sayonara o -- FMV tearing (#797)
     - Metal Fighter Miku -- black screen after start menu (#466)
     - Spot Goes to Hollywood -- glitched graphics in European version only (#520)
     - Steamgear Mash -- flickering graphics (#440)
