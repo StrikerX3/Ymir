@@ -424,10 +424,14 @@ void SoftwareVDPRenderer::VDP1EraseFramebuffer(uint64 cycles) {
         m_vdp2RenderingContext.eraseFramebufferReadySignal.Wait();
         m_vdp2RenderingContext.eraseFramebufferReadySignal.Reset();
     }
-    if (cycles == 0) {
-        VDP1DoEraseFramebuffer<false>();
+    if (m_threadedVDP1Rendering) {
+        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::EraseFramebuffer(cycles));
     } else {
-        VDP1DoEraseFramebuffer<true>(cycles);
+        if (cycles == 0) {
+            VDP1DoEraseFramebuffer<false>();
+        } else {
+            VDP1DoEraseFramebuffer<true>(cycles);
+        }
     }
 }
 
@@ -580,6 +584,13 @@ void SoftwareVDPRenderer::VDP1RenderThread() {
             switch (event.type) {
             case EvtType::Reset: rctx.Reset(); break;
 
+            case EvtType::EraseFramebuffer:
+                if (event.erase.cycles == 0) {
+                    VDP1DoEraseFramebuffer<false>();
+                } else {
+                    VDP1DoEraseFramebuffer<true>(event.erase.cycles);
+                }
+                break;
             case EvtType::SwapBuffers: rctx.swapBuffersSignal.Set(); break;
             case EvtType::Command: (this->*m_fnVDP1HandleCommand)(event.command.address, event.command.control); break;
 

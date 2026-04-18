@@ -196,6 +196,7 @@ private:
         enum class Type {
             Reset,
 
+            EraseFramebuffer,
             SwapBuffers,
             Command,
 
@@ -212,6 +213,10 @@ private:
         Type type;
         union {
             struct {
+                uint64 cycles;
+            } erase;
+
+            struct {
                 uint32 address;
                 VDP1Command::Control control;
             } command;
@@ -224,6 +229,10 @@ private:
 
         static VDP1RenderEvent Reset() {
             return {Type::Reset};
+        }
+
+        static VDP1RenderEvent EraseFramebuffer(uint64 cycles) {
+            return {Type::EraseFramebuffer, {.erase = {.cycles = cycles}}};
         }
 
         static VDP1RenderEvent SwapBuffers() {
