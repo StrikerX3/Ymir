@@ -68,7 +68,7 @@ Introduced save state file version 12.
 - VDP1: Fix handling of zero horizontal character size in CMDSIZE.
 - VDP1: Fix swap framebuffers race condition with threaded VDP1 rendering. Fixes flickering graphics in multiple games:
     - Actua Golf (#794)
-    - FIFA - Road to World Cup 98
+    - FIFA - Road to World Cup 98 (#800)
     - Gran Chaser (#763)
 - VDP1: Increase PTM=1 drawing delay and apply it only during VBlank. Fixes flickering graphics on Earthworm Jim 2. (#745)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
