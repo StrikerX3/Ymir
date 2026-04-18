@@ -66,11 +66,14 @@ Introduced save state file version 12.
 - SH2: Fix `ldc/lds @Rm` decoding from the wrong opcode bits for watchpoints.
 - SH2: Interrupt prioritization and triggering fixes. (thanks to @celeriyacon)
 - VDP1: Fix handling of zero horizontal character size in CMDSIZE.
-- VDP1: Fix swap framebuffers race condition. Fixes flickering graphics in FIFA - Road to World Cup 98 and possibly many more issues involving threaded VDP1 rendering.
+- VDP1: Fix swap framebuffers race condition with threaded VDP1 rendering. Fixes flickering graphics in multiple games:
+    - Actua Golf (#794)
+    - FIFA - Road to World Cup 98
+    - Gran Chaser (#763)
 - VDP1: Increase PTM=1 drawing delay and apply it only during VBlank. Fixes flickering graphics on Earthworm Jim 2. (#745)
 - VDP1: Properly load save state data when threaded VDP1 rendering is enabled.
 - VDP1: Rework cycle counting method and increase cycle budget per frame. Fixes slowdowns in Road Rash and graphics glitches in multiple games, including Virtua Cop and Burning Rangers. (#704, #721, #722)
-- VDP1: Slow down VDP1 to fix no-boot regressing in Jikkyou Oshaberi Parodius. (#283)
+- VDP1: Slow down VDP1 to fix no-boot regression in Jikkyou Oshaberi Parodius. (#283)
 - VDP1: Stall VDP1 drawing on VRAM writes exclusively on Mega Man X3 and Rockman X3 to fix garbled sprites. (#244)
 - VDP1: Stop processing commands if encountering an all-zeros entry. Fixes invalid clipping coordinates in Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. (#761)
 - VDP2: Apply VRAM access shift per bank to scroll NBGs with invalid timing patterns. Fixes World Heroes Perfect title screen shift and Cyberbots - Fullmetal Madness HUD shift and broken background in stage 2. (#756)
