@@ -850,8 +850,9 @@ private:
     // Entry [0] is primary and [1] is alternate field for deinterlacing.
     alignas(16) std::array<std::array<bool, kMaxResH>, 2> m_colorCalcWindow;
 
-    // Pre-allocated buffers for VDP2ComposeLine to avoid stack overflow.
-    // These arrays are intentionally left uninitialized; only the necessary entries are initialized and used per call.
+    // Pre-allocated buffers for VDP2ComposeLine.
+    // NOTE: These are stored as member variables to avoid stack overflow on threads with limited stack space
+    // (e.g. 512 KiB on macOS).
     struct ComposeLineBuffers {
         alignas(16) std::array<std::array<LayerIndex, 3>, kMaxResH> scanline_layers;
         alignas(16) std::array<std::array<uint8, 3>, kMaxResH> scanline_layerPrios;
@@ -870,7 +871,10 @@ private:
         alignas(16) std::array<bool, kMaxResH> layer0ShadowEnabled;
         alignas(16) std::array<bool, kMaxResH> layer0ColorOffsetEnabled;
     };
-    ComposeLineBuffers m_composeLineBuffers;
+
+    // Pre-allocated buffers for VDP2ComposeLine for primary and alternate fields.
+    // Indexing: [altField]
+    std::array<ComposeLineBuffers, 2> m_composeLineBuffers;
 
     // Current display framebuffer.
     std::array<uint32, kMaxResH * kMaxResV> m_framebuffer;
