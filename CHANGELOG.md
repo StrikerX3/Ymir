@@ -13,6 +13,7 @@ Introduced save state file version 12.
 - App: Check for profile at the executable location. (#706)
 - App: Warn users about Flatpak filesystem permissions if the app is running in its sandbox and a disc image fails to load.
 - Backup RAM: Support in-memory and copy-on-write memory-mapped files in addition to regular memory-mapped files.
+- Build: Add simple feature flags system. All feature flags are enabled by default on development builds (including nightly builds).
 - Build: Support Profile-Guided Optimization (PGO) builds. (#742; @mmkzer0)
 - Debugger: Allow scrolling the SH2 disassembly view. (#743; @mmkzer0)
 - Debugger: Colorize VRAM access timing slots in the delay viewer.
@@ -27,11 +28,15 @@ Introduced save state file version 12.
 - Debugger: Trace and display SH2 data stack contents.
 - GameDB: Add new flags to double the clock rate of the MC68EC000 and stall VDP1 drawing on VRAM writes to improve compatibility with some games.
 - Input: Added support for mouse events.
-- Input: Mouse capture support for light gun and mouse peripherals, supporting these modes:
+- Input: Capture mouse for light gun and mouse peripherals, supporting these modes:
     - System mouse: binds the system mouse cursor to a single peripheral. Mouse cursor is still available to interact with the GUI.
     - Physical mouse: binds one or more mice to different peripherals. Disables the system cursor while any mice is bound.
+    NOTE: This option is only available on nightly builds due to issues with Virtua Gun. (#787)
+    The System mouse capture option only works with Virtua Gun.
+- Input: Experimental Virtua Gun peripheral implementation. (#33)
+    NOTE: This feature is only available on nightly builds at the moment due to issues in nearly all games. (#787)
+    Only House of the Dead is known to work with minor reticle inaccuracy errors.
 - Input: Implemented Shuttle Mouse peripheral. (#32)
-- Input: Implemented Virtua Gun peripheral. (#33)
 - MIDI: Force RtMidi to use dummy API if it fails to initialize, allowing Ymir to run without MIDI drivers.
 - Save states: Added actions to undo a save state and restore an undone save state. (#700, #727; @Fueziwa)
 - Save states: Store one extra save state per slot for undo. (#700, #727; @Fueziwa)

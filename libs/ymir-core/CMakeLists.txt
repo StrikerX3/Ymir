@@ -408,6 +408,9 @@ target_compile_definitions(ymir-core PUBLIC "Ymir_DEV_BUILD=$<BOOL:${Ymir_DEV_BU
 target_compile_definitions(ymir-core PUBLIC "Ymir_EXTRA_INLINING=$<BOOL:${Ymir_EXTRA_INLINING}>")
 target_compile_definitions(ymir-core PUBLIC "TOML_EXCEPTIONS=0")
 
+## Define feature flags macros
+target_compile_definitions(ymir-core PUBLIC "Ymir_FF_VIRTUA_GUN=$<BOOL:${Ymir_FF_VIRTUA_GUN}>")
+
 ## Generate the export header and attach it to the target
 include(GenerateExportHeader)
 generate_export_header(ymir-core EXPORT_FILE_NAME include/ymir/export.h)

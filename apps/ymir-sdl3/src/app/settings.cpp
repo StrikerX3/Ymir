@@ -147,8 +147,10 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, peripheral::Pe
             value = peripheral::PeripheralType::ArcadeRacer;
         } else if (*opt == "MissionStick"s) {
             value = peripheral::PeripheralType::MissionStick;
+#if Ymir_FF_VIRTUA_GUN
         } else if (*opt == "VirtuaGun"s) {
             value = peripheral::PeripheralType::VirtuaGun;
+#endif
         } else if (*opt == "ShuttleMouse"s) {
             value = peripheral::PeripheralType::ShuttleMouse;
         }
@@ -429,7 +431,9 @@ FORCE_INLINE static const char *ToTOML(const peripheral::PeripheralType value) {
     case peripheral::PeripheralType::AnalogPad: return "AnalogPad";
     case peripheral::PeripheralType::ArcadeRacer: return "ArcadeRacer";
     case peripheral::PeripheralType::MissionStick: return "MissionStick";
+#if Ymir_FF_VIRTUA_GUN
     case peripheral::PeripheralType::VirtuaGun: return "VirtuaGun";
+#endif
     case peripheral::PeripheralType::ShuttleMouse: return "ShuttleMouse";
     }
 }

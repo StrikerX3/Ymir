@@ -29,9 +29,13 @@ inline std::string_view GetPeripheralName(PeripheralType type) {
 }
 
 /// @brief All supported peripheral types.
-inline constexpr PeripheralType kTypes[] = {
-    PeripheralType::None,         PeripheralType::ControlPad, PeripheralType::AnalogPad,   PeripheralType::ArcadeRacer,
-    PeripheralType::MissionStick, PeripheralType::VirtuaGun,  PeripheralType::ShuttleMouse};
+inline constexpr PeripheralType kTypes[] = {PeripheralType::None,         PeripheralType::ControlPad,
+                                            PeripheralType::AnalogPad,    PeripheralType::ArcadeRacer,
+                                            PeripheralType::MissionStick,
+#if Ymir_FF_VIRTUA_GUN
+                                            PeripheralType::VirtuaGun,
+#endif
+                                            PeripheralType::ShuttleMouse};
 
 // Forward declarations of concrete peripheral implementations.
 // See the peripheral_impl_* headers.

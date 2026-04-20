@@ -24,6 +24,14 @@ option(Ymir_ENABLE_DEV_ASSERTIONS "Enable development-time assertions" OFF)
 option(Ymir_ENABLE_IMGUI_DEMO "Enable ImGui demo window" ON)
 option(Ymir_ENABLE_UPDATE_CHECKS "Enable update checks" ON)
 
+## Feature flags
+## If ON, all feature flags will be enabled by default
+## All feature flags can be selectively overridden
+option(Ymir_FEATUREFLAG_DEFAULT "Enable all feature flags by default" ${Ymir_DEV_BUILD})
+
+## Selectively enable in-development features
+option(Ymir_FF_VIRTUA_GUN "Enable Virtua Gun peripheral" ${Ymir_FEATUREFLAG_DEFAULT})
+
 if (Ymir_DEV_BUILD)
     message(STATUS "Ymir: Development build")
 else ()
@@ -32,6 +40,9 @@ endif ()
 message(STATUS "Ymir: Devlog ${Ymir_ENABLE_DEVLOG}")
 message(STATUS "Ymir: Extra inlining ${Ymir_EXTRA_INLINING}")
 message(STATUS "Ymir: Update checks ${Ymir_ENABLE_UPDATE_CHECKS}")
+
+message(STATUS "Ymir: Feature flags:")
+message(STATUS "- Virtua Gun: ${Ymir_FF_VIRTUA_GUN}")
 
 # Create Universal Binary on MacOS
 #if (APPLE)
