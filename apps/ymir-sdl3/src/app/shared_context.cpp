@@ -17,31 +17,37 @@ SharedContext::SharedContext() {
 
 SharedContext::~SharedContext() = default;
 
+static void SanitizePath(std::string &path) {
+    // Clean up invalid characters
+    // TODO: accept Japanese characters (e.g. Strikers 1945)
+    std::transform(path.begin(), path.end(), path.begin(), [](char ch) {
+        if (ch == ':' || ch == '|' || ch == '<' || ch == '>' || ch == '/' || ch == '\\' || ch == '*' || ch == '?' ||
+            ch & 0x80) {
+            return '_';
+        } else {
+            return ch;
+        }
+    });
+}
+
 std::filesystem::path SharedContext::GetGameFileName(bool oldStyle) const {
     // Use serial number + disc title if available
     {
         std::unique_lock lock{locks.disc};
         const auto &disc = saturn.GetDisc();
         if (!disc.sessions.empty() && !disc.header.productNumber.empty()) {
+            std::string productNumber = disc.header.productNumber;
+            SanitizePath(productNumber);
             if (!disc.header.gameTitle.empty()) {
                 std::string title = disc.header.gameTitle;
-                // Clean up invalid characters
-                // TODO: accept Japanese characters (e.g. Strikers 1945)
-                std::transform(title.begin(), title.end(), title.begin(), [](char ch) {
-                    if (ch == ':' || ch == '|' || ch == '<' || ch == '>' || ch == '/' || ch == '\\' || ch == '*' ||
-                        ch == '?' || ch & 0x80) {
-                        return '_';
-                    } else {
-                        return ch;
-                    }
-                });
+                SanitizePath(title);
                 if (oldStyle) {
-                    return fmt::format("[{}] {}", disc.header.productNumber, title);
+                    return fmt::format("[{}] {}", productNumber, title);
                 } else {
-                    return fmt::format("{} [{}]", title, disc.header.productNumber);
+                    return fmt::format("{} [{}]", title, productNumber);
                 }
             } else {
-                return fmt::format("[{}]", disc.header.productNumber);
+                return fmt::format("[{}]", productNumber);
             }
         }
     }
