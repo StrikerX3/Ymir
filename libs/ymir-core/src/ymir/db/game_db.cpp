@@ -70,7 +70,8 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-7029H-50", {.flags = StallVDP1OnVRAMWrites}}, // Mega Man X3 (Europe)
     {"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan)
 
-    {"T-9513G", {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan)
+    {"T-24904G", {.flags = SlowVDP1}}, // Fishing Koushien II (Japan)
+    {"T-9513G",  {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan)
 
     {"T-27901G",  {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan)
     {"ST-27901G", {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan) (Demo)
