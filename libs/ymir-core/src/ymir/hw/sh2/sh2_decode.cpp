@@ -6,7 +6,7 @@ namespace ymir::sh2 {
 
 DecodeTable::DecodeTable() {
     opcodes[0].fill(OpcodeType::Illegal);
-    opcodes[1].fill(OpcodeType::Illegal);
+    opcodes[1].fill(OpcodeType::IllegalSlot);
 
     for (uint32 instr = 0; instr < 0x10000; instr++) {
         auto &regularOpcode = opcodes[0][instr];

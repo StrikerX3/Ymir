@@ -10,6 +10,8 @@ Uses save state file version 12.
 
 ### Fixes
 
+- SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)
+
 
 ## Version 0.3.0
 

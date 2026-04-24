@@ -2131,6 +2131,7 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
     TraceException<debug>(m_tracer, vectorNumber, PC, SR.u32, R[15], target);
     PC = target;
     R[15] -= 8;
+    m_delaySlot = false;
     return cycles;
 }
 
@@ -2473,7 +2474,7 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::Delay_TST_I: return TSTI<debug, true>(args);
     case OpcodeType::Delay_TST_M: return TSTM<debug, enableCache, true>(args);
 
-    case OpcodeType::IllegalSlot: return EnterException<debug, enableCache>(xvSlotIllegalInstr);
+    case OpcodeType::IllegalSlot: PC += 2; return EnterException<debug, enableCache>(xvSlotIllegalInstr);
     }
 
     util::unreachable();
