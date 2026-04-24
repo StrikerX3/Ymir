@@ -202,8 +202,9 @@ void SH2ExecAnalyst::Return(uint32 target) {
     m_delaySlotEvent = DelaySlotEvent::RTS;
 }
 
-void SH2ExecAnalyst::ReturnFromException(uint32 target) {
+void SH2ExecAnalyst::ReturnFromException(uint32 target, uint32 newSP) {
     m_delaySlotEvent = DelaySlotEvent::RTE;
+    PopFromStack(newSP);
 }
 
 void SH2ExecAnalyst::Exception(uint8 vecNum, uint32 oldPC, uint32 oldSP, uint32 newPC) {
@@ -227,7 +228,17 @@ void SH2ExecAnalyst::Trap(uint8 vecNum, uint32 oldPC, uint32 oldSP, uint32 newPC
 }
 
 FORCE_INLINE SH2Stack &SH2ExecAnalyst::GetOrCreateStack(uint32 sp) {
-    if (!m_stacks.contains(m_currStack)) {
+    auto it = m_stacks.upper_bound(sp);
+    if (it != m_stacks.end() && it->second.ContainsAddress(sp)) {
+        // SP points into an existing stack; switch to it and resize it
+        it->second.ResizeEntries(sp);
+        m_currStack = it->first;
+    } else {
+        if (m_stacks.contains(m_currStack) && m_stacks[m_currStack].entries.empty()) {
+            // Erase current stack if empty to save memory
+            m_stacks.erase(m_currStack);
+        }
+        // SP points to no known stack; create one
         m_stacks[sp] = {.baseAddress = sp};
         m_currStack = sp;
     }

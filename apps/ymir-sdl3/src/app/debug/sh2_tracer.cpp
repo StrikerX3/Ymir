@@ -56,8 +56,8 @@ void SH2Tracer::Return(uint32 target) {
     execAnalyst.Return(target);
 }
 
-void SH2Tracer::ReturnFromException(uint32 target) {
-    execAnalyst.ReturnFromException(target);
+void SH2Tracer::ReturnFromException(uint32 target, uint32 newSP) {
+    execAnalyst.ReturnFromException(target, newSP);
 }
 
 void SH2Tracer::Interrupt(uint8 vecNum, uint8 level, sh2::InterruptSource source, uint32 pc) {

@@ -127,7 +127,7 @@ private:
     void BranchDelay(uint32 target) final;
     void Call(uint32 target) final;
     void Return(uint32 target) final;
-    void ReturnFromException(uint32 target) final;
+    void ReturnFromException(uint32 target, uint32 newSP) final;
     void Interrupt(uint8 vecNum, uint8 level, ymir::sh2::InterruptSource source, uint32 pc) final;
     void Exception(uint8 vecNum, uint32 oldPC, uint32 oldSR, uint32 oldSP, uint32 newPC) final;
     void Trap(uint8 vecNum, uint32 oldPC, uint32 oldSP, uint32 newPC) final;

@@ -173,10 +173,10 @@ FORCE_INLINE static void TraceReturn(debug::ISH2Tracer *tracer, uint32 target) {
 }
 
 template <bool debug>
-FORCE_INLINE static void TraceReturnFromException(debug::ISH2Tracer *tracer, uint32 target) {
+FORCE_INLINE static void TraceReturnFromException(debug::ISH2Tracer *tracer, uint32 target, uint32 newSP) {
     if constexpr (debug) {
         if (tracer) {
-            return tracer->ReturnFromException(target);
+            return tracer->ReturnFromException(target, newSP);
         }
     }
 }
@@ -4085,7 +4085,7 @@ FORCE_INLINE uint64 SH2::RTE() {
     const uint32 address2 = R[15] + 4;
     const uint64 cycles = AccessCycles<false, enableCache>(address1) + AccessCycles<false, enableCache>(address2) + 2;
     const uint32 target = MemReadLong<enableCache>(address1);
-    TraceReturnFromException<debug>(m_tracer, target);
+    TraceReturnFromException<debug>(m_tracer, target, R[15] + 8);
     SetupDelaySlot(target);
     SR.u32 = MemReadLong<enableCache>(address2) & 0x000003F3;
     PC += 2;

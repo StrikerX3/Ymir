@@ -69,7 +69,8 @@ struct ISH2Tracer {
     /// @brief Invoked when the CPU executes a return from exception instruction (RTE).
     /// This always has a delay slot.
     /// @param[in] target the target address
-    virtual void ReturnFromException(uint32 target) {}
+    /// @param[in] newSP the updated stack pointer value
+    virtual void ReturnFromException(uint32 target, uint32 newSP) {}
 
     /// @brief Invoked when the CPU handles an interrupt.
     /// @param[in] vecNum the interrupt vector number
