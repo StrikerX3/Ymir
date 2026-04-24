@@ -79,6 +79,11 @@ struct SH2Stack {
         return stackSize;
     }
 
+    bool ContainsAddress(uint32 address) const {
+        address &= ~3u;
+        return (baseAddress - address) / sizeof(uint32) <= entries.size();
+    }
+
     const SH2StackEntry *GetEntry(uint32 address) const {
         address &= ~3u;
         if (address >= baseAddress) {

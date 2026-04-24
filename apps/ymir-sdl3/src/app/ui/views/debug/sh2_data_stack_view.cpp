@@ -52,7 +52,10 @@ void SH2DataStackView::Display() {
     };
 
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.small);
-    const uint32 stackEnd = m_tracer.execAnalyst.GetCurrentDataStackBase().value_or(r15 + 64);
+    static constexpr uint32 kMaxStackSize = 0x100000;
+    const uint32 stackBase = m_tracer.execAnalyst.GetCurrentDataStackBase().value_or(r15 + 64);
+    // Sanity check: if the stack is too large, just use R15
+    const uint32 stackEnd = stackBase - r15 > kMaxStackSize ? r15 + 64 : stackBase;
     m_tracer.execAnalyst.GetStackInfo(
         r15, stackEnd, [&](uint32 entryAddress, const SH2StackEntry *entry, uint32 baseAddress) {
             const uint32 value = probe.MemPeekLong(entryAddress, false);

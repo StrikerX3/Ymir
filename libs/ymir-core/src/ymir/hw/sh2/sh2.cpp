@@ -2720,6 +2720,7 @@ FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
         R[args.rm] += 1;
     }
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     AdvancePC<debug, delaySlot>();
     return cycles;
 }
@@ -2735,6 +2736,7 @@ FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
             R[args.rm] += 2;
         }
         TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
         AdvancePC<debug, delaySlot>();
     }
     return cycles;
@@ -2751,6 +2753,7 @@ FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
             R[args.rm] += 4;
         }
         TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
         AdvancePC<debug, delaySlot>();
     }
     return cycles;

@@ -82,11 +82,18 @@ void SH2ExecAnalyst::Reset(uint32 pc, uint32 sp) {
 void SH2ExecAnalyst::ChangeStack(uint32 newSP) {
     std::unique_lock lock{m_mtxStacks};
     if (m_stacks.contains(m_currStack) && m_stacks[m_currStack].entries.empty()) {
+        // Erase current stack if empty to save memory
         m_stacks.erase(m_currStack);
     }
-    if (!m_stacks.contains(newSP)) {
-        m_stacks[newSP] = {.baseAddress = newSP};
+    auto it = m_stacks.upper_bound(newSP);
+    if (it != m_stacks.end() && it->second.ContainsAddress(newSP)) {
+        // New SP points into an existing stack; switch to it and resize it
+        m_currStack = it->first;
+        it->second.ResizeEntries(newSP);
+        return;
     }
+    // New SP points to no known stack; create one
+    m_stacks[newSP] = {.baseAddress = newSP};
     m_currStack = newSP;
 }
 
