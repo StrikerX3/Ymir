@@ -2474,7 +2474,9 @@ FORCE_INLINE uint64 SH2::InterpretNext() {
     case OpcodeType::Delay_TST_I: return TSTI<debug, true>(args);
     case OpcodeType::Delay_TST_M: return TSTM<debug, enableCache, true>(args);
 
-    case OpcodeType::IllegalSlot: PC += 2; return EnterException<debug, enableCache>(xvSlotIllegalInstr);
+    case OpcodeType::IllegalSlot:
+        AdvancePC<debug, true>();
+        return EnterException<debug, enableCache>(xvSlotIllegalInstr);
     }
 
     util::unreachable();

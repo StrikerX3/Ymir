@@ -10,6 +10,7 @@ Uses save state file version 12.
 
 ### Fixes
 
+- Debugger: Various SH2 stack analysis fixes.
 - SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)
 
 
