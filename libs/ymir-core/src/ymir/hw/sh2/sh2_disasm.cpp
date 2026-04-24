@@ -353,7 +353,7 @@ DisassemblyTable::DisassemblyTable() {
             case 0x0: makeOpB(MOV, Op::Rn_R(0), Op::AtDispGBR_W(decodeD_U(0u, 0u))); break;
             case 0x1: makeOpW(MOV, Op::Rn_R(0), Op::AtDispGBR_W(decodeD_U(1u, 0u))); break;
             case 0x2: makeOpL(MOV, Op::Rn_R(0), Op::AtDispGBR_W(decodeD_U(2u, 0u))); break;
-            case 0x3: makeOp(TRAPA, Op::Imm(decodeI_U(2u, 0u))), hasDelaySlot(), invalidInDelaySlot(); break;
+            case 0x3: makeOp(TRAPA, Op::Imm(decodeI_U(0u, 0u))), hasDelaySlot(), invalidInDelaySlot(); break;
             case 0x4: makeOpB(MOV, Op::AtDispGBR_R(decodeD_U(0u, 0u)), Op::Rn_W(0)); break;
             case 0x5: makeOpW(MOV, Op::AtDispGBR_R(decodeD_U(1u, 0u)), Op::Rn_W(0)); break;
             case 0x6: makeOpL(MOV, Op::AtDispGBR_R(decodeD_U(2u, 0u)), Op::Rn_W(0)); break;
