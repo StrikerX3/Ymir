@@ -2772,7 +2772,7 @@ static const auto kColorOffsetLUT = [] {
 }();
 
 // Tests if an array of uint8 values are all zeroes
-FORCE_INLINE bool AllZeroU8(std::span<const uint8> values) {
+FORCE_INLINE static bool AllZeroU8(std::span<const uint8> values) {
 
 #if defined(_M_X64) || defined(__x86_64__)
 
@@ -2861,7 +2861,7 @@ FORCE_INLINE bool AllZeroU8(std::span<const uint8> values) {
 }
 
 // Tests if an array of bool values are all true
-FORCE_INLINE bool AllBool(std::span<const bool> values) {
+FORCE_INLINE static bool AllBool(std::span<const bool> values) {
 
 #if defined(_M_X64) || defined(__x86_64__)
     #if defined(__AVX__)
@@ -2951,7 +2951,7 @@ FORCE_INLINE bool AllBool(std::span<const bool> values) {
 }
 
 // Tests if an any element in an array of bools are true
-FORCE_INLINE bool AnyBool(std::span<const bool> values) {
+FORCE_INLINE static bool AnyBool(std::span<const bool> values) {
 #if defined(_M_X64) || defined(__x86_64__)
     #if defined(__AVX__)
     // 32 at a time
@@ -3039,7 +3039,8 @@ FORCE_INLINE bool AnyBool(std::span<const bool> values) {
     return false;
 }
 
-FORCE_INLINE void Color888ShadowMasked(const std::span<Color888> pixels, const std::span<const bool, kMaxResH> mask) {
+FORCE_INLINE static void Color888ShadowMasked(const std::span<Color888> pixels,
+                                              const std::span<const bool, kMaxResH> mask) {
     size_t i = 0;
 
 #if defined(_M_X64) || defined(__x86_64__)
@@ -3114,9 +3115,10 @@ FORCE_INLINE void Color888ShadowMasked(const std::span<Color888> pixels, const s
     }
 }
 
-FORCE_INLINE void Color888SatAddMasked(const std::span<Color888> dest, const std::span<const bool, kMaxResH> mask,
-                                       const std::span<const Color888, kMaxResH> topColors,
-                                       const std::span<const Color888, kMaxResH> btmColors) {
+FORCE_INLINE static void Color888SatAddMasked(const std::span<Color888> dest,
+                                              const std::span<const bool, kMaxResH> mask,
+                                              const std::span<const Color888, kMaxResH> topColors,
+                                              const std::span<const Color888> btmColors) {
     size_t i = 0;
 
 #if defined(_M_X64) || defined(__x86_64__)
@@ -3200,9 +3202,10 @@ FORCE_INLINE void Color888SatAddMasked(const std::span<Color888> dest, const std
     }
 }
 
-FORCE_INLINE void Color888SelectMasked(const std::span<Color888> dest, const std::span<const bool, kMaxResH> mask,
-                                       const std::span<const Color888> topColors,
-                                       const std::span<const Color888, kMaxResH> btmColors) {
+FORCE_INLINE static void Color888SelectMasked(const std::span<Color888> dest,
+                                              const std::span<const bool, kMaxResH> mask,
+                                              const std::span<const Color888> topColors,
+                                              const std::span<const Color888, kMaxResH> btmColors) {
     size_t i = 0;
 
 #if defined(_M_X64) || defined(__x86_64__)
@@ -3268,9 +3271,10 @@ FORCE_INLINE void Color888SelectMasked(const std::span<Color888> dest, const std
     }
 }
 
-FORCE_INLINE void Color888AverageMasked(const std::span<Color888> dest, const std::span<const bool, kMaxResH> mask,
-                                        const std::span<const Color888> topColors,
-                                        const std::span<const Color888, kMaxResH> btmColors) {
+FORCE_INLINE static void Color888AverageMasked(const std::span<Color888> dest,
+                                               const std::span<const bool, kMaxResH> mask,
+                                               const std::span<const Color888> topColors,
+                                               const std::span<const Color888> btmColors) {
     size_t i = 0;
 
 #if defined(_M_X64) || defined(__x86_64__)
@@ -3354,10 +3358,11 @@ FORCE_INLINE void Color888AverageMasked(const std::span<Color888> dest, const st
     }
 }
 
-FORCE_INLINE void Color888CompositeRatioPerPixelMasked(const std::span<Color888> dest, const std::span<const bool> mask,
-                                                       const std::span<const Color888, kMaxResH> topColors,
-                                                       const std::span<const Color888, kMaxResH> btmColors,
-                                                       const std::span<const uint8, kMaxResH> ratios) {
+FORCE_INLINE static void Color888CompositeRatioPerPixelMasked(const std::span<Color888> dest,
+                                                              const std::span<const bool> mask,
+                                                              const std::span<const Color888, kMaxResH> topColors,
+                                                              const std::span<const Color888> btmColors,
+                                                              const std::span<const uint8, kMaxResH> ratios) {
     size_t i = 0;
 
 #if defined(_M_X64) || defined(__x86_64__)
@@ -3498,149 +3503,12 @@ FORCE_INLINE void Color888CompositeRatioPerPixelMasked(const std::span<Color888>
     for (; i < dest.size(); i++) {
         const Color888 &topColor = topColors[i];
         const Color888 &btmColor = btmColors[i];
-        const uint8 &ratio = ratios[i];
+        const uint8 ratio = ratios[i];
         Color888 &dstColor = dest[i];
         if (mask[i]) {
-            dstColor.r = btmColor.r + ((int)topColor.r - (int)btmColor.r) * ratio / 32;
-            dstColor.g = btmColor.g + ((int)topColor.g - (int)btmColor.g) * ratio / 32;
-            dstColor.b = btmColor.b + ((int)topColor.b - (int)btmColor.b) * ratio / 32;
-        } else {
-            dstColor = topColor;
-        }
-    }
-}
-
-FORCE_INLINE void Color888CompositeRatioMasked(const std::span<Color888> dest, const std::span<const bool> mask,
-                                               const std::span<const Color888, kMaxResH> topColors,
-                                               const std::span<const Color888, kMaxResH> btmColors, uint8 ratio) {
-    size_t i = 0;
-
-#if defined(_M_X64) || defined(__x86_64__)
-    #if defined(__AVX2__)
-    // Eight pixels at a time
-    const __m256i ratio_x8 = _mm256_set1_epi32(0x01'01'01'01 * ratio);
-    // Expand to 16-bit values
-    const __m256i ratio16lo_x8 = _mm256_unpacklo_epi8(ratio_x8, _mm256_setzero_si256());
-    const __m256i ratio16hi_x8 = _mm256_unpackhi_epi8(ratio_x8, _mm256_setzero_si256());
-    for (; (i + 8) < dest.size(); i += 8) {
-        // Load eight mask values and expand each byte into 32-bit 000... or 111...
-        __m256i mask_x8 = _mm256_cvtepu8_epi32(_mm_loadu_si64(mask.data() + i));
-        mask_x8 = _mm256_sub_epi32(_mm256_setzero_si256(), mask_x8);
-
-        const __m256i topColor_x8 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&topColors[i]));
-        const __m256i btmColor_x8 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&btmColors[i]));
-
-        const __m256i topColor16lo = _mm256_unpacklo_epi8(topColor_x8, _mm256_setzero_si256());
-        const __m256i btmColor16lo = _mm256_unpacklo_epi8(btmColor_x8, _mm256_setzero_si256());
-
-        const __m256i topColor16hi = _mm256_unpackhi_epi8(topColor_x8, _mm256_setzero_si256());
-        const __m256i btmColor16hi = _mm256_unpackhi_epi8(btmColor_x8, _mm256_setzero_si256());
-
-        // Lerp
-        const __m256i dstColor16lo = _mm256_add_epi16(
-            btmColor16lo,
-            _mm256_srli_epi16(_mm256_mullo_epi16(_mm256_sub_epi16(topColor16lo, btmColor16lo), ratio16lo_x8), 5));
-        const __m256i dstColor16hi = _mm256_add_epi16(
-            btmColor16hi,
-            _mm256_srli_epi16(_mm256_mullo_epi16(_mm256_sub_epi16(topColor16hi, btmColor16hi), ratio16hi_x8), 5));
-
-        // Pack back into 8-bit values, be sure to truncate to avoid saturation
-        __m256i dstColor_x8 = _mm256_packus_epi16(_mm256_and_si256(dstColor16lo, _mm256_set1_epi16(0xFF)),
-                                                  _mm256_and_si256(dstColor16hi, _mm256_set1_epi16(0xFF)));
-
-        // Blend with mask
-        dstColor_x8 = _mm256_blendv_epi8(topColor_x8, dstColor_x8, mask_x8);
-
-        // Write
-        _mm256_storeu_si256(reinterpret_cast<__m256i *>(&dest[i]), dstColor_x8);
-    }
-    #endif
-
-    #if defined(__SSE2__)
-    // Four pixels at a time
-    const __m128i ratio_x4 = _mm_set1_epi32(0x01'01'01'01 * ratio);
-    // Expand to 16-bit values
-    const __m128i ratio16lo_x4 = _mm_unpacklo_epi8(ratio_x4, _mm_setzero_si128());
-    const __m128i ratio16hi_x4 = _mm_unpackhi_epi8(ratio_x4, _mm_setzero_si128());
-    for (; (i + 4) < dest.size(); i += 4) {
-        // Load four mask values and expand each byte into 32-bit 000... or 111...
-        __m128i mask_x4 = _mm_loadu_si32(mask.data() + i);
-        mask_x4 = _mm_unpacklo_epi8(mask_x4, _mm_setzero_si128());
-        mask_x4 = _mm_unpacklo_epi16(mask_x4, _mm_setzero_si128());
-        mask_x4 = _mm_sub_epi32(_mm_setzero_si128(), mask_x4);
-
-        const __m128i topColor_x4 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(&topColors[i]));
-        const __m128i btmColor_x4 = _mm_loadu_si128(reinterpret_cast<const __m128i *>(&btmColors[i]));
-
-        const __m128i topColor16lo = _mm_unpacklo_epi8(topColor_x4, _mm_setzero_si128());
-        const __m128i btmColor16lo = _mm_unpacklo_epi8(btmColor_x4, _mm_setzero_si128());
-
-        const __m128i topColor16hi = _mm_unpackhi_epi8(topColor_x4, _mm_setzero_si128());
-        const __m128i btmColor16hi = _mm_unpackhi_epi8(btmColor_x4, _mm_setzero_si128());
-
-        // Composite
-        const __m128i dstColor16lo = _mm_add_epi16(
-            btmColor16lo, _mm_srli_epi16(_mm_mullo_epi16(_mm_sub_epi16(topColor16lo, btmColor16lo), ratio16lo_x4), 5));
-        const __m128i dstColor16hi = _mm_add_epi16(
-            btmColor16hi, _mm_srli_epi16(_mm_mullo_epi16(_mm_sub_epi16(topColor16hi, btmColor16hi), ratio16hi_x4), 5));
-
-        // Pack back into 8-bit values, be sure to truncate to avoid saturation
-        __m128i dstColor_x4 = _mm_packus_epi16(_mm_and_si128(dstColor16lo, _mm_set1_epi16(0xFF)),
-                                               _mm_and_si128(dstColor16hi, _mm_set1_epi16(0xFF)));
-
-        // Blend with mask
-        dstColor_x4 = _mm_or_si128(_mm_and_si128(mask_x4, dstColor_x4), _mm_andnot_si128(mask_x4, topColor_x4));
-
-        // Write
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(&dest[i]), dstColor_x4);
-    }
-    #endif
-#elif defined(_M_ARM64) || defined(__aarch64__)
-    // Four pixels at a time
-    const uint8x16_t ratio_x4 = vdupq_n_u8(ratio);
-    for (; (i + 4) < dest.size(); i += 4) {
-        // Load four mask values and expand each byte into 32-bit 000... or 111...
-        uint32x4_t mask_x4 = vld1q_lane_u32(reinterpret_cast<const uint32 *>(mask.data() + i), vdupq_n_u32(0), 0);
-        mask_x4 = vmovl_u16(vget_low_u16(vmovl_u8(vget_low_u8(mask_x4))));
-        mask_x4 = vnegq_s32(mask_x4);
-
-        const uint32x4_t topColor_x4 = vld1q_u32(reinterpret_cast<const uint32 *>(&topColors[i]));
-        const uint32x4_t btmColor_x4 = vld1q_u32(reinterpret_cast<const uint32 *>(&btmColors[i]));
-
-        const uint16x8_t topColor16lo = vmovl_u8(vget_low_u8(topColor_x4));
-        const uint16x8_t btmColor16lo = vmovl_u8(vget_low_u8(btmColor_x4));
-
-        const uint16x8_t topColor16hi = vmovl_high_u8(topColor_x4);
-        const uint16x8_t btmColor16hi = vmovl_high_u8(btmColor_x4);
-
-        // Composite
-        int16x8_t composite16lo = vsubq_s16(topColor16lo, btmColor16lo);
-        int16x8_t composite16hi = vsubq_s16(topColor16hi, btmColor16hi);
-
-        composite16lo = vmulq_u16(composite16lo, vmovl_u8(vget_low_s8(ratio_x4)));
-        composite16hi = vmulq_u16(composite16hi, vmovl_high_u8(ratio_x4));
-
-        composite16lo = vsraq_n_s16(vmovl_s8(vget_low_s8(btmColor_x4)), composite16lo, 5);
-        composite16hi = vsraq_n_s16(vmovl_high_s8(btmColor_x4), composite16hi, 5);
-
-        int8x16_t composite_x4 = vmovn_high_s16(vmovn_s16(composite16lo), composite16hi);
-
-        // Blend with mask
-        const uint32x4_t dstColor_x4 = vbslq_u32(mask_x4, composite_x4, topColor_x4);
-
-        // Write
-        vst1q_u32(reinterpret_cast<uint32 *>(&dest[i]), dstColor_x4);
-    }
-#endif
-
-    for (; i < dest.size(); i++) {
-        const Color888 &topColor = topColors[i];
-        const Color888 &btmColor = btmColors[i];
-        Color888 &dstColor = dest[i];
-        if (mask[i]) {
-            dstColor.r = btmColor.r + ((int)topColor.r - (int)btmColor.r) * ratio / 32;
-            dstColor.g = btmColor.g + ((int)topColor.g - (int)btmColor.g) * ratio / 32;
-            dstColor.b = btmColor.b + ((int)topColor.b - (int)btmColor.b) * ratio / 32;
+            dstColor.r = btmColor.r + ((((int)topColor.r - (int)btmColor.r) * ratio) >> 5);
+            dstColor.g = btmColor.g + ((((int)topColor.g - (int)btmColor.g) * ratio) >> 5);
+            dstColor.b = btmColor.b + ((((int)topColor.b - (int)btmColor.b) * ratio) >> 5);
         } else {
             dstColor = topColor;
         }
@@ -3957,10 +3825,50 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
     }
 
     // Blend layer 0 with sprite mesh layer colors
-    // TODO: apply color calculation effects
     if constexpr (transparentMeshes) {
-        Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput,
-                              m_meshLayerOutput[altField].pixels.color);
+        const SpriteParams &spriteParams = regs.spriteParams;
+        if (spriteParams.colorCalcEnable) {
+            std::array<bool, kMaxResH> &layer0MeshColorCalcEnabled = composeLineBuffers.layer0MeshColorCalcEnabled;
+            for (uint32 x = 0; x < m_HRes; ++x) {
+                const uint8 pixelPriority = m_meshLayerOutput[altField].pixels.priority[x];
+
+                using enum SpriteColorCalculationCondition;
+                switch (spriteParams.colorCalcCond) {
+                case PriorityLessThanOrEqual:
+                    layer0MeshColorCalcEnabled[x] = pixelPriority <= spriteParams.colorCalcValue;
+                    break;
+                case PriorityEqual: layer0MeshColorCalcEnabled[x] = pixelPriority == spriteParams.colorCalcValue; break;
+                case PriorityGreaterThanOrEqual:
+                    layer0MeshColorCalcEnabled[x] = pixelPriority >= spriteParams.colorCalcValue;
+                    break;
+                case MsbEqualsOne:
+                    layer0MeshColorCalcEnabled[x] = m_layerOutputs[altField][LYR_Sprite].pixels.color[x].msb == 1;
+                    break;
+                default: util::unreachable();
+                }
+            }
+
+            if (AnyBool(std::span{layer0MeshColorCalcEnabled}.first(m_HRes))) {
+                std::span<Color888> meshOut = std::span{composeLineBuffers.meshTempColors}.first(m_HRes);
+                if (colorCalcParams.useAdditiveBlend) {
+                    // Saturated add
+                    Color888SatAddMasked(meshOut, layer0MeshColorCalcEnabled, m_meshLayerOutput[altField].pixels.color,
+                                         framebufferOutput);
+                } else {
+                    // Alpha composite
+                    Color888CompositeRatioPerPixelMasked(meshOut, layer0MeshColorCalcEnabled,
+                                                         m_meshLayerOutput[altField].pixels.color, framebufferOutput,
+                                                         m_meshLayerAttrs[altField].colorCalcRatio);
+                }
+                Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput, meshOut);
+            } else {
+                Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput,
+                                      m_meshLayerOutput[altField].pixels.color);
+            }
+        } else {
+            Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput,
+                                  m_meshLayerOutput[altField].pixels.color);
+        }
     }
 
     // Gather shadow data

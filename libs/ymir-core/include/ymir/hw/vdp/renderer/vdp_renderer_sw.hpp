@@ -879,6 +879,8 @@ private:
         alignas(16) std::array<uint8, kMaxResH> scanline_ratio;
         alignas(16) std::array<bool, kMaxResH> layer0ShadowEnabled;
         alignas(16) std::array<bool, kMaxResH> layer0ColorOffsetEnabled;
+        alignas(16) std::array<bool, kMaxResH> layer0MeshColorCalcEnabled;
+        alignas(16) std::array<Color888, kMaxResH> meshTempColors;
     };
 
     // Pre-allocated buffers for VDP2ComposeLine for primary and alternate fields.

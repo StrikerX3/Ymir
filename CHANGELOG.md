@@ -13,6 +13,7 @@ Uses save state file version 12.
 - Debugger: Various SH2 stack analysis fixes.
 - SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)
 - VDP1: Add game-specific flag for skipping command processing if the top of the table is empty. Enable it exclusively for Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. Fixes missing graphics in Gungriffon. (#810)
+- VDP2: Apply color calculations to transparent sprite mesh layer 0. Fixes stripes on ground plane in Gungriffon.
 - VDP2: Fix VRAM access calculations when RBG1 is enabled. Fix missing car graphics regression in Gale Racer. (#359)
 
 
