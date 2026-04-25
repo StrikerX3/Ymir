@@ -34,7 +34,7 @@ union Color888 {
         uint32 r : 8;
         uint32 g : 8;
         uint32 b : 8;
-        uint32 : 7;
+        uint32 pad : 7;
         uint32 msb : 1; // CC in CRAM, transparency in cells when using RGB format
     };
 };

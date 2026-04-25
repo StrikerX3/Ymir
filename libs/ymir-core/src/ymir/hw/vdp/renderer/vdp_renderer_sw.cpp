@@ -3714,7 +3714,12 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         }
 
         // Color offset
-        layer0ColorOffsetEnabled[x] = regs.colorOffsetEnable[layer];
+        if (!regs.colorOffsetEnable[layer]) {
+            layer0ColorOffsetEnabled[x] = false;
+        } else {
+            const auto &colorOffset = regs.colorOffset[regs.colorOffsetSelect[layer]];
+            layer0ColorOffsetEnabled[x] = colorOffset.nonZero;
+        }
     }
 
     const std::span<Color888> framebufferOutput(reinterpret_cast<Color888 *>(&m_framebuffer[y * m_HRes]), m_HRes);
@@ -3905,13 +3910,13 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         for (uint32 x = 0; Color888 &outputColor : framebufferOutput) {
             if (layer0ColorOffsetEnabled[x]) {
                 const auto &colorOffset = regs.colorOffset[regs.colorOffsetSelect[scanline_layers[x][0]]];
-                if (colorOffset.nonZero) {
-                    outputColor = {
-                        .r = kColorOffsetLUT[colorOffset.r][outputColor.r],
-                        .g = kColorOffsetLUT[colorOffset.g][outputColor.g],
-                        .b = kColorOffsetLUT[colorOffset.b][outputColor.b],
-                    };
-                }
+                outputColor = {
+                    .r = kColorOffsetLUT[colorOffset.r][outputColor.r],
+                    .g = kColorOffsetLUT[colorOffset.g][outputColor.g],
+                    .b = kColorOffsetLUT[colorOffset.b][outputColor.b],
+                    .pad = 0,
+                    .msb = 0,
+                };
             }
             ++x;
         }
