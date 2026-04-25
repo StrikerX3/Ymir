@@ -3534,17 +3534,16 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
 
     auto &composeLineBuffers = m_composeLineBuffers[altField];
 
-    auto &scanline_layers = composeLineBuffers.scanline_layers;
-    auto &scanline_layerPrios = composeLineBuffers.scanline_layerPrios;
+    const auto &scanline_layers = composeLineBuffers.scanline_layers;
+    const auto &scanline_layerPrios = composeLineBuffers.scanline_layerPrios;
 
     // Determine layer order
-    static constexpr std::array<LayerIndex, 3> kLayersInit{LYR_Back, LYR_Back, LYR_Back};
-    std::fill_n(scanline_layers.begin(), m_HRes, kLayersInit);
+    std::array<std::array<uint8, 3>, kMaxResH> layerSortOrder;
+    static constexpr std::array<uint8, 3> kLayerSortOrderInit{uint8(LYR_Back ^ 7), uint8(LYR_Back ^ 7),
+                                                              uint8(LYR_Back ^ 7)};
+    std::fill_n(layerSortOrder.begin(), m_HRes, kLayerSortOrderInit);
 
-    static constexpr std::array<uint8, 3> kLayerPriosInit{0, 0, 0};
-    std::fill_n(scanline_layerPrios.begin(), m_HRes, kLayerPriosInit);
-
-    for (int layer = 0; layer < m_layerOutputs[altField].size(); layer++) {
+    for (uint32 layer = 0; layer < m_layerOutputs[altField].size(); layer++) {
         if (!state2.layerEnabled[layer]) {
             continue;
         }
@@ -3578,21 +3577,26 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             // Insert the layer into the appropriate position in the stack
             // - Higher priority beats lower priority
             // - If same priority, lower Layer index beats higher Layer index
-            // - layers[0] is topmost (first) layer
-            std::array<LayerIndex, 3> &layers = scanline_layers[x];
-            std::array<uint8, 3> &layerPrios = scanline_layerPrios[x];
+            // - Index 0 is topmost (first) layer
+            auto &entry = layerSortOrder[x];
+            const uint8 key = (layer ^ 7u) | (priority << 3u);
             for (int i = 0; i < 3; i++) {
-                if (priority > layerPrios[i] || (priority == layerPrios[i] && layer < layers[i])) {
+                if (key > entry[i]) {
                     // Push layers back
                     for (int j = 2; j > i; j--) {
-                        layers[j] = layers[j - 1];
-                        layerPrios[j] = layerPrios[j - 1];
+                        entry[j] = entry[j - 1];
                     }
-                    layers[i] = static_cast<LayerIndex>(layer);
-                    layerPrios[i] = priority;
+                    entry[i] = key;
                     break;
                 }
             }
+        }
+    }
+    for (uint32 x = 0; x < m_HRes; x++) {
+        const auto &entry = layerSortOrder[x];
+        for (int i = 0; i < 3; i++) {
+            composeLineBuffers.scanline_layers[x][i] = static_cast<LayerIndex>(bit::extract<0, 2>(~entry[i]));
+            composeLineBuffers.scanline_layerPrios[x][i] = entry[i] >> 3u;
         }
     }
 
@@ -3617,7 +3621,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
                     continue;
                 }
 
-                std::array<uint8, 3> &layerPrios = scanline_layerPrios[x];
+                const std::array<uint8, 3> &layerPrios = scanline_layerPrios[x];
                 for (int i = 0; i < 3; i++) {
                     // The sprite layer has the highest priority on ties, so the priority check can be simplified.
                     // Sprite pixels drawn of top of mesh pixels erase the corresponding pixels from the mesh layer,
@@ -3699,14 +3703,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             layer0ShadowEnabled[x] = false;
         } else {
             // Sprite layer doesn't have shadow
-            const bool isNormalShadow = m_spriteLayerAttrs[altField].normalShadow[x];
-            const bool isMSBShadow =
-                !regs.spriteParams.useSpriteWindow && m_spriteLayerAttrs[altField].shadowOrWindow[x];
+            const auto &spriteLayerAttrs = m_spriteLayerAttrs[altField];
+            const bool isNormalShadow = spriteLayerAttrs.normalShadow[x];
+            const bool isMSBShadow = !regs.spriteParams.useSpriteWindow && spriteLayerAttrs.shadowOrWindow[x];
             if (!isNormalShadow && !isMSBShadow) {
                 layer0ShadowEnabled[x] = false;
             } else {
                 switch (layer) {
-                case LYR_Sprite: layer0ShadowEnabled[x] = m_spriteLayerAttrs[altField].shadowOrWindow[x]; break;
+                case LYR_Sprite: layer0ShadowEnabled[x] = spriteLayerAttrs.shadowOrWindow[x]; break;
                 case LYR_Back: layer0ShadowEnabled[x] = regs.backScreenParams.shadowEnable; break;
                 default: layer0ShadowEnabled[x] = regs.bgParams[layer - LYR_RBG0].shadowEnable; break;
                 }

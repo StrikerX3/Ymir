@@ -8,6 +8,8 @@ Uses save state file version 12.
 
 ### New features and improvements
 
+- VDP2: Various performance microoptimizations to the software renderer.
+
 ### Fixes
 
 - Debugger: Various SH2 stack analysis fixes.
