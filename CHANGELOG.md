@@ -15,6 +15,7 @@ Uses save state file version 12.
 - VDP1: Add game-specific flag for skipping command processing if the top of the table is empty. Enable it exclusively for Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. Fixes missing graphics in Gungriffon. (#810)
 - VDP2: Apply color calculations to transparent sprite mesh layer 0. Fixes stripes on ground plane in Gungriffon.
 - VDP2: Fix VRAM access calculations when RBG1 is enabled. Fix missing car graphics regression in Gale Racer. (#359)
+- VDP2: Fix and use line color screen calculation ratio when LNCL is inserted. Fixes text background issues in Doukoku Soshite. (#502)
 
 
 ## Version 0.3.0

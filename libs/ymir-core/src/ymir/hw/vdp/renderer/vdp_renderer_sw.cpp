@@ -3805,14 +3805,15 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
                     continue;
                 }
 
-                const LayerIndex layer = scanline_layers[x][colorCalcParams.useSecondScreenRatio];
-                switch (layer) {
-                case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].colorCalcRatio[x]; break;
-                case LYR_Back:
-                    scanline_ratio[x] = layer0LineColorEnabled[x] ? regs.lineScreenParams.colorCalcRatio
-                                                                  : regs.backScreenParams.colorCalcRatio;
-                    break;
-                default: scanline_ratio[x] = regs.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
+                if (colorCalcParams.useSecondScreenRatio && layer0LineColorEnabled[x]) {
+                    scanline_ratio[x] = regs.lineScreenParams.colorCalcRatio;
+                } else {
+                    const LayerIndex layer = scanline_layers[x][colorCalcParams.useSecondScreenRatio];
+                    switch (layer) {
+                    case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].colorCalcRatio[x]; break;
+                    case LYR_Back: scanline_ratio[x] = regs.backScreenParams.colorCalcRatio; break;
+                    default: scanline_ratio[x] = regs.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
+                    }
                 }
             }
 

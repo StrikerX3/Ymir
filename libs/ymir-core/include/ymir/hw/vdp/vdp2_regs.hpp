@@ -3108,13 +3108,13 @@ struct VDP2Regs {
 
     FORCE_INLINE uint16 ReadCCRLB() const {
         uint16 value = 0;
-        bit::deposit_into<0, 4>(value, lineScreenParams.colorCalcRatio - 1);
+        bit::deposit_into<0, 4>(value, lineScreenParams.colorCalcRatio ^ 31);
         bit::deposit_into<8, 12>(value, backScreenParams.colorCalcRatio ^ 31);
         return value;
     }
 
     FORCE_INLINE void WriteCCRLB(uint16 value) {
-        lineScreenParams.colorCalcRatio = bit::extract<0, 4>(value) + 1;
+        lineScreenParams.colorCalcRatio = bit::extract<0, 4>(value) ^ 31;
         backScreenParams.colorCalcRatio = bit::extract<8, 12>(value) ^ 31;
     }
 
