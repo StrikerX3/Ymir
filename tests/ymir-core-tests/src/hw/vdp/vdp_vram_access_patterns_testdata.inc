@@ -2179,3 +2179,45 @@ TestData{
     // Rotation coefficient accesses
     {false, false, false, false},
 },
+
+TestData{
+    "MechWarrior 2 :: Title screen and main menu :: Basic RBG1 only",
+    0xFFFFFFFF, // 010,012 CYCA0L/U  -   -   -   -   -   -   -   -  
+    0xFFFFFFFF, // 014,016 CYCA1L/U  -   -   -   -   -   -   -   -  
+    0xFFFFFFFF, // 018,01A CYCB0L/U  -   -   -   -   -   -   -   -  
+    0xFFFFFFFF, // 01C,01E CYCB1L/U  -   -   -   -   -   -   -   -  
+    0x230E, // 00E RAMCTL  A0/A1, B0/B1, rot: A0=patname A1=charpat
+    0x8000, // 000 TVMD    lo-res
+    0x0020, // 020 BGON    RBG1
+    0x0010, // 028 CHCTLA                             
+    0x1000, // 02A CHCTLB                             
+    0x0000, // 098 ZMCTL                              
+    0x0000, // 09A SCRCTL                             
+
+    // Expected
+    {{
+        // NBG0
+        {},
+        // NBG1
+        {},
+        // NBG2
+        {},
+        // NBG3
+        {},
+    }},
+    {{
+        // RBG0
+        {},
+        // RBG1
+        {
+            .check = true,
+            .bitmap = false,
+            .patNameAccess = {false, false, false, true},
+            .charPatAccess = {false, false, true, false},
+        },
+    }},
+    // Vertical cell scroll increment
+    0,
+    // Rotation coefficient accesses
+    {false, false, false, false},
+},
