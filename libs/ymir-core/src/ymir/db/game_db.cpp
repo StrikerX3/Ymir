@@ -72,6 +72,8 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
 
     {"T-24904G", {.flags = SlowVDP1}}, // Fishing Koushien II (Japan)
     {"T-9513G",  {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan)
+    
+    {"T-32201G", {.flags = SkipEmptyVDP1Table}}, // Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi (Japan)
 
     {"T-27901G",  {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan)
     {"ST-27901G", {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan) (Demo)

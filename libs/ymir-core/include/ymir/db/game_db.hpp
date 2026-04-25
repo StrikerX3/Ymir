@@ -41,14 +41,17 @@ struct GameInfo {
 
 #undef CART_VAL
 
-        // Hacks
+    // Hacks
 
-        ForceSH2Cache = 1ull << 3ull,                   ///< SH-2 cache emulation required for the game to work
-        FastBusTimings = 1ull << 4ull,                  ///< Fast bus timings required to fix stability issues
-        FastMC68EC000 = 1ull << 5ull,                   ///< Overclocked MC68EC000 required to fix stability issues
-        StallVDP1OnVRAMWrites = 1ull << 6ull,           ///< Stall/slow down VDP1 drawing on VDP1 VRAM writes
-        SlowVDP1 = 1ull << 7ull,                        ///< Slow down VDP1 processing overall
-        RelaxedVDP2BitmapCPAccessChecks = 1ull << 8ull, ///< Allow bitmap CP accesses during SH2 cycles
+#define BIT(x) 1ull << x##ull
+        ForceSH2Cache = BIT(3),                   ///< SH-2 cache emulation required for the game to work
+        FastBusTimings = BIT(4),                  ///< Fast bus timings required to fix stability issues
+        FastMC68EC000 = BIT(5),                   ///< Overclocked MC68EC000 required to fix stability issues
+        StallVDP1OnVRAMWrites = BIT(6),           ///< Stall/slow down VDP1 drawing on VDP1 VRAM writes
+        SlowVDP1 = BIT(7),                        ///< Slow down VDP1 processing overall
+        RelaxedVDP2BitmapCPAccessChecks = BIT(8), ///< Allow bitmap CP accesses during SH2 cycles
+        SkipEmptyVDP1Table = BIT(9),              ///< Skip VDP1 command processing if the top of the table is empty
+#undef BIT
 
         // Proper fixes for each flag:
         // - ForceSH2Cache: SH-2 cache emulation *is* the accurate choice, so the flag should stay as is
@@ -59,6 +62,7 @@ struct GameInfo {
         // - StallVDP1OnVRAMWrites: advanced bus timing emulation plus accurate VDP1 timings
         // - SlowVDP1: accurate VDP1 timings
         // - RelaxedVDP2BitmapCPAccessChecks: in some cases, SCU DMA timings; generally speaking, advanced bus timings
+        // - SkipEmptyVDP1Table: accurate VDP1 timings
     };
 
     Flags flags = Flags::None;        ///< Game compatibility flags

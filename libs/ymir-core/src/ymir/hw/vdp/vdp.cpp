@@ -967,13 +967,14 @@ void VDP::VDP1BeginFrame() {
     m_state.regs1.currCommandAddress = 0;
     m_state.regs1.currFrameEnded = false;
 
-    // Don't even bother processing if the table starts with a handful of empty commands
-    bool valid = false;
-    for (uint32 i = 0; i < 32 * 4; i += 2) {
-        const auto value = VDP1ReadVRAM<uint16>(i);
-        if (value != 0) {
-            valid = true;
-            break;
+    bool valid = !m_skipEmptyVDP1Table;
+    if (!valid) {
+        // Don't even bother processing commands if the table starts with a handful of empty commands
+        for (uint32 i = 0; i < 32 * 64; i += sizeof(uint64)) {
+            if (util::ReadNE<uint64>(&m_state.mem1.VRAM[i]) != 0) {
+                valid = true;
+                break;
+            }
         }
     }
     if (valid) {

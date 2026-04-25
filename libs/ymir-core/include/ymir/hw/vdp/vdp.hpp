@@ -184,6 +184,15 @@ public:
         return m_VDP1CyclesShift == 0;
     }
 
+    // Enable or disable VDP1 command processing skip if the first 0x400 bytes are zeros.
+    void SetSkipEmptyVDP1CommandTable(bool enable) {
+        m_skipEmptyVDP1Table = enable;
+    }
+
+    bool IsSkipEmptyVDP1CommandTableVDP1() const {
+        return m_skipEmptyVDP1Table;
+    }
+
     // -------------------------------------------------------------------------
     // Memory dumps
 
@@ -413,6 +422,7 @@ private:
     static constexpr uint64 kVDP1TimingPenaltyPerWrite = 22;
     uint64 m_VDP1TimingPenaltyCycles; // accumulated cycle penalty
     bool m_stallVDP1OnVRAMWrites = false;
+    bool m_skipEmptyVDP1Table = false; // skip processing empty tables (first 0x400 bytes in VDP1 VRAM == 0x00)
     uint64 m_VDP1CyclesShift = 2;
 
     void VDP1SwapFramebuffer();
