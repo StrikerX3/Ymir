@@ -668,6 +668,23 @@ void VDP2VRAMDelayView::Display() {
                                bgState.vcellScrollRepeat, bgState.vcellScrollOffset);
         };
 
+        auto formatRBGExpect = [&](size_t index) -> std::string {
+            if (!regs2.bgEnabled[index + 4]) {
+                return "{}";
+            }
+
+            const auto &bgParams = regs2.bgParams[index];
+            return fmt::format(R"({{
+            .check = true,
+            .bitmap = {},
+            .patNameAccess = {{{}, {}, {}, {}}},
+            .charPatAccess = {{{}, {}, {}, {}}},
+        }})",
+                               bgParams.bitmap, bgParams.patNameAccess[0], bgParams.patNameAccess[1],
+                               bgParams.patNameAccess[2], bgParams.patNameAccess[3], bgParams.charPatAccess[0],
+                               bgParams.charPatAccess[1], bgParams.charPatAccess[2], bgParams.charPatAccess[3]);
+        };
+
 #define CYC_ARG(x) x, formatCYC(x)
 #define REG_ARG(x) x, format##x()
 
@@ -697,6 +714,12 @@ void VDP2VRAMDelayView::Display() {
         // NBG3
         {},
     }}}},
+    {{{{
+        // RBG0
+        {},
+        // RBG1
+        {},
+    }}}},
     // Vertical cell scroll increment
     {},
     // Rotation coefficient accesses
@@ -705,8 +728,9 @@ void VDP2VRAMDelayView::Display() {
 )",
             CYC_ARG(CYCA0), CYC_ARG(CYCA1), CYC_ARG(CYCB0), CYC_ARG(CYCB1), REG_ARG(RAMCTL), REG_ARG(TVMD),
             REG_ARG(BGON), REG_ARG(CHCTLA), REG_ARG(CHCTLB), REG_ARG(ZMCTL), REG_ARG(SCRCTL), formatNBGExpect(0),
-            formatNBGExpect(1), formatNBGExpect(2), formatNBGExpect(3), regs2.vcellScrollInc, state2.coeffAccess[0],
-            state2.coeffAccess[1], state2.coeffAccess[2], state2.coeffAccess[3]);
+            formatNBGExpect(1), formatNBGExpect(2), formatNBGExpect(3), formatRBGExpect(0), formatRBGExpect(1),
+            regs2.vcellScrollInc, state2.coeffAccess[0], state2.coeffAccess[1], state2.coeffAccess[2],
+            state2.coeffAccess[3]);
 
 #undef CYC_ARG
 #undef REG_ARG

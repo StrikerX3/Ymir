@@ -26,6 +26,14 @@ struct NBGData {
     uint8 vcellScrollOffset;
 };
 
+struct RBGData {
+    bool check = false;
+
+    bool bitmap;
+    std::array<bool, 4> patNameAccess;
+    std::array<bool, 4> charPatAccess;
+};
+
 struct TestData {
     const char *name = "Defaults";
 
@@ -42,6 +50,7 @@ struct TestData {
     uint16 SCRCTL = 0x0000;  // 09A
 
     std::array<NBGData, 4> nbgs{};
+    std::array<RBGData, 4> rbgs{};
     uint8 vcellScrollInc = 0;
     std::array<bool, 4> coeffAccess{};
 };
@@ -96,6 +105,19 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "VDP2 VRAM access patterns tests", "[v
                 CHECK(bgState.vcellScrollDelay == bgExpected.vcellScrollDelay);
                 CHECK(bgState.vcellScrollRepeat == bgExpected.vcellScrollRepeat);
                 CHECK(bgState.vcellScrollOffset == bgExpected.vcellScrollOffset);
+            }
+        }
+        for (uint32 i = 0; i < 2; ++i) {
+            DYNAMIC_SECTION("RBG" << i) {
+                auto &bgExpected = testData.rbgs[i];
+                if (!bgExpected.check) {
+                    continue;
+                }
+
+                auto &bgParams = regs2.bgParams[i];
+                REQUIRE(bgParams.bitmap == bgExpected.bitmap);
+                CHECK(bgParams.patNameAccess == bgExpected.patNameAccess);
+                CHECK(bgParams.charPatAccess == bgExpected.charPatAccess);
             }
         }
         CHECK(regs2.vcellScrollInc == testData.vcellScrollInc);

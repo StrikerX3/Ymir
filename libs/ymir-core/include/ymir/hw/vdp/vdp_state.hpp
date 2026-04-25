@@ -476,9 +476,15 @@ struct VDP2State {
             }
         }
 
+        const bool rbg0Enabled = regs2.bgEnabled[4];
+        const bool rbg1Enabled = regs2.bgEnabled[5];
+
+        // Skip NBG0 if RBG1 is enabled
+        const uint32 firstNBG = rbg1Enabled ? 1 : 0;
+
         // Determine how many character pattern accesses are needed for this NBG
         std::array<uint8, 4> expectedCPAccesses{};
-        for (uint32 nbg = 0; nbg < 4; ++nbg) {
+        for (uint32 nbg = firstNBG; nbg < 4; ++nbg) {
             auto &bgParams = regs2.bgParams[nbg + 1];
             uint8 &expectedCount = expectedCPAccesses[nbg];
 
@@ -504,7 +510,7 @@ struct VDP2State {
         }
 
         // Apply delays to the NBGs
-        for (uint32 nbg = 0; nbg < 4; ++nbg) {
+        for (uint32 nbg = firstNBG; nbg < 4; ++nbg) {
             auto &bgParams = regs2.bgParams[nbg + 1];
             bgParams.charPatDelay.fill(false);
             const uint8 bgCP = cp[nbg];
@@ -590,9 +596,6 @@ struct VDP2State {
 
         // Translate VRAM access cycles and rotation data bank selectors into read "permissions" for pattern name tables
         // and character pattern tables in each VRAM bank.
-        const bool rbg0Enabled = regs2.bgEnabled[4];
-        const bool rbg1Enabled = regs2.bgEnabled[5];
-
         for (uint32 bank = 0; bank < 4; ++bank) {
             const RotDataBankSel rotDataBankSel = regs2.vramControl.GetRotDataBankSel(bank);
 
@@ -615,7 +618,7 @@ struct VDP2State {
             }
 
             // NBG0-3
-            for (uint32 nbg = 0; nbg < 4; ++nbg) {
+            for (uint32 nbg = firstNBG; nbg < 4; ++nbg) {
                 auto &bgParams = regs2.bgParams[nbg + 1];
                 bgParams.patNameAccess[bank] = false;
                 bgParams.charPatAccess[bank] = false;

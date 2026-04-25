@@ -12,6 +12,7 @@ Uses save state file version 12.
 
 - Debugger: Various SH2 stack analysis fixes.
 - SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)
+- VDP2: Fix VRAM access calculations when RBG1 is enabled. Fix missing car graphics regression in Gale Racer. (#359)
 
 
 ## Version 0.3.0
