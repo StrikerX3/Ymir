@@ -3640,12 +3640,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         }
     };
 
-    // Gather pixels for layer 0
-    auto &layer0Pixels = composeLineBuffers.layer0Pixels;
-    for (uint32 x = 0; x < m_HRes; x++) {
-        layer0Pixels[x] = getLayerColor(scanline_layers[x][0], x);
-    }
-
+    // Determines if color calculation is enabled for the given layer
     const auto isColorCalcEnabled = [&](LayerIndex layer, uint32 x) {
         if (layer == LYR_Sprite) {
             const SpriteParams &spriteParams = regs.spriteParams;
@@ -3670,54 +3665,81 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         }
     };
 
-    // Gather layer color calculation data
+    // Gather layer 0 data
+    auto &layer0Pixels = composeLineBuffers.layer0Pixels;
     auto &layer0ColorCalcEnabled = composeLineBuffers.layer0ColorCalcEnabled;
     auto &layer0BlendMeshLayer = composeLineBuffers.layer0BlendMeshLayer;
-
+    auto &layer0ShadowEnabled = composeLineBuffers.layer0ShadowEnabled;
+    auto &layer0ColorOffsetEnabled = composeLineBuffers.layer0ColorOffsetEnabled;
     for (uint32 x = 0; x < m_HRes; x++) {
         const LayerIndex layer = scanline_layers[x][0];
+
+        // Color
+        layer0Pixels[x] = getLayerColor(layer, x);
+
+        // Color calculation
         if constexpr (transparentMeshes) {
             layer0BlendMeshLayer[x] = scanline_meshLayers[x] == 0;
         }
         if (m_colorCalcWindow[altField][x]) {
             layer0ColorCalcEnabled[x] = false;
-            continue;
-        }
-        if (!isColorCalcEnabled(layer, x)) {
+        } else if (!isColorCalcEnabled(layer, x)) {
             layer0ColorCalcEnabled[x] = false;
-            continue;
+        } else {
+            switch (layer) {
+            case LYR_Back: [[fallthrough]];
+            case LYR_Sprite: layer0ColorCalcEnabled[x] = true; break;
+            default: layer0ColorCalcEnabled[x] = m_layerOutputs[altField][layer].pixels.specialColorCalc[x]; break;
+            }
         }
 
-        switch (layer) {
-        case LYR_Back: [[fallthrough]];
-        case LYR_Sprite: layer0ColorCalcEnabled[x] = true; break;
-        default: layer0ColorCalcEnabled[x] = m_layerOutputs[altField][layer].pixels.specialColorCalc[x]; break;
+        // Shadow
+        if (m_layerOutputs[altField][LYR_Sprite].pixels.priority[x] < scanline_layerPrios[x][0]) {
+            // Sprite layer is beneath top layer
+            layer0ShadowEnabled[x] = false;
+        } else {
+            // Sprite layer doesn't have shadow
+            const bool isNormalShadow = m_spriteLayerAttrs[altField].normalShadow[x];
+            const bool isMSBShadow =
+                !regs.spriteParams.useSpriteWindow && m_spriteLayerAttrs[altField].shadowOrWindow[x];
+            if (!isNormalShadow && !isMSBShadow) {
+                layer0ShadowEnabled[x] = false;
+            } else {
+                switch (layer) {
+                case LYR_Sprite: layer0ShadowEnabled[x] = m_spriteLayerAttrs[altField].shadowOrWindow[x]; break;
+                case LYR_Back: layer0ShadowEnabled[x] = regs.backScreenParams.shadowEnable; break;
+                default: layer0ShadowEnabled[x] = regs.bgParams[layer - LYR_RBG0].shadowEnable; break;
+                }
+            }
         }
+
+        // Color offset
+        layer0ColorOffsetEnabled[x] = regs.colorOffsetEnable[layer];
     }
 
     const std::span<Color888> framebufferOutput(reinterpret_cast<Color888 *>(&m_framebuffer[y * m_HRes]), m_HRes);
 
     if (AnyBool(std::span{layer0ColorCalcEnabled}.first(m_HRes))) {
-        // Gather pixels for layer 1
-        auto &layer1Pixels = composeLineBuffers.layer1Pixels;
-        auto &layer1BlendMeshLayer = composeLineBuffers.layer1BlendMeshLayer;
-        for (uint32 x = 0; x < m_HRes; x++) {
-            layer1Pixels[x] = getLayerColor(scanline_layers[x][1], x);
-            if constexpr (transparentMeshes) {
-                layer1BlendMeshLayer[x] = scanline_meshLayers[x] == 1;
-            }
-        }
-
         const bool doubleResH = regs.TVMD.HRESOn & 0b010;
         const uint32 xShift = doubleResH ? 1 : 0;
 
-        // Gather line-color data
+        // Gather color calculation data
+        auto &layer1Pixels = composeLineBuffers.layer1Pixels;
+        auto &layer1BlendMeshLayer = composeLineBuffers.layer1BlendMeshLayer;
         auto &layer0LineColorEnabled = composeLineBuffers.layer0LineColorEnabled;
         auto &layer0LineColors = composeLineBuffers.layer0LineColors;
         for (uint32 x = 0; x < m_HRes; x++) {
-            const LayerIndex layer = scanline_layers[x][0];
+            const LayerIndex layer0 = scanline_layers[x][0];
+            const LayerIndex layer1 = scanline_layers[x][1];
 
-            switch (layer) {
+            // Layer 1 colors
+            layer1Pixels[x] = getLayerColor(layer1, x);
+            if constexpr (transparentMeshes) {
+                layer1BlendMeshLayer[x] = scanline_meshLayers[x] == 1;
+            }
+
+            // Line color
+            switch (layer0) {
             case LYR_Sprite:
                 layer0LineColorEnabled[x] = regs.spriteParams.lineColorScreenEnable;
                 if (layer0LineColorEnabled[x]) {
@@ -3726,10 +3748,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
                 break;
             case LYR_Back: layer0LineColorEnabled[x] = false; break;
             default:
-                layer0LineColorEnabled[x] = regs.bgParams[layer - LYR_RBG0].lineColorScreenEnable;
+                layer0LineColorEnabled[x] = regs.bgParams[layer0 - LYR_RBG0].lineColorScreenEnable;
                 if (layer0LineColorEnabled[x]) {
-                    if (layer == LYR_RBG0 || (layer == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
-                        layer0LineColors[x] = m_rbgLineColors[layer - LYR_RBG0][x >> xShift];
+                    if (layer0 == LYR_RBG0 || (layer0 == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
+                        layer0LineColors[x] = m_rbgLineColors[layer0 - LYR_RBG0][x >> xShift];
                     } else {
                         layer0LineColors[x] = state2.lineBackLayerState.lineColor;
                     }
@@ -3872,41 +3894,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         }
     }
 
-    // Gather shadow data
-    auto &layer0ShadowEnabled = composeLineBuffers.layer0ShadowEnabled;
-    for (uint32 x = 0; x < m_HRes; x++) {
-        // Sprite layer is beneath top layer
-        if (m_layerOutputs[altField][LYR_Sprite].pixels.priority[x] < scanline_layerPrios[x][0]) {
-            layer0ShadowEnabled[x] = false;
-            continue;
-        }
-
-        // Sprite layer doesn't have shadow
-        const bool isNormalShadow = m_spriteLayerAttrs[altField].normalShadow[x];
-        const bool isMSBShadow = !regs.spriteParams.useSpriteWindow && m_spriteLayerAttrs[altField].shadowOrWindow[x];
-        if (!isNormalShadow && !isMSBShadow) {
-            layer0ShadowEnabled[x] = false;
-            continue;
-        }
-
-        const LayerIndex layer = scanline_layers[x][0];
-        switch (layer) {
-        case LYR_Sprite: layer0ShadowEnabled[x] = m_spriteLayerAttrs[altField].shadowOrWindow[x]; break;
-        case LYR_Back: layer0ShadowEnabled[x] = regs.backScreenParams.shadowEnable; break;
-        default: layer0ShadowEnabled[x] = regs.bgParams[layer - LYR_RBG0].shadowEnable; break;
-        }
-    }
-
     // Apply sprite shadow
     // TODO: apply shadow from mesh layer
     if (AnyBool(std::span{layer0ShadowEnabled}.first(m_HRes))) {
         Color888ShadowMasked(framebufferOutput, layer0ShadowEnabled);
-    }
-
-    // Gather color offset info
-    auto &layer0ColorOffsetEnabled = composeLineBuffers.layer0ColorOffsetEnabled;
-    for (uint32 x = 0; x < m_HRes; x++) {
-        layer0ColorOffsetEnabled[x] = regs.colorOffsetEnable[scanline_layers[x][0]];
     }
 
     // Apply color offset if enabled
