@@ -680,6 +680,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Phillip O'Toole, "
                            "rifter, "
                            "Rustle, "
+                           "Some Guy, "
                            "TheCoolPup, "
                            "Zrat.");
     ImGui::Unindent();
