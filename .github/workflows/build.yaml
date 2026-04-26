@@ -284,7 +284,7 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
           echo "ymir-artifact-name=ymir-linux-${{ matrix.architecture.name }}-${BUILD_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Install packages and SDL3 dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install build-essential git make pkg-config \
@@ -303,15 +303,12 @@ jobs:
         shell: bash
         run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
 
-      - name: Restore cached vcpkg packages
-        id: cache-vcpkg-restore
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+      - name: Cache vcpkg
+        id: cache-vcpkg
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
-          path: |
-            ./vcpkg/buildtrees
-            ./vcpkg/packages
-            ./vcpkg/installed
-          key: linux-${{ matrix.arch.name }}-vcpkg
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: linux-${{ matrix.architecture.name }}-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-triplets/**') }}
 
       # This absolute monstrosity of a hack is taken from https://github.com/microsoft/vcpkg/issues/46040
       - name: Overwrite /usr/bin/mono
@@ -322,7 +319,7 @@ jobs:
 
       - name: Configure CMake
         env:
-          VCPKG_BINARY_SOURCES: 'clear'
+          VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg_cache,readwrite'
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
@@ -345,16 +342,6 @@ jobs:
           -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
           -S ${{ github.workspace }}
           -G Ninja
-
-      - name: Cache vcpkg packages
-        id: cache-vcpkg-save
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
-        with:
-          path: |
-            ./vcpkg/buildtrees
-            ./vcpkg/packages
-            ./vcpkg/installed
-          key: ${{ steps.cache-vcpkg-restore.outputs.cache-primary-key }}
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }} --parallel

@@ -118,7 +118,7 @@ jobs:
         run: |
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
-      - name: Install SDL3 Dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install build-essential git make pkg-config \
@@ -137,19 +137,16 @@ jobs:
         shell: bash
         run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
 
-      - name: Restore cached vcpkg packages
-        id: cache-vcpkg-restore
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+      - name: Cache vcpkg
+        id: cache-vcpkg
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
-          path: |
-            ./vcpkg/buildtrees
-            ./vcpkg/packages
-            ./vcpkg/installed
-          key: linux-${{ matrix.arch.name }}-vcpkg
+          path: ${{ github.workspace }}/vcpkg_cache
+          key: linux-${{ matrix.arch.name }}-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-triplets/**') }}
 
       - name: Configure CMake
         env:
-          VCPKG_BINARY_SOURCES: 'clear'
+          VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/vcpkg_cache,readwrite'
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=clang++-18
@@ -165,16 +162,6 @@ jobs:
           -DYmir_ENABLE_IPO=OFF
           -S ${{ github.workspace }}
           -G Ninja
-
-      - name: Cache vcpkg packages
-        id: cache-vcpkg-save
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
-        with:
-          path: |
-            ./vcpkg/buildtrees
-            ./vcpkg/packages
-            ./vcpkg/installed
-          key: ${{ steps.cache-vcpkg-restore.outputs.cache-primary-key }}
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
