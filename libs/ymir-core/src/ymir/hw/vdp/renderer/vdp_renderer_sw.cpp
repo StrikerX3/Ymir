@@ -2114,8 +2114,33 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y,
             // = 10 + 10 = 10 frac bits
             // = 36 + 28 = 36 total bits
             // remove frac bits from result = 26 total bits
+#if (defined(_M_X64) || defined(__x86_64__)) && defined(__SSE4_1__)
+            {
+                const __m128i XYp = _mm_set_epi64x(Yp, Xp);
+                const __m128i kxy = _mm_set_epi64x(ky, kx);
+                const __m128i scrXY = _mm_set_epi64x(scrY, scrX);
+
+                // SSE2 doesn't have a 2x 32 -> 64 signed multiplication operation, only unsigned.
+                // We need the 64-bit signed result from _mm_mul_epi32 which requires SSE 4.1
+                // Converting the unsigned result to signed is too expensive; the fallback is faster.
+
+                // Multiply 2x int32 (slots 0 and 2) -> 2x int64 then work from there
+                __m128i result = _mm_mul_epi32(kxy, scrXY); // kx * scrX, ky * scrY (2x 64-bit)
+                result = _mm_srli_epi64(result, 16);        // (kx * scrX, ky * scrY) >> 16
+                result = _mm_add_epi64(result, XYp);        // .. + Xp,Yp
+                result = _mm_srli_epi64(result, 10);        // .. >> 10
+
+                // Compress 2x 64-bit results into low 2x 32-bit slots
+                result = _mm_shuffle_epi32(result, _MM_SHUFFLE(3, 1, 2, 0));
+
+                // Write out
+                _mm_storel_epi64((__m128i *)&lineOut.screenCoords[x], result);
+            }
+            // TODO: ARM NEON equivalent, if faster
+#else
             lineOut.screenCoords[x].x() = (((kx * scrX) >> 16) + Xp) >> 10;
             lineOut.screenCoords[x].y() = (((ky * scrY) >> 16) + Yp) >> 10;
+#endif
 
             // Increment screen coordinates and coefficient table address by Hcnt
             scrX += scrXIncH;
