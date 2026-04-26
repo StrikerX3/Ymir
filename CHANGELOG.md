@@ -18,6 +18,7 @@ Uses save state file version 12.
 - VDP1: Add game-specific flag for skipping command processing if the top of the table is empty. Enable it exclusively for Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. Fixes missing graphics in Gungriffon. (#810)
 - VDP1: Disable early polygon drawing termination when rendering polygons when user clipping mode is inverted. Fixes clipped polygons around the minimap in Machine Head (#767).
 - VDP2: Apply color calculations to transparent sprite mesh on layer 0. Fixes stripes on ground plane in Gungriffon.
+- VDP2: Apply color offset to transparent sprite mesh on layer 0 in a separate step. Fixes missing spotlight in the Colonel battle in Mega Man X4. (#818)
 - VDP2: Fix VRAM access calculations when RBG1 is enabled. Fix missing car graphics regression in Gale Racer. (#359)
 - VDP2: Fix and use line color screen calculation ratio when LNCL is inserted. Fixes text background issues in Doukoku Soshite. (#502)
 

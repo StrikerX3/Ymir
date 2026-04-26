@@ -3853,53 +3853,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
         std::copy_n(layer0Pixels.cbegin(), framebufferOutput.size(), framebufferOutput.begin());
     }
 
-    // Blend layer 0 with sprite mesh layer colors
-    if constexpr (transparentMeshes) {
-        const SpriteParams &spriteParams = regs2.spriteParams;
-        if (spriteParams.colorCalcEnable) {
-            std::array<bool, kMaxResH> &layer0MeshColorCalcEnabled = composeLineBuffers.layer0MeshColorCalcEnabled;
-            for (uint32 x = 0; x < m_HRes; ++x) {
-                const uint8 pixelPriority = m_meshLayerOutput[altField].pixels.priority[x];
-
-                using enum SpriteColorCalculationCondition;
-                switch (spriteParams.colorCalcCond) {
-                case PriorityLessThanOrEqual:
-                    layer0MeshColorCalcEnabled[x] = pixelPriority <= spriteParams.colorCalcValue;
-                    break;
-                case PriorityEqual: layer0MeshColorCalcEnabled[x] = pixelPriority == spriteParams.colorCalcValue; break;
-                case PriorityGreaterThanOrEqual:
-                    layer0MeshColorCalcEnabled[x] = pixelPriority >= spriteParams.colorCalcValue;
-                    break;
-                case MsbEqualsOne:
-                    layer0MeshColorCalcEnabled[x] = m_layerOutputs[altField][LYR_Sprite].pixels.color[x].msb == 1;
-                    break;
-                default: util::unreachable();
-                }
-            }
-
-            if (AnyBool(std::span{layer0MeshColorCalcEnabled}.first(m_HRes))) {
-                std::span<Color888> meshOut = std::span{composeLineBuffers.meshTempColors}.first(m_HRes);
-                if (colorCalcParams.useAdditiveBlend) {
-                    // Saturated add
-                    Color888SatAddMasked(meshOut, layer0MeshColorCalcEnabled, m_meshLayerOutput[altField].pixels.color,
-                                         framebufferOutput);
-                } else {
-                    // Alpha composite
-                    Color888CompositeRatioPerPixelMasked(meshOut, layer0MeshColorCalcEnabled,
-                                                         m_meshLayerOutput[altField].pixels.color, framebufferOutput,
-                                                         m_meshLayerAttrs[altField].colorCalcRatio);
-                }
-                Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput, meshOut);
-            } else {
-                Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput,
-                                      m_meshLayerOutput[altField].pixels.color);
-            }
-        } else {
-            Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput,
-                                  m_meshLayerOutput[altField].pixels.color);
-        }
-    }
-
     // Apply sprite shadow
     // TODO: apply shadow from mesh layer
     if (AnyBool(std::span{layer0ShadowEnabled}.first(m_HRes))) {
@@ -3921,6 +3874,68 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
             }
             ++x;
         }
+    }
+
+    // Blend layer 0 with sprite mesh layer colors
+    if constexpr (transparentMeshes) {
+        const SpriteParams &spriteParams = regs2.spriteParams;
+        std::span<Color888> meshOut = std::span{m_meshLayerOutput[altField].pixels.color}.first(m_HRes);
+        if (spriteParams.colorCalcEnable) {
+            std::array<bool, kMaxResH> &layer0MeshColorCalcEnabled = composeLineBuffers.layer0MeshColorCalcEnabled;
+            for (uint32 x = 0; x < m_HRes; ++x) {
+                const uint8 pixelPriority = m_meshLayerOutput[altField].pixels.priority[x];
+
+                using enum SpriteColorCalculationCondition;
+                switch (spriteParams.colorCalcCond) {
+                case PriorityLessThanOrEqual:
+                    layer0MeshColorCalcEnabled[x] = pixelPriority <= spriteParams.colorCalcValue;
+                    break;
+                case PriorityEqual: layer0MeshColorCalcEnabled[x] = pixelPriority == spriteParams.colorCalcValue; break;
+                case PriorityGreaterThanOrEqual:
+                    layer0MeshColorCalcEnabled[x] = pixelPriority >= spriteParams.colorCalcValue;
+                    break;
+                case MsbEqualsOne:
+                    layer0MeshColorCalcEnabled[x] = m_layerOutputs[altField][LYR_Sprite].pixels.color[x].msb == 1;
+                    break;
+                default: util::unreachable();
+                }
+            }
+
+            // Apply color calculation
+            if (AnyBool(std::span{layer0MeshColorCalcEnabled}.first(m_HRes))) {
+                meshOut = std::span{composeLineBuffers.meshTempColors}.first(m_HRes);
+                if (colorCalcParams.useAdditiveBlend) {
+                    // Saturated add
+                    Color888SatAddMasked(meshOut, layer0MeshColorCalcEnabled, m_meshLayerOutput[altField].pixels.color,
+                                         framebufferOutput);
+                } else {
+                    // Alpha composite
+                    Color888CompositeRatioPerPixelMasked(meshOut, layer0MeshColorCalcEnabled,
+                                                         m_meshLayerOutput[altField].pixels.color, framebufferOutput,
+                                                         m_meshLayerAttrs[altField].colorCalcRatio);
+                }
+            }
+        }
+
+        // Apply color offset if enabled
+        if (regs2.colorOffsetEnable[LYR_Sprite]) {
+            for (uint32 x = 0; Color888 &mesheColor : meshOut) {
+                const auto &colorOffset = regs2.colorOffset[regs2.colorOffsetSelect[LYR_Sprite]];
+                if (colorOffset.nonZero) {
+                    mesheColor = {
+                        .r = kColorOffsetLUT[colorOffset.r][mesheColor.r],
+                        .g = kColorOffsetLUT[colorOffset.g][mesheColor.g],
+                        .b = kColorOffsetLUT[colorOffset.b][mesheColor.b],
+                        .pad = 0,
+                        .msb = 0,
+                    };
+                }
+                ++x;
+            }
+        }
+
+        // Blend with output
+        Color888AverageMasked(framebufferOutput, layer0BlendMeshLayer, framebufferOutput, meshOut);
     }
 
     if (m_vdp2DebugRenderOptions.overlay.enable) {
