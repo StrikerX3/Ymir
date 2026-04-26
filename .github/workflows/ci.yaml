@@ -10,15 +10,15 @@ on:
   pull_request:
     paths-ignore: *ignored-paths
 
+permissions:
+  packages: write
+  contents: read
+
 env:
   USERNAME: StrikerX3
   VCPKG_EXE: ${{ github.workspace }}/vcpkg/vcpkg
   FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
   VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/StrikerX3/index.json,readwrite"
-
-permissions:
-  packages: write
-  contents: read
 
 jobs:
   build-windows:

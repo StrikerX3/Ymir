@@ -45,6 +45,7 @@ on:
 
 permissions:
   packages: write
+  contents: read
 
 env:
   USERNAME: StrikerX3
