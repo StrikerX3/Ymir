@@ -1137,7 +1137,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 co
         }
         if (plottedPixel) {
             plotted = true;
-        } else if (plotted) {
+        } else if (plotted && !pixelParams.mode.clippingMode) {
             // No more pixels can be drawn past this point
             break;
         }
@@ -1276,20 +1276,23 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
         uStepper.StepPixel();
 
         if (hasEndCode || (transparent && !mode.transparentPixelDisable)) {
-            // Check if the transparent pixel is in-bounds
-            if (!VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
-                plotted = true;
-                continue;
-            }
-            if (aa && !VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
-                plotted = true;
-                continue;
-            }
+            // Check if the transparent pixel is in-bounds, but only if the clipping mode is set to reject outside
+            if (!mode.clippingMode) {
+                if (!VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
+                    plotted = true;
+                    continue;
+                }
+                if (aa &&
+                    !VDP1IsPixelClipped<deinterlace>(line.AACoord(), mode.userClippingEnable, mode.clippingMode)) {
+                    plotted = true;
+                    continue;
+                }
 
-            // At this point the pixel is clipped. Bail out if there have been in-bounds pixels before, as no more
-            // pixels can be drawn past this point.
-            if (plotted) {
-                break;
+                // At this point the pixel is clipped. Bail out if there have been in-bounds pixels before, as no more
+                // pixels can be drawn past this point.
+                if (plotted) {
+                    break;
+                }
             }
 
             // Otherwise, continue to the next pixel
@@ -1304,7 +1307,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
         }
         if (plottedPixel) {
             plotted = true;
-        } else if (plotted) {
+        } else if (plotted && !mode.clippingMode) {
             // No more pixels can be drawn past this point
             break;
         }

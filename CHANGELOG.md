@@ -8,6 +8,7 @@ Uses save state file version 12.
 
 ### New features and improvements
 
+- VDP1: Disable early polygon drawing termination when rendering polygons when user clipping mode is inverted. Fixes clipped polygons around the minimap in Machine Head (#767).
 - VDP2: Various performance microoptimizations to the software renderer.
 
 ### Fixes
