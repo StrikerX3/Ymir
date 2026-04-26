@@ -32,6 +32,9 @@
 #include <zlib.h>
 #include <zstd.h>
 
+#define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#include <miniz/miniz.h>
+
 #define _STR_IMPL(x) #x
 #define _STR(x) _STR_IMPL(x)
 #define _SEMVER_STR(major, minor, patch) _STR(major.minor.patch)
@@ -43,8 +46,10 @@
 #define CXXOPTS_VERSION _SEMVER_STR(CXXOPTS__VERSION_MAJOR, CXXOPTS__VERSION_MINOR, CXXOPTS__VERSION_PATCH)
 #define DATE_VERSION "3.0.4" // Not exported
 #define IMGUI_VERSION_FULL IMGUI_VERSION " (" _STR(IMGUI_VERSION_NUM) ")"
-#define LZMA_VERSION "24.05" // Private dependency of libchdr
-#define MIO_VERSION "1.1.0"  // Not exported
+#define LZMA_VERSION "25.01"    // Private dependency of libchdr
+#define LIBCHDR_VERSION "0.3.0" // Not exported
+#define MIO_VERSION "1.1.0"     // Not exported
+// #define MZ_VERSION "3.1.1"      // Private dependency of libchdr
 #define NLOHMANN_JSON_VERSION \
     _SEMVER_STR(NLOHMANN_JSON_VERSION_MAJOR, NLOHMANN_JSON_VERSION_MINOR, NLOHMANN_JSON_VERSION_PATCH)
 #define SDL_VERSION_STR _SEMVER_STR(SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION)
@@ -112,10 +117,11 @@ static const struct {
     {.name = "Dear ImGui",                    .version = IMGUI_VERSION_FULL,         .license = licenseMIT,           .repoURL = "https://github.com/ocornut/imgui",               .licenseURL = "https://github.com/ocornut/imgui/blob/master/LICENSE.txt"},
     {.name = "{fmt}",                         .version = fmtVersion.c_str(),         .license = licenseMIT,           .repoURL = "https://github.com/fmtlib/fmt",                  .licenseURL = "https://github.com/fmtlib/fmt/blob/master/LICENSE",                      .homeURL = "https://fmt.dev/latest/index.html"},
     {.name = "ImGui Club",                                                           .license = licenseMIT,           .repoURL = "https://github.com/ocornut/imgui_club",          .licenseURL = "https://github.com/ocornut/imgui_club/blob/main/LICENSE.txt"},
-    {.name = "libchdr",                                                              .license = licenseBSD3,          .repoURL = "https://github.com/rtissera/libchdr",            .licenseURL = "https://github.com/rtissera/libchdr/blob/master/LICENSE.txt"},
+    {.name = "libchdr",                       .version = LIBCHDR_VERSION,            .license = licenseBSD3,          .repoURL = "https://github.com/rtissera/libchdr",            .licenseURL = "https://github.com/rtissera/libchdr/blob/master/LICENSE.txt"},
     {.name = "lz4",                           .version = LZ4_VERSION_STRING,         .license = licenseBSD2,          .repoURL = "https://github.com/lz4/lz4",                     .licenseURL = "https://github.com/lz4/lz4/blob/dev/lib/LICENSE",                        .homeURL = "https://lz4.org/",},
     {.name = "lzma",                          .version = LZMA_VERSION,               .license = licensePublicDomain,                                                                                                                                                       .homeURL = "https://www.7-zip.org/sdk.html",},
     {.name = "mio",                           .version = MIO_VERSION,                .license = licenseMIT,           .repoURL = "https://github.com/StrikerX3/mio",               .licenseURL = "https://github.com/StrikerX3/mio/blob/master/LICENSE"},
+    {.name = "miniz",                         .version = MZ_VERSION,                 .license = licenseMIT,           .repoURL = "https://github.com/richgel999/miniz",            .licenseURL = "https://github.com/richgel999/miniz/blob/master/LICENSE"},
     {.name = "moodycamel::\nConcurrentQueue", .version = "\n" MC_CONCQUEUE_VERSION,  .license = licenseBSD2,          .repoURL = "https://github.com/cameron314/concurrentqueue",  .licenseURL = "https://github.com/cameron314/concurrentqueue/blob/master/LICENSE.md"},
     {.name = "Neargye/semver",                .version = SEMVER_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/Neargye/semver",              .licenseURL = "https://github.com/Neargye/semver/blob/master/LICENSE"},
     {.name = "nghttp2",                       .version = NGHTTP2_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/nghttp2/nghttp2",             .licenseURL = "https://github.com/nghttp2/nghttp2/blob/master/COPYING",                 .homeURL = "https://nghttp2.org/"},
