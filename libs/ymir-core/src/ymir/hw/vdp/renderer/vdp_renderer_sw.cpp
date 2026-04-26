@@ -4907,20 +4907,21 @@ SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, VRAMFetcher &vramF
     const uint32 dotOffset = dotX + dotY * linePitch;
 
     auto fetchCharData = [&](uint32 address) {
-        const uint32 bank = (address >> 17u) & 3u;
-        if (!bgParams.charPatAccess[bank]) {
-            vramFetcher.charData.fill(0);
-            return;
-        }
-
         if (vramFetcher.UpdateCharacterDataAddress(address)) {
+            const uint32 bank = (address >> 17u) & 3u;
+            if (!bgParams.charPatAccess[bank]) {
+                util::WriteNE<uint64>(vramFetcher.charData.data(), 0);
+                return;
+            }
+
             if (bgParams.bitmap) {
                 address += bgParams.vramDataOffset[bank];
             }
 
             // TODO: handle VRSIZE.VRAMSZ
             auto &vram = VDP2GetRendererVRAM();
-            std::copy_n(&vram[address & 0x7FFF8], 8, vramFetcher.charData.begin());
+            const uint64 data = util::ReadNE<uint64>(&vram[address & 0x7FFF8]);
+            util::WriteNE<uint64>(vramFetcher.charData.data(), data);
         }
     };
 
