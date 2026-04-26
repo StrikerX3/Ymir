@@ -2050,14 +2050,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y,
         // Current coefficient address (16.10)
         uint32 KA = state.KA;
 
-        // Current sprite coordinates (13.10)
-        sint32 sprX;
-        sint32 sprY;
-        if (regs1.fbRotEnable && i == 0) {
-            sprX = t.Xst + y * t.deltaXst;
-            sprY = t.Yst + y * t.deltaYst;
-        }
-
         const bool doubleResH = regs2.TVMD.HRESOn & 0b010;
         const uint32 xShift = doubleResH ? 1 : 0;
         const uint32 maxX = m_HRes >> xShift;
@@ -2077,10 +2069,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y,
             coeff = VDP2FetchRotationCoefficient(regs2, params, KA);
         }
 
-        // Precompute whole line
-        for (uint32 x = 0; x < maxX; x++) {
-            // Process coefficient table
-            if (params.coeffTableEnable) {
+        // Precompute whole line of screen coordinates
+        if (params.coeffTableEnable && perDotCoeff) {
+            for (uint32 x = 0; x < maxX; x++) {
+                // Process coefficient table
                 lineOut.transparent[x] = coeff.transparent;
 
                 // Replace parameters with those obtained from the coefficient table if enabled
@@ -2098,55 +2090,95 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y,
                     lineOut.lineColor[x] = VDP2ReadRendererColor5to8(cramAddress * sizeof(uint16));
                 }
 
-                // Increment coefficient table address by Hcnt if using per-dot coefficients
-                if (perDotCoeff) {
-                    KA += t.dKAx;
-                    if (VDP2CanFetchCoefficient(regs2, params, KA)) {
-                        coeff = VDP2FetchRotationCoefficient(regs2, params, KA);
-                    }
+                // Increment coefficient table address by Hcnt since we're using per-dot coefficients
+                KA += t.dKAx;
+                if (VDP2CanFetchCoefficient(regs2, params, KA)) {
+                    coeff = VDP2FetchRotationCoefficient(regs2, params, KA);
+                }
+
+                // Resulting screen coordinates (26.0)
+                // (16*10) + 10 = 26 + 10 frac bits
+                // (24*28) + 28 = 52 + 28 total bits
+                // reduce 26 to 10 frac bits
+                // = 10 + 10 = 10 frac bits
+                // = 36 + 28 = 36 total bits
+                // remove frac bits from result = 26 total bits
+#if (defined(_M_X64) || defined(__x86_64__)) && defined(__SSE4_1__)
+                {
+                    const __m128i XYp = _mm_set_epi64x(Yp, Xp);
+                    const __m128i kxy = _mm_set_epi64x(ky, kx);
+                    const __m128i scrXY = _mm_set_epi64x(scrY, scrX);
+
+                    // SSE2 doesn't have a 2x 32 -> 64 signed multiplication operation, only unsigned.
+                    // We need the 64-bit signed result from _mm_mul_epi32 which requires SSE 4.1
+                    // Converting the unsigned result to signed is too expensive; the fallback is faster.
+
+                    // Multiply 2x int32 (slots 0 and 2) -> 2x int64 then work from there
+                    __m128i result = _mm_mul_epi32(kxy, scrXY); // kx * scrX, ky * scrY (2x 64-bit)
+                    result = _mm_srli_epi64(result, 16);        // (kx * scrX, ky * scrY) >> 16
+                    result = _mm_add_epi64(result, XYp);        // .. + Xp,Yp
+                    result = _mm_srli_epi64(result, 10);        // .. >> 10
+
+                    // Compress 2x 64-bit results into low 2x 32-bit slots
+                    result = _mm_shuffle_epi32(result, _MM_SHUFFLE(3, 1, 2, 0));
+
+                    // Write out
+                    _mm_storel_epi64((__m128i *)&lineOut.screenCoords[x], result);
+                }
+                // TODO: ARM NEON equivalent, if faster
+#else
+                lineOut.screenCoords[x].x() = (((kx * scrX) >> 16) + Xp) >> 10;
+                lineOut.screenCoords[x].y() = (((ky * scrY) >> 16) + Yp) >> 10;
+#endif
+
+                // Increment screen coordinates and coefficient table address by Hcnt
+                scrX += scrXIncH;
+                scrY += scrYIncH;
+            }
+        } else {
+            if (params.coeffTableEnable) {
+                using enum CoefficientDataMode;
+                switch (params.coeffDataMode) {
+                case ScaleCoeffXY: kx = ky = coeff.value; break;
+                case ScaleCoeffX: kx = coeff.value; break;
+                case ScaleCoeffY: ky = coeff.value; break;
+                case ViewpointX: Xp = coeff.value << 2; break;
                 }
             }
 
-            // Resulting screen coordinates (26.0)
-            // (16*10) + 10 = 26 + 10 frac bits
-            // (24*28) + 28 = 52 + 28 total bits
-            // reduce 26 to 10 frac bits
-            // = 10 + 10 = 10 frac bits
-            // = 36 + 28 = 36 total bits
-            // remove frac bits from result = 26 total bits
-#if (defined(_M_X64) || defined(__x86_64__)) && defined(__SSE4_1__)
-            {
-                const __m128i XYp = _mm_set_epi64x(Yp, Xp);
-                const __m128i kxy = _mm_set_epi64x(ky, kx);
-                const __m128i scrXY = _mm_set_epi64x(scrY, scrX);
+            std::fill_n(lineOut.transparent.begin(), maxX, coeff.transparent);
 
-                // SSE2 doesn't have a 2x 32 -> 64 signed multiplication operation, only unsigned.
-                // We need the 64-bit signed result from _mm_mul_epi32 which requires SSE 4.1
-                // Converting the unsigned result to signed is too expensive; the fallback is faster.
-
-                // Multiply 2x int32 (slots 0 and 2) -> 2x int64 then work from there
-                __m128i result = _mm_mul_epi32(kxy, scrXY); // kx * scrX, ky * scrY (2x 64-bit)
-                result = _mm_srli_epi64(result, 16);        // (kx * scrX, ky * scrY) >> 16
-                result = _mm_add_epi64(result, XYp);        // .. + Xp,Yp
-                result = _mm_srli_epi64(result, 10);        // .. >> 10
-
-                // Compress 2x 64-bit results into low 2x 32-bit slots
-                result = _mm_shuffle_epi32(result, _MM_SHUFFLE(3, 1, 2, 0));
-
-                // Write out
-                _mm_storel_epi64((__m128i *)&lineOut.screenCoords[x], result);
+            // Compute line colors
+            if (params.coeffUseLineColorData) {
+                const uint32 cramAddress = baseLineColorData | coeff.lineColorData;
+                std::fill_n(lineOut.lineColor.begin(), maxX, VDP2ReadRendererColor5to8(cramAddress * sizeof(uint16)));
             }
-            // TODO: ARM NEON equivalent, if faster
-#else
-            lineOut.screenCoords[x].x() = (((kx * scrX) >> 16) + Xp) >> 10;
-            lineOut.screenCoords[x].y() = (((ky * scrY) >> 16) + Yp) >> 10;
-#endif
 
-            // Increment screen coordinates and coefficient table address by Hcnt
-            scrX += scrXIncH;
-            scrY += scrYIncH;
+            for (uint32 x = 0; x < maxX; x++) {
+                // Resulting screen coordinates (26.0)
+                // (16*10) + 10 = 26 + 10 frac bits
+                // (24*28) + 28 = 52 + 28 total bits
+                // reduce 26 to 10 frac bits
+                // = 10 + 10 = 10 frac bits
+                // = 36 + 28 = 36 total bits
+                // remove frac bits from result = 26 total bits
+                // NOTE: SIMD doesn't seem beneficial here
+                lineOut.screenCoords[x].x() = (((kx * scrX) >> 16) + Xp) >> 10;
+                lineOut.screenCoords[x].y() = (((ky * scrY) >> 16) + Yp) >> 10;
 
-            if (regs1.fbRotEnable && i == 0) {
+                // Increment screen coordinates and coefficient table address by Hcnt
+                scrX += scrXIncH;
+                scrY += scrYIncH;
+            }
+        }
+
+        // Precompute whole line of sprite coordinates
+        if (regs1.fbRotEnable && i == 0) {
+            // Current sprite coordinates (13.10)
+            sint32 sprX = t.Xst + y * t.deltaXst;
+            sint32 sprY = t.Yst + y * t.deltaYst;
+
+            for (uint32 x = 0; x < maxX; x++) {
                 // Resulting sprite coordinates (13.0)
                 lineOut.spriteCoords[x].x() = sprX >> 10ll;
                 lineOut.spriteCoords[x].y() = sprY >> 10ll;
