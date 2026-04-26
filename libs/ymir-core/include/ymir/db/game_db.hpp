@@ -61,6 +61,8 @@ struct GameInfo {
         // - FastMC68EC000: advanced bus timing emulation on the SH2 and SCSP sides, probably
         // - StallVDP1OnVRAMWrites: advanced bus timing emulation plus accurate VDP1 timings
         // - SlowVDP1: accurate VDP1 timings
+        //   - note that having the flag enabled *is* the accurate choice, but is disabled by default because otherwise
+        //     VDP1 command timing estimates are too conservative, resulting in slow downs in many games
         // - RelaxedVDP2BitmapCPAccessChecks: in some cases, SCU DMA timings; generally speaking, advanced bus timings
         // - SkipEmptyVDP1Table: accurate VDP1 timings
     };
