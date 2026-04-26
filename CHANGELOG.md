@@ -8,15 +8,15 @@ Uses save state file version 12.
 
 ### New features and improvements
 
-- VDP1: Disable early polygon drawing termination when rendering polygons when user clipping mode is inverted. Fixes clipped polygons around the minimap in Machine Head (#767).
-- VDP2: Various performance microoptimizations to the software renderer.
+- VDP2: Various performance microoptimizations to the software renderer, improving performance in graphics-bound games (especially in high resolution modes).
 
 ### Fixes
 
 - Debugger: Various SH2 stack analysis fixes.
 - SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)
 - VDP1: Add game-specific flag for skipping command processing if the top of the table is empty. Enable it exclusively for Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. Fixes missing graphics in Gungriffon. (#810)
-- VDP2: Apply color calculations to transparent sprite mesh layer 0. Fixes stripes on ground plane in Gungriffon.
+- VDP1: Disable early polygon drawing termination when rendering polygons when user clipping mode is inverted. Fixes clipped polygons around the minimap in Machine Head (#767).
+- VDP2: Apply color calculations to transparent sprite mesh on layer 0. Fixes stripes on ground plane in Gungriffon.
 - VDP2: Fix VRAM access calculations when RBG1 is enabled. Fix missing car graphics regression in Gale Racer. (#359)
 - VDP2: Fix and use line color screen calculation ratio when LNCL is inserted. Fixes text background issues in Doukoku Soshite. (#502)
 
