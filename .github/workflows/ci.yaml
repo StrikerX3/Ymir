@@ -103,9 +103,9 @@ jobs:
       matrix:
         arch:
           - name: x64
-            runner: ubuntu-22.04
+            runner: ubuntu-24.04
           - name: a64
-            runner: ubuntu-22.04-arm
+            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -130,30 +130,30 @@ jobs:
             libxtst-dev libxkbcommon-dev libdrm-dev \
             libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
             libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev \
-            libudev-dev mono-complete nuget clang-15 \
+            libudev-dev mono-complete libltdl-dev clang-18 \
             autoconf autoconf-archive automake
 
       - name: Bootstrap vcpkg
         shell: bash
         run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
 
-      - name: Add NuGet sources to vcpkg
-        shell: bash
-        run: |
-          nuget sources add \
-            -Source "${{ env.FEED_URL }}" \
-            -StorePasswordInClearText \
-            -Name GitHubPackages \
-            -UserName "${{ env.USERNAME }}" \
-            -Password "${{ secrets.GITHUB_TOKEN }}"
-          nuget setapikey "${{ secrets.GITHUB_TOKEN }}" \
-            -Source "${{ env.FEED_URL }}"
+      - name: Restore cached vcpkg packages
+        id: cache-vcpkg-restore
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: |
+            ./vcpkg/buildtrees
+            ./vcpkg/packages
+            ./vcpkg/installed
+          key: linux-${{ matrix.arch.name }}-vcpkg
 
       - name: Configure CMake
+        env:
+          VCPKG_BINARY_SOURCES: 'clear'
         run: >
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=clang++-15
-          -DCMAKE_C_COMPILER=clang-15
+          -DCMAKE_CXX_COMPILER=clang++-18
+          -DCMAKE_C_COMPILER=clang-18
           -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
           -DBUILD_SHARED_LIBS=OFF
@@ -165,6 +165,16 @@ jobs:
           -DYmir_ENABLE_IPO=OFF
           -S ${{ github.workspace }}
           -G Ninja
+
+      - name: Cache vcpkg packages
+        id: cache-vcpkg-save
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: |
+            ./vcpkg/buildtrees
+            ./vcpkg/packages
+            ./vcpkg/installed
+          key: ${{ steps.cache-vcpkg-restore.outputs.cache-primary-key }}
 
       - name: Build
         run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --parallel
