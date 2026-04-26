@@ -3914,15 +3914,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         for (uint32 x = 0; Color888 &outputColor : framebufferOutput) {
             if (layer0ColorOffsetEnabled[x]) {
                 const auto &colorOffset = regs.colorOffset[regs.colorOffsetSelect[scanline_layers[x][0]]];
-                outputColor.u32 =
-                    Color888{
-                        .r = kColorOffsetLUT[colorOffset.r][outputColor.r],
-                        .g = kColorOffsetLUT[colorOffset.g][outputColor.g],
-                        .b = kColorOffsetLUT[colorOffset.b][outputColor.b],
-                        .pad = 0,
-                        .msb = 0,
-                    }
-                        .u32;
+                const Color888 result{
+                    .r = kColorOffsetLUT[colorOffset.r][outputColor.r],
+                    .g = kColorOffsetLUT[colorOffset.g][outputColor.g],
+                    .b = kColorOffsetLUT[colorOffset.b][outputColor.b],
+                    .pad = 0,
+                    .msb = 0,
+                };
+                outputColor = result;
             }
             ++x;
         }
