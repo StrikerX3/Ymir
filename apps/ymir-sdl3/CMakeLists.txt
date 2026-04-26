@@ -505,8 +505,3 @@ if (MSVC)
     set_target_properties(ymir-sdl3 PROPERTIES FOLDER "Ymir")
     set_target_properties(ymir-sdl3-rc PROPERTIES FOLDER "Ymir")
 endif ()
-
-## Include the install rules if requested
-if (Ymir_INCLUDE_PACKAGING)
-    add_subdirectory(packaging)
-endif ()

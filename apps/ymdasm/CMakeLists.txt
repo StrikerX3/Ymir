@@ -53,8 +53,3 @@ if (MSVC)
     vs_set_filters(TARGET ymdasm)
     set_target_properties(ymdasm PROPERTIES FOLDER "Ymir")
 endif ()
-
-## Include the install rules if requested
-if (Ymir_INCLUDE_PACKAGING)
-    add_subdirectory(packaging)
-endif ()

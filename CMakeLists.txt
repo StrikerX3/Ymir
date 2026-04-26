@@ -12,7 +12,6 @@ include(cmake/TargetConditionalSources.cmake)
 ## Determine if this is a top-level build or included as a subproject
 string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" is_top_level)
 
-option(Ymir_INCLUDE_PACKAGING "Include packaging rules for Ymir" "${is_top_level}")
 option(Ymir_DEV_BUILD "Mark as a development build" ON)
 option(Ymir_EXTRA_INLINING "Enable more aggressive inlining (slows down build!)" "${is_top_level}")
 option(Ymir_ENABLE_TESTS "Enable tests for Ymir" "${is_top_level}")
@@ -121,11 +120,6 @@ ymir_configure_pgo()
 ## Include project libraries and apps
 add_subdirectory(libs)
 add_subdirectory(apps)
-
-## Include the install rules if the user wanted them (included by default when top-level)
-if (Ymir_INCLUDE_PACKAGING)
-    add_subdirectory(packaging)
-endif ()
 
 ## Include the unit tests if the user wanted them (included by default when top-level)
 if (Ymir_ENABLE_TESTS)
