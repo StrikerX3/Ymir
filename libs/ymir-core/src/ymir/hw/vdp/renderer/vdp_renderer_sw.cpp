@@ -2143,14 +2143,15 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y,
                 case ScaleCoeffY: ky = coeff.value; break;
                 case ViewpointX: Xp = coeff.value << 2; break;
                 }
-            }
 
-            std::fill_n(lineOut.transparent.begin(), maxX, coeff.transparent);
+                std::fill_n(lineOut.transparent.begin(), maxX, coeff.transparent);
 
-            // Compute line colors
-            if (params.coeffUseLineColorData) {
-                const uint32 cramAddress = baseLineColorData | coeff.lineColorData;
-                std::fill_n(lineOut.lineColor.begin(), maxX, VDP2ReadRendererColor5to8(cramAddress * sizeof(uint16)));
+                // Compute line colors
+                if (params.coeffUseLineColorData) {
+                    const uint32 cramAddress = baseLineColorData | coeff.lineColorData;
+                    std::fill_n(lineOut.lineColor.begin(), maxX,
+                                VDP2ReadRendererColor5to8(cramAddress * sizeof(uint16)));
+                }
             }
 
             for (uint32 x = 0; x < maxX; x++) {
