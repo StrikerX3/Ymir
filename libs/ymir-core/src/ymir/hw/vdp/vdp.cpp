@@ -2,7 +2,6 @@
 
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/dev_log.hpp>
-#include <ymir/util/thread_name.hpp>
 
 namespace ymir::vdp {
 

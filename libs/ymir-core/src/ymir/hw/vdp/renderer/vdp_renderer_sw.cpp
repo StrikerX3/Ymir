@@ -3,12 +3,10 @@
 #include <ymir/util/constexpr_for.hpp>
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/inline.hpp>
-#include <ymir/util/scope_guard.hpp>
 #include <ymir/util/thread_name.hpp>
 #include <ymir/util/unreachable.hpp>
 
 #include <algorithm>
-#include <bit>
 #include <cassert>
 #include <limits>
 
