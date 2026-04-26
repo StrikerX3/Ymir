@@ -16,6 +16,10 @@ env:
   FEED_URL: https://nuget.pkg.github.com/StrikerX3/index.json
   VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/StrikerX3/index.json,readwrite"
 
+permissions:
+  packages: write
+  contents: read
+
 jobs:
   build-windows:
     name: windows-${{ matrix.arch.name }}
