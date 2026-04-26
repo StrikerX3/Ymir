@@ -221,7 +221,7 @@ jobs:
           Copy-Item -Path ".\vendor\concurrentqueue\concurrentqueue\LICENSE.md" -Destination "$licensesDir\concurrentqueue-LICENSE.md"
           Copy-Item -Path ".\vendor\imgui\imgui\LICENSE.txt"                    -Destination "$licensesDir\imgui-LICENSE.txt"
           Copy-Item -Path ".\vendor\libchdr\libchdr\LICENSE.txt"                -Destination "$licensesDir\libchdr-LICENSE.txt"
-          Copy-Item -Path ".\vendor\libchdr\libchdr\deps\lzma-24.05\LICENSE"    -Destination "$licensesDir\lzma-LICENSE"
+          Copy-Item -Path ".\vendor\libchdr\libchdr\deps\lzma-25.01\LICENSE"    -Destination "$licensesDir\lzma-LICENSE"
           Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                        -Destination "$licensesDir\lz4-LICENSE"
           Copy-Item -Path ".\vendor\mio\LICENSE"                                -Destination "$licensesDir\mio-LICENSE"
           Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                      -Destination "$licensesDir\xxHash-LICENSE"
@@ -373,7 +373,7 @@ jobs:
           cp -f vendor/concurrentqueue/concurrentqueue/LICENSE.md licenses/concurrentqueue-LICENSE.md
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/libchdr/LICENSE.txt                licenses/libchdr-LICENSE.txt
-          cp -f vendor/libchdr/libchdr/deps/lzma-24.05/LICENSE    licenses/lzma-LICENSE
+          cp -f vendor/libchdr/libchdr/deps/lzma-25.01/LICENSE    licenses/lzma-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
@@ -503,7 +503,7 @@ jobs:
           cp -f vendor/concurrentqueue/concurrentqueue/LICENSE.md licenses/concurrentqueue-LICENSE.md
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/libchdr/LICENSE.txt                licenses/libchdr-LICENSE.txt
-          cp -f vendor/libchdr/libchdr/deps/lzma-24.05/LICENSE    licenses/lzma-LICENSE
+          cp -f vendor/libchdr/libchdr/deps/lzma-25.01/LICENSE    licenses/lzma-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
