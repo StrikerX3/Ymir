@@ -981,6 +981,8 @@ void VDP::VDP1BeginFrame() {
         m_renderer->VDP1BeginFrame();
 
         m_VDP1CtlState.drawing = true;
+        m_VDP1CtlState.lastJumpAddress = 0xFFFFFFFF;
+        m_VDP1CtlState.loopCount = 0;
     } else {
         devlog::warn<grp::vdp1_cmd>("Possible empty command table found; aborting");
     }
@@ -1033,10 +1035,21 @@ uint64 VDP::VDP1ProcessCommand() {
         const uint32 nextCmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
         devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", nextCmdAddress);
 
+        // Simple check for infinite loops
+        // - Gale Racer stage 1-2 (Mojave Desert) creates an infinite loop at 05140 with the jump at 05280
+        if (nextCmdAddress == m_VDP1CtlState.lastJumpAddress) {
+            ++m_VDP1CtlState.loopCount;
+        } else {
+            m_VDP1CtlState.loopCount = 0;
+            m_VDP1CtlState.lastJumpAddress = nextCmdAddress;
+        }
+
+        static constexpr uint32 kMaxLoopIterations = 32;
+
         // HACK: Avoid infinite loops
         // - Sonic R attempts to jump back to 0 in some cases
         // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
-        if (nextCmdAddress == 0 || nextCmdAddress == cmdAddress) {
+        if (nextCmdAddress == 0 || nextCmdAddress == cmdAddress || m_VDP1CtlState.loopCount >= kMaxLoopIterations) {
             devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
             VDP1EndFrame();
             return cycles;

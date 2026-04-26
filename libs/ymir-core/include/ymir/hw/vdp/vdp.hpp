@@ -404,6 +404,8 @@ private:
             doDisplayErase = false;
             doVBlankErase = false;
             spilloverCycles = 0;
+
+            lastJumpAddress = 0xFFFFFFFF;
         }
 
         // Is the VDP1 currently drawing?
@@ -415,6 +417,10 @@ private:
         // Command processing cycles spilled over from previous executions.
         // Deducted from future executions to compensate for overshooting the target cycle count.
         uint64 spilloverCycles;
+
+        // Infinite loop detection
+        uint32 lastJumpAddress; // target address of the last Jump To command
+        uint32 loopCount;       // number of jumps taken to the same address
     } m_VDP1CtlState;
 
     // Hacky VDP1 command execution timing penalty accrued from external writes to VRAM
