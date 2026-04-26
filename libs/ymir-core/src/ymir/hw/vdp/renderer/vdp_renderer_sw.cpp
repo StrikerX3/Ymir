@@ -2790,6 +2790,12 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, const VDP2Re
     if (!m_state.state2.layerEnabled[bgIndex + 1]) {
         return;
     }
+    if constexpr (bgIndex == 1) {
+        // RBG1 must be explicitly enabled
+        if (!m_state.regs2.bgEnabled[5]) {
+            return;
+        }
+    }
 
     const BGParams &bgParams = regs2.bgParams[bgIndex];
     LayerOutput &layerOut = m_layerOutputs[altField][bgIndex + 1];
