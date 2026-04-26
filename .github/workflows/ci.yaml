@@ -35,9 +35,7 @@ jobs:
 
     steps:
       # Set up MASM for lzma
-      #- uses: glslang/setup-masm@83f52fc3599c361e8428805627dc749f2717ce75
-      #  if: ${{ matrix.arch.name == 'x64' }}
-      - uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57
+      - uses: glslang/setup-masm@24a9c9d6949cb1d8fedd35c9bd3c974fde2b81b8
         if: ${{ matrix.arch.name == 'x64' }}
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
