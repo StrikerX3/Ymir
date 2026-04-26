@@ -3618,26 +3618,15 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
             continue;
         }
 
-        for (uint32 x = 0; x < m_HRes; x++) {
-            if (output.pixels.transparent[x]) {
-                continue;
-            }
-            const uint8 priority = output.pixels.priority[x];
-            if (priority == 0) {
-                continue;
-            }
-            if (layer == LYR_Sprite) {
-                if (m_spriteLayerAttrs[altField].normalShadow[x]) {
-                    continue;
-                }
-            }
+        const uint8 layerKey = layer ^ 7u;
 
+        auto push = [&](uint32 x, uint8 priority) {
             // Insert the layer into the appropriate position in the stack
             // - Higher priority beats lower priority
             // - If same priority, lower Layer index beats higher Layer index
             // - Index 0 is topmost (first) layer
             auto &entry = layerSortOrder[x];
-            const uint8 key = (layer ^ 7u) | (priority << 3u);
+            const uint8 key = layerKey | (priority << 3u);
             for (int i = 0; i < 3; i++) {
                 if (key > entry[i]) {
                     // Push layers back
@@ -3647,6 +3636,35 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                     entry[i] = key;
                     break;
                 }
+            }
+        };
+
+        if (layer == LYR_Sprite) {
+            for (uint32 x = 0; x < m_HRes; x++) {
+                if (output.pixels.transparent[x]) {
+                    continue;
+                }
+                const uint8 priority = output.pixels.priority[x];
+                if (priority == 0) {
+                    continue;
+                }
+                if (m_spriteLayerAttrs[altField].normalShadow[x]) {
+                    continue;
+                }
+
+                push(x, priority);
+            }
+        } else {
+            for (uint32 x = 0; x < m_HRes; x++) {
+                if (output.pixels.transparent[x]) {
+                    continue;
+                }
+                const uint8 priority = output.pixels.priority[x];
+                if (priority == 0) {
+                    continue;
+                }
+
+                push(x, priority);
             }
         }
     }
