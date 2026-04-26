@@ -3966,6 +3966,13 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                     overlayColor = overlay.layerColors[layerNum];
                     break;
                 }
+                case OverlayType::PriorityStack: //
+                {
+                    const uint8 layerLevel = overlay.priorityStackIndex < 3 ? overlay.priorityStackIndex : 0;
+                    const uint32 layerNum = static_cast<uint32>(scanline_layerPrios[x][layerLevel]);
+                    overlayColor = overlay.priorityColors[layerNum];
+                    break;
+                }
                 case OverlayType::Windows: //
                 {
                     const uint8 layerIndex = overlay.windowLayerIndex;

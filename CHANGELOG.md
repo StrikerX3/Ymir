@@ -8,6 +8,7 @@ Uses save state file version 12.
 
 ### New features and improvements
 
+- Debugger: Add Priority Stack to VDP2 debug overlay.
 - VDP2: Various performance microoptimizations to the software renderer, improving performance in graphics-bound games (especially in high resolution modes).
 
 ### Fixes

@@ -28,6 +28,7 @@ void VDP2DebugOverlayView::Display() {
         case OverlayType::None: return "No overlay";
         case OverlayType::SingleLayer: return "Single layer";
         case OverlayType::LayerStack: return "Layer stack";
+        case OverlayType::PriorityStack: return "Priority stack";
         case OverlayType::Windows: return "Windows";
         case OverlayType::RotParams: return "RBG0 rotation parameters";
         case OverlayType::ColorCalc: return "Color calculations";
@@ -65,6 +66,7 @@ void VDP2DebugOverlayView::Display() {
         option(OverlayType::None);
         option(OverlayType::SingleLayer);
         option(OverlayType::LayerStack);
+        option(OverlayType::PriorityStack);
         option(OverlayType::Windows);
         option(OverlayType::RotParams);
         option(OverlayType::ColorCalc);
@@ -113,10 +115,10 @@ void VDP2DebugOverlayView::Display() {
     }
     case OverlayType::LayerStack: //
     {
-        static constexpr uint8 kMinLayerStackIndex = 0;
-        static constexpr uint8 kMaxLayerStackIndex = 2;
-        ImGui::SliderScalar("Layer level##vdp2_overlay", ImGuiDataType_U8, &overlay.layerStackIndex,
-                            &kMinLayerStackIndex, &kMaxLayerStackIndex, nullptr, ImGuiSliderFlags_AlwaysClamp);
+        static constexpr uint8 kMinStackIndex = 0;
+        static constexpr uint8 kMaxStackIndex = 2;
+        ImGui::SliderScalar("Layer level##vdp2_overlay_layer_stack", ImGuiDataType_U8, &overlay.layerStackIndex,
+                            &kMinStackIndex, &kMaxStackIndex, nullptr, ImGuiSliderFlags_AlwaysClamp);
         colorPicker("Sprite##layer_stack", overlay.layerColors[0]);
         colorPicker("RBG0##layer_stack", overlay.layerColors[1]);
         colorPicker("NBG0/RBG1##layer_stack", overlay.layerColors[2]);
@@ -125,6 +127,17 @@ void VDP2DebugOverlayView::Display() {
         colorPicker("NBG3##layer_stack", overlay.layerColors[5]);
         colorPicker("Back##layer_stack", overlay.layerColors[6]);
         // colorPicker("Line color", overlay.layerColors[7]);
+        break;
+    }
+    case OverlayType::PriorityStack: //
+    {
+        static constexpr uint8 kMinStackIndex = 0;
+        static constexpr uint8 kMaxStackIndex = 2;
+        ImGui::SliderScalar("Layer level##vdp2_overlay_priority_stack", ImGuiDataType_U8, &overlay.priorityStackIndex,
+                            &kMinStackIndex, &kMaxStackIndex, nullptr, ImGuiSliderFlags_AlwaysClamp);
+        for (uint32 i = 0; i < 8; ++i) {
+            colorPicker(fmt::format("{}##layer_stack", i).c_str(), overlay.priorityColors[i]);
+        }
         break;
     }
     case OverlayType::Windows: //

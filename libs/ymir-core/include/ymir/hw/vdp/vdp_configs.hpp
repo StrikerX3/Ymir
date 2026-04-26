@@ -44,13 +44,14 @@ struct VDP2DebugRender {
     // Debug overlay alpha blended on top of the final composite image
     struct Overlay {
         enum class Type {
-            None,        // No overlay is applied
-            SingleLayer, // Display raw contents of a single layer
-            LayerStack,  // Colorize by layer on a level of the stack
-            Windows,     // Colorize by window state (one layer or custom setup)
-            RotParams,   // Colorize by rotation parameters on RBG0
-            ColorCalc,   // Colorize by color calculation flag/mode
-            Shadow,      // Colorize by shadow flag
+            None,          // No overlay is applied
+            SingleLayer,   // Display raw contents of a single layer
+            LayerStack,    // Colorize by layer on a level of the stack
+            PriorityStack, // Colorize by priority on a level of the stack
+            Windows,       // Colorize by window state (one layer or custom setup)
+            RotParams,     // Colorize by rotation parameters on RBG0
+            ColorCalc,     // Colorize by color calculation flag/mode
+            Shadow,        // Colorize by shadow flag
         } type = Type::None;
 
         // Whether to render the debug overlay.
@@ -94,6 +95,23 @@ struct VDP2DebugRender {
             {.r = 0x00, .g = 0xFF, .b = 0x00},
             {.r = 0xFF, .g = 0x00, .b = 0x00},
             {.r = 0x00, .g = 0x00, .b = 0x00},
+        }};
+
+        // Which priority stack level to draw when using PriorityStack overlay.
+        // 0=top, 1=middle, 2=bottom.
+        // Any other value defaults to 0.
+        uint8 priorityStackIndex = 0;
+
+        // Colors for each priority
+        std::array<Color888, 8> priorityColors{{
+            {.r = 0x00, .g = 0x00, .b = 0x00},
+            {.r = 0xFF, .g = 0x00, .b = 0x00},
+            {.r = 0x00, .g = 0xFF, .b = 0x00},
+            {.r = 0xFF, .g = 0xFF, .b = 0x00},
+            {.r = 0x00, .g = 0x00, .b = 0xFF},
+            {.r = 0xFF, .g = 0x00, .b = 0xFF},
+            {.r = 0x00, .g = 0xFF, .b = 0xFF},
+            {.r = 0xFF, .g = 0xFF, .b = 0xFF},
         }};
 
         // Which layer to display the window state of.
