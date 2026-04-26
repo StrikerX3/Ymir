@@ -1902,18 +1902,17 @@ FORCE_INLINE std::array<uint8, kVDP2VRAMSize> &SoftwareVDPRenderer::VDP2GetVRAM(
 void SoftwareVDPRenderer::VDP2InitFrame() {
     const VDP2Regs &regs2 = VDP2GetRegs();
     if (!regs2.bgEnabled[5]) {
-        VDP2InitNormalBG<0>();
+        VDP2InitNormalBG<0>(regs2);
     }
-    VDP2InitNormalBG<1>();
-    VDP2InitNormalBG<2>();
-    VDP2InitNormalBG<3>();
+    VDP2InitNormalBG<1>(regs2);
+    VDP2InitNormalBG<2>(regs2);
+    VDP2InitNormalBG<3>(regs2);
 }
 
 template <uint32 index>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2InitNormalBG() {
+FORCE_INLINE void SoftwareVDPRenderer::VDP2InitNormalBG(const VDP2Regs &regs2) {
     static_assert(index < 4, "Invalid NBG index");
 
-    const VDP2Regs &regs2 = VDP2GetRegs();
     VDP2State &state2 = m_state.state2;
     const BGParams &bgParams = regs2.bgParams[index + 1];
     NBGLayerState &bgState = state2.nbgLayerStates[index];
@@ -1934,18 +1933,16 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateEnabledBGs() {
     m_state.state2.UpdateEnabledBGs(VDP2GetRegs(), m_vdp2DebugRenderOptions);
 }
 
-FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScrollParams(uint32 y) {
-    VDP2Regs &regs2 = VDP2GetRegs();
-
+FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScrollParams(uint32 y, const VDP2Regs &regs2) {
     for (uint32 i = 0; i < 2; ++i) {
         const BGParams &bgParams = regs2.bgParams[i + 1];
         NBGLayerState &bgState = m_state.state2.nbgLayerStates[i];
-        VDP2UpdateLineScreenScroll(y, bgParams, bgState);
+        VDP2UpdateLineScreenScroll(y, regs2, bgParams, bgState);
     }
 }
 
-FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScroll(uint32 y, const BGParams &bgParams,
-                                                                  NBGLayerState &bgState) {
+FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScroll(uint32 y, const VDP2Regs &regs2,
+                                                                  const BGParams &bgParams, NBGLayerState &bgState) {
     if ((y & ((1u << bgParams.lineScrollInterval) - 1)) != 0) {
         return;
     }
@@ -1957,10 +1954,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScroll(uint32 y, cons
         return value;
     };
 
-    const VDP2Regs &regs = VDP2GetRegs();
     size_t count = 1;
-    if (regs.TVMD.LSMDn == InterlaceMode::DoubleDensity &&
-        (y > 0 || (!m_enhancements.deinterlace && regs.TVSTAT.ODD))) {
+    if (regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity &&
+        (y > 0 || (!m_enhancements.deinterlace && regs2.TVSTAT.ODD))) {
         ++count;
     }
     for (size_t i = 0; i < count; ++i) {
@@ -1977,9 +1973,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScroll(uint32 y, cons
     bgState.lineScrollTableAddress = address;
 }
 
-FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y) {
+FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y, VDP2Regs &regs2) {
     VDP1Regs &regs1 = VDP1GetRegs();
-    VDP2Regs &regs2 = VDP2GetRegs();
 
     const uint32 baseAddress = regs2.commonRotParams.baseAddress & 0xFFF7C; // mask bit 6 (shifted left by 1)
     const bool readAll = y == 0;
@@ -2078,8 +2073,11 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
         const uint32 lineColorAddress = lineParams.baseAddress + line * sizeof(uint16);
         const uint32 baseLineColorData = bit::extract<7, 10>(VDP2ReadRendererVRAM<uint16>(lineColorAddress)) << 7;
 
-        // Fetch first coefficient
-        Coefficient coeff = VDP2FetchRotationCoefficient(params, KA);
+        // Fetch first coefficient if possible
+        Coefficient coeff{};
+        if (!perDotCoeff || VDP2CanFetchCoefficient(regs2, params, KA)) {
+            coeff = VDP2FetchRotationCoefficient(regs2, params, KA);
+        }
 
         // Precompute whole line
         for (uint32 x = 0; x < maxX; x++) {
@@ -2105,8 +2103,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
                 // Increment coefficient table address by Hcnt if using per-dot coefficients
                 if (perDotCoeff) {
                     KA += t.dKAx;
-                    if (VDP2CanFetchCoefficient(params, KA)) {
-                        coeff = VDP2FetchRotationCoefficient(params, KA);
+                    if (VDP2CanFetchCoefficient(regs2, params, KA)) {
+                        coeff = VDP2FetchRotationCoefficient(regs2, params, KA);
                     }
                 }
             }
@@ -2139,31 +2137,29 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcRotationParameterTables(uint32 y)
 }
 
 template <bool deinterlace, bool altField>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindows(uint32 y) {
-    const VDP2Regs &regs = VDP2GetRegs();
-
-    y = VDP2GetY<deinterlace>(y) ^ altField;
+FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindows(uint32 y, const VDP2Regs &regs2) {
+    y = VDP2GetY<deinterlace>(y, regs2) ^ altField;
 
     // Calculate window for NBGs and RBGs
     for (int i = 0; i < 5; i++) {
-        auto &bgParams = regs.bgParams[i];
+        auto &bgParams = regs2.bgParams[i];
         auto &bgWindow = m_bgWindows[altField][i];
 
-        VDP2CalcWindow<altField>(y, bgParams.windowSet, regs.windowParams, std::span{bgWindow}.first(m_HRes));
+        VDP2CalcWindow<altField>(y, regs2, bgParams.windowSet, std::span{bgWindow}.first(m_HRes));
     }
 
     // Calculate window for rotation parameters
-    VDP2CalcWindow<altField>(y, regs.commonRotParams.windowSet, regs.windowParams,
+    VDP2CalcWindow<altField>(y, regs2, regs2.commonRotParams.windowSet,
                              std::span{m_rotParamsWindow[altField]}.first(m_HRes));
 
     // Calculate window for color calculations
-    VDP2CalcWindow<altField>(y, regs.colorCalcParams.windowSet, regs.windowParams,
+    VDP2CalcWindow<altField>(y, regs2, regs2.colorCalcParams.windowSet,
                              std::span{m_colorCalcWindow[altField]}.first(m_HRes));
 }
 
 template <bool altField, bool hasSpriteWindow>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindow(uint32 y, const WindowSet<hasSpriteWindow> &windowSet,
-                                                      const std::array<WindowParams, 2> &windowParams,
+FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindow(uint32 y, const VDP2Regs &regs2,
+                                                      const WindowSet<hasSpriteWindow> &windowSet,
                                                       std::span<bool> windowState) {
     // If no windows are enabled, consider the pixel outside of windows
     if (!std::any_of(windowSet.enabled.begin(), windowSet.enabled.end(), std::identity{})) {
@@ -2172,20 +2168,19 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindow(uint32 y, const WindowSet<
     }
 
     if (windowSet.logic == WindowLogic::And) {
-        VDP2CalcWindowLogic<altField, false>(y, windowSet, windowParams, windowState);
+        VDP2CalcWindowLogic<altField, false>(y, regs2, windowSet, windowState);
     } else {
-        VDP2CalcWindowLogic<altField, true>(y, windowSet, windowParams, windowState);
+        VDP2CalcWindowLogic<altField, true>(y, regs2, windowSet, windowState);
     }
 }
 
 template <bool altField, bool logicOR, bool hasSpriteWindow>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindowLogic(uint32 y, const WindowSet<hasSpriteWindow> &windowSet,
-                                                           const std::array<WindowParams, 2> &windowParams,
+FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindowLogic(uint32 y, const VDP2Regs &regs2,
+                                                           const WindowSet<hasSpriteWindow> &windowSet,
                                                            std::span<bool> windowState) {
     // Initialize to all inside if using AND logic or all outside if using OR logic
     std::fill(windowState.begin(), windowState.end(), !logicOR);
 
-    const VDP2Regs &regs2 = VDP2GetRegs();
     const uint16 doubleV = regs2.TVMD.LSMDn == InterlaceMode::SingleDensity;
 
     // Check normal windows
@@ -2195,7 +2190,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindowLogic(uint32 y, const Windo
             continue;
         }
 
-        const WindowParams &windowParam = windowParams[i];
+        const WindowParams &windowParam = regs2.windowParams[i];
         const bool inverted = windowSet.inverted[i];
 
         // Check vertical coordinate
@@ -2263,7 +2258,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2CalcWindowLogic(uint32 y, const Windo
         }
 
         // For normal screen modes, X coordinates don't use bit 0
-        if (VDP2GetRegs().TVMD.HRESOn < 2) {
+        if (regs2.TVMD.HRESOn < 2) {
             startX >>= 1;
             endX >>= 1;
         }
@@ -2315,11 +2310,11 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2PrepareLine(uint32 y) {
     m_state.state2.CalcAccessPatterns(regs2, m_vdp2AccessPatternsConfig);
     m_state.state2.CalcVCellScrollDelay(regs2);
     if (regs2.bgEnabled[4] || regs2.bgEnabled[5]) {
-        VDP2CalcRotationParameterTables(y);
+        VDP2CalcRotationParameterTables(y, regs2);
     }
     m_state.state2.UpdateRotationPageBaseAddresses(regs2);
-    VDP2DrawLineColorAndBackScreens(y);
-    VDP2UpdateLineScreenScrollParams(y);
+    VDP2DrawLineColorAndBackScreens(y, regs2);
+    VDP2UpdateLineScreenScrollParams(y, regs2);
 
     for (auto &field : m_vramFetchers) {
         for (auto &fetcher : field) {
@@ -2362,7 +2357,7 @@ void SoftwareVDPRenderer::VDP2DrawLine(uint32 y, bool altField) {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
 
-    using FnDrawLayer = void (SoftwareVDPRenderer::*)(uint32 y);
+    using FnDrawLayer = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &regs2);
 
     // Lookup table of sprite drawing functions
     // Indexing: [colorMode][rotate][altField]
@@ -2390,52 +2385,52 @@ void SoftwareVDPRenderer::VDP2DrawLine(uint32 y, bool altField) {
 
     // Calculate window for sprite layer
     if (altField) {
-        VDP2CalcWindow<true>(VDP2GetY<deinterlace>(y) ^ static_cast<uint32>(altField), regs2.spriteParams.windowSet,
-                             regs2.windowParams, std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
+        VDP2CalcWindow<true>(VDP2GetY<deinterlace>(y, regs2) ^ static_cast<uint32>(altField), regs2,
+                             regs2.spriteParams.windowSet,
+                             std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
     } else {
-        VDP2CalcWindow<false>(VDP2GetY<deinterlace>(y) ^ static_cast<uint32>(altField), regs2.spriteParams.windowSet,
-                              regs2.windowParams, std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
+        VDP2CalcWindow<false>(VDP2GetY<deinterlace>(y, regs2) ^ static_cast<uint32>(altField), regs2,
+                              regs2.spriteParams.windowSet,
+                              std::span{m_spriteLayerAttrs[altField].window}.first(m_HRes));
     }
 
     // Draw sprite layer
-    (this->*fnDrawSprite[colorMode][rotate][altField])(y);
+    (this->*fnDrawSprite[colorMode][rotate][altField])(y, regs2);
 
     // Calculate window state for all other layers
     if (altField) {
-        VDP2CalcWindows<deinterlace, true>(y);
+        VDP2CalcWindows<deinterlace, true>(y, regs2);
     } else {
-        VDP2CalcWindows<deinterlace, false>(y);
+        VDP2CalcWindows<deinterlace, false>(y, regs2);
     }
 
     // Draw background layers
     if (regs2.bgEnabled[4] && regs2.bgEnabled[5]) {
-        VDP2DrawRotationBG<0>(y, colorMode, altField); // RBG0
-        VDP2DrawRotationBG<1>(y, colorMode, altField); // RBG1
+        VDP2DrawRotationBG<0>(y, regs2, colorMode, altField); // RBG0
+        VDP2DrawRotationBG<1>(y, regs2, colorMode, altField); // RBG1
     } else {
-        VDP2DrawRotationBG<0>(y, colorMode, altField); // RBG0
-        VDP2DrawRotationBG<1>(y, colorMode, altField); // RBG1
+        VDP2DrawRotationBG<0>(y, regs2, colorMode, altField); // RBG0
+        VDP2DrawRotationBG<1>(y, regs2, colorMode, altField); // RBG1
         if (interlaced) {
-            VDP2DrawNormalBG<0, deinterlace>(y, colorMode, altField); // NBG0
-            VDP2DrawNormalBG<1, deinterlace>(y, colorMode, altField); // NBG1
-            VDP2DrawNormalBG<2, deinterlace>(y, colorMode, altField); // NBG2
-            VDP2DrawNormalBG<3, deinterlace>(y, colorMode, altField); // NBG3
+            VDP2DrawNormalBG<0, deinterlace>(y, regs2, colorMode, altField); // NBG0
+            VDP2DrawNormalBG<1, deinterlace>(y, regs2, colorMode, altField); // NBG1
+            VDP2DrawNormalBG<2, deinterlace>(y, regs2, colorMode, altField); // NBG2
+            VDP2DrawNormalBG<3, deinterlace>(y, regs2, colorMode, altField); // NBG3
         } else {
-            VDP2DrawNormalBG<0, false>(y, colorMode, altField); // NBG0
-            VDP2DrawNormalBG<1, false>(y, colorMode, altField); // NBG1
-            VDP2DrawNormalBG<2, false>(y, colorMode, altField); // NBG2
-            VDP2DrawNormalBG<3, false>(y, colorMode, altField); // NBG3
+            VDP2DrawNormalBG<0, false>(y, regs2, colorMode, altField); // NBG0
+            VDP2DrawNormalBG<1, false>(y, regs2, colorMode, altField); // NBG1
+            VDP2DrawNormalBG<2, false>(y, regs2, colorMode, altField); // NBG2
+            VDP2DrawNormalBG<3, false>(y, regs2, colorMode, altField); // NBG3
         }
     }
 
     // Compose image
-    VDP2ComposeLine<deinterlace, transparentMeshes>(y, altField);
+    VDP2ComposeLine<deinterlace, transparentMeshes>(y, regs2, altField);
 }
 
-FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawLineColorAndBackScreens(uint32 y) {
-    const VDP2Regs &regs = VDP2GetRegs();
-
+FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawLineColorAndBackScreens(uint32 y, const VDP2Regs &regs2) {
     // Read line color screen color
-    const LineBackScreenParams &lineParams = regs.lineScreenParams;
+    const LineBackScreenParams &lineParams = regs2.lineScreenParams;
     if (lineParams.perLine || y == 0) {
         const uint32 address = lineParams.baseAddress + y * sizeof(uint16);
         const uint32 cramAddress = VDP2ReadRendererVRAM<uint16>(address) * sizeof(uint16);
@@ -2443,7 +2438,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawLineColorAndBackScreens(uint32 y)
     }
 
     // Read back screen color
-    const LineBackScreenParams &backParams = regs.backScreenParams;
+    const LineBackScreenParams &backParams = regs2.backScreenParams;
     if (backParams.perLine || y == 0) {
         const uint32 address = backParams.baseAddress + y * sizeof(Color555);
         const Color555 color555{.u16 = VDP2ReadRendererVRAM<uint16>(address)};
@@ -2452,9 +2447,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawLineColorAndBackScreens(uint32 y)
 }
 
 template <uint32 colorMode, bool rotate, bool altField, bool transparentMeshes>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y, const VDP2Regs &regs2) {
     const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
 
     // VDP1 scaling:
     // 2x horz resolution: VDP1 TVM=000 and VDP2 HRESO=01x
@@ -2510,14 +2504,15 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
             spriteFBOffset = (x << xReadoutShift) + y * regs1.fbSizeH;
         }
 
-        VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, false>(xx, params, spriteFB, spriteFBOffset);
+        VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, false>(xx, regs2, params, spriteFB, spriteFBOffset);
         if (doubleResH) {
             layerOut.pixels.CopyPixel(xx, xx + 1);
             layerAttrs.CopyAttrs(xx, xx + 1);
         }
 
         if constexpr (transparentMeshes) {
-            VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, true>(xx, params, meshFB, spriteFBOffset);
+            VDP2DrawSpritePixel<colorMode, altField, transparentMeshes, true>(xx, regs2, params, meshFB,
+                                                                              spriteFBOffset);
             if (doubleResH) {
                 meshLayerOut.pixels.CopyPixel(xx, xx + 1);
                 meshLayerAttrs.CopyAttrs(xx, xx + 1);
@@ -2527,7 +2522,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y) {
 }
 
 template <uint32 colorMode, bool altField, bool transparentMeshes, bool applyMesh>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const SpriteParams &params,
+FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2Regs &regs2, const SpriteParams &params,
                                                            const SpriteFB &spriteFB, uint32 spriteFBOffset) {
     // This implies that if transparentMeshes is false, applyMesh will be always false
     static_assert(transparentMeshes || !applyMesh, "applyMesh cannot be set when transparentMeshes is disabled");
@@ -2587,7 +2582,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const Sprit
     }
 
     // Palette data
-    const SpriteData spriteData = VDP2FetchSpriteData<applyMesh>(spriteFB, spriteFBOffset);
+    const SpriteData spriteData = VDP2FetchSpriteData<applyMesh>(regs2, spriteFB, spriteFBOffset);
 
     // Handle sprite window
     if (params.useSpriteWindow && params.spriteWindowEnabled &&
@@ -2611,11 +2606,12 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const Sprit
 }
 
 template <uint32 bgIndex, bool deinterlace>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, uint32 colorMode, bool altField) {
+FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, const VDP2Regs &regs2, uint32 colorMode,
+                                                        bool altField) {
     static_assert(bgIndex < 4, "Invalid NBG index");
 
-    using FnDraw = void (SoftwareVDPRenderer::*)(uint32 y, const BGParams &, LayerOutput &, const NBGLayerState &,
-                                                 VRAMFetcher &, std::span<const bool>, bool);
+    using FnDraw = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &, const BGParams &, LayerOutput &,
+                                                 const NBGLayerState &, VRAMFetcher &, std::span<const bool>, bool);
 
     // Lookup table of scroll BG drawing functions
     // Indexing: [charMode][fourCellChar][colorFormat][colorMode]
@@ -2660,16 +2656,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, uint32 colorMo
         return;
     }
 
-    const VDP2Regs &regs = VDP2GetRegs();
-
     if constexpr (bgIndex == 0) {
         // NBG0 and RBG1 are mutually exclusive
-        if (regs.bgEnabled[5]) {
+        if (regs2.bgEnabled[5]) {
             return;
         }
     }
 
-    const BGParams &bgParams = regs.bgParams[bgIndex + 1];
+    const BGParams &bgParams = regs2.bgParams[bgIndex + 1];
     LayerOutput &layerOut = m_layerOutputs[altField][bgIndex + 2];
     const NBGLayerState &bgState = state2.nbgLayerStates[bgIndex];
     VRAMFetcher &vramFetcher = m_vramFetchers[altField][bgIndex];
@@ -2677,7 +2671,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, uint32 colorMo
 
     const uint32 cf = static_cast<uint32>(bgParams.colorFormat);
     if (bgParams.bitmap) {
-        (this->*fnDrawBitmap[cf][colorMode])(y, bgParams, layerOut, bgState, vramFetcher, windowState, altField);
+        (this->*fnDrawBitmap[cf][colorMode])(y, regs2, bgParams, layerOut, bgState, vramFetcher, windowState, altField);
     } else {
         const bool twc = bgParams.twoWordChar;
         const bool fcc = bgParams.cellSizeShift;
@@ -2685,19 +2679,20 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, uint32 colorMo
         const uint32 chm = static_cast<uint32>(twc   ? CharacterMode::TwoWord
                                                : exc ? CharacterMode::OneWordExtended
                                                      : CharacterMode::OneWordStandard);
-        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(y, bgParams, layerOut, bgState, vramFetcher, windowState,
+        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(y, regs2, bgParams, layerOut, bgState, vramFetcher, windowState,
                                                        altField);
     }
 }
 
 template <uint32 bgIndex>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, uint32 colorMode, bool altField) {
+FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, const VDP2Regs &regs2, uint32 colorMode,
+                                                          bool altField) {
     static_assert(bgIndex < 2, "Invalid RBG index");
 
-    using FnDrawScroll = void (SoftwareVDPRenderer::*)(uint32 y, const BGParams &, LayerOutput &, VRAMFetcher &,
+    using FnDrawScroll = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &, const BGParams &, LayerOutput &,
+                                                       VRAMFetcher &, std::span<const bool>, bool);
+    using FnDrawBitmap = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &, const BGParams &, LayerOutput &,
                                                        std::span<const bool>, bool);
-    using FnDrawBitmap =
-        void (SoftwareVDPRenderer::*)(uint32 y, const BGParams &, LayerOutput &, std::span<const bool>, bool);
 
     // Lookup table of scroll BG drawing functions
     // Indexing: [charMode][fourCellChar][colorFormat][colorMode]
@@ -2741,15 +2736,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, uint32 color
         return;
     }
 
-    const VDP2Regs &regs = VDP2GetRegs();
-    const BGParams &bgParams = regs.bgParams[bgIndex];
+    const BGParams &bgParams = regs2.bgParams[bgIndex];
     LayerOutput &layerOut = m_layerOutputs[altField][bgIndex + 1];
     VRAMFetcher &vramFetcher = m_vramFetchers[altField][bgIndex + 4];
     auto windowState = std::span<const bool>{m_bgWindows[altField][bgIndex]}.first(m_HRes);
 
     const uint32 cf = static_cast<uint32>(bgParams.colorFormat);
     if (bgParams.bitmap) {
-        (this->*fnDrawBitmap[cf][colorMode])(y, bgParams, layerOut, windowState, altField);
+        (this->*fnDrawBitmap[cf][colorMode])(y, regs2, bgParams, layerOut, windowState, altField);
     } else {
         const bool twc = bgParams.twoWordChar;
         const bool fcc = bgParams.cellSizeShift;
@@ -2757,7 +2751,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, uint32 color
         const uint32 chm = static_cast<uint32>(twc   ? CharacterMode::TwoWord
                                                : exc ? CharacterMode::OneWordExtended
                                                      : CharacterMode::OneWordStandard);
-        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(y, bgParams, layerOut, vramFetcher, windowState, altField);
+        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(y, regs2, bgParams, layerOut, vramFetcher, windowState,
+                                                       altField);
     }
 }
 
@@ -3519,16 +3514,15 @@ FORCE_INLINE static void Color888CompositeRatioPerPixelMasked(const std::span<Co
 }
 
 template <bool deinterlace, bool transparentMeshes>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) {
-    const VDP2Regs &regs = VDP2GetRegs();
+FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs &regs2, bool altField) {
     const VDP2State &state2 = m_state.state2;
-    const auto &colorCalcParams = regs.colorCalcParams;
+    const auto &colorCalcParams = regs2.colorCalcParams;
 
-    y = VDP2GetY<deinterlace>(y) ^ static_cast<uint32>(altField);
+    y = VDP2GetY<deinterlace>(y, regs2) ^ static_cast<uint32>(altField);
 
-    if (!regs.displayEnabledLatch || !regs.TVMD.DISP) {
+    if (!regs2.displayEnabledLatch || !regs2.TVMD.DISP) {
         uint32 color = 0xFF000000;
-        if (regs.borderColorModeLatch) {
+        if (regs2.borderColorModeLatch) {
             color |= state2.lineBackLayerState.backColor.u32;
         }
         std::fill_n(&m_framebuffer[y * m_HRes], m_HRes, color);
@@ -3650,7 +3644,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
     // Determines if color calculation is enabled for the given layer
     const auto isColorCalcEnabled = [&](LayerIndex layer, uint32 x) {
         if (layer == LYR_Sprite) {
-            const SpriteParams &spriteParams = regs.spriteParams;
+            const SpriteParams &spriteParams = regs2.spriteParams;
             if (!spriteParams.colorCalcEnable) {
                 return false;
             }
@@ -3666,9 +3660,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             default: util::unreachable();
             }
         } else if (layer == LYR_Back) {
-            return regs.backScreenParams.colorCalcEnable;
+            return regs2.backScreenParams.colorCalcEnable;
         } else {
-            return regs.bgParams[layer - LYR_RBG0].colorCalcEnable;
+            return regs2.bgParams[layer - LYR_RBG0].colorCalcEnable;
         }
     };
 
@@ -3708,23 +3702,23 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             // Sprite layer doesn't have shadow
             const auto &spriteLayerAttrs = m_spriteLayerAttrs[altField];
             const bool isNormalShadow = spriteLayerAttrs.normalShadow[x];
-            const bool isMSBShadow = !regs.spriteParams.useSpriteWindow && spriteLayerAttrs.shadowOrWindow[x];
+            const bool isMSBShadow = !regs2.spriteParams.useSpriteWindow && spriteLayerAttrs.shadowOrWindow[x];
             if (!isNormalShadow && !isMSBShadow) {
                 layer0ShadowEnabled[x] = false;
             } else {
                 switch (layer) {
                 case LYR_Sprite: layer0ShadowEnabled[x] = spriteLayerAttrs.shadowOrWindow[x]; break;
-                case LYR_Back: layer0ShadowEnabled[x] = regs.backScreenParams.shadowEnable; break;
-                default: layer0ShadowEnabled[x] = regs.bgParams[layer - LYR_RBG0].shadowEnable; break;
+                case LYR_Back: layer0ShadowEnabled[x] = regs2.backScreenParams.shadowEnable; break;
+                default: layer0ShadowEnabled[x] = regs2.bgParams[layer - LYR_RBG0].shadowEnable; break;
                 }
             }
         }
 
         // Color offset
-        if (!regs.colorOffsetEnable[layer]) {
+        if (!regs2.colorOffsetEnable[layer]) {
             layer0ColorOffsetEnabled[x] = false;
         } else {
-            const auto &colorOffset = regs.colorOffset[regs.colorOffsetSelect[layer]];
+            const auto &colorOffset = regs2.colorOffset[regs2.colorOffsetSelect[layer]];
             layer0ColorOffsetEnabled[x] = colorOffset.nonZero;
         }
     }
@@ -3732,7 +3726,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
     const std::span<Color888> framebufferOutput(reinterpret_cast<Color888 *>(&m_framebuffer[y * m_HRes]), m_HRes);
 
     if (AnyBool(std::span{layer0ColorCalcEnabled}.first(m_HRes))) {
-        const bool doubleResH = regs.TVMD.HRESOn & 0b010;
+        const bool doubleResH = regs2.TVMD.HRESOn & 0b010;
         const uint32 xShift = doubleResH ? 1 : 0;
 
         // Gather color calculation data
@@ -3753,16 +3747,16 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             // Line color
             switch (layer0) {
             case LYR_Sprite:
-                layer0LineColorEnabled[x] = regs.spriteParams.lineColorScreenEnable;
+                layer0LineColorEnabled[x] = regs2.spriteParams.lineColorScreenEnable;
                 if (layer0LineColorEnabled[x]) {
                     layer0LineColors[x] = state2.lineBackLayerState.lineColor;
                 }
                 break;
             case LYR_Back: layer0LineColorEnabled[x] = false; break;
             default:
-                layer0LineColorEnabled[x] = regs.bgParams[layer0 - LYR_RBG0].lineColorScreenEnable;
+                layer0LineColorEnabled[x] = regs2.bgParams[layer0 - LYR_RBG0].lineColorScreenEnable;
                 if (layer0LineColorEnabled[x]) {
-                    if (layer0 == LYR_RBG0 || (layer0 == LYR_NBG0_RBG1 && regs.bgEnabled[5])) {
+                    if (layer0 == LYR_RBG0 || (layer0 == LYR_NBG0_RBG1 && regs2.bgEnabled[5])) {
                         layer0LineColors[x] = m_rbgLineColors[layer0 - LYR_RBG0][x >> xShift];
                     } else {
                         layer0LineColors[x] = state2.lineBackLayerState.lineColor;
@@ -3773,7 +3767,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
         }
 
         // Extended color calculations (only in normal TV modes)
-        const bool useExtendedColorCalc = colorCalcParams.extendedColorCalcEnable && regs.TVMD.HRESOn < 2;
+        const bool useExtendedColorCalc = colorCalcParams.extendedColorCalcEnable && regs2.TVMD.HRESOn < 2;
 
         // Apply extended color calculations to layer 1
         if (useExtendedColorCalc) {
@@ -3805,7 +3799,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             Color888AverageMasked(std::span{layer1Pixels}.first(m_HRes), layer1ColorCalcEnabled, layer1Pixels,
                                   layer2Pixels);
 
-            if (regs.lineScreenParams.colorCalcEnable) {
+            if (regs2.lineScreenParams.colorCalcEnable) {
                 // Blend line color if top layer uses it
                 Color888AverageMasked(std::span{layer1Pixels}.first(m_HRes), layer0LineColorEnabled, layer1Pixels,
                                       layer0LineColors);
@@ -3840,13 +3834,13 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
                 }
 
                 if (colorCalcParams.useSecondScreenRatio && layer0LineColorEnabled[x]) {
-                    scanline_ratio[x] = regs.lineScreenParams.colorCalcRatio;
+                    scanline_ratio[x] = regs2.lineScreenParams.colorCalcRatio;
                 } else {
                     const LayerIndex layer = scanline_layers[x][colorCalcParams.useSecondScreenRatio];
                     switch (layer) {
                     case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].colorCalcRatio[x]; break;
-                    case LYR_Back: scanline_ratio[x] = regs.backScreenParams.colorCalcRatio; break;
-                    default: scanline_ratio[x] = regs.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
+                    case LYR_Back: scanline_ratio[x] = regs2.backScreenParams.colorCalcRatio; break;
+                    default: scanline_ratio[x] = regs2.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
                     }
                 }
             }
@@ -3861,7 +3855,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
 
     // Blend layer 0 with sprite mesh layer colors
     if constexpr (transparentMeshes) {
-        const SpriteParams &spriteParams = regs.spriteParams;
+        const SpriteParams &spriteParams = regs2.spriteParams;
         if (spriteParams.colorCalcEnable) {
             std::array<bool, kMaxResH> &layer0MeshColorCalcEnabled = composeLineBuffers.layer0MeshColorCalcEnabled;
             for (uint32 x = 0; x < m_HRes; ++x) {
@@ -3916,7 +3910,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
     if (AnyBool(std::span{layer0ColorOffsetEnabled}.first(m_HRes))) {
         for (uint32 x = 0; Color888 &outputColor : framebufferOutput) {
             if (layer0ColorOffsetEnabled[x]) {
-                const auto &colorOffset = regs.colorOffset[regs.colorOffsetSelect[scanline_layers[x][0]]];
+                const auto &colorOffset = regs2.colorOffset[regs2.colorOffsetSelect[scanline_layers[x][0]]];
                 outputColor = {
                     .r = kColorOffsetLUT[colorOffset.r][outputColor.r],
                     .g = kColorOffsetLUT[colorOffset.g][outputColor.g],
@@ -3937,15 +3931,15 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
             if (overlay.type == OverlayType::Windows && overlay.windowLayerIndex > 5) {
                 const auto &windowSet = overlay.customWindowSet;
                 auto &windowState = overlay.customWindowState[altField];
-                auto windowParams = regs.windowParams;
+                auto windowParams = regs2.windowParams;
                 for (uint32 i = 0; i < 2; ++i) {
                     windowParams[i].lineWindowTableEnable = overlay.customLineWindowTableEnable[i];
                     windowParams[i].lineWindowTableAddress = overlay.customLineWindowTableAddress[i] & 0x7FFFF;
                 }
                 if (altField) {
-                    VDP2CalcWindow<true>(y, windowSet, windowParams, windowState);
+                    VDP2CalcWindow<true>(y, regs2, windowSet, windowState);
                 } else {
-                    VDP2CalcWindow<false>(y, windowSet, windowParams, windowState);
+                    VDP2CalcWindow<false>(y, regs2, windowSet, windowState);
                 }
             }
 
@@ -4005,8 +3999,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
                     break;
                 }
                 case OverlayType::RotParams: //
-                    overlayColor = VDP2SelectRotationParameter(x, y, altField) == RotParamA ? overlay.rotParamAColor
-                                                                                            : overlay.rotParamBColor;
+                    overlayColor = VDP2SelectRotationParameter(x, y, regs2, altField) == RotParamA
+                                       ? overlay.rotParamAColor
+                                       : overlay.rotParamBColor;
                     break;
                 case OverlayType::ColorCalc: //
                 {
@@ -4040,16 +4035,15 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, bool altField) 
 
 template <SoftwareVDPRenderer::CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode,
           bool useVCellScroll, bool deinterlace>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut,
-                                                           const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
-                                                           std::span<const bool> windowState, bool altField) {
-    const VDP2Regs &regs = VDP2GetRegs();
-
-    const bool altLine = deinterlace && altField && regs.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+                                                           LayerOutput &layerOut, const NBGLayerState &bgState,
+                                                           VRAMFetcher &vramFetcher, std::span<const bool> windowState,
+                                                           bool altField) {
+    const bool altLine = deinterlace && altField && regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
     uint32 fracScrollX = bgState.fracScrollX + bgParams.scrollAmountH;
     const uint32 fracScrollY = bgState.fracScrollY + bgParams.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
 
-    uint32 cellScrollTableAddress = regs.vcellScrollTableAddress + bgState.vcellScrollOffset;
+    uint32 cellScrollTableAddress = regs2.vcellScrollTableAddress + bgState.vcellScrollOffset;
     const bool vcellScrollEnable = useVCellScroll && bgParams.vcellScrollEnable;
 
     auto readCellScrollY = [&](bool checkRepeat = false) {
@@ -4058,7 +4052,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
         }
         const uint32 value = VDP2ReadRendererVRAM<uint32>(cellScrollTableAddress);
         if (!checkRepeat || !bgState.vcellScrollRepeat) {
-            cellScrollTableAddress += regs.vcellScrollInc;
+            cellScrollTableAddress += regs2.vcellScrollInc;
         }
         const uint32 prevValue = vramFetcher.lastVCellScroll;
         vramFetcher.lastVCellScroll = bit::extract<8, 26>(value);
@@ -4080,7 +4074,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
             // Apply horizontal mosaic
             const uint8 currMosaicCounterX = mosaicCounterX;
             mosaicCounterX++;
-            if (mosaicCounterX >= regs.mosaicH) {
+            if (mosaicCounterX >= regs2.mosaicH) {
                 mosaicCounterX = 0;
             }
             if (currMosaicCounterX > 0) {
@@ -4110,7 +4104,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
 
             // Plot pixel
             const Pixel pixel = VDP2FetchScrollBGPixel<false, charMode, fourCellChar, colorFormat, colorMode>(
-                bgParams, bgParams.pageBaseAddresses, bgParams.pageShiftH, bgParams.pageShiftV, scrollCoord,
+                bgParams, regs2, bgParams.pageBaseAddresses, bgParams.pageShiftH, bgParams.pageShiftV, scrollCoord,
                 vramFetcher);
             layerOut.pixels.SetPixel(x, pixel);
         }
@@ -4138,22 +4132,22 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const BGPar
 
         // Fetch pixel
         VDP2FetchScrollBGPixel<false, charMode, fourCellChar, colorFormat, colorMode>(
-            bgParams, bgParams.pageBaseAddresses, bgParams.pageShiftH, bgParams.pageShiftV, scrollCoord, vramFetcher);
+            bgParams, regs2, bgParams.pageBaseAddresses, bgParams.pageShiftH, bgParams.pageShiftV, scrollCoord,
+            vramFetcher);
     }
 }
 
 template <ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll, bool deinterlace>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut,
-                                                           const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
-                                                           std::span<const bool> windowState, bool altField) {
-    const VDP2Regs &regs = VDP2GetRegs();
-
-    const bool doubleDensity = regs.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+                                                           LayerOutput &layerOut, const NBGLayerState &bgState,
+                                                           VRAMFetcher &vramFetcher, std::span<const bool> windowState,
+                                                           bool altField) {
+    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
     const bool altLine = deinterlace && altField && doubleDensity && !bgParams.lineScrollYEnable;
     uint32 fracScrollX = bgState.fracScrollX + bgParams.scrollAmountH;
     const uint32 fracScrollY = bgState.fracScrollY + bgParams.scrollAmountV + (altLine ? bgParams.scrollIncV : 0);
 
-    uint32 cellScrollTableAddress = regs.vcellScrollTableAddress + bgState.vcellScrollOffset;
+    uint32 cellScrollTableAddress = regs2.vcellScrollTableAddress + bgState.vcellScrollOffset;
     const bool vcellScrollEnable = useVCellScroll && bgParams.vcellScrollEnable;
 
     auto readCellScrollY = [&](bool checkRepeat = false) {
@@ -4162,7 +4156,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
         }
         const uint32 value = VDP2ReadRendererVRAM<uint32>(cellScrollTableAddress);
         if (!checkRepeat || !bgState.vcellScrollRepeat) {
-            cellScrollTableAddress += regs.vcellScrollInc;
+            cellScrollTableAddress += regs2.vcellScrollInc;
         }
         const uint32 prevValue = vramFetcher.lastVCellScroll;
         vramFetcher.lastVCellScroll = bit::extract<8, 26>(value);
@@ -4184,7 +4178,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
             // Apply horizontal mosaic
             const uint8 currMosaicCounterX = mosaicCounterX;
             mosaicCounterX++;
-            if (mosaicCounterX >= regs.mosaicH) {
+            if (mosaicCounterX >= regs2.mosaicH) {
                 mosaicCounterX = 0;
             }
             if (currMosaicCounterX > 0) {
@@ -4213,7 +4207,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel
-            const Pixel pixel = VDP2FetchBitmapPixel<colorFormat, colorMode>(bgParams, vramFetcher,
+            const Pixel pixel = VDP2FetchBitmapPixel<colorFormat, colorMode>(bgParams, regs2, vramFetcher,
                                                                              bgParams.bitmapBaseAddress, scrollCoord);
             layerOut.pixels.SetPixel(x, pixel);
         }
@@ -4225,15 +4219,14 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const BGPar
 
 template <uint32 bgIndex, SoftwareVDPRenderer::CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat,
           uint32 colorMode>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut,
-                                                             VRAMFetcher &vramFetcher,
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+                                                             LayerOutput &layerOut, VRAMFetcher &vramFetcher,
                                                              std::span<const bool> windowState, bool altField) {
     static constexpr bool selRotParam = bgIndex == 0;
 
-    const VDP2Regs &regs = VDP2GetRegs();
     const VDP2State &state2 = m_state.state2;
 
-    const bool doubleResH = regs.TVMD.HRESOn & 0b010;
+    const bool doubleResH = regs2.TVMD.HRESOn & 0b010;
     const uint32 xShift = doubleResH ? 1 : 0;
     const uint32 maxX = m_HRes >> xShift;
 
@@ -4246,7 +4239,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
         if (bgParams.mosaicEnable) {
             const uint8 currMosaicCounterX = mosaicCounterX;
             mosaicCounterX++;
-            if (mosaicCounterX >= regs.mosaicH) {
+            if (mosaicCounterX >= regs2.mosaicH) {
                 mosaicCounterX = 0;
             }
             if (currMosaicCounterX > 0) {
@@ -4259,9 +4252,10 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
             }
         }
 
-        const RotParamSelector rotParamSelector = selRotParam ? VDP2SelectRotationParameter(x, y, altField) : RotParamB;
+        const RotParamSelector rotParamSelector =
+            selRotParam ? VDP2SelectRotationParameter(x, y, regs2, altField) : RotParamB;
 
-        const RotationParams &rotParams = regs.rotParams[rotParamSelector];
+        const RotationParams &rotParams = regs2.rotParams[rotParamSelector];
         const RotationParamLineOutput &rotParamOut = m_rotParamLineOutputs[rotParamSelector];
 
         // Handle transparent pixels in coefficient table
@@ -4295,7 +4289,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
             const Pixel pixel = VDP2FetchScrollBGPixel<true, charMode, fourCellChar, colorFormat, colorMode>(
-                bgParams, state2.rbgPageBaseAddresses[rotParamSelector][bgIndex], rotParams.pageShiftH,
+                bgParams, regs2, state2.rbgPageBaseAddresses[rotParamSelector][bgIndex], rotParams.pageShiftH,
                 rotParams.pageShiftV, scrollCoord, m_vramFetchers[altField][rotParamSelector + 4]);
             if (!doubleResH || !windowState[xx]) {
                 layerOut.pixels.SetPixel(xx, pixel);
@@ -4304,7 +4298,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
                 layerOut.pixels.SetPixel(xx + 1, pixel);
             }
 
-            VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
+            VDP2StoreRotationLineColorData<bgIndex>(x, regs2, bgParams, rotParamSelector);
         } else if (rotParams.screenOverProcess == ScreenOverProcess::RepeatChar) {
             // Out of bounds - repeat character
             static constexpr bool largePalette = colorFormat != ColorFormat::Palette16;
@@ -4317,7 +4311,8 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
             const uint32 dotY = bit::extract<0, 2>(scrollY);
             const CoordU32 dotCoord{dotX, dotY};
 
-            const Pixel pixel = VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, vramFetcher, dotCoord, 0);
+            const Pixel pixel =
+                VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, regs2, vramFetcher, dotCoord, 0);
             if (!doubleResH || !windowState[xx]) {
                 layerOut.pixels.SetPixel(xx, pixel);
             }
@@ -4325,7 +4320,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
                 layerOut.pixels.SetPixel(xx + 1, pixel);
             }
 
-            VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
+            VDP2StoreRotationLineColorData<bgIndex>(x, regs2, bgParams, rotParamSelector);
         } else {
             // Out of bounds - transparent
             layerOut.pixels.transparent[xx] = true;
@@ -4337,22 +4332,22 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const BGP
 }
 
 template <uint32 bgIndex, ColorFormat colorFormat, uint32 colorMode>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const BGParams &bgParams, LayerOutput &layerOut,
-                                                             std::span<const bool> windowState, bool altField) {
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+                                                             LayerOutput &layerOut, std::span<const bool> windowState,
+                                                             bool altField) {
     static constexpr bool selRotParam = bgIndex == 0;
 
-    const VDP2Regs &regs = VDP2GetRegs();
-
-    const bool doubleResH = regs.TVMD.HRESOn & 0b010;
+    const bool doubleResH = regs2.TVMD.HRESOn & 0b010;
     const uint32 xShift = doubleResH ? 1 : 0;
     const uint32 maxX = m_HRes >> xShift;
 
     for (uint32 x = 0; x < maxX; x++) {
         const uint32 xx = x << xShift;
 
-        const RotParamSelector rotParamSelector = selRotParam ? VDP2SelectRotationParameter(x, y, altField) : RotParamA;
+        const RotParamSelector rotParamSelector =
+            selRotParam ? VDP2SelectRotationParameter(x, y, regs2, altField) : RotParamA;
 
-        const RotationParams &rotParams = regs.rotParams[rotParamSelector];
+        const RotationParams &rotParams = regs2.rotParams[rotParamSelector];
         const RotationParamLineOutput &rotParamOut = m_rotParamLineOutputs[rotParamSelector];
 
         // Handle transparent pixels in coefficient table
@@ -4385,7 +4380,8 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const BGP
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
             const Pixel pixel = VDP2FetchBitmapPixel<colorFormat, colorMode>(
-                bgParams, m_vramFetchers[altField][rotParamSelector + 4], rotParams.bitmapBaseAddress, scrollCoord);
+                bgParams, regs2, m_vramFetchers[altField][rotParamSelector + 4], rotParams.bitmapBaseAddress,
+                scrollCoord);
             if (!doubleResH || !windowState[xx]) {
                 layerOut.pixels.SetPixel(xx, pixel);
             }
@@ -4393,7 +4389,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const BGP
                 layerOut.pixels.SetPixel(xx + 1, pixel);
             }
 
-            VDP2StoreRotationLineColorData<bgIndex>(x, bgParams, rotParamSelector);
+            VDP2StoreRotationLineColorData<bgIndex>(x, regs2, bgParams, rotParamSelector);
         } else {
             // Out of bounds and no repeat
             layerOut.pixels.transparent[xx] = true;
@@ -4405,11 +4401,11 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const BGP
 }
 
 template <uint32 bgIndex>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2StoreRotationLineColorData(uint32 x, const BGParams &bgParams,
+FORCE_INLINE void SoftwareVDPRenderer::VDP2StoreRotationLineColorData(uint32 x, const VDP2Regs &regs2,
+                                                                      const BGParams &bgParams,
                                                                       RotParamSelector rotParamSelector) {
-    const VDP2Regs &regs = VDP2GetRegs();
     const VDP2State &state2 = m_state.state2;
-    const CommonRotationParams &commonRotParams = regs.commonRotParams;
+    const CommonRotationParams &commonRotParams = regs2.commonRotParams;
 
     if (bgParams.lineColorScreenEnable) {
         // Line color for rotation parameters can be either the raw LNCL value or combined with coefficient table data.
@@ -4423,7 +4419,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2StoreRotationLineColorData(uint32 x, 
         //   3: data from each coeff is added to each rotparam
         // If RBG1 is enabled, coeff data A is used for both RBG0 and RBG1
 
-        const bool hasRBG1 = regs.bgEnabled[5];
+        const bool hasRBG1 = regs2.bgEnabled[5];
 
         bool useCoeffLineColor = false;
         RotParamSelector coeffSel;
@@ -4451,7 +4447,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2StoreRotationLineColorData(uint32 x, 
         m_rbgLineColors[bgIndex][x] = state2.lineBackLayerState.lineColor;
 
         if (useCoeffLineColor) {
-            const RotationParams &rotParams = regs.rotParams[coeffSel];
+            const RotationParams &rotParams = regs2.rotParams[coeffSel];
             const RotationParamLineOutput &rotParamOut = m_rotParamLineOutputs[coeffSel];
             if (rotParams.coeffTableEnable && rotParams.coeffUseLineColorData) {
                 m_rbgLineColors[bgIndex][x] = rotParamOut.lineColor[x];
@@ -4460,29 +4456,25 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2StoreRotationLineColorData(uint32 x, 
     }
 }
 
-FORCE_INLINE SoftwareVDPRenderer::RotParamSelector SoftwareVDPRenderer::VDP2SelectRotationParameter(uint32 x, uint32 y,
-                                                                                                    bool altField) {
-    const VDP2Regs &regs = VDP2GetRegs();
-
-    const CommonRotationParams &commonRotParams = regs.commonRotParams;
+FORCE_INLINE SoftwareVDPRenderer::RotParamSelector
+SoftwareVDPRenderer::VDP2SelectRotationParameter(uint32 x, uint32 y, const VDP2Regs &regs2, bool altField) {
+    const CommonRotationParams &commonRotParams = regs2.commonRotParams;
 
     using enum RotationParamMode;
     switch (commonRotParams.rotParamMode) {
     case RotationParamA: return RotParamA;
     case RotationParamB: return RotParamB;
     case Coefficient:
-        return regs.rotParams[0].coeffTableEnable && m_rotParamLineOutputs[0].transparent[x] ? RotParamB : RotParamA;
+        return regs2.rotParams[0].coeffTableEnable && m_rotParamLineOutputs[0].transparent[x] ? RotParamB : RotParamA;
     case Window: return m_rotParamsWindow[altField][x] ? RotParamB : RotParamA;
     }
     util::unreachable();
 }
 
-FORCE_INLINE bool SoftwareVDPRenderer::VDP2CanFetchCoefficient(const RotationParams &params,
+FORCE_INLINE bool SoftwareVDPRenderer::VDP2CanFetchCoefficient(const VDP2Regs &regs2, const RotationParams &params,
                                                                uint32 coeffAddress) const {
-    const VDP2Regs &regs = VDP2GetRegs();
-
     // Coefficients can always be fetched from CRAM
-    if (regs.vramControl.colorRAMCoeffTableEnable) {
+    if (regs2.vramControl.colorRAMCoeffTableEnable) {
         return true;
     }
 
@@ -4498,18 +4490,9 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP2CanFetchCoefficient(const RotationPar
     return m_state.state2.coeffAccess[bank];
 }
 
-FORCE_INLINE Coefficient SoftwareVDPRenderer::VDP2FetchRotationCoefficient(const RotationParams &params,
+FORCE_INLINE Coefficient SoftwareVDPRenderer::VDP2FetchRotationCoefficient(const VDP2Regs &regs2,
+                                                                           const RotationParams &params,
                                                                            uint32 coeffAddress) {
-    const VDP2Regs &regs2 = VDP2GetRegs();
-    const bool perDotCoeff = regs2.vramControl.perDotRotationCoeffs;
-
-    // Force coefficient to zero if it cannot be read in per-dot mode
-    if (perDotCoeff && !VDP2CanFetchCoefficient(params, coeffAddress)) {
-        return {};
-    }
-
-    const VDP2Regs &regs = VDP2GetRegs();
-
     Coefficient coeff{};
 
     // Coefficient data formats:
@@ -4529,8 +4512,8 @@ FORCE_INLINE Coefficient SoftwareVDPRenderer::VDP2FetchRotationCoefficient(const
     if (params.coeffDataSize == 1) {
         // One-word coefficient data
         const uint32 address = offset * sizeof(uint16);
-        const uint16 data = regs.vramControl.colorRAMCoeffTableEnable ? VDP2ReadRendererCRAM<uint16>(address | 0x800)
-                                                                      : VDP2ReadRendererVRAM<uint16>(address);
+        const uint16 data = regs2.vramControl.colorRAMCoeffTableEnable ? VDP2ReadRendererCRAM<uint16>(address | 0x800)
+                                                                       : VDP2ReadRendererVRAM<uint16>(address);
         coeff.value = bit::extract_signed<0, 14>(data);
         coeff.lineColorData = 0;
         coeff.transparent = bit::test<15>(data);
@@ -4543,8 +4526,8 @@ FORCE_INLINE Coefficient SoftwareVDPRenderer::VDP2FetchRotationCoefficient(const
     } else {
         // Two-word coefficient data
         const uint32 address = offset * sizeof(uint32);
-        const uint32 data = regs.vramControl.colorRAMCoeffTableEnable ? VDP2ReadRendererCRAM<uint32>(address | 0x800)
-                                                                      : VDP2ReadRendererVRAM<uint32>(address);
+        const uint32 data = regs2.vramControl.colorRAMCoeffTableEnable ? VDP2ReadRendererCRAM<uint32>(address | 0x800)
+                                                                       : VDP2ReadRendererVRAM<uint32>(address);
         coeff.value = bit::extract_signed<0, 23>(data);
         coeff.lineColorData = bit::extract<24, 30>(data);
         coeff.transparent = bit::test<31>(data);
@@ -4561,9 +4544,9 @@ FORCE_INLINE Coefficient SoftwareVDPRenderer::VDP2FetchRotationCoefficient(const
 template <bool rot, SoftwareVDPRenderer::CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat,
           uint32 colorMode>
 FORCE_INLINE_EX SoftwareVDPRenderer::Pixel
-SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, std::span<const uint32> pageBaseAddresses,
-                                            uint32 pageShiftH, uint32 pageShiftV, CoordU32 scrollCoord,
-                                            VRAMFetcher &vramFetcher) {
+SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, const VDP2Regs &regs2,
+                                            std::span<const uint32> pageBaseAddresses, uint32 pageShiftH,
+                                            uint32 pageShiftV, CoordU32 scrollCoord, VRAMFetcher &vramFetcher) {
     //      Map (NBGs)              Map (RBGs)
     // +---------+---------+   +----+----+----+----+
     // |         |         |   | A  | B  | C  | D  |
@@ -4753,7 +4736,7 @@ SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, std::span<
     }
 
     // Fetch pixel using character data
-    return VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, vramFetcher, dotCoord, cellIndex);
+    return VDP2FetchCharacterPixel<colorFormat, colorMode>(bgParams, regs2, vramFetcher, dotCoord, cellIndex);
 }
 
 FORCE_INLINE Character SoftwareVDPRenderer::VDP2FetchTwoWordCharacter(const BGParams &bgParams, uint32 pageBaseAddress,
@@ -4841,8 +4824,8 @@ FORCE_INLINE Character SoftwareVDPRenderer::VDP2ExtractOneWordCharacter(const BG
 
 template <ColorFormat colorFormat, uint32 colorMode>
 FORCE_INLINE SoftwareVDPRenderer::Pixel
-SoftwareVDPRenderer::VDP2FetchCharacterPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, CoordU32 dotCoord,
-                                             uint32 cellIndex) {
+SoftwareVDPRenderer::VDP2FetchCharacterPixel(const BGParams &bgParams, const VDP2Regs &regs2, VRAMFetcher &vramFetcher,
+                                             CoordU32 dotCoord, uint32 cellIndex) {
     static_assert(static_cast<uint32>(colorFormat) <= 4, "Invalid xxCHCN value");
 
     assert(dotCoord.x() < 8);
@@ -4876,14 +4859,14 @@ SoftwareVDPRenderer::VDP2FetchCharacterPixel(const BGParams &bgParams, VRAMFetch
     // Cell addressing uses a fixed offset of 32 bytes
     const uint32 cellAddress = (ch.charNum + cellIndex) * 0x20;
 
-    return VDP2FetchPixel<colorFormat, colorMode>(bgParams, vramFetcher, cellAddress, 8, dotCoord, ch.palNum,
+    return VDP2FetchPixel<colorFormat, colorMode>(bgParams, regs2, vramFetcher, cellAddress, 8, dotCoord, ch.palNum,
                                                   ch.specColorCalc, ch.specPriority);
 }
 
 template <ColorFormat colorFormat, uint32 colorMode>
 FORCE_INLINE SoftwareVDPRenderer::Pixel
-SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 bitmapBaseAddress,
-                                          CoordU32 dotCoord) {
+SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, const VDP2Regs &regs2, VRAMFetcher &vramFetcher,
+                                          uint32 bitmapBaseAddress, CoordU32 dotCoord) {
     static_assert(static_cast<uint32>(colorFormat) <= 4, "Invalid xxCHCN value");
 
     // Bitmap data wraps around infinitely
@@ -4893,17 +4876,15 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, VRAMFetcher 
     // Bitmap addressing uses a fixed offset of 0x20000 bytes which is precalculated when MPOFN/MPOFR is written to
 
     return VDP2FetchPixel<colorFormat, colorMode>(
-        bgParams, vramFetcher, bitmapBaseAddress, bgParams.bitmapSizeH, dotCoord, bgParams.supplBitmapPalNum,
+        bgParams, regs2, vramFetcher, bitmapBaseAddress, bgParams.bitmapSizeH, dotCoord, bgParams.supplBitmapPalNum,
         bgParams.supplBitmapSpecialColorCalc, bgParams.supplBitmapSpecialPriority);
 }
 
 template <ColorFormat colorFormat, uint32 colorMode>
 FORCE_INLINE SoftwareVDPRenderer::Pixel
-SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, VRAMFetcher &vramFetcher, uint32 baseAddress,
-                                    uint32 linePitch, CoordU32 dotCoord, uint32 palNum, bool specColorCalc,
-                                    bool specPriority) {
-    const VDP2Regs &regs = VDP2GetRegs();
-
+SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, const VDP2Regs &regs2, VRAMFetcher &vramFetcher,
+                                    uint32 baseAddress, uint32 linePitch, CoordU32 dotCoord, uint32 palNum,
+                                    bool specColorCalc, bool specPriority) {
     const auto [dotX, dotY] = dotCoord;
     const uint32 dotOffset = dotX + dotY * linePitch;
 
@@ -4927,7 +4908,7 @@ SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, VRAMFetcher &vramF
     };
 
     // Determine special color calculation flag
-    const auto &specFuncCode = regs.specialFunctionCodes[bgParams.specialFunctionSelect];
+    const auto &specFuncCode = regs2.specialFunctionCodes[bgParams.specialFunctionSelect];
     auto getSpecialColorCalcFlag = [&](uint8 specColorCode, bool colorMSB) {
         using enum SpecialColorCalcMode;
         switch (bgParams.specialColorCalcMode) {
@@ -5046,9 +5027,9 @@ FORCE_INLINE static SpriteData::Special GetSpecialPattern(uint16 rawData) {
 }
 
 template <bool applyMesh>
-FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const SpriteFB &fb, uint32 fbOffset) {
+FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const VDP2Regs &regs2, const SpriteFB &fb,
+                                                                         uint32 fbOffset) {
     const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
 
     // Adjust offset based on VDP1 data size.
     // The majority of games actually set the sprite readout size to match the VDP1 sprite data size, but there's
@@ -5187,11 +5168,9 @@ FLATTEN FORCE_INLINE SpriteData SoftwareVDPRenderer::VDP2FetchSpriteData(const S
 }
 
 template <bool deinterlace>
-FORCE_INLINE uint32 SoftwareVDPRenderer::VDP2GetY(uint32 y) const {
-    const VDP2Regs &regs = VDP2GetRegs();
-
-    if (regs.TVMD.IsInterlaced() && !m_exclusiveMonitor) {
-        return (y << 1) | (regs.TVSTAT.ODD & !deinterlace);
+FORCE_INLINE uint32 SoftwareVDPRenderer::VDP2GetY(uint32 y, const VDP2Regs &regs2) const {
+    if (regs2.TVMD.IsInterlaced() && !m_exclusiveMonitor) {
+        return (y << 1) | (regs2.TVSTAT.ODD & !deinterlace);
     } else {
         return y;
     }
