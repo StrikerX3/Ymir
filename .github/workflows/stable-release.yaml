@@ -6,6 +6,7 @@ on:
 
 permissions:
   packages: write
+  contents: read
 
 jobs:
   parse-version:

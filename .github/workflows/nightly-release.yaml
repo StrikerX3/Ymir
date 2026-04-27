@@ -16,6 +16,7 @@ on:
 
 permissions:
   packages: write
+  contents: read
 
 env:
   NIGHTLY_TAG_NAME: latest-nightly
