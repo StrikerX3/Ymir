@@ -4433,7 +4433,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const VDP
         const uint32 xx = x << xShift;
 
         const RotParamSelector rotParamSelector =
-            selRotParam ? VDP2SelectRotationParameter(x, y, regs2, altField) : RotParamA;
+            selRotParam ? VDP2SelectRotationParameter(x, y, regs2, altField) : RotParamB;
 
         const RotationParams &rotParams = regs2.rotParams[rotParamSelector];
         const RotationParamLineOutput &rotParamOut = m_rotParamLineOutputs[rotParamSelector];
