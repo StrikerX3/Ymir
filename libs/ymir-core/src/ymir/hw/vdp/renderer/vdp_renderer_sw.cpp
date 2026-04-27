@@ -4760,9 +4760,8 @@ SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, const VDP2
     //   - 16-bit 5:5:5 RGB, 2048 words
     //   - 32-bit 8:8:8 RGB, 1024 longwords
 
-    static constexpr std::size_t planeMSB = rot ? 11 : 10;
-    static constexpr uint32 planeWidth = rot ? 4u : 2u;
-    static constexpr uint32 planeMask = planeWidth - 1;
+    static constexpr uint32 kPlaneShift = rot ? 2u : 1u;
+    static constexpr uint32 kPlaneMask = (1u << kPlaneShift) - 1u;
 
     static constexpr bool twoWordChar = charMode == CharacterMode::TwoWord;
     static constexpr bool extChar = charMode == CharacterMode::OneWordExtended;
@@ -4771,9 +4770,9 @@ SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, const VDP2
     auto [scrollX, scrollY] = scrollCoord;
 
     // Determine plane index from the scroll coordinates
-    const uint32 planeX = (bit::extract<9, planeMSB>(scrollX) >> pageShiftH) & planeMask;
-    const uint32 planeY = (bit::extract<9, planeMSB>(scrollY) >> pageShiftV) & planeMask;
-    const uint32 plane = planeX + planeY * planeWidth;
+    const uint32 planeX = (scrollX >> (9 + pageShiftH)) & kPlaneMask;
+    const uint32 planeY = (scrollY >> (9 + pageShiftV)) & kPlaneMask;
+    const uint32 plane = planeX + (planeY << kPlaneShift);
     const uint32 pageBaseAddress = pageBaseAddresses[plane];
 
     // HACK: apply data access shift here too
@@ -4784,18 +4783,18 @@ SoftwareVDPRenderer::VDP2FetchScrollBGPixel(const BGParams &bgParams, const VDP2
     // Determine page index from the scroll coordinates
     const uint32 pageX = bit::extract<9>(scrollX) & pageShiftH;
     const uint32 pageY = bit::extract<9>(scrollY) & pageShiftV;
-    const uint32 page = pageX + pageY * 2u;
+    const uint32 page = pageX + (pageY << 1u);
     const uint32 pageOffset = page << kPageSizes[fourCellChar][twoWordChar];
 
     // Determine character pattern from the scroll coordinates
     const uint32 charPatX = bit::extract<3, 8>(scrollX) >> fourCellCharValue;
     const uint32 charPatY = bit::extract<3, 8>(scrollY) >> fourCellCharValue;
-    const uint32 charIndex = charPatX + charPatY * (64u >> fourCellCharValue);
+    const uint32 charIndex = charPatX + (charPatY << (6u - fourCellCharValue));
 
     // Determine cell index from the scroll coordinates
     const uint32 cellX = bit::extract<3>(scrollX) & fourCellCharValue;
     const uint32 cellY = bit::extract<3>(scrollY) & fourCellCharValue;
-    const uint32 cellIndex = cellX + cellY * 2u;
+    const uint32 cellIndex = cellX + (cellY << 1u);
 
     // Determine dot coordinates
     const uint32 dotX = bit::extract<0, 2>(scrollX);
