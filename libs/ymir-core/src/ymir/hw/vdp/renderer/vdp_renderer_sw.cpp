@@ -4845,6 +4845,19 @@ FORCE_INLINE Character SoftwareVDPRenderer::VDP2FetchTwoWordCharacter(const BGPa
 template <bool fourCellChar, bool largePalette, bool extChar>
 FORCE_INLINE Character SoftwareVDPRenderer::VDP2FetchOneWordCharacter(const BGParams &bgParams, uint32 pageBaseAddress,
                                                                       uint32 charIndex) {
+    const uint32 charAddress = pageBaseAddress + charIndex * sizeof(uint16);
+    const uint32 charBank = (charAddress >> 17u) & 3u;
+
+    if (!bgParams.patNameAccess[charBank]) {
+        return {};
+    }
+
+    const uint16 charData = VDP2ReadRendererVRAM<uint16>(charAddress);
+    return VDP2ExtractOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, charData);
+}
+
+template <bool fourCellChar, bool largePalette, bool extChar>
+FORCE_INLINE Character SoftwareVDPRenderer::VDP2ExtractOneWordCharacter(const BGParams &bgParams, uint16 charData) {
     // Contents of 1 word character patterns vary based on Character Size, Character Color Count and Auxiliary Mode:
     //     Character Size        = CHCTLA/CHCTLB.xxCHSZ  = !fourCellChar = !FCC
     //     Character Color Count = CHCTLA/CHCTLB.xxCHCNn = largePalette  = LP
@@ -4860,19 +4873,6 @@ FORCE_INLINE Character SoftwareVDPRenderer::VDP2FetchOneWordCharacter(const BGPa
     //  T   F   T  |palnum 3-0 |       character number 13-2      |    |PR|CC| PN 6-4 |cn|-----|CN1-0|   cn=CN14
     //  T   T   T  |--| PN 6-4 |       character number 13-2      |    |PR|CC|--------|cn|-----|CN1-0|   cn=CN14
 
-    const uint32 charAddress = pageBaseAddress + charIndex * sizeof(uint16);
-    const uint32 charBank = (charAddress >> 17u) & 3u;
-
-    if (!bgParams.patNameAccess[charBank]) {
-        return {};
-    }
-
-    const uint16 charData = VDP2ReadRendererVRAM<uint16>(charAddress);
-    return VDP2ExtractOneWordCharacter<fourCellChar, largePalette, extChar>(bgParams, charData);
-}
-
-template <bool fourCellChar, bool largePalette, bool extChar>
-FORCE_INLINE Character SoftwareVDPRenderer::VDP2ExtractOneWordCharacter(const BGParams &bgParams, uint16 charData) {
     // Character number bit range from the 1-word character pattern data (charData)
     static constexpr uint32 baseCharNumStart = 0;
     static constexpr uint32 baseCharNumEnd = 9 + 2 * extChar;
@@ -4939,7 +4939,7 @@ SoftwareVDPRenderer::VDP2FetchCharacterPixel(const BGParams &bgParams, const VDP
     }
 
     // Cell addressing uses a fixed offset of 32 bytes
-    const uint32 cellAddress = (ch.charNum + cellIndex) * 0x20;
+    const uint32 cellAddress = (ch.charNum + cellIndex) << 5u;
 
     return VDP2FetchPixel<false, colorFormat, colorMode>(bgParams, regs2, vramFetcher, cellAddress, 8, dotCoord,
                                                          ch.palNum << 4u, ch.specColorCalc, ch.specPriority);
