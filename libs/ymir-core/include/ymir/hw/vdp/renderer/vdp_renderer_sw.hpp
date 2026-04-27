@@ -1024,7 +1024,6 @@ private:
 
     // Draws the current VDP2 scanline of the specified normal background layer.
     //
-    // y is the scanline to draw
     // regs2 is a reference to the set of VDP2 registers to use
     // colorMode is the CRAM color mode.
     //
@@ -1032,18 +1031,17 @@ private:
     // deinterlace determines whether to deinterlace video output
     // altField selects the complementary field when rendering deinterlaced frames
     template <uint32 bgIndex, bool deinterlace>
-    void VDP2DrawNormalBG(uint32 y, const VDP2Regs &regs2, uint32 colorMode, bool altField);
+    void VDP2DrawNormalBG(const VDP2Regs &regs2, uint32 colorMode, bool altField);
 
     // Draws the current VDP2 scanline of the specified rotation background layer.
     //
-    // y is the scanline to draw
     // regs2 is a reference to the set of VDP2 registers to use
     // colorMode is the CRAM color mode.
     // altField selects the complementary field when rendering deinterlaced frames
     //
     // bgIndex specifies the rotation background index, from 0 to 1.
     template <uint32 bgIndex>
-    void VDP2DrawRotationBG(uint32 y, const VDP2Regs &regs2, uint32 colorMode, bool altField);
+    void VDP2DrawRotationBG(const VDP2Regs &regs2, uint32 colorMode, bool altField);
 
     // Composes the current VDP2 scanline out of the rendered lines.
     //
@@ -1058,7 +1056,6 @@ private:
 
     // Draws a normal scroll BG scanline.
     //
-    // y is the scanline to draw
     // regs2 is a reference to the set of VDP2 registers to use
     // bgParams contains the parameters for the BG to draw.
     // layerOut is a reference to the layer output for the background.
@@ -1075,13 +1072,12 @@ private:
     // deinterlace determines whether to deinterlace video output
     template <CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll,
               bool deinterlace>
-    void VDP2DrawNormalScrollBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
+    void VDP2DrawNormalScrollBG(const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
                                 const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
                                 std::span<const bool> windowState, bool altField);
 
     // Draws a normal bitmap BG scanline.
     //
-    // y is the scanline to draw
     // regs2 is a reference to the set of VDP2 registers to use
     // bgParams contains the parameters for the BG to draw.
     // layerOut is a reference to the layer output for the background.
@@ -1095,13 +1091,12 @@ private:
     // useVCellScroll determines whether to use the vertical cell scroll effect
     // deinterlace determines whether to deinterlace video output
     template <ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll, bool deinterlace>
-    void VDP2DrawNormalBitmapBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
+    void VDP2DrawNormalBitmapBG(const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
                                 const NBGLayerState &bgState, VRAMFetcher &vramFetcher,
                                 std::span<const bool> windowState, bool altField);
 
     // Draws a rotation scroll BG scanline.
     //
-    // y is the scanline to draw.
     // regs2 is a reference to the set of VDP2 registers to use
     // bgParams contains the parameters for the BG to draw.
     // layerOut is a reference to the layer output for the background.
@@ -1115,12 +1110,11 @@ private:
     // colorFormat is the color format for cell data.
     // colorMode is the CRAM color mode.
     template <uint32 bgIndex, CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode>
-    void VDP2DrawRotationScrollBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
+    void VDP2DrawRotationScrollBG(const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
                                   VRAMFetcher &vramFetcher, std::span<const bool> windowState, bool altField);
 
     // Draws a rotation bitmap BG scanline.
     //
-    // y is the scanline to draw.
     // regs2 is a reference to the set of VDP2 registers to use
     // bgParams contains the parameters for the BG to draw.
     // layerOut is a reference to the layer output for the background.
@@ -1131,7 +1125,7 @@ private:
     // colorFormat is the color format for bitmap data.
     // colorMode is the CRAM color mode.
     template <uint32 bgIndex, ColorFormat colorFormat, uint32 colorMode>
-    void VDP2DrawRotationBitmapBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
+    void VDP2DrawRotationBitmapBG(const VDP2Regs &regs2, const BGParams &bgParams, LayerOutput &layerOut,
                                   std::span<const bool> windowState, bool altField);
 
     // Stores the line color for the specified pixel of the RBG.
@@ -1149,10 +1143,9 @@ private:
     // Selects a rotation parameter set based on the current parameter selection mode.
     //
     // x is the horizontal coordinate of the pixel
-    // y is the vertical coordinate of the pixel
     // regs2 is a reference to the set of VDP2 registers to use
     // altField selects the complementary field when rendering deinterlaced frames
-    RotParamSelector VDP2SelectRotationParameter(uint32 x, uint32 y, const VDP2Regs &regs2, bool altField);
+    RotParamSelector VDP2SelectRotationParameter(uint32 x, const VDP2Regs &regs2, bool altField);
 
     // Determines if a rotation coefficient entry can be fetched from the specified address.
     // Coefficients can always be fetched from CRAM.

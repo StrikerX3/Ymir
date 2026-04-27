@@ -2448,21 +2448,21 @@ void SoftwareVDPRenderer::VDP2DrawLine(uint32 y, bool altField) {
 
     // Draw background layers
     if (regs2.bgEnabled[4] && regs2.bgEnabled[5]) {
-        VDP2DrawRotationBG<0>(y, regs2, colorMode, altField); // RBG0
-        VDP2DrawRotationBG<1>(y, regs2, colorMode, altField); // RBG1
+        VDP2DrawRotationBG<0>(regs2, colorMode, altField); // RBG0
+        VDP2DrawRotationBG<1>(regs2, colorMode, altField); // RBG1
     } else {
-        VDP2DrawRotationBG<0>(y, regs2, colorMode, altField); // RBG0
-        VDP2DrawRotationBG<1>(y, regs2, colorMode, altField); // RBG1
+        VDP2DrawRotationBG<0>(regs2, colorMode, altField); // RBG0
+        VDP2DrawRotationBG<1>(regs2, colorMode, altField); // RBG1
         if (interlaced) {
-            VDP2DrawNormalBG<0, deinterlace>(y, regs2, colorMode, altField); // NBG0
-            VDP2DrawNormalBG<1, deinterlace>(y, regs2, colorMode, altField); // NBG1
-            VDP2DrawNormalBG<2, deinterlace>(y, regs2, colorMode, altField); // NBG2
-            VDP2DrawNormalBG<3, deinterlace>(y, regs2, colorMode, altField); // NBG3
+            VDP2DrawNormalBG<0, deinterlace>(regs2, colorMode, altField); // NBG0
+            VDP2DrawNormalBG<1, deinterlace>(regs2, colorMode, altField); // NBG1
+            VDP2DrawNormalBG<2, deinterlace>(regs2, colorMode, altField); // NBG2
+            VDP2DrawNormalBG<3, deinterlace>(regs2, colorMode, altField); // NBG3
         } else {
-            VDP2DrawNormalBG<0, false>(y, regs2, colorMode, altField); // NBG0
-            VDP2DrawNormalBG<1, false>(y, regs2, colorMode, altField); // NBG1
-            VDP2DrawNormalBG<2, false>(y, regs2, colorMode, altField); // NBG2
-            VDP2DrawNormalBG<3, false>(y, regs2, colorMode, altField); // NBG3
+            VDP2DrawNormalBG<0, false>(regs2, colorMode, altField); // NBG0
+            VDP2DrawNormalBG<1, false>(regs2, colorMode, altField); // NBG1
+            VDP2DrawNormalBG<2, false>(regs2, colorMode, altField); // NBG2
+            VDP2DrawNormalBG<3, false>(regs2, colorMode, altField); // NBG3
         }
     }
 
@@ -2648,11 +2648,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
 }
 
 template <uint32 bgIndex, bool deinterlace>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, const VDP2Regs &regs2, uint32 colorMode,
-                                                        bool altField) {
+FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(const VDP2Regs &regs2, uint32 colorMode, bool altField) {
     static_assert(bgIndex < 4, "Invalid NBG index");
 
-    using FnDraw = void (SoftwareVDPRenderer::*)(uint32, const VDP2Regs &, const BGParams &, LayerOutput &,
+    using FnDraw = void (SoftwareVDPRenderer::*)(const VDP2Regs &, const BGParams &, LayerOutput &,
                                                  const NBGLayerState &, VRAMFetcher &, std::span<const bool>, bool);
 
     // Lookup table of scroll BG drawing functions
@@ -2713,7 +2712,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, const VDP2Regs
 
     const uint32 cf = static_cast<uint32>(bgParams.colorFormat);
     if (bgParams.bitmap) {
-        (this->*fnDrawBitmap[cf][colorMode])(y, regs2, bgParams, layerOut, bgState, vramFetcher, windowState, altField);
+        (this->*fnDrawBitmap[cf][colorMode])(regs2, bgParams, layerOut, bgState, vramFetcher, windowState, altField);
     } else {
         const bool twc = bgParams.twoWordChar;
         const bool fcc = bgParams.cellSizeShift;
@@ -2721,20 +2720,19 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, const VDP2Regs
         const uint32 chm = static_cast<uint32>(twc   ? CharacterMode::TwoWord
                                                : exc ? CharacterMode::OneWordExtended
                                                      : CharacterMode::OneWordStandard);
-        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(y, regs2, bgParams, layerOut, bgState, vramFetcher, windowState,
+        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(regs2, bgParams, layerOut, bgState, vramFetcher, windowState,
                                                        altField);
     }
 }
 
 template <uint32 bgIndex>
-FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, const VDP2Regs &regs2, uint32 colorMode,
-                                                          bool altField) {
+FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(const VDP2Regs &regs2, uint32 colorMode, bool altField) {
     static_assert(bgIndex < 2, "Invalid RBG index");
 
-    using FnDrawScroll = void (SoftwareVDPRenderer::*)(uint32, const VDP2Regs &, const BGParams &, LayerOutput &,
-                                                       VRAMFetcher &, std::span<const bool>, bool);
-    using FnDrawBitmap = void (SoftwareVDPRenderer::*)(uint32, const VDP2Regs &, const BGParams &, LayerOutput &,
+    using FnDrawScroll = void (SoftwareVDPRenderer::*)(const VDP2Regs &, const BGParams &, LayerOutput &, VRAMFetcher &,
                                                        std::span<const bool>, bool);
+    using FnDrawBitmap =
+        void (SoftwareVDPRenderer::*)(const VDP2Regs &, const BGParams &, LayerOutput &, std::span<const bool>, bool);
 
     // Lookup table of scroll BG drawing functions
     // Indexing: [charMode][fourCellChar][colorFormat][colorMode]
@@ -2791,7 +2789,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, const VDP2Re
 
     const uint32 cf = static_cast<uint32>(bgParams.colorFormat);
     if (bgParams.bitmap) {
-        (this->*fnDrawBitmap[cf][colorMode])(y, regs2, bgParams, layerOut, windowState, altField);
+        (this->*fnDrawBitmap[cf][colorMode])(regs2, bgParams, layerOut, windowState, altField);
     } else {
         const bool twc = bgParams.twoWordChar;
         const bool fcc = bgParams.cellSizeShift;
@@ -2799,8 +2797,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, const VDP2Re
         const uint32 chm = static_cast<uint32>(twc   ? CharacterMode::TwoWord
                                                : exc ? CharacterMode::OneWordExtended
                                                      : CharacterMode::OneWordStandard);
-        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(y, regs2, bgParams, layerOut, vramFetcher, windowState,
-                                                       altField);
+        (this->*fnDrawScroll[chm][fcc][cf][colorMode])(regs2, bgParams, layerOut, vramFetcher, windowState, altField);
     }
 }
 
@@ -4087,7 +4084,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                     break;
                 }
                 case OverlayType::RotParams: //
-                    overlayColor = VDP2SelectRotationParameter(x, y, regs2, altField) == RotParamA
+                    overlayColor = VDP2SelectRotationParameter(x, regs2, altField) == RotParamA
                                        ? overlay.rotParamAColor
                                        : overlay.rotParamBColor;
                     break;
@@ -4123,7 +4120,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
 
 template <SoftwareVDPRenderer::CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat, uint32 colorMode,
           bool useVCellScroll, bool deinterlace>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(const VDP2Regs &regs2, const BGParams &bgParams,
                                                            LayerOutput &layerOut, const NBGLayerState &bgState,
                                                            VRAMFetcher &vramFetcher, std::span<const bool> windowState,
                                                            bool altField) {
@@ -4226,7 +4223,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(uint32 y, const VDP2R
 }
 
 template <ColorFormat colorFormat, uint32 colorMode, bool useVCellScroll, bool deinterlace>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(const VDP2Regs &regs2, const BGParams &bgParams,
                                                            LayerOutput &layerOut, const NBGLayerState &bgState,
                                                            VRAMFetcher &vramFetcher, std::span<const bool> windowState,
                                                            bool altField) {
@@ -4307,7 +4304,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(uint32 y, const VDP2R
 
 template <uint32 bgIndex, SoftwareVDPRenderer::CharacterMode charMode, bool fourCellChar, ColorFormat colorFormat,
           uint32 colorMode>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(const VDP2Regs &regs2, const BGParams &bgParams,
                                                              LayerOutput &layerOut, VRAMFetcher &vramFetcher,
                                                              std::span<const bool> windowState, bool altField) {
     static constexpr bool selRotParam = bgIndex == 0;
@@ -4341,7 +4338,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const VDP
         }
 
         const RotParamSelector rotParamSelector =
-            selRotParam ? VDP2SelectRotationParameter(x, y, regs2, altField) : RotParamB;
+            selRotParam ? VDP2SelectRotationParameter(x, regs2, altField) : RotParamB;
 
         const RotationParams &rotParams = regs2.rotParams[rotParamSelector];
         const RotationParamLineOutput &rotParamOut = m_rotParamLineOutputs[rotParamSelector];
@@ -4420,7 +4417,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(uint32 y, const VDP
 }
 
 template <uint32 bgIndex, ColorFormat colorFormat, uint32 colorMode>
-NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const VDP2Regs &regs2, const BGParams &bgParams,
+NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(const VDP2Regs &regs2, const BGParams &bgParams,
                                                              LayerOutput &layerOut, std::span<const bool> windowState,
                                                              bool altField) {
     static constexpr bool selRotParam = bgIndex == 0;
@@ -4433,7 +4430,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(uint32 y, const VDP
         const uint32 xx = x << xShift;
 
         const RotParamSelector rotParamSelector =
-            selRotParam ? VDP2SelectRotationParameter(x, y, regs2, altField) : RotParamB;
+            selRotParam ? VDP2SelectRotationParameter(x, regs2, altField) : RotParamB;
 
         const RotationParams &rotParams = regs2.rotParams[rotParamSelector];
         const RotationParamLineOutput &rotParamOut = m_rotParamLineOutputs[rotParamSelector];
@@ -4545,7 +4542,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2StoreRotationLineColorData(uint32 x, 
 }
 
 FORCE_INLINE SoftwareVDPRenderer::RotParamSelector
-SoftwareVDPRenderer::VDP2SelectRotationParameter(uint32 x, uint32 y, const VDP2Regs &regs2, bool altField) {
+SoftwareVDPRenderer::VDP2SelectRotationParameter(uint32 x, const VDP2Regs &regs2, bool altField) {
     const CommonRotationParams &commonRotParams = regs2.commonRotParams;
 
     using enum RotationParamMode;
