@@ -2399,7 +2399,7 @@ void SoftwareVDPRenderer::VDP2DrawLine(uint32 y, bool altField) {
     const VDP1Regs &regs1 = VDP1GetRegs();
     const VDP2Regs &regs2 = VDP2GetRegs();
 
-    using FnDrawLayer = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &regs2);
+    using FnDrawLayer = void (SoftwareVDPRenderer::*)(uint32, const VDP2Regs &);
 
     // Lookup table of sprite drawing functions
     // Indexing: [colorMode][rotate][altField]
@@ -2652,7 +2652,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(uint32 y, const VDP2Regs
                                                         bool altField) {
     static_assert(bgIndex < 4, "Invalid NBG index");
 
-    using FnDraw = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &, const BGParams &, LayerOutput &,
+    using FnDraw = void (SoftwareVDPRenderer::*)(uint32, const VDP2Regs &, const BGParams &, LayerOutput &,
                                                  const NBGLayerState &, VRAMFetcher &, std::span<const bool>, bool);
 
     // Lookup table of scroll BG drawing functions
@@ -2731,9 +2731,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBG(uint32 y, const VDP2Re
                                                           bool altField) {
     static_assert(bgIndex < 2, "Invalid RBG index");
 
-    using FnDrawScroll = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &, const BGParams &, LayerOutput &,
+    using FnDrawScroll = void (SoftwareVDPRenderer::*)(uint32, const VDP2Regs &, const BGParams &, LayerOutput &,
                                                        VRAMFetcher &, std::span<const bool>, bool);
-    using FnDrawBitmap = void (SoftwareVDPRenderer::*)(uint32 y, const VDP2Regs &, const BGParams &, LayerOutput &,
+    using FnDrawBitmap = void (SoftwareVDPRenderer::*)(uint32, const VDP2Regs &, const BGParams &, LayerOutput &,
                                                        std::span<const bool>, bool);
 
     // Lookup table of scroll BG drawing functions
