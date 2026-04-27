@@ -2705,8 +2705,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBG(const VDP2Regs &regs2, u
     }
 
     const BGParams &bgParams = regs2.bgParams[bgIndex + 1];
-    LayerOutput &layerOut = m_layerOutputs[altField][bgIndex + 2];
     const NBGLayerState &bgState = state2.nbgLayerStates[bgIndex];
+
+    if (bgParams.mosaicEnable && bgState.mosaicCounterY > 0) {
+        // Reuse contents of previous line
+        return;
+    }
+
+    LayerOutput &layerOut = m_layerOutputs[altField][bgIndex + 2];
     VRAMFetcher &vramFetcher = m_vramFetchers[altField][bgIndex];
     auto windowState = std::span<const bool>{m_bgWindows[altField][bgIndex + 1]}.first(m_HRes);
 
@@ -4184,7 +4190,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(const VDP2Regs &regs2
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
-            const uint32 scrollY = ((fracScrollY + vcellScrollY) >> 8u) - bgState.mosaicCounterY;
+            const uint32 scrollY = (fracScrollY + vcellScrollY) >> 8u;
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel
@@ -4212,7 +4218,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(const VDP2Regs &regs2
 
         // Compute integer scroll screen coordinates
         const uint32 scrollX = fracScrollX >> 8u;
-        const uint32 scrollY = ((fracScrollY + vcellScrollY) >> 8u) - bgState.mosaicCounterY;
+        const uint32 scrollY = (fracScrollY + vcellScrollY) >> 8u;
         const CoordU32 scrollCoord{scrollX, scrollY};
 
         // Fetch pixel
@@ -4288,7 +4294,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(const VDP2Regs &regs2
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
-            const uint32 scrollY = ((fracScrollY + vcellScrollY) >> 8u) - bgState.mosaicCounterY;
+            const uint32 scrollY = (fracScrollY + vcellScrollY) >> 8u;
             const CoordU32 scrollCoord{scrollX, scrollY};
 
             // Plot pixel
