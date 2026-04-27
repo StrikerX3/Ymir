@@ -4839,15 +4839,7 @@ FORCE_INLINE Character SoftwareVDPRenderer::VDP2FetchTwoWordCharacter(const BGPa
     }
 
     const uint32 charData = VDP2ReadRendererVRAM<uint32>(charAddress);
-
-    Character ch{};
-    ch.charNum = bit::extract<0, 14>(charData);
-    ch.palNum = bit::extract<16, 22>(charData) << 4u;
-    ch.specColorCalc = bit::test<28>(charData);
-    ch.specPriority = bit::test<29>(charData);
-    ch.flipH = bit::test<30>(charData);
-    ch.flipV = bit::test<31>(charData);
-    return ch;
+    return Character{.u32 = charData};
 }
 
 template <bool fourCellChar, bool largePalette, bool extChar>
@@ -4901,9 +4893,9 @@ FORCE_INLINE Character SoftwareVDPRenderer::VDP2ExtractOneWordCharacter(const BG
         ch.charNum |= bit::extract<0, 1>(bgParams.supplScrollCharNum);
     }
     if constexpr (largePalette) {
-        ch.palNum = bit::extract<12, 14>(charData) << 8u;
+        ch.palNum = bit::extract<12, 14>(charData) << 4u;
     } else {
-        ch.palNum = (bit::extract<12, 15>(charData) | bgParams.supplScrollPalNum) << 4u;
+        ch.palNum = (bit::extract<12, 15>(charData) | bgParams.supplScrollPalNum);
     }
     ch.specColorCalc = bgParams.supplScrollSpecialColorCalc;
     ch.specPriority = bgParams.supplScrollSpecialPriority;
@@ -4949,8 +4941,8 @@ SoftwareVDPRenderer::VDP2FetchCharacterPixel(const BGParams &bgParams, const VDP
     // Cell addressing uses a fixed offset of 32 bytes
     const uint32 cellAddress = (ch.charNum + cellIndex) * 0x20;
 
-    return VDP2FetchPixel<colorFormat, colorMode>(bgParams, regs2, vramFetcher, cellAddress, 8, dotCoord, ch.palNum,
-                                                  ch.specColorCalc, ch.specPriority);
+    return VDP2FetchPixel<false, colorFormat, colorMode>(bgParams, regs2, vramFetcher, cellAddress, 8, dotCoord,
+                                                         ch.palNum << 4u, ch.specColorCalc, ch.specPriority);
 }
 
 template <ColorFormat colorFormat, uint32 colorMode>
@@ -4965,12 +4957,12 @@ SoftwareVDPRenderer::VDP2FetchBitmapPixel(const BGParams &bgParams, const VDP2Re
 
     // Bitmap addressing uses a fixed offset of 0x20000 bytes which is precalculated when MPOFN/MPOFR is written to
 
-    return VDP2FetchPixel<colorFormat, colorMode>(
+    return VDP2FetchPixel<true, colorFormat, colorMode>(
         bgParams, regs2, vramFetcher, bitmapBaseAddress, bgParams.bitmapSizeH, dotCoord, bgParams.supplBitmapPalNum,
         bgParams.supplBitmapSpecialColorCalc, bgParams.supplBitmapSpecialPriority);
 }
 
-template <ColorFormat colorFormat, uint32 colorMode>
+template <bool bitmap, ColorFormat colorFormat, uint32 colorMode>
 FORCE_INLINE SoftwareVDPRenderer::Pixel
 SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, const VDP2Regs &regs2, VRAMFetcher &vramFetcher,
                                     uint32 baseAddress, uint32 linePitch, CoordU32 dotCoord, uint32 palNum,
@@ -4986,7 +4978,7 @@ SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, const VDP2Regs &re
                 return;
             }
 
-            if (bgParams.bitmap) {
+            if constexpr (bitmap) {
                 address += bgParams.vramDataOffset[bank];
             }
 

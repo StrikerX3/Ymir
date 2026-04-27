@@ -1252,9 +1252,10 @@ private:
     // specColorCalc is the special color calculation bit from the character data or supplementary bitmap register.
     // specPriority is the special priority bit from the character data or supplementary bitmap register.
     //
+    // bitmap whether to fetch a bitmap (true) or scroll (false) pixel
     // colorFormat is the color format for pixel data.
     // colorMode is the CRAM color mode.
-    template <ColorFormat colorFormat, uint32 colorMode>
+    template <bool bitmap, ColorFormat colorFormat, uint32 colorMode>
     Pixel VDP2FetchPixel(const BGParams &bgParams, const VDP2Regs &regs2, VRAMFetcher &vramFetcher, uint32 baseAddress,
                          uint32 linePitch, CoordU32 dotCoord, uint32 palNum, bool specColorCalc, bool specPriority);
 

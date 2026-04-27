@@ -67,13 +67,18 @@ namespace detail {
 // -----------------------------------------------------------------------------
 
 /// @brief Describes a Pattern Name Data entry - parameters for a character or tile.
-struct Character {
-    uint16 charNum = 0;         // Character number, 15 bits
-    uint16 palNum = 0;          // Palette number, 7 bits (shifted left by 4 for optimized rendering performance)
-    bool specColorCalc = false; // Special color calculation
-    bool specPriority = false;  // Special priority
-    bool flipH = false;         // Horizontal flip
-    bool flipV = false;         // Vertical flip
+union Character {
+    uint32 u32 = 0;
+    struct {
+        uint32 charNum : 15;      //  0-14  Character number
+        uint32 : 1;               //    15  <unused>
+        uint32 palNum : 7;        // 16-22  Palette number
+        uint32 : 5;               // 23-27  <unused>
+        uint32 specColorCalc : 1; //    28  Special color calculation
+        uint32 specPriority : 1;  //    29  Special priority
+        uint32 flipH : 1;         //    30  Horizontal flip
+        uint32 flipV : 1;         //    31  Vertical flip
+    };
 };
 
 /// @brief Pipelined VDP2 VRAM fetcher. Used by tile and bitmap data.
