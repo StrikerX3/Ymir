@@ -2523,7 +2523,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y, const VDP2Regs
             const auto &rotParamOut = m_rotParamLineOutputs[0];
             const auto &coord = rotParamOut.spriteCoords[x];
             if (coord.x() < 0 || coord.x() >= regs1.fbSizeH || coord.y() < 0 || coord.y() >= regs1.fbSizeV) {
-                layerOut.pixels.transparent[xx] = true;
+                layerOut.pixels.priority[xx] = 0;
                 layerAttrs.shadowOrWindow[xx] = false;
                 layerAttrs.normalShadow[xx] = false;
                 if (doubleResH) {
@@ -2531,7 +2531,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y, const VDP2Regs
                     layerAttrs.CopyAttrs(xx, xx + 1);
                 }
                 if constexpr (transparentMeshes) {
-                    meshLayerOut.pixels.transparent[xx] = true;
+                    meshLayerOut.pixels.priority[xx] = 0;
                     meshLayerAttrs.shadowOrWindow[xx] = false;
                     layerAttrs.normalShadow[xx] = false;
                     if (doubleResH) {
@@ -2581,7 +2581,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
 
     // NOTE: intentionally using the base sprite layer here as the windows are not computed for the mesh layer
     if (m_spriteLayerAttrs[altField].window[x]) {
-        layerOut.pixels.transparent[x] = true;
+        layerOut.pixels.priority[x] = 0;
         layerAttrs.shadowOrWindow[x] = false;
         layerAttrs.normalShadow[x] = false;
         return;
@@ -2598,14 +2598,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
             //   window is enabled, and the lower 15 bits are all zero
             if (params.type >= 8) {
                 if (bit::extract<0, 7>(spriteDataValue) == 0) {
-                    layerOut.pixels.transparent[x] = true;
+                    layerOut.pixels.priority[x] = 0;
                     layerAttrs.shadowOrWindow[x] = false;
                     layerAttrs.normalShadow[x] = false;
                     return;
                 }
             } else if (params.type >= 2) {
                 if (params.useSpriteWindow && bit::extract<0, 14>(spriteDataValue) == 0) {
-                    layerOut.pixels.transparent[x] = true;
+                    layerOut.pixels.priority[x] = 0;
                     layerAttrs.shadowOrWindow[x] = false;
                     layerAttrs.normalShadow[x] = false;
                     return;
@@ -2613,7 +2613,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
             }
 
             layerOut.pixels.color[x] = ConvertRGB555to888(Color555{spriteDataValue});
-            layerOut.pixels.transparent[x] = false;
             layerOut.pixels.priority[x] = params.priorities[0];
 
             layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
@@ -2629,7 +2628,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
     // Handle sprite window
     if (params.useSpriteWindow && params.spriteWindowEnabled &&
         spriteData.shadowOrWindow != params.spriteWindowInverted) {
-        layerOut.pixels.transparent[x] = true;
+        layerOut.pixels.priority[x] = 0;
         layerAttrs.shadowOrWindow[x] = true;
         layerAttrs.normalShadow[x] = false;
         return;
@@ -2639,8 +2638,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
     const Color888 color = VDP2FetchCRAMColor<colorMode>(0, colorIndex);
 
     layerOut.pixels.color[x] = color;
-    layerOut.pixels.transparent[x] = spriteData.special == SpriteData::Special::Transparent;
-    layerOut.pixels.priority[x] = params.priorities[spriteData.priority];
+    layerOut.pixels.priority[x] =
+        spriteData.special == SpriteData::Special::Transparent ? 0 : params.priorities[spriteData.priority];
 
     layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
     layerAttrs.shadowOrWindow[x] = spriteData.shadowOrWindow;
@@ -3598,11 +3597,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
 
         const LayerOutput &output = m_layerOutputs[altField][layer];
 
-        if (AllBool(std::span{output.pixels.transparent}.first(m_HRes))) {
-            // All pixels are transparent
-            continue;
-        }
-
         if (AllZeroU8(std::span{output.pixels.priority}.first(m_HRes))) {
             // All priorities are zero
             continue;
@@ -3631,9 +3625,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
 
         if (layer == LYR_Sprite) {
             for (uint32 x = 0; x < m_HRes; x++) {
-                if (output.pixels.transparent[x]) {
-                    continue;
-                }
                 const uint8 priority = output.pixels.priority[x];
                 if (priority == 0) {
                     continue;
@@ -3646,9 +3637,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
             }
         } else {
             for (uint32 x = 0; x < m_HRes; x++) {
-                if (output.pixels.transparent[x]) {
-                    continue;
-                }
                 const uint8 priority = output.pixels.priority[x];
                 if (priority == 0) {
                     continue;
@@ -3672,13 +3660,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
         std::fill_n(scanline_meshLayers.begin(), m_HRes, 0xFF);
 
         if (state2.layerEnabled[0] &&
-            !AllBool(std::span{m_meshLayerOutput[altField].pixels.transparent}.first(m_HRes)) &&
             !AllZeroU8(std::span{m_meshLayerOutput[altField].pixels.priority}.first(m_HRes))) {
 
             for (uint32 x = 0; x < m_HRes; x++) {
-                if (m_meshLayerOutput[altField].pixels.transparent[x]) {
-                    continue;
-                }
                 const uint8 priority = m_meshLayerOutput[altField].pixels.priority[x];
                 if (priority == 0) {
                     continue;
@@ -4186,7 +4170,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalScrollBG(const VDP2Regs &regs2
 
         if (windowState[x]) {
             // Make pixel transparent if inside active window area
-            layerOut.pixels.transparent[x] = true;
+            layerOut.pixels.priority[x] = 0;
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
@@ -4290,7 +4274,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawNormalBitmapBG(const VDP2Regs &regs2
 
         if (windowState[x]) {
             // Make pixel transparent if inside active window area
-            layerOut.pixels.transparent[x] = true;
+            layerOut.pixels.priority[x] = 0;
         } else {
             // Compute integer scroll screen coordinates
             const uint32 scrollX = fracScrollX >> 8u;
@@ -4351,9 +4335,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(const VDP2Regs &reg
 
         // Handle transparent pixels in coefficient table
         if (rotParams.coeffTableEnable && rotParamOut.transparent[x]) {
-            layerOut.pixels.transparent[xx] = true;
+            layerOut.pixels.priority[xx] = 0;
             if (doubleResH) {
-                layerOut.pixels.transparent[xx + 1] = true;
+                layerOut.pixels.priority[xx + 1] = 0;
             }
             continue;
         }
@@ -4373,9 +4357,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(const VDP2Regs &reg
 
         if (windowState[xx] && (!doubleResH || windowState[xx + 1])) {
             // Make pixel transparent if inside a window
-            layerOut.pixels.transparent[xx] = true;
+            layerOut.pixels.priority[xx] = 0;
             if (doubleResH) {
-                layerOut.pixels.transparent[xx + 1] = true;
+                layerOut.pixels.priority[xx + 1] = 0;
             }
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
@@ -4414,9 +4398,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationScrollBG(const VDP2Regs &reg
             VDP2StoreRotationLineColorData<bgIndex>(x, regs2, bgParams, rotParamSelector);
         } else {
             // Out of bounds - transparent
-            layerOut.pixels.transparent[xx] = true;
+            layerOut.pixels.priority[xx] = 0;
             if (doubleResH) {
-                layerOut.pixels.transparent[xx + 1] = true;
+                layerOut.pixels.priority[xx + 1] = 0;
             }
         }
     }
@@ -4443,9 +4427,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(const VDP2Regs &reg
 
         // Handle transparent pixels in coefficient table
         if (rotParams.coeffTableEnable && rotParamOut.transparent[x]) {
-            layerOut.pixels.transparent[xx] = true;
+            layerOut.pixels.priority[xx] = 0;
             if (doubleResH) {
-                layerOut.pixels.transparent[xx + 1] = true;
+                layerOut.pixels.priority[xx + 1] = 0;
             }
             continue;
         }
@@ -4464,9 +4448,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(const VDP2Regs &reg
 
         if (windowState[xx] && (!doubleResH || windowState[xx + 1])) {
             // Make pixel transparent if inside a window
-            layerOut.pixels.transparent[xx] = true;
+            layerOut.pixels.priority[xx] = 0;
             if (doubleResH) {
-                layerOut.pixels.transparent[xx + 1] = true;
+                layerOut.pixels.priority[xx + 1] = 0;
             }
         } else if ((scrollX < maxScrollX && scrollY < maxScrollY) || usingRepeat) {
             // Plot pixel
@@ -4483,9 +4467,9 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawRotationBitmapBG(const VDP2Regs &reg
             VDP2StoreRotationLineColorData<bgIndex>(x, regs2, bgParams, rotParamSelector);
         } else {
             // Out of bounds and no repeat
-            layerOut.pixels.transparent[xx] = true;
+            layerOut.pixels.priority[xx] = 0;
             if (doubleResH) {
-                layerOut.pixels.transparent[xx + 1] = true;
+                layerOut.pixels.priority[xx + 1] = 0;
             }
         }
     }
@@ -5009,46 +4993,61 @@ SoftwareVDPRenderer::VDP2FetchPixel(const BGParams &bgParams, const VDP2Regs &re
         const uint32 dotAddress = baseAddress + (dotOffset >> 1u);
         fetchCharData(dotAddress);
         const uint8 dotData = (vramFetcher.charData[dotAddress & 7] >> ((~dotX & 1) * 4)) & 0xF;
+        if (bgParams.enableTransparency && dotData == 0) {
+            pixel.priority = 0;
+            return pixel;
+        }
         const uint32 colorIndex = palNum | dotData;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
-        pixel.transparent = bgParams.enableTransparency && dotData == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
 
     } else if constexpr (colorFormat == ColorFormat::Palette256) {
         const uint32 dotAddress = baseAddress + dotOffset;
         fetchCharData(dotAddress);
         const uint8 dotData = vramFetcher.charData[dotAddress & 7];
+        if (bgParams.enableTransparency && dotData == 0) {
+            pixel.priority = 0;
+            return pixel;
+        }
         const uint32 colorIndex = (palNum & 0x700) | dotData;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
-        pixel.transparent = bgParams.enableTransparency && dotData == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
 
     } else if constexpr (colorFormat == ColorFormat::Palette2048) {
         const uint32 dotAddress = baseAddress + dotOffset * sizeof(uint16);
         fetchCharData(dotAddress);
         const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.charData[dotAddress & 6]);
+        if (bgParams.enableTransparency && (dotData & 0x7FF) == 0) {
+            pixel.priority = 0;
+            return pixel;
+        }
         const uint32 colorIndex = dotData & 0x7FF;
         colorData = bit::extract<1, 3>(dotData);
         pixel.color = VDP2FetchCRAMColor<colorMode>(bgParams.cramOffset, colorIndex);
-        pixel.transparent = bgParams.enableTransparency && (dotData & 0x7FF) == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(colorData, pixel.color.msb);
 
     } else if constexpr (colorFormat == ColorFormat::RGB555) {
         const uint32 dotAddress = baseAddress + dotOffset * sizeof(uint16);
         fetchCharData(dotAddress);
         const uint16 dotData = util::ReadBE<uint16>(&vramFetcher.charData[dotAddress & 6]);
+        if (bgParams.enableTransparency && !bit::test<15>(dotData)) {
+            pixel.priority = 0;
+            return pixel;
+        }
         pixel.color = ConvertRGB555to888(Color555{.u16 = dotData});
-        pixel.transparent = bgParams.enableTransparency && bit::extract<15>(dotData) == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
 
     } else if constexpr (colorFormat == ColorFormat::RGB888) {
         const uint32 dotAddress = baseAddress + dotOffset * sizeof(uint32);
         fetchCharData(dotAddress);
         const uint32 dotData = util::ReadBE<uint32>(&vramFetcher.charData[dotAddress & 4]);
+        if (bgParams.enableTransparency && !bit::test<31>(dotData)) {
+            pixel.priority = 0;
+            return pixel;
+        }
         pixel.color.u32 = dotData;
-        pixel.transparent = bgParams.enableTransparency && bit::extract<31>(dotData) == 0;
         pixel.specialColorCalc = getSpecialColorCalcFlag(0b111, true);
     }
 

@@ -9,7 +9,24 @@ Uses save state file version 12.
 ### New features and improvements
 
 - Debugger: Add Priority Stack to VDP2 debug overlay.
-- VDP2: Various performance microoptimizations to the software renderer, improving performance in graphics-bound games (especially in high resolution modes).
+- VDP2: Various performance optimizations to the software renderer, improving performance in graphics-bound games (especially in high resolution modes). Technical details:
+    - RBG1 was being unnecessarily rendered when NBG0 was enabled and RBG1 was disabled
+    - Remove redundant transparency bit since priority zero acts as transparency 
+    - Remove various unused function arguments, reducing CPU register and stack pressure
+    - Pass down VDP2 register references as arguments rather than fetching them from scratch everywhere
+    - Reuse line data (i.e. skip recomputing lines) when rendering vertical mosaic
+    - Bit-pack character pattern data in a single 32-bit value
+    - Microoptimize scroll coordinates calculations
+    - Rotation parameter table calculations:
+        - Specialize calculations for (1) no coefficient table, (2) per-line coefficient table and (3) per-dot coefficient table
+        - Hoist coefficient table enable and per-dot coefficients checks out of the loop
+        - Make the inner loops SIMD-friendly
+        - Avoid unnecessary computation of transparency and line color screen data if they are disabled
+    - Microoptimizations to the compositor function:
+        - Layer sorting now uses a combined key
+        - Gather layer data in one single loop
+        - Pixel fetching is now templatized and some bail out checks are done earlier
+        - Color offset calculation enable flag is cleared in the fetch loop if no offset is actually applied
 
 ### Fixes
 

@@ -676,38 +676,33 @@ private:
         OneWordExtended, // 1 word characters with extended character data; H/V flip unavailable
     };
 
-    // Common pixel data: color, transparency, priority and special color calculation flag.
+    // Common pixel data: color, priority and special color calculation flag.
     struct Pixel {
         Color888 color;
         uint8 priority;
-        bool transparent;
         bool specialColorCalc;
     };
 
     struct Pixels {
         alignas(16) std::array<Color888, kMaxResH> color;
         alignas(16) std::array<uint8, kMaxResH> priority;
-        alignas(16) std::array<bool, kMaxResH> transparent;
         alignas(16) std::array<bool, kMaxResH> specialColorCalc;
 
         FORCE_INLINE Pixel GetPixel(size_t index) const {
             return Pixel{
                 .color = color[index],
                 .priority = priority[index],
-                .transparent = transparent[index],
                 .specialColorCalc = specialColorCalc[index],
             };
         }
         FORCE_INLINE void SetPixel(size_t index, Pixel pixel) {
             color[index] = pixel.color;
             priority[index] = pixel.priority;
-            transparent[index] = pixel.transparent;
             specialColorCalc[index] = pixel.specialColorCalc;
         }
         FORCE_INLINE void CopyPixel(size_t src, size_t dst) {
             color[dst] = color[src];
             priority[dst] = priority[src];
-            transparent[dst] = transparent[src];
             specialColorCalc[dst] = specialColorCalc[src];
         }
     };
@@ -721,7 +716,6 @@ private:
         void Reset() {
             pixels.color.fill({});
             pixels.priority.fill({});
-            pixels.transparent.fill(false);
             pixels.specialColorCalc.fill(false);
         }
 
