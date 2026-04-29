@@ -731,20 +731,20 @@ private:
         void Reset() {
             colorCalcRatio.fill(0);
             shadowOrWindow.fill(false);
-            normalShadow.fill(false);
+            specialType.fill(SpriteData::Special::Normal);
             window.fill(false);
         }
 
         void CopyAttrs(size_t src, size_t dst) {
             colorCalcRatio[dst] = colorCalcRatio[src];
             shadowOrWindow[dst] = shadowOrWindow[src];
-            normalShadow[dst] = normalShadow[src];
+            specialType[dst] = specialType[src];
             // window is computed separately
         }
 
         alignas(16) std::array<uint8, kMaxResH> colorCalcRatio;
         alignas(16) std::array<bool, kMaxResH> shadowOrWindow;
-        alignas(16) std::array<bool, kMaxResH> normalShadow;
+        alignas(16) std::array<SpriteData::Special, kMaxResH> specialType;
 
         alignas(16) std::array<bool, kMaxResH> window;
     };

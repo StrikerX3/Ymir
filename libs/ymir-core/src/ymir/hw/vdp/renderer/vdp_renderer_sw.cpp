@@ -2525,7 +2525,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y, const VDP2Regs
             if (coord.x() < 0 || coord.x() >= regs1.fbSizeH || coord.y() < 0 || coord.y() >= regs1.fbSizeV) {
                 layerOut.pixels.priority[xx] = 0;
                 layerAttrs.shadowOrWindow[xx] = false;
-                layerAttrs.normalShadow[xx] = false;
+                layerAttrs.specialType[xx] = SpriteData::Special::Transparent;
                 if (doubleResH) {
                     layerOut.pixels.CopyPixel(xx, xx + 1);
                     layerAttrs.CopyAttrs(xx, xx + 1);
@@ -2533,7 +2533,7 @@ NO_INLINE void SoftwareVDPRenderer::VDP2DrawSpriteLayer(uint32 y, const VDP2Regs
                 if constexpr (transparentMeshes) {
                     meshLayerOut.pixels.priority[xx] = 0;
                     meshLayerAttrs.shadowOrWindow[xx] = false;
-                    layerAttrs.normalShadow[xx] = false;
+                    layerAttrs.specialType[xx] = SpriteData::Special::Transparent;
                     if (doubleResH) {
                         meshLayerOut.pixels.CopyPixel(xx, xx + 1);
                         meshLayerAttrs.CopyAttrs(xx, xx + 1);
@@ -2583,7 +2583,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
     if (m_spriteLayerAttrs[altField].window[x]) {
         layerOut.pixels.priority[x] = 0;
         layerAttrs.shadowOrWindow[x] = false;
-        layerAttrs.normalShadow[x] = false;
+        layerAttrs.specialType[x] = SpriteData::Special::Transparent;
         return;
     }
 
@@ -2600,14 +2600,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
                 if (bit::extract<0, 7>(spriteDataValue) == 0) {
                     layerOut.pixels.priority[x] = 0;
                     layerAttrs.shadowOrWindow[x] = false;
-                    layerAttrs.normalShadow[x] = false;
+                    layerAttrs.specialType[x] = SpriteData::Special::Transparent;
                     return;
                 }
             } else if (params.type >= 2) {
                 if (params.useSpriteWindow && bit::extract<0, 14>(spriteDataValue) == 0) {
                     layerOut.pixels.priority[x] = 0;
                     layerAttrs.shadowOrWindow[x] = false;
-                    layerAttrs.normalShadow[x] = false;
+                    layerAttrs.specialType[x] = SpriteData::Special::Transparent;
                     return;
                 }
             }
@@ -2617,7 +2617,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
 
             layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
             layerAttrs.shadowOrWindow[x] = false;
-            layerAttrs.normalShadow[x] = false;
+            layerAttrs.specialType[x] = SpriteData::Special::Normal;
             return;
         }
     }
@@ -2630,7 +2630,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
         spriteData.shadowOrWindow != params.spriteWindowInverted) {
         layerOut.pixels.priority[x] = 0;
         layerAttrs.shadowOrWindow[x] = true;
-        layerAttrs.normalShadow[x] = false;
+        layerAttrs.specialType[x] = SpriteData::Special::Transparent;
         return;
     }
 
@@ -2638,12 +2638,13 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
     const Color888 color = VDP2FetchCRAMColor<colorMode>(0, colorIndex);
 
     layerOut.pixels.color[x] = color;
-    layerOut.pixels.priority[x] =
-        spriteData.special == SpriteData::Special::Transparent ? 0 : params.priorities[spriteData.priority];
+    layerOut.pixels.priority[x] = spriteData.special == SpriteData::Special::Transparent && !spriteData.shadowOrWindow
+                                      ? 0
+                                      : params.priorities[spriteData.priority];
 
     layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
     layerAttrs.shadowOrWindow[x] = spriteData.shadowOrWindow;
-    layerAttrs.normalShadow[x] = spriteData.special == SpriteData::Special::Shadow;
+    layerAttrs.specialType[x] = spriteData.special;
 }
 
 template <uint32 bgIndex, bool deinterlace>
@@ -3629,7 +3630,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                 if (priority == 0) {
                     continue;
                 }
-                if (m_spriteLayerAttrs[altField].normalShadow[x]) {
+                if (m_spriteLayerAttrs[altField].specialType[x] != SpriteData::Special::Normal) {
                     continue;
                 }
 
@@ -3667,7 +3668,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                 if (priority == 0) {
                     continue;
                 }
-                if (m_meshLayerAttrs[altField].normalShadow[x]) {
+                if (m_meshLayerAttrs[altField].specialType[x] != SpriteData::Special::Normal) {
                     continue;
                 }
 
@@ -3754,7 +3755,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
         } else {
             // Sprite layer doesn't have shadow
             const auto &spriteLayerAttrs = m_spriteLayerAttrs[altField];
-            const bool isNormalShadow = spriteLayerAttrs.normalShadow[x];
+            const bool isNormalShadow = spriteLayerAttrs.specialType[x] == SpriteData::Special::Shadow;
             const bool isMSBShadow = !regs2.spriteParams.useSpriteWindow && spriteLayerAttrs.shadowOrWindow[x];
             if (!isNormalShadow && !isMSBShadow) {
                 layer0ShadowEnabled[x] = false;
