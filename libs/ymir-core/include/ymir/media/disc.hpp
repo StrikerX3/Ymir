@@ -49,6 +49,7 @@ struct Track {
     uint32 index = 0;
     uint32 unitSize = 0;   // size of a unit, always >= sectorSize
     uint32 sectorSize = 0; // size of the valid data in the sector
+    uint32 headerOffset = 0;
     uint32 userDataOffset = 0;
     uint8 controlADR = 0;
     bool mode2 = false;
@@ -79,10 +80,11 @@ struct Track {
     void SetSectorSize(uint32 size) {
         unitSize = size;
         sectorSize = size;
-        userDataOffset = size >= 2352 ? (mode2 ? 24 : 16) : size >= 2340 ? (mode2 ? 12 : 4) : 0;
         hasSyncBytes = size >= 2352;
         hasHeader = size >= 2340;
         hasECC = size >= 2336;
+        headerOffset = hasSyncBytes ? 12 : 0;
+        userDataOffset = hasSyncBytes ? (mode2 ? 24 : 16) : hasHeader ? (mode2 ? 12 : 4) : 0;
     }
 
     // Reads the user data portion of a sector.
