@@ -31,6 +31,7 @@ Uses save state file version 12.
 ### Fixes
 
 - Debugger: Various SH2 stack analysis fixes.
+- Media: Fix PREGAP/POSTGAP handling in single-BIN dumps.
 - SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)
 - VDP1: Add game-specific flag for skipping command processing if the top of the table is empty. Enable it exclusively for Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi. Fixes missing graphics in Gungriffon. (#810)
 - VDP1: Disable early polygon drawing termination when rendering polygons when user clipping mode is inverted. Fixes clipped polygons around the minimap in Machine Head (#767).

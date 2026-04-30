@@ -352,6 +352,11 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 errorMsg(fmt::format("BIN/CUE: Failed to load {} - {}", file.path, err.message()));
                 return false;
             }
+            // FIXME: insert pre/postgaps where needed instead of clearing them
+            for (auto &sheetTrack : sheet.tracks) {
+                sheetTrack.pregap = 0;
+                sheetTrack.postgap = 0;
+            }
         } else {
             uint32 currSheetTrackIndex = 0;
             auto compReader = std::make_shared<CompositeBinaryReader>();
@@ -561,6 +566,8 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
             prevTrack.endFrameAddress = prevTrack.startFrameAddress + trackSectors - 1;
             prevTrack.binaryReader = std::make_unique<SharedSubviewBinaryReader>(reader, binOffset, trackSizeBytes);
 
+            debugMsg(fmt::format("BIN/CUE: Track {:02d} closed, file offset = {:X}", sheetTrackIndex, binOffset));
+
             // TODO: for data tracks with at least the header bytes available, manually scan sectors to find the
             // *actual* end of the track, because some dumps are just bad
 
@@ -669,7 +676,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
         }
         disc.header.ReadFrom(header);
 
-        debugMsg(fmt::format("BIN/CUE: Final FAD = {:6d}", frameAddress - 1));
+        debugMsg(fmt::format("BIN/CUE: Final FAD = {:6d}, file offset = {:X}", frameAddress - 1, currFileBinOffset));
 
         sgInvalidateDisc.Cancel();
 
