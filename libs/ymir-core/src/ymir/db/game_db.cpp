@@ -71,8 +71,9 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan)
 
     {"T-24904G", {.flags = SlowVDP1}}, // Fishing Koushien II (Japan)
+    {"T-20002G", {.flags = SlowVDP1}}, // Funky Fantasy (Japan) -- slow FMVs
     {"T-9513G",  {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan)
-    
+
     {"T-32201G", {.flags = SkipEmptyVDP1Table}}, // Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi (Japan)
 
     {"T-27901G",  {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan)

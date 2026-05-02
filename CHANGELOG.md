@@ -31,6 +31,7 @@ Uses save state file version 12.
 ### Fixes
 
 - Debugger: Various SH2 stack analysis fixes.
+- Game DB: Add slow VDP1 flag to Funky Fantasy to fix slow FMVs.
 - Media: Detect postgaps in data tracks when the CUE sheet doesn't explicitly announce them. Fixes audio track shifts in bad Virtua Fighter 2 dumps.
 - Media: Fix PREGAP/POSTGAP handling in CUE/BIN dumps. Fixes shifted audio tracks in games dumped with ImgBurn.
 - SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)
