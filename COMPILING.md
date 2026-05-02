@@ -20,7 +20,7 @@ Ymir has been successfully compiled with the following toolchains:
 
 The project has been compiled for x86_64 and ARM64 Windows, Linux, FreeBSD and macOS platforms.
 
-Clang is the preferred compiler for it's multiplatform support and excellent code generation. Ymir requires Clang 15 or later.
+Clang is the preferred compiler for its multiplatform support and excellent code generation. Ymir requires Clang 15 or later.
 
 
 ## Build configuration
@@ -40,6 +40,27 @@ You can tune the build with following CMake options:
 - `Ymir_PGO` (`STRING`): PGO mode. Valid values are `OFF`, `GENERATE`, `USE`. Defaults to `OFF`.
 - `Ymir_PGO_DIR` (`PATH`): Directory where PGO profile data is written. Defaults to `${CMAKE_BINARY_DIR}/pgo-profdata`.
 - `Ymir_PGO_PROFDATA` (`FILEPATH`): Merged LLVM PGO profile data path. Defaults to `${Ymir_PGO_DIR}/ymir.profdata`.
+
+These options are used by the build workflows to tune the build output:
+
+- `Ymir_DEV_BUILD` (`BOOL`): Create a development build. This affects the versioning scheme (`-dev` suffix added, "(development build)" added to About window) and availability of development-friendly features (e.g. disabled automatic update checks).
+  Enabled by default, and should probably not be disabled unless you're checking behavior of stable and nightly builds.
+
+Ymir also supports feature flags. These are enabled by default on development and nightly builds:
+
+- `Ymir_FEATUREFLAG_DEFAULT` (`BOOL`): Enables or disables all non-overridden feature flags. Enabled by default on development builds.
+- `Ymir_FF_VIRTUA_GUN` (`BOOL`): Enables the Virtua Gun.
+
+Feature flags are made available to code as macros in [ymir-core's CMakeLists.txt](libs/ymir-core/CMakeLists.txt) (find `## Define feature flags macros`).
+If you add new feature flags, make sure to add the macro to this file too.
+
+Depending on the target build system, you might have to specify `CMAKE_BUILD_TYPE` for Release builds, otherwise CMake defaults to slow Debug builds.
+This option can be set to one of these values (see [docs](https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html)):
+
+- `Debug`: an unoptimized Debug build, with debug assertions and no inlining. Ideal for deep code debugging, but very slow.
+- `Release`: optimized Release build without debug symbols. Best used for stable and nightly builds. Probably not useful for development.
+- `RelWithDebInfo`: same as `Release`, but includes debug symbols. Great for general development, but the optimizations and inlining might get in the way of debugging.
+- `MinSizeRel`: a Release build that is optimized for code size. Not very useful since we're not targeting memory-constrained systems.
 
 For a Release build, you might want to disable the devlog and ImGui demo window and enable extra inlining to maximize performance and reduce the binary size.
 
