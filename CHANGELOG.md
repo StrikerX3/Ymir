@@ -2,7 +2,7 @@
 
 ## Version 0.3.1
 
-In development.
+Release 2026-05-03
 
 Uses save state file version 12.
 
