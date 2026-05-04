@@ -29,7 +29,7 @@ static std::string ReadString(std::span<uint8, 256> data, std::size_t start, std
 
 bool SaturnHeader::ReadFrom(std::span<uint8, 256> data) {
     hwID = ReadString(data, 0x00, 0x0F);
-    if (hwID != kExpectedHwId) {
+    if (!IsValid()) {
         return false;
     }
 

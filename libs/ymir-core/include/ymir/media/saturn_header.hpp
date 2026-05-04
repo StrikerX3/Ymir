@@ -60,6 +60,10 @@ struct SaturnHeader {
         firstReadSize = 0;
     }
 
+    bool IsValid() const {
+        return hwID == kExpectedHwId;
+    }
+
     std::string hwID;                 // [00-0F] Hardware identifier
     std::string makerID;              // [10-1F] Maker identifier
     std::string productNumber;        // [20-29] Product number

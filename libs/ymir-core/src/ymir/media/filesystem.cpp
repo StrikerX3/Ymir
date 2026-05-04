@@ -37,6 +37,11 @@ bool Filesystem::Read(const Disc &disc) {
     // The Saturn uses the volume descriptor from the final session on the disc
     const Session &session = disc.sessions.back();
 
+    // Check that we have a valid Saturn header
+    if (!disc.header.IsValid()) {
+        return false;
+    }
+
     // The volume descriptor is at frame address 166 (00:02:16) from the start of the session
     const uint32 absVolumeDescAddress = session.startFrameAddress + 166;
 

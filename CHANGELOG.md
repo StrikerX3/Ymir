@@ -10,6 +10,8 @@ Uses save state file version 12.
 
 ### Fixes
 
+- Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.
+
 
 ## Version 0.3.1
 
