@@ -156,7 +156,7 @@ public:
         sign = static_cast<sint64>(result << 16ull) < 0;
         carry = bit::test<48>(result);
         overflow |= bit::test<47>((~(op1 ^ op2)) & (op1 ^ result));
-        ALU.s64 = result;
+        ALU.s64 = bit::extract<0, 47>(result);
     }
 
     FORCE_INLINE void ALU_SR() {
@@ -239,7 +239,7 @@ public:
             break;
         }
         case 0b0100: RX = value; break;
-        case 0b0101: P.s64 = static_cast<sint32>(value); break;
+        case 0b0101: P.s64 = bit::extract<0, 47>(static_cast<sint64>(static_cast<sint32>(value))); break;
         case 0b0110: dmaReadAddr = (value << 2u) & 0x7FF'FFFC; break;
         case 0b0111: dmaWriteAddr = (value << 2u) & 0x7FF'FFFC; break;
         case 0b1010: loopCount = value & 0xFFF; break;
@@ -272,7 +272,7 @@ public:
             break;
         }
         case 0b0100: RX = value; break;
-        case 0b0101: P.s64 = static_cast<sint32>(value); break;
+        case 0b0101: P.s64 = bit::extract<0, 47>(static_cast<sint64>(static_cast<sint32>(value))); break;
         case 0b0110: dmaReadAddr = (value << 2u) & 0x7FF'FFFC; break;
         case 0b0111: dmaWriteAddr = (value << 2u) & 0x7FF'FFFC; break;
         case 0b1010: loopCount = value & 0xFFF; break;
@@ -355,8 +355,8 @@ public:
     uint32 incCT;
 
     union Reg48 {
-        uint64 u64 : 48;
-        sint64 s64 : 48;
+        uint64 u64;
+        sint64 s64;
         struct {
             uint32 L;
             uint16 u16Top;

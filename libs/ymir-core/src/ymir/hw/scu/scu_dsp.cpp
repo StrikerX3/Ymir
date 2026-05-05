@@ -270,9 +270,9 @@ void SCUDSP::SaveState(savestate::SCUDSPState &state) const {
     state.carry = carry;
     state.overflow = overflow;
     state.CT = CT.array;
-    state.ALU = ALU.s64;
-    state.AC = AC.s64;
-    state.P = P.s64;
+    state.ALU = ALU.u64;
+    state.AC = AC.u64;
+    state.P = P.u64;
     state.RX = RX;
     state.RY = RY;
     state.LOP = loopCount;
@@ -315,9 +315,9 @@ void SCUDSP::LoadState(const savestate::SCUDSPState &state) {
     carry = state.carry;
     overflow = state.overflow;
     CT.array = state.CT;
-    ALU.s64 = state.ALU;
-    AC.s64 = state.AC;
-    P.s64 = state.P;
+    ALU.u64 = bit::extract<0, 47>(state.ALU);
+    AC.u64 = bit::extract<0, 47>(state.AC);
+    P.u64 = bit::extract<0, 47>(state.P);
     RX = state.RX;
     RY = state.RY;
     loopCount = state.LOP & 0xFFF;
@@ -398,14 +398,14 @@ FORCE_INLINE void SCUDSP::Cmd_Operation(DSPInstr instr) {
     //  111   MOV [s],P   MOV [s],X
     if ((instr.aluInfo.xBusOp & 0b11) == 0b10) {
         // MOV MUL,P
-        P.s64 = static_cast<sint64>(RX) * static_cast<sint64>(RY);
+        P.s64 = bit::extract<0, 47>(static_cast<sint64>(RX) * static_cast<sint64>(RY));
     }
     if (instr.aluInfo.xBusOp >= 0b011) {
         const sint32 value = ReadSource<debug>(instr.aluInfo.xBusSource);
         markDataRAMRead(instr.aluInfo.xBusSource);
         if ((instr.aluInfo.xBusOp & 0b11) == 0b11) {
             // MOV [s],P
-            P.s64 = static_cast<sint64>(value);
+            P.s64 = bit::extract<0, 47>(static_cast<sint64>(value));
         }
         if (bit::test<2>(instr.aluInfo.xBusOp)) {
             // MOV [s],X
@@ -438,7 +438,7 @@ FORCE_INLINE void SCUDSP::Cmd_Operation(DSPInstr instr) {
         markDataRAMRead(instr.aluInfo.yBusSource);
         if ((instr.aluInfo.yBusOp & 0b11) == 0b11) {
             // MOV [s],A
-            AC.s64 = static_cast<sint64>(value);
+            AC.s64 = bit::extract<0, 47>(static_cast<sint64>(value));
         }
         if (bit::test<2>(instr.aluInfo.yBusOp)) {
             // MOV [s],Y

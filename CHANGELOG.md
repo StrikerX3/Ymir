@@ -8,6 +8,8 @@ Uses save state file version 12.
 
 ### New features and improvements
 
+- SCU: Optimize DSP operations involving 48-bit registers.
+
 ### Fixes
 
 - Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.
