@@ -77,7 +77,7 @@ void SCUDSP::Reset(bool hard) {
 }
 
 template <bool debug>
-void SCUDSP::Run(uint64 cycles) {
+FLATTEN void SCUDSP::Run(uint64 cycles) {
     // SCU DSP runs at half of the main clock rate
     cycles += m_cyclesSpillover;
     m_cyclesSpillover = cycles & 1u;
