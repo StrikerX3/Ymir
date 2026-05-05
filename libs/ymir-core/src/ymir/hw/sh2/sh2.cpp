@@ -1740,7 +1740,7 @@ FLATTEN FORCE_INLINE bool SH2::IsDMATransferActive(const DMAChannel &ch) const {
 }
 
 template <bool debug, bool enableCache>
-bool SH2::StepDMAC(uint32 channel) {
+FORCE_INLINE bool SH2::StepDMAC(uint32 channel) {
     auto &ch = m_dmaChannels[channel];
 
     // TODO: prioritize channels based on DMAOR.PR
