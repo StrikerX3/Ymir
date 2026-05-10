@@ -4,7 +4,39 @@
 #include <optional>
 #include <string>
 
+#ifdef _WIN32
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #include <windows.h>
+#endif
+
 namespace ymir::debug::util {
+
+/// @brief Gets an environment variable safely across platforms.
+/// @param name The name of the environment variable.
+/// @return The value of the environment variable, or std::nullopt if not set.
+inline std::optional<std::string> EnvGet(const std::string &name) {
+#ifdef _WIN32
+    DWORD size = GetEnvironmentVariableA(name.c_str(), nullptr, 0);
+    if (size == 0) {
+        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+            return std::nullopt;
+        }
+        return std::string{""};
+    }
+    std::string value(size, '\0');
+    // size includes null terminator, but string handles its own
+    GetEnvironmentVariableA(name.c_str(), value.data(), size);
+    value.pop_back(); // Remove the null terminator added by GetEnvironmentVariableA
+    return value;
+#else
+    if (const char *value = std::getenv(name.c_str())) {
+        return std::string{value};
+    }
+    return std::nullopt;
+#endif
+}
 
 /// @brief Sets an environment variable safely across platforms.
 /// @param name The name of the environment variable.
@@ -29,26 +61,6 @@ inline void EnvUnset(const std::string &name) {
     // POSIX standard
     unsetenv(name.c_str());
 #endif
-}
-
-/// @brief Retrieves an environment variable safely across platforms.
-/// @param[in] name the name of the environment variable to read.
-/// @return the value of the environment variable, or `std::nullopt` if the variable is not set.
-inline std::optional<std::string> EnvGet(const std::string &name) {
-#ifdef _WIN32
-    char *value = nullptr;
-    size_t len = 0;
-    errno_t err = _dupenv_s(&value, &len, name.c_str());
-    if (!err && value != nullptr) {
-        return value;
-    }
-#else
-    char *value = std::getenv(name.c_str());
-    if (value != nullptr) {
-        return value;
-    }
-#endif
-    return std::nullopt;
 }
 
 } // namespace ymir::debug::util

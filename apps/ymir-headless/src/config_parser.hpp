@@ -2,11 +2,9 @@
 
 #include "config.hpp"
 
+#include <toml++/toml.hpp>
 #include <ymir/debug/util/env.hpp>
 
-#include <toml++/toml.hpp>
-
-#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <optional>
@@ -57,20 +55,20 @@ namespace detail {
     }
 
     inline std::optional<std::filesystem::path> StandardConfigPath() {
-#if defined(WIN32)
-        if (auto home = util::EnvGet("APPDATA")) {
-            return std::filesystem::path{*home} / "StrikerX3" / "Ymir" / "Ymir.toml";
+#if defined(_WIN32)
+        if (auto appdata = ymir::debug::util::EnvGet("APPDATA")) {
+            return std::filesystem::path{*appdata} / "StrikerX3" / "Ymir" / "Ymir.toml";
         }
 #elif defined(__APPLE__)
-        if (const char *home = std::getenv("HOME")) {
-            return std::filesystem::path{home} / "Library" / "Application Support" / "Ymir" / "Ymir.toml";
+        if (auto home = ymir::debug::util::EnvGet("HOME")) {
+            return std::filesystem::path{*home} / "Library" / "Application Support" / "Ymir" / "Ymir.toml";
         }
 #else
-        if (const char *xdgConfigHome = std::getenv("XDG_CONFIG_HOME")) {
-            return std::filesystem::path{xdgConfigHome} / "Ymir" / "Ymir.toml";
+        if (auto xdgConfigHome = ymir::debug::util::EnvGet("XDG_CONFIG_HOME")) {
+            return std::filesystem::path{*xdgConfigHome} / "Ymir" / "Ymir.toml";
         }
-        if (const char *home = std::getenv("HOME")) {
-            return std::filesystem::path{home} / ".config" / "Ymir" / "Ymir.toml";
+        if (auto home = ymir::debug::util::EnvGet("HOME")) {
+            return std::filesystem::path{*home} / ".config" / "Ymir" / "Ymir.toml";
         }
 #endif
         return std::nullopt;
@@ -85,7 +83,7 @@ namespace detail {
             return std::nullopt;
         }
 
-        if (auto envPath = util::EnvGet("YMIR_CONFIG")) {
+        if (auto envPath = ymir::debug::util::EnvGet("YMIR_CONFIG")) {
             const std::filesystem::path path{*envPath};
             if (std::filesystem::is_regular_file(path)) {
                 return path;
@@ -186,6 +184,7 @@ inline HeadlessConfig LoadConfig(int argc, char *argv[]) {
     const auto cli = detail::ParseCliConfig(argc, argv);
 
     if (auto configPath = detail::FindConfigPath(cli.config_path)) {
+        // Load config file if found, but ignore parse errors and proceed to CLI overrides
         detail::LoadConfigFile(*configPath, config);
     }
 
