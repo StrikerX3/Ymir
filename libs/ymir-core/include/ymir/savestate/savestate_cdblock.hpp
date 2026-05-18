@@ -11,6 +11,7 @@ namespace ymir::savestate {
 
 struct CDBlockSaveState {
     alignas(16) std::array<uint16, 4> CR;
+    alignas(16) std::array<uint16, 4> RR;
     uint16 HIRQ;
     uint16 HIRQMASK;
 

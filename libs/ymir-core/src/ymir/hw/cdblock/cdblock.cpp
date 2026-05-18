@@ -78,10 +78,12 @@ CDBlock::CDBlock(core::Scheduler &scheduler, const media::Disc &disc, const medi
 }
 
 void CDBlock::Reset(bool hard) {
-    m_CR[0] = 0x0043; // ' C'
-    m_CR[1] = 0x4442; // 'DB'
-    m_CR[2] = 0x4C4F; // 'LO'
-    m_CR[3] = 0x434B; // 'CK'
+    m_CR.fill(0);
+
+    m_RR[0] = 0x0043; // ' C'
+    m_RR[1] = 0x4442; // 'DB'
+    m_RR[2] = 0x4C4F; // 'LO'
+    m_RR[3] = 0x434B; // 'CK'
 
     m_status.statusCode = kStatusCodePause;
     m_status.frameAddress = 0xFFFFFF;
@@ -90,8 +92,6 @@ void CDBlock::Reset(bool hard) {
     m_status.controlADR = 0xFF;
     m_status.track = 0xFF;
     m_status.index = 0xFF;
-
-    m_readyForPeriodicReports = false;
 
     m_currDriveCycles = 0;
     m_targetDriveCycles = kDriveCyclesNotPlaying;
@@ -261,6 +261,7 @@ bool CDBlock::IsTrayOpen() const {
 
 void CDBlock::SaveState(savestate::CDBlockSaveState &state) const {
     state.CR = m_CR;
+    state.RR = m_RR;
     state.HIRQ = m_HIRQ;
     state.HIRQMASK = m_HIRQMASK;
 
@@ -271,8 +272,6 @@ void CDBlock::SaveState(savestate::CDBlockSaveState &state) const {
     state.status.controlADR = m_status.controlADR;
     state.status.track = m_status.track;
     state.status.index = m_status.index;
-
-    state.readyForPeriodicReports = m_readyForPeriodicReports;
 
     state.currDriveCycles = m_currDriveCycles;
     state.targetDriveCycles = m_targetDriveCycles;
@@ -406,6 +405,7 @@ bool CDBlock::ValidateState(const savestate::CDBlockSaveState &state) const {
 
 void CDBlock::LoadState(const savestate::CDBlockSaveState &state) {
     m_CR = state.CR;
+    m_RR = state.RR;
     m_HIRQ = state.HIRQ;
     m_HIRQMASK = state.HIRQMASK;
 
@@ -416,8 +416,6 @@ void CDBlock::LoadState(const savestate::CDBlockSaveState &state) {
     m_status.controlADR = state.status.controlADR;
     m_status.track = state.status.track;
     m_status.index = state.status.index;
-
-    m_readyForPeriodicReports = state.readyForPeriodicReports;
 
     m_currDriveCycles = state.currDriveCycles;
     m_targetDriveCycles = state.targetDriveCycles;
@@ -552,13 +550,10 @@ T CDBlock::ReadReg(uint32 address) {
     case 0x02: return DoReadTransfer();
     case 0x08: return m_HIRQ;
     case 0x0C: return m_HIRQMASK;
-    case 0x18: return m_CR[0];
-    case 0x1C: return m_CR[1];
-    case 0x20: return m_CR[2];
-    case 0x24:
-        m_processingCommand = false;
-        m_readyForPeriodicReports = true;
-        return m_CR[3];
+    case 0x18: return m_RR[0];
+    case 0x1C: return m_RR[1];
+    case 0x20: return m_RR[2];
+    case 0x24: m_processingCommand = false; return m_RR[3];
     default: devlog::debug<grp::regs>("Unhandled {}-bit register read from {:02X}", sizeof(T) * 8, address); return 0;
     }
 }
@@ -617,15 +612,25 @@ T CDBlock::PeekReg(uint32 address) {
     } else if constexpr (std::is_same_v<T, uint16>) {
         address &= 0x3F;
 
+        // NOTE: CR and RR are exposed separately and simultaneously for debugging purposes.
+        // ReadReg and WriteReg implement the correct register set.
+
         switch (address) {
         case 0x00: return m_xferBuffer[m_xferBufferPos % m_xferBuffer.size()];
         case 0x02: return m_xferBuffer[m_xferBufferPos % m_xferBuffer.size()];
+
         case 0x08: return m_HIRQ;
         case 0x0C: return m_HIRQMASK;
+
         case 0x18: return m_CR[0];
         case 0x1C: return m_CR[1];
         case 0x20: return m_CR[2];
         case 0x24: return m_CR[3];
+
+        case 0x28: return m_RR[0];
+        case 0x2C: return m_RR[1];
+        case 0x30: return m_RR[2];
+        case 0x34: return m_RR[3];
         default: return 0;
         }
     }
@@ -642,15 +647,25 @@ void CDBlock::PokeReg(uint32 address, T value) {
     } else if constexpr (std::is_same_v<T, uint16>) {
         address &= 0x3F;
 
+        // NOTE: CR and RR are exposed separately and simultaneously for debugging purposes.
+        // ReadReg and WriteReg implement the correct register set.
+
         switch (address) {
         case 0x00: m_xferBuffer[m_xferBufferPos % m_xferBuffer.size()] = value; break;
         case 0x02: m_xferBuffer[m_xferBufferPos % m_xferBuffer.size()] = value; break;
+
         case 0x08: m_HIRQ = value; break;
         case 0x0C: m_HIRQMASK = value; break;
+
         case 0x18: m_CR[0] = value; break;
         case 0x1C: m_CR[1] = value; break;
         case 0x20: m_CR[2] = value; break;
         case 0x24: m_CR[3] = value; break;
+
+        case 0x28: m_RR[0] = value; break;
+        case 0x2C: m_RR[1] = value; break;
+        case 0x30: m_RR[2] = value; break;
+        case 0x34: m_RR[3] = value; break;
         }
     }
 }
@@ -963,7 +978,7 @@ void CDBlock::ProcessDriveState() {
     // - X-Men: Children of the Atom (EU) -- hangs on a black screen after certain transitions (e.g. title to menus)
     CheckPlayEnd();
 
-    if (m_readyForPeriodicReports && !m_processingCommand) {
+    if (!m_processingCommand) {
         // HACK to ensure the system detects the absence of a disc properly
         if (m_disc.sessions.empty() && GetStatusCode() != kStatusCodeOpen) {
             m_status.statusCode = kStatusCodeNoDisc;
@@ -1171,10 +1186,10 @@ void CDBlock::ReportCDStatus() {
 }
 
 void CDBlock::ReportCDStatus(uint8 statusCode) {
-    m_CR[0] = (statusCode << 8u) | (m_status.flags << 4u) | (m_status.repeatCount);
-    m_CR[1] = (m_status.controlADR << 8u) | m_status.track;
-    m_CR[2] = (m_status.index << 8u) | ((m_status.frameAddress >> 16u) & 0xFF);
-    m_CR[3] = m_status.frameAddress;
+    m_RR[0] = (statusCode << 8u) | (m_status.flags << 4u) | (m_status.repeatCount);
+    m_RR[1] = (m_status.controlADR << 8u) | m_status.track;
+    m_RR[2] = (m_status.index << 8u) | ((m_status.frameAddress >> 16u) & 0xFF);
+    m_RR[3] = m_status.frameAddress;
 }
 
 uint8 CDBlock::GetStatusCode() const {
@@ -1371,10 +1386,10 @@ bool CDBlock::SetupSubcodeTransfer(uint8 type) {
         m_xferBuffer[8] = util::to_bcd(s);
         m_xferBuffer[9] = util::to_bcd(f);
 
-        m_CR[0] = GetStatusCode() << 8u;
-        m_CR[1] = 5;
-        m_CR[2] = 0x0000;
-        m_CR[3] = 0x0000;
+        m_RR[0] = GetStatusCode() << 8u;
+        m_RR[1] = 5;
+        m_RR[2] = 0x0000;
+        m_RR[3] = 0x0000;
 
         return true;
     } else if (type == 1) {
@@ -1403,10 +1418,10 @@ bool CDBlock::SetupSubcodeTransfer(uint8 type) {
             m_xferBuffer.fill(0xFF);
         }
 
-        m_CR[0] = GetStatusCode() << 8u;
-        m_CR[1] = 12;
-        m_CR[2] = 0x0000;
-        m_CR[3] = m_xferSubcodeGroup;
+        m_RR[0] = GetStatusCode() << 8u;
+        m_RR[1] = 12;
+        m_RR[2] = 0x0000;
+        m_RR[3] = m_xferSubcodeGroup;
 
         return true;
     }
@@ -1703,8 +1718,8 @@ FORCE_INLINE void CDBlock::ProcessCommand() {
         break;
     }
 
-    devlog::trace<grp::cmd>("Command response:  {:04X} {:04X} {:04X} {:04X}", m_CR[0], m_CR[1], m_CR[2], m_CR[3]);
-    TraceProcessCommandResponse(m_tracer, m_CR[0], m_CR[1], m_CR[2], m_CR[3]);
+    devlog::trace<grp::cmd>("Command response:  {:04X} {:04X} {:04X} {:04X}", m_RR[0], m_RR[1], m_RR[2], m_RR[3]);
+    TraceProcessCommandResponse(m_tracer, m_RR[0], m_RR[1], m_RR[2], m_RR[3]);
 }
 
 void CDBlock::CmdGetStatus() {
@@ -1736,10 +1751,10 @@ void CDBlock::CmdGetHardwareInfo() {
     // hardware flags   hardware version
     // <blank>          MPEG version (0 if unauthenticated)
     // drive version    drive revision
-    m_CR[0] = GetStatusCode() << 8u;
-    m_CR[1] = 0x0002;
-    m_CR[2] = 0x0000;
-    m_CR[3] = 0x0600;
+    m_RR[0] = GetStatusCode() << 8u;
+    m_RR[1] = 0x0002;
+    m_RR[2] = 0x0000;
+    m_RR[3] = 0x0600;
 
     SetInterrupt(kHIRQ_CMOK);
 }
@@ -1760,10 +1775,10 @@ void CDBlock::CmdGetTOC() {
     // TOC size in words
     // <blank>
     // <blank>
-    m_CR[0] = GetStatusCode() << 8u;
-    m_CR[1] = sizeof(media::Session::toc) / sizeof(uint16);
-    m_CR[2] = 0x0000;
-    m_CR[3] = 0x0000;
+    m_RR[0] = GetStatusCode() << 8u;
+    m_RR[1] = sizeof(media::Session::toc) / sizeof(uint16);
+    m_RR[2] = 0x0000;
+    m_RR[3] = 0x0000;
 
     // TODO: make busy for a brief moment
     m_status.statusCode = kStatusCodePause;
@@ -1789,22 +1804,22 @@ void CDBlock::CmdGetSessionInfo() {
 
     const uint8 sessionNum = bit::extract<0, 7>(m_CR[0]);
 
-    m_CR[0] = GetStatusCode() << 8u;
-    m_CR[1] = 0x0000;
+    m_RR[0] = GetStatusCode() << 8u;
+    m_RR[1] = 0x0000;
     if (sessionNum == 0) {
         // Get information about all sessions
-        m_CR[2] = (m_disc.sessions.size() << 8u); // TODO: session LBA?
-        m_CR[3] = 0x0000;
+        m_RR[2] = (m_disc.sessions.size() << 8u); // TODO: session LBA?
+        m_RR[3] = 0x0000;
     } else if (sessionNum <= m_disc.sessions.size()) {
         // Get information about a specific session
         const auto &session = m_disc.sessions[sessionNum - 1];
         const uint32 startFAD = session.startFrameAddress;
-        m_CR[2] = ((session.firstTrackIndex + 1) << 8u) | bit::extract<16, 23>(startFAD);
-        m_CR[3] = bit::extract<0, 15>(startFAD);
+        m_RR[2] = ((session.firstTrackIndex + 1) << 8u) | bit::extract<16, 23>(startFAD);
+        m_RR[3] = bit::extract<0, 15>(startFAD);
     } else {
         // Return FFFFFFFF for nonexistent sessions
-        m_CR[2] = 0xFFFF;
-        m_CR[3] = 0xFFFF;
+        m_RR[2] = 0xFFFF;
+        m_RR[3] = 0xFFFF;
     }
 
     // TODO: make busy for a brief moment
@@ -1926,10 +1941,10 @@ void CDBlock::CmdEndDataTransfer() {
     // transferred word count bits 15-0
     // <blank>
     // <blank>
-    m_CR[0] = (GetStatusCode() << 8u) | (transferCount >> 16u);
-    m_CR[1] = transferCount;
-    m_CR[2] = 0x0000;
-    m_CR[3] = 0x0000;
+    m_RR[0] = (GetStatusCode() << 8u) | (transferCount >> 16u);
+    m_RR[1] = transferCount;
+    m_RR[2] = 0x0000;
+    m_RR[3] = 0x0000;
 
     SetInterrupt(kHIRQ_CMOK);
 }
@@ -2114,10 +2129,10 @@ void CDBlock::CmdGetSubcodeQ_RW() {
         // <blank>
         // <blank>
         // <blank>
-        m_CR[0] = 0x8000;
-        m_CR[1] = 0x0000;
-        m_CR[2] = 0x0000;
-        m_CR[3] = 0x0000;
+        m_RR[0] = 0x8000;
+        m_RR[1] = 0x0000;
+        m_RR[2] = 0x0000;
+        m_RR[3] = 0x0000;
     }
 
     SetInterrupt(kHIRQ_CMOK);
@@ -2158,10 +2173,10 @@ void CDBlock::CmdGetCDDeviceConnection() {
     // <blank>
     // filter number  <blank>
     // <blank>
-    m_CR[0] = GetStatusCode() << 8u;
-    m_CR[1] = 0x0000;
-    m_CR[2] = m_cdDeviceConnection << 8u;
-    m_CR[3] = 0x0000;
+    m_RR[0] = GetStatusCode() << 8u;
+    m_RR[1] = 0x0000;
+    m_RR[2] = m_cdDeviceConnection << 8u;
+    m_RR[3] = 0x0000;
 
     SetInterrupt(kHIRQ_CMOK);
 }
@@ -2180,10 +2195,10 @@ void CDBlock::CmdGetLastBufferDest() {
     // <blank>
     // partition number   <blank>
     // <blank>
-    m_CR[0] = GetStatusCode() << 8u;
-    m_CR[1] = 0x0000;
-    m_CR[2] = m_lastCDWritePartition << 8u;
-    m_CR[3] = 0x0000;
+    m_RR[0] = GetStatusCode() << 8u;
+    m_RR[1] = 0x0000;
+    m_RR[2] = m_lastCDWritePartition << 8u;
+    m_RR[3] = 0x0000;
 
     SetInterrupt(kHIRQ_CMOK);
 }
@@ -2233,10 +2248,10 @@ void CDBlock::CmdGetFilterRange() {
         // filter number  frame address count bits 23-16
         // frame address count bits 15-0
         const auto &filter = m_filters[filterNumber];
-        m_CR[0] = (GetStatusCode() << 8u) | (filter.startFrameAddress >> 16u);
-        m_CR[1] = filter.startFrameAddress;
-        m_CR[2] = (filterNumber << 8u) | (filter.frameAddressCount >> 16u);
-        m_CR[3] = filter.frameAddressCount;
+        m_RR[0] = (GetStatusCode() << 8u) | (filter.startFrameAddress >> 16u);
+        m_RR[1] = filter.startFrameAddress;
+        m_RR[2] = (filterNumber << 8u) | (filter.frameAddressCount >> 16u);
+        m_RR[3] = filter.frameAddressCount;
     } else {
         ReportCDStatus(kStatusReject);
     }
@@ -2301,10 +2316,10 @@ void CDBlock::CmdGetFilterSubheaderConditions() {
         // filter number  file ID
         // submode value  coding info value
         const auto &filter = m_filters[filterNumber];
-        m_CR[0] = (GetStatusCode() << 8u) | filter.chanNum;
-        m_CR[1] = (filter.submodeMask << 8u) | filter.codingInfoMask;
-        m_CR[2] = (filterNumber << 8u) | filter.fileNum;
-        m_CR[3] = (filter.submodeValue << 8u) | filter.codingInfoValue;
+        m_RR[0] = (GetStatusCode() << 8u) | filter.chanNum;
+        m_RR[1] = (filter.submodeMask << 8u) | filter.codingInfoMask;
+        m_RR[2] = (filterNumber << 8u) | filter.fileNum;
+        m_RR[3] = (filter.submodeValue << 8u) | filter.codingInfoValue;
     } else {
         ReportCDStatus(kStatusReject);
     }
@@ -2365,10 +2380,10 @@ void CDBlock::CmdGetFilterMode() {
         // filter number  <blank>
         // <blank>
         const auto &filter = m_filters[filterNumber];
-        m_CR[0] = (GetStatusCode() << 8u) | filter.mode;
-        m_CR[1] = 0x0000;
-        m_CR[2] = (filterNumber << 8u);
-        m_CR[3] = 0x0000;
+        m_RR[0] = (GetStatusCode() << 8u) | filter.mode;
+        m_RR[1] = 0x0000;
+        m_RR[2] = (filterNumber << 8u);
+        m_RR[3] = 0x0000;
     } else {
         ReportCDStatus(kStatusReject);
     }
@@ -2428,10 +2443,10 @@ void CDBlock::CmdGetFilterConnection() {
         // filter number  <blank>
         // <blank>
         const auto &filter = m_filters[filterNumber];
-        m_CR[0] = (GetStatusCode() << 8u);
-        m_CR[1] = (filter.passOutput << 8u) | filter.failOutput;
-        m_CR[2] = (filterNumber << 8u);
-        m_CR[3] = 0x0000;
+        m_RR[0] = (GetStatusCode() << 8u);
+        m_RR[1] = (filter.passOutput << 8u) | filter.failOutput;
+        m_RR[2] = (filterNumber << 8u);
+        m_RR[3] = 0x0000;
     } else {
         ReportCDStatus(kStatusReject);
     }
@@ -2527,10 +2542,10 @@ void CDBlock::CmdGetBufferSize() {
     // total filter count   <blank>
     // total buffer count
     const uint32 freeBuffers = m_partitionManager.GetFreeBufferCount();
-    m_CR[0] = GetStatusCode() << 8u;
-    m_CR[1] = freeBuffers;
-    m_CR[2] = kNumFilters << 8u;
-    m_CR[3] = kNumBuffers;
+    m_RR[0] = GetStatusCode() << 8u;
+    m_RR[1] = freeBuffers;
+    m_RR[2] = kNumFilters << 8u;
+    m_RR[3] = kNumBuffers;
 
     devlog::trace<grp::base>("Get buffer size: free buffers = {}", freeBuffers);
 
@@ -2556,10 +2571,10 @@ void CDBlock::CmdGetSectorNumber() {
     // <blank>
     // <blank>
     // number of blocks
-    m_CR[0] = (GetStatusCode() << 8u);
-    m_CR[1] = 0x0000;
-    m_CR[2] = 0x0000;
-    m_CR[3] = sectorCount;
+    m_RR[0] = (GetStatusCode() << 8u);
+    m_RR[1] = 0x0000;
+    m_RR[2] = 0x0000;
+    m_RR[3] = sectorCount;
 
     devlog::trace<grp::base>("Partition {} has {} sectors", partitionNumber, sectorCount);
 
@@ -2630,10 +2645,10 @@ void CDBlock::CmdGetActualSize() {
     // calculated size bits 15-0 (in words)
     // <blank>
     // <blank>
-    m_CR[0] = (GetStatusCode() << 8u) | bit::extract<16, 23>(m_calculatedPartitionSize);
-    m_CR[1] = bit::extract<0, 15>(m_calculatedPartitionSize);
-    m_CR[2] = 0x0000;
-    m_CR[3] = 0x0000;
+    m_RR[0] = (GetStatusCode() << 8u) | bit::extract<16, 23>(m_calculatedPartitionSize);
+    m_RR[1] = bit::extract<0, 15>(m_calculatedPartitionSize);
+    m_RR[2] = 0x0000;
+    m_RR[3] = 0x0000;
 
     SetInterrupt(kHIRQ_CMOK | kHIRQ_ESEL);
 }
@@ -2662,10 +2677,10 @@ void CDBlock::CmdGetSectorInfo() {
             // sector frame address bits 15-0
             // sector file number   sector coding number
             // sector submode       sector coding info
-            m_CR[0] = (GetStatusCode() << 8u) | (buffer->frameAddress >> 16u);
-            m_CR[1] = buffer->frameAddress;
-            m_CR[2] = (buffer->subheader.fileNum << 8u) | buffer->subheader.chanNum;
-            m_CR[3] = (buffer->subheader.submode << 8u) | buffer->subheader.codingInfo;
+            m_RR[0] = (GetStatusCode() << 8u) | (buffer->frameAddress >> 16u);
+            m_RR[1] = buffer->frameAddress;
+            m_RR[2] = (buffer->subheader.fileNum << 8u) | buffer->subheader.chanNum;
+            m_RR[3] = (buffer->subheader.submode << 8u) | buffer->subheader.codingInfo;
         }
     }
 
@@ -2717,10 +2732,10 @@ void CDBlock::CmdGetFADSearchResults() {
     // sector position
     // partition number   frame address bits 23-16
     // frame address bits 15-0
-    m_CR[0] = (GetStatusCode() << 8u);
-    m_CR[1] = 0; // TODO: sector position
-    m_CR[2] = 0; // TODO: partition number, FAD high
-    m_CR[3] = 0; // TODO: FAD low
+    m_RR[0] = (GetStatusCode() << 8u);
+    m_RR[1] = 0; // TODO: sector position
+    m_RR[2] = 0; // TODO: partition number, FAD high
+    m_RR[3] = 0; // TODO: FAD low
 
     SetInterrupt(kHIRQ_CMOK);
 }
@@ -2979,10 +2994,10 @@ void CDBlock::CmdGetCopyError() {
     // <blank>
     // <blank>
     // <blank>
-    m_CR[0] = (GetStatusCode() << 8u) | 0x00; // TODO: async copy/move error code
-    m_CR[1] = 0x0000;
-    m_CR[2] = 0x0000;
-    m_CR[3] = 0x0000;
+    m_RR[0] = (GetStatusCode() << 8u) | 0x00; // TODO: async copy/move error code
+    m_RR[1] = 0x0000;
+    m_RR[2] = 0x0000;
+    m_RR[3] = 0x0000;
 
     SetInterrupt(kHIRQ_CMOK);
 }
@@ -3071,10 +3086,10 @@ void CDBlock::CmdGetFileSystemScope() {
     const uint32 fileOffset = m_fsState.GetFileOffset() + 2;
     const uint32 fileCount = m_fsState.GetFileCount();
     const bool endOfDirectory = fileOffset + 254 >= fileCount;
-    m_CR[0] = GetStatusCode() << 8u;
-    m_CR[1] = fileCount;
-    m_CR[2] = (endOfDirectory << 8u) | bit::extract<16, 23>(fileOffset);
-    m_CR[3] = bit::extract<0, 15>(fileOffset);
+    m_RR[0] = GetStatusCode() << 8u;
+    m_RR[1] = fileCount;
+    m_RR[2] = (endOfDirectory << 8u) | bit::extract<16, 23>(fileOffset);
+    m_RR[3] = bit::extract<0, 15>(fileOffset);
 
     devlog::trace<grp::base>("Get file system scope: {} files from offset {}, {}", fileCount, fileOffset,
                              (endOfDirectory ? "end of list" : "more files available"));
@@ -3108,10 +3123,10 @@ void CDBlock::CmdGetFileInfo() {
         // file info size in words
         // <blank>
         // <blank>
-        m_CR[0] = GetStatusCode() << 8u;
-        m_CR[1] = numFileInfos * 12 / sizeof(uint16);
-        m_CR[2] = 0x0000;
-        m_CR[3] = 0x0000;
+        m_RR[0] = GetStatusCode() << 8u;
+        m_RR[1] = numFileInfos * 12 / sizeof(uint16);
+        m_RR[2] = 0x0000;
+        m_RR[3] = 0x0000;
         SetInterrupt(kHIRQ_DRDY);
     } else {
         ReportCDStatus(kStatusReject);
@@ -3185,10 +3200,10 @@ void CDBlock::CmdMpegInit() {
     // <blank>
     // <blank>
     // <blank>
-    m_CR[0] = 0xFF00;
-    m_CR[1] = 0;
-    m_CR[2] = 0;
-    m_CR[3] = 0;
+    m_RR[0] = 0xFF00;
+    m_RR[1] = 0;
+    m_RR[2] = 0;
+    m_RR[3] = 0;
 
     SetInterrupt(kHIRQ_CMOK | kHIRQ_MPED | kHIRQ_MPST);
 }
@@ -3272,10 +3287,10 @@ void CDBlock::CmdIsDeviceAuthenticated() {
     // authentication status
     // <blank>
     // <unknown>
-    m_CR[0] = (GetStatusCode() << 8u);
-    m_CR[1] = authType == 0x0000 ? m_discAuthStatus : m_mpegAuthStatus;
-    m_CR[2] = 0;
-    m_CR[3] = 0;
+    m_RR[0] = (GetStatusCode() << 8u);
+    m_RR[1] = authType == 0x0000 ? m_discAuthStatus : m_mpegAuthStatus;
+    m_RR[2] = 0;
+    m_RR[3] = 0;
 
     SetInterrupt(kHIRQ_CMOK);
 }

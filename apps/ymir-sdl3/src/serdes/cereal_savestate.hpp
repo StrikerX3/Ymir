@@ -28,7 +28,8 @@ namespace ymir::savestate {
 //  10 = 0.2.0
 //  11 = 0.2.1
 //  12 = 0.3.0
-inline constexpr uint32 kVersion = 12;
+//  13 = 0.3.2
+inline constexpr uint32 kVersion = 13;
 
 } // namespace ymir::savestate
 
@@ -1204,6 +1205,11 @@ void serialize(Archive &ar, SCSPTimerSaveState &s) {
 
 template <class Archive>
 void serialize(Archive &ar, CDBlockSaveState &s, SaveState &root, const uint32 version) {
+    // v13:
+    // - New fields
+    //   - RR = CR
+    // - Removed fields
+    //   - readyForPeriodicReports
     // v10:
     // - Removed fields
     //   - discHash moved to the root of the structure
@@ -1229,9 +1235,18 @@ void serialize(Archive &ar, CDBlockSaveState &s, SaveState &root, const uint32 v
         ar(root.discHash);
         // v10+ is handled in the root serializer
     }
-    ar(s.CR, s.HIRQ, s.HIRQMASK);
+    ar(s.CR);
+    if (version >= 13) {
+        ar(s.RR);
+    } else {
+        s.RR = s.CR;
+    }
+    ar(s.HIRQ, s.HIRQMASK);
     serialize(ar, s.status, version);
-    ar(s.readyForPeriodicReports);
+    if (version < 13) {
+        bool readyForPeriodicReports;
+        ar(readyForPeriodicReports);
+    }
     ar(s.currDriveCycles, s.targetDriveCycles);
     if (version >= 9) {
         ar(s.seekTicks);

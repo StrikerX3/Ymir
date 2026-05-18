@@ -72,6 +72,7 @@ private:
     static void OnCommandExecEvent(core::EventContext &eventContext, void *userContext);
 
     alignas(uint64) std::array<uint16, 4> m_CR;
+    alignas(uint64) std::array<uint16, 4> m_RR;
 
     const media::Disc &m_disc;
     const media::fs::Filesystem &m_fs;
@@ -111,8 +112,6 @@ private:
         uint8 track;         // current track
         uint8 index;         // current index
     } m_status;
-
-    bool m_readyForPeriodicReports; // HACK to avoid overwriting the initial state during the boot sequence
 
     uint32 m_currDriveCycles;   // current cycle count for drive state processing
     uint32 m_targetDriveCycles; // number of cycles until the next drive state update
