@@ -1787,18 +1787,20 @@ void CDBlock::CmdGetSessionInfo() {
     // session num/count  lba bits 23-16
     // lba bits 15-0
 
+    const uint8 sessionNum = bit::extract<0, 7>(m_CR[0]);
+
     m_CR[0] = GetStatusCode() << 8u;
     m_CR[1] = 0x0000;
-
-    const uint8 sessionNum = bit::extract<0, 7>(m_CR[0]);
     if (sessionNum == 0) {
         // Get information about all sessions
         m_CR[2] = (m_disc.sessions.size() << 8u); // TODO: session LBA?
         m_CR[3] = 0x0000;
     } else if (sessionNum <= m_disc.sessions.size()) {
         // Get information about a specific session
-        m_CR[2] = (sessionNum << 8u) | bit::extract<16, 23>(m_disc.sessions[sessionNum - 1].toc[101]);
-        m_CR[3] = bit::extract<0, 15>(m_disc.sessions[sessionNum - 1].toc[101]);
+        const auto &session = m_disc.sessions[sessionNum - 1];
+        const uint32 startFAD = session.startFrameAddress;
+        m_CR[2] = ((session.firstTrackIndex + 1) << 8u) | bit::extract<16, 23>(startFAD);
+        m_CR[3] = bit::extract<0, 15>(startFAD);
     } else {
         // Return FFFFFFFF for nonexistent sessions
         m_CR[2] = 0xFFFF;
