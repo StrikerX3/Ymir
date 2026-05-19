@@ -1208,8 +1208,6 @@ void serialize(Archive &ar, CDBlockSaveState &s, SaveState &root, const uint32 v
     // v13:
     // - New fields
     //   - RR = CR
-    // - Removed fields
-    //   - readyForPeriodicReports
     // v10:
     // - Removed fields
     //   - discHash moved to the root of the structure
@@ -1243,10 +1241,7 @@ void serialize(Archive &ar, CDBlockSaveState &s, SaveState &root, const uint32 v
     }
     ar(s.HIRQ, s.HIRQMASK);
     serialize(ar, s.status, version);
-    if (version < 13) {
-        bool readyForPeriodicReports;
-        ar(readyForPeriodicReports);
-    }
+    ar(s.readyForPeriodicReports);
     ar(s.currDriveCycles, s.targetDriveCycles);
     if (version >= 9) {
         ar(s.seekTicks);

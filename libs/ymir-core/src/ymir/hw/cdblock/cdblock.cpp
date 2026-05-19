@@ -85,6 +85,8 @@ void CDBlock::Reset(bool hard) {
     m_RR[2] = 0x4C4F; // 'LO'
     m_RR[3] = 0x434B; // 'CK'
 
+    m_readyForPeriodicReports = false;
+
     m_status.statusCode = kStatusCodePause;
     m_status.frameAddress = 0xFFFFFF;
     m_status.flags = 0xF;
@@ -273,6 +275,8 @@ void CDBlock::SaveState(savestate::CDBlockSaveState &state) const {
     state.status.track = m_status.track;
     state.status.index = m_status.index;
 
+    state.readyForPeriodicReports = m_readyForPeriodicReports;
+
     state.currDriveCycles = m_currDriveCycles;
     state.targetDriveCycles = m_targetDriveCycles;
     state.seekTicks = m_seekTicks;
@@ -417,6 +421,8 @@ void CDBlock::LoadState(const savestate::CDBlockSaveState &state) {
     m_status.track = state.status.track;
     m_status.index = state.status.index;
 
+    m_readyForPeriodicReports = state.readyForPeriodicReports;
+
     m_currDriveCycles = state.currDriveCycles;
     m_targetDriveCycles = state.targetDriveCycles;
     m_seekTicks = state.seekTicks;
@@ -553,7 +559,10 @@ T CDBlock::ReadReg(uint32 address) {
     case 0x18: return m_RR[0];
     case 0x1C: return m_RR[1];
     case 0x20: return m_RR[2];
-    case 0x24: m_processingCommand = false; return m_RR[3];
+    case 0x24:
+        m_processingCommand = false;
+        m_readyForPeriodicReports = true;
+        return m_RR[3];
     default: devlog::debug<grp::regs>("Unhandled {}-bit register read from {:02X}", sizeof(T) * 8, address); return 0;
     }
 }
@@ -978,7 +987,7 @@ void CDBlock::ProcessDriveState() {
     // - X-Men: Children of the Atom (EU) -- hangs on a black screen after certain transitions (e.g. title to menus)
     CheckPlayEnd();
 
-    if (!m_processingCommand) {
+    if (m_readyForPeriodicReports && !m_processingCommand) {
         // HACK to ensure the system detects the absence of a disc properly
         if (m_disc.sessions.empty() && GetStatusCode() != kStatusCodeOpen) {
             m_status.statusCode = kStatusCodeNoDisc;

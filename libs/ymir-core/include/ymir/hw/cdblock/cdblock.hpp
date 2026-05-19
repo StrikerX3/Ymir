@@ -113,6 +113,8 @@ private:
         uint8 index;         // current index
     } m_status;
 
+    bool m_readyForPeriodicReports; // HACK to avoid overwriting the initial state during the boot sequence
+
     uint32 m_currDriveCycles;   // current cycle count for drive state processing
     uint32 m_targetDriveCycles; // number of cycles until the next drive state update
     uint32 m_seekTicks;         // number of ticks until Seek transitions to Play
