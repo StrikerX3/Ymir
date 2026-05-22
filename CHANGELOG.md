@@ -8,6 +8,8 @@ Introduced save state file version 13.
 
 ### New features and improvements
 
+- App: Removed graphics backend option as it served no purpose at this time. Ymir will rely on the default backend used by the SDL3 Renderer API, which should be compatible with most systems.
+    - Note: GPU rendering will include a rewrite of the app's graphics subsystem, moving away from SDL Renderer to our own implementation.
 - App: Rotate screenshots based on selected display rotation.
 - Debug: Avoid infinite loop when SH2 debugger window is collapsed. Fixes UI hang when (re)opening the window once it was collapsed. (#690)
 - SCU: Optimize DSP operations involving 48-bit registers.

@@ -1529,7 +1529,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
     }
 
     if (auto tblVideo = data["Video"]) {
-        Parse(tblVideo, "GraphicsBackend", video.graphicsBackend);
+        // Parse(tblVideo, "GraphicsBackend", video.graphicsBackend);
         Parse(tblVideo, "ForceIntegerScaling", video.forceIntegerScaling);
         Parse(tblVideo, "ForceAspectRatio", video.forceAspectRatio);
         Parse(tblVideo, "ForcedAspect", video.forcedAspect);
@@ -1951,7 +1951,7 @@ SettingsSaveResult Settings::Save() {
         }}},
 
         {"Video", toml::table{{
-            {"GraphicsBackend", ToTOML(video.graphicsBackend)},
+            //{"GraphicsBackend", ToTOML(video.graphicsBackend)},
             {"ForceIntegerScaling", video.forceIntegerScaling},
             {"ForceAspectRatio", video.forceAspectRatio},
             {"ForcedAspect", video.forcedAspect},

@@ -15,11 +15,11 @@ void VideoSettingsView::Display() {
 
     // -----------------------------------------------------------------------------------------------------------------
 
-    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    /*ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("General");
     ImGui::PopFont();
 
-    widgets::settings::video::GraphicsBackendCombo(m_context);
+    widgets::settings::video::GraphicsBackendCombo(m_context);*/
 
     // -----------------------------------------------------------------------------------------------------------------
 
