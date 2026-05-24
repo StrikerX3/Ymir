@@ -2,6 +2,8 @@
 
 #include "config.hpp"
 
+#include <ymir/debug/util/env.hpp>
+
 #include <toml++/toml.hpp>
 
 #include <cstdlib>
@@ -55,7 +57,11 @@ namespace detail {
     }
 
     inline std::optional<std::filesystem::path> StandardConfigPath() {
-#if defined(__APPLE__)
+#if defined(WIN32)
+        if (auto home = util::EnvGet("APPDATA")) {
+            return std::filesystem::path{*home} / "StrikerX3" / "Ymir" / "Ymir.toml";
+        }
+#elif defined(__APPLE__)
         if (const char *home = std::getenv("HOME")) {
             return std::filesystem::path{home} / "Library" / "Application Support" / "Ymir" / "Ymir.toml";
         }
@@ -79,8 +85,8 @@ namespace detail {
             return std::nullopt;
         }
 
-        if (const char *envPath = std::getenv("YMIR_CONFIG")) {
-            const std::filesystem::path path{envPath};
+        if (auto envPath = util::EnvGet("YMIR_CONFIG")) {
+            const std::filesystem::path path{*envPath};
             if (std::filesystem::is_regular_file(path)) {
                 return path;
             }

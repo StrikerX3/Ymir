@@ -1,26 +1,27 @@
 #pragma once
 
-#include <fmt/format.h>
 #include <cstdlib>
 #include <filesystem>
+#include <fmt/format.h>
 #include <optional>
 #include <string>
 #include <string_view>
 
+#include <ymir/debug/util/env.hpp>
 #include <ymir/debug/util/path.hpp>
 
 #ifdef __APPLE__
-#include <mach-o/dyld.h>
-#include <sys/param.h>
+    #include <mach-o/dyld.h>
+    #include <sys/param.h>
 #elif defined(__linux__)
-#include <unistd.h>
-#include <linux/limits.h>
+    #include <linux/limits.h>
+    #include <unistd.h>
 #elif defined(_WIN32)
-// Prevent windows.h from defining min/max macros that clash with std::min/max.
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
+    // Prevent windows.h from defining min/max macros that clash with std::min/max.
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #include <windows.h>
 #endif
 
 namespace ymir::debug {
@@ -55,8 +56,8 @@ inline std::optional<std::filesystem::path> find_headless_binary(std::string_vie
     // Level 2: YMIR_HEADLESS environment variable
     // Unlike Level 1, a set-but-wrong path falls through to Level 3/4 rather
     // than failing fast — the var may be a stale leftover from another install.
-    if (const char *env = std::getenv("YMIR_HEADLESS")) {
-        fs::path p(env);
+    if (auto env = util::EnvGet("YMIR_HEADLESS")) {
+        fs::path p(*env);
         if (fs::exists(p) && fs::is_regular_file(p)) {
             fmt::print(stderr, "[ymir-dbg] found headless via YMIR_HEADLESS: {}\n", p.string());
             return p;
@@ -67,10 +68,10 @@ inline std::optional<std::filesystem::path> find_headless_binary(std::string_vie
     // Dev-only convenience — a symlink from the build output to ~/bin is the
     // intended workflow. Could collide with a same-named binary on a compromised
     // PATH, but that is not a concern on typical dev machines.
-    if (const char *pathEnv = std::getenv("PATH")) {
+    if (auto pathEnv = util::EnvGet("PATH")) {
         // Use our cross-platform utility to correctly handle colons (POSIX) or semicolons (Windows)
-        auto segments = ymir::debug::util::SplitSearchPath(pathEnv);
-        for (const auto& dir : segments) {
+        auto segments = ymir::debug::util::SplitSearchPath(*pathEnv);
+        for (const auto &dir : segments) {
             fs::path candidate = fs::path(dir) / kBinaryName;
             if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
                 fmt::print(stderr, "[ymir-dbg] found headless via PATH: {}\n", candidate.string());
@@ -85,7 +86,9 @@ inline std::optional<std::filesystem::path> find_headless_binary(std::string_vie
     auto check_adjacent = [&](const fs::path &exePath) -> std::optional<fs::path> {
         std::error_code ec;
         fs::path can = fs::canonical(exePath, ec);
-        if (ec) { return std::nullopt; }
+        if (ec) {
+            return std::nullopt;
+        }
         fs::path adjacent = can.parent_path() / kBinaryName;
         if (fs::exists(adjacent) && fs::is_regular_file(adjacent)) {
             fmt::print(stderr, "[ymir-dbg] found headless via adjacent binary: {}\n", adjacent.string());
@@ -99,7 +102,9 @@ inline std::optional<std::filesystem::path> find_headless_binary(std::string_vie
         char buf[PATH_MAX] = {};
         uint32_t bufSize = PATH_MAX;
         if (_NSGetExecutablePath(buf, &bufSize) == 0) {
-            if (auto result = check_adjacent(fs::path(buf))) { return result; }
+            if (auto result = check_adjacent(fs::path(buf))) {
+                return result;
+            }
         }
     }
 #elif defined(__linux__)
@@ -108,7 +113,9 @@ inline std::optional<std::filesystem::path> find_headless_binary(std::string_vie
         ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
         if (len > 0) {
             buf[len] = '\0';
-            if (auto result = check_adjacent(fs::path(buf))) { return result; }
+            if (auto result = check_adjacent(fs::path(buf))) {
+                return result;
+            }
         }
     }
 #elif defined(_WIN32)
@@ -119,7 +126,9 @@ inline std::optional<std::filesystem::path> find_headless_binary(std::string_vie
         // len == MAX_PATH means the buffer was too small; treat as no hit
         // rather than use a truncated path. Long-path installs are a v0 limitation.
         if (len > 0 && len < MAX_PATH) {
-            if (auto result = check_adjacent(fs::path(buf))) { return result; }
+            if (auto result = check_adjacent(fs::path(buf))) {
+                return result;
+            }
         }
     }
 #endif

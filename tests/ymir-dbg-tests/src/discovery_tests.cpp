@@ -22,8 +22,8 @@ public:
     /// @brief Captures the current value of the environment variable.
     explicit ScopedEnvVar(const char *name)
         : m_name(name) {
-        if (const char *value = std::getenv(name)) {
-            m_prior = value;
+        if (auto value = ymir::debug::util::EnvGet(name)) {
+            m_prior = *value;
         }
     }
 
@@ -51,11 +51,11 @@ private:
 constexpr std::string_view kHeadlessBinaryName = "ymir-headless.exe";
 
 std::optional<fs::path> WindowsCmdPathFromSystemRoot() {
-    const char *systemRoot = std::getenv("SystemRoot");
-    if (systemRoot == nullptr || *systemRoot == '\0') {
+    auto systemRoot = ymir::debug::util::EnvGet("SystemRoot");
+    if (!systemRoot || systemRoot->empty()) {
         return std::nullopt;
     }
-    return fs::path{systemRoot} / "System32" / "cmd.exe";
+    return fs::path{*systemRoot} / "System32" / "cmd.exe";
 }
 #else
 constexpr std::string_view kHeadlessBinaryName = "ymir-headless";
@@ -144,9 +144,9 @@ TEST_CASE("discovery: PATH env var finds binary by name", "[discovery]") {
     // Prepend tmp_dir to PATH so discovery hits it before any real install.
     ScopedEnvVar path_env{"PATH"};
     std::string new_path = tmp_dir.string();
-    if (const char *existing = std::getenv("PATH"); existing && *existing) {
+    if (auto existing = ymir::debug::util::EnvGet("PATH"); existing && !existing->empty()) {
         new_path += ymir::debug::util::kSearchPathDelimiter;
-        new_path += existing;
+        new_path += *existing;
     }
     path_env.Set(new_path);
 

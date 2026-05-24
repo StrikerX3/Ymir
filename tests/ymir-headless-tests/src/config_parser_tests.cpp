@@ -19,8 +19,8 @@ public:
     /// @brief Captures the current value of the environment variable.
     explicit ScopedEnvVar(const char *name)
         : m_name(name) {
-        if (const char *value = std::getenv(name)) {
-            m_prior = value;
+        if (auto value = ymir::debug::util::EnvGet(name)) {
+            m_prior = *value;
         }
     }
 
