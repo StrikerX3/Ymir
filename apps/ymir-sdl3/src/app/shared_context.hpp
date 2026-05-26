@@ -180,6 +180,7 @@ struct SharedContext {
         bool IsSlaveSH2Enabled() const;
         void SetSlaveSH2Enabled(bool enabled);
         bool IsDebugTracingEnabled() const;
+        bool IsSH2CacheEmulationEnabled() const;
 
         [[nodiscard]] ymir::XXH128Hash GetIPLHash() const;
         [[nodiscard]] ymir::XXH128Hash GetCDBlockROMHash() const;

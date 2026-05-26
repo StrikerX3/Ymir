@@ -44,6 +44,12 @@ struct Configuration {
         /// @brief Specifies the video standard for the system, which affects video timings and clock rates.
         util::Observable<config::sys::VideoStandard> videoStandard = config::sys::VideoStandard::NTSC;
 
+        /// @brief Enables debug tracing.
+        ///
+        /// When enabled, the emulator executes an alternative code path with all debug functions enabled, incurring a
+        /// noticeable performance penalty.
+        util::Observable<bool> debugTracing = false;
+
         /// @brief Enables SH-2 cache emulation.
         ///
         /// Most games work fine without this. Enable it to improve accuracy and compatibility with specific games.

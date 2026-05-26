@@ -319,10 +319,9 @@ FORCE_INLINE static void TraceDMAXferEnd(debug::ISH2Tracer *tracer, uint32 chann
 // -----------------------------------------------------------------------------
 // Implementation
 
-SH2::SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master, const sys::SystemFeatures &systemFeatures)
+SH2::SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master)
     : m_scheduler(scheduler)
     , m_bus(bus)
-    , m_systemFeatures(systemFeatures)
     , m_logPrefix(master ? "SH2-M" : "SH2-S") {
 
     BCR1.MASTER = !master;
@@ -4110,112 +4109,112 @@ FORCE_INLINE uint64 SH2::RTS() {
 SH2::Probe::Probe(SH2 &sh2)
     : m_sh2(sh2) {}
 
-uint16 SH2::Probe::FetchInstruction(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint16 SH2::Probe::FetchInstruction(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.FetchInstruction<true>(address);
     } else {
         return m_sh2.FetchInstruction<false>(address);
     }
 }
 
-uint8 SH2::Probe::MemReadByte(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint8 SH2::Probe::MemReadByte(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.MemReadByte<true>(address);
     } else {
         return m_sh2.MemReadByte<false>(address);
     }
 }
 
-uint16 SH2::Probe::MemReadWord(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint16 SH2::Probe::MemReadWord(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.MemReadWord<true>(address);
     } else {
         return m_sh2.MemReadWord<false>(address);
     }
 }
 
-uint32 SH2::Probe::MemReadLong(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint32 SH2::Probe::MemReadLong(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.MemReadLong<true>(address);
     } else {
         return m_sh2.MemReadLong<false>(address);
     }
 }
 
-void SH2::Probe::MemWriteByte(uint32 address, uint8 value, bool bypassCache) {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+void SH2::Probe::MemWriteByte(uint32 address, uint8 value, bool useCache) {
+    if (useCache) {
         m_sh2.MemWriteByte<false, true>(address, value);
     } else {
         m_sh2.MemWriteByte<false, false>(address, value);
     }
 }
 
-void SH2::Probe::MemWriteWord(uint32 address, uint16 value, bool bypassCache) {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+void SH2::Probe::MemWriteWord(uint32 address, uint16 value, bool useCache) {
+    if (useCache) {
         m_sh2.MemWriteWord<false, true>(address, value);
     } else {
         m_sh2.MemWriteWord<false, false>(address, value);
     }
 }
 
-void SH2::Probe::MemWriteLong(uint32 address, uint32 value, bool bypassCache) {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+void SH2::Probe::MemWriteLong(uint32 address, uint32 value, bool useCache) {
+    if (useCache) {
         m_sh2.MemWriteLong<false, true>(address, value);
     } else {
         m_sh2.MemWriteLong<false, false>(address, value);
     }
 }
 
-uint16 SH2::Probe::PeekInstruction(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint16 SH2::Probe::PeekInstruction(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.PeekInstruction<true>(address);
     } else {
         return m_sh2.PeekInstruction<false>(address);
     }
 }
 
-uint8 SH2::Probe::MemPeekByte(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint8 SH2::Probe::MemPeekByte(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.MemPeekByte<true>(address);
     } else {
         return m_sh2.MemPeekByte<false>(address);
     }
 }
 
-uint16 SH2::Probe::MemPeekWord(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint16 SH2::Probe::MemPeekWord(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.MemPeekWord<true>(address);
     } else {
         return m_sh2.MemPeekWord<false>(address);
     }
 }
 
-uint32 SH2::Probe::MemPeekLong(uint32 address, bool bypassCache) const {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+uint32 SH2::Probe::MemPeekLong(uint32 address, bool useCache) const {
+    if (useCache) {
         return m_sh2.MemPeekLong<true>(address);
     } else {
         return m_sh2.MemPeekLong<false>(address);
     }
 }
 
-void SH2::Probe::MemPokeByte(uint32 address, uint8 value, bool bypassCache) {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+void SH2::Probe::MemPokeByte(uint32 address, uint8 value, bool useCache) {
+    if (useCache) {
         m_sh2.MemPokeByte<true>(address, value);
     } else {
         m_sh2.MemPokeByte<false>(address, value);
     }
 }
 
-void SH2::Probe::MemPokeWord(uint32 address, uint16 value, bool bypassCache) {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+void SH2::Probe::MemPokeWord(uint32 address, uint16 value, bool useCache) {
+    if (useCache) {
         m_sh2.MemPokeWord<true>(address, value);
     } else {
         m_sh2.MemPokeWord<false>(address, value);
     }
 }
 
-void SH2::Probe::MemPokeLong(uint32 address, uint32 value, bool bypassCache) {
-    if (m_sh2.m_systemFeatures.emulateSH2Cache && !bypassCache) {
+void SH2::Probe::MemPokeLong(uint32 address, uint32 value, bool useCache) {
+    if (useCache) {
         m_sh2.MemPokeLong<true>(address, value);
     } else {
         m_sh2.MemPokeLong<false>(address, value);

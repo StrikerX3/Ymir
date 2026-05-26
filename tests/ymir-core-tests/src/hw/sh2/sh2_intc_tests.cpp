@@ -15,10 +15,9 @@ using namespace ymir;
 namespace sh2_intr {
 
 struct TestSubject : debug::ISH2Tracer {
-    sys::SystemFeatures systemFeatures{};
     mutable core::Scheduler scheduler{};
     mutable sys::SH2Bus bus{};
-    mutable sh2::SH2 sh2{scheduler, bus, true, systemFeatures};
+    mutable sh2::SH2 sh2{scheduler, bus, true};
     sh2::SH2::Probe &probe{sh2.GetProbe()};
 
     TestSubject() {

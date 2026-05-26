@@ -49,8 +49,8 @@ namespace grp {
 } // namespace grp
 
 Saturn::Saturn()
-    : masterSH2(m_scheduler, mainBus, true, m_systemFeatures)
-    , slaveSH2(m_scheduler, mainBus, false, m_systemFeatures)
+    : masterSH2(m_scheduler, mainBus, true)
+    , slaveSH2(m_scheduler, mainBus, false)
     , SCU(m_scheduler, mainBus)
     , VDP(m_scheduler, configuration)
     , SMPC(m_scheduler, smpcOps, configuration.rtc)
@@ -145,12 +145,13 @@ Saturn::Saturn()
 
     ConfigureAccessCycles(false);
 
-    m_systemFeatures.enableDebugTracing = false;
-    m_systemFeatures.emulateSH2Cache = false;
+    m_enableDebugTracing = false;
+    m_emulateSH2Caches = false;
     UpdateFunctionPointers();
 
     configuration.system.preferredRegionOrder.Observe(
         [&](const std::vector<core::config::sys::Region> &regions) { UpdatePreferredRegionOrder(regions); });
+    configuration.system.debugTracing.Observe([&](bool enabled) { UpdateDebugTracing(enabled); });
     configuration.system.emulateSH2Cache.Observe([&](bool enabled) { UpdateSH2CacheEmulation(enabled); });
     configuration.system.videoStandard.Observe(
         [&](core::config::sys::VideoStandard videoStandard) { UpdateVideoStandard(videoStandard); });
@@ -356,22 +357,6 @@ void Saturn::AutodetectRegion(media::AreaCode areaCodes) {
 
     if (currAreaCode != selectedAreaCode) {
         Reset(true);
-    }
-}
-
-void Saturn::EnableDebugTracing(bool enable) {
-    if (m_systemFeatures.enableDebugTracing && !enable) {
-        DetachAllTracers();
-    }
-    m_systemFeatures.enableDebugTracing = enable;
-    UpdateFunctionPointers();
-    SCSP.SetDebugTracing(enable);
-    if (enable) {
-        masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
-        slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
-    } else {
-        masterSH2.UseDebugBreakManager(nullptr);
-        slaveSH2.UseDebugBreakManager(nullptr);
     }
 }
 
@@ -678,7 +663,7 @@ uint64 Saturn::StepSlaveSH2Impl() {
 }
 
 void Saturn::UpdateFunctionPointers() {
-    UpdateFunctionPointersTemplate(m_systemFeatures.enableDebugTracing, m_systemFeatures.emulateSH2Cache, m_cdblockLLE);
+    UpdateFunctionPointersTemplate(m_enableDebugTracing, m_emulateSH2Caches, m_cdblockLLE);
 }
 
 template <bool... t_features>
@@ -780,13 +765,29 @@ void Saturn::UpdatePreferredRegionOrder(std::span<const core::config::sys::Regio
     }
 }
 
+void Saturn::UpdateDebugTracing(bool enabled) {
+    if (m_enableDebugTracing && !enabled) {
+        DetachAllTracers();
+    }
+    m_enableDebugTracing = enabled;
+    UpdateFunctionPointers();
+    SCSP.SetDebugTracing(enabled);
+    if (enabled) {
+        masterSH2.UseDebugBreakManager(&m_debugBreakMgr);
+        slaveSH2.UseDebugBreakManager(&m_debugBreakMgr);
+    } else {
+        masterSH2.UseDebugBreakManager(nullptr);
+        slaveSH2.UseDebugBreakManager(nullptr);
+    }
+}
+
 void Saturn::UpdateSH2CacheEmulation(bool enabled) {
     enabled |= m_forceSH2CacheEmulation;
-    if (!m_systemFeatures.emulateSH2Cache && enabled) {
+    if (!m_emulateSH2Caches && enabled) {
         masterSH2.PurgeCache();
         slaveSH2.PurgeCache();
     }
-    m_systemFeatures.emulateSH2Cache = enabled;
+    m_emulateSH2Caches = enabled;
     UpdateFunctionPointers();
 }
 

@@ -23,7 +23,6 @@
 
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
-#include <ymir/sys/system_features.hpp>
 
 #include <ymir/savestate/savestate_sh2.hpp>
 
@@ -48,7 +47,7 @@ namespace ymir::sh2 {
 
 class SH2 {
 public:
-    SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master, const sys::SystemFeatures &systemFeatures);
+    SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master);
 
     void Reset(bool hard, bool watchdogInitiated = false);
 
@@ -681,7 +680,6 @@ private:
     // Memory accessors
 
     sys::SH2Bus &m_bus;
-    const sys::SystemFeatures &m_systemFeatures;
 
     // According to the SH7604/SH7095 manuals, the address space is divided into these areas:
     //

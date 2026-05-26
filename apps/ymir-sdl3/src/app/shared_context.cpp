@@ -152,6 +152,10 @@ bool SharedContext::SaturnContainer::IsDebugTracingEnabled() const {
     return instance->IsDebugTracingEnabled();
 }
 
+bool SharedContext::SaturnContainer::IsSH2CacheEmulationEnabled() const {
+    return instance->IsSH2CacheEmulationEnabled();
+}
+
 ymir::XXH128Hash SharedContext::SaturnContainer::GetIPLHash() const {
     return instance->GetIPLHash();
 }
