@@ -319,9 +319,8 @@ FORCE_INLINE static void TraceDMAXferEnd(debug::ISH2Tracer *tracer, uint32 chann
 // -----------------------------------------------------------------------------
 // Implementation
 
-SH2::SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master)
-    : m_scheduler(scheduler)
-    , m_bus(bus)
+SH2::SH2(sys::SH2Bus &bus, bool master)
+    : m_bus(bus)
     , m_logPrefix(master ? "SH2-M" : "SH2-S") {
 
     BCR1.MASTER = !master;
@@ -1730,7 +1729,7 @@ FORCE_INLINE_EX void SH2::OnChipRegWriteLong(uint32 address, uint32 value) {
 }
 
 FORCE_INLINE uint64 SH2::GetCurrentCycleCount() const {
-    return m_scheduler.CurrentCount() + m_cyclesExecuted;
+    return *m_currCount + m_cyclesExecuted;
 }
 
 FLATTEN FORCE_INLINE bool SH2::IsDMATransferActive(const DMAChannel &ch) const {

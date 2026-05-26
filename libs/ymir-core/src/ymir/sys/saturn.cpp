@@ -49,8 +49,8 @@ namespace grp {
 } // namespace grp
 
 Saturn::Saturn()
-    : masterSH2(m_scheduler, mainBus, true)
-    , slaveSH2(m_scheduler, mainBus, false)
+    : masterSH2(mainBus, true)
+    , slaveSH2(mainBus, false)
     , SCU(m_scheduler, mainBus)
     , VDP(m_scheduler, configuration)
     , SMPC(m_scheduler, smpcOps, configuration.rtc)
@@ -142,6 +142,9 @@ Saturn::Saturn()
         CDBlock.MapMemory(mainBus);
     }
     YGR.MapMemory(SH1Bus);
+
+    masterSH2.BindGlobalCycleCounter(m_scheduler.CurrentCountRef());
+    slaveSH2.BindGlobalCycleCounter(m_scheduler.CurrentCountRef());
 
     ConfigureAccessCycles(false);
 

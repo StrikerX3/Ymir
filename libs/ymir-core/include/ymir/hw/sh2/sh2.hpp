@@ -21,7 +21,6 @@
 #include <ymir/hw/scu/scu_internal_callbacks.hpp>
 #include <ymir/hw/sh2/sh2_internal_callbacks.hpp>
 
-#include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
 
 #include <ymir/savestate/savestate_sh2.hpp>
@@ -47,12 +46,16 @@ namespace ymir::sh2 {
 
 class SH2 {
 public:
-    SH2(core::Scheduler &scheduler, sys::SH2Bus &bus, bool master);
+    SH2(sys::SH2Bus &bus, bool master);
 
     void Reset(bool hard, bool watchdogInitiated = false);
 
     void MapCallbacks(CBAcknowledgeExternalInterrupt callback) {
         m_cbAcknowledgeExternalInterrupt = callback;
+    }
+
+    void BindGlobalCycleCounter(const uint64 &currCountRef) {
+        m_currCount = &currCountRef;
     }
 
     void UseDebugBreakManager(debug::DebugBreakManager *mgr) {
@@ -668,7 +671,10 @@ private:
     // -------------------------------------------------------------------------
     // Cycle counting
 
-    core::Scheduler &m_scheduler;
+    static constexpr uint64 kNilCurrCounter = 0ull;
+
+    // Pointer to global (absolute) cycle counter
+    const uint64 *m_currCount = &kNilCurrCounter;
 
     // Number of cycles executed in the current Advance invocation
     uint64 m_cyclesExecuted;

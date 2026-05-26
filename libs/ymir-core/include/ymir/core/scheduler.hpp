@@ -150,16 +150,16 @@ public:
         return m_currCount;
     }
 
+    /// @brief Retrieves an immutable reference to the current value of the primary cycle counter.
+    /// @return an immutable reference the current cycle count
+    [[nodiscard]] FORCE_INLINE const uint64 &CurrentCountRef() const {
+        return m_currCount;
+    }
+
     /// @brief Retrieves the absolute cycle count of the earliest scheduled event.
     /// @return the cycle count of the next event to trigger
     [[nodiscard]] FORCE_INLINE uint64 NextCount() const {
         return m_nextCount;
-    }
-
-    /// @brief Retrieves a pointer to the absolute cycle count of the earliest scheduled event.
-    /// @return a pointer to the cycle count of the next event to trigger
-    [[nodiscard]] FORCE_INLINE const uint64 *NextCountPtr() const {
-        return &m_nextCount;
     }
 
     /// @brief Retrieves the number of cycles remaining until the next event is triggered.
