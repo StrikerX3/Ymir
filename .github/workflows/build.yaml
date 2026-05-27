@@ -56,6 +56,7 @@ env:
 jobs:
   get-project-version:
     runs-on: ubuntu-latest
+    name: Get project version
     outputs:
       cmake-project-version: ${{ steps.project-version.outputs.cmake-project-version }}
       project-version: ${{ steps.project-version.outputs.project-version }}

@@ -11,6 +11,7 @@ permissions:
 jobs:
   parse-version:
     runs-on: ubuntu-latest
+    name: Parse version
     outputs:
       build-version: ${{ steps.version.outputs.build }}
       prerelease-version: ${{ steps.version.outputs.prerelease }}
@@ -24,6 +25,7 @@ jobs:
 
   build-all:
     uses: StrikerX3/Ymir/.github/workflows/build.yaml@main
+    name: Build
     needs: [parse-version]
     with:
       dev-build: false
@@ -33,6 +35,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
+    name: Publish stable release
     if: github.ref_type == 'tag'
     needs: [build-all]
 
