@@ -120,10 +120,12 @@ jobs:
 
       # Reference: https://github.com/ioncodes/ymir-screenshotter/tree/master/deploy
       - name: Trigger screenshotter job
+        env:
+          SECRET: ${{ secrets.YMIR_SCREENSHOTTER_SECRET }}
         run: |
           BODY="{\"commit\":\"$GITHUB_SHA\"}"
           SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $NF}')
-          curl -fsS --max-time 1800 -X POST \
+          curl -sS --fail-with-body --max-time 1800 -X POST \
               https://ymir-trigger.layle.dev/hooks/ymir-nightly \
               -H "Content-Type: application/json" \
               -H "X-Hub-Signature-256: sha256=$SIG" \
