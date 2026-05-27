@@ -66,11 +66,16 @@ public:
     // TODO: replace with scheduler events
     void Advance(uint64 cycles);
 
-    /// @brief Determines if the VDP2 is in the last VCNT line phase.
-    /// This can be used to determine if a frame is about to begin.
-    /// @return `true` if the VDP2 is processing the last line of the screen
-    bool InLastLinePhase() const {
-        return m_state.VPhase == VerticalPhase::LastLine;
+    /// @brief Retrieves the current VDP2 vertical phase.
+    /// @return the current VDP2 vertical phase
+    VerticalPhase GetVerticalPhase() const {
+        return m_state.VPhase;
+    }
+
+    /// @brief Retrieves the current VDP2 horizontal phase.
+    /// @return the current VDP2 horizontal phase
+    HorizontalPhase GetHorizontalPhase() const {
+        return m_state.HPhase;
     }
 
     // -------------------------------------------------------------------------

@@ -493,13 +493,14 @@ void Saturn::DumpCDBlockDRAM(std::ostream &out) {
 
 template <bool debug, bool enableSH2Cache, bool cdblockLLE>
 void Saturn::RunFrameImpl() {
-    // Use the last line phase as reference to give some leeway if we overshoot the target cycles
-    while (VDP.InLastLinePhase()) {
+    // Run until we reach the vertical blanking area.
+    // At that point, the frame is fully rendered and dispatched to the frontend.
+    while (VDP.GetVerticalPhase() == vdp::VerticalPhase::BlankingAndSync) {
         if (!Run<debug, enableSH2Cache, cdblockLLE>()) {
             return;
         }
     }
-    while (!VDP.InLastLinePhase()) {
+    while (VDP.GetVerticalPhase() != vdp::VerticalPhase::BlankingAndSync) {
         if (!Run<debug, enableSH2Cache, cdblockLLE>()) {
             return;
         }
