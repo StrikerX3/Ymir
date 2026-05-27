@@ -61,3 +61,12 @@ jobs:
             --latest \
             --title "Ymir ${{ github.ref_name }}" \
             ymir/*
+
+  trigger-screenshotter:
+    runs-on: ubuntu-latest
+    name: Trigger screenshotter job
+    needs: [release]
+    steps:
+      # Reference: https://github.com/ioncodes/ymir-screenshotter/tree/master/deploy
+      - name: Trigger screenshotter job
+        uses: StrikerX3/Ymir/.github/workflows/screenshotter.yaml@main
