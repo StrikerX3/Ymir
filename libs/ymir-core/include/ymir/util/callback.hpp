@@ -70,14 +70,14 @@ namespace detail {
 
         /// @brief Constructs an unbound callback.
         FuncClass() {
-            Rebind(nullptr);
+            Bind(nullptr);
         }
 
         /// @brief Constructs a callback bound to the given function and context pointers.
         /// @param[in] context the context (user data) pointer
         /// @param[in] fn the function pointer
         FuncClass(void *context, FnType fn) {
-            Rebind(context, fn);
+            Bind(context, fn);
         }
 
         FuncClass(const FuncClass &) = default; ///< Default copy constructor
@@ -88,14 +88,14 @@ namespace detail {
 
         /// @brief Rebinds the callback to the given function pointer and sets the context pointer to `nullptr`.
         /// @param[in] fn the function pointer
-        void Rebind(FnType fn) {
-            Rebind(nullptr, fn);
+        void Bind(FnType fn) {
+            Bind(nullptr, fn);
         }
 
         /// @brief Rebinds the callback to the given context and function pointers.
         /// @param[in] context the context (user data) pointer
         /// @param[in] fn the function pointer
-        void Rebind(void *context, FnType fn) {
+        void Bind(void *context, FnType fn) {
             m_context = context;
             if (skipNullCheck && fn == nullptr) {
                 m_fn = [](TArgs..., void *) -> TReturn {
