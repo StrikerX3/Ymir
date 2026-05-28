@@ -13,14 +13,87 @@ jobs:
     name: Trigger screenshotter job
     steps:
       # Reference: https://github.com/ioncodes/ymir-screenshotter/tree/master/deploy
+      # Tool code: https://github.com/ioncodes/emudb/tree/master/screenshotters/ymir
       - name: Trigger screenshotter job
         env:
           SECRET: ${{ secrets.YMIR_SCREENSHOTTER_SECRET }}
         run: |
-          BODY="{\"commit\":\"$GITHUB_SHA\"}"
-          SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $NF}')
-          curl -sS --fail-with-body --max-time 1800 -X POST \
-              https://ymir-trigger.layle.dev/hooks/ymir-nightly \
-              -H "Content-Type: application/json" \
-              -H "X-Hub-Signature-256: sha256=$SIG" \
-              -d "$BODY"
+          set -euo pipefail
+
+          echo "[*] Triggering job..."
+          RESPONSE=$(curl -sS --fail-with-body -X POST \
+            https://emudb.layle.dev/webhook/run \
+            -H "Authorization: Bearer $SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"emulator\":\"ymir\",\"commit\":\"$GITHUB_SHA\"}")
+          echo "[*] Response: $RESPONSE"
+
+          JOB_ID=$(echo "$RESPONSE" | jq -r '.job_id')
+          if [ -z "$JOB_ID" ] || [ "$JOB_ID" = "null" ]; then
+            echo "[-] ERROR: Could not extract job_id"
+            exit 1
+          fi
+
+          echo "[*] Job ID: $JOB_ID"
+          echo "[*] Polling job status..."
+
+          # Poll for up to 5 minutes (300 seconds)
+          END=$((SECONDS + 300))
+
+          while [ $SECONDS -lt $END ]; do
+            STATUS=$(curl -s -w "%{http_code}" -o /tmp/job.json \
+              "https://emudb.layle.dev/jobs/$JOB_ID")
+
+            HTTP_CODE=$STATUS
+            BODY=$(cat /tmp/job.json)
+
+            echo "[*] ---"
+            echo "[*] HTTP $HTTP_CODE: $BODY"
+
+            # Invalid job or unexpected error
+            if [ "${HTTP_CODE:0:1}" = "5" -o "${HTTP_CODE:0:1}" = "4" ]; then
+              echo "[-] ERROR: Invalid job ID or unexpected error"
+              exit 1
+            fi
+
+            # Job status report
+            if [ "$HTTP_CODE" = "200" ]; then
+              STATE=$(echo "$BODY" | jq -r '.state')
+              STAGE=$(echo "$BODY" | jq -r '.stage')
+              GAMES_DONE=$(echo "$BODY" | jq -r '.games_done')
+
+              # If the job reaches this stage, we're good
+              if [ "$STAGE" = "run_screenshotter" ]; then
+                echo "[+] Job is running"
+                exit 0
+              fi
+
+              # If the response contain "games_done", we're good
+              # (safeguard in case the run_screenshotter stage is skipped)
+              if [ -z "$GAMES_DONE" ]; then
+                echo "[+] Job is running"
+                exit 0
+              fi
+
+              # Job just completed or previously completed
+              if [ "$STATE" = "completed" -o "$STATE" = "already_completed" ]; then
+                echo "[+] Job completed successfully"
+                exit 0
+              fi
+
+              if [ "$STATE" = "failed" ]; then
+                echo "[-] Job failed: $BODY"
+                exit 1
+              fi
+
+              echo "[*] State: $STATE"
+              sleep 5
+              continue
+            fi
+
+            echo "[*] Unexpected HTTP $HTTP_CODE, retrying"
+            sleep 5
+          done
+
+          echo "[-] ERROR: Job did not finish within timeout"
+          exit 1
