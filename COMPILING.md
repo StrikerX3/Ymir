@@ -88,6 +88,9 @@ Ymir uses custom Windows triplets to ensure all libraries are statically linked 
 ## Building on Linux
 
 To build Ymir on Linux, first you will need to install SDL3's required dependencies. Follow the instructions on [this page](https://wiki.libsdl.org/SDL3/README-linux) to install them.
+You might also have to install additional packages:
+- `autoconf autoconf-archive automake libtool` for ALSA
+- `python3 python3-venv` for dbus
 
 The compiler of choice for this platform is Clang. GCC is also supported, but produces slightly slower code.
 

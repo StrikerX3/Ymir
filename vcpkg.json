@@ -28,6 +28,7 @@
     {
       "name": "sdl3",
       "features": [
+        "dbus",
         "ibus",
         "wayland"
       ],
