@@ -4,9 +4,6 @@ on:
   workflow_call:
   workflow_dispatch:
 
-env:
-  SECRET: ${{ secrets.YMIR_SCREENSHOTTER_SECRET }}
-
 jobs:
   trigger-screenshotter:
     runs-on: ubuntu-latest
@@ -25,7 +22,12 @@ jobs:
             https://emudb.layle.dev/webhook/run \
             -H "Authorization: Bearer $SECRET" \
             -H "Content-Type: application/json" \
-            -d "{\"emulator\":\"ymir\",\"commit\":\"$GITHUB_SHA\"}")
+            -d "{\"emulator\":\"ymir\",\"commit\":\"$GITHUB_SHA\"}" \
+            2>&1) || {
+              EXIT_CODE=$?
+              echo "[-] ERROR: curl failed: $RESPONSE"
+              exit $EXIT_CODE
+            }
           echo "[*] Response: $RESPONSE"
 
           JOB_ID=$(echo "$RESPONSE" | jq -r '.job_id')
@@ -42,7 +44,12 @@ jobs:
 
           while [ $SECONDS -lt $END ]; do
             STATUS=$(curl -s -w "%{http_code}" -o /tmp/job.json \
-              "https://emudb.layle.dev/jobs/$JOB_ID")
+              "https://emudb.layle.dev/jobs/$JOB_ID" \
+              2>&1) || {
+                EXIT_CODE=$?
+                echo "[-] ERROR: curl failed: $STATUS"
+                exit $EXIT_CODE
+              }
 
             HTTP_CODE=$STATUS
             BODY=$(cat /tmp/job.json)
