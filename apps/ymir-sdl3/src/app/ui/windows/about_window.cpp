@@ -668,6 +668,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::TextUnformatted(":");
     ImGui::Indent();
     ImGui::TextUnformatted("Aitor Guevara, "
+                           "Armonte, "
                            "Aydan Watkins, "
                            "Chase Heathcliff, "
                            "Derek Fagan, "
