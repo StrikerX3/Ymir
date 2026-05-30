@@ -541,6 +541,7 @@ bool Saturn::Run() {
                     m_ssh2SpilloverCycles = slaveCycles - execCycles;
                 } else {
                     m_msh2SpilloverCycles = execCycles - slaveCycles;
+                    m_ssh2SpilloverCycles = 0;
                 }
             } else {
                 m_ssh2SpilloverCycles = slaveCycles - execCycles;
