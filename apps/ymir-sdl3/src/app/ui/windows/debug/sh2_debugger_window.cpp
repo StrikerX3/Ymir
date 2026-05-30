@@ -68,7 +68,8 @@ void SH2DebuggerWindow::DrawContents() {
                 const float y1 = ImGui::GetCursorPosY();
                 const float sepHeight = y1 - y0;
                 const float availHeight = ImGui::GetContentRegionAvail().y;
-                const float dataStackHeight = std::max(minStackHeight, (availHeight - sepHeight) * 0.65f);
+                const float size = m_model.settings.displayCallStack ? 0.65f : 1.00f;
+                const float dataStackHeight = std::max(minStackHeight, (availHeight - sepHeight) * size);
                 if (ImGui::BeginChild("data_stack", ImVec2(0, dataStackHeight))) {
                     m_dataStackView.Display();
                 }
