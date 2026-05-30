@@ -981,6 +981,8 @@ void Settings::ResetToDefaults() {
     gui.uiScale = 1.0;
     gui.rememberWindowGeometry = true;
     gui.showMessages = true;
+    gui.showGameNameOnTitleBar = true;
+    gui.showPerformanceOnTitleBar = true;
     gui.showFrameRateOSD = false;
     gui.frameRateOSDPosition = GUI::FrameRateOSDPosition::TopRight;
     gui.showSpeedIndicatorForAllSpeeds = false;
@@ -1203,6 +1205,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         }
         Parse(tblGUI, "RememberWindowGeometry", gui.rememberWindowGeometry);
         Parse(tblGUI, "ShowMessages", gui.showMessages);
+        Parse(tblGUI, "ShowGameNameOnTitleBar", gui.showGameNameOnTitleBar);
+        Parse(tblGUI, "ShowPerformanceOnTitleBar", gui.showPerformanceOnTitleBar);
         Parse(tblGUI, "ShowFrameRateOSD", gui.showFrameRateOSD);
         Parse(tblGUI, "FrameRateOSDPosition", gui.frameRateOSDPosition);
         Parse(tblGUI, "ShowSpeedIndicatorForAllSpeeds", gui.showSpeedIndicatorForAllSpeeds);
@@ -1826,6 +1830,8 @@ SettingsSaveResult Settings::Save() {
             {"UIScale", gui.uiScale.Get()},
             {"RememberWindowGeometry", gui.rememberWindowGeometry},
             {"ShowMessages", gui.showMessages},
+            {"ShowGameNameOnTitleBar", gui.showGameNameOnTitleBar},
+            {"ShowPerformanceOnTitleBar", gui.showPerformanceOnTitleBar},
             {"ShowFrameRateOSD", gui.showFrameRateOSD},
             {"FrameRateOSDPosition", ToTOML(gui.frameRateOSDPosition)},
             {"ShowSpeedIndicatorForAllSpeeds", gui.showSpeedIndicatorForAllSpeeds},

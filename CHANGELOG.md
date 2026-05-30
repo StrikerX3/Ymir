@@ -8,6 +8,8 @@ Introduced save state file version 13.
 
 ### New features and improvements
 
+- App: Added option to show/hide game name from window title bar.
+- App: Added option to show/hide performance indicators from window title bar.
 - App: Removed graphics backend option as it served no purpose at this time. Ymir will rely on the default backend used by the SDL3 Renderer API, which should be compatible with most systems.
     - Note: GPU rendering will include a rewrite of the app's graphics subsystem, moving away from SDL Renderer to our own implementation.
 - App: Rotate screenshots based on selected display rotation.

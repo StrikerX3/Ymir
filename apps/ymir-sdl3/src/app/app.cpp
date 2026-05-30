@@ -2594,48 +2594,68 @@ void App::RunEmulator() {
 
         // Calculate performance and update title bar
         {
-            std::string fullGameTitle;
-            {
+            fmt::memory_buffer buf{};
+            auto bufWriter = std::back_inserter(buf);
+            fmt::format_to(bufWriter, "Ymir " Ymir_VERSION);
+
+            if (settings.gui.showGameNameOnTitleBar) {
+                fmt::format_to(bufWriter, " - ");
                 std::unique_lock lock{m_context.locks.disc};
                 const media::Disc &disc = m_context.saturn.GetDisc();
                 const media::SaturnHeader &header = disc.header;
-                std::string productNumber = "";
-                std::string gameTitle{};
                 if (disc.sessions.empty()) {
-                    gameTitle = "No disc inserted";
+                    fmt::format_to(bufWriter, "No disc inserted");
                 } else {
                     if (!header.productNumber.empty()) {
-                        productNumber = fmt::format("[{}] ", header.productNumber);
+                        fmt::format_to(bufWriter, "[{}] ", header.productNumber);
                     }
 
                     if (header.gameTitle.empty()) {
-                        gameTitle = "Unnamed game";
+                        fmt::format_to(bufWriter, "Unnamed game");
                     } else {
-                        gameTitle = header.gameTitle;
+                        fmt::format_to(bufWriter, "{}", header.gameTitle);
                     }
                 }
-                fullGameTitle = fmt::format("{}{}", productNumber, gameTitle);
             }
-            std::string speedStr = m_context.paused ? "paused"
-                                   : m_context.emuSpeed.limitSpeed
-                                       ? fmt::format("{:.0f}%{}", m_context.emuSpeed.GetCurrentSpeedFactor() * 100.0,
-                                                     m_context.emuSpeed.altSpeed ? " (alt)" : "")
-                                       : "\u221E%";
 
-            std::string title{};
-            if (m_context.paused) {
-                title = fmt::format("Ymir " Ymir_VERSION
-                                    " - {} | Speed: {} | VDP2: paused | VDP1: paused | GUI: {:.0f} fps",
-                                    fullGameTitle, speedStr, io.Framerate);
-            } else {
-                const double frameInterval = screen.frameInterval.count() * 0.000000001;
-                const double currSpeed = screen.lastVDP2Frames * frameInterval * 100.0;
-                std::string currSpeedStr = fmt::format("{:.0f}%", currSpeed);
-                title = fmt::format("Ymir " Ymir_VERSION
-                                    " - {} | Speed: {} / {} | VDP2: {} fps | VDP1: {} fps, {} draws | GUI: {:.0f} fps",
-                                    fullGameTitle, currSpeedStr, speedStr, screen.lastVDP2Frames, screen.lastVDP1Frames,
-                                    screen.lastVDP1DrawCalls, io.Framerate);
+            if (settings.gui.showPerformanceOnTitleBar) {
+                fmt::format_to(bufWriter, " | Speed: ");
+                if (m_context.paused) {
+                    fmt::format_to(bufWriter, "paused");
+                } else {
+                    const double frameInterval = screen.frameInterval.count() * 0.000000001;
+                    const double currSpeed = screen.lastVDP2Frames * frameInterval * 100.0;
+                    fmt::format_to(bufWriter, "{:.0f}% / ", currSpeed);
+                    if (m_context.emuSpeed.limitSpeed) {
+                        fmt::format_to(bufWriter, "{:.0f}%", m_context.emuSpeed.GetCurrentSpeedFactor() * 100.0);
+                        if (m_context.emuSpeed.altSpeed) {
+                            fmt::format_to(bufWriter, " (alt)");
+                        }
+                    } else {
+                        fmt::format_to(bufWriter, "\u221E%");
+                    }
+                }
+
+                fmt::format_to(bufWriter, " | VDP2: ");
+                if (m_context.paused) {
+                    fmt::format_to(bufWriter, "paused");
+                } else {
+                    fmt::format_to(bufWriter, "{} fps", screen.lastVDP2Frames);
+                }
+
+                fmt::format_to(bufWriter, " | VDP1: ");
+                if (m_context.paused) {
+                    fmt::format_to(bufWriter, "paused");
+                } else {
+                    fmt::format_to(bufWriter, "{} fps, {} draws", screen.lastVDP1Frames, screen.lastVDP1DrawCalls);
+                }
+
+                fmt::format_to(bufWriter, " | GUI: {:.0f} fps", io.Framerate);
+            } else if (m_context.paused) {
+                fmt::format_to(bufWriter, " (paused)");
             }
+
+            std::string title = fmt::to_string(buf);
             SDL_SetWindowTitle(screen.window, title.c_str());
 
             if (now - t >= 1s) {

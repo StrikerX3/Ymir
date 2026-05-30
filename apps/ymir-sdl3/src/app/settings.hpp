@@ -169,6 +169,8 @@ struct Settings {
 
         bool rememberWindowGeometry;
         bool showMessages;
+        bool showGameNameOnTitleBar;
+        bool showPerformanceOnTitleBar;
         bool showFrameRateOSD;
         FrameRateOSDPosition frameRateOSDPosition;
         bool showSpeedIndicatorForAllSpeeds;

@@ -16,6 +16,18 @@ void GUISettingsView::Display() {
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("General");
+    ImGui::PopFont();
+
+    MakeDirty(ImGui::Checkbox("Show game name on window title bar", &guiSettings.showGameNameOnTitleBar));
+    MakeDirty(
+        ImGui::Checkbox("Show performance indicator on window title bar", &guiSettings.showPerformanceOnTitleBar));
+    widgets::ExplanationTooltip("Display emulation speed, VDP2, VDP1 and GUI frame rates on title bar",
+                                m_context.displayScale);
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("UI scaling");
     ImGui::PopFont();
 
