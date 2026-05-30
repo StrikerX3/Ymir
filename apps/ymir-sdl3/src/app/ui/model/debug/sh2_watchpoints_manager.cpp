@@ -24,7 +24,6 @@ void SH2WatchpointsManager::Unbind() {
 }
 
 void SH2WatchpointsManager::AddWatchpoint(uint32 address, debug::WatchpointFlags flags) {
-    address &= ~1u;
     m_watchpoints[address].flags |= flags;
     if (m_sh2) {
         m_sh2->AddWatchpoint(address, flags);
@@ -32,7 +31,6 @@ void SH2WatchpointsManager::AddWatchpoint(uint32 address, debug::WatchpointFlags
 }
 
 void SH2WatchpointsManager::RemoveWatchpoint(uint32 address, debug::WatchpointFlags flags) {
-    address &= ~1u;
     m_watchpoints[address].flags &= ~flags;
     if (m_watchpoints[address].flags == debug::WatchpointFlags::None) {
         m_watchpoints.erase(address);
@@ -43,7 +41,6 @@ void SH2WatchpointsManager::RemoveWatchpoint(uint32 address, debug::WatchpointFl
 }
 
 void SH2WatchpointsManager::ClearWatchpoint(uint32 address) {
-    address &= ~1u;
     if (m_watchpoints.erase(address) > 0) {
         if (m_sh2) {
             m_sh2->ClearWatchpointsAt(address);
@@ -52,8 +49,6 @@ void SH2WatchpointsManager::ClearWatchpoint(uint32 address) {
 }
 
 bool SH2WatchpointsManager::MoveWatchpoint(uint32 address, uint32 newAddress) {
-    address &= ~1u;
-    newAddress &= ~1u;
     if (GetWatchpointFlags(address) == debug::WatchpointFlags::None) {
         return false;
     }
@@ -77,7 +72,6 @@ bool SH2WatchpointsManager::MoveWatchpoint(uint32 address, uint32 newAddress) {
 }
 
 bool SH2WatchpointsManager::ToggleWatchpointEnabled(uint32 address) {
-    address &= ~1u;
     auto it = m_watchpoints.find(address);
     if (it == m_watchpoints.end()) {
         return false;
@@ -109,7 +103,6 @@ void SH2WatchpointsManager::ReplaceWatchpoints(std::map<uint32, SH2Watchpoint> w
 }
 
 debug::WatchpointFlags SH2WatchpointsManager::GetWatchpointFlags(uint32 address) const {
-    address &= ~1u;
     auto it = m_watchpoints.find(address);
     if (it == m_watchpoints.end()) {
         return debug::WatchpointFlags::None;
@@ -119,7 +112,6 @@ debug::WatchpointFlags SH2WatchpointsManager::GetWatchpointFlags(uint32 address)
 }
 
 bool SH2WatchpointsManager::EnableWatchpoint(uint32 address, bool enable) {
-    address &= ~1u;
     auto it = m_watchpoints.find(address);
     if (it == m_watchpoints.end()) {
         return false;
@@ -136,7 +128,6 @@ bool SH2WatchpointsManager::EnableWatchpoint(uint32 address, bool enable) {
 }
 
 bool SH2WatchpointsManager::IsWatchpointEnabled(uint32 address) const {
-    address &= ~1u;
     auto it = m_watchpoints.find(address);
     if (it == m_watchpoints.end()) {
         return false;
