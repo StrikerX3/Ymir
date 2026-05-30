@@ -604,6 +604,9 @@ void SH2::LoadState(const savestate::SH2SaveState &state) {
     m_sleep = state.sleep;
 
     m_intrFlags.values.pending = !m_delaySlot && INTC.pending.level > SR.ILevel;
+    if (m_tracer) {
+        m_tracer->Attached();
+    }
 }
 
 // -----------------------------------------------------------------------------
