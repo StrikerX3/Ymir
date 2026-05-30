@@ -42,10 +42,10 @@ void SH2RegistersView::Display() {
     auto &probe = m_sh2.GetProbe();
     auto &sr = probe.SR();
 
-    auto drawReg32 = [&](std::string name, uint32 &value) {
+    auto drawReg32 = [&](std::string name, uint32 &value, ImVec4 color = ImGui::GetStyleColorVec4(ImGuiCol_Text)) {
         auto startX = ImGui::GetCursorPosX();
         ImGui::AlignTextToFramePadding();
-        ImGui::Text("%s", name.c_str());
+        ImGui::TextColored(color, "%s", name.c_str());
         ImGui::SameLine();
         auto endX = ImGui::GetCursorPosX();
         ImGui::SameLine(0, regLabelWidth - endX + startX);
@@ -131,17 +131,17 @@ void SH2RegistersView::Display() {
             drawReg32(fmt::format("R{}", i), probe.R(i));
         }
 
-        drawReg32("PC", probe.PC());
-        drawReg32("PR", probe.PR());
+        drawReg32("PC", probe.PC(), m_model.colors.regs.pc);
+        drawReg32("PR", probe.PR(), m_model.colors.regs.pr);
 
         sh2::RegMAC &mac = probe.MAC();
-        drawReg32("MACH", mac.H);
-        drawReg32("MACL", mac.L);
+        drawReg32("MACH", mac.H, m_model.colors.regs.mac);
+        drawReg32("MACL", mac.L, m_model.colors.regs.mac);
 
-        drawReg32("GBR", probe.GBR());
-        drawReg32("VBR", probe.VBR());
+        drawReg32("GBR", probe.GBR(), m_model.colors.regs.gbr);
+        drawReg32("VBR", probe.VBR(), m_model.colors.regs.vbr);
 
-        drawReg32("SR", sr.u32);
+        drawReg32("SR", sr.u32, m_model.colors.regs.sr);
         drawSRFlags();
     } else {
         if (ImGui::BeginTable("regs", 2, ImGuiTableFlags_SizingFixedFit)) {
@@ -157,32 +157,32 @@ void SH2RegistersView::Display() {
 
             ImGui::TableNextRow();
             if (ImGui::TableNextColumn()) {
-                drawReg32("PC", probe.PC());
+                drawReg32("PC", probe.PC(), m_model.colors.regs.pc);
             }
             if (ImGui::TableNextColumn()) {
-                drawReg32("PR", probe.PR());
+                drawReg32("PR", probe.PR(), m_model.colors.regs.pr);
             }
 
             ImGui::TableNextRow();
             sh2::RegMAC &mac = probe.MAC();
             if (ImGui::TableNextColumn()) {
-                drawReg32("MACH", mac.H);
+                drawReg32("MACH", mac.H, m_model.colors.regs.mac);
             }
             if (ImGui::TableNextColumn()) {
-                drawReg32("MACL", mac.L);
-            }
-
-            ImGui::TableNextRow();
-            if (ImGui::TableNextColumn()) {
-                drawReg32("GBR", probe.GBR());
-            }
-            if (ImGui::TableNextColumn()) {
-                drawReg32("VBR", probe.VBR());
+                drawReg32("MACL", mac.L, m_model.colors.regs.mac);
             }
 
             ImGui::TableNextRow();
             if (ImGui::TableNextColumn()) {
-                drawReg32("SR", sr.u32);
+                drawReg32("GBR", probe.GBR(), m_model.colors.regs.gbr);
+            }
+            if (ImGui::TableNextColumn()) {
+                drawReg32("VBR", probe.VBR(), m_model.colors.regs.vbr);
+            }
+
+            ImGui::TableNextRow();
+            if (ImGui::TableNextColumn()) {
+                drawReg32("SR", sr.u32, m_model.colors.regs.sr);
             }
             if (ImGui::TableNextColumn()) {
                 drawSRFlags();

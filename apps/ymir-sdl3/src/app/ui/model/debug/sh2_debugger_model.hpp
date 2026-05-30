@@ -85,6 +85,15 @@ struct SH2DebuggerModel {
             ImVec4 condFail{C(184, 100, 95)}; // eq: Z ...
         } annotation;
 
+        struct Registers {
+            ImVec4 pc{C(65, 216, 242)};
+            ImVec4 pr{C(68, 148, 252)};
+            ImVec4 mac{C(184, 219, 151)};
+            ImVec4 gbr{C(219, 162, 151)};
+            ImVec4 vbr{C(170, 151, 219)};
+            ImVec4 sr{C(220, 206, 80)};
+        } regs;
+
         struct DataStack {
             ImVec4 local{C(210, 219, 151)};     // Local
             ImVec4 reg{C(151, 219, 195)};       // Saved <reg>
