@@ -678,28 +678,24 @@ T SH2::MemRead(uint32 address) {
             return m_bus.Read<T>(address & 0x7FFFFFF);
         }
     case 0b010: // associative purge
-        if constexpr (!peek && std::is_same_v<T, uint32>) {
-            m_cache.AssociativePurge(address);
-            devlog::trace<grp::cache>(m_logPrefix, "[PC = {:08X}] {}-bit SH-2 associative purge read from {:08X}", PC,
-                                      sizeof(T) * 8, address);
-        }
+        m_cache.AssociativePurge(address);
+        devlog::trace<grp::cache>(m_logPrefix, "[PC = {:08X}] {}-bit SH-2 associative purge read from {:08X}", PC,
+                                  sizeof(T) * 8, address);
         return (address & 1) ? static_cast<T>(0x12231223) : static_cast<T>(0x23122312);
     case 0b011: // cache address array
-        if constexpr (peek || std::is_same_v<T, uint32>) {
-            const uint32 value = m_cache.ReadAddressArray<peek>(address);
-            if constexpr (!peek) {
-                devlog::trace<grp::cache>(m_logPrefix,
-                                          "[PC = {:08X}] {}-bit SH-2 cache address array read from {:08X} = {:X}", PC,
-                                          sizeof(T) * 8, address, value);
-            }
-            if constexpr (std::is_same_v<T, uint32>) {
-                return value;
-            } else {
-                return value >> ((~address & 3u) * 8u);
-            }
-        } else {
-            return 0;
+    {
+        const uint32 value = m_cache.ReadAddressArray<peek>(address);
+        if constexpr (!peek) {
+            devlog::trace<grp::cache>(m_logPrefix,
+                                      "[PC = {:08X}] {}-bit SH-2 cache address array read from {:08X} = {:X}", PC,
+                                      sizeof(T) * 8, address, value);
         }
+        if constexpr (std::is_same_v<T, uint8>) {
+            return value >> ((~address & 1u) * 8u);
+        } else {
+            return value;
+        }
+    }
     case 0b100: [[fallthrough]];
     case 0b110: // cache data array
     {
@@ -779,35 +775,33 @@ void SH2::MemWrite(uint32 address, T value) {
         }
         break;
     case 0b010: // associative purge
-        if constexpr (poke || std::is_same_v<T, uint32>) {
-            m_cache.AssociativePurge(address);
-            if constexpr (!poke) {
-                devlog::trace<grp::cache>(m_logPrefix,
-                                          "[PC = {:08X}] {}-bit SH-2 associative purge write to {:08X} = {:X}", PC,
-                                          sizeof(T) * 8, address, value);
-            }
+        m_cache.AssociativePurge(address);
+        if constexpr (!poke) {
+            devlog::trace<grp::cache>(m_logPrefix, "[PC = {:08X}] {}-bit SH-2 associative purge write to {:08X} = {:X}",
+                                      PC, sizeof(T) * 8, address, value);
         }
         break;
     case 0b011: // cache address array
-        if constexpr (poke || std::is_same_v<T, uint32>) {
+        if constexpr (std::is_same_v<T, uint8>) {
+            const uint16 value16 = (value << 8u) | value;
+            m_cache.WriteAddressArray<uint16, poke>(address, value16);
+        } else {
             m_cache.WriteAddressArray<T, poke>(address, value);
-            if constexpr (!poke) {
-                devlog::trace<grp::cache>(m_logPrefix,
-                                          "[PC = {:08X}] {}-bit SH-2 cache address array write to {:08X} = {:X}", PC,
-                                          sizeof(T) * 8, address, value);
-            }
+        }
+        if constexpr (!poke) {
+            devlog::trace<grp::cache>(m_logPrefix,
+                                      "[PC = {:08X}] {}-bit SH-2 cache address array write to {:08X} = {:X}", PC,
+                                      sizeof(T) * 8, address, value);
         }
         break;
     case 0b100:
     case 0b110: // cache data array
-    {
         m_cache.WriteDataArray<T>(address, value);
         if constexpr (!poke) {
             devlog::trace<grp::cache>(m_logPrefix, "[PC = {:08X}] {}-bit SH-2 cache data array write to {:08X} = {:X}",
                                       PC, sizeof(T) * 8, address, value);
         }
         break;
-    }
     case 0b111: // I/O area
         if ((address & 0xE0004000) == 0xE0004000) {
             // bits 31-29 and 14 must be set
