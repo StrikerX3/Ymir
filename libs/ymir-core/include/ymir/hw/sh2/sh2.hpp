@@ -407,28 +407,28 @@ public:
         // ---------------------------------------------------------------------
         // Regular memory accessors (with side-effects)
 
-        uint16 FetchInstruction(uint32 address, bool bypassCache) const;
+        uint16 FetchInstruction(uint32 address, bool useCache) const;
 
-        uint8 MemReadByte(uint32 address, bool bypassCache) const;
-        uint16 MemReadWord(uint32 address, bool bypassCache) const;
-        uint32 MemReadLong(uint32 address, bool bypassCache) const;
+        uint8 MemReadByte(uint32 address, bool useCache) const;
+        uint16 MemReadWord(uint32 address, bool useCache) const;
+        uint32 MemReadLong(uint32 address, bool useCache) const;
 
-        void MemWriteByte(uint32 address, uint8 value, bool bypassCache);
-        void MemWriteWord(uint32 address, uint16 value, bool bypassCache);
-        void MemWriteLong(uint32 address, uint32 value, bool bypassCache);
+        void MemWriteByte(uint32 address, uint8 value, bool useCache);
+        void MemWriteWord(uint32 address, uint16 value, bool useCache);
+        void MemWriteLong(uint32 address, uint32 value, bool useCache);
 
         // ---------------------------------------------------------------------
         // Debug memory accessors (without side-effects)
 
-        uint16 PeekInstruction(uint32 address, bool bypassCache) const;
+        uint16 PeekInstruction(uint32 address, bool useCache) const;
 
-        uint8 MemPeekByte(uint32 address, bool bypassCache) const;
-        uint16 MemPeekWord(uint32 address, bool bypassCache) const;
-        uint32 MemPeekLong(uint32 address, bool bypassCache) const;
+        uint8 MemPeekByte(uint32 address, bool useCache) const;
+        uint16 MemPeekWord(uint32 address, bool useCache) const;
+        uint32 MemPeekLong(uint32 address, bool useCache) const;
 
-        void MemPokeByte(uint32 address, uint8 value, bool bypassCache);
-        void MemPokeWord(uint32 address, uint16 value, bool bypassCache);
-        void MemPokeLong(uint32 address, uint32 value, bool bypassCache);
+        void MemPokeByte(uint32 address, uint8 value, bool useCache);
+        void MemPokeWord(uint32 address, uint16 value, bool useCache);
+        void MemPokeLong(uint32 address, uint32 value, bool useCache);
 
         // ---------------------------------------------------------------------
         // Execution state
