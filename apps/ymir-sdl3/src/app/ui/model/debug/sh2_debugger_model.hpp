@@ -32,6 +32,7 @@ struct SH2DebuggerModel {
 
         struct Disassembly {
             ImVec4 delaySlot{C(96, 112, 156)};          // |_ (delay slot prefix)
+            ImVec4 delaySlotIllegal{C(156, 96, 106)};   // |_ (delay slot prefix with illegal instruction)
             ImVec4 mnemonic{C(173, 216, 247)};          // mov rts xor jsr ...
             ImVec4 nopMnemonic{C(121, 159, 186)};       // nop
             ImVec4 loadStoreMnemonic{C(173, 216, 247)}; // mov
