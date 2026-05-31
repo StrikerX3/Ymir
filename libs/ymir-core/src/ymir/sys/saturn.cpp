@@ -146,6 +146,9 @@ Saturn::Saturn()
     masterSH2.BindGlobalCycleCounter(m_scheduler.CurrentCountRef());
     slaveSH2.BindGlobalCycleCounter(m_scheduler.CurrentCountRef());
 
+    masterSH2.BindEmulateCacheOption(m_emulateSH2Caches);
+    slaveSH2.BindEmulateCacheOption(m_emulateSH2Caches);
+
     ConfigureAccessCycles(false);
 
     m_enableDebugTracing = false;

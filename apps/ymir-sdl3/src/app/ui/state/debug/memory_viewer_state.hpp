@@ -145,17 +145,15 @@ namespace regions {
         auto &state = *static_cast<const MemoryViewerState *>(user_data);
         off += state.selectedRegion->baseAddress;
         auto &sh2 = state.sharedCtx.saturn.GetSH2(master);
-        const bool useCache = state.sharedCtx.saturn.IsSH2CacheEmulationEnabled();
-        return sh2.GetProbe().MemPeekByte(off, useCache && !state.bypassSH2Cache);
+        return sh2.GetProbe().MemPeekByte(off, state.bypassSH2Cache);
     }
 
     template <bool master>
     inline void SH2BusWrite(ImU8 *mem, size_t off, ImU8 d, void *user_data) {
         auto &state = *static_cast<MemoryViewerState *>(user_data);
         off += state.selectedRegion->baseAddress;
-        const bool useCache = state.sharedCtx.saturn.IsSH2CacheEmulationEnabled();
-        state.sharedCtx.EnqueueEvent(events::emu::debug::WriteSH2Memory(off, d, state.enableSideEffects, master,
-                                                                        useCache && !state.bypassSH2Cache));
+        state.sharedCtx.EnqueueEvent(
+            events::emu::debug::WriteSH2Memory(off, d, state.enableSideEffects, master, state.bypassSH2Cache));
     }
 
     template <bool master>

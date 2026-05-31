@@ -15,6 +15,7 @@ Introduced save state file version 13.
 - App: Rotate screenshots based on selected display rotation.
 - Debug: Avoid infinite loop when SH2 debugger window is collapsed. Fixes UI hang when (re)opening the window once it was collapsed. (#690)
 - SCU: Optimize DSP operations involving 48-bit registers.
+- SH2: Fetch pairs of instructions using 32-bit accesses, more closely matching the behavior of the real SH7095. Improves overall emulation accuracy and slightly boosts performance on SH2-bound games.
 
 ### Fixes
 

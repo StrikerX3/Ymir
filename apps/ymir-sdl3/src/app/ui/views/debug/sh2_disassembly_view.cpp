@@ -144,8 +144,6 @@ void SH2DisassemblyView::Display() {
         const uint32 pc = probe.PC() & ~1u;
         const uint32 pr = probe.PR() & ~1u;
 
-        const bool useCache = m_context.saturn.IsSH2CacheEmulationEnabled();
-
         if (m_model.jumpRequested) {
             m_model.jumpRequested = false;
             MoveView(m_model.jumpAddress, lines, true);
@@ -194,8 +192,8 @@ void SH2DisassemblyView::Display() {
         const uint32 baseAddress = m_cursor.viewportTopAddress;
         for (uint32 i = 0; i < lines; i++) {
             const uint32 address = baseAddress + i * sizeof(uint16);
-            const uint16 prevOpcode = probe.PeekInstruction(address - 2, useCache);
-            const uint16 opcode = probe.PeekInstruction(address, useCache);
+            const uint16 prevOpcode = probe.PeekInstruction(address - 2, false);
+            const uint16 opcode = probe.PeekInstruction(address, false);
             const sh2::DisassembledInstruction &prevDisasm = sh2::Disassemble(prevOpcode);
             const sh2::DisassembledInstruction &disasm = sh2::Disassemble(opcode);
 
@@ -211,10 +209,10 @@ void SH2DisassemblyView::Display() {
 
             auto memRead = [&](uint32 address) -> uint32 {
                 switch (disasm.opSize) {
-                case sh2::OperandSize::Byte: return probe.MemPeekByte(address, useCache);
-                case sh2::OperandSize::Word: return probe.MemPeekWord(address, useCache);
+                case sh2::OperandSize::Byte: return probe.MemPeekByte(address, false);
+                case sh2::OperandSize::Word: return probe.MemPeekWord(address, false);
                 case sh2::OperandSize::Long: [[fallthrough]];
-                case sh2::OperandSize::LongImplicit: return probe.MemPeekLong(address, useCache);
+                case sh2::OperandSize::LongImplicit: return probe.MemPeekLong(address, false);
                 default: return 0;
                 }
             };
