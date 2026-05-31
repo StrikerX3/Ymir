@@ -56,7 +56,7 @@ Panzer Dragoon 2 Zwei
   The game uses a routine to load sound data into sound WRAM for each episode that checks which sound bank has been
   loaded to avoid reloading the same bank repeatedly. The portion of memory where the sound bank is loaded is shared
   with the video playback routine.
-  
+
   When you only have one save file, everything works fine: the video plays, then the game loads the sound bank for
   Episode 1, then it goes to the splash screen. In this situation, the Episode 1 song plays flawlessly if you go to the
   Options screen and play it right away.
@@ -76,3 +76,24 @@ The Yakyuuken Special: Kon'ya wa 12-kaisen!!
 --------------------------------------------
   The character intro FMVs get to the end, freeze, and play audio in an endless loop.
   Also occurs on real hardware.
+
+World Heroes Perfect
+--------------------
+  Sets up illegal PN/CP access combinations for NBG2, which causes the entire layer to be shifted right by one tile.
+  This looks correct on the title screen, but wrong on the gallery screen.
+  The settings are:
+    TVMD HRESO = 0  (Normal Graphic A, 320 pixels wide)
+    VRAM A partitioned into A0/A1
+    VRAM B not partitioned
+    No rotation parameter assignments
+    Access patterns:
+      Bank  T0  T1  T2  T3  T4  T5  T6  T7
+        A0  PN2 -   -   CP2 -   SH2 SH2 SH2
+        A1  PN0 PN1 CP0 CP1 -   SH2 SH2 SH2
+        B   CP0 CP2 CP1 CP1 -   -   -   -
+    * The CP2 access in bank A0, T3 is illegal. All other accesses are legal.
+    NBG0: Scroll, no reduction, 2x2 charpats, 16-color palette.  No delays.
+    NBG1: Scroll, no reduction, 2x2 charpats, 16-color palette.  No delays.
+    NBG2: Scroll, no reduction, 2x2 charpats, 16-color palette.  Entire layer shifted to the right by one tile.
+
+  Verified to occur on hardware -- see pics/world-heroes-perfect-gallery-shift.jpg
