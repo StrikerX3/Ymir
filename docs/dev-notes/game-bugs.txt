@@ -77,6 +77,7 @@ The Yakyuuken Special: Kon'ya wa 12-kaisen!!
   The character intro FMVs get to the end, freeze, and play audio in an endless loop.
   Also occurs on real hardware.
 
+
 World Heroes Perfect
 --------------------
   Sets up illegal PN/CP access combinations for NBG2, which causes the entire layer to be shifted right by one tile.
