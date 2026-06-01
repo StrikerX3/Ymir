@@ -66,3 +66,5 @@ jobs:
     uses: StrikerX3/Ymir/.github/workflows/screenshotter.yaml@main
     name: Trigger screenshotter job
     needs: [release]
+    secrets:
+      YMIR_SCREENSHOTTER_SECRET: ${{ secrets.YMIR_SCREENSHOTTER_SECRET }}

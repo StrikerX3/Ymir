@@ -2,6 +2,9 @@ name: Screenshotter
 
 on:
   workflow_call:
+    secrets:
+      YMIR_SCREENSHOTTER_SECRET:
+        required: true
   workflow_dispatch:
 
 jobs:
