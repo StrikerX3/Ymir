@@ -289,28 +289,43 @@ public:
     /// @brief Configures the access cycle timings for the specified memory region.
     /// @param[in] start the lower bound of the address range to map the handlers into
     /// @param[in] end the upper bound of the address range to map the handlers into
-    /// @param[in] readCycles the number of cycles taken to perform a read from this region
-    /// @param[in] writeCycles the number of cycles taken to perform a write to this region
-    void SetAccessCycles(uint32 start, uint32 end, uint64 readCycles, uint64 writeCycles) {
+    /// @param[in] readCycles8 the number of cycles taken to perform an 8-bit read from this region
+    /// @param[in] writeCycles8 the number of cycles taken to perform an 8-bit write to this region
+    /// @param[in] readCycles16 the number of cycles taken to perform a 16-bit read from this region
+    /// @param[in] writeCycles16 the number of cycles taken to perform a 16-bit write to this region
+    /// @param[in] readCycles32 the number of cycles taken to perform a 32-bit read from this region
+    /// @param[in] writeCycles32 the number of cycles taken to perform a 32-bit write to this region
+    void SetAccessCycles(uint32 start, uint32 end, uint64 readCycles8, uint64 writeCycles8, uint64 readCycles16,
+                         uint64 writeCycles16, uint64 readCycles32, uint64 writeCycles32) {
         const uint32 startIndex = start >> pageGranularityBits;
         const uint32 endIndex = end >> pageGranularityBits;
         for (uint32 i = startIndex; i <= endIndex; i++) {
-            m_pages[i].readCycles = std::max<uint64>(readCycles, 1ull);
-            m_pages[i].writeCycles = std::max<uint64>(writeCycles, 1ull);
+            m_pages[i].readCycles8 = std::max<uint64>(readCycles8, 1ull);
+            m_pages[i].writeCycles8 = std::max<uint64>(writeCycles8, 1ull);
+            m_pages[i].readCycles16 = std::max<uint64>(readCycles16, 1ull);
+            m_pages[i].writeCycles16 = std::max<uint64>(writeCycles16, 1ull);
+            m_pages[i].readCycles32 = std::max<uint64>(readCycles32, 1ull);
+            m_pages[i].writeCycles32 = std::max<uint64>(writeCycles32, 1ull);
         }
     }
 
     /// @brief Retrieves the number of cycles needed to access the given address.
+    /// @tparam T the type of the access
     /// @tparam write whether to query read (`false`) or write (`true`) cycles
     /// @param[in] address the address to check
     /// @return the number of cycles (waitstates) to access the address
-    template <bool write>
+    template <mem_primitive T, bool write>
     FLATTEN FORCE_INLINE uint64 GetAccessCycles(uint32 address) const {
-        // TODO: different timings for 32-bit reads in some regions
         address &= kAddressMask;
 
         const MemoryPage &entry = m_pages[address >> pageGranularityBits];
-        return write ? entry.writeCycles : entry.readCycles;
+        if constexpr (std::is_same_v<T, uint8>) {
+            return write ? entry.writeCycles8 : entry.readCycles8;
+        } else if constexpr (std::is_same_v<T, uint16>) {
+            return write ? entry.writeCycles16 : entry.readCycles16;
+        } else if constexpr (std::is_same_v<T, uint32>) {
+            return write ? entry.writeCycles32 : entry.readCycles32;
+        }
     }
 
 private:
@@ -342,8 +357,12 @@ private:
 
         FnBusWait busWait = [](uint32, uint32, bool, void *) -> bool { return false; };
 
-        uint64 readCycles = 1;
-        uint64 writeCycles = 1;
+        uint64 readCycles8 = 1;
+        uint64 readCycles16 = 1;
+        uint64 readCycles32 = 1;
+        uint64 writeCycles8 = 1;
+        uint64 writeCycles16 = 1;
+        uint64 writeCycles32 = 1;
     };
     static_assert(bit::is_power_of_two(sizeof(MemoryPage))); // in order to avoid a multiplication when indexing pages
 

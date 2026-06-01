@@ -702,49 +702,59 @@ void Saturn::ConfigureAccessCycles(bool fastTimings) {
     if (fastTimings) {
         // HACK: this fixes X-Men/Marvel Super Heroes vs. Street Fighter
         // ... but why?
-        mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 1, 1); // Forced fast timings for all regions
+        mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 1, 1, 1, 1, 1, 1);
     } else {
         // These timings avoid issues with some games:
         // - Virtua Fighter 2 -- sound effects go missing if the SH-2 runs too fast
         // - Resident Evil -- can't go past title screen if timings are too slow
         // CD block area timings help with BIOS CD player track switching
-        mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 4, 2); // Default timings for all unmapped regions
 
-        mainBus.SetAccessCycles(0x000'0000, 0x00F'FFFF, 2, 2);   // IPL/BIOS ROM
-        mainBus.SetAccessCycles(0x018'0000, 0x01F'FFFF, 2, 2);   // Internal Backup RAM
-        mainBus.SetAccessCycles(0x020'0000, 0x02F'FFFF, 2, 2);   // Low Work RAM
-        mainBus.SetAccessCycles(0x010'0000, 0x017'FFFF, 4, 2);   // SMPC registers
-        mainBus.SetAccessCycles(0x100'0000, 0x1FF'FFFF, 4, 2);   // MINIT/SINIT area
-        mainBus.SetAccessCycles(0x200'0000, 0x4FF'FFFF, 2, 2);   // SCU A-Bus CS0/CS1 area (TODO: variable timings)
-        mainBus.SetAccessCycles(0x500'0000, 0x57F'FFFF, 8, 2);   // SCU A-Bus dummy area
-        mainBus.SetAccessCycles(0x580'0000, 0x58F'FFFF, 40, 40); // SCU A-Bus CS2 area (CD block, Netlink)
-        mainBus.SetAccessCycles(0x5A0'0000, 0x5BF'FFFF, 40, 2);  // SCSP RAM, registers
-        mainBus.SetAccessCycles(0x5C0'0000, 0x5C7'FFFF, 22, 2);  // VDP1 VRAM (TODO: VDP1 drawing contention)
-        mainBus.SetAccessCycles(0x5C8'0000, 0x5CF'FFFF, 22, 2);  // VDP1 FB (TODO: variable timings)
-        mainBus.SetAccessCycles(0x5D0'0000, 0x5D7'FFFF, 14, 2);  // VDP1 registers
-        mainBus.SetAccessCycles(0x5E0'0000, 0x5FB'FFFF, 20, 2);  // VDP2 VRAM, CRAM, registers
-        mainBus.SetAccessCycles(0x5FE'0000, 0x5FE'FFFF, 4, 2);   // SCU registers (TODO: delay on some registers)
-        mainBus.SetAccessCycles(0x600'0000, 0x7FF'FFFF, 2, 2);   // High Work RAM
+        // TODO:
+        // - SCU A-Bus CS0/CS1 area variable timings
+        // - SCU register delays
+        // - VDP1 FB variable timings
+        // - VDP1 VRAM drawing contention
 
-        // The timings below pass misctest, but are too slow in practice
+        mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 4, 2, 4, 2, 4, 2); // Default timings for all unmapped regions
 
-        // mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 4, 4); // Default timings for all regions
+        mainBus.SetAccessCycles(0x000'0000, 0x00F'FFFF, 2, 2, 2, 2, 4, 4);       // IPL/BIOS ROM
+        mainBus.SetAccessCycles(0x018'0000, 0x01F'FFFF, 2, 2, 2, 2, 4, 4);       // Internal Backup RAM
+        mainBus.SetAccessCycles(0x020'0000, 0x02F'FFFF, 2, 2, 2, 2, 4, 4);       // Low Work RAM
+        mainBus.SetAccessCycles(0x010'0000, 0x017'FFFF, 4, 2, 4, 2, 8, 4);       // SMPC registers
+        mainBus.SetAccessCycles(0x100'0000, 0x1FF'FFFF, 4, 2, 4, 2, 8, 4);       // MINIT/SINIT area
+        mainBus.SetAccessCycles(0x200'0000, 0x4FF'FFFF, 2, 2, 2, 2, 4, 4);       // SCU A-Bus CS0/CS1
+        mainBus.SetAccessCycles(0x500'0000, 0x57F'FFFF, 8, 2, 8, 2, 8, 2);       // SCU A-Bus dummy area
+        mainBus.SetAccessCycles(0x580'0000, 0x58F'FFFF, 40, 40, 40, 40, 40, 40); // SCU A-Bus CS2 (CD block, Netlink)
+        mainBus.SetAccessCycles(0x5A0'0000, 0x5BF'FFFF, 40, 2, 40, 2, 40, 2);    // SCSP RAM, registers
+        mainBus.SetAccessCycles(0x5C0'0000, 0x5C7'FFFF, 22, 2, 22, 2, 22, 2);    // VDP1 VRAM
+        mainBus.SetAccessCycles(0x5C8'0000, 0x5CF'FFFF, 22, 2, 22, 2, 22, 2);    // VDP1 FB
+        mainBus.SetAccessCycles(0x5D0'0000, 0x5D7'FFFF, 14, 2, 14, 2, 14, 2);    // VDP1 registers
+        mainBus.SetAccessCycles(0x5E0'0000, 0x5FB'FFFF, 20, 2, 20, 2, 20, 2);    // VDP2 VRAM, CRAM, registers
+        mainBus.SetAccessCycles(0x5FE'0000, 0x5FE'FFFF, 4, 2, 4, 2, 4, 2);       // SCU registers
+        mainBus.SetAccessCycles(0x600'0000, 0x7FF'FFFF, 2, 2, 2, 2, 2, 2);       // High Work RAM
+
+        // The timings below pass misctest, but are too slow in practice due to inaccurate SH2 cache, write buffer and
+        // BSC emulation
+
+        // TODO: IPL/BIOS ROM 32-bit R/W should be 18/18
+
+        // mainBus.SetAccessCycles(0x000'0000, 0x7FF'FFFF, 4, 4, 4, 4, 8, 8); // Default timings for all regions
         //
-        // mainBus.SetAccessCycles(0x000'0000, 0x00F'FFFF, 9, 9);   // IPL/BIOS ROM
-        // mainBus.SetAccessCycles(0x018'0000, 0x01F'FFFF, 9, 9);   // Internal Backup RAM
-        // mainBus.SetAccessCycles(0x020'0000, 0x02F'FFFF, 8, 8);   // Low Work RAM
-        // mainBus.SetAccessCycles(0x010'0000, 0x017'FFFF, 9, 9);   // SMPC registers
-        // mainBus.SetAccessCycles(0x100'0000, 0x1FF'FFFF, 9, 9);   // MINIT/SINIT area
-        // mainBus.SetAccessCycles(0x200'0000, 0x4FF'FFFF, 4, 4);   // SCU A-Bus CS0/CS1 area (TODO: variable timings)
-        // mainBus.SetAccessCycles(0x500'0000, 0x57F'FFFF, 16, 16); // SCU A-Bus dummy area
-        // mainBus.SetAccessCycles(0x580'0000, 0x58F'FFFF, 8, 8);   // SCU A-Bus CS2 area (CD block, Netlink)
-        // mainBus.SetAccessCycles(0x5A0'0000, 0x5BF'FFFF, 47, 47); // SCSP RAM, registers
-        // mainBus.SetAccessCycles(0x5C0'0000, 0x5C7'FFFF, 45, 45); // VDP1 VRAM (TODO: VDP1 drawing contention)
-        // mainBus.SetAccessCycles(0x5C8'0000, 0x5CF'FFFF, 45, 45); // VDP1 FB (TODO: variable timings)
-        // mainBus.SetAccessCycles(0x5D0'0000, 0x5D7'FFFF, 29, 29); // VDP1 registers
-        // mainBus.SetAccessCycles(0x5E0'0000, 0x5FB'FFFF, 40, 40); // VDP2 VRAM, CRAM, registers
-        // mainBus.SetAccessCycles(0x5FE'0000, 0x5FE'FFFF, 8, 8);   // SCU registers (TODO: delay on some registers)
-        // mainBus.SetAccessCycles(0x600'0000, 0x7FF'FFFF, 8, 8);   // High Work RAM
+        // mainBus.SetAccessCycles(0x000'0000, 0x00F'FFFF, 9, 9, 9, 9, 17, 17);     // IPL/BIOS ROM
+        // mainBus.SetAccessCycles(0x018'0000, 0x01F'FFFF, 9, 9, 9, 9, 18, 18);     // Internal Backup RAM
+        // mainBus.SetAccessCycles(0x020'0000, 0x02F'FFFF, 8, 8, 8, 8, 16, 16);     // Low Work RAM
+        // mainBus.SetAccessCycles(0x010'0000, 0x017'FFFF, 9, 9, 9, 9, 18, 18);     // SMPC registers
+        // mainBus.SetAccessCycles(0x100'0000, 0x1FF'FFFF, 9, 9, 9, 9, 18, 18);     // MINIT/SINIT area
+        // mainBus.SetAccessCycles(0x200'0000, 0x4FF'FFFF, 4, 4, 4, 4, 8, 8);       // SCU A-Bus CS0/CS1
+        // mainBus.SetAccessCycles(0x500'0000, 0x57F'FFFF, 16, 16, 16, 16, 16, 16); // SCU A-Bus dummy area
+        // mainBus.SetAccessCycles(0x580'0000, 0x58F'FFFF, 8, 8, 8, 8, 8, 8);       // SCU A-Bus CS2 (CD block, Netlink)
+        // mainBus.SetAccessCycles(0x5A0'0000, 0x5BF'FFFF, 47, 47, 47, 47, 47, 47); // SCSP RAM, registers
+        // mainBus.SetAccessCycles(0x5C0'0000, 0x5C7'FFFF, 45, 45, 45, 45, 45, 45); // VDP1 VRAM
+        // mainBus.SetAccessCycles(0x5C8'0000, 0x5CF'FFFF, 45, 45, 45, 45, 45, 45); // VDP1 FB
+        // mainBus.SetAccessCycles(0x5D0'0000, 0x5D7'FFFF, 29, 29, 29, 29, 29, 29); // VDP1 registers
+        // mainBus.SetAccessCycles(0x5E0'0000, 0x5FB'FFFF, 40, 40, 40, 40, 40, 40); // VDP2 VRAM, CRAM, registers
+        // mainBus.SetAccessCycles(0x5FE'0000, 0x5FE'FFFF, 8, 8, 8, 8, 8, 8);       // SCU registers
+        // mainBus.SetAccessCycles(0x600'0000, 0x7FF'FFFF, 8, 8, 8, 8, 8, 8);       // High Work RAM
     }
 }
 

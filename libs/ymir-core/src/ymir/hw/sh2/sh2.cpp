@@ -941,9 +941,8 @@ template <mem_primitive T>
     util::unreachable();
 }
 
-template <bool write, bool emulateCache>
+template <mem_primitive T, bool write, bool emulateCache>
 FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
-    // TODO: distinguish between different sizes
     const uint32 partition = (address >> 29u) & 0b111;
     switch (partition) {
     case 0b000: // cache
@@ -957,7 +956,7 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
             } else {
                 // Cache miss - fill cache line
                 // TODO: stall bus for 4 accesses
-                return m_bus.GetAccessCycles<write>(address);
+                return m_bus.GetAccessCycles<T, write>(address);
             }
         } else if constexpr (!emulateCache) {
             // Simplified model - assume cache hits on all accesses to cached area
@@ -966,7 +965,7 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
         [[fallthrough]];
     case 0b001: [[fallthrough]];
     case 0b101: // cache-through
-        return m_bus.GetAccessCycles<write>(address);
+        return m_bus.GetAccessCycles<T, write>(address);
     case 0b010: return 1;        // associative purge
     case 0b011: return 1;        // cache address array
     case 0b100: [[fallthrough]]; // cache data array
@@ -2145,8 +2144,9 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
     const uint32 address1 = R[15] - 4;
     const uint32 address2 = R[15] - 8;
     const uint32 address3 = VBR + (static_cast<uint32>(vectorNumber) << 2u);
-    const uint64 cycles = AccessCycles<true, emulateCache>(address1) + AccessCycles<true, emulateCache>(address2) +
-                          AccessCycles<false, emulateCache>(address3) + 5;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address1) +
+                          AccessCycles<uint32, true, emulateCache>(address2) +
+                          AccessCycles<uint32, false, emulateCache>(address3) + 5;
     MemWriteLong<debug, emulateCache>(address1, SR.u32);
     MemWriteLong<debug, emulateCache>(address2, PC);
     const uint32 target = MemReadLong<emulateCache>(address3);
@@ -2556,7 +2556,7 @@ FORCE_INLINE uint64 SH2::MOV(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -2567,7 +2567,7 @@ FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
@@ -2580,7 +2580,7 @@ FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
@@ -2593,7 +2593,7 @@ FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -2604,7 +2604,7 @@ FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
@@ -2617,7 +2617,7 @@ FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
@@ -2630,7 +2630,7 @@ FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[0] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -2640,7 +2640,7 @@ FORCE_INLINE uint64 SH2::MOVBL4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2652,7 +2652,7 @@ FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
@@ -2665,7 +2665,7 @@ FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[0] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -2675,7 +2675,7 @@ FORCE_INLINE uint64 SH2::MOVBLG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2687,7 +2687,7 @@ FORCE_INLINE uint64 SH2::MOVWLG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLLG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[0] = MemReadLong<emulateCache>(address);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2699,7 +2699,7 @@ FORCE_INLINE uint64 SH2::MOVLLG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 1;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
     MemWriteByte<debug, emulateCache>(address, R[args.rm]);
     TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
     R[args.rn] = address;
@@ -2711,7 +2711,7 @@ FORCE_INLINE uint64 SH2::MOVBM(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 2;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[args.rm]);
         TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
@@ -2725,7 +2725,7 @@ FORCE_INLINE uint64 SH2::MOVWM(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 4;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
@@ -2739,7 +2739,7 @@ FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     if (args.rn != args.rm) {
         R[args.rm] += 1;
@@ -2754,7 +2754,7 @@ FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         if (args.rn != args.rm) {
@@ -2771,7 +2771,7 @@ FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         if (args.rn != args.rm) {
@@ -2788,7 +2788,7 @@ FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
     MemWriteByte<debug, emulateCache>(address, R[args.rm]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -2798,7 +2798,7 @@ FORCE_INLINE uint64 SH2::MOVBS(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2810,7 +2810,7 @@ FORCE_INLINE uint64 SH2::MOVWS(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2822,7 +2822,7 @@ FORCE_INLINE uint64 SH2::MOVLS(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
     MemWriteByte<debug, emulateCache>(address, R[args.rm]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -2832,7 +2832,7 @@ FORCE_INLINE uint64 SH2::MOVBS0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2844,7 +2844,7 @@ FORCE_INLINE uint64 SH2::MOVWS0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2856,7 +2856,7 @@ FORCE_INLINE uint64 SH2::MOVLS0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
     MemWriteByte<debug, emulateCache>(address, R[0]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -2866,7 +2866,7 @@ FORCE_INLINE uint64 SH2::MOVBS4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[0]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2878,7 +2878,7 @@ FORCE_INLINE uint64 SH2::MOVWS4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2890,7 +2890,7 @@ FORCE_INLINE uint64 SH2::MOVLS4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
     MemWriteByte<debug, emulateCache>(address, R[0]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -2900,7 +2900,7 @@ FORCE_INLINE uint64 SH2::MOVBSG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[0]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2912,7 +2912,7 @@ FORCE_INLINE uint64 SH2::MOVWSG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[0]);
         AdvancePC<debug, emulateCache, delaySlot>();
@@ -2934,7 +2934,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = pc + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache, true>(address));
     TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -2946,7 +2946,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLI(const DecodedArgs &args) {
     const uint32 pc = (delaySlot ? m_delaySlotTarget - 2u : PC);
     const uint32 address = (pc & ~3u) + args.dispImm;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     R[args.rn] = MemReadLong<emulateCache, true>(address);
     TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3173,7 +3173,7 @@ FORCE_INLINE uint64 SH2::STSPR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
     GBR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
@@ -3186,7 +3186,7 @@ FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
     SR.u32 = MemReadLong<emulateCache>(address) & 0x000003F3;
     m_intrFlags.values.pending = !delaySlot && INTC.pending.level > SR.ILevel;
     R[args.rm] += 4;
@@ -3200,7 +3200,7 @@ FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
     VBR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
@@ -3213,7 +3213,7 @@ FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     MAC.H = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
@@ -3226,7 +3226,7 @@ FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     MAC.L = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
@@ -3239,7 +3239,7 @@ FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     PR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
@@ -3254,7 +3254,7 @@ FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::GBR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
     MemWriteLong<debug, emulateCache>(address, GBR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3267,7 +3267,7 @@ FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::SR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
     MemWriteLong<debug, emulateCache>(address, SR.u32);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3280,7 +3280,7 @@ FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::VBR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
     MemWriteLong<debug, emulateCache>(address, VBR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3293,7 +3293,7 @@ FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::MACH, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     MemWriteLong<debug, emulateCache>(address, MAC.H);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3306,7 +3306,7 @@ FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::MACL, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     MemWriteLong<debug, emulateCache>(address, MAC.L);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3319,7 +3319,7 @@ FORCE_INLINE uint64 SH2::STSMPR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::PR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     MemWriteLong<debug, emulateCache>(address, PR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3398,7 +3398,8 @@ FORCE_INLINE uint64 SH2::ANDI(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ANDM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + AccessCycles<true, emulateCache>(address) + 1;
+    const uint64 cycles =
+        AccessCycles<uint8, false, emulateCache>(address) + AccessCycles<uint8, true, emulateCache>(address) + 1;
     uint8 tmp = MemReadByte<emulateCache>(address);
     tmp &= args.dispImm;
     MemWriteByte<debug, emulateCache>(address, tmp);
@@ -3456,7 +3457,8 @@ FORCE_INLINE uint64 SH2::ORI(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ORM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + AccessCycles<true, emulateCache>(address) + 1;
+    const uint64 cycles =
+        AccessCycles<uint16, false, emulateCache>(address) + AccessCycles<uint16, true, emulateCache>(address) + 1;
     uint8 tmp = MemReadByte<emulateCache>(address);
     tmp |= args.dispImm;
     MemWriteByte<debug, emulateCache>(address, tmp);
@@ -3663,7 +3665,8 @@ FORCE_INLINE uint64 SH2::XORI(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::XORM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + AccessCycles<true, emulateCache>(address) + 1;
+    const uint64 cycles =
+        AccessCycles<uint32, false, emulateCache>(address) + AccessCycles<uint32, true, emulateCache>(address) + 1;
     uint8 tmp = MemReadByte<emulateCache>(address);
     tmp ^= args.dispImm;
     MemWriteByte<debug, emulateCache>(address, tmp);
@@ -3693,12 +3696,12 @@ FORCE_INLINE uint64 SH2::CLRMAC() {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
     const uint32 address2 = R[args.rn];
-    uint64 cycles = AccessCycles<false, emulateCache>(address2);
+    uint64 cycles = AccessCycles<uint16, false, emulateCache>(address2);
     const sint32 op2 = static_cast<sint16>(MemReadWord<emulateCache>(address2));
     R[args.rn] += 2;
     TracePopFromStack<debug>(m_tracer, args.rn == 15, R[15]);
     const uint32 address1 = R[args.rm];
-    cycles += AccessCycles<false, emulateCache>(address1);
+    cycles += AccessCycles<uint16, false, emulateCache>(address1);
     const sint32 op1 = static_cast<sint16>(MemReadWord<emulateCache>(address1));
     R[args.rm] += 2;
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
@@ -3725,12 +3728,12 @@ FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MACL(const DecodedArgs &args) {
     const uint32 address2 = R[args.rn];
-    uint64 cycles = AccessCycles<false, emulateCache>(address2);
+    uint64 cycles = AccessCycles<uint32, false, emulateCache>(address2);
     const sint64 op2 = static_cast<sint64>(static_cast<sint32>(MemReadLong<emulateCache>(address2)));
     R[args.rn] += 4;
     TracePopFromStack<debug>(m_tracer, args.rn == 15, R[15]);
     const uint32 address1 = R[args.rm];
-    cycles += AccessCycles<false, emulateCache>(address1);
+    cycles += AccessCycles<uint32, false, emulateCache>(address1);
     const sint64 op1 = static_cast<sint64>(static_cast<sint32>(MemReadLong<emulateCache>(address1)));
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
@@ -3929,7 +3932,8 @@ FORCE_INLINE uint64 SH2::CMPSTR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TAS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + AccessCycles<true, emulateCache>(address) + 2;
+    const uint64 cycles =
+        AccessCycles<uint8, false, emulateCache>(address) + AccessCycles<uint8, true, emulateCache>(address) + 2;
     // TODO: enable bus lock on this read
     const uint8 tmp = MemReadByte<false>(address);
     SR.T = tmp == 0;
@@ -3960,7 +3964,7 @@ FORCE_INLINE uint64 SH2::TSTI(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TSTM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles = AccessCycles<false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address) + 2;
     const uint8 tmp = MemReadByte<emulateCache>(address);
     SR.T = (tmp & args.dispImm) == 0;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -4091,8 +4095,9 @@ FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
     const uint32 address1 = R[15] - 4;
     const uint32 address2 = R[15] - 8;
     const uint32 address3 = VBR + args.dispImm;
-    const uint64 cycles = AccessCycles<true, emulateCache>(address1) + AccessCycles<true, emulateCache>(address2) +
-                          AccessCycles<false, emulateCache>(address3) + 5;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address1) +
+                          AccessCycles<uint32, true, emulateCache>(address2) +
+                          AccessCycles<uint32, false, emulateCache>(address3) + 5;
     MemWriteLong<debug, emulateCache>(address1, SR.u32);
     MemWriteLong<debug, emulateCache>(address2, PC + 2);
     const uint32 target = MemReadLong<emulateCache>(address3);
@@ -4109,7 +4114,8 @@ template <bool debug, bool emulateCache>
 FORCE_INLINE uint64 SH2::RTE() {
     const uint32 address1 = R[15];
     const uint32 address2 = R[15] + 4;
-    const uint64 cycles = AccessCycles<false, emulateCache>(address1) + AccessCycles<false, emulateCache>(address2) + 2;
+    const uint64 cycles =
+        AccessCycles<uint32, false, emulateCache>(address1) + AccessCycles<uint32, false, emulateCache>(address2) + 2;
     const uint32 target = MemReadLong<emulateCache>(address1);
     TraceReturnFromException<debug>(m_tracer, target, R[15] + 8);
     SetupDelaySlot(target);
