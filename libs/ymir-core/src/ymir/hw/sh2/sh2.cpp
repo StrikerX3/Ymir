@@ -956,7 +956,8 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
                 return 1;
             } else {
                 // Cache miss - fill cache line
-                return m_bus.GetAccessCycles<write>(address) * 4;
+                // TODO: stall bus for 4 accesses
+                return m_bus.GetAccessCycles<write>(address);
             }
         } else if constexpr (!emulateCache) {
             // Simplified model - assume cache hits on all accesses to cached area

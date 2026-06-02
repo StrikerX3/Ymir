@@ -28,6 +28,7 @@ Introduced save state file version 13.
 - Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.
 - Rewind: Fix crash when attempting to rewind to the very first frame. (#857)
 - Rewind: Fix occasional crash when attempting to rewind with CD Block LLE enabled.
+- SH2: Cache line fills only cost one access to the SH2.
 - SH2: DMAC 16-byte burst should read 4 longwords then write 4 longwords.
 - SH2: Fix 8-bit and 16-bit reads from and writes to cache address array and associative purge areas. Fixes graphics glitches in Dark Savior. (#134) (thanks to @celeriyacon)
 - VDP1: Add one-pixel offset to vertical coordinates of axis-aligned sprites when rendering high-resolution modes with deinterlacing enabled. Fixes gaps in Sonic Jam and Astra Superstars. (#784, #853)
