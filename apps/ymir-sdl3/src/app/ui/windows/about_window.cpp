@@ -701,7 +701,8 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "Rustle, "
                            "Some Guy, "
                            "TheCoolPup, "
-                           "Zrat.");
+                           "Zrat, "
+                           "アレ・.");
     ImGui::Unindent();
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
