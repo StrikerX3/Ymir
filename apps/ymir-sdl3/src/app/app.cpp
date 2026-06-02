@@ -6023,7 +6023,7 @@ void App::InvokeFileDialog(SDL_FileDialogType type, const char *title, void *fil
             },
             userdata, props);
     } else {
-        SDL_ShowFileDialogWithProperties(type, callback, (void *)this, props);
+        SDL_ShowFileDialogWithProperties(type, callback, userdata, props);
     }
 }
 
