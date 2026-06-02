@@ -20,8 +20,8 @@ BackupMemoryManagerWindow::BackupMemoryManagerWindow(SharedContext &context)
 }
 
 void BackupMemoryManagerWindow::PrepareWindow() {
-    ImGui::SetNextWindowSizeConstraints(ImVec2(1135 * m_context.displayScale, 340 * m_context.displayScale),
-                                        ImVec2(1135 * m_context.displayScale, 960 * m_context.displayScale));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(1175 * m_context.displayScale, 340 * m_context.displayScale),
+                                        ImVec2(1175 * m_context.displayScale, 960 * m_context.displayScale));
 }
 
 void BackupMemoryManagerWindow::DrawContents() {

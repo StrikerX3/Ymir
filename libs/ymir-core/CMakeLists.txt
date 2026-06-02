@@ -187,6 +187,7 @@ add_library(ymir-core
 
     include/ymir/sys/backup_ram.hpp
     include/ymir/sys/backup_ram_defs.hpp
+    include/ymir/sys/backup_ram_utils.hpp
     include/ymir/sys/bus.hpp
     include/ymir/sys/clocks.hpp
     include/ymir/sys/memory.hpp
@@ -297,7 +298,7 @@ add_library(ymir-core
     src/ymir/util/process.cpp
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
-)
+ "src/ymir/sys/backup_ram_utils.cpp")
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
                       VERSION ${Ymir_core_VERSION}

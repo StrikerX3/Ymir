@@ -18,6 +18,8 @@
 
 #include <util/sdl_file_dialog.hpp>
 
+#include <ymir/sys/backup_ram_utils.hpp>
+
 #include <ymir/util/backup_datetime.hpp>
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/size_ops.hpp>
@@ -441,11 +443,12 @@ void BackupMemoryView::ApplyRequests(ImGuiMultiSelectIO *msio, std::vector<ymir:
 void BackupMemoryView::DrawFileTableHeader() {
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
     const float monoCharWidth = ImGui::CalcTextSize("F").x;
+    const float jpCharWidth = ImGui::CalcTextSize("ア").x;
     ImGui::PopFont();
 
     ImGui::TableSetupColumn("File name", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_DefaultSort,
                             monoCharWidth * 12.5f);
-    ImGui::TableSetupColumn("Comment", ImGuiTableColumnFlags_WidthFixed, monoCharWidth * 11.5f);
+    ImGui::TableSetupColumn("Comment", ImGuiTableColumnFlags_WidthFixed, jpCharWidth * 9.5f);
     ImGui::TableSetupColumn("Language", ImGuiTableColumnFlags_WidthFixed, monoCharWidth * 9);
     ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, monoCharWidth * 6.5f);
     ImGui::TableSetupColumn("Blocks", ImGuiTableColumnFlags_WidthFixed, monoCharWidth * 7);
@@ -471,19 +474,21 @@ void BackupMemoryView::DrawFileTableRow(const bup::BackupFileInfo &file, uint32 
     ImGui::TableNextRow();
     if (ImGui::TableNextColumn()) {
         ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
+        std::string filename = bup::TranslateBackupString(file.header.filename, false);
         if (selectable) {
             bool selected = m_selected.contains(file.header.filename);
             ImGui::SetNextItemSelectionUserData(index);
-            ImGui::Selectable(file.header.filename.c_str(), selected,
+            ImGui::Selectable(filename.c_str(), selected,
                               ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns);
         } else {
-            ImGui::Text("%s", file.header.filename.c_str());
+            ImGui::Text("%s", filename.c_str());
         }
         ImGui::PopFont();
     }
     if (ImGui::TableNextColumn()) {
+        std::string comment = bup::TranslateBackupString(file.header.comment, false);
         ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-        ImGui::Text("%s", file.header.comment.c_str());
+        ImGui::Text("%s", comment.c_str());
         ImGui::PopFont();
     }
     if (ImGui::TableNextColumn()) {
