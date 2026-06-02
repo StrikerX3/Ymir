@@ -4965,8 +4965,22 @@ void App::LoadFonts() {
         return font;
     };
 
+    auto mergeFont = [&](const char *path) {
+        ImFontConfig mergeConfig = config;
+        mergeConfig.MergeMode = true;
+
+        cmrc::file file = embedfs.open(path);
+
+        ImFont *font =
+            io.Fonts->AddFontFromMemoryTTF((void *)file.begin(), file.size(), style.FontSizeBase, &mergeConfig);
+        IM_ASSERT(font != nullptr);
+        return font;
+    };
+
     m_context.fonts.sansSerif.regular = loadFont("SplineSans Medium", "fonts/SplineSans-Medium.ttf", true);
+    m_context.fonts.sansSerif.regular = mergeFont("fonts/NotoSansJP-Medium.ttf");
     m_context.fonts.sansSerif.bold = loadFont("SplineSans Bold", "fonts/SplineSans-Bold.ttf", true);
+    m_context.fonts.sansSerif.bold = mergeFont("fonts/NotoSansJP-Bold.ttf");
 
     m_context.fonts.monospace.regular = loadFont("SplineSansMono Medium", "fonts/SplineSansMono-Medium.ttf", false);
     m_context.fonts.monospace.bold = loadFont("SplineSansMono Bold", "fonts/SplineSansMono-Bold.ttf", false);
