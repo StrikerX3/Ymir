@@ -681,7 +681,8 @@ private:
 
     static constexpr bool kNilEmulateCache = false;
 
-    // Pointer to externally-managed "emulate SH2 cache" option, used for save states and the debugger probe
+    // Pointer to externally-managed "emulate SH2 cache" option, used for save states and the debugger probe.
+    // Advance and Step always honor the `emulateCache` template flag.
     const bool *m_emulateCache = &kNilEmulateCache;
 
     // -------------------------------------------------------------------------
