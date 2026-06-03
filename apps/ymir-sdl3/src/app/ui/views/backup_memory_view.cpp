@@ -474,7 +474,7 @@ void BackupMemoryView::DrawFileTableRow(const bup::BackupFileInfo &file, uint32 
     ImGui::TableNextRow();
     if (ImGui::TableNextColumn()) {
         ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-        std::string filename = bup::TranslateBackupString(file.header.filename, false);
+        std::string filename = bup::TranslateBackupString(file.header.filename);
         if (selectable) {
             bool selected = m_selected.contains(file.header.filename);
             ImGui::SetNextItemSelectionUserData(index);
@@ -486,7 +486,7 @@ void BackupMemoryView::DrawFileTableRow(const bup::BackupFileInfo &file, uint32 
         ImGui::PopFont();
     }
     if (ImGui::TableNextColumn()) {
-        std::string comment = bup::TranslateBackupString(file.header.comment, false);
+        std::string comment = bup::TranslateBackupString(file.header.comment);
         ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
         ImGui::Text("%s", comment.c_str());
         ImGui::PopFont();
