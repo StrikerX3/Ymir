@@ -3,7 +3,6 @@
 #include <config_parser.hpp>
 
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -18,11 +17,8 @@ class ScopedEnvVar {
 public:
     /// @brief Captures the current value of the environment variable.
     explicit ScopedEnvVar(const char *name)
-        : m_name(name) {
-        if (auto value = ymir::debug::util::EnvGet(name)) {
-            m_prior = *value;
-        }
-    }
+        : m_name(name)
+        , m_prior(ymir::debug::util::EnvGet(name)) {}
 
     /// @brief Restores the environment variable to its state at object creation.
     ~ScopedEnvVar() {
@@ -137,6 +133,45 @@ TEST_CASE("LoadConfig reads YMIR_CONFIG when no explicit config path is provided
     CHECK(config.ipl_path == std::filesystem::path{"env-bios.bin"});
 }
 
+TEST_CASE("LoadConfig falls back when YMIR_CONFIG points to a missing file", "[config]") {
+    ScopedEnvVar envHome{"HOME"};
+    ScopedEnvVar envXdg{"XDG_CONFIG_HOME"};
+    ScopedEnvVar envYmirConfig{"YMIR_CONFIG"};
+#if defined(_WIN32)
+    ScopedEnvVar envAppdata{"APPDATA"};
+#endif
+
+    envHome.Unset();
+    envXdg.Unset();
+    envYmirConfig.Set(std::filesystem::temp_directory_path() / "missing-ymir-config.toml");
+
+    std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "ymir-test-missing-env";
+    std::filesystem::path configDir = tempDir;
+#if defined(__APPLE__)
+    configDir = tempDir / "Library" / "Application Support" / "Ymir";
+    envHome.Set(tempDir);
+#elif defined(_WIN32)
+    configDir = tempDir / "StrikerX3" / "Ymir";
+    envAppdata.Set(tempDir);
+#else
+    configDir = tempDir / ".config" / "Ymir";
+    envHome.Set(tempDir);
+#endif
+
+    std::filesystem::create_directories(configDir);
+    {
+        std::ofstream out{configDir / "Ymir.toml"};
+        out << "ipl_path = \"standard-bios.bin\"\n";
+    }
+
+    auto config = LoadWithArgs({"ymir-headless"});
+
+    CHECK_FALSE(config.config_load_failed);
+    CHECK(config.ipl_path == std::filesystem::path{"standard-bios.bin"});
+
+    std::filesystem::remove_all(tempDir);
+}
+
 TEST_CASE("LoadConfig defaults slave SH-2 to enabled", "[config]") {
     ScopedEnvVar env{"YMIR_CONFIG"};
     env.Unset();
@@ -163,4 +198,149 @@ TEST_CASE("ValidateConfig returns false when ipl_path is a directory", "[config]
     ymir::debug::HeadlessConfig config;
     config.ipl_path = std::filesystem::temp_directory_path();
     CHECK_FALSE(ymir::debug::ValidateConfig(config));
+}
+
+TEST_CASE("ValidateConfig returns false when config load failed", "[config]") {
+    TempConfigFile configFile{"ipl_path = \"test.bin\""};
+    ymir::debug::HeadlessConfig config;
+    config.config_load_failed = true;
+    config.ipl_path = configFile.Path();
+    CHECK_FALSE(ymir::debug::ValidateConfig(config));
+}
+
+TEST_CASE("LoadConfig marks missing explicit config as failed even when CLI supplies IPL", "[config]") {
+    auto missingPath = std::filesystem::temp_directory_path() / "missing-explicit-ymir-config.toml";
+
+    auto config = LoadWithArgs({"ymir-headless", "--config", missingPath.string(), "--ipl", "cli-bios.bin"});
+
+    CHECK(config.config_load_failed);
+    CHECK(config.ipl_path == std::filesystem::path{"cli-bios.bin"});
+    CHECK_FALSE(ymir::debug::ValidateConfig(config));
+}
+
+TEST_CASE("LoadConfig marks malformed explicit config as failed", "[config]") {
+    TempConfigFile configFile{"ipl_path ="};
+
+    auto config = LoadWithArgs({"ymir-headless", "--config", configFile.Path().string()});
+
+    CHECK(config.config_load_failed);
+    CHECK_FALSE(ymir::debug::ValidateConfig(config));
+}
+
+TEST_CASE("LoadConfig implements hierarchical cascade", "[config]") {
+    // Isolate from actual environment
+    ScopedEnvVar envHome{"HOME"};
+    ScopedEnvVar envXdg{"XDG_CONFIG_HOME"};
+    ScopedEnvVar envYmirConfig{"YMIR_CONFIG"};
+#if defined(_WIN32)
+    ScopedEnvVar envAppdata{"APPDATA"};
+#endif
+
+    envHome.Unset();
+    envXdg.Unset();
+    envYmirConfig.Unset();
+
+    // Create a temp directory to act as the "standard" config root
+    std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "ymir-test-cascade";
+    std::filesystem::path configDir = tempDir;
+#if defined(__APPLE__)
+    configDir = tempDir / "Library" / "Application Support" / "Ymir";
+    envHome.Set(tempDir);
+#elif defined(_WIN32)
+    configDir = tempDir / "StrikerX3" / "Ymir";
+    envAppdata.Set(tempDir);
+#else
+    configDir = tempDir / ".config" / "Ymir";
+    envHome.Set(tempDir);
+#endif
+
+    std::filesystem::create_directories(configDir);
+
+    SECTION("Ymir-dbg.toml overrides Ymir.toml") {
+        {
+            std::ofstream out{configDir / "Ymir.toml"};
+            out << "ipl_path = \"base-bios.bin\"\n";
+        }
+        {
+            std::ofstream out{configDir / "Ymir-dbg.toml"};
+            out << "ipl_path = \"dbg-bios.bin\"\n";
+        }
+
+        auto config = LoadWithArgs({"ymir-headless"});
+        CHECK(config.ipl_path == std::filesystem::path{"dbg-bios.bin"});
+    }
+
+    SECTION("Ymir.toml is used when Ymir-dbg.toml is absent") {
+        {
+            std::ofstream out{configDir / "Ymir.toml"};
+            out << "ipl_path = \"base-bios.bin\"\n";
+        }
+
+        auto config = LoadWithArgs({"ymir-headless"});
+        CHECK(config.ipl_path == std::filesystem::path{"base-bios.bin"});
+    }
+
+    SECTION("CLI overrides both config files") {
+        {
+            std::ofstream out{configDir / "Ymir.toml"};
+            out << "ipl_path = \"base-bios.bin\"\n";
+        }
+        {
+            std::ofstream out{configDir / "Ymir-dbg.toml"};
+            out << "ipl_path = \"dbg-bios.bin\"\n";
+        }
+
+        auto config = LoadWithArgs({"ymir-headless", "--ipl", "cli-bios.bin"});
+        CHECK(config.ipl_path == std::filesystem::path{"cli-bios.bin"});
+    }
+
+    SECTION("--config bypasses cascade") {
+        {
+            std::ofstream out{configDir / "Ymir.toml"};
+            out << "ipl_path = \"base-bios.bin\"\n";
+        }
+        TempConfigFile otherConfig{"ipl_path = \"other-bios.bin\""};
+
+        auto config = LoadWithArgs({"ymir-headless", "--config", otherConfig.Path().string()});
+        CHECK(config.ipl_path == std::filesystem::path{"other-bios.bin"});
+    }
+
+    std::filesystem::remove_all(tempDir);
+}
+
+TEST_CASE("SaveDbgConfig writes headless-owned keys", "[config]") {
+    std::filesystem::path path = std::filesystem::temp_directory_path() / "ymir-save-test.toml";
+
+    ymir::debug::HeadlessConfig config;
+    config.ipl_path = "save-bios.bin";
+    config.game_path = "save-game.cue";
+    config.bram_path = "save-bram.bin";
+    config.slave_enabled = false;
+
+    REQUIRE(ymir::debug::detail::SaveDbgConfig(config, path));
+
+    // Read back and verify
+    ymir::debug::HeadlessConfig loaded;
+    REQUIRE(ymir::debug::detail::LoadConfigFile(path, loaded));
+
+    CHECK(loaded.ipl_path == config.ipl_path);
+    REQUIRE(loaded.game_path.has_value());
+    CHECK(*loaded.game_path == *config.game_path);
+    REQUIRE(loaded.bram_path.has_value());
+    CHECK(*loaded.bram_path == *config.bram_path);
+    CHECK(loaded.slave_enabled == config.slave_enabled);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("SaveDbgConfig writes a bare relative path", "[config]") {
+    std::filesystem::path path = "ymir-save-relative-test.toml";
+
+    ymir::debug::HeadlessConfig config;
+    config.ipl_path = "save-bios.bin";
+
+    REQUIRE(ymir::debug::detail::SaveDbgConfig(config, path));
+    CHECK(std::filesystem::is_regular_file(path));
+
+    std::filesystem::remove(path);
 }

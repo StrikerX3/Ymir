@@ -8,8 +8,6 @@
 #include <string>
 #include <string_view>
 
-#include <cstdlib>
-
 #include <ymir/debug/util/env.hpp>
 #include <ymir/debug/util/path.hpp>
 
@@ -51,11 +49,11 @@ private:
 constexpr std::string_view kHeadlessBinaryName = "ymir-headless.exe";
 
 std::optional<fs::path> WindowsCmdPathFromSystemRoot() {
-    auto systemRoot = ymir::debug::util::EnvGet("SystemRoot");
+    auto systemRoot = ymir::debug::util::EnvGetPath("SystemRoot");
     if (!systemRoot || systemRoot->empty()) {
         return std::nullopt;
     }
-    return fs::path{*systemRoot} / "System32" / "cmd.exe";
+    return *systemRoot / "System32" / "cmd.exe";
 }
 #else
 constexpr std::string_view kHeadlessBinaryName = "ymir-headless";

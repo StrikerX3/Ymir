@@ -27,7 +27,7 @@ namespace ymir::debug {
 
 // Locate the ymir-headless binary using a 4-level priority cascade.
 // The first hit wins; the winning path is logged to stderr.
-// Returns nullopt if all levels fail — caller should exit with a clear error.
+// Returns nullopt if all levels fail; caller should exit with a clear error.
 //
 // explicit_path is non-empty when the caller passed --headless-path; it short-
 // circuits all other levels. If the path does not point to a regular file the
@@ -54,17 +54,16 @@ inline std::optional<std::filesystem::path> find_headless_binary(std::string_vie
 
     // Level 2: YMIR_HEADLESS environment variable
     // Unlike Level 1, a set-but-wrong path falls through to Level 3/4 rather
-    // than failing fast — the var may be a stale leftover from another install.
-    if (auto env = util::EnvGet("YMIR_HEADLESS")) {
-        fs::path p(*env);
-        if (fs::exists(p) && fs::is_regular_file(p)) {
-            fmt::print(stderr, "[ymir-dbg] found headless via YMIR_HEADLESS: {}\n", p.string());
-            return p;
+    // than failing fast; the var may be a stale leftover from another install.
+    if (auto env = util::EnvGetPath("YMIR_HEADLESS")) {
+        if (fs::exists(*env) && fs::is_regular_file(*env)) {
+            fmt::print(stderr, "[ymir-dbg] found headless via YMIR_HEADLESS: {}\n", env->string());
+            return env;
         }
     }
 
     // Level 3: PATH lookup
-    // Dev-only convenience — a symlink from the build output to ~/bin is the
+    // Dev-only convenience; a symlink from the build output to ~/bin is the
     // intended workflow. Could collide with a same-named binary on a compromised
     // PATH, but that is not a concern on typical dev machines.
     if (auto pathEnv = util::EnvGet("PATH")) {
