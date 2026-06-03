@@ -2,6 +2,7 @@
 
 #include <config_parser.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -54,6 +55,28 @@ public:
     ~TempConfigFile() {
         std::error_code ec;
         std::filesystem::remove(m_path, ec);
+    }
+
+    [[nodiscard]] const std::filesystem::path &Path() const {
+        return m_path;
+    }
+
+private:
+    std::filesystem::path m_path;
+};
+
+class TempDirectory {
+public:
+    explicit TempDirectory(std::string_view prefix)
+        : m_path(std::filesystem::temp_directory_path() /
+                 (std::string{prefix} + "-" + std::to_string(reinterpret_cast<uintptr_t>(this)) + "-" +
+                  std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))) {
+        std::filesystem::create_directories(m_path);
+    }
+
+    ~TempDirectory() {
+        std::error_code ec;
+        std::filesystem::remove_all(m_path, ec);
     }
 
     [[nodiscard]] const std::filesystem::path &Path() const {
@@ -145,17 +168,17 @@ TEST_CASE("LoadConfig falls back when YMIR_CONFIG points to a missing file", "[c
     envXdg.Unset();
     envYmirConfig.Set(std::filesystem::temp_directory_path() / "missing-ymir-config.toml");
 
-    std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "ymir-test-missing-env";
-    std::filesystem::path configDir = tempDir;
+    TempDirectory tempDir{"ymir-test-missing-env"};
+    std::filesystem::path configDir = tempDir.Path();
 #if defined(__APPLE__)
-    configDir = tempDir / "Library" / "Application Support" / "Ymir";
-    envHome.Set(tempDir);
+    configDir = tempDir.Path() / "Library" / "Application Support" / "Ymir";
+    envHome.Set(tempDir.Path());
 #elif defined(_WIN32)
-    configDir = tempDir / "StrikerX3" / "Ymir";
-    envAppdata.Set(tempDir);
+    configDir = tempDir.Path() / "StrikerX3" / "Ymir";
+    envAppdata.Set(tempDir.Path());
 #else
-    configDir = tempDir / ".config" / "Ymir";
-    envHome.Set(tempDir);
+    configDir = tempDir.Path() / ".config" / "Ymir";
+    envHome.Set(tempDir.Path());
 #endif
 
     std::filesystem::create_directories(configDir);
@@ -168,8 +191,6 @@ TEST_CASE("LoadConfig falls back when YMIR_CONFIG points to a missing file", "[c
 
     CHECK_FALSE(config.config_load_failed);
     CHECK(config.ipl_path == std::filesystem::path{"standard-bios.bin"});
-
-    std::filesystem::remove_all(tempDir);
 }
 
 TEST_CASE("LoadConfig defaults slave SH-2 to enabled", "[config]") {
@@ -241,17 +262,17 @@ TEST_CASE("LoadConfig implements hierarchical cascade", "[config]") {
     envYmirConfig.Unset();
 
     // Create a temp directory to act as the "standard" config root
-    std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "ymir-test-cascade";
-    std::filesystem::path configDir = tempDir;
+    TempDirectory tempDir{"ymir-test-cascade"};
+    std::filesystem::path configDir = tempDir.Path();
 #if defined(__APPLE__)
-    configDir = tempDir / "Library" / "Application Support" / "Ymir";
-    envHome.Set(tempDir);
+    configDir = tempDir.Path() / "Library" / "Application Support" / "Ymir";
+    envHome.Set(tempDir.Path());
 #elif defined(_WIN32)
-    configDir = tempDir / "StrikerX3" / "Ymir";
-    envAppdata.Set(tempDir);
+    configDir = tempDir.Path() / "StrikerX3" / "Ymir";
+    envAppdata.Set(tempDir.Path());
 #else
-    configDir = tempDir / ".config" / "Ymir";
-    envHome.Set(tempDir);
+    configDir = tempDir.Path() / ".config" / "Ymir";
+    envHome.Set(tempDir.Path());
 #endif
 
     std::filesystem::create_directories(configDir);
@@ -304,8 +325,6 @@ TEST_CASE("LoadConfig implements hierarchical cascade", "[config]") {
         auto config = LoadWithArgs({"ymir-headless", "--config", otherConfig.Path().string()});
         CHECK(config.ipl_path == std::filesystem::path{"other-bios.bin"});
     }
-
-    std::filesystem::remove_all(tempDir);
 }
 
 TEST_CASE("SaveDbgConfig writes headless-owned keys", "[config]") {

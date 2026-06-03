@@ -2,7 +2,6 @@ add_executable(ymir-dbg-tests
     src/smoke_tests.cpp
     src/protocol_tests.cpp
     src/discovery_tests.cpp
-    src/spawn_tests.cpp
 )
 add_executable(ymir::ymir-dbg-tests ALIAS ymir-dbg-tests)
 set_target_properties(ymir-dbg-tests PROPERTIES

@@ -104,8 +104,9 @@ namespace detail {
         if (auto stdPath = StandardYmirConfigPath(); stdPath && std::filesystem::is_regular_file(*stdPath)) {
             return stdPath;
         }
-        if (std::filesystem::is_regular_file(kYmirConfigName)) {
-            return std::filesystem::path{kYmirConfigName};
+        auto cwdPath = std::filesystem::path{kYmirConfigName};
+        if (std::filesystem::is_regular_file(cwdPath)) {
+            return cwdPath;
         }
         return std::nullopt;
     }
@@ -115,8 +116,9 @@ namespace detail {
         if (auto stdPath = StandardDbgConfigPath(); stdPath && std::filesystem::is_regular_file(*stdPath)) {
             return stdPath;
         }
-        if (std::filesystem::is_regular_file(kDbgConfigName)) {
-            return std::filesystem::path{kDbgConfigName};
+        auto cwdPath = std::filesystem::path{kDbgConfigName};
+        if (std::filesystem::is_regular_file(cwdPath)) {
+            return cwdPath;
         }
         return std::nullopt;
     }

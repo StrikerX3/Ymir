@@ -19,18 +19,29 @@ namespace ymir::debug::util {
 /// @return The value of the environment variable, or std::nullopt if not set.
 inline std::optional<std::string> EnvGet(const std::string &name) {
 #ifdef _WIN32
-    DWORD size = GetEnvironmentVariableA(name.c_str(), nullptr, 0);
-    if (size == 0) {
-        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
-            return std::nullopt;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        DWORD size = GetEnvironmentVariableA(name.c_str(), nullptr, 0);
+        if (size == 0) {
+            if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+                return std::nullopt;
+            }
+            return std::string{};
         }
-        return std::string{""};
+
+        std::string value(size, '\0');
+        DWORD written = GetEnvironmentVariableA(name.c_str(), value.data(), size);
+        if (written == 0) {
+            if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+                return std::nullopt;
+            }
+            return std::string{};
+        }
+        if (written < size) {
+            value.resize(written);
+            return value;
+        }
     }
-    std::string value(size, '\0');
-    // size includes null terminator, but string handles its own
-    GetEnvironmentVariableA(name.c_str(), value.data(), size);
-    value.pop_back(); // Remove the null terminator added by GetEnvironmentVariableA
-    return value;
+    return std::nullopt;
 #else
     if (const char *value = std::getenv(name.c_str())) {
         return std::string{value};
@@ -45,18 +56,29 @@ inline std::optional<std::string> EnvGet(const std::string &name) {
 inline std::optional<std::filesystem::path> EnvGetPath(const std::string &name) {
 #ifdef _WIN32
     const std::wstring wideName{name.begin(), name.end()};
-    DWORD size = GetEnvironmentVariableW(wideName.c_str(), nullptr, 0);
-    if (size == 0) {
-        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
-            return std::nullopt;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        DWORD size = GetEnvironmentVariableW(wideName.c_str(), nullptr, 0);
+        if (size == 0) {
+            if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+                return std::nullopt;
+            }
+            return std::filesystem::path{};
         }
-        return std::filesystem::path{};
-    }
 
-    std::wstring value(size, L'\0');
-    GetEnvironmentVariableW(wideName.c_str(), value.data(), size);
-    value.pop_back();
-    return std::filesystem::path{value};
+        std::wstring value(size, L'\0');
+        DWORD written = GetEnvironmentVariableW(wideName.c_str(), value.data(), size);
+        if (written == 0) {
+            if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
+                return std::nullopt;
+            }
+            return std::filesystem::path{};
+        }
+        if (written < size) {
+            value.resize(written);
+            return std::filesystem::path{value};
+        }
+    }
+    return std::nullopt;
 #else
     if (auto value = EnvGet(name)) {
         return std::filesystem::path{*value};
