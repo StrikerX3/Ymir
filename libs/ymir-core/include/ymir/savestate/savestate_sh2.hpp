@@ -24,6 +24,9 @@ struct SH2SaveState {
     bool delaySlot;
     bool intrAllow;
 
+    uint32 fetchedOpcodes;
+    bool forceFetchOpcodes; // for compatibility with older save states
+
     struct BSC {
         uint16 BCR1;
         uint16 BCR2;

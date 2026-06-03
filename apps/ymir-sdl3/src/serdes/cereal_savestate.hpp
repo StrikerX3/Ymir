@@ -73,6 +73,9 @@ void serialize(Archive &ar, SystemSaveState &s) {
 
 template <class Archive>
 void serialize(Archive &ar, SH2SaveState &s, const uint32 version) {
+    // v13:
+    // - New fields
+    //   - uint32 fetchedOpcodes = 0
     // v12:
     // - New fields
     //   - bool intrAllow = true
@@ -86,6 +89,12 @@ void serialize(Archive &ar, SH2SaveState &s, const uint32 version) {
         ar(s.intrAllow);
     } else {
         s.intrAllow = true;
+    }
+    if (version >= 13) {
+        ar(s.fetchedOpcodes);
+        s.forceFetchOpcodes = false;
+    } else {
+        s.forceFetchOpcodes = true;
     }
     ar(s.bsc, s.dmac);
     serialize(ar, s.wdt, version);

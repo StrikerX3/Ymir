@@ -114,6 +114,7 @@ public:
     void SaveState(savestate::SH2SaveState &state) const;
     [[nodiscard]] bool ValidateState(const savestate::SH2SaveState &state) const;
     void LoadState(const savestate::SH2SaveState &state);
+    void PostLoadState(const savestate::SH2SaveState &state);
 
     // -------------------------------------------------------------------------
     // Debugger

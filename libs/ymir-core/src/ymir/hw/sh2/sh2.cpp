@@ -546,6 +546,8 @@ void SH2::SaveState(savestate::SH2SaveState &state) const {
     state.delaySlotTarget = m_delaySlotTarget;
     state.delaySlot = m_delaySlot;
     state.intrAllow = m_intrFlags.values.allow;
+    state.fetchedOpcodes = m_fetchedOpcodes;
+    state.forceFetchOpcodes = false;
 
     state.bsc.BCR1 = BCR1.u16;
     state.bsc.BCR2 = BCR2.u16;
@@ -584,6 +586,7 @@ void SH2::LoadState(const savestate::SH2SaveState &state) {
     m_delaySlotTarget = state.delaySlotTarget;
     m_delaySlot = state.delaySlot;
     m_intrFlags.values.allow = state.intrAllow;
+    m_fetchedOpcodes = state.fetchedOpcodes;
 
     BCR1.u15 = state.bsc.BCR1; // Do not change the MASTER bit
     BCR2.u16 = state.bsc.BCR2;
@@ -606,11 +609,15 @@ void SH2::LoadState(const savestate::SH2SaveState &state) {
     m_sleep = state.sleep;
 
     m_intrFlags.values.pending = !m_delaySlot && INTC.pending.level > SR.ILevel;
+}
 
-    if (*m_emulateCache) {
-        RefillPipeline<true>();
-    } else {
-        RefillPipeline<false>();
+void SH2::PostLoadState(const savestate::SH2SaveState &state) {
+    if (state.forceFetchOpcodes) {
+        if (*m_emulateCache) {
+            RefillPipeline<true>();
+        } else {
+            RefillPipeline<false>();
+        }
     }
 
     if (m_tracer) {

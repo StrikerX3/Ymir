@@ -467,6 +467,9 @@ bool Saturn::LoadState(const savestate::SaveState &state, bool skipROMChecks) {
         CDBlock.LoadState(state.cdblock);
     }
 
+    masterSH2.PostLoadState(state.msh2);
+    slaveSH2.PostLoadState(state.ssh2);
+
     return true;
 }
 
