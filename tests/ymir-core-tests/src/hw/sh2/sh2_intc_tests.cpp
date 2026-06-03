@@ -12,6 +12,10 @@
 
 using namespace ymir;
 
+static uint32 InstrPair(uint16 instr1, uint16 instr2) {
+    return (static_cast<uint32>(instr1) << 16u) | static_cast<uint32>(instr2);
+}
+
 namespace sh2_intr {
 
 struct TestSubject : debug::ISH2Tracer {
@@ -64,6 +68,11 @@ struct TestSubject : debug::ISH2Tracer {
 
     void MockMemoryRead32(uint32 address, uint32 value) const {
         mockedReads32[address] = value;
+    }
+
+    void MockInstrFetch(uint32 address, uint16 instr1, uint16 instr2) const {
+        assert((address & 3) == 0); // address must be longword-aligned
+        mockedReads32[address & ~3u] = InstrPair(instr1, instr2);
     }
 
     // -------------------------------------------------------------------------
@@ -204,14 +213,15 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     constexpr uint8 intrVec = 0x70;
     constexpr uint8 intrLevel = 5;
 
-    // Setup interrupt handlers with NOP, RTE, NOP (delay slot)
-    MockMemoryRead16(intrPC1 + 0, instrNOP);
-    MockMemoryRead16(intrPC1 + 2, instrRTE);
-    MockMemoryRead16(intrPC1 + 4, instrNOP);
+    // Setup basic program
+    MockInstrFetch(startPC, instrNOP, instrNOP);
 
-    MockMemoryRead16(intrPC2 + 0, instrNOP);
-    MockMemoryRead16(intrPC2 + 2, instrRTE);
-    MockMemoryRead16(intrPC2 + 4, instrNOP);
+    // Setup interrupt handlers with NOP, RTE, NOP (delay slot)
+    MockInstrFetch(intrPC1 + 0, instrNOP, instrRTE);
+    MockInstrFetch(intrPC1 + 4, instrNOP, instrNOP);
+
+    MockInstrFetch(intrPC2 + 0, instrNOP, instrRTE);
+    MockInstrFetch(intrPC2 + 4, instrNOP, instrNOP);
 
     // Setup interrupt vectors at two different locations
     MockMemoryRead32(startVBR1 + intrVec * sizeof(uint32), intrPC1);
@@ -271,9 +281,9 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     // - no change to SR.I3-0
     CHECK(probe.SR().ILevel == intrLevel);
     // - memory accesses:
-    //   [0] read NOP instruction from PC
+    //   [0] fetch instructions from longword-aligned PC
     REQUIRE(memoryAccesses.size() == 1);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC1, instrNOP, false, sizeof(uint16)});
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC1, InstrPair(instrNOP, instrRTE), false, sizeof(uint32)});
 
     ClearCaptures();
 
@@ -292,13 +302,11 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     // - SR.I3-0 set to the previous value
     CHECK(probe.SR().u32 == startSR);
     // - memory accesses:
-    //   [0] read RTE instruction from PC
-    //   [1] pop PC from stack
-    //   [2] pop SR from stack
-    REQUIRE(memoryAccesses.size() == 3);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC1 + 2, instrRTE, false, sizeof(uint16)});
-    CHECK(memoryAccesses[1] == MemoryAccessInfo{startSP - 8, startPC, false, sizeof(uint32)});
-    CHECK(memoryAccesses[2] == MemoryAccessInfo{startSP - 4, startSR, false, sizeof(uint32)});
+    //   [0] pop PC from stack
+    //   [1] pop SR from stack
+    REQUIRE(memoryAccesses.size() == 2);
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{startSP - 8, startPC, false, sizeof(uint32)});
+    CHECK(memoryAccesses[1] == MemoryAccessInfo{startSP - 4, startSR, false, sizeof(uint32)});
 
     ClearCaptures();
 
@@ -317,15 +325,40 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     // - no changes to SR
     CHECK(probe.SR().u32 == startSR);
     // - memory accesses:
-    //   [0] read NOP instruction from PC
+    //   [0] fetch instructions from longword-aligned PC
     REQUIRE(memoryAccesses.size() == 1);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC1 + 4, instrNOP, false, sizeof(uint16)});
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC1 + 4, InstrPair(instrNOP, instrNOP), false, sizeof(uint32)});
+
+    ClearCaptures();
+
+    probe.LowerInterrupt(sh2::InterruptSource::IRL);
+
+    // This should be the first NOP instruction in the main program
+    sh2.Step<true, false>();
+
+    // Check results:
+    // - no interrupts
+    REQUIRE(interrupts.empty());
+    // - no exceptions
+    REQUIRE(exceptions.empty());
+    // - PC advanced to the next instruction
+    CHECK(probe.PC() == startPC + 2);
+    // - no stack operations
+    CHECK(probe.R(15) == startSP);
+    // - no changes to SR
+    CHECK(probe.SR().u32 == startSR);
+    // - memory accesses:
+    //   [0] fetch instructions from longword-aligned PC
+    REQUIRE(memoryAccesses.size() == 1);
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{startPC, InstrPair(instrNOP, instrNOP), false, sizeof(uint32)});
 
     ClearCaptures();
 
     // -----
 
     probe.VBR() = startVBR2; // point VBR to the second table
+    probe.INTC().SetVector(sh2::InterruptSource::IRL, intrVec);
+    probe.INTC().SetLevel(sh2::InterruptSource::IRL, intrLevel);
     probe.RaiseInterrupt(sh2::InterruptSource::IRL);
     REQUIRE(probe.CheckInterrupts());
 
@@ -333,12 +366,12 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     sh2.Step<true, false>();
 
     // Check results:
-    // - one interrupt of the specified vector+level at the starting PC
+    // - one interrupt of the specified vector+level at the starting PC + 2
     REQUIRE(interrupts.size() == 1);
-    CHECK(interrupts[0] == InterruptInfo{intrVec, intrLevel, sh2::InterruptSource::IRL, startPC});
-    // - one exception of the specified vector at the starting PC with the starting SR
+    CHECK(interrupts[0] == InterruptInfo{intrVec, intrLevel, sh2::InterruptSource::IRL, startPC + 2});
+    // - one exception of the specified vector at the starting PC + 2 with the starting SR
     REQUIRE(exceptions.size() == 1);
-    CHECK(exceptions[0] == ExceptionInfo{intrVec, startPC, startSR});
+    CHECK(exceptions[0] == ExceptionInfo{intrVec, startPC + 2, startSR});
     // - external interrupt acknowledged
     CHECK(intrAcked);
     // - PC at the interrupt vector
@@ -349,11 +382,11 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     CHECK(probe.SR().ILevel == intrLevel);
     // - memory accesses:
     //   [0] push SR to stack
-    //   [1] push PC to stack
+    //   [1] push PC+2 to stack
     //   [2] read PC from VBR + vector*4
     REQUIRE(memoryAccesses.size() == 3);
     CHECK(memoryAccesses[0] == MemoryAccessInfo{startSP - 4, startSR, true, sizeof(uint32)});
-    CHECK(memoryAccesses[1] == MemoryAccessInfo{startSP - 8, startPC, true, sizeof(uint32)});
+    CHECK(memoryAccesses[1] == MemoryAccessInfo{startSP - 8, startPC + 2, true, sizeof(uint32)});
     CHECK(memoryAccesses[2] == MemoryAccessInfo{startVBR2 + intrVec * sizeof(uint32), intrPC2, false, sizeof(uint32)});
 
     ClearCaptures();
@@ -373,9 +406,9 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     // - no change to SR.I3-0
     CHECK(probe.SR().ILevel == intrLevel);
     // - memory accesses:
-    //   [0] read NOP instruction from PC
+    //   [0] fetch instructions from longword-aligned PC
     REQUIRE(memoryAccesses.size() == 1);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC2, instrNOP, false, sizeof(uint16)});
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC2, InstrPair(instrNOP, instrRTE), false, sizeof(uint32)});
 
     ClearCaptures();
 
@@ -394,13 +427,11 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     // - SR.I3-0 set to the previous value
     CHECK(probe.SR().u32 == startSR);
     // - memory accesses:
-    //   [0] read RTE instruction from PC
-    //   [1] pop PC from stack
-    //   [2] pop SR from stack
-    REQUIRE(memoryAccesses.size() == 3);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC2 + 2, instrRTE, false, sizeof(uint16)});
-    CHECK(memoryAccesses[1] == MemoryAccessInfo{startSP - 8, startPC, false, sizeof(uint32)});
-    CHECK(memoryAccesses[2] == MemoryAccessInfo{startSP - 4, startSR, false, sizeof(uint32)});
+    //   [0] pop PC+2 from stack
+    //   [1] pop SR from stack
+    REQUIRE(memoryAccesses.size() == 2);
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{startSP - 8, startPC + 2, false, sizeof(uint32)});
+    CHECK(memoryAccesses[1] == MemoryAccessInfo{startSP - 4, startSR, false, sizeof(uint32)});
 
     ClearCaptures();
 
@@ -412,16 +443,18 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupt flow works correctly", 
     REQUIRE(interrupts.empty());
     // - no exceptions
     REQUIRE(exceptions.empty());
-    // - PC back to the starting point
-    CHECK(probe.PC() == startPC);
+    // - PC back to the starting point + 2
+    CHECK(probe.PC() == startPC + 2);
     // - no stack operations
     CHECK(probe.R(15) == startSP);
     // - no changes to SR
     CHECK(probe.SR().u32 == startSR);
     // - memory accesses:
-    //   [0] read NOP instruction from PC
-    REQUIRE(memoryAccesses.size() == 1);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC2 + 4, instrNOP, false, sizeof(uint16)});
+    //   [0] fetch instructions from interrupt vector PC
+    //   [1] fetch instructions from program PC (because it is not longword-aligned)
+    REQUIRE(memoryAccesses.size() == 2);
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{intrPC2 + 4, InstrPair(instrNOP, instrNOP), false, sizeof(uint32)});
+    CHECK(memoryAccesses[1] == MemoryAccessInfo{startPC, InstrPair(instrNOP, instrNOP), false, sizeof(uint32)});
 }
 
 // Test that interrupts raised from each source map to the corresponding vector and level.
@@ -462,29 +495,24 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupts are handled correctly"
         intc.SetVector(source, vecNum);
         intc.SetLevel(source, level);
         MockMemoryRead32(startVBR + vecNum * sizeof(uint32), routineAddr);
-        MockMemoryRead16(routineAddr + 0, instrRTE);
-        MockMemoryRead16(routineAddr + 2, instrNOP);
+        MockInstrFetch(routineAddr, instrRTE, instrNOP);
     }
 
     // IRL autovector
     MockMemoryRead32(startVBR + 0x40 * sizeof(uint32), irlIntrPC);
-    MockMemoryRead16(irlIntrPC + 0, instrRTE);
-    MockMemoryRead16(irlIntrPC + 2, instrNOP);
+    MockInstrFetch(irlIntrPC, instrRTE, instrNOP);
 
     // IRL external vector
     MockMemoryRead32(startVBR + irlExIntrVec * sizeof(uint32), irlExIntrPC);
-    MockMemoryRead16(irlExIntrPC + 0, instrRTE);
-    MockMemoryRead16(irlExIntrPC + 2, instrNOP);
+    MockInstrFetch(irlExIntrPC, instrRTE, instrNOP);
 
     // User break
     MockMemoryRead32(startVBR + 0x0C * sizeof(uint32), ubcIntrPC);
-    MockMemoryRead16(ubcIntrPC + 0, instrRTE);
-    MockMemoryRead16(ubcIntrPC + 2, instrNOP);
+    MockInstrFetch(ubcIntrPC, instrRTE, instrNOP);
 
     // NMI
     MockMemoryRead32(startVBR + 0x0B * sizeof(uint32), nmiIntrPC);
-    MockMemoryRead16(nmiIntrPC + 0, instrRTE);
-    MockMemoryRead16(nmiIntrPC + 2, instrNOP);
+    MockInstrFetch(nmiIntrPC, instrRTE, instrNOP);
 
     auto testIntr = [&](sh2::InterruptSource source, uint8 vecNum, uint8 level, uint32 intrHandlerAddr) {
         probe.RaiseInterrupt(source);
@@ -539,11 +567,12 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupts are handled correctly"
         // - SR restored to starting value by RTE
         CHECK(probe.SR().u32 == startSR);
         // - memory accesses
-        //   [0] read instruction from PC (RTE)
+        //   [0] fetch instructions from longword-aligned PC (RTE, NOP)
         //   [1] pop PC from stack
         //   [2] pop SR from stack
         REQUIRE(memoryAccesses.size() == 3);
-        CHECK(memoryAccesses[0] == MemoryAccessInfo{intrHandlerAddr, instrRTE, false, sizeof(uint16)});
+        CHECK(memoryAccesses[0] ==
+              MemoryAccessInfo{intrHandlerAddr & ~3u, (instrRTE << 16u) | instrNOP, false, sizeof(uint32)});
         CHECK(memoryAccesses[1] == MemoryAccessInfo{startSP - 8, startPC, false, sizeof(uint32)});
         CHECK(memoryAccesses[2] == MemoryAccessInfo{startSP - 4, startSR, false, sizeof(uint32)});
     };
@@ -799,8 +828,7 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 interrupts are not serviced in de
     constexpr uint32 startPC = 0x1000;
 
     // Setup simple program that returns to itself
-    MockMemoryRead16(startPC + 0, instrRTS);
-    MockMemoryRead16(startPC + 2, instrNOP);
+    MockInstrFetch(startPC, instrRTS, instrNOP);
     probe.PC() = startPC; // point PC to start of program
     probe.PR() = startPC; // point PR to start of program
 

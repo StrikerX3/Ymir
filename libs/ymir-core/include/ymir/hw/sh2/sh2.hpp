@@ -444,6 +444,8 @@ public:
         bool GetSleepState() const;
         void SetSleepState(bool sleep);
 
+        void RefillPipeline();
+
         // ---------------------------------------------------------------------
         // On-chip peripheral registers
 

@@ -2138,7 +2138,9 @@ FORCE_INLINE void SH2::AdvancePC() {
     if constexpr (delaySlot) {
         TraceDelaySlot<debug>(m_tracer, PC, m_delaySlotTarget);
         PC = m_delaySlotTarget;
-        RefillPipeline<emulateCache>();
+        if (PC & 2) {
+            RefillPipeline<emulateCache>();
+        }
         m_delaySlot = false;
         m_intrFlags.values.pending = INTC.pending.level > SR.ILevel;
     } else {
@@ -2159,7 +2161,9 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
     const uint32 target = MemReadLong<emulateCache>(address3);
     TraceException<debug>(m_tracer, vectorNumber, PC, SR.u32, R[15], target);
     PC = target;
-    RefillPipeline<emulateCache>();
+    if (PC & 2) {
+        RefillPipeline<emulateCache>();
+    }
     R[15] -= 8;
     m_delaySlot = false;
     return cycles;
@@ -4275,6 +4279,14 @@ bool SH2::Probe::GetSleepState() const {
 
 void SH2::Probe::SetSleepState(bool sleep) {
     m_sh2.m_sleep = sleep;
+}
+
+void SH2::Probe::RefillPipeline() {
+    if (*m_sh2.m_emulateCache) {
+        m_sh2.RefillPipeline<true>();
+    } else {
+        m_sh2.RefillPipeline<false>();
+    }
 }
 
 void SH2::Probe::ExecuteDiv32() {

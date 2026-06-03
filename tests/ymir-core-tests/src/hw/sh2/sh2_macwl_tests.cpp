@@ -5,6 +5,7 @@
 
 #include <fmt/format.h>
 
+#include <cassert>
 #include <map>
 #include <vector>
 
@@ -26,6 +27,10 @@ constexpr auto testdata = {
 };
 
 using namespace ymir;
+
+static uint32 InstrPair(uint16 instr1, uint16 instr2) {
+    return (static_cast<uint32>(instr1) << 16u) | static_cast<uint32>(instr2);
+}
 
 struct TestSubject {
     mutable sys::SH2Bus bus{};
@@ -69,6 +74,11 @@ struct TestSubject {
 
     void MockMemoryRead32(uint32 address, uint32 value) const {
         mockedReads32[address] = value;
+    }
+
+    void MockInstrFetch(uint32 address, uint16 instr1, uint16 instr2) const {
+        assert((address & 3) == 0); // address must be longword-aligned
+        mockedReads32[address & ~3u] = InstrPair(instr1, instr2);
     }
 
     // -------------------------------------------------------------------------
@@ -155,9 +165,8 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 MACW/MACL operations are computed
     MockMemoryRead32(0x1100, testData.rn);
     MockMemoryRead16(0x1104, testData.rn);
 
-    MockMemoryRead16(0x4000, instrMACL);
-    MockMemoryRead16(0x4002, instrMACW);
-    MockMemoryRead16(0x4004, instrNOP);
+    MockInstrFetch(0x4000, instrMACL, instrMACW);
+    MockInstrFetch(0x4004, instrNOP, instrNOP);
 
     // Run MAC.L
     probe.MAC().u64 = testData.macIn;
@@ -171,11 +180,11 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 MACW/MACL operations are computed
     // - store result in MAC
     CHECK(probe.MAC().u64 == testData.macl);
     // - memory accesses:
-    //   [0] read MAC.L instruction
+    //   [0] fetch MAC.L and MAC.W instructions
     //   [1] read from @R1
     //   [2] read from @R2
     REQUIRE(memoryAccesses.size() == 3);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{0x4000, instrMACL, false, sizeof(uint16)});
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{0x4000, InstrPair(instrMACL, instrMACW), false, sizeof(uint32)});
     CHECK(memoryAccesses[1] == MemoryAccessInfo{0x1100, testData.rn, false, sizeof(uint32)});
     CHECK(memoryAccesses[2] == MemoryAccessInfo{0x1000, testData.rm, false, sizeof(uint32)});
 
@@ -193,13 +202,11 @@ TEST_CASE_PERSISTENT_FIXTURE(TestSubject, "SH2 MACW/MACL operations are computed
     // - store result in MAC
     CHECK(probe.MAC().u64 == testData.macw);
     // - memory accesses:
-    //   [0] read MAC.W instruction
-    //   [1] read from @R1
-    //   [2] read from @R2
-    REQUIRE(memoryAccesses.size() == 3);
-    CHECK(memoryAccesses[0] == MemoryAccessInfo{0x4002, instrMACW, false, sizeof(uint16)});
-    CHECK(memoryAccesses[1] == MemoryAccessInfo{0x1104, (uint16)testData.rn, false, sizeof(uint16)});
-    CHECK(memoryAccesses[2] == MemoryAccessInfo{0x1004, (uint16)testData.rm, false, sizeof(uint16)});
+    //   [0] read from @R1
+    //   [1] read from @R2
+    REQUIRE(memoryAccesses.size() == 2);
+    CHECK(memoryAccesses[0] == MemoryAccessInfo{0x1104, (uint16)testData.rn, false, sizeof(uint16)});
+    CHECK(memoryAccesses[1] == MemoryAccessInfo{0x1004, (uint16)testData.rm, false, sizeof(uint16)});
 }
 
 } // namespace sh2_macwl
