@@ -3981,7 +3981,7 @@ FORCE_INLINE uint64 SH2::CMPSTR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TAS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles =
+    const uint64 cycles = AccessCyclesRMWByte<emulateCache>(address) + 4;
         AccessCycles<uint8, false, emulateCache>(address) + AccessCycles<uint8, true, emulateCache>(address) + 2;
     // TODO: enable bus lock on this read
     const uint8 tmp = MemReadByte<false>(address);
