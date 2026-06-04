@@ -173,6 +173,7 @@ App::App()
     , m_debugOutputWindow(m_context)
     , m_settingsWindow(m_context)
     , m_periphConfigWindow(m_context)
+    , m_messageHistoryWindow(m_context)
     , m_aboutWindow(m_context)
     , m_updateOnboardingWindow(m_context)
     , m_updateWindow(m_context) {
@@ -1120,6 +1121,9 @@ void App::RunEmulator() {
         inputContext.SetTriggerHandler(actions::general::ToggleFullScreen, [&](void *, const input::InputElement &) {
             settings.video.fullScreen = !settings.video.fullScreen;
             settings.MakeDirty();
+        });
+        inputContext.SetTriggerHandler(actions::general::ShowMessageHistory, [&](void *, const input::InputElement &) {
+            m_messageHistoryWindow.Open = true;
         });
         inputContext.SetTriggerHandler(actions::general::TakeScreenshot, [&](void *, const input::InputElement &) {
             m_context.EnqueueEvent(events::gui::TakeScreenshot());
@@ -3301,6 +3305,10 @@ void App::RunEmulator() {
                     }
 
                     ImGui::Separator();
+                    ImGui::MenuItem("Show message history",
+                                    input::ToShortcut(inputContext, actions::general::ShowMessageHistory).c_str(),
+                                    &m_messageHistoryWindow.Open);
+                    ImGui::Separator();
 #if Ymir_ENABLE_IMGUI_DEMO
                     ImGui::MenuItem("ImGui demo window", nullptr, &showImGuiDemoWindow);
                     ImGui::Separator();
@@ -3638,7 +3646,9 @@ void App::RunEmulator() {
                 float messageY = viewport->WorkPos.y + style.FramePadding.y + style.ItemSpacing.y;
 
                 std::unique_lock lock{m_context.locks.messages};
-                for (size_t i = 0; i < m_context.messages.Count(); ++i) {
+                const size_t count = m_context.messages.Count();
+                const size_t start = count > 10 ? count - 10 : 0;
+                for (size_t i = start; i < count; ++i) {
                     const Message *message = m_context.messages.Get(i);
                     assert(message != nullptr);
                     if (now >= message->timestamp + kMessageDisplayDuration + kMessageFadeOutDuration) {
@@ -3897,13 +3907,25 @@ void App::EmulatorThread() {
             EmuEvent &evt = evts[i];
             using enum EmuEvent::Type;
             switch (evt.type) {
-            case FactoryReset: m_context.saturn.instance->FactoryReset(); break;
+            case FactoryReset:
+                m_context.saturn.instance->FactoryReset();
+                m_context.DisplayMessage("Factory reset triggered");
+                break;
             case HardReset:
                 m_context.saturn.instance->Reset(true);
                 m_context.rewindBuffer.Reset();
+                m_context.DisplayMessage("Hard reset triggered");
                 break;
-            case SoftReset: m_context.saturn.instance->Reset(false); break;
-            case SetResetButton: m_context.saturn.instance->SMPC.SetResetButtonState(std::get<bool>(evt.value)); break;
+            case SoftReset:
+                m_context.saturn.instance->Reset(false);
+                m_context.DisplayMessage("Soft reset triggered");
+                break;
+            case SetResetButton:
+                m_context.saturn.instance->SMPC.SetResetButtonState(std::get<bool>(evt.value));
+                if (std::get<bool>(evt.value)) {
+                    m_context.DisplayMessage("Soft reset triggered");
+                }
+                break;
 
             case SetPaused: //
             {
@@ -6081,6 +6103,7 @@ void App::DrawWindows() {
 
     m_settingsWindow.Display();
     m_periphConfigWindow.Display();
+    m_messageHistoryWindow.Display();
     m_aboutWindow.Display();
 #if Ymir_ENABLE_UPDATE_CHECKS
     m_updateOnboardingWindow.Display();

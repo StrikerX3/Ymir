@@ -753,6 +753,7 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.openSettings);
     mapInput(m_actionInputs, hotkeys.toggleWindowedVideoOutput);
     mapInput(m_actionInputs, hotkeys.toggleFullScreen);
+    mapInput(m_actionInputs, hotkeys.showMessageHistory);
     mapInput(m_actionInputs, hotkeys.takeScreenshot);
     mapInput(m_actionInputs, hotkeys.exitApp);
 
@@ -1244,6 +1245,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblHotkeys, "OpenSettings", hotkeys.openSettings);
         Parse(tblHotkeys, "ToggleWindowedVideoOutput", hotkeys.toggleWindowedVideoOutput);
         Parse(tblHotkeys, "ToggleFullScreen", hotkeys.toggleFullScreen);
+        Parse(tblHotkeys, "ShowMessageHistory", hotkeys.showMessageHistory);
         Parse(tblHotkeys, "TakeScreenshot", hotkeys.takeScreenshot);
         Parse(tblHotkeys, "ExitApp", hotkeys.exitApp);
         Parse(tblHotkeys, "ToggleFrameRateOSD", hotkeys.toggleFrameRateOSD);
@@ -1864,6 +1866,7 @@ SettingsSaveResult Settings::Save() {
             {"OpenSettings", ToTOML(hotkeys.openSettings)},
             {"ToggleWindowedVideoOutput", ToTOML(hotkeys.toggleWindowedVideoOutput)},
             {"ToggleFullScreen", ToTOML(hotkeys.toggleFullScreen)},
+            {"ShowMessageHistory", ToTOML(hotkeys.showMessageHistory)},
             {"TakeScreenshot", ToTOML(hotkeys.takeScreenshot)},
             {"ExitApp", ToTOML(hotkeys.exitApp)},
             {"ToggleFrameRateOSD", ToTOML(hotkeys.toggleFrameRateOSD)},
@@ -2258,6 +2261,7 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
     rebindCtx.Rebind(hotkeys.openSettings, {KeyCombo{Mod::None, Key::F10}});
     rebindCtx.Rebind(hotkeys.toggleWindowedVideoOutput, {KeyCombo{Mod::None, Key::F9}});
     rebindCtx.Rebind(hotkeys.toggleFullScreen, {KeyCombo{Mod::Alt, Key::Return}});
+    rebindCtx.Rebind(hotkeys.showMessageHistory, {KeyCombo{Key::F1}});
     rebindCtx.Rebind(hotkeys.takeScreenshot, {KeyCombo{Key::F12}});
     rebindCtx.Rebind(hotkeys.exitApp, {}); // Alt+F4 is always recognized, no need to bind it here
 

@@ -13,6 +13,7 @@ namespace general {
     DEF_ACTION(OpenSettings)::Trigger(ACTION_ID, "General", "Open settings");
     DEF_ACTION(ToggleWindowedVideoOutput)::Trigger(ACTION_ID, "General", "Toggle windowed video output");
     DEF_ACTION(ToggleFullScreen)::Trigger(ACTION_ID, "General", "Toggle full screen");
+    DEF_ACTION(ShowMessageHistory)::Trigger(ACTION_ID, "General", "Show message history");
     DEF_ACTION(TakeScreenshot)::Trigger(ACTION_ID, "General", "Take screenshot");
     DEF_ACTION(ExitApp)::ComboTrigger(ACTION_ID, "General", "Exit application");
 

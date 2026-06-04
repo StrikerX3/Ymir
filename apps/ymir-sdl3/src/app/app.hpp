@@ -11,6 +11,7 @@
 
 #include "ui/windows/about_window.hpp"
 #include "ui/windows/backup_ram_manager_window.hpp"
+#include "ui/windows/message_history_window.hpp"
 #include "ui/windows/peripheral_config_window.hpp"
 #include "ui/windows/settings_window.hpp"
 #include "ui/windows/system_state_window.hpp"
@@ -211,6 +212,7 @@ private:
 
     ui::SettingsWindow m_settingsWindow;
     ui::PeripheralConfigWindow m_periphConfigWindow;
+    ui::MessageHistoryWindow m_messageHistoryWindow;
     ui::AboutWindow m_aboutWindow;
     ui::UpdateOnboardingWindow m_updateOnboardingWindow;
     ui::UpdateWindow m_updateWindow;

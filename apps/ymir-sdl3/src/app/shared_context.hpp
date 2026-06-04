@@ -772,15 +772,18 @@ struct SharedContext {
 
     // Circular buffer of messages to be displayed
     mutable struct Messages {
-        std::array<Message, 10> list{};
+        std::array<Message, 10000> list{};
         size_t count = 0;
         size_t head = 0;
 
         void Add(std::string message) {
+            Message msg{.message = message,
+                        .timestamp = std::chrono::steady_clock::now(),
+                        .sysTime = std::chrono::system_clock::now()};
             if (count < list.size()) {
-                list[count++] = {.message = message, .timestamp = std::chrono::steady_clock::now()};
+                list[count++] = msg;
             } else {
-                list[head++] = {.message = message, .timestamp = std::chrono::steady_clock::now()};
+                list[head++] = msg;
                 if (head == list.size()) {
                     head = 0;
                 }

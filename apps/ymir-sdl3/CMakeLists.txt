@@ -247,6 +247,8 @@ add_executable(ymir-sdl3
     src/app/ui/windows/about_window.hpp
     src/app/ui/windows/backup_ram_manager_window.cpp
     src/app/ui/windows/backup_ram_manager_window.hpp
+    src/app/ui/windows/message_history_window.cpp
+    src/app/ui/windows/message_history_window.hpp
     src/app/ui/windows/peripheral_config_window.cpp
     src/app/ui/windows/peripheral_config_window.hpp
     src/app/ui/windows/settings_window.cpp

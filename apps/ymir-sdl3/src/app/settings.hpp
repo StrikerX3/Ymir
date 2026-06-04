@@ -205,6 +205,7 @@ struct Settings {
         input::InputBind openSettings{actions::general::OpenSettings};
         input::InputBind toggleWindowedVideoOutput{actions::general::ToggleWindowedVideoOutput};
         input::InputBind toggleFullScreen{actions::general::ToggleFullScreen};
+        input::InputBind showMessageHistory{actions::general::ShowMessageHistory};
         input::InputBind takeScreenshot{actions::general::TakeScreenshot};
         input::InputBind exitApp{actions::general::ExitApp};
 
