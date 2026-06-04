@@ -3303,7 +3303,7 @@ FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::GBR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 2;
     MemWriteLong<debug, emulateCache>(address, GBR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3316,7 +3316,7 @@ FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::SR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 2;
     MemWriteLong<debug, emulateCache>(address, SR.u32);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3329,7 +3329,7 @@ FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::VBR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 2;
     MemWriteLong<debug, emulateCache>(address, VBR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
