@@ -550,6 +550,7 @@ void SH2::SaveState(savestate::SH2SaveState &state) const {
     state.intrAllow = m_intrFlags.values.allow;
     state.fetchedOpcodes = m_fetchedOpcodes;
     state.forceFetchOpcodes = false;
+    state.wbReg = m_wbReg;
 
     state.bsc.BCR1 = BCR1.u16;
     state.bsc.BCR2 = BCR2.u16;
@@ -589,6 +590,7 @@ void SH2::LoadState(const savestate::SH2SaveState &state) {
     m_delaySlot = state.delaySlot;
     m_intrFlags.values.allow = state.intrAllow;
     m_fetchedOpcodes = state.fetchedOpcodes;
+    m_wbReg = state.wbReg;
 
     BCR1.u15 = state.bsc.BCR1; // Do not change the MASTER bit
     BCR2.u16 = state.bsc.BCR2;

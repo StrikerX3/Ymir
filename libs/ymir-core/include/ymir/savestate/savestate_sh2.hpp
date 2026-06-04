@@ -27,6 +27,8 @@ struct SH2SaveState {
     uint32 fetchedOpcodes;
     bool forceFetchOpcodes; // for compatibility with older save states
 
+    uint8 wbReg;
+
     struct BSC {
         uint16 BCR1;
         uint16 BCR2;

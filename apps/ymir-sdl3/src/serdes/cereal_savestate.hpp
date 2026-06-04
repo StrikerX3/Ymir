@@ -76,6 +76,7 @@ void serialize(Archive &ar, SH2SaveState &s, const uint32 version) {
     // v13:
     // - New fields
     //   - uint32 fetchedOpcodes = 0
+    //   - uint8 wbReg = 0
     // v12:
     // - New fields
     //   - bool intrAllow = true
@@ -93,8 +94,10 @@ void serialize(Archive &ar, SH2SaveState &s, const uint32 version) {
     if (version >= 13) {
         ar(s.fetchedOpcodes);
         s.forceFetchOpcodes = false;
+        ar(s.wbReg);
     } else {
         s.forceFetchOpcodes = true;
+        s.wbReg = 0;
     }
     ar(s.bsc, s.dmac);
     serialize(ar, s.wdt, version);
