@@ -983,6 +983,22 @@ FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
     util::unreachable();
 }
 
+template <bool emulateCache>
+uint64 SH2::AccessCyclesRMWByte(uint32 address) {
+    const uint32 partition = (address >> 29u) & 0b111;
+    switch (partition) {
+    case 0b000:                  // cache
+    case 0b001: [[fallthrough]]; // cache-through
+    case 0b101:                  // cache-through
+    {
+        const uint64 readCycles = m_bus.GetAccessCycles<uint8, false>(address);
+        return readCycles - 1;
+    }
+    default: // everything else
+        return AccessCycles<uint8, false, emulateCache>(address) + AccessCycles<uint8, true, emulateCache>(address);
+    }
+}
+
 // -----------------------------------------------------------------------------
 // On-chip peripherals
 

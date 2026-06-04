@@ -793,6 +793,9 @@ private:
     template <mem_primitive T, bool write, bool emulateCache>
     uint64 AccessCycles(uint32 address);
 
+    template <bool emulateCache>
+    uint64 AccessCyclesRMWByte(uint32 address);
+
     // -------------------------------------------------------------------------
     // On-chip peripherals
 
