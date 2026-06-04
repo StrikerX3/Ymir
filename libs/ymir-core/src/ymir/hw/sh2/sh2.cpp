@@ -3957,7 +3957,7 @@ FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
     AdvancePC<debug, emulateCache, delaySlot>();
     cycles += WritebackCycles(args.rm, args.rn);
     m_wbReg = kWBRegNone;
-    return cycles;
+    return cycles + 1; // TODO: where does the + 1 come from?
 }
 
 // mac.l @Rm+, @Rn+
@@ -3988,7 +3988,7 @@ FORCE_INLINE uint64 SH2::MACL(const DecodedArgs &args) {
     AdvancePC<debug, emulateCache, delaySlot>();
     cycles += WritebackCycles(args.rm, args.rn);
     m_wbReg = kWBRegNone;
-    return cycles;
+    return cycles + 1; // TODO: where does the + 1 come from?
 }
 
 // mul.l Rm, Rn
@@ -3996,7 +3996,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MULL(const DecodedArgs &args) {
     MAC.L = R[args.rm] * R[args.rn];
     AdvancePC<debug, emulateCache, delaySlot>();
-    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 2;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 3; // TODO: 2 to 4, but how is that decided?
     m_wbReg = kWBRegNone;
     return cycles;
 }
@@ -4028,7 +4028,7 @@ FORCE_INLINE uint64 SH2::DMULS(const DecodedArgs &args) {
     auto cast = [](uint32 val) { return static_cast<sint64>(static_cast<sint32>(val)); };
     MAC.u64 = cast(R[args.rm]) * cast(R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 2;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 3; // TODO: 2 to 4, but how is that decided?
     m_wbReg = kWBRegNone;
     return cycles;
 }
@@ -4038,7 +4038,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::DMULU(const DecodedArgs &args) {
     MAC.u64 = static_cast<uint64>(R[args.rm]) * static_cast<uint64>(R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 2;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 3; // TODO: 2 to 4, but how is that decided?
     m_wbReg = kWBRegNone;
     return cycles;
 }
