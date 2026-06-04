@@ -964,6 +964,7 @@ void VDP::VDP1BeginFrame() {
 
     m_state.regs1.returnAddress = kVDP1NoReturn;
     m_state.regs1.currCommandAddress = 0;
+    m_state.regs1.nextCommandAddress = 0;
     m_state.regs1.currFrameEnded = false;
 
     bool valid = !m_skipEmptyVDP1Table;
@@ -1006,8 +1007,9 @@ uint64 VDP::VDP1ProcessCommand() {
 
     uint64 cycles = 0;
 
-    uint32 &cmdAddress = m_state.regs1.currCommandAddress;
+    const uint32 cmdAddress = m_state.regs1.nextCommandAddress;
     const VDP1Command::Control control{.u16 = VDP1ReadVRAM<uint16>(cmdAddress)};
+    m_state.regs1.currCommandAddress = cmdAddress;
 
     // Every command costs 16 cycles to fetch, even if skipped
     cycles += 16;
@@ -1018,8 +1020,7 @@ uint64 VDP::VDP1ProcessCommand() {
         VDP1EndFrame();
     } else if (!control.skip) {
         if (!control.IsValid()) [[unlikely]] {
-            devlog::debug<grp::vdp1_cmd>("Invalid command {:X}; aborting", static_cast<uint16>(control.command));
-            VDP1EndFrame();
+            devlog::debug<grp::vdp1_cmd>("Invalid command {:X}", static_cast<uint16>(control.command));
             return cycles;
         }
         m_renderer->VDP1ExecuteCommand(cmdAddress, control);
@@ -1028,19 +1029,20 @@ uint64 VDP::VDP1ProcessCommand() {
 
     // Go to the next command
     using enum VDP1Command::JumpType;
+    uint32 target = cmdAddress;
     switch (control.jumpMode) {
-    case Next: cmdAddress += 0x20; break;
+    case Next: target += 0x20; break;
     case Assign: {
-        const uint32 nextCmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
-        devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", nextCmdAddress);
+        target = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
+        devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", target);
 
         // Simple check for infinite loops
         // - Gale Racer stage 1-2 (Mojave Desert) creates an infinite loop at 05140 with the jump at 05280
-        if (nextCmdAddress == m_VDP1CtlState.lastJumpAddress) {
+        if (target == m_VDP1CtlState.lastJumpAddress) {
             ++m_VDP1CtlState.loopCount;
         } else {
             m_VDP1CtlState.loopCount = 0;
-            m_VDP1CtlState.lastJumpAddress = nextCmdAddress;
+            m_VDP1CtlState.lastJumpAddress = target;
         }
 
         static constexpr uint32 kMaxLoopIterations = 32;
@@ -1048,12 +1050,11 @@ uint64 VDP::VDP1ProcessCommand() {
         // HACK: Avoid infinite loops
         // - Sonic R attempts to jump back to 0 in some cases
         // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
-        if (nextCmdAddress == 0 || nextCmdAddress == cmdAddress || m_VDP1CtlState.loopCount >= kMaxLoopIterations) {
+        if (target == 0 || target == cmdAddress || m_VDP1CtlState.loopCount >= kMaxLoopIterations) {
             devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
             VDP1EndFrame();
             return cycles;
         }
-        cmdAddress = nextCmdAddress;
         break;
     }
     case Call:
@@ -1061,21 +1062,22 @@ uint64 VDP::VDP1ProcessCommand() {
         if (m_state.regs1.returnAddress == kVDP1NoReturn) {
             m_state.regs1.returnAddress = cmdAddress + 0x20;
         }
-        cmdAddress = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
-        devlog::trace<grp::vdp1_cmd>("Call {:05X}", cmdAddress);
+        target = (VDP1ReadVRAM<uint16>(cmdAddress + 0x02) << 3u) & ~0x1F;
+        devlog::trace<grp::vdp1_cmd>("Call {:05X}", target);
         break;
     case Return:
         // Return seems to only return if there was a previous Call
         if (m_state.regs1.returnAddress != kVDP1NoReturn) {
-            cmdAddress = m_state.regs1.returnAddress;
+            target = m_state.regs1.returnAddress;
             m_state.regs1.returnAddress = kVDP1NoReturn;
+            devlog::trace<grp::vdp1_cmd>("Return to {:05X}", target);
         } else {
-            cmdAddress += 0x20;
+            target += 0x20;
+            devlog::trace<grp::vdp1_cmd>("Illegal return, advancing to {:05X}", target);
         }
-        devlog::trace<grp::vdp1_cmd>("Return to {:05X}", cmdAddress);
         break;
     }
-    cmdAddress &= 0x7FFFF;
+    m_state.regs1.nextCommandAddress = target & 0x7FFFF;
 
     return cycles;
 }

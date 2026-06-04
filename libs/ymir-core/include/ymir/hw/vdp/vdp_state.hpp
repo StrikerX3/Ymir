@@ -878,6 +878,7 @@ struct VDPState {
         state.regs1.eraseX3Latch = regs1.eraseX3Latch;
         state.regs1.eraseY1Latch = regs1.eraseY1Latch;
         state.regs1.eraseY3Latch = regs1.eraseY3Latch;
+        state.regs1.nextCommandAddress = regs1.nextCommandAddress;
 
         state.regs2.TVMD = regs2.ReadTVMD();
         state.regs2.EXTEN = regs2.ReadEXTEN();
@@ -1123,6 +1124,7 @@ struct VDPState {
         regs1.eraseX3Latch = state.regs1.eraseX3Latch;
         regs1.eraseY1Latch = state.regs1.eraseY1Latch;
         regs1.eraseY3Latch = state.regs1.eraseY3Latch;
+        regs1.nextCommandAddress = state.regs1.nextCommandAddress;
 
         regs2.WriteTVMD(state.regs2.TVMD);
         regs2.WriteEXTEN(state.regs2.EXTEN);

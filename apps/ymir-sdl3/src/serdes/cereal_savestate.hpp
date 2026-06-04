@@ -452,12 +452,15 @@ void serialize(Archive &ar, VDPSaveState &s, const uint32 version) {
     //
     // VDP1RegsSaveState
     // -----------------
+    // v13:
+    // - Added fields
+    //   - uint32 nextCommandAddress = COPR << 3u
     // v12:
     // - Added fields
-    //   - FBCRChanged = handled in VDPSaveState serializer
-    //   - eraseWriteValueLatch = handled in VDPSaveState serializer
-    //   - eraseX1Latch, eraseY1Latch = handled in VDPSaveState serializer
-    //   - eraseX3Latch, eraseY3Latch = handled in VDPSaveState serializer
+    //   - FBCRChanged = moved from VDPSaveState
+    //   - eraseWriteValueLatch = moved from VDPRendererSaveState::VDP1RenderSaveState
+    //   - eraseX1Latch, eraseY1Latch = moved from VDPRendererSaveState::VDP1RenderSaveState
+    //   - eraseX3Latch, eraseY3Latch = moved from VDPRendererSaveState::VDP1RenderSaveState
     // v9:
     // - Removed fields
     //   - bool manualSwap
@@ -527,6 +530,11 @@ void serialize(Archive &ar, VDPSaveState &s, const uint32 version) {
     } else {
         s.regs2.VCNTLatch = 0x3FF;
         s.regs2.VCNTLatched = false;
+    }
+    if (version >= 13) {
+        ar(s.regs1.nextCommandAddress);
+    } else {
+        s.regs1.nextCommandAddress = s.regs1.COPR << 3u;
     }
 
     // -------------------------------------------------------------------------

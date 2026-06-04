@@ -166,6 +166,7 @@ struct VDP1Regs {
     // Used in LOPR and COPR
     uint32 currCommandAddress; // Address of the last executed command in the current frame
     uint32 prevCommandAddress; // Address of the last executed command in the previous frame
+    uint32 nextCommandAddress; // Address of the next commmand to be executed
 
     // Return address in the command table.
     // Used by commands that use the jump types Call and Return.

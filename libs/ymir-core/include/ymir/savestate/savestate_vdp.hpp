@@ -41,6 +41,8 @@ struct VDPSaveState {
         uint16 eraseWriteValueLatch;
         uint16 eraseX1Latch, eraseY1Latch;
         uint16 eraseX3Latch, eraseY3Latch;
+
+        uint32 nextCommandAddress;
     } regs1;
 
     struct VDP2RegsSaveState {
