@@ -47,108 +47,61 @@ void SH2WatchpointsView::Display() {
     }
 
     debug::WatchpointFlags flags = debug::WatchpointFlags::None;
-    if (m_read8) {
-        flags |= debug::WatchpointFlags::Read8;
+    if (m_read) {
+        flags |= debug::WatchpointFlags::Read;
     }
-    if (m_read16) {
-        flags |= debug::WatchpointFlags::Read16;
-    }
-    if (m_read32) {
-        flags |= debug::WatchpointFlags::Read32;
-    }
-    if (m_write8) {
-        flags |= debug::WatchpointFlags::Write8;
-    }
-    if (m_write16) {
-        flags |= debug::WatchpointFlags::Write16;
-    }
-    if (m_write32) {
-        flags |= debug::WatchpointFlags::Write32;
+    if (m_write) {
+        flags |= debug::WatchpointFlags::Write;
     }
 
-    if (ImGui::BeginTable("wtpt_flags", 2, ImGuiTableFlags_SizingFixedFit)) {
-        ImGui::TableNextRow();
-        {
-            ImGui::TableNextColumn();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("Read");
-        }
-        {
-            ImGui::TableNextColumn();
-            ImGui::Checkbox("Byte##read8", &m_read8);
-            ImGui::SameLine();
-            ImGui::Checkbox("Word##read16", &m_read16);
-            ImGui::SameLine();
-            ImGui::Checkbox("Long##read32", &m_read32);
-        }
+    ImGui::TableNextColumn();
+    ImGui::Checkbox("Read", &m_read);
+    ImGui::SameLine();
+    ImGui::Checkbox("Write", &m_write);
 
-        ImGui::TableNextRow();
-        {
-            ImGui::TableNextColumn();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("Write");
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Address");
+    ImGui::SameLine();
+    if (drawHex32("addr", m_address)) {
+        if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter) ||
+            ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown)) {
+
+            std::unique_lock lock{m_context.locks.watchpoints};
+            m_wtptManager.AddWatchpoint(m_address, flags);
+            m_context.debuggers.MakeDirty();
         }
-        {
-            ImGui::TableNextColumn();
-            ImGui::Checkbox("Byte##write8", &m_write8);
-            ImGui::SameLine();
-            ImGui::Checkbox("Word##write16", &m_write16);
-            ImGui::SameLine();
-            ImGui::Checkbox("Long##write32", &m_write32);
-        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_ADD)) {
+        std::unique_lock lock{m_context.locks.watchpoints};
+        m_wtptManager.AddWatchpoint(m_address, flags);
+        m_context.debuggers.MakeDirty();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Add");
+        ImGui::EndTooltip();
+    }
 
-        ImGui::TableNextRow();
-        {
-            ImGui::TableNextColumn();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("Address");
-        }
-        {
-            ImGui::TableNextColumn();
-            if (drawHex32("addr", m_address)) {
-                if (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter) ||
-                    ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown)) {
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_REMOVE)) {
+        std::unique_lock lock{m_context.locks.watchpoints};
+        m_wtptManager.RemoveWatchpoint(m_address, flags);
+        m_context.debuggers.MakeDirty();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Remove");
+        ImGui::EndTooltip();
+    }
 
-                    std::unique_lock lock{m_context.locks.watchpoints};
-                    m_wtptManager.AddWatchpoint(m_address, flags);
-                    m_context.debuggers.MakeDirty();
-                }
-            }
-            ImGui::SameLine();
-            if (ImGui::Button(ICON_MS_ADD)) {
-                std::unique_lock lock{m_context.locks.watchpoints};
-                m_wtptManager.AddWatchpoint(m_address, flags);
-                m_context.debuggers.MakeDirty();
-            }
-            if (ImGui::BeginItemTooltip()) {
-                ImGui::TextUnformatted("Add");
-                ImGui::EndTooltip();
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button(ICON_MS_REMOVE)) {
-                std::unique_lock lock{m_context.locks.watchpoints};
-                m_wtptManager.RemoveWatchpoint(m_address, flags);
-                m_context.debuggers.MakeDirty();
-            }
-            if (ImGui::BeginItemTooltip()) {
-                ImGui::TextUnformatted("Remove");
-                ImGui::EndTooltip();
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button(ICON_MS_CLEAR_ALL)) {
-                std::unique_lock lock{m_context.locks.watchpoints};
-                m_wtptManager.ClearAllWatchpoints();
-                m_context.debuggers.MakeDirty();
-            }
-            if (ImGui::BeginItemTooltip()) {
-                ImGui::TextUnformatted("Clear all");
-                ImGui::EndTooltip();
-            }
-        }
-
-        ImGui::EndTable();
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MS_CLEAR_ALL)) {
+        std::unique_lock lock{m_context.locks.watchpoints};
+        m_wtptManager.ClearAllWatchpoints();
+        m_context.debuggers.MakeDirty();
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Clear all");
+        ImGui::EndTooltip();
     }
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
@@ -169,27 +122,11 @@ void SH2WatchpointsView::Display() {
 
         {
             ImGui::NewLine();
-            float offset = baseOffset;
-            centerTextWithOffset("Read", offset, flagCheckboxWidth * 3 + flagsSpacing * 2);
-            offset += flagCheckboxWidth * 3 + flagsSpacing * 3;
-            centerTextWithOffset("Write", offset, flagCheckboxWidth * 3 + flagsSpacing * 2);
-        }
-
-        {
-            ImGui::NewLine();
             centerTextWithOffset("Address", flagCheckboxWidth + flagsSpacing, hexFieldWidth);
             float offset = baseOffset;
-            centerTextWithOffset("B", offset, flagCheckboxWidth);
+            centerTextWithOffset("R", offset, flagCheckboxWidth);
             offset += flagCheckboxWidth + flagsSpacing;
             centerTextWithOffset("W", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth + flagsSpacing;
-            centerTextWithOffset("L", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth + flagsSpacing;
-            centerTextWithOffset("B", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth + flagsSpacing;
-            centerTextWithOffset("W", offset, flagCheckboxWidth);
-            offset += flagCheckboxWidth + flagsSpacing;
-            centerTextWithOffset("L", offset, flagCheckboxWidth);
         }
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(flagsSpacing, flagsSpacing));
@@ -219,16 +156,9 @@ void SH2WatchpointsView::Display() {
             const BitmaskEnum bmFlags{wtpt.flags};
 
             auto flag = [&](const char *id, const char *desc, debug::WatchpointFlags flag) {
-                const uint32 size = debug::WatchpointFlagSize(flag);
-                assert(size > 0);
-                const bool unaligned = (currAddress & (size - 1)) != 0;
-
                 bool value = bmFlags.AnyOf(flag);
                 ImGui::SameLine();
 
-                if (unaligned) {
-                    ImGui::BeginDisabled();
-                }
                 if (ImGui::Checkbox(fmt::format("##{}_{}", id, i).c_str(), &value)) {
                     if (value) {
                         m_wtptManager.AddWatchpoint(currAddress, flag);
@@ -236,24 +166,14 @@ void SH2WatchpointsView::Display() {
                         m_wtptManager.RemoveWatchpoint(currAddress, flag);
                     }
                 }
-                if (unaligned) {
-                    ImGui::EndDisabled();
-                }
                 if (ImGui::BeginItemTooltip()) {
                     ImGui::TextUnformatted(desc);
-                    if (unaligned) {
-                        ImGui::TextUnformatted("Unaligned address -- watchpoint will not be triggered.");
-                    }
                     ImGui::EndTooltip();
                 }
             };
 
-            flag("r8", "8-bit read", debug::WatchpointFlags::Read8);
-            flag("r16", "16-bit read", debug::WatchpointFlags::Read16);
-            flag("r32", "32-bit read", debug::WatchpointFlags::Read32);
-            flag("w8", "8-bit write", debug::WatchpointFlags::Write8);
-            flag("w16", "16-bit write", debug::WatchpointFlags::Write16);
-            flag("w32", "32-bit write", debug::WatchpointFlags::Write32);
+            flag("r", "Read", debug::WatchpointFlags::Read);
+            flag("w", "Write", debug::WatchpointFlags::Write);
             ImGui::SameLine();
             if (ImGui::Button(fmt::format(ICON_MS_DELETE "##{}", i).c_str())) {
                 std::unique_lock lock{m_context.locks.watchpoints};

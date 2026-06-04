@@ -145,7 +145,7 @@ void SH2WatchpointsManager::LoadState(std::filesystem::path path) {
         return;
     }
 
-    // Line format:
+    // Line format v1:
     // [!]<address> [R8] [R16] [R32] [W8] [W16] [W32]
     //   [!]        disabled watchpoint (optional; enabled if omitted)
     //   <address>  watchpoint address
@@ -155,6 +155,14 @@ void SH2WatchpointsManager::LoadState(std::filesystem::path path) {
     //   [W8]       trigger on 8-bit writes
     //   [W16]      trigger on 16-bit writes
     //   [W32]      trigger on 32-bit writes
+    //
+    // Line format v2:
+    // [!]<address> [R] [W]
+    //   [!]        disabled watchpoint (optional; enabled if omitted)
+    //   <address>  watchpoint address
+    //   [R]        trigger on reads
+    //   [W]        trigger on writes
+    // NOTE: addresses are force-aligned when upgrading from v1 to v2
     //
     // TODO: add condition expression
 
@@ -182,18 +190,34 @@ void SH2WatchpointsManager::LoadState(std::filesystem::path path) {
             std::string item{};
             while (lineIn) {
                 lineIn >> item;
-                if (item == "R8") {
-                    wtpt.flags |= debug::WatchpointFlags::Read8;
+                if (item == "R" || item == "R8") {
+                    wtpt.flags |= debug::WatchpointFlags::Read;
                 } else if (item == "R16") {
-                    wtpt.flags |= debug::WatchpointFlags::Read16;
+                    for (uint32 ofs = 0; ofs <= 1; ofs++) {
+                        SH2Watchpoint &wtpt16 = map[(address & ~1u) + ofs];
+                        wtpt16.enabled = enabled;
+                        wtpt16.flags |= debug::WatchpointFlags::Read;
+                    }
                 } else if (item == "R32") {
-                    wtpt.flags |= debug::WatchpointFlags::Read32;
-                } else if (item == "W8") {
-                    wtpt.flags |= debug::WatchpointFlags::Write8;
+                    for (uint32 ofs = 0; ofs <= 3; ofs++) {
+                        SH2Watchpoint &wtpt32 = map[(address & ~3u) + ofs];
+                        wtpt32.enabled = enabled;
+                        wtpt32.flags |= debug::WatchpointFlags::Read;
+                    }
+                } else if (item == "W" || item == "W8") {
+                    wtpt.flags |= debug::WatchpointFlags::Write;
                 } else if (item == "W16") {
-                    wtpt.flags |= debug::WatchpointFlags::Write16;
+                    for (uint32 ofs = 0; ofs <= 1; ofs++) {
+                        SH2Watchpoint &wtpt16 = map[(address & ~1u) + ofs];
+                        wtpt16.enabled = enabled;
+                        wtpt16.flags |= debug::WatchpointFlags::Write;
+                    }
                 } else if (item == "W32") {
-                    wtpt.flags |= debug::WatchpointFlags::Write32;
+                    for (uint32 ofs = 0; ofs <= 3; ofs++) {
+                        SH2Watchpoint &wtpt32 = map[(address & ~3u) + ofs];
+                        wtpt32.enabled = enabled;
+                        wtpt32.flags |= debug::WatchpointFlags::Write;
+                    }
                 }
             }
         }
@@ -218,23 +242,11 @@ void SH2WatchpointsManager::SaveState(std::filesystem::path path) const {
             }
             out << std::hex << address;
             BitmaskEnum bmFlags{wtpt.flags};
-            if (bmFlags.AnyOf(debug::WatchpointFlags::Read8)) {
-                out << " R8";
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Read)) {
+                out << " R";
             }
-            if (bmFlags.AnyOf(debug::WatchpointFlags::Read16)) {
-                out << " R16";
-            }
-            if (bmFlags.AnyOf(debug::WatchpointFlags::Read32)) {
-                out << " R32";
-            }
-            if (bmFlags.AnyOf(debug::WatchpointFlags::Write8)) {
-                out << " W8";
-            }
-            if (bmFlags.AnyOf(debug::WatchpointFlags::Write16)) {
-                out << " W16";
-            }
-            if (bmFlags.AnyOf(debug::WatchpointFlags::Write32)) {
-                out << " W32";
+            if (bmFlags.AnyOf(debug::WatchpointFlags::Write)) {
+                out << " W";
             }
             out << '\n';
         }

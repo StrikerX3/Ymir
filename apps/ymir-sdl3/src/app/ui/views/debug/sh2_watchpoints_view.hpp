@@ -17,12 +17,8 @@ private:
     SH2WatchpointsManager &m_wtptManager;
 
     uint32 m_address = 0x00000000;
-    bool m_read8 = true;
-    bool m_read16 = true;
-    bool m_read32 = true;
-    bool m_write8 = true;
-    bool m_write16 = true;
-    bool m_write32 = true;
+    bool m_read = true;
+    bool m_write = true;
 };
 
 } // namespace app::ui

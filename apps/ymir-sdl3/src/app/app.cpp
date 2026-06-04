@@ -1917,13 +1917,43 @@ void App::RunEmulator() {
                  sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Breakpoint.master, true));
                  break;
              case SH2Watchpoint: //
-                 sharedCtx.DisplayMessage(
-                     fmt::format("{}SH2 {}-bit {} watchpoint on {:08X} hit at {:08X}",
-                                 (info.details.sh2Watchpoint.master ? 'M' : 'S'), info.details.sh2Watchpoint.size * 8,
-                                 (info.details.sh2Watchpoint.write ? "write" : "read"),
-                                 info.details.sh2Watchpoint.address, info.details.sh2Watchpoint.pc));
-                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(info.details.sh2Watchpoint.master, true));
+             {
+                 const auto &wtptInfo = info.details.sh2Watchpoint;
+
+                 fmt::memory_buffer msgBuf{};
+                 auto writer = std::back_inserter(msgBuf);
+
+                 fmt::format_to(writer, "{}SH2 ", (wtptInfo.master ? 'M' : 'S'));
+
+                 if (std::popcount(wtptInfo.mask) == 1) {
+                     fmt::format_to(writer, "watchpoint");
+                 } else {
+                     fmt::format_to(writer, "watchpoints");
+                 }
+                 fmt::format_to(writer, " on ");
+                 uint8 mask = wtptInfo.mask;
+                 uint8 offset = 0;
+                 bool sep = false;
+                 while (mask != 0) {
+                     const uint8 zeros = std::countr_zero(mask);
+                     const uint32 address = wtptInfo.address + zeros + offset;
+                     offset += zeros + 1;
+                     mask >>= zeros + 1;
+                     if (sep) {
+                         fmt::format_to(writer, ", ");
+                     } else {
+                         sep = true;
+                     }
+                     fmt::format_to(writer, "{:08X}", address);
+                 }
+
+                 fmt::format_to(writer, " hit at {:08X} by {}-bit {} {:08X}", wtptInfo.pc, wtptInfo.size * 8,
+                                (wtptInfo.write ? "write to" : "read from"), wtptInfo.address);
+
+                 sharedCtx.DisplayMessage(fmt::to_string(msgBuf));
+                 sharedCtx.EnqueueEvent(events::gui::OpenSH2DebuggerWindow(wtptInfo.master, true));
                  break;
+             }
              default: sharedCtx.DisplayMessage("Paused due to a debug break event"); break;
              }
          }});

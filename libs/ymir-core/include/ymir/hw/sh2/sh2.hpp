@@ -247,9 +247,10 @@ private:
         return *m_watchpoints.GetPointer<debug::WatchpointFlags>(address);
     }
 
-    // Returns the the watchpoint flags for the given address.
-    FORCE_INLINE debug::WatchpointFlags GetWatchpointFlags(uint32 address) const {
-        return *m_watchpoints.GetPointer<debug::WatchpointFlags>(address);
+    // Returns the watchpoint flags for the given address.
+    template <mem_primitive T>
+    FORCE_INLINE T GetWatchpointFlags(uint32 address) const {
+        return *m_watchpoints.GetPointer<T>(address);
     }
 
 public:
@@ -950,7 +951,7 @@ private:
     static constexpr size_t kAddressSpaceSize = 1ull << 32ull;
     static constexpr size_t kInstructionSize = sizeof(uint16); // breakpoints must be instruction-aligned
     static constexpr size_t kBreakpointMapSize = kAddressSpaceSize / kInstructionSize / kBitsPerByte;
-    static constexpr size_t kWatchpointMapSize = kAddressSpaceSize; // only 6 bits per byte are used
+    static constexpr size_t kWatchpointMapSize = kAddressSpaceSize; // only 2 bits per byte are used
 
     template <size_t sizeBits, size_t chunkSizeBits>
     struct ChunkedMemory {

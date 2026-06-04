@@ -153,10 +153,11 @@ FORCE_INLINE constexpr void deposit_into(T &dest, TV value) noexcept {
 /// @return the bits of value selected by `mask`, gathered into the least significant bits
 template <std::size_t mask, std::integral T>
 [[nodiscard]] FORCE_INLINE constexpr T gather(T value) noexcept {
+    constexpr auto kTMask = static_cast<T>(mask);
     // Hacker's Delight, 2nd edition, page 153
-    value &= mask;               // Clear irrelevant bits
-    constexpr T mk = ~mask << 1; // We will count 0s to the right
-    T m = mask;
+    value &= kTMask;                     // Clear irrelevant bits
+    T mk = ~kTMask << static_cast<T>(1); // We will count 0s to the right
+    T m = kTMask;
 
     constexpr T iters = std::countr_zero(sizeof(T)) + 3;
     for (T i = 0; i < iters; i++) {

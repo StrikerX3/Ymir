@@ -55,6 +55,11 @@ struct DebugBreakInfo {
             uint8 size;     ///< Size of the memory access in bytes
             uint32 address; ///< Address of the memory access
             uint32 pc;      ///< PC address where the watchpoint was triggered
+            uint8 mask;     ///< Which watchpoints were triggered:
+                            ///<   bit 0 = address + 0 (accesses of any size)
+                            ///<   bit 1 = address + 1 (16-bit accesses or greater)
+                            ///<   bit 2 = address + 2 (32-bit accesses only)
+                            ///<   bit 3 = address + 3 (32-bit accesses only)
         } sh2Watchpoint;
     } details;
 
@@ -72,13 +77,15 @@ struct DebugBreakInfo {
     /// @param[in] write direction of the memory access: write (`true`) or read (`false`)
     /// @param[in] size size of the memory access in bytes
     /// @param[in] address address of the memory access
-    /// @param[in] pc the PC address where the watchpoint was triggerd
+    /// @param[in] pc the PC address where the watchpoint was triggered
+    /// @param[in] mask a bitmask indicating which watchpoints were hit by the access
     /// @return a `DebugBreakInfo` struct with the `Event::SH2Watchpoint` event
-    static DebugBreakInfo SH2Watchpoint(bool master, bool write, uint8 size, uint32 address, uint32 pc) {
+    static DebugBreakInfo SH2Watchpoint(bool master, bool write, uint8 size, uint32 address, uint32 pc, uint8 mask) {
         return DebugBreakInfo{
             .event = Event::SH2Watchpoint,
             .details = {
-                .sh2Watchpoint = {.master = master, .write = write, .size = size, .address = address, .pc = pc}}};
+                .sh2Watchpoint = {
+                    .master = master, .write = write, .size = size, .address = address, .pc = pc, .mask = mask}}};
     }
 };
 

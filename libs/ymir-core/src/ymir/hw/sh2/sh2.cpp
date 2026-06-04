@@ -2102,26 +2102,48 @@ FORCE_INLINE bool SH2::CheckWatchpoint(const DecodedMemAccesses::Access &access)
     case AccType::AtDispPC: address = (PC & ~(access.size - 1)) + access.disp; break;
     }
 
-    const auto wtptFlags = GetWatchpointFlags(address);
-    if (wtptFlags == debug::WatchpointFlags::None) {
-        return false;
-    }
+    static constexpr auto kReadMask8 = static_cast<uint8>(debug::WatchpointFlags::Read);
+    static constexpr auto kWriteMask8 = static_cast<uint8>(debug::WatchpointFlags::Write);
+    static constexpr auto kReadMask16 = (kReadMask8 << 8u) | kReadMask8;
+    static constexpr auto kWriteMask16 = (kWriteMask8 << 8u) | kWriteMask8;
+    static constexpr auto kReadMask32 = (kReadMask16 << 16u) | kReadMask16;
+    static constexpr auto kWriteMask32 = (kWriteMask16 << 16u) | kWriteMask16;
 
-    debug::WatchpointFlags flags;
+    uint8 mask;
     switch (access.size) {
-    case 1: flags = access.write ? debug::WatchpointFlags::Write8 : debug::WatchpointFlags::Read8; break;
-    case 2: flags = access.write ? debug::WatchpointFlags::Write16 : debug::WatchpointFlags::Read16; break;
-    case 4: flags = access.write ? debug::WatchpointFlags::Write32 : debug::WatchpointFlags::Read32; break;
+    case 1: //
+    {
+        const auto match = GetWatchpointFlags<uint8>(address) & (access.write ? kWriteMask8 : kReadMask8);
+        if (match == 0) {
+            return false;
+        }
+        mask = access.write ? bit::gather<kWriteMask8>(match) : bit::gather<kReadMask8>(match);
+        break;
+    }
+    case 2: //
+    {
+        const auto match = GetWatchpointFlags<uint16>(address) & (access.write ? kWriteMask16 : kReadMask16);
+        if (match == 0) {
+            return false;
+        }
+        mask = access.write ? bit::gather<kWriteMask16>(match) : bit::gather<kReadMask16>(match);
+        break;
+    }
+    case 4: //
+    {
+        const auto match = GetWatchpointFlags<uint32>(address) & (access.write ? kWriteMask32 : kReadMask32);
+        if (match == 0) {
+            return false;
+        }
+        mask = access.write ? bit::gather<kWriteMask32>(match) : bit::gather<kReadMask32>(match);
+        break;
+    }
     default: return false; // should never happen
     }
 
-    if (BitmaskEnum(wtptFlags).AnyOf(flags)) {
-        m_debugBreakMgr->SignalDebugBreak(
-            debug::DebugBreakInfo::SH2Watchpoint(IsMaster(), access.write, access.size, address, PC));
-        return true;
-    }
-
-    return false;
+    m_debugBreakMgr->SignalDebugBreak(
+        debug::DebugBreakInfo::SH2Watchpoint(IsMaster(), access.write, access.size, address, PC, mask));
+    return true;
 }
 
 // -------------------------------------------------------------------------
