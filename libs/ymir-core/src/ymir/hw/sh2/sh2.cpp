@@ -211,47 +211,47 @@ FORCE_INLINE static void TraceTrap(debug::ISH2Tracer *tracer, uint8 vecNum, uint
 }
 
 template <bool debug>
-FORCE_INLINE static void TraceChangeStack(debug::ISH2Tracer *tracer, bool isSP, uint32 newSP) {
+FORCE_INLINE static void TraceChangeStack(debug::ISH2Tracer *tracer, uint8 reg, uint32 newSP) {
     if constexpr (debug) {
-        if (tracer && isSP) {
+        if (tracer && reg == 15) {
             return tracer->ChangeStack(newSP);
         }
     }
 }
 
 template <bool debug>
-FORCE_INLINE static void TraceResizeStack(debug::ISH2Tracer *tracer, bool isSP, uint32 oldSP, uint32 newSP) {
+FORCE_INLINE static void TraceResizeStack(debug::ISH2Tracer *tracer, uint8 reg, uint32 oldSP, uint32 newSP) {
     if constexpr (debug) {
-        if (tracer && isSP) {
+        if (tracer && reg == 15) {
             return tracer->ResizeStack(oldSP, newSP);
         }
     }
 }
 
 template <bool debug>
-FORCE_INLINE static void TracePushRegisterToStack(debug::ISH2Tracer *tracer, bool isSP, uint8 rn, uint32 oldSP,
+FORCE_INLINE static void TracePushRegisterToStack(debug::ISH2Tracer *tracer, uint8 reg, uint8 rn, uint32 oldSP,
                                                   uint32 newSP) {
     if constexpr (debug) {
-        if (tracer && isSP) {
+        if (tracer && reg == 15) {
             return tracer->PushRegisterToStack(rn, oldSP, newSP);
         }
     }
 }
 
 template <bool debug>
-FORCE_INLINE static void TracePushToStack(debug::ISH2Tracer *tracer, bool isSP, debug::SH2StackValueType type,
+FORCE_INLINE static void TracePushToStack(debug::ISH2Tracer *tracer, uint8 reg, debug::SH2StackValueType type,
                                           uint32 newSP) {
     if constexpr (debug) {
-        if (tracer && isSP) {
+        if (tracer && reg == 15) {
             return tracer->PushToStack(type, newSP);
         }
     }
 }
 
 template <bool debug>
-FORCE_INLINE static void TracePopFromStack(debug::ISH2Tracer *tracer, bool isSP, uint32 newSP) {
+FORCE_INLINE static void TracePopFromStack(debug::ISH2Tracer *tracer, uint8 reg, uint32 newSP) {
     if constexpr (debug) {
-        if (tracer && isSP) {
+        if (tracer && reg == 15) {
             return tracer->PopFromStack(newSP);
         }
     }
@@ -2580,7 +2580,7 @@ FORCE_INLINE uint64 SH2::SLEEP() {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOV(const DecodedArgs &args) {
     R[args.rn] = R[args.rm];
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -2591,7 +2591,7 @@ FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
     const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
 }
@@ -2603,7 +2603,7 @@ FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
-        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
     }
     return cycles;
@@ -2616,7 +2616,7 @@ FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
-        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
     }
     return cycles;
@@ -2628,7 +2628,7 @@ FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
     const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
 }
@@ -2640,7 +2640,7 @@ FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
-        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
     }
     return cycles;
@@ -2653,7 +2653,7 @@ FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
-        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
     }
     return cycles;
@@ -2688,7 +2688,7 @@ FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
-        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
     }
     return cycles;
@@ -2734,7 +2734,7 @@ FORCE_INLINE uint64 SH2::MOVBM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 1;
     const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
     MemWriteByte<debug, emulateCache>(address, R[args.rm]);
-    TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
+    TracePushRegisterToStack<debug>(m_tracer, args.rn, args.rm, R[15], address);
     R[args.rn] = address;
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -2747,7 +2747,7 @@ FORCE_INLINE uint64 SH2::MOVWM(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[args.rm]);
-        TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
+        TracePushRegisterToStack<debug>(m_tracer, args.rn, args.rm, R[15], address);
         R[args.rn] = address;
         AdvancePC<debug, emulateCache, delaySlot>();
     }
@@ -2761,7 +2761,7 @@ FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
-        TracePushRegisterToStack<debug>(m_tracer, args.rn == 15, args.rm, R[15], address);
+        TracePushRegisterToStack<debug>(m_tracer, args.rn, args.rm, R[15], address);
         R[args.rn] = address;
         AdvancePC<debug, emulateCache, delaySlot>();
     }
@@ -2777,8 +2777,8 @@ FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
     if (args.rn != args.rm) {
         R[args.rm] += 1;
     }
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
 }
@@ -2793,8 +2793,8 @@ FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
         if (args.rn != args.rm) {
             R[args.rm] += 2;
         }
-        TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
-        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
     }
     return cycles;
@@ -2810,8 +2810,8 @@ FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
         if (args.rn != args.rm) {
             R[args.rm] += 4;
         }
-        TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
-        TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+        TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
+        TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
     }
     return cycles;
@@ -2957,7 +2957,7 @@ FORCE_INLINE uint64 SH2::MOVLSG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVI(const DecodedArgs &args) {
     R[args.rn] = args.dispImm;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -2969,7 +2969,7 @@ FORCE_INLINE uint64 SH2::MOVWI(const DecodedArgs &args) {
     const uint32 address = pc + args.dispImm;
     const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache, true>(address));
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
 }
@@ -2981,7 +2981,7 @@ FORCE_INLINE uint64 SH2::MOVLI(const DecodedArgs &args) {
     const uint32 address = (pc & ~3u) + args.dispImm;
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     R[args.rn] = MemReadLong<emulateCache, true>(address);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
 }
@@ -3000,7 +3000,7 @@ FORCE_INLINE uint64 SH2::MOVA(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVT(const DecodedArgs &args) {
     R[args.rn] = SR.T;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3025,7 +3025,7 @@ FORCE_INLINE uint64 SH2::SETT() {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTSB(const DecodedArgs &args) {
     R[args.rn] = bit::sign_extend<8>(R[args.rm]);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3034,7 +3034,7 @@ FORCE_INLINE uint64 SH2::EXTSB(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTSW(const DecodedArgs &args) {
     R[args.rn] = bit::sign_extend<16>(R[args.rm]);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3043,7 +3043,7 @@ FORCE_INLINE uint64 SH2::EXTSW(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTUB(const DecodedArgs &args) {
     R[args.rn] = R[args.rm] & 0xFF;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3052,7 +3052,7 @@ FORCE_INLINE uint64 SH2::EXTUB(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::EXTUW(const DecodedArgs &args) {
     R[args.rn] = R[args.rm] & 0xFFFF;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3063,7 +3063,7 @@ FORCE_INLINE uint64 SH2::SWAPB(const DecodedArgs &args) {
     const uint32 tmp0 = R[args.rm] & 0xFFFF0000;
     const uint32 tmp1 = (R[args.rm] & 0xFF) << 8u;
     R[args.rn] = ((R[args.rm] >> 8u) & 0xFF) | tmp1 | tmp0;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3073,7 +3073,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SWAPW(const DecodedArgs &args) {
     const uint32 tmp = R[args.rm] >> 16u;
     R[args.rn] = (R[args.rm] << 16u) | tmp;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3082,7 +3082,7 @@ FORCE_INLINE uint64 SH2::SWAPW(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::XTRCT(const DecodedArgs &args) {
     R[args.rn] = (R[args.rn] >> 16u) | (R[args.rm] << 16u);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3146,7 +3146,7 @@ FORCE_INLINE uint64 SH2::LDSPR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
     R[args.rn] = GBR;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3156,7 +3156,7 @@ FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
     R[args.rn] = SR.u32;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3166,7 +3166,7 @@ FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
     R[args.rn] = VBR;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3176,7 +3176,7 @@ FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
     R[args.rn] = MAC.H;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3186,7 +3186,7 @@ FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
     R[args.rn] = MAC.L;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3196,7 +3196,7 @@ FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSPR(const DecodedArgs &args) {
     R[args.rn] = PR;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3209,7 +3209,7 @@ FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
     GBR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -3223,7 +3223,7 @@ FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
     SR.u32 = MemReadLong<emulateCache>(address) & 0x000003F3;
     m_intrFlags.values.pending = !delaySlot && INTC.pending.level > SR.ILevel;
     R[args.rm] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -3236,7 +3236,7 @@ FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
     VBR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -3249,7 +3249,7 @@ FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     MAC.H = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -3262,7 +3262,7 @@ FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     MAC.L = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -3275,7 +3275,7 @@ FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     PR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     return cycles;
@@ -3285,7 +3285,7 @@ FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
-    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::GBR, R[15]);
+    TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::GBR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
     MemWriteLong<debug, emulateCache>(address, GBR);
@@ -3298,7 +3298,7 @@ FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
     R[args.rn] -= 4;
-    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::SR, R[15]);
+    TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::SR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
     MemWriteLong<debug, emulateCache>(address, SR.u32);
@@ -3311,7 +3311,7 @@ FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
-    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::VBR, R[15]);
+    TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::VBR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 1;
     MemWriteLong<debug, emulateCache>(address, VBR);
@@ -3324,7 +3324,7 @@ FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
     R[args.rn] -= 4;
-    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::MACH, R[15]);
+    TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::MACH, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     MemWriteLong<debug, emulateCache>(address, MAC.H);
@@ -3337,7 +3337,7 @@ FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
     R[args.rn] -= 4;
-    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::MACL, R[15]);
+    TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::MACL, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     MemWriteLong<debug, emulateCache>(address, MAC.L);
@@ -3350,7 +3350,7 @@ FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::STSMPR(const DecodedArgs &args) {
     R[args.rn] -= 4;
-    TracePushToStack<debug>(m_tracer, args.rn == 15, debug::SH2StackValueType::PR, R[15]);
+    TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::PR, R[15]);
     const uint32 address = R[args.rn];
     const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     MemWriteLong<debug, emulateCache>(address, PR);
@@ -3363,7 +3363,7 @@ FORCE_INLINE uint64 SH2::STSMPR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ADD(const DecodedArgs &args) {
     const uint32 newValue = R[args.rn] + R[args.rm];
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3373,7 +3373,7 @@ FORCE_INLINE uint64 SH2::ADD(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ADDI(const DecodedArgs &args) {
     const uint32 newValue = R[args.rn] + args.dispImm;
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3385,7 +3385,7 @@ FORCE_INLINE uint64 SH2::ADDC(const DecodedArgs &args) {
     const uint32 tmp1 = R[args.rn] + R[args.rm];
     const uint32 tmp0 = R[args.rn];
     const uint32 newValue = tmp1 + SR.T;
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     SR.T = (tmp0 > tmp1) || (tmp1 > R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3399,7 +3399,7 @@ FORCE_INLINE uint64 SH2::ADDV(const DecodedArgs &args) {
     const bool src = static_cast<sint32>(R[args.rm]) < 0;
 
     const uint32 newValue = R[args.rn] + R[args.rm];
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
 
     bool ans = static_cast<sint32>(R[args.rn]) < 0;
@@ -3414,7 +3414,7 @@ FORCE_INLINE uint64 SH2::ADDV(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::AND(const DecodedArgs &args) {
     R[args.rn] &= R[args.rm];
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3444,7 +3444,7 @@ FORCE_INLINE uint64 SH2::ANDM(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::NEG(const DecodedArgs &args) {
     R[args.rn] = -R[args.rm];
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3455,7 +3455,7 @@ FORCE_INLINE uint64 SH2::NEGC(const DecodedArgs &args) {
     const uint32 tmp = -R[args.rm];
     R[args.rn] = tmp - SR.T;
     SR.T = (0 < tmp) || (tmp < R[args.rn]);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3464,7 +3464,7 @@ FORCE_INLINE uint64 SH2::NEGC(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::NOT(const DecodedArgs &args) {
     R[args.rn] = ~R[args.rm];
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3473,7 +3473,7 @@ FORCE_INLINE uint64 SH2::NOT(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::OR(const DecodedArgs &args) {
     R[args.rn] |= R[args.rm];
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3505,7 +3505,7 @@ FORCE_INLINE uint64 SH2::ROTCL(const DecodedArgs &args) {
     const bool tmp = R[args.rn] >> 31u;
     R[args.rn] = (R[args.rn] << 1u) | SR.T;
     SR.T = tmp;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3516,7 +3516,7 @@ FORCE_INLINE uint64 SH2::ROTCR(const DecodedArgs &args) {
     const bool tmp = R[args.rn] & 1u;
     R[args.rn] = (R[args.rn] >> 1u) | (SR.T << 31u);
     SR.T = tmp;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3526,7 +3526,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ROTL(const DecodedArgs &args) {
     SR.T = R[args.rn] >> 31u;
     R[args.rn] = (R[args.rn] << 1u) | SR.T;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3536,7 +3536,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ROTR(const DecodedArgs &args) {
     SR.T = R[args.rn] & 1u;
     R[args.rn] = (R[args.rn] >> 1u) | (SR.T << 31u);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3546,7 +3546,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHAL(const DecodedArgs &args) {
     SR.T = R[args.rn] >> 31u;
     R[args.rn] <<= 1u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3556,7 +3556,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHAR(const DecodedArgs &args) {
     SR.T = R[args.rn] & 1u;
     R[args.rn] = static_cast<sint32>(R[args.rn]) >> 1;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3566,7 +3566,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL(const DecodedArgs &args) {
     SR.T = R[args.rn] >> 31u;
     R[args.rn] <<= 1u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3575,7 +3575,7 @@ FORCE_INLINE uint64 SH2::SHLL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL2(const DecodedArgs &args) {
     R[args.rn] <<= 2u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3584,7 +3584,7 @@ FORCE_INLINE uint64 SH2::SHLL2(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL8(const DecodedArgs &args) {
     R[args.rn] <<= 8u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3593,7 +3593,7 @@ FORCE_INLINE uint64 SH2::SHLL8(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLL16(const DecodedArgs &args) {
     R[args.rn] <<= 16u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3603,7 +3603,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR(const DecodedArgs &args) {
     SR.T = R[args.rn] & 1u;
     R[args.rn] >>= 1u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3612,7 +3612,7 @@ FORCE_INLINE uint64 SH2::SHLR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR2(const DecodedArgs &args) {
     R[args.rn] >>= 2u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3621,7 +3621,7 @@ FORCE_INLINE uint64 SH2::SHLR2(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR8(const DecodedArgs &args) {
     R[args.rn] >>= 8u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3630,7 +3630,7 @@ FORCE_INLINE uint64 SH2::SHLR8(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SHLR16(const DecodedArgs &args) {
     R[args.rn] >>= 16u;
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3639,7 +3639,7 @@ FORCE_INLINE uint64 SH2::SHLR16(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SUB(const DecodedArgs &args) {
     const uint32 newValue = R[args.rn] - R[args.rm];
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
@@ -3651,10 +3651,10 @@ FORCE_INLINE uint64 SH2::SUBC(const DecodedArgs &args) {
     const uint32 tmp1 = R[args.rn] - R[args.rm];
     const uint32 tmp0 = R[args.rn];
     const uint32 newValue = tmp1 - SR.T;
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     SR.T = (tmp0 < tmp1) || (tmp1 < R[args.rn]);
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3665,7 +3665,7 @@ FORCE_INLINE uint64 SH2::SUBV(const DecodedArgs &args) {
     const bool dst = static_cast<sint32>(R[args.rn]) < 0;
     const bool src = static_cast<sint32>(R[args.rm]) < 0;
     const uint32 newValue = R[args.rn] - R[args.rm];
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], newValue);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
 
     R[args.rn] = newValue;
 
@@ -3681,7 +3681,7 @@ FORCE_INLINE uint64 SH2::SUBV(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::XOR(const DecodedArgs &args) {
     R[args.rn] ^= R[args.rm];
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
 }
@@ -3710,7 +3710,7 @@ FORCE_INLINE uint64 SH2::XORM(const DecodedArgs &args) {
 // dt Rn
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::DT(const DecodedArgs &args) {
-    TraceResizeStack<debug>(m_tracer, args.rn == 15, R[15], R[15] - 1);
+    TraceResizeStack<debug>(m_tracer, args.rn, R[15], R[15] - 1);
     --R[args.rn];
     SR.T = R[args.rn] == 0;
     AdvancePC<debug, emulateCache, delaySlot>();
@@ -3732,12 +3732,12 @@ FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
     uint64 cycles = AccessCycles<uint16, false, emulateCache>(address2);
     const sint32 op2 = static_cast<sint16>(MemReadWord<emulateCache>(address2));
     R[args.rn] += 2;
-    TracePopFromStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rn, R[15]);
     const uint32 address1 = R[args.rm];
     cycles += AccessCycles<uint16, false, emulateCache>(address1);
     const sint32 op1 = static_cast<sint16>(MemReadWord<emulateCache>(address1));
     R[args.rm] += 2;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
 
     const sint32 mul = op1 * op2;
     if (SR.S) {
@@ -3764,12 +3764,12 @@ FORCE_INLINE uint64 SH2::MACL(const DecodedArgs &args) {
     uint64 cycles = AccessCycles<uint32, false, emulateCache>(address2);
     const sint64 op2 = static_cast<sint64>(static_cast<sint32>(MemReadLong<emulateCache>(address2)));
     R[args.rn] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rn, R[15]);
     const uint32 address1 = R[args.rm];
     cycles += AccessCycles<uint32, false, emulateCache>(address1);
     const sint64 op1 = static_cast<sint64>(static_cast<sint32>(MemReadLong<emulateCache>(address1)));
     R[args.rm] += 4;
-    TracePopFromStack<debug>(m_tracer, args.rm == 15, R[15]);
+    TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
 
     const sint64 mul = op1 * op2;
     sint64 result = mul + MAC.u64;
@@ -3878,7 +3878,7 @@ FORCE_INLINE uint64 SH2::DIV1(const DecodedArgs &args) {
 
     SR.T = SR.Q == SR.M;
 
-    TraceChangeStack<debug>(m_tracer, args.rn == 15, R[15]);
+    TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
 
     AdvancePC<debug, emulateCache, delaySlot>();
     return 1;
