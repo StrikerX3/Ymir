@@ -24,6 +24,7 @@ Introduced save state file version 13.
     - When a watchpoint is triggered, Ymir will now display the address and size of the access and which watchpoints were triggered.
 - SCU: Optimize DSP operations involving 48-bit registers.
 - SH2: Fetch pairs of instructions using 32-bit accesses, more closely matching the behavior of the real SH7095. Improves overall emulation accuracy and slightly boosts performance on SH2-bound games.
+- SH2: Handle WB/EX stalls.
 
 ### Fixes
 

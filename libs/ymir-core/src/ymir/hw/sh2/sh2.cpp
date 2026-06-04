@@ -357,6 +357,8 @@ void SH2::Reset(bool hard, bool watchdogInitiated) {
     PC = MemReadLong<false>(0x00000000);
     R[15] = MemReadLong<false>(0x00000004);
 
+    m_wbReg = kWBRegNone;
+
     // On-chip registers
     BCR1.u15 = 0x03F0;
     BCR2.u16 = 0x00FC;
@@ -1771,6 +1773,11 @@ FORCE_INLINE uint64 SH2::GetCurrentCycleCount() const {
     return *m_currCount + m_cyclesExecuted;
 }
 
+template <std::integral... Ts>
+FORCE_INLINE uint64 SH2::WritebackCycles(Ts... regs) {
+    return ((regs == m_wbReg) || ...) ? 1 : 0;
+}
+
 FLATTEN FORCE_INLINE bool SH2::IsDMATransferActive(const DMAChannel &ch) const {
     // AE never occurs and NMIF is never set, so both checks can be safely skipped
     return ch.IsEnabled() && DMAOR.DME /*&& !DMAOR.NMIF && !DMAOR.AE*/;
@@ -2563,6 +2570,7 @@ template uint64 SH2::InterpretNext<true, true>();
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::NOP() {
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return 1;
 }
 
@@ -2587,6 +2595,7 @@ FORCE_INLINE uint64 SH2::SLEEP() {
             // TODO: enter sleep state
         }
         m_sleep = true;
+        m_wbReg = kWBRegNone;
     }
 
     return 3;
@@ -2598,17 +2607,20 @@ FORCE_INLINE uint64 SH2::MOV(const DecodedArgs &args) {
     R[args.rn] = R[args.rm];
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // mov.b @Rm, Rn
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address) + WritebackCycles(args.rm);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = args.rn;
     return cycles;
 }
 
@@ -2616,11 +2628,13 @@ FORCE_INLINE uint64 SH2::MOVBL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm);
+        m_wbReg = args.rn;
     }
     return cycles;
 }
@@ -2629,11 +2643,13 @@ FORCE_INLINE uint64 SH2::MOVWL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm);
+        m_wbReg = args.rn;
     }
     return cycles;
 }
@@ -2642,10 +2658,11 @@ FORCE_INLINE uint64 SH2::MOVLL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address) + WritebackCycles(args.rm, 0);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = args.rn;
     return cycles;
 }
 
@@ -2653,11 +2670,13 @@ FORCE_INLINE uint64 SH2::MOVBL0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm, 0);
+        m_wbReg = args.rn;
     }
     return cycles;
 }
@@ -2666,11 +2685,13 @@ FORCE_INLINE uint64 SH2::MOVWL0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL0(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + R[0];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm, 0);
+        m_wbReg = args.rn;
     }
     return cycles;
 }
@@ -2682,6 +2703,7 @@ FORCE_INLINE uint64 SH2::MOVBL4(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[0] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = 0;
     return cycles;
 }
 
@@ -2689,10 +2711,12 @@ FORCE_INLINE uint64 SH2::MOVBL4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, false, emulateCache>(address) + WritebackCycles(args.rm);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm);
+        m_wbReg = 0;
     }
     return cycles;
 }
@@ -2701,11 +2725,13 @@ FORCE_INLINE uint64 SH2::MOVWL4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLL4(const DecodedArgs &args) {
     const uint32 address = R[args.rm] + args.dispImm;
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm);
+        m_wbReg = args.rn;
     }
     return cycles;
 }
@@ -2717,6 +2743,7 @@ FORCE_INLINE uint64 SH2::MOVBLG(const DecodedArgs &args) {
     const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
     R[0] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = 0;
     return cycles;
 }
 
@@ -2728,6 +2755,7 @@ FORCE_INLINE uint64 SH2::MOVWLG(const DecodedArgs &args) {
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[0] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         AdvancePC<debug, emulateCache, delaySlot>();
+        m_wbReg = 0;
     }
     return cycles;
 }
@@ -2740,6 +2768,7 @@ FORCE_INLINE uint64 SH2::MOVLLG(const DecodedArgs &args) {
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[0] = MemReadLong<emulateCache>(address);
         AdvancePC<debug, emulateCache, delaySlot>();
+        m_wbReg = 0;
     }
     return cycles;
 }
@@ -2748,11 +2777,12 @@ FORCE_INLINE uint64 SH2::MOVLLG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 1;
-    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address) + WritebackCycles(args.rm, args.rn);
     MemWriteByte<debug, emulateCache>(address, R[args.rm]);
     TracePushRegisterToStack<debug>(m_tracer, args.rn, args.rm, R[15], address);
     R[args.rn] = address;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -2760,12 +2790,14 @@ FORCE_INLINE uint64 SH2::MOVBM(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 2;
-    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[args.rm]);
         TracePushRegisterToStack<debug>(m_tracer, args.rn, args.rm, R[15], address);
         R[args.rn] = address;
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm, args.rn);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2774,12 +2806,14 @@ FORCE_INLINE uint64 SH2::MOVWM(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
     const uint32 address = R[args.rn] - 4;
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         TracePushRegisterToStack<debug>(m_tracer, args.rn, args.rm, R[15], address);
         R[args.rn] = address;
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm, args.rn);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2788,7 +2822,7 @@ FORCE_INLINE uint64 SH2::MOVLM(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address) + WritebackCycles(args.rm);
     R[args.rn] = bit::sign_extend<8>(MemReadByte<emulateCache>(address));
     if (args.rn != args.rm) {
         R[args.rm] += 1;
@@ -2796,6 +2830,7 @@ FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
     TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = args.rn;
     return cycles;
 }
 
@@ -2803,7 +2838,7 @@ FORCE_INLINE uint64 SH2::MOVBP(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), false)) [[likely]] {
         R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache>(address));
         if (args.rn != args.rm) {
@@ -2812,6 +2847,8 @@ FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
         TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
         TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm);
+        m_wbReg = args.rn;
     }
     return cycles;
 }
@@ -2820,7 +2857,7 @@ FORCE_INLINE uint64 SH2::MOVWP(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), false)) [[likely]] {
         R[args.rn] = MemReadLong<emulateCache>(address);
         if (args.rn != args.rm) {
@@ -2829,6 +2866,8 @@ FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
         TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
         TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm);
+        m_wbReg = args.rn;
     }
     return cycles;
 }
@@ -2837,9 +2876,10 @@ FORCE_INLINE uint64 SH2::MOVLP(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address) + WritebackCycles(args.rm, args.rn);
     MemWriteByte<debug, emulateCache>(address, R[args.rm]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -2847,10 +2887,12 @@ FORCE_INLINE uint64 SH2::MOVBS(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm, args.rn);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2859,10 +2901,12 @@ FORCE_INLINE uint64 SH2::MOVWS(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm, args.rn);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2871,9 +2915,10 @@ FORCE_INLINE uint64 SH2::MOVLS(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
-    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address) + WritebackCycles(args.rn, 0);
     MemWriteByte<debug, emulateCache>(address, R[args.rm]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -2881,10 +2926,12 @@ FORCE_INLINE uint64 SH2::MOVBS0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
-    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rn, 0);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2893,10 +2940,12 @@ FORCE_INLINE uint64 SH2::MOVWS0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS0(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + R[0];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rn, 0);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2905,9 +2954,10 @@ FORCE_INLINE uint64 SH2::MOVLS0(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
-    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address) + WritebackCycles(args.rn, 0);
     MemWriteByte<debug, emulateCache>(address, R[0]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -2915,10 +2965,12 @@ FORCE_INLINE uint64 SH2::MOVBS4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
-    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[0]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rn, 0);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2927,10 +2979,12 @@ FORCE_INLINE uint64 SH2::MOVWS4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLS4(const DecodedArgs &args) {
     const uint32 address = R[args.rn] + args.dispImm;
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[args.rm]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(args.rm, args.rn);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2939,9 +2993,10 @@ FORCE_INLINE uint64 SH2::MOVLS4(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVBSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint8, true, emulateCache>(address) + WritebackCycles(0);
     MemWriteByte<debug, emulateCache>(address, R[0]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -2949,10 +3004,12 @@ FORCE_INLINE uint64 SH2::MOVBSG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVWSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint16, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint16), true)) [[likely]] {
         MemWriteWord<debug, emulateCache>(address, R[0]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(0);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2961,10 +3018,12 @@ FORCE_INLINE uint64 SH2::MOVWSG(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MOVLSG(const DecodedArgs &args) {
     const uint32 address = GBR + args.dispImm;
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
     if (!m_bus.IsBusWait(address, sizeof(uint32), true)) [[likely]] {
         MemWriteLong<debug, emulateCache>(address, R[0]);
         AdvancePC<debug, emulateCache, delaySlot>();
+        cycles += WritebackCycles(0);
+        m_wbReg = kWBRegNone;
     }
     return cycles;
 }
@@ -2975,7 +3034,9 @@ FORCE_INLINE uint64 SH2::MOVI(const DecodedArgs &args) {
     R[args.rn] = args.dispImm;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // mov.w @(disp,PC), Rn
@@ -2987,6 +3048,7 @@ FORCE_INLINE uint64 SH2::MOVWI(const DecodedArgs &args) {
     R[args.rn] = bit::sign_extend<16>(MemReadWord<emulateCache, true>(address));
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = args.rn;
     return cycles;
 }
 
@@ -2999,6 +3061,7 @@ FORCE_INLINE uint64 SH2::MOVLI(const DecodedArgs &args) {
     R[args.rn] = MemReadLong<emulateCache, true>(address);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = args.rn;
     return cycles;
 }
 
@@ -3009,7 +3072,9 @@ FORCE_INLINE uint64 SH2::MOVA(const DecodedArgs &args) {
     const uint32 address = (pc & ~3u) + args.dispImm;
     R[0] = address;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(0) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // movt Rn
@@ -3018,7 +3083,9 @@ FORCE_INLINE uint64 SH2::MOVT(const DecodedArgs &args) {
     R[args.rn] = SR.T;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // clrt
@@ -3026,6 +3093,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CLRT() {
     SR.T = 0;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return 1;
 }
 
@@ -3034,6 +3102,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::SETT() {
     SR.T = 1;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return 1;
 }
 
@@ -3043,7 +3112,9 @@ FORCE_INLINE uint64 SH2::EXTSB(const DecodedArgs &args) {
     R[args.rn] = bit::sign_extend<8>(R[args.rm]);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // exts.w Rm, Rn
@@ -3052,7 +3123,9 @@ FORCE_INLINE uint64 SH2::EXTSW(const DecodedArgs &args) {
     R[args.rn] = bit::sign_extend<16>(R[args.rm]);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // extu.b Rm, Rn
@@ -3061,7 +3134,9 @@ FORCE_INLINE uint64 SH2::EXTUB(const DecodedArgs &args) {
     R[args.rn] = R[args.rm] & 0xFF;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // extu.w Rm, Rn
@@ -3070,7 +3145,9 @@ FORCE_INLINE uint64 SH2::EXTUW(const DecodedArgs &args) {
     R[args.rn] = R[args.rm] & 0xFFFF;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // swap.b Rm, Rn
@@ -3081,7 +3158,9 @@ FORCE_INLINE uint64 SH2::SWAPB(const DecodedArgs &args) {
     R[args.rn] = ((R[args.rm] >> 8u) & 0xFF) | tmp1 | tmp0;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // swap.w Rm, Rn
@@ -3091,7 +3170,9 @@ FORCE_INLINE uint64 SH2::SWAPW(const DecodedArgs &args) {
     R[args.rn] = (R[args.rm] << 16u) | tmp;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // xtrct Rm, Rn
@@ -3100,7 +3181,9 @@ FORCE_INLINE uint64 SH2::XTRCT(const DecodedArgs &args) {
     R[args.rn] = (R[args.rn] >> 16u) | (R[args.rm] << 16u);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // ldc Rm, GBR
@@ -3109,7 +3192,9 @@ FORCE_INLINE uint64 SH2::LDCGBR(const DecodedArgs &args) {
     GBR = R[args.rm];
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // ldc Rm, SR
@@ -3119,7 +3204,9 @@ FORCE_INLINE uint64 SH2::LDCSR(const DecodedArgs &args) {
     m_intrFlags.values.pending = !delaySlot && INTC.pending.level > SR.ILevel;
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // ldc Rm, VBR
@@ -3128,7 +3215,9 @@ FORCE_INLINE uint64 SH2::LDCVBR(const DecodedArgs &args) {
     VBR = R[args.rm];
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // lds Rm, MACH
@@ -3137,7 +3226,9 @@ FORCE_INLINE uint64 SH2::LDSMACH(const DecodedArgs &args) {
     MAC.H = R[args.rm];
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // lds Rm, MACL
@@ -3146,7 +3237,9 @@ FORCE_INLINE uint64 SH2::LDSMACL(const DecodedArgs &args) {
     MAC.L = R[args.rm];
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // lds Rm, PR
@@ -3155,7 +3248,9 @@ FORCE_INLINE uint64 SH2::LDSPR(const DecodedArgs &args) {
     PR = R[args.rm];
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, kWBRegPR) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // stc GBR, Rn
@@ -3165,7 +3260,9 @@ FORCE_INLINE uint64 SH2::STCGBR(const DecodedArgs &args) {
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // stc SR, Rn
@@ -3175,7 +3272,9 @@ FORCE_INLINE uint64 SH2::STCSR(const DecodedArgs &args) {
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // stc VBR, Rn
@@ -3185,7 +3284,9 @@ FORCE_INLINE uint64 SH2::STCVBR(const DecodedArgs &args) {
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // sts MACH, Rn
@@ -3195,6 +3296,7 @@ FORCE_INLINE uint64 SH2::STSMACH(const DecodedArgs &args) {
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = args.rn;
     return 1;
 }
 
@@ -3205,6 +3307,7 @@ FORCE_INLINE uint64 SH2::STSMACL(const DecodedArgs &args) {
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = args.rn;
     return 1;
 }
 
@@ -3215,19 +3318,22 @@ FORCE_INLINE uint64 SH2::STSPR(const DecodedArgs &args) {
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn, kWBRegPR) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // ldc.l @Rm+, GBR
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + WritebackCycles(args.rm) + 2;
     GBR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3235,13 +3341,14 @@ FORCE_INLINE uint64 SH2::LDCMGBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + WritebackCycles(args.rm) + 2;
     SR.u32 = MemReadLong<emulateCache>(address) & 0x000003F3;
     m_intrFlags.values.pending = !delaySlot && INTC.pending.level > SR.ILevel;
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3249,12 +3356,13 @@ FORCE_INLINE uint64 SH2::LDCMSR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + WritebackCycles(args.rm) + 2;
     VBR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3262,12 +3370,13 @@ FORCE_INLINE uint64 SH2::LDCMVBR(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + WritebackCycles(args.rm);
     MAC.H = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3275,12 +3384,13 @@ FORCE_INLINE uint64 SH2::LDSMMACH(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + WritebackCycles(args.rm);
     MAC.L = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3288,12 +3398,13 @@ FORCE_INLINE uint64 SH2::LDSMMACL(const DecodedArgs &args) {
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDSMPR(const DecodedArgs &args) {
     const uint32 address = R[args.rm];
-    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + WritebackCycles(args.rm);
     PR = MemReadLong<emulateCache>(address);
     R[args.rm] += 4;
     TracePopFromStack<debug>(m_tracer, args.rm, R[15]);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegPR;
     return cycles;
 }
 
@@ -3303,10 +3414,11 @@ FORCE_INLINE uint64 SH2::STCMGBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::GBR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + WritebackCycles(args.rn) + 2;
     MemWriteLong<debug, emulateCache>(address, GBR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3316,10 +3428,11 @@ FORCE_INLINE uint64 SH2::STCMSR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::SR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + WritebackCycles(args.rn) + 2;
     MemWriteLong<debug, emulateCache>(address, SR.u32);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3329,10 +3442,11 @@ FORCE_INLINE uint64 SH2::STCMVBR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::VBR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + WritebackCycles(args.rn) + 2;
     MemWriteLong<debug, emulateCache>(address, VBR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3342,10 +3456,11 @@ FORCE_INLINE uint64 SH2::STSMMACH(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::MACH, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + WritebackCycles(args.rn);
     MemWriteLong<debug, emulateCache>(address, MAC.H);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3355,10 +3470,11 @@ FORCE_INLINE uint64 SH2::STSMMACL(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::MACL, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + WritebackCycles(args.rn);
     MemWriteLong<debug, emulateCache>(address, MAC.L);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3368,10 +3484,11 @@ FORCE_INLINE uint64 SH2::STSMPR(const DecodedArgs &args) {
     R[args.rn] -= 4;
     TracePushToStack<debug>(m_tracer, args.rn, debug::SH2StackValueType::PR, R[15]);
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address);
+    const uint64 cycles = AccessCycles<uint32, true, emulateCache>(address) + WritebackCycles(args.rn, kWBRegPR);
     MemWriteLong<debug, emulateCache>(address, PR);
     m_intrFlags.values.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3382,7 +3499,9 @@ FORCE_INLINE uint64 SH2::ADD(const DecodedArgs &args) {
     TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // add #imm, Rn
@@ -3392,7 +3511,9 @@ FORCE_INLINE uint64 SH2::ADDI(const DecodedArgs &args) {
     TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // addc Rm, Rn
@@ -3405,7 +3526,9 @@ FORCE_INLINE uint64 SH2::ADDC(const DecodedArgs &args) {
     R[args.rn] = newValue;
     SR.T = (tmp0 > tmp1) || (tmp1 > R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // addv Rm, Rn
@@ -3423,7 +3546,9 @@ FORCE_INLINE uint64 SH2::ADDV(const DecodedArgs &args) {
     SR.T = (src == dst) & ans;
 
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // and Rm, Rn
@@ -3432,7 +3557,9 @@ FORCE_INLINE uint64 SH2::AND(const DecodedArgs &args) {
     R[args.rn] &= R[args.rm];
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // and #imm, R0
@@ -3440,19 +3567,22 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ANDI(const DecodedArgs &args) {
     R[0] &= args.dispImm;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(0) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // and.b #imm, @(R0,GBR)
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ANDM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles =
-        AccessCycles<uint8, false, emulateCache>(address) + AccessCycles<uint8, true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address) +
+                          AccessCycles<uint8, true, emulateCache>(address) + WritebackCycles(0) + 1;
     uint8 tmp = MemReadByte<emulateCache>(address);
     tmp &= args.dispImm;
     MemWriteByte<debug, emulateCache>(address, tmp);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3462,7 +3592,9 @@ FORCE_INLINE uint64 SH2::NEG(const DecodedArgs &args) {
     R[args.rn] = -R[args.rm];
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // negc Rm, Rn
@@ -3473,7 +3605,9 @@ FORCE_INLINE uint64 SH2::NEGC(const DecodedArgs &args) {
     SR.T = (0 < tmp) || (tmp < R[args.rn]);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // not Rm, Rn
@@ -3482,7 +3616,9 @@ FORCE_INLINE uint64 SH2::NOT(const DecodedArgs &args) {
     R[args.rn] = ~R[args.rm];
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // or Rm, Rn
@@ -3491,7 +3627,9 @@ FORCE_INLINE uint64 SH2::OR(const DecodedArgs &args) {
     R[args.rn] |= R[args.rm];
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // or #imm, R0
@@ -3499,19 +3637,22 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ORI(const DecodedArgs &args) {
     R[0] |= args.dispImm;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(0) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // or.b #imm, @(R0,GBR)
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::ORM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles =
-        AccessCycles<uint16, false, emulateCache>(address) + AccessCycles<uint16, true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint16, false, emulateCache>(address) +
+                          AccessCycles<uint16, true, emulateCache>(address) + WritebackCycles(0) + 1;
     uint8 tmp = MemReadByte<emulateCache>(address);
     tmp |= args.dispImm;
     MemWriteByte<debug, emulateCache>(address, tmp);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3523,7 +3664,9 @@ FORCE_INLINE uint64 SH2::ROTCL(const DecodedArgs &args) {
     SR.T = tmp;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // rotcr Rn
@@ -3534,7 +3677,9 @@ FORCE_INLINE uint64 SH2::ROTCR(const DecodedArgs &args) {
     SR.T = tmp;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // rotl Rn
@@ -3544,7 +3689,9 @@ FORCE_INLINE uint64 SH2::ROTL(const DecodedArgs &args) {
     R[args.rn] = (R[args.rn] << 1u) | SR.T;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // rotr Rn
@@ -3554,7 +3701,9 @@ FORCE_INLINE uint64 SH2::ROTR(const DecodedArgs &args) {
     R[args.rn] = (R[args.rn] >> 1u) | (SR.T << 31u);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shal Rn
@@ -3564,7 +3713,9 @@ FORCE_INLINE uint64 SH2::SHAL(const DecodedArgs &args) {
     R[args.rn] <<= 1u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shar Rn
@@ -3574,7 +3725,9 @@ FORCE_INLINE uint64 SH2::SHAR(const DecodedArgs &args) {
     R[args.rn] = static_cast<sint32>(R[args.rn]) >> 1;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shll Rn
@@ -3584,7 +3737,9 @@ FORCE_INLINE uint64 SH2::SHLL(const DecodedArgs &args) {
     R[args.rn] <<= 1u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shll2 Rn
@@ -3593,7 +3748,9 @@ FORCE_INLINE uint64 SH2::SHLL2(const DecodedArgs &args) {
     R[args.rn] <<= 2u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shll8 Rn
@@ -3602,7 +3759,9 @@ FORCE_INLINE uint64 SH2::SHLL8(const DecodedArgs &args) {
     R[args.rn] <<= 8u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shll16 Rn
@@ -3611,7 +3770,9 @@ FORCE_INLINE uint64 SH2::SHLL16(const DecodedArgs &args) {
     R[args.rn] <<= 16u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shlr Rn
@@ -3621,7 +3782,9 @@ FORCE_INLINE uint64 SH2::SHLR(const DecodedArgs &args) {
     R[args.rn] >>= 1u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shlr2 Rn
@@ -3630,7 +3793,9 @@ FORCE_INLINE uint64 SH2::SHLR2(const DecodedArgs &args) {
     R[args.rn] >>= 2u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shlr8 Rn
@@ -3639,7 +3804,9 @@ FORCE_INLINE uint64 SH2::SHLR8(const DecodedArgs &args) {
     R[args.rn] >>= 8u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // shlr16 Rn
@@ -3648,7 +3815,9 @@ FORCE_INLINE uint64 SH2::SHLR16(const DecodedArgs &args) {
     R[args.rn] >>= 16u;
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // sub Rm, Rn
@@ -3658,7 +3827,9 @@ FORCE_INLINE uint64 SH2::SUB(const DecodedArgs &args) {
     TraceResizeStack<debug>(m_tracer, args.rn, R[15], newValue);
     R[args.rn] = newValue;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // subc Rm, Rn
@@ -3672,7 +3843,9 @@ FORCE_INLINE uint64 SH2::SUBC(const DecodedArgs &args) {
     SR.T = (tmp0 < tmp1) || (tmp1 < R[args.rn]);
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // subv Rm, Rn
@@ -3690,7 +3863,9 @@ FORCE_INLINE uint64 SH2::SUBV(const DecodedArgs &args) {
     SR.T = (src != dst) & ans;
 
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // xor Rm, Rn
@@ -3699,7 +3874,9 @@ FORCE_INLINE uint64 SH2::XOR(const DecodedArgs &args) {
     R[args.rn] ^= R[args.rm];
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // xor #imm, R0
@@ -3707,19 +3884,22 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::XORI(const DecodedArgs &args) {
     R[0] ^= args.dispImm;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(0) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // xor.b #imm, @(R0,GBR)
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::XORM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles =
-        AccessCycles<uint32, false, emulateCache>(address) + AccessCycles<uint32, true, emulateCache>(address) + 1;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) +
+                          AccessCycles<uint32, true, emulateCache>(address) + WritebackCycles(0) + 1;
     uint8 tmp = MemReadByte<emulateCache>(address);
     tmp ^= args.dispImm;
     MemWriteByte<debug, emulateCache>(address, tmp);
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3730,7 +3910,9 @@ FORCE_INLINE uint64 SH2::DT(const DecodedArgs &args) {
     --R[args.rn];
     SR.T = R[args.rn] == 0;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // clrmac
@@ -3738,6 +3920,7 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CLRMAC() {
     MAC.u64 = 0;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return 1;
 }
 
@@ -3770,6 +3953,8 @@ FORCE_INLINE uint64 SH2::MACW(const DecodedArgs &args) {
     }
 
     AdvancePC<debug, emulateCache, delaySlot>();
+    cycles += WritebackCycles(args.rm, args.rn);
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3799,6 +3984,8 @@ FORCE_INLINE uint64 SH2::MACL(const DecodedArgs &args) {
     MAC.u64 = result;
 
     AdvancePC<debug, emulateCache, delaySlot>();
+    cycles += WritebackCycles(args.rm, args.rn);
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3807,7 +3994,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MULL(const DecodedArgs &args) {
     MAC.L = R[args.rm] * R[args.rn];
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 2;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // muls.w Rm, Rn
@@ -3815,7 +4004,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::MULS(const DecodedArgs &args) {
     MAC.L = bit::sign_extend<16>(R[args.rm]) * bit::sign_extend<16>(R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // mulu.w Rm, Rn
@@ -3824,7 +4015,9 @@ FORCE_INLINE uint64 SH2::MULU(const DecodedArgs &args) {
     auto cast = [](uint32 val) { return static_cast<uint32>(static_cast<uint16>(val)); };
     MAC.L = cast(R[args.rm]) * cast(R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // dmuls.l Rm, Rn
@@ -3833,7 +4026,9 @@ FORCE_INLINE uint64 SH2::DMULS(const DecodedArgs &args) {
     auto cast = [](uint32 val) { return static_cast<sint64>(static_cast<sint32>(val)); };
     MAC.u64 = cast(R[args.rm]) * cast(R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 2;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // dmulu.l Rm, Rn
@@ -3841,7 +4036,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::DMULU(const DecodedArgs &args) {
     MAC.u64 = static_cast<uint64>(R[args.rm]) * static_cast<uint64>(R[args.rn]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 2;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // div0s r{}, Rm, Rn
@@ -3851,7 +4048,9 @@ FORCE_INLINE uint64 SH2::DIV0S(const DecodedArgs &args) {
     SR.Q = static_cast<sint32>(R[args.rn]) < 0;
     SR.T = SR.M != SR.Q;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // div0u
@@ -3861,6 +4060,7 @@ FORCE_INLINE uint64 SH2::DIV0U() {
     SR.Q = 0;
     SR.T = 0;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return 1;
 }
 
@@ -3897,7 +4097,9 @@ FORCE_INLINE uint64 SH2::DIV1(const DecodedArgs &args) {
     TraceChangeStack<debug>(m_tracer, args.rn, R[15]);
 
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/eq #imm, R0
@@ -3905,7 +4107,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPIM(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[0]) == args.dispImm;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(0) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/eq Rm, Rn
@@ -3913,7 +4117,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPEQ(const DecodedArgs &args) {
     SR.T = R[args.rn] == R[args.rm];
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/ge Rm, Rn
@@ -3921,7 +4127,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPGE(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) >= static_cast<sint32>(R[args.rm]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/gt Rm, Rn
@@ -3929,7 +4137,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPGT(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) > static_cast<sint32>(R[args.rm]);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/hi Rm, Rn
@@ -3937,7 +4147,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPHI(const DecodedArgs &args) {
     SR.T = R[args.rn] > R[args.rm];
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/hs Rm, Rn
@@ -3945,7 +4157,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPHS(const DecodedArgs &args) {
     SR.T = R[args.rn] >= R[args.rm];
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/pl Rn
@@ -3953,7 +4167,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPPL(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) > 0;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/pz Rn
@@ -3961,7 +4177,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::CMPPZ(const DecodedArgs &args) {
     SR.T = static_cast<sint32>(R[args.rn]) >= 0;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // cmp/str Rm, Rn
@@ -3974,15 +4192,16 @@ FORCE_INLINE uint64 SH2::CMPSTR(const DecodedArgs &args) {
     const uint8 ll = tmp >> 0u;
     SR.T = !(hh && hl && lh && ll);
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // tas.b @Rn
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TAS(const DecodedArgs &args) {
     const uint32 address = R[args.rn];
-    const uint64 cycles = AccessCyclesRMWByte<emulateCache>(address) + 4;
-        AccessCycles<uint8, false, emulateCache>(address) + AccessCycles<uint8, true, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCyclesRMWByte<emulateCache>(address) + WritebackCycles(args.rn) + 4;
     // TODO: enable bus lock on this read
     const uint8 tmp = MemReadByte<false>(address);
     SR.T = tmp == 0;
@@ -3990,6 +4209,7 @@ FORCE_INLINE uint64 SH2::TAS(const DecodedArgs &args) {
     MemWriteByte<debug, emulateCache>(address, tmp | 0x80);
 
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -3998,7 +4218,9 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TST(const DecodedArgs &args) {
     SR.T = (R[args.rn] & R[args.rm]) == 0;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(args.rm, args.rn) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // tst #imm, R0
@@ -4006,23 +4228,27 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TSTI(const DecodedArgs &args) {
     SR.T = (R[0] & args.dispImm) == 0;
     AdvancePC<debug, emulateCache, delaySlot>();
-    return 1;
+    const uint64 cycles = WritebackCycles(0) + 1;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // tst.b #imm, @(R0,GBR)
 template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::TSTM(const DecodedArgs &args) {
     const uint32 address = GBR + R[0];
-    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address) + 2;
+    const uint64 cycles = AccessCycles<uint8, false, emulateCache>(address) + WritebackCycles(0) + 2;
     const uint8 tmp = MemReadByte<emulateCache>(address);
     SR.T = (tmp & args.dispImm) == 0;
     AdvancePC<debug, emulateCache, delaySlot>();
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
 // bf <label>
 template <bool debug, bool emulateCache>
 FORCE_INLINE uint64 SH2::BF(const DecodedArgs &args) {
+    m_wbReg = kWBRegNone;
     if (!SR.T) {
         const uint32 target = PC + args.dispImm;
         TraceBranch<debug>(m_tracer, PC, target);
@@ -4044,12 +4270,14 @@ FORCE_INLINE uint64 SH2::BFS(const DecodedArgs &args) {
         SetupDelaySlot(target);
     }
     PC += 2;
+    m_wbReg = kWBRegNone;
     return !SR.T ? 2 : 1;
 }
 
 // bt <label>
 template <bool debug, bool emulateCache>
 FORCE_INLINE uint64 SH2::BT(const DecodedArgs &args) {
+    m_wbReg = kWBRegNone;
     if (SR.T) {
         const uint32 target = PC + args.dispImm;
         TraceBranch<debug>(m_tracer, PC, target);
@@ -4071,6 +4299,7 @@ FORCE_INLINE uint64 SH2::BTS(const DecodedArgs &args) {
         SetupDelaySlot(target);
     }
     PC += 2;
+    m_wbReg = kWBRegNone;
     return SR.T ? 2 : 1;
 }
 
@@ -4081,6 +4310,7 @@ FORCE_INLINE uint64 SH2::BRA(const DecodedArgs &args) {
     TraceBranchDelay<debug>(m_tracer, target);
     SetupDelaySlot(target);
     PC += 2;
+    m_wbReg = kWBRegNone;
     return 2;
 }
 
@@ -4091,7 +4321,9 @@ FORCE_INLINE uint64 SH2::BRAF(const DecodedArgs &args) {
     TraceBranchDelay<debug>(m_tracer, target);
     SetupDelaySlot(target);
     PC += 2;
-    return 2;
+    const uint64 cycles = WritebackCycles(args.rm) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // bsr <label>
@@ -4102,7 +4334,9 @@ FORCE_INLINE uint64 SH2::BSR(const DecodedArgs &args) {
     TraceCall<debug>(m_tracer, target);
     SetupDelaySlot(target);
     PC += 2;
-    return 2;
+    const uint64 cycles = WritebackCycles(kWBRegPR) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // bsrf Rm
@@ -4113,7 +4347,9 @@ FORCE_INLINE uint64 SH2::BSRF(const DecodedArgs &args) {
     TraceCall<debug>(m_tracer, target);
     SetupDelaySlot(target);
     PC += 2;
-    return 2;
+    const uint64 cycles = WritebackCycles(args.rm, kWBRegPR) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // jmp @Rm
@@ -4123,7 +4359,9 @@ FORCE_INLINE uint64 SH2::JMP(const DecodedArgs &args) {
     TraceBranchDelay<debug>(m_tracer, target);
     SetupDelaySlot(R[args.rm]);
     PC += 2;
-    return 2;
+    const uint64 cycles = WritebackCycles(args.rm) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // jsr @Rm
@@ -4134,7 +4372,9 @@ FORCE_INLINE uint64 SH2::JSR(const DecodedArgs &args) {
     TraceCall<debug>(m_tracer, target);
     SetupDelaySlot(target);
     PC += 2;
-    return 2;
+    const uint64 cycles = WritebackCycles(args.rm, kWBRegPR) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // trapa #imm
@@ -4155,6 +4395,7 @@ FORCE_INLINE uint64 SH2::TRAPA(const DecodedArgs &args) {
     RefillPipeline<emulateCache>();
     R[15] -= 8;
     devlog::trace<grp::intr>(m_logPrefix, "[PC = {:08X}] Entering TRAPA handler", PC);
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -4163,8 +4404,8 @@ template <bool debug, bool emulateCache>
 FORCE_INLINE uint64 SH2::RTE() {
     const uint32 address1 = R[15];
     const uint32 address2 = R[15] + 4;
-    const uint64 cycles =
-        AccessCycles<uint32, false, emulateCache>(address1) + AccessCycles<uint32, false, emulateCache>(address2) + 2;
+    const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address1) +
+                          AccessCycles<uint32, false, emulateCache>(address2) + WritebackCycles(15) + 2;
     const uint32 target = MemReadLong<emulateCache>(address1);
     TraceReturnFromException<debug>(m_tracer, target, R[15] + 8);
     SetupDelaySlot(target);
@@ -4173,6 +4414,7 @@ FORCE_INLINE uint64 SH2::RTE() {
     R[15] += 8;
     devlog::trace<grp::intr>(m_logPrefix, "[PC = {:08X}] Returning from exception handler, PC -> {:08X}", PC,
                              m_delaySlotTarget);
+    m_wbReg = kWBRegNone;
     return cycles;
 }
 
@@ -4182,7 +4424,9 @@ FORCE_INLINE uint64 SH2::RTS() {
     TraceReturn<debug>(m_tracer, PR);
     SetupDelaySlot(PR);
     PC += 2;
-    return 2;
+    const uint64 cycles = WritebackCycles(kWBRegPR) + 2;
+    m_wbReg = kWBRegNone;
+    return cycles;
 }
 
 // -----------------------------------------------------------------------------

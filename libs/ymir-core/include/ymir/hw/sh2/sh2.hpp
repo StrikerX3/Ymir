@@ -677,6 +677,9 @@ private:
     // The CPU always does aligned 32-bit instruction fetches pulling in a pair of 16-bit instructions.
     uint32 m_fetchedOpcodes;
 
+    static constexpr uint8 kWBRegNone = 0xFF;
+    static constexpr uint8 kWBRegPR = 0x10;
+
     CBAcknowledgeExternalInterrupt m_cbAcknowledgeExternalInterrupt;
     debug::DebugBreakManager *m_debugBreakMgr = nullptr;
 
@@ -702,6 +705,17 @@ private:
 
     // Retrieves the current absolute cycle count
     uint64 GetCurrentCycleCount() const;
+
+    // Register currently held by the WB stage:
+    //   0x0..0xF: r0..r15
+    //       0x10: PR
+    //  otherwise: none
+    uint8 m_wbReg;
+
+    // Computes the number of extra cycles taken by the WB stage: 0 if there is no contention with any of the listed
+    // registers, or 1 if one of the registers is in use by the stage.
+    template <std::integral... Ts>
+    uint64 WritebackCycles(Ts... regs);
 
     // -------------------------------------------------------------------------
     // Memory accessors
