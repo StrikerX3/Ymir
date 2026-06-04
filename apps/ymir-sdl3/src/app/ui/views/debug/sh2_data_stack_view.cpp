@@ -56,22 +56,31 @@ void SH2DataStackView::Display() {
     const uint32 stackBase = m_tracer.execAnalyst.GetCurrentDataStackBase().value_or(r15 + 64);
     // Sanity check: if the stack is too large, just use R15
     const uint32 stackEnd = stackBase - r15 > kMaxStackSize ? r15 + 64 : stackBase;
-    m_tracer.execAnalyst.GetStackInfo(
-        r15, stackEnd, [&](uint32 entryAddress, const SH2StackEntry *entry, uint32 baseAddress) {
-            const uint32 value = probe.MemPeekLong(entryAddress, false);
-            if (entry == nullptr) {
-                ImGui::BeginDisabled();
-            }
-            ImGui::TextColored(m_model.colors.address, "%08X", entryAddress);
-            ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
-            ImGui::TextColored(m_model.colors.bytes, "%08X", value);
-            if (entry != nullptr) {
+
+    ImGuiListClipper clipper{};
+    clipper.Begin((stackEnd - r15) / sizeof(uint32) + 1, ImGui::GetTextLineHeightWithSpacing());
+
+    while (clipper.Step()) {
+        const uint32 start = r15 + clipper.DisplayStart * sizeof(uint32);
+        const uint32 end = std::min<uint32>(r15 + clipper.DisplayEnd * sizeof(uint32), stackEnd);
+        m_tracer.execAnalyst.GetStackInfo(
+            start, end, [&](uint32 entryAddress, const SH2StackEntry *entry, uint32 baseAddress) {
+                const uint32 value = probe.MemPeekLong(entryAddress, false);
+                if (entry == nullptr) {
+                    ImGui::BeginDisabled();
+                }
+                ImGui::TextColored(m_model.colors.address, "%08X", entryAddress);
                 ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
-                drawEntry(*entry);
-            } else {
-                ImGui::EndDisabled();
-            }
-        });
+                ImGui::TextColored(m_model.colors.bytes, "%08X", value);
+                if (entry != nullptr) {
+                    ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
+                    drawEntry(*entry);
+                } else {
+                    ImGui::EndDisabled();
+                }
+            });
+    }
+
     ImGui::PopFont();
 
     if (!enabled) {

@@ -41,22 +41,32 @@ void SH2CallStackView::Display() {
 
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.small);
     const auto callStack = m_tracer.execAnalyst.GetCurrentCallStack();
-    ImGui::TextColored(m_model.colors.address, "%08X", pc);
-    ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
-    ImGui::TextColored(colors.pc, "<current PC>");
-    // for (auto &entry : std::ranges::reverse_view(callStack)) { // Clang 15 doesn't support this :(
-    for (auto it = callStack.rbegin(); it != callStack.rend(); ++it) {
-        auto &entry = *it;
-        ImGui::TextColored(m_model.colors.address, "%08X", entry.address);
-        ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
-        switch (entry.type) {
-        case SH2CallStackEntry::Type::Call: ImGui::TextColored(colors.call, "Call"); break;
-        case SH2CallStackEntry::Type::Trap: drawVec(colors.trap, "Trap ", entry.vecNum); break;
-        case SH2CallStackEntry::Type::Exception: drawVec(colors.exception, "Excpt", entry.vecNum); break;
+
+    ImGuiListClipper clipper{};
+    clipper.Begin(callStack.size() + 1, ImGui::GetTextLineHeightWithSpacing());
+
+    while (clipper.Step()) {
+        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) {
+            if (i == 0) {
+                ImGui::TextColored(m_model.colors.address, "%08X", pc);
+                ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
+                ImGui::TextColored(colors.pc, "<current PC>");
+            } else {
+                auto it = callStack.rbegin() + (static_cast<size_t>(i) - 1);
+                auto &entry = *it;
+                ImGui::TextColored(m_model.colors.address, "%08X", entry.address);
+                ImGui::SameLine(0.0f, m_model.style.disasmSpacing * m_context.displayScale);
+                switch (entry.type) {
+                case SH2CallStackEntry::Type::Call: ImGui::TextColored(colors.call, "Call"); break;
+                case SH2CallStackEntry::Type::Trap: drawVec(colors.trap, "Trap ", entry.vecNum); break;
+                case SH2CallStackEntry::Type::Exception: drawVec(colors.exception, "Excpt", entry.vecNum); break;
+                }
+                ImGui::SameLine(0, 0);
+                ImGui::TextColored(colors.target, " %08X", entry.target);
+            }
         }
-        ImGui::SameLine(0, 0);
-        ImGui::TextColored(colors.target, " %08X", entry.target);
     }
+
     ImGui::PopFont();
 
     if (!enabled) {
