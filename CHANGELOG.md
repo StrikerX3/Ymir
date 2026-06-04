@@ -8,6 +8,7 @@ Introduced save state file version 13.
 
 ### New features and improvements
 
+- App: Added action to reload save states from disk to the File menu.
 - App: Added Noto Sans JP for Japanese text support.
 - App: Added option to show/hide game name from window title bar.
 - App: Added option to show/hide performance indicators from window title bar.

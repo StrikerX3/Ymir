@@ -2886,6 +2886,9 @@ void App::RunEmulator() {
 
                         SDL_OpenURL(fmt::format("file:///{}", path).c_str());
                     }
+                    if (ImGui::MenuItem("Reload save states from disk")) {
+                        LoadSaveStates();
+                    }
 
                     ImGui::Separator();
 
