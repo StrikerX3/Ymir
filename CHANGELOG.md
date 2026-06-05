@@ -9,7 +9,7 @@ Introduced save state file version 13.
 ### New features and improvements
 
 - App: Added action to reload save states from disk to the File menu.
-- App: Added Noto Sans JP for Japanese text support.
+- App: Added M PLUS U font for Japanese text support.
 - App: Added option to show/hide game name from window title bar.
 - App: Added option to show/hide performance indicators from window title bar.
 - App: Added Message History window, listing up to 10000 messages.
@@ -25,7 +25,7 @@ Introduced save state file version 13.
 - SCU: Optimize DSP operations involving 48-bit registers.
 - SH2: Decode opcode arguments directly in instruction handlers for better performance.
 - SH2: Fetch pairs of instructions using 32-bit accesses, more closely matching the behavior of the real SH7095. Improves overall emulation accuracy and slightly boosts performance on SH2-bound games.
-- SH2: Handle WB/EX stalls.
+- SH2: Handle WB/EX stalls. (thanks to @celeriyacon)
 - SH2: Microoptimize DIV1 instruction.
 
 ### Fixes
