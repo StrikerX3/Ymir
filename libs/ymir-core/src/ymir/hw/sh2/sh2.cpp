@@ -4244,31 +4244,34 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::DIV1(uint16 opcode) {
     DECODE_NM
     const bool oldQ = SR.Q;
-    SR.Q = static_cast<sint32>(R[rn]) < 0;
+    const bool M = SR.M;
+    bool Q = oldQ;
+    Q = static_cast<sint32>(R[rn]) < 0;
     R[rn] = (R[rn] << 1u) | SR.T;
 
     const uint32 prevVal = R[rn];
-    if (oldQ == SR.M) {
+    if (oldQ == M) {
         R[rn] -= R[rm];
     } else {
         R[rn] += R[rm];
     }
 
     if (oldQ) {
-        if (SR.M) {
-            SR.Q ^= R[rn] <= prevVal;
+        if (M) {
+            Q ^= R[rn] <= prevVal;
         } else {
-            SR.Q ^= R[rn] < prevVal;
+            Q ^= R[rn] < prevVal;
         }
     } else {
-        if (SR.M) {
-            SR.Q ^= R[rn] >= prevVal;
+        if (M) {
+            Q ^= R[rn] >= prevVal;
         } else {
-            SR.Q ^= R[rn] > prevVal;
+            Q ^= R[rn] > prevVal;
         }
     }
 
-    SR.T = SR.Q == SR.M;
+    SR.T = Q == M;
+    SR.Q = Q;
 
     TraceChangeStack<debug>(m_tracer, rn, R[15]);
 

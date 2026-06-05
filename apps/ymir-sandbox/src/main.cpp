@@ -1641,9 +1641,9 @@ void runSH2PerfSandbox() {
     // static constexpr uint16 kInstr = 0b0010'0000'0000'1110; // mulu.w   Rm, Rn
     // static constexpr uint16 kInstr = 0b0011'0000'0000'1101; // dmuls.l  Rm, Rn
     // static constexpr uint16 kInstr = 0b0011'0000'0000'0101; // dmulu.l  Rm, Rn
-    static constexpr uint16 kInstr = 0b0010'0000'0000'0111; // div0s    Rm, Rn
+    // static constexpr uint16 kInstr = 0b0010'0000'0000'0111; // div0s    Rm, Rn
     // static constexpr uint16 kInstr = 0b0000'0000'0001'1001; // div0u
-    // static constexpr uint16 kInstr = 0b0011'0000'0000'0100; // div1     Rm, Rn
+    static constexpr uint16 kInstr = 0b0011'0000'0000'0100; // div1     Rm, Rn
     // static constexpr uint16 kInstr = 0b1000'1000'0000'0000; // cmp/eq   #imm, R0
     // static constexpr uint16 kInstr = 0b0011'0000'0000'0000; // cmp/eq   Rm, Rn
     // static constexpr uint16 kInstr = 0b0011'0000'0000'0011; // cmp/ge   Rm, Rn
@@ -1681,7 +1681,7 @@ void runSH2PerfSandbox() {
 
     using namespace std::chrono_literals;
 
-    static constexpr auto kDuration = 10s;
+    /*static constexpr auto kDuration = 10s;
     const auto t0 = std::chrono::steady_clock::now();
     const auto tTarget = t0 + kDuration;
     uint64 iters = 0;
@@ -1701,8 +1701,25 @@ void runSH2PerfSandbox() {
     const auto t1 = std::chrono::steady_clock::now();
     const auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0);
     totalIters += iters;
-    fmt::println("{} iters total", dt.count(), totalIters);
-    fmt::println("{} iters/sec", totalIters / std::chrono::duration_cast<std::chrono::seconds>(dt).count());
+    fmt::println("{} iters total", totalIters);
+    fmt::println("{} iters/sec", totalIters / std::chrono::duration_cast<std::chrono::seconds>(dt).count());*/
+
+    static constexpr uint64 kIters = 20;
+    const auto t0 = std::chrono::steady_clock::now();
+    for (uint64 j = 0; j < kIters; j++) {
+        cpu.Reset(true);
+        const auto t0 = std::chrono::steady_clock::now();
+        for (uint64 i = 0; i < 250'000'000; i++) {
+            cpu.Step<false, false>();
+        }
+        const auto t1 = std::chrono::steady_clock::now();
+        const auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0);
+        fmt::println("{} us", dt.count());
+    }
+    const auto t1 = std::chrono::steady_clock::now();
+    const auto dt = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0);
+    fmt::println("{} us total", dt.count());
+    fmt::println("{} us/iter", dt.count() / kIters);
 }
 
 int main(int argc, char **argv) {

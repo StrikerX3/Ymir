@@ -26,6 +26,7 @@ Introduced save state file version 13.
 - SH2: Decode opcode arguments directly in instruction handlers for better performance.
 - SH2: Fetch pairs of instructions using 32-bit accesses, more closely matching the behavior of the real SH7095. Improves overall emulation accuracy and slightly boosts performance on SH2-bound games.
 - SH2: Handle WB/EX stalls.
+- SH2: Microoptimize DIV1 instruction.
 
 ### Fixes
 
