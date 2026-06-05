@@ -13,7 +13,6 @@ target_include_directories(ymir-dbg
 target_compile_features(ymir-dbg PUBLIC cxx_std_20)
 
 find_package(cxxopts CONFIG REQUIRED)
-find_package(fmt CONFIG REQUIRED)
 
 target_link_libraries(ymir-dbg PRIVATE
     ymir::ymir-dbg-commons

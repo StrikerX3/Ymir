@@ -16,7 +16,6 @@ set_target_properties(ymir-core-tests PROPERTIES
 target_link_libraries(ymir-core-tests PRIVATE ymir::ymir-core)
 target_compile_features(ymir-core-tests PUBLIC cxx_std_20)
 
-find_package(fmt CONFIG REQUIRED)
 find_package(Catch2 CONFIG REQUIRED)
 
 ## Add dependencies

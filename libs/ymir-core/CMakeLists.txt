@@ -288,6 +288,7 @@ add_library(ymir-core
     src/ymir/media/loader/loader_mdf_mds.cpp
 
     src/ymir/sys/backup_ram.cpp
+    src/ymir/sys/backup_ram_utils.cpp
     src/ymir/sys/memory.cpp
     src/ymir/sys/null_program.hpp
     src/ymir/sys/saturn.cpp
@@ -298,7 +299,7 @@ add_library(ymir-core
     src/ymir/util/process.cpp
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
- "src/ymir/sys/backup_ram_utils.cpp")
+)
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
                       VERSION ${Ymir_core_VERSION}
@@ -308,8 +309,6 @@ target_include_directories(ymir-core
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
 )
 target_compile_features(ymir-core PUBLIC cxx_std_20)
-
-find_package(fmt CONFIG REQUIRED)
 
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC

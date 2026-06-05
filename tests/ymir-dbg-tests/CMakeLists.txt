@@ -14,7 +14,6 @@ target_include_directories(ymir-dbg-tests PRIVATE
 )
 
 find_package(Catch2 CONFIG REQUIRED)
-find_package(fmt CONFIG REQUIRED)
 
 target_link_libraries(ymir-dbg-tests PRIVATE
     Catch2::Catch2WithMain

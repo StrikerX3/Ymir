@@ -13,7 +13,6 @@ target_include_directories(ymir-sandbox
 target_compile_features(ymir-sandbox PUBLIC cxx_std_20)
 
 find_package(date CONFIG REQUIRED)
-find_package(fmt CONFIG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)

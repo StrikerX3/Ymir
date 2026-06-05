@@ -15,7 +15,6 @@ target_include_directories(ymir-headless
 
 target_compile_features(ymir-headless PUBLIC cxx_std_20)
 
-find_package(fmt CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
 
 ## Add dependencies

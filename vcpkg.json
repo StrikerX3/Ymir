@@ -14,7 +14,6 @@
     },
     "cxxopts",
     "date",
-    "fmt",
     "neargye-semver",
     "nlohmann-json",
     "openssl",
