@@ -283,12 +283,6 @@ enum class OpcodeType : uint16 {
     IllegalSlot,      // illegal slot instruction
 };
 
-struct DecodedArgs {
-    uint8 rn;
-    uint8 rm;
-    sint16 dispImm;
-};
-
 struct DecodedMemAccesses {
     enum Type : uint8 {
         None,      // no access
@@ -325,7 +319,6 @@ public:
     // [0] regular instructions
     // [1] delay slot instructions
     alignas(alignment) std::array<std::array<OpcodeType, 0x10000>, 2> opcodes;
-    alignas(alignment) std::array<DecodedArgs, 0x10000> args;
     alignas(alignment) std::array<DecodedMemAccesses, 0x10000> mem;
 };
 
