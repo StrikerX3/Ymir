@@ -222,10 +222,7 @@
       "name": "x64-SSE2-Clang-LibOnly-Debug",
       "displayName": "x64 SSE2 Clang Debug (LibOnly)",
       "description": "Library-only (ymir-core) Debug build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Debug-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Debug-Base" ]
     },
     {
       "name": "x64-SSE2-Clang-Release",
@@ -237,10 +234,7 @@
       "name": "x64-SSE2-Clang-LibOnly-Release",
       "displayName": "x64 SSE2 Clang Release (LibOnly)",
       "description": "Library-only (ymir-core) Release build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Base" ]
     },
     {
       "name": "x64-SSE2-Clang-Release-Dist",
@@ -252,10 +246,7 @@
       "name": "x64-SSE2-Clang-LibOnly-Release-Dist",
       "displayName": "x64 SSE2 Clang Release/Dist (LibOnly)",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Dist-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Dist-Base" ]
     },
 
     // ---------------------------------------------------------------------------------------------
@@ -270,10 +261,7 @@
       "name": "x64-AVX2-Clang-Debug-LibOnly",
       "displayName": "x64 AVX2 Clang Debug (LibOnly)",
       "description": "Library-only (ymir-core) Debug build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Debug-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Debug-Base" ]
     },
     {
       "name": "x64-AVX2-Clang-Release",
@@ -285,10 +273,7 @@
       "name": "x64-AVX2-Clang-Release-LibOnly",
       "displayName": "x64 AVX2 Clang Release (LibOnly)",
       "description": "Library-only (ymir-core) Release build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Base" ]
     },
     {
       "name": "x64-AVX2-Clang-Release-Dist",
@@ -300,10 +285,7 @@
       "name": "x64-AVX2-Clang-Release-Dist-LibOnly",
       "displayName": "x64 AVX2 Clang Release/Dist (LibOnly)",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Dist-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Dist-Base" ]
     },
 
     // ---------------------------------------------------------------------------------------------
@@ -318,10 +300,7 @@
       "name": "x64-SSE2-MSVC-LibOnly-Debug",
       "displayName": "x64 SSE2 MSVC Debug (LibOnly)",
       "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Debug-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Debug-Base" ]
     },
     {
       "name": "x64-SSE2-MSVC-Release",
@@ -333,10 +312,7 @@
       "name": "x64-SSE2-MSVC-LibOnly-Release",
       "displayName": "x64 SSE2 MSVC Release (LibOnly)",
       "description": "Library-only (ymir-core) Release build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Base" ]
     },
     {
       "name": "x64-SSE2-MSVC-Release-Dist",
@@ -348,10 +324,7 @@
       "name": "x64-SSE2-MSVC-LibOnly-Release-Dist",
       "displayName": "x64 SSE2 MSVC Release/Dist (LibOnly)",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Dist-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Dist-Base" ]
     },
 
     // ---------------------------------------------------------------------------------------------
@@ -366,10 +339,7 @@
       "name": "x64-AVX2-MSVC-Debug-LibOnly",
       "displayName": "x64 AVX2 MSVC Debug (LibOnly)",
       "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Debug-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Debug-Base" ]
     },
     {
       "name": "x64-AVX2-MSVC-Release",
@@ -381,10 +351,7 @@
       "name": "x64-AVX2-MSVC-Release-LibOnly",
       "displayName": "x64 AVX2 MSVC Release (LibOnly)",
       "description": "Library-only (ymir-core) Release build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Base" ]
     },
     {
       "name": "x64-AVX2-MSVC-Release-Dist",
@@ -396,10 +363,7 @@
       "name": "x64-AVX2-MSVC-Release-Dist-LibOnly",
       "displayName": "x64 AVX2 MSVC Release/Dist (LibOnly)",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Dist-Base" ],
-      "cacheVariables": {
-        "Ymir_LIBRARY_ONLY": "ON"
-      }
+      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Dist-Base" ]
     },
 
     // ---------------------------------------------------------------------------------------------
