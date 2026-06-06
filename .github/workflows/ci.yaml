@@ -81,7 +81,7 @@ jobs:
           CXX: clang++
           CC: clang
         run: |
-          if (${{ matrix.build-set.library-only }} -eq "no") {
+          if ("${{ matrix.build-set.library-only }}" -eq "no") {
             cmake -B ${{ steps.strings.outputs.build-output-dir }} `
               -DVCPKG_TARGET_TRIPLET=${{ matrix.arch.vcpkg_triplet }} `
               -DCMAKE_CXX_COMPILER=clang++ `
