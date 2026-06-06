@@ -188,7 +188,7 @@ jobs:
               -DYmir_ENABLE_SANDBOX=OFF \
               -DYmir_ENABLE_YMDASM=ON \
               -DYmir_ENABLE_IPO=OFF \
-              -DYmir_LIBRARY_ONLY=OFF
+              -DYmir_LIBRARY_ONLY=OFF \
               -S ${{ github.workspace }} \
               -G Ninja
           else
@@ -197,7 +197,7 @@ jobs:
               -DBUILD_SHARED_LIBS=OFF \
               -DYmir_ENABLE_DEVLOG=OFF \
               -DYmir_ENABLE_IPO=OFF \
-              -DYmir_LIBRARY_ONLY=ON
+              -DYmir_LIBRARY_ONLY=ON \
               -S ${{ github.workspace }} \
               -G Ninja
           fi
@@ -265,7 +265,7 @@ jobs:
                 -DYmir_ENABLE_SANDBOX=OFF \
                 -DYmir_ENABLE_YMDASM=ON \
                 -DYmir_ENABLE_IPO=OFF \
-                -DYmir_LIBRARY_ONLY=OFF
+                -DYmir_LIBRARY_ONLY=OFF \
                 -S ${{ github.workspace }} \
                 -G Ninja
             else
@@ -274,7 +274,7 @@ jobs:
                 -DBUILD_SHARED_LIBS=OFF \
                 -DYmir_ENABLE_DEVLOG=OFF \
                 -DYmir_ENABLE_IPO=OFF \
-                -DYmir_LIBRARY_ONLY=ON
+                -DYmir_LIBRARY_ONLY=ON \
                 -S ${{ github.workspace }} \
                 -G Ninja
             fi
@@ -350,7 +350,7 @@ jobs:
               -DYmir_ENABLE_SANDBOX=OFF \
               -DYmir_ENABLE_YMDASM=ON \
               -DYmir_ENABLE_IPO=OFF \
-              -DYmir_LIBRARY_ONLY=OFF
+              -DYmir_LIBRARY_ONLY=OFF \
               -S ${{ github.workspace }} \
               -G Ninja
           else
@@ -359,7 +359,7 @@ jobs:
               -DBUILD_SHARED_LIBS=OFF \
               -DYmir_ENABLE_DEVLOG=OFF \
               -DYmir_ENABLE_IPO=OFF \
-              -DYmir_LIBRARY_ONLY=ON
+              -DYmir_LIBRARY_ONLY=ON \
               -S ${{ github.workspace }} \
               -G Ninja
           fi
