@@ -395,4 +395,5 @@ add_subdirectory(vendor/Ymir)
 target_link_libraries(your-target PRIVATE ymir-core)
 ```
 
-With this option, you cannot modify Ymir's source code.
+With this option, you cannot modify Ymir's source code. Additionally, the dependency is recursively cloned for each
+build configuration you use, which could waste disk space.
