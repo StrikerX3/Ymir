@@ -99,7 +99,8 @@ Any changes to the current hot code paths (SH2 interpreter, VDP2 software render
 
 Adhere to the code formatting rules. Use `clang-format` to format the code.
 
-When adding new dependencies, prefer the ones available through vcpkg. Failing that, add them as a git submodule under [vendor/](/vendor).
+When adding new dependencies to `ymir-core`, **never** use vcpkg ports; always use Git submodules under [vendor/](/vendor). This allows the repository to be added as subproject in other CMake projects.
+Other targets may use vcpkg ports, but Git submodules (or FetchContent) is preferred.
 If cloning submodules, use HTTPS, not SSH, as some build pipelines won't be able to clone GitHub repos without an SSH key.
 Make a custom CMakeLists.txt if the dependency's own file doesn't behave well as a dependency or if you only need a subset of functionality from the library.
 See existing vendored dependencies for examples and the comments in [vendor/CMakeLists.txt](/vendor/CMakeLists.txt) for more details.
