@@ -37,6 +37,7 @@ add_subdirectory(mio EXCLUDE_FROM_ALL)
 
 # {fmt} - https://github.com/fmtlib/fmt
 message(STATUS "==> libfmt")
+set(FMT_MODULE OFF)
 add_subdirectory(fmt)
 
 # concurrentqueue - https://github.com/cameron314/concurrentqueue
