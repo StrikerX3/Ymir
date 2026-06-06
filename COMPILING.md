@@ -329,3 +329,70 @@ With the project opened as a folder:
       -DYmir_PGO_DIR="$PWD/build-pgo-gen/pgo-profdata"
     cmake --build build-pgo-use --parallel
     ```
+
+
+
+# Consuming Ymir as a library
+
+When Ymir is included as a subproject inside another CMake project, it automatically sets `Ymir_LIBRARY_ONLY=ON`, which
+reconfigures the project to only build the `ymir::ymir-core` static library target without using vcpkg.
+
+The easiest ways to use Ymir as a library are to include it as a Git submodule or by using CMake's `FetchContent`.
+Whatever method is used, be patient -- Ymir includes several large Git submodules that can take some time to download.
+
+> [!IMPORTANT]
+> Before v0.3.2, Ymir did not offer the option to build the core library alone and required vcpkg to work. You will not
+> be able to use older versions of the emulator as a library in this manner without a ton of headaches due to the
+> combined use of vcpkg integration *and* Git submodules as dependencies.
+> 
+> Version 0.3.2 fixes this by offering the `Ymir_LIBRARY_ONLY` option explained above.
+
+
+## Using a Git submodule
+
+It is recommended to keep your vendored dependencies in a subdirectory of your repository, usually called `vendor` or
+`third_party`. Inside it, run these commands:
+
+```sh
+git submodule add https://github.com/StrikerX3/Ymir.git
+git submodule update --init --recursive
+```
+
+Once that is done, adding Ymir to your project is as simple as adding these instructions to your CMakeLists.txt:
+
+```cmake
+add_subdirectory(vendor/Ymir)
+
+target_link_libraries(your-target PRIVATE ymir-core)
+```
+
+With this method, you can easily keep your dependency up-to-date by `git pull`ing the latest commit from within the
+`Ymir` subdirectory. This method also lets you tinker with the emulator's source code at any time.
+
+
+## Using FetchContent
+
+With [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html), the Git cloning process is automated
+by CMake. Add these instructions to your CMakeLists.txt:
+
+```cmake
+include(FetchContent)
+
+FetchContent_Declare(
+    ymir
+    GIT_REPOSITORY https://github.com/StrikerX3/Ymir
+    GIT_TAG        v0.3.2   # ideally, a specific tag or commit, but `main` also works
+)
+
+FetchContent_MakeAvailable(ymir)
+```
+
+To link your target against Ymir:
+
+```cmake
+add_subdirectory(vendor/Ymir)
+
+target_link_libraries(your-target PRIVATE ymir-core)
+```
+
+With this option, you cannot modify Ymir's source code.
