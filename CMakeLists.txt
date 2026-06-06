@@ -4,6 +4,7 @@ project(Ymir VERSION 0.3.2)
 include(cmake/CMakeRC.cmake)
 include(cmake/CopyRuntimeDLLs.cmake)
 include(cmake/TargetConditionalSources.cmake)
+include(CMakeDependentOption)
 
 # CMake project structured adapted from Alex Reinking's SharedStaticStarter
 # GitHub: https://github.com/alexreinking/SharedStaticStarter
@@ -24,6 +25,7 @@ option(Ymir_ENABLE_DEVLOG "Enable development logs" ${Ymir_DEV_BUILD})
 option(Ymir_ENABLE_DEV_ASSERTIONS "Enable development-time assertions" OFF)
 option(Ymir_ENABLE_IMGUI_DEMO "Enable ImGui demo window" ON)
 option(Ymir_ENABLE_UPDATE_CHECKS "Enable update checks" ON)
+cmake_dependent_option(Ymir_LIBRARY_ONLY "Compile ymir-core only" OFF is_top_level ON)
 
 ## Feature flags
 ## If ON, all feature flags will be enabled by default
@@ -33,6 +35,9 @@ option(Ymir_FEATUREFLAG_DEFAULT "Enable all feature flags by default" ${Ymir_DEV
 ## Selectively enable in-development features
 option(Ymir_FF_VIRTUA_GUN "Enable Virtua Gun peripheral" ${Ymir_FEATUREFLAG_DEFAULT})
 
+if (Ymir_LIBRARY_ONLY)
+    message(STATUS "Ymir: Library-only build")
+endif ()
 if (Ymir_DEV_BUILD)
     message(STATUS "Ymir: Development build")
 else ()
@@ -119,17 +124,21 @@ add_subdirectory(vendor)
 include(cmake/PGO.cmake)
 ymir_configure_pgo()
 
-## Include project libraries and apps
+## Include project libraries
 add_subdirectory(libs)
-add_subdirectory(apps)
 
-## Include the unit tests if the user wanted them (included by default when top-level)
-if (Ymir_ENABLE_TESTS)
-    enable_testing()
-    add_subdirectory(tests)
-endif ()
+if (NOT Ymir_LIBRARY_ONLY)
+    ## Include apps
+    add_subdirectory(apps)
 
-## Configure Visual Studio solution
-if (MSVC)
-    set_property(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}" PROPERTY VS_STARTUP_PROJECT ymir-sdl3)
+    ## Include the unit tests if the user wanted them (included by default when top-level)
+    if (Ymir_ENABLE_TESTS)
+        enable_testing()
+        add_subdirectory(tests)
+    endif ()
+
+    ## Configure Visual Studio solution
+    if (MSVC)
+        set_property(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}" PROPERTY VS_STARTUP_PROJECT ymir-sdl3)
+    endif ()
 endif ()

@@ -40,6 +40,7 @@ You can tune the build with following CMake options:
 - `Ymir_PGO` (`STRING`): PGO mode. Valid values are `OFF`, `GENERATE`, `USE`. Defaults to `OFF`.
 - `Ymir_PGO_DIR` (`PATH`): Directory where PGO profile data is written. Defaults to `${CMAKE_BINARY_DIR}/pgo-profdata`.
 - `Ymir_PGO_PROFDATA` (`FILEPATH`): Merged LLVM PGO profile data path. Defaults to `${Ymir_PGO_DIR}/ymir.profdata`.
+- `Ymir_LIBRARY_ONLY` (`BOOL`): Compiles `ymir-core` only, for use as a subproject in another CMake project. Defaults to `ON` if included as subproject, `OFF` otherwise.
 
 These options are used by the build workflows to tune the build output:
 

@@ -6,116 +6,408 @@
     "patch": 0
   },
   "configurePresets": [
+    // ---------------------------------------------------------------------------------------------
+    // Base configurations
     {
-      "name": "x64-Clang-Debug",
-      "displayName": "x64 Clang Debug",
-      "description": "Sets Ninja generator, Clang-CL compiler, x64 architecture, build and install directory, debug build type",
+      "name": "Base",
+      "displayName": "Base configuration",
+      "description": "Base configuration for all builds",
+      "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IMGUI_DEMO": "ON",
+        "Ymir_ENABLE_SANDBOX": "ON",
+        "Ymir_ENABLE_TESTS": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "OFF",
+        "Ymir_ENABLE_YMDASM": "ON",
+        "Ymir_LIBRARY_ONLY": "OFF"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+    {
+      "name": "LibOnly-Base",
+      "displayName": "Base configuration",
+      "description": "Base configuration for all library-only builds",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "Ymir_ENABLE_IMGUI_DEMO": "ON",
+        "Ymir_ENABLE_SANDBOX": "ON",
+        "Ymir_ENABLE_TESTS": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "OFF",
+        "Ymir_ENABLE_YMDASM": "ON",
+        "Ymir_LIBRARY_ONLY": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ]
+        }
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // Base x86-64 configurations
+    {
+      "name": "x64-Base",
+      "displayName": "x86-64 base configuration",
+      "description": "Base configuration for all x86-64 builds",
+      "hidden": true,
       "architecture": {
         "value": "x64",
         "strategy": "external"
-      },
+      }
+    },
+    {
+      "name": "x64-SSE2-Base",
+      "displayName": "x64 SSE2 (base configuration)",
+      "description": "Base configuration for all x86-64 builds with SSE2 support",
+      "hidden": true,
+      "inherits": [ "x64-Base" ],
+      "cacheVariables": {
+        "Ymir_AVX2": "OFF"
+      }
+    },
+    {
+      "name": "x64-AVX2-Base",
+      "displayName": "x64 AVX2 (base configuration)",
+      "description": "Base configuration for all x86-64 builds with AVX2 support",
+      "hidden": true,
+      "inherits": [ "x64-Base" ],
+      "cacheVariables": {
+        "Ymir_AVX2": "ON"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // Base Clang configurations
+    {
+      "name": "x64-Clang-Base",
+      "displayName": "x64 Clang (base configuration)",
+      "description": "Base configuration for Clang-based x86-64 builds",
+      "hidden": true,
+      "inherits": [ "x64-Base" ],
       "toolset": "ClangCL",
       "environment": {
         "CC": "clang-cl",
         "CXX": "clang-cl"
       },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ],
+          "intelliSenseMode": "windows-clang-x64"
+        }
+      }
+    },
+    {
+      "name": "x64-SSE2-Clang-Base",
+      "displayName": "x64 SSE2 Clang (base configuration)",
+      "description": "Base configuration for Clang-based x86-64 builds with SSE2 support",
+      "hidden": true,
+      "inherits": [ "x64-Clang-Base", "x64-SSE2-Base" ],
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-static-md",
+        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-static-md"
+      }
+    },
+    {
+      "name": "x64-AVX2-Clang-Base",
+      "displayName": "x64 AVX2 Clang (base configuration)",
+      "description": "Base configuration for Clang-based x86-64 builds with AVX2 support",
+      "hidden": true,
+      "inherits": [ "x64-Clang-Base", "x64-AVX2-Base" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-avx2-static-md"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // Base MSVC configurations
+    {
+      "name": "x64-MSVC-Base",
+      "displayName": "x64 MSVC (base configuration)",
+      "description": "Base configuration for MSVC-based x86-64 builds",
+      "hidden": true,
+      "inherits": [ "x64-Base" ],
+      "environment": {
+        "CC": "cl",
+        "CXX": "cl"
+      }
+    },
+    {
+      "name": "x64-SSE2-MSVC-Base",
+      "displayName": "x64 SSE2 MSVC (base configuration)",
+      "description": "Base configuration for MSVC-based x86-64 builds with SSE2 support",
+      "hidden": true,
+      "inherits": [ "x64-MSVC-Base", "x64-SSE2-Base" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+    {
+      "name": "x64-AVX2-MSVC-Base",
+      "displayName": "x64 AVX2 MSVC (base configuration)",
+      "description": "Base configuration for MSVC-based x86-64 builds with AVX2 support",
+      "hidden": true,
+      "inherits": [ "x64-MSVC-Base", "x64-AVX2-Base" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // Base build target presets
+    {
+      "name": "Debug-Base",
+      "displayName": "Debug (base configuration)",
+      "description": "Base configuration for Debug builds",
+      "hidden": true,
+      "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_AVX2": "ON",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ],
-          "intelliSenseMode": "windows-clang-x64"
-        }
+        "Ymir_ENABLE_DEVLOG": "ON",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_EXTRA_INLINING": "OFF"
       }
     },
     {
-      "name": "x64-Clang-Release",
-      "displayName": "x64 Clang Release",
-      "description": "Sets Ninja generator, Clang-CL compiler, x64 architecture, build and install directory, release build type",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "toolset": "ClangCL",
-      "environment": {
-        "CC": "clang-cl",
-        "CXX": "clang-cl"
-      },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "name": "Release-Base",
+      "displayName": "Release (base configuration)",
+      "description": "Base configuration for Release builds",
+      "hidden": true,
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-static-md",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_EXTRA_INLINING": "OFF",
-        "Ymir_AVX2": "ON",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ],
-          "intelliSenseMode": "windows-clang-x64"
-        }
+        "Ymir_ENABLE_DEVLOG": "ON",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_EXTRA_INLINING": "OFF"
       }
     },
     {
-      "name": "x64-Clang-Release-Dist-AVX2",
-      "displayName": "x64 Clang Release/Dist AVX2",
-      "description": "Sets Ninja generator, Clang-CL compiler, x64 architecture, build and install directory, distribution release build type",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "toolset": "ClangCL",
-      "environment": {
-        "CC": "clang-cl",
-        "CXX": "clang-cl"
-      },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "name": "Release-Dist-Base",
+      "displayName": "Release/Dist (base configuration)",
+      "description": "Base configuration for Release/Dist builds",
+      "hidden": true,
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-avx2-static-md",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
         "Ymir_ENABLE_DEV_ASSERTIONS": "OFF",
-        "Ymir_EXTRA_INLINING": "ON",
-        "Ymir_AVX2": "ON",
         "Ymir_ENABLE_DEVLOG": "OFF",
         "Ymir_ENABLE_IMGUI_DEMO": "OFF",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ],
-          "intelliSenseMode": "windows-clang-x64"
-        }
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_EXTRA_INLINING": "ON"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // x86-64 SSE2 Clang
+    {
+      "name": "x64-SSE2-Clang-Debug",
+      "displayName": "x64 SSE2 Clang Debug",
+      "description": "Debug configuration for x86-64 Clang with SSE2 support",
+      "inherits": [ "Base", "x64-SSE2-Clang-Base", "Debug-Base" ]
+    },
+    {
+      "name": "x64-SSE2-Clang-LibOnly-Debug",
+      "displayName": "x64 SSE2 Clang Debug (LibOnly)",
+      "description": "Library-only (ymir-core) Debug build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Debug-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
       }
     },
     {
-      "name": "x64-Clang-Release-Dist-AVX2-PGO-Generate",
+      "name": "x64-SSE2-Clang-Release",
+      "displayName": "x64 SSE2 Clang Release",
+      "description": "Release configuration for x86-64 Clang with SSE2 support",
+      "inherits": [ "Base", "x64-SSE2-Clang-Base", "Release-Base" ]
+    },
+    {
+      "name": "x64-SSE2-Clang-LibOnly-Release",
+      "displayName": "x64 SSE2 Clang Release (LibOnly)",
+      "description": "Library-only (ymir-core) Release build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+    {
+      "name": "x64-SSE2-Clang-Release-Dist",
+      "displayName": "x64 SSE2 Clang Release/Dist",
+      "description": "Release (distribution) configuration for x86-64 Clang with SSE2 support",
+      "inherits": [ "Base", "x64-SSE2-Clang-Base", "Release-Dist-Base" ]
+    },
+    {
+      "name": "x64-SSE2-Clang-LibOnly-Release-Dist",
+      "displayName": "x64 SSE2 Clang Release/Dist (LibOnly)",
+      "description": "Library-only (ymir-core) Release/Dist build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Dist-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // x86-64 AVX2 Clang
+    {
+      "name": "x64-AVX2-Clang-Debug",
+      "displayName": "x64 AVX2 Clang Debug",
+      "description": "Debug configuration for x86-64 Clang with AVX2 support",
+      "inherits": [ "Base", "x64-AVX2-Clang-Base", "Debug-Base" ]
+    },
+    {
+      "name": "x64-AVX2-Clang-Debug-LibOnly",
+      "displayName": "x64 AVX2 Clang Debug (LibOnly)",
+      "description": "Library-only (ymir-core) Debug build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Debug-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+    {
+      "name": "x64-AVX2-Clang-Release",
+      "displayName": "x64 AVX2 Clang Release",
+      "description": "Release configuration for x86-64 Clang with AVX2 support",
+      "inherits": [ "Base", "x64-AVX2-Clang-Base", "Release-Base" ]
+    },
+    {
+      "name": "x64-AVX2-Clang-Release-LibOnly",
+      "displayName": "x64 AVX2 Clang Release (LibOnly)",
+      "description": "Library-only (ymir-core) Release build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+    {
+      "name": "x64-AVX2-Clang-Release-Dist",
+      "displayName": "x64 AVX2 Clang Release/Dist",
+      "description": "Release (distribution) configuration for x86-64 Clang with AVX2 support",
+      "inherits": [ "Base", "x64-AVX2-Clang-Base", "Release-Dist-Base" ]
+    },
+    {
+      "name": "x64-AVX2-Clang-Release-Dist-LibOnly",
+      "displayName": "x64 AVX2 Clang Release/Dist (LibOnly)",
+      "description": "Library-only (ymir-core) Release/Dist build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Dist-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // x86-64 SSE2 MSVC
+    {
+      "name": "x64-SSE2-MSVC-Debug",
+      "displayName": "x64 SSE2 MSVC Debug",
+      "description": "Debug configuration for x86-64 MSVC with SSE2 support",
+      "inherits": [ "Base", "x64-SSE2-MSVC-Base", "Debug-Base" ]
+    },
+    {
+      "name": "x64-SSE2-MSVC-LibOnly-Debug",
+      "displayName": "x64 SSE2 MSVC Debug (LibOnly)",
+      "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Debug-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+    {
+      "name": "x64-SSE2-MSVC-Release",
+      "displayName": "x64 SSE2 MSVC Release",
+      "description": "Release configuration for x86-64 MSVC with SSE2 support",
+      "inherits": [ "Base", "x64-SSE2-MSVC-Base", "Release-Base" ]
+    },
+    {
+      "name": "x64-SSE2-MSVC-LibOnly-Release",
+      "displayName": "x64 SSE2 MSVC Release (LibOnly)",
+      "description": "Library-only (ymir-core) Release build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+    {
+      "name": "x64-SSE2-MSVC-Release-Dist",
+      "displayName": "x64 SSE2 MSVC Release/Dist",
+      "description": "Release (distribution) configuration for x86-64 MSVC with SSE2 support",
+      "inherits": [ "Base", "x64-SSE2-MSVC-Base", "Release-Dist-Base" ]
+    },
+    {
+      "name": "x64-SSE2-MSVC-LibOnly-Release-Dist",
+      "displayName": "x64 SSE2 MSVC Release/Dist (LibOnly)",
+      "description": "Library-only (ymir-core) Release/Dist build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Dist-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // x86-64 AVX2 Clang
+    {
+      "name": "x64-AVX2-MSVC-Debug",
+      "displayName": "x64 AVX2 MSVC Debug",
+      "description": "Debug configuration for x86-64 MSVC with AVX2 support",
+      "inherits": [ "Base", "x64-AVX2-MSVC-Base", "Debug-Base" ]
+    },
+    {
+      "name": "x64-AVX2-MSVC-Debug-LibOnly",
+      "displayName": "x64 AVX2 MSVC Debug (LibOnly)",
+      "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Debug-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+    {
+      "name": "x64-AVX2-MSVC-Release",
+      "displayName": "x64 AVX2 MSVC Release",
+      "description": "Release configuration for x86-64 MSVC with AVX2 support",
+      "inherits": [ "Base", "x64-AVX2-MSVC-Base", "Release-Base" ]
+    },
+    {
+      "name": "x64-AVX2-MSVC-Release-LibOnly",
+      "displayName": "x64 AVX2 MSVC Release (LibOnly)",
+      "description": "Library-only (ymir-core) Release build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+    {
+      "name": "x64-AVX2-MSVC-Release-Dist",
+      "displayName": "x64 AVX2 MSVC Release/Dist",
+      "description": "Release (distribution) configuration for x86-64 MSVC with AVX2 support",
+      "inherits": [ "Base", "x64-AVX2-MSVC-Base", "Release-Dist-Base" ]
+    },
+    {
+      "name": "x64-AVX2-MSVC-Release-Dist-LibOnly",
+      "displayName": "x64 AVX2 MSVC Release/Dist (LibOnly)",
+      "description": "Library-only (ymir-core) Release/Dist build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
+      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Dist-Base" ],
+      "cacheVariables": {
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    },
+
+    // ---------------------------------------------------------------------------------------------
+    // Specialized PGO configurations
+    {
+      "name": "x64-AVX2-Clang-Release-Dist-PGO-Generate",
       "displayName": "x64 Clang Release/Dist AVX2 PGO (Generate)",
-      "inherits": [ "x64-Clang-Release-Dist-AVX2" ],
+      "inherits": [ "x64-AVX2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "GENERATE",
@@ -126,9 +418,9 @@
       }
     },
     {
-      "name": "x64-Clang-Release-Dist-AVX2-PGO-Use",
+      "name": "x64-AVX2-Clang-Release-Dist-PGO-Use",
       "displayName": "x64 Clang Release/Dist AVX2 PGO (Use)",
-      "inherits": [ "x64-Clang-Release-Dist-AVX2" ],
+      "inherits": [ "x64-AVX2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "USE",
@@ -136,46 +428,9 @@
       }
     },
     {
-      "name": "x64-Clang-Release-Dist-SSE2",
-      "displayName": "x64 Clang Release/Dist SSE2",
-      "description": "Sets Ninja generator, Clang-CL compiler, x64 architecture, build and install directory, distribution release build type",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "toolset": "ClangCL",
-      "environment": {
-        "CC": "clang-cl",
-        "CXX": "clang-cl"
-      },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-static-md",
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "OFF",
-        "Ymir_EXTRA_INLINING": "ON",
-        "Ymir_AVX2": "OFF",
-        "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ],
-          "intelliSenseMode": "windows-clang-x64"
-        }
-      }
-    },
-    {
-      "name": "x64-Clang-Release-Dist-SSE2-PGO-Generate",
+      "name": "x64-SSE2-Clang-Release-Dist-PGO-Generate",
       "displayName": "x64 Clang Release/Dist SSE2 PGO (Generate)",
-      "inherits": [ "x64-Clang-Release-Dist-SSE2" ],
+      "inherits": [ "x64-SSE2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "GENERATE",
@@ -186,15 +441,18 @@
       }
     },
     {
-      "name": "x64-Clang-Release-Dist-SSE2-PGO-Use",
+      "name": "x64-SSE2-Clang-Release-Dist-PGO-Use",
       "displayName": "x64 Clang Release/Dist SSE2 PGO (Use)",
-      "inherits": [ "x64-Clang-Release-Dist-SSE2" ],
+      "inherits": [ "x64-SSE2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "USE",
         "Ymir_PGO_DIR": "${sourceDir}/out/pgo-profdata/windows/x86_64-SSE2"
       }
     },
+
+    // ---------------------------------------------------------------------------------------------
+    // ARM Clang configurations
     {
       "name": "a64-Clang-Debug",
       "displayName": "a64 Clang Debug",
@@ -264,141 +522,9 @@
         }
       }
     },
-    {
-      "name": "x64-MSVC-Debug",
-      "displayName": "x64 MSVC Debug",
-      "description": "Sets Ninja generator, MSVC compiler, x64 architecture, build and install directory, debug build type",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "environment": {
-        "CC": "cl",
-        "CXX": "cl"
-      },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_AVX2": "ON",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ]
-        }
-      }
-    },
-    {
-      "name": "x64-MSVC-Release",
-      "displayName": "x64 MSVC Release",
-      "description": "Sets Ninja generator, MSVC compiler, x64 architecture, build and install directory, release build type",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "environment": {
-        "CC": "cl",
-        "CXX": "cl"
-      },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_EXTRA_INLINING": "OFF",
-        "Ymir_AVX2": "ON",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ]
-        }
-      }
-    },
-    {
-      "name": "x64-MSVC-Release-Dist-AVX2",
-      "displayName": "x64 MSVC Release/Dist AVX2",
-      "description": "Sets Ninja generator, MSVC compiler, x64 architecture, build and install directory, distribution release build type",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "environment": {
-        "CC": "cl",
-        "CXX": "cl"
-      },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "OFF",
-        "Ymir_EXTRA_INLINING": "ON",
-        "Ymir_AVX2": "ON",
-        "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ]
-        }
-      }
-    },
-    {
-      "name": "x64-MSVC-Release-Dist-SSE2",
-      "displayName": "x64 MSVC Release/Dist SSE2",
-      "description": "Sets Ninja generator, MSVC compiler, x64 architecture, build and install directory, distribution release build type",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      },
-      "environment": {
-        "CC": "cl",
-        "CXX": "cl"
-      },
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "OFF",
-        "Ymir_EXTRA_INLINING": "ON",
-        "Ymir_AVX2": "OFF",
-        "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
-        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ]
-        }
-      }
-    },
+
+    // ---------------------------------------------------------------------------------------------
+    // Linux and macOS configurations
     {
       "name": "x64-Clang-Debug-Linux",
       "displayName": "x64 Clang Debug",
