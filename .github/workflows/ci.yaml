@@ -58,10 +58,12 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
       - name: Bootstrap vcpkg
+        if: ${{ matrix.build-set.library-only == 'no' }}
         shell: pwsh
         run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat
 
       - name: Add NuGet sources to vcpkg
+        if: ${{ matrix.build-set.library-only == 'no' }}
         shell: pwsh
         run: |
           .$(${{ env.VCPKG_EXE }} fetch nuget) `
@@ -163,10 +165,12 @@ jobs:
             autoconf autoconf-archive automake
 
       - name: Bootstrap vcpkg
+        if: ${{ matrix.build-set.library-only == 'no' }}
         shell: bash
         run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
 
       - name: Cache vcpkg
+        if: ${{ matrix.build-set.library-only == 'no' }}
         id: cache-vcpkg
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
@@ -252,9 +256,9 @@ jobs:
               libXfixes libXi libXrandr libXrender libXScrnSaver libXtst libglvnd \
               libinotify llvm21 ninja patchelf pkgconf python3 vulkan-loader zip
 
-            ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
-
             if [ ${{ matrix.build-set.library-only}} = 'no' ]; then
+              ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
+
               cmake -B ${{ steps.strings.outputs.build-output-dir }} \
                 -DCMAKE_BUILD_TYPE=Debug \
                 -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
@@ -322,10 +326,12 @@ jobs:
         run: brew install mono nuget
 
       - name: Bootstrap vcpkg
+        if: ${{ matrix.build-set.library-only == 'no' }}
         shell: bash
         run: ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
 
       - name: Add NuGet sources to vcpkg
+        if: ${{ matrix.build-set.library-only == 'no' }}
         shell: bash
         run: |
           nuget sources add \
