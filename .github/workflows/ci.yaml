@@ -183,6 +183,8 @@ jobs:
         run: |
           if [ ${{ matrix.build-set.library-only}} = 'no' ]; then
             cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+              -DCMAKE_CXX_COMPILER=clang++-18 \
+              -DCMAKE_C_COMPILER=clang-18 \
               -DCMAKE_BUILD_TYPE=Debug \
               -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
               -DBUILD_SHARED_LIBS=OFF \
@@ -197,6 +199,8 @@ jobs:
               -G Ninja
           else
             cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+              -DCMAKE_CXX_COMPILER=clang++-18 \
+              -DCMAKE_C_COMPILER=clang-18 \
               -DCMAKE_BUILD_TYPE=Debug \
               -DBUILD_SHARED_LIBS=OFF \
               -DYmir_ENABLE_DEVLOG=OFF \
