@@ -183,6 +183,7 @@ jobs:
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
           -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
           -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
+          -DYmir_LIBRARY_ONLY=OFF
           -S ${{ github.workspace }}
           -G Ninja
 
@@ -344,6 +345,7 @@ jobs:
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
           -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
           -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
+          -DYmir_LIBRARY_ONLY=OFF
           -S ${{ github.workspace }}
           -G Ninja
 
@@ -474,6 +476,7 @@ jobs:
           -DYmir_VERSION_BUILD=${{ inputs.build-version }}
           -DYmir_BUILD_TIMESTAMP=${{ needs.get-project-version.outputs.build-timestamp }}
           -DYmir_DEV_BUILD=${{ inputs.dev-build && 'ON' || 'OFF' }}
+          -DYmir_LIBRARY_ONLY=OFF
           -S ${{ github.workspace }}
           -G Ninja
 
