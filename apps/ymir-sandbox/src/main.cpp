@@ -12,7 +12,10 @@ int main(int argc, char **argv) {
     // runSH2PerfSandbox();
     // runDiscInfoExtractor(argc, argv);
     // runDeadlockTest(argc, argv);
-    runHostCDSandbox();
+    // runHostCDSandbox();
+    // runD3D12Sandbox();
+    // return runVulkanSandbox();
+    return runYmirGPUSandbox();
 
     return EXIT_SUCCESS;
 }

@@ -8,3 +8,6 @@ void runSH2PerfSandbox();
 void runDiscInfoExtractor(int argc, char **argv);
 void runDeadlockTest(int argc, char **argv);
 void runHostCDSandbox();
+void runD3D12Sandbox();
+int runVulkanSandbox();
+int runYmirGPUSandbox();

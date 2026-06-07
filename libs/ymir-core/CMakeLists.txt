@@ -25,6 +25,27 @@ add_library(ymir-core
     include/ymir/debug/watchpoint_defs.hpp
     include/ymir/debug/ygr_tracer_base.hpp
 
+    include/ymir/gpu/gpu.hpp
+    include/ymir/gpu/gpu_device_mgr.hpp
+    include/ymir/gpu/gpu_shaders.hpp
+
+    include/ymir/gpu/api/base/gpu_buffer.hpp
+    include/ymir/gpu/api/base/gpu_buffer_view.hpp
+    include/ymir/gpu/api/base/gpu_command_list.hpp
+    include/ymir/gpu/api/base/gpu_command_queue.hpp
+    include/ymir/gpu/api/base/gpu_device.hpp
+    include/ymir/gpu/api/base/gpu_object.hpp
+    include/ymir/gpu/api/base/gpu_surface.hpp
+    include/ymir/gpu/api/base/gpu_texture.hpp
+    include/ymir/gpu/api/base/gpu_texture_view.hpp
+
+    include/ymir/gpu/api/null/gpu_device_null.hpp
+
+    include/ymir/gpu/common/gpu_backend.hpp
+    include/ymir/gpu/common/gpu_defs.hpp
+    include/ymir/gpu/common/gpu_result.hpp
+    include/ymir/gpu/common/gpu_window_params.hpp
+
     include/ymir/hw/hw_defs.hpp
 
     include/ymir/hw/cart/cart_base.hpp
@@ -224,7 +245,9 @@ add_library(ymir-core
     include/ymir/util/lsn_denormals.hpp
     include/ymir/util/observable.hpp
     include/ymir/util/process.hpp
+    include/ymir/util/property_bag.hpp
     include/ymir/util/ratio.hpp
+    include/ymir/util/result.hpp
     include/ymir/util/scope_guard.hpp
     include/ymir/util/size_ops.hpp
     include/ymir/util/string.hpp
@@ -243,6 +266,8 @@ add_library(ymir-core
     src/ymir/db/game_db.cpp
     src/ymir/db/ipl_db.cpp
     src/ymir/db/rom_cart_db.cpp
+
+    src/ymir/gpu/gpu_device_mgr.cpp
 
     src/ymir/hw/cart/cart_impl_bup.cpp
     src/ymir/hw/cart/cart_slot.cpp
@@ -344,6 +369,64 @@ if (Ymir_FF_HOST_CD_DRIVES)
     endif ()
 else ()
     target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
+endif ()
+
+## Add GPU API implementations
+if (WIN32)
+    target_sources(ymir-core PRIVATE
+        include/ymir/gpu/api/d3d12/d3d12_descriptor_manager.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_buffer.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_command_list.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_command_queue.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_device.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_surface.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_texture.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_texture_view.hpp
+        include/ymir/gpu/api/d3d12/d3d12_params.hpp
+        include/ymir/gpu/api/d3d12/d3d12_types.hpp
+        include/ymir/gpu/api/d3d12/d3d12_utils.hpp
+
+        include/ymir/gpu/api/d3d12/helpers/d3d12_debug.hpp
+        include/ymir/gpu/api/d3d12/helpers/d3d12_descriptor_heap_allocator.hpp
+
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_commands.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_descriptor_heap.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_device.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_fence.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_object_wrapper.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_pipeline_state.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_resource.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_root_signature.hpp
+        include/ymir/gpu/api/d3d12/wrappers/d3d12_swap_chain.hpp
+
+        src/ymir/gpu/api/d3d12/d3d12_descriptor_manager.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_buffer.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_command_list.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_command_queue.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_device.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_surface.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_texture.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_texture_view.cpp
+
+        src/ymir/gpu/api/d3d12/helpers/d3d12_debug.cpp
+
+        src/ymir/gpu/gpu_shaders_windows.cpp
+    )
+    target_link_libraries(ymir-core PRIVATE WIL::WIL)
+elseif (APPLE)
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/gpu_shaders_macos.cpp
+    )
+elseif (UNIX) # Linux and FreeBSD
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/gpu_shaders_unixlike.cpp
+    )
+else ()
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/gpu_shaders_other.cpp
+    )
 endif ()
 
 ## Add dependencies
@@ -448,6 +531,13 @@ target_compile_definitions(ymir-core PUBLIC "TOML_EXCEPTIONS=0")
 ## Template:
 ## target_compile_definitions(ymir-core PUBLIC "Ymir_FF_[NAME]=$<BOOL:${Ymir_FF_[NAME]}>")
 target_compile_definitions(ymir-core PUBLIC "Ymir_FF_HOST_CD_DRIVES=$<BOOL:${Ymir_FF_HOST_CD_DRIVES}>")
+
+## Define OS-specific macros
+if (WIN32)
+    # These make including <Windows.h> a lot less invasive
+    target_compile_definitions(ymir-core PRIVATE WIN32_LEAN_AND_MEAN)
+    target_compile_definitions(ymir-core PRIVATE NOMINMAX)
+endif ()
 
 ## Generate the export header and attach it to the target
 include(GenerateExportHeader)

@@ -23,3 +23,6 @@
 [submodule "vendor/fmt"]
 	path = vendor/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "vendor/wil"]
+	path = vendor/wil
+	url = https://github.com/microsoft/wil.git

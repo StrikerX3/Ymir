@@ -52,6 +52,16 @@ add_subdirectory(xxHash EXCLUDE_FROM_ALL)
 message(STATUS "==> libchdr")
 add_subdirectory(libchdr)
 
+# wil - https://github.com/microsoft/wil
+if (WIN32)
+    message(STATUS "==> wil")
+    set(WIL_BUILD_PACKAGING OFF)
+    set(WIL_BUILD_TESTS OFF)
+    set(WIL_ENABLE_ASAN OFF)
+    set(WIL_ENABLE_UBSAN OFF)
+    add_subdirectory(wil)
+endif ()
+
 ####################################################################################################
 # Other dependencies
 

@@ -72,12 +72,27 @@ For a Release build, you might want to disable the devlog and ImGui demo window 
 It is highly recommended to use [Ninja](https://ninja-build.org/) as it greatly accelerates the build process, especially on machines with high CPU core counts.
 
 
+## Shader compilation
+
+HLSL shaders included in the library are automatically compiled using your platform's shader compiler (DXC on Windows and Linux<!-- TODO: other platforms -->).
+`#include` graphs are automatically tracked using CMake DEPFILE directives on supported generators (Ninja and Makefiles).
+On other generators, the build system falls back to manual generation and parsing of dependencies using DXC's `-MD` option, which results in snapshotting the graph at configuration time.
+In those cases, you will need to manually reconfigure the CMake project to update the dependency graph. A warning is issued if using an incompatible generator.
+
+
 ## Building on Windows
 
 To build Ymir on Windows, you will need [Visual Studio 2022 Community](https://visualstudio.microsoft.com/vs/community/) or later and [CMake 3.28+](https://cmake.org/).
 Clang is highly recommended over MSVC as it produces much higher quality code, outperforming MSVC by 50-80%. However, MSVC tends to provide a better debugging experience.
 
-All dependencies are included through `vcpkg` and in the `vendor` directory, and are built together with the emulator. No external dependencies are needed.
+You will also need to install the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home). You can do so by downloading and running the installer or with the following command:
+
+```sh
+winget install KhronosGroup.VulkanSDK
+```
+
+All other dependencies are included through `vcpkg` and in the `vendor` directory, and are built together with the emulator.
+The core library does not consume any vcpkg dependencies.
 
 You can choose to generate a .sln file with CMake or open the directory directly with Visual Studio.
 Both methods work, but opening the directory allows Visual Studio to use Ninja for significantly faster build times.
@@ -96,6 +111,8 @@ To build Ymir on Linux, first you will need to install SDL3's required dependenc
 You might also have to install additional packages:
 - `autoconf autoconf-archive automake libtool` for ALSA
 - `python3 python3-venv` for dbus
+
+You will also need to install the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home).
 
 The compiler of choice for this platform is Clang. GCC is also supported, but produces slightly slower code.
 

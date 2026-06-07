@@ -5,6 +5,7 @@ include(cmake/CMakeRC.cmake)
 include(cmake/CopyRuntimeDLLs.cmake)
 include(cmake/TargetConditionalSources.cmake)
 include(CMakeDependentOption)
+include(cmake/CompileHLSL.cmake)
 
 # CMake project structured adapted from Alex Reinking's SharedStaticStarter
 # GitHub: https://github.com/alexreinking/SharedStaticStarter

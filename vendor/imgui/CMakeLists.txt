@@ -4,6 +4,7 @@ add_library(imgui
 
 	imgui/imgui.cpp
 	imgui/imgui.h
+	imgui/imgui_demo.cpp
 	imgui/imgui_draw.cpp
 	imgui/imgui_internal.h
 	imgui/imgui_tables.cpp
@@ -19,14 +20,19 @@ add_library(imgui
 	#imgui/backends/imgui_impl_sdlgpu3_shaders.h
 	imgui/backends/imgui_impl_sdlrenderer3.cpp
 	imgui/backends/imgui_impl_sdlrenderer3.h
+	imgui/backends/imgui_impl_vulkan.cpp
+	imgui/backends/imgui_impl_vulkan.h
 	# TODO: add other backends as needed
 
 	imgui/misc/cpp/imgui_stdlib.cpp
 	imgui/misc/cpp/imgui_stdlib.h
 )
-if (Ymir_ENABLE_IMGUI_DEMO)
-	target_sources(imgui PRIVATE
-		imgui/imgui_demo.cpp
+if (WIN32)
+	target_sources(imgui
+		PRIVATE
+			imgui/backends/imgui_impl_dx12.cpp
+		PUBLIC
+			imgui/backends/imgui_impl_dx12.h
 	)
 endif ()
 
@@ -49,5 +55,9 @@ target_compile_features(imgui PUBLIC cxx_std_20)
 target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="ymir_imconfig.h")
 
 find_package(SDL3 CONFIG REQUIRED)
+find_package(Vulkan REQUIRED)
 
-target_link_libraries(imgui PRIVATE SDL3::SDL3)
+target_link_libraries(imgui PRIVATE
+	SDL3::SDL3
+	Vulkan::Vulkan
+)
