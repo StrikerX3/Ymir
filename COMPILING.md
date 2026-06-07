@@ -21,6 +21,7 @@ Ymir has been successfully compiled with the following toolchains:
 The project has been compiled for x86_64 and ARM64 Windows, Linux, FreeBSD and macOS platforms.
 
 Clang is the preferred compiler for its multiplatform support and excellent code generation. Ymir requires Clang 15 or later.
+Ninja is the preferred build system for its speed and feature support. Makefiles are also acceptable.
 
 
 ## Build configuration
