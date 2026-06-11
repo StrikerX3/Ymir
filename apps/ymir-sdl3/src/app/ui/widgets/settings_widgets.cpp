@@ -52,6 +52,25 @@ namespace settings::system {
         }
     }
 
+    void SH2Overclock(SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        int factor = settings.system.sh2OverclockFactor.Get();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("SH-2 cycle rate");
+        widgets::ExplanationTooltip(
+            "WARNING: May break games, desync audio, or cause crashes.\n"
+            "Use with caution!\n\n"
+            "Adjusts the cycle rate of the SH-2 CPUs.\n"
+            "Can improve emulated/guest game performance and reduce slowdowns in CPU-intensive games.",
+            ctx.displayScale);
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(-1.0f);
+        if (settings.MakeDirty(
+                ImGui::SliderInt("##sh2_overclock", &factor, 100, 300, "%d%%", ImGuiSliderFlags_AlwaysClamp))) {
+            settings.system.sh2OverclockFactor = factor;
+        }
+    }
+
 } // namespace settings::system
 
 namespace settings::video {

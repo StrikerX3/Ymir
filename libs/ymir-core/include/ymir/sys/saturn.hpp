@@ -197,6 +197,12 @@ struct Saturn {
         return m_emulateSH2Caches;
     }
 
+    /// @brief Sets the SH-2 overclock factor.
+    /// @param[in] factor the overclock percentage (100 = normal speed)
+    void SetSH2OverclockFactor(uint32 factor) {
+        configuration.system.sh2OverclockFactor = factor;
+    }
+
     /// @brief Runs the emulator until the end of the current frame using the current settings.
     ///
     /// The implementation of the function depends on the following parameters:
@@ -380,6 +386,10 @@ private:
     /// @brief Updates the SH-2 cache emulation setting and the `RunFrameFn()` pointer.
     /// @param[in] enabled whether to enable SH-2 cache emulation
     void UpdateSH2CacheEmulation(bool enabled);
+
+    /// @brief Updates the SH-2 overclock factor and updates system clock ratios.
+    /// @param[in] factor the new overclock percentage
+    void UpdateSH2OverclockFactor(uint32 factor);
 
     /// @brief Updates the video standard to emulate and adjusts clock ratios across the system's components.
     /// @param[in] videoStandard the new video standard

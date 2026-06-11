@@ -132,10 +132,11 @@ void SystemSettingsView::Display() {
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
-    ImGui::SeparatorText("Accuracy");
+    ImGui::SeparatorText("SH-2");
     ImGui::PopFont();
 
     widgets::settings::system::EmulateSH2Cache(m_context);
+    widgets::settings::system::SH2Overclock(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 
