@@ -22,6 +22,7 @@ Introduced save state file version 13.
     - Previously set watchpoints will be migrated to the new format automatically. 16-bit watchpoints are converted to two consecutive watchpoints, and 32-bit watchpoints are converted to four consecutive watchpoints.
     - 16-bit and 32-bit accesses will now trigger watchpoints on any byte accessed by them. For example, a read watchpoint set on 6010003 will be triggered by 8-bit reads from 6010003, 16-bit reads from 6010002 or 32-bit reads from 6010000.
     - When a watchpoint is triggered, Ymir will now display the address and size of the access and which watchpoints were triggered.
+- SCSP: Added Threaded SCSP option, bringing a decent performance boost in nearly all situations. (#3, #896; @SternXD)
 - SCU: Optimize DSP operations involving 48-bit registers.
 - SH2: Decode opcode arguments directly in instruction handlers for better performance.
 - SH2: Fetch pairs of instructions using 32-bit accesses, more closely matching the behavior of the real SH7095. Improves overall emulation accuracy and slightly boosts performance on SH2-bound games.
