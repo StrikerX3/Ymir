@@ -13,17 +13,27 @@ namespace ymir::sys {
 struct System {
     core::config::sys::VideoStandard videoStandard = core::config::sys::VideoStandard::NTSC;
     ClockSpeed clockSpeed = ClockSpeed::_320;
+    uint32 sh2OverclockFactor = 100;
 
     const ClockRatios &GetClockRatios() const {
-        const bool clock352 = clockSpeed == ClockSpeed::_352;
-        const bool pal = videoStandard == core::config::sys::VideoStandard::PAL;
-        return kClockRatios[(pal << 1) | (clock352 << 0)];
+        return m_activeClockRatios;
     }
 
     void UpdateClockRatios() {
-        const ClockRatios &clockRatios = GetClockRatios();
+        const bool clock352 = clockSpeed == ClockSpeed::_352;
+        const bool pal = videoStandard == core::config::sys::VideoStandard::PAL;
+        const ClockRatios &baseRatios = kClockRatios[(pal << 1) | (clock352 << 0)];
+
+        m_activeClockRatios = baseRatios;
+        if (sh2OverclockFactor != 100) {
+            m_activeClockRatios.SCSPDen = m_activeClockRatios.SCSPDen * sh2OverclockFactor / 100;
+            m_activeClockRatios.CDBlockDen = m_activeClockRatios.CDBlockDen * sh2OverclockFactor / 100;
+            m_activeClockRatios.SMPCDen = m_activeClockRatios.SMPCDen * sh2OverclockFactor / 100;
+            m_activeClockRatios.RTCDen = m_activeClockRatios.RTCDen * sh2OverclockFactor / 100;
+        }
+
         for (auto &cb : m_clockSpeedChangeCallbacks) {
-            cb(clockRatios);
+            cb(m_activeClockRatios);
         }
     }
 
@@ -58,6 +68,7 @@ struct System {
     }
 
 private:
+    ClockRatios m_activeClockRatios = kClockRatios[0];
     std::vector<CBClockSpeedChange> m_clockSpeedChangeCallbacks;
 };
 

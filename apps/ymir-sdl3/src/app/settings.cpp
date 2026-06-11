@@ -998,6 +998,7 @@ void Settings::ResetToDefaults() {
     system.videoStandard = config::sys::VideoStandard::NTSC;
 
     system.emulateSH2Cache = false;
+    system.sh2OverclockFactor = 100;
 
     system.ipl.overrideImage = false;
     system.ipl.path = "";
@@ -1106,6 +1107,8 @@ void Settings::BindConfiguration(ymir::core::Configuration &config) {
     system.autodetectRegion.Observe(config.system.autodetectRegion);
     system.preferredRegionOrder.Observe([&](auto value) { config.system.preferredRegionOrder = value; });
     system.videoStandard.Observe([&](auto value) { config.system.videoStandard = value; });
+    system.sh2OverclockFactor.ObserveAndNotify(
+        [&](auto value) { m_context.EnqueueEvent(events::emu::SetSH2OverclockFactor(value)); });
 
     system.rtc.mode.Observe([&](auto value) { config.rtc.mode = value; });
     system.rtc.virtHardResetStrategy.Observe([&](auto value) { config.rtc.virtHardResetStrategy = value; });
@@ -1218,6 +1221,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblSystem, "AutoDetectRegion", system.autodetectRegion);
         Parse(tblSystem, "PreferredRegionOrder", system.preferredRegionOrder);
         Parse(tblSystem, "EmulateSH2Cache", system.emulateSH2Cache);
+        Parse(tblSystem, "SH2OverclockFactor", system.sh2OverclockFactor);
         Parse(tblSystem, "InternalBackupRAMImagePath", system.internalBackupRAMImagePath);
         Parse(tblSystem, "InternalBackupRAMPerGame", system.internalBackupRAMPerGame);
         system.internalBackupRAMImagePath = Absolute(ProfilePath::PersistentState, system.internalBackupRAMImagePath);
@@ -1844,6 +1848,7 @@ SettingsSaveResult Settings::Save() {
             {"AutoDetectRegion", system.autodetectRegion.Get()},
             {"PreferredRegionOrder", ToTOML(system.preferredRegionOrder.Get())},
             {"EmulateSH2Cache", system.emulateSH2Cache},
+            {"SH2OverclockFactor", system.sh2OverclockFactor.Get()},
             {"InternalBackupRAMImagePath", Proximate(ProfilePath::PersistentState, system.internalBackupRAMImagePath).native()},
             {"InternalBackupRAMPerGame", system.internalBackupRAMPerGame},
 

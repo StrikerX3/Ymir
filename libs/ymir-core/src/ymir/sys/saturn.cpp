@@ -159,6 +159,7 @@ Saturn::Saturn()
         [&](const std::vector<core::config::sys::Region> &regions) { UpdatePreferredRegionOrder(regions); });
     configuration.system.debugTracing.Observe([&](bool enabled) { UpdateDebugTracing(enabled); });
     configuration.system.emulateSH2Cache.Observe([&](bool enabled) { UpdateSH2CacheEmulation(enabled); });
+    configuration.system.sh2OverclockFactor.Observe([&](uint32 factor) { UpdateSH2OverclockFactor(factor); });
     configuration.system.videoStandard.Observe(
         [&](core::config::sys::VideoStandard videoStandard) { UpdateVideoStandard(videoStandard); });
     configuration.cdblock.useLLE.Observe([&](bool enabled) { SetCDBlockLLE(enabled); });
@@ -810,6 +811,11 @@ void Saturn::UpdateSH2CacheEmulation(bool enabled) {
     }
     m_emulateSH2Caches = enabled;
     UpdateFunctionPointers();
+}
+
+void Saturn::UpdateSH2OverclockFactor(uint32 factor) {
+    m_system.sh2OverclockFactor = factor;
+    m_system.UpdateClockRatios();
 }
 
 void Saturn::UpdateVideoStandard(core::config::sys::VideoStandard videoStandard) {

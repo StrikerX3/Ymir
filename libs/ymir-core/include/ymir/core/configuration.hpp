@@ -56,6 +56,12 @@ struct Configuration {
         ///
         /// Enabling this option incurs a small performance penalty and purges all SH-2 caches.
         util::Observable<bool> emulateSH2Cache = false;
+
+        /// @brief SH-2 overclock factor as a percentage (100 = 1.0x speed).
+        ///
+        /// Adjusts the cycle rate of the SH-2 CPUs, which may help reduce internal slowdowns
+        /// and lag in CPU-heavy games.
+        util::Observable<uint32> sh2OverclockFactor = 100;
     } system;
 
     /// @brief RTC configuration

@@ -11,6 +11,10 @@ VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
     , m_scheduler(scheduler) {
 
     config.system.videoStandard.Observe([this](VideoStandard videoStandard) { SetVideoStandard(videoStandard); });
+    config.system.sh2OverclockFactor.Observe([this](uint32) {
+        m_state.regs2.TVMDDirty = true;
+        UpdateResolution<false>();
+    });
     config.video.threadedVDP1.Observe([this](bool value) {
         if (auto *renderer = m_renderer->As<VDPRendererType::Software>()) {
             renderer->EnableThreadedVDP1(value);
@@ -676,10 +680,11 @@ void VDP::UpdateResolution() {
                                   : vTimingsNormal[m_state.regs2.TVSTAT.PAL][m_state.regs2.TVMD.VRESOn];
     m_VTimingField = static_cast<uint32>(interlaced) & m_state.regs2.TVSTAT.ODD;
 
-    // Adjust for dot clock
+    // Adjust for dot clock and for SH-2 overclocking
     const uint32 dotClockMult = (m_state.regs2.TVMD.HRESOn & 2) ? 2 : 4;
+    const uint32 overclockFactor = m_config.system.sh2OverclockFactor;
     for (auto &timing : m_HTimings) {
-        timing *= dotClockMult;
+        timing = timing * dotClockMult * overclockFactor / 100;
     }
 
     // Compute cycles available for VBlank erase
@@ -706,7 +711,7 @@ void VDP::UpdateResolution() {
     }};
     static constexpr auto kVPActiveIndex = static_cast<uint32>(VerticalPhase::Active);
     static constexpr auto kVPLastLineIndex = static_cast<uint32>(VerticalPhase::LastLine);
-    m_VBlankEraseCyclesPerLine = kVBEHorzTimings[m_state.regs2.TVMD.HRESOn];
+    m_VBlankEraseCyclesPerLine = kVBEHorzTimings[m_state.regs2.TVMD.HRESOn] * overclockFactor / 100;
     m_VBlankEraseLines = {
         m_VTimings[0][kVPLastLineIndex] - m_VTimings[0][kVPActiveIndex],
         m_VTimings[1][kVPLastLineIndex] - m_VTimings[1][kVPActiveIndex],

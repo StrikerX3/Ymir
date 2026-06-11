@@ -7,6 +7,7 @@ namespace app::ui::widgets {
 namespace settings::system {
 
     void EmulateSH2Cache(SharedContext &ctx);
+    void SH2Overclock(SharedContext &ctx);
 
 } // namespace settings::system
 

@@ -558,6 +558,10 @@ EmuEvent SetEmulateSH2Cache(bool enable) {
     });
 }
 
+EmuEvent SetSH2OverclockFactor(uint32 factor) {
+    return RunFunction([=](SharedContext &ctx) { ctx.saturn.instance->SetSH2OverclockFactor(factor); });
+}
+
 EmuEvent SetCDBlockLLE(bool enable) {
     return RunFunction([=](SharedContext &ctx) {
         ctx.saturn.instance->configuration.cdblock.useLLE = enable;
