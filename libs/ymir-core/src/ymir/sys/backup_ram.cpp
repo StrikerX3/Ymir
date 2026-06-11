@@ -649,7 +649,7 @@ std::vector<uint16> BackupMemory::ReadBlockList(uint16 blockIndex) const {
         }
         if (nextBlock >= totalBlocks) {
             // Invalid block index
-            continue;
+            break;
         }
 
         blockList.push_back(nextBlock);

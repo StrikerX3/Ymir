@@ -9,7 +9,7 @@ Introduced save state file version 13.
 ### New features and improvements
 
 - App: Added action to reload save states from disk to the File menu.
-- App: Added M PLUS U font for Japanese text support.
+- App: Added M PLUS U font for Japanese text support and convert Japanese backup RAM text to the appropriate characters. (#18)
 - App: Added option to show/hide game name from window title bar.
 - App: Added option to show/hide performance indicators from window title bar.
 - App: Added Message History window, listing up to 10000 messages.
