@@ -2,6 +2,9 @@
 
 #include <ymir/sys/clocks.hpp>
 
+#include <ymir/util/scope_guard.hpp>
+#include <ymir/util/thread_name.hpp>
+
 #include <algorithm>
 #include <limits>
 #include <ostream>
@@ -43,7 +46,9 @@ SCSP::SCSP(core::Scheduler &scheduler, core::Configuration::Audio &config)
     config.interpolation.Observe(m_interpMode);
     config.threadedSCSP.Observe([&](bool value) { EnableThreading(value); });
 
-    m_sampleTickEvent = m_scheduler.RegisterEvent(core::events::SCSPSample, this, OnSampleTickEvent<false>);
+    m_sampleTickEvent =
+        m_scheduler.RegisterEvent(core::events::SCSPSample, this,
+                                  m_threadedSCSP ? OnSampleTickEvent<false, true> : OnSampleTickEvent<false, false>);
 
     for (uint32 i = 0; i < 32; i++) {
         m_slots[i].index = i;
@@ -52,7 +57,19 @@ SCSP::SCSP(core::Scheduler &scheduler, core::Configuration::Audio &config)
     Reset(true);
 }
 
+SCSP::~SCSP() {
+    if (m_scspThread.joinable()) {
+        m_threadRunning = false;
+        m_wakeSCSPEvent.Set();
+        m_scspThread.join();
+    }
+}
+
 void SCSP::Reset(bool hard) {
+    if (m_threadedSCSP) {
+        SyncSCSPThread();
+    }
+
     m_WRAM.fill(0);
 
     m_midiInputBuffer.fill(0);
@@ -121,13 +138,60 @@ void SCSP::Reset(bool hard) {
     m_soundStackIndex = 0;
 
     m_dsp.Reset();
+
+    m_emulatorSampleCounter = 0;
+    m_processedSampleCounter = 0;
+    m_syncTargetSample = 0;
+    m_lastSyncedSample = 0;
+    m_writesEnqueued = 0;
+    m_writesApplied = 0;
+
+    // Clear write queue
+    WriteEvent dummy;
+    while (m_writeQueue.try_dequeue(dummy)) {
+    }
+    m_peekedWriteEvent.reset();
+
+    m_wakeSCSPEvent.Reset();
+    m_syncResponseEvent.Reset();
+
+    m_scspInterruptLevel = false;
+    m_lastSCSPInterruptLevel = false;
+}
+
+void SCSP::MapMemoryDirect(sys::SH2Bus &bus) {
+    bus.MapArray(0x5A0'0000, 0x5A7'FFFF, m_WRAM, true);
+}
+
+void SCSP::MapMemoryThreaded(sys::SH2Bus &bus) {
+    static constexpr auto cast = [](void *ctx) -> SCSP & { return *static_cast<SCSP *>(ctx); };
+
+    bus.MapBoth(
+        0x5A0'0000, 0x5A7'FFFF, this,
+        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).ReadWRAMThreaded<uint8>(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).ReadWRAMThreaded<uint16>(address); },
+        [](uint32 address, void *ctx) -> uint32 {
+            uint32 value = cast(ctx).ReadWRAMThreaded<uint16>(address + 0) << 16u;
+            value |= cast(ctx).ReadWRAMThreaded<uint16>(address + 2) << 0u;
+            return value;
+        },
+        [](uint32 address, uint8 value, void *ctx) { cast(ctx).WriteWRAMThreaded<uint8>(address, value); },
+        [](uint32 address, uint16 value, void *ctx) { cast(ctx).WriteWRAMThreaded<uint16>(address, value); },
+        [](uint32 address, uint32 value, void *ctx) {
+            cast(ctx).WriteWRAMThreaded<uint16>(address + 0, value >> 16u);
+            cast(ctx).WriteWRAMThreaded<uint16>(address + 2, value >> 0u);
+        });
 }
 
 void SCSP::MapMemory(sys::SH2Bus &bus) {
+    m_bus = &bus;
     static constexpr auto cast = [](void *ctx) -> SCSP & { return *static_cast<SCSP *>(ctx); };
 
-    // WRAM
-    bus.MapArray(0x5A0'0000, 0x5A7'FFFF, m_WRAM, true);
+    if (m_threadedSCSP) {
+        MapMemoryThreaded(bus);
+    } else {
+        MapMemoryDirect(bus);
+    }
 
     // Unused hole
     bus.MapBoth(
@@ -142,18 +206,18 @@ void SCSP::MapMemory(sys::SH2Bus &bus) {
     // Registers
     bus.MapNormal(
         0x5B0'0000, 0x5BF'FFFF, this,
-        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).ReadReg<uint8>(address); },
-        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).ReadReg<uint16>(address); },
+        [](uint32 address, void *ctx) -> uint8 { return cast(ctx).ReadRegBus<uint8>(address); },
+        [](uint32 address, void *ctx) -> uint16 { return cast(ctx).ReadRegBus<uint16>(address); },
         [](uint32 address, void *ctx) -> uint32 {
-            uint32 value = cast(ctx).ReadReg<uint16>(address + 0) << 16u;
-            value |= cast(ctx).ReadReg<uint16>(address + 2) << 0u;
+            uint32 value = cast(ctx).ReadRegBus<uint16>(address + 0) << 16u;
+            value |= cast(ctx).ReadRegBus<uint16>(address + 2) << 0u;
             return value;
         },
-        [](uint32 address, uint8 value, void *ctx) { cast(ctx).WriteReg<uint8>(address, value); },
-        [](uint32 address, uint16 value, void *ctx) { cast(ctx).WriteReg<uint16>(address, value); },
+        [](uint32 address, uint8 value, void *ctx) { cast(ctx).WriteRegBus<uint8>(address, value); },
+        [](uint32 address, uint16 value, void *ctx) { cast(ctx).WriteRegBus<uint16>(address, value); },
         [](uint32 address, uint32 value, void *ctx) {
-            cast(ctx).WriteReg<uint16>(address + 0, value >> 16u);
-            cast(ctx).WriteReg<uint16>(address + 2, value >> 0u);
+            cast(ctx).WriteRegBus<uint16>(address + 0, value >> 16u);
+            cast(ctx).WriteRegBus<uint16>(address + 2, value >> 0u);
         });
 
     bus.MapSideEffectFree(
@@ -191,6 +255,15 @@ void SCSP::SetDebugTracing(bool enable) {
 }
 
 uint32 SCSP::ReceiveCDDA(std::span<uint8, 2352> data) {
+    if (m_threadedSCSP) {
+        m_cddaMutex.lock();
+    }
+    util::ScopeGuard sgUnlock{[&] {
+        if (m_threadedSCSP) {
+            m_cddaMutex.unlock();
+        }
+    }};
+
     std::copy_n(data.begin(), 2352, m_cddaBuffer.begin() + m_cddaWritePos);
     m_cddaWritePos = (m_cddaWritePos + 2352) % m_cddaBuffer.size();
     sint32 len = static_cast<sint32>(m_cddaWritePos) - m_cddaReadPos;
@@ -204,6 +277,15 @@ uint32 SCSP::ReceiveCDDA(std::span<uint8, 2352> data) {
 }
 
 void SCSP::ReceiveMidiInput(MidiMessage &msg) {
+    if (m_threadedSCSP) {
+        m_midiQueueMutex.lock();
+    }
+    util::ScopeGuard sgUnlock{[&] {
+        if (m_threadedSCSP) {
+            m_midiQueueMutex.unlock();
+        }
+    }};
+
     // if we reset, and this is the first message received, ignore delta time & play now
     if (m_nextMidiTime != 0) {
         m_nextMidiTime += (uint64)(msg.deltaTime * kAudioFreq);
@@ -226,7 +308,17 @@ void SCSP::ReceiveMidiInput(MidiMessage &msg) {
     m_midiInputQueue.push(QueuedMidiMessage(m_nextMidiTime, std::move(msg.payload)));
 }
 
+template <bool threaded>
 void SCSP::ProcessMidiInputQueue() {
+    if constexpr (threaded) {
+        m_midiQueueMutex.lock();
+    }
+    util::ScopeGuard sgUnlock{[&] {
+        if constexpr (threaded) {
+            m_midiQueueMutex.unlock();
+        }
+    }};
+
     // TODO: I believe MIDI stuff is *supposed* to trigger interrupts...
     // however there are no commercial games relying on this behavior, so it should be fine for now.
 
@@ -341,6 +433,7 @@ void SCSP::SetCPUEnabled(bool enabled) {
 }
 
 void SCSP::SaveState(savestate::SCSPSaveState &state) const {
+    const_cast<SCSP *>(this)->SyncSCSPThread();
     state.WRAM = m_WRAM;
     state.cddaBuffer = m_cddaBuffer;
     state.cddaReadPos = m_cddaReadPos;
@@ -448,6 +541,9 @@ bool SCSP::ValidateState(const savestate::SCSPSaveState &state) const {
 }
 
 void SCSP::LoadState(const savestate::SCSPSaveState &state) {
+    if (m_threadedSCSP) {
+        SyncSCSPThread();
+    }
     m_WRAM = state.WRAM;
     m_cddaBuffer = state.cddaBuffer;
     m_cddaReadPos = state.cddaReadPos % m_cddaBuffer.size();
@@ -512,27 +608,54 @@ void SCSP::LoadState(const savestate::SCSPSaveState &state) {
     m_midiOutputSize = state.midiOutputSize;
     m_expectedOutputPacketSize = state.expectedOutputPacketSize;
 
+    m_emulatorSampleCounter = m_sampleCounter.load();
+    m_processedSampleCounter = m_sampleCounter.load();
+    m_syncTargetSample = m_sampleCounter.load();
+    m_lastSyncedSample = m_sampleCounter.load();
+    m_writesEnqueued = 0;
+    m_writesApplied = 0;
+
+    // Clear write queue
+    WriteEvent dummy;
+    while (m_writeQueue.try_dequeue(dummy)) {
+    }
+    m_peekedWriteEvent.reset();
+
+    m_wakeSCSPEvent.Reset();
+    m_syncResponseEvent.Reset();
+
+    m_scspInterruptLevel = (m_scuPendingInterrupts & m_scuEnabledInterrupts) != 0;
+    m_lastSCSPInterruptLevel = m_scspInterruptLevel;
+
     // Realign the tick event if the save state was using a more granular slot step
     if (m_stepGranularity <= 5u && (m_currSlot & ((1u << m_stepGranularity) - 1u)) != 0) {
         UpdateStepFunction();
     }
 }
 
-template <uint32 stepShift, bool debug>
+template <uint32 stepShift, bool debug, bool threaded>
 void SCSP::OnSlotTickEvent(core::EventContext &eventContext, void *userContext) {
     auto &scsp = *static_cast<SCSP *>(userContext);
-    scsp.TickSlots<stepShift, debug>();
+    if constexpr (threaded) {
+        scsp.TickSlotsThreaded<stepShift>();
+    } else {
+        scsp.TickSlots<stepShift, debug>();
+    }
     eventContext.Reschedule(kCyclesPerSlot << stepShift);
 }
 
-template <bool debug>
+template <bool debug, bool threaded>
 void SCSP::OnSampleTickEvent(core::EventContext &eventContext, void *userContext) {
     auto &scsp = *static_cast<SCSP *>(userContext);
-    scsp.TickSample<debug>();
+    if constexpr (threaded) {
+        scsp.TickSampleThreaded();
+    } else {
+        scsp.TickSample<debug, false>();
+    }
     eventContext.Reschedule(kCyclesPerSample);
 }
 
-template <uint32 newStepShift, bool debug>
+template <uint32 newStepShift, bool debug, bool threaded>
 void SCSP::OnTransitionalTickEvent(core::EventContext &eventContext, void *userContext) {
     static_assert(newStepShift <= 5u, "newStepShift must be at most 5 (32 slots)");
 
@@ -543,10 +666,11 @@ void SCSP::OnTransitionalTickEvent(core::EventContext &eventContext, void *userC
     if ((scsp.m_currSlot & kSlotIndexMask) == 0) {
         // Aligned; switch to the bigger tick event
         if constexpr (newStepShift == 5u) {
-            scsp.m_scheduler.SetEventCallback(scsp.m_sampleTickEvent, &scsp, OnSampleTickEvent<debug>);
+            scsp.m_scheduler.SetEventCallback(scsp.m_sampleTickEvent, &scsp, OnSampleTickEvent<debug, threaded>);
             eventContext.Reschedule(kCyclesPerSample);
         } else {
-            scsp.m_scheduler.SetEventCallback(scsp.m_sampleTickEvent, &scsp, OnSlotTickEvent<newStepShift, debug>);
+            scsp.m_scheduler.SetEventCallback(scsp.m_sampleTickEvent, &scsp,
+                                              OnSlotTickEvent<newStepShift, debug, threaded>);
             eventContext.Reschedule(kCyclesPerSlot << newStepShift);
         }
     } else {
@@ -567,26 +691,52 @@ void SCSP::SetStepGranularity(uint32 granularity) {
             const uint64 newTarget = target - (kCyclesPerSlot << m_stepGranularity) + (kCyclesPerSlot << granularity);
             m_scheduler.ScheduleAt(m_sampleTickEvent, newTarget);
 
-            core::Scheduler::EventCallback callback;
-            switch (granularity) {
-            case 0u: callback = GetSlotTickEvent<0u>(); break;
-            case 1u: callback = (m_currSlot & 0x1) ? GetTransitionalTickEvent<1u>() : GetSlotTickEvent<1u>(); break;
-            case 2u: callback = (m_currSlot & 0x3) ? GetTransitionalTickEvent<2u>() : GetSlotTickEvent<2u>(); break;
-            case 3u: callback = (m_currSlot & 0x7) ? GetTransitionalTickEvent<3u>() : GetSlotTickEvent<3u>(); break;
-            case 4u: callback = (m_currSlot & 0xF) ? GetTransitionalTickEvent<4u>() : GetSlotTickEvent<4u>(); break;
-            default: util::unreachable();
+            if (!m_threadedSCSP) {
+                core::Scheduler::EventCallback callback;
+                switch (granularity) {
+                case 0u: callback = GetSlotTickEvent<0u, false>(); break;
+                case 1u:
+                    callback =
+                        (m_currSlot & 0x1) ? GetTransitionalTickEvent<1u, false>() : GetSlotTickEvent<1u, false>();
+                    break;
+                case 2u:
+                    callback =
+                        (m_currSlot & 0x3) ? GetTransitionalTickEvent<2u, false>() : GetSlotTickEvent<2u, false>();
+                    break;
+                case 3u:
+                    callback =
+                        (m_currSlot & 0x7) ? GetTransitionalTickEvent<3u, false>() : GetSlotTickEvent<3u, false>();
+                    break;
+                case 4u:
+                    callback =
+                        (m_currSlot & 0xF) ? GetTransitionalTickEvent<4u, false>() : GetSlotTickEvent<4u, false>();
+                    break;
+                default: util::unreachable();
+                }
+                m_scheduler.SetEventCallback(m_sampleTickEvent, this, callback);
             }
-            m_scheduler.SetEventCallback(m_sampleTickEvent, this, callback);
         } else {
             // Going from smaller to larger steps requires the slot counter to be realigned.
             // Luckily, we don't need to reschedule it.
-            switch (granularity) {
-            case 1u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<1u>()); break;
-            case 2u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<2u>()); break;
-            case 3u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<3u>()); break;
-            case 4u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<4u>()); break;
-            case 5u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<5u>()); break;
-            default: util::unreachable();
+            if (!m_threadedSCSP) {
+                switch (granularity) {
+                case 1u:
+                    m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<1u, false>());
+                    break;
+                case 2u:
+                    m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<2u, false>());
+                    break;
+                case 3u:
+                    m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<3u, false>());
+                    break;
+                case 4u:
+                    m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<4u, false>());
+                    break;
+                case 5u:
+                    m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<5u, false>());
+                    break;
+                default: util::unreachable();
+                }
             }
         }
         m_stepGranularity = granularity;
@@ -594,24 +744,54 @@ void SCSP::SetStepGranularity(uint32 granularity) {
 }
 
 void SCSP::UpdateStepFunction() {
+    if (m_threadedSCSP) {
+        m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetSampleTickEvent<true>());
+        return;
+    }
     switch (m_stepGranularity) {
-    case 0u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetSlotTickEvent<0u>()); break;
-    case 1u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<1u>()); break;
-    case 2u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<2u>()); break;
-    case 3u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<3u>()); break;
-    case 4u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<4u>()); break;
-    case 5u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<5u>()); break;
+    case 0u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetSlotTickEvent<0u, false>()); break;
+    case 1u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<1u, false>()); break;
+    case 2u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<2u, false>()); break;
+    case 3u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<3u, false>()); break;
+    case 4u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<4u, false>()); break;
+    case 5u: m_scheduler.SetEventCallback(m_sampleTickEvent, this, GetTransitionalTickEvent<5u, false>()); break;
     default: util::unreachable();
     }
 }
 
 void SCSP::EnableThreading(bool enable) {
-    if (enable) {
-        // TODO: implement
-        devlog::debug<grp::base>("Threaded SCSP is unimplemented");
-    } else {
-        devlog::debug<grp::base>("Running SCSP on emulator thread");
+    if (m_threadedSCSP == enable) {
+        return;
     }
+
+    m_threadedSCSP = enable;
+
+    if (enable) {
+        devlog::debug<grp::base>("Enabling threaded SCSP");
+
+        if (m_bus) {
+            MapMemoryThreaded(*m_bus);
+        }
+
+        m_threadRunning = true;
+        m_wakeSCSPEvent.Reset();
+        m_syncResponseEvent.Reset();
+        m_scspThread = std::thread{[this] { SCSPThreadLoop(); }};
+    } else {
+        devlog::debug<grp::base>("Disabling threaded SCSP");
+
+        if (m_scspThread.joinable()) {
+            m_threadRunning = false;
+            m_wakeSCSPEvent.Set();
+            m_scspThread.join();
+        }
+
+        if (m_bus) {
+            MapMemoryDirect(*m_bus);
+        }
+    }
+
+    UpdateStepFunction();
 }
 
 FORCE_INLINE void SCSP::SetInterrupt(uint16 intr, bool level) {
@@ -733,15 +913,15 @@ void SCSP::ExecuteDMA() {
 template <uint32 stepShift, bool debug>
 FORCE_INLINE void SCSP::TickSlots() {
     RunM68K(kM68KCyclesPerSlot << stepShift);
-    ProcessMidiInputQueue();
-    StepSlots<stepShift, debug>();
+    ProcessMidiInputQueue<false>();
+    StepSlots<stepShift, false>();
 }
 
-template <bool debug>
+template <bool debug, bool threaded>
 FORCE_INLINE void SCSP::TickSample() {
     RunM68K(kM68KCyclesPerSample);
-    ProcessMidiInputQueue();
-    StepSample<debug>();
+    ProcessMidiInputQueue<threaded>();
+    StepSample<debug, threaded>();
 }
 
 FORCE_INLINE void SCSP::RunM68K(uint64 cycles) {
@@ -758,14 +938,14 @@ FORCE_INLINE void SCSP::RunM68K(uint64 cycles) {
 template <uint32 stepShift, bool debug>
 FORCE_INLINE void SCSP::StepSlots() {
     if constexpr (stepShift == 5u) {
-        ProcessSlots<debug>(m_currSlot);
+        ProcessSlots<debug, false>(m_currSlot);
         ++m_currSlot;
     } else {
         static constexpr uint32 kNumSlots = 1u << stepShift;
         static constexpr uint32 kSlotMask = kNumSlots - 1u;
         assert((m_currSlot & kSlotMask) == 0);
         for (uint32 i = 0; i < kNumSlots; ++i) {
-            ProcessSlots<debug>(m_currSlot + i);
+            ProcessSlots<debug, false>(m_currSlot + i);
         }
         m_currSlot += kNumSlots;
     }
@@ -776,11 +956,11 @@ FORCE_INLINE void SCSP::StepSlots() {
     }
 }
 
-template <bool debug>
+template <bool debug, bool threaded>
 FORCE_INLINE void SCSP::StepSample() {
     assert(m_currSlot == 0);
     for (uint32 i = 0; i < 32; ++i) {
-        ProcessSlots<debug>(i);
+        ProcessSlots<debug, threaded>(i);
     }
     IncrementSampleCounter();
 }
@@ -795,7 +975,7 @@ FORCE_INLINE void SCSP::UpdateTimers() {
     }
 }
 
-template <bool debug>
+template <bool debug, bool threaded>
 FORCE_INLINE void SCSP::ProcessSlots(uint32 i) {
     const uint32 op1SlotIndex = i;
     const uint32 op2SlotIndex = (i - 1u) & 31;
@@ -892,15 +1072,26 @@ FORCE_INLINE void SCSP::ProcessSlots(uint32 i) {
         m_out.fill(0);
 
         // Copy CDDA data to DSP EXTS (0=left, 1=right)
-        if (m_cddaReady && m_cddaReadPos != m_cddaWritePos) {
-            m_dsp.audioInOut[0] = util::ReadLE<uint16>(&m_cddaBuffer[m_cddaReadPos + 0]);
-            m_dsp.audioInOut[1] = util::ReadLE<uint16>(&m_cddaBuffer[m_cddaReadPos + 2]);
-            m_cddaReadPos = (m_cddaReadPos + 2 * sizeof(uint16)) % m_cddaBuffer.size();
-        } else {
-            // Buffer underrun
-            m_dsp.audioInOut[0] = 0;
-            m_dsp.audioInOut[1] = 0;
-            m_cddaReady = false;
+        {
+            if constexpr (threaded) {
+                m_cddaMutex.lock();
+            }
+            util::ScopeGuard sgUnlock{[&] {
+                if constexpr (threaded) {
+                    m_cddaMutex.unlock();
+                }
+            }};
+
+            if (m_cddaReady && m_cddaReadPos != m_cddaWritePos) {
+                m_dsp.audioInOut[0] = util::ReadLE<uint16>(&m_cddaBuffer[m_cddaReadPos + 0]);
+                m_dsp.audioInOut[1] = util::ReadLE<uint16>(&m_cddaBuffer[m_cddaReadPos + 2]);
+                m_cddaReadPos = (m_cddaReadPos + 2 * sizeof(uint16)) % m_cddaBuffer.size();
+            } else {
+                // Buffer underrun
+                m_dsp.audioInOut[0] = 0;
+                m_dsp.audioInOut[1] = 0;
+                m_cddaReady = false;
+            }
         }
     }
 
@@ -1214,5 +1405,192 @@ ExceptionVector SCSP::AcknowledgeInterrupt(uint8 level) {
 
 SCSP::Probe::Probe(SCSP &scsp)
     : m_scsp(scsp) {}
+
+// -----------------------------------------------------------------------------
+// Threaded execution and synchronization implementation
+
+void SCSP::SCSPThreadLoop() {
+    util::SetCurrentThreadName("SCSP thread");
+
+    while (m_threadRunning) {
+        uint64 target = m_emulatorSampleCounter.load(std::memory_order_relaxed);
+        uint64 processed = m_processedSampleCounter.load(std::memory_order_relaxed);
+
+        if (processed < target) {
+            ApplyPendingWrites(processed + 1);
+
+            // Process one sample
+            if (m_debugTracing) {
+                TickSample<true, true>();
+            } else {
+                TickSample<false, true>();
+            }
+
+            m_processedSampleCounter.store(processed + 1, std::memory_order_release);
+
+            // Signal the emulator thread if it was waiting for this sample
+            if (processed + 1 >= m_syncTargetSample.load(std::memory_order_relaxed)) {
+                m_syncResponseEvent.Set();
+            }
+        } else {
+            ApplyPendingWrites(processed);
+
+            if (processed >= m_syncTargetSample.load(std::memory_order_relaxed)) {
+                m_syncResponseEvent.Set();
+            }
+
+            // Wait for more work
+            m_wakeSCSPEvent.Wait();
+            m_wakeSCSPEvent.Reset();
+        }
+    }
+}
+
+void SCSP::ApplyPendingWrites(uint64 maxSample) {
+    while (true) {
+        if (!m_peekedWriteEvent.has_value()) {
+            WriteEvent evt;
+            if (m_writeQueue.try_dequeue(evt)) {
+                m_peekedWriteEvent = evt;
+            } else {
+                break;
+            }
+        }
+
+        if (m_peekedWriteEvent->sampleCounter <= maxSample) {
+            const auto &evt = *m_peekedWriteEvent;
+            bool isReg = (evt.address >= 0x5B0'0000);
+            if (isReg) {
+                if (evt.size == 1) {
+                    WriteReg<uint8, SCSPAccessType::SCU>(evt.address & 0xFFF, static_cast<uint8>(evt.value));
+                } else {
+                    WriteReg<uint16, SCSPAccessType::SCU>(evt.address & 0xFFF, static_cast<uint16>(evt.value));
+                }
+            } else {
+                if (evt.size == 1) {
+                    WriteWRAM<uint8>(evt.address & 0x7FFFF, static_cast<uint8>(evt.value));
+                } else {
+                    WriteWRAM<uint16>(evt.address & 0x7FFFF, static_cast<uint16>(evt.value));
+                }
+            }
+            m_peekedWriteEvent.reset();
+            m_writesApplied.fetch_add(1, std::memory_order_release);
+        } else {
+            break;
+        }
+    }
+}
+
+void SCSP::SyncSCSPThread() {
+    if (!m_threadedSCSP) {
+        return;
+    }
+
+    uint64 currentSample = m_emulatorSampleCounter;
+    if (m_lastSyncedSample == currentSample) {
+        return;
+    }
+
+    uint64 targetWrites = m_writesEnqueued.load(std::memory_order_acquire);
+
+    m_syncResponseEvent.Reset();
+    m_syncTargetSample = currentSample;
+    m_wakeSCSPEvent.Set();
+
+    while (m_processedSampleCounter.load(std::memory_order_acquire) < currentSample ||
+           m_writesApplied.load(std::memory_order_acquire) < targetWrites) {
+        m_syncResponseEvent.Wait();
+        m_syncResponseEvent.Reset();
+    }
+
+    m_lastSyncedSample = currentSample;
+    PollSCSPInterrupts();
+}
+
+void SCSP::PollSCSPInterrupts() {
+    if (!m_threadedSCSP) {
+        return;
+    }
+    bool expected = m_lastSCSPInterruptLevel;
+    bool current = m_scspInterruptLevel.load(std::memory_order_relaxed);
+    if (expected != current) {
+        m_lastSCSPInterruptLevel = current;
+        m_cbTriggerSoundRequestInterrupt(current);
+    }
+}
+
+template <mem_primitive T>
+void SCSP::EnqueueWrite(uint32 address, T value) {
+    WriteEvent evt{.address = address,
+                   .value = static_cast<uint32>(value),
+                   .size = static_cast<uint8>(sizeof(T)),
+                   .sampleCounter = m_emulatorSampleCounter};
+    m_writeQueue.enqueue(evt);
+    m_writesEnqueued.fetch_add(1, std::memory_order_release);
+    m_lastSyncedSample = 0;
+    m_wakeSCSPEvent.Set();
+}
+
+template void SCSP::EnqueueWrite<uint8>(uint32 address, uint8 value);
+template void SCSP::EnqueueWrite<uint16>(uint32 address, uint16 value);
+
+template <mem_primitive T>
+T SCSP::ReadWRAMThreaded(uint32 address) {
+    SyncSCSPThread();
+    return ReadWRAM<T>(address);
+}
+
+template uint8 SCSP::ReadWRAMThreaded<uint8>(uint32 address);
+template uint16 SCSP::ReadWRAMThreaded<uint16>(uint32 address);
+
+template <mem_primitive T>
+void SCSP::WriteWRAMThreaded(uint32 address, T value) {
+    EnqueueWrite<T>(address, value);
+}
+
+template void SCSP::WriteWRAMThreaded<uint8>(uint32 address, uint8 value);
+template void SCSP::WriteWRAMThreaded<uint16>(uint32 address, uint16 value);
+
+template <mem_primitive T>
+T SCSP::ReadRegBus(uint32 address) {
+    if (m_threadedSCSP) {
+        SyncSCSPThread();
+    }
+    return ReadReg<T, SCSPAccessType::SCU>(address);
+}
+
+template uint8 SCSP::ReadRegBus<uint8>(uint32 address);
+template uint16 SCSP::ReadRegBus<uint16>(uint32 address);
+
+template <mem_primitive T>
+void SCSP::WriteRegBus(uint32 address, T value) {
+    if (m_threadedSCSP) {
+        EnqueueWrite<T>(address, value);
+    } else {
+        WriteReg<T, SCSPAccessType::SCU>(address, value);
+    }
+}
+
+template void SCSP::WriteRegBus<uint8>(uint32 address, uint8 value);
+template void SCSP::WriteRegBus<uint16>(uint32 address, uint16 value);
+
+void SCSP::TickSampleThreaded() {
+    m_emulatorSampleCounter++;
+    if (m_emulatorSampleCounter % 735 == 0) {
+        m_wakeSCSPEvent.Set();
+    }
+    PollSCSPInterrupts();
+}
+
+template <uint32 stepShift>
+void SCSP::TickSlotsThreaded() {
+    util::unreachable();
+}
+
+template void SCSP::TickSlotsThreaded<0>();
+template void SCSP::TickSlotsThreaded<1>();
+template void SCSP::TickSlotsThreaded<2>();
+template void SCSP::TickSlotsThreaded<3>();
+template void SCSP::TickSlotsThreaded<4>();
 
 } // namespace ymir::scsp

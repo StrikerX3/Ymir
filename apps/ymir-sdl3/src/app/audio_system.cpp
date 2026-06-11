@@ -31,6 +31,7 @@ bool AudioSystem::Init(int sampleRate, SDL_AudioFormat format, int channels, uin
 }
 
 void AudioSystem::Deinit() {
+    m_bufferNotFullEvent.Set();
     if (m_audioStream != nullptr) {
         SDL_DestroyAudioStream(m_audioStream);
     }
@@ -48,6 +49,7 @@ bool AudioSystem::Start() {
 bool AudioSystem::Stop() {
     if (SDL_PauseAudioStreamDevice(m_audioStream)) {
         m_running = false;
+        m_bufferNotFullEvent.Set();
         return true;
     } else {
         return false;

@@ -512,6 +512,7 @@ void Saturn::RunFrameImpl() {
             return;
         }
     }
+    SCSP.SyncSCSPThreadPublic();
 }
 
 template <bool debug, bool enableSH2Cache, bool cdblockLLE>
