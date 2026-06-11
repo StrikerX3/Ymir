@@ -63,6 +63,9 @@ public:
 
     void SetSilent(bool silent) {
         m_silent = silent;
+        if (silent) {
+            m_bufferNotFullEvent.Set();
+        }
     }
 
     bool IsSilent() const {

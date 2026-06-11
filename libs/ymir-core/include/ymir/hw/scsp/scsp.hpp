@@ -28,13 +28,19 @@
 
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/dev_log.hpp>
+#include <ymir/util/event.hpp>
 #include <ymir/util/inline.hpp>
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <blockingconcurrentqueue.h>
 #include <iosfwd>
+#include <mutex>
+#include <optional>
 #include <queue>
 #include <span>
+#include <thread>
 
 namespace ymir::scsp {
 
@@ -113,6 +119,7 @@ namespace grp {
 class SCSP {
 public:
     SCSP(core::Scheduler &scheduler, core::Configuration::Audio &config);
+    ~SCSP();
 
     void Reset(bool hard);
 
@@ -205,41 +212,43 @@ private:
 
     m68k::MC68EC000 m_m68k;
     uint64 m_m68kSpilloverCycles;
-    uint64 m_m68kClockShift = 0ull;
-    bool m_m68kEnabled;
+    std::atomic<uint64> m_m68kClockShift = 0ull;
+    std::atomic<bool> m_m68kEnabled = false;
 
     core::Scheduler &m_scheduler;
     core::EventID m_sampleTickEvent;
 
     // Processes a slot tick.
-    template <uint32 stepShift, bool debug>
+    template <uint32 stepShift, bool debug, bool threaded>
     static void OnSlotTickEvent(core::EventContext &eventContext, void *userContext);
 
     // Processes a sample tick.
-    template <bool debug>
+    template <bool debug, bool threaded>
     static void OnSampleTickEvent(core::EventContext &eventContext, void *userContext);
 
     // Transitional event used when switching from smaller to larger steps.
     // Processes slot by slot until the slot index aligns back to 0, then switches to sample tick events.
-    template <uint32 newStepShift, bool debug>
+    template <uint32 newStepShift, bool debug, bool threaded>
     static void OnTransitionalTickEvent(core::EventContext &eventContext, void *userContext);
 
     // Retrieves a pointer to the transitional tick event processing function based on the current debug tracing mode.
-    template <uint32 newStepShift>
+    template <uint32 newStepShift, bool threaded>
     auto GetTransitionalTickEvent() {
-        return m_debugTracing ? OnTransitionalTickEvent<newStepShift, true>
-                              : OnTransitionalTickEvent<newStepShift, false>;
+        return m_debugTracing ? OnTransitionalTickEvent<newStepShift, true, threaded>
+                              : OnTransitionalTickEvent<newStepShift, false, threaded>;
     }
 
     // Retrieves a pointer to the slot tick event processing function based on the current debug tracing mode.
-    template <uint32 stepShift>
+    template <uint32 stepShift, bool threaded>
     auto GetSlotTickEvent() const {
-        return m_debugTracing ? OnSlotTickEvent<stepShift, true> : OnSlotTickEvent<stepShift, false>;
+        return m_debugTracing ? OnSlotTickEvent<stepShift, true, threaded>
+                              : OnSlotTickEvent<stepShift, false, threaded>;
     }
 
     // Retrieves a pointer to the sample tick event processing function based on the current debug tracing mode.
+    template <bool threaded>
     auto GetSampleTickEvent() const {
-        return m_debugTracing ? OnSampleTickEvent<true> : OnSampleTickEvent<false>;
+        return m_debugTracing ? OnSampleTickEvent<true, threaded> : OnSampleTickEvent<false, threaded>;
     }
 
     // Updates the step function for processing samples.
@@ -745,6 +754,7 @@ private:
 
     // --- MIDI Register ---
 
+    template <bool threaded>
     void ProcessMidiInputQueue();
     void FlushMidiOutput(bool endPacket);
 
@@ -1107,7 +1117,12 @@ private:
 
     void UpdateM68KInterrupts();
     void UpdateSCUInterrupts() {
-        m_cbTriggerSoundRequestInterrupt(m_scuPendingInterrupts & m_scuEnabledInterrupts);
+        if (m_threadedSCSP) {
+            m_scspInterruptLevel.store((m_scuPendingInterrupts & m_scuEnabledInterrupts) != 0,
+                                       std::memory_order_relaxed);
+        } else {
+            m_cbTriggerSoundRequestInterrupt((m_scuPendingInterrupts & m_scuEnabledInterrupts) != 0);
+        }
     }
 
     // --- DMA Transfer Register ---
@@ -1135,7 +1150,7 @@ private:
 
     template <uint32 stepShift, bool debug>
     void TickSlots(); // Processes a single slot (16 SCSP cycles)
-    template <bool debug>
+    template <bool debug, bool threaded>
     void TickSample(); // Processes a full sample (512 SCSP cycles)
 
     void RunM68K(uint64 cycles);
@@ -1149,11 +1164,11 @@ private:
     // Emulates an entire sample's worth of cycles.
     // This executes the 7 slot operations 32 times, and all 128 DSP program steps.
     // Requires the slot counter to be aligned to 0.
-    template <bool debug>
+    template <bool debug, bool threaded>
     void StepSample();
 
     // Performs the 7 operation steps on slots from index i to i-6 (modulo 32).
-    template <bool debug>
+    template <bool debug, bool threaded>
     void ProcessSlots(uint32 i);
 
     // Advances the sample counter by one.
@@ -1209,8 +1224,8 @@ private:
     // Linear is accurate to the hardware. Other options are offered as tweaks or enhancements.
     core::config::audio::SampleInterpolationMode m_interpMode = core::config::audio::SampleInterpolationMode::Linear;
 
-    uint64 m_m68kCycles;    // MC68EC000 cycle counter
-    uint64 m_sampleCounter; // Total number of samples
+    uint64 m_m68kCycles;                     // MC68EC000 cycle counter
+    std::atomic<uint64> m_sampleCounter = 0; // Total number of samples
 
     uint32 m_lfsr; // Noise LFSR
 
@@ -1280,6 +1295,90 @@ public:
 
     const Probe &GetProbe() const {
         return m_probe;
+    }
+
+private:
+    // -------------------------------------------------------------------------
+    // Threading
+    //
+    struct ConcQueueTraits : moodycamel::ConcurrentQueueDefaultTraits {
+        static constexpr size_t BLOCK_SIZE = 64;
+        static constexpr size_t EXPLICIT_BLOCK_EMPTY_COUNTER_THRESHOLD = 64;
+        static constexpr std::uint32_t EXPLICIT_CONSUMER_CONSUMPTION_QUOTA_BEFORE_ROTATE = 512;
+        static constexpr int MAX_SEMA_SPINS = 20000;
+    };
+
+    struct WriteEvent {
+        uint32 address;
+        uint32 value;
+        uint8 size;
+        uint64 sampleCounter;
+    };
+
+    std::thread m_scspThread;
+    std::atomic<bool> m_threadRunning = false;
+    std::atomic<bool> m_threadedSCSP = false;
+
+    alignas(64) std::atomic<uint64> m_emulatorSampleCounter = 0;
+    alignas(64) std::atomic<uint64> m_processedSampleCounter = 0;
+
+    std::atomic<uint64> m_syncTargetSample = 0;
+    uint64 m_lastSyncedSample = 0;
+
+    std::atomic<uint64> m_writesEnqueued = 0;
+    std::atomic<uint64> m_writesApplied = 0;
+
+    util::Event m_wakeSCSPEvent{false};
+    util::Event m_syncResponseEvent{false};
+
+    moodycamel::BlockingConcurrentQueue<WriteEvent, ConcQueueTraits> m_writeQueue;
+    std::optional<WriteEvent> m_peekedWriteEvent;
+
+    std::mutex m_cddaMutex;
+    std::mutex m_midiQueueMutex;
+
+    std::atomic<bool> m_scspInterruptLevel{false};
+    bool m_lastSCSPInterruptLevel = false;
+
+    sys::SH2Bus *m_bus = nullptr;
+
+    // Thread running the SCSP DSP and M68K CPU.
+    void SCSPThreadLoop();
+
+    // Applies queued register/RAM writes up to the current sample boundary.
+    void ApplyPendingWrites(uint64 maxSample);
+
+    // Forces the emulator thread to wait until the SCSP catches up.
+    void SyncSCSPThread();
+
+    // Periodically checks and triggers sound request interrupts back to the SCU.
+    void PollSCSPInterrupts();
+
+    // Queues a write operation to be applied by the SCSP thread.
+    template <mem_primitive T>
+    void EnqueueWrite(uint32 address, T value);
+
+    void MapMemoryDirect(sys::SH2Bus &bus);
+    void MapMemoryThreaded(sys::SH2Bus &bus);
+
+    template <mem_primitive T>
+    T ReadWRAMThreaded(uint32 address);
+    template <mem_primitive T>
+    void WriteWRAMThreaded(uint32 address, T value);
+
+    template <mem_primitive T>
+    T ReadRegBus(uint32 address);
+    template <mem_primitive T>
+    void WriteRegBus(uint32 address, T value);
+
+    void TickSampleThreaded();
+    template <uint32 stepShift>
+    void TickSlotsThreaded();
+
+public:
+    // Syncs execution at the end of the frame.
+    void SyncSCSPThreadPublic() {
+        SyncSCSPThread();
     }
 
 private:
