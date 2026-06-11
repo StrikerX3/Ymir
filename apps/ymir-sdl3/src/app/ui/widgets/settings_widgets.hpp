@@ -35,6 +35,7 @@ namespace settings::audio {
 
     void InterpolationMode(SharedContext &ctx);
     void StepGranularity(SharedContext &ctx);
+    void ThreadedSCSP(SharedContext &ctx);
 
     std::string StepGranularityToString(uint32 stepGranularity);
 

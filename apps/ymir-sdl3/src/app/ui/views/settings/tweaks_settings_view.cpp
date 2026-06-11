@@ -86,6 +86,7 @@ void TweaksSettingsView::Display() {
         fmt::format_to(inserter, "- Interpolation mode: {}\n", interpMode(settings.audio.interpolation.Get()));
         fmt::format_to(inserter, "- Emulation step granularity: {}\n",
                        widgets::settings::audio::StepGranularityToString(settings.audio.stepGranularity.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded SCSP and sound CPU", settings.audio.threadedSCSP.Get()));
 
         // -------------------------------------------------------------------------------------------------------------
         // CD Block
@@ -175,6 +176,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(false));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
@@ -196,9 +198,10 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Best accuracy##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(true));
 
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(false));
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(false));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(true));
 
         settings.system.emulateSH2Cache = true;
@@ -226,6 +229,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
         m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(true));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
@@ -274,6 +278,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
 
     widgets::settings::audio::InterpolationMode(m_context);
     widgets::settings::audio::StepGranularity(m_context);
+    widgets::settings::audio::ThreadedSCSP(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 

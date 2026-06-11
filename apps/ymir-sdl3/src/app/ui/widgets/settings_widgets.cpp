@@ -336,6 +336,18 @@ namespace settings::audio {
         }
     }
 
+    void ThreadedSCSP(SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        bool threadedSCSP = settings.audio.threadedSCSP;
+        if (settings.MakeDirty(ImGui::Checkbox("Threaded SCSP and sound CPU", &threadedSCSP))) {
+            ctx.EnqueueEvent(events::emu::EnableThreadedSCSP(threadedSCSP));
+        }
+        widgets::ExplanationTooltip("Runs the SCSP and MC68EC000 in a dedicated thread.\n"
+                                    "Improves performance at the cost of accuracy.\n"
+                                    "A few select games may break when this option is enabled.",
+                                    ctx.displayScale);
+    }
+
 } // namespace settings::audio
 
 namespace settings::cdblock {
