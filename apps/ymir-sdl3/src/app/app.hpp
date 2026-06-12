@@ -9,6 +9,7 @@
 #include "services/midi_service.hpp"
 #include "services/save_state_service.hpp"
 #include "services/screenshot_service.hpp"
+#include "services/update_checker_service.hpp"
 
 #include "ui/windows/about_window.hpp"
 #include "ui/windows/backup_ram_manager_window.hpp"
@@ -63,6 +64,7 @@ private:
     services::SaveStateService m_saveStateService;
     services::MIDIService m_midiService;
     services::ScreenshotService m_screenshotService;
+    services::UpdateCheckerService m_updateCheckerService;
     Settings m_settings;
 
     SDL_PropertiesID m_fileDialogProps;
@@ -77,18 +79,11 @@ private:
     uint32 m_systemMousePeripheral;
     std::set<uint32> m_validPeripheralsForMouseCapture;
 
-    std::thread m_updateCheckerThread;
-    util::Event m_updateCheckEvent;
-    UpdateCheckMode m_updateCheckMode;
-    bool m_updateCheckerThreadRunning;
-
     void RunEmulator();
 
     void EmulatorThread();
-    void UpdateCheckerThread();
 
     void OpenWelcomeModal(bool scanIPLROMS);
-    void CheckForUpdates(bool skipCache);
 
     void RebindInputs();
     void UpdateInputs(double timeDelta);
