@@ -3,6 +3,7 @@
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 #include <app/profile.hpp>
+#include <app/services/file_dialog_service.hpp>
 #include <app/settings.hpp>
 #include <app/shared_context.hpp>
 
@@ -340,6 +341,65 @@ void ROMService::LoadRecommendedCartridge() {
     }
 
     // TODO: notify user
+}
+
+void ROMService::OpenBackupMemoryCartFileDialog() {
+    static constexpr SDL_DialogFileFilter kFileFilters[] = {
+        {.name = "Backup memory images (*.bin, *.sav)", .pattern = "bin;sav"},
+        {.name = "All files (*.*)", .pattern = "*"},
+    };
+
+    std::filesystem::path defaultPath = "";
+    {
+        std::unique_lock lock{m_context.locks.cart};
+        if (auto *cart = m_context.saturn.instance->GetCartridge().As<ymir::cart::CartType::BackupMemory>()) {
+            defaultPath = cart->GetBackupMemory().GetPath();
+        }
+    }
+
+    auto &fileDialogService = m_context.serviceLocator.GetRequired<FileDialogService>();
+    fileDialogService.InvokeFileDialog(
+        SDL_FILEDIALOG_OPENFILE, "Load Sega Saturn backup memory image", (void *)kFileFilters, std::size(kFileFilters),
+        false, fmt::format("{}", defaultPath).c_str(), this,
+        [](void *userdata, const char *const *filelist, int filter) {
+            auto *service = static_cast<ROMService *>(userdata);
+            if (filelist == nullptr) {
+                devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
+            } else if (*filelist == nullptr) {
+                devlog::info<grp::base>("File dialog cancelled");
+            } else {
+                // Only one file should be selected
+                const char *file = *filelist;
+                service->m_context.EnqueueEvent(events::emu::InsertBackupMemoryCartridge(file));
+            }
+        });
+}
+
+void ROMService::OpenROMCartFileDialog() {
+    static constexpr SDL_DialogFileFilter kFileFilters[] = {
+        {.name = "ROM cartridge images (*.bin, *.ic1)", .pattern = "bin;ic1"},
+        {.name = "All files (*.*)", .pattern = "*"},
+    };
+
+    const auto &settings = m_settings;
+    std::filesystem::path defaultPath = settings.cartridge.rom.imagePath;
+
+    auto &fileDialogService = m_context.serviceLocator.GetRequired<FileDialogService>();
+    fileDialogService.InvokeFileDialog(
+        SDL_FILEDIALOG_OPENFILE, "Load 16 Mbit ROM cartridge image", (void *)kFileFilters, std::size(kFileFilters),
+        false, fmt::format("{}", defaultPath).c_str(), this,
+        [](void *userdata, const char *const *filelist, int filter) {
+            auto *service = static_cast<ROMService *>(userdata);
+            if (filelist == nullptr) {
+                devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
+            } else if (*filelist == nullptr) {
+                devlog::info<grp::base>("File dialog cancelled");
+            } else {
+                // Only one file should be selected
+                const char *file = *filelist;
+                service->m_context.EnqueueEvent(events::emu::InsertROMCartridge(file));
+            }
+        });
 }
 
 } // namespace app::services

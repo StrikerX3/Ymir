@@ -58,6 +58,12 @@ public:
     /// @brief Inserts the recommended cartridge (DRAM, Backup RAM, etc.) for the current disc.
     void LoadRecommendedCartridge();
 
+    /// @brief Opens a dialog to load a backup memory cartridge file.
+    void OpenBackupMemoryCartFileDialog();
+
+    /// @brief Opens a dialog to load a ROM cartridge file.
+    void OpenROMCartFileDialog();
+
 private:
     SharedContext &m_context;
     Settings &m_settings;

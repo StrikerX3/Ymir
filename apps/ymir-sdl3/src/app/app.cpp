@@ -1640,8 +1640,8 @@ void App::RunEmulator() {
             switch (evt.type) {
             case EvtType::LoadDisc: m_discService.OpenLoadDiscDialog(); break;
             case EvtType::LoadRecommendedGameCartridge: m_romService.LoadRecommendedCartridge(); break;
-            case EvtType::OpenBackupMemoryCartFileDialog: OpenBackupMemoryCartFileDialog(); break;
-            case EvtType::OpenROMCartFileDialog: OpenROMCartFileDialog(); break;
+            case EvtType::OpenBackupMemoryCartFileDialog: m_romService.OpenBackupMemoryCartFileDialog(); break;
+            case EvtType::OpenROMCartFileDialog: m_romService.OpenROMCartFileDialog(); break;
             case EvtType::OpenPeripheralBindsEditor: {
                 const auto &params = std::get<PeripheralBindsParams>(evt.value);
                 m_windowManagerService.OpenPeripheralBindsEditor(params.portIndex, params.slotIndex);
@@ -2299,7 +2299,7 @@ void App::RunEmulator() {
                         ImGui::EndDisabled();
 
                         if (ImGui::MenuItem("Insert backup RAM...")) {
-                            OpenBackupMemoryCartFileDialog();
+                            m_romService.OpenBackupMemoryCartFileDialog();
                         }
                         if (ImGui::MenuItem("Insert 8 Mbit DRAM")) {
                             m_context.EnqueueEvent(events::emu::Insert8MbitDRAMCartridge());
@@ -2311,7 +2311,7 @@ void App::RunEmulator() {
                             m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge());
                         }
                         if (ImGui::MenuItem("Insert 16 Mbit ROM...")) {
-                            OpenROMCartFileDialog();
+                            m_romService.OpenROMCartFileDialog();
                         }
 
                         if (ImGui::MenuItem("Remove cartridge")) {
@@ -3326,69 +3326,6 @@ void App::ToggleRewindBuffer() {
     settings.general.enableRewindBuffer ^= true;
     settings.MakeDirty();
     EnableRewindBuffer(settings.general.enableRewindBuffer);
-}
-
-void App::OpenBackupMemoryCartFileDialog() {
-    static constexpr SDL_DialogFileFilter kFileFilters[] = {
-        {.name = "Backup memory images (*.bin, *.sav)", .pattern = "bin;sav"},
-        {.name = "All files (*.*)", .pattern = "*"},
-    };
-
-    std::filesystem::path defaultPath = "";
-    {
-        std::unique_lock lock{m_context.locks.cart};
-        if (auto *cart = m_context.saturn.instance->GetCartridge().As<ymir::cart::CartType::BackupMemory>()) {
-            defaultPath = cart->GetBackupMemory().GetPath();
-        }
-    }
-
-    m_fileDialogService.InvokeFileDialog(
-        SDL_FILEDIALOG_OPENFILE, "Load Sega Saturn backup memory image", (void *)kFileFilters, std::size(kFileFilters),
-        false, fmt::format("{}", defaultPath).c_str(), this,
-        [](void *userdata, const char *const *filelist, int filter) {
-            static_cast<App *>(userdata)->ProcessOpenBackupMemoryCartFileDialogSelection(filelist, filter);
-        });
-}
-
-void App::ProcessOpenBackupMemoryCartFileDialogSelection(const char *const *filelist, int filter) {
-    if (filelist == nullptr) {
-        devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-    } else if (*filelist == nullptr) {
-        devlog::info<grp::base>("File dialog cancelled");
-    } else {
-        // Only one file should be selected
-        const char *file = *filelist;
-        m_context.EnqueueEvent(events::emu::InsertBackupMemoryCartridge(file));
-    }
-}
-
-void App::OpenROMCartFileDialog() {
-    static constexpr SDL_DialogFileFilter kFileFilters[] = {
-        {.name = "ROM cartridge images (*.bin, *.ic1)", .pattern = "bin;ic1"},
-        {.name = "All files (*.*)", .pattern = "*"},
-    };
-
-    const auto &settings = m_settings;
-    std::filesystem::path defaultPath = settings.cartridge.rom.imagePath;
-
-    m_fileDialogService.InvokeFileDialog(
-        SDL_FILEDIALOG_OPENFILE, "Load 16 Mbit ROM cartridge image", (void *)kFileFilters, std::size(kFileFilters),
-        false, fmt::format("{}", defaultPath).c_str(), this,
-        [](void *userdata, const char *const *filelist, int filter) {
-            static_cast<App *>(userdata)->ProcessOpenROMCartFileDialogSelection(filelist, filter);
-        });
-}
-
-void App::ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int filter) {
-    if (filelist == nullptr) {
-        devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-    } else if (*filelist == nullptr) {
-        devlog::info<grp::base>("File dialog cancelled");
-    } else {
-        // Only one file should be selected
-        const char *file = *filelist;
-        m_context.EnqueueEvent(events::emu::InsertROMCartridge(file));
-    }
 }
 
 void App::OnMidiInputReceived(double delta, std::vector<unsigned char> *msg, void *userData) {

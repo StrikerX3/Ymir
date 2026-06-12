@@ -77,12 +77,6 @@ private:
     void EnableRewindBuffer(bool enable);
     void ToggleRewindBuffer();
 
-    void OpenBackupMemoryCartFileDialog();
-    void ProcessOpenBackupMemoryCartFileDialogSelection(const char *const *filelist, int filter);
-
-    void OpenROMCartFileDialog();
-    void ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int filter);
-
     static void OnMidiInputReceived(double delta, std::vector<unsigned char> *msg, void *userData);
 
     // Rewind bar
