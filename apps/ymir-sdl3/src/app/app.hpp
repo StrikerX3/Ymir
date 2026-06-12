@@ -8,6 +8,7 @@
 #include "services/graphics_service.hpp"
 #include "services/midi_service.hpp"
 #include "services/mouse_capture_service.hpp"
+#include "services/rom_service.hpp"
 #include "services/save_state_service.hpp"
 #include "services/screenshot_service.hpp"
 #include "services/update_checker_service.hpp"
@@ -68,6 +69,7 @@ private:
     services::UpdateCheckerService m_updateCheckerService;
     Settings m_settings;
     services::MouseCaptureService m_mouseCaptureService;
+    services::ROMService m_romService;
 
     SDL_PropertiesID m_fileDialogProps;
 
@@ -105,20 +107,6 @@ private:
 
     template <int port>
     void ReadPeripheral(ymir::peripheral::PeripheralReport &report);
-
-    void ReloadSDLGameControllerDatabases(bool showMessages);
-    void ReloadSDLGameControllerDatabase(std::filesystem::path path, bool showMessages);
-
-    void ScanIPLROMs();
-    util::ROMLoadResult LoadIPLROM();
-    std::filesystem::path GetIPLROMPath();
-
-    void ScanCDBlockROMs();
-    util::ROMLoadResult LoadCDBlockROM();
-    std::filesystem::path GetCDBlockROMPath();
-
-    void ScanROMCarts();
-    void LoadRecommendedCartridge();
 
     void LoadSaveStates();
     void ClearSaveStates();

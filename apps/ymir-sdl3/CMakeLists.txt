@@ -77,6 +77,8 @@ add_executable(ymir-sdl3
     src/app/services/update_checker_service.hpp
     src/app/services/mouse_capture_service.cpp
     src/app/services/mouse_capture_service.hpp
+    src/app/services/rom_service.cpp
+    src/app/services/rom_service.hpp
 
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp

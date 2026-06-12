@@ -162,6 +162,10 @@ App::App()
     , m_midiService(m_context.serviceLocator)
     , m_settings(m_context)
     , m_mouseCaptureService(m_context, m_settings)
+    , m_romService(m_context, m_settings,
+                   [this](std::string title, std::function<void()> fnContents) {
+                       OpenGenericModal(std::move(title), std::move(fnContents));
+                   })
     , m_systemStateWindow(m_context)
     , m_bupMgrWindow(m_context)
     , m_masterSH2WindowSet(m_context, true)
@@ -186,6 +190,7 @@ App::App()
     m_context.serviceLocator.Register(m_screenshotService);
     m_context.serviceLocator.Register(m_updateCheckerService);
     m_context.serviceLocator.Register(m_mouseCaptureService);
+    m_context.serviceLocator.Register(m_romService);
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
 
     // Preinitialize some memory viewers
@@ -456,8 +461,8 @@ int App::Run(const CommandLineOptions &options) {
 
     // Load IPL ROM
     // Should be done after loading disc image so that the auto-detected region is used to select the appropriate ROM
-    ScanIPLROMs();
-    auto iplLoadResult = LoadIPLROM();
+    m_romService.ScanIPLROMs();
+    auto iplLoadResult = m_romService.LoadIPLROM();
     if (!iplLoadResult.succeeded) {
         if (m_context.romManager.GetIPLROMs().empty()) {
             // Could not load IPL ROM because there are none -- likely to be a fresh install, so show the Welcome screen
@@ -468,8 +473,8 @@ int App::Run(const CommandLineOptions &options) {
     }
 
     // Load CD Block ROM
-    ScanCDBlockROMs();
-    auto cdbLoadResult = LoadCDBlockROM();
+    m_romService.ScanCDBlockROMs();
+    auto cdbLoadResult = m_romService.LoadCDBlockROM();
     if (!cdbLoadResult.succeeded && settings.cdblock.useLLE) {
         OpenSimpleErrorModal(fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
     }
@@ -1989,7 +1994,7 @@ void App::RunEmulator() {
 
     SDL_ShowWindow(screen.window);
 
-    ReloadSDLGameControllerDatabases(false);
+    m_romService.ReloadSDLGameControllerDatabases(false);
 
     // Maps device IDs to player indices
     struct PlayerIndexMap {
@@ -2436,7 +2441,7 @@ void App::RunEmulator() {
             using EvtType = GUIEvent::Type;
             switch (evt.type) {
             case EvtType::LoadDisc: OpenLoadDiscDialog(); break;
-            case EvtType::LoadRecommendedGameCartridge: LoadRecommendedCartridge(); break;
+            case EvtType::LoadRecommendedGameCartridge: m_romService.LoadRecommendedCartridge(); break;
             case EvtType::OpenBackupMemoryCartFileDialog: OpenBackupMemoryCartFileDialog(); break;
             case EvtType::OpenROMCartFileDialog: OpenROMCartFileDialog(); break;
             case EvtType::OpenPeripheralBindsEditor:
@@ -2499,7 +2504,7 @@ void App::RunEmulator() {
             case EvtType::ApplyFullscreenMode: ApplyFullscreenMode(); break;
 
             case EvtType::RebindInputs: RebindInputs(); break;
-            case EvtType::ReloadGameControllerDatabase: ReloadSDLGameControllerDatabases(true); break;
+            case EvtType::ReloadGameControllerDatabase: m_romService.ReloadSDLGameControllerDatabases(true); break;
 
             case EvtType::ShowErrorMessage: OpenSimpleErrorModal(std::get<std::string>(evt.value)); break;
 
@@ -2523,7 +2528,7 @@ void App::RunEmulator() {
             }
             case EvtType::ReloadIPLROM: //
             {
-                util::ROMLoadResult result = LoadIPLROM();
+                util::ROMLoadResult result = m_romService.LoadIPLROM();
                 if (result.succeeded) {
                     m_context.EnqueueEvent(events::emu::HardReset());
                 } else {
@@ -2552,7 +2557,7 @@ void App::RunEmulator() {
             }
             case EvtType::ReloadCDBlockROM: //
             {
-                util::ROMLoadResult result = LoadCDBlockROM();
+                util::ROMLoadResult result = m_romService.LoadCDBlockROM();
                 if (settings.cdblock.useLLE) {
                     if (result.succeeded) {
                         m_context.EnqueueEvent(events::emu::HardReset());
@@ -3965,7 +3970,7 @@ void App::EmulatorThread() {
                 if (LoadDiscImage(path, true)) {
                     LoadSaveStates();
                     LoadDebuggerState();
-                    auto iplLoadResult = LoadIPLROM();
+                    auto iplLoadResult = m_romService.LoadIPLROM();
                     if (!iplLoadResult.succeeded) {
                         OpenSimpleErrorModal(fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
                     }
@@ -4199,7 +4204,7 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
                 auto &settings = m_settings;
                 settings.system.ipl.overrideImage = true;
                 settings.system.ipl.path = romSelectResult.path;
-                LoadIPLROM();
+                m_romService.LoadIPLROM();
                 m_closeGenericModal = true;
             }
         }
@@ -4212,14 +4217,14 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
         if (clk::now() >= nextScanDeadline) {
             nextScanDeadline = clk::now() + kScanInterval;
 
-            ScanIPLROMs();
+            m_romService.ScanIPLROMs();
 
             // Don't load until files stop being added to the directory
             auto romCount = m_context.romManager.GetIPLROMs().size();
             if (romCount != lastROMCount) {
                 lastROMCount = romCount;
             } else {
-                util::ROMLoadResult result = LoadIPLROM();
+                util::ROMLoadResult result = m_romService.LoadIPLROM();
                 if (result.succeeded) {
                     m_context.EnqueueEvent(events::emu::HardReset());
                     m_closeGenericModal = true;
@@ -4740,328 +4745,6 @@ void App::ReadPeripheral(ymir::peripheral::PeripheralReport &report) {
     }
 }
 
-void App::ReloadSDLGameControllerDatabases(bool showMessages) {
-    // Load the profile included with the emulator, which should always live next to the executable, followed by the
-    // database from the profile
-    ReloadSDLGameControllerDatabase(Profile::GetPortableProfilePath() / kGameControllerDBFile, showMessages);
-    ReloadSDLGameControllerDatabase(m_context.profile.GetPath(ProfilePath::Root) / kGameControllerDBFile, showMessages);
-}
-
-void App::ReloadSDLGameControllerDatabase(std::filesystem::path path, bool showMessages) {
-    if (std::filesystem::is_regular_file(path)) {
-        devlog::info<grp::base>("Loading game controller database from {}...", path);
-        int result = SDL_AddGamepadMappingsFromFile(path.string().c_str());
-        if (result < 0) {
-            if (showMessages) {
-                m_context.DisplayMessage(
-                    fmt::format("Failed to load game controller database at {}: {}", path, SDL_GetError()));
-            } else {
-                devlog::warn<grp::base>("Failed to load game controller database: {}", SDL_GetError());
-            }
-        } else {
-            devlog::info<grp::base>("Game controller database loaded: {} controllers added", result);
-            if (showMessages) {
-                m_context.DisplayMessage(
-                    fmt::format("Game controller database loaded from {}: {} controllers added", path, result));
-            }
-        }
-    } else {
-        if (showMessages) {
-            m_context.DisplayMessage(fmt::format("Game controller database not found at {}", path));
-        } else {
-            devlog::warn<grp::base>("Game controller database not found at {}", path);
-        }
-    }
-
-    char **list = SDL_GetGamepadMappings(&m_context.gameControllerDBCount);
-    SDL_free(list);
-}
-
-void App::ScanIPLROMs() {
-    auto romsPath = m_context.profile.GetPath(ProfilePath::IPLROMImages);
-    devlog::info<grp::base>("Scanning for IPL ROMs in {}...", romsPath);
-
-    {
-        std::unique_lock lock{m_context.locks.romManager};
-        m_context.romManager.ScanIPLROMs(romsPath);
-    }
-
-    if constexpr (devlog::info_enabled<grp::base>) {
-        int numKnown = 0;
-        int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetIPLROMs()) {
-            if (info.info != nullptr) {
-                ++numKnown;
-            } else {
-                ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
-            }
-        }
-        devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
-    }
-}
-
-util::ROMLoadResult App::LoadIPLROM() {
-    std::filesystem::path romPath = GetIPLROMPath();
-    if (romPath.empty()) {
-        devlog::warn<grp::base>("No IPL ROM found");
-        return util::ROMLoadResult::Fail("No IPL ROM found");
-    }
-
-    devlog::info<grp::base>("Loading IPL ROM from {}...", romPath);
-    util::ROMLoadResult result = util::LoadIPLROM(romPath, *m_context.saturn.instance);
-    if (result.succeeded) {
-        m_context.iplRomPath = romPath;
-        devlog::info<grp::base>("IPL ROM loaded successfully");
-    } else {
-        devlog::error<grp::base>("Failed to load IPL ROM: {}", result.errorMessage);
-    }
-    return result;
-}
-
-std::filesystem::path App::GetIPLROMPath() {
-    const auto &settings = m_settings;
-
-    // Load from settings if override is enabled
-    if (settings.system.ipl.overrideImage && !settings.system.ipl.path.empty()) {
-        devlog::info<grp::base>("Using IPL ROM overridden by settings");
-        return settings.system.ipl.path;
-    }
-
-    // Auto-select ROM from IPL ROM manager based on preferred system variant and area code
-
-    ymir::db::SystemVariant preferredVariant = settings.system.ipl.variant;
-
-    // SMPC area codes:
-    //   0x1  J  Domestic NTSC        Japan
-    //   0x2  T  Asia NTSC            Asia Region (Taiwan, Philippines, South Korea)
-    //   0x4  U  North America NTSC   North America (US, Canada), Latin America (Brazil only)
-    //   0xC  E  PAL                  Europe, Southeast Asia (China, Middle East), Latin America
-    // Replaced SMPC area codes:
-    //   0x5  B -> U
-    //   0x6  K -> T
-    //   0xA  A -> E
-    //   0xD  L -> E
-    // For all others, use region-free ROMs if available.
-
-    ymir::db::SystemRegion preferredRegion;
-    switch (m_context.saturn.instance->SMPC.GetAreaCode()) {
-    case 0x1: [[fallthrough]];
-    case 0x2: [[fallthrough]];
-    case 0x6: preferredRegion = ymir::db::SystemRegion::JP; break;
-
-    case 0x4: [[fallthrough]];
-    case 0x5: [[fallthrough]];
-    case 0xA: [[fallthrough]];
-    case 0xC: [[fallthrough]];
-    case 0xD: preferredRegion = ymir::db::SystemRegion::US_EU; break;
-
-    default: preferredRegion = ymir::db::SystemRegion::RegionFree; break;
-    }
-
-    // Try to find exact match
-    // Keep a region-free fallback in case there isn't a perfect match
-    std::filesystem::path regionFreeMatch = "";
-    std::filesystem::path variantMatch = "";
-    std::filesystem::path firstMatch = "";
-    for (auto &[path, info] : m_context.romManager.GetIPLROMs()) {
-        if (info.info == nullptr) {
-            continue;
-        }
-        if (firstMatch.empty()) {
-            firstMatch = path;
-        }
-        if (preferredVariant == ymir::db::SystemVariant::None || info.info->variant == preferredVariant) {
-            if (info.info->region == preferredRegion) {
-                devlog::info<grp::base>("Using auto-detected IPL ROM");
-                return path;
-            } else {
-                variantMatch = path;
-            }
-        }
-    }
-
-    // Return region-free fallback
-    // May be empty if no region-free ROMs were found
-    if (!regionFreeMatch.empty()) {
-        devlog::info<grp::base>("Using auto-detected region-free IPL ROM");
-        return regionFreeMatch;
-    }
-
-    // Fallback to variant match if found
-    if (!variantMatch.empty()) {
-        devlog::info<grp::base>("Using auto-detected variant IPL ROM with mismatched region");
-        return variantMatch;
-    }
-
-    return firstMatch;
-}
-
-void App::ScanCDBlockROMs() {
-    auto romsPath = m_context.profile.GetPath(ProfilePath::CDBlockROMImages);
-    devlog::info<grp::base>("Scanning for CD Block ROMs in {}...", romsPath);
-
-    {
-        std::unique_lock lock{m_context.locks.romManager};
-        m_context.romManager.ScanCDBlockROMs(romsPath);
-    }
-
-    if constexpr (devlog::info_enabled<grp::base>) {
-        int numKnown = 0;
-        int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetCDBlockROMs()) {
-            if (info.info != nullptr) {
-                ++numKnown;
-            } else {
-                ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
-            }
-        }
-        devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
-    }
-}
-
-util::ROMLoadResult App::LoadCDBlockROM() {
-    auto &settings = m_settings;
-
-    std::filesystem::path romPath = GetCDBlockROMPath();
-    if (romPath.empty()) {
-        devlog::warn<grp::base>("No CD Block ROM found");
-        if (settings.cdblock.useLLE) {
-            settings.cdblock.useLLE = false;
-            m_context.DisplayMessage("Low level CD block emulation disabled: no ROMs found");
-        }
-        return util::ROMLoadResult::Fail("No CD Block ROM found");
-    }
-
-    devlog::info<grp::base>("Loading CD Block ROM from {}...", romPath);
-    util::ROMLoadResult result = util::LoadCDBlockROM(romPath, *m_context.saturn.instance);
-    if (result.succeeded) {
-        m_context.cdbRomPath = romPath;
-        devlog::info<grp::base>("CD Block ROM loaded successfully");
-    } else {
-        devlog::error<grp::base>("Failed to load CD Block ROM: {}", result.errorMessage);
-    }
-    return result;
-}
-
-std::filesystem::path App::GetCDBlockROMPath() {
-    auto &settings = m_settings;
-
-    // Load from settings if override is enabled
-    if (settings.cdblock.overrideROM && !settings.cdblock.romPath.empty()) {
-        if (std::filesystem::is_regular_file(settings.cdblock.romPath)) {
-            devlog::info<grp::base>("Using CD Block ROM overridden by settings");
-            return settings.cdblock.romPath;
-        }
-        settings.cdblock.romPath = "";
-    }
-
-    // Use first available match otherwise
-    if (!m_context.romManager.GetCDBlockROMs().empty()) {
-        return m_context.romManager.GetCDBlockROMs().begin()->first;
-    }
-    return "";
-}
-
-void App::ScanROMCarts() {
-    auto romCartsPath = m_context.profile.GetPath(ProfilePath::ROMCartImages);
-    devlog::info<grp::base>("Scanning for cartridge ROMs in {}...", romCartsPath);
-
-    {
-        std::unique_lock lock{m_context.locks.romManager};
-        std::error_code error{};
-        m_context.romManager.ScanROMCarts(romCartsPath, error);
-        if (error) {
-            devlog::warn<grp::base>("Failed to read ROM carts folder: {}", error.message());
-        }
-    }
-
-    if constexpr (devlog::info_enabled<grp::base>) {
-        int numKnown = 0;
-        int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetROMCarts()) {
-            if (info.info != nullptr) {
-                ++numKnown;
-            } else {
-                ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
-            }
-        }
-        devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
-    }
-}
-
-void App::LoadRecommendedCartridge() {
-    const ymir::db::GameInfo *info;
-    {
-        std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetDisc();
-        info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
-    }
-    if (info == nullptr) {
-        m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
-        return;
-    }
-
-    devlog::info<grp::base>("Loading recommended game cartridge...");
-
-    std::unique_lock lock{m_context.locks.cart};
-    using Cart = ymir::db::Cartridge;
-    switch (info->GetCartridge()) {
-    case Cart::None: break;
-    case Cart::DRAM8Mbit: m_context.EnqueueEvent(events::emu::Insert8MbitDRAMCartridge()); break;
-    case Cart::DRAM32Mbit: m_context.EnqueueEvent(events::emu::Insert32MbitDRAMCartridge()); break;
-    case Cart::DRAM48Mbit: m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge()); break;
-    case Cart::ROM_KOF95: [[fallthrough]];
-    case Cart::ROM_Ultraman: //
-    {
-        ScanROMCarts();
-        const auto expectedHash =
-            info->GetCartridge() == Cart::ROM_KOF95 ? ymir::db::kKOF95ROMInfo.hash : ymir::db::kUltramanROMInfo.hash;
-        bool found = false;
-        for (auto &[path, info] : m_context.romManager.GetROMCarts()) {
-            if (info.hash == expectedHash) {
-                m_context.EnqueueEvent(events::emu::InsertROMCartridge(path));
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            OpenGenericModal("Compatible ROM cart not found", [&] {
-                ImGui::TextUnformatted(
-                    "Could not find required ROM cartridge image. This game will not boot properly.\n"
-                    "\n"
-                    "Place the image in the following directory:");
-                auto path = m_context.profile.GetPath(ProfilePath::ROMCartImages);
-                if (ImGui::TextLink(fmt::format("{}", path).c_str())) {
-                    SDL_OpenURL(fmt::format("file:///{}", path).c_str());
-                }
-            });
-        }
-        break;
-    }
-    case Cart::BackupRAM: //
-    {
-        // TODO: centralize backup RAM image management tasks somewhere
-        std::filesystem::path cartPath =
-            m_context.GetPerGameExternalBackupRAMPath(ymir::bup::BackupMemorySize::_32Mbit);
-        std::error_code error{};
-        ymir::bup::BackupMemory bupMem{};
-        bupMem.CreateFrom(cartPath, false, error, ymir::bup::BackupMemorySize::_32Mbit);
-        if (error) {
-            m_context.EnqueueEvent(
-                events::gui::ShowError(fmt::format("Failed to load external backup memory: {}", error.message())));
-        } else {
-            m_context.EnqueueEvent(events::emu::InsertBackupMemoryCartridge(cartPath));
-        }
-        break;
-    }
-    }
-
-    // TODO: notify user
-}
-
 void App::LoadSaveStates() {
     WriteSaveStateMeta();
 
@@ -5398,7 +5081,7 @@ bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
 
     // Load cartridge
     if (settings.cartridge.autoLoadGameCarts) {
-        LoadRecommendedCartridge();
+        m_romService.LoadRecommendedCartridge();
     } else {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
     }
