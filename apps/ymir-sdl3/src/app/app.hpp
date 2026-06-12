@@ -7,6 +7,7 @@
 
 #include "services/graphics_service.hpp"
 #include "services/midi_service.hpp"
+#include "services/mouse_capture_service.hpp"
 #include "services/save_state_service.hpp"
 #include "services/screenshot_service.hpp"
 #include "services/update_checker_service.hpp"
@@ -66,6 +67,7 @@ private:
     services::ScreenshotService m_screenshotService;
     services::UpdateCheckerService m_updateCheckerService;
     Settings m_settings;
+    services::MouseCaptureService m_mouseCaptureService;
 
     SDL_PropertiesID m_fileDialogProps;
 
@@ -73,11 +75,6 @@ private:
     util::Event m_emuProcessEvent{};
 
     std::chrono::steady_clock::time_point m_mouseHideTime;
-    std::unordered_map<uint32, uint32> m_capturedMice; // mouse ID -> peripheral index
-    bool m_mouseCaptureActive = false;
-    bool m_systemMouseCaptured = false;
-    uint32 m_systemMousePeripheral;
-    std::set<uint32> m_validPeripheralsForMouseCapture;
 
     void RunEmulator();
 
@@ -88,19 +85,6 @@ private:
     void RebindInputs();
     void UpdateInputs(double timeDelta);
     void DrawInputs(ImDrawList *drawList);
-
-    bool CaptureMouse(uint32 id, uint32 port);
-    bool ReleaseMouse(uint32 id);
-    bool CaptureSystemMouse(uint32 port);
-    bool ReleaseSystemMouse();
-    void ReleaseAllMice();
-    void ConfigureMouseCapture();
-    void ConnectMouseToPeripheral(uint32 id);
-    bool IsMouseCaptured() const;
-
-    bool HasValidPeripheralsForMouseCapture() const;
-    std::set<uint32> GetCandidatePeripheralsForMouseCapture() const;
-    std::string GetPeripheralName(uint32 port) const;
 
     std::pair<float, float> WindowToScreen(float x, float y) const;
 
