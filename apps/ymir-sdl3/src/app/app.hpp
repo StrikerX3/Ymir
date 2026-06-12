@@ -9,6 +9,7 @@
 #include "services/display_service.hpp"
 #include "services/file_dialog_service.hpp"
 #include "services/graphics_service.hpp"
+#include "services/input_service.hpp"
 #include "services/midi_service.hpp"
 #include "services/mouse_capture_service.hpp"
 #include "services/rom_service.hpp"
@@ -76,6 +77,7 @@ private:
     services::DiscService m_discService;
     services::DisplayService m_displayService;
     services::FileDialogService m_fileDialogService;
+    services::InputService m_inputService;
 
     std::thread m_emuThread;
     util::Event m_emuProcessEvent{};
@@ -88,18 +90,9 @@ private:
 
     void OpenWelcomeModal(bool scanIPLROMS);
 
-    void RebindInputs();
-    void UpdateInputs(double timeDelta);
-    void DrawInputs(ImDrawList *drawList);
-
-    std::pair<float, float> WindowToScreen(float x, float y) const;
-
     void LoadDebuggerState();
     void SaveDebuggerState();
     void CheckDebuggerStateDirty();
-
-    template <int port>
-    void ReadPeripheral(ymir::peripheral::PeripheralReport &report);
 
     void LoadSaveStates();
     void ClearSaveStates();

@@ -85,6 +85,8 @@ add_executable(ymir-sdl3
     src/app/services/display_service.hpp
     src/app/services/file_dialog_service.cpp
     src/app/services/file_dialog_service.hpp
+    src/app/services/input_service.cpp
+    src/app/services/input_service.hpp
 
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp
