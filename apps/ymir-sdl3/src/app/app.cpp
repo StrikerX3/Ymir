@@ -129,7 +129,6 @@
 #include <cmrc/cmrc.hpp>
 
 #include <stb_image.h>
-#include <stb_image_write.h>
 
 #include <fmt/chrono.h>
 #include <fmt/std.h>
@@ -159,37 +158,48 @@ static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args
 }
 
 App::App()
-    : m_saveStateService()
+    : m_saveStateService(m_context, m_settings)
     , m_midiService(m_context.serviceLocator)
     , m_settings(m_context)
-    , m_systemStateWindow(m_context)
-    , m_bupMgrWindow(m_context)
-    , m_masterSH2WindowSet(m_context, true)
-    , m_slaveSH2WindowSet(m_context, false)
-    , m_scuWindowSet(m_context)
-    , m_scspWindowSet(m_context)
-    , m_vdpWindowSet(m_context)
-    , m_cdblockWindowSet(m_context)
-    , m_debugOutputWindow(m_context)
-    , m_settingsWindow(m_context)
-    , m_periphConfigWindow(m_context)
-    , m_messageHistoryWindow(m_context)
-    , m_aboutWindow(m_context)
-    , m_updateOnboardingWindow(m_context)
-    , m_updateWindow(m_context) {
+    , m_mouseCaptureService(m_context, m_settings)
+    , m_romService(m_context, m_settings,
+                   [this](std::string title, std::function<void()> fnContents) {
+                       m_windowManagerService.OpenGenericModal(std::move(title), std::move(fnContents));
+                   })
+    , m_discService(m_context, m_settings,
+                    [this](std::string title, std::function<void()> fnContents) {
+                        m_windowManagerService.OpenGenericModal(std::move(title), std::move(fnContents));
+                    })
+    , m_displayService(m_context, m_settings)
+    , m_fileDialogService(m_context, m_settings)
+    , m_windowManagerService(m_context, m_settings)
+    , m_inputService(m_context, m_settings,
+                     {.openSettings =
+                          [this]() {
+                              m_windowManagerService.SettingsWindow().Open = true;
+                              m_windowManagerService.SettingsWindow().RequestFocus();
+                          },
+                      .showMessageHistory = [this]() { m_windowManagerService.MessageHistoryWindow().Open = true; },
+                      .selectSaveStateSlot = [this](size_t slot) { m_saveStateService.SelectSaveStateSlot(slot); },
+                      .loadSaveStateSlot = [this](size_t slot) { m_saveStateService.LoadSaveStateSlot(slot); },
+                      .saveSaveStateSlot = [this](size_t slot) { m_saveStateService.SaveSaveStateSlot(slot); },
+                      .toggleRewindBuffer = [this]() { ToggleRewindBuffer(); }}) {
 
     // Register services
     m_context.serviceLocator.Register(m_graphicsService);
     m_context.serviceLocator.Register(m_saveStateService);
     m_context.serviceLocator.Register(m_midiService);
     m_context.serviceLocator.Register(m_settings);
-
+    m_context.serviceLocator.Register(m_screenshotService);
+    m_context.serviceLocator.Register(m_updateCheckerService);
+    m_context.serviceLocator.Register(m_mouseCaptureService);
+    m_context.serviceLocator.Register(m_romService);
+    m_context.serviceLocator.Register(m_discService);
+    m_context.serviceLocator.Register(m_displayService);
+    m_context.serviceLocator.Register(m_fileDialogService);
+    m_context.serviceLocator.Register(m_windowManagerService);
+    m_context.serviceLocator.Register(m_inputService);
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
-
-    // Preinitialize some memory viewers
-    for (int i = 0; i < 8; i++) {
-        m_memoryViewerWindows.emplace_back(m_context);
-    }
 }
 
 int App::Run(const CommandLineOptions &options) {
@@ -228,15 +238,9 @@ int App::Run(const CommandLineOptions &options) {
         for (uint32 port = 0; port < 2; ++port) {
             inputSettings.ports[port].type.Observe([&, port = port](ymir::peripheral::PeripheralType type) {
                 m_context.EnqueueEvent(events::emu::InsertPeripheral(port, type));
-                bool changed;
-                if (type == ymir::peripheral::PeripheralType::VirtuaGun ||
-                    type == ymir::peripheral::PeripheralType::ShuttleMouse) {
-                    changed = m_validPeripheralsForMouseCapture.insert(port).second;
-                } else {
-                    changed = m_validPeripheralsForMouseCapture.erase(port) > 0;
-                }
+                bool changed = m_mouseCaptureService.SetPeripheralType(port, type);
                 if (changed) {
-                    ReleaseAllMice();
+                    m_mouseCaptureService.ReleaseAllMice();
                 }
             });
         }
@@ -446,36 +450,38 @@ int App::Run(const CommandLineOptions &options) {
 
     // Load recent discs list.
     // Must be done before LoadDiscImage because it saves the recent list to the file.
-    LoadRecentDiscs();
+    m_discService.LoadRecentDiscs();
 
     // Load disc image if provided
     if (!options.gameDiscPath.empty()) {
         // This also inserts the game-specific cartridges or the one configured by the user in Settings > Cartridge
-        LoadDiscImage(options.gameDiscPath, false);
+        m_discService.LoadDiscImage(options.gameDiscPath, false);
     } else if (settings.general.rememberLastLoadedDisc && !m_context.state.recentDiscs.empty()) {
-        LoadDiscImage(m_context.state.recentDiscs[0], false);
+        m_discService.LoadDiscImage(m_context.state.recentDiscs[0], false);
     } else {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
     }
 
     // Load IPL ROM
     // Should be done after loading disc image so that the auto-detected region is used to select the appropriate ROM
-    ScanIPLROMs();
-    auto iplLoadResult = LoadIPLROM();
+    m_romService.ScanIPLROMs();
+    auto iplLoadResult = m_romService.LoadIPLROM();
     if (!iplLoadResult.succeeded) {
         if (m_context.romManager.GetIPLROMs().empty()) {
             // Could not load IPL ROM because there are none -- likely to be a fresh install, so show the Welcome screen
-            OpenWelcomeModal(true);
+            m_windowManagerService.OpenWelcomeModal(true);
         } else {
-            OpenSimpleErrorModal(fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
+            m_windowManagerService.OpenSimpleErrorModal(
+                fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
         }
     }
 
     // Load CD Block ROM
-    ScanCDBlockROMs();
-    auto cdbLoadResult = LoadCDBlockROM();
+    m_romService.ScanCDBlockROMs();
+    auto cdbLoadResult = m_romService.LoadCDBlockROM();
     if (!cdbLoadResult.succeeded && settings.cdblock.useLLE) {
-        OpenSimpleErrorModal(fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
+        m_windowManagerService.OpenSimpleErrorModal(
+            fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
     }
 
     // Load SMPC persistent data and set up the path
@@ -490,11 +496,11 @@ int App::Run(const CommandLineOptions &options) {
                                 m_context.saturn.instance->SMPC.GetPersistentDataPath());
     }
 
-    LoadSaveStates();
+    m_saveStateService.LoadSaveStates();
 
     m_context.debuggers.dirty = false;
     m_context.debuggers.dirtyTimestamp = clk::now();
-    LoadDebuggerState();
+    m_saveStateService.LoadDebuggerState();
 
     RunEmulator();
 
@@ -518,13 +524,13 @@ void App::RunEmulator() {
         const auto onboardedPath = updatesPath / ".onboarded";
         const bool onboarded = std::filesystem::is_regular_file(onboardedPath);
         if (!onboarded) {
-            m_updateOnboardingWindow.Open = true;
+            m_windowManagerService.UpdateOnboardingWindow().Open = true;
         }
 #endif
 
         // Start update checker thread and fire update check immediately if configured to do so
         if (Ymir_ENABLE_UPDATE_CHECKS && settings.general.checkForUpdates) {
-            CheckForUpdates(false);
+            m_updateCheckerService.CheckForUpdates(false);
         } else {
             // Load cached results if available
             if (auto result =
@@ -538,14 +544,8 @@ void App::RunEmulator() {
         }
     }
 
-    m_updateCheckerThread = std::thread([&] { UpdateCheckerThread(); });
-    ScopeGuard sgStopUpdateCheckerThread{[&] {
-        m_updateCheckerThreadRunning = false;
-        m_updateCheckEvent.Set();
-        if (m_updateCheckerThread.joinable()) {
-            m_updateCheckerThread.join();
-        }
-    }};
+    m_updateCheckerService.Start(m_context, m_settings, [&] { m_windowManagerService.UpdateWindow().Open = true; });
+    ScopeGuard sgStopUpdateCheckerThread{[&] { m_updateCheckerService.Stop(); }};
 
     // Get embedded file system
     auto embedfs = cmrc::Ymir_sdl3_rc::get_filesystem();
@@ -592,11 +592,11 @@ void App::RunEmulator() {
     io.KeyRepeatDelay = 0.350f;
     io.KeyRepeatRate = 0.030f;
 
-    LoadFonts();
+    m_displayService.LoadFonts();
 
     // RescaleUI also loads the style and fonts
     bool rescaleUIPending = false;
-    RescaleUI(SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
+    m_displayService.RescaleUI(SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
     {
         auto &guiSettings = settings.gui;
 
@@ -616,7 +616,7 @@ void App::RunEmulator() {
         if (displays != nullptr) {
             util::ScopeGuard sgFreeDisplays{[&] { SDL_free(displays); }};
             for (SDL_DisplayID *currDisplay = displays; *currDisplay != 0; ++currDisplay) {
-                OnDisplayAdded(*currDisplay);
+                m_displayService.OnDisplayAdded(*currDisplay);
             }
         }
 
@@ -741,9 +741,9 @@ void App::RunEmulator() {
         return;
     }
     ScopeGuard sgDestroyWindow{[&] {
-        PersistWindowGeometry();
+        m_displayService.PersistWindowGeometry();
         SDL_DestroyWindow(screen.window);
-        SaveDebuggerState();
+        m_saveStateService.SaveDebuggerState();
     }};
     util::os::ConfigureWindowDecorations(screen.window);
 
@@ -780,7 +780,7 @@ void App::RunEmulator() {
     settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
         SDL_SetWindowFullscreen(screen.window, fullScreen);
-        ApplyFullscreenMode();
+        m_displayService.ApplyFullscreenMode();
     });
 
     auto &vdp = m_context.saturn.instance->VDP;
@@ -1080,22 +1080,15 @@ void App::RunEmulator() {
     // ---------------------------------
     // File dialogs
 
-    m_fileDialogProps = SDL_CreateProperties();
-    if (m_fileDialogProps == 0) {
-        ShowStartupFailure("Failed to create file dialog properties: {}\n", SDL_GetError());
-        return;
-    }
-    ScopeGuard sgDestroyGenericFileDialogProps{[&] { SDL_DestroyProperties(m_fileDialogProps); }};
-
-    SDL_SetPointerProperty(m_fileDialogProps, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, screen.window);
+    m_fileDialogService.Initialize(screen.window);
 
     // ---------------------------------
     // Input action handlers
 
     m_context.saturn.instance->SMPC.GetPeripheralPort1().SetPeripheralReportCallback(
-        util::MakeClassMemberOptionalCallback<&App::ReadPeripheral<1>>(this));
+        util::MakeClassMemberOptionalCallback<&services::InputService::ReadPeripheral<1>>(&m_inputService));
     m_context.saturn.instance->SMPC.GetPeripheralPort2().SetPeripheralReportCallback(
-        util::MakeClassMemberOptionalCallback<&App::ReadPeripheral<2>>(this));
+        util::MakeClassMemberOptionalCallback<&services::InputService::ReadPeripheral<2>>(&m_inputService));
 
     auto &inputContext = m_context.inputContext;
 
@@ -1105,805 +1098,6 @@ void App::RunEmulator() {
     if (m_options.enableDebugTracing) {
         m_context.EnqueueEvent(events::emu::SetDebugTrace(true));
     }
-
-    // General
-    {
-        inputContext.SetTriggerHandler(actions::general::OpenSettings, [&](void *, const input::InputElement &) {
-            m_settingsWindow.Open = true;
-            m_settingsWindow.RequestFocus();
-        });
-        inputContext.SetTriggerHandler(actions::general::ToggleWindowedVideoOutput,
-                                       [&](void *, const input::InputElement &) {
-                                           settings.video.displayVideoOutputInWindow ^= true;
-                                           ImGui::SetNextFrameWantCaptureKeyboard(false);
-                                           ImGui::SetNextFrameWantCaptureMouse(false);
-                                       });
-        inputContext.SetTriggerHandler(actions::general::ToggleFullScreen, [&](void *, const input::InputElement &) {
-            settings.video.fullScreen = !settings.video.fullScreen;
-            settings.MakeDirty();
-        });
-        inputContext.SetTriggerHandler(actions::general::ShowMessageHistory, [&](void *, const input::InputElement &) {
-            m_messageHistoryWindow.Open = true;
-        });
-        inputContext.SetTriggerHandler(actions::general::TakeScreenshot, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::gui::TakeScreenshot());
-        });
-        inputContext.SetTriggerHandler(actions::general::ExitApp, [&](void *, const input::InputElement &) {
-            SDL_Event quitEvent{.type = SDL_EVENT_QUIT};
-            SDL_PushEvent(&quitEvent);
-        });
-    }
-
-    // View
-    {
-        inputContext.SetTriggerHandler(actions::view::ToggleFrameRateOSD, [&](void *, const input::InputElement &) {
-            settings.gui.showFrameRateOSD = !settings.gui.showFrameRateOSD;
-            settings.MakeDirty();
-        });
-        inputContext.SetTriggerHandler(actions::view::NextFrameRateOSDPos, [&](void *, const input::InputElement &) {
-            const uint32 pos = static_cast<uint32>(settings.gui.frameRateOSDPosition);
-            const uint32 nextPos = pos >= 3 ? 0 : pos + 1;
-            settings.gui.frameRateOSDPosition = static_cast<Settings::GUI::FrameRateOSDPosition>(nextPos);
-            settings.MakeDirty();
-        });
-        inputContext.SetTriggerHandler(actions::view::PrevFrameRateOSDPos, [&](void *, const input::InputElement &) {
-            const uint32 pos = static_cast<uint32>(settings.gui.frameRateOSDPosition);
-            const uint32 prevPos = pos == 0 ? 3 : pos - 1;
-            settings.gui.frameRateOSDPosition = static_cast<Settings::GUI::FrameRateOSDPosition>(prevPos);
-            settings.MakeDirty();
-        });
-        inputContext.SetTriggerHandler(actions::view::RotateScreenCW, [&](void *, const input::InputElement &) {
-            const uint32 rot = static_cast<uint32>(settings.video.rotation);
-            const uint32 nextRot = rot >= 3 ? 0 : rot + 1;
-            settings.video.rotation = static_cast<Settings::Video::DisplayRotation>(nextRot);
-            settings.MakeDirty();
-        });
-        inputContext.SetTriggerHandler(actions::view::RotateScreenCCW, [&](void *, const input::InputElement &) {
-            const uint32 rot = static_cast<uint32>(settings.video.rotation);
-            const uint32 prevRot = rot == 0 ? 3 : rot - 1;
-            settings.video.rotation = static_cast<Settings::Video::DisplayRotation>(prevRot);
-            settings.MakeDirty();
-        });
-    }
-
-    // Audio
-    {
-        inputContext.SetTriggerHandler(actions::audio::ToggleMute, [&](void *, const input::InputElement &) {
-            settings.audio.mute = !settings.audio.mute;
-            settings.MakeDirty();
-        });
-        inputContext.SetTriggerHandler(actions::audio::IncreaseVolume, [&](void *, const input::InputElement &) {
-            settings.audio.volume = std::min(settings.audio.volume + 0.1f, 1.0f);
-            settings.MakeDirty();
-        });
-        inputContext.SetTriggerHandler(actions::audio::DecreaseVolume, [&](void *, const input::InputElement &) {
-            settings.audio.volume = std::max(settings.audio.volume - 0.1f, 0.0f);
-            settings.MakeDirty();
-        });
-    }
-
-    // CD drive
-    {
-        inputContext.SetTriggerHandler(actions::cd_drive::LoadDisc,
-                                       [&](void *, const input::InputElement &) { OpenLoadDiscDialog(); });
-        inputContext.SetTriggerHandler(actions::cd_drive::EjectDisc, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::EjectDisc());
-        });
-        inputContext.SetTriggerHandler(actions::cd_drive::OpenCloseTray, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::OpenCloseTray());
-        });
-    }
-
-    // Save states
-    {
-        inputContext.SetTriggerHandler(actions::save_states::QuickLoadState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::LoadState(m_saveStateService.CurrentSlot()));
-        });
-        inputContext.SetTriggerHandler(actions::save_states::QuickSaveState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::SaveState(m_saveStateService.CurrentSlot()));
-        });
-
-        // Select state
-
-        inputContext.SetTriggerHandler(actions::save_states::SelectState1,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(0); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState2,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(1); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState3,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(2); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState4,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(3); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState5,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(4); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState6,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(5); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState7,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(6); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState8,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(7); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState9,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(8); });
-        inputContext.SetTriggerHandler(actions::save_states::SelectState10,
-                                       [&](void *, const input::InputElement &) { SelectSaveStateSlot(9); });
-
-        // Load state
-
-        inputContext.SetTriggerHandler(actions::save_states::LoadState1,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(0); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState2,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(1); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState3,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(2); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState4,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(3); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState5,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(4); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState6,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(5); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState7,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(6); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState8,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(7); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState9,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(8); });
-        inputContext.SetTriggerHandler(actions::save_states::LoadState10,
-                                       [&](void *, const input::InputElement &) { LoadSaveStateSlot(9); });
-
-        // Save state
-
-        inputContext.SetTriggerHandler(actions::save_states::SaveState1,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(0); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState2,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(1); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState3,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(2); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState4,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(3); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState5,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(4); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState6,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(5); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState7,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(6); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState8,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(7); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState9,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(8); });
-        inputContext.SetTriggerHandler(actions::save_states::SaveState10,
-                                       [&](void *, const input::InputElement &) { SaveSaveStateSlot(9); });
-
-        // Undo save/load state
-        inputContext.SetTriggerHandler(actions::save_states::UndoSaveState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::UndoSaveState());
-        });
-        inputContext.SetTriggerHandler(actions::save_states::UndoLoadState, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::UndoLoadState());
-        });
-    }
-
-    // System
-    {
-        inputContext.SetTriggerHandler(actions::sys::HardReset, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::HardReset());
-        });
-        inputContext.SetTriggerHandler(actions::sys::SoftReset, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::SoftReset());
-        });
-        inputContext.SetButtonHandler(actions::sys::ResetButton,
-                                      [&](void *, const input::InputElement &, bool actuated) {
-                                          m_context.EnqueueEvent(events::emu::SetResetButton(actuated));
-                                      });
-    }
-
-    // Emulation
-    {
-        inputContext.SetButtonHandler(actions::emu::TurboSpeed,
-                                      [&](void *, const input::InputElement &, bool actuated) {
-                                          m_context.emuSpeed.limitSpeed = !actuated;
-                                          m_context.audioSystem.SetSync(m_context.emuSpeed.ShouldSyncToAudio());
-                                      });
-        inputContext.SetTriggerHandler(actions::emu::TurboSpeedHold, [&](void *, const input::InputElement &) {
-            m_context.emuSpeed.limitSpeed ^= true;
-            m_context.audioSystem.SetSync(m_context.emuSpeed.ShouldSyncToAudio());
-        });
-        inputContext.SetTriggerHandler(actions::emu::ToggleAlternateSpeed, [&](void *, const input::InputElement &) {
-            auto &general = settings.general;
-            general.useAltSpeed = !general.useAltSpeed;
-            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
-            settings.MakeDirty();
-            m_context.DisplayMessage(fmt::format("Using {} emulation speed: {:.0f}%",
-                                                 (general.useAltSpeed.Get() ? "alternate" : "primary"),
-                                                 speed.Get() * 100.0));
-        });
-        inputContext.SetTriggerHandler(actions::emu::IncreaseSpeed, [&](void *, const input::InputElement &) {
-            auto &general = settings.general;
-            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
-            speed = std::min(util::RoundToMultiple(speed + 0.05, 0.05), 5.0);
-            settings.MakeDirty();
-            m_context.DisplayMessage(fmt::format("{} emulation speed increased to {:.0f}%",
-                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 speed.Get() * 100.0));
-        });
-        inputContext.SetTriggerHandler(actions::emu::DecreaseSpeed, [&](void *, const input::InputElement &) {
-            auto &general = settings.general;
-            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
-            speed = std::max(util::RoundToMultiple(speed - 0.05, 0.05), 0.1);
-            settings.MakeDirty();
-            m_context.DisplayMessage(fmt::format("{} emulation speed decreased to {:.0f}%",
-                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 speed.Get() * 100.0));
-        });
-        inputContext.SetTriggerHandler(actions::emu::IncreaseSpeedLarge, [&](void *, const input::InputElement &) {
-            auto &general = settings.general;
-            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
-            speed = std::min(util::RoundToMultiple(speed + 0.25, 0.05), 5.0);
-            settings.MakeDirty();
-            m_context.DisplayMessage(fmt::format("{} emulation speed increased to {:.0f}%",
-                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 speed.Get() * 100.0));
-        });
-        inputContext.SetTriggerHandler(actions::emu::DecreaseSpeedLarge, [&](void *, const input::InputElement &) {
-            auto &general = settings.general;
-            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
-            speed = std::max(util::RoundToMultiple(speed - 0.25, 0.05), 0.1);
-            settings.MakeDirty();
-            m_context.DisplayMessage(fmt::format("{} emulation speed decreased to {:.0f}%",
-                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 speed.Get() * 100.0));
-        });
-        inputContext.SetTriggerHandler(actions::emu::ResetSpeed, [&](void *, const input::InputElement &) {
-            auto &general = settings.general;
-            auto &speed = general.useAltSpeed.Get() ? general.altSpeedFactor : general.mainSpeedFactor;
-            speed = general.useAltSpeed.Get() ? 0.5 : 1.0;
-            settings.MakeDirty();
-            m_context.DisplayMessage(fmt::format("{} emulation speed reset to {:.0f}%",
-                                                 (general.useAltSpeed.Get() ? "Alternate" : "Primary"),
-                                                 speed.Get() * 100.0));
-        });
-
-        inputContext.SetTriggerHandler(actions::emu::PauseResume, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::SetPaused(!m_context.paused));
-        });
-        inputContext.SetTriggerHandler(actions::emu::ForwardFrameStep, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::ForwardFrameStep());
-        });
-        inputContext.SetTriggerHandler(actions::emu::ReverseFrameStep, [&](void *, const input::InputElement &) {
-            if (m_context.rewindBuffer.IsRunning()) {
-                m_context.EnqueueEvent(events::emu::ReverseFrameStep());
-            }
-        });
-        inputContext.SetButtonHandler(actions::emu::Rewind, [&](void *, const input::InputElement &, bool actuated) {
-            m_context.rewinding = actuated;
-        });
-
-        inputContext.SetButtonHandler(actions::emu::ToggleRewindBuffer,
-                                      [&](void *, const input::InputElement &, bool actuated) {
-                                          if (actuated) {
-                                              ToggleRewindBuffer();
-                                          }
-                                      });
-    }
-
-    // Debugger
-    {
-        inputContext.SetTriggerHandler(actions::dbg::ToggleDebugTrace, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::SetDebugTrace(!m_context.saturn.instance->IsDebugTracingEnabled()));
-        });
-        inputContext.SetTriggerHandler(actions::dbg::DumpMemory, [&](void *, const input::InputElement &) {
-            m_context.EnqueueEvent(events::emu::DumpMemory());
-        });
-    }
-
-    // Saturn Control Pad
-    {
-        using Button = peripheral::Button;
-
-        auto registerButton = [&](input::Action action, Button button) {
-            inputContext.SetButtonHandler(action, [=](void *context, const input::InputElement &, bool actuated) {
-                auto &input = *reinterpret_cast<SharedContext::ControlPadInput *>(context);
-                if (actuated) {
-                    input.buttons &= ~button;
-                } else {
-                    input.buttons |= button;
-                }
-            });
-        };
-
-        auto registerDPadButton = [&](input::Action action, float x, float y) {
-            inputContext.SetButtonHandler(
-                action, [=, this, &settings](void *context, const input::InputElement &element, bool actuated) {
-                    auto &input = *reinterpret_cast<SharedContext::ControlPadInput *>(context);
-                    auto &dpadInput = input.dpad2DInputs[element];
-                    if (actuated) {
-                        dpadInput.x = x;
-                        dpadInput.y = y;
-                    } else {
-                        dpadInput.x = 0.0f;
-                        dpadInput.y = 0.0f;
-                    }
-                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
-                });
-        };
-
-        auto registerDPad2DAxis = [&](input::Action action) {
-            inputContext.SetAxis2DHandler(
-                action, [this, &settings](void *context, const input::InputElement &element, float x, float y) {
-                    auto &input = *reinterpret_cast<SharedContext::ControlPadInput *>(context);
-                    auto &dpadInput = input.dpad2DInputs[element];
-                    dpadInput.x = x;
-                    dpadInput.y = y;
-                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
-                });
-        };
-
-        registerButton(actions::control_pad::A, Button::A);
-        registerButton(actions::control_pad::B, Button::B);
-        registerButton(actions::control_pad::C, Button::C);
-        registerButton(actions::control_pad::X, Button::X);
-        registerButton(actions::control_pad::Y, Button::Y);
-        registerButton(actions::control_pad::Z, Button::Z);
-        registerButton(actions::control_pad::Start, Button::Start);
-        registerButton(actions::control_pad::L, Button::L);
-        registerButton(actions::control_pad::R, Button::R);
-        registerDPadButton(actions::control_pad::Up, 0.0f, -1.0f);
-        registerDPadButton(actions::control_pad::Down, 0.0f, +1.0f);
-        registerDPadButton(actions::control_pad::Left, -1.0f, 0.0f);
-        registerDPadButton(actions::control_pad::Right, +1.0f, 0.0f);
-        registerDPad2DAxis(actions::control_pad::DPad);
-    }
-
-    // Saturn 3D Control Pad
-    {
-        using Button = peripheral::Button;
-
-        auto registerButton = [&](input::Action action, Button button) {
-            inputContext.SetButtonHandler(action, [=](void *context, const input::InputElement &, bool actuated) {
-                auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                if (actuated) {
-                    input.buttons &= ~button;
-                } else {
-                    input.buttons |= button;
-                }
-            });
-        };
-
-        auto registerDPadButton = [&](input::Action action, float x, float y) {
-            inputContext.SetButtonHandler(
-                action, [=, this, &settings](void *context, const input::InputElement &element, bool actuated) {
-                    auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                    auto &dpadInput = input.dpad2DInputs[element];
-                    if (actuated) {
-                        dpadInput.x = x;
-                        dpadInput.y = y;
-                    } else {
-                        dpadInput.x = 0.0f;
-                        dpadInput.y = 0.0f;
-                    }
-                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
-                });
-        };
-
-        auto registerDPad2DAxis = [&](input::Action action) {
-            inputContext.SetAxis2DHandler(
-                action, [this, &settings](void *context, const input::InputElement &element, float x, float y) {
-                    auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                    auto &dpadInput = input.dpad2DInputs[element];
-                    dpadInput.x = x;
-                    dpadInput.y = y;
-                    input.UpdateDPad(settings.input.gamepad.analogToDigitalSensitivity);
-                });
-        };
-
-        auto registerAnalogStick = [&](input::Action action) {
-            inputContext.SetAxis2DHandler(action,
-                                          [](void *context, const input::InputElement &element, float x, float y) {
-                                              auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                                              auto &analogInput = input.analogStickInputs[element];
-                                              analogInput.x = x;
-                                              analogInput.y = y;
-                                              input.UpdateAnalogStick();
-                                          });
-        };
-
-        auto registerDigitalTrigger = [&](input::Action action, bool which /*false=L, true=R*/) {
-            inputContext.SetButtonHandler(action,
-                                          [=](void *context, const input::InputElement &element, bool actuated) {
-                                              auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                                              auto &map = which ? input.analogRInputs : input.analogLInputs;
-                                              if (actuated) {
-                                                  map[element] = 1.0f;
-                                              } else {
-                                                  map[element] = 0.0f;
-                                              }
-                                              input.UpdateAnalogTriggers();
-                                          });
-        };
-
-        auto registerAnalogTrigger = [&](input::Action action, bool which /*false=L, true=R*/) {
-            inputContext.SetAxis1DHandler(action,
-                                          [which](void *context, const input::InputElement &element, float value) {
-                                              auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                                              auto &map = which ? input.analogRInputs : input.analogLInputs;
-                                              map[element] = value;
-                                              input.UpdateAnalogTriggers();
-                                          });
-        };
-
-        auto registerModeSwitch = [&](input::Action action) {
-            inputContext.SetTriggerHandler(action, [&](void *context, const input::InputElement &element) {
-                auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                input.analogMode ^= true;
-                int portNum = (context == &m_context.analogPadInputs[0]) ? 1 : 2;
-                m_context.DisplayMessage(fmt::format("Port {} 3D Control Pad switched to {} mode", portNum,
-                                                     (input.analogMode ? "analog" : "digital")));
-            });
-        };
-
-        registerButton(actions::analog_pad::A, Button::A);
-        registerButton(actions::analog_pad::B, Button::B);
-        registerButton(actions::analog_pad::C, Button::C);
-        registerButton(actions::analog_pad::X, Button::X);
-        registerButton(actions::analog_pad::Y, Button::Y);
-        registerButton(actions::analog_pad::Z, Button::Z);
-        registerButton(actions::analog_pad::Start, Button::Start);
-        registerDigitalTrigger(actions::analog_pad::L, false);
-        registerDigitalTrigger(actions::analog_pad::R, true);
-        registerDPadButton(actions::analog_pad::Up, 0.0f, -1.0f);
-        registerDPadButton(actions::analog_pad::Down, 0.0f, +1.0f);
-        registerDPadButton(actions::analog_pad::Left, -1.0f, 0.0f);
-        registerDPadButton(actions::analog_pad::Right, +1.0f, 0.0f);
-        registerDPad2DAxis(actions::analog_pad::DPad);
-        registerAnalogStick(actions::analog_pad::AnalogStick);
-        registerAnalogTrigger(actions::analog_pad::AnalogL, false);
-        registerAnalogTrigger(actions::analog_pad::AnalogR, true);
-        registerModeSwitch(actions::analog_pad::SwitchMode);
-    }
-
-    // Arcade Racer controller
-    {
-        using Button = peripheral::Button;
-
-        auto registerButton = [&](input::Action action, Button button) {
-            inputContext.SetButtonHandler(action, [=](void *context, const input::InputElement &, bool actuated) {
-                auto &input = *reinterpret_cast<SharedContext::ArcadeRacerInput *>(context);
-                if (actuated) {
-                    input.buttons &= ~button;
-                } else {
-                    input.buttons |= button;
-                }
-            });
-        };
-
-        auto registerDigitalWheel = [&](input::Action action, bool which /*false=L, true=R*/) {
-            inputContext.SetButtonHandler(
-                action, [=](void *context, const input::InputElement &element, bool actuated) {
-                    auto &input = *reinterpret_cast<SharedContext::ArcadeRacerInput *>(context);
-                    auto &map = input.analogWheelInputs;
-                    if (actuated) {
-                        map[element] = which ? 1.0f : -1.0f;
-                    } else {
-                        map[element] = 0.0f;
-                    }
-                    input.UpdateAnalogWheel();
-                });
-        };
-
-        auto registerAnalogWheel = [&](input::Action action) {
-            inputContext.SetAxis1DHandler(action, [](void *context, const input::InputElement &element, float value) {
-                auto &input = *reinterpret_cast<SharedContext::ArcadeRacerInput *>(context);
-                auto &map = input.analogWheelInputs;
-                map[element] = value;
-                input.UpdateAnalogWheel();
-            });
-        };
-
-        registerButton(actions::arcade_racer::A, Button::A);
-        registerButton(actions::arcade_racer::B, Button::B);
-        registerButton(actions::arcade_racer::C, Button::C);
-        registerButton(actions::arcade_racer::X, Button::X);
-        registerButton(actions::arcade_racer::Y, Button::Y);
-        registerButton(actions::arcade_racer::Z, Button::Z);
-        registerButton(actions::arcade_racer::Start, Button::Start);
-        registerButton(actions::arcade_racer::GearUp, Button::Down); // yes, it's reversed
-        registerButton(actions::arcade_racer::GearDown, Button::Up);
-        registerDigitalWheel(actions::arcade_racer::WheelLeft, false);
-        registerDigitalWheel(actions::arcade_racer::WheelRight, true);
-        registerAnalogWheel(actions::arcade_racer::AnalogWheel);
-
-        auto makeSensObserver = [&](const int index) {
-            return [=, this](float value) {
-                m_context.arcadeRacerInputs[index].sensitivity = value;
-                m_context.arcadeRacerInputs[index].UpdateAnalogWheel();
-            };
-        };
-
-        for (int i = 0; i < 2; ++i) {
-            settings.input.ports[i].arcadeRacer.sensitivity.ObserveAndNotify(makeSensObserver(i));
-        }
-    }
-
-    // Mission Stick controller
-    {
-        using Button = peripheral::Button;
-
-        auto registerButton = [&](input::Action action, Button button) {
-            inputContext.SetButtonHandler(action, [=](void *context, const input::InputElement &, bool actuated) {
-                auto &input = *reinterpret_cast<SharedContext::MissionStickInput *>(context);
-                if (actuated) {
-                    input.buttons &= ~button;
-                } else {
-                    input.buttons |= button;
-                }
-            });
-        };
-
-        auto registerDigitalStick = [&](input::Action action, bool sub /*false=main, true=sub*/, float x, float y) {
-            inputContext.SetButtonHandler(
-                action, [=](void *context, const input::InputElement &element, bool actuated) {
-                    auto &input = *reinterpret_cast<SharedContext::MissionStickInput *>(context);
-                    auto &analogInput = input.sticks[sub].analogStickInputs[element];
-                    if (actuated) {
-                        analogInput.x = x;
-                        analogInput.y = y;
-                    } else {
-                        analogInput.x = 0.0f;
-                        analogInput.y = 0.0f;
-                    }
-                    input.UpdateAnalogStick(sub);
-                });
-        };
-
-        auto registerAnalogStick = [&](input::Action action, bool sub /*false=main, true=sub*/) {
-            inputContext.SetAxis2DHandler(
-                action, [sub](void *context, const input::InputElement &element, float x, float y) {
-                    auto &input = *reinterpret_cast<SharedContext::MissionStickInput *>(context);
-                    auto &analogInput = input.sticks[sub].analogStickInputs[element];
-                    analogInput.x = x;
-                    analogInput.y = y;
-                    input.UpdateAnalogStick(sub);
-                });
-        };
-
-        auto registerDigitalThrottle = [&](input::Action action, bool sub /*false=main, true=sub*/, float delta) {
-            inputContext.SetTriggerHandler(action, [sub, delta](void *context, const input::InputElement &element) {
-                auto &input = *reinterpret_cast<SharedContext::MissionStickInput *>(context);
-                auto &analogInput = input.digitalThrottles[sub];
-                analogInput = std::clamp(analogInput + delta, 0.0f, 1.0f);
-                input.UpdateAnalogThrottle(sub);
-            });
-        };
-
-        auto registerAnalogThrottle = [&](input::Action action, bool sub /*false=main, true=sub*/) {
-            inputContext.SetAxis1DHandler(
-                action, [sub](void *context, const input::InputElement &element, float value) {
-                    auto &input = *reinterpret_cast<SharedContext::MissionStickInput *>(context);
-                    auto &analogInput = input.sticks[sub].analogThrottleInputs[element];
-                    analogInput = value;
-                    input.UpdateAnalogThrottle(sub);
-                });
-        };
-
-        auto registerModeSwitch = [&](input::Action action) {
-            inputContext.SetTriggerHandler(action, [&](void *context, const input::InputElement &element) {
-                auto &input = *reinterpret_cast<SharedContext::MissionStickInput *>(context);
-                input.sixAxisMode ^= true;
-                int portNum = (context == &m_context.missionStickInputs[0]) ? 1 : 2;
-                m_context.DisplayMessage(fmt::format("Port {} Mission Stick switched to {} mode", portNum,
-                                                     (input.sixAxisMode ? "six-axis" : "three-axis")));
-            });
-        };
-
-        registerButton(actions::mission_stick::A, Button::A);
-        registerButton(actions::mission_stick::B, Button::B);
-        registerButton(actions::mission_stick::C, Button::C);
-        registerButton(actions::mission_stick::X, Button::X);
-        registerButton(actions::mission_stick::Y, Button::Y);
-        registerButton(actions::mission_stick::Z, Button::Z);
-        registerButton(actions::mission_stick::L, Button::L);
-        registerButton(actions::mission_stick::R, Button::R);
-        registerButton(actions::mission_stick::Start, Button::Start);
-        registerDigitalStick(actions::mission_stick::MainUp, false, 0.0f, -1.0f);
-        registerDigitalStick(actions::mission_stick::MainDown, false, 0.0f, +1.0f);
-        registerDigitalStick(actions::mission_stick::MainLeft, false, -1.0f, 0.0f);
-        registerDigitalStick(actions::mission_stick::MainRight, false, +1.0f, 0.0f);
-        registerAnalogStick(actions::mission_stick::MainStick, false);
-        registerAnalogThrottle(actions::mission_stick::MainThrottle, false);
-        registerDigitalThrottle(actions::mission_stick::MainThrottleUp, false, +0.1f);
-        registerDigitalThrottle(actions::mission_stick::MainThrottleDown, false, -0.1f);
-        registerDigitalThrottle(actions::mission_stick::MainThrottleMax, false, +1.0f);
-        registerDigitalThrottle(actions::mission_stick::MainThrottleMin, false, -1.0f);
-        registerDigitalStick(actions::mission_stick::SubUp, true, 0.0f, -1.0f);
-        registerDigitalStick(actions::mission_stick::SubDown, true, 0.0f, +1.0f);
-        registerDigitalStick(actions::mission_stick::SubLeft, true, -1.0f, 0.0f);
-        registerDigitalStick(actions::mission_stick::SubRight, true, +1.0f, 0.0f);
-        registerAnalogStick(actions::mission_stick::SubStick, true);
-        registerAnalogThrottle(actions::mission_stick::SubThrottle, true);
-        registerDigitalThrottle(actions::mission_stick::SubThrottleUp, true, +0.1f);
-        registerDigitalThrottle(actions::mission_stick::SubThrottleDown, true, -0.1f);
-        registerDigitalThrottle(actions::mission_stick::SubThrottleMax, true, +1.0f);
-        registerDigitalThrottle(actions::mission_stick::SubThrottleMin, true, -1.0f);
-        registerModeSwitch(actions::mission_stick::SwitchMode);
-    }
-
-    // Virtua Gun controller
-    {
-        auto registerMoveButton = [&](input::Action action, float x, float y) {
-            inputContext.SetButtonHandler(action,
-                                          [=, this](void *context, const input::InputElement &element, bool actuated) {
-                                              auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                              auto &moveInput = input.otherInputs[element];
-                                              if (actuated) {
-                                                  moveInput.x = x;
-                                                  moveInput.y = y;
-                                              } else {
-                                                  moveInput.x = 0.0f;
-                                                  moveInput.y = 0.0f;
-                                              }
-                                              input.UpdateInputs();
-                                          });
-        };
-
-        inputContext.SetButtonHandler(actions::virtua_gun::Start,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                          input.start = actuated;
-                                      });
-
-        inputContext.SetButtonHandler(actions::virtua_gun::Trigger,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                          input.trigger = actuated;
-                                      });
-
-        inputContext.SetButtonHandler(actions::virtua_gun::Reload,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                          input.reload = actuated;
-                                      });
-
-        inputContext.SetAxis2DHandler(actions::virtua_gun::Move,
-                                      [this](void *context, const input::InputElement &element, float x, float y) {
-                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                          auto &moveInput = input.otherInputs[element];
-                                          moveInput.x = x;
-                                          moveInput.y = y;
-                                          input.UpdateInputs();
-                                      });
-
-        inputContext.SetTriggerHandler(actions::virtua_gun::Recenter,
-                                       [=, this](void *context, const input::InputElement &) {
-                                           auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                           input.SetPosition(m_context.screen.dCenterX, m_context.screen.dCenterY);
-                                       });
-        inputContext.SetButtonHandler(actions::virtua_gun::SpeedBoost,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                          input.speedBoost = actuated;
-                                      });
-        inputContext.SetTriggerHandler(actions::virtua_gun::SpeedToggle,
-                                       [=](void *context, const input::InputElement &) {
-                                           auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                           input.speedBoost ^= true;
-                                       });
-
-        inputContext.SetAxis2DHandler(actions::virtua_gun::MouseRelMove,
-                                      [this](void *context, const input::InputElement &element, float x, float y) {
-                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                          if (!input.mouseAbsolute) {
-                                              input.mouseInput.x += x;
-                                              input.mouseInput.y += y;
-                                              input.UpdateInputs();
-                                          }
-                                      });
-        inputContext.SetAxis2DHandler(actions::virtua_gun::MouseAbsMove,
-                                      [this](void *context, const input::InputElement &element, float x, float y) {
-                                          auto &input = *reinterpret_cast<SharedContext::VirtuaGunInput *>(context);
-                                          if (input.mouseAbsolute) {
-                                              input.mouseInput.x = x;
-                                              input.mouseInput.y = y;
-                                              input.UpdateInputs();
-                                          }
-                                      });
-
-        registerMoveButton(actions::virtua_gun::Up, 0.0f, -1.0f);
-        registerMoveButton(actions::virtua_gun::Down, 0.0f, +1.0f);
-        registerMoveButton(actions::virtua_gun::Left, -1.0f, 0.0f);
-        registerMoveButton(actions::virtua_gun::Right, +1.0f, 0.0f);
-
-        auto &inputSettings = settings.input;
-
-        for (int i = 0; i < 2; ++i) {
-            inputSettings.ports[i].virtuaGun.speed.Observe(m_context.virtuaGunInputs[i].speed);
-            inputSettings.ports[i].virtuaGun.speedBoostFactor.Observe(m_context.virtuaGunInputs[i].speedBoostFactor);
-        }
-    }
-
-    // Shuttle Mouse controller
-    {
-        auto registerMoveButton = [&](input::Action action, float x, float y) {
-            inputContext.SetButtonHandler(
-                action, [=, this](void *context, const input::InputElement &element, bool actuated) {
-                    auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                    auto &moveInput = input.otherInputs[element];
-                    if (actuated) {
-                        moveInput.x = x;
-                        moveInput.y = y;
-                    } else {
-                        moveInput.x = 0.0f;
-                        moveInput.y = 0.0f;
-                    }
-                });
-        };
-
-        inputContext.SetButtonHandler(actions::shuttle_mouse::Start,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                          input.start = actuated;
-                                      });
-
-        inputContext.SetButtonHandler(actions::shuttle_mouse::Left,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                          input.left = actuated;
-                                      });
-
-        inputContext.SetButtonHandler(actions::shuttle_mouse::Middle,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                          input.middle = actuated;
-                                      });
-
-        inputContext.SetButtonHandler(actions::shuttle_mouse::Right,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                          input.right = actuated;
-                                      });
-
-        inputContext.SetAxis2DHandler(actions::shuttle_mouse::Move,
-                                      [this](void *context, const input::InputElement &element, float x, float y) {
-                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                          auto &moveInput = input.otherInputs[element];
-                                          moveInput.x = x;
-                                          moveInput.y = y;
-                                      });
-
-        inputContext.SetButtonHandler(actions::shuttle_mouse::SpeedBoost,
-                                      [=](void *context, const input::InputElement &, bool actuated) {
-                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                          input.speedBoost = actuated;
-                                      });
-        inputContext.SetTriggerHandler(actions::shuttle_mouse::SpeedToggle,
-                                       [=](void *context, const input::InputElement &) {
-                                           auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                           input.speedBoost ^= true;
-                                       });
-
-        inputContext.SetAxis2DHandler(actions::shuttle_mouse::MouseRelMove,
-                                      [this](void *context, const input::InputElement &element, float x, float y) {
-                                          auto &input = *reinterpret_cast<SharedContext::ShuttleMouseInput *>(context);
-                                          input.relInput.x += x;
-                                          input.relInput.y += y;
-                                      });
-
-        registerMoveButton(actions::shuttle_mouse::MoveUp, 0.0f, -1.0f);
-        registerMoveButton(actions::shuttle_mouse::MoveDown, 0.0f, +1.0f);
-        registerMoveButton(actions::shuttle_mouse::MoveLeft, -1.0f, 0.0f);
-        registerMoveButton(actions::shuttle_mouse::MoveRight, +1.0f, 0.0f);
-
-        auto &inputSettings = settings.input;
-
-        for (int i = 0; i < 2; ++i) {
-            auto &settings = inputSettings.ports[i].shuttleMouse;
-            auto &input = m_context.shuttleMouseInputs[i];
-            settings.speed.Observe(input.speed);
-            settings.speedBoostFactor.Observe(input.speedBoostFactor);
-            settings.sensitivity.Observe(input.relInputSensitivity);
-        }
-    }
-
-    settings.input.mouse.captureMode.ObserveAndNotify([&](Settings::Input::Mouse::CaptureMode) { ReleaseAllMice(); });
-
-    RebindInputs();
 
     // ---------------------------------
     // Debugger
@@ -1993,18 +1187,12 @@ void App::RunEmulator() {
     }};
 
     // Start screenshot processor thread
-    m_screenshotThread = std::thread([&] { ScreenshotThread(); });
-    ScopeGuard sgStopScreenshotThread{[&] {
-        m_screenshotThreadRunning = false;
-        m_writeScreenshotEvent.Set();
-        if (m_screenshotThread.joinable()) {
-            m_screenshotThread.join();
-        }
-    }};
+    m_screenshotService.Start(m_context);
+    ScopeGuard sgStopScreenshotThread{[&] { m_screenshotService.Stop(); }};
 
     SDL_ShowWindow(screen.window);
 
-    ReloadSDLGameControllerDatabases(false);
+    m_romService.ReloadSDLGameControllerDatabases(false);
 
     // Maps device IDs to player indices
     struct PlayerIndexMap {
@@ -2245,7 +1433,7 @@ void App::RunEmulator() {
                     }
 
                     // Restore system mouse cursor and release captured mice
-                    ReleaseAllMice();
+                    m_mouseCaptureService.ReleaseAllMice();
                 }
                 break;
 
@@ -2259,13 +1447,14 @@ void App::RunEmulator() {
                 if (evt.button.which != SDL_PEN_MOUSEID && evt.button.which != SDL_TOUCH_MOUSEID) {
                     inputContext.DisconnectMouse(evt.mdevice.which);
                     devlog::debug<grp::base>("Mouse {} removed", evt.mdevice.which);
-                    ReleaseMouse(evt.mdevice.which);
+                    m_mouseCaptureService.ReleaseMouse(evt.mdevice.which);
                 }
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN: [[fallthrough]];
             case SDL_EVENT_MOUSE_BUTTON_UP:
                 if (!io.WantCaptureMouse) {
-                    if (!IsMouseCaptured() && !HasValidPeripheralsForMouseCapture() &&
+                    if (!m_mouseCaptureService.IsMouseCaptured() &&
+                        !m_mouseCaptureService.HasValidPeripheralsForMouseCapture() &&
                         settings.video.doubleClickToFullScreen && evt.button.clicks % 2 == 0 && evt.button.down &&
                         evt.button.button == SDL_BUTTON_LEFT) {
                         settings.video.fullScreen = !settings.video.fullScreen;
@@ -2281,7 +1470,7 @@ void App::RunEmulator() {
 
                         // Try capturing the mouse cursor
                         if (evt.button.down && evt.button.button == SDL_BUTTON_LEFT) {
-                            ConnectMouseToPeripheral(evt.button.which);
+                            m_mouseCaptureService.ConnectMouseToPeripheral(evt.button.which);
                         }
                     }
                 }
@@ -2378,8 +1567,8 @@ void App::RunEmulator() {
 
             case SDL_EVENT_QUIT: goto end_loop; break;
 
-            case SDL_EVENT_DISPLAY_ADDED: OnDisplayAdded(evt.display.displayID); break;
-            case SDL_EVENT_DISPLAY_REMOVED: OnDisplayRemoved(evt.display.displayID); break;
+            case SDL_EVENT_DISPLAY_ADDED: m_displayService.OnDisplayAdded(evt.display.displayID); break;
+            case SDL_EVENT_DISPLAY_REMOVED: m_displayService.OnDisplayRemoved(evt.display.displayID); break;
 
             case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
                 if (m_context.display.id == 0 && !fullScreen) {
@@ -2391,12 +1580,12 @@ void App::RunEmulator() {
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
                 if (!settings.gui.overrideUIScale) {
                     const float windowScale = SDL_GetWindowDisplayScale(screen.window);
-                    RescaleUI(windowScale);
-                    PersistWindowGeometry();
+                    m_displayService.RescaleUI(windowScale);
+                    m_displayService.PersistWindowGeometry();
                 }
                 break;
             case SDL_EVENT_WINDOW_RESIZED: [[fallthrough]];
-            case SDL_EVENT_WINDOW_MOVED: PersistWindowGeometry(); break;
+            case SDL_EVENT_WINDOW_MOVED: m_displayService.PersistWindowGeometry(); break;
 
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
                 if (evt.window.windowID == SDL_GetWindowID(screen.window)) {
@@ -2419,7 +1608,7 @@ void App::RunEmulator() {
                         m_context.EnqueueEvent(events::emu::SetPaused(true));
                     }
                 }
-                ReleaseAllMice();
+                m_mouseCaptureService.ReleaseAllMice();
                 break;
 
             case SDL_EVENT_DROP_FILE: //
@@ -2434,7 +1623,7 @@ void App::RunEmulator() {
         if (rescaleUIPending) {
             rescaleUIPending = false;
             const float windowScale = SDL_GetWindowDisplayScale(screen.window);
-            RescaleUI(windowScale);
+            m_displayService.RescaleUI(windowScale);
         }
 
         // Process all axis changes
@@ -2449,38 +1638,55 @@ void App::RunEmulator() {
             const GUIEvent &evt = evts[i];
             using EvtType = GUIEvent::Type;
             switch (evt.type) {
-            case EvtType::LoadDisc: OpenLoadDiscDialog(); break;
-            case EvtType::LoadRecommendedGameCartridge: LoadRecommendedCartridge(); break;
-            case EvtType::OpenBackupMemoryCartFileDialog: OpenBackupMemoryCartFileDialog(); break;
-            case EvtType::OpenROMCartFileDialog: OpenROMCartFileDialog(); break;
-            case EvtType::OpenPeripheralBindsEditor:
-                OpenPeripheralBindsEditor(std::get<PeripheralBindsParams>(evt.value));
+            case EvtType::LoadDisc: m_discService.OpenLoadDiscDialog(); break;
+            case EvtType::LoadRecommendedGameCartridge: m_romService.LoadRecommendedCartridge(); break;
+            case EvtType::OpenBackupMemoryCartFileDialog: m_romService.OpenBackupMemoryCartFileDialog(); break;
+            case EvtType::OpenROMCartFileDialog: m_romService.OpenROMCartFileDialog(); break;
+            case EvtType::OpenPeripheralBindsEditor: {
+                const auto &params = std::get<PeripheralBindsParams>(evt.value);
+                m_windowManagerService.OpenPeripheralBindsEditor(params.portIndex, params.slotIndex);
+                break;
+            }
+
+            case EvtType::OpenFile:
+                m_fileDialogService.InvokeOpenFileDialog(std::get<FileDialogParams>(evt.value));
+                break;
+            case EvtType::OpenManyFiles:
+                m_fileDialogService.InvokeOpenManyFilesDialog(std::get<FileDialogParams>(evt.value));
+                break;
+            case EvtType::SaveFile:
+                m_fileDialogService.InvokeSaveFileDialog(std::get<FileDialogParams>(evt.value));
+                break;
+            case EvtType::SelectFolder:
+                m_fileDialogService.InvokeSelectFolderDialog(std::get<FolderDialogParams>(evt.value));
                 break;
 
-            case EvtType::OpenFile: InvokeOpenFileDialog(std::get<FileDialogParams>(evt.value)); break;
-            case EvtType::OpenManyFiles: InvokeOpenManyFilesDialog(std::get<FileDialogParams>(evt.value)); break;
-            case EvtType::SaveFile: InvokeSaveFileDialog(std::get<FileDialogParams>(evt.value)); break;
-            case EvtType::SelectFolder: InvokeSelectFolderDialog(std::get<FolderDialogParams>(evt.value)); break;
-
-            case EvtType::OpenBackupMemoryManager: m_bupMgrWindow.Open = true; break;
-            case EvtType::OpenSettings: m_settingsWindow.OpenTab(std::get<ui::SettingsTab>(evt.value)); break;
+            case EvtType::OpenBackupMemoryManager:
+                m_windowManagerService.BackupMemoryManagerWindow().Open = true;
+                break;
+            case EvtType::OpenSettings:
+                m_windowManagerService.SettingsWindow().OpenTab(std::get<ui::SettingsTab>(evt.value));
+                break;
             case EvtType::OpenSH2DebuggerWindow: //
             {
                 const auto &params = std::get<OpenSH2DebuggerWindowParams>(evt.value);
-                auto &windowSet = params.master ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                auto &windowSet = params.master ? m_windowManagerService.MasterSH2WindowSet()
+                                                : m_windowManagerService.SlaveSH2WindowSet();
                 windowSet.debugger.RequestOpen(params.triggeredByEvent, true);
                 break;
             }
             case EvtType::OpenSH2BreakpointsWindow: //
             {
-                auto &windowSet = std::get<bool>(evt.value) ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                auto &windowSet = std::get<bool>(evt.value) ? m_windowManagerService.MasterSH2WindowSet()
+                                                            : m_windowManagerService.SlaveSH2WindowSet();
                 windowSet.breakpoints.Open = true;
                 windowSet.breakpoints.RequestFocus();
                 break;
             }
             case EvtType::OpenSH2WatchpointsWindow: //
             {
-                auto &windowSet = std::get<bool>(evt.value) ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                auto &windowSet = std::get<bool>(evt.value) ? m_windowManagerService.MasterSH2WindowSet()
+                                                            : m_windowManagerService.SlaveSH2WindowSet();
                 windowSet.watchpoints.Open = true;
                 windowSet.watchpoints.RequestFocus();
                 break;
@@ -2510,12 +1716,14 @@ void App::RunEmulator() {
             }
 
             case EvtType::FitWindowToScreen: fitWindowToScreenNow = true; break;
-            case EvtType::ApplyFullscreenMode: ApplyFullscreenMode(); break;
+            case EvtType::ApplyFullscreenMode: m_displayService.ApplyFullscreenMode(); break;
 
-            case EvtType::RebindInputs: RebindInputs(); break;
-            case EvtType::ReloadGameControllerDatabase: ReloadSDLGameControllerDatabases(true); break;
+            case EvtType::RebindInputs: m_inputService.RebindInputs(); break;
+            case EvtType::ReloadGameControllerDatabase: m_romService.ReloadSDLGameControllerDatabases(true); break;
 
-            case EvtType::ShowErrorMessage: OpenSimpleErrorModal(std::get<std::string>(evt.value)); break;
+            case EvtType::ShowErrorMessage:
+                m_windowManagerService.OpenSimpleErrorModal(std::get<std::string>(evt.value));
+                break;
 
             case EvtType::EnableRewindBuffer: EnableRewindBuffer(std::get<bool>(evt.value)); break;
 
@@ -2530,19 +1738,19 @@ void App::RunEmulator() {
                         m_context.EnqueueEvent(events::emu::HardReset());
                     }
                 } else {
-                    OpenSimpleErrorModal(
+                    m_windowManagerService.OpenSimpleErrorModal(
                         fmt::format("Failed to load IPL ROM from \"{}\": {}", path, result.errorMessage));
                 }
                 break;
             }
             case EvtType::ReloadIPLROM: //
             {
-                util::ROMLoadResult result = LoadIPLROM();
+                util::ROMLoadResult result = m_romService.LoadIPLROM();
                 if (result.succeeded) {
                     m_context.EnqueueEvent(events::emu::HardReset());
                 } else {
-                    OpenSimpleErrorModal(fmt::format("Failed to reload IPL ROM from \"{}\": {}", m_context.iplRomPath,
-                                                     result.errorMessage));
+                    m_windowManagerService.OpenSimpleErrorModal(fmt::format("Failed to reload IPL ROM from \"{}\": {}",
+                                                                            m_context.iplRomPath, result.errorMessage));
                 }
                 break;
             }
@@ -2559,20 +1767,21 @@ void App::RunEmulator() {
                         }
                     }
                 } else if (settings.cdblock.useLLE) {
-                    OpenSimpleErrorModal(
+                    m_windowManagerService.OpenSimpleErrorModal(
                         fmt::format("Failed to load CD block ROM from \"{}\": {}", path, result.errorMessage));
                 }
                 break;
             }
             case EvtType::ReloadCDBlockROM: //
             {
-                util::ROMLoadResult result = LoadCDBlockROM();
+                util::ROMLoadResult result = m_romService.LoadCDBlockROM();
                 if (settings.cdblock.useLLE) {
                     if (result.succeeded) {
                         m_context.EnqueueEvent(events::emu::HardReset());
                     } else {
-                        OpenSimpleErrorModal(fmt::format("Failed to reload CD block ROM from \"{}\": {}",
-                                                         m_context.cdbRomPath, result.errorMessage));
+                        m_windowManagerService.OpenSimpleErrorModal(
+                            fmt::format("Failed to reload CD block ROM from \"{}\": {}", m_context.cdbRomPath,
+                                        result.errorMessage));
                     }
                 }
                 break;
@@ -2580,7 +1789,7 @@ void App::RunEmulator() {
 
             case EvtType::TakeScreenshot: //
             {
-                Screenshot ss{};
+                screenshot::Screenshot ss{};
                 ss.fbWidth = screen.width;
                 ss.fbHeight = screen.height;
                 ss.fb.resize(screen.width * screen.height);
@@ -2590,20 +1799,16 @@ void App::RunEmulator() {
                 ss.ssScale = settings.general.screenshotScale;
                 ss.rotation = settings.video.rotation;
                 ss.timestamp = std::chrono::system_clock::now();
-                {
-                    std::unique_lock lock{m_screenshotQueueMtx};
-                    m_screenshotQueue.emplace(std::move(ss));
-                }
-                m_writeScreenshotEvent.Set();
+                m_screenshotService.Enqueue(std::move(ss));
                 break;
             }
 
-            case EvtType::CheckForUpdates: CheckForUpdates(true); break;
+            case EvtType::CheckForUpdates: m_updateCheckerService.CheckForUpdates(true); break;
 
             case EvtType::StateLoaded:
                 m_context.DisplayMessage(fmt::format("State {} loaded", std::get<uint32>(evt.value) + 1));
                 break;
-            case EvtType::StateSaved: PersistSaveState(std::get<uint32>(evt.value)); break;
+            case EvtType::StateSaved: m_saveStateService.PersistSaveState(std::get<uint32>(evt.value)); break;
             }
         }
 
@@ -2703,7 +1908,7 @@ void App::RunEmulator() {
             }
         }
 
-        UpdateInputs(std::chrono::duration<double>(timeDelta).count());
+        m_inputService.UpdateInputs(std::chrono::duration<double>(timeDelta).count());
 
         const bool prevForceAspectRatio = settings.video.forceAspectRatio;
         const double prevForcedAspect = settings.video.forcedAspect;
@@ -2715,8 +1920,8 @@ void App::RunEmulator() {
         if (mouseMoved || mouseDown || io.WantCaptureMouse) {
             m_mouseHideTime = clk::now();
         }
-        const bool hideMouse = (m_systemMouseCaptured && !io.WantCaptureMouse) || !m_capturedMice.empty() ||
-                               clk::now() >= m_mouseHideTime + 2s;
+        const bool hideMouse =
+            m_mouseCaptureService.ShouldHideMouse(io.WantCaptureMouse) || clk::now() >= m_mouseHideTime + 2s;
         if (hideMouse) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_None);
         }
@@ -2740,8 +1945,8 @@ void App::RunEmulator() {
         // NOTE: ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow) cannot be used becaused the application always
         // starts with main menu bar focused
         if (settings.input.mouse.captureMode == Settings::Input::Mouse::CaptureMode::PhysicalMouse &&
-            io.WantCaptureKeyboard && (!m_capturedMice.empty() || m_mouseCaptureActive)) {
-            ReleaseAllMice();
+            io.WantCaptureKeyboard && m_mouseCaptureService.IsPhysicalMouseCapturedOrActive()) {
+            m_mouseCaptureService.ReleaseAllMice();
         }
 
         auto *viewport = ImGui::GetMainViewport();
@@ -2780,7 +1985,7 @@ void App::RunEmulator() {
                     // CD drive
                     if (ImGui::MenuItem("Load disc image",
                                         input::ToShortcut(inputContext, actions::cd_drive::LoadDisc).c_str())) {
-                        OpenLoadDiscDialog();
+                        m_discService.OpenLoadDiscDialog();
                     }
                     if (ImGui::BeginMenu("Recent disc images")) {
                         if (m_context.state.recentDiscs.empty()) {
@@ -2811,7 +2016,7 @@ void App::RunEmulator() {
                             ImGui::Separator();
                             if (ImGui::MenuItem("Clear")) {
                                 m_context.state.recentDiscs.clear();
-                                SaveRecentDiscs();
+                                m_discService.SaveRecentDiscs();
                             }
                         }
                         ImGui::EndMenu();
@@ -2855,11 +2060,11 @@ void App::RunEmulator() {
 
                             if (ImGui::MenuItem(label.c_str(), shortcut.c_str(), isSelected, present || save)) {
                                 if (save) {
-                                    SaveSaveStateSlot(slotIndex);
+                                    m_saveStateService.SaveSaveStateSlot(slotIndex);
                                 } else if (present) {
-                                    LoadSaveStateSlot(slotIndex);
+                                    m_saveStateService.LoadSaveStateSlot(slotIndex);
                                 } else {
-                                    SelectSaveStateSlot(slotIndex);
+                                    m_saveStateService.SelectSaveStateSlot(slotIndex);
                                 }
                             }
                         }
@@ -2867,20 +2072,20 @@ void App::RunEmulator() {
 
                     auto drawCommonSaveStatesSection = [&] {
                         if (ImGui::MenuItem("Clear all")) {
-                            OpenGenericModal(
+                            m_windowManagerService.OpenGenericModal(
                                 "Clear all save states",
                                 [&] {
                                     ImGui::TextUnformatted(
                                         "Are you sure you wish to clear all save states for this game?");
                                     if (ImGui::Button(
                                             "Yes", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
-                                        ClearSaveStates();
-                                        m_closeGenericModal = true;
+                                        m_saveStateService.ClearSaveStates();
+                                        m_windowManagerService.CloseGenericModal();
                                     }
                                     ImGui::SameLine();
                                     if (ImGui::Button(
                                             "No", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
-                                        m_closeGenericModal = true;
+                                        m_windowManagerService.CloseGenericModal();
                                     }
                                 },
                                 false);
@@ -2921,7 +2126,7 @@ void App::RunEmulator() {
                         SDL_OpenURL(fmt::format("file:///{}", path).c_str());
                     }
                     if (ImGui::MenuItem("Reload save states from disk")) {
-                        LoadSaveStates();
+                        m_saveStateService.LoadSaveStates();
                     }
 
                     ImGui::Separator();
@@ -3035,13 +2240,14 @@ void App::RunEmulator() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("System")) {
-                    ImGui::MenuItem("System state", nullptr, &m_systemStateWindow.Open);
+                    ImGui::MenuItem("System state", nullptr, &m_windowManagerService.SystemStateWindow().Open);
                     if (ImGui::MenuItem("Copy disc hash")) {
                         std::unique_lock lock{m_context.locks.disc};
                         std::string hash = ToString(m_context.saturn.instance->GetDiscHash());
                         SDL_SetClipboardText(hash.c_str());
                     }
-                    ImGui::MenuItem("Backup memory manager", nullptr, &m_bupMgrWindow.Open);
+                    ImGui::MenuItem("Backup memory manager", nullptr,
+                                    &m_windowManagerService.BackupMemoryManagerWindow().Open);
 
                     ImGui::Separator();
 
@@ -3093,7 +2299,7 @@ void App::RunEmulator() {
                         ImGui::EndDisabled();
 
                         if (ImGui::MenuItem("Insert backup RAM...")) {
-                            OpenBackupMemoryCartFileDialog();
+                            m_romService.OpenBackupMemoryCartFileDialog();
                         }
                         if (ImGui::MenuItem("Insert 8 Mbit DRAM")) {
                             m_context.EnqueueEvent(events::emu::Insert8MbitDRAMCartridge());
@@ -3105,7 +2311,7 @@ void App::RunEmulator() {
                             m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge());
                         }
                         if (ImGui::MenuItem("Insert 16 Mbit ROM...")) {
-                            OpenROMCartFileDialog();
+                            m_romService.OpenROMCartFileDialog();
                         }
 
                         if (ImGui::MenuItem("Remove cartridge")) {
@@ -3150,44 +2356,44 @@ void App::RunEmulator() {
                 if (ImGui::BeginMenu("Settings")) {
                     if (ImGui::MenuItem("Settings",
                                         input::ToShortcut(inputContext, actions::general::OpenSettings).c_str(),
-                                        &m_settingsWindow.Open)) {
-                        if (m_settingsWindow.Open) {
-                            m_settingsWindow.RequestFocus();
+                                        &m_windowManagerService.SettingsWindow().Open)) {
+                        if (m_windowManagerService.SettingsWindow().Open) {
+                            m_windowManagerService.SettingsWindow().RequestFocus();
                         }
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("General")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::General);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::General);
                     }
                     if (ImGui::MenuItem("GUI")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::GUI);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::GUI);
                     }
                     if (ImGui::MenuItem("Hotkeys")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Hotkeys);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Hotkeys);
                     }
                     if (ImGui::MenuItem("System")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::System);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::System);
                     }
                     if (ImGui::MenuItem("IPL")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::IPL);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::IPL);
                     }
                     if (ImGui::MenuItem("Input")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Input);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Input);
                     }
                     if (ImGui::MenuItem("Video")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Video);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Video);
                     }
                     if (ImGui::MenuItem("Audio")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Audio);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Audio);
                     }
                     if (ImGui::MenuItem("Cartridge")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Cartridge);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Cartridge);
                     }
                     if (ImGui::MenuItem("CD Block")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::CDBlock);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::CDBlock);
                     }
                     if (ImGui::MenuItem("Tweaks")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Tweaks);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Tweaks);
                     }
 
                     ImGui::EndMenu();
@@ -3201,10 +2407,10 @@ void App::RunEmulator() {
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("Open memory viewer", nullptr)) {
-                        OpenMemoryViewer();
+                        m_windowManagerService.OpenMemoryViewer();
                     }
                     if (ImGui::BeginMenu("Memory viewers")) {
-                        for (auto &memView : m_memoryViewerWindows) {
+                        for (auto &memView : m_windowManagerService.MemoryViewerWindows()) {
                             ImGui::MenuItem(fmt::format("Memory viewer #{}", memView.Index() + 1).c_str(), nullptr,
                                             &memView.Open);
                         }
@@ -3237,22 +2443,24 @@ void App::RunEmulator() {
                             ImGui::EndMenu();
                         }
                     };
-                    sh2Menu("Master SH2", m_masterSH2WindowSet);
-                    sh2Menu("Slave SH2", m_slaveSH2WindowSet);
+                    sh2Menu("Master SH2", m_windowManagerService.MasterSH2WindowSet());
+                    sh2Menu("Slave SH2", m_windowManagerService.SlaveSH2WindowSet());
 
                     if (ImGui::BeginMenu("SCU")) {
-                        ImGui::MenuItem("Registers", nullptr, &m_scuWindowSet.regs.Open);
-                        ImGui::MenuItem("DSP", nullptr, &m_scuWindowSet.dsp.Open);
-                        ImGui::MenuItem("DMA", nullptr, &m_scuWindowSet.dma.Open);
-                        ImGui::MenuItem("DMA trace", nullptr, &m_scuWindowSet.dmaTrace.Open);
-                        ImGui::MenuItem("Interrupt trace", nullptr, &m_scuWindowSet.intrTrace.Open);
+                        ImGui::MenuItem("Registers", nullptr, &m_windowManagerService.SCUWindowSet().regs.Open);
+                        ImGui::MenuItem("DSP", nullptr, &m_windowManagerService.SCUWindowSet().dsp.Open);
+                        ImGui::MenuItem("DMA", nullptr, &m_windowManagerService.SCUWindowSet().dma.Open);
+                        ImGui::MenuItem("DMA trace", nullptr, &m_windowManagerService.SCUWindowSet().dmaTrace.Open);
+                        ImGui::MenuItem("Interrupt trace", nullptr,
+                                        &m_windowManagerService.SCUWindowSet().intrTrace.Open);
                         ImGui::EndMenu();
                     }
 
                     if (ImGui::BeginMenu("SCSP")) {
-                        ImGui::MenuItem("Output", nullptr, &m_scspWindowSet.output.Open);
-                        ImGui::MenuItem("Slots", nullptr, &m_scspWindowSet.slots.Open);
-                        ImGui::MenuItem("KYONEX trace", nullptr, &m_scspWindowSet.kyonexTrace.Open);
+                        ImGui::MenuItem("Output", nullptr, &m_windowManagerService.SCSPWindowSet().output.Open);
+                        ImGui::MenuItem("Slots", nullptr, &m_windowManagerService.SCSPWindowSet().slots.Open);
+                        ImGui::MenuItem("KYONEX trace", nullptr,
+                                        &m_windowManagerService.SCSPWindowSet().kyonexTrace.Open);
 
                         ImGui::EndMenu();
                     }
@@ -3265,7 +2473,8 @@ void App::RunEmulator() {
                             }
                         };
 
-                        ImGui::MenuItem("Layer visibility", nullptr, &m_vdpWindowSet.vdp2LayerVisibility.Open);
+                        ImGui::MenuItem("Layer visibility", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2LayerVisibility.Open);
                         ImGui::Indent();
                         layerMenuItem("Sprite", vdp::Layer::Sprite);
                         layerMenuItem("RBG0", vdp::Layer::RBG0);
@@ -3275,45 +2484,53 @@ void App::RunEmulator() {
                         layerMenuItem("NBG3", vdp::Layer::NBG3);
                         ImGui::Unindent();
 
-                        ImGui::MenuItem("VDP1 registers", nullptr, &m_vdpWindowSet.vdp1Regs.Open);
-                        ImGui::MenuItem("VDP2 layer parameters", nullptr, &m_vdpWindowSet.vdp2LayerParams.Open);
-                        ImGui::MenuItem("VDP2 debug overlay", nullptr, &m_vdpWindowSet.vdp2DebugOverlay.Open);
-                        ImGui::MenuItem("VDP2 VRAM access delay", nullptr, &m_vdpWindowSet.vdp2VRAMDelay.Open);
-                        ImGui::MenuItem("VDP2 Color RAM palette", nullptr, &m_vdpWindowSet.vdp2CRAM.Open);
+                        ImGui::MenuItem("VDP1 registers", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp1Regs.Open);
+                        ImGui::MenuItem("VDP2 layer parameters", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2LayerParams.Open);
+                        ImGui::MenuItem("VDP2 debug overlay", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2DebugOverlay.Open);
+                        ImGui::MenuItem("VDP2 VRAM access delay", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2VRAMDelay.Open);
+                        ImGui::MenuItem("VDP2 Color RAM palette", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2CRAM.Open);
 
                         ImGui::EndMenu();
                     }
 
                     if (ImGui::BeginMenu("CD Block")) {
-                        ImGui::MenuItem("Command trace", nullptr, &m_cdblockWindowSet.cmdTrace.Open);
-                        ImGui::MenuItem("Filters", nullptr, &m_cdblockWindowSet.filters.Open);
+                        ImGui::MenuItem("Command trace", nullptr,
+                                        &m_windowManagerService.CDBlockWindowSet().cmdTrace.Open);
+                        ImGui::MenuItem("Filters", nullptr, &m_windowManagerService.CDBlockWindowSet().filters.Open);
                         ImGui::Separator();
-                        ImGui::MenuItem("CD drive state trace", nullptr, &m_cdblockWindowSet.driveStateTrace.Open);
-                        ImGui::MenuItem("YGR command trace", nullptr, &m_cdblockWindowSet.ygrCmdTrace.Open);
+                        ImGui::MenuItem("CD drive state trace", nullptr,
+                                        &m_windowManagerService.CDBlockWindowSet().driveStateTrace.Open);
+                        ImGui::MenuItem("YGR command trace", nullptr,
+                                        &m_windowManagerService.CDBlockWindowSet().ygrCmdTrace.Open);
                         ImGui::EndMenu();
                     }
 
-                    ImGui::MenuItem("Debug output", nullptr, &m_debugOutputWindow.Open);
+                    ImGui::MenuItem("Debug output", nullptr, &m_windowManagerService.DebugOutputWindow().Open);
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Help")) {
                     if (ImGui::MenuItem("Open welcome window", nullptr)) {
-                        OpenWelcomeModal(false);
+                        m_windowManagerService.OpenWelcomeModal(false);
                     }
                     if (ImGui::MenuItem("Check for updates", nullptr)) {
-                        CheckForUpdates(true);
+                        m_updateCheckerService.CheckForUpdates(true);
                     }
 
                     ImGui::Separator();
                     ImGui::MenuItem("Show message history",
                                     input::ToShortcut(inputContext, actions::general::ShowMessageHistory).c_str(),
-                                    &m_messageHistoryWindow.Open);
+                                    &m_windowManagerService.MessageHistoryWindow().Open);
                     ImGui::Separator();
 #if Ymir_ENABLE_IMGUI_DEMO
                     ImGui::MenuItem("ImGui demo window", nullptr, &showImGuiDemoWindow);
                     ImGui::Separator();
 #endif
-                    ImGui::MenuItem("About", nullptr, &m_aboutWindow.Open);
+                    ImGui::MenuItem("About", nullptr, &m_windowManagerService.AboutWindow().Open);
                     ImGui::EndMenu();
                 }
                 ImGui::EndMainMenuBar();
@@ -3380,7 +2597,7 @@ void App::RunEmulator() {
                     (void *)&aspectRatio);
 
                 ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoNavInputs;
-                if (m_systemMouseCaptured || HasValidPeripheralsForMouseCapture()) {
+                if (m_mouseCaptureService.ShouldDisableImGuiMouseInputs()) {
                     windowFlags |= ImGuiWindowFlags_NoMouseInputs;
                 }
                 if (ImGui::Begin(title.c_str(), &videoSettings.displayVideoOutputInWindow, windowFlags)) {
@@ -3422,7 +2639,7 @@ void App::RunEmulator() {
                         break;
                     }
 
-                    DrawInputs(drawList);
+                    m_inputService.DrawInputs(drawList);
 
                     ImGui::Dummy(avail);
                 }
@@ -3433,12 +2650,12 @@ void App::RunEmulator() {
             // Draw input cursors on background if not displaying screen in a window
             if (!settings.video.displayVideoOutputInWindow) {
                 auto *drawList = ImGui::GetBackgroundDrawList();
-                DrawInputs(drawList);
+                m_inputService.DrawInputs(drawList);
             }
 
             // Draw windows and modals
-            DrawWindows();
-            DrawGenericModal();
+            m_windowManagerService.DrawWindows();
+            m_windowManagerService.DrawGenericModal();
 
             auto *viewport = ImGui::GetMainViewport();
 
@@ -3876,7 +3093,7 @@ void App::RunEmulator() {
         }
 
         settings.CheckDirty();
-        CheckDebuggerStateDirty();
+        m_saveStateService.CheckDebuggerStateDirty();
     }
 
 end_loop:; // the semicolon is not a typo!
@@ -3980,12 +3197,13 @@ void App::EmulatorThread() {
             {
                 auto path = std::get<std::filesystem::path>(evt.value);
                 // LoadDiscImage locks the disc mutex
-                if (LoadDiscImage(path, true)) {
-                    LoadSaveStates();
-                    LoadDebuggerState();
-                    auto iplLoadResult = LoadIPLROM();
+                if (m_discService.LoadDiscImage(path, true)) {
+                    m_saveStateService.LoadSaveStates();
+                    m_saveStateService.LoadDebuggerState();
+                    auto iplLoadResult = m_romService.LoadIPLROM();
                     if (!iplLoadResult.succeeded) {
-                        OpenSimpleErrorModal(fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
+                        m_windowManagerService.OpenSimpleErrorModal(
+                            fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
                     }
                 }
                 break;
@@ -4089,1672 +3307,6 @@ void App::EmulatorThread() {
     }
 }
 
-void App::ScreenshotThread() {
-    util::SetCurrentThreadName("Screenshot processing thread");
-
-    m_screenshotThreadRunning = true;
-    while (m_screenshotThreadRunning) {
-        m_writeScreenshotEvent.Wait();
-        m_writeScreenshotEvent.Reset();
-        if (!m_screenshotThreadRunning) {
-            break;
-        }
-
-        Screenshot ss{};
-        while (true) {
-            {
-                std::unique_lock lock{m_screenshotQueueMtx};
-                if (m_screenshotQueue.empty()) {
-                    break;
-                }
-                std::swap(ss, m_screenshotQueue.front());
-                m_screenshotQueue.pop();
-            }
-
-            auto localNow = util::to_local_time(ss.timestamp);
-            auto fracTime =
-                std::chrono::duration_cast<std::chrono::milliseconds>(ss.timestamp.time_since_epoch()).count() % 1000;
-            // ISO 8601 + milliseconds
-            auto screenshotPath =
-                m_context.profile.GetPath(ProfilePath::Screenshots) /
-                fmt::format("{}-{:%Y%m%d}T{:%H%M%S}.{}.png", m_context.GetGameFileName(), localNow, localNow, fracTime);
-
-            const int ssScale = ss.ssScale;
-            uint32 ssScaleX = ssScale * ss.fbScaleX;
-            uint32 ssScaleY = ssScale * ss.fbScaleY;
-            uint32 ssWidth = ss.fbWidth * ssScaleX;
-            uint32 ssHeight = ss.fbHeight * ssScaleY;
-
-            // Rotate based on display rotation setting
-            std::vector<uint32> rotatedFB{};
-            using Rot = Settings::Video::DisplayRotation;
-            if (ss.rotation != Rot::Normal) {
-                rotatedFB.resize(ss.fbWidth * ss.fbHeight);
-            }
-            if (ss.rotation == Rot::_90CW || ss.rotation == Rot::_90CCW) {
-                std::swap(ssWidth, ssHeight);
-                std::swap(ssScaleX, ssScaleY);
-                std::swap(ss.fbWidth, ss.fbHeight);
-            }
-            switch (ss.rotation) {
-            case Rot::Normal: break;
-            case Rot::_90CW:
-                for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        rotatedFB[x + y * ss.fbWidth] = ss.fb[y + (ss.fbWidth - 1 - x) * ss.fbHeight];
-                    }
-                }
-                break;
-            case Rot::_180:
-                for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        rotatedFB[x + y * ss.fbWidth] =
-                            ss.fb[(ss.fbWidth - 1 - x) + (ss.fbHeight - 1 - y) * ss.fbWidth];
-                    }
-                }
-                break;
-            case Rot::_90CCW:
-                for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        rotatedFB[x + y * ss.fbWidth] = ss.fb[(ss.fbHeight - 1 - y) + x * ss.fbHeight];
-                    }
-                }
-                break;
-            }
-            if (ss.rotation != Rot::Normal) {
-                ss.fb.swap(rotatedFB);
-            }
-
-            // Scale up with nearest neighbor interpolation
-            std::vector<uint32> scaledFB{};
-            scaledFB.resize(ssWidth * ssHeight);
-            auto &srcFB = ss.fb;
-            for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                uint32 *line = &scaledFB[(y * ssScaleY) * ssWidth];
-                if (ssScaleX == 1) {
-                    std::copy_n(&srcFB[y * ss.fbWidth], ss.fbWidth, line);
-                } else {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        std::fill_n(&line[x * ssScaleX], ssScaleX, srcFB[y * ss.fbWidth + x]);
-                    }
-                }
-                for (uint32 py = 1; py < ssScaleY; ++py) {
-                    std::copy_n(line, ssWidth, &line[py * ssWidth]);
-                }
-            }
-
-            stbi_write_png(fmt::format("{}", screenshotPath).c_str(), ssWidth, ssHeight, 4, scaledFB.data(),
-                           ssWidth * sizeof(uint32));
-
-            m_context.DisplayMessage(fmt::format("Screenshot saved to {}", screenshotPath));
-        }
-    }
-}
-
-void App::UpdateCheckerThread() {
-    util::SetCurrentThreadName("Update checker thread");
-
-    // TODO: would be nice if this could be constexpr
-    static const auto currVersion = [] {
-        // static_assert(semver::valid(Ymir_VERSION), "Ymir_VERSION is not a valid semver string");
-        semver::version version;
-        semver::parse(Ymir_VERSION, version);
-        return version;
-    }();
-
-    m_updateCheckerThreadRunning = true;
-    while (m_updateCheckerThreadRunning) {
-        m_context.updates.inProgress = false;
-        m_updateCheckEvent.Wait();
-        m_updateCheckEvent.Reset();
-        if (!m_updateCheckerThreadRunning) {
-            break;
-        }
-        const auto mode = m_updateCheckMode;
-        const bool showMessages = mode == UpdateCheckMode::OnlineNoCache;
-        m_context.updates.inProgress = true;
-        {
-            std::unique_lock lock{m_context.locks.targetUpdate};
-            m_context.targetUpdate = std::nullopt;
-        }
-
-        if (showMessages) {
-            m_context.DisplayMessage("Checking for updates...");
-        }
-
-        const auto updaterCachePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "updates";
-        auto stableResult = m_context.updateChecker.Check(ReleaseChannel::Stable, updaterCachePath, mode);
-        if (stableResult) {
-            std::unique_lock lock{m_context.locks.updates};
-            m_context.updates.latestStable = stableResult.updateInfo;
-            devlog::info<grp::updater>("Stable channel version: {}", stableResult.updateInfo.version.to_string());
-        } else {
-            m_context.DisplayMessage(
-                fmt::format("Failed to check for stable channel updates: {}", stableResult.errorMessage));
-        }
-
-        auto nightlyResult = m_context.updateChecker.Check(ReleaseChannel::Nightly, updaterCachePath, mode);
-        if (nightlyResult) {
-            std::unique_lock lock{m_context.locks.updates};
-            m_context.updates.latestNightly = nightlyResult.updateInfo;
-            devlog::info<grp::updater>("Nightly channel version: {}", nightlyResult.updateInfo.version.to_string());
-        } else {
-            m_context.DisplayMessage(
-                fmt::format("Failed to check for nightly channel updates: {}", nightlyResult.errorMessage));
-        }
-
-        // TODO: allow user to skip/ignore certain updates
-        // - this needs to be persisted
-
-        // Check stable update first, nice and easy
-        if (stableResult) {
-            const bool isUpdateAvailable = [&] {
-                if (stableResult.updateInfo.version > currVersion) {
-                    return true;
-                }
-
-                // On nightly builds, a stable release of the same version as the current version is always newer
-                if constexpr (ymir::version::is_nightly_build) {
-                    return stableResult.updateInfo.version == currVersion;
-                }
-
-                return false;
-            }();
-
-            if (isUpdateAvailable) {
-                std::unique_lock lock{m_context.locks.targetUpdate};
-                m_context.targetUpdate = {.info = stableResult.updateInfo, .channel = ReleaseChannel::Stable};
-            }
-        }
-
-        // Check nightly update if requested
-        if (m_settings.general.includeNightlyBuilds && nightlyResult) {
-            std::unique_lock lock{m_context.locks.targetUpdate};
-            const bool isUpdateAvailable = [&] {
-                // If both stable and nightly are the same version, the stable version is more up-to-date.
-                // In theory there shouldn't be any nightly builds of a certain version after it is released.
-                if (m_context.targetUpdate && nightlyResult.updateInfo.version > m_context.targetUpdate->info.version) {
-                    // If the stable version is newer than the current version, this nightly will be even newer.
-                    // We don't need to check against the current version again due to transitivity of the > operator.
-                    return true;
-                }
-
-                // Stable release couldn't be retrieved or isn't newer than the current version.
-                // Check if nightly is an update.
-                if (!m_context.targetUpdate) {
-                    if (semver::detail::compare_parsed(nightlyResult.updateInfo.version, currVersion,
-                                                       semver::version_compare_option::exclude_prerelease) > 0) {
-                        return true;
-                    }
-
-                    if constexpr (ymir::version::is_nightly_build) {
-                        // Current version is a nightly build
-                        if (semver::detail::compare_parsed(nightlyResult.updateInfo.version, currVersion,
-                                                           semver::version_compare_option::exclude_prerelease) < 0) {
-                            return false;
-                        }
-
-                        // Nightly versions match; compare build timestamps
-#ifdef Ymir_BUILD_TIMESTAMP
-                        if (auto buildTimestamp = util::parse8601(Ymir_BUILD_TIMESTAMP)) {
-                            return nightlyResult.updateInfo.timestamp > *buildTimestamp;
-                        }
-#endif
-                    }
-                }
-
-                return false;
-            }();
-
-            if (isUpdateAvailable) {
-                m_context.targetUpdate = {.info = nightlyResult.updateInfo, .channel = ReleaseChannel::Nightly};
-            }
-        }
-
-        std::unique_lock lock{m_context.locks.targetUpdate};
-        if (m_context.targetUpdate) {
-            m_context.DisplayMessage(
-                fmt::format("Update to v{} ({} channel) available", m_context.targetUpdate->info.version.to_string(),
-                            (m_context.targetUpdate->channel == ReleaseChannel::Stable ? "stable" : "nightly")));
-            if constexpr (ymir::version::is_local_build) {
-                devlog::info<grp::updater>("Updates are disabled on local builds");
-            } else {
-                m_updateWindow.Open = true;
-            }
-        } else if (showMessages) {
-            m_context.DisplayMessage("No updates found");
-        }
-    }
-}
-
-void App::OpenWelcomeModal(bool scanIPLROMs) {
-    bool activeScanning = scanIPLROMs;
-
-    using namespace std::chrono_literals;
-    static constexpr auto kScanInterval = 400ms;
-
-    struct ROMSelectResult {
-        bool fileSelected = false;
-        std::filesystem::path path;
-
-        bool hasResult = false;
-        util::ROMLoadResult result;
-    };
-
-    OpenGenericModal("Welcome", [=, this, nextScanDeadline = clk::now() + kScanInterval,
-                                 lastROMCount = m_context.romManager.GetIPLROMs().size(),
-                                 romSelectResult = ROMSelectResult{}]() mutable {
-        bool doSelectRom = false;
-        bool doOpenSettings = false;
-
-        SDL_Texture *logoTexture = m_graphicsService.GetSDLTexture(m_context.images.ymirLogo.texture);
-        ImGui::Image((ImTextureID)logoTexture,
-                     ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale * 0.7f,
-                            m_context.images.ymirLogo.size.y * m_context.displayScale * 0.7f));
-
-        ImGui::PushFont(m_context.fonts.display, m_context.fontSizes.display);
-        ImGui::TextUnformatted("Ymir");
-        ImGui::PopFont();
-        ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.large);
-        ImGui::TextUnformatted("Welcome to Ymir!");
-        ImGui::PopFont();
-        ImGui::NewLine();
-        ImGui::TextUnformatted("Ymir requires a valid IPL (BIOS) ROM to work.");
-
-        ImGui::NewLine();
-        ImGui::TextUnformatted("Ymir will automatically load IPL ROMs placed in ");
-        ImGui::SameLine(0, 0);
-        auto romPath = m_context.profile.GetPath(ProfilePath::IPLROMImages);
-        if (ImGui::TextLink(fmt::format("{}", romPath).c_str())) {
-            SDL_OpenURL(fmt::format("file:///{}", romPath).c_str());
-        }
-        ImGui::TextUnformatted("Alternatively, you can ");
-        ImGui::SameLine(0, 0);
-        if (ImGui::TextLink("manually select an IPL ROM")) {
-            doSelectRom = true;
-        }
-        ImGui::SameLine(0, 0);
-        ImGui::TextUnformatted(" or ");
-        ImGui::SameLine(0, 0);
-        if (ImGui::TextLink("manage the ROM settings in Settings > IPL")) {
-            doOpenSettings = true;
-        }
-        ImGui::SameLine(0, 0);
-        ImGui::TextUnformatted(".");
-
-        if (!activeScanning) {
-            ImGui::NewLine();
-            ImGui::TextUnformatted("Ymir is not currently scanning for IPL ROMs.");
-            ImGui::TextUnformatted("If you would like to actively scan for IPL ROMs, press the button below.");
-            if (ImGui::Button("Start active scanning")) {
-                activeScanning = true;
-            }
-            ImGui::NewLine();
-        }
-
-        if (romSelectResult.hasResult && !romSelectResult.result.succeeded) {
-            ImGui::NewLine();
-            ImGui::Text("The file %s does not contain a valid IPL ROM.",
-                        fmt::format("{}", romSelectResult.path).c_str());
-            ImGui::Text("Reason: %s.", romSelectResult.result.errorMessage.c_str());
-        }
-
-        ImGui::Separator();
-
-        if (ImGui::Button("Open IPL ROMs directory")) {
-            SDL_OpenURL(fmt::format("file:///{}", m_context.profile.GetPath(ProfilePath::IPLROMImages)).c_str());
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Select IPL ROM...")) {
-            doSelectRom = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Open IPL settings")) {
-            doOpenSettings = true;
-        }
-        ImGui::SameLine(); // this places the OK button next to these
-
-        if (doSelectRom) {
-            FileDialogParams params{
-                .dialogTitle = "Select IPL ROM",
-                .defaultPath = m_context.profile.GetPath(ProfilePath::IPLROMImages),
-                .filters = {{"ROM files (*.bin, *.rom)", "bin;rom"}, {"All files (*.*)", "*"}},
-                .userdata = &romSelectResult,
-                .callback =
-                    [](void *userdata, const char *const *filelist, int filter) {
-                        if (filelist == nullptr) {
-                            devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-                        } else if (*filelist == nullptr) {
-                            devlog::info<grp::base>("File dialog cancelled");
-                        } else {
-                            // Only one file should be selected
-                            const char *file = *filelist;
-                            std::string fileStr = file;
-                            std::u8string u8File{fileStr.begin(), fileStr.end()};
-                            auto &result = *static_cast<ROMSelectResult *>(userdata);
-                            result.fileSelected = true;
-                            result.path = u8File;
-                        }
-                    },
-            };
-            InvokeOpenFileDialog(params);
-        }
-
-        if (doOpenSettings) {
-            m_settingsWindow.OpenTab(ui::SettingsTab::IPL);
-            m_closeGenericModal = true;
-        }
-
-        // Try loading IPL ROM selected through the file dialog.
-        // If successful, set the override path and close the modal.
-        if (romSelectResult.fileSelected) {
-            romSelectResult.fileSelected = false;
-            romSelectResult.hasResult = true;
-            romSelectResult.result = util::LoadIPLROM(romSelectResult.path, *m_context.saturn.instance);
-            if (romSelectResult.result.succeeded) {
-                auto &settings = m_settings;
-                settings.system.ipl.overrideImage = true;
-                settings.system.ipl.path = romSelectResult.path;
-                LoadIPLROM();
-                m_closeGenericModal = true;
-            }
-        }
-
-        if (!activeScanning) {
-            return;
-        }
-
-        // Periodically scan for IPL ROMs.
-        if (clk::now() >= nextScanDeadline) {
-            nextScanDeadline = clk::now() + kScanInterval;
-
-            ScanIPLROMs();
-
-            // Don't load until files stop being added to the directory
-            auto romCount = m_context.romManager.GetIPLROMs().size();
-            if (romCount != lastROMCount) {
-                lastROMCount = romCount;
-            } else {
-                util::ROMLoadResult result = LoadIPLROM();
-                if (result.succeeded) {
-                    m_context.EnqueueEvent(events::emu::HardReset());
-                    m_closeGenericModal = true;
-                }
-            }
-        }
-    });
-}
-
-void App::CheckForUpdates(bool skipCache) {
-    m_updateCheckMode = skipCache ? UpdateCheckMode::OnlineNoCache : UpdateCheckMode::Online;
-    m_updateCheckEvent.Set();
-}
-
-void App::RebindInputs() {
-    m_settings.RebindInputs();
-}
-
-void App::UpdateInputs(double timeDelta) {
-    // NOTE: this uses the previous frame's screen scale parameters
-    const auto &settings = m_settings;
-    const auto &screen = m_context.screen;
-    const auto &videoSettings = settings.video;
-    double scale = screen.scale;
-    if (screen.doubleResH || screen.doubleResV) {
-        scale *= 2.0;
-    }
-
-    float sWidth = screen.dSizeX;
-    float sHeight = screen.dSizeY;
-
-    if (videoSettings.rotation == Settings::Video::DisplayRotation::_90CW ||
-        videoSettings.rotation == Settings::Video::DisplayRotation::_90CCW) {
-        std::swap(sWidth, sHeight);
-    }
-
-    float sLeft = screen.dCenterX - sWidth * 0.5f;
-    float sTop = screen.dCenterY - sHeight * 0.5f;
-    float sRight = sLeft + sWidth;
-    float sBottom = sTop + sHeight;
-
-    for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
-        auto &config = settings.input.ports[portIndex];
-
-        if (config.type == ymir::peripheral::PeripheralType::VirtuaGun) {
-            auto &input = m_context.virtuaGunInputs[portIndex];
-            if (input.init && screen.dSizeX > 1 && screen.dSizeY > 1) {
-                input.init = false;
-                input.SetPosition(screen.dCenterX, screen.dCenterY);
-            } else {
-                input.UpdatePosition(timeDelta, scale, sLeft, sTop, sRight, sBottom);
-            }
-        } else if (config.type == ymir::peripheral::PeripheralType::ShuttleMouse) {
-            auto &input = m_context.shuttleMouseInputs[portIndex];
-            input.UpdateInputs();
-        }
-    }
-}
-
-void App::DrawInputs(ImDrawList *drawList) {
-    const auto &settings = m_settings;
-    const auto &screen = m_context.screen;
-
-    for (uint32 portIndex = 0; portIndex < 2; ++portIndex) {
-        const auto &config = settings.input.ports[portIndex];
-
-        if (config.type == ymir::peripheral::PeripheralType::VirtuaGun) {
-            auto &input = m_context.virtuaGunInputs[portIndex];
-            auto &xhair = config.virtuaGun.crosshair;
-
-            const ui::widgets::CrosshairParams params{
-                .color = {xhair.color[0], xhair.color[1], xhair.color[2], xhair.color[3]},
-                .radius = xhair.radius,
-                .thickness = xhair.thickness,
-                .rotation = xhair.rotation,
-
-                .strokeColor = {xhair.strokeColor[0], xhair.strokeColor[1], xhair.strokeColor[2], xhair.strokeColor[3]},
-                .strokeThickness = xhair.strokeThickness,
-
-                .displayScale = m_context.displayScale,
-            };
-            ui::widgets::Crosshair(drawList, params, {input.posX, input.posY});
-        }
-    }
-}
-
-bool App::CaptureMouse(uint32 id, uint32 port) {
-    // Prevent capturing global mouse
-    if (id == 0) {
-        return false;
-    }
-
-    // Bail out if mouse is already bound to a peripheral
-    if (m_capturedMice.contains(id)) {
-        return false;
-    }
-
-    // Bind mouse to peripheral
-    m_capturedMice[id] = port;
-    const char *name = SDL_GetMouseNameForID(id);
-    if (name != nullptr) {
-        m_context.DisplayMessage(fmt::format("{} bound to {}", name, GetPeripheralName(port)));
-    } else {
-        m_context.DisplayMessage(fmt::format("Mouse {} bound to {}", id, GetPeripheralName(port)));
-    }
-    ConfigureMouseCapture();
-
-    m_mouseCaptureActive = false;
-
-    return true;
-}
-
-bool App::ReleaseMouse(uint32 id) {
-    // Prevent releasing global mouse
-    if (id == 0) {
-        return false;
-    }
-
-    // Bail out if mouse not bound to a peripheral
-    if (!m_capturedMice.contains(id)) {
-        return false;
-    }
-
-    // Release mouse
-    const uint32 port = m_capturedMice.at(id);
-    m_capturedMice.erase(id);
-
-    const char *name = SDL_GetMouseNameForID(id);
-    if (name != nullptr) {
-        m_context.DisplayMessage(fmt::format("{} released from {}", name, GetPeripheralName(port)));
-    } else {
-        m_context.DisplayMessage(fmt::format("Mouse {} released from {}", id, GetPeripheralName(port)));
-    }
-
-    if (m_capturedMice.empty()) {
-        m_context.DisplayMessage("Leaving mouse capture mode");
-    }
-
-    ConfigureMouseCapture();
-    (void)m_context.inputContext.UnmapMouseInputs(id);
-
-    return true;
-}
-
-bool App::CaptureSystemMouse(uint32 port) {
-    const bool captured = !m_systemMouseCaptured;
-    if (captured) {
-        m_context.DisplayMessage(fmt::format("Mouse cursor bound to {}", GetPeripheralName(port)));
-        m_context.DisplayMessage("Press ESC to release");
-        ConfigureMouseCapture();
-        m_systemMouseCaptured = true;
-        m_systemMousePeripheral = port;
-    }
-    return captured;
-}
-
-bool App::ReleaseSystemMouse() {
-    const bool released = m_systemMouseCaptured;
-    if (released) {
-        m_context.DisplayMessage(
-            fmt::format("Mouse cursor released from {}", GetPeripheralName(m_systemMousePeripheral)));
-        ConfigureMouseCapture();
-        m_systemMouseCaptured = false;
-        m_context.virtuaGunInputs[m_systemMousePeripheral].mouseAbsolute = false;
-        (void)m_context.inputContext.UnmapMouseInputs(0);
-    }
-    return released;
-}
-
-void App::ReleaseAllMice() {
-    bool released = m_mouseCaptureActive || m_systemMouseCaptured || !m_capturedMice.empty();
-
-    if (m_systemMouseCaptured) {
-        m_systemMouseCaptured = false;
-        (void)m_context.inputContext.UnmapMouseInputs(0);
-    }
-    for (auto [id, _] : m_capturedMice) {
-        (void)m_context.inputContext.UnmapMouseInputs(id);
-    }
-    m_capturedMice.clear();
-
-    m_mouseCaptureActive = false;
-
-    for (uint32 i = 0; i < 2; ++i) {
-        m_context.virtuaGunInputs[i].mouseAbsolute = false;
-    }
-
-    if (released) {
-        m_context.DisplayMessage("All mice released");
-        ConfigureMouseCapture();
-    }
-}
-
-void App::ConfigureMouseCapture() {
-    const bool grabSystemCursor = false; // TODO: pull from settings
-    const bool relativeMode = m_mouseCaptureActive || !m_capturedMice.empty();
-    const bool captured = (m_systemMouseCaptured && grabSystemCursor) || relativeMode;
-    const bool grabbed = captured && !relativeMode;
-    const bool wasRelativeMode = SDL_GetWindowRelativeMouseMode(m_context.screen.window);
-    SDL_SetWindowMouseGrab(m_context.screen.window, grabbed);
-    SDL_SetWindowRelativeMouseMode(m_context.screen.window, relativeMode);
-    if (captured) {
-        ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
-    } else {
-        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
-    }
-
-    if (wasRelativeMode != relativeMode) {
-        if (relativeMode) {
-            m_context.DisplayMessage("Entering mouse capture mode");
-            m_context.DisplayMessage("Press ESC to release mice");
-        } else {
-            m_context.DisplayMessage("Leaving mouse capture mode");
-        }
-    }
-
-    devlog::debug<grp::base>("Mouse capture config: captured={} relative={} grab={}", captured, relativeMode, grabbed);
-}
-
-void App::ConnectMouseToPeripheral(uint32 id) {
-    using PeripheralType = ymir::peripheral::PeripheralType;
-    using CaptureMode = Settings::Input::Mouse::CaptureMode;
-
-    // Build list of candidate peripherals.
-    // Bail out if none are available.
-    const std::set<uint32> candidates = GetCandidatePeripheralsForMouseCapture();
-    if (candidates.empty()) {
-        return;
-    }
-
-    const auto &settings = m_settings;
-    CaptureMode captureMode = settings.input.mouse.captureMode;
-
-    // Force PhysicalMouse mode if a Shuttle Mouse is connected to any port
-    for (uint32 port : candidates) {
-        if (settings.input.ports[port].type == PeripheralType::ShuttleMouse) {
-            captureMode = CaptureMode::PhysicalMouse;
-            break;
-        }
-    }
-
-    // Bail out if mouse is already bound to a peripheral
-    if (captureMode == CaptureMode::SystemCursor && m_systemMouseCaptured) {
-        return;
-    }
-    if (captureMode == CaptureMode::PhysicalMouse && m_capturedMice.contains(id)) {
-        return;
-    }
-
-    if (captureMode == CaptureMode::SystemCursor) {
-        // Force global mouse ID when in system cursor capture mode
-        id = 0;
-    } else if (id == 0) {
-        // Engage mouse capture in physical mouse capture mode when using the global mouse ID
-        m_mouseCaptureActive = true;
-        ConfigureMouseCapture();
-        return;
-    }
-
-    // TODO: allow user to pick port when there are multiple candidates
-    // - show a popup asking which one the player wants to bind to (or Cancel)
-    // - cancel popup:
-    //   - on ESC press
-    //   - if the app loses focus
-    //   - if mouse capture mode changes
-    //   - if the target mouse is removed
-    //   - if the valid controller list is changed
-    const uint32 port = *candidates.begin();
-    const PeripheralType type = settings.input.ports[port].type;
-    std::string periphName = GetPeripheralName(port);
-
-    assert(type == PeripheralType::VirtuaGun || type == PeripheralType::ShuttleMouse);
-
-    const bool captured = [&] {
-        switch (captureMode) {
-        case CaptureMode::SystemCursor: return CaptureSystemMouse(port);
-        case CaptureMode::PhysicalMouse: return CaptureMouse(id, port);
-        }
-        return false;
-    }();
-
-    // Bind inputs
-    auto &inputCtx = m_context.inputContext;
-    if (type == PeripheralType::VirtuaGun) {
-        auto *actionCtx = &m_context.virtuaGunInputs[port];
-        if (captureMode == CaptureMode::PhysicalMouse) {
-            actionCtx->mouseAbsolute = false;
-            (void)inputCtx.MapAction({id, input::MouseAxis2D::MouseRelative}, actions::virtua_gun::MouseRelMove,
-                                     actionCtx);
-        } else {
-            actionCtx->mouseAbsolute = true;
-            (void)inputCtx.MapAction({0, input::MouseAxis2D::MouseAbsolute}, actions::virtua_gun::MouseAbsMove,
-                                     actionCtx);
-        }
-        // TODO: map inputs according to settings
-        (void)inputCtx.MapAction({id, input::MouseButton::Left}, actions::virtua_gun::Trigger, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Right}, actions::virtua_gun::Reload, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Middle}, actions::virtua_gun::Start, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Extra1}, actions::virtua_gun::Start, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Extra2}, actions::virtua_gun::Start, actionCtx);
-    } else if (type == PeripheralType::ShuttleMouse) {
-        assert(captureMode == CaptureMode::PhysicalMouse);
-
-        auto *actionCtx = &m_context.shuttleMouseInputs[port];
-        (void)inputCtx.MapAction({id, input::MouseAxis2D::MouseRelative}, actions::shuttle_mouse::MouseRelMove,
-                                 actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Left}, actions::shuttle_mouse::Left, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Right}, actions::shuttle_mouse::Right, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Middle}, actions::shuttle_mouse::Middle, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Extra1}, actions::shuttle_mouse::Start, actionCtx);
-        (void)inputCtx.MapAction({id, input::MouseButton::Extra2}, actions::shuttle_mouse::Start, actionCtx);
-    }
-}
-
-bool App::IsMouseCaptured() const {
-    return m_systemMouseCaptured || !m_capturedMice.empty();
-}
-
-bool App::HasValidPeripheralsForMouseCapture() const {
-    return !GetCandidatePeripheralsForMouseCapture().empty();
-}
-
-std::set<uint32> App::GetCandidatePeripheralsForMouseCapture() const {
-    std::set<uint32> candidates = m_validPeripheralsForMouseCapture;
-    for (auto [_, port] : m_capturedMice) {
-        candidates.erase(port);
-    }
-    if (m_systemMouseCaptured) {
-        candidates.erase(m_systemMousePeripheral);
-    }
-    return candidates;
-}
-
-std::string App::GetPeripheralName(uint32 port) const {
-    const auto &settings = m_settings;
-    const ymir::peripheral::PeripheralType type = settings.input.ports[port].type;
-    return fmt::format("{} on port {}", ymir::peripheral::GetPeripheralName(type), port + 1);
-}
-
-std::pair<float, float> App::WindowToScreen(float x, float y) const {
-    const auto &settings = m_settings;
-    const auto &screen = m_context.screen;
-
-    // Build 2D rotation matrix
-    float a, b, c, d;
-    switch (settings.video.rotation) {
-        using Rot = Settings::Video::DisplayRotation;
-    case Rot::Normal: a = +1.0f, b = 0.0f, c = 0.0f, d = +1.0f; break;
-    case Rot::_90CW: a = 0.0f, b = -1.0f, c = +1.0f, d = 0.0f; break;
-    case Rot::_180: a = -1.0f, b = 0.0f, c = 0.0f, d = -1.0f; break;
-    case Rot::_90CCW: a = 0.0f, b = +1.0f, c = -1.0f, d = 0.0f; break;
-    }
-
-    const float nx = x - screen.dCenterX;
-    const float ny = y - screen.dCenterY;
-
-    // Rotate window coordinates around center of screen
-    const float rx = nx * a + ny * c + screen.dCenterX;
-    const float ry = nx * b + ny * d + screen.dCenterY;
-
-    const float sCornerX = screen.dCenterX - screen.dSizeX * 0.5f;
-    const float sCornerY = screen.dCenterY - screen.dSizeY * 0.5f;
-
-    // Transform to screen space
-    float sx = (rx - sCornerX) * screen.width / screen.dSizeX;
-    float sy = (ry - sCornerY) * screen.height / screen.dSizeY;
-
-    return {sx, sy};
-}
-
-void App::RescaleUI(float displayScale) {
-    const auto &settings = m_settings;
-    if (settings.gui.overrideUIScale) {
-        displayScale = settings.gui.uiScale;
-    }
-    devlog::info<grp::base>("Window DPI scaling: {:.1f}%", displayScale * 100.0f);
-
-    m_context.displayScale = displayScale;
-    devlog::info<grp::base>("UI scaling set to {:.1f}%", m_context.displayScale * 100.0f);
-    ReloadStyle(m_context.displayScale);
-}
-
-ImGuiStyle &App::ReloadStyle(float displayScale) {
-    ImGuiStyle &style = ImGui::GetStyle();
-    style.WindowPadding = ImVec2(6, 6);
-    style.FramePadding = ImVec2(4, 3);
-    style.ItemSpacing = ImVec2(7, 4);
-    style.ItemInnerSpacing = ImVec2(4, 4);
-    style.TouchExtraPadding = ImVec2(0, 0);
-    style.IndentSpacing = 21.0f;
-    style.ScrollbarSize = 15.0f;
-    style.GrabMinSize = 12.0f;
-    style.WindowBorderSize = 1.0f * displayScale;
-    style.ChildBorderSize = 1.0f * displayScale;
-    style.PopupBorderSize = 1.0f * displayScale;
-    style.FrameBorderSize = 0.0f * displayScale;
-    style.WindowRounding = 3.0f;
-    style.ChildRounding = 0.0f;
-    style.FrameRounding = 1.0f;
-    style.PopupRounding = 1.0f;
-    style.ScrollbarRounding = 1.0f;
-    style.GrabRounding = 1.0f;
-    style.TabBorderSize = 0.0f * displayScale;
-    style.TabBarBorderSize = 1.0f * displayScale;
-    style.TabBarOverlineSize = 2.0f;
-    style.TabCloseButtonMinWidthSelected = -1.0f;
-    style.TabCloseButtonMinWidthUnselected = 0.0f;
-    style.TabRounding = 2.0f;
-    style.CellPadding = ImVec2(3, 2);
-    style.TableAngledHeadersAngle = 50.0f * (2.0f * std::numbers::pi / 360.0f);
-    style.TableAngledHeadersTextAlign = ImVec2(0.50f, 0.00f);
-    style.WindowTitleAlign = ImVec2(0.50f, 0.50f);
-    style.WindowBorderHoverPadding = 5.0f;
-    style.WindowMenuButtonPosition = ImGuiDir_Left;
-    style.ColorButtonPosition = ImGuiDir_Right;
-    style.ButtonTextAlign = ImVec2(0.50f, 0.50f);
-    style.SelectableTextAlign = ImVec2(0.00f, 0.00f);
-    style.SeparatorTextBorderSize = 2.0f * displayScale;
-    style.SeparatorTextPadding = ImVec2(21, 2);
-    style.LogSliderDeadzone = 4.0f;
-    style.ImageBorderSize = 0.0f;
-    style.DockingSeparatorSize = 2.0f;
-    style.DisplayWindowPadding = ImVec2(21, 21);
-    style.DisplaySafeAreaPadding = ImVec2(3, 3);
-    style.ScaleAllSizes(displayScale);
-    style.FontScaleMain = displayScale;
-
-    // Setup Dear ImGui colors
-    ImVec4 *colors = ImGui::GetStyle().Colors;
-    colors[ImGuiCol_Text] = ImVec4(0.91f, 0.92f, 0.94f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.38f, 0.39f, 0.41f, 1.00f);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.05f, 0.06f, 0.08f, 0.95f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.14f, 0.18f, 0.26f, 0.18f);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.06f, 0.09f, 0.94f);
-    colors[ImGuiCol_Border] = ImVec4(0.60f, 0.65f, 0.77f, 0.31f);
-    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.10f, 0.22f, 0.51f, 0.66f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.25f, 0.36f, 0.62f, 0.80f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.63f, 0.71f, 0.92f, 0.84f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.10f, 0.10f, 0.13f, 1.00f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.23f, 0.36f, 0.72f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.10f, 0.11f, 0.13f, 0.59f);
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.05f, 0.06f, 0.09f, 0.95f);
-    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.04f, 0.05f, 0.05f, 0.69f);
-    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.29f, 0.31f, 0.35f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.36f, 0.39f, 0.45f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.46f, 0.52f, 0.64f, 1.00f);
-    colors[ImGuiCol_CheckMark] = ImVec4(0.20f, 0.42f, 0.94f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.43f, 0.57f, 0.91f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.74f, 0.82f, 1.00f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.26f, 0.46f, 0.98f, 0.40f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.26f, 0.46f, 0.98f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.51f, 0.64f, 0.99f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.26f, 0.46f, 0.98f, 0.40f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.26f, 0.46f, 0.98f, 0.80f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.26f, 0.48f, 0.98f, 1.00f);
-    colors[ImGuiCol_Separator] = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.10f, 0.40f, 0.75f, 0.78f);
-    colors[ImGuiCol_SeparatorActive] = ImVec4(0.10f, 0.40f, 0.75f, 1.00f);
-    colors[ImGuiCol_ResizeGrip] = ImVec4(0.26f, 0.46f, 0.98f, 0.20f);
-    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.26f, 0.46f, 0.98f, 0.67f);
-    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.26f, 0.46f, 0.98f, 0.95f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.26f, 0.46f, 0.98f, 0.80f);
-    colors[ImGuiCol_Tab] = ImVec4(0.18f, 0.29f, 0.58f, 0.86f);
-    colors[ImGuiCol_TabSelected] = ImVec4(0.20f, 0.33f, 0.68f, 1.00f);
-    colors[ImGuiCol_TabSelectedOverline] = ImVec4(0.26f, 0.46f, 0.98f, 1.00f);
-    colors[ImGuiCol_TabDimmed] = ImVec4(0.07f, 0.09f, 0.15f, 0.97f);
-    colors[ImGuiCol_TabDimmedSelected] = ImVec4(0.14f, 0.22f, 0.42f, 1.00f);
-    colors[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0.50f, 0.50f, 0.50f, 0.00f);
-    colors[ImGuiCol_DockingPreview] = ImVec4(0.26f, 0.46f, 0.98f, 0.70f);
-    colors[ImGuiCol_DockingEmptyBg] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
-    colors[ImGuiCol_PlotLines] = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-    colors[ImGuiCol_PlotLinesHovered] = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
-    colors[ImGuiCol_PlotHistogram] = ImVec4(0.90f, 0.53f, 0.00f, 1.00f);
-    colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.67f, 0.25f, 1.00f);
-    colors[ImGuiCol_TableHeaderBg] = ImVec4(0.19f, 0.19f, 0.20f, 1.00f);
-    colors[ImGuiCol_TableBorderStrong] = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
-    colors[ImGuiCol_TableBorderLight] = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
-    colors[ImGuiCol_TableRowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
-    colors[ImGuiCol_TextLink] = ImVec4(0.37f, 0.54f, 1.00f, 1.00f);
-    colors[ImGuiCol_TextSelectedBg] = ImVec4(0.43f, 0.59f, 0.98f, 0.43f);
-    colors[ImGuiCol_DragDropTarget] = ImVec4(0.97f, 0.60f, 0.19f, 0.90f);
-    colors[ImGuiCol_NavCursor] = ImVec4(0.26f, 0.46f, 0.98f, 1.00f);
-    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-    colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.07f, 0.07f, 0.07f, 0.35f);
-
-    return style;
-}
-
-void App::LoadFonts() {
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use
-    // ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your
-    // application (e.g. use an assertion, or display an error and quit).
-    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double
-    // backslash \\ !
-    // - Our Emscripten build process allows embedding fonts to be accessible at runtime from the "fonts/" folder. See
-    // Makefile.emscripten for details.
-
-    ImGuiIO &io = ImGui::GetIO();
-    ImGuiStyle &style = ImGui::GetStyle();
-
-    style.FontSizeBase = 16.0f;
-
-    ImFontConfig config;
-    // TODO: config.MergeMode = true; to merge multiple fonts into one; useful for combining latin + JP + icons
-    // TODO: use config.GlyphExcludeRanges to exclude glyph ranges when merging fonts
-
-    auto embedfs = cmrc::Ymir_sdl3_rc::get_filesystem();
-
-    io.Fonts->Clear();
-
-    auto loadFont = [&](std::string_view name, const char *path, bool includeIcons) {
-        std::span configName{config.Name};
-        std::fill(configName.begin(), configName.end(), '\0');
-        name = name.substr(0, configName.size());
-        std::copy(name.begin(), name.end(), configName.begin());
-
-        cmrc::file file = embedfs.open(path);
-
-        ImFont *font = io.Fonts->AddFontFromMemoryTTF((void *)file.begin(), file.size(), style.FontSizeBase, &config);
-        IM_ASSERT(font != nullptr);
-        if (includeIcons) {
-            cmrc::file iconFile = embedfs.open("fonts/MaterialSymbolsOutlined_Filled-Regular.ttf");
-
-            static const ImWchar iconsRanges[] = {ICON_MIN_MS, ICON_MAX_16_MS, 0};
-            ImFontConfig iconsConfig;
-            iconsConfig.MergeMode = true;
-            iconsConfig.PixelSnapH = true;
-            iconsConfig.PixelSnapV = true;
-            iconsConfig.GlyphMinAdvanceX = 20.0f;
-            iconsConfig.GlyphOffset.y = 4.0f;
-            font = io.Fonts->AddFontFromMemoryTTF((void *)iconFile.begin(), iconFile.size(), 20.0f, &iconsConfig,
-                                                  iconsRanges);
-        }
-        return font;
-    };
-
-    auto mergeFont = [&](const char *path) {
-        ImFontConfig mergeConfig = config;
-        mergeConfig.MergeMode = true;
-
-        cmrc::file file = embedfs.open(path);
-
-        ImFont *font =
-            io.Fonts->AddFontFromMemoryTTF((void *)file.begin(), file.size(), style.FontSizeBase, &mergeConfig);
-        IM_ASSERT(font != nullptr);
-        return font;
-    };
-
-    m_context.fonts.sansSerif.regular = loadFont("SplineSans Medium", "fonts/SplineSans-Medium.ttf", true);
-    m_context.fonts.sansSerif.regular = mergeFont("fonts/MPLUSU-Bold.ttf");
-    m_context.fonts.sansSerif.bold = loadFont("SplineSans Bold", "fonts/SplineSans-Bold.ttf", true);
-    m_context.fonts.sansSerif.bold = mergeFont("fonts/MPLUSU-ExtraBold.ttf");
-
-    m_context.fonts.monospace.regular = loadFont("SplineSansMono Medium", "fonts/SplineSansMono-Medium.ttf", false);
-    m_context.fonts.monospace.regular = mergeFont("fonts/MPLUSU-Bold.ttf");
-    m_context.fonts.monospace.bold = loadFont("SplineSansMono Bold", "fonts/SplineSansMono-Bold.ttf", false);
-    m_context.fonts.monospace.bold = mergeFont("fonts/MPLUSU-ExtraBold.ttf");
-
-    m_context.fonts.display = loadFont("ZenDots Regular", "fonts/ZenDots-Regular.ttf", false);
-
-    io.FontDefault = m_context.fonts.sansSerif.regular;
-}
-
-void App::OnDisplayAdded(SDL_DisplayID id) {
-    auto &info = m_context.display.list[id];
-    info.name = SDL_GetDisplayName(id);
-    SDL_GetDisplayBounds(id, &info.bounds);
-    info.modes.clear();
-
-    devlog::info<grp::base>("Display {} ({}) added", id, info.name);
-
-    int modeCount = 0;
-    SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(id, &modeCount);
-    if (modes != nullptr) {
-        util::ScopeGuard sgFreeModes{[&] { SDL_free(modes); }};
-
-        info.modes.reserve(modeCount);
-        for (SDL_DisplayMode **currMode = modes; *currMode != nullptr; ++currMode) {
-            auto &mode = info.modes.emplace_back();
-            mode.width = (*currMode)->w;
-            mode.height = (*currMode)->h;
-            mode.pixelFormat = (*currMode)->format;
-            mode.refreshRate = (*currMode)->refresh_rate;
-            mode.pixelDensity = (*currMode)->pixel_density;
-        }
-    }
-}
-
-void App::OnDisplayRemoved(SDL_DisplayID id) {
-    if (auto it = m_context.display.list.find(id); it != m_context.display.list.end()) {
-        devlog::info<grp::base>("Display {} ({}) removed", id, it->second.name);
-        m_context.display.list.erase(it);
-    } else {
-        devlog::info<grp::base>("Display {} removed", id);
-    }
-}
-
-void App::ApplyFullscreenMode() const {
-    SDL_Window *window = m_context.screen.window;
-    SDL_DisplayID displayID = m_context.GetSelectedDisplay();
-    const auto &settings = m_settings;
-    const auto &mode = settings.video.fullScreenMode;
-    const bool borderless = settings.video.borderlessFullScreen;
-    SDL_DisplayMode closest;
-    if (!borderless && !mode.IsValid()) {
-        // Use desktop resolution
-        const SDL_DisplayMode *desktopMode = SDL_GetDesktopDisplayMode(displayID);
-        SDL_SetWindowFullscreenMode(window, desktopMode);
-    } else if (!borderless && SDL_GetClosestFullscreenDisplayMode(displayID, mode.width, mode.height, mode.refreshRate,
-                                                                  true, &closest)) {
-        // Use exclusive display mode if found
-        SDL_SetWindowFullscreenMode(window, &closest);
-    } else {
-        // Use borderless full screen mode, or fallback to borderless if no valid exclusive mode found
-        if (settings.video.fullScreen && SDL_GetDisplayForWindow(window) != displayID) {
-            // Move window to new display if in fullscreen mode
-            SDL_Rect bounds;
-            SDL_GetDisplayBounds(displayID, &bounds);
-            SDL_SetWindowPosition(window, bounds.x, bounds.y);
-            SDL_SetWindowSize(window, bounds.w, bounds.h);
-        }
-        SDL_SetWindowFullscreenMode(window, nullptr);
-    }
-    SDL_SyncWindow(window);
-}
-
-void App::PersistWindowGeometry() {
-    const auto &settings = m_settings;
-    if (settings.gui.rememberWindowGeometry) {
-        int wx, wy, ww, wh;
-        const bool posOK = SDL_GetWindowPosition(m_context.screen.window, &wx, &wy);
-        const bool sizeOK = SDL_GetWindowSize(m_context.screen.window, &ww, &wh);
-        if (posOK && sizeOK) {
-            std::ofstream out{m_context.profile.GetPath(ProfilePath::PersistentState) / "window.txt"};
-            out << fmt::format("{} {} {} {}", wx, wy, ww, wh);
-        }
-    }
-}
-
-void App::LoadDebuggerState() {
-    const auto discHash = [&] {
-        std::unique_lock lock{m_context.locks.disc};
-        return ymir::ToString(m_context.saturn.GetDiscHash());
-    }();
-    const auto basePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
-    if (std::filesystem::is_directory(basePath)) {
-        {
-            std::unique_lock lock{m_context.locks.breakpoints};
-            const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
-            const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
-            m_masterSH2WindowSet.debuggerModel.breakpoints.LoadState(msh2Path);
-            m_slaveSH2WindowSet.debuggerModel.breakpoints.LoadState(ssh2Path);
-        }
-        {
-            std::unique_lock lock{m_context.locks.watchpoints};
-            const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
-            const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
-            m_masterSH2WindowSet.debuggerModel.watchpoints.LoadState(msh2Path);
-            m_slaveSH2WindowSet.debuggerModel.watchpoints.LoadState(ssh2Path);
-        }
-        m_context.debuggers.dirty = false;
-        m_context.debuggers.dirtyTimestamp = clk::now();
-    }
-}
-
-void App::SaveDebuggerState() {
-    const auto discHash = [&] {
-        std::unique_lock lock{m_context.locks.disc};
-        return ymir::ToString(m_context.saturn.GetDiscHash());
-    }();
-    const auto basePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
-    std::filesystem::create_directories(basePath);
-    {
-        const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
-        const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
-        m_masterSH2WindowSet.debuggerModel.breakpoints.SaveState(msh2Path);
-        m_slaveSH2WindowSet.debuggerModel.breakpoints.SaveState(ssh2Path);
-    }
-    {
-        const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
-        const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
-        m_masterSH2WindowSet.debuggerModel.watchpoints.SaveState(msh2Path);
-        m_slaveSH2WindowSet.debuggerModel.watchpoints.SaveState(ssh2Path);
-    }
-    m_context.debuggers.dirty = false;
-}
-
-void App::CheckDebuggerStateDirty() {
-    using namespace std::chrono_literals;
-
-    if (m_context.debuggers.dirty && (clk::now() - m_context.debuggers.dirtyTimestamp) > 250ms) {
-        SaveDebuggerState();
-        m_context.debuggers.dirty = false;
-    }
-}
-
-template <int port>
-void App::ReadPeripheral(ymir::peripheral::PeripheralReport &report) {
-    // TODO: this is the appropriate location to capture inputs for a movie recording
-    switch (report.type) {
-    case ymir::peripheral::PeripheralType::ControlPad:
-        report.report.controlPad.buttons = m_context.controlPadInputs[port - 1].buttons;
-        break;
-    case ymir::peripheral::PeripheralType::AnalogPad: //
-    {
-        auto &specificReport = report.report.analogPad;
-        const auto &inputs = m_context.analogPadInputs[port - 1];
-        specificReport.buttons = inputs.buttons;
-        specificReport.analog = inputs.analogMode;
-        specificReport.x = std::clamp(inputs.x * 128.0f + 128.0f, 0.0f, 255.0f);
-        specificReport.y = std::clamp(inputs.y * 128.0f + 128.0f, 0.0f, 255.0f);
-        specificReport.l = inputs.l * 255.0f;
-        specificReport.r = inputs.r * 255.0f;
-        break;
-    }
-    case ymir::peripheral::PeripheralType::ArcadeRacer: //
-    {
-        auto &specificReport = report.report.arcadeRacer;
-        const auto &inputs = m_context.arcadeRacerInputs[port - 1];
-        specificReport.buttons = inputs.buttons;
-        specificReport.wheel = std::clamp(inputs.wheel * 128.0f + 128.0f, 0.0f, 255.0f);
-        break;
-    }
-    case ymir::peripheral::PeripheralType::MissionStick: //
-    {
-        auto &specificReport = report.report.missionStick;
-        const auto &inputs = m_context.missionStickInputs[port - 1];
-        specificReport.buttons = inputs.buttons;
-        specificReport.sixAxis = inputs.sixAxisMode;
-        specificReport.x1 = std::clamp(inputs.sticks[0].x * 128.0f + 128.0f, 0.0f, 255.0f);
-        specificReport.y1 = std::clamp(inputs.sticks[0].y * 128.0f + 128.0f, 0.0f, 255.0f);
-        specificReport.z1 = inputs.sticks[0].z * 255.0f;
-        specificReport.x2 = std::clamp(inputs.sticks[1].x * 128.0f + 128.0f, 0.0f, 255.0f);
-        specificReport.y2 = std::clamp(inputs.sticks[1].y * 128.0f + 128.0f, 0.0f, 255.0f);
-        specificReport.z2 = inputs.sticks[1].z * 255.0f;
-        break;
-    }
-    case ymir::peripheral::PeripheralType::VirtuaGun: //
-    {
-        const auto &inputs = m_context.virtuaGunInputs[port - 1];
-        const auto [sx, sy] = WindowToScreen(inputs.posX, inputs.posY);
-
-        // TODO: handle overlapping trigger+reload gracefully
-
-        auto &specificReport = report.report.virtuaGun;
-        specificReport.start = inputs.start;
-        specificReport.trigger = inputs.trigger;
-        specificReport.reload = inputs.reload;
-        specificReport.x = std::clamp<int>(sx, 1, m_context.screen.width - 1);
-        specificReport.y = std::clamp<int>(sy, 1, m_context.screen.height - 1);
-        break;
-    }
-    case ymir::peripheral::PeripheralType::ShuttleMouse: //
-    {
-        static constexpr float kMin = std::numeric_limits<sint16>::min();
-        static constexpr float kMax = std::numeric_limits<sint16>::max();
-        const auto &inputs = m_context.shuttleMouseInputs[port - 1];
-        auto &specificReport = report.report.shuttleMouse;
-        specificReport.start = inputs.start;
-        specificReport.left = inputs.left;
-        specificReport.middle = inputs.middle;
-        specificReport.right = inputs.right;
-        specificReport.x = std::clamp<float>(inputs.inputX, kMin, kMax);
-        specificReport.y = std::clamp<float>(inputs.inputY, kMin, kMax);
-        break;
-    }
-    default: break;
-    }
-}
-
-void App::ReloadSDLGameControllerDatabases(bool showMessages) {
-    // Load the profile included with the emulator, which should always live next to the executable, followed by the
-    // database from the profile
-    ReloadSDLGameControllerDatabase(Profile::GetPortableProfilePath() / kGameControllerDBFile, showMessages);
-    ReloadSDLGameControllerDatabase(m_context.profile.GetPath(ProfilePath::Root) / kGameControllerDBFile, showMessages);
-}
-
-void App::ReloadSDLGameControllerDatabase(std::filesystem::path path, bool showMessages) {
-    if (std::filesystem::is_regular_file(path)) {
-        devlog::info<grp::base>("Loading game controller database from {}...", path);
-        int result = SDL_AddGamepadMappingsFromFile(path.string().c_str());
-        if (result < 0) {
-            if (showMessages) {
-                m_context.DisplayMessage(
-                    fmt::format("Failed to load game controller database at {}: {}", path, SDL_GetError()));
-            } else {
-                devlog::warn<grp::base>("Failed to load game controller database: {}", SDL_GetError());
-            }
-        } else {
-            devlog::info<grp::base>("Game controller database loaded: {} controllers added", result);
-            if (showMessages) {
-                m_context.DisplayMessage(
-                    fmt::format("Game controller database loaded from {}: {} controllers added", path, result));
-            }
-        }
-    } else {
-        if (showMessages) {
-            m_context.DisplayMessage(fmt::format("Game controller database not found at {}", path));
-        } else {
-            devlog::warn<grp::base>("Game controller database not found at {}", path);
-        }
-    }
-
-    char **list = SDL_GetGamepadMappings(&m_context.gameControllerDBCount);
-    SDL_free(list);
-}
-
-void App::ScanIPLROMs() {
-    auto romsPath = m_context.profile.GetPath(ProfilePath::IPLROMImages);
-    devlog::info<grp::base>("Scanning for IPL ROMs in {}...", romsPath);
-
-    {
-        std::unique_lock lock{m_context.locks.romManager};
-        m_context.romManager.ScanIPLROMs(romsPath);
-    }
-
-    if constexpr (devlog::info_enabled<grp::base>) {
-        int numKnown = 0;
-        int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetIPLROMs()) {
-            if (info.info != nullptr) {
-                ++numKnown;
-            } else {
-                ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
-            }
-        }
-        devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
-    }
-}
-
-util::ROMLoadResult App::LoadIPLROM() {
-    std::filesystem::path romPath = GetIPLROMPath();
-    if (romPath.empty()) {
-        devlog::warn<grp::base>("No IPL ROM found");
-        return util::ROMLoadResult::Fail("No IPL ROM found");
-    }
-
-    devlog::info<grp::base>("Loading IPL ROM from {}...", romPath);
-    util::ROMLoadResult result = util::LoadIPLROM(romPath, *m_context.saturn.instance);
-    if (result.succeeded) {
-        m_context.iplRomPath = romPath;
-        devlog::info<grp::base>("IPL ROM loaded successfully");
-    } else {
-        devlog::error<grp::base>("Failed to load IPL ROM: {}", result.errorMessage);
-    }
-    return result;
-}
-
-std::filesystem::path App::GetIPLROMPath() {
-    const auto &settings = m_settings;
-
-    // Load from settings if override is enabled
-    if (settings.system.ipl.overrideImage && !settings.system.ipl.path.empty()) {
-        devlog::info<grp::base>("Using IPL ROM overridden by settings");
-        return settings.system.ipl.path;
-    }
-
-    // Auto-select ROM from IPL ROM manager based on preferred system variant and area code
-
-    ymir::db::SystemVariant preferredVariant = settings.system.ipl.variant;
-
-    // SMPC area codes:
-    //   0x1  J  Domestic NTSC        Japan
-    //   0x2  T  Asia NTSC            Asia Region (Taiwan, Philippines, South Korea)
-    //   0x4  U  North America NTSC   North America (US, Canada), Latin America (Brazil only)
-    //   0xC  E  PAL                  Europe, Southeast Asia (China, Middle East), Latin America
-    // Replaced SMPC area codes:
-    //   0x5  B -> U
-    //   0x6  K -> T
-    //   0xA  A -> E
-    //   0xD  L -> E
-    // For all others, use region-free ROMs if available.
-
-    ymir::db::SystemRegion preferredRegion;
-    switch (m_context.saturn.instance->SMPC.GetAreaCode()) {
-    case 0x1: [[fallthrough]];
-    case 0x2: [[fallthrough]];
-    case 0x6: preferredRegion = ymir::db::SystemRegion::JP; break;
-
-    case 0x4: [[fallthrough]];
-    case 0x5: [[fallthrough]];
-    case 0xA: [[fallthrough]];
-    case 0xC: [[fallthrough]];
-    case 0xD: preferredRegion = ymir::db::SystemRegion::US_EU; break;
-
-    default: preferredRegion = ymir::db::SystemRegion::RegionFree; break;
-    }
-
-    // Try to find exact match
-    // Keep a region-free fallback in case there isn't a perfect match
-    std::filesystem::path regionFreeMatch = "";
-    std::filesystem::path variantMatch = "";
-    std::filesystem::path firstMatch = "";
-    for (auto &[path, info] : m_context.romManager.GetIPLROMs()) {
-        if (info.info == nullptr) {
-            continue;
-        }
-        if (firstMatch.empty()) {
-            firstMatch = path;
-        }
-        if (preferredVariant == ymir::db::SystemVariant::None || info.info->variant == preferredVariant) {
-            if (info.info->region == preferredRegion) {
-                devlog::info<grp::base>("Using auto-detected IPL ROM");
-                return path;
-            } else {
-                variantMatch = path;
-            }
-        }
-    }
-
-    // Return region-free fallback
-    // May be empty if no region-free ROMs were found
-    if (!regionFreeMatch.empty()) {
-        devlog::info<grp::base>("Using auto-detected region-free IPL ROM");
-        return regionFreeMatch;
-    }
-
-    // Fallback to variant match if found
-    if (!variantMatch.empty()) {
-        devlog::info<grp::base>("Using auto-detected variant IPL ROM with mismatched region");
-        return variantMatch;
-    }
-
-    return firstMatch;
-}
-
-void App::ScanCDBlockROMs() {
-    auto romsPath = m_context.profile.GetPath(ProfilePath::CDBlockROMImages);
-    devlog::info<grp::base>("Scanning for CD Block ROMs in {}...", romsPath);
-
-    {
-        std::unique_lock lock{m_context.locks.romManager};
-        m_context.romManager.ScanCDBlockROMs(romsPath);
-    }
-
-    if constexpr (devlog::info_enabled<grp::base>) {
-        int numKnown = 0;
-        int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetCDBlockROMs()) {
-            if (info.info != nullptr) {
-                ++numKnown;
-            } else {
-                ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
-            }
-        }
-        devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
-    }
-}
-
-util::ROMLoadResult App::LoadCDBlockROM() {
-    auto &settings = m_settings;
-
-    std::filesystem::path romPath = GetCDBlockROMPath();
-    if (romPath.empty()) {
-        devlog::warn<grp::base>("No CD Block ROM found");
-        if (settings.cdblock.useLLE) {
-            settings.cdblock.useLLE = false;
-            m_context.DisplayMessage("Low level CD block emulation disabled: no ROMs found");
-        }
-        return util::ROMLoadResult::Fail("No CD Block ROM found");
-    }
-
-    devlog::info<grp::base>("Loading CD Block ROM from {}...", romPath);
-    util::ROMLoadResult result = util::LoadCDBlockROM(romPath, *m_context.saturn.instance);
-    if (result.succeeded) {
-        m_context.cdbRomPath = romPath;
-        devlog::info<grp::base>("CD Block ROM loaded successfully");
-    } else {
-        devlog::error<grp::base>("Failed to load CD Block ROM: {}", result.errorMessage);
-    }
-    return result;
-}
-
-std::filesystem::path App::GetCDBlockROMPath() {
-    auto &settings = m_settings;
-
-    // Load from settings if override is enabled
-    if (settings.cdblock.overrideROM && !settings.cdblock.romPath.empty()) {
-        if (std::filesystem::is_regular_file(settings.cdblock.romPath)) {
-            devlog::info<grp::base>("Using CD Block ROM overridden by settings");
-            return settings.cdblock.romPath;
-        }
-        settings.cdblock.romPath = "";
-    }
-
-    // Use first available match otherwise
-    if (!m_context.romManager.GetCDBlockROMs().empty()) {
-        return m_context.romManager.GetCDBlockROMs().begin()->first;
-    }
-    return "";
-}
-
-void App::ScanROMCarts() {
-    auto romCartsPath = m_context.profile.GetPath(ProfilePath::ROMCartImages);
-    devlog::info<grp::base>("Scanning for cartridge ROMs in {}...", romCartsPath);
-
-    {
-        std::unique_lock lock{m_context.locks.romManager};
-        std::error_code error{};
-        m_context.romManager.ScanROMCarts(romCartsPath, error);
-        if (error) {
-            devlog::warn<grp::base>("Failed to read ROM carts folder: {}", error.message());
-        }
-    }
-
-    if constexpr (devlog::info_enabled<grp::base>) {
-        int numKnown = 0;
-        int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetROMCarts()) {
-            if (info.info != nullptr) {
-                ++numKnown;
-            } else {
-                ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
-            }
-        }
-        devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
-    }
-}
-
-void App::LoadRecommendedCartridge() {
-    const ymir::db::GameInfo *info;
-    {
-        std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetDisc();
-        info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
-    }
-    if (info == nullptr) {
-        m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
-        return;
-    }
-
-    devlog::info<grp::base>("Loading recommended game cartridge...");
-
-    std::unique_lock lock{m_context.locks.cart};
-    using Cart = ymir::db::Cartridge;
-    switch (info->GetCartridge()) {
-    case Cart::None: break;
-    case Cart::DRAM8Mbit: m_context.EnqueueEvent(events::emu::Insert8MbitDRAMCartridge()); break;
-    case Cart::DRAM32Mbit: m_context.EnqueueEvent(events::emu::Insert32MbitDRAMCartridge()); break;
-    case Cart::DRAM48Mbit: m_context.EnqueueEvent(events::emu::Insert48MbitDRAMCartridge()); break;
-    case Cart::ROM_KOF95: [[fallthrough]];
-    case Cart::ROM_Ultraman: //
-    {
-        ScanROMCarts();
-        const auto expectedHash =
-            info->GetCartridge() == Cart::ROM_KOF95 ? ymir::db::kKOF95ROMInfo.hash : ymir::db::kUltramanROMInfo.hash;
-        bool found = false;
-        for (auto &[path, info] : m_context.romManager.GetROMCarts()) {
-            if (info.hash == expectedHash) {
-                m_context.EnqueueEvent(events::emu::InsertROMCartridge(path));
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            OpenGenericModal("Compatible ROM cart not found", [&] {
-                ImGui::TextUnformatted(
-                    "Could not find required ROM cartridge image. This game will not boot properly.\n"
-                    "\n"
-                    "Place the image in the following directory:");
-                auto path = m_context.profile.GetPath(ProfilePath::ROMCartImages);
-                if (ImGui::TextLink(fmt::format("{}", path).c_str())) {
-                    SDL_OpenURL(fmt::format("file:///{}", path).c_str());
-                }
-            });
-        }
-        break;
-    }
-    case Cart::BackupRAM: //
-    {
-        // TODO: centralize backup RAM image management tasks somewhere
-        std::filesystem::path cartPath =
-            m_context.GetPerGameExternalBackupRAMPath(ymir::bup::BackupMemorySize::_32Mbit);
-        std::error_code error{};
-        ymir::bup::BackupMemory bupMem{};
-        bupMem.CreateFrom(cartPath, false, error, ymir::bup::BackupMemorySize::_32Mbit);
-        if (error) {
-            m_context.EnqueueEvent(
-                events::gui::ShowError(fmt::format("Failed to load external backup memory: {}", error.message())));
-        } else {
-            m_context.EnqueueEvent(events::emu::InsertBackupMemoryCartridge(cartPath));
-        }
-        break;
-    }
-    }
-
-    // TODO: notify user
-}
-
-void App::LoadSaveStates() {
-    WriteSaveStateMeta();
-
-    auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-    auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
-
-    auto &saves = m_saveStateService;
-    for (const auto &slotMeta : saves.List()) {
-        auto load = [&](savestates::Entry &entry, std::string name) {
-            auto statePath = gameStatesPath / name;
-            std::ifstream in{statePath, std::ios::binary};
-
-            if (in) {
-                cereal::PortableBinaryInputArchive archive{in};
-                try {
-                    auto state = std::make_unique<ymir::savestate::SaveState>();
-                    archive(*state);
-                    entry.state.swap(state);
-
-                    SDL_PathInfo pathInfo{};
-                    if (SDL_GetPathInfo(fmt::format("{}", statePath).c_str(), &pathInfo)) {
-                        const time_t time = SDL_NS_TO_SECONDS(pathInfo.modify_time);
-                        const auto sysClockTime = std::chrono::system_clock::from_time_t(time);
-                        entry.timestamp = sysClockTime;
-                    } else {
-                        entry.timestamp = std::chrono::system_clock::now();
-                    }
-                } catch (const cereal::Exception &e) {
-                    devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
-                } catch (const std::exception &e) {
-                    devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
-                } catch (...) {
-                    devlog::error<grp::base>("Could not load save state from {}: unspecified error", statePath);
-                }
-            }
-        };
-
-        const auto slotIndex = static_cast<std::size_t>(slotMeta.index);
-        auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
-
-        savestates::Slot state{};
-        load(state.primary, fmt::format("{}.savestate", slotIndex));
-        if (state.IsValid()) {
-            load(state.backup, fmt::format("{}-1.savestate", slotIndex));
-            saves.Set(slotIndex, std::move(state));
-        } else {
-            saves.Erase(slotIndex);
-        }
-    }
-}
-
-void App::ClearSaveStates() {
-    auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-    auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
-
-    auto &saves = m_saveStateService;
-
-    for (const auto &slotMeta : saves.List()) {
-        const auto slotIndex = slotMeta.index;
-        {
-            auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
-            saves.Erase(slotIndex);
-        }
-
-        std::filesystem::remove(gameStatesPath / fmt::format("{}.savestate", slotIndex));
-        std::filesystem::remove(gameStatesPath / fmt::format("{}-1.savestate", slotIndex));
-    }
-    m_context.DisplayMessage("All save states cleared");
-}
-
-void App::LoadSaveStateSlot(size_t slotIndex) {
-    m_saveStateService.SetCurrentSlot(slotIndex);
-    m_context.EnqueueEvent(events::emu::LoadState(m_saveStateService.CurrentSlot()));
-}
-
-void App::SaveSaveStateSlot(size_t slotIndex) {
-    m_saveStateService.SetCurrentSlot(slotIndex);
-    m_context.EnqueueEvent(events::emu::SaveState(m_saveStateService.CurrentSlot()));
-}
-
-void App::SelectSaveStateSlot(size_t slotIndex) {
-    m_saveStateService.SetCurrentSlot(slotIndex);
-    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_saveStateService.CurrentSlot() + 1));
-}
-
-void App::PersistSaveState(size_t slotIndex) {
-    auto &saves = m_saveStateService;
-
-    if (!saves.IsValidIndex(slotIndex)) {
-        return;
-    }
-
-    auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
-
-    // ensure to not dereference empty slots
-    auto *slot = saves.Peek(slotIndex);
-    if (slot) {
-        auto save = [&](const std::unique_ptr<ymir::savestate::SaveState> &state, std::string name) {
-            if (state) {
-                // Create directory for this game's save states
-                auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-                auto gameStatesPath = basePath / ymir::ToString(state->discHash);
-                std::filesystem::create_directories(gameStatesPath);
-
-                // Write save state
-                auto statePath = gameStatesPath / name;
-                std::ofstream out{statePath, std::ios::binary};
-                cereal::PortableBinaryOutputArchive archive{out};
-                archive(*state);
-            }
-            return state.get() != nullptr;
-        };
-
-        if (slot->IsValid()) {
-            save(slot->primary.state, fmt::format("{}.savestate", slotIndex));
-            save(slot->backup.state, fmt::format("{}-1.savestate", slotIndex));
-            WriteSaveStateMeta();
-            m_context.DisplayMessage(fmt::format("State {} saved", slotIndex + 1));
-        }
-    }
-}
-
-void App::WriteSaveStateMeta() {
-    auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-    auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
-    auto gameMetaPath = gameStatesPath / "meta.txt";
-
-    // No need to write the meta file if it exists and is recent enough
-    if (std::filesystem::is_regular_file(gameMetaPath)) {
-        using namespace std::chrono_literals;
-        auto lastWriteTime = std::filesystem::last_write_time(gameMetaPath);
-        if (std::chrono::file_clock::now() < lastWriteTime + 24h) {
-            return;
-        }
-    }
-
-    std::filesystem::create_directories(gameStatesPath);
-    std::ofstream out{gameMetaPath};
-    if (out) {
-        std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetDisc();
-
-        auto iter = std::ostream_iterator<char>(out);
-        fmt::format_to(iter, "IPL ROM hash: {}\n", ymir::ToString(m_context.saturn.instance->GetIPLHash()));
-        fmt::format_to(iter, "Title: {}\n", disc.header.gameTitle);
-        fmt::format_to(iter, "Product Number: {}\n", disc.header.productNumber);
-        fmt::format_to(iter, "Version: {}\n", disc.header.version);
-        fmt::format_to(iter, "Release date: {}\n", disc.header.releaseDate);
-        fmt::format_to(iter, "Disc: {}\n", disc.header.deviceInfo);
-        fmt::format_to(iter, "Compatible area codes: ");
-        auto bmAreaCodes = BitmaskEnum(disc.header.compatAreaCode);
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::Japan)) {
-            fmt::format_to(iter, "J");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::AsiaNTSC)) {
-            fmt::format_to(iter, "T");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::NorthAmerica)) {
-            fmt::format_to(iter, "U");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::CentralSouthAmericaNTSC)) {
-            fmt::format_to(iter, "B");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::AsiaPAL)) {
-            fmt::format_to(iter, "A");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::EuropePAL)) {
-            fmt::format_to(iter, "E");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::Korea)) {
-            fmt::format_to(iter, "K");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::CentralSouthAmericaPAL)) {
-            fmt::format_to(iter, "L");
-        }
-        fmt::format_to(iter, "\n");
-    }
-}
-
 void App::EnableRewindBuffer(bool enable) {
     bool wasEnabled = m_context.rewindBuffer.IsRunning();
     if (enable != wasEnabled) {
@@ -5774,407 +3326,6 @@ void App::ToggleRewindBuffer() {
     settings.general.enableRewindBuffer ^= true;
     settings.MakeDirty();
     EnableRewindBuffer(settings.general.enableRewindBuffer);
-}
-
-void App::OpenLoadDiscDialog() {
-    static constexpr SDL_DialogFileFilter kCartFileFilters[] = {
-        {.name = "All supported formats (*.ccd, *.chd, *.cue, *.iso, *.mds)", .pattern = "ccd;chd;cue;iso;mds"},
-        {.name = "All files (*.*)", .pattern = "*"},
-    };
-
-    std::filesystem::path defaultPath = m_context.state.loadedDiscImagePath;
-
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, "Load Sega Saturn disc image", (void *)kCartFileFilters,
-                     std::size(kCartFileFilters), false, fmt::format("{}", defaultPath).c_str(), this,
-                     [](void *userdata, const char *const *filelist, int filter) {
-                         static_cast<App *>(userdata)->ProcessOpenDiscImageFileDialogSelection(filelist, filter);
-                     });
-}
-
-void App::ProcessOpenDiscImageFileDialogSelection(const char *const *filelist, int filter) {
-    if (filelist == nullptr) {
-        devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-    } else if (*filelist == nullptr) {
-        devlog::info<grp::base>("File dialog cancelled");
-    } else {
-        // Only one file should be selected
-        const char *file = *filelist;
-        std::string fileStr = file;
-        const std::u8string u8File{fileStr.begin(), fileStr.end()};
-        m_context.EnqueueEvent(events::emu::LoadDisc(u8File));
-    }
-}
-
-bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
-    auto &settings = m_settings;
-
-    // Try to load disc image from specified path
-    devlog::info<grp::base>("Loading disc image from {}", path);
-    ymir::media::Disc disc{};
-
-    auto showError = [&](std::string message) {
-        OpenGenericModal("Error", [=, this] {
-            ImGui::TextUnformatted(fmt::format("Could not load {} as a game disc image.", path).c_str());
-            ImGui::NewLine();
-            ImGui::TextUnformatted(message.c_str());
-#ifdef __linux__
-            // Check if we're running inside Flatpak's sandbox and warn user about filesystem permissions
-            if (getenv("FLATPAK_ID") != nullptr) {
-                ImGui::Separator();
-                ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
-                ImGui::TextColored(m_context.colors.notice, "Flatpak restricts access to the filesystem by default.");
-                ImGui::TextColored(m_context.colors.notice,
-                                   "You must manually grant Ymir permission to access the directory.");
-                ImGui::PopFont();
-                ImGui::TextUnformatted(
-                    "You can ignore this error if you already granted permission to read the files.\n"
-                    "In this case, the image is probably invalid or unsupported by Ymir.");
-                ImGui::NewLine();
-                ImGui::TextUnformatted("Learn more about Flatpak's sandbox system:");
-                ImGui::Bullet();
-                ImGui::TextLinkOpenURL("Flatpak - Sandbox permissions",
-                                       R"(https://docs.flatpak.org/en/latest/sandbox-permissions.html)");
-                ImGui::Bullet();
-                ImGui::TextLinkOpenURL("Flatseal - Filesystem permissions",
-                                       R"(https://github.com/tchx84/Flatseal/blob/master/DOCUMENTATION.md#filesystem)");
-                ImGui::Bullet();
-                ImGui::TextLinkOpenURL(
-                    "How to configure Ymir using Flatseal",
-                    R"(https://github.com/StrikerX3/Ymir/blob/main/TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release)");
-            }
-#endif
-            ImGui::Separator();
-        });
-    };
-
-    bool hasErrors = false;
-    if (!ymir::media::LoadDisc(path, disc, settings.general.preloadDiscImagesToRAM,
-                               [&](ymir::media::MessageType type, std::string message) {
-                                   switch (type) {
-                                   case ymir::media::MessageType::InvalidFormat:
-                                       devlog::trace<grp::media>("{}", message);
-                                       break;
-                                   case ymir::media::MessageType::Debug:
-                                       devlog::trace<grp::media>("{}", message);
-                                       break;
-                                   case ymir::media::MessageType::Error:
-                                       devlog::error<grp::media>("{}", message);
-                                       if (showErrorModal) {
-                                           hasErrors = true;
-                                           showError(message);
-                                       }
-                                       break;
-                                   case ymir::media::MessageType::NotValid:
-                                       devlog::error<grp::media>("{}", message);
-                                       if (showErrorModal && !hasErrors) {
-                                           showError(message);
-                                       }
-                                       break;
-                                   default: break;
-                                   }
-                               })) {
-        devlog::error<grp::base>("Failed to load disc image");
-        return false;
-    }
-    devlog::info<grp::base>("Disc image loaded succesfully");
-
-    // Insert disc into the Saturn drive
-    {
-        std::unique_lock lock{m_context.locks.disc};
-        m_context.saturn.instance->LoadDisc(std::move(disc));
-        if (m_context.saturn.GetConfiguration().system.autodetectRegion) {
-            settings.system.videoStandard = m_context.saturn.GetConfiguration().system.videoStandard.Get();
-            settings.MakeDirty();
-        }
-    }
-
-    // Load new internal backup memory image if using per-game images
-    if (settings.system.internalBackupRAMPerGame) {
-        m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
-    }
-
-    // Update currently loaded disc path
-    m_context.state.loadedDiscImagePath = path;
-
-    // Add to recent games list
-    if (auto it = std::find(m_context.state.recentDiscs.begin(), m_context.state.recentDiscs.end(), path);
-        it != m_context.state.recentDiscs.end()) {
-        m_context.state.recentDiscs.erase(it);
-    }
-    m_context.state.recentDiscs.push_front(path);
-
-    // Limit to 10 entries
-    if (m_context.state.recentDiscs.size() > 10) {
-        m_context.state.recentDiscs.resize(10);
-    }
-
-    SaveRecentDiscs();
-
-    // Load cartridge
-    if (settings.cartridge.autoLoadGameCarts) {
-        LoadRecommendedCartridge();
-    } else {
-        m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
-    }
-
-    m_context.rewindBuffer.Reset();
-    return true;
-}
-
-void App::LoadRecentDiscs() {
-    auto listPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "recent_discs.txt";
-    std::ifstream in{listPath};
-    if (!in) {
-        return;
-    }
-
-    m_context.state.recentDiscs.clear();
-    while (in) {
-        std::string line;
-        if (!std::getline(in, line)) {
-            break;
-        }
-        std::u8string u8line{line.begin(), line.end()};
-        std::filesystem::path path = u8line;
-        if (!path.empty()) {
-            m_context.state.recentDiscs.push_back(path);
-        }
-    }
-}
-
-void App::SaveRecentDiscs() {
-    auto listPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "recent_discs.txt";
-    std::ofstream out{listPath};
-    for (auto &path : m_context.state.recentDiscs) {
-        std::u8string u8path = path.u8string();
-        out << reinterpret_cast<const char *>(u8path.data()) << "\n";
-    }
-}
-
-void App::OpenBackupMemoryCartFileDialog() {
-    static constexpr SDL_DialogFileFilter kFileFilters[] = {
-        {.name = "Backup memory images (*.bin, *.sav)", .pattern = "bin;sav"},
-        {.name = "All files (*.*)", .pattern = "*"},
-    };
-
-    std::filesystem::path defaultPath = "";
-    {
-        std::unique_lock lock{m_context.locks.cart};
-        if (auto *cart = m_context.saturn.instance->GetCartridge().As<ymir::cart::CartType::BackupMemory>()) {
-            defaultPath = cart->GetBackupMemory().GetPath();
-        }
-    }
-
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, "Load Sega Saturn backup memory image", (void *)kFileFilters,
-                     std::size(kFileFilters), false, fmt::format("{}", defaultPath).c_str(), this,
-                     [](void *userdata, const char *const *filelist, int filter) {
-                         static_cast<App *>(userdata)->ProcessOpenBackupMemoryCartFileDialogSelection(filelist, filter);
-                     });
-}
-
-void App::ProcessOpenBackupMemoryCartFileDialogSelection(const char *const *filelist, int filter) {
-    if (filelist == nullptr) {
-        devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-    } else if (*filelist == nullptr) {
-        devlog::info<grp::base>("File dialog cancelled");
-    } else {
-        // Only one file should be selected
-        const char *file = *filelist;
-        m_context.EnqueueEvent(events::emu::InsertBackupMemoryCartridge(file));
-    }
-}
-
-void App::OpenROMCartFileDialog() {
-    static constexpr SDL_DialogFileFilter kFileFilters[] = {
-        {.name = "ROM cartridge images (*.bin, *.ic1)", .pattern = "bin;ic1"},
-        {.name = "All files (*.*)", .pattern = "*"},
-    };
-
-    const auto &settings = m_settings;
-    std::filesystem::path defaultPath = settings.cartridge.rom.imagePath;
-
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, "Load 16 Mbit ROM cartridge image", (void *)kFileFilters,
-                     std::size(kFileFilters), false, fmt::format("{}", defaultPath).c_str(), this,
-                     [](void *userdata, const char *const *filelist, int filter) {
-                         static_cast<App *>(userdata)->ProcessOpenROMCartFileDialogSelection(filelist, filter);
-                     });
-}
-
-void App::ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int filter) {
-    if (filelist == nullptr) {
-        devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-    } else if (*filelist == nullptr) {
-        devlog::info<grp::base>("File dialog cancelled");
-    } else {
-        // Only one file should be selected
-        const char *file = *filelist;
-        m_context.EnqueueEvent(events::emu::InsertROMCartridge(file));
-    }
-}
-
-static const char *StrNullIfEmpty(const std::string &str) {
-    return str.empty() ? nullptr : str.c_str();
-}
-
-void App::InvokeOpenFileDialog(const FileDialogParams &params) const {
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, StrNullIfEmpty(params.dialogTitle), (void *)params.filters.data(),
-                     params.filters.size(), false, StrNullIfEmpty(fmt::format("{}", params.defaultPath)),
-                     params.userdata, params.callback);
-}
-
-void App::InvokeOpenManyFilesDialog(const FileDialogParams &params) const {
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, StrNullIfEmpty(params.dialogTitle), (void *)params.filters.data(),
-                     params.filters.size(), true, StrNullIfEmpty(fmt::format("{}", params.defaultPath)),
-                     params.userdata, params.callback);
-}
-
-void App::InvokeSaveFileDialog(const FileDialogParams &params) const {
-    InvokeFileDialog(SDL_FILEDIALOG_SAVEFILE, StrNullIfEmpty(params.dialogTitle), (void *)params.filters.data(),
-                     params.filters.size(), false, StrNullIfEmpty(fmt::format("{}", params.defaultPath)),
-                     params.userdata, params.callback);
-}
-
-void App::InvokeSelectFolderDialog(const FolderDialogParams &params) const {
-    // FIXME: Sadly, there's either a Windows or an SDL3 limitation that prevents us from using an UTF-8 path here
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFOLDER, StrNullIfEmpty(params.dialogTitle), nullptr, 0, false,
-                     StrNullIfEmpty(params.defaultPath.string()), params.userdata, params.callback);
-}
-
-void App::InvokeFileDialog(SDL_FileDialogType type, const char *title, void *filters, int numFilters, bool allowMany,
-                           const char *location, void *userdata, SDL_DialogFileCallback callback) const {
-    SDL_PropertiesID props = m_fileDialogProps;
-
-    SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, title);
-    SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, filters);
-    SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, numFilters);
-    SDL_SetBooleanProperty(props, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN, allowMany);
-    SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, location);
-
-    if (m_settings.video.fullScreen && !m_settings.video.borderlessFullScreen) {
-        devlog::debug<grp::base>("Switching to borderless fullscreen mode before opening file dialog");
-
-        // If in exclusive fullscreen mode, switch to borderless fullscreen mode temporarily
-        SDL_SetWindowFullscreenMode(m_context.screen.window, nullptr);
-        SDL_SetWindowFullscreen(m_context.screen.window, true);
-        SDL_SyncWindow(m_context.screen.window);
-
-        // Pass callback and user data pointer to file dialog properties
-        SDL_SetPointerProperty(props, "ymir.filedialog.callback", (void *)callback);
-        SDL_SetPointerProperty(props, "ymir.filedialog.userdata", userdata);
-
-        SDL_ShowFileDialogWithProperties(
-            type,
-            [](void *userdata, const char *const *filelist, int filter) {
-                auto *app = static_cast<App *>(userdata);
-                SDL_PropertiesID props = app->m_fileDialogProps;
-                auto callback =
-                    (SDL_DialogFileCallback)SDL_GetPointerProperty(props, "ymir.filedialog.callback", nullptr);
-                auto *cbUserdata = SDL_GetPointerProperty(props, "ymir.filedialog.userdata", nullptr);
-
-                callback(cbUserdata, filelist, filter);
-
-                devlog::debug<grp::base>("Restoring exclusive fullscreen mode after closing file dialog");
-
-                // Restore fullscreen mode after processing the callback
-                app->ApplyFullscreenMode();
-            },
-            userdata, props);
-    } else {
-        SDL_ShowFileDialogWithProperties(type, callback, userdata, props);
-    }
-}
-
-void App::DrawWindows() {
-    m_systemStateWindow.Display();
-    m_bupMgrWindow.Display();
-
-    m_masterSH2WindowSet.DisplayAll();
-    m_slaveSH2WindowSet.DisplayAll();
-    m_scuWindowSet.DisplayAll();
-    m_scspWindowSet.DisplayAll();
-    m_vdpWindowSet.DisplayAll();
-    m_cdblockWindowSet.DisplayAll();
-
-    m_debugOutputWindow.Display();
-
-    for (auto &memView : m_memoryViewerWindows) {
-        memView.Display();
-    }
-
-    m_settingsWindow.Display();
-    m_periphConfigWindow.Display();
-    m_messageHistoryWindow.Display();
-    m_aboutWindow.Display();
-#if Ymir_ENABLE_UPDATE_CHECKS
-    m_updateOnboardingWindow.Display();
-#endif
-    m_updateWindow.Display();
-}
-
-void App::OpenMemoryViewer() {
-    for (auto &memView : m_memoryViewerWindows) {
-        if (!memView.Open) {
-            memView.Open = true;
-            memView.RequestFocus();
-            return;
-        }
-    }
-
-    // If there are no more free memory viewers, request focus on the first window
-    m_memoryViewerWindows[0].RequestFocus();
-
-    // If there are no more free memory viewers, create more!
-    /*auto &memView = m_memoryViewerWindows.emplace_back(m_context);
-    memView.Open = true;
-    memView.RequestFocus();*/
-}
-
-void App::OpenPeripheralBindsEditor(const PeripheralBindsParams &params) {
-    m_periphConfigWindow.Open(params.portIndex, params.slotIndex);
-    m_periphConfigWindow.RequestFocus();
-}
-
-void App::DrawGenericModal() {
-    std::string title = fmt::format("{}##generic_modal", m_genericModalTitle);
-
-    if (m_openGenericModal) {
-        m_openGenericModal = false;
-        ImGui::OpenPopup(title.c_str());
-    }
-
-    if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::PushTextWrapPos(500.0f * m_context.displayScale);
-        if (m_genericModalContents) {
-            m_genericModalContents();
-        }
-
-        ImGui::PopTextWrapPos();
-
-        bool close = m_closeGenericModal;
-        if (m_showOkButtonInGenericModal) {
-            if (ImGui::Button("OK", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
-                close = true;
-            }
-        }
-        if (close) {
-            ImGui::CloseCurrentPopup();
-            m_genericModalContents = {};
-            m_closeGenericModal = false;
-        }
-
-        ImGui::EndPopup();
-    }
-}
-
-void App::OpenSimpleErrorModal(std::string message) {
-    OpenGenericModal("Error", [=] { ImGui::Text("%s", message.c_str()); });
-}
-
-void App::OpenGenericModal(std::string title, std::function<void()> fnContents, bool showOKButton) {
-    m_openGenericModal = true;
-    m_genericModalTitle = title;
-    m_genericModalContents = fnContents;
-    m_showOkButtonInGenericModal = showOKButton;
 }
 
 void App::OnMidiInputReceived(double delta, std::vector<unsigned char> *msg, void *userData) {
