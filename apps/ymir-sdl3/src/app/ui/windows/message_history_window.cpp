@@ -14,6 +14,8 @@ void MessageHistoryWindow::PrepareWindow() {
     auto *vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f), ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(400 * m_context.displayScale, 300 * m_context.displayScale),
+                                        ImVec2(vp->Size.x, vp->Size.y));
 }
 
 void MessageHistoryWindow::DrawContents() {
