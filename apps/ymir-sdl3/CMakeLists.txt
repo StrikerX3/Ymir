@@ -81,6 +81,8 @@ add_executable(ymir-sdl3
     src/app/services/rom_service.hpp
     src/app/services/disc_service.cpp
     src/app/services/disc_service.hpp
+    src/app/services/display_service.cpp
+    src/app/services/display_service.hpp
 
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp

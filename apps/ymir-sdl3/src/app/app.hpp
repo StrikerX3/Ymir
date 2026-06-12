@@ -6,6 +6,7 @@
 #include "shared_context.hpp"
 
 #include "services/disc_service.hpp"
+#include "services/display_service.hpp"
 #include "services/graphics_service.hpp"
 #include "services/midi_service.hpp"
 #include "services/mouse_capture_service.hpp"
@@ -72,6 +73,7 @@ private:
     services::MouseCaptureService m_mouseCaptureService;
     services::ROMService m_romService;
     services::DiscService m_discService;
+    services::DisplayService m_displayService;
 
     SDL_PropertiesID m_fileDialogProps;
 
@@ -91,17 +93,6 @@ private:
     void DrawInputs(ImDrawList *drawList);
 
     std::pair<float, float> WindowToScreen(float x, float y) const;
-
-    void RescaleUI(float displayScale);
-    ImGuiStyle &ReloadStyle(float displayScale);
-    void LoadFonts();
-
-    void OnDisplayAdded(SDL_DisplayID id);
-    void OnDisplayRemoved(SDL_DisplayID id);
-
-    void ApplyFullscreenMode() const;
-
-    void PersistWindowGeometry();
 
     void LoadDebuggerState();
     void SaveDebuggerState();
