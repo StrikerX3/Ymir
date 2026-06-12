@@ -166,6 +166,10 @@ App::App()
                    [this](std::string title, std::function<void()> fnContents) {
                        OpenGenericModal(std::move(title), std::move(fnContents));
                    })
+    , m_discService(m_context, m_settings,
+                    [this](std::string title, std::function<void()> fnContents) {
+                        OpenGenericModal(std::move(title), std::move(fnContents));
+                    })
     , m_systemStateWindow(m_context)
     , m_bupMgrWindow(m_context)
     , m_masterSH2WindowSet(m_context, true)
@@ -191,6 +195,7 @@ App::App()
     m_context.serviceLocator.Register(m_updateCheckerService);
     m_context.serviceLocator.Register(m_mouseCaptureService);
     m_context.serviceLocator.Register(m_romService);
+    m_context.serviceLocator.Register(m_discService);
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
 
     // Preinitialize some memory viewers
@@ -447,14 +452,14 @@ int App::Run(const CommandLineOptions &options) {
 
     // Load recent discs list.
     // Must be done before LoadDiscImage because it saves the recent list to the file.
-    LoadRecentDiscs();
+    m_discService.LoadRecentDiscs();
 
     // Load disc image if provided
     if (!options.gameDiscPath.empty()) {
         // This also inserts the game-specific cartridges or the one configured by the user in Settings > Cartridge
-        LoadDiscImage(options.gameDiscPath, false);
+        m_discService.LoadDiscImage(options.gameDiscPath, false);
     } else if (settings.general.rememberLastLoadedDisc && !m_context.state.recentDiscs.empty()) {
-        LoadDiscImage(m_context.state.recentDiscs[0], false);
+        m_discService.LoadDiscImage(m_context.state.recentDiscs[0], false);
     } else {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
     }
@@ -1179,8 +1184,9 @@ void App::RunEmulator() {
 
     // CD drive
     {
-        inputContext.SetTriggerHandler(actions::cd_drive::LoadDisc,
-                                       [&](void *, const input::InputElement &) { OpenLoadDiscDialog(); });
+        inputContext.SetTriggerHandler(actions::cd_drive::LoadDisc, [&](void *, const input::InputElement &) {
+            m_discService.OpenLoadDiscDialog();
+        });
         inputContext.SetTriggerHandler(actions::cd_drive::EjectDisc, [&](void *, const input::InputElement &) {
             m_context.EnqueueEvent(events::emu::EjectDisc());
         });
@@ -2440,7 +2446,7 @@ void App::RunEmulator() {
             const GUIEvent &evt = evts[i];
             using EvtType = GUIEvent::Type;
             switch (evt.type) {
-            case EvtType::LoadDisc: OpenLoadDiscDialog(); break;
+            case EvtType::LoadDisc: m_discService.OpenLoadDiscDialog(); break;
             case EvtType::LoadRecommendedGameCartridge: m_romService.LoadRecommendedCartridge(); break;
             case EvtType::OpenBackupMemoryCartFileDialog: OpenBackupMemoryCartFileDialog(); break;
             case EvtType::OpenROMCartFileDialog: OpenROMCartFileDialog(); break;
@@ -2767,7 +2773,7 @@ void App::RunEmulator() {
                     // CD drive
                     if (ImGui::MenuItem("Load disc image",
                                         input::ToShortcut(inputContext, actions::cd_drive::LoadDisc).c_str())) {
-                        OpenLoadDiscDialog();
+                        m_discService.OpenLoadDiscDialog();
                     }
                     if (ImGui::BeginMenu("Recent disc images")) {
                         if (m_context.state.recentDiscs.empty()) {
@@ -2798,7 +2804,7 @@ void App::RunEmulator() {
                             ImGui::Separator();
                             if (ImGui::MenuItem("Clear")) {
                                 m_context.state.recentDiscs.clear();
-                                SaveRecentDiscs();
+                                m_discService.SaveRecentDiscs();
                             }
                         }
                         ImGui::EndMenu();
@@ -3967,7 +3973,7 @@ void App::EmulatorThread() {
             {
                 auto path = std::get<std::filesystem::path>(evt.value);
                 // LoadDiscImage locks the disc mutex
-                if (LoadDiscImage(path, true)) {
+                if (m_discService.LoadDiscImage(path, true)) {
                     LoadSaveStates();
                     LoadDebuggerState();
                     auto iplLoadResult = m_romService.LoadIPLROM();
@@ -4943,181 +4949,6 @@ void App::ToggleRewindBuffer() {
     settings.general.enableRewindBuffer ^= true;
     settings.MakeDirty();
     EnableRewindBuffer(settings.general.enableRewindBuffer);
-}
-
-void App::OpenLoadDiscDialog() {
-    static constexpr SDL_DialogFileFilter kCartFileFilters[] = {
-        {.name = "All supported formats (*.ccd, *.chd, *.cue, *.iso, *.mds)", .pattern = "ccd;chd;cue;iso;mds"},
-        {.name = "All files (*.*)", .pattern = "*"},
-    };
-
-    std::filesystem::path defaultPath = m_context.state.loadedDiscImagePath;
-
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, "Load Sega Saturn disc image", (void *)kCartFileFilters,
-                     std::size(kCartFileFilters), false, fmt::format("{}", defaultPath).c_str(), this,
-                     [](void *userdata, const char *const *filelist, int filter) {
-                         static_cast<App *>(userdata)->ProcessOpenDiscImageFileDialogSelection(filelist, filter);
-                     });
-}
-
-void App::ProcessOpenDiscImageFileDialogSelection(const char *const *filelist, int filter) {
-    if (filelist == nullptr) {
-        devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-    } else if (*filelist == nullptr) {
-        devlog::info<grp::base>("File dialog cancelled");
-    } else {
-        // Only one file should be selected
-        const char *file = *filelist;
-        std::string fileStr = file;
-        const std::u8string u8File{fileStr.begin(), fileStr.end()};
-        m_context.EnqueueEvent(events::emu::LoadDisc(u8File));
-    }
-}
-
-bool App::LoadDiscImage(std::filesystem::path path, bool showErrorModal) {
-    auto &settings = m_settings;
-
-    // Try to load disc image from specified path
-    devlog::info<grp::base>("Loading disc image from {}", path);
-    ymir::media::Disc disc{};
-
-    auto showError = [&](std::string message) {
-        OpenGenericModal("Error", [=, this] {
-            ImGui::TextUnformatted(fmt::format("Could not load {} as a game disc image.", path).c_str());
-            ImGui::NewLine();
-            ImGui::TextUnformatted(message.c_str());
-#ifdef __linux__
-            // Check if we're running inside Flatpak's sandbox and warn user about filesystem permissions
-            if (getenv("FLATPAK_ID") != nullptr) {
-                ImGui::Separator();
-                ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
-                ImGui::TextColored(m_context.colors.notice, "Flatpak restricts access to the filesystem by default.");
-                ImGui::TextColored(m_context.colors.notice,
-                                   "You must manually grant Ymir permission to access the directory.");
-                ImGui::PopFont();
-                ImGui::TextUnformatted(
-                    "You can ignore this error if you already granted permission to read the files.\n"
-                    "In this case, the image is probably invalid or unsupported by Ymir.");
-                ImGui::NewLine();
-                ImGui::TextUnformatted("Learn more about Flatpak's sandbox system:");
-                ImGui::Bullet();
-                ImGui::TextLinkOpenURL("Flatpak - Sandbox permissions",
-                                       R"(https://docs.flatpak.org/en/latest/sandbox-permissions.html)");
-                ImGui::Bullet();
-                ImGui::TextLinkOpenURL("Flatseal - Filesystem permissions",
-                                       R"(https://github.com/tchx84/Flatseal/blob/master/DOCUMENTATION.md#filesystem)");
-                ImGui::Bullet();
-                ImGui::TextLinkOpenURL(
-                    "How to configure Ymir using Flatseal",
-                    R"(https://github.com/StrikerX3/Ymir/blob/main/TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release)");
-            }
-#endif
-            ImGui::Separator();
-        });
-    };
-
-    bool hasErrors = false;
-    if (!ymir::media::LoadDisc(path, disc, settings.general.preloadDiscImagesToRAM,
-                               [&](ymir::media::MessageType type, std::string message) {
-                                   switch (type) {
-                                   case ymir::media::MessageType::InvalidFormat:
-                                       devlog::trace<grp::media>("{}", message);
-                                       break;
-                                   case ymir::media::MessageType::Debug:
-                                       devlog::trace<grp::media>("{}", message);
-                                       break;
-                                   case ymir::media::MessageType::Error:
-                                       devlog::error<grp::media>("{}", message);
-                                       if (showErrorModal) {
-                                           hasErrors = true;
-                                           showError(message);
-                                       }
-                                       break;
-                                   case ymir::media::MessageType::NotValid:
-                                       devlog::error<grp::media>("{}", message);
-                                       if (showErrorModal && !hasErrors) {
-                                           showError(message);
-                                       }
-                                       break;
-                                   default: break;
-                                   }
-                               })) {
-        devlog::error<grp::base>("Failed to load disc image");
-        return false;
-    }
-    devlog::info<grp::base>("Disc image loaded succesfully");
-
-    // Insert disc into the Saturn drive
-    {
-        std::unique_lock lock{m_context.locks.disc};
-        m_context.saturn.instance->LoadDisc(std::move(disc));
-        if (m_context.saturn.GetConfiguration().system.autodetectRegion) {
-            settings.system.videoStandard = m_context.saturn.GetConfiguration().system.videoStandard.Get();
-            settings.MakeDirty();
-        }
-    }
-
-    // Load new internal backup memory image if using per-game images
-    if (settings.system.internalBackupRAMPerGame) {
-        m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
-    }
-
-    // Update currently loaded disc path
-    m_context.state.loadedDiscImagePath = path;
-
-    // Add to recent games list
-    if (auto it = std::find(m_context.state.recentDiscs.begin(), m_context.state.recentDiscs.end(), path);
-        it != m_context.state.recentDiscs.end()) {
-        m_context.state.recentDiscs.erase(it);
-    }
-    m_context.state.recentDiscs.push_front(path);
-
-    // Limit to 10 entries
-    if (m_context.state.recentDiscs.size() > 10) {
-        m_context.state.recentDiscs.resize(10);
-    }
-
-    SaveRecentDiscs();
-
-    // Load cartridge
-    if (settings.cartridge.autoLoadGameCarts) {
-        m_romService.LoadRecommendedCartridge();
-    } else {
-        m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
-    }
-
-    m_context.rewindBuffer.Reset();
-    return true;
-}
-
-void App::LoadRecentDiscs() {
-    auto listPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "recent_discs.txt";
-    std::ifstream in{listPath};
-    if (!in) {
-        return;
-    }
-
-    m_context.state.recentDiscs.clear();
-    while (in) {
-        std::string line;
-        if (!std::getline(in, line)) {
-            break;
-        }
-        std::u8string u8line{line.begin(), line.end()};
-        std::filesystem::path path = u8line;
-        if (!path.empty()) {
-            m_context.state.recentDiscs.push_back(path);
-        }
-    }
-}
-
-void App::SaveRecentDiscs() {
-    auto listPath = m_context.profile.GetPath(ProfilePath::PersistentState) / "recent_discs.txt";
-    std::ofstream out{listPath};
-    for (auto &path : m_context.state.recentDiscs) {
-        std::u8string u8path = path.u8string();
-        out << reinterpret_cast<const char *>(u8path.data()) << "\n";
-    }
 }
 
 void App::OpenBackupMemoryCartFileDialog() {

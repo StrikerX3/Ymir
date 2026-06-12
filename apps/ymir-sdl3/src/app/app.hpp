@@ -5,6 +5,7 @@
 #include "settings.hpp"
 #include "shared_context.hpp"
 
+#include "services/disc_service.hpp"
 #include "services/graphics_service.hpp"
 #include "services/midi_service.hpp"
 #include "services/mouse_capture_service.hpp"
@@ -70,6 +71,7 @@ private:
     Settings m_settings;
     services::MouseCaptureService m_mouseCaptureService;
     services::ROMService m_romService;
+    services::DiscService m_discService;
 
     SDL_PropertiesID m_fileDialogProps;
 
@@ -118,12 +120,6 @@ private:
 
     void EnableRewindBuffer(bool enable);
     void ToggleRewindBuffer();
-
-    void OpenLoadDiscDialog();
-    void ProcessOpenDiscImageFileDialogSelection(const char *const *filelist, int filter);
-    bool LoadDiscImage(std::filesystem::path path, bool showErrorModal);
-    void LoadRecentDiscs();
-    void SaveRecentDiscs();
 
     void OpenBackupMemoryCartFileDialog();
     void ProcessOpenBackupMemoryCartFileDialogSelection(const char *const *filelist, int filter);
