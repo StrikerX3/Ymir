@@ -171,6 +171,7 @@ App::App()
                         OpenGenericModal(std::move(title), std::move(fnContents));
                     })
     , m_displayService(m_context, m_settings)
+    , m_fileDialogService(m_context, m_settings)
     , m_systemStateWindow(m_context)
     , m_bupMgrWindow(m_context)
     , m_masterSH2WindowSet(m_context, true)
@@ -198,6 +199,7 @@ App::App()
     m_context.serviceLocator.Register(m_romService);
     m_context.serviceLocator.Register(m_discService);
     m_context.serviceLocator.Register(m_displayService);
+    m_context.serviceLocator.Register(m_fileDialogService);
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
 
     // Preinitialize some memory viewers
@@ -1082,14 +1084,7 @@ void App::RunEmulator() {
     // ---------------------------------
     // File dialogs
 
-    m_fileDialogProps = SDL_CreateProperties();
-    if (m_fileDialogProps == 0) {
-        ShowStartupFailure("Failed to create file dialog properties: {}\n", SDL_GetError());
-        return;
-    }
-    ScopeGuard sgDestroyGenericFileDialogProps{[&] { SDL_DestroyProperties(m_fileDialogProps); }};
-
-    SDL_SetPointerProperty(m_fileDialogProps, SDL_PROP_FILE_DIALOG_WINDOW_POINTER, screen.window);
+    m_fileDialogService.Initialize(screen.window);
 
     // ---------------------------------
     // Input action handlers
@@ -2456,10 +2451,18 @@ void App::RunEmulator() {
                 OpenPeripheralBindsEditor(std::get<PeripheralBindsParams>(evt.value));
                 break;
 
-            case EvtType::OpenFile: InvokeOpenFileDialog(std::get<FileDialogParams>(evt.value)); break;
-            case EvtType::OpenManyFiles: InvokeOpenManyFilesDialog(std::get<FileDialogParams>(evt.value)); break;
-            case EvtType::SaveFile: InvokeSaveFileDialog(std::get<FileDialogParams>(evt.value)); break;
-            case EvtType::SelectFolder: InvokeSelectFolderDialog(std::get<FolderDialogParams>(evt.value)); break;
+            case EvtType::OpenFile:
+                m_fileDialogService.InvokeOpenFileDialog(std::get<FileDialogParams>(evt.value));
+                break;
+            case EvtType::OpenManyFiles:
+                m_fileDialogService.InvokeOpenManyFilesDialog(std::get<FileDialogParams>(evt.value));
+                break;
+            case EvtType::SaveFile:
+                m_fileDialogService.InvokeSaveFileDialog(std::get<FileDialogParams>(evt.value));
+                break;
+            case EvtType::SelectFolder:
+                m_fileDialogService.InvokeSelectFolderDialog(std::get<FolderDialogParams>(evt.value));
+                break;
 
             case EvtType::OpenBackupMemoryManager: m_bupMgrWindow.Open = true; break;
             case EvtType::OpenSettings: m_settingsWindow.OpenTab(std::get<ui::SettingsTab>(evt.value)); break;
@@ -4194,7 +4197,7 @@ void App::OpenWelcomeModal(bool scanIPLROMs) {
                         }
                     },
             };
-            InvokeOpenFileDialog(params);
+            m_fileDialogService.InvokeOpenFileDialog(params);
         }
 
         if (doOpenSettings) {
@@ -4690,11 +4693,12 @@ void App::OpenBackupMemoryCartFileDialog() {
         }
     }
 
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, "Load Sega Saturn backup memory image", (void *)kFileFilters,
-                     std::size(kFileFilters), false, fmt::format("{}", defaultPath).c_str(), this,
-                     [](void *userdata, const char *const *filelist, int filter) {
-                         static_cast<App *>(userdata)->ProcessOpenBackupMemoryCartFileDialogSelection(filelist, filter);
-                     });
+    m_fileDialogService.InvokeFileDialog(
+        SDL_FILEDIALOG_OPENFILE, "Load Sega Saturn backup memory image", (void *)kFileFilters, std::size(kFileFilters),
+        false, fmt::format("{}", defaultPath).c_str(), this,
+        [](void *userdata, const char *const *filelist, int filter) {
+            static_cast<App *>(userdata)->ProcessOpenBackupMemoryCartFileDialogSelection(filelist, filter);
+        });
 }
 
 void App::ProcessOpenBackupMemoryCartFileDialogSelection(const char *const *filelist, int filter) {
@@ -4718,11 +4722,12 @@ void App::OpenROMCartFileDialog() {
     const auto &settings = m_settings;
     std::filesystem::path defaultPath = settings.cartridge.rom.imagePath;
 
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, "Load 16 Mbit ROM cartridge image", (void *)kFileFilters,
-                     std::size(kFileFilters), false, fmt::format("{}", defaultPath).c_str(), this,
-                     [](void *userdata, const char *const *filelist, int filter) {
-                         static_cast<App *>(userdata)->ProcessOpenROMCartFileDialogSelection(filelist, filter);
-                     });
+    m_fileDialogService.InvokeFileDialog(
+        SDL_FILEDIALOG_OPENFILE, "Load 16 Mbit ROM cartridge image", (void *)kFileFilters, std::size(kFileFilters),
+        false, fmt::format("{}", defaultPath).c_str(), this,
+        [](void *userdata, const char *const *filelist, int filter) {
+            static_cast<App *>(userdata)->ProcessOpenROMCartFileDialogSelection(filelist, filter);
+        });
 }
 
 void App::ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int filter) {
@@ -4734,80 +4739,6 @@ void App::ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int
         // Only one file should be selected
         const char *file = *filelist;
         m_context.EnqueueEvent(events::emu::InsertROMCartridge(file));
-    }
-}
-
-static const char *StrNullIfEmpty(const std::string &str) {
-    return str.empty() ? nullptr : str.c_str();
-}
-
-void App::InvokeOpenFileDialog(const FileDialogParams &params) const {
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, StrNullIfEmpty(params.dialogTitle), (void *)params.filters.data(),
-                     params.filters.size(), false, StrNullIfEmpty(fmt::format("{}", params.defaultPath)),
-                     params.userdata, params.callback);
-}
-
-void App::InvokeOpenManyFilesDialog(const FileDialogParams &params) const {
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFILE, StrNullIfEmpty(params.dialogTitle), (void *)params.filters.data(),
-                     params.filters.size(), true, StrNullIfEmpty(fmt::format("{}", params.defaultPath)),
-                     params.userdata, params.callback);
-}
-
-void App::InvokeSaveFileDialog(const FileDialogParams &params) const {
-    InvokeFileDialog(SDL_FILEDIALOG_SAVEFILE, StrNullIfEmpty(params.dialogTitle), (void *)params.filters.data(),
-                     params.filters.size(), false, StrNullIfEmpty(fmt::format("{}", params.defaultPath)),
-                     params.userdata, params.callback);
-}
-
-void App::InvokeSelectFolderDialog(const FolderDialogParams &params) const {
-    // FIXME: Sadly, there's either a Windows or an SDL3 limitation that prevents us from using an UTF-8 path here
-    InvokeFileDialog(SDL_FILEDIALOG_OPENFOLDER, StrNullIfEmpty(params.dialogTitle), nullptr, 0, false,
-                     StrNullIfEmpty(params.defaultPath.string()), params.userdata, params.callback);
-}
-
-void App::InvokeFileDialog(SDL_FileDialogType type, const char *title, void *filters, int numFilters, bool allowMany,
-                           const char *location, void *userdata, SDL_DialogFileCallback callback) const {
-    SDL_PropertiesID props = m_fileDialogProps;
-
-    SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, title);
-    SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, filters);
-    SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, numFilters);
-    SDL_SetBooleanProperty(props, SDL_PROP_FILE_DIALOG_MANY_BOOLEAN, allowMany);
-    SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_LOCATION_STRING, location);
-
-    if (m_settings.video.fullScreen && !m_settings.video.borderlessFullScreen) {
-        devlog::debug<grp::base>("Switching to borderless fullscreen mode before opening file dialog");
-
-        // If in exclusive fullscreen mode, switch to borderless fullscreen mode temporarily
-        SDL_SetWindowFullscreenMode(m_context.screen.window, nullptr);
-        SDL_SetWindowFullscreen(m_context.screen.window, true);
-        SDL_SyncWindow(m_context.screen.window);
-
-        // Pass callback and user data pointer to file dialog properties
-        SDL_SetPointerProperty(props, "ymir.filedialog.callback", (void *)callback);
-        SDL_SetPointerProperty(props, "ymir.filedialog.userdata", userdata);
-
-        SDL_ShowFileDialogWithProperties(
-            type,
-            [](void *userdata, const char *const *filelist, int filter) {
-                auto *app = static_cast<App *>(userdata);
-                SDL_PropertiesID props = app->m_fileDialogProps;
-                auto callback =
-                    (SDL_DialogFileCallback)SDL_GetPointerProperty(props, "ymir.filedialog.callback", nullptr);
-                auto *cbUserdata = SDL_GetPointerProperty(props, "ymir.filedialog.userdata", nullptr);
-
-                callback(cbUserdata, filelist, filter);
-
-                devlog::debug<grp::base>("Restoring exclusive fullscreen mode after closing file dialog");
-
-                // Restore fullscreen mode after processing the callback
-                if (auto *displayService = app->m_context.serviceLocator.Get<services::DisplayService>()) {
-                    displayService->ApplyFullscreenMode();
-                }
-            },
-            userdata, props);
-    } else {
-        SDL_ShowFileDialogWithProperties(type, callback, userdata, props);
     }
 }
 

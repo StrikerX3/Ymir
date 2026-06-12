@@ -7,6 +7,7 @@
 
 #include "services/disc_service.hpp"
 #include "services/display_service.hpp"
+#include "services/file_dialog_service.hpp"
 #include "services/graphics_service.hpp"
 #include "services/midi_service.hpp"
 #include "services/mouse_capture_service.hpp"
@@ -74,8 +75,7 @@ private:
     services::ROMService m_romService;
     services::DiscService m_discService;
     services::DisplayService m_displayService;
-
-    SDL_PropertiesID m_fileDialogProps;
+    services::FileDialogService m_fileDialogService;
 
     std::thread m_emuThread;
     util::Event m_emuProcessEvent{};
@@ -117,14 +117,6 @@ private:
 
     void OpenROMCartFileDialog();
     void ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int filter);
-
-    void InvokeOpenFileDialog(const FileDialogParams &params) const;
-    void InvokeOpenManyFilesDialog(const FileDialogParams &params) const;
-    void InvokeSaveFileDialog(const FileDialogParams &params) const;
-    void InvokeSelectFolderDialog(const FolderDialogParams &params) const;
-
-    void InvokeFileDialog(SDL_FileDialogType type, const char *title, void *filters, int numFilters, bool allowMany,
-                          const char *location, void *userdata, SDL_DialogFileCallback callback) const;
 
     static void OnMidiInputReceived(double delta, std::vector<unsigned char> *msg, void *userData);
 
