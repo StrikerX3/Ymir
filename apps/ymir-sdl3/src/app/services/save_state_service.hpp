@@ -5,6 +5,8 @@
 #pragma once
 
 #include "save_state_types.hpp"
+#include <app/settings.hpp>
+#include <app/shared_context.hpp>
 
 #include <array>
 #include <mutex>
@@ -18,7 +20,8 @@ public:
     static constexpr std::size_t kSlots = 10;
     using SlotArray = std::array<savestates::Slot, kSlots>; // type alias for private member
 
-    SaveStateService() = default;
+    SaveStateService(SharedContext &context, Settings &settings);
+    ~SaveStateService() = default;
 
     /// @brief Retrieves the number of save state slots.
     /// @return the number of save state slots
@@ -101,7 +104,44 @@ public:
         return static_cast<bool>(m_undoLoadState);
     }
 
+    /// @brief Loads all save states for the current game from the profile.
+    void LoadSaveStates();
+
+    /// @brief Deletes all save states for the current game from disk and memory.
+    void ClearSaveStates();
+
+    /// @brief Loads a save state from the given slot.
+    /// @param[in] slotIndex Slot index.
+    void LoadSaveStateSlot(std::size_t slotIndex);
+
+    /// @brief Saves the current emulator state to the given slot.
+    /// @param[in] slotIndex Slot index.
+    void SaveSaveStateSlot(std::size_t slotIndex);
+
+    /// @brief Selects a save state slot and shows a notification in the UI.
+    /// @param[in] slotIndex Slot index.
+    void SelectSaveStateSlot(std::size_t slotIndex);
+
+    /// @brief Writes the save state data for a slot to disk.
+    /// @param[in] slotIndex Slot index.
+    void PersistSaveState(std::size_t slotIndex);
+
+    /// @brief Writes a metadata text file next to the save states on disk.
+    void WriteSaveStateMeta();
+
+    /// @brief Loads saved debugger breakpoints and watchpoints from disk.
+    void LoadDebuggerState();
+
+    /// @brief Saves debugger breakpoints and watchpoints to disk.
+    void SaveDebuggerState();
+
+    /// @brief Checks if debugger breakpoints have changed and saves them if needed.
+    void CheckDebuggerStateDirty();
+
 private:
+    SharedContext &m_context;
+    Settings &m_settings;
+
     SlotArray m_slots{};
     std::size_t m_currentSlot{0};
     std::array<std::mutex, kSlots> m_saveStateLocks{};

@@ -158,7 +158,7 @@ static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args
 }
 
 App::App()
-    : m_saveStateService()
+    : m_saveStateService(m_context, m_settings)
     , m_midiService(m_context.serviceLocator)
     , m_settings(m_context)
     , m_mouseCaptureService(m_context, m_settings)
@@ -180,9 +180,9 @@ App::App()
                               m_windowManagerService.SettingsWindow().RequestFocus();
                           },
                       .showMessageHistory = [this]() { m_windowManagerService.MessageHistoryWindow().Open = true; },
-                      .selectSaveStateSlot = [this](size_t slot) { SelectSaveStateSlot(slot); },
-                      .loadSaveStateSlot = [this](size_t slot) { LoadSaveStateSlot(slot); },
-                      .saveSaveStateSlot = [this](size_t slot) { SaveSaveStateSlot(slot); },
+                      .selectSaveStateSlot = [this](size_t slot) { m_saveStateService.SelectSaveStateSlot(slot); },
+                      .loadSaveStateSlot = [this](size_t slot) { m_saveStateService.LoadSaveStateSlot(slot); },
+                      .saveSaveStateSlot = [this](size_t slot) { m_saveStateService.SaveSaveStateSlot(slot); },
                       .toggleRewindBuffer = [this]() { ToggleRewindBuffer(); }}) {
 
     // Register services
@@ -496,11 +496,11 @@ int App::Run(const CommandLineOptions &options) {
                                 m_context.saturn.instance->SMPC.GetPersistentDataPath());
     }
 
-    LoadSaveStates();
+    m_saveStateService.LoadSaveStates();
 
     m_context.debuggers.dirty = false;
     m_context.debuggers.dirtyTimestamp = clk::now();
-    LoadDebuggerState();
+    m_saveStateService.LoadDebuggerState();
 
     RunEmulator();
 
@@ -743,7 +743,7 @@ void App::RunEmulator() {
     ScopeGuard sgDestroyWindow{[&] {
         m_displayService.PersistWindowGeometry();
         SDL_DestroyWindow(screen.window);
-        SaveDebuggerState();
+        m_saveStateService.SaveDebuggerState();
     }};
     util::os::ConfigureWindowDecorations(screen.window);
 
@@ -1808,7 +1808,7 @@ void App::RunEmulator() {
             case EvtType::StateLoaded:
                 m_context.DisplayMessage(fmt::format("State {} loaded", std::get<uint32>(evt.value) + 1));
                 break;
-            case EvtType::StateSaved: PersistSaveState(std::get<uint32>(evt.value)); break;
+            case EvtType::StateSaved: m_saveStateService.PersistSaveState(std::get<uint32>(evt.value)); break;
             }
         }
 
@@ -2060,11 +2060,11 @@ void App::RunEmulator() {
 
                             if (ImGui::MenuItem(label.c_str(), shortcut.c_str(), isSelected, present || save)) {
                                 if (save) {
-                                    SaveSaveStateSlot(slotIndex);
+                                    m_saveStateService.SaveSaveStateSlot(slotIndex);
                                 } else if (present) {
-                                    LoadSaveStateSlot(slotIndex);
+                                    m_saveStateService.LoadSaveStateSlot(slotIndex);
                                 } else {
-                                    SelectSaveStateSlot(slotIndex);
+                                    m_saveStateService.SelectSaveStateSlot(slotIndex);
                                 }
                             }
                         }
@@ -2079,7 +2079,7 @@ void App::RunEmulator() {
                                         "Are you sure you wish to clear all save states for this game?");
                                     if (ImGui::Button(
                                             "Yes", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
-                                        ClearSaveStates();
+                                        m_saveStateService.ClearSaveStates();
                                         m_windowManagerService.CloseGenericModal();
                                     }
                                     ImGui::SameLine();
@@ -2126,7 +2126,7 @@ void App::RunEmulator() {
                         SDL_OpenURL(fmt::format("file:///{}", path).c_str());
                     }
                     if (ImGui::MenuItem("Reload save states from disk")) {
-                        LoadSaveStates();
+                        m_saveStateService.LoadSaveStates();
                     }
 
                     ImGui::Separator();
@@ -3093,7 +3093,7 @@ void App::RunEmulator() {
         }
 
         settings.CheckDirty();
-        CheckDebuggerStateDirty();
+        m_saveStateService.CheckDebuggerStateDirty();
     }
 
 end_loop:; // the semicolon is not a typo!
@@ -3198,8 +3198,8 @@ void App::EmulatorThread() {
                 auto path = std::get<std::filesystem::path>(evt.value);
                 // LoadDiscImage locks the disc mutex
                 if (m_discService.LoadDiscImage(path, true)) {
-                    LoadSaveStates();
-                    LoadDebuggerState();
+                    m_saveStateService.LoadSaveStates();
+                    m_saveStateService.LoadDebuggerState();
                     auto iplLoadResult = m_romService.LoadIPLROM();
                     if (!iplLoadResult.succeeded) {
                         m_windowManagerService.OpenSimpleErrorModal(
@@ -3304,242 +3304,6 @@ void App::EmulatorThread() {
             break;
         }
         }
-    }
-}
-
-void App::LoadDebuggerState() {
-    const auto discHash = [&] {
-        std::unique_lock lock{m_context.locks.disc};
-        return ymir::ToString(m_context.saturn.GetDiscHash());
-    }();
-    const auto basePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
-    if (std::filesystem::is_directory(basePath)) {
-        {
-            std::unique_lock lock{m_context.locks.breakpoints};
-            const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
-            const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
-            m_windowManagerService.MasterSH2WindowSet().debuggerModel.breakpoints.LoadState(msh2Path);
-            m_windowManagerService.SlaveSH2WindowSet().debuggerModel.breakpoints.LoadState(ssh2Path);
-        }
-        {
-            std::unique_lock lock{m_context.locks.watchpoints};
-            const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
-            const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
-            m_windowManagerService.MasterSH2WindowSet().debuggerModel.watchpoints.LoadState(msh2Path);
-            m_windowManagerService.SlaveSH2WindowSet().debuggerModel.watchpoints.LoadState(ssh2Path);
-        }
-        m_context.debuggers.dirty = false;
-        m_context.debuggers.dirtyTimestamp = clk::now();
-    }
-}
-
-void App::SaveDebuggerState() {
-    const auto discHash = [&] {
-        std::unique_lock lock{m_context.locks.disc};
-        return ymir::ToString(m_context.saturn.GetDiscHash());
-    }();
-    const auto basePath = m_context.profile.GetPath(ProfilePath::PersistentState) / "debugger";
-    std::filesystem::create_directories(basePath);
-    {
-        const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
-        const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
-        m_windowManagerService.MasterSH2WindowSet().debuggerModel.breakpoints.SaveState(msh2Path);
-        m_windowManagerService.SlaveSH2WindowSet().debuggerModel.breakpoints.SaveState(ssh2Path);
-    }
-    {
-        const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
-        const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
-        m_windowManagerService.MasterSH2WindowSet().debuggerModel.watchpoints.SaveState(msh2Path);
-        m_windowManagerService.SlaveSH2WindowSet().debuggerModel.watchpoints.SaveState(ssh2Path);
-    }
-    m_context.debuggers.dirty = false;
-}
-
-void App::CheckDebuggerStateDirty() {
-    using namespace std::chrono_literals;
-
-    if (m_context.debuggers.dirty && (clk::now() - m_context.debuggers.dirtyTimestamp) > 250ms) {
-        SaveDebuggerState();
-        m_context.debuggers.dirty = false;
-    }
-}
-
-void App::LoadSaveStates() {
-    WriteSaveStateMeta();
-
-    auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-    auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
-
-    auto &saves = m_saveStateService;
-    for (const auto &slotMeta : saves.List()) {
-        auto load = [&](savestates::Entry &entry, std::string name) {
-            auto statePath = gameStatesPath / name;
-            std::ifstream in{statePath, std::ios::binary};
-
-            if (in) {
-                cereal::PortableBinaryInputArchive archive{in};
-                try {
-                    auto state = std::make_unique<ymir::savestate::SaveState>();
-                    archive(*state);
-                    entry.state.swap(state);
-
-                    SDL_PathInfo pathInfo{};
-                    if (SDL_GetPathInfo(fmt::format("{}", statePath).c_str(), &pathInfo)) {
-                        const time_t time = SDL_NS_TO_SECONDS(pathInfo.modify_time);
-                        const auto sysClockTime = std::chrono::system_clock::from_time_t(time);
-                        entry.timestamp = sysClockTime;
-                    } else {
-                        entry.timestamp = std::chrono::system_clock::now();
-                    }
-                } catch (const cereal::Exception &e) {
-                    devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
-                } catch (const std::exception &e) {
-                    devlog::error<grp::base>("Could not load save state from {}: {}", statePath, e.what());
-                } catch (...) {
-                    devlog::error<grp::base>("Could not load save state from {}: unspecified error", statePath);
-                }
-            }
-        };
-
-        const auto slotIndex = static_cast<std::size_t>(slotMeta.index);
-        auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
-
-        savestates::Slot state{};
-        load(state.primary, fmt::format("{}.savestate", slotIndex));
-        if (state.IsValid()) {
-            load(state.backup, fmt::format("{}-1.savestate", slotIndex));
-            saves.Set(slotIndex, std::move(state));
-        } else {
-            saves.Erase(slotIndex);
-        }
-    }
-}
-
-void App::ClearSaveStates() {
-    auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-    auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
-
-    auto &saves = m_saveStateService;
-
-    for (const auto &slotMeta : saves.List()) {
-        const auto slotIndex = slotMeta.index;
-        {
-            auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
-            saves.Erase(slotIndex);
-        }
-
-        std::filesystem::remove(gameStatesPath / fmt::format("{}.savestate", slotIndex));
-        std::filesystem::remove(gameStatesPath / fmt::format("{}-1.savestate", slotIndex));
-    }
-    m_context.DisplayMessage("All save states cleared");
-}
-
-void App::LoadSaveStateSlot(size_t slotIndex) {
-    m_saveStateService.SetCurrentSlot(slotIndex);
-    m_context.EnqueueEvent(events::emu::LoadState(m_saveStateService.CurrentSlot()));
-}
-
-void App::SaveSaveStateSlot(size_t slotIndex) {
-    m_saveStateService.SetCurrentSlot(slotIndex);
-    m_context.EnqueueEvent(events::emu::SaveState(m_saveStateService.CurrentSlot()));
-}
-
-void App::SelectSaveStateSlot(size_t slotIndex) {
-    m_saveStateService.SetCurrentSlot(slotIndex);
-    m_context.DisplayMessage(fmt::format("Save state slot {} selected", m_saveStateService.CurrentSlot() + 1));
-}
-
-void App::PersistSaveState(size_t slotIndex) {
-    auto &saves = m_saveStateService;
-
-    if (!saves.IsValidIndex(slotIndex)) {
-        return;
-    }
-
-    auto lock = std::unique_lock{saves.SlotMutex(slotIndex)};
-
-    // ensure to not dereference empty slots
-    auto *slot = saves.Peek(slotIndex);
-    if (slot) {
-        auto save = [&](const std::unique_ptr<ymir::savestate::SaveState> &state, std::string name) {
-            if (state) {
-                // Create directory for this game's save states
-                auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-                auto gameStatesPath = basePath / ymir::ToString(state->discHash);
-                std::filesystem::create_directories(gameStatesPath);
-
-                // Write save state
-                auto statePath = gameStatesPath / name;
-                std::ofstream out{statePath, std::ios::binary};
-                cereal::PortableBinaryOutputArchive archive{out};
-                archive(*state);
-            }
-            return state.get() != nullptr;
-        };
-
-        if (slot->IsValid()) {
-            save(slot->primary.state, fmt::format("{}.savestate", slotIndex));
-            save(slot->backup.state, fmt::format("{}-1.savestate", slotIndex));
-            WriteSaveStateMeta();
-            m_context.DisplayMessage(fmt::format("State {} saved", slotIndex + 1));
-        }
-    }
-}
-
-void App::WriteSaveStateMeta() {
-    auto basePath = m_context.profile.GetPath(ProfilePath::SaveStates);
-    auto gameStatesPath = basePath / ymir::ToString(m_context.saturn.instance->GetDiscHash());
-    auto gameMetaPath = gameStatesPath / "meta.txt";
-
-    // No need to write the meta file if it exists and is recent enough
-    if (std::filesystem::is_regular_file(gameMetaPath)) {
-        using namespace std::chrono_literals;
-        auto lastWriteTime = std::filesystem::last_write_time(gameMetaPath);
-        if (std::chrono::file_clock::now() < lastWriteTime + 24h) {
-            return;
-        }
-    }
-
-    std::filesystem::create_directories(gameStatesPath);
-    std::ofstream out{gameMetaPath};
-    if (out) {
-        std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetDisc();
-
-        auto iter = std::ostream_iterator<char>(out);
-        fmt::format_to(iter, "IPL ROM hash: {}\n", ymir::ToString(m_context.saturn.instance->GetIPLHash()));
-        fmt::format_to(iter, "Title: {}\n", disc.header.gameTitle);
-        fmt::format_to(iter, "Product Number: {}\n", disc.header.productNumber);
-        fmt::format_to(iter, "Version: {}\n", disc.header.version);
-        fmt::format_to(iter, "Release date: {}\n", disc.header.releaseDate);
-        fmt::format_to(iter, "Disc: {}\n", disc.header.deviceInfo);
-        fmt::format_to(iter, "Compatible area codes: ");
-        auto bmAreaCodes = BitmaskEnum(disc.header.compatAreaCode);
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::Japan)) {
-            fmt::format_to(iter, "J");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::AsiaNTSC)) {
-            fmt::format_to(iter, "T");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::NorthAmerica)) {
-            fmt::format_to(iter, "U");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::CentralSouthAmericaNTSC)) {
-            fmt::format_to(iter, "B");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::AsiaPAL)) {
-            fmt::format_to(iter, "A");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::EuropePAL)) {
-            fmt::format_to(iter, "E");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::Korea)) {
-            fmt::format_to(iter, "K");
-        }
-        if (bmAreaCodes.AnyOf(ymir::media::AreaCode::CentralSouthAmericaPAL)) {
-            fmt::format_to(iter, "L");
-        }
-        fmt::format_to(iter, "\n");
     }
 }
 

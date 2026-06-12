@@ -74,18 +74,6 @@ private:
 
     void EmulatorThread();
 
-    void LoadDebuggerState();
-    void SaveDebuggerState();
-    void CheckDebuggerStateDirty();
-
-    void LoadSaveStates();
-    void ClearSaveStates();
-    void LoadSaveStateSlot(size_t slotIndex);
-    void SaveSaveStateSlot(size_t slotIndex);
-    void SelectSaveStateSlot(size_t slotIndex);
-    void PersistSaveState(size_t slotIndex);
-    void WriteSaveStateMeta();
-
     void EnableRewindBuffer(bool enable);
     void ToggleRewindBuffer();
 
