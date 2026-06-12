@@ -129,7 +129,6 @@
 #include <cmrc/cmrc.hpp>
 
 #include <stb_image.h>
-#include <stb_image_write.h>
 
 #include <fmt/chrono.h>
 #include <fmt/std.h>
@@ -183,7 +182,7 @@ App::App()
     m_context.serviceLocator.Register(m_saveStateService);
     m_context.serviceLocator.Register(m_midiService);
     m_context.serviceLocator.Register(m_settings);
-
+    m_context.serviceLocator.Register(m_screenshotService);
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
 
     // Preinitialize some memory viewers
@@ -1993,14 +1992,8 @@ void App::RunEmulator() {
     }};
 
     // Start screenshot processor thread
-    m_screenshotThread = std::thread([&] { ScreenshotThread(); });
-    ScopeGuard sgStopScreenshotThread{[&] {
-        m_screenshotThreadRunning = false;
-        m_writeScreenshotEvent.Set();
-        if (m_screenshotThread.joinable()) {
-            m_screenshotThread.join();
-        }
-    }};
+    m_screenshotService.Start(m_context);
+    ScopeGuard sgStopScreenshotThread{[&] { m_screenshotService.Stop(); }};
 
     SDL_ShowWindow(screen.window);
 
@@ -2580,7 +2573,7 @@ void App::RunEmulator() {
 
             case EvtType::TakeScreenshot: //
             {
-                Screenshot ss{};
+                screenshot::Screenshot ss{};
                 ss.fbWidth = screen.width;
                 ss.fbHeight = screen.height;
                 ss.fb.resize(screen.width * screen.height);
@@ -2590,11 +2583,7 @@ void App::RunEmulator() {
                 ss.ssScale = settings.general.screenshotScale;
                 ss.rotation = settings.video.rotation;
                 ss.timestamp = std::chrono::system_clock::now();
-                {
-                    std::unique_lock lock{m_screenshotQueueMtx};
-                    m_screenshotQueue.emplace(std::move(ss));
-                }
-                m_writeScreenshotEvent.Set();
+                m_screenshotService.Enqueue(std::move(ss));
                 break;
             }
 
@@ -4085,108 +4074,6 @@ void App::EmulatorThread() {
             devlog::debug<grp::base>("SH2-S stepped for {} cycles", cycles);
             break;
         }
-        }
-    }
-}
-
-void App::ScreenshotThread() {
-    util::SetCurrentThreadName("Screenshot processing thread");
-
-    m_screenshotThreadRunning = true;
-    while (m_screenshotThreadRunning) {
-        m_writeScreenshotEvent.Wait();
-        m_writeScreenshotEvent.Reset();
-        if (!m_screenshotThreadRunning) {
-            break;
-        }
-
-        Screenshot ss{};
-        while (true) {
-            {
-                std::unique_lock lock{m_screenshotQueueMtx};
-                if (m_screenshotQueue.empty()) {
-                    break;
-                }
-                std::swap(ss, m_screenshotQueue.front());
-                m_screenshotQueue.pop();
-            }
-
-            auto localNow = util::to_local_time(ss.timestamp);
-            auto fracTime =
-                std::chrono::duration_cast<std::chrono::milliseconds>(ss.timestamp.time_since_epoch()).count() % 1000;
-            // ISO 8601 + milliseconds
-            auto screenshotPath =
-                m_context.profile.GetPath(ProfilePath::Screenshots) /
-                fmt::format("{}-{:%Y%m%d}T{:%H%M%S}.{}.png", m_context.GetGameFileName(), localNow, localNow, fracTime);
-
-            const int ssScale = ss.ssScale;
-            uint32 ssScaleX = ssScale * ss.fbScaleX;
-            uint32 ssScaleY = ssScale * ss.fbScaleY;
-            uint32 ssWidth = ss.fbWidth * ssScaleX;
-            uint32 ssHeight = ss.fbHeight * ssScaleY;
-
-            // Rotate based on display rotation setting
-            std::vector<uint32> rotatedFB{};
-            using Rot = Settings::Video::DisplayRotation;
-            if (ss.rotation != Rot::Normal) {
-                rotatedFB.resize(ss.fbWidth * ss.fbHeight);
-            }
-            if (ss.rotation == Rot::_90CW || ss.rotation == Rot::_90CCW) {
-                std::swap(ssWidth, ssHeight);
-                std::swap(ssScaleX, ssScaleY);
-                std::swap(ss.fbWidth, ss.fbHeight);
-            }
-            switch (ss.rotation) {
-            case Rot::Normal: break;
-            case Rot::_90CW:
-                for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        rotatedFB[x + y * ss.fbWidth] = ss.fb[y + (ss.fbWidth - 1 - x) * ss.fbHeight];
-                    }
-                }
-                break;
-            case Rot::_180:
-                for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        rotatedFB[x + y * ss.fbWidth] =
-                            ss.fb[(ss.fbWidth - 1 - x) + (ss.fbHeight - 1 - y) * ss.fbWidth];
-                    }
-                }
-                break;
-            case Rot::_90CCW:
-                for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        rotatedFB[x + y * ss.fbWidth] = ss.fb[(ss.fbHeight - 1 - y) + x * ss.fbHeight];
-                    }
-                }
-                break;
-            }
-            if (ss.rotation != Rot::Normal) {
-                ss.fb.swap(rotatedFB);
-            }
-
-            // Scale up with nearest neighbor interpolation
-            std::vector<uint32> scaledFB{};
-            scaledFB.resize(ssWidth * ssHeight);
-            auto &srcFB = ss.fb;
-            for (uint32 y = 0; y < ss.fbHeight; ++y) {
-                uint32 *line = &scaledFB[(y * ssScaleY) * ssWidth];
-                if (ssScaleX == 1) {
-                    std::copy_n(&srcFB[y * ss.fbWidth], ss.fbWidth, line);
-                } else {
-                    for (uint32 x = 0; x < ss.fbWidth; ++x) {
-                        std::fill_n(&line[x * ssScaleX], ssScaleX, srcFB[y * ss.fbWidth + x]);
-                    }
-                }
-                for (uint32 py = 1; py < ssScaleY; ++py) {
-                    std::copy_n(line, ssWidth, &line[py * ssWidth]);
-                }
-            }
-
-            stbi_write_png(fmt::format("{}", screenshotPath).c_str(), ssWidth, ssHeight, 4, scaledFB.data(),
-                           ssWidth * sizeof(uint32));
-
-            m_context.DisplayMessage(fmt::format("Screenshot saved to {}", screenshotPath));
         }
     }
 }

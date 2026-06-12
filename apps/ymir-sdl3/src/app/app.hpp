@@ -8,6 +8,7 @@
 #include "services/graphics_service.hpp"
 #include "services/midi_service.hpp"
 #include "services/save_state_service.hpp"
+#include "services/screenshot_service.hpp"
 
 #include "ui/windows/about_window.hpp"
 #include "ui/windows/backup_ram_manager_window.hpp"
@@ -39,7 +40,6 @@
 
 #include <chrono>
 #include <filesystem>
-#include <queue>
 #include <set>
 #include <string_view>
 #include <thread>
@@ -62,6 +62,7 @@ private:
     services::GraphicsService m_graphicsService;
     services::SaveStateService m_saveStateService;
     services::MIDIService m_midiService;
+    services::ScreenshotService m_screenshotService;
     Settings m_settings;
 
     SDL_PropertiesID m_fileDialogProps;
@@ -76,21 +77,6 @@ private:
     uint32 m_systemMousePeripheral;
     std::set<uint32> m_validPeripheralsForMouseCapture;
 
-    struct Screenshot {
-        std::vector<uint32> fb;
-        uint32 fbWidth, fbHeight;
-        uint32 fbScaleX, fbScaleY;
-        int ssScale;
-        Settings::Video::DisplayRotation rotation;
-        std::chrono::system_clock::time_point timestamp;
-    };
-
-    std::thread m_screenshotThread;
-    util::Event m_writeScreenshotEvent;
-    std::queue<Screenshot> m_screenshotQueue;
-    std::mutex m_screenshotQueueMtx;
-    bool m_screenshotThreadRunning;
-
     std::thread m_updateCheckerThread;
     util::Event m_updateCheckEvent;
     UpdateCheckMode m_updateCheckMode;
@@ -99,7 +85,6 @@ private:
     void RunEmulator();
 
     void EmulatorThread();
-    void ScreenshotThread();
     void UpdateCheckerThread();
 
     void OpenWelcomeModal(bool scanIPLROMS);

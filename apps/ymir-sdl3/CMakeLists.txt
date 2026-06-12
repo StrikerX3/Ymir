@@ -70,6 +70,9 @@ add_executable(ymir-sdl3
     src/app/services/save_state_service.cpp
     src/app/services/save_state_service.hpp
     src/app/services/save_state_types.hpp
+    src/app/services/screenshot_service.cpp
+    src/app/services/screenshot_service.hpp
+    src/app/services/screenshot_types.hpp
 
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp
