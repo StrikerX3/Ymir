@@ -17,22 +17,7 @@
 #include "services/screenshot_service.hpp"
 #include "services/update_checker_service.hpp"
 
-#include "ui/windows/about_window.hpp"
-#include "ui/windows/backup_ram_manager_window.hpp"
-#include "ui/windows/message_history_window.hpp"
-#include "ui/windows/peripheral_config_window.hpp"
-#include "ui/windows/settings_window.hpp"
-#include "ui/windows/system_state_window.hpp"
-#include "ui/windows/update_onboarding_window.hpp"
-#include "ui/windows/update_window.hpp"
-
-#include "ui/windows/debug/cdblock_window_set.hpp"
-#include "ui/windows/debug/debug_output_window.hpp"
-#include "ui/windows/debug/memory_viewer_window.hpp"
-#include "ui/windows/debug/scsp_window_set.hpp"
-#include "ui/windows/debug/scu_window_set.hpp"
-#include "ui/windows/debug/sh2_window_set.hpp"
-#include "ui/windows/debug/vdp_window_set.hpp"
+#include "services/window_manager_service.hpp"
 
 #include <ymir/hw/smpc/peripheral/peripheral_report.hpp>
 
@@ -77,6 +62,7 @@ private:
     services::DiscService m_discService;
     services::DisplayService m_displayService;
     services::FileDialogService m_fileDialogService;
+    services::WindowManagerService m_windowManagerService;
     services::InputService m_inputService;
 
     std::thread m_emuThread;
@@ -87,8 +73,6 @@ private:
     void RunEmulator();
 
     void EmulatorThread();
-
-    void OpenWelcomeModal(bool scanIPLROMS);
 
     void LoadDebuggerState();
     void SaveDebuggerState();
@@ -112,48 +96,6 @@ private:
     void ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int filter);
 
     static void OnMidiInputReceived(double delta, std::vector<unsigned char> *msg, void *userData);
-
-    // -----------------------------------------------------------------------------------------------------------------
-    // Windows
-
-    void DrawWindows();
-    void OpenMemoryViewer();
-    void OpenPeripheralBindsEditor(const PeripheralBindsParams &params);
-
-    ui::SystemStateWindow m_systemStateWindow;
-    ui::BackupMemoryManagerWindow m_bupMgrWindow;
-
-    ui::SH2WindowSet m_masterSH2WindowSet;
-    ui::SH2WindowSet m_slaveSH2WindowSet;
-    ui::SCUWindowSet m_scuWindowSet;
-    ui::SCSPWindowSet m_scspWindowSet;
-    ui::VDPWindowSet m_vdpWindowSet;
-    ui::CDBlockWindowSet m_cdblockWindowSet;
-
-    ui::DebugOutputWindow m_debugOutputWindow;
-
-    std::vector<ui::MemoryViewerWindow> m_memoryViewerWindows;
-
-    ui::SettingsWindow m_settingsWindow;
-    ui::PeripheralConfigWindow m_periphConfigWindow;
-    ui::MessageHistoryWindow m_messageHistoryWindow;
-    ui::AboutWindow m_aboutWindow;
-    ui::UpdateOnboardingWindow m_updateOnboardingWindow;
-    ui::UpdateWindow m_updateWindow;
-
-    // -------------------------------------------------------------------------
-    // Generic modal dialog
-
-    void DrawGenericModal();
-
-    void OpenSimpleErrorModal(std::string message);
-    void OpenGenericModal(std::string title, std::function<void()> fnContents, bool showOKButton = true);
-
-    bool m_openGenericModal = false;          // Open generic modal on the next frame
-    bool m_closeGenericModal = false;         // Close generic modal on the next frame
-    bool m_showOkButtonInGenericModal = true; // Show OK button on generic modal
-    std::string m_genericModalTitle = "Message";
-    std::function<void()> m_genericModalContents;
 
     // Rewind bar
     std::chrono::steady_clock::time_point m_rewindBarFadeTimeBase;

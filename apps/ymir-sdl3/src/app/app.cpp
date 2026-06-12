@@ -164,40 +164,26 @@ App::App()
     , m_mouseCaptureService(m_context, m_settings)
     , m_romService(m_context, m_settings,
                    [this](std::string title, std::function<void()> fnContents) {
-                       OpenGenericModal(std::move(title), std::move(fnContents));
+                       m_windowManagerService.OpenGenericModal(std::move(title), std::move(fnContents));
                    })
     , m_discService(m_context, m_settings,
                     [this](std::string title, std::function<void()> fnContents) {
-                        OpenGenericModal(std::move(title), std::move(fnContents));
+                        m_windowManagerService.OpenGenericModal(std::move(title), std::move(fnContents));
                     })
     , m_displayService(m_context, m_settings)
     , m_fileDialogService(m_context, m_settings)
+    , m_windowManagerService(m_context, m_settings)
     , m_inputService(m_context, m_settings,
                      {.openSettings =
                           [this]() {
-                              m_settingsWindow.Open = true;
-                              m_settingsWindow.RequestFocus();
+                              m_windowManagerService.SettingsWindow().Open = true;
+                              m_windowManagerService.SettingsWindow().RequestFocus();
                           },
-                      .showMessageHistory = [this]() { m_messageHistoryWindow.Open = true; },
+                      .showMessageHistory = [this]() { m_windowManagerService.MessageHistoryWindow().Open = true; },
                       .selectSaveStateSlot = [this](size_t slot) { SelectSaveStateSlot(slot); },
                       .loadSaveStateSlot = [this](size_t slot) { LoadSaveStateSlot(slot); },
                       .saveSaveStateSlot = [this](size_t slot) { SaveSaveStateSlot(slot); },
-                      .toggleRewindBuffer = [this]() { ToggleRewindBuffer(); }})
-    , m_systemStateWindow(m_context)
-    , m_bupMgrWindow(m_context)
-    , m_masterSH2WindowSet(m_context, true)
-    , m_slaveSH2WindowSet(m_context, false)
-    , m_scuWindowSet(m_context)
-    , m_scspWindowSet(m_context)
-    , m_vdpWindowSet(m_context)
-    , m_cdblockWindowSet(m_context)
-    , m_debugOutputWindow(m_context)
-    , m_settingsWindow(m_context)
-    , m_periphConfigWindow(m_context)
-    , m_messageHistoryWindow(m_context)
-    , m_aboutWindow(m_context)
-    , m_updateOnboardingWindow(m_context)
-    , m_updateWindow(m_context) {
+                      .toggleRewindBuffer = [this]() { ToggleRewindBuffer(); }}) {
 
     // Register services
     m_context.serviceLocator.Register(m_graphicsService);
@@ -211,13 +197,9 @@ App::App()
     m_context.serviceLocator.Register(m_discService);
     m_context.serviceLocator.Register(m_displayService);
     m_context.serviceLocator.Register(m_fileDialogService);
+    m_context.serviceLocator.Register(m_windowManagerService);
     m_context.serviceLocator.Register(m_inputService);
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
-
-    // Preinitialize some memory viewers
-    for (int i = 0; i < 8; i++) {
-        m_memoryViewerWindows.emplace_back(m_context);
-    }
 }
 
 int App::Run(const CommandLineOptions &options) {
@@ -487,9 +469,10 @@ int App::Run(const CommandLineOptions &options) {
     if (!iplLoadResult.succeeded) {
         if (m_context.romManager.GetIPLROMs().empty()) {
             // Could not load IPL ROM because there are none -- likely to be a fresh install, so show the Welcome screen
-            OpenWelcomeModal(true);
+            m_windowManagerService.OpenWelcomeModal(true);
         } else {
-            OpenSimpleErrorModal(fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
+            m_windowManagerService.OpenSimpleErrorModal(
+                fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
         }
     }
 
@@ -497,7 +480,8 @@ int App::Run(const CommandLineOptions &options) {
     m_romService.ScanCDBlockROMs();
     auto cdbLoadResult = m_romService.LoadCDBlockROM();
     if (!cdbLoadResult.succeeded && settings.cdblock.useLLE) {
-        OpenSimpleErrorModal(fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
+        m_windowManagerService.OpenSimpleErrorModal(
+            fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
     }
 
     // Load SMPC persistent data and set up the path
@@ -540,7 +524,7 @@ void App::RunEmulator() {
         const auto onboardedPath = updatesPath / ".onboarded";
         const bool onboarded = std::filesystem::is_regular_file(onboardedPath);
         if (!onboarded) {
-            m_updateOnboardingWindow.Open = true;
+            m_windowManagerService.UpdateOnboardingWindow().Open = true;
         }
 #endif
 
@@ -560,7 +544,7 @@ void App::RunEmulator() {
         }
     }
 
-    m_updateCheckerService.Start(m_context, m_settings, [&] { m_updateWindow.Open = true; });
+    m_updateCheckerService.Start(m_context, m_settings, [&] { m_windowManagerService.UpdateWindow().Open = true; });
     ScopeGuard sgStopUpdateCheckerThread{[&] { m_updateCheckerService.Stop(); }};
 
     // Get embedded file system
@@ -1658,9 +1642,11 @@ void App::RunEmulator() {
             case EvtType::LoadRecommendedGameCartridge: m_romService.LoadRecommendedCartridge(); break;
             case EvtType::OpenBackupMemoryCartFileDialog: OpenBackupMemoryCartFileDialog(); break;
             case EvtType::OpenROMCartFileDialog: OpenROMCartFileDialog(); break;
-            case EvtType::OpenPeripheralBindsEditor:
-                OpenPeripheralBindsEditor(std::get<PeripheralBindsParams>(evt.value));
+            case EvtType::OpenPeripheralBindsEditor: {
+                const auto &params = std::get<PeripheralBindsParams>(evt.value);
+                m_windowManagerService.OpenPeripheralBindsEditor(params.portIndex, params.slotIndex);
                 break;
+            }
 
             case EvtType::OpenFile:
                 m_fileDialogService.InvokeOpenFileDialog(std::get<FileDialogParams>(evt.value));
@@ -1675,25 +1661,32 @@ void App::RunEmulator() {
                 m_fileDialogService.InvokeSelectFolderDialog(std::get<FolderDialogParams>(evt.value));
                 break;
 
-            case EvtType::OpenBackupMemoryManager: m_bupMgrWindow.Open = true; break;
-            case EvtType::OpenSettings: m_settingsWindow.OpenTab(std::get<ui::SettingsTab>(evt.value)); break;
+            case EvtType::OpenBackupMemoryManager:
+                m_windowManagerService.BackupMemoryManagerWindow().Open = true;
+                break;
+            case EvtType::OpenSettings:
+                m_windowManagerService.SettingsWindow().OpenTab(std::get<ui::SettingsTab>(evt.value));
+                break;
             case EvtType::OpenSH2DebuggerWindow: //
             {
                 const auto &params = std::get<OpenSH2DebuggerWindowParams>(evt.value);
-                auto &windowSet = params.master ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                auto &windowSet = params.master ? m_windowManagerService.MasterSH2WindowSet()
+                                                : m_windowManagerService.SlaveSH2WindowSet();
                 windowSet.debugger.RequestOpen(params.triggeredByEvent, true);
                 break;
             }
             case EvtType::OpenSH2BreakpointsWindow: //
             {
-                auto &windowSet = std::get<bool>(evt.value) ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                auto &windowSet = std::get<bool>(evt.value) ? m_windowManagerService.MasterSH2WindowSet()
+                                                            : m_windowManagerService.SlaveSH2WindowSet();
                 windowSet.breakpoints.Open = true;
                 windowSet.breakpoints.RequestFocus();
                 break;
             }
             case EvtType::OpenSH2WatchpointsWindow: //
             {
-                auto &windowSet = std::get<bool>(evt.value) ? m_masterSH2WindowSet : m_slaveSH2WindowSet;
+                auto &windowSet = std::get<bool>(evt.value) ? m_windowManagerService.MasterSH2WindowSet()
+                                                            : m_windowManagerService.SlaveSH2WindowSet();
                 windowSet.watchpoints.Open = true;
                 windowSet.watchpoints.RequestFocus();
                 break;
@@ -1728,7 +1721,9 @@ void App::RunEmulator() {
             case EvtType::RebindInputs: m_inputService.RebindInputs(); break;
             case EvtType::ReloadGameControllerDatabase: m_romService.ReloadSDLGameControllerDatabases(true); break;
 
-            case EvtType::ShowErrorMessage: OpenSimpleErrorModal(std::get<std::string>(evt.value)); break;
+            case EvtType::ShowErrorMessage:
+                m_windowManagerService.OpenSimpleErrorModal(std::get<std::string>(evt.value));
+                break;
 
             case EvtType::EnableRewindBuffer: EnableRewindBuffer(std::get<bool>(evt.value)); break;
 
@@ -1743,7 +1738,7 @@ void App::RunEmulator() {
                         m_context.EnqueueEvent(events::emu::HardReset());
                     }
                 } else {
-                    OpenSimpleErrorModal(
+                    m_windowManagerService.OpenSimpleErrorModal(
                         fmt::format("Failed to load IPL ROM from \"{}\": {}", path, result.errorMessage));
                 }
                 break;
@@ -1754,8 +1749,8 @@ void App::RunEmulator() {
                 if (result.succeeded) {
                     m_context.EnqueueEvent(events::emu::HardReset());
                 } else {
-                    OpenSimpleErrorModal(fmt::format("Failed to reload IPL ROM from \"{}\": {}", m_context.iplRomPath,
-                                                     result.errorMessage));
+                    m_windowManagerService.OpenSimpleErrorModal(fmt::format("Failed to reload IPL ROM from \"{}\": {}",
+                                                                            m_context.iplRomPath, result.errorMessage));
                 }
                 break;
             }
@@ -1772,7 +1767,7 @@ void App::RunEmulator() {
                         }
                     }
                 } else if (settings.cdblock.useLLE) {
-                    OpenSimpleErrorModal(
+                    m_windowManagerService.OpenSimpleErrorModal(
                         fmt::format("Failed to load CD block ROM from \"{}\": {}", path, result.errorMessage));
                 }
                 break;
@@ -1784,8 +1779,9 @@ void App::RunEmulator() {
                     if (result.succeeded) {
                         m_context.EnqueueEvent(events::emu::HardReset());
                     } else {
-                        OpenSimpleErrorModal(fmt::format("Failed to reload CD block ROM from \"{}\": {}",
-                                                         m_context.cdbRomPath, result.errorMessage));
+                        m_windowManagerService.OpenSimpleErrorModal(
+                            fmt::format("Failed to reload CD block ROM from \"{}\": {}", m_context.cdbRomPath,
+                                        result.errorMessage));
                     }
                 }
                 break;
@@ -2076,7 +2072,7 @@ void App::RunEmulator() {
 
                     auto drawCommonSaveStatesSection = [&] {
                         if (ImGui::MenuItem("Clear all")) {
-                            OpenGenericModal(
+                            m_windowManagerService.OpenGenericModal(
                                 "Clear all save states",
                                 [&] {
                                     ImGui::TextUnformatted(
@@ -2084,12 +2080,12 @@ void App::RunEmulator() {
                                     if (ImGui::Button(
                                             "Yes", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
                                         ClearSaveStates();
-                                        m_closeGenericModal = true;
+                                        m_windowManagerService.CloseGenericModal();
                                     }
                                     ImGui::SameLine();
                                     if (ImGui::Button(
                                             "No", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
-                                        m_closeGenericModal = true;
+                                        m_windowManagerService.CloseGenericModal();
                                     }
                                 },
                                 false);
@@ -2244,13 +2240,14 @@ void App::RunEmulator() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("System")) {
-                    ImGui::MenuItem("System state", nullptr, &m_systemStateWindow.Open);
+                    ImGui::MenuItem("System state", nullptr, &m_windowManagerService.SystemStateWindow().Open);
                     if (ImGui::MenuItem("Copy disc hash")) {
                         std::unique_lock lock{m_context.locks.disc};
                         std::string hash = ToString(m_context.saturn.instance->GetDiscHash());
                         SDL_SetClipboardText(hash.c_str());
                     }
-                    ImGui::MenuItem("Backup memory manager", nullptr, &m_bupMgrWindow.Open);
+                    ImGui::MenuItem("Backup memory manager", nullptr,
+                                    &m_windowManagerService.BackupMemoryManagerWindow().Open);
 
                     ImGui::Separator();
 
@@ -2359,44 +2356,44 @@ void App::RunEmulator() {
                 if (ImGui::BeginMenu("Settings")) {
                     if (ImGui::MenuItem("Settings",
                                         input::ToShortcut(inputContext, actions::general::OpenSettings).c_str(),
-                                        &m_settingsWindow.Open)) {
-                        if (m_settingsWindow.Open) {
-                            m_settingsWindow.RequestFocus();
+                                        &m_windowManagerService.SettingsWindow().Open)) {
+                        if (m_windowManagerService.SettingsWindow().Open) {
+                            m_windowManagerService.SettingsWindow().RequestFocus();
                         }
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("General")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::General);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::General);
                     }
                     if (ImGui::MenuItem("GUI")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::GUI);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::GUI);
                     }
                     if (ImGui::MenuItem("Hotkeys")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Hotkeys);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Hotkeys);
                     }
                     if (ImGui::MenuItem("System")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::System);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::System);
                     }
                     if (ImGui::MenuItem("IPL")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::IPL);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::IPL);
                     }
                     if (ImGui::MenuItem("Input")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Input);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Input);
                     }
                     if (ImGui::MenuItem("Video")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Video);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Video);
                     }
                     if (ImGui::MenuItem("Audio")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Audio);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Audio);
                     }
                     if (ImGui::MenuItem("Cartridge")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Cartridge);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Cartridge);
                     }
                     if (ImGui::MenuItem("CD Block")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::CDBlock);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::CDBlock);
                     }
                     if (ImGui::MenuItem("Tweaks")) {
-                        m_settingsWindow.OpenTab(ui::SettingsTab::Tweaks);
+                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Tweaks);
                     }
 
                     ImGui::EndMenu();
@@ -2410,10 +2407,10 @@ void App::RunEmulator() {
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("Open memory viewer", nullptr)) {
-                        OpenMemoryViewer();
+                        m_windowManagerService.OpenMemoryViewer();
                     }
                     if (ImGui::BeginMenu("Memory viewers")) {
-                        for (auto &memView : m_memoryViewerWindows) {
+                        for (auto &memView : m_windowManagerService.MemoryViewerWindows()) {
                             ImGui::MenuItem(fmt::format("Memory viewer #{}", memView.Index() + 1).c_str(), nullptr,
                                             &memView.Open);
                         }
@@ -2446,22 +2443,24 @@ void App::RunEmulator() {
                             ImGui::EndMenu();
                         }
                     };
-                    sh2Menu("Master SH2", m_masterSH2WindowSet);
-                    sh2Menu("Slave SH2", m_slaveSH2WindowSet);
+                    sh2Menu("Master SH2", m_windowManagerService.MasterSH2WindowSet());
+                    sh2Menu("Slave SH2", m_windowManagerService.SlaveSH2WindowSet());
 
                     if (ImGui::BeginMenu("SCU")) {
-                        ImGui::MenuItem("Registers", nullptr, &m_scuWindowSet.regs.Open);
-                        ImGui::MenuItem("DSP", nullptr, &m_scuWindowSet.dsp.Open);
-                        ImGui::MenuItem("DMA", nullptr, &m_scuWindowSet.dma.Open);
-                        ImGui::MenuItem("DMA trace", nullptr, &m_scuWindowSet.dmaTrace.Open);
-                        ImGui::MenuItem("Interrupt trace", nullptr, &m_scuWindowSet.intrTrace.Open);
+                        ImGui::MenuItem("Registers", nullptr, &m_windowManagerService.SCUWindowSet().regs.Open);
+                        ImGui::MenuItem("DSP", nullptr, &m_windowManagerService.SCUWindowSet().dsp.Open);
+                        ImGui::MenuItem("DMA", nullptr, &m_windowManagerService.SCUWindowSet().dma.Open);
+                        ImGui::MenuItem("DMA trace", nullptr, &m_windowManagerService.SCUWindowSet().dmaTrace.Open);
+                        ImGui::MenuItem("Interrupt trace", nullptr,
+                                        &m_windowManagerService.SCUWindowSet().intrTrace.Open);
                         ImGui::EndMenu();
                     }
 
                     if (ImGui::BeginMenu("SCSP")) {
-                        ImGui::MenuItem("Output", nullptr, &m_scspWindowSet.output.Open);
-                        ImGui::MenuItem("Slots", nullptr, &m_scspWindowSet.slots.Open);
-                        ImGui::MenuItem("KYONEX trace", nullptr, &m_scspWindowSet.kyonexTrace.Open);
+                        ImGui::MenuItem("Output", nullptr, &m_windowManagerService.SCSPWindowSet().output.Open);
+                        ImGui::MenuItem("Slots", nullptr, &m_windowManagerService.SCSPWindowSet().slots.Open);
+                        ImGui::MenuItem("KYONEX trace", nullptr,
+                                        &m_windowManagerService.SCSPWindowSet().kyonexTrace.Open);
 
                         ImGui::EndMenu();
                     }
@@ -2474,7 +2473,8 @@ void App::RunEmulator() {
                             }
                         };
 
-                        ImGui::MenuItem("Layer visibility", nullptr, &m_vdpWindowSet.vdp2LayerVisibility.Open);
+                        ImGui::MenuItem("Layer visibility", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2LayerVisibility.Open);
                         ImGui::Indent();
                         layerMenuItem("Sprite", vdp::Layer::Sprite);
                         layerMenuItem("RBG0", vdp::Layer::RBG0);
@@ -2484,30 +2484,38 @@ void App::RunEmulator() {
                         layerMenuItem("NBG3", vdp::Layer::NBG3);
                         ImGui::Unindent();
 
-                        ImGui::MenuItem("VDP1 registers", nullptr, &m_vdpWindowSet.vdp1Regs.Open);
-                        ImGui::MenuItem("VDP2 layer parameters", nullptr, &m_vdpWindowSet.vdp2LayerParams.Open);
-                        ImGui::MenuItem("VDP2 debug overlay", nullptr, &m_vdpWindowSet.vdp2DebugOverlay.Open);
-                        ImGui::MenuItem("VDP2 VRAM access delay", nullptr, &m_vdpWindowSet.vdp2VRAMDelay.Open);
-                        ImGui::MenuItem("VDP2 Color RAM palette", nullptr, &m_vdpWindowSet.vdp2CRAM.Open);
+                        ImGui::MenuItem("VDP1 registers", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp1Regs.Open);
+                        ImGui::MenuItem("VDP2 layer parameters", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2LayerParams.Open);
+                        ImGui::MenuItem("VDP2 debug overlay", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2DebugOverlay.Open);
+                        ImGui::MenuItem("VDP2 VRAM access delay", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2VRAMDelay.Open);
+                        ImGui::MenuItem("VDP2 Color RAM palette", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2CRAM.Open);
 
                         ImGui::EndMenu();
                     }
 
                     if (ImGui::BeginMenu("CD Block")) {
-                        ImGui::MenuItem("Command trace", nullptr, &m_cdblockWindowSet.cmdTrace.Open);
-                        ImGui::MenuItem("Filters", nullptr, &m_cdblockWindowSet.filters.Open);
+                        ImGui::MenuItem("Command trace", nullptr,
+                                        &m_windowManagerService.CDBlockWindowSet().cmdTrace.Open);
+                        ImGui::MenuItem("Filters", nullptr, &m_windowManagerService.CDBlockWindowSet().filters.Open);
                         ImGui::Separator();
-                        ImGui::MenuItem("CD drive state trace", nullptr, &m_cdblockWindowSet.driveStateTrace.Open);
-                        ImGui::MenuItem("YGR command trace", nullptr, &m_cdblockWindowSet.ygrCmdTrace.Open);
+                        ImGui::MenuItem("CD drive state trace", nullptr,
+                                        &m_windowManagerService.CDBlockWindowSet().driveStateTrace.Open);
+                        ImGui::MenuItem("YGR command trace", nullptr,
+                                        &m_windowManagerService.CDBlockWindowSet().ygrCmdTrace.Open);
                         ImGui::EndMenu();
                     }
 
-                    ImGui::MenuItem("Debug output", nullptr, &m_debugOutputWindow.Open);
+                    ImGui::MenuItem("Debug output", nullptr, &m_windowManagerService.DebugOutputWindow().Open);
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Help")) {
                     if (ImGui::MenuItem("Open welcome window", nullptr)) {
-                        OpenWelcomeModal(false);
+                        m_windowManagerService.OpenWelcomeModal(false);
                     }
                     if (ImGui::MenuItem("Check for updates", nullptr)) {
                         m_updateCheckerService.CheckForUpdates(true);
@@ -2516,13 +2524,13 @@ void App::RunEmulator() {
                     ImGui::Separator();
                     ImGui::MenuItem("Show message history",
                                     input::ToShortcut(inputContext, actions::general::ShowMessageHistory).c_str(),
-                                    &m_messageHistoryWindow.Open);
+                                    &m_windowManagerService.MessageHistoryWindow().Open);
                     ImGui::Separator();
 #if Ymir_ENABLE_IMGUI_DEMO
                     ImGui::MenuItem("ImGui demo window", nullptr, &showImGuiDemoWindow);
                     ImGui::Separator();
 #endif
-                    ImGui::MenuItem("About", nullptr, &m_aboutWindow.Open);
+                    ImGui::MenuItem("About", nullptr, &m_windowManagerService.AboutWindow().Open);
                     ImGui::EndMenu();
                 }
                 ImGui::EndMainMenuBar();
@@ -2646,8 +2654,8 @@ void App::RunEmulator() {
             }
 
             // Draw windows and modals
-            DrawWindows();
-            DrawGenericModal();
+            m_windowManagerService.DrawWindows();
+            m_windowManagerService.DrawGenericModal();
 
             auto *viewport = ImGui::GetMainViewport();
 
@@ -3194,7 +3202,8 @@ void App::EmulatorThread() {
                     LoadDebuggerState();
                     auto iplLoadResult = m_romService.LoadIPLROM();
                     if (!iplLoadResult.succeeded) {
-                        OpenSimpleErrorModal(fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
+                        m_windowManagerService.OpenSimpleErrorModal(
+                            fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
                     }
                 }
                 break;
@@ -3298,164 +3307,6 @@ void App::EmulatorThread() {
     }
 }
 
-void App::OpenWelcomeModal(bool scanIPLROMs) {
-    bool activeScanning = scanIPLROMs;
-
-    using namespace std::chrono_literals;
-    static constexpr auto kScanInterval = 400ms;
-
-    struct ROMSelectResult {
-        bool fileSelected = false;
-        std::filesystem::path path;
-
-        bool hasResult = false;
-        util::ROMLoadResult result;
-    };
-
-    OpenGenericModal("Welcome", [=, this, nextScanDeadline = clk::now() + kScanInterval,
-                                 lastROMCount = m_context.romManager.GetIPLROMs().size(),
-                                 romSelectResult = ROMSelectResult{}]() mutable {
-        bool doSelectRom = false;
-        bool doOpenSettings = false;
-
-        SDL_Texture *logoTexture = m_graphicsService.GetSDLTexture(m_context.images.ymirLogo.texture);
-        ImGui::Image((ImTextureID)logoTexture,
-                     ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale * 0.7f,
-                            m_context.images.ymirLogo.size.y * m_context.displayScale * 0.7f));
-
-        ImGui::PushFont(m_context.fonts.display, m_context.fontSizes.display);
-        ImGui::TextUnformatted("Ymir");
-        ImGui::PopFont();
-        ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.large);
-        ImGui::TextUnformatted("Welcome to Ymir!");
-        ImGui::PopFont();
-        ImGui::NewLine();
-        ImGui::TextUnformatted("Ymir requires a valid IPL (BIOS) ROM to work.");
-
-        ImGui::NewLine();
-        ImGui::TextUnformatted("Ymir will automatically load IPL ROMs placed in ");
-        ImGui::SameLine(0, 0);
-        auto romPath = m_context.profile.GetPath(ProfilePath::IPLROMImages);
-        if (ImGui::TextLink(fmt::format("{}", romPath).c_str())) {
-            SDL_OpenURL(fmt::format("file:///{}", romPath).c_str());
-        }
-        ImGui::TextUnformatted("Alternatively, you can ");
-        ImGui::SameLine(0, 0);
-        if (ImGui::TextLink("manually select an IPL ROM")) {
-            doSelectRom = true;
-        }
-        ImGui::SameLine(0, 0);
-        ImGui::TextUnformatted(" or ");
-        ImGui::SameLine(0, 0);
-        if (ImGui::TextLink("manage the ROM settings in Settings > IPL")) {
-            doOpenSettings = true;
-        }
-        ImGui::SameLine(0, 0);
-        ImGui::TextUnformatted(".");
-
-        if (!activeScanning) {
-            ImGui::NewLine();
-            ImGui::TextUnformatted("Ymir is not currently scanning for IPL ROMs.");
-            ImGui::TextUnformatted("If you would like to actively scan for IPL ROMs, press the button below.");
-            if (ImGui::Button("Start active scanning")) {
-                activeScanning = true;
-            }
-            ImGui::NewLine();
-        }
-
-        if (romSelectResult.hasResult && !romSelectResult.result.succeeded) {
-            ImGui::NewLine();
-            ImGui::Text("The file %s does not contain a valid IPL ROM.",
-                        fmt::format("{}", romSelectResult.path).c_str());
-            ImGui::Text("Reason: %s.", romSelectResult.result.errorMessage.c_str());
-        }
-
-        ImGui::Separator();
-
-        if (ImGui::Button("Open IPL ROMs directory")) {
-            SDL_OpenURL(fmt::format("file:///{}", m_context.profile.GetPath(ProfilePath::IPLROMImages)).c_str());
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Select IPL ROM...")) {
-            doSelectRom = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Open IPL settings")) {
-            doOpenSettings = true;
-        }
-        ImGui::SameLine(); // this places the OK button next to these
-
-        if (doSelectRom) {
-            FileDialogParams params{
-                .dialogTitle = "Select IPL ROM",
-                .defaultPath = m_context.profile.GetPath(ProfilePath::IPLROMImages),
-                .filters = {{"ROM files (*.bin, *.rom)", "bin;rom"}, {"All files (*.*)", "*"}},
-                .userdata = &romSelectResult,
-                .callback =
-                    [](void *userdata, const char *const *filelist, int filter) {
-                        if (filelist == nullptr) {
-                            devlog::error<grp::base>("Failed to open file dialog: {}", SDL_GetError());
-                        } else if (*filelist == nullptr) {
-                            devlog::info<grp::base>("File dialog cancelled");
-                        } else {
-                            // Only one file should be selected
-                            const char *file = *filelist;
-                            std::string fileStr = file;
-                            std::u8string u8File{fileStr.begin(), fileStr.end()};
-                            auto &result = *static_cast<ROMSelectResult *>(userdata);
-                            result.fileSelected = true;
-                            result.path = u8File;
-                        }
-                    },
-            };
-            m_fileDialogService.InvokeOpenFileDialog(params);
-        }
-
-        if (doOpenSettings) {
-            m_settingsWindow.OpenTab(ui::SettingsTab::IPL);
-            m_closeGenericModal = true;
-        }
-
-        // Try loading IPL ROM selected through the file dialog.
-        // If successful, set the override path and close the modal.
-        if (romSelectResult.fileSelected) {
-            romSelectResult.fileSelected = false;
-            romSelectResult.hasResult = true;
-            romSelectResult.result = util::LoadIPLROM(romSelectResult.path, *m_context.saturn.instance);
-            if (romSelectResult.result.succeeded) {
-                auto &settings = m_settings;
-                settings.system.ipl.overrideImage = true;
-                settings.system.ipl.path = romSelectResult.path;
-                m_romService.LoadIPLROM();
-                m_closeGenericModal = true;
-            }
-        }
-
-        if (!activeScanning) {
-            return;
-        }
-
-        // Periodically scan for IPL ROMs.
-        if (clk::now() >= nextScanDeadline) {
-            nextScanDeadline = clk::now() + kScanInterval;
-
-            m_romService.ScanIPLROMs();
-
-            // Don't load until files stop being added to the directory
-            auto romCount = m_context.romManager.GetIPLROMs().size();
-            if (romCount != lastROMCount) {
-                lastROMCount = romCount;
-            } else {
-                util::ROMLoadResult result = m_romService.LoadIPLROM();
-                if (result.succeeded) {
-                    m_context.EnqueueEvent(events::emu::HardReset());
-                    m_closeGenericModal = true;
-                }
-            }
-        }
-    });
-}
-
 void App::LoadDebuggerState() {
     const auto discHash = [&] {
         std::unique_lock lock{m_context.locks.disc};
@@ -3467,15 +3318,15 @@ void App::LoadDebuggerState() {
             std::unique_lock lock{m_context.locks.breakpoints};
             const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
             const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
-            m_masterSH2WindowSet.debuggerModel.breakpoints.LoadState(msh2Path);
-            m_slaveSH2WindowSet.debuggerModel.breakpoints.LoadState(ssh2Path);
+            m_windowManagerService.MasterSH2WindowSet().debuggerModel.breakpoints.LoadState(msh2Path);
+            m_windowManagerService.SlaveSH2WindowSet().debuggerModel.breakpoints.LoadState(ssh2Path);
         }
         {
             std::unique_lock lock{m_context.locks.watchpoints};
             const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
             const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
-            m_masterSH2WindowSet.debuggerModel.watchpoints.LoadState(msh2Path);
-            m_slaveSH2WindowSet.debuggerModel.watchpoints.LoadState(ssh2Path);
+            m_windowManagerService.MasterSH2WindowSet().debuggerModel.watchpoints.LoadState(msh2Path);
+            m_windowManagerService.SlaveSH2WindowSet().debuggerModel.watchpoints.LoadState(ssh2Path);
         }
         m_context.debuggers.dirty = false;
         m_context.debuggers.dirtyTimestamp = clk::now();
@@ -3492,14 +3343,14 @@ void App::SaveDebuggerState() {
     {
         const auto msh2Path = basePath / fmt::format("msh2-breakpoints-{}.txt", discHash);
         const auto ssh2Path = basePath / fmt::format("ssh2-breakpoints-{}.txt", discHash);
-        m_masterSH2WindowSet.debuggerModel.breakpoints.SaveState(msh2Path);
-        m_slaveSH2WindowSet.debuggerModel.breakpoints.SaveState(ssh2Path);
+        m_windowManagerService.MasterSH2WindowSet().debuggerModel.breakpoints.SaveState(msh2Path);
+        m_windowManagerService.SlaveSH2WindowSet().debuggerModel.breakpoints.SaveState(ssh2Path);
     }
     {
         const auto msh2Path = basePath / fmt::format("msh2-watchpoints-{}.txt", discHash);
         const auto ssh2Path = basePath / fmt::format("ssh2-watchpoints-{}.txt", discHash);
-        m_masterSH2WindowSet.debuggerModel.watchpoints.SaveState(msh2Path);
-        m_slaveSH2WindowSet.debuggerModel.watchpoints.SaveState(ssh2Path);
+        m_windowManagerService.MasterSH2WindowSet().debuggerModel.watchpoints.SaveState(msh2Path);
+        m_windowManagerService.SlaveSH2WindowSet().debuggerModel.watchpoints.SaveState(ssh2Path);
     }
     m_context.debuggers.dirty = false;
 }
@@ -3774,99 +3625,6 @@ void App::ProcessOpenROMCartFileDialogSelection(const char *const *filelist, int
         const char *file = *filelist;
         m_context.EnqueueEvent(events::emu::InsertROMCartridge(file));
     }
-}
-
-void App::DrawWindows() {
-    m_systemStateWindow.Display();
-    m_bupMgrWindow.Display();
-
-    m_masterSH2WindowSet.DisplayAll();
-    m_slaveSH2WindowSet.DisplayAll();
-    m_scuWindowSet.DisplayAll();
-    m_scspWindowSet.DisplayAll();
-    m_vdpWindowSet.DisplayAll();
-    m_cdblockWindowSet.DisplayAll();
-
-    m_debugOutputWindow.Display();
-
-    for (auto &memView : m_memoryViewerWindows) {
-        memView.Display();
-    }
-
-    m_settingsWindow.Display();
-    m_periphConfigWindow.Display();
-    m_messageHistoryWindow.Display();
-    m_aboutWindow.Display();
-#if Ymir_ENABLE_UPDATE_CHECKS
-    m_updateOnboardingWindow.Display();
-#endif
-    m_updateWindow.Display();
-}
-
-void App::OpenMemoryViewer() {
-    for (auto &memView : m_memoryViewerWindows) {
-        if (!memView.Open) {
-            memView.Open = true;
-            memView.RequestFocus();
-            return;
-        }
-    }
-
-    // If there are no more free memory viewers, request focus on the first window
-    m_memoryViewerWindows[0].RequestFocus();
-
-    // If there are no more free memory viewers, create more!
-    /*auto &memView = m_memoryViewerWindows.emplace_back(m_context);
-    memView.Open = true;
-    memView.RequestFocus();*/
-}
-
-void App::OpenPeripheralBindsEditor(const PeripheralBindsParams &params) {
-    m_periphConfigWindow.Open(params.portIndex, params.slotIndex);
-    m_periphConfigWindow.RequestFocus();
-}
-
-void App::DrawGenericModal() {
-    std::string title = fmt::format("{}##generic_modal", m_genericModalTitle);
-
-    if (m_openGenericModal) {
-        m_openGenericModal = false;
-        ImGui::OpenPopup(title.c_str());
-    }
-
-    if (ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::PushTextWrapPos(500.0f * m_context.displayScale);
-        if (m_genericModalContents) {
-            m_genericModalContents();
-        }
-
-        ImGui::PopTextWrapPos();
-
-        bool close = m_closeGenericModal;
-        if (m_showOkButtonInGenericModal) {
-            if (ImGui::Button("OK", ImVec2(80 * m_context.displayScale, 0 * m_context.displayScale))) {
-                close = true;
-            }
-        }
-        if (close) {
-            ImGui::CloseCurrentPopup();
-            m_genericModalContents = {};
-            m_closeGenericModal = false;
-        }
-
-        ImGui::EndPopup();
-    }
-}
-
-void App::OpenSimpleErrorModal(std::string message) {
-    OpenGenericModal("Error", [=] { ImGui::Text("%s", message.c_str()); });
-}
-
-void App::OpenGenericModal(std::string title, std::function<void()> fnContents, bool showOKButton) {
-    m_openGenericModal = true;
-    m_genericModalTitle = title;
-    m_genericModalContents = fnContents;
-    m_showOkButtonInGenericModal = showOKButton;
 }
 
 void App::OnMidiInputReceived(double delta, std::vector<unsigned char> *msg, void *userData) {
