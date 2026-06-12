@@ -2468,9 +2468,11 @@ void App::RunEmulator() {
                     if (ImGui::BeginMenu("VDP")) {
                         auto layerMenuItem = [&](const char *name, vdp::Layer layer) {
                             const bool enabled = vdp.IsLayerEnabled(layer);
+                            ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, false);
                             if (ImGui::MenuItem(name, nullptr, enabled)) {
                                 m_context.EnqueueEvent(events::emu::debug::SetLayerEnabled(layer, !enabled));
                             }
+                            ImGui::PopItemFlag();
                         };
 
                         ImGui::MenuItem("Layer visibility", nullptr,
