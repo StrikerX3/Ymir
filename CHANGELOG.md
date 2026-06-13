@@ -37,6 +37,7 @@ Introduced save state file version 13.
 - CD Block (HLE): Fix handling of "Get Session Info" command.
 - CD Block (HLE): Open tray when ejecting a disc. Fixes various cases of games that hang, freeze, crash or exhibit erratic behavior when ejecting a disc while playing. These should now properly boot back to the system's interactive shell. (#298)
 - CD Block (HLE): Introduce separate array for command responses.
+- Input: Properly bind inputs loaded from settings file upon startup. (#900)
 - Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.
 - Rewind: Fix crash when attempting to rewind to the very first frame. (#857)
 - Rewind: Fix occasional crash when attempting to rewind with CD Block LLE enabled.

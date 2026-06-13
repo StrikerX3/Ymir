@@ -502,6 +502,8 @@ int App::Run(const CommandLineOptions &options) {
     m_context.debuggers.dirtyTimestamp = clk::now();
     m_saveStateService.LoadDebuggerState();
 
+    m_inputService.RebindInputs();
+
     RunEmulator();
 
     return 0;
