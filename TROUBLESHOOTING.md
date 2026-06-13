@@ -78,6 +78,10 @@ Most people that ask about this have skipped the Welcome dialog explaining this 
 
 Ymir currently works best with XInput controllers, that is, anything that behaves like an Xbox controller. Third-party controllers like 8bitdo sometimes offer a toggle or a way to enable XInput mode on their controllers which usually improves compatibility.
 
+Ymir also uses SDL's game controller database, with data pulled from https://github.com/mdqinc/SDL_GameControllerDB on every build. You can manually replace the gamecontrollerdb.txt file with an updated one from this repository if your controller is not yet recognized.
+
+Related issues: [#482](https://github.com/StrikerX3/Ymir/issues/482)
+
 There are plans to improve compatibility with other controllers in the future, but it's not high in the priority list.
 
 
