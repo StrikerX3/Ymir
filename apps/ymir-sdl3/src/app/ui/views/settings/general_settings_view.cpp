@@ -126,6 +126,9 @@ void GeneralSettingsView::Display() {
         "Does not affect the behavior of manual pauses - they persist through focus changes.",
         m_context.displayScale);
 
+    MakeDirty(ImGui::Checkbox("Start paused upon launch", &settings.startPaused));
+    widgets::ExplanationTooltip("Ymir will launch with emulation paused when starting up.", m_context.displayScale);
+
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);

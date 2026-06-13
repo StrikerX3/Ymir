@@ -974,6 +974,7 @@ void Settings::ResetToDefaults() {
     general.useAltSpeed = false;
 
     general.pauseWhenUnfocused = false;
+    general.startPaused = false;
 
     general.checkForUpdates = false;
     general.includeNightlyBuilds = false;
@@ -1174,6 +1175,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblGeneral, "AltSpeedFactor", general.altSpeedFactor);
         Parse(tblGeneral, "UseAltSpeed", general.useAltSpeed);
         Parse(tblGeneral, "PauseWhenUnfocused", general.pauseWhenUnfocused);
+        Parse(tblGeneral, "StartPaused", general.startPaused);
         Parse(tblGeneral, "CheckForUpdates", general.checkForUpdates);
         Parse(tblGeneral, "IncludeNightlyBuilds", general.includeNightlyBuilds);
 
@@ -1815,6 +1817,7 @@ SettingsSaveResult Settings::Save() {
             {"AltSpeedFactor", general.altSpeedFactor.Get()},
             {"UseAltSpeed", general.useAltSpeed.Get()},
             {"PauseWhenUnfocused", general.pauseWhenUnfocused},
+            {"StartPaused", general.startPaused},
             {"CheckForUpdates", general.checkForUpdates},
             {"IncludeNightlyBuilds", general.includeNightlyBuilds},
 

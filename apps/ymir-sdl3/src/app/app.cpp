@@ -1092,7 +1092,7 @@ void App::RunEmulator() {
 
     auto &inputContext = m_context.inputContext;
 
-    m_context.paused = m_options.startPaused;
+    m_context.paused = m_options.startPaused || settings.general.startPaused;
     bool pausedByLostFocus = false;
 
     if (m_options.enableDebugTracing) {

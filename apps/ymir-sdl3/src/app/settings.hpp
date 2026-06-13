@@ -156,6 +156,7 @@ struct Settings {
         util::Observable<bool> useAltSpeed;
 
         bool pauseWhenUnfocused;
+        bool startPaused;
 
         bool checkForUpdates;
         bool includeNightlyBuilds;

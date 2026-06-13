@@ -12,6 +12,7 @@ Introduced save state file version 13.
 - App: Added M PLUS U font for Japanese text support and convert Japanese backup RAM text to the appropriate characters. (#18)
 - App: Added option to show/hide game name from window title bar.
 - App: Added option to show/hide performance indicators from window title bar.
+- App: Added option to start emulation paused upon launching the emulator. (#899)
 - App: Added Message History window, listing up to 10000 messages.
 - App: Display Japanese text in the Backup Memory Manager.
 - App: Removed graphics backend option as it served no purpose at this time. Ymir will rely on the default backend used by the SDL3 Renderer API, which should be compatible with most systems.
