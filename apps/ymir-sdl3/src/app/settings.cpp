@@ -1241,8 +1241,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         if (auto tblRTC = tblSystem["RTC"]) {
             Parse(tblRTC, "Mode", rtc.mode);
             if (auto tblVirtual = tblRTC["Virtual"]) {
-                Parse(tblRTC, "HardResetStrategy", rtc.virtHardResetStrategy);
-                Parse(tblRTC, "HardResetTimestamp", rtc.virtHardResetTimestamp);
+                Parse(tblVirtual, "HardResetStrategy", rtc.virtHardResetStrategy);
+                Parse(tblVirtual, "HardResetTimestamp", rtc.virtHardResetTimestamp);
             }
         }
     }
