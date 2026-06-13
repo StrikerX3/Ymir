@@ -6,6 +6,7 @@
 
 #include <ymir/savestate/savestate_system.hpp>
 
+#include <numeric>
 #include <vector>
 
 namespace ymir::sys {
@@ -26,10 +27,21 @@ struct System {
 
         m_activeClockRatios = baseRatios;
         if (sh2OverclockFactor != 100) {
-            m_activeClockRatios.SCSPDen = m_activeClockRatios.SCSPDen * sh2OverclockFactor / 100;
-            m_activeClockRatios.CDBlockDen = m_activeClockRatios.CDBlockDen * sh2OverclockFactor / 100;
-            m_activeClockRatios.SMPCDen = m_activeClockRatios.SMPCDen * sh2OverclockFactor / 100;
-            m_activeClockRatios.RTCDen = m_activeClockRatios.RTCDen * sh2OverclockFactor / 100;
+            const uint64 gcd = std::gcd(100ull, sh2OverclockFactor);
+            const uint64 numFactor = 100ull / gcd;
+            const uint64 denFactor = sh2OverclockFactor / gcd;
+
+            m_activeClockRatios.SCSPNum *= numFactor;
+            m_activeClockRatios.SCSPDen *= denFactor;
+
+            m_activeClockRatios.CDBlockNum *= numFactor;
+            m_activeClockRatios.CDBlockDen *= denFactor;
+
+            m_activeClockRatios.SMPCNum *= numFactor;
+            m_activeClockRatios.SMPCDen *= denFactor;
+
+            m_activeClockRatios.RTCNum *= numFactor;
+            m_activeClockRatios.RTCDen *= denFactor;
         }
 
         for (auto &cb : m_clockSpeedChangeCallbacks) {
