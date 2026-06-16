@@ -329,6 +329,23 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1WriteVRAMImpl(uint32 address, T value
     }
 }
 
+void SoftwareVDPRenderer::VDP1SyncFB() {
+    if (m_threadedVDP1Rendering) {
+        auto &ctx = m_vdp1RenderingContext;
+        for (;;) {
+            const uint32 curr = ctx.cmdFence.load();
+            if (ctx.cmdCount == curr) {
+                break;
+            }
+            ctx.cmdFence.wait(curr);
+        }
+    }
+}
+
+FLATTEN void SoftwareVDPRenderer::VDP1DebugSyncFB() {
+    VDP1SyncFB();
+}
+
 void SoftwareVDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {
     VDP1WriteFBImpl(address, value);
 }
@@ -341,6 +358,9 @@ template <mem_primitive_16 T>
 FORCE_INLINE void SoftwareVDPRenderer::VDP1WriteFBImpl(uint32 address, T value) {
     if (m_enhancements.deinterlace) {
         util::WriteBE<T>(&m_altSpriteFB[m_state.displayFB ^ 1][address & 0x3FFFF], value);
+    }
+    if (m_threadedVDP1Rendering) {
+        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::FBRAMWrite<T>(address, value));
     }
 }
 
@@ -464,6 +484,9 @@ void SoftwareVDPRenderer::VDP1ExecuteCommand(uint32 cmdAddress, VDP1Command::Con
 }
 
 void SoftwareVDPRenderer::VDP1EndFrame() {
+    if (m_threadedVDP1Rendering) {
+        m_vdp1RenderingContext.EnqueueEvent(VDP1RenderEvent::EndDraw());
+    }
     Callbacks.VDP1DrawFinished();
 }
 
@@ -582,19 +605,39 @@ void SoftwareVDPRenderer::VDP1RenderThread() {
             switch (event.type) {
             case EvtType::Reset: rctx.Reset(); break;
 
-            case EvtType::EraseFramebuffer:
+            case EvtType::EraseFramebuffer: {
                 if (event.erase.cycles == 0) {
                     VDP1DoEraseFramebuffer<false>();
                 } else {
                     VDP1DoEraseFramebuffer<true>(event.erase.cycles);
                 }
+                const auto fbIndex = VDP1GetDisplayFBIndex();
+                rctx.vdp1.spriteFB[fbIndex] = m_state.spriteFB[fbIndex];
                 break;
-            case EvtType::SwapBuffers: rctx.swapBuffersSignal.Set(); break;
+            }
+            case EvtType::SwapBuffers: {
+                const auto fbIndex = VDP1GetDisplayFBIndex() ^ 1;
+                m_state.spriteFB[fbIndex] = rctx.vdp1.spriteFB[fbIndex];
+                rctx.swapBuffersSignal.Set();
+                break;
+            }
+            case EvtType::EndDraw: {
+                const auto fbIndex = VDP1GetDisplayFBIndex() ^ 1;
+                m_state.spriteFB[fbIndex] = rctx.vdp1.spriteFB[fbIndex];
+                break;
+            }
             case EvtType::Command: (this->*m_fnVDP1HandleCommand)(event.command.address, event.command.control); break;
 
             case EvtType::VRAMWriteByte: rctx.vdp1.mem.VRAM[event.write.address] = event.write.value; break;
             case EvtType::VRAMWriteWord:
                 util::WriteBE<uint16>(&rctx.vdp1.mem.VRAM[event.write.address], event.write.value);
+                break;
+            case EvtType::FBRAMWriteByte:
+                rctx.vdp1.spriteFB[VDP1GetDisplayFBIndex() ^ 1][event.write.address] = event.write.value;
+                break;
+            case EvtType::FBRAMWriteWord:
+                util::WriteBE<uint16>(&rctx.vdp1.spriteFB[VDP1GetDisplayFBIndex() ^ 1][event.write.address],
+                                      event.write.value);
                 break;
             case EvtType::RegWrite: rctx.vdp1.regs.Write<false>(event.write.address, event.write.value); break;
 
@@ -607,6 +650,9 @@ void SoftwareVDPRenderer::VDP1RenderThread() {
 
             case EvtType::Shutdown: running = false; break;
             }
+
+            ++rctx.cmdFence;
+            rctx.cmdFence.notify_all();
         }
     }
 }
@@ -841,6 +887,16 @@ FORCE_INLINE uint8 SoftwareVDPRenderer::VDP1GetDisplayFBIndex() const {
     return m_state.displayFB;
 }
 
+FORCE_INLINE std::array<SpriteFB, 2> &SoftwareVDPRenderer::VDP1GetRendererDrawFB(bool altFB) {
+    if (altFB) {
+        return m_altSpriteFB;
+    } else if (m_threadedVDP1Rendering) {
+        return m_vdp1RenderingContext.vdp1.spriteFB;
+    } else {
+        return m_state.spriteFB;
+    }
+}
+
 template <bool countCycles>
 FORCE_INLINE void SoftwareVDPRenderer::VDP1DoEraseFramebuffer(uint64 cycles) {
     const VDP1Regs &regs1 = VDP1GetRegs();
@@ -1030,7 +1086,7 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotPixel(CoordS32 coord, const VDP1P
 
     uint32 fbOffset = y * regs1.fbSizeH + x;
     const auto fbIndex = VDP1GetDisplayFBIndex() ^ 1;
-    auto &drawFB = (altFB ? m_altSpriteFB : m_state.spriteFB)[fbIndex];
+    auto &drawFB = VDP1GetRendererDrawFB(altFB)[fbIndex];
     if (regs1.pixel8Bits) {
         fbOffset &= 0x3FFFF;
         // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?

@@ -51,6 +51,11 @@ Introduced save state file version 13.
 - VDP1: Don't end frame drawing when an infinite loop is detected. Fixes Stellar Assault no longer booting.
 - VDP1: Gouraud shading was not incremented in transparent pixels. Fixes character shading in Magical Night Dreams - Cotton 2. (#728)
 - VDP1: Illegal commands cause VDP1 to stay stuck in place rather than abort execution.
+- VDP1: Synchronize reads and writes to FBRAM. Fixes graphics issues when threaded VDP1 rendering is enabled in multiple games: (#898)
+    - BlackFire: GUI elements no longer flicker
+    - Burning Rangers: transparent elements (such as fire and explosions) are no longer drawn behind walls, doors, etc.
+    - Scorcher: HUD is now drawn on top of level geometry
+    - Waialae no Kiseki - Extra 36 Holes: ground is now fully rendered
 - VDP2: Handle another case of illegal CP/PN access combinations involving multiple PN accesses in different banks. Fixes shifted text frames in Ryuuteki Gosennen - Dragons of China. (#856)
 
 
