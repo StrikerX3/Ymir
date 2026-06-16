@@ -56,6 +56,7 @@ Introduced save state file version 13.
     - Burning Rangers: transparent elements (such as fire and explosions) are no longer drawn behind walls, doors, etc.
     - Scorcher: HUD is now drawn on top of level geometry
     - Waialae no Kiseki - Extra 36 Holes: ground is now fully rendered
+- VDP1: Use all 16 bits for system and user clipping coordinates. Fixes black title screen on the European version of Revolution X - Music Is the Weapon.
 - VDP2: Handle another case of illegal CP/PN access combinations involving multiple PN accesses in different banks. Fixes shifted text frames in Ryuuteki Gosennen - Dragons of China. (#856)
 
 

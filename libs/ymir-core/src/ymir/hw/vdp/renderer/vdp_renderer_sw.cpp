@@ -1928,17 +1928,17 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
 
 void SoftwareVDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {
     auto &ctx = m_state.state1;
-    ctx.sysClipH = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
-    ctx.sysClipV = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
+    ctx.sysClipH = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14);
+    ctx.sysClipV = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16);
     devlog::trace<grp::swvdp1_cmd>("[{:05X}] Set system clipping: {}x{}", cmdAddress, ctx.sysClipH, ctx.sysClipV);
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetUserClipping(uint32 cmdAddress) {
     auto &ctx = m_state.state1;
-    ctx.userClipX0 = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C));
-    ctx.userClipY0 = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E));
-    ctx.userClipX1 = bit::extract<0, 9>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14));
-    ctx.userClipY1 = bit::extract<0, 8>(VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16));
+    ctx.userClipX0 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0C);
+    ctx.userClipY0 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x0E);
+    ctx.userClipX1 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x14);
+    ctx.userClipY1 = VDP1ReadRendererVRAM<uint16>(cmdAddress + 0x16);
     devlog::trace<grp::swvdp1_cmd>("[{:05X}] Set user clipping: {}x{} - {}x{}", cmdAddress, ctx.userClipX0,
                                    ctx.userClipY0, ctx.userClipX1, ctx.userClipY1);
 }
