@@ -1323,7 +1323,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
         }
     }
 
-    if (endCodeCount == 2 && !plotted) {
+    if (endCodeCount == 2 && !plotted && !mode.clippingMode) {
         // Check that the line is indeed entirely out of bounds.
         // End codes cut the line short, so if it happens to cut the line before it managed to plot a pixel in-bounds,
         // the optimization could interrupt rendering the rest of the quad.
@@ -1332,7 +1332,7 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
                 plotted = true;
                 break;
             }
-            if (aa && !VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {
+            if (aa && !VDP1IsPixelClipped<deinterlace>(line.AACoord(), mode.userClippingEnable, mode.clippingMode)) {
                 plotted = true;
                 break;
             }
