@@ -1278,6 +1278,10 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
         uStepper.StepPixel();
 
         if (hasEndCode || (transparent && !mode.transparentPixelDisable)) {
+            if (mode.gouraudEnable) {
+                pixelParams.gouraud.Step();
+            }
+
             // Check if the transparent pixel is in-bounds, but only if the clipping mode is set to reject outside
             if (!mode.clippingMode) {
                 if (!VDP1IsPixelClipped<deinterlace>(line.Coord(), mode.userClippingEnable, mode.clippingMode)) {

@@ -48,6 +48,7 @@ Introduced save state file version 13.
 - VDP1: Add one-pixel offset to vertical coordinates of axis-aligned sprites when rendering high-resolution modes with deinterlacing enabled. Fixes gaps in Sonic Jam and Astra Superstars. (#784, #853)
 - VDP1: Add one-pixel offset to vertical coordinates of clipping coordinates. Fixes one-pixel gap at the bottom of the screen in Sonic Jam. (#853)
 - VDP1: Branch, link and COPR fixes. (thanks to @celeriyacon)
+- VDP1: Gouraud shading was not incremented in transparent pixels. Fixes character shading in Magical Night Dreams - Cotton 2. (#728)
 - VDP1: Illegal commands cause VDP1 to stay stuck in place rather than abort execution.
 - VDP2: Handle another case of illegal CP/PN access combinations involving multiple PN accesses in different banks. Fixes shifted text frames in Ryuuteki Gosennen - Dragons of China. (#856)
 
