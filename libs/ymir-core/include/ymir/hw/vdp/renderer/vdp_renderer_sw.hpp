@@ -341,18 +341,12 @@ private:
                 // Batch these writes to send in bulk
                 pendingEvents[pendingEventsCount++] = event;
                 if (pendingEventsCount == pendingEvents.size()) {
-                    eventQueue.enqueue_bulk(pTok, pendingEvents.begin(), pendingEventsCount);
-                    cmdCount += pendingEventsCount;
-                    pendingEventsCount = 0;
+                    FlushPendingEvents();
                 }
                 break;
             default:
                 // Send any pending writes before rendering
-                if (pendingEventsCount > 0) {
-                    eventQueue.enqueue_bulk(pTok, pendingEvents.begin(), pendingEventsCount);
-                    cmdCount += pendingEventsCount;
-                    pendingEventsCount = 0;
-                }
+                FlushPendingEvents();
                 eventQueue.enqueue(pTok, event);
                 ++cmdCount;
                 break;
@@ -362,6 +356,15 @@ private:
         template <typename It>
         size_t DequeueEvents(It first, size_t count) {
             return eventQueue.wait_dequeue_bulk(cTok, first, count);
+        }
+
+        FORCE_INLINE void FlushPendingEvents() {
+            if (pendingEventsCount == 0) [[likely]] {
+                return;
+            }
+            eventQueue.enqueue_bulk(pTok, pendingEvents.begin(), pendingEventsCount);
+            cmdCount += pendingEventsCount;
+            pendingEventsCount = 0;
         }
     } m_vdp1RenderingContext;
 

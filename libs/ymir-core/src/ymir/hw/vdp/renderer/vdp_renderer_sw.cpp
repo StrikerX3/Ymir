@@ -332,6 +332,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1WriteVRAMImpl(uint32 address, T value
 void SoftwareVDPRenderer::VDP1SyncFB() {
     if (m_threadedVDP1Rendering) {
         auto &ctx = m_vdp1RenderingContext;
+        ctx.FlushPendingEvents();
         for (;;) {
             const uint32 curr = ctx.cmdFence.load();
             if (ctx.cmdCount == curr) {
