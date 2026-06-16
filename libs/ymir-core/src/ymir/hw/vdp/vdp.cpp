@@ -1056,8 +1056,12 @@ uint64 VDP::VDP1ProcessCommand() {
         // - Sonic R attempts to jump back to 0 in some cases
         // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
         if (target == 0 || target == cmdAddress || m_VDP1CtlState.loopCount >= kMaxLoopIterations) {
-            devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
-            VDP1EndFrame();
+            if constexpr (devlog::warn_enabled<grp::vdp1_cmd>) {
+                if (m_VDP1CtlState.loopCount == kMaxLoopIterations) {
+                    devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
+                }
+            }
+            // VDP1EndFrame();
             return cycles;
         }
         break;
