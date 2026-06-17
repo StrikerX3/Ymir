@@ -11,6 +11,13 @@ Battle Monsters
   copy of the fighters' names at the bottom of the screen where the portrait frames are supposed to be.
 
 
+Crusader - No Remorse
+---------------------
+  Pausing the game then unpausing changes music to the main menu music. This is because the pause menu uses that music
+  for testing volume, but the developers forgot to restore the in-game music after closing the menu.
+  Also happens on real hardware: https://youtu.be/3tISZoOs1fw?t=821
+
+
 DoDonPachi
 ----------
   During initialization the MSH2 overwrites SSH2 code while the latter is running, causing it to jump to the illegal

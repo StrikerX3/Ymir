@@ -680,12 +680,36 @@ void CDBlock::PokeReg(uint32 address, T value) {
 }
 
 bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 repeatParam) {
-    // Handle "no change" parameters
+    // Make sure we have a disc
+    if (m_disc.sessions.empty()) {
+        devlog::info<grp::play_init>("No disc");
+        m_status.statusCode = kStatusCodeNoDisc;
+        m_targetDriveCycles = kDriveCyclesNotPlaying;
+        return true;
+    }
+
+    const bool keepStartParam = startParam == 0xFFFFFF;
     const bool keepEndParam = endParam == 0xFFFFFF;
-    if (startParam == 0xFFFFFF) {
+    const bool keepRepeatParam = repeatParam == 0xFF;
+
+    // Handle resume from pause
+    if (keepStartParam && keepEndParam && keepRepeatParam && GetStatusCode() == kStatusCodePause) {
+        m_status.statusCode = kStatusCodePlay;
+        if (m_status.controlADR == 0x41) {
+            m_targetDriveCycles = kDriveCyclesPlaying1x / m_readSpeed;
+        } else {
+            // Force 1x speed if playing audio track
+            m_targetDriveCycles = kDriveCyclesPlaying1x;
+        }
+        devlog::debug<grp::play_init>("Resuming from pause");
+        return true;
+    }
+
+    // Handle "no change" parameters
+    if (keepStartParam) {
         startParam = m_playStartParam;
     }
-    if (repeatParam == 0xFF) {
+    if (keepRepeatParam) {
         repeatParam = m_playRepeatParam;
     }
 
@@ -708,14 +732,6 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
     m_playMaxRepeat = m_playRepeatParam & 0xF;
     m_playFile = false;
     m_playEndPending = false;
-
-    // Make sure we have a disc
-    if (m_disc.sessions.empty()) {
-        devlog::info<grp::play_init>("No disc");
-        m_status.statusCode = kStatusCodeNoDisc;
-        m_targetDriveCycles = kDriveCyclesNotPlaying;
-        return true;
-    }
 
     const media::Session &session = m_disc.sessions.back();
 
