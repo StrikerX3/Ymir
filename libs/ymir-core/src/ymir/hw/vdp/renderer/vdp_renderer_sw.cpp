@@ -2002,7 +2002,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2InitNormalBG(const VDP2Regs &regs2) {
         bgState.fracScrollY += bgParams.scrollIncV;
     }
 
-    bgState.scrollIncH = bgParams.scrollIncH;
     bgState.mosaicCounterY = 0;
     if constexpr (index < 2) {
         bgState.lineScrollTableAddress = bgParams.lineScrollTableAddress;
@@ -2023,6 +2022,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScrollParams(uint32 y
 
 FORCE_INLINE void SoftwareVDPRenderer::VDP2UpdateLineScreenScroll(uint32 y, const VDP2Regs &regs2,
                                                                   const BGParams &bgParams, NBGLayerState &bgState) {
+    bgState.scrollIncH = bgParams.scrollIncH;
+
     if ((y & ((1u << bgParams.lineScrollInterval) - 1)) != 0) {
         return;
     }

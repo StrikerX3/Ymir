@@ -59,6 +59,7 @@ Introduced save state file version 13.
     - Waialae no Kiseki - Extra 36 Holes: ground is now fully rendered
 - VDP1: Use all 16 bits for system and user clipping coordinates. Fixes black title screen on the European version of Revolution X - Music Is the Weapon.
 - VDP2: Handle another case of illegal CP/PN access combinations involving multiple PN accesses in different banks. Fixes shifted text frames in Ryuuteki Gosennen - Dragons of China. (#856)
+- VDP2: Update horizontal scroll increment every scanline. Fixes in-game terrain graphics drawn half as wide in Shellshock. (#344)
 
 
 ## Version 0.3.1
