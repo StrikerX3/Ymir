@@ -278,6 +278,7 @@ add_library(ymir-core
 
     src/ymir/media/cdrom_crc.cpp
     src/ymir/media/filesystem.cpp
+    src/ymir/media/media_defs.cpp
     src/ymir/media/saturn_header.cpp
 
     src/ymir/media/loader/loader.cpp

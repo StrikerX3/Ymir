@@ -2,8 +2,6 @@
 
 #include "media_defs.hpp"
 
-#include <ymir/util/bitmask_enum.hpp>
-
 #include <ymir/core/types.hpp>
 
 #include <algorithm>
@@ -98,6 +96,3 @@ struct SaturnHeader {
 };
 
 } // namespace ymir::media
-
-ENABLE_BITMASK_OPERATORS(ymir::media::AreaCode);
-ENABLE_BITMASK_OPERATORS(ymir::media::PeripheralCode);

@@ -5,6 +5,8 @@
 @brief Sega Saturn CD media definitions.
 */
 
+#include <ymir/util/bitmask_enum.hpp>
+
 #include <ymir/core/types.hpp>
 
 namespace ymir::media {
@@ -37,4 +39,12 @@ enum class PeripheralCode : uint16 {
     VirtuaGun = 1u << 6u,     ///< (G) Virtua Gun
 };
 
+/// @brief Converts an area code bitmask to a string
+/// @param[in] areaCode the area code bitmask
+/// @return a string representation of the area code using Sega's conventions (one letter per area)
+std::string AreaCodeToString(AreaCode areaCode);
+
 } // namespace ymir::media
+
+ENABLE_BITMASK_OPERATORS(ymir::media::AreaCode);
+ENABLE_BITMASK_OPERATORS(ymir::media::PeripheralCode);
