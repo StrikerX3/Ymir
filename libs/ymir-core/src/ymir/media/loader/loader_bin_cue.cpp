@@ -98,6 +98,12 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath, CbLoader
         return std::nullopt;
     }
 
+    // Bail out if the first byte is null or we failed to read the file
+    if (in.peek() <= 0) {
+        errorMsg("BIN/CUE: Not a valid CUE file");
+        return std::nullopt;
+    }
+
     // Peek first non-blank line to check if this is really a CUE file
     std::string line{};
     while (true) {

@@ -113,6 +113,12 @@ bool Load(std::filesystem::path ccdPath, Disc &disc, bool preloadToRAM, CbLoader
         return true;
     };
 
+    // Bail out if the first byte is null or we failed to read the file
+    if (in.peek() <= 0) {
+        errorMsg("BIN/CUE: Not a valid CCD file");
+        return false;
+    }
+
     // Peek the first non-blank line to ensure this file looks like a CloneCD Control File
     {
         do {
