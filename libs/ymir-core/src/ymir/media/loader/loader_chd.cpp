@@ -185,13 +185,18 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM, CbLoader
     auto debugMsg = [&](std::string message) { cbMsg(MessageType::Debug, message); };
 
     chd_file *file = nullptr;
-    chd_error error = chd_open(chdPath.string().c_str(), CHD_OPEN_READ, nullptr, &file);
-    if (error != CHDERR_NONE) {
-        if (error == CHDERR_INVALID_DATA) {
-            invFmtMsg(fmt::format("CHD: Failed to open file: {}", chd_error_string(error)));
-        } else {
-            debugMsg(fmt::format("CHD: Failed to open file: {}", chd_error_string(error)));
+    try {
+        chd_error error = chd_open(chdPath.string().c_str(), CHD_OPEN_READ, nullptr, &file);
+        if (error != CHDERR_NONE) {
+            if (error == CHDERR_INVALID_DATA) {
+                invFmtMsg(fmt::format("CHD: Failed to open file: {}", chd_error_string(error)));
+            } else {
+                debugMsg(fmt::format("CHD: Failed to open file: {}", chd_error_string(error)));
+            }
+            return false;
         }
+    } catch (const std::exception &e) {
+        errorMsg(fmt::format("CHD: Failed to open file: {}", e.what()));
         return false;
     }
     const chd_header *header = chd_get_header(file);
@@ -215,8 +220,8 @@ bool Load(std::filesystem::path chdPath, Disc &disc, bool preloadToRAM, CbLoader
     uintmax_t byteOffset = 0;
     bool foundTrack = false;
     while (true) {
-        error = chd_get_metadata(file, CDROM_TRACK_METADATA2_TAG, metaIndex, metabuf.data(), metabuf.size(), &resultlen,
-                                 &resulttag, &resultflags);
+        chd_error error = chd_get_metadata(file, CDROM_TRACK_METADATA2_TAG, metaIndex, metabuf.data(), metabuf.size(),
+                                           &resultlen, &resulttag, &resultflags);
         if (error == CHDERR_METADATA_NOT_FOUND) {
             // Reached end of metadata list
             break;
