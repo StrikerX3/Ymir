@@ -692,15 +692,11 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
     const bool keepEndParam = endParam == 0xFFFFFF;
     const bool keepRepeatParam = repeatParam == 0xFF;
 
-    // Handle resume from pause
-    if (keepStartParam && keepEndParam && keepRepeatParam && GetStatusCode() == kStatusCodePause) {
+    // Handle resume from pause for data tracks
+    if (keepStartParam && keepEndParam && keepRepeatParam && GetStatusCode() == kStatusCodePause &&
+        m_status.controlADR == 0x41) {
         m_status.statusCode = kStatusCodePlay;
-        if (m_status.controlADR == 0x41) {
-            m_targetDriveCycles = kDriveCyclesPlaying1x / m_readSpeed;
-        } else {
-            // Force 1x speed if playing audio track
-            m_targetDriveCycles = kDriveCyclesPlaying1x;
-        }
+        m_targetDriveCycles = kDriveCyclesPlaying1x / m_readSpeed;
         devlog::debug<grp::play_init>("Resuming from pause");
         return true;
     }
@@ -746,7 +742,8 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         devlog::debug<grp::play_init>("FAD range {:06X} to {:06X}", m_playStartPos, m_playEndPos);
 
         uint32 frameAddress = m_status.frameAddress;
-        if (paused || resetPos || frameAddress < m_playStartPos || frameAddress > m_playEndPos) {
+        if ((paused && !keepStartParam) || resetPos || frameAddress < m_playStartPos ||
+            frameAddress > m_playEndPos + 1) {
             frameAddress = m_playStartPos;
         }
 
