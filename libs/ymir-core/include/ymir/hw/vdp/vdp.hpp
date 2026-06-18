@@ -426,6 +426,7 @@ private:
         // Infinite loop detection
         uint32 lastJumpAddress; // target address of the last Jump To command
         uint32 loopCount;       // number of jumps taken to the same address
+        bool inInfiniteLoop;    // found infinite loop
     } m_VDP1CtlState;
 
     // Hacky VDP1 command execution timing penalty accrued from external writes to VRAM

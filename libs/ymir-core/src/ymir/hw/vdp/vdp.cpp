@@ -341,6 +341,7 @@ FORCE_INLINE void VDP::VDP1WriteVRAM(uint32 address, T value) {
     if (m_stallVDP1OnVRAMWrites && m_VDP1CtlState.drawing) {
         m_VDP1TimingPenaltyCycles += kVDP1TimingPenaltyPerWrite;
     }
+    m_VDP1CtlState.inInfiniteLoop = false;
 }
 
 template <mem_primitive_16 T, bool peek>
@@ -988,6 +989,7 @@ void VDP::VDP1BeginFrame() {
         m_VDP1CtlState.drawing = true;
         m_VDP1CtlState.lastJumpAddress = 0xFFFFFFFF;
         m_VDP1CtlState.loopCount = 0;
+        m_VDP1CtlState.inInfiniteLoop = false;
     } else {
         devlog::warn<grp::vdp1_cmd>("Possible empty command table found; aborting");
     }
@@ -1009,15 +1011,16 @@ uint64 VDP::VDP1ProcessCommand() {
     if (!m_VDP1CtlState.drawing) {
         return 0;
     }
+    if (m_VDP1CtlState.inInfiniteLoop) {
+        return 16;
+    }
 
-    uint64 cycles = 0;
+    // Every command costs 16 cycles to fetch, even if skipped
+    uint64 cycles = 16;
 
     const uint32 cmdAddress = m_state.regs1.nextCommandAddress;
     const VDP1Command::Control control{.u16 = VDP1ReadVRAM<uint16>(cmdAddress)};
     m_state.regs1.currCommandAddress = cmdAddress;
-
-    // Every command costs 16 cycles to fetch, even if skipped
-    cycles += 16;
 
     devlog::trace<grp::vdp1_cmd>("Processing command {:04X} @ {:05X}", control.u16, cmdAddress);
     if (control.end) [[unlikely]] {
@@ -1043,6 +1046,9 @@ uint64 VDP::VDP1ProcessCommand() {
 
         // Simple check for infinite loops
         // - Gale Racer stage 1-2 (Mojave Desert) creates an infinite loop at 05140 with the jump at 05280
+        // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
+        // - Sonic R attempts to jump back to 0 in some cases
+        // - Stellar Assault SS puts the VDP1 in an infinite loop during boot, breaks out by editing VRAM while in it
         if (target == m_VDP1CtlState.lastJumpAddress) {
             ++m_VDP1CtlState.loopCount;
         } else {
@@ -1052,16 +1058,13 @@ uint64 VDP::VDP1ProcessCommand() {
 
         static constexpr uint32 kMaxLoopIterations = 32;
 
-        // HACK: Avoid infinite loops
-        // - Sonic R attempts to jump back to 0 in some cases
-        // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
         if (target == 0 || target == cmdAddress || m_VDP1CtlState.loopCount >= kMaxLoopIterations) {
             if constexpr (devlog::warn_enabled<grp::vdp1_cmd>) {
                 if (m_VDP1CtlState.loopCount == kMaxLoopIterations) {
-                    devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; aborting");
+                    devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; suspending");
                 }
             }
-            // VDP1EndFrame();
+            m_VDP1CtlState.inInfiniteLoop = true;
             return cycles;
         }
         break;
