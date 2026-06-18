@@ -9,6 +9,7 @@ Introduced save state file version 13.
 ### New features and improvements
 
 - App: Added action to reload save states from disk to the File menu.
+- App: Added disc serial number to System State window.
 - App: Added M PLUS U font for Japanese text support and convert Japanese backup RAM text to the appropriate characters. (#18)
 - App: Added option to show/hide game name from window title bar.
 - App: Added option to show/hide performance indicators from window title bar.
@@ -39,7 +40,9 @@ Introduced save state file version 13.
 - CD Block (HLE): Introduce separate array for command responses.
 - CD Block (HLE): Open tray when ejecting a disc. Fixes various cases of games that hang, freeze, crash or exhibit erratic behavior when ejecting a disc while playing. These should now properly boot back to the system's interactive shell. (#298)
 - Input: Properly bind inputs loaded from settings file upon startup. (#900)
+- Media: Bail out early on CUE parser if the file starts with a null byte.
 - Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.
+- Media: Fix crash when attempting to load CHDs with non-ASCII characters in the file name.
 - Rewind: Fix crash when attempting to rewind to the very first frame. (#857)
 - Rewind: Fix occasional crash when attempting to rewind with CD Block LLE enabled.
 - Settings: Correctly load virtual RTC settings from configuration file.
