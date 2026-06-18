@@ -5,6 +5,7 @@
 #include <ymir/hw/sh2/sh2.hpp>
 #include <ymir/hw/vdp/vdp.hpp>
 
+#include <ymir/media/loader/loader.hpp>
 #include <ymir/media/loader/loader_bin_cue.hpp>
 
 #include <ymir/util/process.hpp>
@@ -1722,6 +1723,29 @@ void runSH2PerfSandbox() {
     fmt::println("{} us/iter", dt.count() / kIters);
 }
 
+void runDiscInfoExtractor(int argc, char **argv) {
+    namespace fs = std::filesystem;
+    if (argc <= 1) {
+        fmt::println("missing path argument");
+        return;
+    }
+
+    std::filesystem::path base{argv[1]};
+    fmt::println("Scanning disc images in {}...", base);
+
+    ymir::media::Disc disc{};
+    if (fs::exists(base) && fs::is_directory(base)) {
+        for (const auto &entry : fs::recursive_directory_iterator{base}) {
+            const auto &path = entry.path();
+            if (ymir::media::LoadDisc(path, disc, false,
+                                      [&](ymir::media::MessageType category, std::string message) {})) {
+                const auto areaCode = ymir::media::AreaCodeToString(disc.header.compatAreaCode);
+                fmt::println("{:8s}  {:100}  {}", areaCode, path.filename(), disc.header.productNumber);
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     // runSandbox();
     // runBUPSandbox();
@@ -1739,7 +1763,8 @@ int main(int argc, char **argv) {
     //     //   - starting FAD should point to INDEX 01 (when seeking to track)
     // }
     // runCurlSandbox();
-    runSH2PerfSandbox();
+    // runSH2PerfSandbox();
+    runDiscInfoExtractor(argc, argv);
 
     return EXIT_SUCCESS;
 }
