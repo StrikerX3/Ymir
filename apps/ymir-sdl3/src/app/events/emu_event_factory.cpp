@@ -6,16 +6,15 @@
 
 #include <app/services/save_state_service.hpp>
 
-#include <memory>
 #include <ymir/sys/saturn.hpp>
 
-#include <util/rom_loader.hpp>
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/scope_guard.hpp>
 
 #include <util/file_loader.hpp>
 
 #include <fstream>
+#include <memory>
 
 using namespace ymir;
 
