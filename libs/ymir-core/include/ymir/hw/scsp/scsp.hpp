@@ -1312,27 +1312,38 @@ private:
         uint32 address;
         uint32 value;
         uint8 size;
-        uint64 sampleCounter;
+    };
+
+    struct ThreadEvent {
+        enum class Type { Write, Sample, Quit };
+
+        Type type;
+        WriteEvent write;
+
+        static ThreadEvent Write(uint32 address, uint32 value, uint8 size) {
+            return ThreadEvent{.type = Type::Write,
+                               .write = WriteEvent{.address = address, .value = value, .size = size}};
+        }
+
+        static ThreadEvent Sample() {
+            return ThreadEvent{.type = Type::Sample};
+        }
+
+        static ThreadEvent Quit() {
+            return ThreadEvent{.type = Type::Quit};
+        }
     };
 
     std::thread m_scspThread;
     std::atomic<bool> m_threadRunning = false;
     std::atomic<bool> m_threadedSCSP = false;
 
-    alignas(64) std::atomic<uint64> m_emulatorSampleCounter = 0;
-    alignas(64) std::atomic<uint64> m_processedSampleCounter = 0;
+    std::atomic<uint64> m_eventsProcessed = 0;
+    uint64 m_eventsEnqueued = 0;
 
-    std::atomic<uint64> m_syncTargetSample = 0;
-    uint64 m_lastSyncedSample = 0;
-
-    std::atomic<uint64> m_writesEnqueued = 0;
-    std::atomic<uint64> m_writesApplied = 0;
-
-    util::Event m_wakeSCSPEvent{false};
-    util::Event m_syncResponseEvent{false};
-
-    moodycamel::BlockingConcurrentQueue<WriteEvent, ConcQueueTraits> m_writeQueue;
-    std::optional<WriteEvent> m_peekedWriteEvent;
+    moodycamel::BlockingConcurrentQueue<ThreadEvent, ConcQueueTraits> m_threadEventQueue;
+    moodycamel::ProducerToken m_ptokThreadEventQueue{m_threadEventQueue};
+    moodycamel::ConsumerToken m_ctokThreadEventQueue{m_threadEventQueue};
 
     std::mutex m_cddaMutex;
     std::mutex m_midiQueueMutex;
@@ -1345,11 +1356,11 @@ private:
     // Thread running the SCSP DSP and M68K CPU.
     void SCSPThreadLoop();
 
-    // Applies queued register/RAM writes up to the current sample boundary.
-    void ApplyPendingWrites(uint64 maxSample);
-
     // Forces the emulator thread to wait until the SCSP catches up.
     void SyncSCSPThread();
+
+    // Stops the SCSP thread if running and waits for it to finish.
+    void StopSCSPThread();
 
     // Periodically checks and triggers sound request interrupts back to the SCU.
     void PollSCSPInterrupts();
@@ -1357,6 +1368,9 @@ private:
     // Queues a write operation to be applied by the SCSP thread.
     template <mem_primitive T>
     void EnqueueWrite(uint32 address, T value);
+
+    // Queues an event to be processed by the SCSP thread.
+    void EnqueueEvent(ThreadEvent &&event);
 
     void MapMemoryDirect(sys::SH2Bus &bus);
     void MapMemoryThreaded(sys::SH2Bus &bus);

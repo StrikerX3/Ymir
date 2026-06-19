@@ -58,11 +58,7 @@ SCSP::SCSP(core::Scheduler &scheduler, core::Configuration::Audio &config)
 }
 
 SCSP::~SCSP() {
-    if (m_scspThread.joinable()) {
-        m_threadRunning = false;
-        m_wakeSCSPEvent.Set();
-        m_scspThread.join();
-    }
+    StopSCSPThread();
 }
 
 void SCSP::Reset(bool hard) {
@@ -139,21 +135,10 @@ void SCSP::Reset(bool hard) {
 
     m_dsp.Reset();
 
-    m_emulatorSampleCounter = 0;
-    m_processedSampleCounter = 0;
-    m_syncTargetSample = 0;
-    m_lastSyncedSample = 0;
-    m_writesEnqueued = 0;
-    m_writesApplied = 0;
-
     // Clear write queue
-    WriteEvent dummy;
-    while (m_writeQueue.try_dequeue(dummy)) {
+    ThreadEvent dummy;
+    while (m_threadEventQueue.try_dequeue(m_ctokThreadEventQueue, dummy)) {
     }
-    m_peekedWriteEvent.reset();
-
-    m_wakeSCSPEvent.Reset();
-    m_syncResponseEvent.Reset();
 
     m_scspInterruptLevel = false;
     m_lastSCSPInterruptLevel = false;
@@ -608,21 +593,10 @@ void SCSP::LoadState(const savestate::SCSPSaveState &state) {
     m_midiOutputSize = state.midiOutputSize;
     m_expectedOutputPacketSize = state.expectedOutputPacketSize;
 
-    m_emulatorSampleCounter = m_sampleCounter.load();
-    m_processedSampleCounter = m_sampleCounter.load();
-    m_syncTargetSample = m_sampleCounter.load();
-    m_lastSyncedSample = m_sampleCounter.load();
-    m_writesEnqueued = 0;
-    m_writesApplied = 0;
-
     // Clear write queue
-    WriteEvent dummy;
-    while (m_writeQueue.try_dequeue(dummy)) {
+    ThreadEvent dummy;
+    while (m_threadEventQueue.try_dequeue(m_ctokThreadEventQueue, dummy)) {
     }
-    m_peekedWriteEvent.reset();
-
-    m_wakeSCSPEvent.Reset();
-    m_syncResponseEvent.Reset();
 
     m_scspInterruptLevel = (m_scuPendingInterrupts & m_scuEnabledInterrupts) != 0;
     m_lastSCSPInterruptLevel = m_scspInterruptLevel;
@@ -774,17 +748,11 @@ void SCSP::EnableThreading(bool enable) {
         }
 
         m_threadRunning = true;
-        m_wakeSCSPEvent.Reset();
-        m_syncResponseEvent.Reset();
         m_scspThread = std::thread{[this] { SCSPThreadLoop(); }};
     } else {
         devlog::debug<grp::base>("Disabling threaded SCSP");
 
-        if (m_scspThread.joinable()) {
-            m_threadRunning = false;
-            m_wakeSCSPEvent.Set();
-            m_scspThread.join();
-        }
+        StopSCSPThread();
 
         if (m_bus) {
             MapMemoryDirect(*m_bus);
@@ -1412,71 +1380,50 @@ SCSP::Probe::Probe(SCSP &scsp)
 void SCSP::SCSPThreadLoop() {
     util::SetCurrentThreadName("SCSP thread");
 
+    std::array<ThreadEvent, 64> events{};
+
     while (m_threadRunning) {
-        uint64 target = m_emulatorSampleCounter.load(std::memory_order_relaxed);
-        uint64 processed = m_processedSampleCounter.load(std::memory_order_relaxed);
+        const size_t numEvents =
+            m_threadEventQueue.wait_dequeue_bulk(m_ctokThreadEventQueue, events.begin(), events.size());
+        for (size_t i = 0; i < numEvents; ++i) {
+            const auto &evt = events[i];
 
-        if (processed < target) {
-            ApplyPendingWrites(processed + 1);
-
-            // Process one sample
-            if (m_debugTracing) {
-                TickSample<true, true>();
-            } else {
-                TickSample<false, true>();
-            }
-
-            m_processedSampleCounter.store(processed + 1, std::memory_order_release);
-
-            // Signal the emulator thread if it was waiting for this sample
-            if (processed + 1 >= m_syncTargetSample.load(std::memory_order_relaxed)) {
-                m_syncResponseEvent.Set();
-            }
-        } else {
-            ApplyPendingWrites(processed);
-
-            if (processed >= m_syncTargetSample.load(std::memory_order_relaxed)) {
-                m_syncResponseEvent.Set();
-            }
-
-            // Wait for more work
-            m_wakeSCSPEvent.Wait();
-            m_wakeSCSPEvent.Reset();
-        }
-    }
-}
-
-void SCSP::ApplyPendingWrites(uint64 maxSample) {
-    while (true) {
-        if (!m_peekedWriteEvent.has_value()) {
-            WriteEvent evt;
-            if (m_writeQueue.try_dequeue(evt)) {
-                m_peekedWriteEvent = evt;
-            } else {
+            switch (evt.type) {
+            case ThreadEvent::Type::Write: //
+            {
+                const bool isReg = (evt.write.address >= 0x5B0'0000);
+                if (isReg) {
+                    if (evt.write.size == 1) {
+                        WriteReg<uint8, SCSPAccessType::SCU>(evt.write.address & 0xFFF,
+                                                             static_cast<uint8>(evt.write.value));
+                    } else {
+                        WriteReg<uint16, SCSPAccessType::SCU>(evt.write.address & 0xFFF,
+                                                              static_cast<uint16>(evt.write.value));
+                    }
+                } else {
+                    if (evt.write.size == 1) {
+                        WriteWRAM<uint8>(evt.write.address & 0x7FFFF, static_cast<uint8>(evt.write.value));
+                    } else {
+                        WriteWRAM<uint16>(evt.write.address & 0x7FFFF, static_cast<uint16>(evt.write.value));
+                    }
+                }
                 break;
             }
-        }
 
-        if (m_peekedWriteEvent->sampleCounter <= maxSample) {
-            const auto &evt = *m_peekedWriteEvent;
-            bool isReg = (evt.address >= 0x5B0'0000);
-            if (isReg) {
-                if (evt.size == 1) {
-                    WriteReg<uint8, SCSPAccessType::SCU>(evt.address & 0xFFF, static_cast<uint8>(evt.value));
+            case ThreadEvent::Type::Sample:
+                // Process one sample
+                if (m_debugTracing) {
+                    TickSample<true, true>();
                 } else {
-                    WriteReg<uint16, SCSPAccessType::SCU>(evt.address & 0xFFF, static_cast<uint16>(evt.value));
+                    TickSample<false, true>();
                 }
-            } else {
-                if (evt.size == 1) {
-                    WriteWRAM<uint8>(evt.address & 0x7FFFF, static_cast<uint8>(evt.value));
-                } else {
-                    WriteWRAM<uint16>(evt.address & 0x7FFFF, static_cast<uint16>(evt.value));
-                }
+                break;
+
+            case ThreadEvent::Type::Quit: m_threadRunning = false; break;
             }
-            m_peekedWriteEvent.reset();
-            m_writesApplied.fetch_add(1, std::memory_order_release);
-        } else {
-            break;
+
+            m_eventsProcessed.fetch_add(1, std::memory_order_release);
+            m_eventsProcessed.notify_all();
         }
     }
 }
@@ -1486,25 +1433,20 @@ void SCSP::SyncSCSPThread() {
         return;
     }
 
-    uint64 currentSample = m_emulatorSampleCounter;
-    if (m_lastSyncedSample == currentSample) {
-        return;
+    uint64 target = m_eventsProcessed.load();
+    while (target != m_eventsEnqueued) {
+        m_eventsProcessed.wait(target, std::memory_order_acquire);
+        target = m_eventsProcessed.load(std::memory_order_acquire);
     }
 
-    uint64 targetWrites = m_writesEnqueued.load(std::memory_order_acquire);
-
-    m_syncResponseEvent.Reset();
-    m_syncTargetSample = currentSample;
-    m_wakeSCSPEvent.Set();
-
-    while (m_processedSampleCounter.load(std::memory_order_acquire) < currentSample ||
-           m_writesApplied.load(std::memory_order_acquire) < targetWrites) {
-        m_syncResponseEvent.Wait();
-        m_syncResponseEvent.Reset();
-    }
-
-    m_lastSyncedSample = currentSample;
     PollSCSPInterrupts();
+}
+
+void SCSP::StopSCSPThread() {
+    if (m_scspThread.joinable()) {
+        EnqueueEvent(ThreadEvent::Quit());
+        m_scspThread.join();
+    }
 }
 
 void SCSP::PollSCSPInterrupts() {
@@ -1521,14 +1463,12 @@ void SCSP::PollSCSPInterrupts() {
 
 template <mem_primitive T>
 void SCSP::EnqueueWrite(uint32 address, T value) {
-    WriteEvent evt{.address = address,
-                   .value = static_cast<uint32>(value),
-                   .size = static_cast<uint8>(sizeof(T)),
-                   .sampleCounter = m_emulatorSampleCounter};
-    m_writeQueue.enqueue(evt);
-    m_writesEnqueued.fetch_add(1, std::memory_order_release);
-    m_lastSyncedSample = 0;
-    m_wakeSCSPEvent.Set();
+    EnqueueEvent(ThreadEvent::Write(address, static_cast<uint32>(value), static_cast<uint8>(sizeof(T))));
+}
+
+void SCSP::EnqueueEvent(ThreadEvent &&event) {
+    ++m_eventsEnqueued;
+    m_threadEventQueue.enqueue(m_ptokThreadEventQueue, std::move(event));
 }
 
 template void SCSP::EnqueueWrite<uint8>(uint32 address, uint8 value);
@@ -1575,10 +1515,7 @@ template void SCSP::WriteRegBus<uint8>(uint32 address, uint8 value);
 template void SCSP::WriteRegBus<uint16>(uint32 address, uint16 value);
 
 void SCSP::TickSampleThreaded() {
-    m_emulatorSampleCounter++;
-    if (m_emulatorSampleCounter % 735 == 0) {
-        m_wakeSCSPEvent.Set();
-    }
+    EnqueueEvent(ThreadEvent::Sample());
     PollSCSPInterrupts();
 }
 
