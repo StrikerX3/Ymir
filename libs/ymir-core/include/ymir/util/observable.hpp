@@ -54,21 +54,9 @@ public:
     }
 
     /// @brief Accesses members of the value contained in this observable wrapper.
-    /// @return a pointer to the contained value
-    T *operator->() {
-        return &m_value;
-    }
-
-    /// @brief Accesses members of the value contained in this observable wrapper.
     /// @return a `const` pointer to the contained value
     const T *operator->() const {
         return &m_value;
-    }
-
-    /// @brief Dereferences the value contained in this observable wrapper.
-    /// @return a reference to the contained value
-    T &operator*() {
-        return m_value;
     }
 
     /// @brief Dereferences the value contained in this observable wrapper.
