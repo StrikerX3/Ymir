@@ -968,6 +968,11 @@ bool CDBlock::SetupScan(uint8 direction) {
 void CDBlock::ProcessDriveState() {
     CheckPlayEnd();
 
+    // Resume playback if paused due to running out of buffers
+    if (m_bufferFullPause && m_partitionManager.GetFreeBufferCount() > 0) {
+        m_bufferFullPause = false;
+    }
+
     switch (GetStatusCode()) {
     case kStatusCodeSeek:
         // HACK: Extremely hacky way to make the status transition from Seek to Play
@@ -984,21 +989,16 @@ void CDBlock::ProcessDriveState() {
             if (m_status.frameAddress < m_playStartPos || m_status.frameAddress > m_playEndPos) {
                 m_status.frameAddress = m_playStartPos;
             }
+            m_bufferFullPause = false;
             ProcessDriveStatePlay();
         } else if (m_seekTicks == 0) {
+            m_bufferFullPause = false;
             m_status.statusCode = kStatusCodePlay;
             ProcessDriveStatePlay();
         }
         break;
     case kStatusCodePlay: [[fallthrough]];
     case kStatusCodeScan: ProcessDriveStatePlay(); break;
-    case kStatusCodePause:
-        // Resume playback if paused due to running out of buffers
-        if (m_bufferFullPause && m_partitionManager.GetFreeBufferCount() > 0) {
-            m_bufferFullPause = false;
-            m_status.statusCode = kStatusCodePlay;
-        }
-        break;
     }
 
     // FIXME: cdbtest fails if the PEND interrupt happens at the same time as the CSCT interrupt from Play
@@ -1035,6 +1035,11 @@ void CDBlock::ProcessDriveStatePlay() {
             m_status.statusCode = kStatusCodeNoDisc; // TODO: is this correct?
             SetInterrupt(kHIRQ_DCHG);
         } else {
+            if (m_bufferFullPause) {
+                devlog::trace<grp::play>("Can't play disc, no buffers available");
+                return;
+            }
+
             // TODO: consider caching the track pointer
             const media::Session &session = m_disc.sessions.back();
             const media::Track *track = session.FindTrack(frameAddress);
@@ -1084,7 +1089,6 @@ void CDBlock::ProcessDriveStatePlay() {
 
                     // TODO: what is the correct status code here?
                     // TODO: there really should be a separate state machine for handling this...
-                    m_status.statusCode = kStatusCodePause;
                     SetInterrupt(kHIRQ_BFUL);
                     m_bufferFullPause = true;
                 } else {

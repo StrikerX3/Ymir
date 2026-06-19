@@ -40,6 +40,11 @@ Introduced save state file version 13.
 - CD Block (HLE): Fix handling of "Play Disc" command with resume from pause parameters on data tracks. Fixes buffer exhaustion leading to softlocks in Panzer Dragoon II Zwei.
 - CD Block (HLE): Introduce separate array for command responses.
 - CD Block (HLE): Open tray when ejecting a disc. Fixes various cases of games that hang, freeze, crash or exhibit erratic behavior when ejecting a disc while playing. These should now properly boot back to the system's interactive shell. (#298)
+- CD Block (HLE): Properly resume disc playback after being paused due to running out of buffers. Fixes multiple games:
+    - Mahjong Yon Shimai - Wakakusa Monogatari (#527): no longer freezes on character select screen.
+    - Shellshock (#344): no longer crashes on CORE logo.
+    - Sonic Jam (#83): in-game music now plays correctly.
+    - IRREEL (homebrew) (#580): level 2 assets now load correctly.
 - Input: Properly bind inputs loaded from settings file upon startup. (#900)
 - Media: Bail out early on CUE parser if the file starts with a null byte.
 - Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.
