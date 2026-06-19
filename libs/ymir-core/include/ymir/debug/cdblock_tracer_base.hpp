@@ -36,9 +36,6 @@ struct ICDBlockTracer {
     /// @param[in] cr4 the value of CR4
     virtual void ProcessCommandResponse(uint16 cr1, uint16 cr2, uint16 cr3, uint16 cr4) {}
 
-    /// @brief Invoked when all partitions and buffers are reset to the default state (no buffers allocated).
-    virtual void PartitionResetAll() {}
-
     /// @brief Invoked when the tracer is attached to copy the current state of a partition.
     /// @param[in] index the partition number
     /// @param[in] buffers the buffer queue
@@ -63,6 +60,9 @@ struct ICDBlockTracer {
     /// @brief Invoked when a partition is cleared (all buffers freed).
     /// @param[in] index the partition number
     virtual void PartitionClear(uint8 index) {}
+
+    /// @brief Invoked when the CD Block is reset.
+    virtual void Reset() {}
 
     /// @brief Invoked when the tracer is detached.
     virtual void Detach() {}

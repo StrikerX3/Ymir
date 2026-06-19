@@ -11,12 +11,6 @@ namespace ymir::cdblock {
 // -----------------------------------------------------------------------------
 // Debugger
 
-FORCE_INLINE static void TracePartitionResetAll(debug::ICDBlockTracer *tracer) {
-    if (tracer) {
-        return tracer->PartitionResetAll();
-    }
-}
-
 FORCE_INLINE static void TracePartitionInsertHead(debug::ICDBlockTracer *tracer, uint8 index,
                                                   const cdblock::Buffer &buffer) {
     if (tracer) {
@@ -56,7 +50,6 @@ void CDBlock::PartitionManager::Reset() {
     m_freeBuffers = kNumBuffers;
     m_reservedBuffers = 0;
     devlog::trace<grp::part_mgr>("Cleared partitions; free buffers = {}", m_freeBuffers);
-    TracePartitionResetAll(m_tracer);
 }
 
 uint8 CDBlock::PartitionManager::GetBufferCount(uint8 partitionIndex) const {

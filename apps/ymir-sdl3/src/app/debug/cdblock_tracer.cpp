@@ -28,12 +28,6 @@ void CDBlockTracer::ProcessCommandResponse(uint16 cr1, uint16 cr2, uint16 cr3, u
     cmd.processed = true;
 }
 
-void CDBlockTracer::PartitionResetAll() {
-    for (auto &partition : partitions) {
-        partition.clear();
-    }
-}
-
 void CDBlockTracer::PartitionSync(uint8 index, const std::deque<ymir::cdblock::Buffer> &buffers) {
     std::unique_lock lock{mtxPartitions};
     partitions[index] = buffers;
@@ -61,8 +55,14 @@ void CDBlockTracer::PartitionClear(uint8 index) {
     partitions[index].clear();
 }
 
+void CDBlockTracer::Reset() {
+    for (auto &partition : partitions) {
+        partition.clear();
+    }
+}
+
 void CDBlockTracer::Detach() {
-    PartitionResetAll();
+    Reset();
 }
 
 } // namespace app

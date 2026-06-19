@@ -16,6 +16,12 @@ namespace ymir::cdblock {
 // -----------------------------------------------------------------------------
 // Debugger
 
+FORCE_INLINE static void TraceReset(debug::ICDBlockTracer *tracer) {
+    if (tracer) {
+        return tracer->Reset();
+    }
+}
+
 FORCE_INLINE static void TraceProcessCommand(debug::ICDBlockTracer *tracer, uint16 cr1, uint16 cr2, uint16 cr3,
                                              uint16 cr4) {
     if (tracer) {
@@ -153,6 +159,8 @@ void CDBlock::Reset(bool hard) {
     m_processingCommand = false;
 
     m_netlinkSCR = 0x00;
+
+    TraceReset(m_tracer);
 }
 
 void CDBlock::MapMemory(sys::SH2Bus &bus) {

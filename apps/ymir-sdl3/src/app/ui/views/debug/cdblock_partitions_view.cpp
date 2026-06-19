@@ -69,6 +69,7 @@ void CDBlockPartitionsView::Display() {
                     ImGui::SameLine();
                 }
                 if (buffer.frameAddress != 0) {
+                    // TODO: make these clickable, opening a memory viewer window on the disc at the target sector
                     ImGui::Text("%06X", buffer.frameAddress);
                 } else {
                     ImGui::Text("<data>");
