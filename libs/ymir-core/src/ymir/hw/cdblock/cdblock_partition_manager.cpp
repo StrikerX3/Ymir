@@ -8,7 +8,46 @@
 
 namespace ymir::cdblock {
 
-CDBlock::PartitionManager::PartitionManager() {
+// -----------------------------------------------------------------------------
+// Debugger
+
+FORCE_INLINE static void TracePartitionResetAll(debug::ICDBlockTracer *tracer) {
+    if (tracer) {
+        return tracer->PartitionResetAll();
+    }
+}
+
+FORCE_INLINE static void TracePartitionInsertHead(debug::ICDBlockTracer *tracer, uint8 index,
+                                                  const cdblock::Buffer &buffer) {
+    if (tracer) {
+        return tracer->PartitionInsertHead(index, buffer);
+    }
+}
+
+FORCE_INLINE static void TracePartitionRemoveTail(debug::ICDBlockTracer *tracer, uint8 index, uint8 offset) {
+    if (tracer) {
+        return tracer->PartitionRemoveTail(index, offset);
+    }
+}
+
+FORCE_INLINE static void TracePartitionDeleteSectors(debug::ICDBlockTracer *tracer, uint8 index, uint16 start,
+                                                     uint16 end) {
+    if (tracer) {
+        return tracer->PartitionDeleteSectors(index, start, end);
+    }
+}
+
+FORCE_INLINE static void TracePartitionClear(debug::ICDBlockTracer *tracer, uint8 index) {
+    if (tracer) {
+        return tracer->PartitionClear(index);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Implementation
+
+CDBlock::PartitionManager::PartitionManager(debug::ICDBlockTracer *&tracer)
+    : m_tracer(tracer) {
     Reset();
 }
 
@@ -17,6 +56,7 @@ void CDBlock::PartitionManager::Reset() {
     m_freeBuffers = kNumBuffers;
     m_reservedBuffers = 0;
     devlog::trace<grp::part_mgr>("Cleared partitions; free buffers = {}", m_freeBuffers);
+    TracePartitionResetAll(m_tracer);
 }
 
 uint8 CDBlock::PartitionManager::GetBufferCount(uint8 partitionIndex) const {
@@ -59,6 +99,7 @@ void CDBlock::PartitionManager::InsertHead(uint8 partitionIndex, const Buffer &b
     m_freeBuffers--;
     devlog::trace<grp::part_mgr>("Inserted buffer into partition {} -> {} buffers; free buffers = {}", partitionIndex,
                                  partition.size(), m_freeBuffers);
+    TracePartitionInsertHead(m_tracer, partitionIndex, buffer);
 }
 
 Buffer *CDBlock::PartitionManager::GetTail(uint8 partitionIndex, uint8 offset) {
@@ -79,6 +120,7 @@ bool CDBlock::PartitionManager::RemoveTail(uint8 partitionIndex, uint8 offset) {
         m_freeBuffers++;
         devlog::trace<grp::part_mgr>("Removed buffer from partition {} -> {} buffers; free buffers = {}",
                                      partitionIndex, partition.size(), m_freeBuffers);
+        TracePartitionRemoveTail(m_tracer, partitionIndex, offset);
         return true;
     }
     return false;
@@ -106,6 +148,7 @@ uint32 CDBlock::PartitionManager::DeleteSectors(uint8 partitionIndex, uint16 sec
     m_freeBuffers += end - start + 1;
     devlog::trace<grp::part_mgr>("Removed {} buffers from partition {} -> {} buffers; free buffers = {}",
                                  end - start + 1, partitionIndex, partition.size(), m_freeBuffers);
+    TracePartitionDeleteSectors(m_tracer, partitionIndex, start, end);
     return end - start + 1;
 }
 
@@ -116,6 +159,7 @@ void CDBlock::PartitionManager::Clear(uint8 partitionIndex) {
     devlog::trace<grp::part_mgr>("Cleared all {} buffers from partition {}; free buffers = {}", partition.size(),
                                  partitionIndex, m_freeBuffers);
     partition.clear();
+    TracePartitionClear(m_tracer, partitionIndex);
 }
 
 uint32 CDBlock::PartitionManager::CalculateSize(uint8 partitionIndex, uint32 start, uint32 end) const {
@@ -183,6 +227,15 @@ void CDBlock::PartitionManager::LoadState(const savestate::CDBlockSaveState &sta
         }
     }
     m_reservedBuffers = state.reservedBuffers;
+    OnTracerAttached();
+}
+
+void CDBlock::PartitionManager::OnTracerAttached() {
+    if (m_tracer) {
+        for (uint8 i = 0; i < kNumPartitions; ++i) {
+            m_tracer->PartitionSync(i, m_partitions[i]);
+        }
+    }
 }
 
 } // namespace ymir::cdblock
