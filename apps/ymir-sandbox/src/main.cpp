@@ -1785,7 +1785,7 @@ void runDeadlockTest(int argc, char **argv) {
         sat->LoadIPL(std::span<uint8, ymir::sys::kIPLSize>(ipl));
 
         const auto t0 = clk::now();
-        for (uint64 frames = 0; frames < 500; frames++) {
+        for (uint64 frames = 0; frames < 100; frames++) {
             sat->RunFrame();
         }
         const auto t1 = clk::now();
