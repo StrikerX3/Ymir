@@ -6,7 +6,6 @@
 
 #include <ymir/savestate/savestate_system.hpp>
 
-#include <numeric>
 #include <vector>
 
 namespace ymir::sys {
@@ -14,7 +13,7 @@ namespace ymir::sys {
 struct System {
     core::config::sys::VideoStandard videoStandard = core::config::sys::VideoStandard::NTSC;
     ClockSpeed clockSpeed = ClockSpeed::_320;
-    uint32 sh2ClockFactor = 100;
+    RatioU32 sh2ClockFactor = RatioU32::One();
 
     const ClockRatios &GetClockRatios() const {
         return m_activeClockRatios;
@@ -26,22 +25,19 @@ struct System {
         const ClockRatios &baseRatios = kClockRatios[(pal << 1) | (clock352 << 0)];
 
         m_activeClockRatios = baseRatios;
-        if (sh2ClockFactor != 100) {
-            const uint64 gcd = std::gcd(100ull, sh2ClockFactor);
-            const uint64 numFactor = 100ull / gcd;
-            const uint64 denFactor = sh2ClockFactor / gcd;
+        if (sh2ClockFactor != RatioU32::One()) {
+            const auto [num, den] = sh2ClockFactor.Pair();
+            m_activeClockRatios.SCSPNum *= den;
+            m_activeClockRatios.SCSPDen *= num;
 
-            m_activeClockRatios.SCSPNum *= numFactor;
-            m_activeClockRatios.SCSPDen *= denFactor;
+            m_activeClockRatios.CDBlockNum *= den;
+            m_activeClockRatios.CDBlockDen *= num;
 
-            m_activeClockRatios.CDBlockNum *= numFactor;
-            m_activeClockRatios.CDBlockDen *= denFactor;
+            m_activeClockRatios.SMPCNum *= den;
+            m_activeClockRatios.SMPCDen *= num;
 
-            m_activeClockRatios.SMPCNum *= numFactor;
-            m_activeClockRatios.SMPCDen *= denFactor;
-
-            m_activeClockRatios.RTCNum *= numFactor;
-            m_activeClockRatios.RTCDen *= denFactor;
+            m_activeClockRatios.RTCNum *= den;
+            m_activeClockRatios.RTCDen *= num;
         }
 
         for (auto &cb : m_clockSpeedChangeCallbacks) {

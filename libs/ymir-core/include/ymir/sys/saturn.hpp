@@ -198,8 +198,8 @@ struct Saturn {
     }
 
     /// @brief Sets the SH-2 clock factor.
-    /// @param[in] factor the clock percentage (100 = normal speed)
-    void SetSH2ClockFactor(uint32 factor) {
+    /// @param[in] factor the clock factor ratio
+    void SetSH2ClockFactor(RatioU32 factor) {
         configuration.system.sh2ClockFactor = factor;
     }
 
@@ -388,8 +388,8 @@ private:
     void UpdateSH2CacheEmulation(bool enabled);
 
     /// @brief Updates the SH-2 clock factor and updates system clock ratios.
-    /// @param[in] factor the new clock percentage
-    void UpdateSH2ClockFactor(uint32 factor);
+    /// @param[in] factor the new clock ratio
+    void UpdateSH2ClockFactor(RatioU32 factor);
 
     /// @brief Updates the video standard to emulate and adjusts clock ratios across the system's components.
     /// @param[in] videoStandard the new video standard

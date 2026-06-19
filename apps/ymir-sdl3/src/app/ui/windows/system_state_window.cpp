@@ -152,10 +152,11 @@ void SystemStateWindow::DrawClocks() {
         ImGui::TableSetupColumn("Ratio");
         ImGui::TableHeadersRow();
 
-        const sys::ClockRatios &clockRatios = m_context.saturn.instance->GetClockRatios();
+        const Saturn &saturn = *m_context.saturn.instance;
 
-        const auto &settings = m_context.serviceLocator.GetRequired<Settings>();
-        const double clockScale = (double)settings.system.sh2ClockFactor.Get() / 100.0;
+        const sys::ClockRatios clockRatios = saturn.GetClockRatios();
+
+        const double clockScale = (double)saturn.configuration.system.sh2ClockFactor.Get().AsDouble();
         const double masterClock =
             ((double)clockRatios.masterClock * clockRatios.masterClockNum / clockRatios.masterClockDen / 1000000.0) *
             clockScale;
@@ -183,7 +184,7 @@ void SystemStateWindow::DrawClocks() {
         }
 
         // Account for double-resolution
-        const bool doubleWidth = m_context.saturn.instance->VDP.GetProbe().GetResolution().width >= 640;
+        const bool doubleWidth = saturn.VDP.GetProbe().GetResolution().width >= 640;
         ImGui::TableNextRow();
         if (ImGui::TableNextColumn()) {
             ImGui::TextUnformatted("Pixel clock");

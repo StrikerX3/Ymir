@@ -7,16 +7,22 @@
 
 #include "configuration_defs.hpp"
 
-#include <ymir/sys/clocks.hpp>
-
 #include <ymir/util/date_time.hpp>
 #include <ymir/util/observable.hpp>
+#include <ymir/util/ratio.hpp>
 
 #include <ymir/core/types.hpp>
 
 #include <vector>
 
 namespace ymir::core {
+
+inline constexpr RatioU32 kMinSH2ClockRatio = RatioU32::FromPercentage(25u);
+inline constexpr RatioU32 kMaxSH2ClockRatio = RatioU32::FromPercentage(10000u);
+
+inline constexpr RatioU32 ClampSH2ClockRatio(RatioU32 ratio) {
+    return std::clamp(ratio, kMinSH2ClockRatio, kMaxSH2ClockRatio);
+}
 
 /// @brief Emulator core configuration.
 ///
@@ -57,14 +63,17 @@ struct Configuration {
         /// Enabling this option incurs a small performance penalty and purges all SH-2 caches.
         util::Observable<bool> emulateSH2Cache = false;
 
-        /// @brief SH-2 clock factor as a percentage (100 = 1.0x speed).
+        /// @brief SH-2 clock factor ratio.
         ///
-        /// Adjusts the cycle rate of the SH-2 CPUs, which may help reduce internal slowdowns and lag in CPU-heavy
-        /// games.
+        /// Adjusts the cycle rate of the SH-2 CPUs, which may reduce internal slowdowns and lag in CPU-heavy games.
         /// Decreasing the factor will improve emulation performance but may cause slowdowns.
         ///
         /// Changing it either way from 100% may lower compatibility with some games.
-        util::Observable<uint32> sh2ClockFactor = 100;
+        ///
+        /// The ratio is clamped to the range [25%..10000%]. The SH2 starts to choke on interrupts if it runs too
+        /// slowly and, while going faster technically is feasible, a 2.8 GHz SH2 is already too much to emulate, let
+        /// alone two of them.
+        util::Observable<RatioU32, ClampSH2ClockRatio> sh2ClockFactor = RatioU32::FromPercentage(100u);
     } system;
 
     /// @brief RTC configuration
