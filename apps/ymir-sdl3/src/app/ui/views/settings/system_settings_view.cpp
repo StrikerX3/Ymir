@@ -173,7 +173,7 @@ void SystemSettingsView::Display() {
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted("Host time offset:");
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(150.0f);
+        ImGui::SetNextItemWidth(150.0f * m_context.displayScale);
         ImGui::DragScalar("##rtc_host_offset", ImGuiDataType_S64, &rtc.HostTimeOffset());
         ImGui::SameLine();
         ImGui::TextUnformatted("seconds");
@@ -254,7 +254,7 @@ void SystemSettingsView::Display() {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Image path");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(-(fileSelectorButtonWidth + itemSpacingWidth * 2));
+    ImGui::SetNextItemWidth(-(fileSelectorButtonWidth + itemSpacingWidth));
     std::string imagePath = fmt::format("{}", settings.internalBackupRAMImagePath);
     if (MakeDirty(ImGui::InputText("##bup_image_path", &imagePath, ImGuiInputTextFlags_ElideLeft))) {
         settings.internalBackupRAMImagePath = std::u8string{imagePath.begin(), imagePath.end()};

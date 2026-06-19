@@ -4,6 +4,12 @@
 
 namespace app::config_defaults {
 
+namespace system {
+    inline constexpr uint32 kMinSH2ClockFactor = 10;
+    inline constexpr uint32 kMaxSH2ClockFactor = 300;
+    inline constexpr uint32 kDefaultSH2ClockFactor = 100;
+} // namespace system
+
 namespace input {
 
     namespace arcade_racer {

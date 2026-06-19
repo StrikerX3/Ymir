@@ -1219,11 +1219,13 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
     }
 
     if (auto tblSystem = data["System"]) {
+        using namespace app::config_defaults::system;
         Parse(tblSystem, "VideoStandard", system.videoStandard);
         Parse(tblSystem, "AutoDetectRegion", system.autodetectRegion);
         Parse(tblSystem, "PreferredRegionOrder", system.preferredRegionOrder);
         Parse(tblSystem, "EmulateSH2Cache", system.emulateSH2Cache);
-        Parse(tblSystem, "SH2OverclockFactor", system.sh2OverclockFactor);
+        Parse(tblSystem, "SH2OverclockFactor", system.sh2OverclockFactor, kDefaultSH2ClockFactor, kMinSH2ClockFactor,
+              kMaxSH2ClockFactor);
         Parse(tblSystem, "InternalBackupRAMImagePath", system.internalBackupRAMImagePath);
         Parse(tblSystem, "InternalBackupRAMPerGame", system.internalBackupRAMPerGame);
         system.internalBackupRAMImagePath = Absolute(ProfilePath::PersistentState, system.internalBackupRAMImagePath);

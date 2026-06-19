@@ -53,21 +53,32 @@ namespace settings::system {
     }
 
     void SH2Overclock(SharedContext &ctx) {
+        const float paddingWidth = ImGui::GetStyle().FramePadding.x;
+        const float itemSpacingWidth = ImGui::GetStyle().ItemSpacing.x;
+        const float resetButtonWidth = ImGui::CalcTextSize("Reset").x + paddingWidth * 2;
+
         auto &settings = ctx.serviceLocator.GetRequired<Settings>();
         int factor = settings.system.sh2OverclockFactor.Get();
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("SH-2 cycle rate");
-        widgets::ExplanationTooltip(
-            "WARNING: May break games, desync audio, or cause crashes.\n"
-            "Use with caution!\n\n"
-            "Adjusts the cycle rate of the SH-2 CPUs.\n"
-            "Can improve emulated/guest game performance and reduce slowdowns in CPU-intensive games.",
-            ctx.displayScale);
+        ImGui::TextUnformatted("SH-2 clock factor");
+        widgets::ExplanationTooltip("WARNING: May break games, desync audio, or cause crashes.\n"
+                                    "Use with caution!\n"
+                                    "\n"
+                                    "Adjusts the cycle rate of the SH-2 CPUs. Also affects SCU DSP and VDP1.\n"
+                                    "\n"
+                                    "Increasing this above 100% can reduce slowdowns in CPU-intensive games.\n"
+                                    "Decreasing this below 100% can improve performance on slower host CPUs.",
+                                    ctx.displayScale);
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(-1.0f);
-        if (settings.MakeDirty(
-                ImGui::SliderInt("##sh2_overclock", &factor, 100, 300, "%d%%", ImGuiSliderFlags_AlwaysClamp))) {
+        ImGui::SetNextItemWidth(-(resetButtonWidth + itemSpacingWidth));
+        if (settings.MakeDirty(ImGui::SliderInt(
+                "##sh2_clock_factor", &factor, app::config_defaults::system::kMinSH2ClockFactor,
+                app::config_defaults::system::kMaxSH2ClockFactor, "%d%%", ImGuiSliderFlags_AlwaysClamp))) {
             settings.system.sh2OverclockFactor = factor;
+        }
+        ImGui::SameLine();
+        if (settings.MakeDirty(ImGui::Button("Reset##sh2_clock_factor"))) {
+            settings.system.sh2OverclockFactor = app::config_defaults::system::kDefaultSH2ClockFactor;
         }
     }
 
