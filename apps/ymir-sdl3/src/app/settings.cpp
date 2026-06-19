@@ -999,7 +999,7 @@ void Settings::ResetToDefaults() {
     system.videoStandard = config::sys::VideoStandard::NTSC;
 
     system.emulateSH2Cache = false;
-    system.sh2ClockFactor = 100;
+    system.sh2ClockFactor = config_defaults::system::kDefaultSH2ClockFactor;
 
     system.ipl.overrideImage = false;
     system.ipl.path = "";
