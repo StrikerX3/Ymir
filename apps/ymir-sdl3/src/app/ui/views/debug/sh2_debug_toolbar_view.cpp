@@ -10,6 +10,7 @@
 #include <app/ui/model/debug/sh2_debugger_model.hpp>
 
 #include <app/ui/widgets/common_widgets.hpp>
+#include <app/ui/widgets/debug_widgets.hpp>
 
 #include <imgui.h>
 
@@ -34,14 +35,9 @@ void SH2DebugToolbarView::Display() {
     const float framePadding = ImGui::GetStyle().FramePadding.x;
     const float regFieldWidth = framePadding * 2 + hexCharWidth * 8;
 
+    widgets::DebugWarning(m_context);
+
     const bool debugTracing = m_context.saturn.IsDebugTracingEnabled();
-    if (!debugTracing) {
-        ImGui::TextColored(m_context.colors.warn, "Debug tracing is disabled. Some features will not work.");
-        ImGui::SameLine();
-        if (ImGui::SmallButton("Enable (F11)##debug_tracing")) {
-            m_context.EnqueueEvent(events::emu::SetDebugTrace(true));
-        }
-    }
     const bool master = m_sh2.IsMaster();
     const bool enabled = master || m_context.saturn.IsSlaveSH2Enabled();
     const bool paused = m_context.paused;

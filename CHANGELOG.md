@@ -19,6 +19,7 @@ Introduced save state file version 13.
 - App: Removed graphics backend option as it served no purpose at this time. Ymir will rely on the default backend used by the SDL3 Renderer API, which should be compatible with most systems.
     - Note: GPU rendering will include a rewrite of the app's graphics subsystem, moving away from SDL Renderer to our own implementation.
 - App: Rotate screenshots based on selected display rotation.
+- Debug: Added CD Block Partitions view, listing all buffers currently loaded in each partition.
 - Debug: Avoid infinite loop when SH2 debugger window is collapsed. Fixes UI hang when (re)opening the window once it was collapsed. (#690)
 - Debug: Simplify SH2 watchpoints down to simple read/write toggles per byte.
     - Previously set watchpoints will be migrated to the new format automatically. 16-bit watchpoints are converted to two consecutive watchpoints, and 32-bit watchpoints are converted to four consecutive watchpoints.

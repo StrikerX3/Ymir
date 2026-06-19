@@ -2506,6 +2506,8 @@ void App::RunEmulator() {
                         ImGui::MenuItem("Command trace", nullptr,
                                         &m_windowManagerService.CDBlockWindowSet().cmdTrace.Open);
                         ImGui::MenuItem("Filters", nullptr, &m_windowManagerService.CDBlockWindowSet().filters.Open);
+                        ImGui::MenuItem("Partitions", nullptr,
+                                        &m_windowManagerService.CDBlockWindowSet().partitions.Open);
                         ImGui::Separator();
                         ImGui::MenuItem("CD drive state trace", nullptr,
                                         &m_windowManagerService.CDBlockWindowSet().driveStateTrace.Open);
