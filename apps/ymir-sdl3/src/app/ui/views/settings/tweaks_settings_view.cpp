@@ -56,8 +56,8 @@ void TweaksSettingsView::Display() {
 
         fmt::format_to(inserter, "### SH-2\n");
         fmt::format_to(inserter, "- {}\n", checkbox("Emulate SH-2 cache", settings.system.emulateSH2Cache));
-        if (settings.system.sh2OverclockFactor.Get() != 100) {
-            fmt::format_to(inserter, "- SH-2 cycle rate: {}%\n", settings.system.sh2OverclockFactor.Get());
+        if (settings.system.sh2ClockFactor.Get() != 100) {
+            fmt::format_to(inserter, "- SH-2 clock factor: {}%\n", settings.system.sh2ClockFactor.Get());
         }
 
         // -------------------------------------------------------------------------------------------------------------
@@ -180,7 +180,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
-        settings.system.sh2OverclockFactor = 100;
+        settings.system.sh2ClockFactor = 100;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
         settings.audio.stepGranularity = 0;
@@ -205,7 +205,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(true));
 
         settings.system.emulateSH2Cache = true;
-        settings.system.sh2OverclockFactor = 100;
+        settings.system.sh2ClockFactor = 100;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
         settings.audio.stepGranularity = 5;
@@ -233,7 +233,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
-        settings.system.sh2OverclockFactor = 100;
+        settings.system.sh2ClockFactor = 100;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
         settings.audio.stepGranularity = 0;
@@ -254,7 +254,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::PopFont();
 
     widgets::settings::system::EmulateSH2Cache(m_context);
-    widgets::settings::system::SH2Overclock(m_context);
+    widgets::settings::system::SH2ClockFactor(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 

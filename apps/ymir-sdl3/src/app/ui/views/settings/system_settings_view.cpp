@@ -136,7 +136,7 @@ void SystemSettingsView::Display() {
     ImGui::PopFont();
 
     widgets::settings::system::EmulateSH2Cache(m_context);
-    widgets::settings::system::SH2Overclock(m_context);
+    widgets::settings::system::SH2ClockFactor(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 

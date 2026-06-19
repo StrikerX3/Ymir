@@ -6,7 +6,7 @@ void Configuration::NotifyObservers() {
     system.preferredRegionOrder.Notify();
     system.videoStandard.Notify();
     system.emulateSH2Cache.Notify();
-    system.sh2OverclockFactor.Notify();
+    system.sh2ClockFactor.Notify();
 
     rtc.mode.Notify();
 

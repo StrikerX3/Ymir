@@ -155,10 +155,10 @@ void SystemStateWindow::DrawClocks() {
         const sys::ClockRatios &clockRatios = m_context.saturn.instance->GetClockRatios();
 
         const auto &settings = m_context.serviceLocator.GetRequired<Settings>();
-        const double overclockScale = (double)settings.system.sh2OverclockFactor.Get() / 100.0;
+        const double clockScale = (double)settings.system.sh2ClockFactor.Get() / 100.0;
         const double masterClock =
             ((double)clockRatios.masterClock * clockRatios.masterClockNum / clockRatios.masterClockDen / 1000000.0) *
-            overclockScale;
+            clockScale;
 
         ImGui::TableNextRow();
         if (ImGui::TableNextColumn()) {

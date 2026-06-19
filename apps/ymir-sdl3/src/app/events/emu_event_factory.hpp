@@ -117,7 +117,7 @@ EmuEvent FormatBackupMemory(bool external);
 EmuEvent LoadInternalBackupMemory();
 
 EmuEvent SetEmulateSH2Cache(bool enable);
-EmuEvent SetSH2OverclockFactor(uint32 factor);
+EmuEvent SetSH2ClockFactor(uint32 factor);
 
 EmuEvent SetCDBlockLLE(bool enable);
 
