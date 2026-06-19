@@ -212,7 +212,9 @@ add_library(ymir-core
     include/ymir/util/hashing.hpp
     include/ymir/util/inline.hpp
     include/ymir/util/lsn_denormals.hpp
+    include/ymir/util/observable.hpp
     include/ymir/util/process.hpp
+    include/ymir/util/ratio.hpp
     include/ymir/util/scope_guard.hpp
     include/ymir/util/size_ops.hpp
     include/ymir/util/thread_name.hpp
