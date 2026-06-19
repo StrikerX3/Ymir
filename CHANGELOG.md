@@ -45,9 +45,9 @@ Introduced save state file version 13.
     - Legend of K-1 - The Best Collection (#758): FMV of third fight now plays correctly.
     - Mahjong Yon Shimai - Wakakusa Monogatari (#527): no longer freezes on character select screen.
     - Shellshock (#344): no longer crashes on CORE logo.
+    - Senken Kigyouden / Xianjian Qixiazhuan (#409): graphics now load correctly.
     - Sonic Jam (#83): in-game music now plays correctly.
     - IRREEL (homebrew) (#580): level 2 assets now load correctly.
-    - Xianjian Qixiazhuan (#409): graphics now load correctly.
 - Input: Properly bind inputs loaded from settings file upon startup. (#900)
 - Media: Bail out early on CUE parser if the file starts with a null byte.
 - Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.
