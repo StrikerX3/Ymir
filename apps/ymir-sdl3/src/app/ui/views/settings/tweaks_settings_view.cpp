@@ -56,9 +56,7 @@ void TweaksSettingsView::Display() {
 
         fmt::format_to(inserter, "### SH-2\n");
         fmt::format_to(inserter, "- {}\n", checkbox("Emulate SH-2 cache", settings.system.emulateSH2Cache));
-        if (settings.system.sh2ClockFactor.Get() != 100) {
-            fmt::format_to(inserter, "- SH-2 clock factor: {}%\n", settings.system.sh2ClockFactor.Get());
-        }
+        fmt::format_to(inserter, "- SH-2 clock factor: {}%\n", settings.system.sh2ClockFactor.Get());
 
         // -------------------------------------------------------------------------------------------------------------
         // Video
@@ -180,7 +178,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
-        settings.system.sh2ClockFactor = 100;
+        settings.system.sh2ClockFactor = config_defaults::system::kDefaultSH2ClockFactor;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
         settings.audio.stepGranularity = 0;
@@ -205,7 +203,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(true));
 
         settings.system.emulateSH2Cache = true;
-        settings.system.sh2ClockFactor = 100;
+        settings.system.sh2ClockFactor = config_defaults::system::kDefaultSH2ClockFactor;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
         settings.audio.stepGranularity = 5;
@@ -233,7 +231,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
-        settings.system.sh2ClockFactor = 100;
+        settings.system.sh2ClockFactor = config_defaults::system::kDefaultSH2ClockFactor;
 
         settings.audio.interpolation = ymir::core::config::audio::SampleInterpolationMode::Linear;
         settings.audio.stepGranularity = 0;
