@@ -33,8 +33,12 @@ namespace grp {
         static constexpr std::string_view name = "VDP-Config";
     };
 
-    struct phase : public base {
-        static constexpr std::string_view name = "VDP-Phase";
+    struct hphase : public base {
+        static constexpr std::string_view name = "VDP-HPhase";
+    };
+
+    struct vphase : public base {
+        static constexpr std::string_view name = "VDP-VPhase";
     };
 
     struct intr : public base {

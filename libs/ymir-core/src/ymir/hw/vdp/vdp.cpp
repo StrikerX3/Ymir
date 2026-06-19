@@ -771,7 +771,7 @@ FORCE_INLINE void VDP::IncrementVCounter() {
 // ----
 
 void VDP::BeginHPhaseActiveDisplay() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering horizontal active display phase", m_state.regs2.VCNT);
+    devlog::trace<grp::hphase>("(VCNT = {:3d})  Entering horizontal active display phase", m_state.regs2.VCNT);
     if (m_state.VPhase == VerticalPhase::Active) {
         if (m_state.regs2.VCNT == m_VTimings[m_VTimingField][0] - 16) { // ~1ms before VBlank IN
             m_cbTriggerOptimizedINTBACKRead();
@@ -782,7 +782,7 @@ void VDP::BeginHPhaseActiveDisplay() {
 }
 
 void VDP::BeginHPhaseRightBorder() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering right border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::hphase>("(VCNT = {:3d})  Entering right border phase", m_state.regs2.VCNT);
 
     devlog::trace<grp::intr_hb>("## HBlank IN {:3d}", m_state.regs2.VCNT);
 
@@ -814,13 +814,13 @@ void VDP::BeginHPhaseRightBorder() {
 }
 
 void VDP::BeginHPhaseSync() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering horizontal sync phase", m_state.regs2.VCNT);
+    devlog::trace<grp::hphase>("(VCNT = {:3d})  Entering horizontal sync phase", m_state.regs2.VCNT);
 
     // This phase intentionally does nothing to insert a gap between the two border phases
 }
 
 void VDP::BeginHPhaseLeftBorder() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering left border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::hphase>("(VCNT = {:3d})  Entering left border phase", m_state.regs2.VCNT);
 
     if (m_state.VPhase == VerticalPhase::LastLine) {
         auto &ctx1 = m_VDP1CtlState;
@@ -874,13 +874,13 @@ void VDP::BeginHPhaseLeftBorder() {
 // ----
 
 void VDP::BeginVPhaseActiveDisplay() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering vertical active display phase", m_state.regs2.VCNT);
+    devlog::trace<grp::vphase>("(VCNT = {:3d})  Entering vertical active display phase", m_state.regs2.VCNT);
 
     m_state.regs2.VCNTSkip = 0;
 }
 
 void VDP::BeginVPhaseBottomBorder() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering bottom border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::vphase>("(VCNT = {:3d})  Entering bottom border phase", m_state.regs2.VCNT);
 
     devlog::trace<grp::intr>("## VBlank IN");
 
@@ -892,7 +892,7 @@ void VDP::BeginVPhaseBottomBorder() {
 }
 
 void VDP::BeginVPhaseBlankingAndSync() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering blanking/vertical sync phase", m_state.regs2.VCNT);
+    devlog::trace<grp::vphase>("(VCNT = {:3d})  Entering blanking/vertical sync phase", m_state.regs2.VCNT);
 
     // End frame
     devlog::trace<grp::vdp2_render>("End VDP2 frame");
@@ -908,13 +908,13 @@ void VDP::BeginVPhaseBlankingAndSync() {
 }
 
 void VDP::BeginVPhaseVCounterSkip() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering vertical counter skip phase", m_state.regs2.VCNT);
+    devlog::trace<grp::vphase>("(VCNT = {:3d})  Entering vertical counter skip phase", m_state.regs2.VCNT);
 
     m_state.regs2.VCNTSkip = m_VCounterSkip;
 }
 
 void VDP::BeginVPhaseTopBorder() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering top border phase", m_state.regs2.VCNT);
+    devlog::trace<grp::vphase>("(VCNT = {:3d})  Entering top border phase", m_state.regs2.VCNT);
 
     UpdateResolution<true>();
 
@@ -926,7 +926,7 @@ void VDP::BeginVPhaseTopBorder() {
 }
 
 void VDP::BeginVPhaseLastLine() {
-    devlog::trace<grp::phase>("(VCNT = {:3d})  Entering last line phase", m_state.regs2.VCNT);
+    devlog::trace<grp::vphase>("(VCNT = {:3d})  Entering last line phase", m_state.regs2.VCNT);
 
     devlog::trace<grp::intr>("## VBlank OUT");
 
