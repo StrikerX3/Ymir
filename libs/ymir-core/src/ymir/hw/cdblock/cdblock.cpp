@@ -700,9 +700,17 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
     const bool keepEndParam = endParam == 0xFFFFFF;
     const bool keepRepeatParam = repeatParam == 0xFF;
 
+    const bool sameStartParam = keepStartParam || startParam == m_playStartParam;
+    const bool sameEndParam = keepEndParam || endParam == m_playEndParam;
+    const bool sameRepeatParam = keepRepeatParam || repeatParam == m_playRepeatParam;
+
+    const bool isStartFAD = bit::test<23>(startParam);
+    const bool isEndFAD = bit::test<23>(endParam);
+
+    const bool paused = GetStatusCode() == kStatusCodePause;
+
     // Handle resume from pause for data tracks
-    if (keepStartParam && keepEndParam && keepRepeatParam && GetStatusCode() == kStatusCodePause &&
-        m_status.controlADR == 0x41) {
+    if (sameStartParam && sameEndParam && sameRepeatParam && isStartFAD && isEndFAD && paused) {
         m_status.statusCode = kStatusCodePlay;
         m_targetDriveCycles = kDriveCyclesPlaying1x / m_readSpeed;
         devlog::debug<grp::play_init>("Resuming from pause");
@@ -717,9 +725,7 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         repeatParam = m_playRepeatParam;
     }
 
-    const bool isStartFAD = bit::test<23>(startParam);
-    const bool isEndFAD = bit::test<23>(endParam);
-    const bool resetPos = bit::test<15>(repeatParam);
+    const bool resetPos = !keepRepeatParam && !bit::test<15>(repeatParam);
 
     // Sanity check: both must be FADs or tracks, not a mix
     if (!keepEndParam && isStartFAD != isEndFAD) {
@@ -741,7 +747,6 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
 
     if (isStartFAD) {
         // Frame address range
-        const bool paused = GetStatusCode() == kStatusCodePause;
         m_playStartPos = startParam & 0x7FFFFF;
         if (!keepEndParam) {
             m_playEndPos = m_playStartPos + (endParam & 0x7FFFFF) - 1;
@@ -750,8 +755,10 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         devlog::debug<grp::play_init>("FAD range {:06X} to {:06X}", m_playStartPos, m_playEndPos);
 
         uint32 frameAddress = m_status.frameAddress;
-        if ((paused && !keepStartParam) || resetPos || frameAddress < m_playStartPos ||
-            frameAddress > m_playEndPos + 1) {
+        if (frameAddress < m_playStartPos || frameAddress > m_playEndPos + 1) {
+            devlog::debug<grp::play_init>(
+                "Adjusting playback position to {:06X}; status={:X} FAD range={:06X}..{:06X} curr FAD={:06X}",
+                m_playStartPos, m_status.statusCode, m_playStartPos, m_playEndPos, frameAddress);
             frameAddress = m_playStartPos;
         }
 
@@ -782,6 +789,7 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
                 devlog::debug<grp::play_init>("Reset playback position to {:06X}", m_status.frameAddress);
             } else {
                 m_status.frameAddress = frameAddress;
+                devlog::debug<grp::play_init>("Continuing playback from {:06X}", m_status.frameAddress);
             }
         } else {
             m_targetDriveCycles = kDriveCyclesNotPlaying;
@@ -1468,9 +1476,6 @@ bool CDBlock::SetupSubcodeTransfer(uint8 type) {
 void CDBlock::ReadSector() {
     const Buffer *buffer = m_partitionManager.GetTail(m_xferPartition, m_xferSectorPos);
     if (buffer != nullptr) {
-        devlog::trace<grp::xfer>("Starting transfer from sector at frame address {:08X} - sector {}",
-                                 buffer->frameAddress, m_xferSectorPos);
-
         // Skip to user data when not reading 2352 bytes.
         // Also force get sector length 2048 -> 2324 when executing:
         // - Get Sector Data from Mode 2 Form 2 sectors
@@ -1493,6 +1498,9 @@ void CDBlock::ReadSector() {
         if (extendLength) {
             m_xferLength += m_xferGetLength - m_getSectorLength;
         }
+
+        devlog::trace<grp::xfer>("Starting transfer: partition {}, buffer {}, frame address {:06X} -> {} bytes",
+                                 m_xferPartition, m_xferSectorPos, buffer->frameAddress, getLength);
     } else {
         devlog::warn<grp::xfer>("Out of bounds transfer - sector {}", m_xferSectorPos);
         m_xferGetLength = m_getSectorLength;
@@ -1519,7 +1527,7 @@ uint16 CDBlock::DoReadTransfer() {
     case TransferType::GetThenDeleteSector:
         if (m_xferBufferPos >= m_xferGetLength / sizeof(uint16)) {
             ++m_xferSectorPos;
-            devlog::trace<grp::xfer>("Going to sector {}", m_xferSectorPos);
+            devlog::trace<grp::xfer>("Going to sector index {}", m_xferSectorPos);
             m_xferBufferPos = 0;
             if (m_xferPos + 1 < m_xferLength) {
                 ReadSector();
