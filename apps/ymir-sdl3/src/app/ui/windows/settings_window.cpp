@@ -31,9 +31,11 @@ void SettingsWindow::PrepareWindow() {
     auto *vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f), ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSizeConstraints(ImVec2(500 * m_context.displayScale, 300 * m_context.displayScale),
-                                        ImVec2(std::min(1000 * m_context.displayScale, vp->Size.x),
-                                               std::min(900 * m_context.displayScale, vp->Size.y)));
+
+    const ImVec2 minSize(500 * m_context.displayScale, 300 * m_context.displayScale);
+    const ImVec2 maxSize(1000 * m_context.displayScale, 900 * m_context.displayScale);
+    ImGui::SetNextWindowSizeConstraints(minSize, ImVec2(std::clamp(maxSize.x, minSize.x, vp->Size.x * 0.95f),
+                                                        std::clamp(maxSize.y, minSize.y, vp->Size.y * 0.95f)));
 }
 
 void SettingsWindow::DrawContents() {
