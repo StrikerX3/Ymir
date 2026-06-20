@@ -1823,8 +1823,10 @@ void CDBlock::CmdGetTOC() {
     m_RR[3] = 0x0000;
 
     // TODO: make busy for a brief moment
-    m_status.statusCode = kStatusCodePause;
-    m_targetDriveCycles = kDriveCyclesNotPlaying;
+    // NOTE: should *not* change current playback status! Mass Destruction spams this command right after Play Disc,
+    // expecting the disc to still play normally.
+    // m_status.statusCode = kStatusCodePause;
+    // m_targetDriveCycles = kDriveCyclesNotPlaying;
 
     SetInterrupt(kHIRQ_CMOK | kHIRQ_DRDY);
 }

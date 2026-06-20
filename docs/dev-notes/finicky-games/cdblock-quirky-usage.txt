@@ -1,0 +1,7 @@
+======================================
+Games that use CD Block in quirky ways
+======================================
+
+Mass Destruction
+  When going in-game, the game sends a Play Disc command followed by a spam of Get TOC commands.
+  The disc should still play normally.
