@@ -58,6 +58,7 @@ Introduced save state file version 13.
     - Senken Kigyouden / Xianjian Qixiazhuan (#409): graphics now load correctly.
     - Sonic Jam (#83): in-game music now plays correctly.
     - IRREEL (homebrew) (#580): level 2 assets now load correctly.
+- CD Block (HLE): Use saved start/end play parameters when checking for FAD/track. Fixes music not looping in Mass Destruction. (#664)
 - Input: Properly bind inputs loaded from settings file upon startup. (#900)
 - Media: Bail out early on CUE parser if the file starts with a null byte.
 - Media: Ensure a valid Saturn disc is loaded before trying to parse the filesystem. Fixes crashes when trying to load non-Saturn discs.

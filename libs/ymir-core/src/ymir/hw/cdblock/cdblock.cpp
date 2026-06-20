@@ -702,8 +702,8 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
     const bool keepEndParam = endParam == 0xFFFFFF;
     const bool keepRepeatParam = repeatParam == 0xFF;
 
-    const bool isStartFAD = bit::test<23>(startParam);
-    const bool isEndFAD = bit::test<23>(endParam);
+    const bool isStartFAD = bit::test<23>(keepStartParam ? m_playStartParam : startParam);
+    const bool isEndFAD = bit::test<23>(keepEndParam ? m_playEndParam : endParam);
 
     const bool paused = GetStatusCode() == kStatusCodePause;
 
@@ -1244,7 +1244,7 @@ uint8 CDBlock::GetStatusCode() const {
 }
 
 void CDBlock::SetupTOCTransfer() {
-    devlog::debug<grp::xfer>("Starting TOC transfer");
+    devlog::trace<grp::xfer>("Starting TOC transfer");
 
     m_xferType = TransferType::TOC;
     m_xferPos = 0;
