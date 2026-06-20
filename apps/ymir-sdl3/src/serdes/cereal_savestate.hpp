@@ -471,6 +471,9 @@ void serialize(Archive &ar, VDPSaveState &s, const uint32 version) {
     //
     // VDP2RegsSaveState
     // -----------------
+    // v13:
+    // - Removed fields
+    //   - bool VCNTLatched
     // v12:
     // - Added fields
     //   - VCNTLatch -> moved from VDPSaveState::VDP2VCNTLatch
@@ -529,10 +532,13 @@ void serialize(Archive &ar, VDPSaveState &s, const uint32 version) {
         s.regs1.FBCRChanged = false;
     }
     if (version >= 12) {
-        ar(s.regs2.VCNTLatch, s.regs2.VCNTLatched);
+        ar(s.regs2.VCNTLatch);
+        if (version < 13) {
+            bool VCNTLatched;
+            ar(VCNTLatched);
+        }
     } else {
         s.regs2.VCNTLatch = 0x3FF;
-        s.regs2.VCNTLatched = false;
     }
     if (version >= 13) {
         ar(s.regs1.nextCommandAddress);

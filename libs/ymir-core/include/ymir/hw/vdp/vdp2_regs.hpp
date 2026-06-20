@@ -400,6 +400,12 @@ struct VDP2Regs {
     RegEXTEN EXTEN;
 
     FORCE_INLINE uint16 ReadEXTEN() const {
+        if (!EXTEN.EXLTEN) {
+            VCNTLatch = (VCNT << VCNTShift) + VCNTSkip;
+            if (TVMD.LSMDn == InterlaceMode::DoubleDensity) {
+                VCNTLatch |= TVSTAT.ODD ^ 1;
+            }
+        }
         return EXTEN.u16;
     }
 
@@ -417,7 +423,6 @@ struct VDP2Regs {
             value ^= 0x2; // for some reason ODD is read inverted
         }
         if constexpr (!peek) {
-            VCNTLatched = TVSTAT.EXLTFG;
             TVSTAT.EXLTFG = 0;
         }
         return value;
@@ -478,14 +483,10 @@ struct VDP2Regs {
     uint16 VCNT;              // Current vertical counter
     uint16 VCNTShift;         // Left-shift applied to VCNT, derived from screen mode
     uint16 VCNTSkip;          // Value added to VCNT, derived from current display phase
-    uint16 VCNTLatch;         // Vertical counter latched by external signal
-    mutable bool VCNTLatched; // Whether the vertical counter is currently latched
+    mutable uint16 VCNTLatch; // Vertical counter latched by external signal
 
     FORCE_INLINE uint16 ReadVCNT() const {
-        if (VCNTLatched) {
-            return VCNTLatch << VCNTShift;
-        }
-        return (VCNT << VCNTShift) + VCNTSkip;
+        return VCNTLatch;
     }
 
     FORCE_INLINE void WriteVCNT(uint16 value) {

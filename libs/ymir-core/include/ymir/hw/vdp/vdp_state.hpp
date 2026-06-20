@@ -1026,7 +1026,6 @@ struct VDPState {
         state.regs2.displayEnabledLatch = regs2.displayEnabledLatch;
         state.regs2.borderColorModeLatch = regs2.borderColorModeLatch;
         state.regs2.VCNTLatch = regs2.VCNTLatch;
-        state.regs2.VCNTLatched = regs2.VCNTLatched;
 
         for (size_t i = 0; i < 4; i++) {
             state.renderer.nbgLayerStates[i].fracScrollX = state2.nbgLayerStates[i].fracScrollX;
@@ -1272,7 +1271,6 @@ struct VDPState {
         regs2.displayEnabledLatch = state.regs2.displayEnabledLatch;
         regs2.borderColorModeLatch = state.regs2.borderColorModeLatch;
         regs2.VCNTLatch = state.regs2.VCNTLatch;
-        regs2.VCNTLatched = state.regs2.VCNTLatched;
 
         state1.sysClipH = state.renderer.vdp1State.sysClipH;
         state1.sysClipV = state.renderer.vdp1State.sysClipV;

@@ -193,7 +193,6 @@ struct VDPSaveState {
         bool borderColorModeLatch;
 
         uint16 VCNTLatch;
-        bool VCNTLatched;
     } regs2;
 
     enum class HorizontalPhase {
