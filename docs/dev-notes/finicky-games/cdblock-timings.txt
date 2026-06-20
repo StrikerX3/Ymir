@@ -1,0 +1,10 @@
+==========================================
+Games that rely on CD Block timing nuances
+==========================================
+
+Digital Dance Mix Vol. 1 - Namie Amuro
+  After seeking backwards and forwards or pausing and resuming, the game issues two Play commands back-to-back.
+  The first Play command always points to the start of the current track while the second points to the resume location.
+  The CD drive doesn't have enough time to seek to the first playback position and start reading the disc, effectively
+  discarding that request and honoring only the second Play request.
+  This requires seek to take a realistic amount of time.

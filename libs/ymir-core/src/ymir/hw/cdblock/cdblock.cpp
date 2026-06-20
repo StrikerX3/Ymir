@@ -47,7 +47,9 @@ static uint32 CalcPutOffset(uint32 size) {
 // Implementation
 
 // NOTE: cannot be less than 2 due to how the Seek state processing is implemented
-static constexpr uint32 kSeekTicks = 2;
+// - Digital Dance Mix Vol. 1 - Namie Amuro -- requires at least 5 seek ticks due to issuing two Play commands in a
+//   short interval. The first Play command should not have enough time to read the disc.
+static constexpr uint32 kSeekTicks = 5;
 
 CDBlock::CDBlock(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
                  core::Configuration::CDBlock &config)

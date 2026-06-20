@@ -36,6 +36,7 @@ Introduced save state file version 13.
 ### Fixes
 
 - App: Temporarily switch from exclusive to borderless fullscreen when opening a file dialog then back to exclusive mode once the dialog is closed to avoid minimizing or resizing the window.
+- CD Block (HLE): Extend seek times to 5 ticks. Fixes animations in Digital Dance Mix Vol. 1 - Namie Amuro when seeking or pausing and resuming tracks. (#476)
 - CD Block (HLE): Extend sizes of Mode 2 Form 2 sectors read from disc when the get sector length is less than 2324 bytes. Fixes multiple issues:
     - Chisato Moritaka - Watarase Bashi & Lala Sunshine (#604): FMVs now play correctly.
     - Digital Dance Mix Vol. 1 - Namie Amuro (#476): animations and song now play correctly.
