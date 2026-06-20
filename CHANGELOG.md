@@ -38,14 +38,16 @@ Introduced save state file version 13.
 - App: Temporarily switch from exclusive to borderless fullscreen when opening a file dialog then back to exclusive mode once the dialog is closed to avoid minimizing or resizing the window.
 - CD Block (HLE): Don't change status code when executing Get TOC. Fixes Mass Destruction not playing any music in-game. (#664)
 - CD Block (HLE): Extend seek times to 5 ticks. Fixes animations in Digital Dance Mix Vol. 1 - Namie Amuro when seeking or pausing and resuming tracks. (#476)
-- CD Block (HLE): Extend sizes of Mode 2 Form 2 sectors read from disc when the get sector length is less than 2324 bytes. Fixes multiple issues:
+- CD Block (HLE): Extend sizes of Mode 2 Form 2 sectors read from disc when the get sector length is less than 2324 bytes. Fixes:
     - Chisato Moritaka - Watarase Bashi & Lala Sunshine (#604): FMVs now play correctly.
     - Digital Dance Mix Vol. 1 - Namie Amuro (#476): animations and song now play correctly.
 - CD Block (HLE): Fix handling of "Get Session Info" command.
 - CD Block (HLE): Fix handling of "Play Disc" command with resume from pause parameters on data tracks. Fixes buffer exhaustion leading to softlocks in Panzer Dragoon II Zwei.
 - CD Block (HLE): Fix handling of "Seek Disc" command parameter exceptions.
 - CD Block (HLE): Handle more "Play Disc" command parameter nuances. Fixes animations in Digital Dance Mix Vol. 1 - Namie Amuro when seeking or pausing and resuming tracks. (#476)
-- CD Block (HLE): Ignore read speed setting and always use 2x for data tracks. Fixes Mass Destruction intro FMVs playing slowly. (#664)
+- CD Block (HLE): Ignore read speed setting and always use 2x for data tracks. Fixes some cases of FMVs stuttering or playing too slowly:
+    - Mass Destruction (#664)
+    - Tilt! (#872)
 - CD Block (HLE): Introduce separate array for command responses.
 - CD Block (HLE): Open tray when ejecting a disc. Fixes various cases of games that hang, freeze, crash or exhibit erratic behavior when ejecting a disc while playing. These should now properly boot back to the system's interactive shell. (#298)
 - CD Block (HLE): Properly resume disc playback after being paused due to running out of buffers. Fixes multiple games:
