@@ -1,8 +1,8 @@
-#include <ymir/sys/backup_ram_utils.hpp>
+#include <ymir/util/string.hpp>
 
 #include <array>
 
-namespace ymir::bup {
+namespace util {
 
 struct ReplacementChar {
     const char *normal;
@@ -10,9 +10,9 @@ struct ReplacementChar {
     const char *handakuten = nullptr;
 };
 
-std::string TranslateBackupString(std::string_view str) {
+std::string TranslateSaturnString(std::string_view str) {
     static constexpr std::array<ReplacementChar, 256> kTable = {{
-#include "bup_char_table.inc"
+#include "jp_char_table.inc"
     }};
 
     std::string output;
@@ -62,4 +62,4 @@ std::string TranslateBackupString(std::string_view str) {
     return output;
 }
 
-} // namespace ymir::bup
+} // namespace util

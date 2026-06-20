@@ -187,7 +187,6 @@ add_library(ymir-core
 
     include/ymir/sys/backup_ram.hpp
     include/ymir/sys/backup_ram_defs.hpp
-    include/ymir/sys/backup_ram_utils.hpp
     include/ymir/sys/bus.hpp
     include/ymir/sys/clocks.hpp
     include/ymir/sys/memory.hpp
@@ -217,6 +216,7 @@ add_library(ymir-core
     include/ymir/util/ratio.hpp
     include/ymir/util/scope_guard.hpp
     include/ymir/util/size_ops.hpp
+    include/ymir/util/string.hpp
     include/ymir/util/thread_name.hpp
     include/ymir/util/type_traits_ex.hpp
     include/ymir/util/unreachable.hpp
@@ -291,7 +291,6 @@ add_library(ymir-core
     src/ymir/media/loader/loader_mdf_mds.cpp
 
     src/ymir/sys/backup_ram.cpp
-    src/ymir/sys/backup_ram_utils.cpp
     src/ymir/sys/memory.cpp
     src/ymir/sys/null_program.hpp
     src/ymir/sys/saturn.cpp
@@ -300,6 +299,7 @@ add_library(ymir-core
     src/ymir/util/date_time.cpp
     src/ymir/util/event.cpp
     src/ymir/util/process.cpp
+    src/ymir/util/string.cpp
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
 )

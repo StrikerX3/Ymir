@@ -79,16 +79,14 @@
 
 #include "actions.hpp"
 
-#include <cstddef>
 #include <ymir/ymir.hpp>
 
 #include <ymir/sys/saturn.hpp>
 
-#include <ymir/db/game_db.hpp>
-
 #include <ymir/util/lsn_denormals.hpp>
 #include <ymir/util/process.hpp>
 #include <ymir/util/scope_guard.hpp>
+#include <ymir/util/string.hpp>
 #include <ymir/util/thread_name.hpp>
 
 #include <app/events/emu_event_factory.hpp>
@@ -100,21 +98,15 @@
 #include <app/ui/fonts/IconsMaterialSymbols.h>
 
 #include <app/ui/widgets/cartridge_widgets.hpp>
-#include <app/ui/widgets/input_widgets.hpp>
 #include <app/ui/widgets/savestate_widgets.hpp>
 #include <app/ui/widgets/settings_widgets.hpp>
 #include <app/ui/widgets/system_widgets.hpp>
 
-#include <serdes/cereal_savestate.hpp>
-
-#include <util/file_loader.hpp>
-#include <util/math.hpp>
 #include <util/os_features.hpp>
 #include <util/std_lib.hpp>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
-#include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_messagebox.h>
 #include <SDL3/SDL_misc.h>
 
@@ -123,15 +115,9 @@
 
 #include <imgui.h>
 
-#include <cereal/archives/binary.hpp>
-#include <cereal/archives/portable_binary.hpp>
-
 #include <cmrc/cmrc.hpp>
 
 #include <stb_image.h>
-
-#include <fmt/chrono.h>
-#include <fmt/std.h>
 
 #include <rtmidi/RtMidi.h>
 
@@ -1854,7 +1840,7 @@ void App::RunEmulator() {
                     if (header.gameTitle.empty()) {
                         fmt::format_to(bufWriter, "Unnamed game");
                     } else {
-                        fmt::format_to(bufWriter, "{}", header.gameTitle);
+                        fmt::format_to(bufWriter, "{}", util::TranslateSaturnString(header.gameTitle));
                     }
                 }
             }

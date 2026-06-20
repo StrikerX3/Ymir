@@ -18,11 +18,10 @@
 
 #include <util/sdl_file_dialog.hpp>
 
-#include <ymir/sys/backup_ram_utils.hpp>
-
 #include <ymir/util/backup_datetime.hpp>
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/size_ops.hpp>
+#include <ymir/util/string.hpp>
 #include <ymir/util/unreachable.hpp>
 
 #include <fmt/std.h>
@@ -474,7 +473,7 @@ void BackupMemoryView::DrawFileTableRow(const bup::BackupFileInfo &file, uint32 
     ImGui::TableNextRow();
     if (ImGui::TableNextColumn()) {
         ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
-        std::string filename = bup::TranslateBackupString(file.header.filename);
+        std::string filename = util::TranslateSaturnString(file.header.filename);
         if (selectable) {
             bool selected = m_selected.contains(file.header.filename);
             ImGui::SetNextItemSelectionUserData(index);
@@ -486,7 +485,7 @@ void BackupMemoryView::DrawFileTableRow(const bup::BackupFileInfo &file, uint32 
         ImGui::PopFont();
     }
     if (ImGui::TableNextColumn()) {
-        std::string comment = bup::TranslateBackupString(file.header.comment);
+        std::string comment = util::TranslateSaturnString(file.header.comment);
         ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
         ImGui::Text("%s", comment.c_str());
         ImGui::PopFont();

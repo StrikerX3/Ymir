@@ -15,7 +15,7 @@ Introduced save state file version 13.
 - App: Added option to show/hide performance indicators from window title bar.
 - App: Added option to start emulation paused upon launching the emulator. (#899)
 - App: Added Message History window, listing up to 10000 messages.
-- App: Display Japanese text in the Backup Memory Manager.
+- App: Display Japanese text in the Backup Memory Manager and on window title bar (game title).
 - App: Removed graphics backend option as it served no purpose at this time. Ymir will rely on the default backend used by the SDL3 Renderer API, which should be compatible with most systems.
     - Note: GPU rendering will include a rewrite of the app's graphics subsystem, moving away from SDL Renderer to our own implementation.
 - App: Rotate screenshots based on selected display rotation.
