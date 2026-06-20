@@ -45,6 +45,7 @@ Introduced save state file version 13.
 - CD Block (HLE): Fix handling of "Play Disc" command with resume from pause parameters on data tracks. Fixes buffer exhaustion leading to softlocks in Panzer Dragoon II Zwei.
 - CD Block (HLE): Fix handling of "Seek Disc" command parameter exceptions.
 - CD Block (HLE): Handle more "Play Disc" command parameter nuances. Fixes animations in Digital Dance Mix Vol. 1 - Namie Amuro when seeking or pausing and resuming tracks. (#476)
+- CD Block (HLE): Ignore read speed setting and always use 2x for data tracks. Fixes Mass Destruction intro FMVs playing slowly. (#664)
 - CD Block (HLE): Introduce separate array for command responses.
 - CD Block (HLE): Open tray when ejecting a disc. Fixes various cases of games that hang, freeze, crash or exhibit erratic behavior when ejecting a disc while playing. These should now properly boot back to the system's interactive shell. (#298)
 - CD Block (HLE): Properly resume disc playback after being paused due to running out of buffers. Fixes multiple games:

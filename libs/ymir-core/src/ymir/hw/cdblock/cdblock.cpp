@@ -1885,7 +1885,7 @@ void CDBlock::CmdInitializeCDSystem() {
     // const bool decodeSubcodeRW = bit::test<1>(m_CR[0]);
     // const bool ignoreMode2Subheader = bit::test<2>(m_CR[0]);
     // const bool retryForm2Read = bit::test<3>(m_CR[0]);
-    const uint8 readSpeed = bit::extract<4, 5>(m_CR[0]); // 0=max (2x), 1=1x, 2=2x, 3=invalid
+    // const uint8 readSpeed = bit::extract<4, 5>(m_CR[0]); // 0=max (2x), 1=2x, 2=invalid, 3=invalid
     // const bool keepSettings = bit::test<7>(m_CR[0]);
     // const uint16 standbyTime = m_CR[1];
     // const uint8 ecc = bit::extract<8, 15>(m_CR[3]);
@@ -1941,7 +1941,8 @@ void CDBlock::CmdInitializeCDSystem() {
         m_xferSubcodeGroup = 0;
     }
 
-    m_readSpeed = readSpeed == 1 ? 1 : m_readSpeedFactor;
+    // m_readSpeed = readSpeed == 1 ? 1 : m_readSpeedFactor;
+    m_readSpeed = m_readSpeedFactor;
     devlog::info<grp::base>("Read speed set to {}x", m_readSpeed);
 
     // Output structure: standard CD status data
