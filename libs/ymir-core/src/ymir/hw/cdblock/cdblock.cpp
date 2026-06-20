@@ -702,17 +702,13 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
     const bool keepEndParam = endParam == 0xFFFFFF;
     const bool keepRepeatParam = repeatParam == 0xFF;
 
-    const bool sameStartParam = keepStartParam || startParam == m_playStartParam;
-    const bool sameEndParam = keepEndParam || endParam == m_playEndParam;
-    const bool sameRepeatParam = keepRepeatParam || repeatParam == m_playRepeatParam;
-
     const bool isStartFAD = bit::test<23>(startParam);
     const bool isEndFAD = bit::test<23>(endParam);
 
     const bool paused = GetStatusCode() == kStatusCodePause;
 
     // Handle resume from pause for data tracks
-    if (sameStartParam && sameEndParam && sameRepeatParam && isStartFAD && isEndFAD && paused) {
+    if (keepStartParam && keepEndParam && keepRepeatParam && isStartFAD && isEndFAD && paused) {
         m_status.statusCode = kStatusCodePlay;
         m_targetDriveCycles = kDriveCyclesPlaying1x / m_readSpeed;
         devlog::debug<grp::play_init>("Resuming from pause");
@@ -759,8 +755,8 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         uint32 frameAddress = m_status.frameAddress;
         if (frameAddress < m_playStartPos || frameAddress > m_playEndPos + 1) {
             devlog::debug<grp::play_init>(
-                "Adjusting playback position to {:06X}; status={:X} FAD range={:06X}..{:06X} curr FAD={:06X}",
-                m_playStartPos, m_status.statusCode, m_playStartPos, m_playEndPos, frameAddress);
+                "Adjusting playback position from {:06X} to {:06X} to fit range {:06X}..{:06X}", frameAddress,
+                m_playStartPos, m_playStartPos, m_playEndPos);
             frameAddress = m_playStartPos;
         }
 
