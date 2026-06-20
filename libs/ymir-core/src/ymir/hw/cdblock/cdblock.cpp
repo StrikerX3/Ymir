@@ -1092,7 +1092,9 @@ void CDBlock::ProcessDriveStatePlay() {
                     SetInterrupt(kHIRQ_BFUL);
                     m_bufferFullPause = true;
                 } else {
-                    buffer.size = m_getSectorLength;
+                    const bool mode2 = buffer.data[0xF] == 0x02;
+                    const bool mode2form2 = mode2 && bit::test<5>(buffer.data[0x12]);
+                    buffer.size = mode2form2 ? std::max(2324u, m_getSectorLength) : m_getSectorLength;
                     buffer.frameAddress = frameAddress;
                     track->ReadSectorSubheader(frameAddress, buffer.subheader);
 
