@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
 #if defined(__APPLE__)
     } catch (id e) {
         SEL sel_reason = sel_registerName("reason");
-        id reason = (id (*)(id, SEL))objc_msgSend)(e, sel_reason); // NSString
+        id reason = ((id (*)(id, SEL))objc_msgSend)(e, sel_reason); // NSString
 
         SEL sel_UTF8String = sel_registerName("UTF8String");
         const char *failureReason = ((const char *(*)(id, SEL))objc_msgSend)(reason, sel_UTF8String);
