@@ -13,3 +13,10 @@ Christmas NiGHTS into Dreams...
   File number 1 contains a 320x184 24bpp @ 30 fps Cinepak video stream.
   File number 2 contains a 32000 Hz, 2 channels, 16-bit signed PCM integer AIFF audio stream at 512 kbps.
   The entire track 2 of the disc is in this format.
+
+
+Digital Dance Mix Vol. 1 - Namie Amuro
+  All animations and audio tracks are container in a CD-ROM Mode 2 Form 1 track. File number 1 contains animation and
+  camera positions, and track 2 contains audio data.
+  The game splits the data using two filters, 00 and 01, similar to how NiGHTS into Dreams... splits its FMV's audio and
+  video tracks.
