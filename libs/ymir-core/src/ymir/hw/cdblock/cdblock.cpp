@@ -2035,7 +2035,7 @@ void CDBlock::CmdSeekDisc() {
         m_status.index = 0xFF;
         m_targetDriveCycles = kDriveCyclesNotPlaying;
     } else if (isStartFAD) {
-        const uint32 frameAddress = startPos & 0x7FFFFF;
+        uint32 frameAddress = startPos & 0x7FFFFF;
         devlog::debug<grp::base>("Seeking to frame address {:06X}", frameAddress);
         if (m_disc.sessions.empty()) {
             devlog::debug<grp::base>("No disc in drive - stopped");
@@ -2049,6 +2049,11 @@ void CDBlock::CmdSeekDisc() {
             m_targetDriveCycles = kDriveCyclesNotPlaying;
         } else {
             const auto &session = m_disc.sessions.back();
+
+            // Handle frame address exceptions:
+            //   Before start of disc (150) -> clamp to 150
+            //   After end of disc -> clamp to last disc FAD + 1 (leadout area)
+            frameAddress = std::max<uint32>(frameAddress, session.startFrameAddress);
             const uint8 trackIndex = session.FindTrackIndex(frameAddress);
             if (trackIndex < 99) {
                 const auto &track = session.tracks[trackIndex];
@@ -2059,21 +2064,20 @@ void CDBlock::CmdSeekDisc() {
                 m_status.track = trackIndex;
                 m_status.index = 1;
                 m_targetDriveCycles = kDriveCyclesNotPlaying;
-            } else {
-                devlog::debug<grp::base>("Frame address out of range - stopped");
-                m_status.statusCode = kStatusCodeStandby;
-                m_status.frameAddress = 0xFFFFFF;
-                m_status.flags = 0xF;
-                m_status.repeatCount = 0xF;
-                m_status.controlADR = 0xFF;
-                m_status.track = 0xFF;
-                m_status.index = 0xFF;
+            } else { // frameAddress > session.endFrameAddress
+                devlog::debug<grp::base>("Seeking to leadout area");
+                m_status.statusCode = kStatusCodePause;
+                m_status.frameAddress = session.endFrameAddress + 1;
+                m_status.flags = 0x0;
+                m_status.controlADR = 0x01;
+                m_status.track = 0xAA;
+                m_status.index = 1;
                 m_targetDriveCycles = kDriveCyclesNotPlaying;
             }
         }
     } else {
-        const uint32 trackNum = bit::extract<8, 14>(startPos);
-        const uint32 indexNum = bit::extract<0, 6>(startPos);
+        uint32 trackNum = bit::extract<8, 14>(startPos);
+        uint32 indexNum = bit::extract<0, 6>(startPos);
         devlog::debug<grp::base>("Seeking to track:index {}:{}", trackNum, indexNum);
         if (m_disc.sessions.empty()) {
             devlog::debug<grp::base>("No disc in drive - stopped");
@@ -2087,26 +2091,41 @@ void CDBlock::CmdSeekDisc() {
             m_targetDriveCycles = kDriveCyclesNotPlaying;
         } else {
             const auto &session = m_disc.sessions.back();
-            if (trackNum - 1 >= session.firstTrackIndex && trackNum - 1 <= session.lastTrackIndex) {
-                const auto &track = session.tracks[trackNum - 1];
-                m_status.statusCode = kStatusCodePause;
-                m_status.frameAddress = track.index01FrameAddress;
-                m_status.flags = track.controlADR == 0x41 ? 0x8 : 0x0;
-                m_status.controlADR = track.controlADR;
-                m_status.track = trackNum;
-                m_status.index = 1;
-                m_targetDriveCycles = kDriveCyclesNotPlaying;
-            } else {
-                devlog::debug<grp::base>("Track:index out of range - stopped");
-                m_status.statusCode = kStatusCodeStandby;
-                m_status.frameAddress = 0xFFFFFF;
-                m_status.flags = 0xF;
-                m_status.repeatCount = 0xF;
-                m_status.controlADR = 0xFF;
-                m_status.track = 0xFF;
-                m_status.index = 0xFF;
-                m_targetDriveCycles = kDriveCyclesNotPlaying;
+
+            // Handle track number exceptions:
+            //   0 -> first track
+            //   Outside of valid track range -> clamp to range, set index = 1
+            if (trackNum == 0) {
+                trackNum = session.firstTrackIndex + 1;
+            } else if (trackNum < session.firstTrackIndex + 1) {
+                trackNum = session.firstTrackIndex + 1;
+                indexNum = 1;
+            } else if (trackNum > session.lastTrackIndex + 1) {
+                trackNum = session.lastTrackIndex + 1;
+                indexNum = 1;
             }
+
+            const auto &track = session.tracks[trackNum - 1];
+
+            // Handle index number exceptions:
+            //   0 -> 1
+            //   Nonexistent index -> start of next track, set index = 1
+            if (indexNum == 0) {
+                indexNum = 1;
+            } else if (indexNum > track.indices.size() - 1) {
+                indexNum = 1;
+                if (trackNum < session.lastTrackIndex + 1) {
+                    ++trackNum;
+                }
+            }
+
+            m_status.statusCode = kStatusCodePause;
+            m_status.frameAddress = track.index01FrameAddress;
+            m_status.flags = track.controlADR == 0x41 ? 0x8 : 0x0;
+            m_status.controlADR = track.controlADR;
+            m_status.track = trackNum;
+            m_status.index = 1;
+            m_targetDriveCycles = kDriveCyclesNotPlaying;
         }
     }
 

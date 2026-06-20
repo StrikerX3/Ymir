@@ -38,6 +38,7 @@ Introduced save state file version 13.
 - App: Temporarily switch from exclusive to borderless fullscreen when opening a file dialog then back to exclusive mode once the dialog is closed to avoid minimizing or resizing the window.
 - CD Block (HLE): Fix handling of "Get Session Info" command.
 - CD Block (HLE): Fix handling of "Play Disc" command with resume from pause parameters on data tracks. Fixes buffer exhaustion leading to softlocks in Panzer Dragoon II Zwei.
+- CD Block (HLE): Fix handling of "Seek Disc" command parameter exceptions.
 - CD Block (HLE): Introduce separate array for command responses.
 - CD Block (HLE): Open tray when ejecting a disc. Fixes various cases of games that hang, freeze, crash or exhibit erratic behavior when ejecting a disc while playing. These should now properly boot back to the system's interactive shell. (#298)
 - CD Block (HLE): Properly resume disc playback after being paused due to running out of buffers. Fixes multiple games:
