@@ -6,6 +6,10 @@
 #include <cxxopts.hpp>
 #include <fmt/format.h>
 
+#if defined(__APPLE__)
+    #include <objc/message.h>
+#endif
+
 #include <memory>
 
 int main(int argc, char **argv) {
@@ -64,6 +68,16 @@ int main(int argc, char **argv) {
         fmt::println("{}", msg);
         util::ShowFatalErrorDialog(msg.c_str());
         return -1;
+#if defined(__APPLE__)
+    } catch (id e) {
+        SEL sel_reason = sel_registerName("reason");
+        id reason = (id (*)(id, SEL))objc_msgSend)(e, sel_reason); // NSString
+
+        SEL sel_UTF8String = sel_registerName("UTF8String");
+        const char *failureReason = ((const char *(*)(id, SEL))objc_msgSend)(reason, sel_UTF8String);
+        util::ShowFatalErrorDialog(failureReason);
+        return -1;
+#endif
     } catch (...) {
         std::string msg = "Unspecified exception";
         fmt::println("{}", msg);
