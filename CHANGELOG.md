@@ -43,6 +43,7 @@ Introduced save state file version 13.
 - CD Block (HLE): Properly resume disc playback after being paused due to running out of buffers. Fixes multiple games:
     - Chou Jikuu Yousai Macross - Ai Oboete Imasu ka (#605): intro sequence now plays correctly.
     - Legend of K-1 - The Best Collection (#758): FMV of third fight now plays correctly.
+    - LifeScape - Seimei 40 Okunen Haruka na Tabi (#598): no longer freezes on opening FMV.
     - Mahjong Yon Shimai - Wakakusa Monogatari (#527): no longer freezes on character select screen.
     - Shellshock (#344): no longer crashes on CORE logo.
     - Senken Kigyouden / Xianjian Qixiazhuan (#409): graphics now load correctly.
