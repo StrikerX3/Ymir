@@ -13,6 +13,12 @@ on:
   schedule:
     - cron: '45 3 * * *'
   workflow_dispatch: # Enable manual runs
+    inputs:
+      trigger-screenshotter:
+        description: 'Trigger the screenshotter job'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   packages: write
@@ -125,5 +131,6 @@ jobs:
     uses: StrikerX3/Ymir/.github/workflows/screenshotter.yaml@main
     name: Trigger screenshotter job
     needs: [release]
+    if: ${{ coalesce(inputs.trigger-screenshotter, true) == true }}
     secrets:
       YMIR_SCREENSHOTTER_SECRET: ${{ secrets.YMIR_SCREENSHOTTER_SECRET }}
