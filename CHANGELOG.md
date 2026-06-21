@@ -1,5 +1,17 @@
 # Ymir changelog
 
+## Version 0.4.0
+
+In development.
+
+Uses save state file version 13.
+
+### New features and improvements
+
+### Fixes
+
+
+
 ## Version 0.3.2
 
 Released 2026-06-21.
