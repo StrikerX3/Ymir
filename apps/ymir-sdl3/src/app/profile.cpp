@@ -34,10 +34,15 @@ std::filesystem::path Profile::GetUserProfilePath() {
 }
 
 std::filesystem::path Profile::GetPortableProfilePath() {
+#ifdef __APPLE__
+    // SDL_GetCurrentDirectory() returns "/" for some reason
+    return GetExecutableProfilePath();
+#else
     char *cpath = SDL_GetCurrentDirectory();
     std::string path = cpath;
     SDL_free(cpath);
     return std::u8string{path.begin(), path.end()};
+#endif
 }
 
 std::filesystem::path Profile::GetExecutableProfilePath() {
