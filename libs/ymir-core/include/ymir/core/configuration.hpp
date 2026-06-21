@@ -45,7 +45,8 @@ struct Configuration {
         ///
         /// If none of these regions is supported by the disc, the first region listed on the disc is used.
         util::Observable<std::vector<config::sys::Region>> preferredRegionOrder =
-            std::vector<config::sys::Region>{config::sys::Region::NorthAmerica, config::sys::Region::Japan};
+            std::vector<config::sys::Region>{config::sys::Region::NorthAmerica, config::sys::Region::Japan,
+                                             config::sys::Region::EuropePAL, config::sys::Region::AsiaNTSC};
 
         /// @brief Specifies the video standard for the system, which affects video timings and clock rates.
         util::Observable<config::sys::VideoStandard> videoStandard = config::sys::VideoStandard::NTSC;

@@ -36,7 +36,7 @@ bool RegionSelector(SharedContext &ctx) {
     if (ImGui::BeginCombo("##region", util::RegionToString(areaCode).c_str(),
                           ImGuiComboFlags_WidthFitPreview | ImGuiComboFlags_HeightLargest)) {
         for (auto rgn : {core::config::sys::Region::Japan, core::config::sys::Region::NorthAmerica,
-                         core::config::sys::Region::AsiaNTSC, core::config::sys::Region::EuropePAL}) {
+                         core::config::sys::Region::EuropePAL, core::config::sys::Region::AsiaNTSC}) {
             if (ImGui::Selectable(util::RegionToString(rgn).c_str(), rgn == areaCode) && rgn != areaCode) {
                 ctx.EnqueueEvent(events::emu::SetAreaCode(static_cast<uint8>(rgn)));
                 // TODO: optional?

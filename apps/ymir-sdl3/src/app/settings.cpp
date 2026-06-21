@@ -994,7 +994,8 @@ void Settings::ResetToDefaults() {
 
     system.autodetectRegion = true;
     system.preferredRegionOrder =
-        std::vector<config::sys::Region>{config::sys::Region::NorthAmerica, config::sys::Region::Japan};
+        std::vector<config::sys::Region>{config::sys::Region::NorthAmerica, config::sys::Region::Japan,
+                                         config::sys::Region::EuropePAL, config::sys::Region::AsiaNTSC};
 
     system.videoStandard = config::sys::VideoStandard::NTSC;
 
