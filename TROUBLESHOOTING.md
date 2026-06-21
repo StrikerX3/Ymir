@@ -93,7 +93,8 @@ Flatpak uses sandboxing and restricts access to the file system by default. Ymir
    - **(Recommended)** Add a new entry in **Other files** and type the directory where you store your disc images (e.g. `~/Roms/Saturn`). Consider using read-only mode (suffix the path with `:ro`, e.g. `~/Roms/Saturn:ro`) as Ymir doesn't write to disc images.
    - **(Less secure)** Enable **All user files** if your ROMs live in your home directory.
 
- If your files are stored on an external storage device such as an SD card, you will need to write the full path. For example, `/run/media/SDCARDNAME/ROMs/Saturn`. You can locate the external storage path by navigating to the device in the file manager and clicking the path in the address bar.
+If your files are stored on an external storage device such as an SD card, you will need to write the full path. For example, `/run/media/SDCARDNAME/ROMs/Saturn`. You can locate the external storage path by navigating to the device in the file manager and clicking the path in the address bar.
+
 
 ## Ymir runs too slowly
 
@@ -102,8 +103,10 @@ Here are a few things you can try to improve performance besides upgrading the C
 - In the **Debug** menu, make sure **Enable tracing** is disabled. (Shortcut is F11 by default.)
 - In **Settings > General**, check that the **Emulation speed** is set to **Primary** and it is at **100%**. Press **Reset** to restore the default speed.
 - In **Settings > CD Block**, disable **Use low level CD Block emulation**. Most games work fine without it.
-- In **Settings > System**, disable **Emulate SH-2 cache** if possible. Most games work fine without it.
-  - This option is force-enabled with a few select games.
+- In **Settings > System**:
+  - Lower the **SH-2 clock ratio** *carefully*. Most games take the slower CPU gracefully, but a few might break.
+  - Disable **Emulate SH-2 cache** if possible. Most games work fine without it.
+    - This option is force-enabled with a few select games.
 - In **Settings > Audio**, set **Emulation step granularity** to the minimum possible value of **0**, all the way to the left. It should read **Step size: 32 slots (1 sample)**.
 - In **Settings > Video**:
   - Disable **Use full refresh rate when synchronizing video**. This is known to cause problems in cases where the reported refresh rate does not match the actual display refresh rate.
