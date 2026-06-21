@@ -253,6 +253,26 @@ void VDP2LayerParamsView::Display() {
 
         // -------------------------------------------------------------------------------------------------------------
 
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("Gradation");
+        static constexpr vdp::ColorGradScreen kColorGradScreens[] = {
+            vdp::ColorGradScreen::NBG0_RBG1, vdp::ColorGradScreen::NBG1_EXBG, vdp::ColorGradScreen::NBG2,
+            vdp::ColorGradScreen::NBG3,      vdp::ColorGradScreen::RBG0,      vdp::ColorGradScreen::NBG0_RBG1,
+        };
+        for (uint32 i = 0; i < 6; i++) {
+            ImGui::TableNextColumn();
+            if (regs2.bgEnabled[i]) {
+                if (regs2.colorCalcParams.colorGradEnable) {
+                    printYesNo(regs2.colorCalcParams.colorGradScreen == kColorGradScreens[i]);
+                } else {
+                    ImGui::TextUnformatted("-");
+                }
+            }
+        }
+
+        // -------------------------------------------------------------------------------------------------------------
+
         auto printMosaic = [&](const vdp::BGParams &params, bool rot) {
             if (params.mosaicEnable) {
                 if (rot) {
