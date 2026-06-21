@@ -12,6 +12,8 @@ Uses save state file version 13.
 
 ### Fixes
 
+- System: Properly autoselect IPL ROMs for Asia NTSC region (South Korea, Taiwan).
+
 
 
 ## Version 0.3.2

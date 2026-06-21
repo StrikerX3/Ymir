@@ -131,9 +131,10 @@ std::filesystem::path ROMService::GetIPLROMPath() {
 
     ymir::db::SystemRegion preferredRegion;
     switch (m_context.saturn.instance->SMPC.GetAreaCode()) {
-    case 0x1: [[fallthrough]];
+    case 0x1: preferredRegion = ymir::db::SystemRegion::JP; break;
+
     case 0x2: [[fallthrough]];
-    case 0x6: preferredRegion = ymir::db::SystemRegion::JP; break;
+    case 0x6: preferredRegion = ymir::db::SystemRegion::KR; break;
 
     case 0x4: [[fallthrough]];
     case 0x5: [[fallthrough]];
