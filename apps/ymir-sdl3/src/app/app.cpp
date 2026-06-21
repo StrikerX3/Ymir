@@ -2474,15 +2474,19 @@ void App::RunEmulator() {
                         layerMenuItem("NBG3", vdp::Layer::NBG3);
                         ImGui::Unindent();
 
-                        ImGui::MenuItem("VDP1 registers", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp1Regs.Open);
-                        ImGui::MenuItem("VDP2 layer parameters", nullptr,
+                        ImGui::Separator();
+                        ImGui::TextDisabled("VDP1");
+                        ImGui::MenuItem("Registers", nullptr, &m_windowManagerService.VDPWindowSet().vdp1Regs.Open);
+
+                        ImGui::Separator();
+                        ImGui::TextDisabled("VDP2");
+                        ImGui::MenuItem("Layer parameters", nullptr,
                                         &m_windowManagerService.VDPWindowSet().vdp2LayerParams.Open);
-                        ImGui::MenuItem("VDP2 debug overlay", nullptr,
+                        ImGui::MenuItem("Debug overlay", nullptr,
                                         &m_windowManagerService.VDPWindowSet().vdp2DebugOverlay.Open);
-                        ImGui::MenuItem("VDP2 VRAM access delay", nullptr,
+                        ImGui::MenuItem("VRAM access delay", nullptr,
                                         &m_windowManagerService.VDPWindowSet().vdp2VRAMDelay.Open);
-                        ImGui::MenuItem("VDP2 Color RAM palette", nullptr,
+                        ImGui::MenuItem("Color RAM palette", nullptr,
                                         &m_windowManagerService.VDPWindowSet().vdp2CRAM.Open);
 
                         ImGui::EndMenu();
