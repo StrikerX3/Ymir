@@ -13,6 +13,7 @@ public:
 private:
     void DisplayEnhancements();
     void DisplayAccuracyOptions();
+    void DisplayPerformanceOptions();
 };
 
 } // namespace app::ui

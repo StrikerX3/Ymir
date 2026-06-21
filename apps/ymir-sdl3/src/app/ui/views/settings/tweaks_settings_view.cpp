@@ -19,7 +19,7 @@ void TweaksSettingsView::Display() {
     ImGui::PushTextWrapPos(availWidth);
     ImGui::TextUnformatted("The options listed in this tab affect emulation accuracy.\n"
                            "If you encounter an issue running some games, try using the recommended or maximum "
-                           "quality/accuracy presets below.\n"
+                           "quality/accuracy/compatibility presets below.\n"
                            "The performance presets may cause issues with some games.\n"
                            "When reporting issues, make sure to include this list:");
     ImGui::PopTextWrapPos();
@@ -59,16 +59,6 @@ void TweaksSettingsView::Display() {
         fmt::format_to(inserter, "- SH-2 clock factor: {}%\n", settings.system.sh2ClockFactor.Get());
 
         // -------------------------------------------------------------------------------------------------------------
-        // Video
-
-        fmt::format_to(inserter, "### Video\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", swRenderer.threadedVDP1.Get()));
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", swRenderer.threadedVDP2.Get()));
-        fmt::format_to(
-            inserter, "  - {}\n",
-            checkbox("Use dedicated thread for deinterlaced rendering", swRenderer.threadedDeinterlacer.Get()));
-
-        // -------------------------------------------------------------------------------------------------------------
         // Audio
 
         auto interpMode = [](ymir::core::config::audio::SampleInterpolationMode mode) {
@@ -94,6 +84,26 @@ void TweaksSettingsView::Display() {
         fmt::format_to(inserter, "- CD read speed: {}x\n", settings.cdblock.readSpeedFactor.Get());
 
         tweaksList = fmt::to_string(buf);
+
+        // =============================================================================================================
+
+        fmt::format_to(inserter, "## Performance settings\n");
+
+        // -------------------------------------------------------------------------------------------------------------
+        // Video
+
+        fmt::format_to(inserter, "### Video\n");
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP1 rendering", swRenderer.threadedVDP1.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded VDP2 rendering", swRenderer.threadedVDP2.Get()));
+        fmt::format_to(
+            inserter, "  - {}\n",
+            checkbox("Use dedicated thread for deinterlaced rendering", swRenderer.threadedDeinterlacer.Get()));
+
+        // -------------------------------------------------------------------------------------------------------------
+        // Audio
+
+        fmt::format_to(inserter, "### Audio\n");
+        fmt::format_to(inserter, "- {}\n", checkbox("Threaded SCSP and sound CPU", settings.audio.threadedSCSP.Get()));
     }
 
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
@@ -106,6 +116,7 @@ void TweaksSettingsView::Display() {
 
     DisplayEnhancements();
     DisplayAccuracyOptions();
+    DisplayPerformanceOptions();
 }
 
 void TweaksSettingsView::DisplayEnhancements() {
@@ -171,10 +182,6 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Recommended##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(false));
 
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(false));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
@@ -196,10 +203,6 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Best accuracy##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(true));
 
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(false));
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(false));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(true));
 
         settings.system.emulateSH2Cache = true;
@@ -224,10 +227,6 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Best performance##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(false));
 
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
-        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(true));
         m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
@@ -257,6 +256,71 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Audio");
+    ImGui::PopFont();
+
+    widgets::settings::audio::InterpolationMode(m_context);
+    widgets::settings::audio::StepGranularity(m_context);
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("CD Block");
+    ImGui::PopFont();
+
+    widgets::settings::cdblock::CDBlockLLE(m_context);
+    widgets::settings::cdblock::CDReadSpeed(m_context);
+}
+
+void TweaksSettingsView::DisplayPerformanceOptions() {
+    auto &settings = GetSettings();
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.xlarge);
+    ImGui::SeparatorText("Performance");
+    ImGui::PopFont();
+
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Presets:");
+    ImGui::SameLine();
+    if (MakeDirty(ImGui::Button("Recommended##performance"))) {
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(false));
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Strikes a good balance between compatibility and performance.");
+        ImGui::EndTooltip();
+    }
+
+    ImGui::SameLine();
+    if (MakeDirty(ImGui::Button("Best compatibility##performance"))) {
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(false));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(false));
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Maximizes compatibility with no regard for performance.");
+        ImGui::EndTooltip();
+    }
+
+    ImGui::SameLine();
+    if (MakeDirty(ImGui::Button("Best performance##performance"))) {
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP1(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedVDP2(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedDeinterlacer(true));
+        m_context.EnqueueEvent(events::emu::EnableThreadedSCSP(true));
+    }
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::TextUnformatted("Maximizes performance with no regard for accuracy.\n"
+                               "Reduces compatibility with some games.");
+        ImGui::EndTooltip();
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Video");
     ImGui::PopFont();
 
@@ -274,18 +338,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::SeparatorText("Audio");
     ImGui::PopFont();
 
-    widgets::settings::audio::InterpolationMode(m_context);
-    widgets::settings::audio::StepGranularity(m_context);
     widgets::settings::audio::ThreadedSCSP(m_context);
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
-    ImGui::SeparatorText("CD Block");
-    ImGui::PopFont();
-
-    widgets::settings::cdblock::CDBlockLLE(m_context);
-    widgets::settings::cdblock::CDReadSpeed(m_context);
 }
 
 } // namespace app::ui
