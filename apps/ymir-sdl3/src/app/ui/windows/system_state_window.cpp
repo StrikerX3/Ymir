@@ -157,9 +157,9 @@ void SystemStateWindow::DrawClocks() {
         const sys::ClockRatios clockRatios = saturn.GetClockRatios();
 
         const double clockScale = (double)saturn.configuration.system.sh2ClockFactor.Get().AsDouble();
-        const double masterClock =
-            ((double)clockRatios.masterClock * clockRatios.masterClockNum / clockRatios.masterClockDen / 1000000.0) *
-            clockScale;
+        const double baseMasterClock =
+            ((double)clockRatios.masterClock * clockRatios.masterClockNum / clockRatios.masterClockDen / 1000000.0);
+        const double masterClock = baseMasterClock * clockScale;
 
         ImGui::TableNextRow();
         if (ImGui::TableNextColumn()) {
@@ -191,7 +191,7 @@ void SystemStateWindow::DrawClocks() {
         }
         if (ImGui::TableNextColumn()) {
             const double factor = doubleWidth ? 0.5 : 0.25;
-            ImGui::Text("%.5lf MHz", masterClock * factor);
+            ImGui::Text("%.5lf MHz", baseMasterClock * factor);
         }
         if (ImGui::TableNextColumn()) {
             ImGui::Text("1:%u", doubleWidth ? 2u : 4u);
