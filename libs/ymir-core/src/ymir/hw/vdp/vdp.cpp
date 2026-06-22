@@ -1047,6 +1047,7 @@ uint64 VDP::VDP1ProcessCommand() {
         devlog::trace<grp::vdp1_cmd>("Jump to {:05X}", target);
 
         // Simple check for infinite loops
+        // - Akumajou Dracula X attempts to jump back to 0 in some cases
         // - Gale Racer stage 1-2 (Mojave Desert) creates an infinite loop at 05140 with the jump at 05280
         // - Rayman leaves garbage in VDP1 VRAM and occasionally runs a command that loops into itself
         // - Sonic R attempts to jump back to 0 in some cases
@@ -1060,7 +1061,7 @@ uint64 VDP::VDP1ProcessCommand() {
 
         static constexpr uint32 kMaxLoopIterations = 32;
 
-        if (target == 0 || target == cmdAddress || m_VDP1CtlState.loopCount >= kMaxLoopIterations) {
+        if (target == cmdAddress || m_VDP1CtlState.loopCount >= kMaxLoopIterations) {
             if constexpr (devlog::warn_enabled<grp::vdp1_cmd>) {
                 if (m_VDP1CtlState.loopCount == kMaxLoopIterations) {
                     devlog::warn<grp::vdp1_cmd>("Possible infinite loop detected; suspending");

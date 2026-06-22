@@ -1,6 +1,6 @@
 # Ymir changelog
 
-## Version 0.4.0
+## Version 0.3.3
 
 In development.
 
@@ -14,6 +14,7 @@ Uses save state file version 13.
 ### Fixes
 
 - System: Properly autoselect IPL ROMs for Asia NTSC region (South Korea, Taiwan).
+- VDP1: Don't automatically mark jumps to 0 as infinite loops. Fixes Akumajou Dracula X no longer booting. (#904)
 
 
 
