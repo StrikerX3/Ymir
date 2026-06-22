@@ -656,10 +656,11 @@ void SCU::DMAReadIndirectTransfer(uint8 level) {
     ch.currDstAddrInc = ch.dstAddrInc;
     ch.InitTransfer();
 
-    devlog::trace<grp::dma_start>(
-        "SCU DMA{}: Starting indirect transfer at {:08X} - {:06X} bytes from {:08X} (+{:02X}) to {:08X} (+{:02X}){}",
-        level, baseIndirectSrc, ch.currXferCount, ch.currSrcAddr, ch.currSrcAddrInc, ch.currDstAddr, ch.currDstAddrInc,
-        (ch.endIndirect ? " (final)" : ""));
+    devlog::trace<grp::dma_start>("SCU DMA{}: Starting indirect transfer at {:08X} - {:06X} bytes from {:08X} "
+                                  "(+{:02X}{}) to {:08X} (+{:02X}{}){}",
+                                  level, baseIndirectSrc, ch.currXferCount, ch.currSrcAddr, ch.currSrcAddrInc,
+                                  (ch.updateSrcAddr ? "#" : ""), ch.currDstAddr, ch.currDstAddrInc,
+                                  (ch.updateDstAddr ? "#" : ""), (ch.endIndirect ? " (final)" : ""));
 
     if (ch.currSrcAddr & 1) {
         devlog::debug<grp::dma>("SCU DMA{}: Unaligned indirect transfer read from {:08X}", level, ch.currSrcAddr);
@@ -1116,8 +1117,9 @@ void SCU::RecalcDMAChannel() {
             ch.InitTransfer();
 
             devlog::trace<grp::dma_start>(
-                "SCU DMA{}: Starting direct transfer of {:06X} bytes from {:08X} (+{:02X}) to {:08X} (+{:02X})", level,
-                ch.currXferCount, ch.currSrcAddr, ch.currSrcAddrInc, ch.currDstAddr, ch.currDstAddrInc);
+                "SCU DMA{}: Starting direct transfer of {:06X} bytes from {:08X} (+{:02X}{}) to {:08X} (+{:02X}{})",
+                level, ch.currXferCount, ch.currSrcAddr, ch.currSrcAddrInc, (ch.updateSrcAddr ? "#" : ""),
+                ch.currDstAddr, ch.currDstAddrInc, (ch.updateDstAddr ? "#" : ""));
             if (ch.currSrcAddr & 1) {
                 devlog::debug<grp::dma>("SCU DMA{}: Unaligned direct transfer read from {:08X}", level, ch.currSrcAddr);
             }
