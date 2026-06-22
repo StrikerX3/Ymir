@@ -57,12 +57,15 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"MK-81304",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (USA, Europe)
     {"T-22101G",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (Japan)
     {"T-13305G",   {.flags = ForceSH2Cache}}, // Dragon Ball Z - Idainaru Dragon Ball Densetsu (Japan)
-    {"T-7604G",    {.flags = ForceSH2Cache}}, // Emit Vol. 3 - Watashi ni Sayonara o (Japan) -- can be removed when SH-2 and bus timings are improved
     {"T-6002G",    {.flags = ForceSH2Cache}}, // Metal Fighter Miku (Japan)
     {"T-5013H",    {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
     {"T-10621G",   {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
     {"T-7001H-50", {.flags = ForceSH2Cache}}, // Spot Goes to Hollywood (Europe)
     {"T-10301G",   {.flags = ForceSH2Cache}}, // Steamgear Mash (Japan)
+
+    // These can be removed when SH-2 and bus timings are improved
+    {"T-4503G",    {.flags = ForceSH2Cache}}, // Dino Island (Japan)
+    {"T-7604G",    {.flags = ForceSH2Cache}}, // Emit Vol. 3 - Watashi ni Sayonara o (Japan)
 
     {"MK-81804", {.flags = FastBusTimings}}, // Deep Fear (Europe, USA)
     {"GS-9189",  {.flags = FastBusTimings}}, // Deep Fear (Japan)

@@ -12,6 +12,8 @@ Uses save state file version 13.
 
 ### Fixes
 
+- Game DB: Force-enable SH-2 cache emulation for Dino Island to fix palette glitches. (#764)
+
 
 
 ## Version 0.3.3
