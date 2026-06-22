@@ -45,12 +45,12 @@ void VDP2BGLayerParamsView::Display() {
 
     if (ImGui::BeginTable("layers", 7, ImGuiTableFlags_SizingFixedFit)) {
         ImGui::TableSetupColumn("");
-        ImGui::TableSetupColumn("NBG0", ImGuiTableColumnFlags_WidthFixed, 60.0f * m_context.displayScale);
-        ImGui::TableSetupColumn("NBG1", ImGuiTableColumnFlags_WidthFixed, 60.0f * m_context.displayScale);
-        ImGui::TableSetupColumn("NBG2", ImGuiTableColumnFlags_WidthFixed, 60.0f * m_context.displayScale);
-        ImGui::TableSetupColumn("NBG3", ImGuiTableColumnFlags_WidthFixed, 60.0f * m_context.displayScale);
-        ImGui::TableSetupColumn("RBG0", ImGuiTableColumnFlags_WidthFixed, 60.0f * m_context.displayScale);
-        ImGui::TableSetupColumn("RBG1", ImGuiTableColumnFlags_WidthFixed, 60.0f * m_context.displayScale);
+        ImGui::TableSetupColumn("NBG0", ImGuiTableColumnFlags_WidthFixed, 70.0f * m_context.displayScale);
+        ImGui::TableSetupColumn("NBG1", ImGuiTableColumnFlags_WidthFixed, 70.0f * m_context.displayScale);
+        ImGui::TableSetupColumn("NBG2", ImGuiTableColumnFlags_WidthFixed, 70.0f * m_context.displayScale);
+        ImGui::TableSetupColumn("NBG3", ImGuiTableColumnFlags_WidthFixed, 70.0f * m_context.displayScale);
+        ImGui::TableSetupColumn("RBG0", ImGuiTableColumnFlags_WidthFixed, 70.0f * m_context.displayScale);
+        ImGui::TableSetupColumn("RBG1", ImGuiTableColumnFlags_WidthFixed, 70.0f * m_context.displayScale);
         ImGui::TableHeadersRow();
 
         // -------------------------------------------------------------------------------------------------------------
