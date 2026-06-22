@@ -9,6 +9,7 @@ Uses save state file version 13.
 ### New features and improvements
 
 - System: Add Europe PAL and Asia NTSC (in that order) to default preferred regions after North America and Japan.
+- VDP2: Implemented color gradation effect. Fixes background in Stage 4-4 boss arena of Saturn Bomberman.
 
 ### Fixes
 

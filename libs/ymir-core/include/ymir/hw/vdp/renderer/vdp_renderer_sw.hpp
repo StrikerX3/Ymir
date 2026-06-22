@@ -830,6 +830,7 @@ private:
         LYR_NBG3,
         LYR_Back,
         LYR_LineColor, // not really used
+        LYR_Invalid,
     };
 
     // Cached CRAM colors converted from RGB555 to RGB888.
@@ -917,6 +918,8 @@ private:
         alignas(16) std::array<bool, kMaxResH> layer0ColorOffsetEnabled;
         alignas(16) std::array<bool, kMaxResH> layer0MeshColorCalcEnabled;
         alignas(16) std::array<Color888, kMaxResH> meshTempColors;
+        alignas(16) std::array<bool, kMaxResH> colorGradEnabled;
+        alignas(16) std::array<Color888, kMaxResH> colorGradLayerColors;
     };
 
     // Pre-allocated buffers for VDP2ComposeLine for primary and alternate fields.
