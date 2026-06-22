@@ -1,4 +1,4 @@
-#include "vdp2_vram_delay_view.hpp"
+#include "vdp2_vram_access_patterns_view.hpp"
 
 #include <app/ui/widgets/common_widgets.hpp>
 
@@ -12,11 +12,11 @@ using namespace ymir;
 
 namespace app::ui {
 
-VDP2VRAMDelayView::VDP2VRAMDelayView(SharedContext &context, vdp::VDP &vdp)
+VDP2VRAMAccessPatternsView::VDP2VRAMAccessPatternsView(SharedContext &context, vdp::VDP &vdp)
     : m_context(context)
     , m_vdp(vdp) {}
 
-void VDP2VRAMDelayView::Display() {
+void VDP2VRAMAccessPatternsView::Display() {
     auto &probe = m_vdp.GetProbe();
     const auto &regs2 = probe.GetVDP2Regs();
     const auto &state2 = probe.GetVDP2State();

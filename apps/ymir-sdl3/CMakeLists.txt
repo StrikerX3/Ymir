@@ -104,6 +104,8 @@ add_executable(ymir-sdl3
 
     src/app/ui/state/debug/memory_viewer_state.hpp
 
+    src/app/ui/utils/debug/vdp_window_set_printer.hpp
+
     src/app/ui/views/backup_memory_view.cpp
     src/app/ui/views/backup_memory_view.hpp
 
@@ -195,16 +197,22 @@ add_executable(ymir-sdl3
     src/app/ui/views/debug/sh2_wdt_view.hpp
     src/app/ui/views/debug/vdp1_registers_view.cpp
     src/app/ui/views/debug/vdp1_registers_view.hpp
+    src/app/ui/views/debug/vdp2_bg_layer_params_view.cpp
+    src/app/ui/views/debug/vdp2_bg_layer_params_view.hpp
+    src/app/ui/views/debug/vdp2_color_calc_params_view.cpp
+    src/app/ui/views/debug/vdp2_color_calc_params_view.hpp
     src/app/ui/views/debug/vdp2_cram_view.cpp
     src/app/ui/views/debug/vdp2_cram_view.hpp
     src/app/ui/views/debug/vdp2_debug_overlay_view.cpp
     src/app/ui/views/debug/vdp2_debug_overlay_view.hpp
-    src/app/ui/views/debug/vdp2_layer_params_view.cpp
-    src/app/ui/views/debug/vdp2_layer_params_view.hpp
     src/app/ui/views/debug/vdp2_layer_visibility_view.cpp
     src/app/ui/views/debug/vdp2_layer_visibility_view.hpp
-    src/app/ui/views/debug/vdp2_vram_delay_view.cpp
-    src/app/ui/views/debug/vdp2_vram_delay_view.hpp
+    src/app/ui/views/debug/vdp2_sprite_layer_params_view.cpp
+    src/app/ui/views/debug/vdp2_sprite_layer_params_view.hpp
+    src/app/ui/views/debug/vdp2_vram_access_patterns_view.cpp
+    src/app/ui/views/debug/vdp2_vram_access_patterns_view.hpp
+    src/app/ui/views/debug/vdp2_window_params_view.cpp
+    src/app/ui/views/debug/vdp2_window_params_view.hpp
 
     src/app/ui/views/settings/analog_pad_config_view.cpp
     src/app/ui/views/settings/analog_pad_config_view.hpp
@@ -352,16 +360,22 @@ add_executable(ymir-sdl3
     src/app/ui/windows/debug/vdp_window_set.hpp
     src/app/ui/windows/debug/vdp1_registers_window.cpp
     src/app/ui/windows/debug/vdp1_registers_window.hpp
+    src/app/ui/windows/debug/vdp2_bg_layer_params_window.cpp
+    src/app/ui/windows/debug/vdp2_bg_layer_params_window.hpp
+    src/app/ui/windows/debug/vdp2_color_calc_params_window.cpp
+    src/app/ui/windows/debug/vdp2_color_calc_params_window.hpp
     src/app/ui/windows/debug/vdp2_cram_window.cpp
     src/app/ui/windows/debug/vdp2_cram_window.hpp
     src/app/ui/windows/debug/vdp2_debug_overlay_window.cpp
     src/app/ui/windows/debug/vdp2_debug_overlay_window.hpp
-    src/app/ui/windows/debug/vdp2_layer_params_window.cpp
-    src/app/ui/windows/debug/vdp2_layer_params_window.hpp
     src/app/ui/windows/debug/vdp2_layer_visibility_window.cpp
     src/app/ui/windows/debug/vdp2_layer_visibility_window.hpp
-    src/app/ui/windows/debug/vdp2_vram_delay_window.cpp
-    src/app/ui/windows/debug/vdp2_vram_delay_window.hpp
+    src/app/ui/windows/debug/vdp2_sprite_layer_params_window.cpp
+    src/app/ui/windows/debug/vdp2_sprite_layer_params_window.hpp
+    src/app/ui/windows/debug/vdp2_vram_access_patterns_window.cpp
+    src/app/ui/windows/debug/vdp2_vram_access_patterns_window.hpp
+    src/app/ui/windows/debug/vdp2_window_params_window.cpp
+    src/app/ui/windows/debug/vdp2_window_params_window.hpp
 
     src/serdes/cereal_archive_vector.hpp
     src/serdes/cereal_savestate.hpp

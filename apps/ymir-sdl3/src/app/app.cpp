@@ -2480,12 +2480,18 @@ void App::RunEmulator() {
 
                         ImGui::Separator();
                         ImGui::TextDisabled("VDP2");
-                        ImGui::MenuItem("Layer parameters", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2LayerParams.Open);
+                        ImGui::MenuItem("Background layer parameters", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2BGLayerParams.Open);
+                        ImGui::MenuItem("Sprite layer parameters", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2SpriteLayerParams.Open);
+                        ImGui::MenuItem("Window parameters", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2WindowParams.Open);
+                        ImGui::MenuItem("Color calculation parameters", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2ColorCalcParams.Open);
                         ImGui::MenuItem("Debug overlay", nullptr,
                                         &m_windowManagerService.VDPWindowSet().vdp2DebugOverlay.Open);
-                        ImGui::MenuItem("VRAM access delay", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2VRAMDelay.Open);
+                        ImGui::MenuItem("VRAM access patterns", nullptr,
+                                        &m_windowManagerService.VDPWindowSet().vdp2VRAMAccessPatterns.Open);
                         ImGui::MenuItem("Color RAM palette", nullptr,
                                         &m_windowManagerService.VDPWindowSet().vdp2CRAM.Open);
 

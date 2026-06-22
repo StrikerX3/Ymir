@@ -4,9 +4,9 @@
 
 namespace app::ui {
 
-class VDP2VRAMDelayView {
+class VDP2BGLayerParamsView {
 public:
-    VDP2VRAMDelayView(SharedContext &context, ymir::vdp::VDP &vdp);
+    VDP2BGLayerParamsView(SharedContext &context, ymir::vdp::VDP &vdp);
 
     void Display();
 

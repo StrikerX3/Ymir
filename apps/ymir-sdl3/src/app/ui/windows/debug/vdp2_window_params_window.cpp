@@ -1,16 +1,16 @@
-#include "vdp2_layer_params_window.hpp"
+#include "vdp2_window_params_window.hpp"
 
 namespace app::ui {
 
-VDP2LayerParamsWindow::VDP2LayerParamsWindow(SharedContext &context)
+VDP2WindowParamsWindow::VDP2WindowParamsWindow(SharedContext &context)
     : VDPWindowBase(context)
     , m_layerParamsView(context, m_vdp) {
 
-    m_windowConfig.name = "VDP2 layer parameters";
+    m_windowConfig.name = "VDP2 window parameters";
     m_windowConfig.flags = ImGuiWindowFlags_AlwaysAutoResize;
 }
 
-void VDP2LayerParamsWindow::DrawContents() {
+void VDP2WindowParamsWindow::DrawContents() {
     m_layerParamsView.Display();
 }
 

@@ -4,9 +4,9 @@
 
 namespace app::ui {
 
-class VDP2LayerParamsView {
+class VDP2VRAMAccessPatternsView {
 public:
-    VDP2LayerParamsView(SharedContext &context, ymir::vdp::VDP &vdp);
+    VDP2VRAMAccessPatternsView(SharedContext &context, ymir::vdp::VDP &vdp);
 
     void Display();
 

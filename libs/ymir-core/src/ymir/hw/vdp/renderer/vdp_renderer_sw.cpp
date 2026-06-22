@@ -3904,7 +3904,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
         }
 
         // Extended color calculations (only in normal TV modes)
-        const bool useExtendedColorCalc = colorCalcParams.extendedColorCalcEnable && regs2.TVMD.HRESOn < 2;
+        const bool useExtendedColorCalc =
+            !colorCalcParams.colorGradEnable && colorCalcParams.extendedColorCalcEnable && regs2.TVMD.HRESOn < 2;
 
         // Apply extended color calculations to layer 1
         if (useExtendedColorCalc) {
