@@ -8,6 +8,8 @@ Uses save state file version 13.
 
 ### New features and improvements
 
+- App: Added option to unpause emulator when loading discs. Enabled by default, which changes established behavior.
+
 ### Fixes
 
 

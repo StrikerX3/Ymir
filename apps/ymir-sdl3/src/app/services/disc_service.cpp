@@ -172,6 +172,10 @@ bool DiscService::LoadDiscImage(std::filesystem::path path, bool showErrorModal)
     }
 
     m_context.rewindBuffer.Reset();
+
+    if (m_context.paused && settings.general.unpauseOnDiscLoad) {
+        m_context.EnqueueEvent(events::emu::SetPaused(false));
+    }
     return true;
 }
 
