@@ -56,6 +56,9 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-16804G", {.flags = Cart_BackupRAM, .cartReason = "Required for saving games"}},   // Dezaemon 2 (Japan)
     {"GS-9197",  {.flags = Cart_BackupRAM, .cartReason = "Required for saving replays"}}, // Sega Ages - Galaxy Force II (Japan)
 
+    // The RelaxedVDP2BitmapCPAccessChecks should be removed once overall system timings are improved to the point where
+    // the VDP2 BGON disable doesn't occur while the VDP2 is still drawing the background layer with the FMVs.
+    // This requires SCU DMAs to take longer to write to VDP2 VRAM.
     {"GS-9019",    {.flags = ForceSH2Cache}}, // Astal (Japan) -- crash at startup
     {"MK-81019",   {.flags = ForceSH2Cache}}, // Astal (USA) -- crash at startup
     {"MK-81501",   {.flags = ForceSH2Cache}}, // Baku Baku Animal - World Zookeeper Contest (Europe) -- freeze when trying to play FMVs from the Options menu
