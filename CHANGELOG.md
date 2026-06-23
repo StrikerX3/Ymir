@@ -12,14 +12,15 @@ Uses save state file version 13.
 
 ### Fixes
 
-- Game DB: Disable a number of game-specific hacks that are no longer required:
-    - Chisato Moritaka - Watarase Bashi & Lala Sunshine: no longer crashes at startup.
-    - Deep Fear: no longer freezes after the "April Fools!" voice line.
-    - Mega Man X3 / Rockman X3: sprites are not glitched anymore.
-    - Metal Fighter Miku: goes in-game, no longer stuck after start menu.
+- GameDB: Disable a number of game-specific hacks that are no longer required:
+    - Chisato Moritaka - Watarase Bashi & Lala Sunshine: no longer crashes at startup. (#604)
+    - Deep Fear: no longer freezes after the "April Fools!" voice line. (#740)
+    - Marvel Super Heroes vs. Street Fighter: no longer crashes at the end of the Capcom logo. (#507)
+    - Mega Man X3 / Rockman X3: sprites are not glitched anymore. (#244)
+    - Metal Fighter Miku: goes in-game, no longer stuck after start menu. (#466)
     - Soviet Strike: VDP1 graphics no longer flicker.
-- Game DB: Force-enable SH-2 cache emulation for Dino Island to fix palette glitches. (#764)
-- Game DB: Force fast bus timings on Resident Evil to fix start menu crashes. (#907)
+- GameDB: Force-enable SH-2 cache emulation for Dino Island to fix palette glitches. (#764)
+- GameDB: Force fast bus timings on Resident Evil to fix start menu crashes. (#907)
 
 
 
@@ -161,7 +162,7 @@ Uses save state file version 12.
 ### Fixes
 
 - Debugger: Various SH2 stack analysis fixes.
-- Game DB: Add slow VDP1 flag to Funky Fantasy to fix slow FMVs.
+- GameDB: Add slow VDP1 flag to Funky Fantasy to fix slow FMVs.
 - Media: Detect postgaps in data tracks when the CUE sheet doesn't explicitly announce them. Fixes audio track shifts in bad Virtua Fighter 2 dumps.
 - Media: Fix PREGAP/POSTGAP handling in CUE/BIN dumps. Fixes shifted audio tracks in games dumped with ImgBurn.
 - SH2: Fix illegal slot instruction exception handling. (thanks to @celeriyacon)

@@ -47,12 +47,12 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     // FastBusTimings and FastMC68EC000 should be removed when overall timings are improved.
     {"T-1245G", {.flags = Cart_DRAM32Mbit}}, // Dungeons and Dragons Collection (Japan)
     {"T-1248G", {.flags = Cart_DRAM32Mbit}}, // Final Fight Revenge (Japan)
-    {"T-1238G", {.flags = Cart_DRAM32Mbit | FastBusTimings}}, // Marvel Super Heroes vs. Street Fighter (Japan)
+    {"T-1238G", {.flags = Cart_DRAM32Mbit}}, // Marvel Super Heroes vs. Street Fighter (Japan)
     {"T-1230G", {.flags = Cart_DRAM32Mbit}}, // Pocket Fighter (Japan)
     {"T-1246G", {.flags = Cart_DRAM32Mbit}}, // Street Fighter Zero 3 (Japan)
-    {"T-1229G", {.flags = Cart_DRAM32Mbit | FastBusTimings | FastMC68EC000}}, // Vampire Savior (Japan)
-    {"6106881", {.flags = Cart_DRAM32Mbit | FastBusTimings | FastMC68EC000}}, // Vampire Savior (Japan) (Demo)
-    {"T-1226G", {.flags = Cart_DRAM32Mbit | FastBusTimings}}, // X-Men vs. Street Fighter (Japan)
+    {"T-1229G", {.flags = Cart_DRAM32Mbit | FastBusTimings | FastMC68EC000}}, // Vampire Savior (Japan) -- freeze after Capcom logo [FastBusTimings]; freeze after Now Loading screen [FastMC68EC000]
+    {"6106881", {.flags = Cart_DRAM32Mbit | FastBusTimings | FastMC68EC000}}, // Vampire Savior (Japan) (Demo) -- freeze after Capcom logo [FastBusTimings]; freeze after Now Loading screen [FastMC68EC000]
+    {"T-1226G", {.flags = Cart_DRAM32Mbit | FastBusTimings}}, // X-Men vs. Street Fighter (Japan) -- boot back to BIOS after Capcom logo [FastBusTimings]
 
     {"T-1221H",  {.flags = FastBusTimings}}, // Resident Evil (USA) -- freeze on title screen
     {"MK-81092", {.flags = FastBusTimings}}, // Resident Evil (Europe) -- freeze on title screen
