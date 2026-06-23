@@ -6,11 +6,17 @@ namespace ymir::db {
 
 using enum GameInfo::Flags;
 
-// Table adapted from Mednafen
+// Table initially adapted from Mednafen, expanded with Ymir-specific issues
 // https://github.com/libretro-mirrors/mednafen-git/blob/master/src/ss/db.cpp
 
 // clang-format off
 static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
+    // -------------------------------------------------------------------------
+    // Requirements
+    //
+    // Games listed in this section require these flags to be active either because they need a specific cartridge or
+    // because they rely on accurate behavior of certain components such as the SH-2 cache.
+
     {"MK-81088", {.flags = Cart_ROM_KOF95}},    // King of Fighters '95, The (Europe)
     {"T-3101G",  {.flags = Cart_ROM_KOF95}},    // King of Fighters '95, The (Japan)
     {"T-13308G", {.flags = Cart_ROM_Ultraman}}, // Ultraman - Hikari no Kyojin Densetsu (Japan)
@@ -50,35 +56,41 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-16804G", {.flags = Cart_BackupRAM, .cartReason = "Required for saving games"}},   // Dezaemon 2 (Japan)
     {"GS-9197",  {.flags = Cart_BackupRAM, .cartReason = "Required for saving replays"}}, // Sega Ages - Galaxy Force II (Japan)
 
-    {"GS-9019",    {.flags = ForceSH2Cache}}, // Astal (Japan)
-    {"MK-81019",   {.flags = ForceSH2Cache}}, // Astal (USA)
-    {"MK-81501",   {.flags = ForceSH2Cache}}, // Baku Baku Animal - World Zookeeper Contest (Europe)
-    {"GS-9172",    {.flags = ForceSH2Cache}}, // Chisato Moritaka - Watarase Bashi & Lala Sunshine (Japan) (Disc 1)
-    {"MK-81304",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (USA, Europe)
-    {"T-22101G",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (Japan)
-    {"T-13305G",   {.flags = ForceSH2Cache}}, // Dragon Ball Z - Idainaru Dragon Ball Densetsu (Japan)
-    {"T-6002G",    {.flags = ForceSH2Cache}}, // Metal Fighter Miku (Japan)
-    {"T-5013H",    {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA)
-    {"T-10621G",   {.flags = ForceSH2Cache}}, // Soviet Strike (Japan)
-    {"T-7001H-50", {.flags = ForceSH2Cache}}, // Spot Goes to Hollywood (Europe)
-    {"T-10301G",   {.flags = ForceSH2Cache}}, // Steamgear Mash (Japan)
+    {"GS-9019",    {.flags = ForceSH2Cache}}, // Astal (Japan) -- crash at startup
+    {"MK-81019",   {.flags = ForceSH2Cache}}, // Astal (USA) -- crash at startup
+    {"MK-81501",   {.flags = ForceSH2Cache}}, // Baku Baku Animal - World Zookeeper Contest (Europe) -- freeze when trying to play FMVs from the Options menu
+    {"MK-81304",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (USA, Europe) -- crash during intro cutscene
+    {"T-22101G",   {.flags = ForceSH2Cache | RelaxedVDP2BitmapCPAccessChecks}}, // Dark Savior (Japan) -- crash during intro cutscene
+    {"T-13305G",   {.flags = ForceSH2Cache}}, // Dragon Ball Z - Idainaru Dragon Ball Densetsu (Japan) -- black screen after starting a new game
 
-    // These can be removed when SH-2 and bus timings are improved
-    {"T-4503G",    {.flags = ForceSH2Cache}}, // Dino Island (Japan)
-    {"T-7604G",    {.flags = ForceSH2Cache}}, // Emit Vol. 3 - Watashi ni Sayonara o (Japan)
+    // -------------------------------------------------------------------------
+    // Hacks
+    //
+    // These games need Ymir-specific workarounds to fix various issues.
+    // The ultimate goal is to have no need for this list.
 
-    {"MK-81804", {.flags = FastBusTimings}}, // Deep Fear (Europe, USA)
-    {"GS-9189",  {.flags = FastBusTimings}}, // Deep Fear (Japan)
+    // These need improved SH-2, bus, and other timings
+    //{"GS-9172",    {.flags = ForceSH2Cache}}, // Chisato Moritaka - Watarase Bashi & Lala Sunshine (Japan) (Disc 1) -- crash at startup
+    {"T-4503G",    {.flags = ForceSH2Cache}}, // Dino Island (Japan) -- glitched palette due to SCU DMA parameters being overwritten before starting transfer of palette data
+    //{"T-6002G",    {.flags = ForceSH2Cache}}, // Metal Fighter Miku (Japan) -- black screen after start menu
+    //{"T-5013H",    {.flags = ForceSH2Cache}}, // Soviet Strike (Europe, France, Germany, USA) -- flickering VDP1 graphics
+    //{"T-10621G",   {.flags = ForceSH2Cache}}, // Soviet Strike (Japan) -- flickering VDP1 graphics
+    {"T-7001H-50", {.flags = ForceSH2Cache}}, // Spot Goes to Hollywood (Europe) -- glitched sprites due to poorly timed SCU DMA
+    {"T-10301G",   {.flags = ForceSH2Cache}}, // Steamgear Mash (Japan) -- partially flickering sprites
 
-    {"T-7029H-50", {.flags = StallVDP1OnVRAMWrites}}, // Mega Man X3 (Europe)
-    {"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan)
+    //{"MK-81804", {.flags = FastBusTimings}}, // Deep Fear (Europe, USA) -- freeze after the "April Fools!" voice line
+    //{"GS-9189",  {.flags = FastBusTimings}}, // Deep Fear (Japan) -- freeze after the "April Fools!" voice line
 
-    {"T-24904G", {.flags = SlowVDP1}}, // Fishing Koushien II (Japan)
-    {"T-20002G", {.flags = SlowVDP1}}, // Funky Fantasy (Japan) -- slow FMVs
-    {"T-9513G",  {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan)
+    //{"T-7029H-50", {.flags = StallVDP1OnVRAMWrites}}, // Mega Man X3 (Europe) -- glitched sprites caused by VDP1 VRAM writes while drawing is active
+    //{"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan) -- glitched sprites caused by VDP1 VRAM writes while drawing is active
 
-    {"T-32201G", {.flags = SkipEmptyVDP1Table}}, // Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi (Japan)
+    // These need accurate VDP1 timings
+    {"T-24904G", {.flags = SlowVDP1}}, // Fishing Koushien II (Japan) -- expensive FMVs due to infinite loop drawing the same sprite over and over
+    {"T-20002G", {.flags = SlowVDP1}}, // Funky Fantasy (Japan) -- expensive FMVs due to infinite loop drawing the same sprite over and over
+    {"T-9513G",  {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan) -- no boot
+    {"T-32201G", {.flags = SkipEmptyVDP1Table}}, // Sekai no Shasou kara - I Swiss-hen - Alps Tozantetsudou no Tabi (Japan) -- runs invalid commands that break system clipping coordinates and abuses processing power
 
+    // These need improved overall system timings. All of them result in FMVs being clipped.
     {"T-27901G",  {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan)
     {"ST-27901G", {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan) (Demo)
     {"GS-9088",   {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Mechanical Violator Hakaider - Last Judgement (Japan)

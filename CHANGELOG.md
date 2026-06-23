@@ -12,6 +12,12 @@ Uses save state file version 13.
 
 ### Fixes
 
+- Game DB: Disable a number of game-specific hacks that are no longer required:
+    - Chisato Moritaka - Watarase Bashi & Lala Sunshine: no longer crashes at startup.
+    - Deep Fear: no longer freezes after the "April Fools!" voice line.
+    - Mega Man X3 / Rockman X3: sprites are not glitched anymore.
+    - Metal Fighter Miku: goes in-game, no longer stuck after start menu.
+    - Soviet Strike: VDP1 graphics no longer flicker.
 - Game DB: Force-enable SH-2 cache emulation for Dino Island to fix palette glitches. (#764)
 
 
