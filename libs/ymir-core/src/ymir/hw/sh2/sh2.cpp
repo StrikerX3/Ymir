@@ -4632,6 +4632,31 @@ FORCE_INLINE uint64 SH2::RTS() {
     return cycles;
 }
 
+#undef DECODE_RN8
+#undef DECODE_RM8
+#undef DECODE_RN4
+#undef DECODE_RM4
+#undef DECODE_UDISP4
+#undef DECODE_UDISP8
+#undef DECODE_UIMM8
+#undef DECODE_SDISP8
+#undef DECODE_SIMM8
+#undef DECODE_SDISP12
+
+#undef DECODE_N
+#undef DECODE_M
+#undef DECODE_NM
+#undef DECODE_MD
+#undef DECODE_ND4
+#undef DECODE_NMD
+#undef DECODE_D_U
+#undef DECODE_D_S
+#undef DECODE_D12
+#undef DECODE_ND8
+#undef DECODE_I_U
+#undef DECODE_I_S
+#undef DECODE_NI
+
 // -----------------------------------------------------------------------------
 // Probe implementation
 
