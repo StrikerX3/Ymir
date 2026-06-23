@@ -2475,11 +2475,15 @@ void App::RunEmulator() {
                         ImGui::Unindent();
 
                         ImGui::Separator();
-                        ImGui::TextDisabled("VDP1");
+                        ImGui::BeginDisabled();
+                        ImGui::TextUnformatted("VDP1");
+                        ImGui::EndDisabled();
                         ImGui::MenuItem("Registers", nullptr, &m_windowManagerService.VDPWindowSet().vdp1Regs.Open);
 
                         ImGui::Separator();
-                        ImGui::TextDisabled("VDP2");
+                        ImGui::BeginDisabled();
+                        ImGui::TextUnformatted("VDP2");
+                        ImGui::EndDisabled();
                         ImGui::MenuItem("Background layer parameters", nullptr,
                                         &m_windowManagerService.VDPWindowSet().vdp2BGLayerParams.Open);
                         ImGui::MenuItem("Sprite layer parameters", nullptr,
@@ -2499,14 +2503,18 @@ void App::RunEmulator() {
                     }
 
                     if (ImGui::BeginMenu("CD Block")) {
-                        ImGui::TextDisabled("HLE");
+                        ImGui::BeginDisabled();
+                        ImGui::TextUnformatted("HLE");
+                        ImGui::EndDisabled();
                         ImGui::MenuItem("Command trace", nullptr,
                                         &m_windowManagerService.CDBlockWindowSet().cmdTrace.Open);
                         ImGui::MenuItem("Filters", nullptr, &m_windowManagerService.CDBlockWindowSet().filters.Open);
                         ImGui::MenuItem("Partitions", nullptr,
                                         &m_windowManagerService.CDBlockWindowSet().partitions.Open);
                         ImGui::Separator();
-                        ImGui::TextDisabled("LLE");
+                        ImGui::BeginDisabled();
+                        ImGui::TextUnformatted("LLE");
+                        ImGui::EndDisabled();
                         ImGui::MenuItem("CD drive state trace", nullptr,
                                         &m_windowManagerService.CDBlockWindowSet().driveStateTrace.Open);
                         ImGui::MenuItem("YGR command trace", nullptr,
