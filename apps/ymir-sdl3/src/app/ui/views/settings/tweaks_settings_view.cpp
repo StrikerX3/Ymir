@@ -74,7 +74,6 @@ void TweaksSettingsView::Display() {
         fmt::format_to(inserter, "- Interpolation mode: {}\n", interpMode(settings.audio.interpolation.Get()));
         fmt::format_to(inserter, "- Emulation step granularity: {}\n",
                        widgets::settings::audio::StepGranularityToString(settings.audio.stepGranularity.Get()));
-        fmt::format_to(inserter, "- {}\n", checkbox("Threaded SCSP and sound CPU", settings.audio.threadedSCSP.Get()));
 
         // -------------------------------------------------------------------------------------------------------------
         // CD Block
@@ -82,8 +81,6 @@ void TweaksSettingsView::Display() {
         fmt::format_to(inserter, "### CD Block\n");
         fmt::format_to(inserter, "- {}\n", checkbox("Use low level CD Block emulation", settings.cdblock.useLLE.Get()));
         fmt::format_to(inserter, "- CD read speed: {}x\n", settings.cdblock.readSpeedFactor.Get());
-
-        tweaksList = fmt::to_string(buf);
 
         // =============================================================================================================
 
@@ -104,6 +101,10 @@ void TweaksSettingsView::Display() {
 
         fmt::format_to(inserter, "### Audio\n");
         fmt::format_to(inserter, "- {}\n", checkbox("Threaded SCSP and sound CPU", settings.audio.threadedSCSP.Get()));
+
+        // =============================================================================================================
+
+        tweaksList = fmt::to_string(buf);
     }
 
     ImGui::PushFont(m_context.fonts.monospace.regular, m_context.fontSizes.medium);
