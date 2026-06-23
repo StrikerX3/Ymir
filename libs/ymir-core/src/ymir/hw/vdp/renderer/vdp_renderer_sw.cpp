@@ -1056,10 +1056,8 @@ bool SoftwareVDPRenderer::VDP1IsQuadSystemClipped(CoordS32 coord1, CoordS32 coor
 }
 
 template <bool deinterlace, bool transparentMeshes>
-FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams) {
-    const VDP1Regs &regs1 = VDP1GetRegs();
-    const VDP2Regs &regs2 = VDP2GetRegs();
-
+FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams,
+                                                     const VDP1Regs &regs1, bool doubleDensity) {
     auto [x, y] = coord;
 
     // Reject pixels outside of clipping area
@@ -1073,7 +1071,6 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotPixel(CoordS32 coord, const VDP1P
         }
     }
 
-    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
     const bool altFB = deinterlace && doubleDensity && (y & 1);
     if (doubleDensity) {
         if (!deinterlace && regs1.dblInterlaceEnable && (y & 1) != regs1.dblInterlaceDrawLine) {
@@ -1168,7 +1165,8 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotPixel(CoordS32 coord, const VDP1P
 }
 
 template <bool antiAlias, bool deinterlace, bool transparentMeshes>
-FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams) {
+FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams,
+                                                    const VDP1Regs &regs1, bool doubleDensity) {
     if (VDP1IsLineSystemClipped<deinterlace>(coord1, coord2)) {
         return false;
     }
@@ -1189,10 +1187,12 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 co
     bool aa = false;
     bool plotted = false;
     for (line.Step(); line.CanStep(); aa = line.Step()) {
-        bool plottedPixel = VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
+        bool plottedPixel =
+            VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams, regs1, doubleDensity);
         if constexpr (antiAlias) {
             if (aa) {
-                plottedPixel |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
+                plottedPixel |=
+                    VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams, regs1, doubleDensity);
             }
         }
         if (plottedPixel) {
@@ -1211,12 +1211,13 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotLine(CoordS32 coord1, CoordS32 co
 }
 
 template <bool deinterlace, bool transparentMeshes>
-bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams) {
+FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
+                                                            VDP1TexturedLineParams &lineParams, const VDP1Regs &regs1,
+                                                            bool doubleDensity) {
     if (VDP1IsLineSystemClipped<deinterlace>(coord1, coord2)) {
         return false;
     }
 
-    const VDP1Regs &regs1 = VDP1GetRegs();
     auto &ctx = m_state.state1;
 
     const uint32 charSizeH = std::max<uint32>(lineParams.charSizeH, 1u);
@@ -1365,9 +1366,11 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
 
         pixelParams.color = color;
 
-        bool plottedPixel = VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams);
+        bool plottedPixel =
+            VDP1PlotPixel<deinterlace, transparentMeshes>(line.Coord(), pixelParams, regs1, doubleDensity);
         if (aa) {
-            plottedPixel |= VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams);
+            plottedPixel |=
+                VDP1PlotPixel<deinterlace, transparentMeshes>(line.AACoord(), pixelParams, regs1, doubleDensity);
         }
         if (plottedPixel) {
             plotted = true;
@@ -1485,6 +1488,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
     int plottedSegmentsCount = 0;
     const int plottedSegmentsMax = quad.IsDegenerate() ? 2 : 1;
 
+    const VDP1Regs &regs1 = VDP1GetRegs();
+    const VDP2Regs &regs2 = VDP2GetRegs();
+    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         // Plot lines between the interpolated points
@@ -1501,7 +1508,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
             lineParams.gouraudRight = &quad.RightEdge().Gouraud();
         }
 
-        if (VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
+        if (VDP1PlotTexturedLine<deinterlace, transparentMeshes>(coordL, coordR, lineParams, regs1, doubleDensity)) {
             if (!linePlotted) {
                 linePlotted = true;
                 ++plottedSegmentsCount;
@@ -1791,6 +1798,10 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
     int plottedSegmentsCount = 0;
     const int plottedSegmentsMax = quad.IsDegenerate() ? 2 : 1;
 
+    const VDP1Regs &regs1 = VDP1GetRegs();
+    const VDP2Regs &regs2 = VDP2GetRegs();
+    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+
     // Interpolate linearly over edges A-D and B-C
     for (; quad.CanStep(); quad.Step()) {
         // Plot lines between the interpolated points
@@ -1802,7 +1813,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolygon(uint32 cmdAddress) {
             lineParams.gouraudRight = quad.RightEdge().GouraudValue();
         }
 
-        if (VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams)) {
+        if (VDP1PlotLine<true, deinterlace, transparentMeshes>(coordL, coordR, lineParams, regs1, doubleDensity)) {
             if (!linePlotted) {
                 linePlotted = true;
                 ++plottedSegmentsCount;
@@ -1869,26 +1880,30 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawPolylines(uint32 cmdAddress) {
                                    (uint8)gouraudB.b, (uint8)gouraudC.r, (uint8)gouraudC.g, (uint8)gouraudC.b,
                                    (uint8)gouraudD.r, (uint8)gouraudD.g, (uint8)gouraudD.b);
 
+    const VDP1Regs &regs1 = VDP1GetRegs();
+    const VDP2Regs &regs2 = VDP2GetRegs();
+    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+
     if (mode.gouraudEnable) {
         lineParams.gouraudLeft = gouraudA;
         lineParams.gouraudRight = gouraudB;
     }
-    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams);
+    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams, regs1, doubleDensity);
     if (mode.gouraudEnable) {
         lineParams.gouraudLeft = gouraudB;
         lineParams.gouraudRight = gouraudC;
     }
-    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordB, coordC, lineParams);
+    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordB, coordC, lineParams, regs1, doubleDensity);
     if (mode.gouraudEnable) {
         lineParams.gouraudLeft = gouraudC;
         lineParams.gouraudRight = gouraudD;
     }
-    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordC, coordD, lineParams);
+    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordC, coordD, lineParams, regs1, doubleDensity);
     if (mode.gouraudEnable) {
         lineParams.gouraudLeft = gouraudD;
         lineParams.gouraudRight = gouraudA;
     }
-    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordD, coordA, lineParams);
+    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordD, coordA, lineParams, regs1, doubleDensity);
 }
 
 template <bool deinterlace, bool transparentMeshes>
@@ -1924,6 +1939,10 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
         .color = color,
     };
 
+    const VDP1Regs &regs1 = VDP1GetRegs();
+    const VDP2Regs &regs2 = VDP2GetRegs();
+    const bool doubleDensity = regs2.TVMD.LSMDn == InterlaceMode::DoubleDensity;
+
     if (mode.gouraudEnable) {
         const Color555 colorA{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 0u)};
         const Color555 colorB{.u16 = VDP1ReadRendererVRAM<uint16>(gouraudTable + 2u)};
@@ -1935,7 +1954,7 @@ void SoftwareVDPRenderer::VDP1Cmd_DrawLine(uint32 cmdAddress) {
                                        (uint8)colorA.b, (uint8)colorB.r, (uint8)colorB.g, (uint8)colorB.b);
     }
 
-    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams);
+    VDP1PlotLine<false, deinterlace, transparentMeshes>(coordA, coordB, lineParams, regs1, doubleDensity);
 }
 
 void SoftwareVDPRenderer::VDP1Cmd_SetSystemClipping(uint32 cmdAddress) {

@@ -680,9 +680,12 @@ private:
     // Should return true if at least one pixel of the line is inside the system + user clipping areas, regardless of
     // transparency, mesh, end codes, etc.
 
-    TPL_TRAITS bool VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams);
-    TPL_LINE_TRAITS bool VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams);
-    TPL_TRAITS bool VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams);
+    TPL_TRAITS bool VDP1PlotPixel(CoordS32 coord, const VDP1PixelParams &pixelParams, const VDP1Regs &regs1,
+                                  bool doubleDensity);
+    TPL_LINE_TRAITS bool VDP1PlotLine(CoordS32 coord1, CoordS32 coord2, VDP1LineParams &lineParams,
+                                      const VDP1Regs &regs1, bool doubleDensity);
+    TPL_TRAITS bool VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2, VDP1TexturedLineParams &lineParams,
+                                         const VDP1Regs &regs1, bool doubleDensity);
     TPL_TRAITS void VDP1PlotTexturedQuad(uint32 cmdAddress, VDP1Command::Control control, VDP1Command::Size size,
                                          CoordS32 coordA, CoordS32 coordB, CoordS32 coordC, CoordS32 coordD);
 
