@@ -19,6 +19,7 @@ Uses save state file version 13.
     - Metal Fighter Miku: goes in-game, no longer stuck after start menu.
     - Soviet Strike: VDP1 graphics no longer flicker.
 - Game DB: Force-enable SH-2 cache emulation for Dino Island to fix palette glitches. (#764)
+- Game DB: Force fast bus timings on Resident Evil to fix start menu crashes. (#907)
 
 
 

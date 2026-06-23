@@ -44,6 +44,7 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-3121G",    {.flags = Cart_DRAM8Mbit}}, // The King of Fighters '97 (Japan)
     {"T-1515G",    {.flags = Cart_DRAM8Mbit | ForceSH2Cache}}, // Waku Waku 7 (Japan)
 
+    // FastBusTimings and FastMC68EC000 should be removed when overall timings are improved.
     {"T-1245G", {.flags = Cart_DRAM32Mbit}}, // Dungeons and Dragons Collection (Japan)
     {"T-1248G", {.flags = Cart_DRAM32Mbit}}, // Final Fight Revenge (Japan)
     {"T-1238G", {.flags = Cart_DRAM32Mbit | FastBusTimings}}, // Marvel Super Heroes vs. Street Fighter (Japan)
@@ -52,6 +53,10 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"T-1229G", {.flags = Cart_DRAM32Mbit | FastBusTimings | FastMC68EC000}}, // Vampire Savior (Japan)
     {"6106881", {.flags = Cart_DRAM32Mbit | FastBusTimings | FastMC68EC000}}, // Vampire Savior (Japan) (Demo)
     {"T-1226G", {.flags = Cart_DRAM32Mbit | FastBusTimings}}, // X-Men vs. Street Fighter (Japan)
+
+    {"T-1221H",  {.flags = FastBusTimings}}, // Resident Evil (USA) -- freeze on title screen
+    {"MK-81092", {.flags = FastBusTimings}}, // Resident Evil (Europe) -- freeze on title screen
+    {"T-1219G",  {.flags = FastBusTimings}}, // Bio Hazard (Japan) -- freeze on title screen
 
     {"T-16804G", {.flags = Cart_BackupRAM, .cartReason = "Required for saving games"}},   // Dezaemon 2 (Japan)
     {"GS-9197",  {.flags = Cart_BackupRAM, .cartReason = "Required for saving replays"}}, // Sega Ages - Galaxy Force II (Japan)
