@@ -1279,34 +1279,34 @@ bool SoftwareVDPRenderer::VDP1PlotTexturedLine(CoordS32 coord1, CoordS32 coord2,
             color = (color >> ((~u & 1) * 4)) & 0xF;
             processEndCode(color == 0xF);
             transparent = color == 0x0;
-            color |= lineParams.colorBank & 0xFFF0;
+            color |= lineParams.colorBank;
             break;
         case 1: // 4 bpp, 16 colors, lookup table mode
             color = VDP1ReadRendererVRAM<uint8>(lineParams.charAddr + (charIndex >> 1));
             color = (color >> ((~u & 1) * 4)) & 0xF;
             processEndCode(color == 0xF);
             transparent = color == 0x0;
-            color = VDP1ReadRendererVRAM<uint16>(color * sizeof(uint16) + lineParams.colorBank * 8);
+            color = VDP1ReadRendererVRAM<uint16>(color * sizeof(uint16) + lineParams.colorBank);
             break;
         case 2: // 8 bpp, 64 colors, bank mode
             color = VDP1ReadRendererVRAM<uint8>(lineParams.charAddr + charIndex);
             processEndCode(color == 0xFF);
             transparent = color == 0x00;
             color &= 0x3F;
-            color |= lineParams.colorBank & 0xFFC0;
+            color |= lineParams.colorBank;
             break;
         case 3: // 8 bpp, 128 colors, bank mode
             color = VDP1ReadRendererVRAM<uint8>(lineParams.charAddr + charIndex);
             processEndCode(color == 0xFF);
             transparent = color == 0x00;
             color &= 0x7F;
-            color |= lineParams.colorBank & 0xFF80;
+            color |= lineParams.colorBank;
             break;
         case 4: // 8 bpp, 256 colors, bank mode
             color = VDP1ReadRendererVRAM<uint8>(lineParams.charAddr + charIndex);
             processEndCode(color == 0xFF);
             transparent = color == 0x00;
-            color |= lineParams.colorBank & 0xFF00;
+            color |= lineParams.colorBank;
             break;
         case 5: // 16 bpp, 32768 colors, RGB mode
             color = VDP1ReadRendererVRAM<uint16>(lineParams.charAddr + charIndex * sizeof(uint16));
@@ -1426,6 +1426,16 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
         .charSizeH = charSizeH,
         .charSizeV = charSizeV,
     };
+
+    // Precompute color bank masks/shifts
+    switch (mode.colorMode) {
+    case 0: lineParams.colorBank &= 0xFFF0; break; // 4 bpp, 16 colors, bank mode
+    case 1: lineParams.colorBank <<= 3u; break;    // 4 bpp, 16 colors, lookup table mode
+    case 2: lineParams.colorBank &= 0xFFC0; break; // 8 bpp, 64 colors, bank mode
+    case 3: lineParams.colorBank &= 0xFF80; break; // 8 bpp, 128 colors, bank mode
+    case 4: lineParams.colorBank &= 0xFF00; break; // 8 bpp, 256 colors, bank mode
+    case 5: break;                                 // 16 bpp, 32768 colors, RGB mode
+    }
 
     QuadStepper quad{coordA, coordB, coordC, coordD};
 
