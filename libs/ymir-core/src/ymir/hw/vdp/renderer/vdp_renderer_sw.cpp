@@ -646,6 +646,7 @@ void SoftwareVDPRenderer::VDP1RenderThread() {
             case EvtType::PostLoadStateSync:
                 rctx.vdp1.regs = m_state.regs1;
                 rctx.vdp1.mem = m_state.mem1;
+                rctx.vdp1.spriteFB = m_state.spriteFB;
                 rctx.postLoadSyncSignal.Set();
                 break;
 
