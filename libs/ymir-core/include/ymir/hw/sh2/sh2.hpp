@@ -907,6 +907,11 @@ private:
     // Raises the interrupt signal of the specified source.
     FORCE_INLINE void RaiseInterrupt(InterruptSource source) {
         const uint8 level = INTC.GetLevel(source);
+        RaiseInterrupt(source, level);
+    }
+
+    // Raises the interrupt signal of the specified source with the specified level.
+    FORCE_INLINE void RaiseInterrupt(InterruptSource source, uint8 level) {
         if (level == 0) {
             return;
         }
@@ -914,6 +919,35 @@ private:
             return;
         }
         if (level == INTC.pending.level && static_cast<uint8>(source) < static_cast<uint8>(INTC.pending.source)) {
+            return;
+        }
+        INTC.pending.level = level;
+        INTC.pending.source = source;
+        m_intrFlags.values.pending = !m_delaySlot && level > SR.ILevel;
+    }
+
+    // Raises the interrupt signal of the specified source if the predicate passes.
+    template <typename TPredicate>
+        requires std::predicate<TPredicate>
+    FORCE_INLINE void RaiseInterruptIf(InterruptSource source, TPredicate &&fnPredicate) {
+        const uint8 level = INTC.GetLevel(source);
+        RaiseInterruptIf(source, level, std::forward<TPredicate>(fnPredicate));
+    }
+
+    // Raises the interrupt signal of the specified source with the specified level if the predicate passes.
+    template <typename TPredicate>
+        requires std::predicate<TPredicate>
+    FORCE_INLINE void RaiseInterruptIf(InterruptSource source, uint8 level, TPredicate &&fnPredicate) {
+        if (level == 0) {
+            return;
+        }
+        if (level < INTC.pending.level) {
+            return;
+        }
+        if (level == INTC.pending.level && static_cast<uint8>(source) < static_cast<uint8>(INTC.pending.source)) {
+            return;
+        }
+        if (!fnPredicate()) {
             return;
         }
         INTC.pending.level = level;

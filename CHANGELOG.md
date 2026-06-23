@@ -9,6 +9,7 @@ Uses save state file version 13.
 ### New features and improvements
 
 - App: Added option to unpause emulator when loading discs. Enabled by default, which changes established behavior.
+- SH2: Interrupt recalculation microoptimizations.
 - VDP1 software renderer performance microoptimizations:
     - Do these once per command instead of per pixel:
         - Determine double density mode

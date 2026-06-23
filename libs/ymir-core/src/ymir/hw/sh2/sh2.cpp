@@ -2015,15 +2015,17 @@ void SH2::RecalcInterrupts() {
     // Check interrupts and use the vector number of the exception with highest priority
     // See documentation for InterruptSource for related registers and default/tie-breaker priority order
 
+    // HACK: should be edge-detected
+    if (INTC.NMI) [[unlikely]] {
+        INTC.pending.level = 0x10;
+        INTC.pending.source = InterruptSource::NMI;
+        m_intrFlags.values.pending = !m_delaySlot;
+        return;
+    }
+
     INTC.pending.level = 0;
     INTC.pending.source = InterruptSource::None;
     m_intrFlags.values.pending = false;
-
-    // HACK: should be edge-detected
-    if (INTC.NMI) {
-        RaiseInterrupt(InterruptSource::NMI);
-        return;
-    }
 
     // TODO: user break
     /*if (...) {
@@ -2032,65 +2034,38 @@ void SH2::RecalcInterrupts() {
     }*/
 
     // IRLs
-    if (INTC.GetLevel(InterruptSource::IRL) > 0) {
-        RaiseInterrupt(InterruptSource::IRL);
-    }
+    RaiseInterrupt(InterruptSource::IRL);
 
     // Division overflow
-    if (INTC.GetLevel(InterruptSource::DIVU_OVFI) > 0 && DIVU.DVCR.OVF && DIVU.DVCR.OVFIE) {
-        RaiseInterrupt(InterruptSource::DIVU_OVFI);
-    }
+    RaiseInterruptIf(InterruptSource::DIVU_OVFI, [this] { return DIVU.DVCR.OVF && DIVU.DVCR.OVFIE; });
 
     // DMA channel transfer end
-    if (INTC.GetLevel(InterruptSource::DMAC0_XferEnd) > 0) {
-        if (m_dmaChannels[0].xferEnded && m_dmaChannels[0].irqEnable) {
-            RaiseInterrupt(InterruptSource::DMAC0_XferEnd);
-        }
-        if (m_dmaChannels[1].xferEnded && m_dmaChannels[1].irqEnable) {
-            RaiseInterrupt(InterruptSource::DMAC1_XferEnd);
-        }
-    }
+    const uint8 levelDMAC = INTC.GetLevel(InterruptSource::DMAC0_XferEnd);
+    RaiseInterruptIf(InterruptSource::DMAC0_XferEnd, levelDMAC,
+                     [this] { return m_dmaChannels[0].xferEnded && m_dmaChannels[0].irqEnable; });
+    RaiseInterruptIf(InterruptSource::DMAC1_XferEnd, levelDMAC,
+                     [this] { return m_dmaChannels[1].xferEnded && m_dmaChannels[1].irqEnable; });
 
-    if (INTC.GetLevel(InterruptSource::WDT_ITI) > 0) {
-        // Watchdog timer
-        if (WDT.WTCSR.OVF && !WDT.WTCSR.WT_nIT) {
-            RaiseInterrupt(InterruptSource::WDT_ITI);
-        }
+    // Watchdog timer
+    const uint8 levelWDT_BSC = INTC.GetLevel(InterruptSource::WDT_ITI);
+    RaiseInterruptIf(InterruptSource::WDT_ITI, levelWDT_BSC, [this] { return WDT.WTCSR.OVF && !WDT.WTCSR.WT_nIT; });
 
-        // TODO: BSC REF CMI
-        /*if (...) {
-            RaiseInterrupt(InterruptSource::BSC_REF_CMI);
-        }*/
-    }
+    // TODO: BSC REF CMI
+    // RaiseInterruptIf(InterruptSource::BSC_REF_CMI, levelWDT_BSC, [this] { return ...; });
 
     // TODO: SCI ERI, RXI, TXI, TEI
-    // if (INTC.GetLevel(InterruptSource::SCI_ERI) > 0) {
-    //     /*if (...) {
-    //         RaiseInterrupt(InterruptSource::SCI_ERI);
-    //     }*/
-    //     /*if (...) {
-    //         RaiseInterrupt(InterruptSource::SCI_RXI);
-    //     }*/
-    //     /*if (...) {
-    //         RaiseInterrupt(InterruptSource::SCI_TXI);
-    //     }*/
-    //     /*if (...) {
-    //         RaiseInterrupt(InterruptSource::SCI_TEI);
-    //     }*/
-    // }
+    // const uint8 levelSCI = INTC.GetLevel(InterruptSource::SCI_ERI);
+    // RaiseInterruptIf(InterruptSource::SCI_ERI, levelSCI, [this] { return ...; });
+    // RaiseInterruptIf(InterruptSource::SCI_RXI, levelSCI, [this] { return ...; });
+    // RaiseInterruptIf(InterruptSource::SCI_TXI, levelSCI, [this] { return ...; });
+    // RaiseInterruptIf(InterruptSource::SCI_TEI, levelSCI, [this] { return ...; });
 
     // Free-running timer interrupts
-    if (INTC.GetLevel(InterruptSource::FRT_ICI) > 0) {
-        if (FRT.FTCSR.ICF && FRT.TIER.ICIE) {
-            RaiseInterrupt(InterruptSource::FRT_ICI);
-        }
-        if ((FRT.FTCSR.OCFA && FRT.TIER.OCIAE) || (FRT.FTCSR.OCFB && FRT.TIER.OCIBE)) {
-            RaiseInterrupt(InterruptSource::FRT_OCI);
-        }
-        if (FRT.FTCSR.OVF && FRT.TIER.OVIE) {
-            RaiseInterrupt(InterruptSource::FRT_OVI);
-        }
-    }
+    const uint8 levelFRT = INTC.GetLevel(InterruptSource::FRT_ICI);
+    RaiseInterruptIf(InterruptSource::FRT_ICI, levelFRT, [this] { return FRT.FTCSR.ICF && FRT.TIER.ICIE; });
+    RaiseInterruptIf(InterruptSource::FRT_OCI, levelFRT,
+                     [this] { return (FRT.FTCSR.OCFA && FRT.TIER.OCIAE) || (FRT.FTCSR.OCFB && FRT.TIER.OCIBE); });
+    RaiseInterruptIf(InterruptSource::FRT_OVI, levelFRT, [this] { return FRT.FTCSR.OVF && FRT.TIER.OVIE; });
 }
 
 // -------------------------------------------------------------------------
