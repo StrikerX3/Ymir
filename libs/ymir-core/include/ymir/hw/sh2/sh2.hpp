@@ -637,7 +637,7 @@ public:
         // Check if the CPU should service an interrupt.
         // Takes into account the current SR.ILevel and delay slot state.
         FORCE_INLINE bool CheckInterrupts() const {
-            return m_sh2.m_intrFlags.values.pending;
+            return m_sh2.m_intrFlags.pending;
         }
 
     private:
@@ -923,7 +923,7 @@ private:
         }
         INTC.pending.level = level;
         INTC.pending.source = source;
-        m_intrFlags.values.pending = !m_delaySlot && level > SR.ILevel;
+        m_intrFlags.pending = !m_delaySlot && level > SR.ILevel;
     }
 
     // Raises the interrupt signal of the specified source if the predicate passes.
@@ -952,7 +952,7 @@ private:
         }
         INTC.pending.level = level;
         INTC.pending.source = source;
-        m_intrFlags.values.pending = !m_delaySlot && INTC.pending.level > SR.ILevel;
+        m_intrFlags.pending = !m_delaySlot && INTC.pending.level > SR.ILevel;
     }
 
     // Lowers the interrupt signal of the specified source.
@@ -966,24 +966,21 @@ private:
     void RecalcInterrupts();
 
     // Combines both interrupt flags into a single value for faster checks in the hot path
-    union IntrFlags {
-        uint16 all;
-        struct {
-            // Whether an interrupt should be serviced on the next instruction:
-            //   !m_delaySlot && INTC.pending.level > SR.ILevel
-            // This value is updated when any of these variables is changed, which happens less often than once per
-            // instruction. There's no need to store this in the save state struct since its value can be derived as
-            // above.
-            bool pending;
+    struct IntrFlags {
+        // Whether an interrupt should be serviced on the next instruction:
+        //   !m_delaySlot && INTC.pending.level > SR.ILevel
+        // This value is updated when any of these variables is changed, which happens less often than once per
+        // instruction. There's no need to store this in the save state struct since its value can be derived as above.
+        bool pending;
 
-            // Whether an interrupt is allowed to be serviced on the next instruction.
-            // All LDC, LDS, STC and STS instructions block interrupts on the following instruction.
-            bool allow;
-        } values;
+        // Whether an interrupt is allowed to be serviced on the next instruction.
+        // All LDC, LDS, STC and STS instructions block interrupts on the following instruction.
+        bool allow;
     } m_intrFlags;
 
     // Constant value representing the condition for executing an interrupt
-    static constexpr IntrFlags kIntrFlagsPendingAllowed = {.values = {.pending = true, .allow = true}};
+    static constexpr uint16 kIntrFlagsPendingAllowed =
+        std::bit_cast<uint16_t>(IntrFlags{.pending = true, .allow = true});
 
     // -------------------------------------------------------------------------
     // Cache
