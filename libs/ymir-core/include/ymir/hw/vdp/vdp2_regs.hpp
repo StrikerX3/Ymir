@@ -490,7 +490,7 @@ struct VDP2Regs {
     }
 
     FORCE_INLINE void WriteVCNT(uint16 value) {
-        VCNT = value & 0x1FF;
+        VCNTLatch = value & 0x1FF;
     }
 
     // 18000C   -       Reserved (but not really)

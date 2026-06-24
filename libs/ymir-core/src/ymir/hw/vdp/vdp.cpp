@@ -601,6 +601,7 @@ void VDP::UpdateResolution() {
 
     // Derive right shift amount to be applied to HCNT<<1
     m_state.regs2.HCNTShift = m_state.regs2.TVMD.HRESOn <= 1   ? 1  // Normal modes: HCNT << 1
+                              : m_state.regs2.TVMD.HRESOn <= 3 ? 2  // Hi-Res modes: HCNT >> 1
                               : m_state.regs2.TVMD.HRESOn >= 6 ? 2  // Excl. Hi-Res: HCNT >> 1
                                                                : 0; // Other modes:  HCNT unchanged
 
@@ -1227,9 +1228,8 @@ FORCE_INLINE uint64 VDP::VDP1CalcCommandTiming(uint32 cmdAddress, VDP1Command::C
 
 void VDP::ExternalLatch(uint16 x, uint16 y) {
     if (m_state.regs2.EXTEN.EXLTEN) {
-        // TODO: why do we need to tweak the coords here? And why shift by 2 instead of 1?
-        m_state.regs2.WriteHCNT((x + 64u) << 2u);
-        m_state.regs2.VCNTLatch = y + 16u;
+        m_state.regs2.WriteHCNT(x << 2u);
+        m_state.regs2.VCNTLatch = y;
         m_state.regs2.TVSTAT.EXLTFG = x < m_HRes && y < m_VRes;
     }
 }
