@@ -30,13 +30,22 @@ enum class AreaCode : uint16 {
 enum class PeripheralCode : uint16 {
     None = 0,
 
-    ControlPad = 1u << 0u,    ///< (J) Control Pad
-    AnalogPad = 1u << 1u,     ///< (A) Analog controller
-    Mouse = 1u << 2u,         ///< (M) Shuttle Mouse
-    Keyboard = 1u << 3u,      ///< (K) Saturn Keyboard
-    SteeringWheel = 1u << 4u, ///< (S) Arcade Racer
-    Multitap = 1u << 5u,      ///< (T) Multitap (6Player)
-    VirtuaGun = 1u << 6u,     ///< (G) Virtua Gun
+    ControlPad = 1u << 0u,       ///< (J) Control Pad
+    ControlPad3D = 1u << 1u,     ///< (E) 3D Control Pad
+    AnalogPad = 1u << 2u,        ///< (A) Analog controller (includes 3D Control Pad, Virtua Stick)
+    Mouse = 1u << 3u,            ///< (M) Shuttle Mouse
+    Keyboard = 1u << 4u,         ///< (K) Saturn Keyboard
+    SteeringWheel = 1u << 5u,    ///< (S) Arcade Racer
+    Multitap = 1u << 6u,         ///< (T) Multitap (6Player)
+    VirtuaGun = 1u << 7u,        ///< (G) Virtua Gun
+    Pachinko = 1u << 8u,         ///< (P) Pachinko controller
+    ROMCart = 1u << 9u,          ///< (R) ROM cart (unspecified)
+    RAMCart = 1u << 10u,         ///< (W) RAM carts (size not specified)
+    LinkCableJP = 1u << 11u,     ///< (C) Link Cable (Japan)
+    LinkCableUS = 1u << 12u,     ///< (D) Link Cable (USA)
+    FloppyDiskDrive = 1u << 13u, ///< (F) Floppy Disk Drive
+    VideoCDCard = 1u << 14u,     ///< (P) Video CD Card
+    Modem = 1u << 15u,           ///< (X) X-Band/Netlink modem
 };
 
 /// @brief Converts an area code bitmask to a string

@@ -1740,8 +1740,9 @@ void runDiscInfoExtractor(int argc, char **argv) {
             const auto &path = entry.path();
             if (ymir::media::LoadDisc(path, disc, false,
                                       [&](ymir::media::MessageType category, std::string message) {})) {
-                const auto areaCode = ymir::media::AreaCodeToString(disc.header.compatAreaCode);
-                fmt::println("{:8s}  {:100}  {}", areaCode, path.filename(), disc.header.productNumber);
+                // const auto areaCode = ymir::media::AreaCodeToString(disc.header.compatAreaCode);
+                // fmt::println("{:8s}  {:100}  {}", areaCode, path.filename(), disc.header.productNumber);
+                fmt::println("{:16s}  {:100}", disc.header.rawCompatPeripherals, path.filename());
             }
         }
     }
@@ -1813,8 +1814,8 @@ int main(int argc, char **argv) {
     // }
     // runCurlSandbox();
     // runSH2PerfSandbox();
-    // runDiscInfoExtractor(argc, argv);
-    runDeadlockTest(argc, argv);
+    runDiscInfoExtractor(argc, argv);
+    // runDeadlockTest(argc, argv);
 
     return EXIT_SUCCESS;
 }

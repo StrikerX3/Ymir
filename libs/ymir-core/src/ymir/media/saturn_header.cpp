@@ -39,8 +39,9 @@ bool SaturnHeader::ReadFrom(std::span<uint8, 256> data) {
     releaseDate = ReadString(data, 0x30, 0x37);
     deviceInfo = ReadString(data, 0x38, 0x3F);
 
+    rawCompatAreaCode = ReadString(data, 0x40, 0x49);
     compatAreaCode = AreaCode::None;
-    for (char code : ReadString(data, 0x40, 0x49)) {
+    for (char code : rawCompatAreaCode) {
         switch (code) {
         case 'A': compatAreaCode |= AreaCode::AsiaPAL; break;
         case 'B': compatAreaCode |= AreaCode::CentralSouthAmericaNTSC; break;
@@ -53,16 +54,26 @@ bool SaturnHeader::ReadFrom(std::span<uint8, 256> data) {
         }
     }
 
+    rawCompatPeripherals = ReadString(data, 0x50, 0x5F);
     compatPeripherals = PeripheralCode::None;
-    for (char code : ReadString(data, 0x50, 0x5F)) {
+    for (char code : rawCompatPeripherals) {
         switch (code) {
         case 'A': compatPeripherals |= PeripheralCode::AnalogPad; break;
+        case 'C': compatPeripherals |= PeripheralCode::LinkCableJP; break;
+        case 'D': compatPeripherals |= PeripheralCode::LinkCableUS; break;
+        case 'E': compatPeripherals |= PeripheralCode::ControlPad3D; break;
+        case 'F': compatPeripherals |= PeripheralCode::FloppyDiskDrive; break;
         case 'G': compatPeripherals |= PeripheralCode::VirtuaGun; break;
         case 'J': compatPeripherals |= PeripheralCode::ControlPad; break;
         case 'K': compatPeripherals |= PeripheralCode::Keyboard; break;
         case 'M': compatPeripherals |= PeripheralCode::Mouse; break;
+        case 'P': compatPeripherals |= PeripheralCode::VideoCDCard; break;
+        case 'Q': compatPeripherals |= PeripheralCode::Pachinko; break;
+        case 'R': compatPeripherals |= PeripheralCode::ROMCart; break;
         case 'S': compatPeripherals |= PeripheralCode::SteeringWheel; break;
         case 'T': compatPeripherals |= PeripheralCode::Multitap; break;
+        case 'W': compatPeripherals |= PeripheralCode::RAMCart; break;
+        case 'X': compatPeripherals |= PeripheralCode::Modem; break;
         }
     }
 

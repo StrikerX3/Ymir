@@ -68,6 +68,7 @@ struct SaturnHeader {
     std::string version;              // [2A-2F] Version (usually "XX-#####")
     std::string releaseDate;          // [30-37] Release date (YYYYMMDD)
     std::string deviceInfo;           // [38-3F] Device information (usually "CD-#/#")
+    std::string rawCompatAreaCode;    // [40-49] Compatible area symbols (raw string)
     AreaCode compatAreaCode;          // [40-49] Compatible area symbols
                                       //           A = Asia PAL
                                       //           B = Central/South America NTSC
@@ -77,14 +78,24 @@ struct SaturnHeader {
                                       //           L = Central/South America PAL
                                       //           T = Asia NTSC
                                       //           U = North America
+    std::string rawCompatPeripherals; // [50-5F] Compatible peripherals (raw string)
     PeripheralCode compatPeripherals; // [50-5F] Compatible peripherals
-                                      //           A = Analog controller
+                                      //           A = Analog controller (includes 3D Control Pad, Virtua Stick)
+                                      //           C = Link Cable (Japan)
+                                      //           D = Link Cable (USA)
+                                      //           E = 3D Control Pad
+                                      //           F = Floppy Disk Drive
                                       //           G = Virtua Gun
-                                      //           J = Standard controller
+                                      //           J = Standard Pad (mandatory for all games)
                                       //           K = Keyboard
-                                      //           M = Mouse
-                                      //           S = Steering controller
+                                      //           M = Shuttle Mouse
+                                      //           P = Video CD Card
+                                      //           Q = Pachinko controller
+                                      //           R = ROM cart (unspecified)
+                                      //           S = Arcade Racer
                                       //           T = Multitap
+                                      //           W = RAM carts (size not specified)
+                                      //           X = X-Band/Netlink modem
     std::string gameTitle;            // [60-CF] Game title
     uint32 ipSize;                    // [E0-E3] Initial Program size
     uint32 masterStackSize;           // [E8-EB] Master SH-2 stack size
