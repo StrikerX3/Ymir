@@ -428,14 +428,14 @@ InputService::InputService(SharedContext &context, Settings &settings, InputServ
         };
 
         auto registerAnalogStick = [&](input::Action action) {
-            inputContext.SetAxis2DHandler(action,
-                                          [](void *context, const input::InputElement &element, float x, float y) {
-                                              auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
-                                              auto &analogInput = input.analogStickInputs[element];
-                                              analogInput.x = x;
-                                              analogInput.y = y;
-                                              input.UpdateAnalogStick();
-                                          });
+            inputContext.SetAxis2DHandler(
+                action, [this](void *context, const input::InputElement &element, float x, float y) {
+                    auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
+                    auto &analogInput = input.analogStickInputs[element];
+                    analogInput.x = x;
+                    analogInput.y = y;
+                    input.UpdateAnalogStick(m_settings.input.gamepad.analogToDigitalSensitivity);
+                });
         };
 
         auto registerDigitalTrigger = [&](input::Action action, bool which /*false=L, true=R*/) {
@@ -466,6 +466,8 @@ InputService::InputService(SharedContext &context, Settings &settings, InputServ
             inputContext.SetTriggerHandler(action, [&](void *context, const input::InputElement &element) {
                 auto &input = *reinterpret_cast<SharedContext::AnalogPadInput *>(context);
                 input.analogMode ^= true;
+                // Update D-Pad status in case an analog stick was pushed while switchin modes
+                input.UpdateDPad(m_settings.input.gamepad.analogToDigitalSensitivity);
                 int portNum = (context == &m_context.analogPadInputs[0]) ? 1 : 2;
                 m_context.DisplayMessage(fmt::format("Port {} 3D Control Pad switched to {} mode", portNum,
                                                      (input.analogMode ? "analog" : "digital")));

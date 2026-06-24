@@ -408,6 +408,14 @@ struct SharedContext {
                 y += inputs.y;
             }
 
+            // Also aggregate analog stick inputs if in digital mode
+            if (!analogMode) {
+                for (auto &[_, inputs] : analogStickInputs) {
+                    x += inputs.x;
+                    y += inputs.y;
+                }
+            }
+
             // Clamp to -1.0..1.0
             x = std::clamp(x, -1.0f, 1.0f);
             y = std::clamp(y, -1.0f, 1.0f);
@@ -418,7 +426,7 @@ struct SharedContext {
                 ~input::AnalogToDigital2DAxis(x, y, sensitivity, Button::Right, Button::Left, Button::Down, Button::Up);
         }
 
-        void UpdateAnalogStick() {
+        void UpdateAnalogStick(float sensitivity) {
             // Aggregate all analog stick inputs
             x = 0.0f;
             y = 0.0f;
@@ -430,6 +438,11 @@ struct SharedContext {
             // Clamp to -1.0..1.0
             x = std::clamp(x, -1.0f, 1.0f);
             y = std::clamp(y, -1.0f, 1.0f);
+
+            // Also update DPad in digital mode
+            if (!analogMode) {
+                UpdateDPad(sensitivity);
+            }
         }
 
         void UpdateAnalogTriggers() {
