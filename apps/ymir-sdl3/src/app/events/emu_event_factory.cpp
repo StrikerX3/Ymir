@@ -383,6 +383,13 @@ EmuEvent InsertCartridgeFromSettings() {
             break;
 
         case Settings::Cartridge::Type::BackupRAM: {
+            // Use default path for specified size
+            if (cartSettings.backupRAM.imagePath.empty()) {
+                cartSettings.backupRAM.imagePath =
+                    ctx.profile.GetPath(ProfilePath::PersistentState) /
+                    fmt::format("bup-ext-{}M.bin", CapacityToSize(cartSettings.backupRAM.capacity) * 8 / 1024 / 1024);
+            }
+
             // Prevent loading the internal backup RAM file as backup memory cartridge
             if (std::filesystem::absolute(cartSettings.backupRAM.imagePath) ==
                 std::filesystem::absolute(settings.system.internalBackupRAMImagePath)) {
@@ -390,13 +397,6 @@ EmuEvent InsertCartridgeFromSettings() {
                     "Failed to load external backup memory: file {} is already in use as internal backup memory",
                     cartSettings.backupRAM.imagePath)));
                 return;
-            }
-
-            // Use default path for specified size
-            if (cartSettings.backupRAM.imagePath.empty()) {
-                cartSettings.backupRAM.imagePath =
-                    ctx.profile.GetPath(ProfilePath::PersistentState) /
-                    fmt::format("bup-ext-{}M.bin", CapacityToSize(cartSettings.backupRAM.capacity) * 8 / 1024 / 1024);
             }
 
             // If a backup RAM cartridge is inserted, remove it first to unlock the file and reinsert the previous
