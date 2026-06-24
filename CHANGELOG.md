@@ -32,6 +32,8 @@ Uses save state file version 13.
 - Input: Make 3D Control Pad peripheral report in digital mode match the Standard Pad. Fixes broken inputs in digital mode in the following games:
     - Bug Too! (#622)
     - Black/Matrix (#861)
+- SMPC: Update peripheral PDR1/2 registers when reading and when updating EXLE. Fixes many cases of games not recognizing Virtua Gun inputs or missing shots. (#787)
+- VDP2: Fix coordinate latching on external latches. Fixes various Virtua Gun shot offset errors. (#787)
 
 
 
