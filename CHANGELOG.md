@@ -34,6 +34,7 @@ Uses save state file version 13.
     - Bug Too! (#622)
     - Black/Matrix (#861)
 - SMPC: Update peripheral PDR1/2 registers when reading and when updating EXLE. Fixes many cases of games not recognizing Virtua Gun inputs or missing shots. (#787)
+- VDP1: Don't sync VDP1 FBRAM on debug reads. Fixes deadlock when viewing the framebuffer area in a memory viewer window.
 - VDP2: Fix coordinate latching on external latches. Fixes various Virtua Gun shot offset errors. (#787)
 
 

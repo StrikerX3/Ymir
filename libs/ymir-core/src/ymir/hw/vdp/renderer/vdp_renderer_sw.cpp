@@ -343,9 +343,7 @@ void SoftwareVDPRenderer::VDP1SyncFB() {
     }
 }
 
-FLATTEN void SoftwareVDPRenderer::VDP1DebugSyncFB() {
-    VDP1SyncFB();
-}
+void SoftwareVDPRenderer::VDP1DebugSyncFB() {}
 
 void SoftwareVDPRenderer::VDP1WriteFB(uint32 address, uint8 value) {
     VDP1WriteFBImpl(address, value);
