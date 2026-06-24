@@ -494,6 +494,7 @@ FORCE_INLINE uint8 SMPC::ReadPDR1() const {
     if constexpr (peek) {
         return PDR1;
     } else {
+        const_cast<SMPC *>(this)->WritePDR1<false>(PDR1);
         return (PDR1 & 0x7F) | (m_busValue & 0x80);
     }
 }
@@ -503,6 +504,7 @@ FORCE_INLINE uint8 SMPC::ReadPDR2() const {
     if constexpr (peek) {
         return PDR2;
     } else {
+        const_cast<SMPC *>(this)->WritePDR2<false>(PDR2);
         return (PDR2 & 0x7F) | (m_busValue & 0x80);
     }
 }
@@ -628,6 +630,8 @@ FORCE_INLINE void SMPC::WriteIOSEL(uint8 value) {
 FORCE_INLINE void SMPC::WriteEXLE(uint8 value) {
     m_extLatchEnable1 = bit::test<0>(value);
     m_extLatchEnable2 = bit::test<1>(value);
+    WritePDR1<false>(PDR1);
+    WritePDR2<false>(PDR2);
 }
 
 void SMPC::ProcessCommand() {
