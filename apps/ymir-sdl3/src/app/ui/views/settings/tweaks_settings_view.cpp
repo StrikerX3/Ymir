@@ -183,8 +183,6 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     if (MakeDirty(ImGui::Button("Recommended##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(false));
 
-        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
-
         settings.system.emulateSH2Cache = false;
         settings.system.sh2ClockFactor = config_defaults::system::kDefaultSH2ClockFactor;
 
@@ -203,8 +201,6 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Best accuracy##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(true));
-
-        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(true));
 
         settings.system.emulateSH2Cache = true;
         settings.system.sh2ClockFactor = config_defaults::system::kDefaultSH2ClockFactor;
@@ -227,8 +223,6 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
     ImGui::SameLine();
     if (MakeDirty(ImGui::Button("Best performance##accuracy"))) {
         m_context.EnqueueEvent(events::emu::SetEmulateSH2Cache(false));
-
-        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
 
         settings.system.emulateSH2Cache = false;
         settings.system.sh2ClockFactor = config_defaults::system::kDefaultSH2ClockFactor;
