@@ -2196,7 +2196,7 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
 
 template <bool debug, bool emulateCache>
 FORCE_INLINE uint64 SH2::InterpretNext() {
-    if (std::bit_cast<uint16_t>(m_intrFlags) == kIntrFlagsPendingAllowed) [[unlikely]] {
+    if (std::bit_cast<uint16>(m_intrFlags) == kIntrFlagsPendingAllowed) [[unlikely]] {
         // Service interrupt
         const uint8 vecNum = INTC.GetVector(INTC.pending.source);
         TraceInterrupt<debug>(m_tracer, vecNum, INTC.pending.level, INTC.pending.source, PC);
@@ -3283,8 +3283,10 @@ template <bool debug, bool emulateCache, bool delaySlot>
 FORCE_INLINE uint64 SH2::LDCSR(uint16 opcode) {
     DECODE_M
     SR.u32 = R[rm] & 0x000003F3;
-    m_intrFlags.pending = !delaySlot && INTC.pending.level > SR.ILevel;
-    m_intrFlags.allow = false;
+    m_intrFlags = std::bit_cast<IntrFlags>(std::bit_cast<uint16>(IntrFlags{
+        .pending = !delaySlot && INTC.pending.level > SR.ILevel,
+        .allow = false,
+    }));
     AdvancePC<debug, emulateCache, delaySlot>();
     const uint64 cycles = WritebackCycles(rm) + 1;
     m_wbReg = kWBRegNone;
@@ -3437,10 +3439,12 @@ FORCE_INLINE uint64 SH2::LDCMSR(uint16 opcode) {
     const uint32 address = R[rm];
     const uint64 cycles = AccessCycles<uint32, false, emulateCache>(address) + WritebackCycles(rm) + 2;
     SR.u32 = MemReadLong<emulateCache>(address) & 0x000003F3;
-    m_intrFlags.pending = !delaySlot && INTC.pending.level > SR.ILevel;
+    m_intrFlags = std::bit_cast<IntrFlags>(std::bit_cast<uint16>(IntrFlags{
+        .pending = !delaySlot && INTC.pending.level > SR.ILevel,
+        .allow = false,
+    }));
     R[rm] += 4;
     TracePopFromStack<debug>(m_tracer, rm, R[15]);
-    m_intrFlags.allow = false;
     AdvancePC<debug, emulateCache, delaySlot>();
     m_wbReg = kWBRegNone;
     return cycles;
