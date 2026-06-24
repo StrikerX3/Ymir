@@ -65,7 +65,7 @@ void AnalogPad::Read(std::span<uint8> out) {
         // [1] 7-3 = R, X, Y, Z, L; 2-0 = fixed 0b100
         assert(out.size() == 2);
         out[0] = bit::extract<8, 15>(btnValue);
-        out[1] = (bit::extract<3, 7>(btnValue) << 3) | 0b100;
+        out[1] = (bit::extract<3, 7>(btnValue) << 3) | 0b111;
     }
 }
 

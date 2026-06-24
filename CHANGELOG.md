@@ -28,6 +28,9 @@ Uses save state file version 13.
     - Soviet Strike: VDP1 graphics no longer flicker.
 - GameDB: Force-enable SH-2 cache emulation for Dino Island to fix palette glitches. (#764)
 - GameDB: Force fast bus timings on Resident Evil to fix start menu crashes. (#907)
+- Input: Make 3D Control Pad peripheral report in digital mode match the Standard Pad. Fixes broken inputs in digital mode in the following games:
+    - Bug Too! (#622)
+    - Black/Matrix (#861)
 
 
 
