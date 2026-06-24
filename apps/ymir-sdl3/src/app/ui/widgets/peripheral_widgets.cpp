@@ -64,7 +64,9 @@ bool PeripheralSelector(SharedContext &ctx, uint32 portIndex) {
         if (periph.GetType() == peripheral::PeripheralType::VirtuaGun) {
             ImGui::TextColored(ctx.colors.notice, "Virtua Gun is EXPERIMENTAL and has several ");
             ImGui::SameLine(0, 0);
+            ImGui::PushID(portIndex);
             ImGui::TextLinkOpenURL("known issues", "https://github.com/StrikerX3/Ymir/issues/787");
+            ImGui::PopID();
         }
     }
 

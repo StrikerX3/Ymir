@@ -836,16 +836,16 @@ InputService::InputService(SharedContext &context, Settings &settings, InputServ
         }
     }
 
-    if (auto mouseCaptureService = m_context.serviceLocator.Get<MouseCaptureService>()) {
-        m_settings.input.mouse.captureMode.ObserveAndNotify(
-            [mouseCaptureService](Settings::Input::Mouse::CaptureMode) { mouseCaptureService->ReleaseAllMice(); });
-    }
-
     RebindInputs();
 }
 
 void InputService::RebindInputs() {
     m_settings.RebindInputs();
+
+    if (auto mouseCaptureService = m_context.serviceLocator.Get<MouseCaptureService>()) {
+        m_settings.input.mouse.captureMode.ObserveAndNotify(
+            [mouseCaptureService](Settings::Input::Mouse::CaptureMode) { mouseCaptureService->ReleaseAllMice(); });
+    }
 }
 
 void InputService::UpdateInputs(double timeDelta) {
