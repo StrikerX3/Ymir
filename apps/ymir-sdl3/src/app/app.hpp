@@ -19,24 +19,8 @@
 
 #include "services/window_manager_service.hpp"
 
-#include <ymir/hw/smpc/peripheral/peripheral_report.hpp>
-
-#include <util/rom_loader.hpp>
-
-#include <ymir/util/dev_log.hpp>
-
-#include <SDL3/SDL_dialog.h>
-#include <SDL3/SDL_properties.h>
-
-#include <imgui.h>
-
 #include <chrono>
-#include <filesystem>
-#include <set>
-#include <string_view>
 #include <thread>
-#include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace app {

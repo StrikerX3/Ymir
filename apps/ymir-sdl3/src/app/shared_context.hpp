@@ -194,6 +194,7 @@ struct SharedContext {
     } saturn;
 
     AudioSystem audioSystem;
+    std::chrono::steady_clock::time_point lastVolumeChangeTime;
 
     float displayScale = 1.0f;
 

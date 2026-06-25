@@ -88,14 +88,17 @@ InputService::InputService(SharedContext &context, Settings &settings, InputServ
     // Audio
     {
         inputContext.SetTriggerHandler(actions::audio::ToggleMute, [&](void *, const input::InputElement &) {
+            m_context.lastVolumeChangeTime = clk::now();
             m_settings.audio.mute = !m_settings.audio.mute;
             m_settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::audio::IncreaseVolume, [&](void *, const input::InputElement &) {
+            m_context.lastVolumeChangeTime = clk::now();
             m_settings.audio.volume = std::min(m_settings.audio.volume + 0.1f, 1.0f);
             m_settings.MakeDirty();
         });
         inputContext.SetTriggerHandler(actions::audio::DecreaseVolume, [&](void *, const input::InputElement &) {
+            m_context.lastVolumeChangeTime = clk::now();
             m_settings.audio.volume = std::max(m_settings.audio.volume - 0.1f, 0.0f);
             m_settings.MakeDirty();
         });

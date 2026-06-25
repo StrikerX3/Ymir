@@ -9,6 +9,7 @@ Uses save state file version 13.
 ### New features and improvements
 
 - App: Added option to unpause emulator when loading discs. Enabled by default, which changes established behavior.
+- App: Display volume indicator on the top-right corner of the window for a few seconds after adjustments.
 - Input: Convert 3D Control Pad analog stick to D-Pad inputs when in digital mode.
 - SH2: Interrupt recalculation microoptimizations.
 - VDP1: Software renderer performance microoptimizations:

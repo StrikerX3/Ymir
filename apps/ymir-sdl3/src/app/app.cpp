@@ -2706,11 +2706,12 @@ void App::RunEmulator() {
                 static constexpr float kBaseTextShadowOffset = 1.0f;
                 static constexpr sint64 kBlinkInterval = 700;
                 const float size = kBaseSize * m_context.displayScale;
+                const float fontSizeMedium = m_context.fontSizes.medium * m_context.displayScale;
                 const float padding = kBasePadding * m_context.displayScale;
                 const float shadowOffset = kBaseShadowOffset * m_context.displayScale;
                 const float textShadowOffset = kBaseTextShadowOffset * m_context.displayScale;
                 ImFont *font = m_context.fonts.sansSerif.regular;
-                ImGui::PushFont(font, size);
+                ImGui::PushFont(font, kBaseSize);
                 const ImVec2 charSize = ImGui::CalcTextSize(ICON_MS_PLAY_ARROW);
                 ImGui::PopFont();
 
@@ -2767,33 +2768,91 @@ void App::RunEmulator() {
                                              br.y + textPadding.y);
                         const ImVec2 textPos(rectPos.x + textPadding.x, rectPos.y + textPadding.y);
 
-                        drawList->AddText(m_context.fonts.sansSerif.regular,
-                                          m_context.fontSizes.medium * m_context.displayScale,
+                        drawList->AddText(m_context.fonts.sansSerif.regular, fontSizeMedium,
                                           ImVec2(textPos.x + textShadowOffset, textPos.y + textShadowOffset),
                                           ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 0.85f)), speed.c_str());
-                        drawList->AddText(m_context.fonts.sansSerif.regular,
-                                          m_context.fontSizes.medium * m_context.displayScale, textPos,
+                        drawList->AddText(m_context.fonts.sansSerif.regular, fontSizeMedium, textPos,
                                           ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.00f)), speed.c_str());
                     } else if (rev) {
                         drawIndicator(tl, alpha, size, ICON_MS_ARROW_BACK_2);
                     }
                 }
 
-                // Draw sound mute indicator
-                if (m_context.audioSystem.IsMute() || m_context.audioSystem.GetGain() == 0.0f) {
-                    static constexpr float kMuteBaseSize = 30.0f;
-                    static constexpr float kMuteBasePadding = 10.0f;
-                    const float muteSize = kMuteBaseSize * m_context.displayScale;
-                    const float mutePadding = kMuteBasePadding * m_context.displayScale;
-                    const char *icon = m_context.audioSystem.IsMute() ? ICON_MS_VOLUME_OFF : ICON_MS_VOLUME_MUTE;
+                // Draw sound volume/mute indicator
+                {
+                    static constexpr auto kDisplayDuration = 1.5s; // how long to display indicator at full alpha
+                    static constexpr auto kFadeOutDuration = 0.5s; // how long to fade out
+                    static constexpr auto kTotalDisplayDuration =
+                        kDisplayDuration + kFadeOutDuration; // total time displaying the indicator
+                    static constexpr float kIconBaseSize = 30.0f;
+                    static constexpr float kIconBasePadding = 10.0f;
+                    static constexpr float kVolumeBarBaseWidth = 100.0f;
+                    static constexpr float kVolumeBarBaseHeight = 15.0f;
+                    static constexpr float kVolumeBarYFudge = 3.0f; // compensate for Material Symbols char height
+                    const float iconSize = kIconBaseSize * m_context.displayScale;
+                    const float iconPadding = kIconBasePadding * m_context.displayScale;
+                    const float volumeBarWidth = kVolumeBarBaseWidth * m_context.displayScale;
+                    const float volumeBarHeight = kVolumeBarBaseHeight * m_context.displayScale;
+                    const float volumeBarYFudge = kVolumeBarYFudge * m_context.displayScale;
+                    const float gain = m_context.audioSystem.GetGain();
+                    const bool mute = m_context.audioSystem.IsMute();
+                    const bool forceDisplay = mute || gain == 0.0f;
+                    const char *icon = mute           ? ICON_MS_VOLUME_OFF
+                                       : gain == 0.0f ? ICON_MS_VOLUME_MUTE
+                                       : gain < 0.6f  ? ICON_MS_VOLUME_DOWN
+                                                      : ICON_MS_VOLUME_UP;
+                    const auto dt = clk::now() - m_context.lastVolumeChangeTime;
+                    const float baseAlpha =
+                        dt <= kDisplayDuration
+                            ? 1.0f
+                            : std::clamp(1.0f - std::chrono::duration<float>(dt - kDisplayDuration).count() /
+                                                    std::chrono::duration<float>(kFadeOutDuration).count(),
+                                         0.0f, 1.0f);
 
-                    ImGui::PushFont(font, muteSize);
-                    const ImVec2 charSize = ImGui::CalcTextSize(icon);
-                    ImGui::PopFont();
+                    if (forceDisplay || dt <= kTotalDisplayDuration) {
+                        const float iconAlpha = (forceDisplay ? 1.0f : baseAlpha) * 0.9f;
 
-                    const ImVec2 tlMute{viewport->WorkPos.x + viewport->WorkSize.x - mutePadding - charSize.x,
-                                        viewport->WorkPos.y + mutePadding};
-                    drawIndicator(tlMute, 0.9, muteSize, icon);
+                        // Top-right anchor point
+                        const ImVec2 anchor{viewport->WorkPos.x + viewport->WorkSize.x - iconPadding,
+                                            viewport->WorkPos.y + iconPadding};
+
+                        ImGui::PushFont(font, kIconBaseSize);
+                        const ImVec2 charSize = ImGui::CalcTextSize(icon);
+                        ImGui::PopFont();
+
+                        const ImVec2 tlIcon{anchor.x - charSize.x, anchor.y};
+                        drawIndicator(tlIcon, iconAlpha, iconSize, icon);
+
+                        if (dt <= kTotalDisplayDuration) {
+                            const float volumeAlpha = baseAlpha * 0.9f;
+
+                            // Volume bar
+                            const float rightEdgeX = volumeBarWidth * gain;
+                            const float rightEdgeY = volumeBarHeight * gain;
+                            const ImVec2 p1{anchor.x - charSize.x - iconPadding - volumeBarWidth,
+                                            anchor.y + (volumeBarHeight + charSize.y) * 0.5f + volumeBarYFudge};
+                            const ImVec2 p2{p1.x + rightEdgeX, p1.y};
+                            const ImVec2 p3{p1.x + rightEdgeX, p1.y - rightEdgeY};
+                            const ImVec2 sp1{p1.x + shadowOffset, p1.y + shadowOffset};
+                            const ImVec2 sp2{p2.x + shadowOffset, p2.y + shadowOffset};
+                            const ImVec2 sp3{p3.x + shadowOffset, p3.y + shadowOffset};
+                            drawList->AddTriangleFilled(
+                                sp1, sp3, sp2, ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, volumeAlpha * 0.65f)));
+                            drawList->AddTriangleFilled(p1, p3, p2,
+                                                        ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, volumeAlpha)));
+
+                            // Volume text
+                            std::string volumeText = fmt::format("{}%", std::round(gain * 100.0f));
+                            if (mute) {
+                                volumeText = fmt::format("(Mute) {}", volumeText);
+                            }
+                            ImGui::PushFont(font, m_context.fontSizes.medium);
+                            const ImVec2 volumeTextSize = ImGui::CalcTextSize(volumeText.c_str());
+                            ImGui::PopFont();
+                            const ImVec2 volumeTextPos{p1.x - iconPadding - volumeTextSize.x, p1.y - volumeTextSize.y};
+                            drawIndicator(volumeTextPos, volumeAlpha, fontSizeMedium, volumeText.c_str());
+                        }
+                    }
                 }
             }
 
