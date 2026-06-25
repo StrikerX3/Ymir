@@ -105,6 +105,7 @@ Here are a few things you can try to improve performance besides upgrading the C
 - In **Settings > CD Block**, disable **Use low level CD Block emulation**. Most games work fine without it.
 - In **Settings > System**:
   - Lower the **SH-2 clock ratio** *carefully*. Most games take the slower CPU gracefully, but a few might break.
+    - If games break due to this setting, reset it to 100%. Issue reports for problems caused by tweaking this will be rejected.
   - Disable **Emulate SH-2 cache** if possible. Most games work fine without it.
     - This option is force-enabled with a few select games.
 - In **Settings > Audio**, set **Emulation step granularity** to the minimum possible value of **0**, all the way to the left. It should read **Step size: 32 slots (1 sample)**.

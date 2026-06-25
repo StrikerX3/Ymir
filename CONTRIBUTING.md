@@ -13,7 +13,7 @@ Before reporting bugs, make sure you also test the [latest nightly build](https:
 Also refer to the [troubleshooting guide](TROUBLESHOOTING.md) for further instructions that might solve the issue.
 
 Make sure to test the game with the recommended or accurate presets -- go to **Settings > Tweaks** and click the **Recommended** or **Best compatibility/accuracy** buttons in all sections. Specifically:
-- SH-2 clock ratio **must be** at 100%. Users reporting issues where this option is not at the default setting will be asked to retry with this option at 100%.
+- SH-2 clock ratio **must be** at 100% and CD read speed **must be** at 2x. Users reporting issues where these options are not at the default settings will be asked to retry with the defaults.
 - Graphics issues that only occur with the **Deinterlace video** or **Transparent meshes** must be reported as such.
 - Games that are fixed by enabling **Emulate SH-2 cache**, tuning **Emulation step granularity** or enabling **Use low level CD Block emulation** should be reported in the [compatibility list](https://docs.google.com/spreadsheets/d/1SLZzL9LelSlpEmTKy8cjaQnE7mew2uW1rfCgcekO58Q/edit?usp=sharing) instead. They might be added to the internal database if this is the only way they will work.
 - Any threading issues should be reported in the dedicated issues. Threaded VDP2 and deinterlacing never cause issues, but threaded VDP1 and SCSP might.
