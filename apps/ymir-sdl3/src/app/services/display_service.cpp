@@ -42,7 +42,7 @@ void DisplayService::RescaleUI(float displayScale) {
 }
 
 ImGuiStyle &DisplayService::ReloadStyle(float displayScale) {
-    ImGuiStyle &style = ImGui::GetStyle();
+    ImGuiStyle style{};
     style.WindowPadding = ImVec2(6, 6);
     style.FramePadding = ImVec2(4, 3);
     style.ItemSpacing = ImVec2(7, 4);
@@ -87,7 +87,7 @@ ImGuiStyle &DisplayService::ReloadStyle(float displayScale) {
     style.FontScaleMain = displayScale;
 
     // Setup Dear ImGui colors
-    ImVec4 *colors = ImGui::GetStyle().Colors;
+    ImVec4 *colors = style.Colors;
     colors[ImGuiCol_Text] = ImVec4(0.91f, 0.92f, 0.94f, 1.00f);
     colors[ImGuiCol_TextDisabled] = ImVec4(0.38f, 0.39f, 0.41f, 1.00f);
     colors[ImGuiCol_WindowBg] = ImVec4(0.05f, 0.06f, 0.08f, 0.95f);
@@ -152,7 +152,9 @@ ImGuiStyle &DisplayService::ReloadStyle(float displayScale) {
     colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
     colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.07f, 0.07f, 0.07f, 0.35f);
 
-    return style;
+    ImGui::GetStyle() = style;
+
+    return ImGui::GetStyle();
 }
 
 void DisplayService::LoadFonts() {
