@@ -1458,8 +1458,10 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP1PlotTexturedQuad(uint32 cmdAddress, V
         lineParams.gouraudRight = &quad.RightEdge().Gouraud();
     }
 
+    // A width of zero results in the first fetched texel being used for the entire texture.
+    // We simulate this by reducing the texture height to one.
     const bool flipV = control.flipV;
-    quad.SetupTexture(lineParams.texVStepper, charSizeV, flipV);
+    quad.SetupTexture(lineParams.texVStepper, charSizeH == 0 ? 1 : charSizeV, flipV);
 
     // Optimization for the case where the quad goes outside the system clipping area.
     // Skip rendering the rest of the quad when a line is clipped after plotting at least one line.
