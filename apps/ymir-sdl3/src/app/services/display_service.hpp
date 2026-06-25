@@ -22,8 +22,7 @@ public:
 
     /// @brief Reloads the ImGui colors and style properties.
     /// @param[in] displayScale UI scale factor to adjust spacing/padding.
-    /// @return Reference to the updated ImGui style.
-    ImGuiStyle &ReloadStyle(float displayScale);
+    void ReloadStyle(float displayScale);
 
     /// @brief Registers embedded fonts with ImGui.
     void LoadFonts();

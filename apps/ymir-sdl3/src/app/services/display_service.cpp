@@ -41,7 +41,10 @@ void DisplayService::RescaleUI(float displayScale) {
     ReloadStyle(m_context.displayScale);
 }
 
-ImGuiStyle &DisplayService::ReloadStyle(float displayScale) {
+void DisplayService::ReloadStyle(float displayScale) {
+    // Create a new style from scratch because ImGuiStyle::ScaleAllSizes(...) multiplies and rounds existing values,
+    // causing successive display scale changes to accumulate error and scaling from previous changes.
+
     ImGuiStyle style{};
     style.WindowPadding = ImVec2(6, 6);
     style.FramePadding = ImVec2(4, 3);
@@ -153,8 +156,6 @@ ImGuiStyle &DisplayService::ReloadStyle(float displayScale) {
     colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.07f, 0.07f, 0.07f, 0.35f);
 
     ImGui::GetStyle() = style;
-
-    return ImGui::GetStyle();
 }
 
 void DisplayService::LoadFonts() {
