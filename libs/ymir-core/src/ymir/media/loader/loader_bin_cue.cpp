@@ -556,7 +556,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 accumGaps = 0;
             } else {
                 // Continuing in the same file
-                trackSectors = sheetTrack->indexes[0].pos - prevTrack.startFrameAddress + 150;
+                trackSectors = sheetTrack->indexes[0].pos - prevSheetTrack.indexes[0].pos;
             }
             const uint32 gapSectors = prevSheetTrack.pregap + prevSheetTrack.postgap;
             trackSectors += gapSectors;
@@ -605,10 +605,12 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
             prevTrack.binaryReader = std::make_unique<SharedSubviewBinaryReader>(reader, binOffset, trackSizeBytes,
                                                                                  pregapBytes, postgapBytes);
 
-            debugMsg(fmt::format(
-                "BIN/CUE: Track {:02d} closed, file offset = {:8X}, FAD range: {:06X}-{:06X}, index 01 FAD: {:06X}",
-                sheetTrackIndex, binOffset, prevTrack.startFrameAddress, prevTrack.endFrameAddress,
-                prevTrack.index01FrameAddress));
+            debugMsg(fmt::format("BIN/CUE: Track {:02d} closed, file offset = {:8X}, FAD range: {:06X}-{:06X}, index "
+                                 "01 FAD: {:06X}, indices 0,1: {:06X}-{:06X} {:06X}-{:06X}, sectors: {:X}",
+                                 sheetTrackIndex, binOffset, prevTrack.startFrameAddress, prevTrack.endFrameAddress,
+                                 prevTrack.index01FrameAddress, prevTrack.indices[0].startFrameAddress,
+                                 prevTrack.indices[0].endFrameAddress, prevTrack.indices[1].startFrameAddress,
+                                 prevTrack.indices[1].endFrameAddress, trackSectors));
 
             // TODO: for data tracks with at least the header bytes available, manually scan sectors to find the
             // *actual* end of the track, because some dumps are just bad
@@ -681,6 +683,9 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
             for (uint32 j = 0; j < sheetTrack.indexes.size(); ++j) {
                 auto &sheetIndex = sheetTrack.indexes[j];
                 auto &index = track.indices.emplace_back();
+                if (j == 0) {
+                    accumGaps += sheetTrack.pregap + sheetTrack.postgap;
+                }
                 index.startFrameAddress = sheetIndex.pos + currFileFrameAddress + accumGaps;
                 if (j > 0) {
                     // Close previous index
@@ -693,9 +698,6 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     } else {
                         track.index01FrameAddress = frameAddress + sheetTrack.pregap;
                     }
-                }
-                if (j == 0) {
-                    accumGaps += sheetTrack.pregap + sheetTrack.postgap;
                 }
             }
         }
