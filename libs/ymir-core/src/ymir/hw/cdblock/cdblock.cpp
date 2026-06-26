@@ -723,7 +723,7 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         repeatParam = m_playRepeatParam;
     }
 
-    const bool resetPos = !keepRepeatParam && !bit::test<15>(repeatParam);
+    const bool resetPos = !keepRepeatParam && !bit::test<7>(repeatParam);
 
     // Sanity check: both must be FADs or tracks, not a mix
     if (!keepEndParam && isStartFAD != isEndFAD) {
