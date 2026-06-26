@@ -3791,6 +3791,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
     }
 
     auto &composeLineBuffers = m_composeLineBuffers[altField];
+    auto &spriteLayerAttrs = m_spriteLayerAttrs[altField];
 
     auto &scanline_layers = composeLineBuffers.scanline_layers;
     const auto &scanline_layerPrios = composeLineBuffers.scanline_layerPrios;
@@ -3840,7 +3841,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                 if (priority == 0) {
                     continue;
                 }
-                if (m_spriteLayerAttrs[altField].specialType[x] != SpriteData::Special::Normal) {
+                if (spriteLayerAttrs.specialType[x] != SpriteData::Special::Normal) {
                     continue;
                 }
 
@@ -3964,7 +3965,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
             layer0ShadowEnabled[x] = false;
         } else {
             // Sprite layer doesn't have shadow
-            const auto &spriteLayerAttrs = m_spriteLayerAttrs[altField];
             const bool isNormalShadow = spriteLayerAttrs.specialType[x] == SpriteData::Special::Shadow;
             const bool isMSBShadow = !regs2.spriteParams.useSpriteWindow && spriteLayerAttrs.shadowOrWindow[x];
             if (!isNormalShadow && !isMSBShadow) {
@@ -4141,7 +4141,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                 } else {
                     const LayerIndex layer = scanline_layers[x][colorCalcParams.useSecondScreenRatio];
                     switch (layer) {
-                    case LYR_Sprite: scanline_ratio[x] = m_spriteLayerAttrs[altField].colorCalcRatio[x]; break;
+                    case LYR_Sprite: scanline_ratio[x] = spriteLayerAttrs.colorCalcRatio[x]; break;
                     case LYR_Back: scanline_ratio[x] = regs2.backScreenParams.colorCalcRatio; break;
                     default: scanline_ratio[x] = regs2.bgParams[layer - LYR_RBG0].colorCalcRatio; break;
                     }
@@ -4301,8 +4301,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                     const uint8 layerIndex = overlay.windowLayerIndex;
                     switch (layerIndex) {
                     case 0: // Sprite
-                        overlayColor = m_spriteLayerAttrs[altField].window[x] ? overlay.windowInsideColor
-                                                                              : overlay.windowOutsideColor;
+                        overlayColor =
+                            spriteLayerAttrs.window[x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
                         break;
                     case 1: [[fallthrough]]; // RBG0
                     case 2: [[fallthrough]]; // NBG0/RBG1
