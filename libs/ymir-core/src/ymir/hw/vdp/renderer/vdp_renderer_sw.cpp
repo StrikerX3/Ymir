@@ -2727,6 +2727,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
 
             layerOut.pixels.color[x] = ConvertRGB555to888(Color555{spriteDataValue});
             layerOut.pixels.priority[x] = params.priorities[0];
+            layerOut.pixels.specialColorCalc[x] = false;
 
             layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[0];
             layerAttrs.shadowOrWindow[x] = false;
@@ -2754,6 +2755,7 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2DrawSpritePixel(uint32 x, const VDP2R
     layerOut.pixels.priority[x] = spriteData.special == SpriteData::Special::Transparent && !spriteData.shadowOrWindow
                                       ? 0
                                       : params.priorities[spriteData.priority];
+    layerOut.pixels.specialColorCalc[x] = true;
 
     layerAttrs.colorCalcRatio[x] = params.colorCalcRatios[spriteData.colorCalcRatio];
     layerAttrs.shadowOrWindow[x] = spriteData.shadowOrWindow;
@@ -3906,6 +3908,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
         }
     };
 
+    const bool restrictedColorCalc = regs2.restrictedColorCalc;
+
     // Determines if color calculation is enabled for the given layer
     const auto isColorCalcEnabled = [&](LayerIndex layer, uint32 x) {
         if (layer == LYR_Sprite) {
@@ -3913,8 +3917,12 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
             if (!spriteParams.colorCalcEnable) {
                 return false;
             }
+            const auto &pixels = m_layerOutputs[altField][LYR_Sprite].pixels;
+            if (restrictedColorCalc && pixels.specialColorCalc[x]) {
+                return false;
+            }
 
-            const uint8 pixelPriority = m_layerOutputs[altField][LYR_Sprite].pixels.priority[x];
+            const uint8 pixelPriority = pixels.priority[x];
 
             using enum SpriteColorCalculationCondition;
             switch (spriteParams.colorCalcCond) {
@@ -3927,7 +3935,14 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
         } else if (layer == LYR_Back) {
             return regs2.backScreenParams.colorCalcEnable;
         } else {
-            return regs2.bgParams[layer - LYR_RBG0].colorCalcEnable;
+            const auto &bgParams = regs2.bgParams[layer - LYR_RBG0];
+            if (!bgParams.colorCalcEnable) {
+                return false;
+            }
+            if (restrictedColorCalc && IsPaletteColorFormat(bgParams.colorFormat)) {
+                return false;
+            }
+            return true;
         }
     };
 
@@ -4096,9 +4111,6 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                                       m_meshLayerOutput[altField].pixels.color);
             }
 
-            // TODO: honor color RAM mode + palette/RGB format restrictions
-            // - modes 1 and 2 don't blend layers if the bottom layer uses palette color
-            // HACK: assuming color RAM mode 0 for now (aka no restrictions)
             Color888AverageMasked(std::span{layer1Pixels}.first(m_HRes), layer1ColorCalcEnabled, layer1Pixels,
                                   layer2Pixels);
 

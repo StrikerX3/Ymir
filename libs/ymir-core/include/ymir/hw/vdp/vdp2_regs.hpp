@@ -71,6 +71,8 @@ struct VDP2Regs {
         TVMDDirty = true;
         accessPatternsDirty = true;
         vcellScrollDirty = true;
+
+        UpdateRestrictedColorCalc();
     }
 
     template <bool peek>
@@ -394,6 +396,7 @@ struct VDP2Regs {
         TVMD.u16 = value & 0x81F7;
         TVMDDirty |= ((TVMD.u16 ^ oldTVMD.u16) & 0x1F7) != 0;
         accessPatternsDirty |= TVMD.HRESOn != oldTVMD.HRESOn;
+        UpdateRestrictedColorCalc();
     }
 
     // 180002   EXTEN   External Signal Enable
@@ -546,6 +549,8 @@ struct VDP2Regs {
         vramControl.colorRAMMode = bit::extract<12, 13>(value);
         vramControl.colorRAMCoeffTableEnable = bit::test<15>(value);
         vramControl.UpdateDerivedValues();
+
+        UpdateRestrictedColorCalc();
     }
 
     // 180010   CYCA0L  VRAM Cycle Pattern A0 Lower
@@ -3367,6 +3372,14 @@ struct VDP2Regs {
     // Derived from CCTL, CCRNA/B, CCRR and CCRLB
     ColorCalcParams colorCalcParams;
 
+    // Whether color calculations are restricted based on current video mode settings.
+    // Color calculations are restricted when all of these conditions are met:
+    // - Using high resolution or exclusive monitor modes
+    // - Using color RAM modes other than 0
+    // This prevents blending layers on top of palette layers. Blending with RGB layers is still allowed.
+    // Derived from TVMD.HRESOn and RAMCTL.CRMDn
+    bool restrictedColorCalc;
+
     // Special function codes A and B.
     // Derived from SFCODE
     std::array<SpecialFunctionCodes, 2> specialFunctionCodes;
@@ -3374,6 +3387,10 @@ struct VDP2Regs {
     // Enables transparent shadow sprites.
     // Derived from SDCTL.TPSDSL
     bool transparentShadowEnable;
+
+    void UpdateRestrictedColorCalc() {
+        restrictedColorCalc = TVMD.HRESOn >= 2 && vramControl.colorRAMMode > 0;
+    }
 };
 
 } // namespace ymir::vdp

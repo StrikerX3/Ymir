@@ -731,7 +731,7 @@ private:
     struct Pixels {
         alignas(16) std::array<Color888, kMaxResH> color;
         alignas(16) std::array<uint8, kMaxResH> priority;
-        alignas(16) std::array<bool, kMaxResH> specialColorCalc;
+        alignas(16) std::array<bool, kMaxResH> specialColorCalc; // also used as palette/RGB indicator in sprite layer
 
         FORCE_INLINE Pixel GetPixel(size_t index) const {
             return Pixel{
