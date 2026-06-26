@@ -93,6 +93,8 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     //{"T-1210G",    {.flags = StallVDP1OnVRAMWrites}}, // Rockman X3 (Japan) -- glitched sprites caused by VDP1 VRAM writes while drawing is active
 
     // These need accurate VDP1 timings
+    {"T-18003G", {.flags = SlowVDP1}}, // 3D Baseball - The Majors (Japan) -- team name plates and announcer voice lines glitch out
+    {"T-15906H", {.flags = SlowVDP1}}, // 3D Baseball (USA) -- team name plates and announcer voice lines glitch out
     {"T-24904G", {.flags = SlowVDP1}}, // Fishing Koushien II (Japan) -- expensive FMVs due to infinite loop drawing the same sprite over and over
     {"T-20002G", {.flags = SlowVDP1}}, // Funky Fantasy (Japan) -- expensive FMVs due to infinite loop drawing the same sprite over and over
     {"T-9513G",  {.flags = SlowVDP1}}, // Jikkyou Oshaberi Parodius - Forever with Me (Japan) -- no boot

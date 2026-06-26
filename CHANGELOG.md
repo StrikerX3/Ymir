@@ -36,6 +36,7 @@ Uses save state file version 13.
     - Soviet Strike: VDP1 graphics no longer flicker.
 - GameDB: Force-enable SH-2 cache emulation for Dino Island to fix palette glitches. (#764)
 - GameDB: Force fast bus timings on Resident Evil to fix start menu crashes. (#907)
+- GameDB: Slow down VDP1 execution speed in 3D Baseball to fix team name plates and announcer voice line glitches. (#593)
 - GUI: Reinitialize style from scratch when rescaling GUI elements. Fixes Settings windows (and probably others) from growing extremely large when constantly switching display scales.
 - Input: Set least significant bits of 3D Control Pad analog reports to all ones. Fixes double inputs in Deep Fear. (#744)
 - Input: Make 3D Control Pad peripheral report in digital mode match the Standard Pad. Fixes broken inputs in digital mode in the following games:
