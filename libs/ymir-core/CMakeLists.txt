@@ -105,6 +105,7 @@ add_library(ymir-core
 
     include/ymir/hw/smpc/rtc.hpp
     include/ymir/hw/smpc/smpc.hpp
+    include/ymir/hw/smpc/smpc_defs.hpp
     include/ymir/hw/smpc/smpc_internal_callbacks.hpp
 
     include/ymir/hw/smpc/peripheral/peripheral_base.hpp

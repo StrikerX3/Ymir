@@ -10,8 +10,14 @@ Uses save state file version 13.
 
 - App: Added option to unpause emulator when loading discs. Enabled by default, which changes established behavior.
 - App: Display volume indicator on the top-right corner of the window for a few seconds after adjustments.
+- App: Persist SMPC data per region based on the loaded IPL ROM region:
+    - `smpc-us_eu.bin`: USA, Europe -- SMPC area codes 4, 5, A, C, D
+    - `smpc-jp.bin`: Japan -- SMPC area code 1
+    - `smpc-asia.bin`: Korea, Taiwan -- SMPC area codes 2, 6
+    - `smpc-other.bin`: Other (invalid) SMPC area codes
 - Input: Convert 3D Control Pad analog stick to D-Pad inputs when in digital mode.
 - SH2: Interrupt recalculation microoptimizations.
+- SMPC: Remove direct dependency to filesystem API for data persistence.
 - VDP1: Software renderer performance microoptimizations:
     - Do these once per command instead of per pixel:
         - Determine double density mode

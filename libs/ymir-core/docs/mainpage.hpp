@@ -262,12 +262,8 @@ language and system clock just like a real Saturn when the system configuration 
 You can also force a factory reset with `ymir::Saturn::FactoryReset`.
 
 As with the internal backup memory, the emulator core will not automatically persist any settings upon exit unless you
-bind it to a file with either `ymir::smpc::SMPC::LoadPersistentDataFrom` or `ymir::smpc::SMPC::SavePersistentDataTo`.
-As their names imply, `LoadPersistentDataFrom` will attempt to read persistent data from the given path and
-`SavePersistentDataTo` will attempt to write the current settings to the file. Both functions will additionally bind the
-persistent data path so that any further changes are automatically saved to that file. It is sufficient to call one of
-these functions only once to configure the persistent path for SMPC settings for the lifetime of the `ymir::Saturn`
-instance.
+bind a callback function with `SMPC::SetPersistDataCallback(const PersistentSMPCData &) const`. The callback is invoked
+when either the STE flag, the SMPC's four-byte SMEM registers or the current date/time in the RTC is changed.
 
 
 

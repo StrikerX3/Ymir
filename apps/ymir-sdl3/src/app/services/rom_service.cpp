@@ -76,12 +76,12 @@ void ROMService::ScanIPLROMs() {
     if constexpr (devlog::info_enabled<grp::base>) {
         int numKnown = 0;
         int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetIPLROMs()) {
-            if (info.info != nullptr) {
+        for (auto &[path, entry] : m_context.romManager.GetIPLROMs()) {
+            if (entry.info != nullptr) {
                 ++numKnown;
             } else {
                 ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
+                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(entry.hash), path);
             }
         }
         devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
@@ -89,28 +89,36 @@ void ROMService::ScanIPLROMs() {
 }
 
 util::ROMLoadResult ROMService::LoadIPLROM() {
-    std::filesystem::path romPath = GetIPLROMPath();
-    if (romPath.empty()) {
+    IPLROM ipl = GetIPLROM();
+    if (ipl.path.empty()) {
         devlog::warn<grp::base>("No IPL ROM found");
         return util::ROMLoadResult::Fail("No IPL ROM found");
     }
 
-    devlog::info<grp::base>("Loading IPL ROM from {}...", romPath);
-    util::ROMLoadResult result = util::LoadIPLROM(romPath, *m_context.saturn.instance);
+    devlog::info<grp::base>("Loading IPL ROM from {}...", ipl.path);
+    util::ROMLoadResult result = util::LoadIPLROM(ipl.path, *m_context.saturn.instance);
     if (result.succeeded) {
-        m_context.iplRomPath = romPath;
+        m_context.iplRomPath = ipl.path;
+        m_context.iplRomInfo = ipl.info;
         devlog::info<grp::base>("IPL ROM loaded successfully");
+        m_context.EnqueueEvent(events::gui::IPLROMLoaded());
     } else {
         devlog::error<grp::base>("Failed to load IPL ROM: {}", result.errorMessage);
     }
     return result;
 }
 
-std::filesystem::path ROMService::GetIPLROMPath() {
+ROMService::IPLROM ROMService::GetIPLROM() {
     // Load from settings if override is enabled
     if (m_settings.system.ipl.overrideImage && !m_settings.system.ipl.path.empty()) {
         devlog::info<grp::base>("Using IPL ROM overridden by settings");
-        return m_settings.system.ipl.path;
+        const auto &roms = m_context.romManager.GetIPLROMs();
+        const ymir::db::IPLROMInfo *info = nullptr;
+        auto it = roms.find(m_settings.system.ipl.path);
+        if (it != roms.end()) {
+            info = it->second.info;
+        }
+        return {m_settings.system.ipl.path, info};
     }
 
     // Auto-select ROM from IPL ROM manager based on preferred system variant and area code
@@ -142,40 +150,43 @@ std::filesystem::path ROMService::GetIPLROMPath() {
     case 0xC: [[fallthrough]];
     case 0xD: preferredRegion = ymir::db::SystemRegion::US_EU; break;
 
-    default: preferredRegion = ymir::db::SystemRegion::RegionFree; break;
+    default: preferredRegion = ymir::db::SystemRegion::None; break;
     }
 
     // Try to find exact match
     // Keep a region-free fallback in case there isn't a perfect match
-    std::filesystem::path regionFreeMatch = "";
-    std::filesystem::path variantMatch = "";
-    std::filesystem::path firstMatch = "";
-    for (auto &[path, info] : m_context.romManager.GetIPLROMs()) {
-        if (info.info == nullptr) {
+    IPLROM regionFreeMatch{};
+    IPLROM variantMatch{};
+    IPLROM firstMatch{};
+    for (auto &[path, entry] : m_context.romManager.GetIPLROMs()) {
+        if (entry.info == nullptr) {
             continue;
         }
-        if (firstMatch.empty()) {
-            firstMatch = path;
+        if (firstMatch.path.empty()) {
+            firstMatch = {path, entry.info};
         }
-        if (preferredVariant == ymir::db::SystemVariant::None || info.info->variant == preferredVariant) {
-            if (info.info->region == preferredRegion) {
+        if (entry.info->regionFree && regionFreeMatch.path.empty()) {
+            regionFreeMatch = {path, entry.info};
+        }
+        if (preferredVariant == ymir::db::SystemVariant::None || entry.info->variant == preferredVariant) {
+            if (entry.info->region == preferredRegion) {
                 devlog::info<grp::base>("Using auto-detected IPL ROM");
-                return path;
+                return {path, entry.info};
             } else {
-                variantMatch = path;
+                variantMatch = {path, entry.info};
             }
         }
     }
 
     // Return region-free fallback
     // May be empty if no region-free ROMs were found
-    if (!regionFreeMatch.empty()) {
+    if (!regionFreeMatch.path.empty()) {
         devlog::info<grp::base>("Using auto-detected region-free IPL ROM");
         return regionFreeMatch;
     }
 
     // Fallback to variant match if found
-    if (!variantMatch.empty()) {
+    if (!variantMatch.path.empty()) {
         devlog::info<grp::base>("Using auto-detected variant IPL ROM with mismatched region");
         return variantMatch;
     }
@@ -195,12 +206,12 @@ void ROMService::ScanCDBlockROMs() {
     if constexpr (devlog::info_enabled<grp::base>) {
         int numKnown = 0;
         int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetCDBlockROMs()) {
-            if (info.info != nullptr) {
+        for (auto &[path, entry] : m_context.romManager.GetCDBlockROMs()) {
+            if (entry.info != nullptr) {
                 ++numKnown;
             } else {
                 ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
+                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(entry.hash), path);
             }
         }
         devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);
@@ -262,12 +273,12 @@ void ROMService::ScanROMCarts() {
     if constexpr (devlog::info_enabled<grp::base>) {
         int numKnown = 0;
         int numUnknown = 0;
-        for (auto &[path, info] : m_context.romManager.GetROMCarts()) {
-            if (info.info != nullptr) {
+        for (auto &[path, entry] : m_context.romManager.GetROMCarts()) {
+            if (entry.info != nullptr) {
                 ++numKnown;
             } else {
                 ++numUnknown;
-                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(info.hash), path);
+                devlog::debug<grp::base>("Unknown image: hash {}, path {}", ymir::ToString(entry.hash), path);
             }
         }
         devlog::info<grp::base>("Found {} images - {} known, {} unknown", numKnown + numUnknown, numKnown, numUnknown);

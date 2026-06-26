@@ -185,6 +185,7 @@ App::App()
     m_context.serviceLocator.Register(m_fileDialogService);
     m_context.serviceLocator.Register(m_windowManagerService);
     m_context.serviceLocator.Register(m_inputService);
+    m_context.serviceLocator.Register(m_persistenceService);
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
 }
 
@@ -448,8 +449,21 @@ int App::Run(const CommandLineOptions &options) {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());
     }
 
+    // Register SMPC data persistence callback
+    m_context.saturn.instance->SMPC.SetPersistDataCallback(
+        {&m_context, [](const ymir::smpc::PersistentSMPCData &data, void *ctx) {
+             auto &sharedCtx = *static_cast<SharedContext *>(ctx);
+             auto &svc = sharedCtx.serviceLocator.GetRequired<services::PersistenceService>();
+
+             const std::filesystem::path path = sharedCtx.GetPersistentSMPCDataPath();
+             svc.SavePersistentSMPCData(data, path, [&](std::string_view message) {
+                 devlog::warn<grp::base>("Failed to save SMPC settings to {}: {}", data, message);
+             });
+         }});
+
     // Load IPL ROM
-    // Should be done after loading disc image so that the auto-detected region is used to select the appropriate ROM
+    // Should be done after loading disc image so that the auto-detected region is used to select the appropriate ROM.
+    // This will also reload persistent SMPC data.
     m_romService.ScanIPLROMs();
     auto iplLoadResult = m_romService.LoadIPLROM();
     if (!iplLoadResult.succeeded) {
@@ -468,18 +482,6 @@ int App::Run(const CommandLineOptions &options) {
     if (!cdbLoadResult.succeeded && settings.cdblock.useLLE) {
         m_windowManagerService.OpenSimpleErrorModal(
             fmt::format("Could not load CD Block ROM: {}", cdbLoadResult.errorMessage));
-    }
-
-    // Load SMPC persistent data and set up the path
-    std::error_code error{};
-    m_context.saturn.instance->SMPC.LoadPersistentDataFrom(
-        m_context.profile.GetPath(ProfilePath::PersistentState) / "smpc.bin", error);
-    if (error) {
-        devlog::warn<grp::base>("Failed to load SMPC settings from {}: {}",
-                                m_context.saturn.instance->SMPC.GetPersistentDataPath(), error.message());
-    } else {
-        devlog::info<grp::base>("Loaded SMPC settings from {}",
-                                m_context.saturn.instance->SMPC.GetPersistentDataPath());
     }
 
     m_saveStateService.LoadSaveStates();
@@ -1739,6 +1741,36 @@ void App::RunEmulator() {
                 } else {
                     m_windowManagerService.OpenSimpleErrorModal(fmt::format("Failed to reload IPL ROM from \"{}\": {}",
                                                                             m_context.iplRomPath, result.errorMessage));
+                }
+                break;
+            }
+            case EvtType::IPLROMLoaded: //
+            {
+                const std::filesystem::path path = m_context.GetPersistentSMPCDataPath();
+                const std::filesystem::path oldSMPCFile =
+                    m_context.profile.GetPath(ProfilePath::PersistentState) / "smpc.bin";
+
+                // Migrate old state to new path to preseve current behavior
+                if (!std::filesystem::is_regular_file(path) && std::filesystem::is_regular_file(oldSMPCFile)) {
+                    std::filesystem::copy_file(oldSMPCFile, path);
+                }
+
+                ymir::smpc::PersistentSMPCData smpcData{};
+                std::error_code error{};
+                if (m_persistenceService.LoadPersistentSMPCData(smpcData, path, error, [&](std::string_view message) {
+                        devlog::warn<grp::base>("Failed to load SMPC settings from {}: {}", path, message);
+                    })) {
+                    m_context.saturn.instance->SMPC.LoadPersistentData(smpcData);
+                    devlog::info<grp::base>("Loaded SMPC settings from {}", path);
+                } else if (error) {
+                    // If it failed to load because the file doesn't exist, create the file now and reset SMPC state
+                    if (!std::filesystem::is_regular_file(path)) {
+                        m_context.saturn.instance->SMPC.LoadPersistentData(smpcData);
+                        m_context.saturn.instance->SMPC.PersistData();
+                        devlog::info<grp::base>("SMPC settings created at {}", path);
+                    } else {
+                        devlog::warn<grp::base>("Failed to load SMPC settings from {}: {}", path, error.message());
+                    }
                 }
                 break;
             }
@@ -3165,6 +3197,7 @@ void App::RunEmulator() {
 
         settings.CheckDirty();
         m_saveStateService.CheckDebuggerStateDirty();
+        m_persistenceService.DoPendingPersistences();
     }
 
 end_loop:; // the semicolon is not a typo!

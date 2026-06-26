@@ -104,6 +104,10 @@ inline GUIEvent TryLoadCDBlockROM(std::filesystem::path path) {
     return {.type = GUIEvent::Type::TryLoadCDBlockROM, .value = path};
 }
 
+inline GUIEvent IPLROMLoaded() {
+    return {.type = GUIEvent::Type::IPLROMLoaded};
+}
+
 inline GUIEvent ReloadIPLROM() {
     return {.type = GUIEvent::Type::ReloadIPLROM};
 }

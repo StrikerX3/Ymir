@@ -87,6 +87,8 @@ add_executable(ymir-sdl3
     src/app/services/file_dialog_service.hpp
     src/app/services/input_service.cpp
     src/app/services/input_service.hpp
+    src/app/services/persistence_service.cpp
+    src/app/services/persistence_service.hpp
     src/app/services/window_manager_service.cpp
     src/app/services/window_manager_service.hpp
 

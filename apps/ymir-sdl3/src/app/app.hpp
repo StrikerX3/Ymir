@@ -12,11 +12,11 @@
 #include "services/input_service.hpp"
 #include "services/midi_service.hpp"
 #include "services/mouse_capture_service.hpp"
+#include "services/persistence_service.hpp"
 #include "services/rom_service.hpp"
 #include "services/save_state_service.hpp"
 #include "services/screenshot_service.hpp"
 #include "services/update_checker_service.hpp"
-
 #include "services/window_manager_service.hpp"
 
 #include <chrono>
@@ -48,6 +48,7 @@ private:
     services::FileDialogService m_fileDialogService;
     services::WindowManagerService m_windowManagerService;
     services::InputService m_inputService;
+    services::PersistenceService m_persistenceService;
 
     std::thread m_emuThread;
     util::Event m_emuProcessEvent{};

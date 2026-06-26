@@ -5,8 +5,6 @@
 
 #include <ymir/sys/clocks.hpp>
 
-#include <fstream>
-
 namespace ymir::smpc::rtc {
 
 namespace grp {
@@ -80,21 +78,14 @@ void RTC::SetDateTime(const util::datetime::DateTime &dateTime) {
     }
 }
 
-void RTC::ReadPersistentData(std::ifstream &in) {
-    sint64 offset{};
-    sint64 timestamp{};
-    in.read((char *)&offset, sizeof(offset));
-    in.read((char *)&timestamp, sizeof(timestamp));
-    if (!in) {
-        return;
-    }
-    m_offset = offset;
-    m_timestamp = timestamp;
+void RTC::LoadPersistentData(const PersistentSMPCData::RTC &data) {
+    m_offset = data.offset;
+    m_timestamp = data.timestamp;
 }
 
-void RTC::WritePersistentData(std::ofstream &out) const {
-    out.write((const char *)&m_offset, sizeof(m_offset));
-    out.write((const char *)&m_timestamp, sizeof(m_timestamp));
+void RTC::SavePersistentData(PersistentSMPCData::RTC &data) const {
+    data.offset = m_offset;
+    data.timestamp = m_timestamp;
 }
 
 void RTC::UpdateClockRatios(const sys::ClockRatios &clockRatios) {

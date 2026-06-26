@@ -20,6 +20,8 @@ struct DateTime {
     uint8 second;  ///< The current second of the minute: 0 to 59
 };
 
+inline constexpr DateTime kDefaultDateTime{1994, 1, 1, 6, 0, 0, 0};
+
 /// @brief Gets the current host (system) date and time with the specified offset in seconds.
 /// @param[in] offsetSeconds the offset to apply to the system date and time, in seconds
 /// @return a `DateTime` structure with the host date and time offset by the specified amount

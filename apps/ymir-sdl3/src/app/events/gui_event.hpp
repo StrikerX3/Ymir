@@ -85,6 +85,7 @@ struct GUIEvent {
 
         TryLoadIPLROM,
         ReloadIPLROM,
+        IPLROMLoaded,
         TryLoadCDBlockROM,
         ReloadCDBlockROM,
 

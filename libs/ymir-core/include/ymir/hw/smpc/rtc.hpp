@@ -1,5 +1,7 @@
 #pragma once
 
+#include "smpc_defs.hpp"
+
 #include <ymir/core/configuration.hpp>
 #include <ymir/sys/clocks.hpp>
 
@@ -42,9 +44,8 @@ public:
     util::datetime::DateTime GetDateTime() const;
     void SetDateTime(const util::datetime::DateTime &dateTime);
 
-    // TODO: replace std iostream with custom I/O class with managed endianness
-    void ReadPersistentData(std::ifstream &in);
-    void WritePersistentData(std::ofstream &out) const;
+    void LoadPersistentData(const PersistentSMPCData::RTC &data);
+    void SavePersistentData(PersistentSMPCData::RTC &data) const;
 
     // -------------------------------------------------------------------------
     // Save states

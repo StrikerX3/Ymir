@@ -140,6 +140,9 @@ void SystemSettingsView::Display() {
 
     // -----------------------------------------------------------------------------------------------------------------
 
+    auto &smpc = m_context.saturn.GetSMPC();
+    auto &rtc = smpc.GetRTC();
+
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::SeparatorText("Real-Time Clock");
     ImGui::PopFont();
@@ -159,14 +162,13 @@ void SystemSettingsView::Display() {
         settings.rtc.mode = core::config::rtc::Mode::Virtual;
     }
 
-    auto &rtc = m_context.saturn.GetSMPC().GetRTC();
-
     ImGui::AlignTextToFramePadding();
     ImGui::Text("Current date/time:");
     ImGui::SameLine();
     auto dateTime = rtc.GetDateTime();
     if (widgets::DateTimeSelector("rtc_curr", dateTime)) {
         rtc.SetDateTime(dateTime);
+        smpc.PersistData();
     }
 
     if (settings.rtc.mode == core::config::rtc::Mode::Host) {
@@ -174,12 +176,15 @@ void SystemSettingsView::Display() {
         ImGui::TextUnformatted("Host time offset:");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(150.0f * m_context.displayScale);
-        ImGui::DragScalar("##rtc_host_offset", ImGuiDataType_S64, &rtc.HostTimeOffset());
+        if (ImGui::DragScalar("##rtc_host_offset", ImGuiDataType_S64, &rtc.HostTimeOffset())) {
+            smpc.PersistData();
+        }
         ImGui::SameLine();
         ImGui::TextUnformatted("seconds");
         ImGui::SameLine();
         if (ImGui::Button("Reset")) {
             rtc.HostTimeOffset() = 0;
+            smpc.PersistData();
         }
     } else if (settings.rtc.mode == core::config::rtc::Mode::Virtual) {
         // TODO: request emulator to update date/time so that it is updated in real time
@@ -189,10 +194,12 @@ void SystemSettingsView::Display() {
 
         if (ImGui::Button("Set to host time##curr_time")) {
             rtc.SetDateTime(util::datetime::host());
+            smpc.PersistData();
         }
         ImGui::SameLine();
         if (ImGui::Button("Set to starting point##curr_time")) {
             rtc.SetDateTime(util::datetime::from_timestamp(settings.rtc.virtHardResetTimestamp));
+            smpc.PersistData();
         }
 
         using HardResetStrategy = core::config::rtc::HardResetStrategy;

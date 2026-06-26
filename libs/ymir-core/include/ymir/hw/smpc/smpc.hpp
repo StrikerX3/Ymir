@@ -2,6 +2,7 @@
 
 #include "peripheral/peripheral_port.hpp"
 #include "rtc.hpp"
+#include "smpc_defs.hpp"
 
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
@@ -13,7 +14,6 @@
 #include <ymir/sys/system_internal_callbacks.hpp>
 
 #include <array>
-#include <filesystem>
 #include <vector>
 
 namespace ymir::smpc {
@@ -37,10 +37,12 @@ public:
 
     void UpdateClockRatios(const sys::ClockRatios &clockRatios);
 
-    void LoadPersistentDataFrom(std::filesystem::path path, std::error_code &error);
-    void SavePersistentDataTo(std::filesystem::path path, std::error_code &error);
-    [[nodiscard]] std::filesystem::path GetPersistentDataPath() const {
-        return m_persistentDataPath;
+    void LoadPersistentData(const PersistentSMPCData &data);
+    void SavePersistentData(PersistentSMPCData &data) const;
+    void PersistData() const;
+
+    void SetPersistDataCallback(CBPersistSMPCData &&persistData) {
+        m_cbPersistData = persistData;
     }
 
     void SetResetButtonState(bool pressed) {
@@ -115,7 +117,7 @@ private:
     core::Scheduler &m_scheduler;
     core::EventID m_commandEvent;
 
-    std::filesystem::path m_persistentDataPath;
+    CBPersistSMPCData m_cbPersistData;
 
     static void OnCommandEvent(core::EventContext &eventContext, void *userContext);
     static void OnINTBACKBreakEvent(core::EventContext &eventContext, void *userContext);
@@ -128,14 +130,6 @@ private:
 
     template <bool poke>
     void Write(uint32 address, uint8 value);
-
-    // -------------------------------------------------------------------------
-    // Persistent data
-
-    static constexpr uint8 kPersistentDataVersion = 0x01;
-
-    void ReadPersistentData();
-    void WritePersistentData();
 
     // -------------------------------------------------------------------------
     // Registers

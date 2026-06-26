@@ -37,9 +37,14 @@ public:
     /// @return Result of the ROM loading operation.
     util::ROMLoadResult LoadIPLROM();
 
-    /// @brief Gets the path to the active IPL ROM file.
+    struct IPLROM {
+        std::filesystem::path path = "";
+        const ymir::db::IPLROMInfo *info = nullptr;
+    };
+
+    /// @brief Gets the active IPL ROM file.
     /// @return File path.
-    std::filesystem::path GetIPLROMPath();
+    IPLROM GetIPLROM();
 
     /// @brief Scans the profile path for CD Block ROMs.
     void ScanCDBlockROMs();

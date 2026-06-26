@@ -23,7 +23,6 @@
 #include <app/events/emu_event.hpp>
 #include <app/events/gui_event.hpp>
 
-#include <util/deprecation_helpers.hpp>
 #include <util/service_locator.hpp>
 
 #include <ymir/hw/smpc/peripheral/peripheral_state_common.hpp>
@@ -687,6 +686,7 @@ struct SharedContext {
 
     ROMManager romManager;
     std::filesystem::path iplRomPath;
+    const ymir::db::IPLROMInfo *iplRomInfo = nullptr;
     std::filesystem::path cdbRomPath;
 
     RewindBuffer rewindBuffer;
@@ -850,6 +850,8 @@ struct SharedContext {
 
     std::filesystem::path GetInternalBackupRAMPath() const;
     std::filesystem::path GetPerGameExternalBackupRAMPath(ymir::bup::BackupMemorySize bupSize) const;
+
+    std::filesystem::path GetPersistentSMPCDataPath() const;
 
     // Retrieves the current display if one is selected.
     // Returns the primary display if the "current display" option is selected.

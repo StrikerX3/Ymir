@@ -13,7 +13,7 @@ namespace ymir::db {
 enum class SystemVariant { None, Saturn, HiSaturn, VSaturn, DevKit };
 
 /// @brief The regions supported by the Sega Saturn.
-enum class SystemRegion { None, US_EU, JP, KR, RegionFree };
+enum class SystemRegion { None, US_EU, JP, KR };
 
 /// @brief Information about an IPL ROM in the database.
 struct IPLROMInfo {
@@ -23,6 +23,7 @@ struct IPLROMInfo {
     uint8_t day;           ///< Day of release
     SystemVariant variant; ///< System variant which included this IPL ROM
     SystemRegion region;   ///< System region for which this IPL ROM was designed
+    bool regionFree;       ///< Whether this is a region-free IPL ROM
 };
 
 /// @brief Retrieves information about an IPL ROM image given its XXH128 hash.
