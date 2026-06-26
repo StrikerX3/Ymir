@@ -56,9 +56,9 @@ void VDP2ColorCalcParamsView::Display() {
     }
 
     if (regs2.colorCalcParams.useSecondScreenRatio) {
-        ImGui::TextUnformatted("Using ratio from top screen");
-    } else {
         ImGui::TextUnformatted("Using ratio from second screen");
+    } else {
+        ImGui::TextUnformatted("Using ratio from top screen");
     }
 
     if (regs2.colorCalcParams.useAdditiveBlend) {

@@ -457,7 +457,7 @@ int App::Run(const CommandLineOptions &options) {
 
              const std::filesystem::path path = sharedCtx.GetPersistentSMPCDataPath();
              svc.SavePersistentSMPCData(data, path, [&](std::string_view message) {
-                 devlog::warn<grp::base>("Failed to save SMPC settings to {}: {}", data, message);
+                 devlog::warn<grp::base>("Failed to save SMPC settings to {}: {}", path, message);
              });
          }});
 
