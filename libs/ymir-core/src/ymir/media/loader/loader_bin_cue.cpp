@@ -694,7 +694,9 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         track.index01FrameAddress = frameAddress + sheetTrack.pregap;
                     }
                 }
-                accumGaps += sheetTrack.pregap + sheetTrack.postgap;
+                if (j == 0) {
+                    accumGaps += sheetTrack.pregap + sheetTrack.postgap;
+                }
             }
         }
 
