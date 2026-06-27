@@ -198,6 +198,18 @@ public:
         return m_skipEmptyVDP1Table;
     }
 
+    // Introduce a small amount of jitter to latched Virtua Gun coordinates.
+    //
+    // Death Crimson is the only known game that detects perfectly stable shots as reloads. Enabling this option
+    // introduces a small amount of jitter to gun coordinates to make the game recognize on-screen shots as such.
+    void SetVirtuaGunJitter(bool enable) {
+        m_virtuaGunJitter = enable;
+    }
+
+    bool IsVirtuaGunJitterEnabled() const {
+        return m_virtuaGunJitter;
+    }
+
     // -------------------------------------------------------------------------
     // Memory dumps
 
@@ -231,6 +243,10 @@ private:
     VDPState m_state;
 
     core::Configuration &m_config;
+
+    bool m_virtuaGunJitter = false;
+    uint32 m_virtuaGunLastJitterX = 0u;
+    uint32 m_virtuaGunLastJitterY = 0u;
 
     std::unique_ptr<IVDPRenderer> m_renderer;
 

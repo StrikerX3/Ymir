@@ -51,6 +51,7 @@ struct GameInfo {
         SlowVDP1 = BIT(7),                        ///< Slow down VDP1 processing overall
         RelaxedVDP2BitmapCPAccessChecks = BIT(8), ///< Allow bitmap CP accesses during SH2 cycles
         SkipEmptyVDP1Table = BIT(9),              ///< Skip VDP1 command processing if the top of the table is empty
+        VirtuaGunJitter = BIT(10),                ///< Add a bit of jitter to Virtua Gun coordinates
 #undef BIT
 
         // Proper fixes for each flag:
@@ -65,6 +66,10 @@ struct GameInfo {
         //     VDP1 command timing estimates are too conservative, resulting in slow downs in many games
         // - RelaxedVDP2BitmapCPAccessChecks: in some cases, SCU DMA timings; generally speaking, advanced bus timings
         // - SkipEmptyVDP1Table: accurate VDP1 timings
+        // - VirtuaGunJitter: not really a hack, but moreso a workaround for a finicky game that doesn't react well to
+        //   perfectly stable Virtua Gun positions. In reality, it's very unlikely to keep the aim perfectly steady at
+        //   the same pixel. This adds a very small amount of jitter to the coordinates, just enough to get the affected
+        //   game to register on-screen shots as shots and not reloads.
     };
 
     Flags flags = Flags::None;        ///< Game compatibility flags

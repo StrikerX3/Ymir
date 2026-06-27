@@ -270,6 +270,7 @@ void Saturn::LoadDisc(media::Disc &&disc) {
     VDP.SetSkipEmptyVDP1CommandTable(hasFlag(db::GameInfo::Flags::SkipEmptyVDP1Table));
     VDP.vdp2AccessPatternsConfig.relaxedBitmapCPAccessChecks =
         hasFlag(db::GameInfo::Flags::RelaxedVDP2BitmapCPAccessChecks);
+    VDP.SetVirtuaGunJitter(hasFlag(db::GameInfo::Flags::VirtuaGunJitter));
 }
 
 void Saturn::EjectDisc() {

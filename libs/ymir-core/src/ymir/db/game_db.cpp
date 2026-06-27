@@ -105,6 +105,9 @@ static const std::unordered_map<std::string_view, GameInfo> kGameInfosByCode = {
     {"ST-27901G", {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Lunar - Silver Star Story (Japan) (Demo)
     {"GS-9088",   {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Mechanical Violator Hakaider - Last Judgement (Japan)
     {"T-2105G",   {.flags = RelaxedVDP2BitmapCPAccessChecks}}, // Shin Kaitei Gunkan - Koutetsu no Kodoku (Japan)
+
+    // This is probably here to stay. Forever.
+    {"T-23202G", {.flags = VirtuaGunJitter}}, // Death Crimson (Japan) -- needs jitter or else shots count as reloads
 };
 
 static const std::unordered_map<XXH128Hash, GameInfo> kGameInfosByHash = {

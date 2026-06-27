@@ -1230,6 +1230,20 @@ void VDP::ExternalLatch(uint16 x, uint16 y) {
     if (m_state.regs2.EXTEN.EXLTEN) {
         m_state.regs2.TVSTAT.EXLTFG = x < m_HRes && y < m_VRes;
         if (m_state.regs2.TVSTAT.EXLTFG) {
+            if (m_virtuaGunJitter) {
+                auto jitter = [](uint32 &lastValue) {
+                    for (;;) {
+                        const uint32 value = rand() & 3;
+                        if (value != lastValue) {
+                            lastValue = value;
+                            return value;
+                        }
+                    }
+                };
+
+                x += jitter(m_virtuaGunLastJitterX);
+                y += jitter(m_virtuaGunLastJitterY);
+            }
             m_state.regs2.WriteHCNT((x + 32u) << 2u);
             m_state.regs2.VCNTLatch = y;
         } else {
