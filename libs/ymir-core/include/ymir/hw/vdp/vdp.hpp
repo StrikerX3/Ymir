@@ -8,7 +8,6 @@
 #include "vdp_configs.hpp"
 #include "vdp_state.hpp"
 
-#include "vdp_callbacks.hpp"
 #include "vdp_internal_callbacks.hpp"
 
 #include "vdp_devlog.hpp"
@@ -16,7 +15,6 @@
 #include <ymir/core/configuration.hpp>
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/bus.hpp>
-#include <ymir/sys/system.hpp>
 
 #include <ymir/savestate/savestate_vdp.hpp>
 
@@ -26,19 +24,13 @@
 
 #include "renderer/vdp_renderer.hpp"
 
-#include <ymir/util/bit_ops.hpp>
-#include <ymir/util/data_ops.hpp>
-#include <ymir/util/event.hpp>
 #include <ymir/util/inline.hpp>
-#include <ymir/util/unreachable.hpp>
 
 #include <blockingconcurrentqueue.h>
 
 #include <array>
-#include <iosfwd>
 #include <memory>
 #include <span>
-#include <thread>
 #include <utility>
 
 namespace ymir::vdp {
