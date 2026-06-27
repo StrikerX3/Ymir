@@ -1228,9 +1228,14 @@ FORCE_INLINE uint64 VDP::VDP1CalcCommandTiming(uint32 cmdAddress, VDP1Command::C
 
 void VDP::ExternalLatch(uint16 x, uint16 y) {
     if (m_state.regs2.EXTEN.EXLTEN) {
-        m_state.regs2.WriteHCNT(x << 2u);
-        m_state.regs2.VCNTLatch = y;
         m_state.regs2.TVSTAT.EXLTFG = x < m_HRes && y < m_VRes;
+        if (m_state.regs2.TVSTAT.EXLTFG) {
+            m_state.regs2.WriteHCNT((x + 32u) << 2u);
+            m_state.regs2.VCNTLatch = y;
+        } else {
+            m_state.regs2.WriteHCNT(0x3FF);
+            m_state.regs2.VCNTLatch = 0x1FF;
+        }
     }
 }
 
