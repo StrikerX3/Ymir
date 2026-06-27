@@ -33,7 +33,8 @@ cmake_dependent_option(Ymir_LIBRARY_ONLY "Compile ymir-core only" OFF is_top_lev
 option(Ymir_FEATUREFLAG_DEFAULT "Enable all feature flags by default" ${Ymir_DEV_BUILD})
 
 ## Selectively enable in-development features
-option(Ymir_FF_VIRTUA_GUN "Enable Virtua Gun peripheral" ${Ymir_FEATUREFLAG_DEFAULT})
+## Template:
+## option(Ymir_FF_[NAME] "[description]" ${Ymir_FEATUREFLAG_DEFAULT})
 
 if (Ymir_LIBRARY_ONLY)
     message(STATUS "Ymir: Library-only build")
@@ -47,8 +48,8 @@ message(STATUS "Ymir: Devlog ${Ymir_ENABLE_DEVLOG}")
 message(STATUS "Ymir: Extra inlining ${Ymir_EXTRA_INLINING}")
 message(STATUS "Ymir: Update checks ${Ymir_ENABLE_UPDATE_CHECKS}")
 
-message(STATUS "Ymir: Feature flags:")
-message(STATUS "- Virtua Gun: ${Ymir_FF_VIRTUA_GUN}")
+#message(STATUS "Ymir: Feature flags:")
+#message(STATUS "- [Name]: ${Ymir_FF_[NAME]}")
 
 # Create Universal Binary on MacOS
 #if (APPLE)

@@ -51,7 +51,10 @@ These options are used by the build workflows to tune the build output:
 Ymir also supports feature flags. These are enabled by default on development and nightly builds:
 
 - `Ymir_FEATUREFLAG_DEFAULT` (`BOOL`): Enables or disables all non-overridden feature flags. Enabled by default on development builds.
-- `Ymir_FF_VIRTUA_GUN` (`BOOL`): Enables the Virtua Gun.
+- (No feature flags available at the moment.)
+<!-- Template:
+- `Ymir_FF_[NAME]` (`BOOL`): Enables [feature].
+-->
 
 Feature flags are made available to code as macros in [ymir-core's CMakeLists.txt](libs/ymir-core/CMakeLists.txt) (find `## Define feature flags macros`).
 If you add new feature flags, make sure to add the macro to this file too.
