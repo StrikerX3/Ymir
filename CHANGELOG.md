@@ -15,6 +15,7 @@ Uses save state file version 13.
     - `smpc-jp.bin`: Japan -- SMPC area code 1
     - `smpc-asia.bin`: Korea, Taiwan -- SMPC area codes 2, 6
     - `smpc-other.bin`: Other (invalid) SMPC area codes
+- Input: Added option to constrain mouse cursor to window in system cursor mode.
 - Input: Convert 3D Control Pad analog stick to D-Pad inputs when in digital mode.
 - SH2: Interrupt recalculation microoptimizations.
 - SMPC: Remove direct dependency to filesystem API for data persistence.

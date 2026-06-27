@@ -444,6 +444,7 @@ struct Settings {
             enum class CaptureMode { SystemCursor, PhysicalMouse };
 
             util::Observable<CaptureMode> captureMode;
+            bool lockToDisplay;
         } mouse;
 
         struct Gamepad {

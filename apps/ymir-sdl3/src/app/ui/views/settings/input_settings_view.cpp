@@ -91,8 +91,10 @@ void InputSettingsView::Display() {
         "Settings window with the shortcut or triggering a debugger breakpoint.");
 #endif
 
-    // TODO: lock mouse cursor to screen area in system cursor mode
-    // - also update App::ConfigureMouseCapture()
+    MakeDirty(ImGui::Checkbox("Lock mouse cursor to window", &settings.mouse.lockToDisplay));
+    widgets::ExplanationTooltip("When this option is enabled, if using system cursor capture mode, the mouse cursor "
+                                "will be constrained to the window area.",
+                                m_context.displayScale);
 
     // TODO: preferred device capture order
 

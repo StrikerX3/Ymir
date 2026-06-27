@@ -1048,6 +1048,7 @@ void Settings::ResetToDefaults() {
     }
 
     input.mouse.captureMode = Input::Mouse::CaptureMode::SystemCursor;
+    input.mouse.lockToDisplay = true;
 
     input.gamepad.lsDeadzone = 0.15f;
     input.gamepad.rsDeadzone = 0.15f;
@@ -1530,6 +1531,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
 
         if (auto tblMouse = tblInput["Mouse"]) {
             Parse(tblMouse, "CaptureMode", input.mouse.captureMode);
+            Parse(tblMouse, "LockToDisplay", input.mouse.lockToDisplay);
         }
 
         if (configVersion >= 4) {
@@ -1965,6 +1967,7 @@ SettingsSaveResult Settings::Save() {
             {"Port2", makePortTable(1)},
             {"Mouse", toml::table{{
                 {"CaptureMode", ToTOML(input.mouse.captureMode)},
+                {"LockToDisplay", input.mouse.lockToDisplay},
             }}},
             {"Gamepad", toml::table{{
                 {"LSDeadzone", input.gamepad.lsDeadzone.Get()},

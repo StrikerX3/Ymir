@@ -2686,6 +2686,8 @@ void App::RunEmulator() {
                     m_inputService.DrawInputs(drawList);
 
                     ImGui::Dummy(avail);
+
+                    m_mouseCaptureService.SetMouseRect(tl.x, tl.y, br.x, br.y);
                 }
                 ImGui::End();
                 ImGui::PopStyleVar();
@@ -3169,6 +3171,8 @@ void App::RunEmulator() {
             screen.dCenterY = dstRect.y + dstRect.h * 0.5f;
             screen.dSizeX = dstRect.w;
             screen.dSizeY = dstRect.h;
+
+            m_mouseCaptureService.SetMouseRect(dstRect.x, dstRect.y, dstRect.w, dstRect.h);
         }
 
         screen.resolutionChanged = false;

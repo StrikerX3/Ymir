@@ -83,8 +83,8 @@ bool MouseCaptureService::CaptureSystemMouse(uint32 port) {
     if (captured) {
         m_context.DisplayMessage(fmt::format("Mouse cursor bound to {}", GetPeripheralName(port)));
         m_context.DisplayMessage("Press ESC to release");
-        ConfigureMouseCapture();
         m_systemMouseCaptured = true;
+        ConfigureMouseCapture();
         m_systemMousePeripheral = port;
     }
     return captured;
@@ -128,12 +128,14 @@ void MouseCaptureService::ReleaseAllMice() {
 }
 
 void MouseCaptureService::ConfigureMouseCapture() {
-    const bool grabSystemCursor = false; // TODO: pull from settings
+    const auto &settings = m_context.serviceLocator.GetRequired<Settings>();
+    const bool grabSystemCursor = settings.input.mouse.lockToDisplay;
     const bool relativeMode = m_mouseCaptureActive || !m_capturedMice.empty();
     const bool captured = (m_systemMouseCaptured && grabSystemCursor) || relativeMode;
     const bool grabbed = captured && !relativeMode;
     const bool wasRelativeMode = SDL_GetWindowRelativeMouseMode(m_context.screen.window);
     SDL_SetWindowMouseGrab(m_context.screen.window, grabbed);
+    SDL_SetWindowMouseRect(m_context.screen.window, grabbed ? &m_mouseRect : nullptr);
     SDL_SetWindowRelativeMouseMode(m_context.screen.window, relativeMode);
     if (captured) {
         ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
@@ -291,6 +293,20 @@ bool MouseCaptureService::SetPeripheralType(uint32 port, ymir::peripheral::Perip
         changed = m_validPeripheralsForMouseCapture.erase(port) > 0;
     }
     return changed;
+}
+
+void MouseCaptureService::SetMouseRect(int x, int y, int w, int h) {
+    m_mouseRect.x = x;
+    m_mouseRect.y = y;
+    m_mouseRect.w = w;
+    m_mouseRect.h = h;
+
+    const auto &settings = m_context.serviceLocator.GetRequired<Settings>();
+    const bool grabSystemCursor = settings.input.mouse.lockToDisplay;
+    const bool relativeMode = m_mouseCaptureActive || !m_capturedMice.empty();
+    const bool captured = (m_systemMouseCaptured && grabSystemCursor) || relativeMode;
+    const bool grabbed = captured && !relativeMode;
+    SDL_SetWindowMouseRect(m_context.screen.window, grabbed ? &m_mouseRect : nullptr);
 }
 
 } // namespace app::services

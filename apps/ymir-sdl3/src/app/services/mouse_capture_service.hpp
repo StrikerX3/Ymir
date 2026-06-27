@@ -3,6 +3,8 @@
 #include <app/settings.hpp>
 #include <app/shared_context.hpp>
 
+#include <SDL3/SDL_video.h>
+
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -83,6 +85,13 @@ public:
     /// @brief Registers or unregisters a port when the peripheral type changes.
     bool SetPeripheralType(uint32 port, ymir::peripheral::PeripheralType type);
 
+    /// @brief Configures the mouse cursor confinement area when captured.
+    /// @param[in] x horizontal position on the screen
+    /// @param[in] y vertical position on the screen
+    /// @param[in] w area width
+    /// @param[in] h area height
+    void SetMouseRect(int x, int y, int w, int h);
+
 private:
     SharedContext &m_context;
     Settings &m_settings;
@@ -92,6 +101,8 @@ private:
     bool m_systemMouseCaptured = false;
     uint32 m_systemMousePeripheral = 0;
     std::set<uint32> m_validPeripheralsForMouseCapture{};
+
+    SDL_Rect m_mouseRect;
 };
 
 } // namespace app::services
