@@ -114,85 +114,87 @@ struct PhysicalCDDevice::Context {
         tocRequest.Msf = 0;
 
         DWORD bytesReturned = 0;
-        if (DeviceIoControl(hDrive, IOCTL_CDROM_READ_TOC_EX, &tocRequest, sizeof(tocRequest), &rawTOCData,
-                            sizeof(rawTOCData), &bytesReturned, NULL)) {
-            // Convert to TOCEntry list.
-            // Order and format:
-            //   point  TNO ctl ADR  M  S  F  zero  PMin             PSec       PFrame
-            //      A0  00  4/6   1  00 00 00  00   first track num  disc type  00
-            //      A1  00  4/6   1  00 00 00  00   last track num   00         00
-            //      A2  00  4/6   1  00 00 00  00   --- start FAD of lead-out area ---
-            //   01-99* 00  4/6   1  rel.FAD   00   ------- start FAD of track -------
-            //   (other entries exist but are not needed)
-            // * binary-coded decimal format
+        if (!DeviceIoControl(hDrive, IOCTL_CDROM_READ_TOC_EX, &tocRequest, sizeof(tocRequest), &rawTOCData,
+                             sizeof(rawTOCData), &bytesReturned, NULL)) {
+            return;
+        }
 
-            const uint32 numTracks = rawTOCData.LastTrack - rawTOCData.FirstTrack + 1;
+        // Convert to TOCEntry list.
+        // Order and format:
+        //   point  TNO ctl ADR  M  S  F  zero  PMin             PSec       PFrame
+        //      A0  00  4/6   1  00 00 00  00   first track num  disc type  00
+        //      A1  00  4/6   1  00 00 00  00   last track num   00         00
+        //      A2  00  4/6   1  00 00 00  00   --- start FAD of lead-out area ---
+        //   01-99* 00  4/6   1  rel.FAD   00   ------- start FAD of track -------
+        //   (other entries exist but are not needed)
+        // * binary-coded decimal format
 
-            // Point A0 - first data track
-            {
-                auto &tocEntry = tocEntries.emplace_back();
-                tocEntry.controlADR = 0x41;
-                tocEntry.trackNum = 0x00;
-                tocEntry.pointOrIndex = 0xA0;
-                tocEntry.min = util::to_bcd(150 / 75 / 60);
-                tocEntry.sec = util::to_bcd(150 / 75 % 60);
-                tocEntry.frac = util::to_bcd(150 % 75);
-                tocEntry.zero = 0x00;
-                tocEntry.amin = util::to_bcd(rawTOCData.FirstTrack);
-                tocEntry.asec = 0x00;
-                tocEntry.afrac = 0x00;
-            }
+        const uint32 numTracks = rawTOCData.LastTrack - rawTOCData.FirstTrack + 1;
 
-            // Point A1 - last data track
-            {
-                auto &tocEntry = tocEntries.emplace_back();
-                tocEntry.controlADR = 0x41;
-                tocEntry.trackNum = 0x00;
-                tocEntry.pointOrIndex = 0xA1;
-                tocEntry.min = util::to_bcd(150 / 75 / 60);
-                tocEntry.sec = util::to_bcd(150 / 75 % 60);
-                tocEntry.frac = util::to_bcd(150 % 75);
-                tocEntry.zero = 0x00;
-                tocEntry.amin = util::to_bcd(rawTOCData.LastTrack);
-                tocEntry.asec = 0x00;
-                tocEntry.afrac = 0x00;
-            }
+        // Point A0 - first data track
+        {
+            auto &tocEntry = tocEntries.emplace_back();
+            tocEntry.controlADR = 0x41;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA0;
+            tocEntry.min = util::to_bcd(150 / 75 / 60);
+            tocEntry.sec = util::to_bcd(150 / 75 % 60);
+            tocEntry.frac = util::to_bcd(150 % 75);
+            tocEntry.zero = 0x00;
+            tocEntry.amin = util::to_bcd(rawTOCData.FirstTrack);
+            tocEntry.asec = 0x00;
+            tocEntry.afrac = 0x00;
+        }
 
-            // Point A2 - start of leadout track
-            {
-                // Last track in TrackData is the leadout track
-                const uint32 leadOutFAD = util::ReadBE<uint32>(rawTOCData.TrackData[numTracks].Address);
-                auto &tocEntry = tocEntries.emplace_back();
-                tocEntry.controlADR = 0x41;
-                tocEntry.trackNum = 0x00;
-                tocEntry.pointOrIndex = 0xA2;
-                tocEntry.min = util::to_bcd(150 / 75 / 60);
-                tocEntry.sec = util::to_bcd(150 / 75 % 60);
-                tocEntry.frac = util::to_bcd(150 % 75);
-                tocEntry.zero = 0x00;
-                tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
-                tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
-                tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
-            }
+        // Point A1 - last data track
+        {
+            auto &tocEntry = tocEntries.emplace_back();
+            tocEntry.controlADR = 0x41;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA1;
+            tocEntry.min = util::to_bcd(150 / 75 / 60);
+            tocEntry.sec = util::to_bcd(150 / 75 % 60);
+            tocEntry.frac = util::to_bcd(150 % 75);
+            tocEntry.zero = 0x00;
+            tocEntry.amin = util::to_bcd(rawTOCData.LastTrack);
+            tocEntry.asec = 0x00;
+            tocEntry.afrac = 0x00;
+        }
 
-            // Tracks
-            for (int i = 0; i < numTracks; i++) {
-                auto &track = rawTOCData.TrackData[i];
+        // Point A2 - start of leadout track
+        {
+            // Last track in TrackData is the leadout track
+            const uint32 leadOutFAD = util::ReadBE<uint32>(rawTOCData.TrackData[numTracks].Address);
+            auto &tocEntry = tocEntries.emplace_back();
+            tocEntry.controlADR = 0x41;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA2;
+            tocEntry.min = util::to_bcd(150 / 75 / 60);
+            tocEntry.sec = util::to_bcd(150 / 75 % 60);
+            tocEntry.frac = util::to_bcd(150 % 75);
+            tocEntry.zero = 0x00;
+            tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
+            tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
+            tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
+        }
 
-                const uint32 fad = util::ReadBE<uint32>(track.Address);
-                const uint32 relFAD = fad - 150;
-                auto &entry = tocEntries.emplace_back();
-                entry.controlADR = (track.Control << 4u) | track.Adr;
-                entry.trackNum = 0x00;
-                entry.pointOrIndex = util::to_bcd(i + 1);
-                entry.min = util::to_bcd(relFAD / 75 / 60);
-                entry.sec = util::to_bcd(relFAD / 75 % 60);
-                entry.frac = util::to_bcd(relFAD % 75);
-                entry.zero = 0x00;
-                entry.amin = util::to_bcd(fad / 75 / 60);
-                entry.asec = util::to_bcd(fad / 75 % 60);
-                entry.afrac = util::to_bcd(fad % 75);
-            }
+        // Tracks
+        for (int i = 0; i < numTracks; i++) {
+            auto &track = rawTOCData.TrackData[i];
+
+            const uint32 fad = util::ReadBE<uint32>(track.Address);
+            const uint32 relFAD = fad - 150;
+            auto &entry = tocEntries.emplace_back();
+            entry.controlADR = (track.Control << 4u) | track.Adr;
+            entry.trackNum = 0x00;
+            entry.pointOrIndex = util::to_bcd(i + 1);
+            entry.min = util::to_bcd(relFAD / 75 / 60);
+            entry.sec = util::to_bcd(relFAD / 75 % 60);
+            entry.frac = util::to_bcd(relFAD % 75);
+            entry.zero = 0x00;
+            entry.amin = util::to_bcd(fad / 75 / 60);
+            entry.asec = util::to_bcd(fad / 75 % 60);
+            entry.afrac = util::to_bcd(fad % 75);
         }
     }
 
