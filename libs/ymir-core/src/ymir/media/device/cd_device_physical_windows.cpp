@@ -76,6 +76,10 @@ struct PhysicalCDDevice::Context {
     void UpdateSupportedFeatures() {
         features.Reset();
 
+        if (!IsOpen()) {
+            return;
+        }
+
         GET_CONFIGURATION_IOCTL_INPUT input;
         input.Feature = FeatureCdRead;
         input.RequestType = SCSI_GET_CONFIGURATION_REQUEST_TYPE_CURRENT;
@@ -400,6 +404,7 @@ CDDeviceOpenResult PhysicalCDDevice::Open(std::string devicePath) {
     }
     m_context->hDrive = hDrive;
     m_context->UpdateSupportedFeatures();
+    m_context->ReadTOC(); // TODO: might have to move to a thread
 
     return CDDeviceOpenResult::Succeeded();
 }
