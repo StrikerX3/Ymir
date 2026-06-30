@@ -128,9 +128,9 @@ struct PhysicalCDDevice::Context {
             tocEntry.controlADR = 0x41;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA0;
-            tocEntry.min = util::to_bcd(150 / 75 / 60);
-            tocEntry.sec = util::to_bcd(150 / 75 % 60);
-            tocEntry.frac = util::to_bcd(150 % 75);
+            tocEntry.min = 0x00;
+            tocEntry.sec = 0x00;
+            tocEntry.frac = 0x00;
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(rawTOCData.FirstTrack);
             tocEntry.asec = 0x00;
@@ -143,9 +143,9 @@ struct PhysicalCDDevice::Context {
             tocEntry.controlADR = 0x41;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA1;
-            tocEntry.min = util::to_bcd(150 / 75 / 60);
-            tocEntry.sec = util::to_bcd(150 / 75 % 60);
-            tocEntry.frac = util::to_bcd(150 % 75);
+            tocEntry.min = 0x00;
+            tocEntry.sec = 0x00;
+            tocEntry.frac = 0x00;
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(rawTOCData.LastTrack);
             tocEntry.asec = 0x00;
@@ -160,9 +160,9 @@ struct PhysicalCDDevice::Context {
             tocEntry.controlADR = 0x41;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA2;
-            tocEntry.min = util::to_bcd(150 / 75 / 60);
-            tocEntry.sec = util::to_bcd(150 / 75 % 60);
-            tocEntry.frac = util::to_bcd(150 % 75);
+            tocEntry.min = 0x00;
+            tocEntry.sec = 0x00;
+            tocEntry.frac = 0x00;
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
             tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
@@ -174,7 +174,7 @@ struct PhysicalCDDevice::Context {
             auto &track = rawTOCData.TrackData[i];
 
             const uint32 fad = util::ReadBE<uint32>(track.Address);
-            const uint32 relFAD = fad - 150;
+            const uint32 relFAD = 0; // TODO: find in image
             auto &entry = tocEntries.emplace_back();
             entry.controlADR = (track.Control << 4u) | track.Adr;
             entry.trackNum = 0x00;

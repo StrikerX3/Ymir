@@ -275,12 +275,12 @@ struct Session {
         // Point A0 - first data track
         {
             auto &tocEntry = leadInTOC[leadInTOCCount++];
-            tocEntry.controlADR = tracks[firstTrackNum - 1].controlADR;
+            tocEntry.controlADR = 0x41;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA0;
-            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60);
-            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60);
-            tocEntry.frac = util::to_bcd(startFrameAddress % 75);
+            tocEntry.min = 0x00;
+            tocEntry.sec = 0x00;
+            tocEntry.frac = 0x00;
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(firstTrackNum);
             tocEntry.asec = 0x00;
@@ -290,12 +290,12 @@ struct Session {
         // Point A1 - last data track
         {
             auto &tocEntry = leadInTOC[leadInTOCCount++];
-            tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
+            tocEntry.controlADR = 0x41;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA1;
-            tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60);
-            tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60);
-            tocEntry.frac = util::to_bcd(startFrameAddress % 75);
+            tocEntry.min = 0x00;
+            tocEntry.sec = 0x00;
+            tocEntry.frac = 0x00;
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(lastTrackNum);
             tocEntry.asec = 0x00;
@@ -305,7 +305,7 @@ struct Session {
         // Point A2 - start of leadout track
         {
             auto &tocEntry = leadInTOC[leadInTOCCount++];
-            tocEntry.controlADR = tracks[lastTrackNum - 1].controlADR;
+            tocEntry.controlADR = 0x41;
             tocEntry.trackNum = 0x00;
             tocEntry.pointOrIndex = 0xA2;
             tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60);

@@ -7,6 +7,7 @@
 
 #include <ymir/media/device/cd_device_physical.hpp>
 
+#include <ymir/util/arith_ops.hpp>
 #include <ymir/util/dev_assert.hpp>
 
 #include <fcntl.h>
@@ -113,13 +114,92 @@ struct PhysicalCDDevice::Context {
     }
 
     void ReadTOC() {
+        tocEntries.clear();
+
         if (!IsOpen()) {
             return;
         }
 
         cdrom_tochdr header;
         if (ioctl(fd, CDROMREADTOCHDR, &header) < 0) {
-            close(fd);
+            return;
+        }
+
+        // Convert to TOCEntry list
+
+        // Point A0 - first data track
+        {
+            auto &tocEntry = tocEntries.emplace_back();
+            tocEntry.controlADR = 0x41;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA0;
+            tocEntry.min = 0x00;
+            tocEntry.sec = 0x00;
+            tocEntry.frac = 0x00;
+            tocEntry.zero = 0x00;
+            tocEntry.amin = util::to_bcd(header.cdth_trk0);
+            tocEntry.asec = 0x00;
+            tocEntry.afrac = 0x00;
+        }
+
+        // Point A1 - last data track
+        {
+            auto &tocEntry = tocEntries.emplace_back();
+            tocEntry.controlADR = 0x41;
+            tocEntry.trackNum = 0x00;
+            tocEntry.pointOrIndex = 0xA1;
+            tocEntry.min = 0x00;
+            tocEntry.sec = 0x00;
+            tocEntry.frac = 0x00;
+            tocEntry.zero = 0x00;
+            tocEntry.amin = util::to_bcd(header.cdth_trk1);
+            tocEntry.asec = 0x00;
+            tocEntry.afrac = 0x00;
+        }
+
+        // Point A2 - start of leadout track
+        {
+            // Get leadout track info
+            cdrom_tocentry entry;
+            entry.cdte_format = CDROM_LBA;
+            entry.cdte_track = CDROM_LEADOUT;
+            if (ioctl(fd, CDROMREADTOCENTRY, &entry) == 0) {
+                const uint32 leadOutFAD = entry.cdte_addr.lba + 150;
+                auto &tocEntry = tocEntries.emplace_back();
+                tocEntry.controlADR = 0x41;
+                tocEntry.trackNum = 0x00;
+                tocEntry.pointOrIndex = 0xA2;
+                tocEntry.min = 0x00;
+                tocEntry.sec = 0x00;
+                tocEntry.frac = 0x00;
+                tocEntry.zero = 0x00;
+                tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
+                tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
+                tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
+            }
+        }
+
+        // Tracks
+        for (int i = header.cdth_trk0; i <= header.cdth_trk1; ++i) {
+            cdrom_tocentry entry;
+            entry.cdte_format = CDROM_LBA;
+            entry.cdte_track = i;
+            if (ioctl(fd, CDROMREADTOCENTRY, &entry) == 0) {
+                const uint32 fad = entry.cdte_addr.lba + 150;
+                const uint32 relFAD = 0; // TODO: find in image
+
+                auto &tocEntry = tocEntries.emplace_back();
+                tocEntry.controlADR = (entry.cdte_ctrl << 4u) | entry.cdte_adr;
+                tocEntry.trackNum = 0x00;
+                tocEntry.pointOrIndex = util::to_bcd(i);
+                tocEntry.min = util::to_bcd(relFAD / 75 / 60);
+                tocEntry.sec = util::to_bcd(relFAD / 75 % 60);
+                tocEntry.frac = util::to_bcd(relFAD % 75);
+                tocEntry.zero = 0x00;
+                tocEntry.amin = util::to_bcd(fad / 75 / 60);
+                tocEntry.asec = util::to_bcd(fad / 75 % 60);
+                tocEntry.afrac = util::to_bcd(fad % 75);
+            }
         }
     }
 };
