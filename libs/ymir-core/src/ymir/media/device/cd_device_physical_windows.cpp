@@ -119,16 +119,7 @@ struct PhysicalCDDevice::Context {
             return;
         }
 
-        // Convert to TOCEntry list.
-        // Order and format:
-        //   point  TNO ctl ADR  M  S  F  zero  PMin             PSec       PFrame
-        //      A0  00  4/6   1  00 00 00  00   first track num  disc type  00
-        //      A1  00  4/6   1  00 00 00  00   last track num   00         00
-        //      A2  00  4/6   1  00 00 00  00   --- start FAD of lead-out area ---
-        //   01-99* 00  4/6   1  rel.FAD   00   ------- start FAD of track -------
-        //   (other entries exist but are not needed)
-        // * binary-coded decimal format
-
+        // Convert to TOCEntry list
         const uint32 numTracks = rawTOCData.LastTrack - rawTOCData.FirstTrack + 1;
 
         // Point A0 - first data track

@@ -8,6 +8,16 @@
 namespace ymir::media {
 
 /// @brief Specifies an entry in the table of contents of a disc as reported by the Sega Saturn CD drive.
+///
+/// Table of contents order and format:
+///   point  TNO ctl ADR  M  S  F  zero  PMin             PSec       PFrame
+///      A0  00  4/6   1  00 00 00  00   first track num  disc type  00
+///      A1  00  4/6   1  00 00 00  00   last track num   00         00
+///      A2  00  4/6   1  00 00 00  00   --- start FAD of lead-out area ---
+///   01-99* 00  4/6   1  rel. FAD  00   ------- start FAD of track -------
+///   (other entries exist but are not needed)
+/// * binary-coded decimal
+
 struct TOCEntry {
     uint8 controlADR;        // Bits 7-4 = Control, bits 3-0 = q-Mode
                              //   Control = 0b0100 (0x4) = non-copyable data
