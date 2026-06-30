@@ -6,6 +6,15 @@ ImageCDDevice::ImageCDDevice(Disc &&disc) {
     m_disc.Swap(std::move(disc));
 }
 
+std::span<const TOCEntry> ImageCDDevice::GetTOC() {
+    if (m_disc.sessions.empty()) {
+        return {};
+    }
+
+    const auto &session = m_disc.sessions.back();
+    return std::span{session.leadInTOC}.first(session.leadInTOCCount);
+}
+
 size_t ImageCDDevice::ReadRawSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {
     if (m_disc.sessions.empty()) {
         return 0;

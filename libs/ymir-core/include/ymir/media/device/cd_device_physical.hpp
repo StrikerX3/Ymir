@@ -59,10 +59,12 @@ public:
     /// @brief Closes an opened device.
     void Close();
 
-protected:
     // -------------------------------------------------------------------------
     // ICDDevice implementation
 
+    std::span<const TOCEntry> GetTOC() override;
+
+protected:
     size_t ReadRawSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
 
 private:

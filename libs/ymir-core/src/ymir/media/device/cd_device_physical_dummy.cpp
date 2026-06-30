@@ -11,7 +11,7 @@ namespace ymir::media {
 
 struct PhysicalCDDevice::Context {};
 
-std::vector<std::string> ymir::media::PhysicalCDDevice::EnumerateDevices() {
+std::vector<std::string> PhysicalCDDevice::EnumerateDevices() {
     return {};
 }
 
@@ -25,6 +25,10 @@ CDDeviceOpenResult PhysicalCDDevice::Open(std::string devicePath) {
 }
 
 void PhysicalCDDevice::Close() {}
+
+std::span<const TOCEntry> PhysicalCDDevice::GetTOC() {
+    return {};
+}
 
 size_t PhysicalCDDevice::ReadRawSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {
     return 0;

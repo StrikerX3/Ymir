@@ -13,7 +13,7 @@ struct PhysicalCDDevice::Context {
     // TODO: add any OS-specific variables here
 };
 
-std::vector<std::string> ymir::media::PhysicalCDDevice::EnumerateDevices() {
+std::vector<std::string> PhysicalCDDevice::EnumerateDevices() {
     std::vector<std::string> drives{};
 
     // TODO: enumerate devices (paths such as /dev/sr0)
@@ -38,6 +38,11 @@ CDDeviceOpenResult PhysicalCDDevice::Open(std::string devicePath) {
 
 void PhysicalCDDevice::Close() {
     // TODO: close the device and release resources
+}
+
+std::span<const TOCEntry> PhysicalCDDevice::GetTOC() {
+    // TODO: read and return the TOC
+    return {};
 }
 
 size_t PhysicalCDDevice::ReadRawSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {

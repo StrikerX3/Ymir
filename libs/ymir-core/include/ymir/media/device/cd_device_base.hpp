@@ -7,6 +7,8 @@
 
 #include <ymir/core/types.hpp>
 
+#include <ymir/media/cd_defs.hpp>
+
 #include <span>
 
 namespace ymir::media {
@@ -26,6 +28,10 @@ public:
     /// @param[in] out an output buffer with at least 2352 bytes to write data into
     /// @return `true` if the sector was read successfully, `false` if not
     bool ReadRawSector(uint32 frameAddress, std::span<uint8, 2352> out);
+
+    /// @brief Reads the table of contents of the disc.
+    /// @return a read-only view into the disc's table of contents
+    virtual std::span<const TOCEntry> GetTOC() = 0;
 
 protected:
     /// @brief Attempts to read a raw sector and returns the number of bytes read.

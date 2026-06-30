@@ -16,10 +16,12 @@ class ImageCDDevice final : public ICDDevice {
 public:
     ImageCDDevice(Disc &&disc);
 
-protected:
     // -------------------------------------------------------------------------
     // ICDDevice implementation
 
+    std::span<const TOCEntry> GetTOC() override;
+
+protected:
     size_t ReadRawSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
 
 private:
