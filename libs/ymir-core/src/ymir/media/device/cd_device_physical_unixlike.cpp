@@ -207,8 +207,10 @@ void PhysicalCDDevice::Close() {
 }
 
 std::span<const TOCEntry> PhysicalCDDevice::GetTOC() {
-    // TODO: read and return the TOC
-    return {};
+    if (!m_context->IsOpen()) {
+        return {};
+    }
+    return m_context->tocEntries;
 }
 
 size_t PhysicalCDDevice::ReadRawSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {
