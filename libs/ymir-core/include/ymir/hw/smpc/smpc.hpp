@@ -45,6 +45,10 @@ public:
         m_cbPersistData = persistData;
     }
 
+    void ClearPersistDataCallback() {
+        m_cbPersistData = {};
+    }
+
     void SetResetButtonState(bool pressed) {
         bool prevState = m_resetState;
         m_resetState = pressed;

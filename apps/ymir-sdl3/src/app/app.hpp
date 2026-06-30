@@ -28,6 +28,7 @@ namespace app {
 class App {
 public:
     App();
+    ~App();
 
     int Run(const CommandLineOptions &options);
 

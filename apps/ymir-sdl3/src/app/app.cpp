@@ -189,6 +189,10 @@ App::App()
     m_settings.BindConfiguration(m_context.saturn.instance->configuration);
 }
 
+App::~App() {
+    m_context.saturn.instance->SMPC.ClearPersistDataCallback();
+}
+
 int App::Run(const CommandLineOptions &options) {
     devlog::info<grp::base>("{} {}", Ymir_APP_NAME, ymir::version::string);
 
@@ -721,8 +725,8 @@ void App::RunEmulator() {
         SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, windowHeight);
         SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_X_NUMBER, windowX);
         SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_Y_NUMBER, windowY);
-        SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);
-        SDL_SetNumberProperty(windowProps, SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, settings.video.fullScreen);
+        SDL_SetBooleanProperty(windowProps, SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, true);
+        SDL_SetBooleanProperty(windowProps, SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, settings.video.fullScreen.Get());
     }
 
     screen.window = SDL_CreateWindowWithProperties(windowProps);
