@@ -143,7 +143,8 @@ add_library(ymir-core
 
     include/ymir/hw/vdp/renderer/common/vdp1_steppers.hpp
 
-    include/ymir/media/cdrom_crc.hpp
+    include/ymir/media/cd_device.hpp
+    include/ymir/media/cd_utils.hpp
     include/ymir/media/disc.hpp
     include/ymir/media/filesystem.hpp
     include/ymir/media/frame_address.hpp
@@ -151,6 +152,10 @@ add_library(ymir-core
     include/ymir/media/media_defs.hpp
     include/ymir/media/saturn_header.hpp
     include/ymir/media/subheader.hpp
+
+    include/ymir/media/device/cd_device_base.hpp
+    include/ymir/media/device/cd_device_image.hpp
+    include/ymir/media/device/cd_device_physical.hpp
 
     include/ymir/media/loader/loader.hpp
     include/ymir/media/loader/loader_bin_cue.hpp
@@ -279,10 +284,13 @@ add_library(ymir-core
 
     src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
 
-    src/ymir/media/cdrom_crc.cpp
+    src/ymir/media/cd_utils.cpp
     src/ymir/media/filesystem.cpp
     src/ymir/media/media_defs.cpp
     src/ymir/media/saturn_header.cpp
+
+    src/ymir/media/device/cd_device_base.cpp
+    src/ymir/media/device/cd_device_image.cpp
 
     src/ymir/media/loader/loader.cpp
     src/ymir/media/loader/loader_bin_cue.cpp
@@ -304,6 +312,26 @@ add_library(ymir-core
     src/ymir/util/thread_name.cpp
     src/ymir/util/virtual_memory.cpp
 )
+
+## Add OS-specific source files
+if (WIN32)
+    target_sources(ymir-core PRIVATE
+        src/ymir/media/device/cd_device_physical_windows.cpp
+    )
+elseif (UNIX AND NOT APPLE)
+    target_sources(ymir-core PRIVATE
+        src/ymir/media/device/cd_device_physical_unixlike.cpp
+    )
+elseif (APPLE)
+    target_sources(ymir-core PRIVATE
+        src/ymir/media/device/cd_device_physical_apple.cpp
+    )
+else ()
+    target_sources(ymir-core PRIVATE
+        src/ymir/media/device/cd_device_dummy.cpp
+    )
+endif ()
+
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
                       VERSION ${Ymir_core_VERSION}

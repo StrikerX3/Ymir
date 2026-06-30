@@ -8,7 +8,7 @@
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/dev_assert.hpp>
 
-#include "cdrom_crc.hpp"
+#include "cd_utils.hpp"
 #include "saturn_header.hpp"
 #include "subheader.hpp"
 
@@ -138,52 +138,7 @@ struct Track {
         fmt::println("Track unit size:   {} bytes", unitSize);*/
 
         // Fill in any missing data
-        if (!hasSyncBytes) {
-            static constexpr std::array<uint8, 12> syncBytes = {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-                                                                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
-            std::copy(syncBytes.begin(), syncBytes.end(), outBuf.begin());
-            // fmt::println("  Added sync bytes");
-        }
-        if (!hasHeader) {
-            // Convert absolute frame address to min:sec:frac
-            outBuf[0xC] = util::to_bcd(frameAddress / 75 / 60);
-            outBuf[0xD] = util::to_bcd((frameAddress / 75) % 60);
-            outBuf[0xE] = util::to_bcd(frameAddress % 75);
-
-            // Determine mode based on track type and sector size
-            if (controlADR == 0x41) {
-                // Data track
-                outBuf[0xF] = mode2 ? 0x02 : 0x01;
-            } else {
-                // Audio track
-                outBuf[0xF] = 0x00;
-            }
-            // fmt::println("  Added header");
-        } else {
-            YMIR_DEV_ASSERT(outBuf[0xC] == util::to_bcd(frameAddress / 75 / 60));
-            YMIR_DEV_ASSERT(outBuf[0xD] == util::to_bcd((frameAddress / 75) % 60));
-            YMIR_DEV_ASSERT(outBuf[0xE] == util::to_bcd(frameAddress % 75));
-        }
-        if (!hasECC) {
-            // Fill out EDC, Intermediate, P-Parity and Q-Parity fields
-            // TODO: handle Mode 2 Form 1 and 2
-
-            std::span<uint8> edcBuf{outBuf.subspan(2064, 4)};
-            std::span<uint8> interBuf{outBuf.subspan(2068, 8)};
-            std::span<uint8> pParityBuf{outBuf.subspan(2076, 172)};
-            std::span<uint8> qParityBuf{outBuf.subspan(2248, 104)};
-
-            const uint32 crc = CalcCRC(std::span<uint8, 2064>{outBuf.first(2064)});
-            util::WriteLE<uint32>(&edcBuf[0], crc);
-
-            std::fill(interBuf.begin(), interBuf.end(), 0x00);
-
-            // TODO: compute ECC (P-Parity and Q-Parity)
-            std::fill(pParityBuf.begin(), pParityBuf.end(), 0x00);
-            std::fill(qParityBuf.begin(), qParityBuf.end(), 0x00);
-
-            // fmt::println("  Added subheader");
-        }
+        SynthesizeSectorData(outBuf, outputSize, frameAddress, controlADR, mode2);
 
         /*fmt::println("Raw sector data:");
         for (uint32 i = 0; i < outBuf.size(); i++) {

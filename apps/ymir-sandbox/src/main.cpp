@@ -9,6 +9,8 @@
 #include <ymir/media/loader/loader.hpp>
 #include <ymir/media/loader/loader_bin_cue.hpp>
 
+#include <ymir/media/cd_device.hpp>
+
 #include <ymir/util/process.hpp>
 #include <ymir/util/size_ops.hpp>
 
@@ -1796,6 +1798,69 @@ void runDeadlockTest(int argc, char **argv) {
     }
 }
 
+void runCDDeviceSandbox(int argc, char **argv) {
+    std::unique_ptr<ymir::media::ICDDevice> dev = std::make_unique<ymir::media::PhysicalCDDevice>();
+    auto &physDev = *static_cast<ymir::media::PhysicalCDDevice *>(dev.get());
+    std::array<uint8, 2352> buf{};
+
+    for (std::string path : ymir::media::PhysicalCDDevice::EnumerateDevices()) {
+        fmt::println("Drive {}", path);
+        const auto result = physDev.Open(path);
+        if (!result.succeeded) {
+            fmt::println("  Open failed: {}", result.errorMessage);
+            continue;
+        }
+
+        fmt::println("  Opened successfully");
+        if (dev->ReadRawSector(0, buf)) {
+            for (int i = 0; i < 2352; i++) {
+                if (i % 16 == 0) {
+                    fmt::print("{:03X} |", i);
+                }
+                fmt::print(" {:02X}", buf[i]);
+                if (i % 16 == 15) {
+                    fmt::print(" | ");
+                    for (int j = 0; j < 16; j++) {
+                        char ch = buf[i - 15 + j];
+                        if (ch < 0x20 || ch > 0x7F) {
+                            ch = '.';
+                        }
+                        fmt::print("{}", ch);
+                    }
+                    fmt::println("");
+                }
+            }
+        }
+    }
+
+    if (argc > 1) {
+        std::filesystem::path discPath{argv[1]};
+        fmt::println("Loading disc image from {}", discPath);
+        ymir::media::Disc disc{};
+        ymir::media::LoadDisc(discPath, disc, false, [](auto, auto) {});
+        dev = std::make_unique<ymir::media::ImageCDDevice>(std::move(disc));
+        if (dev->ReadRawSector(0, buf)) {
+            for (int i = 0; i < 2352; i++) {
+                if (i % 16 == 0) {
+                    fmt::print("{:03X} |", i);
+                }
+                fmt::print(" {:02X}", buf[i]);
+                if (i % 16 == 15) {
+                    fmt::print(" | ");
+                    for (int j = 0; j < 16; j++) {
+                        char ch = buf[i - 15 + j];
+                        if (ch < 0x20 || ch > 0x7F) {
+                            ch = '.';
+                        }
+                        fmt::print("{}", ch);
+                    }
+                    fmt::println("");
+                }
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     // runSandbox();
     // runBUPSandbox();
@@ -1814,8 +1879,9 @@ int main(int argc, char **argv) {
     // }
     // runCurlSandbox();
     // runSH2PerfSandbox();
-    runDiscInfoExtractor(argc, argv);
+    // runDiscInfoExtractor(argc, argv);
     // runDeadlockTest(argc, argv);
+    runCDDeviceSandbox(argc, argv);
 
     return EXIT_SUCCESS;
 }
