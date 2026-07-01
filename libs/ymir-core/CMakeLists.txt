@@ -154,6 +154,7 @@ add_library(ymir-core
     include/ymir/media/subheader.hpp
 
     include/ymir/media/device/cd_device_base.hpp
+    include/ymir/media/device/cd_device_dummy.hpp
     include/ymir/media/device/cd_device_image.hpp
     include/ymir/media/device/cd_device_physical.hpp
 
