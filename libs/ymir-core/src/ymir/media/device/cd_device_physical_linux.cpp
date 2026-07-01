@@ -1,6 +1,6 @@
 /**
 @file
-@brief Implementation of physical CD devices for Unix-like systems (Linux, FreeBSD and such, except macOS).
+@brief Implementation of physical CD devices for Linux.
 */
 
 #include "ymir/util/data_ops.hpp"

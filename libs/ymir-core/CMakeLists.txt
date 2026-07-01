@@ -318,13 +318,13 @@ if (WIN32)
     target_sources(ymir-core PRIVATE
         src/ymir/media/device/cd_device_physical_windows.cpp
     )
-elseif (UNIX AND NOT APPLE)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(ymir-core PRIVATE
-        src/ymir/media/device/cd_device_physical_unixlike.cpp
+        src/ymir/media/device/cd_device_physical_linux.cpp
     )
 elseif (APPLE)
     target_sources(ymir-core PRIVATE
-        src/ymir/media/device/cd_device_physical_apple.cpp
+        src/ymir/media/device/cd_device_physical_macos.cpp
     )
 else ()
     target_sources(ymir-core PRIVATE
