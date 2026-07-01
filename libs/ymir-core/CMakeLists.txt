@@ -328,7 +328,7 @@ elseif (APPLE)
     )
 else ()
     target_sources(ymir-core PRIVATE
-        src/ymir/media/device/cd_device_dummy.cpp
+        src/ymir/media/device/cd_device_physical_dummy.cpp
     )
 endif ()
 
