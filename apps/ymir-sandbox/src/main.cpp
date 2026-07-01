@@ -1843,7 +1843,7 @@ void runCDDeviceSandbox(int argc, char **argv) {
 
         fmt::println("  Opened successfully");
         printTOC();
-        //printSector(0);
+        printSector(0);
     }
 
     if (argc > 1) {
@@ -1853,7 +1853,7 @@ void runCDDeviceSandbox(int argc, char **argv) {
         ymir::media::LoadDisc(discPath, disc, false, [](auto, auto) {});
         dev = std::make_unique<ymir::media::ImageCDDevice>(std::move(disc));
         printTOC();
-        //printSector(0);
+        printSector(0);
     }
 }
 
