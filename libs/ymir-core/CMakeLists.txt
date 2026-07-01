@@ -315,22 +315,25 @@ add_library(ymir-core
 
 ## Add OS-specific source files
 if (WIN32)
-    target_sources(ymir-core PRIVATE
+    set(OS_SPECIFIC_SOURCES
         src/ymir/media/device/cd_device_physical_windows.cpp
     )
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_sources(ymir-core PRIVATE
+    set(OS_SPECIFIC_SOURCES
         src/ymir/media/device/cd_device_physical_linux.cpp
     )
 elseif (APPLE)
-    target_sources(ymir-core PRIVATE
+    set(OS_SPECIFIC_SOURCES
         src/ymir/media/device/cd_device_physical_macos.cpp
     )
 else ()
-    target_sources(ymir-core PRIVATE
+    set(OS_SPECIFIC_SOURCES
         src/ymir/media/device/cd_device_physical_dummy.cpp
     )
 endif ()
+target_sources(ymir-core PRIVATE
+    ${OS_SPECIFIC_SOURCES}
+)
 
 add_library(ymir::ymir-core ALIAS ymir-core)
 set_target_properties(ymir-core PROPERTIES
