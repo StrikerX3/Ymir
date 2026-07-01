@@ -224,7 +224,8 @@ bool Filesystem::ReadPathTableRecords(const Track &track, const VolumeDescriptor
         }
 
         PathTableRecord pathTableRecord{};
-        for (uint32 pathRecIndex = 0;; pathRecIndex += pathTableRecord.recordSize) {
+        for (uint32 pathRecIndex = 0; pathRecIndex < volDesc.pathTableSize;
+             pathRecIndex += pathTableRecord.recordSize) {
             // Try reading the path table record
             const std::span<uint8> pathRecBufData{pathTableBuf.begin() + pathRecIndex, pathTableBuf.end()};
 

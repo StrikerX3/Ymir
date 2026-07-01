@@ -120,7 +120,6 @@ struct DateTime {
 //   32              uint8         Length of file identifier (LEN_FI)
 //   33-(32+LEN_FI)  char[LEN_FI]  File identifier
 //   (33+LEN_FI)     uint8         Padding field (00 byte)
-
 struct DirectoryRecord {
     uint8 recordSize;
     uint8 extAttrRecordSize;
