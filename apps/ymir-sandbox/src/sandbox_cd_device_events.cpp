@@ -14,6 +14,11 @@
 #endif
 #include <windows.h>
 
+#include <cfgmgr32.h>
+#include <winioctl.h> // for GUID_DEVINTERFACE_CDROM
+
+#pragma comment(lib, "Cfgmgr32.lib")
+
 void runCDDeviceEventsSandbox() {
     using clk = std::chrono::steady_clock;
     using namespace std::chrono_literals;
@@ -30,17 +35,6 @@ void runCDDeviceEventsSandbox() {
         return;
     }
     util::ScopeGuard sgQuit{[] { SDL_Quit(); }};
-
-#if defined(_WIN32)
-    SDL_SetWindowsMessageHook(
-        [](void *userdata, MSG *msg) -> bool {
-            if (msg->message == WM_DEVICECHANGE) {
-                fmt::println("WM_DEVICECHANGE received");
-            }
-            return true;
-        },
-        nullptr);
-#endif
 
     // ---------------------------------
     // Create window
@@ -66,6 +60,29 @@ void runCDDeviceEventsSandbox() {
         return;
     }
     util::ScopeGuard sgDestroyWindow{[&] { SDL_DestroyWindow(window); }};
+
+#if defined(_WIN32)
+    HCMNOTIFICATION hDeviceNotification = NULL;
+    {
+        CM_NOTIFY_FILTER filter{};
+        filter.cbSize = sizeof(filter);
+        filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
+        filter.u.DeviceInterface.ClassGuid = GUID_DEVINTERFACE_CDROM;
+        DWORD result = CM_Register_Notification(
+            &filter,
+            (PVOID) nullptr, // context pointer
+            [](HCMNOTIFICATION hNotify, PVOID context, CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA eventData,
+               DWORD eventDataSize) -> DWORD {
+                if (action == CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL) {
+                    fmt::println("Device interface added");
+                } else if (action == CM_NOTIFY_ACTION_DEVICEINTERFACEREMOVAL) {
+                    fmt::println("Device interface removed");
+                }
+                return 0;
+            },
+            &hDeviceNotification);
+    }
+#endif
 
     // ---------------------------------
     // Create renderer
