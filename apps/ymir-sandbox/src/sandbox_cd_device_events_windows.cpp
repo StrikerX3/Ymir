@@ -224,7 +224,6 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         switch (wParam) {
         case DBT_DEVICEARRIVAL:
         case DBT_DEVICEREMOVECOMPLETE: {
-            // Drive letter changes often show up as DEVNODES_CHANGED
             PDEV_BROADCAST_HDR hdr = (PDEV_BROADCAST_HDR)lParam;
 
             const bool added = wParam == DBT_DEVICEARRIVAL;
@@ -233,6 +232,7 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                 PDEV_BROADCAST_VOLUME vol = (PDEV_BROADCAST_VOLUME)hdr;
 
                 DWORD mask = vol->dbcv_unitmask;
+                const bool mediaChanged = vol->dbcv_flags & DBTF_MEDIA;
 
                 for (wchar_t letter = L'A'; letter <= L'Z'; ++letter) {
                     if ((mask & (1 << (letter - L'A'))) == 0) {
@@ -240,23 +240,29 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                     }
 
                     if (added) {
-                        // fmt::println(L"Volume {}: added", letter);
-                        std::wstring root = L"_:";
-                        root[0] = letter;
-                        UINT type = GetDriveTypeW(root.c_str());
-                        if (type != DRIVE_CDROM) {
-                            continue;
-                        }
+                        if (mediaChanged) {
+                            fmt::println(L"Media inserted on drive {}", letter);
+                        } else {
+                            std::wstring root = L"_:";
+                            root[0] = letter;
+                            UINT type = GetDriveTypeW(root.c_str());
+                            if (type != DRIVE_CDROM) {
+                                continue;
+                            }
 
-                        std::wstring ntPath(1024, L'\0');
-                        DWORD len = QueryDosDeviceW(root.c_str(), ntPath.data(), ntPath.size());
-                        if (len > 0) {
-                            TrimNullTerminatedString(ntPath);
-                            WindowsCDDeviceManager::Instance().AddDriveLetter(letter, ntPath);
+                            std::wstring ntPath(1024, L'\0');
+                            DWORD len = QueryDosDeviceW(root.c_str(), ntPath.data(), ntPath.size());
+                            if (len > 0) {
+                                TrimNullTerminatedString(ntPath);
+                                WindowsCDDeviceManager::Instance().AddDriveLetter(letter, ntPath);
+                            }
                         }
                     } else {
-                        // fmt::println(L"Volume {}: removed", letter);
-                        WindowsCDDeviceManager::Instance().RemoveDriveLetter(letter);
+                        if (mediaChanged) {
+                            fmt::println(L"Media removed from drive {}", letter);
+                        } else {
+                            WindowsCDDeviceManager::Instance().RemoveDriveLetter(letter);
+                        }
                     }
                 }
             }
@@ -311,12 +317,9 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
             TrimNullTerminatedString(interfacePath);
 
             if (added) {
-                // fmt::println(L"Device {} added", interfacePath);
                 HANDLE hDevice = CreateFileW(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-                if (hDevice == INVALID_HANDLE_VALUE) {
-                    // fmt::println("Failed to open device interface, error code {}", GetLastError());
-                } else {
+                if (hDevice != INVALID_HANDLE_VALUE) {
                     STORAGE_DEVICE_NUMBER sdn = {0};
                     DWORD bytesReturned = 0;
                     BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, &sdn, sizeof(sdn),
@@ -325,13 +328,11 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
                     if (result) {
                         if (sdn.DeviceType == FILE_DEVICE_CD_ROM || sdn.DeviceType == FILE_DEVICE_DVD) {
                             std::wstring ntPath = fmt::format(L"\\Device\\CdRom{}", sdn.DeviceNumber);
-                            // fmt::println(L"{}", ntPath);
                             WindowsCDDeviceManager::Instance().AddDevice(ntPath, interfacePath);
                         }
                     }
                 }
             } else {
-                // fmt::println(L"Device {} removed", interfacePath);
                 WindowsCDDeviceManager::Instance().RemoveDevice(interfacePath);
             }
             return 0;
