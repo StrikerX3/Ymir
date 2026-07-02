@@ -25,6 +25,8 @@
 #include <string_view>
 #include <unordered_map>
 
+void PrintDrives();
+
 static void NormalizeString(std::wstring &ws) {
     std::transform(ws.begin(), ws.end(), ws.begin(), ::towlower);
 }
@@ -144,12 +146,14 @@ public:
             ntDevicesToInterfaces[ntPath] = interfacePath;
             interfacesToNTDevices[interfacePath] = ntPath;
         }
+        PrintDrives();
     }
 
     void AddDriveLetter(wchar_t letter, std::wstring ntPath) {
         std::unique_lock lock{mtxMaps};
         lettersToNTDevices[letter] = ntPath;
         ntDevicesToLetters[ntPath] = letter;
+        PrintDrives();
     }
 
     void RemoveDriveLetter(wchar_t letter) {
@@ -158,12 +162,14 @@ public:
             ntDevicesToLetters.erase(it->second);
         }
         lettersToNTDevices.erase(letter);
+        PrintDrives();
     }
 
     void AddDevice(std::wstring ntPath, std::wstring interfacePath) {
         std::unique_lock lock{mtxMaps};
         ntDevicesToInterfaces[ntPath] = interfacePath;
         interfacesToNTDevices[interfacePath] = ntPath;
+        PrintDrives();
     }
 
     void RemoveDevice(std::wstring interfacePath) {
@@ -177,6 +183,7 @@ public:
             ntDevicesToInterfaces.erase(ntPath);
         }
         interfacesToNTDevices.erase(interfacePath);
+        PrintDrives();
     }
 
     std::mutex mtxMaps;
@@ -200,7 +207,6 @@ WindowsCDDeviceManager WindowsCDDeviceManager::s_instance{};
 
 static void PrintDrives() {
     auto &mgr = WindowsCDDeviceManager::Instance();
-    std::unique_lock lock{mgr.mtxMaps};
 
     fmt::println("Current drives:");
     for (const auto &[ntPath, iface] : mgr.ntDevicesToInterfaces) {
@@ -234,7 +240,7 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                     }
 
                     if (added) {
-                        fmt::println(L"Volume {}: added", letter);
+                        // fmt::println(L"Volume {}: added", letter);
                         std::wstring root = L"_:";
                         root[0] = letter;
                         UINT type = GetDriveTypeW(root.c_str());
@@ -249,15 +255,13 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                             WindowsCDDeviceManager::Instance().AddDriveLetter(letter, ntPath);
                         }
                     } else {
-                        fmt::println(L"Volume {}: removed", letter);
+                        // fmt::println(L"Volume {}: removed", letter);
                         WindowsCDDeviceManager::Instance().RemoveDriveLetter(letter);
                     }
                 }
             }
-            PrintDrives();
             break;
         }
-            // case DBT_DEVNODES_CHANGED: fmt::println("Device nodes changed"); break;
         }
         break;
     }
@@ -307,11 +311,11 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
             TrimNullTerminatedString(interfacePath);
 
             if (added) {
-                fmt::println(L"Device {} added", interfacePath);
+                // fmt::println(L"Device {} added", interfacePath);
                 HANDLE hDevice = CreateFileW(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
                 if (hDevice == INVALID_HANDLE_VALUE) {
-                    fmt::println("Failed to open device interface, error code {}", GetLastError());
+                    // fmt::println("Failed to open device interface, error code {}", GetLastError());
                 } else {
                     STORAGE_DEVICE_NUMBER sdn = {0};
                     DWORD bytesReturned = 0;
@@ -321,18 +325,15 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
                     if (result) {
                         if (sdn.DeviceType == FILE_DEVICE_CD_ROM || sdn.DeviceType == FILE_DEVICE_DVD) {
                             std::wstring ntPath = fmt::format(L"\\Device\\CdRom{}", sdn.DeviceNumber);
-                            fmt::println(L"{}", ntPath);
+                            // fmt::println(L"{}", ntPath);
                             WindowsCDDeviceManager::Instance().AddDevice(ntPath, interfacePath);
                         }
                     }
                 }
             } else {
-                fmt::println(L"Device {} removed", interfacePath);
+                // fmt::println(L"Device {} removed", interfacePath);
                 WindowsCDDeviceManager::Instance().RemoveDevice(interfacePath);
             }
-
-            PrintDrives();
-
             return 0;
         },
         &hNotification);
@@ -342,98 +343,12 @@ void runCDDeviceEventsSandbox() {
     auto &mgr = WindowsCDDeviceManager::Instance();
     mgr.Reenumerate();
 
-    PrintDrives();
-
     HCMNOTIFICATION hDeviceNotification = nullptr;
     DWORD result = RegisterDeviceMonitor(hDeviceNotification);
     if (result != CR_SUCCESS) {
         fmt::println("Failed to register device notification, error code {:X}", result);
     }
     util::ScopeGuard sgUnregisterDeviceNotification{[&] { CM_Unregister_Notification(hDeviceNotification); }};
-
-    /*HCMNOTIFICATION hVolumeNotification = NULL;
-    {
-        CM_NOTIFY_FILTER filter{};
-        filter.cbSize = sizeof(filter);
-        filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
-        filter.u.DeviceInterface.ClassGuid = GUID_DEVINTERFACE_VOLUME;
-        DWORD result = CM_Register_Notification(
-            &filter,
-            (PVOID) nullptr, // context pointer
-            [](HCMNOTIFICATION hNotify, PVOID context, CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA eventData,
-               DWORD eventDataSize) -> DWORD {
-                fmt::println("Got volume notification");
-                if (action == CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL) {
-                    fmt::println("Volume added");
-                } else if (action == CM_NOTIFY_ACTION_DEVICEINTERFACEREMOVAL) {
-                    fmt::println("Volume removed");
-                } else {
-                    return 0;
-                }
-
-                std::wstring interfacePath = eventData->u.DeviceInterface.SymbolicLink;
-                fmt::println(L"{}", interfacePath);
-
-                HANDLE hDevice = CreateFileW(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-                if (hDevice == INVALID_HANDLE_VALUE) {
-                    fmt::println("Failed to open device interface, error code {}", GetLastError());
-                } else {
-                    STORAGE_DEVICE_NUMBER sdn = {0};
-                    DWORD bytesReturned = 0;
-                    BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, &sdn, sizeof(sdn),
-                                                  &bytesReturned, NULL);
-                    CloseHandle(hDevice);
-                    if (result) {
-                        if (sdn.DeviceType != FILE_DEVICE_CD_ROM && sdn.DeviceType != FILE_DEVICE_DVD) {
-                            fmt::println("Device is not an optical/CD-ROM drive.");
-                        } else {
-                            std::wstring ntPath = fmt::format(L"\\Device\\CdRom{}", sdn.DeviceNumber);
-                            fmt::println(L"{}", ntPath);
-                        }
-                    }
-                }
-
-                // ---------------------------------------------------
-
-                if (interfacePath.back() != L'\\') {
-                    interfacePath += L"\\";
-                }
-                wchar_t volumeGuidPath[MAX_PATH];
-                if (GetVolumeNameForVolumeMountPointW(interfacePath.c_str(), volumeGuidPath, MAX_PATH)) {
-                    // fmt::println(L"Volume GUID: {}", volumeGuidPath);
-
-                    // List drive letters.
-                    // Get buffer size, then reallocate to fit.
-                    std::wstring buffer{};
-                    DWORD returnLength = 0;
-                    GetVolumePathNamesForVolumeNameW(volumeGuidPath, buffer.data(), buffer.size(), &returnLength);
-                    buffer.resize(returnLength);
-
-                    if (GetVolumePathNamesForVolumeNameW(volumeGuidPath, buffer.data(), buffer.size(), &returnLength)) {
-                        std::wstring_view svBuffer{buffer};
-                        while (svBuffer[0] != L'\0') {
-                            std::wstring_view svSingle = svBuffer;
-                            const auto firstNul = svSingle.find_first_of(L'\0', 0);
-                            if (firstNul != std::wstring_view::npos) {
-                                svSingle = svSingle.substr(0, firstNul);
-                            }
-                            fmt::println(L"{}", svSingle);
-                            svBuffer = svBuffer.substr(svSingle.size());
-                        }
-                    }
-                } else {
-                    fmt::println(L"Failed to resolve volume GUID, error code {}", GetLastError());
-                }
-
-                return 0;
-            },
-            &hVolumeNotification);
-        if (result != CR_SUCCESS) {
-            fmt::println("Failed to register device notification, error code {:X}", result);
-        }
-    }
-    util::ScopeGuard sgUnregisterVolumeNotification{[&] { CM_Unregister_Notification(hVolumeNotification); }};*/
 
     CreateThread(NULL, 0, DeviceMonitorThread, NULL, 0, NULL);
 
