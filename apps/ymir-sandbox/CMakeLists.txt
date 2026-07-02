@@ -1,7 +1,16 @@
 ## Create the executable target
 add_executable(ymir-sandbox
     src/main.cpp
-)
+    src/stb_implementations.cpp
+
+    src/sandbox_bin_cue_loader.cpp
+    src/sandbox_bup.cpp
+    src/sandbox_curl.cpp
+    src/sandbox_input.cpp
+    src/sandbox_sh2_perf.cpp
+    src/sandbox_vdp1_accuracy.cpp
+    src/sandbox_vdp1_poly.cpp
+ "src/sandbox_disc_info_extractor.cpp" "src/sandbox_deadlock.cpp" "src/sandbox_cd_device.cpp" "src/sandbox_cd_device_events.cpp")
 add_executable(ymir::ymir-sandbox ALIAS ymir-sandbox)
 set_target_properties(ymir-sandbox PROPERTIES
                       VERSION ${Ymir_VERSION}
