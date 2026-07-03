@@ -125,8 +125,8 @@ public:
             // Query device number
             STORAGE_DEVICE_NUMBER devNum{};
             DWORD bytesReturned = 0;
-            BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, &devNum, sizeof(devNum),
-                                          &bytesReturned, NULL);
+            BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &devNum, sizeof(devNum),
+                                          &bytesReturned, nullptr);
             CloseHandle(hDevice);
             if (!result) {
                 continue;
@@ -370,16 +370,16 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
 static DWORD WINAPI DeviceMonitorThread(LPVOID) {
     WNDCLASS wc = {0};
     wc.lpfnWndProc = DeviceWndProc;
-    wc.hInstance = GetModuleHandle(NULL);
+    wc.hInstance = GetModuleHandleA(nullptr);
     wc.lpszClassName = "DeviceMonitor";
 
     RegisterClass(&wc);
 
-    HWND hwnd = CreateWindowExA(0, wc.lpszClassName, "DeviceMonitor", WS_OVERLAPPEDWINDOW, 0, 0, 0, 0, NULL, NULL,
-                                wc.hInstance, NULL);
+    HWND hwnd = CreateWindowExA(0, wc.lpszClassName, "DeviceMonitor", WS_OVERLAPPEDWINDOW, 0, 0, 0, 0, nullptr, nullptr,
+                                wc.hInstance, nullptr);
 
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    while (GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -409,13 +409,13 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
             TrimNullTerminatedString(interfacePath);
 
             if (added) {
-                HANDLE hDevice = CreateFileW(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+                HANDLE hDevice = CreateFileW(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
                 if (hDevice != INVALID_HANDLE_VALUE) {
                     STORAGE_DEVICE_NUMBER sdn = {0};
                     DWORD bytesReturned = 0;
-                    BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, &sdn, sizeof(sdn),
-                                                  &bytesReturned, NULL);
+                    BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &sdn,
+                                                  sizeof(sdn), &bytesReturned, nullptr);
                     CloseHandle(hDevice);
                     if (result) {
                         if (sdn.DeviceType == FILE_DEVICE_CD_ROM || sdn.DeviceType == FILE_DEVICE_DVD) {
@@ -442,7 +442,7 @@ void runCDDeviceEventsSandbox() {
     }
     util::ScopeGuard sgUnregisterDeviceNotification{[&] { CM_Unregister_Notification(hDeviceNotification); }};
 
-    CreateThread(NULL, 0, DeviceMonitorThread, NULL, 0, NULL);
+    CreateThread(nullptr, 0, DeviceMonitorThread, nullptr, 0, nullptr);
 
     mgr.Reenumerate();
 
