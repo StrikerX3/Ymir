@@ -236,23 +236,26 @@ public:
                     // TODO: move heavy lifting to a worker thread
                     if (action == CM_NOTIFY_ACTION_DEVICECUSTOMEVENT) {
                         auto *device = static_cast<WindowsCDDevice *>(context);
+                        if (device->driveLetter.has_value()) {
+                            // Handled by WM_DEVICECHANGE events
+                            return 0;
+                        }
+
                         if (IsEqualGUID(eventData->u.DeviceHandle.EventGuid, GUID_IO_MEDIA_ARRIVAL)) {
                             auto *data =
                                 reinterpret_cast<CLASS_MEDIA_CHANGE_CONTEXT *>(&eventData->u.DeviceHandle.Data);
                             if (device->driveLetter.has_value()) {
-                                fmt::println(L"Media added to {}:, new state: {:X}", *device->driveLetter,
-                                             data->NewState);
+                                fmt::println(L"Media inserted in drive {}: (from CM event)", *device->driveLetter);
                             } else {
-                                fmt::println(L"Media added to {}, new state: {:X}", device->ntPath, data->NewState);
+                                fmt::println(L"Media inserted in device {} (from CM event)", device->ntPath);
                             }
                         } else if (IsEqualGUID(eventData->u.DeviceHandle.EventGuid, GUID_IO_MEDIA_REMOVAL)) {
                             auto *data =
                                 reinterpret_cast<CLASS_MEDIA_CHANGE_CONTEXT *>(&eventData->u.DeviceHandle.Data);
                             if (device->driveLetter.has_value()) {
-                                fmt::println(L"Media removed from {}:, new state: {:X}", *device->driveLetter,
-                                             data->NewState);
+                                fmt::println(L"Media removed from {}: (from CM event)", *device->driveLetter);
                             } else {
-                                fmt::println(L"Media removed from {}, new state: {:X}", device->ntPath, data->NewState);
+                                fmt::println(L"Media removed from {} (from CM event)", device->ntPath);
                             }
                         }
                     }
@@ -322,7 +325,7 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
 
                     if (added) {
                         if (mediaChanged) {
-                            fmt::println(L"Media inserted on drive {}", letter);
+                            fmt::println(L"Media inserted in drive {}: (from WM_DEVICECHANGE)", letter);
                         } else {
                             std::wstring root = L"_:";
                             root[0] = letter;
@@ -340,7 +343,7 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                         }
                     } else {
                         if (mediaChanged) {
-                            fmt::println(L"Media removed from drive {}", letter);
+                            fmt::println(L"Media removed from drive {}: (from WM_DEVICECHANGE)", letter);
                         } else {
                             WindowsCDDeviceManager::Instance().RemoveDriveLetter(letter);
                         }
@@ -382,8 +385,7 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
     filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
     filter.u.DeviceInterface.ClassGuid = GUID_DEVINTERFACE_CDROM;
     return CM_Register_Notification(
-        &filter,
-        (PVOID) nullptr, // context pointer
+        &filter, nullptr,
         [](HCMNOTIFICATION hNotify, PVOID context, CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA eventData,
            DWORD eventDataSize) -> DWORD {
             // TODO: move heavy lifting to a worker thread
