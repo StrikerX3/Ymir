@@ -10,17 +10,22 @@
 #ifndef NOMINMAX
     #define NOMINMAX
 #endif
+#define INITGUID
 #include <windows.h>
 
-#include <Dbt.h>
+#include <initguid.h>
 
+#include <Dbt.h>
 #include <cfgmgr32.h>
+#include <ioevent.h>
 #include <setupapi.h>
 #include <winioctl.h> // for GUID_DEVINTERFACE_CDROM
 
 #pragma comment(lib, "Cfgmgr32.lib")
 
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -39,9 +44,21 @@ static void TrimNullTerminatedString(std::wstring &ws) {
 }
 
 struct WindowsCDDevice {
-    char letter;
-    std::wstring ntDevicePath;
-    std::wstring interfacePath;
+    ~WindowsCDDevice() {
+        if (hDevice != INVALID_HANDLE_VALUE) {
+            CloseHandle(hDevice);
+        }
+        if (hNotification != nullptr) {
+            CM_Unregister_Notification(hNotification);
+        }
+    }
+
+    HANDLE hDevice = INVALID_HANDLE_VALUE;
+    HCMNOTIFICATION hNotification = nullptr;
+    std::wstring ntPath = L"";
+    std::wstring dosPath = L"";
+    std::wstring interfacePath = L"";
+    std::optional<wchar_t> driveLetter = std::nullopt;
 };
 
 struct WindowsCDDeviceManager {
@@ -59,40 +76,10 @@ public:
 
     // Enumerate all CD-ROM interfaces and map the paths forwards and backwards
     void Reenumerate() {
-        std::unique_lock lock{mtxMaps};
-        lettersToNTDevices.clear();
-        ntDevicesToInterfaces.clear();
-        interfacesToNTDevices.clear();
-        ntDevicesToLetters.clear();
-
-        // ---------------------------------------------------------------------
-        // Enumerate and map drive letters and corresponding NT paths (\Device\CdRom#)
-
-        {
-            // Iterate over all mapped drive letters
-            DWORD mask = GetLogicalDrives();
-            for (wchar_t letter = L'A'; letter <= L'Z'; ++letter) {
-                if ((mask & (1u << (letter - L'A'))) == 0u) {
-                    continue;
-                }
-
-                std::wstring drivePath = fmt::format(L"{}:", letter);
-
-                // Ensure this is a CD drive
-                if (GetDriveTypeW(drivePath.c_str()) != DRIVE_CDROM) {
-                    continue;
-                }
-
-                // Get NT path and map it
-                WCHAR targetPath[1024];
-                if (QueryDosDeviceW(drivePath.c_str(), targetPath, 1024)) {
-                    std::wstring targetPathStr = targetPath;
-                    TrimNullTerminatedString(targetPathStr);
-                    lettersToNTDevices[letter] = targetPathStr;
-                    ntDevicesToLetters[targetPathStr] = letter;
-                }
-            }
-        }
+        std::unique_lock lock{mtxDevs};
+        lettersToDevices.clear();
+        interfacesToDevices.clear();
+        devices.clear();
 
         // ---------------------------------------------------------------------
         // Enumerate and map device interfaces (\\?\SCSI#...{GUID}) and corresponding NT paths (\Device\CdRom#)
@@ -141,64 +128,158 @@ public:
                 continue;
             }
 
-            // Build standard device path
+            // Register device, which also sets up notifications
             std::wstring ntPath = fmt::format(L"\\Device\\CdRom{}", devNum.DeviceNumber);
-            ntDevicesToInterfaces[ntPath] = interfacePath;
-            interfacesToNTDevices[interfacePath] = ntPath;
+            RegisterDevice(ntPath, interfacePath);
+
+            // Map interface path to NT device path
+            interfacesToDevices[interfacePath] = ntPath;
         }
+
+        // ---------------------------------------------------------------------
+        // Enumerate and map drive letters and corresponding NT paths (\Device\CdRom#)
+
+        {
+            // Iterate over all mapped drive letters
+            DWORD mask = GetLogicalDrives();
+            for (wchar_t letter = L'A'; letter <= L'Z'; ++letter) {
+                if ((mask & (1u << (letter - L'A'))) == 0u) {
+                    continue;
+                }
+
+                std::wstring drivePath = fmt::format(L"{}:", letter);
+
+                // Ensure this is a CD drive
+                if (GetDriveTypeW(drivePath.c_str()) != DRIVE_CDROM) {
+                    continue;
+                }
+
+                // Get NT path and map it
+                WCHAR targetPath[1024];
+                if (QueryDosDeviceW(drivePath.c_str(), targetPath, 1024)) {
+                    std::wstring targetPathStr = targetPath;
+                    TrimNullTerminatedString(targetPathStr);
+                    lettersToDevices[letter] = targetPathStr;
+                    if (devices.contains(targetPathStr)) {
+                        assert(devices[targetPathStr] != nullptr);
+                        devices[targetPathStr]->driveLetter = letter;
+                    }
+                }
+            }
+        }
+
         PrintDrives();
     }
 
     void AddDriveLetter(wchar_t letter, std::wstring ntPath) {
-        std::unique_lock lock{mtxMaps};
-        lettersToNTDevices[letter] = ntPath;
-        ntDevicesToLetters[ntPath] = letter;
+        std::unique_lock lock{mtxDevs};
+        lettersToDevices[letter] = ntPath;
+        if (devices.contains(ntPath)) {
+            assert(devices[ntPath] != nullptr);
+            devices[ntPath]->driveLetter = letter;
+        }
         PrintDrives();
     }
 
     void RemoveDriveLetter(wchar_t letter) {
-        std::unique_lock lock{mtxMaps};
-        if (auto it = lettersToNTDevices.find(letter); it != lettersToNTDevices.end()) {
-            ntDevicesToLetters.erase(it->second);
+        std::unique_lock lock{mtxDevs};
+        if (auto it = lettersToDevices.find(letter); it != lettersToDevices.end()) {
+            const std::wstring &ntPath = it->second;
+            if (devices.contains(ntPath)) {
+                assert(devices[ntPath] != nullptr);
+                devices[ntPath]->driveLetter = std::nullopt;
+            }
         }
-        lettersToNTDevices.erase(letter);
+        lettersToDevices.erase(letter);
         PrintDrives();
     }
 
     void AddDevice(std::wstring ntPath, std::wstring interfacePath) {
-        std::unique_lock lock{mtxMaps};
-        ntDevicesToInterfaces[ntPath] = interfacePath;
-        interfacesToNTDevices[interfacePath] = ntPath;
+        std::unique_lock lock{mtxDevs};
+        RegisterDevice(ntPath, interfacePath);
+        interfacesToDevices[interfacePath] = ntPath;
         PrintDrives();
     }
 
     void RemoveDevice(std::wstring interfacePath) {
-        std::unique_lock lock{mtxMaps};
-        if (auto itNtPath = interfacesToNTDevices.find(interfacePath); itNtPath != interfacesToNTDevices.end()) {
-            const std::wstring &ntPath = itNtPath->second;
-            if (auto itLetter = ntDevicesToLetters.find(ntPath); itLetter != ntDevicesToLetters.end()) {
-                lettersToNTDevices.erase(itLetter->second);
-            }
-            ntDevicesToLetters.erase(ntPath);
-            ntDevicesToInterfaces.erase(ntPath);
+        std::unique_lock lock{mtxDevs};
+        if (auto it = interfacesToDevices.find(interfacePath); it != interfacesToDevices.end()) {
+            const std::wstring &ntPath = it->second;
+            devices.erase(ntPath);
         }
-        interfacesToNTDevices.erase(interfacePath);
+        interfacesToDevices.erase(interfacePath);
         PrintDrives();
     }
 
-    std::mutex mtxMaps;
+    void RegisterDevice(std::wstring &ntPath, std::wstring &interfacePath) {
+        auto &device = devices[ntPath];
+        if (device.get() == nullptr) {
+            device.reset(new WindowsCDDevice());
+        }
+        device->ntPath = ntPath;
+        device->interfacePath = interfacePath;
+
+        std::wstring dosPath = fmt::format(L"\\\\.\\{}", ntPath.substr(8)); // get "CdRom#" from "\Device\CdRom#"
+        device->dosPath = dosPath;
+        device->hDevice = CreateFileW(dosPath.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                      nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (device->hDevice != INVALID_HANDLE_VALUE) {
+            CM_NOTIFY_FILTER handleFilter = {};
+            handleFilter.cbSize = sizeof(handleFilter);
+            handleFilter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE;
+            handleFilter.u.DeviceHandle.hTarget = device->hDevice;
+
+            DWORD result = CM_Register_Notification(
+                &handleFilter, device.get(),
+                [](HCMNOTIFICATION hNotify, PVOID context, CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA eventData,
+                   DWORD eventDataSize) -> DWORD {
+                    // TODO: move heavy lifting to a worker thread
+                    if (action == CM_NOTIFY_ACTION_DEVICECUSTOMEVENT) {
+                        auto *device = static_cast<WindowsCDDevice *>(context);
+                        if (IsEqualGUID(eventData->u.DeviceHandle.EventGuid, GUID_IO_MEDIA_ARRIVAL)) {
+                            auto *data =
+                                reinterpret_cast<CLASS_MEDIA_CHANGE_CONTEXT *>(&eventData->u.DeviceHandle.Data);
+                            if (device->driveLetter.has_value()) {
+                                fmt::println(L"Media added to {}:, new state: {:X}", *device->driveLetter,
+                                             data->NewState);
+                            } else {
+                                fmt::println(L"Media added to {}, new state: {:X}", device->ntPath, data->NewState);
+                            }
+                        } else if (IsEqualGUID(eventData->u.DeviceHandle.EventGuid, GUID_IO_MEDIA_REMOVAL)) {
+                            auto *data =
+                                reinterpret_cast<CLASS_MEDIA_CHANGE_CONTEXT *>(&eventData->u.DeviceHandle.Data);
+                            if (device->driveLetter.has_value()) {
+                                fmt::println(L"Media removed from {}:, new state: {:X}", *device->driveLetter,
+                                             data->NewState);
+                            } else {
+                                fmt::println(L"Media removed from {}, new state: {:X}", device->ntPath, data->NewState);
+                            }
+                        }
+                    }
+
+                    return 0;
+                },
+                &device->hNotification);
+            if (result != CR_SUCCESS) {
+                fmt::println(L"CM_Register_Notification (handle) failed, error code {:X}\n", result);
+                devices.erase(ntPath);
+            }
+        } else {
+            fmt::println("Failed to open device, error code {}", GetLastError());
+            devices.erase(ntPath);
+        }
+    }
+
+    std::mutex mtxDevs;
 
     // D: -> \Device\CdRom<n>
-    std::unordered_map<wchar_t, std::wstring> lettersToNTDevices;
-
-    // \Device\CdRom<n> -> \\?\SCSI#...{<GUID>}
-    std::unordered_map<std::wstring, std::wstring> ntDevicesToInterfaces;
+    std::unordered_map<wchar_t, std::wstring> lettersToDevices;
 
     // \\?\SCSI#...{<GUID>} -> \Device\CdRom<n>
-    std::unordered_map<std::wstring, std::wstring> interfacesToNTDevices;
+    std::unordered_map<std::wstring, std::wstring> interfacesToDevices;
 
-    // \Device\CdRom<n> -> D:
-    std::unordered_map<std::wstring, wchar_t> ntDevicesToLetters;
+    // \Device\CdRom<n> -> control block with handles, paths, etc.
+    std::unordered_map<std::wstring, std::unique_ptr<WindowsCDDevice>> devices;
 };
 
 WindowsCDDeviceManager WindowsCDDeviceManager::s_instance{};
@@ -209,11 +290,11 @@ static void PrintDrives() {
     auto &mgr = WindowsCDDeviceManager::Instance();
 
     fmt::println("Current drives:");
-    for (const auto &[ntPath, iface] : mgr.ntDevicesToInterfaces) {
-        if (auto it = mgr.ntDevicesToLetters.find(ntPath); it != mgr.ntDevicesToLetters.end()) {
-            fmt::println(L"  {}: -> {} -> {}", it->second, ntPath, iface);
+    for (const auto &[ntPath, dev] : mgr.devices) {
+        if (dev->driveLetter) {
+            fmt::println(L"  {}: -> {} -> {}", *dev->driveLetter, ntPath, dev->interfacePath);
         } else {
-            fmt::println(L"  -- -> {} -> {}", ntPath, iface);
+            fmt::println(L"  -- -> {} -> {}", ntPath, dev->interfacePath);
         }
     }
 }
@@ -305,6 +386,7 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
         (PVOID) nullptr, // context pointer
         [](HCMNOTIFICATION hNotify, PVOID context, CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA eventData,
            DWORD eventDataSize) -> DWORD {
+            // TODO: move heavy lifting to a worker thread
             if (action != CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL &&
                 action != CM_NOTIFY_ACTION_DEVICEINTERFACEREMOVAL) {
                 return 0;
@@ -342,7 +424,6 @@ static DWORD RegisterDeviceMonitor(HCMNOTIFICATION &hNotification) {
 
 void runCDDeviceEventsSandbox() {
     auto &mgr = WindowsCDDeviceManager::Instance();
-    mgr.Reenumerate();
 
     HCMNOTIFICATION hDeviceNotification = nullptr;
     DWORD result = RegisterDeviceMonitor(hDeviceNotification);
@@ -352,6 +433,8 @@ void runCDDeviceEventsSandbox() {
     util::ScopeGuard sgUnregisterDeviceNotification{[&] { CM_Unregister_Notification(hDeviceNotification); }};
 
     CreateThread(NULL, 0, DeviceMonitorThread, NULL, 0, NULL);
+
+    mgr.Reenumerate();
 
     fmt::println("Press ENTER to exit");
     std::cin.get();
