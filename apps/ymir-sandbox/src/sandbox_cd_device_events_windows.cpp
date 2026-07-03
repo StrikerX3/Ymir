@@ -30,6 +30,14 @@
 #include <string_view>
 #include <unordered_map>
 
+// TODO: implement SCSI command processing
+// TODO: detect media presence during device enumeration
+// TODO: detect tray state during device enumeration
+// TODO: move all heavy lifting out of the notification handlers into a worker thread per device
+// TODO: check tray state periodically while a device has no media and on media removals
+// TODO: implement all of this for Linux to figure out shared public interface
+// TODO: figure out how to connect this to the emulator core and the frontend
+
 void PrintDrives();
 
 static void NormalizeString(std::wstring &ws) {
