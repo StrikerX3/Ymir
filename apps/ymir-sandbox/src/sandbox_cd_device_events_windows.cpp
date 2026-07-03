@@ -1,3 +1,5 @@
+#include <ymir/util/bit_ops.hpp>
+#include <ymir/util/data_ops.hpp>
 #include <ymir/util/scope_guard.hpp>
 
 #include <ymir/core/types.hpp>
@@ -21,6 +23,8 @@
 #include <setupapi.h>
 #include <winioctl.h> // for GUID_DEVINTERFACE_CDROM
 
+#include <ntddscsi.h>
+
 #pragma comment(lib, "Cfgmgr32.lib")
 
 #include <memory>
@@ -31,8 +35,6 @@
 #include <unordered_map>
 
 // TODO: implement SCSI command processing
-// TODO: detect media presence during device enumeration
-// TODO: detect tray state during device enumeration
 // TODO: move all heavy lifting out of the notification handlers into a worker thread per device
 // TODO: check tray state periodically while a device has no media and on media removals
 // TODO: implement all of this for Linux to figure out shared public interface
@@ -51,6 +53,9 @@ static void TrimNullTerminatedString(std::wstring &ws) {
     }
 }
 
+enum class MediaPresenceState { Absent, Present, Unknown };
+enum class TrayState { Open, Closed, Unknown };
+
 struct WindowsCDDevice {
     ~WindowsCDDevice() {
         if (hDevice != INVALID_HANDLE_VALUE) {
@@ -67,6 +72,100 @@ struct WindowsCDDevice {
     std::wstring dosPath = L"";
     std::wstring interfacePath = L"";
     std::optional<wchar_t> driveLetter = std::nullopt;
+
+    MediaPresenceState mediaPresenceState;
+    TrayState trayState;
+
+    void UpdateDriveState() {
+        util::ScopeGuard sgPrintState{[&] {
+            std::wstring_view mediaPresenceStateStr = [&] {
+                switch (mediaPresenceState) {
+                case MediaPresenceState::Absent: return L"no media";
+                case MediaPresenceState::Present: return L"media present";
+                case MediaPresenceState::Unknown: return L"unknown media state";
+                default: return L"invalid media state";
+                }
+            }();
+            std::wstring_view trayStateStr = [&] {
+                switch (trayState) {
+                case TrayState::Open: return L"tray open";
+                case TrayState::Closed: return L"tray closed";
+                case TrayState::Unknown: return L"unknown tray state";
+                default: return L"invalid tray state";
+                }
+            }();
+            fmt::println(L"Device {} state updated: {}, {}", ntPath, mediaPresenceStateStr, trayStateStr);
+        }};
+
+        mediaPresenceState = MediaPresenceState::Unknown;
+        trayState = TrayState::Unknown;
+
+        std::array<uint8, 128> buffer{};
+
+        std::array<uint8, 10> cdb{};
+        cdb[0] = 0x4A;                // GET EVENT/STATUS NOTIFICATION
+        cdb[1] = 0x01;                // Polling mode (IMMED=1)
+        cdb[4] = 0x10;                // Media class events (bit 4)
+        cdb[7] = buffer.size() >> 8u; // Allocation length (MSB)
+        cdb[8] = buffer.size() >> 0u; // Allocation length (LSB)
+
+        SCSI_PASS_THROUGH_DIRECT cmd{};
+        cmd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+        cmd.CdbLength = sizeof(cdb);
+        cmd.DataIn = SCSI_IOCTL_DATA_IN;
+        cmd.TimeOutValue = 5;
+        cmd.DataBuffer = buffer.data();
+        cmd.DataTransferLength = buffer.size();
+        memcpy(cmd.Cdb, cdb.data(), cdb.size());
+
+        DWORD bytesReturned = 0;
+        if (!DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd),
+                             &bytesReturned, NULL)) {
+            // Command failed or unsupported; can't get drive state
+            return;
+        }
+
+        // Parse header
+        const uint16 respLength = util::ReadBE<uint16>(&buffer[0]);
+
+        // Check that the Media Event class is supported
+        const bool noEventAvailable = bit::test<7>(buffer[1]);
+        if (noEventAvailable) {
+            return;
+        }
+
+        // Check that we actually got a Media Event
+        const uint8 notificationClass = bit::extract<0, 2>(buffer[2]);
+        if (notificationClass != 0x4) {
+            return;
+        }
+
+        // Optional check: make sure the Media Event class is reported as supported
+        /*const bool mediaEventClassSupported = bit::test<4>(buffer[3]);
+        if (!mediaEventClassSupported) {
+            return;
+        }*/
+
+        // Media Event uses at least 4 bytes, plus 2 from the rest of the header
+        if (respLength < 6) {
+            return;
+        }
+
+        // The second byte of the media event payload has the information we need (Media Status field)
+        const bool trayOpen = bit::test<0>(buffer[5]);
+        const bool mediaPresent = bit::test<1>(buffer[5]);
+        trayState = trayOpen ? TrayState::Open : TrayState::Closed;
+        mediaPresenceState = mediaPresent ? MediaPresenceState::Present : MediaPresenceState::Absent;
+
+        // Double-check that there really is no media
+        if (!mediaPresent) {
+            DWORD bytesReturned = 0;
+            if (DeviceIoControl(hDevice, IOCTL_STORAGE_CHECK_VERIFY2, nullptr, 0, nullptr, 0, &bytesReturned,
+                                nullptr)) {
+                mediaPresenceState = MediaPresenceState::Present;
+            }
+        }
+    }
 };
 
 struct WindowsCDDeviceManager {
@@ -202,6 +301,16 @@ public:
         PrintDrives();
     }
 
+    WindowsCDDevice *GetDeviceByLetter(wchar_t letter) {
+        if (lettersToDevices.contains(letter)) {
+            std::wstring &ntPath = lettersToDevices.at(letter);
+            if (devices.contains(ntPath)) {
+                return devices.at(ntPath).get();
+            }
+        }
+        return nullptr;
+    }
+
     void AddDevice(std::wstring ntPath, std::wstring interfacePath) {
         std::unique_lock lock{mtxDevs};
         RegisterDevice(ntPath, interfacePath);
@@ -266,12 +375,15 @@ public:
                                 fmt::println(L"Media removed from {} (from CM event)", device->ntPath);
                             }
                         }
+                        device->UpdateDriveState();
                     }
 
                     return 0;
                 },
                 &device->hNotification);
-            if (result != CR_SUCCESS) {
+            if (result == CR_SUCCESS) {
+                device->UpdateDriveState();
+            } else {
                 fmt::println(L"CM_Register_Notification (handle) failed, error code {:X}\n", result);
                 devices.erase(ntPath);
             }
@@ -302,11 +414,33 @@ static void PrintDrives() {
 
     fmt::println("Current drives:");
     for (const auto &[ntPath, dev] : mgr.devices) {
+        std::wstring_view mediaPresenceStateStr = [&] {
+            switch (dev->mediaPresenceState) {
+            case MediaPresenceState::Absent: return L"no media";
+            case MediaPresenceState::Present: return L"media present";
+            case MediaPresenceState::Unknown: return L"unknown media state";
+            default: return L"invalid media state";
+            }
+        }();
+        std::wstring_view trayStateStr = [&] {
+            switch (dev->trayState) {
+            case TrayState::Open: return L"tray open";
+            case TrayState::Closed: return L"tray closed";
+            case TrayState::Unknown: return L"unknown tray state";
+            default: return L"invalid tray state";
+            }
+        }();
+        fmt::wmemory_buffer buf{};
+        auto out = std::back_inserter(buf);
         if (dev->driveLetter) {
-            fmt::println(L"  {}: -> {} -> {}", *dev->driveLetter, ntPath, dev->interfacePath);
+            fmt::format_to(out, L"  {}:", *dev->driveLetter);
         } else {
-            fmt::println(L"  -- -> {} -> {}", ntPath, dev->interfacePath);
+            fmt::format_to(out, L"  --");
         }
+        fmt::format_to(out, L" -> {}", ntPath);
+        fmt::format_to(out, L" -> {}", dev->interfacePath);
+        fmt::format_to(out, L" ({}, {})", mediaPresenceStateStr, trayStateStr);
+        fmt::println(L"{}", std::wstring_view(buf.begin(), buf.end()));
     }
 }
 
@@ -334,6 +468,10 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                     if (added) {
                         if (mediaChanged) {
                             fmt::println(L"Media inserted in drive {}: (from WM_DEVICECHANGE)", letter);
+                            auto *dev = WindowsCDDeviceManager::Instance().GetDeviceByLetter(letter);
+                            if (dev) {
+                                dev->UpdateDriveState();
+                            }
                         } else {
                             std::wstring root = L"_:";
                             root[0] = letter;
@@ -352,6 +490,10 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                     } else {
                         if (mediaChanged) {
                             fmt::println(L"Media removed from drive {}: (from WM_DEVICECHANGE)", letter);
+                            auto *dev = WindowsCDDeviceManager::Instance().GetDeviceByLetter(letter);
+                            if (dev) {
+                                dev->UpdateDriveState();
+                            }
                         } else {
                             WindowsCDDeviceManager::Instance().RemoveDriveLetter(letter);
                         }
