@@ -124,9 +124,6 @@ FORCE_INLINE std::string WStringToString(const std::wstring &wstr) {
     return out;
 }
 
-enum class MediaPresenceState { Absent, Present, Unknown };
-enum class TrayState { Open, Closed, Unknown };
-
 struct Command {
     enum class Type { UpdateThreadName, MediaStateChanged, Quit };
 
@@ -175,8 +172,8 @@ struct WindowsCDDevice {
     std::wstring interfacePath = L"";
     std::optional<wchar_t> driveLetter = std::nullopt;
 
-    MediaPresenceState mediaPresenceState;
-    TrayState trayState;
+    ymir::scsi::MediaPresenceState mediaPresenceState = ymir::scsi::MediaPresenceState::Unknown;
+    ymir::scsi::TrayState trayState = ymir::scsi::TrayState::Unknown;
 
     std::thread thread;
 
@@ -190,13 +187,13 @@ struct WindowsCDDevice {
 
     void ThreadProc() {
         using namespace std::chrono_literals;
-        static constexpr auto kPresentMediaStateQueryInterval = 5s;
+        static constexpr auto kPresentMediaStateQueryInterval = 3s;
         static constexpr auto kAbsentMediaStateQueryInterval = 1s;
 
         Command command;
         bool running = true;
         while (running) {
-            const auto queryInterval = mediaPresenceState == MediaPresenceState::Present
+            const auto queryInterval = mediaPresenceState == ymir::scsi::MediaPresenceState::Present
                                            ? kPresentMediaStateQueryInterval
                                            : kAbsentMediaStateQueryInterval;
             if (cmdQueue.wait_dequeue_timed(ctokCmdQueue, command, queryInterval)) {
@@ -224,31 +221,37 @@ struct WindowsCDDevice {
     }
 
     void UpdateDriveState() {
+        const ymir::scsi::MediaPresenceState prevMediaPresenceState = mediaPresenceState;
+        const ymir::scsi::TrayState prevTrayState = trayState;
+
         util::ScopeGuard sgPrintState{[&] {
-            std::wstring_view mediaPresenceStateStr = [&] {
-                switch (mediaPresenceState) {
-                case MediaPresenceState::Absent: return L"no media";
-                case MediaPresenceState::Present: return L"media present";
-                case MediaPresenceState::Unknown: return L"unknown media state";
-                default: return L"invalid media state";
-                }
-            }();
-            std::wstring_view trayStateStr = [&] {
-                switch (trayState) {
-                case TrayState::Open: return L"tray open";
-                case TrayState::Closed: return L"tray closed";
-                case TrayState::Unknown: return L"unknown tray state";
-                default: return L"invalid tray state";
-                }
-            }();
-            fmt::println(L"Device {} state updated: {}, {}", ntPath, mediaPresenceStateStr, trayStateStr);
+            // Check for state changes
+            if (mediaPresenceState != prevMediaPresenceState) {
+                std::wstring_view mediaPresenceStateStr = [&] {
+                    switch (mediaPresenceState) {
+                    case ymir::scsi::MediaPresenceState::Absent: return L"no media";
+                    case ymir::scsi::MediaPresenceState::Present: return L"media present";
+                    case ymir::scsi::MediaPresenceState::Unknown: return L"unknown media state";
+                    default: return L"invalid media state";
+                    }
+                }();
+                fmt::println(L"Device {} media state changed: {}", ntPath, mediaPresenceStateStr);
+            }
+            if (trayState != prevTrayState) {
+                std::wstring_view trayStateStr = [&] {
+                    switch (trayState) {
+                    case ymir::scsi::TrayState::Open: return L"tray open";
+                    case ymir::scsi::TrayState::Closed: return L"tray closed";
+                    case ymir::scsi::TrayState::Unknown: return L"unknown tray state";
+                    default: return L"invalid tray state";
+                    }
+                }();
+                fmt::println(L"Device {} tray state changed: {}", ntPath, trayStateStr);
+            }
         }};
 
-        auto prevMediaPresenceState = mediaPresenceState;
-        auto prevTrayState = trayState;
-
-        mediaPresenceState = MediaPresenceState::Unknown;
-        trayState = TrayState::Unknown;
+        mediaPresenceState = ymir::scsi::MediaPresenceState::Unknown;
+        trayState = ymir::scsi::TrayState::Unknown;
 
         std::array<uint8, 128> buffer{};
         auto cdb =
@@ -288,21 +291,17 @@ struct WindowsCDDevice {
         // The second byte of the media event payload has the information we need (Media Status field)
         const bool trayOpen = bit::test<0>(buffer[5]);
         const bool mediaPresent = bit::test<1>(buffer[5]);
-        trayState = trayOpen ? TrayState::Open : TrayState::Closed;
-        mediaPresenceState = mediaPresent ? MediaPresenceState::Present : MediaPresenceState::Absent;
+        trayState = trayOpen ? ymir::scsi::TrayState::Open : ymir::scsi::TrayState::Closed;
+        mediaPresenceState =
+            mediaPresent ? ymir::scsi::MediaPresenceState::Present : ymir::scsi::MediaPresenceState::Absent;
 
         // Double-check that there really is no media
         if (!mediaPresent) {
             DWORD bytesReturned = 0;
             if (DeviceIoControl(hDevice, IOCTL_STORAGE_CHECK_VERIFY2, nullptr, 0, nullptr, 0, &bytesReturned,
                                 nullptr)) {
-                mediaPresenceState = MediaPresenceState::Present;
+                mediaPresenceState = ymir::scsi::MediaPresenceState::Present;
             }
-        }
-
-        // Notify state changes
-        if (mediaPresenceState == prevMediaPresenceState && trayState == prevTrayState) {
-            sgPrintState.Cancel();
         }
     }
 };
@@ -543,17 +542,17 @@ static void PrintDrives() {
     for (const auto &[ntPath, dev] : mgr.devices) {
         std::wstring_view mediaPresenceStateStr = [&] {
             switch (dev->mediaPresenceState) {
-            case MediaPresenceState::Absent: return L"no media";
-            case MediaPresenceState::Present: return L"media present";
-            case MediaPresenceState::Unknown: return L"unknown media state";
+            case ymir::scsi::MediaPresenceState::Absent: return L"no media";
+            case ymir::scsi::MediaPresenceState::Present: return L"media present";
+            case ymir::scsi::MediaPresenceState::Unknown: return L"unknown media state";
             default: return L"invalid media state";
             }
         }();
         std::wstring_view trayStateStr = [&] {
             switch (dev->trayState) {
-            case TrayState::Open: return L"tray open";
-            case TrayState::Closed: return L"tray closed";
-            case TrayState::Unknown: return L"unknown tray state";
+            case ymir::scsi::TrayState::Open: return L"tray open";
+            case ymir::scsi::TrayState::Closed: return L"tray closed";
+            case ymir::scsi::TrayState::Unknown: return L"unknown tray state";
             default: return L"invalid tray state";
             }
         }();

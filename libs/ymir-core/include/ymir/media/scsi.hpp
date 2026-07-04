@@ -11,12 +11,23 @@
 
 namespace ymir::scsi {
 
-// SCSI operation codes
+enum class MediaPresenceState { Absent, Present, Unknown };
+enum class TrayState { Open, Closed, Unknown };
+
+/// @brief SCSI operation codes
 namespace op {
 
-    // GET EVENT/STATUS NOTIFICATION
+    /// @brief SCSI operation code for GET EVENT/STATUS NOTIFICATION
     static constexpr uint8 kGetEventStatusNotification = 0x4A;
 
+    /// @brief Build a GET EVENT/STATUS NOTIFICATION command descriptor block.
+    /// @param[in] immed whether to poll immediately (`true`) or run asynchronously (`false`). Corresponds to the
+    /// command's IMMED flag (bit 0 of byte 0).
+    /// @param[in] classEvents bitmask of class events to be notified. Use the constants defined in the
+    /// `ymir::scsi::notif_class` namespace.
+    /// @param[in] length size of the output buffer
+    /// @return an array with the command descriptor block for a GET EVENT/STATUS NOTIFICATION command built from the
+    /// given parameters
     static std::array<uint8, 10> MakeGetEventStatusNotification(bool immed, uint8 classEvents, uint16 length) {
         std::array<uint8, 10> cdb{};
         cdb[0] = kGetEventStatusNotification;
@@ -29,7 +40,7 @@ namespace op {
 
 } // namespace op
 
-// Direction for SCSI data transfers
+/// @brief Direction for SCSI data transfers.
 enum class Direction {
     In,    // SCSI device -> host
     Out,   // Host -> SCSI device
@@ -37,10 +48,10 @@ enum class Direction {
     None,  // No data transfers
 };
 
-// Notification class bits for GET EVENT/STATUS NOTIFICATION command
+/// @brief Notification class bits for the GET EVENT/STATUS NOTIFICATION command.
 namespace notif_class {
 
-    static constexpr uint8 kMediaStatus = 1u << 4u; // Media Status Class Events
+    static constexpr uint8 kMediaStatus = 1u << 4u; ///< Media Status Class Events
 
 } // namespace notif_class
 
