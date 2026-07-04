@@ -151,6 +151,7 @@ add_library(ymir-core
     include/ymir/media/iso9660.hpp
     include/ymir/media/media_defs.hpp
     include/ymir/media/saturn_header.hpp
+    include/ymir/media/scsi.hpp
     include/ymir/media/subheader.hpp
 
     include/ymir/media/device/cd_device_base.hpp

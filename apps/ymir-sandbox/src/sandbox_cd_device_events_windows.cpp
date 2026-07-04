@@ -1,3 +1,5 @@
+#include <ymir/media/scsi.hpp>
+
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/scope_guard.hpp>
@@ -40,54 +42,12 @@
 #include <unordered_map>
 
 // TODO: clean up stdout output
-// TODO: check tray state periodically while a device has no media and on media removals
 // TODO: implement all of this for Linux to figure out shared public interface
 // TODO: figure out how to connect this to the emulator core and the frontend
 
 void PrintDrives();
 
-// -----------------------------------------------------------------------------
-// Common SCSI definitions and operations.
-
-// TODO: move to a dedicated header/source pair
-
-namespace scsi {
-
-// SCSI operation codes
-namespace op {
-
-    // GET EVENT/STATUS NOTIFICATION
-    static constexpr uint8 kGetEventStatusNotification = 0x4A;
-
-    static std::array<uint8, 10> MakeGetEventStatusNotification(bool immed, uint8 classEvents, uint16 length) {
-        std::array<uint8, 10> cdb{};
-        cdb[0] = kGetEventStatusNotification;
-        cdb[1] = immed ? 1 : 0; // bit 0 = IMMED
-        cdb[4] = classEvents;   // Media class events (bit 4)
-        cdb[7] = length >> 8u;  // Allocation length (MSB)
-        cdb[8] = length >> 0u;  // Allocation length (LSB)
-        return cdb;
-    }
-
-} // namespace op
-
-// Direction for SCSI data transfers
-enum class Direction {
-    In,    // SCSI device -> host
-    Out,   // Host -> SCSI device
-    InOut, // SCSI device <-> host
-    None,  // No data transfers
-};
-
-// Notification class bits for GET EVENT/STATUS NOTIFICATION command
-namespace notif_class {
-
-    static constexpr uint8 kMediaStatus = 1u << 4u; // Media Status Class Events
-
-} // namespace notif_class
-
-// -----------------------------------------------------------------------------
-// Windows-specific implementation
+namespace ymir::scsi {
 
 FORCE_INLINE static UCHAR TranslateDirection(Direction direction) {
     switch (direction) {
@@ -137,7 +97,7 @@ FORCE_INLINE static bool SendNoDirCommand(HANDLE hDevice, std::span<const uint8>
     return SendCommand(hDevice, Direction::None, cdb, outData, outSize);
 }
 
-} // namespace scsi
+} // namespace ymir::scsi
 
 FORCE_INLINE static void NormalizeString(std::wstring &ws) {
     std::transform(ws.begin(), ws.end(), ws.begin(), ::towlower);
@@ -251,7 +211,10 @@ struct WindowsCDDevice {
                                  (driveLetter.has_value() ? fmt::format(L"{}:", *driveLetter) : ntPath));
                     UpdateDriveState();
                     break;
-                case Command::Type::Quit: running = false; break;
+                case Command::Type::Quit:
+                    fmt::println(L"{} thread quitting", ntPath);
+                    running = false;
+                    break;
                 }
             } else {
                 // Periodically check media state just in case we don't get automatic notifications
@@ -288,9 +251,10 @@ struct WindowsCDDevice {
         trayState = TrayState::Unknown;
 
         std::array<uint8, 128> buffer{};
-        auto cdb = scsi::op::MakeGetEventStatusNotification(true, scsi::notif_class::kMediaStatus, buffer.size());
+        auto cdb =
+            ymir::scsi::op::MakeGetEventStatusNotification(true, ymir::scsi::notif_class::kMediaStatus, buffer.size());
         uint32 outSize = 0;
-        if (!scsi::SendInCommand(hDevice, cdb, buffer, outSize)) {
+        if (!ymir::scsi::SendInCommand(hDevice, cdb, buffer, outSize)) {
             // Command failed or unsupported; can't get drive state
             return;
         }
