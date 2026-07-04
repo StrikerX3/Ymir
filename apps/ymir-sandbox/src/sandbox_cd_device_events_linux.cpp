@@ -10,7 +10,10 @@
 
 #include <blockingconcurrentqueue.h>
 
+#include <libudev.h>
 #include <scsi/sg.h>
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
 #include <sys/ioctl.h>
 
 #include <filesystem>
@@ -104,6 +107,9 @@ struct LinuxCDDevice {
         if (thread.joinable()) {
             EnqueueCommand(Command::Quit());
             thread.join();
+            if (fd >= 0) {
+                close(fd);
+            }
         }
     }
 
@@ -124,7 +130,9 @@ struct LinuxCDDevice {
     }
 
     void ThreadProc() {
-        util::SetCurrentThreadName(fmt::format("CDDev: {}", path).c_str());
+        util::SetCurrentThreadName(fmt::format("watch {}", path).c_str());
+
+        UpdateDriveState();
 
         using namespace std::chrono_literals;
         static constexpr auto kPresentMediaStateQueryInterval = 3s;
@@ -242,11 +250,39 @@ struct LinuxCDDevice {
 
 struct LinuxCDDeviceManager {
 private:
-    LinuxCDDeviceManager() {}
+    LinuxCDDeviceManager() {
+        udev = udev_new();
+        if (udev == nullptr) {
+            return;
+        }
+
+        udevMonitor = udev_monitor_new_from_netlink(udev, "udev");
+        udev_monitor_filter_add_match_subsystem_devtype(udevMonitor, "scsi_generic", nullptr);
+        udev_monitor_enable_receiving(udevMonitor);
+
+        monitorThread = std::thread([&] { MonitorThreadProc(); });
+    }
     LinuxCDDeviceManager(const LinuxCDDeviceManager &) = delete;
     LinuxCDDeviceManager(LinuxCDDeviceManager &&) = delete;
 
+    ~LinuxCDDeviceManager() {
+        if (monitorThread.joinable()) {
+            static constexpr uint64 kValue = 1;
+            write(fdQuitMonitor, &kValue, sizeof(kValue));
+            monitorThread.join();
+        }
+        if (udevMonitor != nullptr) {
+            udev_monitor_unref(udevMonitor);
+        }
+        if (udev != nullptr) {
+            udev_unref(udev);
+        }
+    }
+
     static LinuxCDDeviceManager s_instance;
+
+    udev *udev = nullptr;
+    udev_monitor *udevMonitor = nullptr;
 
 public:
     static LinuxCDDeviceManager &Instance() {
@@ -287,6 +323,114 @@ public:
     }
 
     std::mutex mtxDevs;
+
+    std::thread monitorThread;
+    int fdQuitMonitor = eventfd(0, EFD_NONBLOCK);
+
+    void MonitorThreadProc() {
+        util::SetCurrentThreadName("udev CD monitor");
+
+        const int fdUdev = udev_monitor_get_fd(udevMonitor);
+
+        const int fdEpoll = epoll_create1(0);
+        if (fdEpoll < 0) {
+            return;
+        }
+
+        // Register udev FD
+        {
+            epoll_event ev{};
+            ev.events = EPOLLIN;
+            ev.data.fd = fdUdev;
+            if (epoll_ctl(fdEpoll, EPOLL_CTL_ADD, fdUdev, &ev) < 0) {
+                perror("epoll_ctl udev");
+                close(fdEpoll);
+                return;
+            }
+        }
+
+        // Register quit FD
+        {
+            epoll_event ev{};
+            ev.events = EPOLLIN;
+            ev.data.fd = fdQuitMonitor;
+            if (epoll_ctl(fdEpoll, EPOLL_CTL_ADD, fdQuitMonitor, &ev) < 0) {
+                perror("epoll_ctl quit");
+                close(fdEpoll);
+                return;
+            }
+        }
+
+        epoll_event events[4];
+
+        bool running = true;
+        while (running) {
+            const int n = epoll_wait(fdEpoll, events, 4, -1);
+            if (n < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                break;
+            }
+
+            for (int i = 0; i < n; i++) {
+                const int fd = events[i].data.fd;
+                if (fd == fdUdev) {
+                    udev_device *dev = udev_monitor_receive_device(udevMonitor);
+                    if (!dev) {
+                        continue;
+                    }
+                    util::ScopeGuard sgUnrefDevice{[&] { udev_device_unref(dev); }};
+
+                    std::array<uint8, 36> inquiryBuffer{};
+                    uint32 outSize{};
+                    auto cdb = ymir::scsi::op::MakeInquiry(inquiryBuffer.size());
+                    if (!ymir::scsi::SendInCommand(fd, cdb, inquiryBuffer, outSize)) {
+                        // TODO: check why the command is always being rejected
+                        // Drive doesn't support the command, very likely not a CD-ROM drive
+                        continue;
+                    }
+                    // Check the peripheral type field. 5 corresponds to a CD-ROM device.
+                    const uint8 periphType = bit::extract<0, 4>(inquiryBuffer[0]);
+                    if (periphType != 5) {
+                        continue;
+                    }
+
+                    const char *action = udev_device_get_action(dev);
+                    const char *devnode = udev_device_get_devnode(dev);
+                    if (action == nullptr || devnode == nullptr) {
+                        continue;
+                    }
+
+                    std::string actionStr = action;
+                    if (actionStr != "change" && actionStr != "add" && actionStr != "remove") {
+                        continue;
+                    }
+
+                    std::string devnodeStr = devnode;
+                    if (actionStr == "change") {
+                        if (devices.contains(devnodeStr)) {
+                            devices.at(devnodeStr)->UpdateDriveState();
+                        }
+                    } else if (actionStr == "add") {
+                        if (!devices.contains(devnodeStr)) {
+                            devices[devnodeStr] = std::make_unique<LinuxCDDevice>(devnodeStr);
+                        }
+                    } else if (actionStr == "remove") {
+                        if (devices.contains(devnodeStr)) {
+                            devices.erase(devnodeStr);
+                        }
+                    }
+                } else if (fd == fdQuitMonitor) {
+                    uint64 dummy;
+                    read(fdQuitMonitor, &dummy, sizeof(dummy));
+                    running = false;
+                }
+            }
+        }
+
+        close(fdEpoll);
+    }
 
     std::unordered_map<std::string, std::unique_ptr<LinuxCDDevice>> devices;
 };

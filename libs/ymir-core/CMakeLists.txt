@@ -324,6 +324,7 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(OS_SPECIFIC_SOURCES
         src/ymir/media/device/cd_device_physical_linux.cpp
     )
+    target_link_libraries(ymir-core PRIVATE udev)
 elseif (APPLE)
     set(OS_SPECIFIC_SOURCES
         src/ymir/media/device/cd_device_physical_macos.cpp

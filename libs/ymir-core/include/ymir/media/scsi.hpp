@@ -17,8 +17,23 @@ enum class TrayState { Open, Closed, Unknown };
 /// @brief SCSI operation codes
 namespace op {
 
+    /// @brief SCSI operation code for INQUIRY
+    static constexpr uint8 kInquiry = 0x12;
+
     /// @brief SCSI operation code for GET EVENT/STATUS NOTIFICATION
     static constexpr uint8 kGetEventStatusNotification = 0x4A;
+
+    /// @brief Build an INQUIRY command descriptor block without requesting vital product data.
+    /// @param[in] length size of the output buffer
+    /// @return an array with the command descriptor block for an INQUIRY command built from the given parameters
+    static std::array<uint8, 6> MakeInquiry(uint8 length) {
+        std::array<uint8, 6> cdb{};
+        cdb[0] = kInquiry;
+        cdb[1] = 0x00; // EVPD=0, CmdDt=0
+        cdb[2] = 0x00; // Page or operation code unused
+        cdb[4] = length;
+        return cdb;
+    }
 
     /// @brief Build a GET EVENT/STATUS NOTIFICATION command descriptor block.
     /// @param[in] immed whether to poll immediately (`true`) or run asynchronously (`false`). Corresponds to the
