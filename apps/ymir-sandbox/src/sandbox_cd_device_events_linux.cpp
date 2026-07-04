@@ -100,7 +100,6 @@ struct LinuxCDDevice {
     explicit LinuxCDDevice(const std::string &path)
         : path(path) {
         fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
-        thread = std::thread([this] { ThreadProc(); });
     }
 
     ~LinuxCDDevice() {
@@ -127,6 +126,12 @@ struct LinuxCDDevice {
 
     void EnqueueCommand(Command &&command) {
         cmdQueue.enqueue(ptokCmdQueue, std::move(command));
+    }
+
+    void StartThread() {
+        if (!thread.joinable()) {
+            thread = std::thread([this] { ThreadProc(); });
+        }
     }
 
     void ThreadProc() {
@@ -314,7 +319,9 @@ public:
             if (typeFile >> deviceType) {
                 if (deviceType == 5) {
                     std::string path = "/dev/" + devName;
-                    devices[path] = std::make_unique<LinuxCDDevice>(path);
+                    auto dev = std::make_unique<LinuxCDDevice>(path);
+                    dev->StartThread();
+                    devices[path].swap(dev);
                 }
             }
         }
@@ -382,20 +389,6 @@ public:
                     }
                     util::ScopeGuard sgUnrefDevice{[&] { udev_device_unref(dev); }};
 
-                    std::array<uint8, 36> inquiryBuffer{};
-                    uint32 outSize{};
-                    auto cdb = ymir::scsi::op::MakeInquiry(inquiryBuffer.size());
-                    if (!ymir::scsi::SendInCommand(fd, cdb, inquiryBuffer, outSize)) {
-                        // TODO: check why the command is always being rejected
-                        // Drive doesn't support the command, very likely not a CD-ROM drive
-                        continue;
-                    }
-                    // Check the peripheral type field. 5 corresponds to a CD-ROM device.
-                    const uint8 periphType = bit::extract<0, 4>(inquiryBuffer[0]);
-                    if (periphType != 5) {
-                        continue;
-                    }
-
                     const char *action = udev_device_get_action(dev);
                     const char *devnode = udev_device_get_devnode(dev);
                     if (action == nullptr || devnode == nullptr) {
@@ -414,12 +407,27 @@ public:
                         }
                     } else if (actionStr == "add") {
                         if (!devices.contains(devnodeStr)) {
-                            devices[devnodeStr] = std::make_unique<LinuxCDDevice>(devnodeStr);
+                            // Check that this is a CD device
+                            auto dev = std::make_unique<LinuxCDDevice>(devnodeStr);
+
+                            std::array<uint8, 36> inquiryBuffer{};
+                            uint32 outSize{};
+                            auto cdb = ymir::scsi::op::MakeInquiry(inquiryBuffer.size());
+                            if (!ymir::scsi::SendInCommand(dev->fd, cdb, inquiryBuffer, outSize)) {
+                                // Drive doesn't support the command, very likely not a CD-ROM drive
+                                continue;
+                            }
+                            // Check the peripheral type field. 5 corresponds to a CD-ROM device.
+                            const uint8 periphType = bit::extract<0, 4>(inquiryBuffer[0]);
+                            if (periphType != 5) {
+                                continue;
+                            }
+
+                            dev->StartThread();
+                            devices[devnodeStr].swap(dev);
                         }
                     } else if (actionStr == "remove") {
-                        if (devices.contains(devnodeStr)) {
-                            devices.erase(devnodeStr);
-                        }
+                        devices.erase(devnodeStr);
                     }
                 } else if (fd == fdQuitMonitor) {
                     uint64 dummy;
