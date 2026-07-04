@@ -34,19 +34,112 @@
 #include <string_view>
 #include <unordered_map>
 
-// TODO: implement SCSI command processing
 // TODO: move all heavy lifting out of the notification handlers into a worker thread per device
+// TODO: clean up stdout output
 // TODO: check tray state periodically while a device has no media and on media removals
 // TODO: implement all of this for Linux to figure out shared public interface
 // TODO: figure out how to connect this to the emulator core and the frontend
 
 void PrintDrives();
 
-static void NormalizeString(std::wstring &ws) {
+// -----------------------------------------------------------------------------
+// Common SCSI definitions and operations.
+
+// TODO: move to a dedicated header/source pair
+
+namespace scsi {
+
+// SCSI operation codes
+namespace op {
+
+    // GET EVENT/STATUS NOTIFICATION
+    static constexpr uint8 kGetEventStatusNotification = 0x4A;
+
+    static std::array<uint8, 10> MakeGetEventStatusNotification(bool immed, uint8 classEvents, uint16 length) {
+        std::array<uint8, 10> cdb{};
+        cdb[0] = kGetEventStatusNotification;
+        cdb[1] = immed ? 1 : 0; // bit 0 = IMMED
+        cdb[4] = classEvents;   // Media class events (bit 4)
+        cdb[7] = length >> 8u;  // Allocation length (MSB)
+        cdb[8] = length >> 0u;  // Allocation length (LSB)
+        return cdb;
+    }
+
+} // namespace op
+
+// Direction for SCSI data transfers
+enum class Direction {
+    In,    // SCSI device -> host
+    Out,   // Host -> SCSI device
+    InOut, // SCSI device <-> host
+    None,  // No data transfers
+};
+
+// Notification class bits for GET EVENT/STATUS NOTIFICATION command
+namespace notif_class {
+
+    static constexpr uint8 kMediaStatus = 1u << 4u; // Media Status Class Events
+
+} // namespace notif_class
+
+// -----------------------------------------------------------------------------
+// Windows-specific implementation
+
+FORCE_INLINE static UCHAR TranslateDirection(Direction direction) {
+    switch (direction) {
+    case Direction::In: return SCSI_IOCTL_DATA_IN;
+    case Direction::Out: return SCSI_IOCTL_DATA_OUT;
+    case Direction::InOut: return SCSI_IOCTL_DATA_BIDIRECTIONAL;
+    case Direction::None: return SCSI_IOCTL_DATA_UNSPECIFIED;
+    default: return SCSI_IOCTL_DATA_UNSPECIFIED;
+    }
+}
+
+FORCE_INLINE static bool SendCommand(HANDLE hDevice, Direction direction, std::span<const uint8> cdb,
+                                     std::span<uint8> outData, uint32 &outSize) {
+    SCSI_PASS_THROUGH_DIRECT cmd{};
+    cmd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    cmd.CdbLength = sizeof(cdb);
+    cmd.DataIn = TranslateDirection(direction);
+    cmd.TimeOutValue = 5;
+    cmd.DataBuffer = outData.data();
+    cmd.DataTransferLength = outData.size();
+    std::copy(cdb.begin(), cdb.end(), std::begin(cmd.Cdb));
+
+    DWORD bytesReturned = 0;
+    const bool result = DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd),
+                                        &bytesReturned, NULL);
+    outSize = cmd.DataTransferLength;
+    return result;
+}
+
+FORCE_INLINE static bool SendInCommand(HANDLE hDevice, std::span<const uint8> cdb, std::span<uint8> outData,
+                                       uint32 &outSize) {
+    return SendCommand(hDevice, Direction::In, cdb, outData, outSize);
+}
+
+FORCE_INLINE static bool SendOutCommand(HANDLE hDevice, std::span<const uint8> cdb, std::span<uint8> outData,
+                                        uint32 &outSize) {
+    return SendCommand(hDevice, Direction::Out, cdb, outData, outSize);
+}
+
+FORCE_INLINE static bool SendInOutCommand(HANDLE hDevice, std::span<const uint8> cdb, std::span<uint8> outData,
+                                          uint32 &outSize) {
+    return SendCommand(hDevice, Direction::InOut, cdb, outData, outSize);
+}
+
+FORCE_INLINE static bool SendNoDirCommand(HANDLE hDevice, std::span<const uint8> cdb, std::span<uint8> outData,
+                                          uint32 &outSize) {
+    return SendCommand(hDevice, Direction::None, cdb, outData, outSize);
+}
+
+} // namespace scsi
+
+FORCE_INLINE static void NormalizeString(std::wstring &ws) {
     std::transform(ws.begin(), ws.end(), ws.begin(), ::towlower);
 }
 
-static void TrimNullTerminatedString(std::wstring &ws) {
+FORCE_INLINE static void TrimNullTerminatedString(std::wstring &ws) {
     const auto nulPos = ws.find_first_of(L'\0', 0);
     if (nulPos != std::wstring::npos) {
         ws = ws.substr(0, nulPos);
@@ -101,26 +194,9 @@ struct WindowsCDDevice {
         trayState = TrayState::Unknown;
 
         std::array<uint8, 128> buffer{};
-
-        std::array<uint8, 10> cdb{};
-        cdb[0] = 0x4A;                // GET EVENT/STATUS NOTIFICATION
-        cdb[1] = 0x01;                // Polling mode (IMMED=1)
-        cdb[4] = 0x10;                // Media class events (bit 4)
-        cdb[7] = buffer.size() >> 8u; // Allocation length (MSB)
-        cdb[8] = buffer.size() >> 0u; // Allocation length (LSB)
-
-        SCSI_PASS_THROUGH_DIRECT cmd{};
-        cmd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
-        cmd.CdbLength = sizeof(cdb);
-        cmd.DataIn = SCSI_IOCTL_DATA_IN;
-        cmd.TimeOutValue = 5;
-        cmd.DataBuffer = buffer.data();
-        cmd.DataTransferLength = buffer.size();
-        memcpy(cmd.Cdb, cdb.data(), cdb.size());
-
-        DWORD bytesReturned = 0;
-        if (!DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd),
-                             &bytesReturned, NULL)) {
+        auto cdb = scsi::op::MakeGetEventStatusNotification(true, scsi::notif_class::kMediaStatus, buffer.size());
+        uint32 outSize = 0;
+        if (!scsi::SendInCommand(hDevice, cdb, buffer, outSize)) {
             // Command failed or unsupported; can't get drive state
             return;
         }
