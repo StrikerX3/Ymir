@@ -1,8 +1,11 @@
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/scope_guard.hpp>
+#include <ymir/util/thread_name.hpp>
 
 #include <ymir/core/types.hpp>
+
+#include <blockingconcurrentqueue.h>
 
 #include <fmt/format.h>
 
@@ -27,14 +30,15 @@
 
 #pragma comment(lib, "Cfgmgr32.lib")
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 
-// TODO: move all heavy lifting out of the notification handlers into a worker thread per device
 // TODO: clean up stdout output
 // TODO: check tray state periodically while a device has no media and on media removals
 // TODO: implement all of this for Linux to figure out shared public interface
@@ -108,7 +112,7 @@ FORCE_INLINE static bool SendCommand(HANDLE hDevice, Direction direction, std::s
 
     DWORD bytesReturned = 0;
     const bool result = DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd),
-                                        &bytesReturned, NULL);
+                                        &bytesReturned, nullptr);
     outSize = cmd.DataTransferLength;
     return result;
 }
@@ -146,11 +150,56 @@ FORCE_INLINE static void TrimNullTerminatedString(std::wstring &ws) {
     }
 }
 
+FORCE_INLINE std::string WStringToString(const std::wstring &wstr) {
+    if (wstr.empty()) {
+        return {};
+    }
+
+    // Determine buffer size
+    int size = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), (int)wstr.size(), nullptr, 0, nullptr, nullptr);
+    std::string out(size, 0);
+
+    // Convert string
+    WideCharToMultiByte(CP_UTF8, 0, wstr.data(), (int)wstr.size(), out.data(), size, nullptr, nullptr);
+    return out;
+}
+
 enum class MediaPresenceState { Absent, Present, Unknown };
 enum class TrayState { Open, Closed, Unknown };
 
+struct Command {
+    enum class Type { UpdateThreadName, MediaStateChanged, Quit };
+
+    Type type;
+    union {
+        struct {
+            bool inserted;
+        } mediaState;
+    } data;
+
+    static Command UpdateThreadName() {
+        return {.type = Type::UpdateThreadName};
+    }
+
+    static Command MediaStateChanged(bool inserted) {
+        return {.type = Type::MediaStateChanged, .data = {.mediaState = {.inserted = inserted}}};
+    }
+
+    static Command Quit() {
+        return {.type = Type::Quit};
+    }
+};
+
 struct WindowsCDDevice {
+    WindowsCDDevice() {
+        thread = std::thread([this] { ThreadProc(); });
+    }
+
     ~WindowsCDDevice() {
+        if (thread.joinable()) {
+            EnqueueCommand(Command::Quit());
+            thread.join();
+        }
         if (hDevice != INVALID_HANDLE_VALUE) {
             CloseHandle(hDevice);
         }
@@ -168,6 +217,48 @@ struct WindowsCDDevice {
 
     MediaPresenceState mediaPresenceState;
     TrayState trayState;
+
+    std::thread thread;
+
+    moodycamel::BlockingConcurrentQueue<Command> cmdQueue;
+    moodycamel::ProducerToken ptokCmdQueue{cmdQueue};
+    moodycamel::ConsumerToken ctokCmdQueue{cmdQueue};
+
+    void EnqueueCommand(Command &&command) {
+        cmdQueue.enqueue(ptokCmdQueue, std::move(command));
+    }
+
+    void ThreadProc() {
+        using namespace std::chrono_literals;
+        static constexpr auto kPresentMediaStateQueryInterval = 5s;
+        static constexpr auto kAbsentMediaStateQueryInterval = 1s;
+
+        Command command;
+        bool running = true;
+        while (running) {
+            const auto queryInterval = mediaPresenceState == MediaPresenceState::Present
+                                           ? kPresentMediaStateQueryInterval
+                                           : kAbsentMediaStateQueryInterval;
+            if (cmdQueue.wait_dequeue_timed(ctokCmdQueue, command, queryInterval)) {
+                switch (command.type) {
+                case Command::Type::UpdateThreadName:
+                    util::SetCurrentThreadName(
+                        fmt::format("Win32 CD device worker thread: {}", WStringToString(ntPath)).c_str());
+                    break;
+                case Command::Type::MediaStateChanged:
+                    fmt::println(L"Media {} drive {}",
+                                 (command.data.mediaState.inserted ? L"inserted in" : L"removed from"),
+                                 (driveLetter.has_value() ? fmt::format(L"{}:", *driveLetter) : ntPath));
+                    UpdateDriveState();
+                    break;
+                case Command::Type::Quit: running = false; break;
+                }
+            } else {
+                // Periodically check media state just in case we don't get automatic notifications
+                UpdateDriveState();
+            }
+        }
+    }
 
     void UpdateDriveState() {
         util::ScopeGuard sgPrintState{[&] {
@@ -189,6 +280,9 @@ struct WindowsCDDevice {
             }();
             fmt::println(L"Device {} state updated: {}, {}", ntPath, mediaPresenceStateStr, trayStateStr);
         }};
+
+        auto prevMediaPresenceState = mediaPresenceState;
+        auto prevTrayState = trayState;
 
         mediaPresenceState = MediaPresenceState::Unknown;
         trayState = TrayState::Unknown;
@@ -240,6 +334,11 @@ struct WindowsCDDevice {
                                 nullptr)) {
                 mediaPresenceState = MediaPresenceState::Present;
             }
+        }
+
+        // Notify state changes
+        if (mediaPresenceState == prevMediaPresenceState && trayState == prevTrayState) {
+            sgPrintState.Cancel();
         }
     }
 };
@@ -411,6 +510,7 @@ public:
         }
         device->ntPath = ntPath;
         device->interfacePath = interfacePath;
+        device->EnqueueCommand(Command::UpdateThreadName());
 
         std::wstring dosPath = fmt::format(L"\\\\.\\{}", ntPath.substr(8)); // get "CdRom#" from "\Device\CdRom#"
         device->dosPath = dosPath;
@@ -426,7 +526,6 @@ public:
                 &handleFilter, device.get(),
                 [](HCMNOTIFICATION hNotify, PVOID context, CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA eventData,
                    DWORD eventDataSize) -> DWORD {
-                    // TODO: move heavy lifting to a worker thread
                     if (action == CM_NOTIFY_ACTION_DEVICECUSTOMEVENT) {
                         auto *device = static_cast<WindowsCDDevice *>(context);
                         if (device->driveLetter.has_value()) {
@@ -435,28 +534,16 @@ public:
                         }
 
                         if (IsEqualGUID(eventData->u.DeviceHandle.EventGuid, GUID_IO_MEDIA_ARRIVAL)) {
-                            auto *data =
-                                reinterpret_cast<CLASS_MEDIA_CHANGE_CONTEXT *>(&eventData->u.DeviceHandle.Data);
-                            if (device->driveLetter.has_value()) {
-                                fmt::println(L"Media inserted in drive {}: (from CM event)", *device->driveLetter);
-                            } else {
-                                fmt::println(L"Media inserted in device {} (from CM event)", device->ntPath);
-                            }
+                            device->EnqueueCommand(Command::MediaStateChanged(true));
                         } else if (IsEqualGUID(eventData->u.DeviceHandle.EventGuid, GUID_IO_MEDIA_REMOVAL)) {
-                            auto *data =
-                                reinterpret_cast<CLASS_MEDIA_CHANGE_CONTEXT *>(&eventData->u.DeviceHandle.Data);
-                            if (device->driveLetter.has_value()) {
-                                fmt::println(L"Media removed from {}: (from CM event)", *device->driveLetter);
-                            } else {
-                                fmt::println(L"Media removed from {} (from CM event)", device->ntPath);
-                            }
+                            device->EnqueueCommand(Command::MediaStateChanged(false));
                         }
-                        device->UpdateDriveState();
                     }
 
                     return 0;
                 },
                 &device->hNotification);
+
             if (result == CR_SUCCESS) {
                 device->UpdateDriveState();
             } else {
@@ -526,53 +613,37 @@ static LRESULT CALLBACK DeviceWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         switch (wParam) {
         case DBT_DEVICEARRIVAL:
         case DBT_DEVICEREMOVECOMPLETE: {
-            PDEV_BROADCAST_HDR hdr = (PDEV_BROADCAST_HDR)lParam;
-
-            const bool added = wParam == DBT_DEVICEARRIVAL;
-
+            auto hdr = (PDEV_BROADCAST_HDR)lParam;
             if (hdr->dbch_devicetype == DBT_DEVTYP_VOLUME) {
-                PDEV_BROADCAST_VOLUME vol = (PDEV_BROADCAST_VOLUME)hdr;
+                auto vol = (PDEV_BROADCAST_VOLUME)hdr;
 
-                DWORD mask = vol->dbcv_unitmask;
+                const bool added = wParam == DBT_DEVICEARRIVAL;
                 const bool mediaChanged = vol->dbcv_flags & DBTF_MEDIA;
 
+                const DWORD mask = vol->dbcv_unitmask;
                 for (wchar_t letter = L'A'; letter <= L'Z'; ++letter) {
                     if ((mask & (1 << (letter - L'A'))) == 0) {
                         continue;
                     }
 
-                    if (added) {
-                        if (mediaChanged) {
-                            fmt::println(L"Media inserted in drive {}: (from WM_DEVICECHANGE)", letter);
-                            auto *dev = WindowsCDDeviceManager::Instance().GetDeviceByLetter(letter);
-                            if (dev) {
-                                dev->UpdateDriveState();
-                            }
-                        } else {
-                            std::wstring root = L"_:";
-                            root[0] = letter;
-                            UINT type = GetDriveTypeW(root.c_str());
-                            if (type != DRIVE_CDROM) {
-                                continue;
-                            }
+                    if (mediaChanged) {
+                        if (auto *dev = WindowsCDDeviceManager::Instance().GetDeviceByLetter(letter)) {
+                            dev->EnqueueCommand(Command::MediaStateChanged(added));
+                        }
+                    } else if (added) {
+                        wchar_t root[] = {letter, L':', '\0'};
+                        if (GetDriveTypeW(root) != DRIVE_CDROM) {
+                            continue;
+                        }
 
-                            std::wstring ntPath(1024, L'\0');
-                            DWORD len = QueryDosDeviceW(root.c_str(), ntPath.data(), ntPath.size());
-                            if (len > 0) {
-                                TrimNullTerminatedString(ntPath);
-                                WindowsCDDeviceManager::Instance().AddDriveLetter(letter, ntPath);
-                            }
+                        std::wstring ntPath(1024, L'\0');
+                        DWORD len = QueryDosDeviceW(root, ntPath.data(), ntPath.size());
+                        if (len > 0) {
+                            TrimNullTerminatedString(ntPath);
+                            WindowsCDDeviceManager::Instance().AddDriveLetter(letter, ntPath);
                         }
                     } else {
-                        if (mediaChanged) {
-                            fmt::println(L"Media removed from drive {}: (from WM_DEVICECHANGE)", letter);
-                            auto *dev = WindowsCDDeviceManager::Instance().GetDeviceByLetter(letter);
-                            if (dev) {
-                                dev->UpdateDriveState();
-                            }
-                        } else {
-                            WindowsCDDeviceManager::Instance().RemoveDriveLetter(letter);
-                        }
+                        WindowsCDDeviceManager::Instance().RemoveDriveLetter(letter);
                     }
                 }
             }
