@@ -4280,12 +4280,19 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                 case OverlayType::None: break;
                 case OverlayType::SingleLayer: //
                 {
-                    const uint8 layerLevel = std::min<uint8>(overlay.singleLayerIndex, 9);
+                    const uint8 layerLevel = std::min<uint8>(overlay.singleLayerIndex, 11);
                     switch (layerLevel) {
                     case LYR_Back: overlayColor = state2.lineBackLayerState.backColor; break;
                     case LYR_LineColor: overlayColor = state2.lineBackLayerState.lineColor; break;
-                    case 8 /*transparent meshes*/: overlayColor = m_meshLayerOutput[altField].pixels.color[x]; break;
-                    case 9 /*gradation screen*/:
+                    case 8 /*RBG0 line color*/:
+                    case 9 /*RBG1 line color*/: {
+                        const bool doubleResH = regs2.TVMD.HRESOn & 0b010;
+                        const uint32 xShift = doubleResH ? 1 : 0;
+                        overlayColor = m_rbgLineColors[layerLevel - 8][x >> xShift];
+                        break;
+                    }
+                    case 10 /*transparent meshes*/: overlayColor = m_meshLayerOutput[altField].pixels.color[x]; break;
+                    case 11 /*gradation screen*/:
                         if (colorGradEnabled) {
                             overlayColor = composeLineBuffers.colorGradLayerColors[x];
                         }

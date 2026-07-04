@@ -69,9 +69,11 @@ struct VDP2DebugRender {
         // [4] NBG2
         // [5] NBG3
         // [6] Back
-        // [7] Line color
-        // [8] Transparent mesh sprites (when enhancement is enabled)
-        // [9] Gradation screen (when enabled)
+        // [7] Line color screen
+        // [8] RBG0 line color
+        // [9] RBG1 line color
+        // [10] Transparent mesh sprites (when enhancement is enabled)
+        // [11] Gradation screen (when enabled)
         uint8 singleLayerIndex = 0;
 
         // Which layer stack level to draw when using LayerStack overlay.

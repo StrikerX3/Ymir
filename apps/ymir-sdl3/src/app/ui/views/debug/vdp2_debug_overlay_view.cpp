@@ -100,13 +100,15 @@ void VDP2DebugOverlayView::Display() {
             case 5: return "NBG3";
             case 6: return "Back screen";
             case 7: return "Line color screen";
-            case 8: return "Transparent mesh sprites";
-            case 9: return "Color gradation screen";
+            case 8: return "RBG0 line color";
+            case 9: return "RBG1 line color";
+            case 10: return "Transparent mesh sprites";
+            case 11: return "Color gradation screen";
             default: return "Invalid";
             }
         };
         if (ImGui::BeginCombo("Layer##single", layerName(overlay.singleLayerIndex), ImGuiComboFlags_HeightLargest)) {
-            for (uint32 i = 0; i <= 9; ++i) {
+            for (uint32 i = 0; i <= 11; ++i) {
                 const std::string label = fmt::format("{}##single_layer", layerName(i));
                 if (ImGui::Selectable(label.c_str(), overlay.singleLayerIndex == i)) {
                     overlay.singleLayerIndex = i;
