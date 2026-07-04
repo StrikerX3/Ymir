@@ -307,13 +307,14 @@ struct WindowsCDDevice {
 
 struct WindowsCDDeviceManager {
 private:
-    WindowsCDDeviceManager() {}
-    WindowsCDDeviceManager(const WindowsCDDeviceManager &) = delete;
-    WindowsCDDeviceManager(WindowsCDDeviceManager &&) = delete;
+    WindowsCDDeviceManager() = default;
 
     static WindowsCDDeviceManager s_instance;
 
 public:
+    WindowsCDDeviceManager(const WindowsCDDeviceManager &) = delete;
+    WindowsCDDeviceManager(WindowsCDDeviceManager &&) = delete;
+
     static WindowsCDDeviceManager &Instance() {
         return s_instance;
     }

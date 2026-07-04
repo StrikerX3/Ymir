@@ -255,10 +255,7 @@ struct LinuxCDDevice {
 
 struct LinuxCDDeviceManager {
 private:
-    LinuxCDDeviceManager() {}
-    LinuxCDDeviceManager(const LinuxCDDeviceManager &) = delete;
-    LinuxCDDeviceManager(LinuxCDDeviceManager &&) = delete;
-
+    LinuxCDDeviceManager() = default;
     ~LinuxCDDeviceManager() {
         StopUDevMonitor();
     }
@@ -269,6 +266,9 @@ private:
     udev_monitor *udevMonitor = nullptr;
 
 public:
+    LinuxCDDeviceManager(const LinuxCDDeviceManager &) = delete;
+    LinuxCDDeviceManager(LinuxCDDeviceManager &&) = delete;
+
     static LinuxCDDeviceManager &Instance() {
         return s_instance;
     }
