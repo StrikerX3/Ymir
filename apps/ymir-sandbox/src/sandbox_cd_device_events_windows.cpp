@@ -42,7 +42,6 @@
 #include <unordered_map>
 
 // TODO: clean up stdout output
-// TODO: implement all of this for Linux to figure out shared public interface
 // TODO: figure out how to connect this to the emulator core and the frontend
 
 static void PrintDrives();

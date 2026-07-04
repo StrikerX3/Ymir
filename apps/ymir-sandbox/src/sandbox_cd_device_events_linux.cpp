@@ -255,7 +255,25 @@ struct LinuxCDDevice {
 
 struct LinuxCDDeviceManager {
 private:
-    LinuxCDDeviceManager() {
+    LinuxCDDeviceManager() {}
+    LinuxCDDeviceManager(const LinuxCDDeviceManager &) = delete;
+    LinuxCDDeviceManager(LinuxCDDeviceManager &&) = delete;
+
+    ~LinuxCDDeviceManager() {
+        StopUDevMonitor();
+    }
+
+    static LinuxCDDeviceManager s_instance;
+
+    udev *udev = nullptr;
+    udev_monitor *udevMonitor = nullptr;
+
+public:
+    static LinuxCDDeviceManager &Instance() {
+        return s_instance;
+    }
+
+    void StartUDevMonitor() {
         udev = udev_new();
         if (udev == nullptr) {
             return;
@@ -267,10 +285,8 @@ private:
 
         monitorThread = std::thread([&] { MonitorThreadProc(); });
     }
-    LinuxCDDeviceManager(const LinuxCDDeviceManager &) = delete;
-    LinuxCDDeviceManager(LinuxCDDeviceManager &&) = delete;
 
-    ~LinuxCDDeviceManager() {
+    void StopUDevMonitor() {
         if (monitorThread.joinable()) {
             static constexpr uint64 kValue = 1;
             write(fdQuitMonitor, &kValue, sizeof(kValue));
@@ -278,20 +294,12 @@ private:
         }
         if (udevMonitor != nullptr) {
             udev_monitor_unref(udevMonitor);
+            udevMonitor = nullptr;
         }
         if (udev != nullptr) {
             udev_unref(udev);
+            udev = nullptr;
         }
-    }
-
-    static LinuxCDDeviceManager s_instance;
-
-    udev *udev = nullptr;
-    udev_monitor *udevMonitor = nullptr;
-
-public:
-    static LinuxCDDeviceManager &Instance() {
-        return s_instance;
     }
 
     void Reenumerate() {
@@ -479,6 +487,7 @@ static void PrintDrives() {
 void runCDDeviceEventsSandbox() {
     auto &mgr = LinuxCDDeviceManager::Instance();
 
+    mgr.StartUDevMonitor();
     mgr.Reenumerate();
 
     fmt::println("Press ENTER to exit");
