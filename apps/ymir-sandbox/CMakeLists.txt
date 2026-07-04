@@ -25,14 +25,20 @@ target_include_directories(ymir-sandbox
 target_compile_features(ymir-sandbox PUBLIC cxx_std_20)
 
 if (WIN32)
-    target_sources(ymir-sandbox PRIVATE
+    set(OS_SPECIFIC_SOURCES
         src/sandbox_cd_device_events_windows.cpp
     )
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(OS_SPECIFIC_SOURCES
+        src/sandbox_cd_device_events_linux.cpp
+    )
 else ()
-    target_sources(ymir-sandbox PRIVATE
+    set(OS_SPECIFIC_SOURCES
         src/sandbox_cd_device_events_dummy.cpp
     )
 endif ()
+
+target_sources(ymir-sandbox PRIVATE ${OS_SPECIFIC_SOURCES})
 
 find_package(date CONFIG REQUIRED)
 find_package(CURL CONFIG REQUIRED)

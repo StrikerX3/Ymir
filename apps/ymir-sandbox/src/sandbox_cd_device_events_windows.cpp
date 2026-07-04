@@ -45,7 +45,7 @@
 // TODO: implement all of this for Linux to figure out shared public interface
 // TODO: figure out how to connect this to the emulator core and the frontend
 
-void PrintDrives();
+static void PrintDrives();
 
 namespace ymir::scsi {
 
