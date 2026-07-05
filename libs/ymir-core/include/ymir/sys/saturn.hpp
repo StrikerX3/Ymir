@@ -436,10 +436,10 @@ public:
     vdp::VDP VDP;             ///< VDP1 and VDP2
     smpc::SMPC SMPC;          ///< SMPC and input devices
     scsp::SCSP SCSP;          ///< SCSP and its DSP, and MC68EC000 CPU
-    cdblock::CDBlock CDBlock; ///< CD block and media
+    cdblock::CDBlock CDBlock; ///< HLE CD block
 
     // LLE CD block components
-    // TODO: move them to cdblock::CDBlock
+    // TODO: move to cdblock::CDBlockLLE and rename cdblock::CDBlock to CDBlockHLE
     sh1::SH1 SH1;                              ///< CD block SH-1
     sys::SH1Bus SH1Bus;                        ///< CD block SH-1 bus
     cdblock::CDDrive CDDrive;                  ///< CD block drive
