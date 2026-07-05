@@ -334,11 +334,11 @@ void SoftwareVDPRenderer::VDP1SyncFB() {
         auto &ctx = m_vdp1RenderingContext;
         ctx.FlushPendingEvents();
         for (;;) {
-            const uint32 curr = ctx.cmdFence.load();
+            const uint32 curr = ctx.cmdFence.load(std::memory_order_acquire);
             if (ctx.cmdCount == curr) {
                 break;
             }
-            ctx.cmdFence.wait(curr);
+            ctx.cmdFence.wait(curr, std::memory_order_acquire);
         }
     }
 }
@@ -651,7 +651,7 @@ void SoftwareVDPRenderer::VDP1RenderThread() {
             case EvtType::Shutdown: running = false; break;
             }
 
-            ++rctx.cmdFence;
+            rctx.cmdFence.fetch_add(1, std::memory_order_release);
             rctx.cmdFence.notify_all();
         }
     }
