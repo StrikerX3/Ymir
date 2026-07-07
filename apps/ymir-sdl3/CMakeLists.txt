@@ -471,8 +471,8 @@ cmrc_add_resource_library(ymir-sdl3-rc
     WHENCE res/embed
 
     res/embed/fonts/MaterialSymbolsOutlined_Filled-Regular.ttf
-    res/embed/fonts/MPLUSU-Bold.ttf
-    res/embed/fonts/MPLUSU-ExtraBold.ttf
+    res/embed/fonts/MPLUSU-Ymir-Bold.ttf
+    res/embed/fonts/MPLUSU-Ymir-ExtraBold.ttf
     res/embed/fonts/SplineSans-Bold.ttf
     res/embed/fonts/SplineSans-Medium.ttf
     res/embed/fonts/SplineSansMono-Bold.ttf
