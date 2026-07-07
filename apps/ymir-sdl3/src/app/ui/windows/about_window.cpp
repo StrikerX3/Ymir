@@ -634,7 +634,8 @@ void AboutWindow::DrawAcknowledgementsTab() {
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(", including:");
     ImGui::Indent();
-    ImGui::TextUnformatted("BlueInterlude, "
+    ImGui::TextUnformatted("4re, "
+                           "BlueInterlude, "
                            "bsdcode, "
                            "Citrodata, "
                            "floreal, "
