@@ -5,7 +5,6 @@ add_executable(ymir-sandbox
 
     src/sandbox_bin_cue_loader.cpp
     src/sandbox_bup.cpp
-    src/sandbox_cd_device.cpp
     src/sandbox_curl.cpp
     src/sandbox_deadlock.cpp
     src/sandbox_disc_info_extractor.cpp
@@ -23,22 +22,6 @@ target_include_directories(ymir-sandbox
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
 )
 target_compile_features(ymir-sandbox PUBLIC cxx_std_20)
-
-if (WIN32)
-    set(OS_SPECIFIC_SOURCES
-        src/sandbox_cd_device_events_windows.cpp
-    )
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(OS_SPECIFIC_SOURCES
-        src/sandbox_cd_device_events_linux.cpp
-    )
-else ()
-    set(OS_SPECIFIC_SOURCES
-        src/sandbox_cd_device_events_dummy.cpp
-    )
-endif ()
-
-target_sources(ymir-sandbox PRIVATE ${OS_SPECIFIC_SOURCES})
 
 find_package(date CONFIG REQUIRED)
 find_package(CURL CONFIG REQUIRED)
