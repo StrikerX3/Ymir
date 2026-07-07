@@ -20,7 +20,6 @@ See @ref index for instructions on how to use the emulator.
 #include "system.hpp"
 
 #include <ymir/hw/cart/cart.hpp>
-#include <ymir/hw/cart/cart_slot.hpp>
 #include <ymir/hw/cdblock/cd_drive.hpp>
 #include <ymir/hw/cdblock/cdblock.hpp>
 #include <ymir/hw/cdblock/ygr.hpp>
@@ -32,8 +31,6 @@ See @ref index for instructions on how to use the emulator.
 #include <ymir/hw/vdp/vdp.hpp>
 
 #include <ymir/media/disc.hpp>
-
-#include <memory>
 
 namespace ymir {
 
