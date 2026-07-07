@@ -143,6 +143,8 @@ add_library(ymir-core
 
     include/ymir/hw/vdp/renderer/common/vdp1_steppers.hpp
 
+    include/ymir/media/cd_defs.hpp
+    include/ymir/media/cd_interface.hpp
     include/ymir/media/cd_utils.hpp
     include/ymir/media/disc.hpp
     include/ymir/media/filesystem.hpp
@@ -152,6 +154,10 @@ add_library(ymir-core
     include/ymir/media/saturn_header.hpp
     include/ymir/media/scsi.hpp
     include/ymir/media/subheader.hpp
+
+    include/ymir/media/cd_interface/cd_interface_base.hpp
+    include/ymir/media/cd_interface/cd_interface_null.hpp
+    include/ymir/media/cd_interface/cd_interface_image.hpp
 
     include/ymir/media/loader/loader.hpp
     include/ymir/media/loader/loader_bin_cue.hpp
@@ -280,10 +286,14 @@ add_library(ymir-core
 
     src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
 
+    src/ymir/media/cd_interface.cpp
     src/ymir/media/cd_utils.cpp
     src/ymir/media/filesystem.cpp
     src/ymir/media/media_defs.cpp
     src/ymir/media/saturn_header.cpp
+
+    src/ymir/media/cd_interface/cd_interface_base.cpp
+    src/ymir/media/cd_interface/cd_interface_image.cpp
 
     src/ymir/media/loader/loader.cpp
     src/ymir/media/loader/loader_bin_cue.cpp
