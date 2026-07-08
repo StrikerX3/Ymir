@@ -1,5 +1,7 @@
 #include <ymir/media/cd_interface/cd_interface_image.hpp>
 
+#include <ymir/util/arith_ops.hpp>
+
 namespace ymir::media {
 
 ImageCDInterface::ImageCDInterface(ymir::media::Disc &&disc)
@@ -12,7 +14,51 @@ DriveState ImageCDInterface::GetDriveState() const {
     return DriveState::MediaPresent;
 }
 
-uint32 ImageCDInterface::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {
+std::vector<TOCEntry> ImageCDInterface::GetTOC() {
+    if (m_disc.sessions.empty()) {
+        return {};
+    }
+
+    const Session &session = m_disc.sessions.back();
+    const uint32 tocSize = session.tocSize;
+    std::vector<TOCEntry> toc{tocSize};
+    std::copy_n(session.toc.begin(), tocSize, toc.begin());
+    return toc;
+}
+
+bool ImageCDInterface::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
+    if (m_disc.sessions.empty()) {
+        return false;
+    }
+
+    const Session &session = m_disc.sessions.back();
+    const uint8 trackIndex = session.FindTrackIndex(frameAddress);
+    if (trackIndex == 0xFF) {
+        return false;
+    }
+
+    const Track &track = session.tracks[trackIndex];
+    const uint8 index = track.FindIndex(frameAddress);
+    const sint32 relFAD = abs(static_cast<sint32>(frameAddress - track.index01FrameAddress));
+
+    const auto [relM, relS, relF] = FADToMSF(relFAD);
+    const auto [m, s, f] = FADToMSF(frameAddress);
+
+    outPosition.controlADR = track.controlADR;
+    outPosition.track = trackIndex + 1;
+    outPosition.index = index == 0xFF ? 0x01 : index;
+    outPosition.min = util::to_bcd(relM);
+    outPosition.sec = util::to_bcd(relS);
+    outPosition.frac = util::to_bcd(relF);
+    outPosition.zero = 0;
+    outPosition.amin = util::to_bcd(m);
+    outPosition.asec = util::to_bcd(s);
+    outPosition.afrac = util::to_bcd(f);
+
+    return true;
+}
+
+uint32 ImageCDInterface::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
     if (m_disc.sessions.empty()) {
         return 0;
     }
@@ -22,11 +68,44 @@ uint32 ImageCDInterface::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 23
     if (track == nullptr) {
         return 0;
     }
-    if (track->ReadSector(frameAddress, out)) {
+    if (track->ReadSector(frameAddress, outSector)) {
+        // Swap endianness if necessary; audio tracks must be in big-endian
+        if (track->controlADR == 0x01 && !track->bigEndian) {
+            for (uint32 offset = 0; offset < 2352; offset += 2) {
+                util::ByteSwap<uint16>(&outSector[offset]);
+            }
+        }
         return 2352;
     }
 
     return 0;
+}
+
+void ImageCDInterface::BeginSeekToFrameAddressImpl(uint32 frameAddress) {
+    if (m_disc.sessions.empty()) {
+        m_seekFAD = 0xFFFFFF;
+    } else {
+        m_seekFAD = frameAddress;
+    }
+}
+
+void ImageCDInterface::BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumber) {
+    if (m_disc.sessions.empty()) {
+        m_seekFAD = 0xFFFFFF;
+        return;
+    }
+
+    const auto &session = m_disc.sessions.back();
+    if (trackNumber < session.firstTrackIndex + 1 || trackNumber > session.lastTrackIndex + 1) {
+        m_seekFAD = 0xFFFFFF;
+        return;
+    }
+    const auto &track = session.tracks[trackNumber - 1];
+    if (indexNumber >= track.indices.size()) {
+        m_seekFAD = 0xFFFFFF;
+        return;
+    }
+    m_seekFAD = track.indices[indexNumber].startFrameAddress;
 }
 
 } // namespace ymir::media

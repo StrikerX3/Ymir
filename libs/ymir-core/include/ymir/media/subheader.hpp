@@ -37,7 +37,13 @@ The coding information field is typically used to describe the format of the dat
 software is free to use this at will.
 */
 
+#include <ymir/util/bit_ops.hpp>
+
 #include <ymir/core/types.hpp>
+
+#include "cd_utils.hpp"
+
+#include <span>
 
 namespace ymir::media {
 
@@ -47,6 +53,43 @@ struct Subheader {
     uint8 chanNum;    ///< Channel number
     uint8 submode;    ///< Submode
     uint8 codingInfo; ///< Coding information
+
+    /// @brief Attempts to read the sector's Mode 2 subheader information from a raw sector buffer.
+    /// @param[in] sectorData the raw sector buffer
+    /// @return `true` if the subheader could be read successfully, i.e., this sector is part of a Mode 2 data track. If
+    /// so, the subheader data in this struct is updated with data read from the sector.
+    bool ReadFrom(std::span<uint8> sectorData) {
+        fileNum = 0;
+        chanNum = 0;
+        submode = 0;
+        codingInfo = 0;
+
+        // Determine if we have enough data to read
+        if (sectorData.size() < 20) {
+            // 12 sync bytes + 4 header bytes + 4 subheader bytes (ignoring the 4 duplicates in the subheader)
+            return false;
+        }
+
+        // Determine if we have a data sector
+        if (!HasValidSyncBytes(sectorData)) {
+            return false;
+        }
+
+        // Determine if this is a Mode 2 track
+        if (bit::extract<0, 1>(sectorData[0xF]) != 0x02) {
+            return false;
+        }
+
+        // Read subheader information
+        fileNum = sectorData[0x10];
+        chanNum = sectorData[0x11];
+        submode = sectorData[0x12];
+        codingInfo = sectorData[0x13];
+
+        // TODO: check against copy at 0x14..0x17
+
+        return true;
+    }
 };
 
 } // namespace ymir::media

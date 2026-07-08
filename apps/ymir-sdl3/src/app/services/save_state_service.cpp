@@ -270,17 +270,17 @@ void SaveStateService::WriteSaveStateMeta() {
     std::ofstream out{gameMetaPath};
     if (out) {
         std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetDisc();
+        const auto &discHeader = m_context.saturn.GetDiscHeader();
 
         auto iter = std::ostream_iterator<char>(out);
         fmt::format_to(iter, "IPL ROM hash: {}\n", ymir::ToString(m_context.saturn.instance->GetIPLHash()));
-        fmt::format_to(iter, "Title: {}\n", disc.header.gameTitle);
-        fmt::format_to(iter, "Product Number: {}\n", disc.header.productNumber);
-        fmt::format_to(iter, "Version: {}\n", disc.header.version);
-        fmt::format_to(iter, "Release date: {}\n", disc.header.releaseDate);
-        fmt::format_to(iter, "Disc: {}\n", disc.header.deviceInfo);
+        fmt::format_to(iter, "Title: {}\n", discHeader.gameTitle);
+        fmt::format_to(iter, "Product Number: {}\n", discHeader.productNumber);
+        fmt::format_to(iter, "Version: {}\n", discHeader.version);
+        fmt::format_to(iter, "Release date: {}\n", discHeader.releaseDate);
+        fmt::format_to(iter, "Disc: {}\n", discHeader.deviceInfo);
         fmt::format_to(iter, "Compatible area codes: ");
-        auto bmAreaCodes = BitmaskEnum(disc.header.compatAreaCode);
+        auto bmAreaCodes = BitmaskEnum(discHeader.compatAreaCode);
         if (bmAreaCodes.AnyOf(ymir::media::AreaCode::Japan)) {
             fmt::format_to(iter, "J");
         }

@@ -7,7 +7,10 @@
 
 #include "cd_interface/cd_interface_base.hpp"
 
+#include "cd_defs.hpp"
 #include "disc.hpp"
+
+#include <ymir/savestate/savestate_cd_interface.hpp>
 
 #include <memory>
 
@@ -27,10 +30,73 @@ public:
 
     /// @brief Retrieves the current drive state.
     /// @return the current drive state
-    DriveState GetDriveState() const;
+    [[nodiscard]] DriveState GetDriveState() const;
+
+    /// @brief Determines if a disc is present in the device.
+    /// Convenient shorthand for `GetDriveState() == DriveState::MediaPresent`.
+    /// @return `true` if there is a disc in the drive, `false` otherwise
+    [[nodiscard]] bool HasDisc() const {
+        return GetDriveState() == DriveState::MediaPresent;
+    }
+
+    /// @brief Retrieves the disc's table of contents.
+    /// @return a reference to the disc's TOC. Empty if no disc is loaded.
+    [[nodiscard]] const TOC &GetTOC() const {
+        return m_toc;
+    }
+
+    /// @brief Retrieves the Saturn disc header information.
+    /// @return a reference to the Saturn disc header information.
+    [[nodiscard]] const SaturnHeader &GetDiscHeader() const {
+        return m_header;
+    }
+
+    /// @brief Reads a raw sector from the disc.
+    /// @param[in] frameAddress the frame address to read
+    /// @param[out] outSector the output buffer to read the sector into
+    /// @return `true` if the sector was read successfully, `false` if frame address is out of range, there is no disc,
+    /// or an error occurred
+    bool ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector);
+
+    /// @brief Reads position information (subcode Q data) from the specified sector.
+    /// @param[in] frameAddress the frame address (LBA) of the sector
+    /// @param[out] outPosition where to write position data into
+    /// @return `true` if reading subcode Q data succeeded, `false` if failed
+    bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition);
+
+    /// @brief Requests the CD device to seek to the specified frame address.
+    /// This operation is asynchronous. Use `IsSeekDone()` to check if the seek has completed and
+    /// `GetSeekFrameAddress()` to retrieve the actual frame address reached by the device.
+    /// @param[in] frameAddress the target frame address
+    void BeginSeekToFrameAddress(uint32 frameAddress);
+
+    /// @brief Requests the CD device to seek to the specified track:index.
+    /// This operation is asynchronous. Use `IsSeekDone()` to check if the seek has completed and
+    /// `GetSeekFrameAddress()` to retrieve the actual frame address reached by the device.
+    /// @param[in] trackNumber the track number
+    /// @param[in] indexNumber the index number
+    void BeginSeekToTrackIndex(uint8 trackNumber, uint8 indexNumber);
+
+    /// @brief Checks if a previous seek operation has completed.
+    /// @return `true` if the last seek operation completed, `false` if in progress.
+    [[nodiscard]] bool IsSeekDone() const;
+
+    /// @brief Retrieves the target frame address of the last completed seek operation.
+    /// Typically called after waiting until `IsSeekDone()` returns `true`.
+    /// @return the frame address of the last completed seek operation.
+    [[nodiscard]] uint32 GetSeekFrameAddress() const;
+
+    // -------------------------------------------------------------------------
+    // Save states
+
+    void SaveState(savestate::CDInterfaceSaveState &state) const;
+    [[nodiscard]] bool ValidateState(const savestate::CDInterfaceSaveState &state) const;
+    void LoadState(const savestate::CDInterfaceSaveState &state);
 
 private:
     std::unique_ptr<ICDInterface> m_cdInterface;
+    TOC m_toc;
+    SaturnHeader m_header;
 };
 
 } // namespace ymir::media

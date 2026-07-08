@@ -8,7 +8,7 @@
 #include <ymir/hw/sh2/sh2.hpp>
 #include <ymir/hw/sh2/sh2_disasm.hpp>
 #include <ymir/hw/vdp/vdp.hpp>
-#include <ymir/media/disc.hpp>
+#include <ymir/media/saturn_header.hpp>
 #include <ymir/sys/bus.hpp>
 #include <ymir/util/dev_log.hpp>
 
@@ -142,9 +142,9 @@ EmuEvent DumpDisasmView(uint32 start, uint32 end, bool master, bool disasmDump, 
         std::string gameTitle;
         {
             std::unique_lock lock{ctx.locks.disc};
-            const auto &disc = ctx.saturn.GetDisc();
-            productNumber = sanitizeFilename(disc.header.productNumber, 16);
-            gameTitle = sanitizeFilename(disc.header.gameTitle, 32);
+            const ymir::media::SaturnHeader &discHeader = ctx.saturn.GetDiscHeader();
+            productNumber = sanitizeFilename(discHeader.productNumber, 16);
+            gameTitle = sanitizeFilename(discHeader.gameTitle, 32);
         }
         if (productNumber.empty() || productNumber == "Unknown") {
             productNumber = "NoDisc";

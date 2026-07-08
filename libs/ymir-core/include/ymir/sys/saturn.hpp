@@ -30,7 +30,7 @@ See @ref index for instructions on how to use the emulator.
 #include <ymir/hw/smpc/smpc.hpp>
 #include <ymir/hw/vdp/vdp.hpp>
 
-#include <ymir/media/disc.hpp>
+#include <ymir/media/cd_interface.hpp>
 
 namespace ymir {
 
@@ -99,13 +99,15 @@ struct Saturn {
     /// @return the hash code of the currently loaded IPL ROM image
     [[nodiscard]] XXH128Hash GetIPLHash() const noexcept;
 
-    /// @brief Retrieves the currently loaded disc.
-    /// @return a read-only reference to the currently loaded disc
-    [[nodiscard]] const media::Disc &GetDisc() const noexcept;
-
     /// @brief Retrieves the game disc image hash code.
     /// @return the hash code of the currently loaded game disc image
     [[nodiscard]] XXH128Hash GetDiscHash() const noexcept;
+
+    /// @brief Retrieves the CD interface currently in use.
+    /// @return the current CD interface
+    [[nodiscard]] const media::CDInterface &GetCDInterface() const noexcept {
+        return m_cdif;
+    }
 
     /// @brief Inserts a cartridge into the cartridge slot.
     /// @tparam T the cartridge type, which must be a specialization of `ymir::cart::BaseCartridge`
@@ -448,7 +450,7 @@ private:
     // Internal state
 
     // TODO: use an abstraction to support reading from real drives as well as disc images
-    media::Disc m_disc;         ///< Currently loaded game disc
+    media::CDInterface m_cdif;  ///< CD interface containing currently loaded disc
     media::fs::Filesystem m_fs; ///< Filesystem contained in the disc
 
     uint64 m_msh2SpilloverCycles; ///< Master SH-2 execution cycles spilled over between executions

@@ -18,12 +18,6 @@ struct SaturnHeader {
         Invalidate();
     }
 
-    SaturnHeader(const SaturnHeader &) = delete;
-    SaturnHeader(SaturnHeader &&) = default;
-
-    SaturnHeader &operator=(const SaturnHeader &) = delete;
-    SaturnHeader &operator=(SaturnHeader &&) = default;
-
     void Swap(SaturnHeader &&header) {
         hwID.swap(header.hwID);
         makerID.swap(header.makerID);

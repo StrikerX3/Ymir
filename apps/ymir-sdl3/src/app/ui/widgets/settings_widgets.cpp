@@ -23,9 +23,9 @@ namespace settings::system {
         const db::GameInfo *gameInfo = nullptr;
         {
             std::unique_lock lock{ctx.locks.disc};
-            const auto &disc = ctx.saturn.GetDisc();
-            if (!disc.sessions.empty()) {
-                gameInfo = db::GetGameInfo(disc.header.productNumber, ctx.saturn.GetDiscHash());
+            const auto &discHeader = ctx.saturn.GetDiscHeader();
+            if (discHeader.IsValid()) {
+                gameInfo = db::GetGameInfo(discHeader.productNumber, ctx.saturn.GetDiscHash());
             }
         }
         const bool forced =

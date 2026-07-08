@@ -79,16 +79,4 @@ inline constexpr uint32 kNumBuffers = 200;   // total number of buffers
 inline constexpr uint32 kNumFilters = 24;    // total number of filters
 inline constexpr uint32 kNumPartitions = 24; // total number of buffer partitions
 
-struct MSF {
-    uint8 m, s, f;
-};
-
-inline MSF FADToMSF(uint32 fad) {
-    MSF msf{};
-    msf.m = fad / 75 / 60;
-    msf.s = fad / 75 % 60;
-    msf.f = fad % 75;
-    return msf;
-}
-
 } // namespace ymir::cdblock

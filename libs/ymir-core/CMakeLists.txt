@@ -179,6 +179,7 @@ add_library(ymir-core
     include/ymir/savestate/savestate.hpp
     include/ymir/savestate/savestate_cdblock.hpp
     include/ymir/savestate/savestate_cd_drive.hpp
+    include/ymir/savestate/savestate_cd_interface.hpp
     include/ymir/savestate/savestate_m68k.hpp
     include/ymir/savestate/savestate_scheduler.hpp
     include/ymir/savestate/savestate_scsp.hpp
@@ -286,6 +287,7 @@ add_library(ymir-core
 
     src/ymir/hw/vdp/renderer/vdp_renderer_sw.cpp
 
+    src/ymir/media/cd_defs.cpp
     src/ymir/media/cd_interface.cpp
     src/ymir/media/cd_utils.cpp
     src/ymir/media/filesystem.cpp

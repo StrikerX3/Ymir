@@ -4,6 +4,7 @@
 #include <ymir/util/data_ops.hpp>
 #include <ymir/util/dev_assert.hpp>
 
+#include <algorithm>
 #include <array>
 
 namespace ymir::media {

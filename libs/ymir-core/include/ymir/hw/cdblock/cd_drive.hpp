@@ -13,7 +13,7 @@
 #include <ymir/core/scheduler.hpp>
 #include <ymir/sys/clocks.hpp>
 
-#include <ymir/media/disc.hpp>
+#include <ymir/media/cd_interface.hpp>
 #include <ymir/media/filesystem.hpp>
 
 #include <ymir/core/configuration.hpp>
@@ -101,7 +101,7 @@ public:
         uint8 absFrac;
     };
 
-    CDDrive(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+    CDDrive(core::Scheduler &scheduler, media::CDInterface &cdif, const media::fs::Filesystem &fs,
             core::Configuration::CDBlock &config);
 
     void Reset(bool hard);
@@ -125,9 +125,6 @@ public:
         return m_status.operation == Operation::TrayOpen;
     }
 
-    [[nodiscard]] const media::Disc &GetDisc() const {
-        return m_disc;
-    }
     [[nodiscard]] XXH128Hash GetDiscHash() const;
 
     // -------------------------------------------------------------------------
@@ -181,7 +178,7 @@ private:
     CBCDDASector m_cbCDDASector;
     CBSectorTransferDone m_cbSectorTransferDone;
 
-    const media::Disc &m_disc;
+    media::CDInterface &m_cdif;
     const media::fs::Filesystem &m_fs;
 
     // The CD block program only responds to disc change events if they follow the Tray Open state.

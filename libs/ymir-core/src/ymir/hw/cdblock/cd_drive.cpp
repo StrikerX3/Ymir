@@ -24,10 +24,10 @@ FORCE_INLINE static void TraceRxCommandTxStatus(debug::ICDDriveTracer *tracer, s
 // -----------------------------------------------------------------------------
 // Implementation
 
-CDDrive::CDDrive(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+CDDrive::CDDrive(core::Scheduler &scheduler, media::CDInterface &cdif, const media::fs::Filesystem &fs,
                  core::Configuration::CDBlock &config)
     : m_scheduler(scheduler)
-    , m_disc(disc)
+    , m_cdif(cdif)
     , m_fs(fs) {
 
     m_stateEvent = m_scheduler.RegisterEvent(
@@ -102,11 +102,11 @@ void CDDrive::CloseTray() {
     }
 
     m_autoCloseTray = false;
-    if (m_disc.sessions.empty()) {
-        m_status.operation = Operation::NoDisc;
-    } else {
+    if (m_cdif.HasDisc()) {
         m_status.operation = Operation::DiscChanged;
         m_currFAD = 0;
+    } else {
+        m_status.operation = Operation::NoDisc;
     }
 }
 
@@ -458,8 +458,12 @@ FORCE_INLINE uint64 CDDrive::OpStopped() {
 FORCE_INLINE uint64 CDDrive::OpSeek() {
     OutputDriveStatus();
 
-    if (--m_seekCountdown == 0) {
+    if (m_seekCountdown > 0) {
+        --m_seekCountdown;
+    }
+    if (m_seekCountdown == 0 && m_cdif.IsSeekDone()) {
         m_status.operation = m_seekOp;
+        m_currFAD = m_targetFAD = m_cdif.GetSeekFrameAddress() - 4;
         devlog::debug<grp::lle_cd>("Seek done");
     }
 
@@ -467,7 +471,7 @@ FORCE_INLINE uint64 CDDrive::OpSeek() {
 }
 
 FORCE_INLINE uint64 CDDrive::OpReadSector() {
-    if (m_disc.sessions.empty()) {
+    if (!m_cdif.HasDisc()) {
         devlog::debug<grp::lle_cd>("Read sector - no disc");
         m_status.operation = Operation::NoDisc;
         return kDriveCyclesPlaying1x / m_readSpeed;
@@ -475,15 +479,15 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
 
     devlog::trace<grp::lle_cd>("Read sector {:06X}", m_currFAD);
 
-    const auto &session = m_disc.sessions.back();
-    const auto *track = session.FindTrack(m_currFAD);
+    const media::TOC &toc = m_cdif.GetTOC();
+    const media::TrackInfo *track = toc.GetTrackInfoForFAD(m_currFAD);
     const bool isData = track == nullptr || (track->controlADR & 0x40);
     m_status.operation = isData   ? Operation::ReadDataSector
                          : m_scan ? Operation::ScanAudioSector
                                   : Operation::ReadAudioSector;
 
     uint64 cycles = kDriveCyclesPlaying1x / m_readSpeed;
-    if (m_currFAD > session.endFrameAddress) {
+    if (m_currFAD > toc.GetEndFrameAddress()) {
         // Security ring area
         m_sectorDataBuffer.fill(0);
 
@@ -515,7 +519,7 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
 
         const uint32 crc = media::CalcCRC(std::span<uint8, 2064>{std::span<uint8>{m_sectorDataBuffer}.first(2064)});
         util::WriteLE<uint32>(&m_sectorDataBuffer[2348], crc);
-    } else if (track == nullptr || !track->ReadSector(m_currFAD, m_sectorDataBuffer)) {
+    } else if (!m_cdif.ReadSector(m_currFAD, m_sectorDataBuffer)) {
         // Lead-in area or unavailable/empty sector
         m_sectorDataBuffer.fill(0);
         m_sectorDataBuffer[12] = util::to_bcd(m_currFAD / 75 / 60);
@@ -528,13 +532,6 @@ FORCE_INLINE uint64 CDDrive::OpReadSector() {
         // Skip the sync bytes
         m_cbDataSector(std::span<uint8>(m_sectorDataBuffer).subspan(12));
     } else {
-        if (track->bigEndian) {
-            // Swap endianness if necessary
-            for (uint32 offset = 0; offset < 2352; offset += 2) {
-                util::WriteLE<uint16>(&m_sectorDataBuffer[offset], util::ReadBE<uint16>(&m_sectorDataBuffer[offset]));
-            }
-        }
-
         if (m_scan) {
             // While scanning, attenuate volume by 12 dB
             for (uint32 offset = 0; offset < 2352; offset += 2) {
@@ -624,22 +621,18 @@ FORCE_INLINE void CDDrive::UpdateReadSpeedFactor() {
 FORCE_INLINE void CDDrive::SetupSeek(bool read) {
     const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
     m_currFAD = m_targetFAD = fad - 4;
-    if (read) {
-        if (m_disc.sessions.empty()) {
-            m_seekOp = Operation::NoDisc;
+    if (m_cdif.HasDisc()) {
+        const media::TOC &toc = m_cdif.GetTOC();
+        const media::TrackInfo *track = toc.GetTrackInfoForFAD(fad);
+        if (track == nullptr || (track->controlADR & 0x40)) {
+            m_cdif.BeginSeekToFrameAddress(fad);
+            m_seekOp = read ? Operation::ReadDataSector : Operation::Idle;
         } else {
-            const auto &session = m_disc.sessions.back();
-            const auto *track = session.FindTrack(fad);
-            if (track == nullptr || (track->controlADR & 0x40)) {
-                m_seekOp = Operation::ReadDataSector;
-            } else {
-                const uint8 index = std::min<uint8>(m_command.index, track->indices.size());
-                m_currFAD = m_targetFAD = track->indices[index].startFrameAddress - 4;
-                m_seekOp = Operation::ReadAudioSector;
-            }
+            m_cdif.BeginSeekToTrackIndex(track->number, m_command.index);
+            m_seekOp = read ? Operation::ReadAudioSector : Operation::Idle;
         }
     } else {
-        m_seekOp = Operation::Idle;
+        m_seekOp = read ? Operation::NoDisc : Operation::Idle;
     }
     m_scan = false;
     m_seekCountdown = 9; // TODO: compute based on disc geometry, head position, spin speed, etc.
@@ -660,16 +653,17 @@ FORCE_INLINE uint64 CDDrive::BeginSeek(bool read) {
 
 FORCE_INLINE uint64 CDDrive::ReadTOC() {
     // No disc
-    if (m_disc.sessions.empty()) {
+    if (!m_cdif.HasDisc()) {
         m_status.operation = Operation::NoDisc;
         return kDriveCyclesPlaying1x / m_readSpeed;
     }
 
-    auto &session = m_disc.sessions.back();
+    const media::TOC &toc = m_cdif.GetTOC();
+    const auto table = toc.GetTable();
 
     // Copy TOC entry to status output
-    if (m_currTOCRepeat == 0 && m_currTOCEntry < session.leadInTOCCount) {
-        auto &tocEntry = session.leadInTOC[m_currTOCEntry];
+    if (m_currTOCRepeat == 0 && m_currTOCEntry < table.size()) {
+        auto &tocEntry = table[m_currTOCEntry];
         m_statusData.data[0] = static_cast<uint8>(Operation::ReadTOC);
         m_statusData.data[1] = tocEntry.controlADR;
         m_statusData.data[2] = tocEntry.trackNum;
@@ -685,7 +679,7 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
     }
     m_status.operation = Operation::ReadTOC;
     if (++m_currTOCRepeat == 3) {
-        if (++m_currTOCEntry == session.leadInTOCCount) {
+        if (++m_currTOCEntry == table.size()) {
             m_status.operation = Operation::Idle;
         } else {
             m_currTOCRepeat = 0;
@@ -696,17 +690,9 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
 }
 
 FORCE_INLINE void CDDrive::OutputDriveStatus() {
-    if (m_disc.sessions.empty()) {
-        m_status.subcodeQ = 0xFF;
-        m_status.trackNum = 0xFF;
-        m_status.indexNum = 0xFF;
-        m_status.min = m_status.absMin = 0xFF;
-        m_status.sec = m_status.absSec = 0xFF;
-        m_status.frac = m_status.absFrac = 0xFF;
-        m_status.zero = 0xFF;
-    } else {
-        auto &session = m_disc.sessions.back();
-        if (m_currFAD > session.endFrameAddress) {
+    if (m_cdif.HasDisc()) {
+        const media::TOC &toc = m_cdif.GetTOC();
+        if (m_currFAD > toc.GetEndFrameAddress()) {
             // Lead-out
             m_status.subcodeQ = 0x01;
             m_status.trackNum = 0xAA;
@@ -720,26 +706,36 @@ FORCE_INLINE void CDDrive::OutputDriveStatus() {
             m_status.absFrac = util::to_bcd(m_currFAD % 75);
         } else {
             // Tracks 01 to 99
-            const bool isLeadIn = m_currFAD < 150;
-            const uint8 trackIndex = isLeadIn ? 0 : session.FindTrackIndex(m_currFAD);
-            const auto &track = trackIndex == 0xFF ? session.tracks[0] : session.tracks[trackIndex];
-            const uint8 trackNum = trackIndex + 1;
-            const uint8 indexNum = isLeadIn ? 0 : track.FindIndex(m_currFAD);
-            sint32 relFAD = m_currFAD - track.startFrameAddress;
-            if (relFAD < 0) {
-                relFAD = -relFAD; // INDEX 00 frame addresses count downwards to 00:00:00 until start of INDEX 01
+            media::DiscPosition pos{};
+            if (m_cdif.ReadPosition(m_currFAD, pos)) {
+                m_status.subcodeQ = pos.controlADR;
+                m_status.trackNum = util::to_bcd(pos.track);
+                m_status.indexNum = util::to_bcd(pos.index);
+                m_status.min = pos.min;
+                m_status.sec = pos.sec;
+                m_status.frac = pos.frac;
+                m_status.zero = 0x04;
+                m_status.absMin = pos.amin;
+                m_status.absSec = pos.asec;
+                m_status.absFrac = pos.afrac;
+            } else {
+                m_status.subcodeQ = 0xFF;
+                m_status.trackNum = 0xFF;
+                m_status.indexNum = 0xFF;
+                m_status.min = m_status.absMin = 0xFF;
+                m_status.sec = m_status.absSec = 0xFF;
+                m_status.frac = m_status.absFrac = 0xFF;
+                m_status.zero = 0xFF;
             }
-            m_status.subcodeQ = track.controlADR;
-            m_status.trackNum = util::to_bcd(trackNum);
-            m_status.indexNum = util::to_bcd(indexNum);
-            m_status.min = util::to_bcd(relFAD / 75 / 60);
-            m_status.sec = util::to_bcd(relFAD / 75 % 60);
-            m_status.frac = util::to_bcd(relFAD % 75);
-            m_status.zero = 0x04;
-            m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
-            m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(m_currFAD % 75);
         }
+    } else {
+        m_status.subcodeQ = 0xFF;
+        m_status.trackNum = 0xFF;
+        m_status.indexNum = 0xFF;
+        m_status.min = m_status.absMin = 0xFF;
+        m_status.sec = m_status.absSec = 0xFF;
+        m_status.frac = m_status.absFrac = 0xFF;
+        m_status.zero = 0xFF;
     }
 
     m_statusData.cdStatus = m_status;

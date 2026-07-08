@@ -11,6 +11,18 @@
 
 namespace ymir::media {
 
+/// @brief Determines if the given sector starts with valid sync bytes.
+/// @param[in] sectorData the sector to check
+/// @return `true` if it has the 12 sync bytes at offset 0, `false` otherwise
+[[nodiscard]] inline bool HasValidSyncBytes(std::span<uint8> sectorData) {
+    static constexpr std::array<uint8, 12> kSyncBytes = {0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                                         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00};
+    if (sectorData.size() < kSyncBytes.size()) {
+        return false;
+    }
+    return std::equal(kSyncBytes.begin(), kSyncBytes.end(), sectorData.begin());
+}
+
 /// @brief Calculates the CRC for the given sector.
 /// @param[in] sector the sector to checksum
 /// @return the CD-ROM ECC for the sector
@@ -34,5 +46,17 @@ uint32 CalcCRC(std::span<uint8, 2064> sector);
 /// @param[in] mode whether the sector is a Mode 2 sector (any form)
 void SynthesizeSectorData(std::span<uint8, 2352> sector, uint32 sectorSize, uint32 frameAddress, uint8 controlADR,
                           bool mode2);
+
+struct MSF {
+    uint8 m, s, f;
+};
+
+inline MSF FADToMSF(uint32 fad) {
+    MSF msf{};
+    msf.m = fad / 75 / 60;
+    msf.s = fad / 75 % 60;
+    msf.f = fad % 75;
+    return msf;
+}
 
 } // namespace ymir::media

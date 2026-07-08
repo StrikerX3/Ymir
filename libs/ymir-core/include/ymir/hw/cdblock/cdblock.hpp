@@ -20,7 +20,7 @@
 
 #include <ymir/hw/hw_defs.hpp>
 
-#include <ymir/media/disc.hpp>
+#include <ymir/media/cd_interface.hpp>
 #include <ymir/media/filesystem.hpp>
 
 #include <ymir/core/hash.hpp>
@@ -32,7 +32,7 @@ namespace ymir::cdblock {
 
 class CDBlock {
 public:
-    CDBlock(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+    CDBlock(core::Scheduler &scheduler, media::CDInterface &cdif, const media::fs::Filesystem &fs,
             core::Configuration::CDBlock &config);
 
     void Reset(bool hard);
@@ -74,7 +74,7 @@ private:
     alignas(uint64) std::array<uint16, 4> m_CR;
     alignas(uint64) std::array<uint16, 4> m_RR;
 
-    const media::Disc &m_disc;
+    media::CDInterface &m_cdif;
     const media::fs::Filesystem &m_fs;
     media::fs::FilesystemState m_fsState{m_fs};
 

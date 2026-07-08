@@ -51,10 +51,10 @@ static uint32 CalcPutOffset(uint32 size) {
 //   short interval. The first Play command should not have enough time to read the disc.
 static constexpr uint32 kSeekTicks = 5;
 
-CDBlock::CDBlock(core::Scheduler &scheduler, const media::Disc &disc, const media::fs::Filesystem &fs,
+CDBlock::CDBlock(core::Scheduler &scheduler, media::CDInterface &cdif, const media::fs::Filesystem &fs,
                  core::Configuration::CDBlock &config)
     : m_scheduler(scheduler)
-    , m_disc(disc)
+    , m_cdif(cdif)
     , m_fs(fs) {
 
     m_driveStateUpdateEvent = m_scheduler.RegisterEvent(core::events::CDBlockDriveState, this, OnDriveStateUpdateEvent);
@@ -251,16 +251,16 @@ void CDBlock::OpenTray() {
 void CDBlock::CloseTray() {
     if (GetStatusCode() == kStatusCodeOpen) {
         // TODO: stay in Busy status while drive scans disc
-        if (m_disc.sessions.empty()) {
-            m_status.statusCode = kStatusCodeNoDisc;
-            m_targetDriveCycles = kDriveCyclesNotPlaying;
-
-            devlog::info<grp::base>("Tray closed - no disc");
-        } else {
+        if (m_cdif.HasDisc()) {
             m_status.statusCode = kStatusCodePause;
             m_targetDriveCycles = kDriveCyclesNotPlaying;
 
             devlog::info<grp::base>("Tray closed - paused");
+        } else {
+            m_status.statusCode = kStatusCodeNoDisc;
+            m_targetDriveCycles = kDriveCyclesNotPlaying;
+
+            devlog::info<grp::base>("Tray closed - no disc");
         }
     } else {
         devlog::info<grp::base>("Tried to close tray when it's already closed");
@@ -691,7 +691,7 @@ void CDBlock::PokeReg(uint32 address, T value) {
 
 bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 repeatParam) {
     // Make sure we have a disc
-    if (m_disc.sessions.empty()) {
+    if (!m_cdif.HasDisc()) {
         devlog::info<grp::play_init>("No disc");
         m_status.statusCode = kStatusCodeNoDisc;
         m_targetDriveCycles = kDriveCyclesNotPlaying;
@@ -719,6 +719,9 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
     if (keepStartParam) {
         startParam = m_playStartParam;
     }
+    if (keepEndParam) {
+        endParam = m_playEndParam;
+    }
     if (keepRepeatParam) {
         repeatParam = m_playRepeatParam;
     }
@@ -726,22 +729,22 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
     const bool resetPos = !keepRepeatParam && !bit::test<7>(repeatParam);
 
     // Sanity check: both must be FADs or tracks, not a mix
-    if (!keepEndParam && isStartFAD != isEndFAD) {
+    if (isStartFAD != isEndFAD) {
         devlog::debug<grp::play_init>("Start/End FAD type mismatch: {:06X} {:06X}", startParam, endParam);
         return false; // reject
     }
 
     // Store playback parameters
     m_playStartParam = startParam;
-    if (!keepEndParam) {
-        m_playEndParam = endParam;
-    }
+    m_playEndParam = endParam;
     m_playRepeatParam = repeatParam;
     m_playMaxRepeat = m_playRepeatParam & 0xF;
     m_playFile = false;
     m_playEndPending = false;
 
-    const media::Session &session = m_disc.sessions.back();
+    const media::TOC &toc = m_cdif.GetTOC();
+
+    // TODO: deduplicate code
 
     if (isStartFAD) {
         // Frame address range
@@ -753,23 +756,29 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         devlog::debug<grp::play_init>("FAD range {:06X} to {:06X}", m_playStartPos, m_playEndPos);
 
         uint32 frameAddress = m_status.frameAddress;
-        if (frameAddress < m_playStartPos || frameAddress > m_playEndPos + 1) {
+        if (resetPos) {
+            frameAddress = m_playStartPos;
+            devlog::debug<grp::play_init>("Reset playback position to {:06X}", frameAddress);
+        } else if (frameAddress < m_playStartPos || frameAddress > m_playEndPos + 1) {
             devlog::debug<grp::play_init>(
                 "Adjusting playback position from {:06X} to {:06X} to fit range {:06X}..{:06X}", frameAddress,
                 m_playStartPos, m_playStartPos, m_playEndPos);
             frameAddress = m_playStartPos;
+        } else {
+            devlog::debug<grp::play_init>("Continuing playback from {:06X}", frameAddress);
         }
 
-        // Find track containing the requested start frame address
-        const uint8 trackIndex = session.FindTrackIndex(frameAddress);
-        if (trackIndex != 0xFF) {
-            const uint8 index = session.tracks[trackIndex].FindIndex(frameAddress);
+        // Seek to frame address
+        const media::TrackInfo *trackInfo = toc.GetTrackInfoForFAD(frameAddress);
+        if (trackInfo != nullptr) [[likely]] {
+            m_cdif.BeginSeekToFrameAddress(frameAddress);
             m_status.statusCode = kStatusCodeSeek;
-            m_status.flags = 0x8;     // CD-ROM decoding flag
+            m_status.frameAddress = frameAddress;
+            m_status.flags = trackInfo->controlADR == 0x01 ? 0x8 : 0x0;
             m_status.repeatCount = 0; // first repeat
-            m_status.controlADR = session.tracks[trackIndex].controlADR;
-            m_status.track = trackIndex + 1;
-            m_status.index = index;
+            m_status.controlADR = trackInfo->controlADR;
+            m_status.track = trackInfo->number;
+            m_status.index = 1;
             m_seekTicks = kSeekTicks; // TODO: calculate realistic seek time
 
             if (m_status.controlADR == 0x41) {
@@ -781,15 +790,8 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
 
             devlog::debug<grp::play_init>("Track:Index {:02d}:{:02d} ctl/ADR={:02X}", m_status.track, m_status.index,
                                           m_status.controlADR);
-
-            if (resetPos) {
-                m_status.frameAddress = m_playStartPos;
-                devlog::debug<grp::play_init>("Reset playback position to {:06X}", m_status.frameAddress);
-            } else {
-                m_status.frameAddress = frameAddress;
-                devlog::debug<grp::play_init>("Continuing playback from {:06X}", m_status.frameAddress);
-            }
         } else {
+            devlog::debug<grp::play_init>("Could not find track at FAD {:06X}; pausing", frameAddress);
             m_targetDriveCycles = kDriveCyclesNotPlaying;
             m_status.statusCode = kStatusCodePause;
         }
@@ -799,30 +801,17 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
         // startParam and endParam contain the track number on the upper byte and index on the lower byte
         uint8 startTrack = bit::extract<8, 15>(startParam);
         uint8 startIndex = bit::extract<0, 7>(startParam);
-        uint8 endTrack, endIndex;
-        if (keepEndParam) {
-            const media::Track *track = session.FindTrack(m_playEndPos);
-            if (track == nullptr) {
-                track = &session.tracks[session.lastTrackIndex - 1];
-            }
-            endTrack = track->index;
-            endIndex = track->FindIndex(m_playEndPos);
-            if (endIndex == 0xFF) {
-                endIndex = track->indices.size() - 1;
-            }
-        } else {
-            endTrack = bit::extract<8, 15>(endParam);
-            endIndex = bit::extract<0, 7>(endParam);
-        }
+        uint8 endTrack = bit::extract<8, 15>(endParam);
+        uint8 endIndex = bit::extract<0, 7>(endParam);
 
         // Handle default parameters - use first or last track and index in the disc
         if (startParam == 0) {
-            startTrack = session.firstTrackIndex + 1;
+            startTrack = toc.GetFirstTrackNumber();
             startIndex = 1;
         }
         if (endParam == 0) {
-            endTrack = session.lastTrackIndex + 1;
-            endIndex = session.tracks[session.lastTrackIndex].indices.size() - 1;
+            endTrack = toc.GetLastTrackNumber();
+            endIndex = 99; // TODO: is this correct?
         }
 
         devlog::debug<grp::play_init>("Track:Index range {:02d}:{:02d}-{:02d}:{:02d} ", startTrack, startIndex,
@@ -830,34 +819,41 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
 
         // Clamp track numbers to what's available in the disc
         // If end < start, ProcessDriveState() will switch to the Pause state automatically
-        uint8 firstTrack = session.firstTrackIndex + 1;
-        uint8 lastTrack = session.lastTrackIndex + 1;
+        uint8 firstTrack = toc.GetFirstTrackNumber();
+        uint8 lastTrack = toc.GetLastTrackNumber();
         startTrack = std::clamp(startTrack, firstTrack, lastTrack);
         endTrack = std::clamp(endTrack, firstTrack, lastTrack);
-        startIndex = std::clamp<uint8>(startIndex, 1, session.tracks[startTrack - 1].indices.size() - 1);
-        endIndex = std::clamp<uint8>(endIndex, 1, session.tracks[endTrack - 1].indices.size() - 1);
+        startIndex = std::clamp<uint8>(startIndex, 1, 99);
+        endIndex = std::clamp<uint8>(endIndex, 1, 99);
         devlog::debug<grp::play_init>("Track:Index range after clamping {:02d}:{:02d}-{:02d}:{:02d}", startTrack,
                                       startIndex, endTrack, endIndex);
 
         // Play frame address range for the specified tracks
-        m_playStartPos = session.tracks[startTrack - 1].indices[startIndex].startFrameAddress;
-        m_playEndPos = session.tracks[endTrack - 1].indices[endIndex].endFrameAddress;
+        m_playStartPos = toc.GetStartFADForTrack(startTrack);
+        m_playEndPos = toc.GetEndFADForTrack(endTrack);
 
         uint32 frameAddress = m_status.frameAddress;
-        if (resetPos || frameAddress < m_playStartPos || frameAddress > m_playEndPos) {
+        if (resetPos) {
             frameAddress = m_playStartPos;
+            devlog::debug<grp::play_init>("Reset playback position to {:06X}", frameAddress);
+        } else if (frameAddress < m_playStartPos || frameAddress > m_playEndPos + 1) {
+            devlog::debug<grp::play_init>(
+                "Adjusting playback position from {:06X} to {:06X} to fit range {:06X}..{:06X}", frameAddress,
+                m_playStartPos, m_playStartPos, m_playEndPos);
+            frameAddress = m_playStartPos;
+        } else {
+            devlog::debug<grp::play_init>("Continuing playback from {:06X}", frameAddress);
         }
 
-        const media::Track *track = session.FindTrack(frameAddress);
-
-        if (track != nullptr) [[likely]] {
-            // Switch to seek mode
+        const media::TrackInfo *trackInfo = toc.GetTrackInfoForFAD(frameAddress);
+        if (trackInfo != nullptr) [[likely]] {
+            m_cdif.BeginSeekToTrackIndex(trackInfo->number, startIndex);
             m_status.statusCode = kStatusCodeSeek;
-            m_status.flags = m_status.controlADR == 0x01 ? 0x8 : 0x0;
+            m_status.flags = trackInfo->controlADR == 0x01 ? 0x8 : 0x0;
             m_status.repeatCount = 0; // first repeat
-            m_status.controlADR = track->controlADR;
-            m_status.track = track->index;
-            m_status.index = track->FindIndex(frameAddress);
+            m_status.controlADR = trackInfo->controlADR;
+            m_status.track = trackInfo->number;
+            m_status.index = 1;
             m_seekTicks = kSeekTicks; // TODO: calculate realistic seek time
 
             if (m_status.controlADR == 0x41) {
@@ -866,14 +862,9 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
                 // Force 1x speed if playing audio track
                 m_targetDriveCycles = kDriveCyclesPlaying1x;
             }
-            devlog::debug<grp::play_init>("Track:Index FAD range {:06X}-{:06X}", m_playStartPos, m_playEndPos);
 
-            if (resetPos) {
-                m_status.frameAddress = m_playStartPos;
-                devlog::debug<grp::play_init>("Reset playback position to {:06X}", m_status.frameAddress);
-            } else {
-                m_status.frameAddress = frameAddress;
-            }
+            devlog::debug<grp::play_init>("Track:Index {:02d}:{:02d} ctl/ADR={:02X}", m_status.track, m_status.index,
+                                          m_status.controlADR);
         } else {
             // The disc image is truncated or corrupted
             // Let's pretend this is a disc read error
@@ -920,14 +911,13 @@ bool CDBlock::SetupFilePlayback(uint32 fileID, uint32 offset, uint8 filterNumber
 
     // Reject if frame address doesn't point to a valid data track
     const uint32 fileOffset = fileInfo.frameAddress + offset;
-    const auto &session = m_disc.sessions.back();
-    const uint8 trackIndex = session.FindTrackIndex(fileOffset);
-    if (trackIndex == 0xFF) {
+    const media::TrackInfo *info = m_cdif.GetTOC().GetTrackInfoForFAD(fileOffset);
+    if (info == nullptr) {
         devlog::debug<grp::play_init>("Track not found for frame address {:06X}; rejecting playback request",
                                       fileOffset);
         return false;
     }
-    if (session.tracks[trackIndex].controlADR != 0x41) {
+    if (info->controlADR != 0x41) {
         devlog::debug<grp::play_init>("Not a data track at frame address {:06X}; rejecting playback request",
                                       fileOffset);
         return false;
@@ -943,11 +933,12 @@ bool CDBlock::SetupFilePlayback(uint32 fileID, uint32 offset, uint8 filterNumber
     ConnectCDDevice(filterNumber);
 
     // Setup status
+    m_cdif.BeginSeekToFrameAddress(m_playStartPos);
     m_status.statusCode = kStatusCodeSeek;
-    m_status.flags = 0x8;     // CD-ROM decoding flag
+    m_status.flags = info->controlADR == 0x41 ? 0x8 : 0x0;
     m_status.repeatCount = 0; // first repeat
-    m_status.controlADR = session.tracks[trackIndex].controlADR;
-    m_status.track = trackIndex + 1;
+    m_status.controlADR = info->controlADR;
+    m_status.track = info->number;
     m_status.index = 1;
     m_seekTicks = kSeekTicks; // TODO: calculate realistic seek time
 
@@ -992,12 +983,22 @@ void CDBlock::ProcessDriveState() {
                 // Force 1x speed if playing audio track
                 m_targetDriveCycles = kDriveCyclesPlaying1x;
             }
-            if (m_status.frameAddress < m_playStartPos || m_status.frameAddress > m_playEndPos) {
-                m_status.frameAddress = m_playStartPos;
+            if (m_cdif.IsSeekDone()) {
+                m_bufferFullPause = false;
+                m_status.frameAddress = m_cdif.GetSeekFrameAddress();
+                if (m_status.frameAddress == 0xFFFFFF) {
+                    m_status.statusCode = kStatusCodeStandby;
+                    m_status.flags = 0xF;
+                    m_status.repeatCount = 0xF;
+                    m_status.controlADR = 0xFF;
+                    m_status.track = 0xFF;
+                    m_status.index = 0xFF;
+                    m_targetDriveCycles = kDriveCyclesNotPlaying;
+                } else {
+                    ProcessDriveStatePlay();
+                }
             }
-            m_bufferFullPause = false;
-            ProcessDriveStatePlay();
-        } else if (m_seekTicks == 0) {
+        } else if (m_seekTicks == 0 && m_cdif.IsSeekDone()) {
             m_bufferFullPause = false;
             m_status.statusCode = kStatusCodePlay;
             ProcessDriveStatePlay();
@@ -1016,7 +1017,7 @@ void CDBlock::ProcessDriveState() {
 
     if (m_readyForPeriodicReports && !m_processingCommand) {
         // HACK to ensure the system detects the absence of a disc properly
-        if (m_disc.sessions.empty() && GetStatusCode() != kStatusCodeOpen) {
+        if (!m_cdif.HasDisc() && GetStatusCode() != kStatusCodeOpen) {
             m_status.statusCode = kStatusCodeNoDisc;
             m_targetDriveCycles = kDriveCyclesNotPlaying;
         }
@@ -1035,41 +1036,28 @@ void CDBlock::ProcessDriveStatePlay() {
     if (frameAddress <= m_playEndPos) {
         devlog::trace<grp::play>("Read from frame address {:06X}", frameAddress);
 
-        if (m_disc.sessions.empty()) [[unlikely]] {
-            devlog::debug<grp::play>("Disc removed");
-
-            m_status.statusCode = kStatusCodeNoDisc; // TODO: is this correct?
-            SetInterrupt(kHIRQ_DCHG);
-        } else {
+        if (m_cdif.HasDisc()) [[unlikely]] {
             if (m_bufferFullPause) {
                 devlog::trace<grp::play>("Can't play disc, no buffers available");
                 return;
             }
 
             // TODO: consider caching the track pointer
-            const media::Session &session = m_disc.sessions.back();
-            const media::Track *track = session.FindTrack(frameAddress);
+            const media::TrackInfo *track = m_cdif.GetTOC().GetTrackInfoForFAD(frameAddress);
 
             Buffer &buffer = m_scratchBuffers[0];
 
             // Sanity check: is the track valid?
-            if (track != nullptr && track->ReadSector(frameAddress, buffer.data)) [[likely]] {
-                devlog::trace<grp::play>("Read {} bytes from frame address {:06X}", track->sectorSize, frameAddress);
+            if (track != nullptr && m_cdif.ReadSector(frameAddress, buffer.data)) [[likely]] {
+                devlog::trace<grp::play>("Read sector from frame address {:06X}", frameAddress);
 
                 if (track->controlADR == 0x01) {
                     // If playing an audio track, send to SCSP
-                    if (track->bigEndian) {
-                        // Swap endianness if necessary
-                        for (uint32 offset = 0; offset < 2352; offset += 2) {
-                            util::WriteLE<uint16>(&buffer.data[offset], util::ReadBE<uint16>(&buffer.data[offset]));
-                        }
-                    }
-
                     if (scan) {
                         // While scanning, attenuate volume by 12 dB
                         for (uint32 offset = 0; offset < 2352; offset += 2) {
-                            util::WriteLE<sint16>(&buffer.data[offset],
-                                                  util::ReadLE<sint16>(&buffer.data[offset]) >> 2u);
+                            util::WriteNE<sint16>(&buffer.data[offset],
+                                                  util::ReadNE<sint16>(&buffer.data[offset]) >> 2u);
                         }
                     }
 
@@ -1102,7 +1090,7 @@ void CDBlock::ProcessDriveStatePlay() {
                     const bool mode2form2 = mode2 && bit::test<5>(buffer.data[0x12]);
                     buffer.size = mode2form2 ? std::max(2324u, m_getSectorLength) : m_getSectorLength;
                     buffer.frameAddress = frameAddress;
-                    track->ReadSectorSubheader(frameAddress, buffer.subheader);
+                    buffer.subheader.ReadFrom(buffer.data);
 
                     // Check against CD device filter and send data to the appropriate destination
                     uint8 filterNum = m_cdDeviceConnection;
@@ -1153,11 +1141,17 @@ void CDBlock::ProcessDriveStatePlay() {
                         }
                     }
 
-                    m_status.frameAddress++;
-                    m_status.track = track->index;
-                    m_status.index = track->FindIndex(m_status.frameAddress);
-                    m_status.controlADR = track->controlADR;
-                    m_status.flags = track->controlADR == 0x41 ? 0x8 : 0x0;
+                    media::DiscPosition discPos{};
+                    ++m_status.frameAddress;
+                    if (m_cdif.ReadPosition(m_status.frameAddress, discPos)) {
+                        m_status.track = discPos.track;
+                        m_status.index = discPos.index;
+                        m_status.controlADR = discPos.controlADR;
+                        m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
+                    } else {
+                        // This *really* should not happen
+                        YMIR_DEV_CHECK();
+                    }
                 }
             } else if (track == nullptr) {
                 // This shouldn't really happen unless we're given an invalid disc image
@@ -1172,10 +1166,24 @@ void CDBlock::ProcessDriveStatePlay() {
                 devlog::debug<grp::play>("Could not read sector - disc image is truncated or corrupted");
                 m_status.statusCode = kStatusCodeError;
             }
+        } else {
+            devlog::debug<grp::play>("Disc removed");
+
+            m_status.statusCode = kStatusCodeNoDisc; // TODO: is this correct?
+            SetInterrupt(kHIRQ_DCHG);
         }
     }
 
-    if (m_status.frameAddress > m_playEndPos) {
+    const bool useFAD = (m_playStartParam & 0x800000) != 0;
+    bool endReached;
+    if (useFAD) {
+        endReached = m_status.frameAddress > m_playEndPos;
+    } else {
+        const uint16 endTrackIndex = bit::extract<0, 15>(m_playEndParam);
+        const uint16 curTrackIndex = (m_status.track << 8u) | m_status.index;
+        endReached = curTrackIndex > endTrackIndex;
+    }
+    if (endReached) {
         // 0x0 to 0xE = 0 to 14 repeats
         // 0xF = infinite repeats
         if (m_playMaxRepeat == 0xF || m_status.repeatCount < m_playMaxRepeat) {
@@ -1246,21 +1254,23 @@ uint8 CDBlock::GetStatusCode() const {
 void CDBlock::SetupTOCTransfer() {
     devlog::trace<grp::xfer>("Starting TOC transfer");
 
+    const media::TOC &toc = m_cdif.GetTOC();
+    const auto &saturnTOC = toc.GetSaturnTable();
+
     m_xferType = TransferType::TOC;
     m_xferPos = 0;
     m_xferBufferPos = 0;
-    m_xferLength = sizeof(media::Session::toc) / sizeof(uint16);
+    m_xferLength = saturnTOC.size() * sizeof(uint32) / sizeof(uint16);
     m_xferCount = 0;
     m_xferExtraCount = 0;
 
-    if (m_disc.sessions.empty()) {
-        std::fill_n(m_xferBuffer.begin(), m_xferLength, 0xFFFF);
-    } else {
-        auto &toc = m_disc.sessions.back().toc;
-        for (size_t i = 0; i < toc.size(); i++) {
-            m_xferBuffer[i * 2 + 0] = toc[i] >> 16u;
-            m_xferBuffer[i * 2 + 1] = toc[i] >> 0u;
+    if (m_cdif.HasDisc()) {
+        for (size_t i = 0; i < saturnTOC.size(); i++) {
+            m_xferBuffer[i * 2 + 0] = saturnTOC[i] >> 16u;
+            m_xferBuffer[i * 2 + 1] = saturnTOC[i] >> 0u;
         }
+    } else {
+        std::fill_n(m_xferBuffer.begin(), m_xferLength, 0xFFFF);
     }
 }
 
@@ -1391,7 +1401,7 @@ uint32 CDBlock::SetupFileInfoTransfer(uint32 fileID) {
 }
 
 bool CDBlock::SetupSubcodeTransfer(uint8 type) {
-    if (m_disc.sessions.empty()) {
+    if (!m_cdif.HasDisc()) {
         return false;
     }
 
@@ -1411,22 +1421,22 @@ bool CDBlock::SetupSubcodeTransfer(uint8 type) {
         m_xferCount = 0;
         m_xferExtraCount = 0;
 
-        const uint32 relativeFAD =
-            m_status.frameAddress - m_disc.sessions.back().tracks[m_status.track - 1].startFrameAddress;
+        media::DiscPosition pos{};
+        if (!m_cdif.ReadPosition(m_status.frameAddress, pos)) {
+            // Disc could've been ejected
+            return false;
+        }
 
-        auto [m, s, f] = FADToMSF(m_status.frameAddress);
-        auto [relM, relS, relF] = FADToMSF(relativeFAD);
-
-        m_xferBuffer[0] = m_status.controlADR;
-        m_xferBuffer[1] = util::to_bcd(m_status.track);
-        m_xferBuffer[2] = util::to_bcd(m_status.index);
-        m_xferBuffer[3] = util::to_bcd(relM);
-        m_xferBuffer[4] = util::to_bcd(relS);
-        m_xferBuffer[5] = util::to_bcd(relF);
-        m_xferBuffer[6] = 0;
-        m_xferBuffer[7] = util::to_bcd(m);
-        m_xferBuffer[8] = util::to_bcd(s);
-        m_xferBuffer[9] = util::to_bcd(f);
+        m_xferBuffer[0] = pos.controlADR;
+        m_xferBuffer[1] = util::to_bcd(pos.track);
+        m_xferBuffer[2] = util::to_bcd(pos.index);
+        m_xferBuffer[3] = util::to_bcd(pos.min);
+        m_xferBuffer[4] = util::to_bcd(pos.sec);
+        m_xferBuffer[5] = util::to_bcd(pos.frac);
+        m_xferBuffer[6] = pos.zero;
+        m_xferBuffer[7] = util::to_bcd(pos.amin);
+        m_xferBuffer[8] = util::to_bcd(pos.asec);
+        m_xferBuffer[9] = util::to_bcd(pos.afrac);
 
         m_RR[0] = GetStatusCode() << 8u;
         m_RR[1] = 5;
@@ -1453,12 +1463,8 @@ bool CDBlock::SetupSubcodeTransfer(uint8 type) {
 
         // TODO: read subcode R-W from current sector (24 bytes starting at 2352 + 24*group), & 0x3F all bytes
         // - only works with discs that have 2448 byte sectors
-        if (m_disc.sessions.back().tracks[m_status.track - 1].sectorSize < 2448) {
-            m_xferBuffer.fill(0xFF);
-        } else {
-            devlog::trace<grp::xfer>("Subcode R-W transfer is unimplemented");
-            m_xferBuffer.fill(0xFF);
-        }
+        devlog::trace<grp::xfer>("Subcode R-W transfer is unimplemented");
+        m_xferBuffer.fill(0xFF);
 
         m_RR[0] = GetStatusCode() << 8u;
         m_RR[1] = 12;
@@ -1818,7 +1824,7 @@ void CDBlock::CmdGetTOC() {
     // <blank>
     // <blank>
     m_RR[0] = GetStatusCode() << 8u;
-    m_RR[1] = sizeof(media::Session::toc) / sizeof(uint16);
+    m_RR[1] = m_xferLength;
     m_RR[2] = 0x0000;
     m_RR[3] = 0x0000;
 
@@ -1848,17 +1854,20 @@ void CDBlock::CmdGetSessionInfo() {
 
     const uint8 sessionNum = bit::extract<0, 7>(m_CR[0]);
 
+    // TODO: support multiple sessions if necessary
+
     m_RR[0] = GetStatusCode() << 8u;
     m_RR[1] = 0x0000;
     if (sessionNum == 0) {
         // Get information about all sessions
-        m_RR[2] = (m_disc.sessions.size() << 8u); // TODO: session LBA?
+        m_RR[2] = (1u << 8u); // TODO: session count
         m_RR[3] = 0x0000;
-    } else if (sessionNum <= m_disc.sessions.size()) {
+    } else if (sessionNum == 1) {
         // Get information about a specific session
-        const auto &session = m_disc.sessions[sessionNum - 1];
-        const uint32 startFAD = session.startFrameAddress;
-        m_RR[2] = ((session.firstTrackIndex + 1) << 8u) | bit::extract<16, 23>(startFAD);
+        const media::TOC &toc = m_cdif.GetTOC();
+        const uint32 startFAD = toc.GetStartFrameAddress();
+        const uint32 firstTrackNum = toc.GetFirstTrackNumber();
+        m_RR[2] = (firstTrackNum << 8u) | bit::extract<16, 23>(startFAD);
         m_RR[3] = bit::extract<0, 15>(startFAD);
     } else {
         // Return FFFFFFFF for nonexistent sessions
@@ -1894,10 +1903,10 @@ void CDBlock::CmdInitializeCDSystem() {
     const uint8 statusCode = GetStatusCode();
     if (statusCode != kStatusCodeOpen && statusCode != kStatusCodeNoDisc) {
         // TODO: switch to Busy for a bit before NoDisc/Pause
-        if (m_disc.sessions.empty()) {
-            m_status.statusCode = kStatusCodeNoDisc;
-        } else {
+        if (m_cdif.HasDisc()) {
             m_status.statusCode = kStatusCodePause;
+        } else {
+            m_status.statusCode = kStatusCodeNoDisc;
         }
         m_status.frameAddress = 150;
 
@@ -2048,49 +2057,33 @@ void CDBlock::CmdSeekDisc() {
     } else if (isStartFAD) {
         uint32 frameAddress = startPos & 0x7FFFFF;
         devlog::debug<grp::base>("Seeking to frame address {:06X}", frameAddress);
-        if (m_disc.sessions.empty()) {
-            devlog::debug<grp::base>("No disc in drive - stopped");
-            m_status.statusCode = kStatusCodeNoDisc;
-            m_status.frameAddress = 0xFFFFFF;
-            m_status.flags = 0xF;
-            m_status.repeatCount = 0xF;
-            m_status.controlADR = 0xFF;
-            m_status.track = 0xFF;
-            m_status.index = 0xFF;
-            m_targetDriveCycles = kDriveCyclesNotPlaying;
-        } else {
-            const auto &session = m_disc.sessions.back();
+        if (m_cdif.HasDisc()) {
+            const media::TOC &toc = m_cdif.GetTOC();
 
             // Handle frame address exceptions:
             //   Before start of disc (150) -> clamp to 150
             //   After end of disc -> clamp to last disc FAD + 1 (leadout area)
-            frameAddress = std::max<uint32>(frameAddress, session.startFrameAddress);
-            const uint8 trackIndex = session.FindTrackIndex(frameAddress);
-            if (trackIndex < 99) {
-                const auto &track = session.tracks[trackIndex];
+            frameAddress = std::max<uint32>(frameAddress, toc.GetStartFrameAddress());
+            const media::TrackInfo *track = toc.GetTrackInfoForFAD(frameAddress);
+            if (track != nullptr) {
                 m_status.statusCode = kStatusCodePause;
                 m_status.frameAddress = frameAddress;
-                m_status.flags = track.controlADR == 0x41 ? 0x8 : 0x0;
-                m_status.controlADR = track.controlADR;
-                m_status.track = trackIndex;
+                m_status.flags = track->controlADR == 0x41 ? 0x8 : 0x0;
+                m_status.controlADR = track->controlADR;
+                m_status.track = track->number;
                 m_status.index = 1;
                 m_targetDriveCycles = kDriveCyclesNotPlaying;
             } else { // frameAddress > session.endFrameAddress
                 devlog::debug<grp::base>("Seeking to leadout area");
                 m_status.statusCode = kStatusCodePause;
-                m_status.frameAddress = session.endFrameAddress + 1;
+                m_status.frameAddress = toc.GetLeadOutFrameAddress();
                 m_status.flags = 0x0;
                 m_status.controlADR = 0x01;
                 m_status.track = 0xAA;
                 m_status.index = 1;
                 m_targetDriveCycles = kDriveCyclesNotPlaying;
             }
-        }
-    } else {
-        uint32 trackNum = bit::extract<8, 14>(startPos);
-        uint32 indexNum = bit::extract<0, 6>(startPos);
-        devlog::debug<grp::base>("Seeking to track:index {}:{}", trackNum, indexNum);
-        if (m_disc.sessions.empty()) {
+        } else {
             devlog::debug<grp::base>("No disc in drive - stopped");
             m_status.statusCode = kStatusCodeNoDisc;
             m_status.frameAddress = 0xFFFFFF;
@@ -2100,42 +2093,70 @@ void CDBlock::CmdSeekDisc() {
             m_status.track = 0xFF;
             m_status.index = 0xFF;
             m_targetDriveCycles = kDriveCyclesNotPlaying;
-        } else {
-            const auto &session = m_disc.sessions.back();
+        }
+    } else {
+        uint32 trackNum = bit::extract<8, 14>(startPos);
+        uint32 indexNum = bit::extract<0, 6>(startPos);
+        devlog::debug<grp::base>("Seeking to track:index {}:{}", trackNum, indexNum);
+        if (m_cdif.HasDisc()) {
+            const media::TOC &toc = m_cdif.GetTOC();
+            const uint8 firstTrackNum = toc.GetFirstTrackNumber();
+            const uint8 lastTrackNum = toc.GetLastTrackNumber();
 
             // Handle track number exceptions:
             //   0 -> first track
             //   Outside of valid track range -> clamp to range, set index = 1
             if (trackNum == 0) {
-                trackNum = session.firstTrackIndex + 1;
-            } else if (trackNum < session.firstTrackIndex + 1) {
-                trackNum = session.firstTrackIndex + 1;
+                trackNum = firstTrackNum;
+            } else if (trackNum < firstTrackNum) {
+                trackNum = firstTrackNum;
                 indexNum = 1;
-            } else if (trackNum > session.lastTrackIndex + 1) {
-                trackNum = session.lastTrackIndex + 1;
+            } else if (trackNum > lastTrackNum) {
+                trackNum = lastTrackNum;
                 indexNum = 1;
             }
-
-            const auto &track = session.tracks[trackNum - 1];
 
             // Handle index number exceptions:
             //   0 -> 1
             //   Nonexistent index -> start of next track, set index = 1
             if (indexNum == 0) {
                 indexNum = 1;
-            } else if (indexNum > track.indices.size() - 1) {
+            } else if (indexNum > 99) {
                 indexNum = 1;
-                if (trackNum < session.lastTrackIndex + 1) {
+                if (trackNum < lastTrackNum) {
                     ++trackNum;
                 }
             }
 
-            m_status.statusCode = kStatusCodePause;
-            m_status.frameAddress = track.index01FrameAddress;
-            m_status.flags = track.controlADR == 0x41 ? 0x8 : 0x0;
-            m_status.controlADR = track.controlADR;
-            m_status.track = trackNum;
-            m_status.index = 1;
+            const media::TrackInfo *track = toc.GetTrackInfoForNumber(trackNum);
+            if (track != nullptr) {
+                m_status.statusCode = kStatusCodePause;
+                m_status.frameAddress = track->startFrameAddress;
+                m_status.flags = track->controlADR == 0x41 ? 0x8 : 0x0;
+                m_status.controlADR = track->controlADR;
+                m_status.track = trackNum;
+                m_status.index = indexNum;
+                m_targetDriveCycles = kDriveCyclesNotPlaying;
+            } else {
+                devlog::debug<grp::base>("Could not find track - stopped");
+                m_status.statusCode = kStatusCodeNoDisc;
+                m_status.frameAddress = 0xFFFFFF;
+                m_status.flags = 0xF;
+                m_status.repeatCount = 0xF;
+                m_status.controlADR = 0xFF;
+                m_status.track = 0xFF;
+                m_status.index = 0xFF;
+                m_targetDriveCycles = kDriveCyclesNotPlaying;
+            }
+        } else {
+            devlog::debug<grp::base>("No disc in drive - stopped");
+            m_status.statusCode = kStatusCodeNoDisc;
+            m_status.frameAddress = 0xFFFFFF;
+            m_status.flags = 0xF;
+            m_status.repeatCount = 0xF;
+            m_status.controlADR = 0xFF;
+            m_status.track = 0xFF;
+            m_status.index = 0xFF;
             m_targetDriveCycles = kDriveCyclesNotPlaying;
         }
     }

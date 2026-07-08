@@ -289,7 +289,7 @@ void SystemStateWindow::DrawCDBlock() {
     const uint32 fad = probe.GetCurrentFrameAddress();
     const uint8 repeat = probe.GetCurrentRepeatCount();
     const uint8 maxRepeat = probe.GetMaxRepeatCount();
-    const cdblock::MSF msf = cdblock::FADToMSF(fad);
+    const media::MSF msf = media::FADToMSF(fad);
 
     if (status == cdblock::kStatusCodePlay || status == cdblock::kStatusCodeScan) {
         ImGui::BeginGroup();
@@ -430,13 +430,13 @@ void SystemStateWindow::DrawCDDrive() {
     case CDOp::ReadTOC: ImGui::TextUnformatted("Reading TOC"); break;
     case CDOp::DiscChanged: ImGui::TextUnformatted("Disc changed"); break;
     case CDOp::ReadDataSector:
-        ImGui::Text("Reading track %u, index %u (Data)", status.trackNum, status.indexNum);
+        ImGui::Text("Reading track %u, index %u (Data)", status.trackNum, util::from_bcd(status.indexNum));
         break;
     case CDOp::ReadAudioSector:
-        ImGui::Text("Playing track %u, index %u (CDDA)", status.trackNum, status.indexNum);
+        ImGui::Text("Playing track %u, index %u (CDDA)", status.trackNum, util::from_bcd(status.indexNum));
         break;
     case CDOp::ScanAudioSector:
-        ImGui::Text("Scanning track %u, index %u (CDDA)", status.trackNum, status.indexNum);
+        ImGui::Text("Scanning track %u, index %u (CDDA)", status.trackNum, util::from_bcd(status.indexNum));
         break;
     case CDOp::Seek: ImGui::TextUnformatted("Seeking"); break;
     case CDOp::SeekSecurityRingB2: [[fallthrough]];
@@ -452,7 +452,7 @@ void SystemStateWindow::DrawCDDrive() {
                            status.operation == CDOp::SeekSecurityRingB6;
 
     const uint32 fad = isSeeking ? probe.GetTargetFrameAddress() : probe.GetCurrentFrameAddress();
-    const cdblock::MSF msf = cdblock::FADToMSF(fad);
+    const media::MSF msf = media::FADToMSF(fad);
 
     if (isReading || isSeeking) {
         ImGui::BeginGroup();
@@ -562,7 +562,7 @@ void SystemStateWindow::DrawDiscImage() {
         {
             std::unique_lock lock{m_context.locks.disc};
             hash = ToString(m_context.saturn.GetDiscHash());
-            serial = m_context.saturn.GetDisc().header.productNumber;
+            serial = m_context.saturn.GetDiscHeader().productNumber;
         }
 
         auto draw = [&](const char *name, std::string_view value) {

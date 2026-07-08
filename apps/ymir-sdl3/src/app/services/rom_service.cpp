@@ -289,8 +289,8 @@ void ROMService::LoadRecommendedCartridge() {
     const ymir::db::GameInfo *info;
     {
         std::unique_lock lock{m_context.locks.disc};
-        const auto &disc = m_context.saturn.GetDisc();
-        info = ymir::db::GetGameInfo(disc.header.productNumber, m_context.saturn.GetDiscHash());
+        const auto &discHeader = m_context.saturn.GetDiscHeader();
+        info = ymir::db::GetGameInfo(discHeader.productNumber, m_context.saturn.GetDiscHash());
     }
     if (info == nullptr) {
         m_context.EnqueueEvent(events::emu::InsertCartridgeFromSettings());

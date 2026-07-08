@@ -90,7 +90,8 @@ namespace cart {
 } // namespace cart
 
 namespace media {
-    struct Disc;
+    class CDInterface;
+    struct SaturnHeader;
 } // namespace media
 
 } // namespace ymir
@@ -184,7 +185,8 @@ struct SharedContext {
         [[nodiscard]] ymir::XXH128Hash GetIPLHash() const;
         [[nodiscard]] ymir::XXH128Hash GetCDBlockROMHash() const;
         [[nodiscard]] ymir::XXH128Hash GetDiscHash() const;
-        [[nodiscard]] const ymir::media::Disc &GetDisc() const;
+        [[nodiscard]] const ymir::media::SaturnHeader &GetDiscHeader() const;
+        [[nodiscard]] const ymir::media::CDInterface &GetCDInterface() const;
 
         ymir::core::Configuration &GetConfiguration();
         const ymir::core::Configuration &GetConfiguration() const {

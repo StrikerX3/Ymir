@@ -1,6 +1,7 @@
 #pragma once
 
 #include "savestate_cd_drive.hpp"
+#include "savestate_cd_interface.hpp"
 #include "savestate_cdblock.hpp"
 #include "savestate_scheduler.hpp"
 #include "savestate_scsp.hpp"
@@ -23,6 +24,8 @@ struct SaveState {
     SMPCSaveState smpc;
     VDPSaveState vdp;
     SCSPSaveState scsp;
+
+    CDInterfaceSaveState cdif;
 
     bool cdblockLLE;
 

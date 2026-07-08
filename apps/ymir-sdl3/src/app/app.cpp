@@ -1864,11 +1864,9 @@ void App::RunEmulator() {
             if (settings.gui.showGameNameOnTitleBar) {
                 fmt::format_to(bufWriter, " - ");
                 std::unique_lock lock{m_context.locks.disc};
-                const media::Disc &disc = m_context.saturn.GetDisc();
-                const media::SaturnHeader &header = disc.header;
-                if (disc.sessions.empty()) {
-                    fmt::format_to(bufWriter, "No disc inserted");
-                } else {
+                const media::CDInterface &cdif = m_context.saturn.GetCDInterface();
+                if (cdif.HasDisc()) {
+                    const media::SaturnHeader &header = cdif.GetDiscHeader();
                     if (!header.productNumber.empty()) {
                         fmt::format_to(bufWriter, "[{}] ", header.productNumber);
                     }
@@ -1878,6 +1876,8 @@ void App::RunEmulator() {
                     } else {
                         fmt::format_to(bufWriter, "{}", util::TranslateSaturnString(header.gameTitle));
                     }
+                } else {
+                    fmt::format_to(bufWriter, "No disc inserted");
                 }
             }
 

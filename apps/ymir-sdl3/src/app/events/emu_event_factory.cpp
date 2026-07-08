@@ -235,7 +235,7 @@ EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView) {
         };
 
         // get game product num, setup path
-        const auto &productNumber = ctx.saturn.GetDisc().header.productNumber;
+        const auto &productNumber = ctx.saturn.GetDiscHeader().productNumber;
         const auto outPath = dumpPath / fmt::format("{}_{}_{:08X}_{}B.bin", productNumber, sanitize(region->name),
                                                     region->baseAddress, size);
 

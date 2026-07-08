@@ -95,6 +95,15 @@ FORCE_INLINE void WriteNE(void *data, T value) {
     *static_cast<T *>(data) = value;
 }
 
+/// @brief Swaps the bytes of a value at the specified pointer.
+/// @tparam T the unsigned integer type
+/// @param[in,out] data the pointer to the data to swap
+template <std::unsigned_integral T>
+FORCE_INLINE void ByteSwap(void *data) {
+    const auto value = ReadNE<T>(data);
+    *static_cast<T *>(data) = bit::byte_swap<T>(value);
+}
+
 /// @brief Converts a decimal string into an integer.
 ///
 /// Stops parsing at the first non-digit character.

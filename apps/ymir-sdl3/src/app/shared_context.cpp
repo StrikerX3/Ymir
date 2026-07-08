@@ -4,8 +4,6 @@
 
 #include <ymir/sys/saturn.hpp>
 
-#include <vector>
-
 namespace app {
 
 SharedContext::SharedContext() {
@@ -31,12 +29,12 @@ std::filesystem::path SharedContext::GetGameFileName(bool oldStyle) const {
     // Use serial number + disc title if available
     {
         std::unique_lock lock{locks.disc};
-        const auto &disc = saturn.GetDisc();
-        if (!disc.sessions.empty() && !disc.header.productNumber.empty()) {
-            std::string productNumber = disc.header.productNumber;
+        const auto &discHeader = saturn.GetDiscHeader();
+        if (discHeader.IsValid() && !discHeader.productNumber.empty()) {
+            std::string productNumber = discHeader.productNumber;
             SanitizePath(productNumber);
-            if (!disc.header.gameTitle.empty()) {
-                std::string title = disc.header.gameTitle;
+            if (!discHeader.gameTitle.empty()) {
+                std::string title = discHeader.gameTitle;
                 SanitizePath(title);
                 if (oldStyle) {
                     return fmt::format("[{}] {}", productNumber, title);
@@ -181,8 +179,12 @@ ymir::XXH128Hash SharedContext::SaturnContainer::GetDiscHash() const {
     return instance->GetDiscHash();
 }
 
-const ymir::media::Disc &SharedContext::SaturnContainer::GetDisc() const {
-    return instance->GetDisc();
+const ymir::media::SaturnHeader &SharedContext::SaturnContainer::GetDiscHeader() const {
+    return instance->GetCDInterface().GetDiscHeader();
+}
+
+const ymir::media::CDInterface &SharedContext::SaturnContainer::GetCDInterface() const {
+    return instance->GetCDInterface();
 }
 
 ymir::core::Configuration &SharedContext::SaturnContainer::GetConfiguration() {

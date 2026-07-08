@@ -17,12 +17,28 @@ public:
     ImageCDInterface(ymir::media::Disc &&disc);
 
     DriveState GetDriveState() const override;
+    std::vector<TOCEntry> GetTOC() override;
+
+    bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition) override;
+
+    [[nodiscard]] bool IsSeekDone() const override {
+        // Always completes instantly
+        return true;
+    }
+
+    [[nodiscard]] uint32 GetSeekFrameAddress() const override {
+        return m_seekFAD;
+    }
 
 protected:
-    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
+    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) override;
+
+    void BeginSeekToFrameAddressImpl(uint32 frameAddress) override;
+    void BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumber) override;
 
 private:
     ymir::media::Disc m_disc;
+    uint32 m_seekFAD = 0xFFFFFF;
 };
 
 } // namespace ymir::media

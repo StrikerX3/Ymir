@@ -44,6 +44,7 @@ struct play_init : public base {
 };
 
 struct play : public base {
+    // static constexpr devlog::Level level = devlog::level::trace;
     static constexpr std::string_view name = "CDBlock-Play";
 };
 
