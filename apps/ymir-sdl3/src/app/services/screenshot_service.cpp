@@ -63,9 +63,9 @@ void ScreenshotService::ProcessingThread(SharedContext &context) {
             auto fracTime =
                 std::chrono::duration_cast<std::chrono::milliseconds>(ss.timestamp.time_since_epoch()).count() % 1000;
             // ISO 8601 + milliseconds
-            auto screenshotPath =
-                context.profile.GetPath(ProfilePath::Screenshots) /
-                fmt::format("{}-{:%Y%m%d}T{:%H%M%S}.{}.png", context.GetGameFileName(), localNow, localNow, fracTime);
+            auto screenshotPath = context.profile.GetPath(ProfilePath::Screenshots) /
+                                  fmt::format("{}-{:%Y%m%d}T{:%H%M%S}.{:03d}.png", context.GetGameFileName(), localNow,
+                                              localNow, fracTime);
 
             const int ssScale = ss.ssScale;
             uint32 ssScaleX = ssScale * ss.fbScaleX;

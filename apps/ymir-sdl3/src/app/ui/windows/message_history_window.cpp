@@ -34,7 +34,7 @@ void MessageHistoryWindow::DrawContents() {
             auto fracTime =
                 std::chrono::duration_cast<std::chrono::milliseconds>(msg->sysTime.time_since_epoch()).count() % 1000;
             // ISO 8601 + milliseconds
-            auto timeStr = fmt::format("{0:%Y}/{0:%m}/{0:%d} {0:%H}:{0:%M}:{0:%S}.{1}", localTime, fracTime);
+            auto timeStr = fmt::format("{0:%Y}/{0:%m}/{0:%d} {0:%H}:{0:%M}:{0:%S}.{1:03d}", localTime, fracTime);
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
