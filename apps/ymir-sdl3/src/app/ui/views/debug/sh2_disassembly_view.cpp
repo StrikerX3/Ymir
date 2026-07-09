@@ -1096,7 +1096,7 @@ void SH2DisassemblyView::MoveView(uint32 address, uint32 lineCount, bool setCurs
         m_cursor.address = address;
     }
     if (m_model.followPC) {
-        m_cursor.currentPC = m_sh2.GetProbe().PC();
+        m_cursor.currentPC = m_sh2.GetProbe().PC() & ~1u;
         m_cursor.address = address;
     }
 
