@@ -2398,7 +2398,7 @@ void App::RunEmulator() {
                     if (ImGui::MenuItem("System")) {
                         m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::System);
                     }
-                    if (ImGui::MenuItem("IPL")) {
+                    if (ImGui::MenuItem("IPL (BIOS)")) {
                         m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::IPL);
                     }
                     if (ImGui::MenuItem("Input")) {

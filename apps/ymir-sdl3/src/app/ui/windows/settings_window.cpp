@@ -65,7 +65,7 @@ void SettingsWindow::DrawContents() {
             m_systemSettingsView.Display();
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("IPL", nullptr, tabFlag(SettingsTab::IPL))) {
+        if (ImGui::BeginTabItem("IPL (BIOS)", nullptr, tabFlag(SettingsTab::IPL))) {
             m_iplSettingsView.Display();
             ImGui::EndTabItem();
         }
