@@ -79,7 +79,7 @@ struct VDP2Regs {
     uint16 Read(uint32 address) const {
         switch (address) {
         case 0x000: return ReadTVMD();
-        case 0x002: return ReadEXTEN();
+        case 0x002: return ReadEXTEN<peek>();
         case 0x004: return ReadTVSTAT<peek>();
         case 0x006: return ReadVRSIZE();
         case 0x008: return ReadHCNT();
@@ -402,11 +402,14 @@ struct VDP2Regs {
     // 180002   EXTEN   External Signal Enable
     RegEXTEN EXTEN;
 
+    template <bool peek>
     FORCE_INLINE uint16 ReadEXTEN() const {
-        if (!EXTEN.EXLTEN) {
-            VCNTLatch = (VCNT << VCNTShift) + VCNTSkip;
-            if (TVMD.LSMDn == InterlaceMode::DoubleDensity) {
-                VCNTLatch |= TVSTAT.ODD ^ 1;
+        if constexpr (!peek) {
+            if (!EXTEN.EXLTEN) {
+                VCNTLatch = (VCNT << VCNTShift) + VCNTSkip;
+                if (TVMD.LSMDn == InterlaceMode::DoubleDensity) {
+                    VCNTLatch |= TVSTAT.ODD ^ 1;
+                }
             }
         }
         return EXTEN.u16;

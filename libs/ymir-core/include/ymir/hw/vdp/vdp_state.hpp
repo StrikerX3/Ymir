@@ -881,7 +881,7 @@ struct VDPState {
         state.regs1.nextCommandAddress = regs1.nextCommandAddress;
 
         state.regs2.TVMD = regs2.ReadTVMD();
-        state.regs2.EXTEN = regs2.ReadEXTEN();
+        state.regs2.EXTEN = regs2.ReadEXTEN<true>();
         state.regs2.TVSTAT = regs2.ReadTVSTAT<true>();
         state.regs2.VRSIZE = regs2.ReadVRSIZE();
         state.regs2.HCNT = regs2.ReadHCNT();
