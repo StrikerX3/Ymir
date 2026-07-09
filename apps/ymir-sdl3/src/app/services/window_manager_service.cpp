@@ -166,7 +166,9 @@ void WindowManagerService::OpenWelcomeModal(bool scanIPLROMs) {
         ImGui::TextUnformatted("Welcome to Ymir!");
         ImGui::PopFont();
         ImGui::NewLine();
-        ImGui::TextUnformatted("Ymir requires a valid IPL (BIOS) ROM to work.");
+        ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+        ImGui::TextColored(m_context.colors.notice, "Ymir requires a valid IPL (BIOS) ROM to work.");
+        ImGui::PopFont();
 
         ImGui::NewLine();
         ImGui::TextUnformatted("Ymir will automatically load IPL ROMs placed in ");

@@ -41,7 +41,8 @@ IPLSettingsView::IPLSettingsView(SharedContext &context)
 void IPLSettingsView::Display() {
     auto &settings = GetSettings().system.ipl;
 
-    ImGui::TextUnformatted("NOTE: Changing any of these options will cause a hard reset");
+    ImGui::TextUnformatted("NOTE: Changing any of these options will cause a hard reset.");
+    ImGui::TextUnformatted("IPL ROMs contain the Saturn BIOS program.");
 
     ImGui::Separator();
 
@@ -216,7 +217,7 @@ void IPLSettingsView::Display() {
     ImGui::Separator();
 
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Preferred system variant");
+    ImGui::TextUnformatted("Preferred system variant:");
     ImGui::SameLine();
     if (ImGui::BeginCombo("##variant", GetVariantName(settings.variant), ImGuiComboFlags_WidthFitPreview)) {
         for (int i = 0; i <= 4; ++i) {
