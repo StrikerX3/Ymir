@@ -20,13 +20,24 @@ bool CDInterface::OpenHostDevice(std::string path) {
     if (!dev || !dev->IsConnected()) {
         return false;
     }
+
+    // TODO: move this block to the worker thread
+    {
+        std::array<uint8, 2352> headerSector{};
+        if (dev->ReadSector(0, headerSector)) {
+            m_header.ReadFrom(headerSector);
+        } else {
+            m_header.Invalidate();
+        }
+        m_toc.LoadFrom(dev->GetTOC());
+    }
     m_cdInterface = std::move(dev);
     return true;
 }
 
 void CDInterface::Eject() {
-    m_header.Invalidate();
     m_cdInterface = std::make_unique<NullCDInterface>();
+    m_header.Invalidate();
     m_toc.Clear();
 }
 

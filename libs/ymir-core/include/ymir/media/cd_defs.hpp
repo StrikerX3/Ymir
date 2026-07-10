@@ -58,6 +58,10 @@ struct TrackInfo {
 /// @brief A disc's table of contents.
 class TOC {
 public:
+    TOC() {
+        Clear();
+    }
+
     /// @brief Loads a table of contents from the given source.
     /// @param[in] table the source TOC to copy from
     void LoadFrom(std::span<const TOCEntry> table);

@@ -21,13 +21,16 @@ static std::string TrimWhitespace(std::string view) {
     return view.substr(start, end + 1);
 }
 
-static std::string ReadString(std::span<uint8, 256> data, std::size_t start, std::size_t end) {
+static std::string ReadString(std::span<uint8> data, std::size_t start, std::size_t end) {
     std::string view{(char *)&data[start], end - start + 1};
     std::transform(view.begin(), view.end(), view.begin(), [](char c) { return c == 0 ? ' ' : c; });
     return TrimWhitespace(view);
 }
 
-bool SaturnHeader::ReadFrom(std::span<uint8, 256> data) {
+bool SaturnHeader::ReadFrom(std::span<uint8> data) {
+    if (data.size() < 256) {
+        return false;
+    }
     hwID = ReadString(data, 0x00, 0x0F);
     if (!IsValid()) {
         return false;
