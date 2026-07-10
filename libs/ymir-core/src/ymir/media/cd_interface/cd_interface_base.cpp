@@ -68,8 +68,8 @@ void ICDInterface::ReconcileSeekState(const savestate::CDInterfaceSaveState &sta
     // At this point we have one of the following situations:
     // - The device has completed a seek, but the seek FADs disagree
     // - The device is currently seeking to an unknown address
-    // Either way, we'll have to request the device to seek again. Implementations must ensure repeated seeks to the
-    // same target are coalesced.
+    // Either way, we'll have to request the device to seek again.
+    // Implementations may coalesce repeated seeks to the same target to reduce strain on hardware.
 
     const bool isTrackIndex = bit::test<31>(m_seekTarget);
     if (isTrackIndex) {

@@ -157,6 +157,7 @@ add_library(ymir-core
 
     include/ymir/media/cd_interface/cd_interface_base.hpp
     include/ymir/media/cd_interface/cd_interface_null.hpp
+    include/ymir/media/cd_interface/cd_interface_host.hpp
     include/ymir/media/cd_interface/cd_interface_image.hpp
 
     include/ymir/media/loader/loader.hpp
@@ -295,6 +296,7 @@ add_library(ymir-core
     src/ymir/media/saturn_header.cpp
 
     src/ymir/media/cd_interface/cd_interface_base.cpp
+    src/ymir/media/cd_interface/cd_interface_host.cpp
     src/ymir/media/cd_interface/cd_interface_image.cpp
 
     src/ymir/media/loader/loader.cpp

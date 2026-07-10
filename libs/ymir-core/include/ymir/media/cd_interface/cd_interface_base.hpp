@@ -64,6 +64,7 @@ public:
     void BeginSeekToTrackIndex(uint8 track, uint8 index);
 
     /// @brief Checks if a previous seek operation has completed.
+    /// Always returns `true` if there is no disc in the drive.
     /// @return `true` if the last seek operation completed, `false` if in progress.
     [[nodiscard]] virtual bool IsSeekDone() const = 0;
 
