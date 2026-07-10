@@ -13,6 +13,6 @@ void runHostCDSandbox() {
         }
     };
     for (auto &dev : ymir::media::host::EnumerateHostCDDrives()) {
-        fmt::println("{} [{}]", dev.path, dev.altPath, driveStateStr(dev.driveState));
+        fmt::println("{} [{}] {}", dev.path, dev.altPath, driveStateStr(dev.driveState));
     }
 }

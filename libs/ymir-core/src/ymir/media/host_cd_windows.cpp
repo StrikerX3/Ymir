@@ -18,6 +18,7 @@
 #include <setupapi.h>
 #include <winioctl.h> // for GUID_DEVINTERFACE_CDROM
 
+#include <array>
 #include <string>
 #include <unordered_map>
 
@@ -48,23 +49,30 @@ FORCE_INLINE static std::string WStringToString(const std::wstring &wstr) {
     return out;
 }
 
+struct SPTDWithSense {
+    SCSI_PASS_THROUGH_DIRECT sptd;
+    std::array<uint8, 96> sense;
+};
+
 FORCE_INLINE static bool SendSCSIInCommand(HANDLE hDevice, std::span<uint8> cdb, std::span<uint8> outBuffer,
                                            uint32 &outSize) {
-    SCSI_PASS_THROUGH_DIRECT cmd{};
-    cmd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
-    cmd.CdbLength = sizeof(cdb);
-    cmd.DataIn = SCSI_IOCTL_DATA_IN;
-    cmd.TimeOutValue = 15;
-    cmd.DataBuffer = outBuffer.data();
-    cmd.DataTransferLength = outBuffer.size();
-    std::copy(cdb.begin(), cdb.end(), std::begin(cmd.Cdb));
+    SPTDWithSense cmd{};
+    cmd.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    cmd.sptd.CdbLength = sizeof(cdb);
+    cmd.sptd.SenseInfoLength = cmd.sense.size();
+    cmd.sptd.DataIn = SCSI_IOCTL_DATA_IN;
+    cmd.sptd.DataTransferLength = outBuffer.size();
+    cmd.sptd.TimeOutValue = 5;
+    cmd.sptd.DataBuffer = outBuffer.data();
+    cmd.sptd.SenseInfoOffset = offsetof(SPTDWithSense, sense);
+    std::copy(cdb.begin(), cdb.end(), std::begin(cmd.sptd.Cdb));
 
     DWORD bytesReturned = 0;
     if (!DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd), &bytesReturned,
                          nullptr)) {
         return false;
     }
-    outSize = cmd.DataTransferLength;
+    outSize = cmd.sptd.DataTransferLength;
     return true;
 }
 
@@ -184,18 +192,18 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
         std::string interfacePath = detail->DevicePath;
         NormalizeString(interfacePath);
         TrimNullTerminatedString(interfacePath);
-        HANDLE hDevice = CreateFileA(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                                     OPEN_EXISTING, 0, nullptr);
-        if (hDevice == INVALID_HANDLE_VALUE) {
+        HANDLE hDevIf = CreateFileA(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (hDevIf == INVALID_HANDLE_VALUE) {
             continue;
         }
-        util::ScopeGuard sgCloseFileHandle{[&] { CloseHandle(hDevice); }};
 
         // Query device number
         STORAGE_DEVICE_NUMBER devNum{};
         DWORD bytesReturned = 0;
-        BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &devNum, sizeof(devNum),
+        BOOL result = DeviceIoControl(hDevIf, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &devNum, sizeof(devNum),
                                       &bytesReturned, nullptr);
+        CloseHandle(hDevIf);
         if (!result) {
             continue;
         }
@@ -210,6 +218,15 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
         if (pathsToLetters.contains(device.path)) {
             device.altPath = fmt::format("{}:", pathsToLetters.at(device.path));
         }
+
+        HANDLE hDevice =
+            CreateFileA(fmt::format("\\\\.\\CdRom{}", devNum.DeviceNumber).c_str(), GENERIC_READ | GENERIC_WRITE,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+        if (hDevice == INVALID_HANDLE_VALUE) {
+            // Could not open device
+            continue;
+        }
+        util::ScopeGuard sgCloseDevice{[&] { CloseHandle(hDevice); }};
         device.driveState = GetDriveState(hDevice);
     }
 
