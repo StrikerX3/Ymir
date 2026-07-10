@@ -10,9 +10,7 @@ CDInterface::CDInterface()
     : m_cdDevice(std::make_unique<NullCDDevice>()) {}
 
 void CDInterface::LoadDisc(Disc &&disc) {
-    m_header = disc.header;
     m_cdDevice = std::make_unique<ImageCDDevice>(std::move(disc));
-    m_toc.LoadFrom(m_cdDevice->GetTOC());
 }
 
 bool CDInterface::OpenHostDevice(std::string path) {
@@ -21,28 +19,24 @@ bool CDInterface::OpenHostDevice(std::string path) {
         return false;
     }
 
-    // TODO: move this block to the worker thread
-    {
-        std::array<uint8, 2352> headerSector{};
-        if (dev->ReadSector(0, headerSector)) {
-            m_header.ReadFrom(headerSector);
-        } else {
-            m_header.Invalidate();
-        }
-        m_toc.LoadFrom(dev->GetTOC());
-    }
     m_cdDevice = std::move(dev);
     return true;
 }
 
 void CDInterface::Eject() {
     m_cdDevice = std::make_unique<NullCDDevice>();
-    m_header.Invalidate();
-    m_toc.Clear();
 }
 
-DriveState CDInterface::GetDriveState() const {
-    return m_cdDevice->GetDriveState();
+DriveState CDInterface::PollDriveState() const {
+    return m_cdDevice->PollDriveState();
+}
+
+const TOC &CDInterface::GetTOC() const {
+    return m_cdDevice->GetTOC();
+}
+
+const SaturnHeader &CDInterface::GetDiscHeader() const {
+    return m_cdDevice->GetDiscHeader();
 }
 
 bool CDInterface::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {

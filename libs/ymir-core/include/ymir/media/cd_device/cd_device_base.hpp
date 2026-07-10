@@ -8,6 +8,7 @@
 #include <ymir/core/types.hpp>
 
 #include <ymir/media/cd_defs.hpp>
+#include <ymir/media/saturn_header.hpp>
 
 #include <ymir/savestate/savestate_cd_interface.hpp>
 
@@ -21,9 +22,21 @@ class ICDDevice {
 public:
     virtual ~ICDDevice() = default;
 
-    /// @brief Determines the current drive state.
+    /// @brief Updates the drive state, including the TOC and disc header information.
     /// @return the current drive state
-    virtual DriveState GetDriveState() const = 0;
+    virtual DriveState PollDriveState() const = 0;
+
+    /// @brief Retrieves the disc's table of contents.
+    /// @return a reference to the disc's table of contents.
+    [[nodiscard]] const TOC &GetTOC() const {
+        return m_toc;
+    }
+
+    /// @brief Retrieves the Saturn disc header information.
+    /// @return a reference to the Saturn disc header information.
+    [[nodiscard]] const SaturnHeader &GetDiscHeader() const {
+        return m_header;
+    }
 
     /// @brief Attempts to read a full raw 2352-byte sector at the specified frame address.
     /// Audio track data is guaranteed to be in big-endian format.
@@ -37,10 +50,6 @@ public:
     /// @param[out] outPosition where to write position data into
     /// @return `true` if reading subcode Q data succeeded, `false` if failed
     virtual bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition) = 0;
-
-    /// @brief Attempts to read the disc's table of contents.
-    /// @return the disc's TOC. Empty if no disc is loaded.
-    [[nodiscard]] virtual std::vector<TOCEntry> GetTOC() = 0;
 
     /// @brief Requests the CD device to seek to the specified frame address.
     /// This operation is asynchronous. Use `IsSeekDone()` to check if the seek has completed and
@@ -76,6 +85,10 @@ public:
     void LoadState(const savestate::CDInterfaceSaveState &state);
 
 protected:
+    /// @brief The parsed Saturn disc header block.
+    /// Updated when the device is initialized and during `PollDriveState()`.
+    SaturnHeader m_header;
+
     /// @brief Attempts to read a sector at the specified frame address.
     /// Implementations should prefer to read full raw sectors if possible, but may fall back to reading less data.
     /// If doing so, the read bytes must be placed in the correct location in the output buffer (e.g. if the
@@ -111,11 +124,24 @@ protected:
     /// @param[in] state the save state
     void ReconcileSeekState(const savestate::CDInterfaceSaveState &state);
 
+    /// @brief Attempts to load the table of contents from the disc.
+    /// May be invoked by implementations to update the table of contents.
+    /// Invokes `ReadTOC()` to read the table of contents from the disc.
+    void LoadTOC();
+
+    /// @brief Attempts to read the disc's table of contents.
+    /// @return the disc's TOC. Empty if no disc is loaded.
+    [[nodiscard]] virtual std::vector<TOCEntry> ReadTOC() = 0;
+
 private:
     /// @brief The last seek target specified by a `BeginSeek*` command.
     /// If bit 31 is set, the target specifies a track number in bits 8-15 and index number in bits 0-7.
     /// Otherwise, bits 0-23 specify a frame address.
     uint32 m_seekTarget;
+
+    /// @brief The disc's table of contents.
+    /// Updated when the device is initialized and during `PollDriveState()`.
+    TOC m_toc;
 };
 
 } // namespace ymir::media

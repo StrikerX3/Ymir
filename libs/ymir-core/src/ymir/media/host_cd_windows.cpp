@@ -76,7 +76,7 @@ FORCE_INLINE static bool SendSCSIInCommand(HANDLE hDevice, std::span<uint8> cdb,
     return true;
 }
 
-FORCE_INLINE static DriveState GetDriveState(HANDLE hDevice) {
+FORCE_INLINE static DriveState PollDriveState(HANDLE hDevice) {
     std::array<uint8, 128> buffer{};
     auto cdb = scsi::op::MakeGetEventStatusNotification(true, scsi::notif_class::kMediaStatus, buffer.size());
     uint32 outSize = 0;
@@ -244,7 +244,7 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
             continue;
         }
         util::ScopeGuard sgCloseDevice{[&] { CloseHandle(hDevice); }};
-        device.driveState = GetDriveState(hDevice);
+        device.driveState = PollDriveState(hDevice);
     }
 
     return devices;

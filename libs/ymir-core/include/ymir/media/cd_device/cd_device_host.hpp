@@ -28,9 +28,7 @@ public:
     /// @return `true` if connected successfully, `false` if not
     bool IsConnected() const;
 
-    DriveState GetDriveState() const override;
-
-    std::vector<TOCEntry> GetTOC() override;
+    DriveState PollDriveState() const override;
 
     bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition) override;
 
@@ -38,6 +36,8 @@ public:
     [[nodiscard]] uint32 GetSeekFrameAddress() const override;
 
 protected:
+    std::vector<TOCEntry> ReadTOC() override;
+
     uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
 
     void BeginSeekToFrameAddressImpl(uint32 frameAddress) override;

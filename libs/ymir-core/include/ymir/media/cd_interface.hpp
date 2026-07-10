@@ -37,26 +37,22 @@ public:
 
     /// @brief Retrieves the current drive state.
     /// @return the current drive state
-    [[nodiscard]] DriveState GetDriveState() const;
+    [[nodiscard]] DriveState PollDriveState() const;
 
     /// @brief Determines if a disc is present in the device.
     /// Convenient shorthand for `GetDriveState() == DriveState::MediaPresent`.
     /// @return `true` if there is a disc in the drive, `false` otherwise
     [[nodiscard]] bool HasDisc() const {
-        return GetDriveState() == DriveState::MediaPresent;
+        return PollDriveState() == DriveState::MediaPresent;
     }
 
     /// @brief Retrieves the disc's table of contents.
     /// @return a reference to the disc's TOC. Empty if no disc is loaded.
-    [[nodiscard]] const TOC &GetTOC() const {
-        return m_toc;
-    }
+    [[nodiscard]] const TOC &GetTOC() const;
 
     /// @brief Retrieves the Saturn disc header information.
     /// @return a reference to the Saturn disc header information.
-    [[nodiscard]] const SaturnHeader &GetDiscHeader() const {
-        return m_header;
-    }
+    [[nodiscard]] const SaturnHeader &GetDiscHeader() const;
 
     /// @brief Reads a raw sector from the disc.
     /// @param[in] frameAddress the frame address to read
@@ -102,8 +98,6 @@ public:
 
 private:
     std::unique_ptr<ICDDevice> m_cdDevice;
-    TOC m_toc;
-    SaturnHeader m_header;
 };
 
 } // namespace ymir::media

@@ -5,25 +5,16 @@
 namespace ymir::media {
 
 ImageCDDevice::ImageCDDevice(ymir::media::Disc &&disc)
-    : m_disc(std::move(disc)) {}
+    : m_disc(std::move(disc)) {
+    m_header = disc.header;
+    LoadTOC();
+}
 
-DriveState ImageCDDevice::GetDriveState() const {
+DriveState ImageCDDevice::PollDriveState() const {
     if (m_disc.sessions.empty()) {
         return DriveState::NoDisc;
     }
     return DriveState::MediaPresent;
-}
-
-std::vector<TOCEntry> ImageCDDevice::GetTOC() {
-    if (m_disc.sessions.empty()) {
-        return {};
-    }
-
-    const Session &session = m_disc.sessions.back();
-    const uint32 tocSize = session.tocSize;
-    std::vector<TOCEntry> toc{tocSize};
-    std::copy_n(session.toc.begin(), tocSize, toc.begin());
-    return toc;
 }
 
 bool ImageCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
@@ -56,6 +47,18 @@ bool ImageCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition)
     outPosition.afrac = util::to_bcd(f);
 
     return true;
+}
+
+std::vector<TOCEntry> ImageCDDevice::ReadTOC() {
+    if (m_disc.sessions.empty()) {
+        return {};
+    }
+
+    const Session &session = m_disc.sessions.back();
+    const uint32 tocSize = session.tocSize;
+    std::vector<TOCEntry> toc{tocSize};
+    std::copy_n(session.toc.begin(), tocSize, toc.begin());
+    return toc;
 }
 
 uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {

@@ -12,6 +12,16 @@ HostCDDevice::HostCDDevice(std::string path) {
     // - periodically check drive state
     // - read and cache sectors
     // - update TOC, SaturnHeader and file system when a new disc is inserted
+    // TODO: move this block to the worker thread
+    {
+        std::array<uint8, 2352> headerSector{};
+        if (ReadSector(0, headerSector)) {
+            m_header.ReadFrom(headerSector);
+        } else {
+            m_header.Invalidate();
+        }
+        LoadTOC();
+    }
 }
 
 HostCDDevice::~HostCDDevice() {
@@ -25,14 +35,9 @@ bool HostCDDevice::IsConnected() const {
     return m_devHandle != host::kInvalidDeviceHandle;
 }
 
-DriveState HostCDDevice::GetDriveState() const {
+DriveState HostCDDevice::PollDriveState() const {
     // TODO: retrieve latest drive state
     return DriveState::NoDisc;
-}
-
-std::vector<TOCEntry> HostCDDevice::GetTOC() {
-    // TODO: retrieve copy of cached TOC
-    return {};
 }
 
 bool HostCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
@@ -48,6 +53,11 @@ bool HostCDDevice::IsSeekDone() const {
 uint32 HostCDDevice::GetSeekFrameAddress() const {
     // TODO: if async seek is done, get its target FAD, otherwise return 0xFFFFFF
     return 0xFFFFFF;
+}
+
+std::vector<TOCEntry> HostCDDevice::ReadTOC() {
+    // TODO: retrieve copy of cached TOC
+    return {};
 }
 
 uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
