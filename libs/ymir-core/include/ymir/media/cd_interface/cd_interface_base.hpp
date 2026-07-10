@@ -16,14 +16,6 @@
 
 namespace ymir::media {
 
-/// @brief Indicates the current drive and media state.
-enum class DriveState {
-    Unknown,      ///< State cannot be determined, typically because a physical device was disconnected
-    TrayOpen,     ///< Tray open, no media
-    NoDisc,       ///< Tray closed, no media
-    MediaPresent, ///< Tray closed, media present
-};
-
 /// @brief Interface for CD device interfaces.
 class ICDInterface {
 public:

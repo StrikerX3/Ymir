@@ -7,3 +7,4 @@ void runCurlSandbox();
 void runSH2PerfSandbox();
 void runDiscInfoExtractor(int argc, char **argv);
 void runDeadlockTest(int argc, char **argv);
+void runHostCDSandbox();

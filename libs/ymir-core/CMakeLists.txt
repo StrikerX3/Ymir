@@ -149,6 +149,7 @@ add_library(ymir-core
     include/ymir/media/disc.hpp
     include/ymir/media/filesystem.hpp
     include/ymir/media/frame_address.hpp
+    include/ymir/media/host_cd.hpp
     include/ymir/media/iso9660.hpp
     include/ymir/media/media_defs.hpp
     include/ymir/media/saturn_header.hpp
@@ -329,6 +330,18 @@ target_include_directories(ymir-core
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
 )
 target_compile_features(ymir-core PUBLIC cxx_std_20)
+
+## Add OS-specific source files
+if (WIN32)
+    set(YMIR_HOST_SOURCES
+        src/ymir/media/host_cd_windows.cpp
+    )
+else ()
+    set(YMIR_HOST_SOURCES
+        src/ymir/media/host_cd_dummy.cpp
+    )
+endif ()
+target_sources(ymir-core PRIVATE ${YMIR_HOST_SOURCES})
 
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC

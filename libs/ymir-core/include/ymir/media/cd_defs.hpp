@@ -13,6 +13,14 @@
 
 namespace ymir::media {
 
+/// @brief Indicates the current state of a CD drive.
+enum class DriveState {
+    Unknown,      ///< State cannot be determined, typically because a physical device was disconnected
+    TrayOpen,     ///< Tray open, no media
+    NoDisc,       ///< Tray closed, no media
+    MediaPresent, ///< Tray closed, media present
+};
+
 /// @brief Specifies an entry in the table of contents of a disc as reported by the Sega Saturn CD drive.
 ///
 /// Table of contents order and format:

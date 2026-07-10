@@ -1,0 +1,219 @@
+#include <ymir/media/host_cd.hpp>
+#include <ymir/media/scsi.hpp>
+
+#include <ymir/util/bit_ops.hpp>
+#include <ymir/util/data_ops.hpp>
+#include <ymir/util/inline.hpp>
+#include <ymir/util/scope_guard.hpp>
+
+#ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+    #define NOMINMAX
+#endif
+#include <windows.h>
+
+#include <ntddscsi.h>
+#include <setupapi.h>
+#include <winioctl.h> // for GUID_DEVINTERFACE_CDROM
+
+#include <string>
+#include <unordered_map>
+
+namespace ymir::media::host {
+
+FORCE_INLINE static void NormalizeString(std::string &str) {
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+}
+
+FORCE_INLINE static void TrimNullTerminatedString(std::string &str) {
+    const auto nulPos = str.find_first_of('\0', 0);
+    if (nulPos != std::string::npos) {
+        str = str.substr(0, nulPos);
+    }
+}
+
+FORCE_INLINE static std::string WStringToString(const std::wstring &wstr) {
+    if (wstr.empty()) {
+        return {};
+    }
+
+    // Determine buffer size
+    int size = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), (int)wstr.size(), nullptr, 0, nullptr, nullptr);
+    std::string out(size, 0);
+
+    // Convert string
+    WideCharToMultiByte(CP_UTF8, 0, wstr.data(), (int)wstr.size(), out.data(), size, nullptr, nullptr);
+    return out;
+}
+
+FORCE_INLINE static bool SendSCSIInCommand(HANDLE hDevice, std::span<uint8> cdb, std::span<uint8> outBuffer,
+                                           uint32 &outSize) {
+    SCSI_PASS_THROUGH_DIRECT cmd{};
+    cmd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    cmd.CdbLength = sizeof(cdb);
+    cmd.DataIn = SCSI_IOCTL_DATA_IN;
+    cmd.TimeOutValue = 15;
+    cmd.DataBuffer = outBuffer.data();
+    cmd.DataTransferLength = outBuffer.size();
+    std::copy(cdb.begin(), cdb.end(), std::begin(cmd.Cdb));
+
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd), &bytesReturned,
+                         nullptr)) {
+        return false;
+    }
+    outSize = cmd.DataTransferLength;
+    return true;
+}
+
+FORCE_INLINE static DriveState GetDriveState(HANDLE hDevice) {
+    std::array<uint8, 128> buffer{};
+    auto cdb = scsi::op::MakeGetEventStatusNotification(true, scsi::notif_class::kMediaStatus, buffer.size());
+    uint32 outSize = 0;
+    if (!SendSCSIInCommand(hDevice, cdb, buffer, outSize)) {
+        // Command failed or unsupported; can't get drive state
+        return DriveState::Unknown;
+    }
+
+    // Parse header
+    const auto respLength = util::ReadBE<uint16>(&buffer[0]);
+
+    // Check that the Media Event class is supported
+    const bool noEventAvailable = bit::test<7>(buffer[1]);
+    if (noEventAvailable) {
+        return DriveState::Unknown;
+    }
+
+    // Check that we actually got a Media Event
+    const uint8 notificationClass = bit::extract<0, 2>(buffer[2]);
+    if (notificationClass != 0x4) {
+        return DriveState::Unknown;
+    }
+
+    // Optional check: make sure the Media Event class is reported as supported
+    /*const bool mediaEventClassSupported = bit::test<4>(buffer[3]);
+    if (!mediaEventClassSupported) {
+        return DriveState::Unknown;
+    }*/
+
+    // Media Event uses at least 4 bytes, plus 2 from the rest of the header
+    if (respLength < 6) {
+        return DriveState::Unknown;
+    }
+
+    // The second byte of the media event payload has the information we need (Media Status field)
+    const bool trayOpen = bit::test<0>(buffer[5]);
+    const bool mediaPresent = bit::test<1>(buffer[5]); // convenient when it's not lying
+    if (trayOpen) {
+        return DriveState::TrayOpen;
+    }
+    if (mediaPresent) {
+        return DriveState::MediaPresent;
+    }
+
+    // Double-check that the media is present
+    DWORD bytesReturned{};
+    if (DeviceIoControl(hDevice, IOCTL_STORAGE_CHECK_VERIFY, NULL, 0, NULL, 0, &bytesReturned, NULL)) {
+        return DriveState::MediaPresent;
+    }
+
+    return DriveState::NoDisc;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// host_cd.hpp implementation
+
+std::vector<HostDriveInfo> EnumerateHostCDDrives() {
+    std::vector<HostDriveInfo> devices{};
+
+    // -------------------------------------------------------------------------
+    // Enumerate and map drive letters and corresponding NT paths (\Device\CdRom#)
+
+    std::unordered_map<std::string, std::string> pathsToLetters{};
+    {
+        // Iterate over all mapped drive letters
+        DWORD mask = GetLogicalDrives();
+        for (char letter = 'A'; letter <= 'Z'; ++letter) {
+            if ((mask & (1u << (letter - 'A'))) == 0u) {
+                continue;
+            }
+
+            std::string drivePath = fmt::format("{}:", letter);
+
+            // Ensure this is a CD drive
+            if (GetDriveTypeA(drivePath.c_str()) != DRIVE_CDROM) {
+                continue;
+            }
+
+            // Get NT path and map the letter it
+            CHAR targetPath[1024];
+            if (QueryDosDeviceA(drivePath.c_str(), targetPath, 1024)) {
+                std::string targetPathStr = targetPath;
+                TrimNullTerminatedString(targetPathStr);
+                pathsToLetters[targetPathStr] = letter;
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Enumerate device interfaces (\\?\SCSI#...{GUID}) and corresponding NT paths (\Device\CdRom#)
+
+    HDEVINFO devInfo =
+        SetupDiGetClassDevsA(&GUID_DEVINTERFACE_CDROM, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    util::ScopeGuard sgDestroyDevInfo{[&] { SetupDiDestroyDeviceInfoList(devInfo); }};
+
+    SP_DEVICE_INTERFACE_DATA ifaceData{};
+    ifaceData.cbSize = sizeof(ifaceData);
+
+    for (DWORD i = 0; SetupDiEnumDeviceInterfaces(devInfo, nullptr, &GUID_DEVINTERFACE_CDROM, i, &ifaceData); ++i) {
+        // Get required buffer size
+        DWORD ifaceDataSize = 0;
+        SetupDiGetDeviceInterfaceDetailA(devInfo, &ifaceData, nullptr, 0, &ifaceDataSize, nullptr);
+
+        // Allocate buffer and request actual data
+        std::vector<char> buffer(ifaceDataSize);
+        auto detail = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA_A *>(buffer.data());
+        detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_A);
+        if (!SetupDiGetDeviceInterfaceDetailA(devInfo, &ifaceData, detail, ifaceDataSize, nullptr, nullptr)) {
+            continue;
+        }
+
+        // Open device to query for its number
+        std::string interfacePath = detail->DevicePath;
+        NormalizeString(interfacePath);
+        TrimNullTerminatedString(interfacePath);
+        HANDLE hDevice = CreateFileA(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                     OPEN_EXISTING, 0, nullptr);
+        if (hDevice == INVALID_HANDLE_VALUE) {
+            continue;
+        }
+        util::ScopeGuard sgCloseFileHandle{[&] { CloseHandle(hDevice); }};
+
+        // Query device number
+        STORAGE_DEVICE_NUMBER devNum{};
+        DWORD bytesReturned = 0;
+        BOOL result = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, nullptr, 0, &devNum, sizeof(devNum),
+                                      &bytesReturned, nullptr);
+        if (!result) {
+            continue;
+        }
+        if (devNum.DeviceType != FILE_DEVICE_CD_ROM && devNum.DeviceType != FILE_DEVICE_DVD) {
+            // Not a CD drive
+            continue;
+        }
+
+        // Add device
+        auto &device = devices.emplace_back();
+        device.path = fmt::format("\\Device\\CdRom{}", devNum.DeviceNumber);
+        if (pathsToLetters.contains(device.path)) {
+            device.altPath = fmt::format("{}:", pathsToLetters.at(device.path));
+        }
+        device.driveState = GetDriveState(hDevice);
+    }
+
+    return devices;
+}
+
+} // namespace ymir::media::host

@@ -3,6 +3,7 @@
 /**
 @file
 @brief Defines `HostCDInterface`, a CD interface that connects to a physical CD drive on the host.
+See also @ref ymir/media/host_cd.hpp.
 */
 
 #include "cd_interface_base.hpp"

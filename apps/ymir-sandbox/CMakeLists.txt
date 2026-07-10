@@ -12,7 +12,7 @@ add_executable(ymir-sandbox
     src/sandbox_sh2_perf.cpp
     src/sandbox_vdp1_accuracy.cpp
     src/sandbox_vdp1_poly.cpp
-)
+ "src/sandbox_host_cd.cpp")
 add_executable(ymir::ymir-sandbox ALIAS ymir-sandbox)
 set_target_properties(ymir-sandbox PROPERTIES
                       VERSION ${Ymir_VERSION}
