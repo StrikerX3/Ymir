@@ -3,17 +3,26 @@
 namespace ymir::media {
 
 HostCDInterface::HostCDInterface(std::string path) {
-    // TODO: try to open host device handle
-    // if successful, start device thread to:
+    m_devHandle = host::OpenCDDrive(path);
+    if (m_devHandle == host::kInvalidDeviceHandle) {
+        return;
+    }
+
+    // TODO: start device worker thread:
     // - periodically check drive state
     // - read and cache sectors
     // - update TOC, SaturnHeader and file system when a new disc is inserted
 }
 
+HostCDInterface::~HostCDInterface() {
+    // TODO: stop device worker thread if running
+    if (m_devHandle != host::kInvalidDeviceHandle) {
+        host::CloseDeviceHandle(m_devHandle);
+    }
+}
+
 bool HostCDInterface::IsConnected() const {
-    // TODO: return whether the device is open or not (check if handle is valid)
-    // TODO: consider storing error message
-    return false;
+    return m_devHandle != host::kInvalidDeviceHandle;
 }
 
 DriveState HostCDInterface::GetDriveState() const {
@@ -51,11 +60,13 @@ uint32 HostCDInterface::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 235
 void HostCDInterface::BeginSeekToFrameAddressImpl(uint32 frameAddress) {
     // TODO: request async seek to FAD
     // worker thread should also begin reading and caching sectors sequentially from that point on
+    // cancel any ongoing seek operations, override any pending seek operations
 }
 
 void HostCDInterface::BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumber) {
     // TODO: request async seek to track:index
     // worker thread should also begin reading and caching sectors sequentially from that point on
+    // cancel any ongoing seek operations, override any pending seek operations
 }
 
 } // namespace ymir::media

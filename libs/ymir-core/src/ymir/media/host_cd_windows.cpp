@@ -24,7 +24,7 @@
 
 namespace ymir::media::host {
 
-FORCE_INLINE static void NormalizeString(std::string &str) {
+FORCE_INLINE static void ToLowerInPlace(std::string &str) {
     std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 }
 
@@ -130,6 +130,23 @@ FORCE_INLINE static DriveState GetDriveState(HANDLE hDevice) {
     return DriveState::NoDisc;
 }
 
+FORCE_INLINE static std::string GetDOSCdRomPathForDriveLetter(char letter) {
+    letter = toupper(letter);
+    const char drivePath[] = {letter, ':', '\0'};
+    CHAR targetPath[1024];
+    if (QueryDosDeviceA(drivePath, targetPath, 1024)) {
+        std::string targetPathStr = targetPath;
+        TrimNullTerminatedString(targetPathStr);
+        if (targetPathStr.starts_with("\\\\.\\CdRom")) {
+            return targetPathStr;
+        }
+        if (targetPathStr.starts_with("\\Device\\CdRom")) {
+            return fmt::format("\\\\.\\CdRom{}", targetPathStr.substr(13));
+        }
+    }
+    return "";
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // host_cd.hpp implementation
 
@@ -190,7 +207,7 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
 
         // Open device to query for its number
         std::string interfacePath = detail->DevicePath;
-        NormalizeString(interfacePath);
+        ToLowerInPlace(interfacePath);
         TrimNullTerminatedString(interfacePath);
         HANDLE hDevIf = CreateFileA(interfacePath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                                     OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -231,6 +248,47 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
     }
 
     return devices;
+}
+
+DeviceHandle OpenCDDrive(std::string path) {
+    // Normalize path
+    if (path.ends_with('\\')) {
+        path.pop_back();
+    }
+    std::string lcPath = path;
+    ToLowerInPlace(lcPath);
+
+    // Determine what kind of path we're dealing with and convert or reject accordingly.
+    // We want a DOS path -- \\.\CdRom<n>
+    if (lcPath.starts_with("\\\\.\\cdrom")) {
+        // A DOS path, exactly what we want
+    } else if (lcPath.starts_with("\\device\\cdrom")) {
+        // An NT path, easily convertible to a DOS path
+        path = fmt::format("\\\\.\\CdRom{}", path.substr(13));
+    } else if (path.length() == 2 && lcPath[0] >= 'a' && lcPath[0] <= 'z' && lcPath[1] == ':') {
+        // Drive letter, either "D:" or "D:\"
+        path = GetDOSCdRomPathForDriveLetter(path[0]);
+    } else if (path.length() == 6 && path.starts_with("\\\\?\\") && lcPath[4] >= 'a' && lcPath[4] <= 'z' &&
+               lcPath[5] == ':') {
+        // DOS path version of drive letter
+        path = GetDOSCdRomPathForDriveLetter(path[4]);
+    } else {
+        // Not a valid path
+        return INVALID_HANDLE_VALUE;
+    }
+    if (path.empty()) {
+        // Drive letter doesn't exist or doesn't map to a CD-ROM drive
+        return INVALID_HANDLE_VALUE;
+    }
+
+    return CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                       OPEN_EXISTING, 0, nullptr);
+}
+
+void CloseDeviceHandle(DeviceHandle handle) {
+    if (handle != INVALID_HANDLE_VALUE) {
+        CloseHandle(handle);
+    }
 }
 
 } // namespace ymir::media::host
