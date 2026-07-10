@@ -25,6 +25,13 @@ public:
     /// @param[in] disc the disc image to load
     void LoadDisc(Disc &&disc);
 
+    /// @brief Attempts to open a host CD device at the specified path.
+    /// See @ref ymir::media::HostCDInterface::HostCDInterface(std::string) for details on what path formats are
+    /// accepeted for each supported operating system.
+    /// @param[in] path the host device path. Enumerate with `ymir::media::host::EnumerateHostCDDrives()`.
+    /// @return `true` if the device was successfully opened, `false` otherwise
+    bool OpenHostDevice(std::string path);
+
     /// @brief Ejects the disc.
     void Eject();
 

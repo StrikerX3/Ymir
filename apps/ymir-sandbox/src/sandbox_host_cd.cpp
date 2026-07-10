@@ -1,3 +1,4 @@
+#include <ymir/media/cd_interface.hpp>
 #include <ymir/media/host_cd.hpp>
 
 #include <fmt/format.h>
@@ -12,7 +13,15 @@ void runHostCDSandbox() {
         default: return "invalid";
         }
     };
+
+    ymir::media::CDInterface cdif{};
     for (auto &dev : ymir::media::host::EnumerateHostCDDrives()) {
         fmt::println("{} [{}] {}", dev.path, dev.altPath, driveStateStr(dev.driveState));
+        if (cdif.OpenHostDevice("F:")) {
+            fmt::println("Device connected successfully");
+            cdif.Eject();
+        } else {
+            fmt::println("Failed to connect to device");
+        }
     }
 }

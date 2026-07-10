@@ -1,5 +1,6 @@
 #include <ymir/media/cd_interface.hpp>
 
+#include <ymir/media/cd_interface/cd_interface_host.hpp>
 #include <ymir/media/cd_interface/cd_interface_image.hpp>
 #include <ymir/media/cd_interface/cd_interface_null.hpp>
 
@@ -12,6 +13,15 @@ void CDInterface::LoadDisc(Disc &&disc) {
     m_header = disc.header;
     m_cdInterface = std::make_unique<ImageCDInterface>(std::move(disc));
     m_toc.LoadFrom(m_cdInterface->GetTOC());
+}
+
+bool CDInterface::OpenHostDevice(std::string path) {
+    auto dev = std::make_unique<HostCDInterface>(path);
+    if (!dev || !dev->IsConnected()) {
+        return false;
+    }
+    m_cdInterface = std::move(dev);
+    return true;
 }
 
 void CDInterface::Eject() {

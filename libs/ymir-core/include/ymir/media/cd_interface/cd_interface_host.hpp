@@ -13,6 +13,17 @@ namespace ymir::media {
 /// @brief Implements a host CD interface that connects to a physical CD drive on the host.
 class HostCDInterface final : public ICDInterface {
 public:
+    /// @brief Creates a host CD device from the specified path.
+    /// @param[in] path the native device path. Accepted path formats vary per operating system:
+    /// - Windows: drive letters ("E:", "E:\") or NT device paths ("\Device\CdRom0")
+    /// - Linux: SCSI generic device paths ("/dev/sg0")
+    /// - Other systems: TBD
+    HostCDInterface(std::string path);
+
+    /// @brief Checks if the device was successfully connected.
+    /// @return `true` if connected successfully, `false` if not
+    bool IsConnected() const;
+
     DriveState GetDriveState() const override;
 
     std::vector<TOCEntry> GetTOC() override;
