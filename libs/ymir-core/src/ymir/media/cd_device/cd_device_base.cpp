@@ -1,4 +1,4 @@
-#include <ymir/media/cd_interface/cd_interface_base.hpp>
+#include <ymir/media/cd_device/cd_device_base.hpp>
 
 #include <ymir/media/cd_utils.hpp>
 
@@ -6,7 +6,7 @@
 
 namespace ymir::media {
 
-bool ICDInterface::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {
+bool ICDDevice::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {
     const uint32 readSize = ReadSectorImpl(frameAddress, outSector);
     if (readSize < 2048) {
         // Could not read the bare minimum; fail
@@ -31,31 +31,31 @@ bool ICDInterface::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSec
     return true;
 }
 
-void ICDInterface::BeginSeekToFrameAddress(uint32 frameAddress) {
+void ICDDevice::BeginSeekToFrameAddress(uint32 frameAddress) {
     m_seekTarget = frameAddress;
     BeginSeekToFrameAddressImpl(frameAddress);
 }
 
-void ICDInterface::BeginSeekToTrackIndex(uint8 track, uint8 index) {
+void ICDDevice::BeginSeekToTrackIndex(uint8 track, uint8 index) {
     m_seekTarget = 0x80000000 | (track << 8u) | index;
     BeginSeekToTrackIndexImpl(track, index);
 }
 
-void ICDInterface::SaveState(savestate::CDInterfaceSaveState &state) const {
+void ICDDevice::SaveState(savestate::CDInterfaceSaveState &state) const {
     state.seekTarget = m_seekTarget;
     state.seekDone = IsSeekDone();
     state.seekFAD = GetSeekFrameAddress();
 }
 
-bool ICDInterface::ValidateState(const savestate::CDInterfaceSaveState &state) const {
+bool ICDDevice::ValidateState(const savestate::CDInterfaceSaveState &state) const {
     return true;
 }
 
-void ICDInterface::LoadState(const savestate::CDInterfaceSaveState &state) {
+void ICDDevice::LoadState(const savestate::CDInterfaceSaveState &state) {
     ReconcileSeekState(state);
 }
 
-void ICDInterface::ReconcileSeekState(const savestate::CDInterfaceSaveState &state) {
+void ICDDevice::ReconcileSeekState(const savestate::CDInterfaceSaveState &state) {
     m_seekTarget = state.seekTarget;
 
     // Don't request a seek if the device has completed one and its seek state agrees with the save state

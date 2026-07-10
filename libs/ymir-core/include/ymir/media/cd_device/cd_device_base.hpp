@@ -2,7 +2,7 @@
 
 /**
 @file
-@brief Defines `ICDInterface`, an interface for physical, virtual or emulated CD devices.
+@brief Defines `ICDDevice`, an interface for physical, virtual or emulated CD devices.
 */
 
 #include <ymir/core/types.hpp>
@@ -16,10 +16,10 @@
 
 namespace ymir::media {
 
-/// @brief Interface for CD device interfaces.
-class ICDInterface {
+/// @brief Interface for CD reader devices.
+class ICDDevice {
 public:
-    virtual ~ICDInterface() = default;
+    virtual ~ICDDevice() = default;
 
     /// @brief Determines the current drive state.
     /// @return the current drive state

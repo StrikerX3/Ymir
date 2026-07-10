@@ -2,15 +2,15 @@
 
 /**
 @file
-@brief Defines `NullCDInterface`, a CD interface that always acts like an empty drive.
+@brief Defines `NullCDDevice`, a CD device that acts like an empty drive.
 */
 
-#include "cd_interface_base.hpp"
+#include "cd_device_base.hpp"
 
 namespace ymir::media {
 
-/// @brief Implements a null CD interface that acts like an always empty disc.
-class NullCDInterface final : public ICDInterface {
+/// @brief Implements a null CD device that acts like an empty drive.
+class NullCDDevice final : public ICDDevice {
 public:
     DriveState GetDriveState() const override {
         return DriveState::NoDisc;

@@ -5,7 +5,7 @@
 @brief Defines `CDInterface`, an object that holds a CD interface implementation.
 */
 
-#include "cd_interface/cd_interface_base.hpp"
+#include "cd_device/cd_device_base.hpp"
 
 #include "cd_defs.hpp"
 #include "disc.hpp"
@@ -26,8 +26,8 @@ public:
     void LoadDisc(Disc &&disc);
 
     /// @brief Attempts to open a host CD device at the specified path.
-    /// See @ref ymir::media::HostCDInterface::HostCDInterface(std::string) for details on what path formats are
-    /// accepeted for each supported operating system.
+    /// See @ref ymir::media::HostCDDevice::HostCDDevice(std::string) for details on what path formats are /// accepeted
+    /// for each supported operating system.
     /// @param[in] path the host device path. Enumerate with `ymir::media::host::EnumerateHostCDDrives()`.
     /// @return `true` if the device was successfully opened, `false` otherwise
     bool OpenHostDevice(std::string path);
@@ -101,7 +101,7 @@ public:
     void LoadState(const savestate::CDInterfaceSaveState &state);
 
 private:
-    std::unique_ptr<ICDInterface> m_cdInterface;
+    std::unique_ptr<ICDDevice> m_cdDevice;
     TOC m_toc;
     SaturnHeader m_header;
 };

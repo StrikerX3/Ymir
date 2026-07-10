@@ -1,20 +1,20 @@
-#include <ymir/media/cd_interface/cd_interface_image.hpp>
+#include <ymir/media/cd_device/cd_device_image.hpp>
 
 #include <ymir/util/arith_ops.hpp>
 
 namespace ymir::media {
 
-ImageCDInterface::ImageCDInterface(ymir::media::Disc &&disc)
+ImageCDDevice::ImageCDDevice(ymir::media::Disc &&disc)
     : m_disc(std::move(disc)) {}
 
-DriveState ImageCDInterface::GetDriveState() const {
+DriveState ImageCDDevice::GetDriveState() const {
     if (m_disc.sessions.empty()) {
         return DriveState::NoDisc;
     }
     return DriveState::MediaPresent;
 }
 
-std::vector<TOCEntry> ImageCDInterface::GetTOC() {
+std::vector<TOCEntry> ImageCDDevice::GetTOC() {
     if (m_disc.sessions.empty()) {
         return {};
     }
@@ -26,7 +26,7 @@ std::vector<TOCEntry> ImageCDInterface::GetTOC() {
     return toc;
 }
 
-bool ImageCDInterface::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
+bool ImageCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
     if (m_disc.sessions.empty()) {
         return false;
     }
@@ -58,7 +58,7 @@ bool ImageCDInterface::ReadPosition(uint32 frameAddress, DiscPosition &outPositi
     return true;
 }
 
-uint32 ImageCDInterface::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
+uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
     if (m_disc.sessions.empty()) {
         return 0;
     }
@@ -81,7 +81,7 @@ uint32 ImageCDInterface::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 23
     return 0;
 }
 
-void ImageCDInterface::BeginSeekToFrameAddressImpl(uint32 frameAddress) {
+void ImageCDDevice::BeginSeekToFrameAddressImpl(uint32 frameAddress) {
     if (m_disc.sessions.empty()) {
         m_seekFAD = 0xFFFFFF;
     } else {
@@ -89,7 +89,7 @@ void ImageCDInterface::BeginSeekToFrameAddressImpl(uint32 frameAddress) {
     }
 }
 
-void ImageCDInterface::BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumber) {
+void ImageCDDevice::BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumber) {
     if (m_disc.sessions.empty()) {
         m_seekFAD = 0xFFFFFF;
         return;

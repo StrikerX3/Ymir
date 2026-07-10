@@ -2,27 +2,27 @@
 
 /**
 @file
-@brief Defines `HostCDInterface`, a CD interface that connects to a physical CD drive on the host.
+@brief Defines `HostCDInterface`, a CD device that connects to a physical CD drive on the host.
 See also @ref ymir/media/host_cd.hpp.
 */
 
-#include "cd_interface_base.hpp"
+#include "cd_device_base.hpp"
 
 #include <ymir/media/host_cd.hpp>
 
 namespace ymir::media {
 
-/// @brief Implements a host CD interface that connects to a physical CD drive on the host.
-class HostCDInterface final : public ICDInterface {
+/// @brief Implements a host CD device that connects to a physical CD drive on the host.
+class HostCDDevice final : public ICDDevice {
 public:
     /// @brief Creates a host CD device from the specified path.
     /// @param[in] path the native device path. Accepted path formats vary per operating system:
     /// - Windows: drive letters ("D:"), NT device paths ("\Device\CdRom0") or DOS paths ("\\.\D:", "\\.\CdRom0")
     /// - Linux: SCSI generic device paths ("/dev/sg0")
     /// - Other systems: TBD
-    HostCDInterface(std::string path);
+    HostCDDevice(std::string path);
 
-    ~HostCDInterface();
+    ~HostCDDevice();
 
     /// @brief Checks if the device was successfully connected.
     /// @return `true` if connected successfully, `false` if not
