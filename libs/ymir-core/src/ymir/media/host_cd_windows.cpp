@@ -123,7 +123,7 @@ FORCE_INLINE static DriveState PollDriveState(HANDLE hDevice) {
 
     // Double-check that the media is present
     DWORD bytesReturned{};
-    if (DeviceIoControl(hDevice, IOCTL_STORAGE_CHECK_VERIFY, NULL, 0, NULL, 0, &bytesReturned, NULL)) {
+    if (DeviceIoControl(hDevice, IOCTL_STORAGE_CHECK_VERIFY2, nullptr, 0, nullptr, 0, &bytesReturned, nullptr)) {
         return DriveState::MediaPresent;
     }
 

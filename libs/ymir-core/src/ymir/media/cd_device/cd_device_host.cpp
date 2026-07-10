@@ -37,6 +37,8 @@ bool HostCDDevice::IsConnected() const {
 
 DriveState HostCDDevice::PollDriveState() const {
     // TODO: retrieve latest drive state
+    // - if media presence has changed, clear TOC and header
+    //   - if now present, asynchronously read them
     return DriveState::NoDisc;
 }
 
