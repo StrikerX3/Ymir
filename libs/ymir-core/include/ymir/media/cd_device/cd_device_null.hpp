@@ -29,10 +29,6 @@ public:
     }
 
 protected:
-    std::vector<TOCEntry> ReadTOC() override {
-        return {};
-    }
-
     uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override {
         return 0;
     }

@@ -144,10 +144,6 @@ protected:
     /// @param[in] state the save state
     void ReconcileSeekState(const savestate::CDInterfaceSaveState &state);
 
-    /// @brief Attempts to read the disc's table of contents.
-    /// @return the disc's TOC. Empty if no disc is loaded.
-    [[nodiscard]] virtual std::vector<TOCEntry> ReadTOC() = 0;
-
 private:
     /// @brief The last seek target specified by a `BeginSeek*` command.
     /// If bit 31 is set, the target specifies a track number in bits 8-15 and index number in bits 0-7.

@@ -44,8 +44,6 @@ public:
     [[nodiscard]] uint32 GetSeekFrameAddress() const override;
 
 protected:
-    std::vector<TOCEntry> ReadTOC() override;
-
     uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
     uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 
@@ -64,7 +62,13 @@ private:
         SaturnHeader header{};
         std::atomic_bool discInfoChanged = false;
 
+        // driveState contains the latest state polled from the hardware, for internal use only.
+        // targetDriveState contants the state to be returned in the next PollDriveState() call.
+        // The separation allows enforcing the PollDriveState() contract that requires the TOC and header to be fully
+        // updated when the function returns DriveState::MediaPresent.
+
         DriveState driveState = DriveState::Unknown;
+        DriveState targetDriveState = DriveState::Unknown;
         std::atomic_bool mediaStateChanged = false;
     } m_threadState;
 

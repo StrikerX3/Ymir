@@ -1,5 +1,7 @@
 #include <ymir/media/cd_device/cd_device_host.hpp>
 
+#include <ymir/media/scsi.hpp>
+
 #include <chrono>
 
 namespace ymir::media {
@@ -18,15 +20,15 @@ namespace ymir::media {
 
 HostCDDevice::HostCDDevice(std::string path, const CBOnMediaChanged &cbOnMediaChanged)
     : m_cbOnMediaChanged(cbOnMediaChanged) {
+    // TODO: when opening a device, subscribe to notifications for device and media state changes
+    // - if media changed, mark disc info as dirty
+    // - notify drive removal somehow
     m_devHandle = host::OpenCDDrive(path);
     if (m_devHandle == host::kInvalidDeviceHandle) {
         return;
     }
 
     m_workerThread = std::thread{[this] { WorkerThread(); }};
-
-    // TODO: host should start observing device events
-    // - if media changed, mark disc info as dirty
 }
 
 HostCDDevice::~HostCDDevice() {
@@ -56,7 +58,7 @@ DriveState HostCDDevice::PollDriveState() {
     }
 
     bool notifyMediaStateChange = false;
-    const DriveState newDriveState = ts.driveState;
+    const DriveState newDriveState = ts.targetDriveState;
     if (m_driveState != newDriveState) {
         if (m_driveState == DriveState::MediaPresent || newDriveState == DriveState::MediaPresent) {
             notifyMediaStateChange = true;
@@ -86,11 +88,6 @@ bool HostCDDevice::IsSeekDone() const {
 uint32 HostCDDevice::GetSeekFrameAddress() const {
     // TODO: if async seek is done, get its target FAD, otherwise return 0xFFFFFF
     return 0xFFFFFF;
-}
-
-std::vector<TOCEntry> HostCDDevice::ReadTOC() {
-    // TODO: retrieve copy of cached TOC
-    return {};
 }
 
 uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
@@ -128,27 +125,27 @@ void HostCDDevice::WorkerThread() {
 
     auto &ts = m_threadState;
 
+    ts.driveState = host::PollDriveState(m_devHandle);
     ReadHeaderAndTOC();
 
     Command cmd{};
     bool running = true;
     while (running) {
-        // TODO: read and cache sectors if requested
         if (m_workQueue.wait_dequeue_timed(m_ctokWorkQueue, cmd, 1s)) {
             using CmdType = Command::Type;
             switch (cmd.type) {
             case CmdType::Quit: running = false; break;
             }
         } else {
-            // TODO: periodically check drive state; mark as dirty in `ts` if media changed
-            // TODO: read TOC and SaturnHeader when a new disc is inserted
-            // - once complete, mark as ready so that the PollDriveState() knows when to invoke the callback
-            // - IMPORTANT: drive state MUST NOT be changed to MediaPresent while the worker thread is still reading
-            //   these!
+            // TODO: read and cache sectors if requested
 
-            // NOTE: This must happen *after* the TOC and SaturnHeader are read.
-            // PollDriveState() contract requires them to be updated when returning `DriveState::MediaPresent`.
-            ts.mediaStateChanged.store(true, std::memory_order_release);
+            const DriveState prevDriveState = ts.driveState;
+            ts.driveState = host::PollDriveState(m_devHandle);
+
+            if (prevDriveState != ts.driveState &&
+                (prevDriveState == DriveState::MediaPresent || ts.driveState == DriveState::MediaPresent)) {
+                ReadHeaderAndTOC();
+            }
         }
     }
 }
@@ -158,14 +155,21 @@ void HostCDDevice::ReadHeaderAndTOC() {
 
     std::unique_lock lock{ts.mtxDiscInfo};
 
-    std::array<uint8, 2352> headerSector{};
-    if (ReadSector(0, headerSector)) {
-        ts.header.ReadFrom(headerSector);
+    if (ts.driveState == DriveState::MediaPresent) {
+        std::array<uint8, 2352> headerSector{};
+        if (ReadSector(0, headerSector)) {
+            ts.header.ReadFrom(headerSector);
+        } else {
+            ts.header.Invalidate();
+        }
+        ts.toc.LoadFrom(host::ReadTOC(m_devHandle));
     } else {
         ts.header.Invalidate();
+        ts.toc.Clear();
     }
-    ts.toc.LoadFrom(ReadTOC());
     ts.discInfoChanged.store(true, std::memory_order_release);
+    ts.mediaStateChanged.store(true, std::memory_order_release);
+    ts.targetDriveState = ts.driveState;
 }
 
 } // namespace ymir::media

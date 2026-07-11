@@ -53,4 +53,21 @@ DeviceHandle OpenCDDrive(std::string path);
 /// @param[in] handle the device handle to close
 void CloseDeviceHandle(DeviceHandle handle);
 
+/// @brief Sends a SCSI input command.
+/// @param[in] handle the native device handle
+/// @param[in] cdb the SCSI Command Descriptor Block to send
+/// @param[out] outBuffer where to write the input data
+/// @param[out] outSize number of bytes written to `outBuffer`
+/// @return `true` if the command executed successfully, `false` if there was an error
+bool SendSCSIInCommand(DeviceHandle handle, std::span<uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize);
+
+/// @brief Retrieves the current state of the specified device.
+/// @param[in] handle the device to check
+/// @return the current drive state
+DriveState PollDriveState(DeviceHandle handle);
+
+/// @brief Attempts to read the disc's table of contents.
+/// @return the disc's table of contents
+std::vector<TOCEntry> ReadTOC(DeviceHandle handle);
+
 } // namespace ymir::media::host

@@ -49,87 +49,6 @@ FORCE_INLINE static std::string WStringToString(const std::wstring &wstr) {
     return out;
 }
 
-struct SPTDWithSense {
-    SCSI_PASS_THROUGH_DIRECT sptd;
-    std::array<uint8, 96> sense;
-};
-
-FORCE_INLINE static bool SendSCSIInCommand(HANDLE hDevice, std::span<uint8> cdb, std::span<uint8> outBuffer,
-                                           uint32 &outSize) {
-    SPTDWithSense cmd{};
-    cmd.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
-    cmd.sptd.CdbLength = sizeof(cdb);
-    cmd.sptd.SenseInfoLength = cmd.sense.size();
-    cmd.sptd.DataIn = SCSI_IOCTL_DATA_IN;
-    cmd.sptd.DataTransferLength = outBuffer.size();
-    cmd.sptd.TimeOutValue = 5;
-    cmd.sptd.DataBuffer = outBuffer.data();
-    cmd.sptd.SenseInfoOffset = offsetof(SPTDWithSense, sense);
-    std::copy(cdb.begin(), cdb.end(), std::begin(cmd.sptd.Cdb));
-
-    DWORD bytesReturned = 0;
-    if (!DeviceIoControl(hDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd), &bytesReturned,
-                         nullptr)) {
-        return false;
-    }
-    outSize = cmd.sptd.DataTransferLength;
-    return true;
-}
-
-FORCE_INLINE static DriveState PollDriveState(HANDLE hDevice) {
-    std::array<uint8, 128> buffer{};
-    auto cdb = scsi::op::MakeGetEventStatusNotification(true, scsi::notif_class::kMediaStatus, buffer.size());
-    uint32 outSize = 0;
-    if (!SendSCSIInCommand(hDevice, cdb, buffer, outSize)) {
-        // Command failed or unsupported; can't get drive state
-        return DriveState::Unknown;
-    }
-
-    // Parse header
-    const auto respLength = util::ReadBE<uint16>(&buffer[0]);
-
-    // Check that the Media Event class is supported
-    const bool noEventAvailable = bit::test<7>(buffer[1]);
-    if (noEventAvailable) {
-        return DriveState::Unknown;
-    }
-
-    // Check that we actually got a Media Event
-    const uint8 notificationClass = bit::extract<0, 2>(buffer[2]);
-    if (notificationClass != 0x4) {
-        return DriveState::Unknown;
-    }
-
-    // Optional check: make sure the Media Event class is reported as supported
-    /*const bool mediaEventClassSupported = bit::test<4>(buffer[3]);
-    if (!mediaEventClassSupported) {
-        return DriveState::Unknown;
-    }*/
-
-    // Media Event uses at least 4 bytes, plus 2 from the rest of the header
-    if (respLength < 6) {
-        return DriveState::Unknown;
-    }
-
-    // The second byte of the media event payload has the information we need (Media Status field)
-    const bool trayOpen = bit::test<0>(buffer[5]);
-    const bool mediaPresent = bit::test<1>(buffer[5]); // convenient when it's not lying
-    if (trayOpen) {
-        return DriveState::TrayOpen;
-    }
-    if (mediaPresent) {
-        return DriveState::MediaPresent;
-    }
-
-    // Double-check that the media is present
-    DWORD bytesReturned{};
-    if (DeviceIoControl(hDevice, IOCTL_STORAGE_CHECK_VERIFY2, nullptr, 0, nullptr, 0, &bytesReturned, nullptr)) {
-        return DriveState::MediaPresent;
-    }
-
-    return DriveState::NoDisc;
-}
-
 FORCE_INLINE static std::string GetDOSCdRomPathForDriveLetter(char letter) {
     letter = toupper(letter);
     const char drivePath[] = {letter, ':', '\0'};
@@ -289,6 +208,91 @@ void CloseDeviceHandle(DeviceHandle handle) {
     if (handle != INVALID_HANDLE_VALUE) {
         CloseHandle(handle);
     }
+}
+
+struct SPTDWithSense {
+    SCSI_PASS_THROUGH_DIRECT sptd;
+    std::array<uint8, 96> sense;
+};
+
+bool SendSCSIInCommand(DeviceHandle handle, std::span<uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize) {
+    SPTDWithSense cmd{};
+    cmd.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
+    cmd.sptd.CdbLength = sizeof(cdb);
+    cmd.sptd.SenseInfoLength = cmd.sense.size();
+    cmd.sptd.DataIn = SCSI_IOCTL_DATA_IN;
+    cmd.sptd.DataTransferLength = outBuffer.size();
+    cmd.sptd.TimeOutValue = 5;
+    cmd.sptd.DataBuffer = outBuffer.data();
+    cmd.sptd.SenseInfoOffset = offsetof(SPTDWithSense, sense);
+    std::copy(cdb.begin(), cdb.end(), std::begin(cmd.sptd.Cdb));
+
+    DWORD bytesReturned = 0;
+    if (!DeviceIoControl(handle, IOCTL_SCSI_PASS_THROUGH_DIRECT, &cmd, sizeof(cmd), &cmd, sizeof(cmd), &bytesReturned,
+                         nullptr)) {
+        return false;
+    }
+    outSize = cmd.sptd.DataTransferLength;
+    return true;
+}
+
+DriveState PollDriveState(DeviceHandle handle) {
+    std::array<uint8, 128> buffer{};
+    auto cdb = scsi::op::MakeGetEventStatusNotification(true, scsi::notif_class::kMediaStatus, buffer.size());
+    uint32 outSize = 0;
+    if (!SendSCSIInCommand(handle, cdb, buffer, outSize)) {
+        // Command failed or unsupported; can't get drive state
+        return DriveState::Unknown;
+    }
+
+    // Parse header
+    const auto respLength = util::ReadBE<uint16>(&buffer[0]);
+
+    // Check that the Media Event class is supported
+    const bool noEventAvailable = bit::test<7>(buffer[1]);
+    if (noEventAvailable) {
+        return DriveState::Unknown;
+    }
+
+    // Check that we actually got a Media Event
+    const uint8 notificationClass = bit::extract<0, 2>(buffer[2]);
+    if (notificationClass != 0x4) {
+        return DriveState::Unknown;
+    }
+
+    // Optional check: make sure the Media Event class is reported as supported
+    /*const bool mediaEventClassSupported = bit::test<4>(buffer[3]);
+    if (!mediaEventClassSupported) {
+        return DriveState::Unknown;
+    }*/
+
+    // Media Event uses at least 4 bytes, plus 2 from the rest of the header
+    if (respLength < 6) {
+        return DriveState::Unknown;
+    }
+
+    // The second byte of the media event payload has the information we need (Media Status field)
+    const bool trayOpen = bit::test<0>(buffer[5]);
+    const bool mediaPresent = bit::test<1>(buffer[5]); // convenient when it's not lying
+    if (trayOpen) {
+        return DriveState::TrayOpen;
+    }
+    if (mediaPresent) {
+        return DriveState::MediaPresent;
+    }
+
+    // Double-check that the media is present
+    DWORD bytesReturned{};
+    if (DeviceIoControl(handle, IOCTL_STORAGE_CHECK_VERIFY2, nullptr, 0, nullptr, 0, &bytesReturned, nullptr)) {
+        return DriveState::MediaPresent;
+    }
+
+    return DriveState::NoDisc;
+}
+
+std::vector<TOCEntry> ReadTOC(DeviceHandle handle) {
+    // TODO: implement
+    return {};
 }
 
 } // namespace ymir::media::host

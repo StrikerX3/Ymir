@@ -30,8 +30,6 @@ public:
     }
 
 protected:
-    std::vector<TOCEntry> ReadTOC() override;
-
     uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
     uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 
@@ -41,6 +39,8 @@ protected:
 private:
     ymir::media::Disc m_disc;
     uint32 m_seekFAD = 0xFFFFFF;
+
+    std::vector<TOCEntry> ReadTOC();
 };
 
 } // namespace ymir::media
