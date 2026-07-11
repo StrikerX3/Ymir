@@ -41,6 +41,19 @@ private:
     uint32 m_seekFAD = 0xFFFFFF;
 
     std::vector<TOCEntry> ReadTOC();
+
+    struct FilesystemReader : fs::IFilesystemCDReader {
+        FilesystemReader(ImageCDDevice &dev)
+            : m_dev(dev) {}
+
+        [[nodiscard]] bool HasDisc() const override;
+        [[nodiscard]] const TOC &GetTOC() const override;
+        [[nodiscard]] const SaturnHeader &GetDiscHeader() const override;
+        bool ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) override;
+
+    private:
+        ImageCDDevice &m_dev;
+    } m_fsReader{*this};
 };
 
 } // namespace ymir::media

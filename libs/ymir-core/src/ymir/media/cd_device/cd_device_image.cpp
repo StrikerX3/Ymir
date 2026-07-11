@@ -28,7 +28,7 @@ ImageCDDevice::ImageCDDevice(ymir::media::Disc &&disc)
     m_toc.LoadFrom(ReadTOC());
     PollDriveState();
     if (HasDisc()) {
-        if (m_fs.Read(*this)) {
+        if (m_fs.Read(m_fsReader)) {
             devlog::info<grp::image>("Filesystem built successfully");
         } else {
             devlog::warn<grp::image>("Failed to build filesystem");
@@ -158,6 +158,24 @@ void ImageCDDevice::BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumb
         return;
     }
     m_seekFAD = track.indices[indexNumber].startFrameAddress;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+[[nodiscard]] bool ImageCDDevice::FilesystemReader::HasDisc() const {
+    return m_dev.HasDisc();
+}
+
+[[nodiscard]] const TOC &ImageCDDevice::FilesystemReader::GetTOC() const {
+    return m_dev.GetTOC();
+}
+
+[[nodiscard]] const SaturnHeader &ImageCDDevice::FilesystemReader::GetDiscHeader() const {
+    return m_dev.GetDiscHeader();
+}
+
+bool ImageCDDevice::FilesystemReader::ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) {
+    return m_dev.ReadSectorUserData(frameAddress, outSector);
 }
 
 } // namespace ymir::media

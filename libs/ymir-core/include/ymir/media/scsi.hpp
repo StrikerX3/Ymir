@@ -109,7 +109,7 @@ namespace op {
         //   7-8  Transfer length in sectors
         //     9  Control byte
         std::array<uint8, 10> cdb{};
-        cdb[0] = kReadCD;
+        cdb[0] = kRead10;
         cdb[1] = 0x00;
         cdb[2] = bit::extract<24, 31>(frameAddress);
         cdb[3] = bit::extract<16, 23>(frameAddress);

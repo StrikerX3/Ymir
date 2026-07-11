@@ -244,13 +244,13 @@ void HostCDDevice::ReadHeaderAndTOC() {
     if (ts.driveState == DriveState::MediaPresent) {
         std::array<uint8, 2352> headerSector{};
         DiscPosition pos{};
-        if (HostReadSectorAndPosition(0, headerSector, pos)) {
+        if (HostReadSectorAndPosition(150, headerSector, pos)) {
             ts.header.ReadFrom(std::span{headerSector}.subspan(0x10));
         } else {
             ts.header.Invalidate();
         }
         ts.toc.LoadFrom(HostReadTOC());
-        if (ts.fs.Read(*this)) {
+        if (ts.fs.Read(m_fsReader)) {
             devlog::info<grp::host>("Filesystem built successfully");
         } else {
             devlog::warn<grp::host>("Failed to build filesystem");
@@ -381,6 +381,7 @@ std::vector<TOCEntry> HostCDDevice::HostReadTOC() const {
 
 bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData,
                                              DiscPosition &outPos) {
+    frameAddress -= 150;
     // TODO: get cached sector + position if available
 
     std::array<uint8, 2352 + 96> data{};
@@ -420,6 +421,34 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
     // TODO: cache sector + position
 
     return true;
+}
+
+bool HostCDDevice::HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) const {
+    frameAddress -= 150;
+    const auto cdb = scsi::op::MakeRead10(frameAddress, 1);
+    uint32 readSize;
+    if (!host::SendSCSIInCommand(m_devHandle, cdb, outSector, readSize)) {
+        return false;
+    }
+    return readSize == outSector.size();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+[[nodiscard]] bool HostCDDevice::FilesystemReader::HasDisc() const {
+    return m_dev.m_threadState.driveState == DriveState::MediaPresent;
+}
+
+[[nodiscard]] const TOC &HostCDDevice::FilesystemReader::GetTOC() const {
+    return m_dev.m_threadState.toc;
+}
+
+[[nodiscard]] const SaturnHeader &HostCDDevice::FilesystemReader::GetDiscHeader() const {
+    return m_dev.m_threadState.header;
+}
+
+bool HostCDDevice::FilesystemReader::ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) {
+    return m_dev.HostReadSectorUserData(frameAddress, outSector);
 }
 
 } // namespace ymir::media

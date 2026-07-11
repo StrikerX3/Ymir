@@ -7,7 +7,9 @@
 
 #include <ymir/util/bit_ops.hpp>
 
+#include "cd_defs.hpp"
 #include "iso9660.hpp"
+#include "saturn_header.hpp"
 
 #include <cassert>
 #include <map>
@@ -15,18 +17,30 @@
 #include <string>
 #include <vector>
 
-// ---------------------------------------------------------------------------------------------------------------------
-// Forward declarations
-
-namespace ymir::media {
-
-class ICDDevice;
-
-} // namespace ymir::media
-
-// ---------------------------------------------------------------------------------------------------------------------
-
 namespace ymir::media::fs {
+
+/// @brief Interface for basic CD operations needed by the `Filesystem` class.
+struct IFilesystemCDReader {
+    /// @brief Determines if a disc is present in the device.
+    /// Convenient shorthand for `GetDriveState() == DriveState::MediaPresent`.
+    /// @return `true` if there is a disc in the drive, `false` otherwise
+    [[nodiscard]] virtual bool HasDisc() const = 0;
+
+    /// @brief Retrieves the disc's table of contents.
+    /// @return a reference to the disc's table of contents.
+    [[nodiscard]] virtual const TOC &GetTOC() const = 0;
+
+    /// @brief Retrieves the Saturn disc header information.
+    /// @return a reference to the Saturn disc header information.
+    [[nodiscard]] virtual const SaturnHeader &GetDiscHeader() const = 0;
+
+    /// @brief Attempts to read the 2048-byte user data area from sector at the specified frame address.
+    /// Cannot be used to read audio track data.
+    /// @param[in] frameAddress the frame address (LBA) of the sector
+    /// @param[out] outSector sector data output buffer
+    /// @return `true` if the sector was read successfully, `false` if not
+    virtual bool ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) = 0;
+};
 
 struct FileInfo {
     FileInfo() = default;
@@ -180,7 +194,7 @@ public:
     // Attempts to read the filesystem structure from the specified CD device.
     // Returns true if successful.
     // If this function returns false, the filesystem object is invalidated.
-    bool Read(ICDDevice &cdDevice);
+    bool Read(IFilesystemCDReader &cdReader);
 
     // Determines if the file system is valid, i.e., there is at least one directory.
     bool IsValid() const {
@@ -225,7 +239,7 @@ private:
 
     std::optional<FileIndex> LookupFileIndexAtFrameAddress(uint32 fad) const;
 
-    bool ReadPathTableRecords(ICDDevice &cdDevice, const iso9660::VolumeDescriptor &volDesc);
+    bool ReadPathTableRecords(IFilesystemCDReader &cdReader, const iso9660::VolumeDescriptor &volDesc);
 };
 
 class FilesystemState {

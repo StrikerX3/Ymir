@@ -137,6 +137,20 @@ private:
 
     std::vector<TOCEntry> HostReadTOC() const;
     bool HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData, DiscPosition &outPos);
+    bool HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) const;
+
+    struct FilesystemReader : fs::IFilesystemCDReader {
+        FilesystemReader(HostCDDevice &dev)
+            : m_dev(dev) {}
+
+        [[nodiscard]] bool HasDisc() const override;
+        [[nodiscard]] const TOC &GetTOC() const override;
+        [[nodiscard]] const SaturnHeader &GetDiscHeader() const override;
+        bool ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) override;
+
+    private:
+        HostCDDevice &m_dev;
+    } m_fsReader{*this};
 };
 
 } // namespace ymir::media

@@ -25,21 +25,21 @@ void Filesystem::Clear() {
     m_fadToFiles.clear();
 }
 
-bool Filesystem::Read(ICDDevice &cdDevice) {
+bool Filesystem::Read(IFilesystemCDReader &cdReader) {
     Clear();
     util::ScopeGuard sgInvalidate = [&] { Clear(); };
 
     // TODO: test multisession discs
 
     // Bail out if there are no sessions in the disc
-    if (!cdDevice.HasDisc()) {
+    if (!cdReader.HasDisc()) {
         return false;
     }
 
-    const TOC &toc = cdDevice.GetTOC();
+    const TOC &toc = cdReader.GetTOC();
 
     // Check that we have a valid Saturn header
-    const SaturnHeader &header = cdDevice.GetDiscHeader();
+    const SaturnHeader &header = cdReader.GetDiscHeader();
     if (!header.IsValid()) {
         return false;
     }
@@ -69,7 +69,7 @@ bool Filesystem::Read(ICDDevice &cdDevice) {
     XXH3_128bits_reset(xxh3State);
     for (uint32 sectorIndex = 150; sectorIndex < 166; sectorIndex++) {
         // Fail if we can't read the sector
-        if (!cdDevice.ReadSectorUserData(sectorIndex, buf)) {
+        if (!cdReader.ReadSectorUserData(sectorIndex, buf)) {
             YMIR_DEV_CHECK();
             return false;
         }
@@ -80,7 +80,7 @@ bool Filesystem::Read(ICDDevice &cdDevice) {
     const uint32 volumeDescAddress = absVolumeDescAddress;
     for (uint32 sectorIndex = volumeDescAddress;; sectorIndex++) {
         // Fail if we can't read the sector
-        if (!cdDevice.ReadSectorUserData(sectorIndex, buf)) {
+        if (!cdReader.ReadSectorUserData(sectorIndex, buf)) {
             YMIR_DEV_CHECK();
             return false;
         }
@@ -118,7 +118,7 @@ bool Filesystem::Read(ICDDevice &cdDevice) {
             }
 
             // Try reading the path table records from the disc; fail on error
-            if (!ReadPathTableRecords(cdDevice, volDesc)) {
+            if (!ReadPathTableRecords(cdReader, volDesc)) {
                 YMIR_DEV_CHECK();
                 return false;
             }
@@ -203,7 +203,7 @@ std::string Filesystem::BuildPath(uint16 directoryIndex) const {
     return out;
 }
 
-bool Filesystem::ReadPathTableRecords(ICDDevice &cdDevice, const VolumeDescriptor &volDesc) {
+bool Filesystem::ReadPathTableRecords(IFilesystemCDReader &cdReader, const VolumeDescriptor &volDesc) {
     // Fail if there is no LSB path table
     // TODO: support MSB path table
     if (volDesc.pathTableLPos == 0) {
@@ -221,7 +221,7 @@ bool Filesystem::ReadPathTableRecords(ICDDevice &cdDevice, const VolumeDescripto
     // Read all path table records
     const uint32 pathSectorCount = (volDesc.pathTableSize + 2047) / 2048;
     for (uint32 pathSectorIndex = 0; pathSectorIndex < pathSectorCount; pathSectorIndex++) {
-        if (!cdDevice.ReadSectorUserData(volDesc.pathTableLPos + pathSectorIndex + 150, pathTableBuf)) {
+        if (!cdReader.ReadSectorUserData(volDesc.pathTableLPos + pathSectorIndex + 150, pathTableBuf)) {
             return false;
         }
 
@@ -265,7 +265,7 @@ bool Filesystem::ReadPathTableRecords(ICDDevice &cdDevice, const VolumeDescripto
 
             // Try reading the directory record
             DirectoryRecord dirRecord{};
-            if (!cdDevice.ReadSectorUserData(pathTableRecord.extentPos + 150, dirRecBuf)) {
+            if (!cdReader.ReadSectorUserData(pathTableRecord.extentPos + 150, dirRecBuf)) {
                 return false;
             }
             if (!dirRecord.Read(dirRecBuf)) {
@@ -289,7 +289,7 @@ bool Filesystem::ReadPathTableRecords(ICDDevice &cdDevice, const VolumeDescripto
             // Read directory contents
             const uint32 dirSectorCount = (dirRecord.dataSize + 2047) / 2048;
             for (uint32 dirSectorIndex = 0; dirSectorIndex < dirSectorCount; dirSectorIndex++) {
-                if (!cdDevice.ReadSectorUserData(dirRecord.extentPos + dirSectorIndex + 150, dirRecBuf)) {
+                if (!cdReader.ReadSectorUserData(dirRecord.extentPos + dirSectorIndex + 150, dirRecBuf)) {
                     return false;
                 }
 
