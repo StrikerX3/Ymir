@@ -1715,11 +1715,11 @@ void serialize(Archive &ar, CDDriveSaveState::CDStatusSaveState &s, const uint32
         ar(s.indexNum);
         ar(s.min);
         ar(s.sec);
-        ar(s.frac);
+        ar(s.frame);
         ar(s.zero);
         ar(s.absMin);
         ar(s.absSec);
-        ar(s.absFrac);
+        ar(s.absFrame);
     }
     // No need to initialize on pre-v10 because CD Block LLE did not exist
 }

@@ -25,11 +25,11 @@ struct CDDriveSaveState {
         uint8 indexNum;
         uint8 min;
         uint8 sec;
-        uint8 frac;
+        uint8 frame;
         uint8 zero;
         uint8 absMin;
         uint8 absSec;
-        uint8 absFrac;
+        uint8 absFrame;
     } status;
 
     enum class TxState : uint8 { Reset, PreTx, TxBegin, TxByte, TxInter1, TxInterN, TxEnd };

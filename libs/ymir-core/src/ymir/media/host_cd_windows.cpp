@@ -215,7 +215,7 @@ struct SPTDWithSense {
     std::array<uint8, 96> sense;
 };
 
-bool SendSCSIInCommand(DeviceHandle handle, std::span<uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize) {
+bool SendSCSIInCommand(DeviceHandle handle, std::span<const uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize) {
     SPTDWithSense cmd{};
     cmd.sptd.Length = sizeof(SCSI_PASS_THROUGH_DIRECT);
     cmd.sptd.CdbLength = sizeof(cdb);
@@ -288,11 +288,6 @@ DriveState PollDriveState(DeviceHandle handle) {
     }
 
     return DriveState::NoDisc;
-}
-
-std::vector<TOCEntry> ReadTOC(DeviceHandle handle) {
-    // TODO: implement
-    return {};
 }
 
 } // namespace ymir::media::host

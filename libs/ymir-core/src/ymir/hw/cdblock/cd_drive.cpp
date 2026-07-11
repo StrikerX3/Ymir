@@ -58,7 +58,7 @@ void CDDrive::Reset(bool hard) {
     m_status.indexNum = 0x00;
     m_status.min = m_status.absMin = 0x00;
     m_status.sec = m_status.absSec = 0x00;
-    m_status.frac = m_status.absFrac = 0x00;
+    m_status.frame = m_status.absFrame = 0x00;
     m_status.zero = 0x00;
     m_statusData.data.fill(0x00);
     m_statusPos = 0u;
@@ -134,11 +134,11 @@ void CDDrive::SaveState(savestate::CDDriveSaveState &state) const {
     state.status.indexNum = m_status.indexNum;
     state.status.min = m_status.min;
     state.status.sec = m_status.sec;
-    state.status.frac = m_status.frac;
+    state.status.frame = m_status.frame;
     state.status.zero = m_status.zero;
     state.status.absMin = m_status.absMin;
     state.status.absSec = m_status.absSec;
-    state.status.absFrac = m_status.absFrac;
+    state.status.absFrame = m_status.absFrame;
 
     switch (m_state) {
     case TxState::Reset: state.state = savestate::CDDriveSaveState::TxState::Reset; break;
@@ -197,11 +197,11 @@ void CDDrive::LoadState(const savestate::CDDriveSaveState &state) {
     m_status.indexNum = state.status.indexNum;
     m_status.min = state.status.min;
     m_status.sec = state.status.sec;
-    m_status.frac = state.status.frac;
+    m_status.frame = state.status.frame;
     m_status.zero = state.status.zero;
     m_status.absMin = state.status.absMin;
     m_status.absSec = state.status.absSec;
-    m_status.absFrac = state.status.absFrac;
+    m_status.absFrame = state.status.absFrame;
 
     switch (state.state) {
     case savestate::CDDriveSaveState::TxState::Reset: m_state = TxState::Reset; break;
@@ -670,11 +670,11 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
         m_statusData.data[3] = tocEntry.pointOrIndex;
         m_statusData.data[4] = tocEntry.min;
         m_statusData.data[5] = tocEntry.sec;
-        m_statusData.data[6] = tocEntry.frac;
+        m_statusData.data[6] = tocEntry.frame;
         m_statusData.data[7] = tocEntry.zero;
         m_statusData.data[8] = tocEntry.amin;
         m_statusData.data[9] = tocEntry.asec;
-        m_statusData.data[10] = tocEntry.afrac;
+        m_statusData.data[10] = tocEntry.aframe;
         CalcStatusDataChecksum();
     }
     m_status.operation = Operation::ReadTOC;
@@ -699,11 +699,11 @@ FORCE_INLINE void CDDrive::OutputDriveStatus() {
             m_status.indexNum = 0x01;
             m_status.min = 0x00;
             m_status.sec = 0x00;
-            m_status.frac = 0x00;
+            m_status.frame = 0x00;
             m_status.zero = 0x04;
             m_status.absMin = util::to_bcd(m_currFAD / 75 / 60);
             m_status.absSec = util::to_bcd(m_currFAD / 75 % 60);
-            m_status.absFrac = util::to_bcd(m_currFAD % 75);
+            m_status.absFrame = util::to_bcd(m_currFAD % 75);
         } else {
             // Tracks 01 to 99
             media::DiscPosition pos{};
@@ -713,18 +713,18 @@ FORCE_INLINE void CDDrive::OutputDriveStatus() {
                 m_status.indexNum = util::to_bcd(pos.index);
                 m_status.min = pos.min;
                 m_status.sec = pos.sec;
-                m_status.frac = pos.frac;
+                m_status.frame = pos.frame;
                 m_status.zero = 0x04;
                 m_status.absMin = pos.amin;
                 m_status.absSec = pos.asec;
-                m_status.absFrac = pos.afrac;
+                m_status.absFrame = pos.aframe;
             } else {
                 m_status.subcodeQ = 0xFF;
                 m_status.trackNum = 0xFF;
                 m_status.indexNum = 0xFF;
                 m_status.min = m_status.absMin = 0xFF;
                 m_status.sec = m_status.absSec = 0xFF;
-                m_status.frac = m_status.absFrac = 0xFF;
+                m_status.frame = m_status.absFrame = 0xFF;
                 m_status.zero = 0xFF;
             }
         }
@@ -734,7 +734,7 @@ FORCE_INLINE void CDDrive::OutputDriveStatus() {
         m_status.indexNum = 0xFF;
         m_status.min = m_status.absMin = 0xFF;
         m_status.sec = m_status.absSec = 0xFF;
-        m_status.frac = m_status.absFrac = 0xFF;
+        m_status.frame = m_status.absFrame = 0xFF;
         m_status.zero = 0xFF;
     }
 

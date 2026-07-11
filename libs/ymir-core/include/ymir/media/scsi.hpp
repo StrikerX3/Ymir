@@ -25,16 +25,16 @@ namespace op {
     /// @brief SCSI operation code for GET EVENT/STATUS NOTIFICATION
     inline constexpr uint8 kGetEventStatusNotification = 0x4A;
 
+    /// @brief SCSI operation code for READ TOC
+    inline constexpr uint8 kReadTOC = 0x43;
+
     /// @brief SCSI operation code for READ (10)
     inline constexpr uint8 kRead10 = 0x28;
 
     /// @brief SCSI operation code for READ CD
     inline constexpr uint8 kReadCD = 0xBE;
 
-    /// @brief SCSI operation code for READ TOC
-    inline constexpr uint8 kReadTOC = 0x43;
-
-    /// @brief Build an INQUIRY command descriptor block without requesting vital product data.
+    /// @brief Builds an INQUIRY command descriptor block without requesting vital product data.
     /// @param[in] length size of the output buffer
     /// @return an array with the command descriptor block for an INQUIRY command built from the given parameters
     inline std::array<uint8, 6> MakeInquiry(uint8 length) {
@@ -46,7 +46,7 @@ namespace op {
         return cdb;
     }
 
-    /// @brief Build a GET CONFIGURATION command descriptor block requesting a single feature.
+    /// @brief Builds a GET CONFIGURATION command descriptor block requesting a single feature.
     /// @param[in] featureCode the feature to check for
     /// @param[in] length size of the output buffer
     /// @return an array with the command descriptor block for a GET CONFIGURATION command built from the given
@@ -62,7 +62,7 @@ namespace op {
         return cdb;
     }
 
-    /// @brief Build a GET EVENT/STATUS NOTIFICATION command descriptor block.
+    /// @brief Builds a GET EVENT/STATUS NOTIFICATION command descriptor block.
     /// @param[in] immed whether to poll immediately (`true`) or run asynchronously (`false`). Corresponds to the
     /// command's IMMED flag (bit 0 of byte 0).
     /// @param[in] classEvents bitmask of class events to be notified. Use the constants defined in the
@@ -80,7 +80,22 @@ namespace op {
         return cdb;
     }
 
-    /// @brief Build a READ (10) command descriptor block.
+    /// @brief Builds a READ TOC command descriptor block which returns LBA addresses for all tracks in the disc.
+    /// @param[in] length the size of the output buffer
+    /// @return an array with the command descriptor block for a READ TOC command built from the given parameters
+    inline std::array<uint8, 10> MakeReadTOC(uint32 length) {
+        std::array<uint8, 10> cdb{};
+        cdb[0] = kReadTOC;
+        cdb[1] = 0x00; // Return LBA addresses
+        cdb[2] = 0x00; // Standard TOC
+        cdb[6] = 0x00; // Start from the first track
+        cdb[7] = bit::extract<8, 15>(length);
+        cdb[8] = bit::extract<0, 7>(length);
+        cdb[9] = 0x00;
+        return cdb;
+    }
+
+    /// @brief Builds a READ (10) command descriptor block.
     /// @param[in] frameAddress the starting frame address (LBA) to read from
     /// @param[in] length the number of sectors to read
     /// @return an array with the command descriptor block for a READ (10) command built from the given parameters
@@ -103,11 +118,11 @@ namespace op {
         cdb[6] = 0x00;
         cdb[7] = bit::extract<8, 15>(length);
         cdb[8] = bit::extract<0, 7>(length);
-        cdb[11] = 0x00;
+        cdb[9] = 0x00;
         return cdb;
     }
 
-    /// @brief Build a READ CD command descriptor block.
+    /// @brief Builds a READ CD command descriptor block.
     /// @param[in] frameAddress the starting frame address (LBA) to read from
     /// @param[in] length the number of sectors to read
     /// @param[in] format expected sector type and format
@@ -169,23 +184,8 @@ namespace op {
         cdb[7] = bit::extract<8, 15>(length);
         cdb[8] = bit::extract<0, 7>(length);
         cdb[9] = format;
-        cdb[10] = subch;
+        cdb[10] = bit::extract<0, 2>(subch);
         cdb[11] = 0x00;
-        return cdb;
-    }
-
-    /// @brief Build a READ TOC command descriptor block which returns LBA addresses for all tracks in the disc.
-    /// @param[in] length the size of the output buffer
-    /// @return an array with the command descriptor block for a READ TOC command built from the given parameters
-    inline std::array<uint8, 10> MakeReadTOC(uint32 length) {
-        std::array<uint8, 10> cdb{};
-        cdb[0] = kReadTOC;
-        cdb[1] = 0x00; // Return LBA addresses
-        cdb[2] = 0x00; // Standard TOC
-        cdb[6] = 0x00; // Start from the first track
-        cdb[7] = bit::extract<8, 15>(length);
-        cdb[8] = bit::extract<0, 7>(length);
-        cdb[9] = 0x00;
         return cdb;
     }
 

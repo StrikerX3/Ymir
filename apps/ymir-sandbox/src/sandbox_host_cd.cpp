@@ -44,9 +44,41 @@ void runHostCDSandbox() {
                 const auto &toc = cdif.GetTOC();
                 fmt::println("  Table of contents:");
                 for (auto &entry : toc.GetTable()) {
-                    fmt::println("    {:02X}  {:02X}  {:02X}:{:02X}:{:02X}", entry.pointOrIndex, entry.controlADR,
-                                 entry.amin, entry.asec, entry.afrac);
+                    const uint32 frameAddress = util::from_bcd(entry.amin) * 75 * 60 + util::from_bcd(entry.asec) * 75 +
+                                                util::from_bcd(entry.aframe);
+                    fmt::println("    {:02X}  {:02X}  {:02X}:{:02X}:{:02X}  {:06X}", entry.pointOrIndex,
+                                 entry.controlADR, entry.amin, entry.asec, entry.aframe, frameAddress);
                 }
+
+                cdif.BeginSeekToFrameAddress(500);
+                while (true) {
+                    cdif.PollDriveState();
+                    if (cdif.IsSeekDone()) {
+                        break;
+                    }
+                    std::this_thread::sleep_for(50ms);
+                }
+                fmt::println("Seek to FAD result: {:06X}", cdif.GetSeekFrameAddress());
+
+                cdif.BeginSeekToTrackIndex(2, 1);
+                while (true) {
+                    cdif.PollDriveState();
+                    if (cdif.IsSeekDone()) {
+                        break;
+                    }
+                    std::this_thread::sleep_for(50ms);
+                }
+                fmt::println("Seek to track:index 02:01 result: {:06X}", cdif.GetSeekFrameAddress());
+
+                cdif.BeginSeekToTrackIndex(2, 99);
+                while (true) {
+                    cdif.PollDriveState();
+                    if (cdif.IsSeekDone()) {
+                        break;
+                    }
+                    std::this_thread::sleep_for(50ms);
+                }
+                fmt::println("Seek to track:index 02:99 result: {:06X}", cdif.GetSeekFrameAddress());
             }
             cdif.Eject();
         } else {

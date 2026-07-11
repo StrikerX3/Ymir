@@ -11,6 +11,8 @@ See also @ref ymir/media/host_cd.hpp.
 #include <ymir/media/cd_interface_callbacks.hpp>
 #include <ymir/media/host_cd.hpp>
 
+#include <ymir/util/bit_ops.hpp>
+
 #include <blockingconcurrentqueue.h>
 
 #include <atomic>
@@ -48,13 +50,25 @@ protected:
     uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 
     void BeginSeekToFrameAddressImpl(uint32 frameAddress) override;
-    void BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumber) override;
+    void BeginSeekToTrackIndexImpl(uint8 track, uint8 index) override;
 
 private:
     host::DeviceHandle m_devHandle = host::kInvalidDeviceHandle;
     const CBOnMediaChanged &m_cbOnMediaChanged;
 
     DriveState m_driveState = DriveState::Unknown;
+
+    struct SeekState {
+        // Seek request target:
+        //   bit 31: 0=FAD, 1=track:index
+        //   for FAD, bits 0-23=FAD
+        //   for T:I, bits 8-15=track, bits 0-7=index
+        // 0xFFFFFFFF means no requests sent
+        uint32 requestedTarget = 0xFFFFFFFF;
+        uint32 requestedCount = 0;      // how many seek requests were enqueued
+        uint32 committedCount = 0;      // how many seek requests were executed
+        uint32 frameAddress = 0xFFFFFF; // seek result FAD
+    } m_seekState;
 
     struct ThreadState {
         mutable std::mutex mtxDiscInfo{};
@@ -71,13 +85,39 @@ private:
         DriveState driveState = DriveState::Unknown;
         DriveState targetDriveState = DriveState::Unknown;
         std::atomic_bool mediaStateChanged = false;
+
+        std::atomic_uint32_t seekCounter = 0; // last seek request counter executed
+        std::atomic_uint32_t seekFAD = 0;     // last seek target FAD
     } m_threadState;
 
     std::thread m_workerThread;
 
     struct Command {
-        enum class Type { Quit };
+        enum class Type { SeekFrameAddress, SeekTrackIndex, Quit };
         Type type;
+        union Data {
+            struct Seek {
+                uint32 counter;
+                union Target {
+                    uint32 frameAddress;
+                    struct {
+                        uint8 track;
+                        uint8 index;
+                    };
+                } target;
+            } seek;
+        } data;
+
+        static Command SeekFrameAddress(uint32 counter, uint32 frameAddress) {
+            return {
+                .type = Type::SeekFrameAddress,
+                .data = {.seek = {.counter = counter, .target = {.frameAddress = bit::extract<0, 23>(frameAddress)}}}};
+        }
+
+        static Command SeekTrackIndex(uint32 counter, uint8 track, uint8 index) {
+            return {.type = Type::SeekTrackIndex,
+                    .data = {.seek = {.counter = counter, .target = {.track = track, .index = index}}}};
+        }
 
         static Command Quit() {
             return {.type = Type::Quit};
@@ -93,6 +133,10 @@ private:
     void WorkerThread();
 
     void ReadHeaderAndTOC();
+    void SetSeekResult(uint32 counter, uint32 frameAddress);
+
+    std::vector<TOCEntry> HostReadTOC() const;
+    bool HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData, DiscPosition &outPos);
 };
 
 } // namespace ymir::media

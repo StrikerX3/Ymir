@@ -61,11 +61,11 @@ bool ImageCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition)
     outPosition.index = index == 0xFF ? 0x01 : index;
     outPosition.min = util::to_bcd(relM);
     outPosition.sec = util::to_bcd(relS);
-    outPosition.frac = util::to_bcd(relF);
+    outPosition.frame = util::to_bcd(relF);
     outPosition.zero = 0;
     outPosition.amin = util::to_bcd(m);
     outPosition.asec = util::to_bcd(s);
-    outPosition.afrac = util::to_bcd(f);
+    outPosition.aframe = util::to_bcd(f);
 
     return true;
 }

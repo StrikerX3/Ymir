@@ -12,7 +12,7 @@ DeviceHandle OpenCDDrive(std::string path) {
 
 void CloseDeviceHandle(DeviceHandle handle) {}
 
-bool SendSCSIInCommand(DeviceHandle handle, std::span<uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize) {
+bool SendSCSIInCommand(DeviceHandle handle, std::span<const uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize) {
     return false;
 }
 

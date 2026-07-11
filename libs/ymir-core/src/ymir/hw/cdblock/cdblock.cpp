@@ -1440,11 +1440,11 @@ bool CDBlock::SetupSubcodeTransfer(uint8 type) {
         m_xferBuffer[2] = util::to_bcd(pos.index);
         m_xferBuffer[3] = util::to_bcd(pos.min);
         m_xferBuffer[4] = util::to_bcd(pos.sec);
-        m_xferBuffer[5] = util::to_bcd(pos.frac);
+        m_xferBuffer[5] = util::to_bcd(pos.frame);
         m_xferBuffer[6] = pos.zero;
         m_xferBuffer[7] = util::to_bcd(pos.amin);
         m_xferBuffer[8] = util::to_bcd(pos.asec);
-        m_xferBuffer[9] = util::to_bcd(pos.afrac);
+        m_xferBuffer[9] = util::to_bcd(pos.aframe);
 
         m_RR[0] = GetStatusCode() << 8u;
         m_RR[1] = 5;

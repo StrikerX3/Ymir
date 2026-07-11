@@ -223,11 +223,11 @@ struct Session {
             tocEntry.pointOrIndex = 0xA0;
             tocEntry.min = 0x00;
             tocEntry.sec = 0x00;
-            tocEntry.frac = 0x00;
+            tocEntry.frame = 0x00;
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(firstTrackIndex + 1);
             tocEntry.asec = 0x00;
-            tocEntry.afrac = 0x00;
+            tocEntry.aframe = 0x00;
         }
 
         // Point A1 - last data track
@@ -238,11 +238,11 @@ struct Session {
             tocEntry.pointOrIndex = 0xA1;
             tocEntry.min = 0x00;
             tocEntry.sec = 0x00;
-            tocEntry.frac = 0x00;
+            tocEntry.frame = 0x00;
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(lastTrackIndex + 1);
             tocEntry.asec = 0x00;
-            tocEntry.afrac = 0x00;
+            tocEntry.aframe = 0x00;
         }
 
         // Point A2 - start of leadout track
@@ -254,11 +254,11 @@ struct Session {
             tocEntry.pointOrIndex = 0xA2;
             tocEntry.min = util::to_bcd(startFrameAddress / 75 / 60);
             tocEntry.sec = util::to_bcd(startFrameAddress / 75 % 60);
-            tocEntry.frac = util::to_bcd(startFrameAddress % 75);
+            tocEntry.frame = util::to_bcd(startFrameAddress % 75);
             tocEntry.zero = 0x00;
             tocEntry.amin = util::to_bcd(leadOutFAD / 75 / 60);
             tocEntry.asec = util::to_bcd(leadOutFAD / 75 % 60);
-            tocEntry.afrac = util::to_bcd(leadOutFAD % 75);
+            tocEntry.aframe = util::to_bcd(leadOutFAD % 75);
         }
 
         // Tracks
@@ -275,11 +275,11 @@ struct Session {
             entry.pointOrIndex = util::to_bcd(i + 1);
             entry.min = util::to_bcd(relFAD / 75 / 60);
             entry.sec = util::to_bcd(relFAD / 75 % 60);
-            entry.frac = util::to_bcd(relFAD % 75);
+            entry.frame = util::to_bcd(relFAD % 75);
             entry.zero = 0x00;
             entry.amin = util::to_bcd(track.index01FrameAddress / 75 / 60);
             entry.asec = util::to_bcd(track.index01FrameAddress / 75 % 60);
-            entry.afrac = util::to_bcd(track.index01FrameAddress % 75);
+            entry.aframe = util::to_bcd(track.index01FrameAddress % 75);
         }
     }
 };

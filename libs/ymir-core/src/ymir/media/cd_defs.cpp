@@ -21,13 +21,13 @@ void TOC::LoadFrom(std::span<const TOCEntry> table) {
             // +-----+-----+------------------------+
             // | CTL | ADR | Index 01 frame address |
             // +-----+-----+-------+-------+--------+
-            //             | AMIN  | ASEC  | AFRAC  |
+            //             | AMIN  | ASEC  | AFRAME |
             //             +-------+-------+--------+
             //              23   16 15    8 7      0
 
             const uint8 trackNum = util::from_bcd(entry.pointOrIndex);
             const uint32 frameAddress =
-                util::from_bcd(entry.amin) * 75 * 60 + util::from_bcd(entry.asec) * 75 + util::from_bcd(entry.afrac);
+                util::from_bcd(entry.amin) * 75 * 60 + util::from_bcd(entry.asec) * 75 + util::from_bcd(entry.aframe);
             TrackInfo &info = m_trackInfos[trackNum - 1];
             info.startFrameAddress = frameAddress;
             info.number = trackNum;
@@ -71,12 +71,12 @@ void TOC::LoadFrom(std::span<const TOCEntry> table) {
             // +-----+-----+------------------------+
             // | CTL | ADR | Lead-out frame address |
             // +-----+-----+-------+-------+--------+
-            //             | AMIN  | ASEC  | AFRAC  |
+            //             | AMIN  | ASEC  | AFRAME |
             //             +-------+-------+--------+
             //              23   16 15    8 7      0
 
             const uint32 frameAddress =
-                util::from_bcd(entry.amin) * 75 * 60 + util::from_bcd(entry.asec) * 75 + util::from_bcd(entry.afrac);
+                util::from_bcd(entry.amin) * 75 * 60 + util::from_bcd(entry.asec) * 75 + util::from_bcd(entry.aframe);
             m_endFrameAddress = frameAddress - 1;
             m_saturnTable[entry.pointOrIndex - 0xA0 + 99] = (entry.controlADR << 24u) | frameAddress;
         }

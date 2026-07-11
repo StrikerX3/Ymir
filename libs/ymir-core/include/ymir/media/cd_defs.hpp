@@ -32,19 +32,19 @@ enum class DriveState {
 ///   (other entries exist but are not needed)
 /// * binary-coded decimal
 struct TOCEntry {
-    uint8 controlADR;        // Bits 7-4 = Control, bits 3-0 = q-Mode
-                             //   Control = 0b0100 (0x4) = non-copyable data
-                             //   Control = 0b0110 (0x6) = copyable data
-                             //   q-Mode = 0b0001 (0x1) = lead-in, user data, lead-out areas
-                             //   q-Mode = 0b0010 (0x2) = information area
-    uint8 trackNum;          // 00 for lead-in, 01 to 99 for tracks, AA for lead-out
-    uint8 pointOrIndex;      // Pointer field for lead-in, index for tracks and lead-out
-                             //   For tracks: index 00 is pause, 01 to 99 are various indices within the track
-                             //   Lead-out always uses 01
-    uint8 min, sec, frac;    // Relative time. During pause (index 00) this time is relative to the start of the track
-                             // (index 01) and counts in decreasing order
-    uint8 zero;              // Must be 0x00
-    uint8 amin, asec, afrac; // Absolute time. Monotonically increasing until the lead-out track.
+    uint8 controlADR;         // Bits 7-4 = Control, bits 3-0 = q-Mode
+                              //   Control = 0b0100 (0x4) = non-copyable data
+                              //   Control = 0b0110 (0x6) = copyable data
+                              //   q-Mode = 0b0001 (0x1) = lead-in, user data, lead-out areas
+                              //   q-Mode = 0b0010 (0x2) = information area
+    uint8 trackNum;           // 00 for lead-in, 01 to 99 for tracks, AA for lead-out
+    uint8 pointOrIndex;       // Pointer field for lead-in, index for tracks and lead-out
+                              //   For tracks: index 00 is pause, 01 to 99 are various indices within the track
+                              //   Lead-out always uses 01
+    uint8 min, sec, frame;    // Relative time. During pause (index 00) this time is relative to the start of the track
+                              // (index 01) and counts in decreasing order
+    uint8 zero;               // Must be 0x00
+    uint8 amin, asec, aframe; // Absolute time. Monotonically increasing until the lead-out track.
 };
 
 /// @brief Expanded track information derived from the table of contents.
@@ -172,11 +172,11 @@ struct DiscPosition {
     uint8 index;      // 0x00..0x99(bcd)=index, (=0x01 in lead-out)
     uint8 min;        // track-relative [M]SF address
     uint8 sec;        // track-relative M[S]F address
-    uint8 frac;       // track-relative MS[F] address
+    uint8 frame;      // track-relative MS[F] address
     uint8 zero;       // always zero
     uint8 amin;       // absolute [M]SF address
     uint8 asec;       // absolute M[S]F address
-    uint8 afrac;      // absolute MS[F] address
+    uint8 aframe;     // absolute MS[F] address
 };
 
 } // namespace ymir::media

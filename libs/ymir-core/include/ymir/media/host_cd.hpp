@@ -59,15 +59,11 @@ void CloseDeviceHandle(DeviceHandle handle);
 /// @param[out] outBuffer where to write the input data
 /// @param[out] outSize number of bytes written to `outBuffer`
 /// @return `true` if the command executed successfully, `false` if there was an error
-bool SendSCSIInCommand(DeviceHandle handle, std::span<uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize);
+bool SendSCSIInCommand(DeviceHandle handle, std::span<const uint8> cdb, std::span<uint8> outBuffer, uint32 &outSize);
 
 /// @brief Retrieves the current state of the specified device.
 /// @param[in] handle the device to check
 /// @return the current drive state
 DriveState PollDriveState(DeviceHandle handle);
-
-/// @brief Attempts to read the disc's table of contents.
-/// @return the disc's table of contents
-std::vector<TOCEntry> ReadTOC(DeviceHandle handle);
 
 } // namespace ymir::media::host

@@ -94,11 +94,11 @@ public:
         uint8 indexNum;
         uint8 min;
         uint8 sec;
-        uint8 frac;
+        uint8 frame;
         uint8 zero;
         uint8 absMin;
         uint8 absSec;
-        uint8 absFrac;
+        uint8 absFrame;
     };
 
     CDDrive(core::Scheduler &scheduler, media::CDInterface &cdif, const media::fs::Filesystem &fs,
