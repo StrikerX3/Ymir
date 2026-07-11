@@ -40,8 +40,7 @@ FORCE_INLINE static void TracePartitionClear(debug::ICDBlockTracer *tracer, uint
 // -----------------------------------------------------------------------------
 // Implementation
 
-CDBlock::PartitionManager::PartitionManager(debug::ICDBlockTracer *&tracer)
-    : m_tracer(tracer) {
+CDBlock::PartitionManager::PartitionManager() {
     Reset();
 }
 
@@ -50,6 +49,7 @@ void CDBlock::PartitionManager::Reset() {
     m_freeBuffers = kNumBuffers;
     m_reservedBuffers = 0;
     devlog::trace<grp::part_mgr>("Cleared partitions; free buffers = {}", m_freeBuffers);
+    OnTracerAttached();
 }
 
 uint8 CDBlock::PartitionManager::GetBufferCount(uint8 partitionIndex) const {
