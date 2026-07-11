@@ -36,14 +36,14 @@ public:
     /// @return `true` if connected successfully, `false` if not
     bool IsConnected() const;
 
-    DriveState PollDriveState() override;
-
     bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition) override;
 
     [[nodiscard]] bool IsSeekDone() const override;
     [[nodiscard]] uint32 GetSeekFrameAddress() const override;
 
 protected:
+    DriveState PollDriveStateImpl() override;
+
     uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
     uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 
@@ -60,6 +60,7 @@ private:
         mutable std::mutex mtxDiscInfo{};
         TOC toc{};
         SaturnHeader header{};
+        fs::Filesystem fs{};
         std::atomic_bool discInfoChanged = false;
 
         // driveState contains the latest state polled from the hardware, for internal use only.

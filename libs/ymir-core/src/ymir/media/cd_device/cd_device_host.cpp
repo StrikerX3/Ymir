@@ -2,9 +2,9 @@
 
 #include <ymir/media/scsi.hpp>
 
-#include <chrono>
+#include <ymir/util/dev_log.hpp>
 
-namespace ymir::media {
+#include <chrono>
 
 // Async design notes:
 // - TOC and SaturnHeader (collectively "disc info") are protected by a mutex
@@ -17,6 +17,25 @@ namespace ymir::media {
 // - PollDriveState() is invoked as part of the emulation loop. If the emulator is paused, any state changes will be
 //   held pending until emulation resumes
 // - The frontend may register a callback to receive immediate notifications on device state changes
+
+namespace ymir::media {
+
+namespace grp {
+
+    // -----------------------------------------------------------------------------
+    // Dev log groups
+
+    // Hierarchy:
+    //
+    // base
+
+    struct base {
+        static constexpr bool enabled = true;
+        static constexpr devlog::Level level = devlog::level::debug;
+        static constexpr std::string_view name = "CDDev-Host";
+    };
+
+} // namespace grp
 
 HostCDDevice::HostCDDevice(std::string path, const CBOnMediaChanged &cbOnMediaChanged)
     : m_cbOnMediaChanged(cbOnMediaChanged) {
@@ -46,7 +65,22 @@ bool HostCDDevice::IsConnected() const {
     return m_devHandle != host::kInvalidDeviceHandle;
 }
 
-DriveState HostCDDevice::PollDriveState() {
+bool HostCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
+    // TODO: read cached position for given FAD
+    return false;
+}
+
+bool HostCDDevice::IsSeekDone() const {
+    // TODO: check if async seek has completed
+    return true;
+}
+
+uint32 HostCDDevice::GetSeekFrameAddress() const {
+    // TODO: if async seek is done, get its target FAD, otherwise return 0xFFFFFF
+    return 0xFFFFFF;
+}
+
+DriveState HostCDDevice::PollDriveStateImpl() {
     auto &ts = m_threadState;
 
     if (ts.discInfoChanged.load(std::memory_order_acquire)) {
@@ -54,6 +88,7 @@ DriveState HostCDDevice::PollDriveState() {
 
         m_toc = ts.toc;
         m_header = ts.header;
+        m_fs = ts.fs;
         ts.discInfoChanged.store(false, std::memory_order_release);
     }
 
@@ -73,21 +108,6 @@ DriveState HostCDDevice::PollDriveState() {
     }
 
     return m_driveState;
-}
-
-bool HostCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
-    // TODO: read cached position for given FAD
-    return false;
-}
-
-bool HostCDDevice::IsSeekDone() const {
-    // TODO: check if async seek has completed
-    return true;
-}
-
-uint32 HostCDDevice::GetSeekFrameAddress() const {
-    // TODO: if async seek is done, get its target FAD, otherwise return 0xFFFFFF
-    return 0xFFFFFF;
 }
 
 uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
@@ -155,8 +175,6 @@ void HostCDDevice::ReadHeaderAndTOC() {
 
     std::unique_lock lock{ts.mtxDiscInfo};
 
-    // TODO: read file system structure
-
     if (ts.driveState == DriveState::MediaPresent) {
         std::array<uint8, 2352> headerSector{};
         if (ReadSector(0, headerSector)) {
@@ -165,9 +183,16 @@ void HostCDDevice::ReadHeaderAndTOC() {
             ts.header.Invalidate();
         }
         ts.toc.LoadFrom(host::ReadTOC(m_devHandle));
+        if (ts.fs.Read(*this)) {
+            devlog::info<grp::base>("Filesystem built successfully");
+        } else {
+            devlog::warn<grp::base>("Failed to build filesystem");
+        }
     } else {
         ts.header.Invalidate();
         ts.toc.Clear();
+        ts.fs.Clear();
+        devlog::info<grp::base>("Disc absent - filesystem cleared");
     }
     ts.discInfoChanged.store(true, std::memory_order_release);
     ts.mediaStateChanged.store(true, std::memory_order_release);

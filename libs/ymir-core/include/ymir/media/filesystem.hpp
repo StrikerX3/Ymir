@@ -7,7 +7,6 @@
 
 #include <ymir/util/bit_ops.hpp>
 
-#include "cd_interface.hpp"
 #include "iso9660.hpp"
 
 #include <cassert>
@@ -15,6 +14,17 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Forward declarations
+
+namespace ymir::media {
+
+class ICDDevice;
+
+} // namespace ymir::media
+
+// ---------------------------------------------------------------------------------------------------------------------
 
 namespace ymir::media::fs {
 
@@ -167,10 +177,10 @@ public:
     // Clears the loaded file system.
     void Clear();
 
-    // Attempts to read the filesystem structure from the specified CD interface.
+    // Attempts to read the filesystem structure from the specified CD device.
     // Returns true if successful.
     // If this function returns false, the filesystem object is invalidated.
-    bool Read(CDInterface &cdif);
+    bool Read(ICDDevice &cdDevice);
 
     // Determines if the file system is valid, i.e., there is at least one directory.
     bool IsValid() const {
@@ -215,7 +225,7 @@ private:
 
     std::optional<FileIndex> LookupFileIndexAtFrameAddress(uint32 fad) const;
 
-    bool ReadPathTableRecords(CDInterface &cdif, const iso9660::VolumeDescriptor &volDesc);
+    bool ReadPathTableRecords(ICDDevice &cdDevice, const iso9660::VolumeDescriptor &volDesc);
 };
 
 class FilesystemState {

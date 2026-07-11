@@ -819,15 +819,8 @@ void Saturn::SetCDBlockLLE(bool enabled) {
 // media::CDInterfaceCallbacks implementation
 
 void Saturn::OnMediaChanged() {
-    // Try building filesystem structure
-    if (!m_cdif.HasDisc()) {
-        m_fs.Clear();
-        devlog::info<grp::media>("Disc absent - filesystem cleared");
-    } else if (m_fs.Read(m_cdif)) {
-        devlog::info<grp::media>("Filesystem built successfully");
-    } else {
-        devlog::warn<grp::media>("Failed to build filesystem");
-    }
+    // Copy file system structure from disc
+    m_fs = m_cdif.GetFilesystem();
 
     // Notify CD drive of disc change
     if (m_cdblockLLE) {

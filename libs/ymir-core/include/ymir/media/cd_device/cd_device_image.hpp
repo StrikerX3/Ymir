@@ -16,8 +16,6 @@ class ImageCDDevice final : public ICDDevice {
 public:
     ImageCDDevice(ymir::media::Disc &&disc);
 
-    DriveState PollDriveState() override;
-
     bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition) override;
 
     [[nodiscard]] bool IsSeekDone() const override {
@@ -30,6 +28,8 @@ public:
     }
 
 protected:
+    DriveState PollDriveStateImpl() override;
+
     uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
     uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 

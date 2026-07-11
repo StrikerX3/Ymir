@@ -8,6 +8,7 @@
 #include <ymir/core/types.hpp>
 
 #include <ymir/media/cd_defs.hpp>
+#include <ymir/media/filesystem.hpp>
 #include <ymir/media/saturn_header.hpp>
 
 #include <ymir/savestate/savestate_cd_interface.hpp>
@@ -25,7 +26,20 @@ public:
     /// @brief Updates the drive state, including the TOC and disc header information.
     /// If this returns `DriveState::MediaPresent`, the TOC and disc header are guaranteed to be updated.
     /// @return the current drive state
-    virtual DriveState PollDriveState() = 0;
+    DriveState PollDriveState();
+
+    /// @brief Retrieves the current drive state since the last poll.
+    /// @return the current drive state
+    [[nodiscard]] DriveState GetDriveState() const {
+        return m_driveState;
+    }
+
+    /// @brief Determines if a disc is present in the device.
+    /// Convenient shorthand for `GetDriveState() == DriveState::MediaPresent`.
+    /// @return `true` if there is a disc in the drive, `false` otherwise
+    [[nodiscard]] bool HasDisc() const {
+        return m_driveState == DriveState::MediaPresent;
+    }
 
     /// @brief Retrieves the disc's table of contents.
     /// @return a reference to the disc's table of contents.
@@ -37,6 +51,12 @@ public:
     /// @return a reference to the Saturn disc header information.
     [[nodiscard]] const SaturnHeader &GetDiscHeader() const {
         return m_header;
+    }
+
+    /// @brief Retrieves the disc's filesystem structure.
+    /// @return the disc's file system structure
+    [[nodiscard]] const fs::Filesystem &GetFilesystem() const {
+        return m_fs;
     }
 
     /// @brief Attempts to read a full raw 2352-byte sector at the specified frame address.
@@ -93,6 +113,9 @@ public:
     void LoadState(const savestate::CDInterfaceSaveState &state);
 
 protected:
+    /// @brief Drive state as of the latest poll.
+    DriveState m_driveState = DriveState::Unknown;
+
     /// @brief The parsed Saturn disc header block.
     /// Updated when the device is initialized and during `PollDriveState()`.
     SaturnHeader m_header;
@@ -100,6 +123,15 @@ protected:
     /// @brief The disc's table of contents.
     /// Updated when the device is initialized and during `PollDriveState()`.
     TOC m_toc;
+
+    /// @brief The disc's file system.
+    /// Updated when the device is initialized and during `PollDriveState()`.
+    fs::Filesystem m_fs;
+
+    /// @brief Updates the drive state, including the TOC and disc header information.
+    /// The TOC and disc header must be updated when returning `DriveState::MediaPresent`.
+    /// @return the current drive state
+    virtual DriveState PollDriveStateImpl() = 0;
 
     /// @brief Attempts to read a raw sector at the specified frame address.
     /// Implementations should prefer to read full raw sectors if possible, but may fall back to reading less data.

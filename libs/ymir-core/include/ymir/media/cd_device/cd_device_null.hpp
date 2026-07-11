@@ -12,10 +12,6 @@ namespace ymir::media {
 /// @brief Implements a null CD device that acts like an empty drive.
 class NullCDDevice final : public ICDDevice {
 public:
-    DriveState PollDriveState() override {
-        return DriveState::NoDisc;
-    }
-
     bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition) override {
         return false;
     }
@@ -29,6 +25,10 @@ public:
     }
 
 protected:
+    DriveState PollDriveStateImpl() override {
+        return DriveState::NoDisc;
+    }
+
     uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override {
         return 0;
     }

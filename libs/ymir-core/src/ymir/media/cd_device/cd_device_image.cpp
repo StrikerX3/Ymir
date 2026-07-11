@@ -1,20 +1,41 @@
 #include <ymir/media/cd_device/cd_device_image.hpp>
 
 #include <ymir/util/arith_ops.hpp>
+#include <ymir/util/dev_log.hpp>
 
 namespace ymir::media {
+
+namespace grp {
+
+    // -----------------------------------------------------------------------------
+    // Dev log groups
+
+    // Hierarchy:
+    //
+    // base
+
+    struct base {
+        static constexpr bool enabled = true;
+        static constexpr devlog::Level level = devlog::level::debug;
+        static constexpr std::string_view name = "CDDev-Image";
+    };
+
+} // namespace grp
 
 ImageCDDevice::ImageCDDevice(ymir::media::Disc &&disc)
     : m_disc(std::move(disc)) {
     m_header = m_disc.header;
     m_toc.LoadFrom(ReadTOC());
-}
-
-DriveState ImageCDDevice::PollDriveState() {
-    if (m_disc.sessions.empty()) {
-        return DriveState::NoDisc;
+    PollDriveState();
+    if (HasDisc()) {
+        if (m_fs.Read(*this)) {
+            devlog::info<grp::base>("Filesystem built successfully");
+        } else {
+            devlog::warn<grp::base>("Failed to build filesystem");
+        }
+    } else {
+        devlog::info<grp::base>("Disc absent - filesystem cleared");
     }
-    return DriveState::MediaPresent;
 }
 
 bool ImageCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
@@ -59,6 +80,13 @@ std::vector<TOCEntry> ImageCDDevice::ReadTOC() {
     std::vector<TOCEntry> toc{tocSize};
     std::copy_n(session.toc.begin(), tocSize, toc.begin());
     return toc;
+}
+
+DriveState ImageCDDevice::PollDriveStateImpl() {
+    if (m_disc.sessions.empty()) {
+        return DriveState::NoDisc;
+    }
+    return DriveState::MediaPresent;
 }
 
 uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {

@@ -1,5 +1,7 @@
 #include <ymir/media/filesystem.hpp>
 
+#include <ymir/media/cd_device/cd_device_base.hpp>
+
 #include <ymir/util/dev_assert.hpp>
 #include <ymir/util/scope_guard.hpp>
 
@@ -23,21 +25,21 @@ void Filesystem::Clear() {
     m_fadToFiles.clear();
 }
 
-bool Filesystem::Read(CDInterface &cdif) {
+bool Filesystem::Read(ICDDevice &cdDevice) {
     Clear();
     util::ScopeGuard sgInvalidate = [&] { Clear(); };
 
     // TODO: test multisession discs
 
     // Bail out if there are no sessions in the disc
-    if (!cdif.HasDisc()) {
+    if (!cdDevice.HasDisc()) {
         return false;
     }
 
-    const TOC &toc = cdif.GetTOC();
+    const TOC &toc = cdDevice.GetTOC();
 
     // Check that we have a valid Saturn header
-    const SaturnHeader &header = cdif.GetDiscHeader();
+    const SaturnHeader &header = cdDevice.GetDiscHeader();
     if (!header.IsValid()) {
         return false;
     }
@@ -67,7 +69,7 @@ bool Filesystem::Read(CDInterface &cdif) {
     XXH3_128bits_reset(xxh3State);
     for (uint32 sectorIndex = 150; sectorIndex < 166; sectorIndex++) {
         // Fail if we can't read the sector
-        if (!cdif.ReadSectorUserData(sectorIndex, buf)) {
+        if (!cdDevice.ReadSectorUserData(sectorIndex, buf)) {
             YMIR_DEV_CHECK();
             return false;
         }
@@ -78,7 +80,7 @@ bool Filesystem::Read(CDInterface &cdif) {
     const uint32 volumeDescAddress = absVolumeDescAddress;
     for (uint32 sectorIndex = volumeDescAddress;; sectorIndex++) {
         // Fail if we can't read the sector
-        if (!cdif.ReadSectorUserData(sectorIndex, buf)) {
+        if (!cdDevice.ReadSectorUserData(sectorIndex, buf)) {
             YMIR_DEV_CHECK();
             return false;
         }
@@ -116,7 +118,7 @@ bool Filesystem::Read(CDInterface &cdif) {
             }
 
             // Try reading the path table records from the disc; fail on error
-            if (!ReadPathTableRecords(cdif, volDesc)) {
+            if (!ReadPathTableRecords(cdDevice, volDesc)) {
                 YMIR_DEV_CHECK();
                 return false;
             }
@@ -201,7 +203,7 @@ std::string Filesystem::BuildPath(uint16 directoryIndex) const {
     return out;
 }
 
-bool Filesystem::ReadPathTableRecords(CDInterface &cdif, const VolumeDescriptor &volDesc) {
+bool Filesystem::ReadPathTableRecords(ICDDevice &cdDevice, const VolumeDescriptor &volDesc) {
     // Fail if there is no LSB path table
     // TODO: support MSB path table
     if (volDesc.pathTableLPos == 0) {
@@ -219,7 +221,7 @@ bool Filesystem::ReadPathTableRecords(CDInterface &cdif, const VolumeDescriptor 
     // Read all path table records
     const uint32 pathSectorCount = (volDesc.pathTableSize + 2047) / 2048;
     for (uint32 pathSectorIndex = 0; pathSectorIndex < pathSectorCount; pathSectorIndex++) {
-        if (!cdif.ReadSectorUserData(volDesc.pathTableLPos + pathSectorIndex + 150, pathTableBuf)) {
+        if (!cdDevice.ReadSectorUserData(volDesc.pathTableLPos + pathSectorIndex + 150, pathTableBuf)) {
             return false;
         }
 
@@ -263,7 +265,7 @@ bool Filesystem::ReadPathTableRecords(CDInterface &cdif, const VolumeDescriptor 
 
             // Try reading the directory record
             DirectoryRecord dirRecord{};
-            if (!cdif.ReadSectorUserData(pathTableRecord.extentPos + 150, dirRecBuf)) {
+            if (!cdDevice.ReadSectorUserData(pathTableRecord.extentPos + 150, dirRecBuf)) {
                 return false;
             }
             if (!dirRecord.Read(dirRecBuf)) {
@@ -287,7 +289,7 @@ bool Filesystem::ReadPathTableRecords(CDInterface &cdif, const VolumeDescriptor 
             // Read directory contents
             const uint32 dirSectorCount = (dirRecord.dataSize + 2047) / 2048;
             for (uint32 dirSectorIndex = 0; dirSectorIndex < dirSectorCount; dirSectorIndex++) {
-                if (!cdif.ReadSectorUserData(dirRecord.extentPos + dirSectorIndex + 150, dirRecBuf)) {
+                if (!cdDevice.ReadSectorUserData(dirRecord.extentPos + dirSectorIndex + 150, dirRecBuf)) {
                     return false;
                 }
 

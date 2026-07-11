@@ -6,6 +6,11 @@
 
 namespace ymir::media {
 
+DriveState ICDDevice::PollDriveState() {
+    m_driveState = PollDriveStateImpl();
+    return m_driveState;
+}
+
 bool ICDDevice::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {
     const uint32 readSize = ReadSectorImpl(frameAddress, outSector);
     if (readSize < 2048) {

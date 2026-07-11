@@ -34,12 +34,24 @@ DriveState CDInterface::PollDriveState() const {
     return m_cdDevice->PollDriveState();
 }
 
+DriveState CDInterface::GetDriveState() const {
+    return m_cdDevice->GetDriveState();
+}
+
+bool CDInterface::HasDisc() const {
+    return m_cdDevice->HasDisc();
+}
+
 const TOC &CDInterface::GetTOC() const {
     return m_cdDevice->GetTOC();
 }
 
 const SaturnHeader &CDInterface::GetDiscHeader() const {
     return m_cdDevice->GetDiscHeader();
+}
+
+const fs::Filesystem &CDInterface::GetFilesystem() const {
+    return m_cdDevice->GetFilesystem();
 }
 
 bool CDInterface::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {

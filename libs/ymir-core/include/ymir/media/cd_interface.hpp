@@ -43,16 +43,18 @@ public:
     /// @brief Ejects the disc.
     void Eject();
 
-    /// @brief Retrieves the current drive state.
+    /// @brief Updates the drive state, including the TOC and disc header information.
+    /// If this returns `DriveState::MediaPresent`, the TOC and disc header are guaranteed to be updated.
     /// @return the current drive state
     DriveState PollDriveState() const;
 
+    /// @brief Retrieves the current drive state since the last poll.
+    /// @return the current drive state
+    [[nodiscard]] DriveState GetDriveState() const;
+
     /// @brief Determines if a disc is present in the device.
-    /// Convenient shorthand for `GetDriveState() == DriveState::MediaPresent`.
     /// @return `true` if there is a disc in the drive, `false` otherwise
-    [[nodiscard]] bool HasDisc() const {
-        return PollDriveState() == DriveState::MediaPresent;
-    }
+    [[nodiscard]] bool HasDisc() const;
 
     /// @brief Retrieves the disc's table of contents.
     /// @return a reference to the disc's TOC. Empty if no disc is loaded.
@@ -61,6 +63,10 @@ public:
     /// @brief Retrieves the Saturn disc header information.
     /// @return a reference to the Saturn disc header information.
     [[nodiscard]] const SaturnHeader &GetDiscHeader() const;
+
+    /// @brief Retrieves the disc's filesystem structure.
+    /// @return the disc's file system structure
+    [[nodiscard]] const fs::Filesystem &GetFilesystem() const;
 
     /// @brief Reads a raw sector from the disc.
     /// @param[in] frameAddress the frame address to read
