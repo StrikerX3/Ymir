@@ -268,7 +268,7 @@ void HostCDDevice::ReadHeaderAndTOC() {
 
 void HostCDDevice::SetSeekResult(uint32 counter, uint32 frameAddress) {
     auto &ts = m_threadState;
-    ts.seekFAD.store(frameAddress, std::memory_order_release);
+    ts.seekFAD.store(std::max(frameAddress, 150u), std::memory_order_release);
     ts.seekCounter.store(counter, std::memory_order_release);
     if (frameAddress != 0xFFFFFF) {
         // TODO: setup sector transfers
