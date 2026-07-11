@@ -7,7 +7,7 @@ namespace ymir::media {
 ImageCDDevice::ImageCDDevice(ymir::media::Disc &&disc)
     : m_disc(std::move(disc)) {
     m_header = m_disc.header;
-    LoadTOC();
+    m_toc.LoadFrom(ReadTOC());
 }
 
 DriveState ImageCDDevice::PollDriveState() {

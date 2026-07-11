@@ -23,6 +23,7 @@ public:
     virtual ~ICDDevice() = default;
 
     /// @brief Updates the drive state, including the TOC and disc header information.
+    /// If this returns `DriveState::MediaPresent`, the TOC and disc header are guaranteed to be updated.
     /// @return the current drive state
     virtual DriveState PollDriveState() = 0;
 
@@ -96,6 +97,10 @@ protected:
     /// Updated when the device is initialized and during `PollDriveState()`.
     SaturnHeader m_header;
 
+    /// @brief The disc's table of contents.
+    /// Updated when the device is initialized and during `PollDriveState()`.
+    TOC m_toc;
+
     /// @brief Attempts to read a raw sector at the specified frame address.
     /// Implementations should prefer to read full raw sectors if possible, but may fall back to reading less data.
     /// If doing so, the read bytes must be placed in the correct location in the output buffer (e.g. if the
@@ -139,11 +144,6 @@ protected:
     /// @param[in] state the save state
     void ReconcileSeekState(const savestate::CDInterfaceSaveState &state);
 
-    /// @brief Attempts to load the table of contents from the disc.
-    /// May be invoked by implementations to update the table of contents.
-    /// Invokes `ReadTOC()` to read the table of contents from the disc.
-    void LoadTOC();
-
     /// @brief Attempts to read the disc's table of contents.
     /// @return the disc's TOC. Empty if no disc is loaded.
     [[nodiscard]] virtual std::vector<TOCEntry> ReadTOC() = 0;
@@ -153,10 +153,6 @@ private:
     /// If bit 31 is set, the target specifies a track number in bits 8-15 and index number in bits 0-7.
     /// Otherwise, bits 0-23 specify a frame address.
     uint32 m_seekTarget;
-
-    /// @brief The disc's table of contents.
-    /// Updated when the device is initialized and during `PollDriveState()`.
-    TOC m_toc;
 };
 
 } // namespace ymir::media

@@ -87,8 +87,4 @@ void ICDDevice::ReconcileSeekState(const savestate::CDInterfaceSaveState &state)
     }
 }
 
-void ICDDevice::LoadTOC() {
-    m_toc.LoadFrom(ReadTOC());
-}
-
 } // namespace ymir::media

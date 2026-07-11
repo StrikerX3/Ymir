@@ -5,6 +5,12 @@
 
 #include <fmt/format.h>
 
+#include <chrono>
+
+using clk = std::chrono::steady_clock;
+
+using namespace std::chrono_literals;
+
 void runHostCDSandbox() {
     auto driveStateStr = [](ymir::media::DriveState state) {
         switch (state) {
@@ -21,6 +27,13 @@ void runHostCDSandbox() {
         fmt::println("{} [{}] {}", dev.path, dev.altPath, driveStateStr(dev.driveState));
         if (cdif.OpenHostDevice(dev.path)) {
             fmt::println("  Device connected successfully");
+            auto t0 = clk::now();
+            while (clk::now() - t0 < 1s) {
+                if (cdif.PollDriveState() != ymir::media::DriveState::Unknown) {
+                    break;
+                }
+                std::this_thread::sleep_for(50ms);
+            }
             if (cdif.HasDisc()) {
                 const auto &header = cdif.GetDiscHeader();
                 if (header.IsValid()) {

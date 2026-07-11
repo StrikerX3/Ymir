@@ -11,6 +11,12 @@ See also @ref ymir/media/host_cd.hpp.
 #include <ymir/media/cd_interface_callbacks.hpp>
 #include <ymir/media/host_cd.hpp>
 
+#include <blockingconcurrentqueue.h>
+
+#include <atomic>
+#include <mutex>
+#include <thread>
+
 namespace ymir::media {
 
 /// @brief Implements a CD device that connects to a physical CD drive on the host.
@@ -49,6 +55,39 @@ protected:
 private:
     host::DeviceHandle m_devHandle = host::kInvalidDeviceHandle;
     const CBOnMediaChanged &m_cbOnMediaChanged;
+
+    DriveState m_driveState = DriveState::Unknown;
+
+    struct ThreadState {
+        mutable std::mutex mtxDiscInfo{};
+        TOC toc{};
+        SaturnHeader header{};
+        std::atomic_bool discInfoChanged = false;
+
+        DriveState driveState = DriveState::Unknown;
+        std::atomic_bool mediaStateChanged = false;
+    } m_threadState;
+
+    std::thread m_workerThread;
+
+    struct Command {
+        enum class Type { Quit };
+        Type type;
+
+        static Command Quit() {
+            return {.type = Type::Quit};
+        }
+    };
+
+    moodycamel::BlockingConcurrentQueue<Command> m_workQueue;
+    moodycamel::ProducerToken m_ptokWorkQueue{m_workQueue};
+    moodycamel::ConsumerToken m_ctokWorkQueue{m_workQueue};
+
+    void EnqueueCommand(Command &&cmd);
+
+    void WorkerThread();
+
+    void ReadHeaderAndTOC();
 };
 
 } // namespace ymir::media
