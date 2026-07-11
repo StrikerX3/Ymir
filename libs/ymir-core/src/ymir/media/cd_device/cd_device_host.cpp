@@ -155,6 +155,8 @@ void HostCDDevice::ReadHeaderAndTOC() {
 
     std::unique_lock lock{ts.mtxDiscInfo};
 
+    // TODO: read file system structure
+
     if (ts.driveState == DriveState::MediaPresent) {
         std::array<uint8, 2352> headerSector{};
         if (ReadSector(0, headerSector)) {
