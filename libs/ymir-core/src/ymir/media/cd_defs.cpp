@@ -58,9 +58,9 @@ void TOC::LoadFrom(std::span<const TOCEntry> table) {
             //              23            16
             //
             if (entry.pointOrIndex == 0xA0) {
-                m_firstTrackIndex = entry.amin - 1;
+                m_firstTrackIndex = util::from_bcd(entry.amin) - 1;
             } else if (entry.pointOrIndex == 0xA1) {
-                m_lastTrackIndex = entry.amin - 1;
+                m_lastTrackIndex = util::from_bcd(entry.amin) - 1;
             }
             m_saturnTable[entry.pointOrIndex - 0xA0 + 99] = (entry.controlADR << 24u) | (entry.amin << 16u);
 
