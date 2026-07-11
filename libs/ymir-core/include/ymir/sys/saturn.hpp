@@ -458,6 +458,9 @@ private:
     uint64 m_sh1SpilloverCycles;  ///< SH-1 execution cycles spilled over between executions
     uint64 m_sh1FracCycles;       ///< SH-1 fractional execution cycles spilled over by clock ratio calculation
 
+    /// @brief Invoked when the CD interface detects a change in media.
+    void OnMediaChanged();
+
     // -------------------------------------------------------------------------
     // System operations (SMPC) - smpc::ISMPCOperations implementation
 

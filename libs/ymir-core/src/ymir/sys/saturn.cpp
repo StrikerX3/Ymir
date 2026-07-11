@@ -123,6 +123,7 @@ Saturn::Saturn()
     YGR.MapCallbacks(SH1.CbAssertIRQ6, SH1.CbAssertIRQ7, SH1.CbSetDREQ0n, SH1.CbSetDREQ1n, SH1.CbStepDMAC1,
                      SCU.CbTriggerExtIntr0);
     CDBlock.MapCallbacks(SCU.CbTriggerExtIntr0, SCSP.CbCDDASector);
+    m_cdif.MapCallbacks(util::MakeClassMemberRequiredCallback<&Saturn::OnMediaChanged>(this));
 
     m_system.AddClockSpeedChangeCallback(SCSP.CbClockSpeedChange);
     m_system.AddClockSpeedChangeCallback(SMPC.CbClockSpeedChange);
@@ -240,35 +241,8 @@ void Saturn::LoadDisc(media::Disc &&disc) {
     // Configure area code based on compatible area codes from the disc
     AutodetectRegion(disc.header.compatAreaCode);
 
-    // Try building filesystem structure
-    if (m_fs.Read(disc)) {
-        devlog::info<grp::media>("Filesystem built successfully");
-    } else {
-        devlog::warn<grp::media>("Failed to build filesystem");
-    }
-
-    // Apply game-specific settings if needed
-    const db::GameInfo *info = db::GetGameInfo(disc.header.productNumber, m_fs.GetHash());
-    auto hasFlag = [&](db::GameInfo::Flags flag) { return info && BitmaskEnum(info->flags).AnyOf(flag); };
-    ConfigureAccessCycles(hasFlag(db::GameInfo::Flags::FastBusTimings));
-    ForceSH2CacheEmulation(hasFlag(db::GameInfo::Flags::ForceSH2Cache));
-    SCSP.SetCPUClockShift(hasFlag(db::GameInfo::Flags::FastMC68EC000) ? 1 : 0);
-    VDP.SetStallVDP1OnVRAMWrites(hasFlag(db::GameInfo::Flags::StallVDP1OnVRAMWrites));
-    VDP.SetSlowVDP1(hasFlag(db::GameInfo::Flags::SlowVDP1));
-    VDP.SetSkipEmptyVDP1CommandTable(hasFlag(db::GameInfo::Flags::SkipEmptyVDP1Table));
-    VDP.vdp2AccessPatternsConfig.relaxedBitmapCPAccessChecks =
-        hasFlag(db::GameInfo::Flags::RelaxedVDP2BitmapCPAccessChecks);
-    VDP.SetVirtuaGunJitter(hasFlag(db::GameInfo::Flags::VirtuaGunJitter));
-
     // Load disc into CD interface
     m_cdif.LoadDisc(std::move(disc));
-
-    // Notify CD drive of disc change
-    if (m_cdblockLLE) {
-        CDDrive.OnDiscLoaded();
-    } else {
-        CDBlock.OnDiscLoaded();
-    }
 }
 
 void Saturn::EjectDisc() {
@@ -839,6 +813,45 @@ void Saturn::SetCDBlockLLE(bool enabled) {
         UpdateFunctionPointers();
         Reset(true);
     }
+}
+
+// -----------------------------------------------------------------------------
+// media::CDInterfaceCallbacks implementation
+
+void Saturn::OnMediaChanged() {
+    if (!m_cdif.HasDisc()) {
+        m_fs.Clear();
+        devlog::info<grp::media>("Disc absent - filesystem cleared");
+        return;
+    }
+
+    // Try building filesystem structure
+    if (m_fs.Read(m_cdif)) {
+        devlog::info<grp::media>("Filesystem built successfully");
+    } else {
+        devlog::warn<grp::media>("Failed to build filesystem");
+    }
+
+    // Notify CD drive of disc change
+    if (m_cdblockLLE) {
+        CDDrive.OnDiscLoaded();
+    } else {
+        CDBlock.OnDiscLoaded();
+    }
+
+    // Apply game-specific settings if needed
+    const media::SaturnHeader &discHeader = m_cdif.GetDiscHeader();
+    const db::GameInfo *info = db::GetGameInfo(discHeader.productNumber, m_fs.GetHash());
+    auto hasFlag = [&](db::GameInfo::Flags flag) { return info && BitmaskEnum(info->flags).AnyOf(flag); };
+    ConfigureAccessCycles(hasFlag(db::GameInfo::Flags::FastBusTimings));
+    ForceSH2CacheEmulation(hasFlag(db::GameInfo::Flags::ForceSH2Cache));
+    SCSP.SetCPUClockShift(hasFlag(db::GameInfo::Flags::FastMC68EC000) ? 1 : 0);
+    VDP.SetStallVDP1OnVRAMWrites(hasFlag(db::GameInfo::Flags::StallVDP1OnVRAMWrites));
+    VDP.SetSlowVDP1(hasFlag(db::GameInfo::Flags::SlowVDP1));
+    VDP.SetSkipEmptyVDP1CommandTable(hasFlag(db::GameInfo::Flags::SkipEmptyVDP1Table));
+    VDP.vdp2AccessPatternsConfig.relaxedBitmapCPAccessChecks =
+        hasFlag(db::GameInfo::Flags::RelaxedVDP2BitmapCPAccessChecks);
+    VDP.SetVirtuaGunJitter(hasFlag(db::GameInfo::Flags::VirtuaGunJitter));
 }
 
 // -----------------------------------------------------------------------------

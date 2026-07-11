@@ -6,11 +6,11 @@ namespace ymir::media {
 
 ImageCDDevice::ImageCDDevice(ymir::media::Disc &&disc)
     : m_disc(std::move(disc)) {
-    m_header = disc.header;
+    m_header = m_disc.header;
     LoadTOC();
 }
 
-DriveState ImageCDDevice::PollDriveState() const {
+DriveState ImageCDDevice::PollDriveState() {
     if (m_disc.sessions.empty()) {
         return DriveState::NoDisc;
     }
@@ -61,7 +61,7 @@ std::vector<TOCEntry> ImageCDDevice::ReadTOC() {
     return toc;
 }
 
-uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
+uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {
     if (m_disc.sessions.empty()) {
         return 0;
     }
@@ -71,14 +71,35 @@ uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352>
     if (track == nullptr) {
         return 0;
     }
-    if (track->ReadSector(frameAddress, outSector)) {
+    if (track->ReadSector(frameAddress, out)) {
         // Swap endianness if necessary; audio tracks must be in big-endian
         if (track->controlADR == 0x01 && !track->bigEndian) {
             for (uint32 offset = 0; offset < 2352; offset += 2) {
-                util::ByteSwap<uint16>(&outSector[offset]);
+                util::ByteSwap<uint16>(&out[offset]);
             }
         }
         return 2352;
+    }
+
+    return 0;
+}
+
+uint32 ImageCDDevice::ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) {
+    if (m_disc.sessions.empty()) {
+        return 0;
+    }
+
+    const Session &session = m_disc.sessions.back();
+    const Track *track = session.FindTrack(frameAddress);
+    if (track == nullptr) {
+        return 0;
+    }
+    if (track->controlADR == 0x01) {
+        // Audio sectors should not be read with this method
+        return 0;
+    }
+    if (track->ReadSectorUserData(frameAddress, out)) {
+        return 2048;
     }
 
     return 0;

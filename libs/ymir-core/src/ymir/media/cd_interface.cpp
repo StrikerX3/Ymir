@@ -11,20 +11,23 @@ CDInterface::CDInterface()
 
 void CDInterface::LoadDisc(Disc &&disc) {
     m_cdDevice = std::make_unique<ImageCDDevice>(std::move(disc));
+    m_cbOnMediaChanged();
 }
 
 bool CDInterface::OpenHostDevice(std::string path) {
-    auto dev = std::make_unique<HostCDDevice>(path);
+    auto dev = std::make_unique<HostCDDevice>(path, m_cbOnMediaChanged);
     if (!dev || !dev->IsConnected()) {
         return false;
     }
 
     m_cdDevice = std::move(dev);
+    m_cbOnMediaChanged();
     return true;
 }
 
 void CDInterface::Eject() {
     m_cdDevice = std::make_unique<NullCDDevice>();
+    m_cbOnMediaChanged();
 }
 
 DriveState CDInterface::PollDriveState() const {
@@ -41,6 +44,10 @@ const SaturnHeader &CDInterface::GetDiscHeader() const {
 
 bool CDInterface::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {
     return m_cdDevice->ReadSector(frameAddress, outSector);
+}
+
+bool CDInterface::ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) {
+    return m_cdDevice->ReadSectorUserData(frameAddress, outSector);
 }
 
 bool CDInterface::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {

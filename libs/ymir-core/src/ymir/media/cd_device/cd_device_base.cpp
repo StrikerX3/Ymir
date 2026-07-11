@@ -31,6 +31,11 @@ bool ICDDevice::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector
     return true;
 }
 
+bool ICDDevice::ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) {
+    const uint32 readSize = ReadSectorUserDataImpl(frameAddress, outSector);
+    return readSize == 2048;
+}
+
 void ICDDevice::BeginSeekToFrameAddress(uint32 frameAddress) {
     m_seekTarget = frameAddress;
     BeginSeekToFrameAddressImpl(frameAddress);

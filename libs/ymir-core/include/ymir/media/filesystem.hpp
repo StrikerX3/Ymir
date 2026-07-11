@@ -7,7 +7,7 @@
 
 #include <ymir/util/bit_ops.hpp>
 
-#include "disc.hpp"
+#include "cd_interface.hpp"
 #include "iso9660.hpp"
 
 #include <cassert>
@@ -167,10 +167,10 @@ public:
     // Clears the loaded file system.
     void Clear();
 
-    // Attempts to read the filesystem structure from the specified disc.
+    // Attempts to read the filesystem structure from the specified CD interface.
     // Returns true if successful.
     // If this function returns false, the filesystem object is invalidated.
-    bool Read(const Disc &disc);
+    bool Read(CDInterface &cdif);
 
     // Determines if the file system is valid, i.e., there is at least one directory.
     bool IsValid() const {
@@ -215,7 +215,7 @@ private:
 
     std::optional<FileIndex> LookupFileIndexAtFrameAddress(uint32 fad) const;
 
-    bool ReadPathTableRecords(const Track &track, const media::iso9660::VolumeDescriptor &volDesc);
+    bool ReadPathTableRecords(CDInterface &cdif, const iso9660::VolumeDescriptor &volDesc);
 };
 
 class FilesystemState {

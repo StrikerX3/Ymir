@@ -16,7 +16,7 @@ class ImageCDDevice final : public ICDDevice {
 public:
     ImageCDDevice(ymir::media::Disc &&disc);
 
-    DriveState PollDriveState() const override;
+    DriveState PollDriveState() override;
 
     bool ReadPosition(uint32 frameAddress, DiscPosition &outPosition) override;
 
@@ -32,7 +32,8 @@ public:
 protected:
     std::vector<TOCEntry> ReadTOC() override;
 
-    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) override;
+    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
+    uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 
     void BeginSeekToFrameAddressImpl(uint32 frameAddress) override;
     void BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumber) override;

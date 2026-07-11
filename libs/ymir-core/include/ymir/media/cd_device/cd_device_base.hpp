@@ -24,7 +24,7 @@ public:
 
     /// @brief Updates the drive state, including the TOC and disc header information.
     /// @return the current drive state
-    virtual DriveState PollDriveState() const = 0;
+    virtual DriveState PollDriveState() = 0;
 
     /// @brief Retrieves the disc's table of contents.
     /// @return a reference to the disc's table of contents.
@@ -44,6 +44,13 @@ public:
     /// @param[out] outSector sector data output buffer
     /// @return `true` if the sector was read successfully, `false` if not
     bool ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector);
+
+    /// @brief Attempts to read the 2048-byte user data area from sector at the specified frame address.
+    /// Cannot be used to read audio track data.
+    /// @param[in] frameAddress the frame address (LBA) of the sector
+    /// @param[out] outSector sector data output buffer
+    /// @return `true` if the sector was read successfully, `false` if not
+    bool ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector);
 
     /// @brief Read position information (subcode Q data) from the specified sector.
     /// @param[in] frameAddress the frame address (LBA) of the sector
@@ -89,7 +96,7 @@ protected:
     /// Updated when the device is initialized and during `PollDriveState()`.
     SaturnHeader m_header;
 
-    /// @brief Attempts to read a sector at the specified frame address.
+    /// @brief Attempts to read a raw sector at the specified frame address.
     /// Implementations should prefer to read full raw sectors if possible, but may fall back to reading less data.
     /// If doing so, the read bytes must be placed in the correct location in the output buffer (e.g. if the
     /// implementation is only capable of reading the 2048-byte user data area, this chunk of data should be copied into
@@ -101,6 +108,14 @@ protected:
     /// @param[out] outSector sector data output buffer
     /// @return the number of bytes actually read
     virtual uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) = 0;
+
+    /// @brief Attempts to read the user data area of a sector at the specified frame address.
+    /// Should fail if attempting to read an audio track.
+    ///
+    /// @param[in] frameAddress the frame address (LBA) of the sector
+    /// @param[out] outSector sector data output buffer
+    /// @return the number of bytes actually read
+    virtual uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> outSector) = 0;
 
     /// @brief Requests the CD device to seek to the specified frame address.
     /// This operation is asynchronous. Use `IsSeekDone()` to check if the seek has completed and

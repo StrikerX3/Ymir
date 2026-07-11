@@ -8,6 +8,7 @@
 #include "cd_device/cd_device_base.hpp"
 
 #include "cd_defs.hpp"
+#include "cd_interface_callbacks.hpp"
 #include "disc.hpp"
 
 #include <ymir/savestate/savestate_cd_interface.hpp>
@@ -20,6 +21,13 @@ namespace ymir::media {
 class CDInterface {
 public:
     CDInterface();
+
+    /// @brief Maps callbacks for certain events.
+    /// Used internally by the emulator core. Should not be used externally.
+    /// @param[in] cbOnMediaChanged the callback invoked when the media is changed
+    void MapCallbacks(CBOnMediaChanged cbOnMediaChanged) {
+        m_cbOnMediaChanged = cbOnMediaChanged;
+    }
 
     /// @brief Loads a disc image.
     /// @param[in] disc the disc image to load
@@ -37,7 +45,7 @@ public:
 
     /// @brief Retrieves the current drive state.
     /// @return the current drive state
-    [[nodiscard]] DriveState PollDriveState() const;
+    DriveState PollDriveState() const;
 
     /// @brief Determines if a disc is present in the device.
     /// Convenient shorthand for `GetDriveState() == DriveState::MediaPresent`.
@@ -60,6 +68,13 @@ public:
     /// @return `true` if the sector was read successfully, `false` if frame address is out of range, there is no disc,
     /// or an error occurred
     bool ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector);
+
+    /// @brief Reads the user data area of a sector from the disc.
+    /// @param[in] frameAddress the frame address to read
+    /// @param[out] outSector the output buffer to read the sector into
+    /// @return `true` if the sector was read successfully, `false` if frame address is out of range, there is no disc,
+    /// or an error occurred
+    bool ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector);
 
     /// @brief Reads position information (subcode Q data) from the specified sector.
     /// @param[in] frameAddress the frame address (LBA) of the sector
@@ -98,6 +113,7 @@ public:
 
 private:
     std::unique_ptr<ICDDevice> m_cdDevice;
+    CBOnMediaChanged m_cbOnMediaChanged;
 };
 
 } // namespace ymir::media
