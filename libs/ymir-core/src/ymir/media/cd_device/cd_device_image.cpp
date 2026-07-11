@@ -12,9 +12,9 @@ namespace grp {
 
     // Hierarchy:
     //
-    // base
+    // image
 
-    struct base {
+    struct image {
         static constexpr bool enabled = true;
         static constexpr devlog::Level level = devlog::level::debug;
         static constexpr std::string_view name = "CDDev-Image";
@@ -29,12 +29,12 @@ ImageCDDevice::ImageCDDevice(ymir::media::Disc &&disc)
     PollDriveState();
     if (HasDisc()) {
         if (m_fs.Read(*this)) {
-            devlog::info<grp::base>("Filesystem built successfully");
+            devlog::info<grp::image>("Filesystem built successfully");
         } else {
-            devlog::warn<grp::base>("Failed to build filesystem");
+            devlog::warn<grp::image>("Failed to build filesystem");
         }
     } else {
-        devlog::info<grp::base>("Disc absent - filesystem cleared");
+        devlog::info<grp::image>("Disc absent - filesystem cleared");
     }
 }
 

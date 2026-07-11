@@ -27,9 +27,9 @@ namespace grp {
 
     // Hierarchy:
     //
-    // base
+    // host
 
-    struct base {
+    struct host {
         static constexpr bool enabled = true;
         static constexpr devlog::Level level = devlog::level::debug;
         static constexpr std::string_view name = "CDDev-Host";
@@ -184,15 +184,15 @@ void HostCDDevice::ReadHeaderAndTOC() {
         }
         ts.toc.LoadFrom(host::ReadTOC(m_devHandle));
         if (ts.fs.Read(*this)) {
-            devlog::info<grp::base>("Filesystem built successfully");
+            devlog::info<grp::host>("Filesystem built successfully");
         } else {
-            devlog::warn<grp::base>("Failed to build filesystem");
+            devlog::warn<grp::host>("Failed to build filesystem");
         }
     } else {
         ts.header.Invalidate();
         ts.toc.Clear();
         ts.fs.Clear();
-        devlog::info<grp::base>("Disc absent - filesystem cleared");
+        devlog::info<grp::host>("Disc absent - filesystem cleared");
     }
     ts.discInfoChanged.store(true, std::memory_order_release);
     ts.mediaStateChanged.store(true, std::memory_order_release);
