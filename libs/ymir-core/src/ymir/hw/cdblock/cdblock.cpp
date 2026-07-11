@@ -1179,7 +1179,15 @@ void CDBlock::ProcessDriveStatePlay() {
     if (useFAD) {
         endReached = m_status.frameAddress > m_playEndPos;
     } else {
-        const uint16 endTrackIndex = bit::extract<0, 15>(m_playEndParam);
+        uint8 endTrackNum = bit::extract<8, 15>(m_playEndParam);
+        uint8 endIndexNum = bit::extract<0, 7>(m_playEndParam);
+        if (endTrackNum == 0) {
+            endTrackNum = m_cdif.GetTOC().GetLastTrackNumber();
+        }
+        if (endIndexNum == 0) {
+            endIndexNum = 99;
+        }
+        const uint16 endTrackIndex = (endTrackNum << 8u) | endIndexNum;
         const uint16 curTrackIndex = (m_status.track << 8u) | m_status.index;
         endReached = curTrackIndex > endTrackIndex;
     }
