@@ -50,35 +50,38 @@ void runHostCDSandbox() {
                                  entry.controlADR, entry.amin, entry.asec, entry.aframe, frameAddress);
                 }
 
-                cdif.BeginSeekToFrameAddress(500);
-                while (true) {
-                    cdif.PollDriveState();
-                    if (cdif.IsSeekDone()) {
-                        break;
+                auto testFAD = [&](uint32 fad) {
+                    cdif.BeginSeekToFrameAddress(fad);
+                    while (true) {
+                        cdif.PollDriveState();
+                        if (cdif.IsSeekDone()) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(50ms);
                     }
-                    std::this_thread::sleep_for(50ms);
-                }
-                fmt::println("Seek to FAD result: {:06X}", cdif.GetSeekFrameAddress());
+                    fmt::println("Seek to FAD {:06X} result: {:06X}", fad, cdif.GetSeekFrameAddress());
+                };
 
-                cdif.BeginSeekToTrackIndex(2, 1);
-                while (true) {
-                    cdif.PollDriveState();
-                    if (cdif.IsSeekDone()) {
-                        break;
+                auto testTrackIndex = [&](uint8 track, uint8 index) {
+                    cdif.BeginSeekToTrackIndex(track, index);
+                    while (true) {
+                        cdif.PollDriveState();
+                        if (cdif.IsSeekDone()) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(50ms);
                     }
-                    std::this_thread::sleep_for(50ms);
-                }
-                fmt::println("Seek to track:index 02:01 result: {:06X}", cdif.GetSeekFrameAddress());
+                    fmt::println("Seek to track:index {:02d}:{:02d} result: {:06X}", track, index,
+                                 cdif.GetSeekFrameAddress());
+                };
 
-                cdif.BeginSeekToTrackIndex(2, 99);
-                while (true) {
-                    cdif.PollDriveState();
-                    if (cdif.IsSeekDone()) {
-                        break;
-                    }
-                    std::this_thread::sleep_for(50ms);
-                }
-                fmt::println("Seek to track:index 02:99 result: {:06X}", cdif.GetSeekFrameAddress());
+                testFAD(0);
+                testFAD(500);
+                testTrackIndex(2, 1);
+                testTrackIndex(2, 99);
+                testTrackIndex(3, 1);
+                testTrackIndex(3, 2);
+                testTrackIndex(3, 99);
             }
             cdif.Eject();
         } else {

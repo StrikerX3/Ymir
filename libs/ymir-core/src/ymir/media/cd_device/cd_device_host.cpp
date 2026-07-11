@@ -243,8 +243,9 @@ void HostCDDevice::ReadHeaderAndTOC() {
 
     if (ts.driveState == DriveState::MediaPresent) {
         std::array<uint8, 2352> headerSector{};
-        if (ReadSector(0, headerSector)) {
-            ts.header.ReadFrom(headerSector);
+        DiscPosition pos{};
+        if (HostReadSectorAndPosition(0, headerSector, pos)) {
+            ts.header.ReadFrom(std::span{headerSector}.subspan(0x10));
         } else {
             ts.header.Invalidate();
         }
