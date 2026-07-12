@@ -3,6 +3,11 @@
 #include <ymir/util/bit_ops.hpp>
 #include <ymir/util/scope_guard.hpp>
 
+#include <fmt/format.h>
+#include <fmt/std.h>
+
+#include <fstream>
+
 namespace app::services {
 
 static constexpr uint8 kPersistentSMPCDataVersion = 0x01;

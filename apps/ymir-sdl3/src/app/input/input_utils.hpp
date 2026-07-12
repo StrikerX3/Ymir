@@ -4,8 +4,10 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <cmath>
 #include <concepts>
+#include <iterator>
 
 namespace app::input {
 

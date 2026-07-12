@@ -9,6 +9,7 @@
 #include <ymir/core/types.hpp>
 
 #include <array>
+#include <cassert>
 
 namespace ymir::nullprog {
 

@@ -7,6 +7,7 @@
 
 #include <ymir/core/types.hpp>
 
+#include <array>
 #include <span>
 #include <vector>
 

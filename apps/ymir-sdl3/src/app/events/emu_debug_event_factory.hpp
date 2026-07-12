@@ -6,6 +6,8 @@
 
 #include "emu_event.hpp"
 
+#include <set>
+
 namespace app::events::emu::debug {
 
 EmuEvent ExecuteSH2Division(bool master, bool div64);

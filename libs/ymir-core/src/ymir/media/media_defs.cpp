@@ -2,6 +2,8 @@
 
 #include <fmt/format.h>
 
+#include <iterator>
+
 namespace ymir::media {
 
 std::string AreaCodeToString(AreaCode areaCode) {

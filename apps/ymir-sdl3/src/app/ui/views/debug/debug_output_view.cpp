@@ -6,6 +6,8 @@
 
 #include <misc/cpp/imgui_stdlib.h>
 
+#include <fstream>
+
 namespace app::ui {
 
 DebugOutputView::DebugOutputView(SharedContext &context)

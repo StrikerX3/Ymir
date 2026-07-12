@@ -9,6 +9,8 @@
 
 #include <ymir/core/types.hpp>
 
+#include <string>
+
 namespace ymir::media {
 
 /// @brief Compatible area codes.

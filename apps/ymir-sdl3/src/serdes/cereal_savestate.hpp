@@ -7,6 +7,8 @@
 #include <cereal/types/array.hpp>
 #include <cereal/types/vector.hpp>
 
+#include <fmt/format.h>
+
 #include <algorithm>
 #include <string>
 

@@ -11,6 +11,9 @@
 
 #include <fmt/format.h>
 
+#include <chrono>
+#include <vector>
+
 // Steps over the pixels of a line.
 struct AltLineStepper {
     FORCE_INLINE AltLineStepper(ymir::vdp::CoordS32 coord1, ymir::vdp::CoordS32 coord2, bool antiAlias = false) {

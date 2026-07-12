@@ -5,6 +5,8 @@
 #include <ymir/util/callback.hpp>
 #include <ymir/util/date_time.hpp>
 
+#include <array>
+
 namespace ymir::smpc {
 
 /// @brief Persistent SMPC data.

@@ -6,6 +6,10 @@
 #include <stb_image_write.h>
 
 #include <fmt/format.h>
+#include <fmt/std.h>
+
+#include <filesystem>
+#include <fstream>
 
 struct sample_struct {
     const char *vramFile;

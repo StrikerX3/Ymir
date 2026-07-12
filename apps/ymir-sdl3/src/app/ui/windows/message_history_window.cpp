@@ -2,6 +2,9 @@
 
 #include <util/std_lib.hpp>
 
+#include <fmt/format.h>
+#include <fmt/std.h>
+
 namespace app::ui {
 
 MessageHistoryWindow::MessageHistoryWindow(SharedContext &context)

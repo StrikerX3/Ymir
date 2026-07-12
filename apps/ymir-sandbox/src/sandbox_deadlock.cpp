@@ -3,6 +3,7 @@
 #include <ymir/core/types.hpp>
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <chrono>
 #include <filesystem>

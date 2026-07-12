@@ -2,6 +2,7 @@
 #include <ymir/media/loader/loader.hpp>
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <filesystem>
 #include <string>

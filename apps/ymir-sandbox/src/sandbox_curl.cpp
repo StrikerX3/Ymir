@@ -2,6 +2,7 @@
 
 #include <date/date.h>
 #include <fmt/format.h>
+#include <fmt/std.h>
 #include <nlohmann/json.hpp>
 #include <semver.hpp>
 
