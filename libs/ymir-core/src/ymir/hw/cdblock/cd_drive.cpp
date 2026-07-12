@@ -690,6 +690,7 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
 }
 
 FORCE_INLINE void CDDrive::OutputDriveStatus() {
+    m_cdif.PollDriveState();
     if (m_cdif.HasDisc()) {
         const media::TOC &toc = m_cdif.GetTOC();
         if (m_currFAD > toc.GetEndFrameAddress()) {

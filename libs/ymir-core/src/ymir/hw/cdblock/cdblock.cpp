@@ -1017,6 +1017,7 @@ void CDBlock::ProcessDriveState() {
 
     if (m_readyForPeriodicReports && !m_processingCommand) {
         // HACK to ensure the system detects the absence of a disc properly
+        m_cdif.PollDriveState();
         if (!m_cdif.HasDisc() && GetStatusCode() != kStatusCodeOpen) {
             m_status.statusCode = kStatusCodeNoDisc;
             m_targetDriveCycles = kDriveCyclesNotPlaying;
