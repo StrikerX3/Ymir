@@ -17,6 +17,7 @@ See also @ref ymir/media/host_cd.hpp.
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <future>
 #include <list>
@@ -35,12 +36,10 @@ namespace ymir::media {
 class HostCDDevice final : public ICDDevice {
 public:
     /// @brief Creates a host CD device from the specified path.
-    /// @param[in] path the native device path. Accepted path formats vary per operating system:
-    /// - Windows: drive letters ("D:"), NT device paths ("\Device\CdRom0") or DOS paths ("\\.\D:", "\\.\CdRom0")
-    /// - Linux: SCSI generic device paths ("/dev/sg0")
-    /// - Other systems: TBD
+    /// @param[in] path the native device path
+    /// @param[in] timeout how long to wait until device is ready
     /// @param[in] cbOnMediaChanged a reference to the callback to invoke when the media presence state has changed
-    HostCDDevice(std::string path, const CBOnMediaChanged &cbOnMediaChanged);
+    HostCDDevice(std::string path, std::chrono::milliseconds timeout, const CBOnMediaChanged &cbOnMediaChanged);
 
     ~HostCDDevice();
 
@@ -224,6 +223,9 @@ private:
     moodycamel::BlockingConcurrentQueue<Command> m_workQueue;
     moodycamel::ProducerToken m_ptokWorkQueue{m_workQueue};
     moodycamel::ConsumerToken m_ctokWorkQueue{m_workQueue};
+
+    /// @brief Disconnects the device and releases all resources.
+    void Disconnect();
 
     void EnqueueCommand(Command &&cmd);
 

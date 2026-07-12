@@ -6,8 +6,6 @@
 #include <ymir/util/dev_log.hpp>
 #include <ymir/util/thread_name.hpp>
 
-#include <chrono>
-
 // Async design notes:
 // - TOC and SaturnHeader (collectively "disc info") are protected by a mutex
 // - Worker thread keeps its own copy of the drive state as well as the TOC and SaturnHeader
@@ -39,7 +37,8 @@ namespace grp {
 
 } // namespace grp
 
-HostCDDevice::HostCDDevice(std::string path, const CBOnMediaChanged &cbOnMediaChanged)
+HostCDDevice::HostCDDevice(std::string path, std::chrono::milliseconds timeout,
+                           const CBOnMediaChanged &cbOnMediaChanged)
     : m_cbOnMediaChanged(cbOnMediaChanged)
     , m_path(path) {
     m_devHandle = host::OpenCDDrive(path);
@@ -52,17 +51,28 @@ HostCDDevice::HostCDDevice(std::string path, const CBOnMediaChanged &cbOnMediaCh
     // - notify drive removal somehow
 
     m_workerThread = std::thread{[this] { WorkerThread(); }};
+
+    // Wait for the specified amount of time for device to be ready
+    using namespace std::chrono_literals;
+    using clk = std::chrono::steady_clock;
+    const auto t0 = clk::now();
+    const auto deadline = t0 + timeout;
+    while (t0 < deadline) {
+        if (PollDriveState() != DriveState::Unknown) {
+            break;
+        }
+        // Wait between attempts to avoid hammering the CPU
+        std::this_thread::sleep_for(10ms);
+    }
+
+    if (m_driveState == DriveState::Unknown) {
+        // Timed out
+        Disconnect();
+    }
 }
 
 HostCDDevice::~HostCDDevice() {
-    if (m_workerThread.joinable()) {
-        EnqueueCommand(Command::Quit());
-        m_workerThread.join();
-    }
-    // TODO: cleanup other resources (notification handles, etc.)
-    if (m_devHandle != host::kInvalidDeviceHandle) {
-        host::CloseDeviceHandle(m_devHandle);
-    }
+    Disconnect();
 }
 
 bool HostCDDevice::IsConnected() const {
@@ -163,6 +173,17 @@ void HostCDDevice::BeginSeekToTrackIndexImpl(uint8 track, uint8 index) {
     m_seekState.requestedTarget = target;
     ++m_seekState.requestedCount;
     EnqueueCommand(Command::SeekTrackIndex(m_seekState.requestedCount, track, index));
+}
+
+void HostCDDevice::Disconnect() {
+    if (m_workerThread.joinable()) {
+        EnqueueCommand(Command::Quit());
+        m_workerThread.join();
+    }
+    // TODO: cleanup other resources (notification handles, etc.)
+    if (m_devHandle != host::kInvalidDeviceHandle) {
+        host::CloseDeviceHandle(m_devHandle);
+    }
 }
 
 void HostCDDevice::EnqueueCommand(Command &&cmd) {

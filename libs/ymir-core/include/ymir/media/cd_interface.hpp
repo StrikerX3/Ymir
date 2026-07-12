@@ -13,6 +13,7 @@
 
 #include <ymir/savestate/savestate_cd_interface.hpp>
 
+#include <chrono>
 #include <memory>
 
 namespace ymir::media {
@@ -33,12 +34,14 @@ public:
     /// @param[in] disc the disc image to load
     void LoadDisc(Disc &&disc);
 
-    /// @brief Attempts to open a host CD device at the specified path.
-    /// See @ref ymir::media::HostCDDevice::HostCDDevice(std::string) for details on what path formats are /// accepeted
-    /// for each supported operating system.
+    /// @brief Attempts to open a host CD device at the specified path. Accepted path formats vary per operating system:
+    /// - Windows: drive letters ("D:"), NT device paths ("\Device\CdRom0") or DOS paths ("\\.\D:", "\\.\CdRom0")
+    /// - Linux: SCSI generic device paths ("/dev/sg0")
+    /// - Other systems: TBD
     /// @param[in] path the host device path. Enumerate with `ymir::media::host::EnumerateHostCDDrives()`.
+    /// @param[in] timeout maximum time to wait for the device to be ready
     /// @return `true` if the device was successfully opened, `false` otherwise
-    bool OpenHostDevice(std::string path);
+    bool OpenHostDevice(std::string path, std::chrono::milliseconds timeout = std::chrono::milliseconds{1000});
 
     /// @brief Ejects the disc.
     void Eject();

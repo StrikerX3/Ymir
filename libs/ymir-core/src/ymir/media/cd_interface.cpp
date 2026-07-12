@@ -14,8 +14,8 @@ void CDInterface::LoadDisc(Disc &&disc) {
     m_cbOnMediaChanged();
 }
 
-bool CDInterface::OpenHostDevice(std::string path) {
-    auto dev = std::make_unique<HostCDDevice>(path, m_cbOnMediaChanged);
+bool CDInterface::OpenHostDevice(std::string path, std::chrono::milliseconds timeout) {
+    auto dev = std::make_unique<HostCDDevice>(path, timeout, m_cbOnMediaChanged);
     if (!dev || !dev->IsConnected()) {
         return false;
     }
