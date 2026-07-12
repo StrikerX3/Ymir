@@ -30,7 +30,7 @@ public:
 protected:
     DriveState PollDriveStateImpl() override;
 
-    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
+    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out, DiscPosition *outPosition) override;
     uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 
     void BeginSeekToFrameAddressImpl(uint32 frameAddress) override;

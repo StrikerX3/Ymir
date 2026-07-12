@@ -59,12 +59,13 @@ public:
         return m_fs;
     }
 
-    /// @brief Attempts to read a full raw 2352-byte sector at the specified frame address.
-    /// Audio track data is guaranteed to be in big-endian format.
+    /// @brief Attempts to read a full raw 2352-byte sector at the specified frame address, optionally including
+    /// position data. Audio track data is guaranteed to be in big-endian format.
     /// @param[in] frameAddress the frame address (LBA) of the sector
     /// @param[out] outSector sector data output buffer
+    /// @param[out,opt] outPosition an optional pointer to receive position data
     /// @return `true` if the sector was read successfully, `false` if not
-    bool ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector);
+    bool ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition *outPosition);
 
     /// @brief Attempts to read the 2048-byte user data area from sector at the specified frame address.
     /// Cannot be used to read audio track data.
@@ -140,11 +141,13 @@ protected:
     /// the buffer starting at offset 0x10).
     /// `ReadSector(...)` synthesizes any missing data from the sector if this function returns less than 2352 bytes.
     /// Audio track data must be in big-endian format.
+    /// If the position pointer is provided, it must be filled in along with sector data (all-or-nothing).
     ///
     /// @param[in] frameAddress the frame address (LBA) of the sector
     /// @param[out] outSector sector data output buffer
+    /// @param[out,opt] outPosition an optional pointer to receive position data
     /// @return the number of bytes actually read
-    virtual uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) = 0;
+    virtual uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition *outPosition) = 0;
 
     /// @brief Attempts to read the user data area of a sector at the specified frame address.
     /// Should fail if attempting to read an audio track.

@@ -89,7 +89,7 @@ DriveState ImageCDDevice::PollDriveStateImpl() {
     return DriveState::MediaPresent;
 }
 
-uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) {
+uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out, DiscPosition *outPosition) {
     if (m_disc.sessions.empty()) {
         return 0;
     }
@@ -99,17 +99,38 @@ uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352>
     if (track == nullptr) {
         return 0;
     }
-    if (track->ReadSector(frameAddress, out)) {
-        // Swap endianness if necessary; audio tracks must be in big-endian
-        if (track->controlADR == 0x01 && !track->bigEndian) {
-            for (uint32 offset = 0; offset < 2352; offset += 2) {
-                util::ByteSwap<uint16>(&out[offset]);
-            }
-        }
-        return 2352;
+    if (!track->ReadSector(frameAddress, out)) {
+        return 0;
     }
 
-    return 0;
+    // Swap endianness if necessary; audio tracks must be in big-endian
+    if (track->controlADR == 0x01 && !track->bigEndian) {
+        for (uint32 offset = 0; offset < 2352; offset += 2) {
+            util::ByteSwap<uint16>(&out[offset]);
+        }
+    }
+
+    // Write position data if requested
+    if (outPosition != nullptr) {
+        const uint8 index = track->FindIndex(frameAddress);
+        const sint32 relFAD = abs(static_cast<sint32>(frameAddress - track->index01FrameAddress));
+
+        const auto [relM, relS, relF] = FADToMSF(relFAD);
+        const auto [m, s, f] = FADToMSF(frameAddress);
+
+        outPosition->controlADR = track->controlADR;
+        outPosition->track = track->index + 1;
+        outPosition->index = index == 0xFF ? 0x01 : index;
+        outPosition->min = util::to_bcd(relM);
+        outPosition->sec = util::to_bcd(relS);
+        outPosition->frame = util::to_bcd(relF);
+        outPosition->zero = 0;
+        outPosition->amin = util::to_bcd(m);
+        outPosition->asec = util::to_bcd(s);
+        outPosition->aframe = util::to_bcd(f);
+    }
+
+    return 2352;
 }
 
 uint32 ImageCDDevice::ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) {

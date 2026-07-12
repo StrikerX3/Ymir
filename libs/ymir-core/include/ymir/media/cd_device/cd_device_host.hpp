@@ -52,7 +52,7 @@ public:
 protected:
     DriveState PollDriveStateImpl() override;
 
-    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override;
+    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out, DiscPosition *outPosition) override;
     uint32 ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> out) override;
 
     void BeginSeekToFrameAddressImpl(uint32 frameAddress) override;
@@ -80,19 +80,29 @@ private:
     /// @brief A simple thread-safe low-throughput sector cache.
     struct SectorCache {
         struct Entry {
-            Entry(uint32 frameAddress)
+            explicit Entry(uint32 frameAddress)
                 : frameAddress(frameAddress) {}
 
             uint32 frameAddress;
-            std::array<uint8, 2352> sector;
-            std::array<uint8, 96> subchannel;
-            DiscPosition pos;
+            std::array<uint8, 2352> sector{};
+            std::array<uint8, 96> subchannel{};
+            DiscPosition pos{};
         };
+
+        /// @brief Retrieves the current capacity of the cache.
+        /// @return the maximum number of entries allowed in the cache
+        size_t GetCapacity() const {
+            return m_capacity;
+        }
 
         /// @brief Adjusts the capacity of the cache.
         /// If smaller than the previous capacity, the oldest entries are dropped.
-        /// @param[in] capacity the new cache capacity. If 0, sets the capacity to 1.
+        /// @param[in] capacity the new cache capacity. The minimum capacity is 1.
         void SetCapacity(size_t capacity);
+
+        /// @brief Retrieves the number of items stored in the cache.
+        /// @return the current cache size
+        size_t Size() const;
 
         /// @brief Flushes all entries in the cache.
         void Flush();
@@ -212,6 +222,8 @@ private:
 
     void StartReadingSectors(uint32 frameAddress);
     void StopReadingSectors();
+
+    std::shared_ptr<SectorCache::Entry> TryGetCachedSector(uint32 frameAddress);
 
     std::vector<TOCEntry> HostReadTOC() const;
     bool HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData, DiscPosition &outPos);

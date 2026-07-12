@@ -71,9 +71,10 @@ public:
     /// @brief Reads a raw sector from the disc.
     /// @param[in] frameAddress the frame address to read
     /// @param[out] outSector the output buffer to read the sector into
+    /// @param[out,opt] outPosition an optional pointer to receive position data
     /// @return `true` if the sector was read successfully, `false` if frame address is out of range, there is no disc,
     /// or an error occurred
-    bool ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector);
+    bool ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition *outPosition = nullptr);
 
     /// @brief Reads the user data area of a sector from the disc.
     /// @param[in] frameAddress the frame address to read

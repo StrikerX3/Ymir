@@ -29,7 +29,7 @@ protected:
         return DriveState::NoDisc;
     }
 
-    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out) override {
+    uint32 ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> out, DiscPosition *outPosition) override {
         return 0;
     }
 

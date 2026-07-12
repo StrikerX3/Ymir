@@ -1042,13 +1042,13 @@ void CDBlock::ProcessDriveStatePlay() {
                 return;
             }
 
-            // TODO: consider caching the track pointer
             const media::TrackInfo *track = m_cdif.GetTOC().GetTrackInfoForFAD(frameAddress);
 
             Buffer &buffer = m_scratchBuffers[0];
+            media::DiscPosition discPos{};
 
             // Sanity check: is the track valid?
-            if (track != nullptr && m_cdif.ReadSector(frameAddress, buffer.data)) [[likely]] {
+            if (track != nullptr && m_cdif.ReadSector(frameAddress, buffer.data, &discPos)) [[likely]] {
                 devlog::trace<grp::play>("Read sector from frame address {:06X}", frameAddress);
 
                 if (track->controlADR == 0x01) {
@@ -1141,17 +1141,11 @@ void CDBlock::ProcessDriveStatePlay() {
                         }
                     }
 
-                    media::DiscPosition discPos{};
                     ++m_status.frameAddress;
-                    if (m_cdif.ReadPosition(m_status.frameAddress, discPos)) {
-                        m_status.track = discPos.track;
-                        m_status.index = discPos.index;
-                        m_status.controlADR = discPos.controlADR;
-                        m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
-                    } else {
-                        // This *really* should not happen
-                        YMIR_DEV_CHECK();
-                    }
+                    m_status.track = discPos.track;
+                    m_status.index = discPos.index;
+                    m_status.controlADR = discPos.controlADR;
+                    m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
                 }
             } else if (track == nullptr) {
                 // This shouldn't really happen unless we're given an invalid disc image

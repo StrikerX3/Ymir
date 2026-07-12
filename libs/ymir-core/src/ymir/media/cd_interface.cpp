@@ -54,8 +54,8 @@ const fs::Filesystem &CDInterface::GetFilesystem() const {
     return m_cdDevice->GetFilesystem();
 }
 
-bool CDInterface::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {
-    return m_cdDevice->ReadSector(frameAddress, outSector);
+bool CDInterface::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition *outPosition) {
+    return m_cdDevice->ReadSector(frameAddress, outSector, outPosition);
 }
 
 bool CDInterface::ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) {

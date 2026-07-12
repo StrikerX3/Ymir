@@ -11,8 +11,8 @@ DriveState ICDDevice::PollDriveState() {
     return m_driveState;
 }
 
-bool ICDDevice::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector) {
-    const uint32 readSize = ReadSectorImpl(frameAddress, outSector);
+bool ICDDevice::ReadSector(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition *outPosition) {
+    const uint32 readSize = ReadSectorImpl(frameAddress, outSector, outPosition);
     if (readSize < 2048) {
         // Could not read the bare minimum; fail
         return false;

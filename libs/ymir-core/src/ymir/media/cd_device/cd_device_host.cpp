@@ -42,13 +42,14 @@ namespace grp {
 HostCDDevice::HostCDDevice(std::string path, const CBOnMediaChanged &cbOnMediaChanged)
     : m_cbOnMediaChanged(cbOnMediaChanged)
     , m_path(path) {
-    // TODO: when opening a device, subscribe to notifications for device and media state changes
-    // - if media changed, mark disc info as dirty
-    // - notify drive removal somehow
     m_devHandle = host::OpenCDDrive(path);
     if (m_devHandle == host::kInvalidDeviceHandle) {
         return;
     }
+
+    // TODO: subscribe to notifications for device and media state changes
+    // - if media changed, mark disc info as dirty
+    // - notify drive removal somehow
 
     m_workerThread = std::thread{[this] { WorkerThread(); }};
 }
@@ -69,11 +70,13 @@ bool HostCDDevice::IsConnected() const {
 }
 
 bool HostCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
-    // TODO: read cached position for given FAD
-    // - request read if not cached yet
-    // - block until read (for now)
-    //   - change CDBlock/CDDrive to report "seek" or "busy" status until sector is available (later)
-    return false;
+    auto entry = TryGetCachedSector(frameAddress);
+    if (entry == nullptr) {
+        return false;
+    }
+
+    outPosition = entry->pos;
+    return true;
 }
 
 bool HostCDDevice::IsSeekDone() const {
@@ -117,20 +120,27 @@ DriveState HostCDDevice::PollDriveStateImpl() {
     return m_driveState;
 }
 
-uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
-    // TODO: read cached raw sector
-    // - request read if not cached yet
-    // - block until read (for now)
-    //   - change CDBlock/CDDrive to report "seek" or "busy" status until sector is available (later)
-    return 0;
+uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition *outPosition) {
+    auto entry = TryGetCachedSector(frameAddress);
+    if (entry == nullptr) {
+        return 0u;
+    }
+
+    std::copy_n(entry->sector.begin(), outSector.size(), outSector.begin());
+    if (outPosition != nullptr) {
+        *outPosition = entry->pos;
+    }
+    return outSector.size();
 }
 
 uint32 HostCDDevice::ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> outSector) {
-    // TODO: read cached raw sector, extract user data area only
-    // - request read if not cached yet
-    // - block until read (for now)
-    //   - change CDBlock/CDDrive to report "seek" or "busy" status until sector is available (later)
-    return 0;
+    auto entry = TryGetCachedSector(frameAddress);
+    if (entry == nullptr) {
+        return 0u;
+    }
+
+    std::copy_n(entry->sector.begin() + 0x10, outSector.size(), outSector.begin());
+    return outSector.size();
 }
 
 void HostCDDevice::BeginSeekToFrameAddressImpl(uint32 frameAddress) {
@@ -172,12 +182,19 @@ void HostCDDevice::WorkerThread() {
     Command cmd{};
     bool running = true;
     while (running) {
-        bool dequeued;
-        if (ts.readSectors) {
-            dequeued = m_workQueue.try_dequeue(m_ctokWorkQueue, cmd);
-        } else {
-            dequeued = m_workQueue.wait_dequeue_timed(m_ctokWorkQueue, cmd, 1s);
-        }
+        // TODO: make this configurable
+        static constexpr uint32 kMaxSectorFetchSize = 16;
+        const uint32 sectorFetchSize = m_sectorCache.GetCapacity() - m_sectorCache.Size();
+
+        const bool shouldReadSectors =
+            // actively reading sectors
+            ts.readSectors &&
+            // there's enough room in cache
+            sectorFetchSize > 0;
+
+        const bool dequeued = shouldReadSectors ? m_workQueue.try_dequeue(m_ctokWorkQueue, cmd)
+                                                : m_workQueue.wait_dequeue_timed(m_ctokWorkQueue, cmd, 1s);
+
         if (dequeued) {
             using CmdType = Command::Type;
             switch (cmd.type) {
@@ -249,10 +266,13 @@ void HostCDDevice::WorkerThread() {
         }
 
         // Read and cache sectors + positions if requested
-        if (ts.readSectors) {
-            // TODO: stop reading eventually (cache full, end of track, stop requested, etc.)
-            // TODO: configurable prefetch length
-            ts.nextSector += HostPrefetchSectors(ts.nextSector, 16);
+        if (shouldReadSectors) {
+            const uint32 numSectors = HostPrefetchSectors(ts.nextSector, sectorFetchSize);
+            ts.nextSector += numSectors;
+            if (numSectors == 0) {
+                // Could not read any sectors or reached a terminal condition; stop reading
+                ts.readSectors = false;
+            }
         }
 
         const DriveState prevDriveState = ts.driveState;
@@ -315,6 +335,24 @@ void HostCDDevice::StartReadingSectors(uint32 frameAddress) {
 void HostCDDevice::StopReadingSectors() {
     auto &ts = m_threadState;
     ts.readSectors = false;
+}
+
+auto HostCDDevice::TryGetCachedSector(uint32 frameAddress) -> std::shared_ptr<SectorCache::Entry> {
+    auto entry = m_sectorCache.Get(frameAddress - 150);
+    if (entry == nullptr) {
+        // No such entry, try reading directly
+        if (HostPrefetchSectors(frameAddress, 1) == 0) {
+            // Failed to read the sector; bail out
+            return nullptr;
+        }
+
+        entry = m_sectorCache.Get(frameAddress - 150);
+        if (entry == nullptr) {
+            // Still nothing; bail out
+            return nullptr;
+        }
+    }
+    return entry;
 }
 
 std::vector<TOCEntry> HostCDDevice::HostReadTOC() const {
@@ -535,6 +573,9 @@ uint32 HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount
 
         ++sectorIndex;
     }
+
+    // TODO: return 0 to indicate a terminal condition (e.g. end of track/disc) to stop reading sectors
+
     return sectorIndex;
 }
 
@@ -551,6 +592,11 @@ void HostCDDevice::SectorCache::SetCapacity(size_t capacity) {
         m_entryMap.erase(value->frameAddress);
         m_entryList.pop_front();
     }
+}
+
+size_t HostCDDevice::SectorCache::Size() const {
+    std::unique_lock lock{m_mtx};
+    return m_entryMap.size();
 }
 
 void HostCDDevice::SectorCache::Flush() {
