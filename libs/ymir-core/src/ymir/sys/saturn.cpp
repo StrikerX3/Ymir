@@ -238,11 +238,11 @@ XXH128Hash Saturn::GetDiscHash() const noexcept {
 }
 
 void Saturn::LoadDisc(media::Disc &&disc) {
-    // Configure area code based on compatible area codes from the disc
-    AutodetectRegion();
-
     // Load disc into CD interface
     m_cdif.LoadDisc(std::move(disc));
+
+    // Configure area code based on compatible area codes from the disc
+    AutodetectRegion();
 }
 
 bool Saturn::OpenHostCDDrive(std::string path) {
