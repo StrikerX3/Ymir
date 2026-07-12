@@ -155,6 +155,7 @@ std::string Filesystem::GetPathAtFrameAddress(uint32 fad) const {
 }
 
 std::optional<Filesystem::FileIndex> Filesystem::LookupFileIndexAtFrameAddress(uint32 fad) const {
+    fad -= 150;
     auto it = m_fadToFiles.upper_bound(fad);
     if (it == m_fadToFiles.end()) {
         return std::nullopt;
