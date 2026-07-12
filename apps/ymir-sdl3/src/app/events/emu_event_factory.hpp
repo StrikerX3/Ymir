@@ -9,6 +9,7 @@
 #include "emu_event.hpp"
 
 #include <filesystem>
+#include <string>
 
 namespace app::events::emu {
 
@@ -54,6 +55,10 @@ inline EmuEvent OpenCloseTray() {
 
 inline EmuEvent LoadDisc(std::filesystem::path path) {
     return {.type = EmuEvent::Type::LoadDisc, .value = path};
+}
+
+inline EmuEvent OpenHostDevice(std::string path) {
+    return {.type = EmuEvent::Type::OpenHostDevice, .value = path};
 }
 
 inline EmuEvent EjectDisc() {

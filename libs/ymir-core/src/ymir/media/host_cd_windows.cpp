@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <array>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -72,8 +73,12 @@ FORCE_INLINE static std::string GetDOSCdRomPathForDriveLetter(char letter) {
 // ---------------------------------------------------------------------------------------------------------------------
 // host_cd.hpp implementation
 
+std::vector<HostDriveInfo> g_devices{};
+std::mutex g_mtxDevices{};
+
 std::vector<HostDriveInfo> EnumerateHostCDDrives() {
-    std::vector<HostDriveInfo> devices{};
+    std::unique_lock lock{g_mtxDevices};
+    g_devices.clear();
 
     // -------------------------------------------------------------------------
     // Enumerate and map drive letters and corresponding NT paths (\Device\CdRom#)
@@ -152,7 +157,7 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
         }
 
         // Add device
-        auto &device = devices.emplace_back();
+        auto &device = g_devices.emplace_back();
         device.path = fmt::format("\\Device\\CdRom{}", devNum.DeviceNumber);
         if (pathsToLetters.contains(device.path)) {
             device.altPath = fmt::format("{}:", pathsToLetters.at(device.path));
@@ -169,7 +174,12 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
         device.driveState = PollDriveState(hDevice);
     }
 
-    return devices;
+    return g_devices;
+}
+
+std::vector<HostDriveInfo> GetEnumeratedHostCDDrives() {
+    std::unique_lock lock{g_mtxDevices};
+    return g_devices;
 }
 
 DeviceHandle OpenCDDrive(std::string path) {

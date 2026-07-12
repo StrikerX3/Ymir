@@ -83,6 +83,8 @@
 
 #include <ymir/sys/saturn.hpp>
 
+#include <ymir/media/host_cd.hpp>
+
 #include <ymir/util/lsn_denormals.hpp>
 #include <ymir/util/process.hpp>
 #include <ymir/util/scope_guard.hpp>
@@ -438,6 +440,8 @@ int App::Run(const CommandLineOptions &options) {
     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
     EnableRewindBuffer(settings.general.enableRewindBuffer);
     util::BoostCurrentProcessPriority(settings.general.boostProcessPriority);
+
+    ymir::media::host::EnumerateHostCDDrives();
 
     // Load recent discs list.
     // Must be done before LoadDiscImage because it saves the recent list to the file.
@@ -2045,6 +2049,33 @@ void App::RunEmulator() {
                         }
                         ImGui::EndMenu();
                     }
+                    if (ImGui::BeginMenu("Load from drive")) {
+                        for (const media::host::HostDriveInfo &info : media::host::GetEnumeratedHostCDDrives()) {
+#ifdef _WIN32
+                            const std::string drivePath = info.altPath.empty() ? info.path : info.altPath;
+#else
+                            const std::string drivePath = = info.path;
+#endif
+                            const char *stateStr;
+                            switch (info.driveState) {
+                            default: [[fallthrough]];
+                            case media::DriveState::Unknown: stateStr = "Unknown"; break;
+                            case media::DriveState::TrayOpen: stateStr = "Tray open"; break;
+                            case media::DriveState::NoDisc: stateStr = "No disc"; break;
+                            case media::DriveState::MediaPresent: stateStr = "<disc info goes here>"; break;
+                            }
+                            if (ImGui::MenuItem(fmt::format("[{}] {}", drivePath, stateStr).c_str())) {
+                                m_context.EnqueueEvent(events::emu::OpenHostDevice(drivePath));
+                            }
+                        }
+                        ImGui::Separator();
+                        ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, false);
+                        if (ImGui::MenuItem("Reenumerate devices")) {
+                            media::host::EnumerateHostCDDrives();
+                        }
+                        ImGui::PopItemFlag();
+                        ImGui::EndMenu();
+                    }
                     if (ImGui::MenuItem("Open/close tray",
                                         input::ToShortcut(inputContext, actions::cd_drive::OpenCloseTray).c_str())) {
                         m_context.EnqueueEvent(events::emu::OpenCloseTray());
@@ -3307,7 +3338,7 @@ void App::EmulatorThread() {
                 break;
             case LoadDisc: //
             {
-                auto path = std::get<std::filesystem::path>(evt.value);
+                auto &path = std::get<std::filesystem::path>(evt.value);
                 // LoadDiscImage locks the disc mutex
                 if (m_discService.LoadDiscImage(path, true)) {
                     m_saveStateService.LoadSaveStates();
@@ -3317,6 +3348,22 @@ void App::EmulatorThread() {
                         m_windowManagerService.OpenSimpleErrorModal(
                             fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
                     }
+                }
+                break;
+            }
+            case OpenHostDevice: //
+            {
+                auto &path = std::get<std::string>(evt.value);
+                // LoadDiscImage locks the disc mutex
+                if (m_context.saturn.instance->OpenHostCDDrive(path)) {
+                    m_saveStateService.LoadSaveStates();
+                    m_saveStateService.LoadDebuggerState();
+                    auto iplLoadResult = m_romService.LoadIPLROM();
+                    if (!iplLoadResult.succeeded) {
+                        m_windowManagerService.OpenSimpleErrorModal(
+                            fmt::format("Could not load IPL ROM: {}", iplLoadResult.errorMessage));
+                    }
+                    m_context.DisplayMessage(fmt::format("Drive {} opened", path));
                 }
                 break;
             }

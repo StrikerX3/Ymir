@@ -27,6 +27,7 @@ struct EmuEvent {
 
         OpenCloseTray,
         LoadDisc,
+        OpenHostDevice,
         EjectDisc,
 
         RemoveCartridge,

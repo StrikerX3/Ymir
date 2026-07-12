@@ -44,6 +44,10 @@ struct HostDriveInfo {
 /// @return a list with the system's CD drives
 std::vector<HostDriveInfo> EnumerateHostCDDrives();
 
+/// @brief Gets previously enumerated CD drives present on the host system.
+/// @return a list with the system's CD drives
+std::vector<HostDriveInfo> GetEnumeratedHostCDDrives();
+
 /// @brief Attempts to open a host CD drive at the specified path.
 /// @param[in] path the path to the CD drive
 /// @return a handle or file descriptor to the device, or the invalid sentinel value if failed.
