@@ -137,6 +137,11 @@ struct Saturn {
     /// @param[in] disc the disc to be moved
     void LoadDisc(media::Disc &&disc);
 
+    /// @brief Connects to a host CD drive.
+    /// @param path[in] the path to the host CD drive
+    /// @return `true` if the device was opened successfully, `false` if there was an error
+    bool OpenHostCDDrive(std::string path);
+
     /// @brief Ejects the disc from the CD drive.
     void EjectDisc();
 
@@ -153,10 +158,9 @@ struct Saturn {
     /// @brief Switches the SMPC area code to the preferred region.
     void UsePreferredRegion();
 
-    /// @brief Switches the SMPC area code to the region that best matches the given area codes, respecting the
-    /// preferred region order defined in the configuration.
-    /// @param[in] areaCodes the area code bitmask to base the selection on
-    void AutodetectRegion(media::AreaCode areaCodes);
+    /// @brief Switches the SMPC area code to the region that best matches the area codes present in the currently
+    /// loaded disc, respecting the preferred region order defined in the configuration.
+    void AutodetectRegion();
 
     /// @brief Enables or disables debug tracing on hot paths.
     ///

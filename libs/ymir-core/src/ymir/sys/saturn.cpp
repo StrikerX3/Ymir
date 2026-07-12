@@ -239,10 +239,18 @@ XXH128Hash Saturn::GetDiscHash() const noexcept {
 
 void Saturn::LoadDisc(media::Disc &&disc) {
     // Configure area code based on compatible area codes from the disc
-    AutodetectRegion(disc.header.compatAreaCode);
+    AutodetectRegion();
 
     // Load disc into CD interface
     m_cdif.LoadDisc(std::move(disc));
+}
+
+bool Saturn::OpenHostCDDrive(std::string path) {
+    if (m_cdif.OpenHostDevice(path)) {
+        AutodetectRegion();
+        return true;
+    }
+    return false;
 }
 
 void Saturn::EjectDisc() {
@@ -297,10 +305,18 @@ void Saturn::UsePreferredRegion() {
     }
 }
 
-void Saturn::AutodetectRegion(media::AreaCode areaCodes) {
+void Saturn::AutodetectRegion() {
     if (!configuration.system.autodetectRegion) {
         return;
     }
+    if (!m_cdif.HasDisc()) {
+        return;
+    }
+    const media::SaturnHeader &header = m_cdif.GetDiscHeader();
+    if (!header.IsValid()) {
+        return;
+    }
+    const media::AreaCode areaCodes = header.compatAreaCode;
     if (areaCodes == media::AreaCode::None) {
         return;
     }
