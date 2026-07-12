@@ -267,9 +267,11 @@ void HostCDDevice::WorkerThread() {
                                 }
 
                                 // Adjust bounds
-                                if (pos.track > track || (pos.track == track && pos.index >= index)) {
+                                const uint8 posTrack = util::from_bcd(pos.track);
+                                const uint8 posIndex = util::from_bcd(pos.index);
+                                if (posTrack > track || (posTrack == track && posIndex >= index)) {
                                     ubFAD = frameAddress;
-                                } else if (pos.track < track || (pos.track == track && pos.index < index)) {
+                                } else if (posTrack < track || (posTrack == track && posIndex < index)) {
                                     lbFAD = frameAddress + 1u;
                                 }
                                 frameAddress = (lbFAD + ubFAD) >> 1u;

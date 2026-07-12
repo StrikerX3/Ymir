@@ -1142,8 +1142,8 @@ void CDBlock::ProcessDriveStatePlay() {
                     }
 
                     ++m_status.frameAddress;
-                    m_status.track = discPos.track;
-                    m_status.index = discPos.index;
+                    m_status.track = util::from_bcd(discPos.track);
+                    m_status.index = util::from_bcd(discPos.index);
                     m_status.controlADR = discPos.controlADR;
                     m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
                 }
