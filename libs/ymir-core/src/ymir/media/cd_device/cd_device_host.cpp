@@ -267,9 +267,10 @@ void HostCDDevice::WorkerThread() {
 
         // Read and cache sectors + positions if requested
         if (shouldReadSectors) {
-            const uint32 numSectors = HostPrefetchSectors(ts.nextSector, sectorFetchSize);
-            ts.nextSector += numSectors;
-            if (numSectors == 0) {
+            uint32 numSectors;
+            if (HostPrefetchSectors(ts.nextSector, sectorFetchSize, numSectors)) {
+                ts.nextSector += numSectors;
+            } else {
                 // Could not read any sectors or reached a terminal condition; stop reading
                 ts.readSectors = false;
             }
@@ -341,7 +342,8 @@ auto HostCDDevice::TryGetCachedSector(uint32 frameAddress) -> std::shared_ptr<Se
     auto entry = m_sectorCache.Get(frameAddress - 150);
     if (entry == nullptr) {
         // No such entry, try reading directly
-        if (HostPrefetchSectors(frameAddress, 1) == 0) {
+        uint32 numSectors;
+        if (!HostPrefetchSectors(frameAddress, 1, numSectors)) {
             // Failed to read the sector; bail out
             return nullptr;
         }
@@ -528,23 +530,42 @@ bool HostCDDevice::HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 
     return readSize == outSector.size();
 }
 
-uint32 HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount) {
+bool HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, uint32 &outReadSectors) {
+    if (sectorCount == 0u) {
+        // Bail out immediately if no sectors were requested
+        return false;
+    }
+
     frameAddress -= 150;
 
     static constexpr size_t kSectorSize = 2352 + 96;
 
+    // Don't read past the end of the current track
+    const uint32 endFrameAddress = frameAddress + sectorCount - 1u;
+    const TrackInfo *trackInfo = m_toc.GetTrackInfoForFAD(frameAddress);
+    const uint32 trackEndFrameAddress = trackInfo != nullptr ? trackInfo->endFrameAddress : m_toc.GetEndFrameAddress();
+    if (endFrameAddress > trackEndFrameAddress) {
+        const uint32 extraSectors = trackEndFrameAddress - endFrameAddress;
+        if (extraSectors >= sectorCount) {
+            return false;
+        }
+        sectorCount -= extraSectors;
+    }
+
+    // Issue READ CD command
     std::vector<uint8> data{};
     data.resize(kSectorSize * sectorCount);
     const auto cdb = scsi::op::MakeReadCD(frameAddress, sectorCount, 0xF8, 1);
     uint32 readSize;
     if (!host::SendSCSIInCommand(m_devHandle, cdb, data, readSize)) {
-        return 0u;
+        return false;
     }
     if (readSize % kSectorSize != 0) {
         // Bail out if we find unexpected sector sizes
-        return 0u;
+        return false;
     }
 
+    // Read sectors and parse subchannel data
     uint32 sectorIndex = 0u;
     while (sectorIndex * kSectorSize < readSize) {
         const uint32 offset = sectorIndex * kSectorSize;
@@ -574,9 +595,8 @@ uint32 HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount
         ++sectorIndex;
     }
 
-    // TODO: return 0 to indicate a terminal condition (e.g. end of track/disc) to stop reading sectors
-
-    return sectorIndex;
+    outReadSectors = sectorIndex;
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

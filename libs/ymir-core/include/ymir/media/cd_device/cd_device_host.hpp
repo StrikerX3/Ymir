@@ -229,9 +229,12 @@ private:
     bool HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData, DiscPosition &outPos);
     bool HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) const;
 
-    // Prefetches and caches a number of sectors.
-    // Returns the number of sectors actually read.
-    uint32 HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount);
+    /// @brief Prefetches and caches a number of sectors starting at the specified frame address.
+    /// @param[in] frameAddress the starting frame address
+    /// @param[in] sectorCount the number of sectors to read
+    /// @param[out] outReadSectors receives the number of sectors read
+    /// @return `true` if more sectors can be read, `false` if a terminal condition was reached
+    bool HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, uint32 &outReadSectors);
 
     struct FilesystemReader : fs::IFilesystemCDReader {
         FilesystemReader(HostCDDevice &dev)
