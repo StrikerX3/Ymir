@@ -169,6 +169,32 @@ void HostCDDevice::EnqueueCommand(Command &&cmd) {
     m_workQueue.enqueue(m_ptokWorkQueue, cmd);
 }
 
+template <typename TFn>
+    requires std::is_void_v<std::invoke_result_t<TFn>>
+void HostCDDevice::ExecuteInWorker(TFn &&fn) {
+    EnqueueCommand(Command::InvokeFunction([&] { fn(); }));
+}
+
+template <typename TFn>
+    requires(!std::is_void_v<std::invoke_result_t<TFn>>)
+typename std::invoke_result_t<TFn> HostCDDevice::ExecuteInWorkerSync(TFn &&fn) {
+    using TReturn = std::invoke_result_t<TFn>;
+    std::promise<TReturn> promise{};
+    std::future<TReturn> result = promise.get_future();
+    EnqueueCommand(Command::InvokeFunction([&] { promise.set_value(fn()); }));
+    return result.get();
+}
+
+template <typename TFn>
+    requires(!std::is_void_v<std::invoke_result_t<TFn>>)
+std::future<typename std::invoke_result_t<TFn>> HostCDDevice::ExecuteInWorkerAsync(TFn &&fn) {
+    using TReturn = std::invoke_result_t<TFn>;
+    auto promise = std::make_shared<std::promise<TReturn>>();
+    std::future<TReturn> result = promise->get_future();
+    EnqueueCommand(Command::InvokeFunction([=] { promise->set_value(fn()); }));
+    return result;
+}
+
 void HostCDDevice::WorkerThread() {
     util::SetCurrentThreadName(fmt::format("{} worker", m_path).c_str());
 
@@ -200,28 +226,30 @@ void HostCDDevice::WorkerThread() {
             switch (cmd.type) {
             case CmdType::SeekFrameAddress: //
             {
+                const auto seekData = std::get<Command::SeekData>(cmd.data);
                 // No need to issue SEEK command to host device for this; the frame address is (obviously) known
 
                 // Constraint to valid disc range (including lead-out area)
                 const uint32 frameAddress =
-                    std::clamp(cmd.data.seek.target.frameAddress, 150u, m_toc.GetLeadOutFrameAddress());
-                SetSeekResult(cmd.data.seek.counter, frameAddress);
+                    std::clamp(seekData.target.frameAddress, 150u, ts.toc.GetLeadOutFrameAddress());
+                SetSeekResult(seekData.counter, frameAddress);
                 break;
             }
             case CmdType::SeekTrackIndex: //
             {
-                const TrackInfo *trackInfo = m_toc.GetTrackInfoForNumber(cmd.data.seek.target.track);
+                const auto seekData = std::get<Command::SeekData>(cmd.data);
+                const TrackInfo *trackInfo = ts.toc.GetTrackInfoForNumber(seekData.target.track);
                 if (trackInfo != nullptr) {
-                    if (cmd.data.seek.target.index == 1) {
+                    if (seekData.target.index == 1) {
                         // Trivial case: seek to start of track; target frame address is known from TOC
-                        SetSeekResult(cmd.data.seek.counter, trackInfo->startFrameAddress);
+                        SetSeekResult(seekData.counter, trackInfo->startFrameAddress);
                     } else {
-                        const uint8 track = cmd.data.seek.target.track;
-                        const uint8 index = cmd.data.seek.target.index;
+                        const uint8 track = seekData.target.track;
+                        const uint8 index = seekData.target.index;
 
                         if (auto it = ts.indexFADs.find({track, index}); it != ts.indexFADs.end()) {
                             // Retrieve cached result
-                            SetSeekResult(cmd.data.seek.counter, it->second);
+                            SetSeekResult(seekData.counter, it->second);
                         } else {
                             // Binary search for index between the track's start and end FADs.
                             // Include start of next track in upper bound in case the index is out of range.
@@ -247,7 +275,7 @@ void HostCDDevice::WorkerThread() {
                                 frameAddress = (lbFAD + ubFAD) >> 1u;
                             }
 
-                            SetSeekResult(cmd.data.seek.counter, frameAddress);
+                            SetSeekResult(seekData.counter, frameAddress);
 
                             // Cache result
                             if (frameAddress != 0xFFFFFF) {
@@ -257,10 +285,12 @@ void HostCDDevice::WorkerThread() {
                     }
                 } else {
                     // Assume seek to lead-out area
-                    SetSeekResult(cmd.data.seek.counter, m_toc.GetLeadOutFrameAddress());
+                    SetSeekResult(seekData.counter, ts.toc.GetLeadOutFrameAddress());
                 }
                 break;
             }
+            case CmdType::InvokeFunction: std::get<Command::FunctionData>(cmd.data).function(); break;
+            case CmdType::InvokeFunctionWithResult: std::get<Command::FunctionData>(cmd.data).function(); break;
             case CmdType::Quit: running = false; break;
             }
         }
@@ -342,8 +372,9 @@ auto HostCDDevice::TryGetCachedSector(uint32 frameAddress) -> std::shared_ptr<Se
     auto entry = m_sectorCache.Get(frameAddress - 150);
     if (entry == nullptr) {
         // No such entry, try reading directly
-        uint32 numSectors;
-        if (!HostPrefetchSectors(frameAddress, 1, numSectors)) {
+        uint32 numSectors = 0;
+        const bool result = ExecuteInWorkerSync([&] { return HostPrefetchSectors(frameAddress, 1, numSectors); });
+        if (!result) {
             // Failed to read the sector; bail out
             return nullptr;
         }
@@ -540,10 +571,12 @@ bool HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, 
 
     static constexpr size_t kSectorSize = 2352 + 96;
 
+    auto &ts = m_threadState;
+
     // Don't read past the end of the current track
     const uint32 endFrameAddress = frameAddress + sectorCount - 1u;
-    const TrackInfo *trackInfo = m_toc.GetTrackInfoForFAD(frameAddress);
-    const uint32 trackEndFrameAddress = trackInfo != nullptr ? trackInfo->endFrameAddress : m_toc.GetEndFrameAddress();
+    const TrackInfo *trackInfo = ts.toc.GetTrackInfoForFAD(frameAddress);
+    const uint32 trackEndFrameAddress = trackInfo != nullptr ? trackInfo->endFrameAddress : ts.toc.GetEndFrameAddress();
     if (endFrameAddress > trackEndFrameAddress) {
         const uint32 extraSectors = trackEndFrameAddress - endFrameAddress;
         if (extraSectors >= sectorCount) {

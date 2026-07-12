@@ -380,6 +380,7 @@ target_precompile_headers(ymir-core
         "$<$<COMPILE_LANGUAGE:CXX>:<filesystem$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<fstream$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<functional$<ANGLE-R>>"
+        "$<$<COMPILE_LANGUAGE:CXX>:<future$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<initializer_list$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<iosfwd$<ANGLE-R>>"
         "$<$<COMPILE_LANGUAGE:CXX>:<iostream$<ANGLE-R>>"

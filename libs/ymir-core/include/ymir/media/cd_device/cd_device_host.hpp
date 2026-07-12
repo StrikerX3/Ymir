@@ -17,13 +17,17 @@ See also @ref ymir/media/host_cd.hpp.
 
 #include <array>
 #include <atomic>
+#include <functional>
+#include <future>
 #include <list>
 #include <memory>
 #include <mutex>
 #include <span>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 
 namespace ymir::media {
 
@@ -177,30 +181,39 @@ private:
     std::thread m_workerThread;
 
     struct Command {
-        enum class Type { SeekFrameAddress, SeekTrackIndex, Quit };
+        enum class Type { SeekFrameAddress, SeekTrackIndex, InvokeFunction, InvokeFunctionWithResult, Quit };
         Type type;
-        union Data {
-            struct Seek {
-                uint32 counter;
-                union Target {
-                    uint32 frameAddress;
-                    struct {
-                        uint8 track;
-                        uint8 index;
-                    };
-                } target;
-            } seek;
-        } data;
+
+        struct SeekData {
+            uint32 counter;
+            union Target {
+                uint32 frameAddress;
+                struct {
+                    uint8 track;
+                    uint8 index;
+                };
+            } target;
+        };
+
+        struct FunctionData {
+            std::function<void()> function;
+        };
+
+        std::variant<std::monostate, SeekData, FunctionData> data;
 
         static Command SeekFrameAddress(uint32 counter, uint32 frameAddress) {
-            return {
-                .type = Type::SeekFrameAddress,
-                .data = {.seek = {.counter = counter, .target = {.frameAddress = bit::extract<0, 23>(frameAddress)}}}};
+            return {.type = Type::SeekFrameAddress,
+                    .data =
+                        SeekData{.counter = counter, .target = {.frameAddress = bit::extract<0, 23>(frameAddress)}}};
         }
 
         static Command SeekTrackIndex(uint32 counter, uint8 track, uint8 index) {
             return {.type = Type::SeekTrackIndex,
-                    .data = {.seek = {.counter = counter, .target = {.track = track, .index = index}}}};
+                    .data = SeekData{.counter = counter, .target = {.track = track, .index = index}}};
+        }
+
+        static Command InvokeFunction(std::function<void()> &&fn) {
+            return {.type = Type::InvokeFunction, .data = FunctionData{.function = fn}};
         }
 
         static Command Quit() {
@@ -213,6 +226,18 @@ private:
     moodycamel::ConsumerToken m_ctokWorkQueue{m_workQueue};
 
     void EnqueueCommand(Command &&cmd);
+
+    template <typename TFn>
+        requires std::is_void_v<std::invoke_result_t<TFn>>
+    void ExecuteInWorker(TFn &&fn);
+
+    template <typename TFn>
+        requires(!std::is_void_v<std::invoke_result_t<TFn>>)
+    typename std::invoke_result_t<TFn> ExecuteInWorkerSync(TFn &&fn);
+
+    template <typename TFn>
+        requires(!std::is_void_v<std::invoke_result_t<TFn>>)
+    std::future<typename std::invoke_result_t<TFn>> ExecuteInWorkerAsync(TFn &&fn);
 
     void WorkerThread();
 
