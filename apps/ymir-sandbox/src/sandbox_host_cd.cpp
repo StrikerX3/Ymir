@@ -32,7 +32,7 @@ void runHostCDSandbox() {
     for (auto &dev : ymir::media::host::EnumerateHostCDDrives()) {
         fmt::println("{} [{}] {}", dev.path, dev.altPath, driveStateStr(dev.driveState));
         if (cdif.OpenHostDevice(dev.path)) {
-            fmt::println("  Device connected successfully");
+            fmt::println("  Device opened successfully");
             auto t0 = clk::now();
             while (clk::now() - t0 < 1s) {
                 if (cdif.PollDriveState() != ymir::media::DriveState::Unknown) {
@@ -45,6 +45,8 @@ void runHostCDSandbox() {
                 if (header.IsValid()) {
                     fmt::println("  Contains valid Saturn disc:");
                     fmt::println("    [{}] {}", header.productNumber, util::TranslateSaturnString(header.gameTitle));
+                } else {
+                    fmt::println("  Not a Saturn disc");
                 }
 
                 const auto &toc = cdif.GetTOC();

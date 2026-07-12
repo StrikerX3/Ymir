@@ -183,7 +183,9 @@ void HostCDDevice::Disconnect() {
     // TODO: cleanup other resources (notification handles, etc.)
     if (m_devHandle != host::kInvalidDeviceHandle) {
         host::CloseDeviceHandle(m_devHandle);
+        m_devHandle = host::kInvalidDeviceHandle;
     }
+    ClearMainDiscInfo();
 }
 
 void HostCDDevice::EnqueueCommand(Command &&cmd) {
@@ -224,7 +226,7 @@ void HostCDDevice::WorkerThread() {
     auto &ts = m_threadState;
 
     ts.driveState = host::PollDriveState(m_devHandle);
-    InitializeDiscInfo();
+    InitializeWorkerDiscInfo();
 
     Command cmd{};
     bool running = true;
@@ -334,12 +336,14 @@ void HostCDDevice::WorkerThread() {
 
         if (prevDriveState != ts.driveState &&
             (prevDriveState == DriveState::MediaPresent || ts.driveState == DriveState::MediaPresent)) {
-            InitializeDiscInfo();
+            InitializeWorkerDiscInfo();
         }
     }
+
+    ClearWorkerDiscInfo();
 }
 
-void HostCDDevice::InitializeDiscInfo() {
+void HostCDDevice::InitializeWorkerDiscInfo() {
     auto &ts = m_threadState;
 
     std::unique_lock lock{ts.mtxDiscInfo};
@@ -364,6 +368,27 @@ void HostCDDevice::InitializeDiscInfo() {
         ts.fs.Clear();
         devlog::info<grp::host>("Disc absent - filesystem cleared");
     }
+    ts.indexFADs.clear();
+    m_sectorCache.Flush();
+    ts.discInfoChanged.store(true, std::memory_order_release);
+    ts.mediaStateChanged.store(true, std::memory_order_release);
+    ts.targetDriveState = ts.driveState;
+}
+
+void HostCDDevice::ClearMainDiscInfo() {
+    m_driveState = DriveState::Unknown;
+    m_header.Invalidate();
+    m_toc.Clear();
+    m_fs.Clear();
+}
+
+void HostCDDevice::ClearWorkerDiscInfo() {
+    auto &ts = m_threadState;
+
+    std::unique_lock lock{ts.mtxDiscInfo};
+    ts.header.Invalidate();
+    ts.toc.Clear();
+    ts.fs.Clear();
     ts.indexFADs.clear();
     m_sectorCache.Flush();
     ts.discInfoChanged.store(true, std::memory_order_release);

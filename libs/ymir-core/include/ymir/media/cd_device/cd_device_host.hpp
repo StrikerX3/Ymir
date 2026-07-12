@@ -243,7 +243,9 @@ private:
 
     void WorkerThread();
 
-    void InitializeDiscInfo();
+    void InitializeWorkerDiscInfo();
+    void ClearMainDiscInfo();
+    void ClearWorkerDiscInfo();
 
     void SetSeekResult(uint32 counter, uint32 frameAddress);
 
