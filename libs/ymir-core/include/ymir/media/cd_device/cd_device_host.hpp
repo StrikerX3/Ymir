@@ -52,6 +52,8 @@ public:
     [[nodiscard]] bool IsSeekDone() const override;
     [[nodiscard]] uint32 GetSeekFrameAddress() const override;
 
+    void HintStop() override;
+
 protected:
     DriveState PollDriveStateImpl() override;
 
@@ -215,7 +217,15 @@ private:
     std::thread m_workerThread;
 
     struct Command {
-        enum class Type { WakeUp, SeekFrameAddress, SeekTrackIndex, InvokeFunction, InvokeFunctionWithResult, Quit };
+        enum class Type {
+            WakeUp,
+            SeekFrameAddress,
+            SeekTrackIndex,
+            StopPrefetcher,
+            InvokeFunction,
+            InvokeFunctionWithResult,
+            Quit,
+        };
         Type type;
 
         struct SeekData {
@@ -248,6 +258,10 @@ private:
         static Command SeekTrackIndex(uint32 counter, uint8 track, uint8 index) {
             return {.type = Type::SeekTrackIndex,
                     .data = SeekData{.counter = counter, .target = {.track = track, .index = index}}};
+        }
+
+        static Command StopPrefetcher() {
+            return {.type = Type::StopPrefetcher};
         }
 
         static Command InvokeFunction(std::function<void()> &&fn) {

@@ -319,6 +319,7 @@ uint64 CDDrive::ProcessTxState() {
 
     case TxState::TxEnd: //
     {
+        m_cdif.PollDriveState();
         const uint64 cycles = ProcessCommand();
         m_state = TxState::PreTx;
         return cycles > kTxCyclesTotal ? cycles - kTxCyclesTotal : 1;
@@ -414,6 +415,7 @@ FORCE_INLINE uint64 CDDrive::CmdPause() {
 FORCE_INLINE uint64 CDDrive::CmdStop() {
     devlog::debug<grp::lle_cd>("Stop");
     m_status.operation = Operation::Stopped;
+    m_cdif.HintStop();
 
     OutputDriveStatus();
 
@@ -690,7 +692,6 @@ FORCE_INLINE uint64 CDDrive::ReadTOC() {
 }
 
 FORCE_INLINE void CDDrive::OutputDriveStatus() {
-    m_cdif.PollDriveState();
     if (m_cdif.HasDisc()) {
         const media::TOC &toc = m_cdif.GetTOC();
         if (m_currFAD > toc.GetEndFrameAddress()) {

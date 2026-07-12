@@ -82,6 +82,10 @@ uint32 CDInterface::GetSeekFrameAddress() const {
     return m_cdDevice->GetSeekFrameAddress();
 }
 
+void CDInterface::HintStop() {
+    m_cdDevice->HintStop();
+}
+
 void CDInterface::SaveState(savestate::CDInterfaceSaveState &state) const {
     m_cdDevice->SaveState(state);
 }

@@ -103,6 +103,9 @@ public:
     /// @return the frame address of the last completed seek operation.
     [[nodiscard]] virtual uint32 GetSeekFrameAddress() const = 0;
 
+    /// @brief Sends a hint to the device to stop reading the disc.
+    virtual void HintStop() {}
+
     // -------------------------------------------------------------------------
     // Save states
     //

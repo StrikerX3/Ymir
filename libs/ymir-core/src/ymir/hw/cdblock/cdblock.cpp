@@ -866,10 +866,9 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
             devlog::debug<grp::play_init>("Track:Index {:02d}:{:02d} ctl/ADR={:02X}", m_status.track, m_status.index,
                                           m_status.controlADR);
         } else {
-            // The disc image is truncated or corrupted
-            // Let's pretend this is a disc read error
+            // Handle as a disc read error
             // TODO: what happens on a real disc read error?
-            devlog::debug<grp::play>("Could not find track - disc image is truncated or corrupted");
+            devlog::debug<grp::play>("Could not find track - disc was removed, is damaged or corrupted");
             return false;
         }
     }
@@ -1155,10 +1154,9 @@ void CDBlock::ProcessDriveStatePlay() {
                 devlog::debug<grp::play>("Track not found");
                 m_status.statusCode = kStatusCodeError;
             } else {
-                // The disc image is truncated or corrupted
-                // Let's pretend this is a disc read error
+                // Handle as a disc read error
                 // TODO: what happens on a real disc read error?
-                devlog::debug<grp::play>("Could not read sector - disc image is truncated or corrupted");
+                devlog::debug<grp::play>("Could not read sector - disc was removed, is damaged or corrupted");
                 m_status.statusCode = kStatusCodeError;
             }
         } else {
@@ -2057,6 +2055,7 @@ void CDBlock::CmdSeekDisc() {
         m_status.track = 0xFF;
         m_status.index = 0xFF;
         m_targetDriveCycles = kDriveCyclesNotPlaying;
+        m_cdif.HintStop();
     } else if (isStartFAD) {
         uint32 frameAddress = startPos & 0x7FFFFF;
         devlog::debug<grp::base>("Seeking to frame address {:06X}", frameAddress);
@@ -2096,6 +2095,7 @@ void CDBlock::CmdSeekDisc() {
             m_status.track = 0xFF;
             m_status.index = 0xFF;
             m_targetDriveCycles = kDriveCyclesNotPlaying;
+            m_cdif.HintStop();
         }
     } else {
         uint32 trackNum = bit::extract<8, 14>(startPos);
@@ -2150,6 +2150,7 @@ void CDBlock::CmdSeekDisc() {
                 m_status.track = 0xFF;
                 m_status.index = 0xFF;
                 m_targetDriveCycles = kDriveCyclesNotPlaying;
+                m_cdif.HintStop();
             }
         } else {
             devlog::debug<grp::base>("No disc in drive - stopped");
@@ -2161,6 +2162,7 @@ void CDBlock::CmdSeekDisc() {
             m_status.track = 0xFF;
             m_status.index = 0xFF;
             m_targetDriveCycles = kDriveCyclesNotPlaying;
+            m_cdif.HintStop();
         }
     }
 

@@ -103,6 +103,10 @@ uint32 HostCDDevice::GetSeekFrameAddress() const {
     return m_seekState.frameAddress;
 }
 
+void HostCDDevice::HintStop() {
+    EnqueueCommand(Command::StopPrefetcher());
+}
+
 DriveState HostCDDevice::PollDriveStateImpl() {
     auto &ts = m_threadState;
 
@@ -127,6 +131,7 @@ DriveState HostCDDevice::PollDriveStateImpl() {
     bool expected = true;
     notifyMediaStateChange |= ts.mediaStateChanged.compare_exchange_strong(expected, false);
     if (notifyMediaStateChange) {
+        m_sectorCache.Flush();
         m_cbOnMediaChanged();
     }
 
@@ -361,6 +366,7 @@ void HostCDDevice::WorkerThread() {
                 }
                 break;
             }
+            case CmdType::StopPrefetcher: StopPrefetcher(); break;
             case CmdType::InvokeFunction: std::get<Command::FunctionData>(cmd.data).function(); break;
             case CmdType::InvokeFunctionWithResult: std::get<Command::FunctionData>(cmd.data).function(); break;
             case CmdType::Quit: running = false; break;
