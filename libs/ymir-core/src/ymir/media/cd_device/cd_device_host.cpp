@@ -4,6 +4,7 @@
 
 #include <ymir/util/arith_ops.hpp>
 #include <ymir/util/dev_log.hpp>
+#include <ymir/util/thread_name.hpp>
 
 #include <chrono>
 
@@ -39,7 +40,8 @@ namespace grp {
 } // namespace grp
 
 HostCDDevice::HostCDDevice(std::string path, const CBOnMediaChanged &cbOnMediaChanged)
-    : m_cbOnMediaChanged(cbOnMediaChanged) {
+    : m_cbOnMediaChanged(cbOnMediaChanged)
+    , m_path(path) {
     // TODO: when opening a device, subscribe to notifications for device and media state changes
     // - if media changed, mark disc info as dirty
     // - notify drive removal somehow
@@ -68,6 +70,9 @@ bool HostCDDevice::IsConnected() const {
 
 bool HostCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
     // TODO: read cached position for given FAD
+    // - request read if not cached yet
+    // - block until read (for now)
+    //   - change CDBlock/CDDrive to report "seek" or "busy" status until sector is available (later)
     return false;
 }
 
@@ -114,15 +119,17 @@ DriveState HostCDDevice::PollDriveStateImpl() {
 
 uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector) {
     // TODO: read cached raw sector
-    // for now, block until read
-    // later, change CDBlock/CDDrive to report "seek" or "busy" status until sector is available
+    // - request read if not cached yet
+    // - block until read (for now)
+    //   - change CDBlock/CDDrive to report "seek" or "busy" status until sector is available (later)
     return 0;
 }
 
 uint32 HostCDDevice::ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> outSector) {
     // TODO: read cached raw sector, extract user data area only
-    // for now, block until read
-    // later, change CDBlock/CDDrive to report "seek" or "busy" status until sector is available
+    // - request read if not cached yet
+    // - block until read (for now)
+    //   - change CDBlock/CDDrive to report "seek" or "busy" status until sector is available (later)
     return 0;
 }
 
@@ -153,18 +160,25 @@ void HostCDDevice::EnqueueCommand(Command &&cmd) {
 }
 
 void HostCDDevice::WorkerThread() {
+    util::SetCurrentThreadName(fmt::format("{} worker", m_path).c_str());
+
     using namespace std::chrono_literals;
 
     auto &ts = m_threadState;
 
     ts.driveState = host::PollDriveState(m_devHandle);
-    ReadHeaderAndTOC();
+    InitializeDiscInfo();
 
     Command cmd{};
     bool running = true;
     while (running) {
-        // TODO: try_dequeue instead of wait_dequeue_timed if actively reading sectors
-        if (m_workQueue.wait_dequeue_timed(m_ctokWorkQueue, cmd, 1s)) {
+        bool dequeued;
+        if (ts.readSectors) {
+            dequeued = m_workQueue.try_dequeue(m_ctokWorkQueue, cmd);
+        } else {
+            dequeued = m_workQueue.wait_dequeue_timed(m_ctokWorkQueue, cmd, 1s);
+        }
+        if (dequeued) {
             using CmdType = Command::Type;
             switch (cmd.type) {
             case CmdType::SeekFrameAddress: //
@@ -172,7 +186,8 @@ void HostCDDevice::WorkerThread() {
                 // No need to issue SEEK command to host device for this; the frame address is (obviously) known
 
                 // Constraint to valid disc range (including lead-out area)
-                const uint32 frameAddress = std::min(cmd.data.seek.target.frameAddress, m_toc.GetLeadOutFrameAddress());
+                const uint32 frameAddress =
+                    std::clamp(cmd.data.seek.target.frameAddress, 150u, m_toc.GetLeadOutFrameAddress());
                 SetSeekResult(cmd.data.seek.counter, frameAddress);
                 break;
             }
@@ -187,31 +202,41 @@ void HostCDDevice::WorkerThread() {
                         const uint8 track = cmd.data.seek.target.track;
                         const uint8 index = cmd.data.seek.target.index;
 
-                        // Binary search for index between the track's start and end FADs.
-                        // Include start of next track in upper bound in case the index is out of range.
-                        uint32 lbFAD = trackInfo->startFrameAddress;
-                        uint32 ubFAD = trackInfo->endFrameAddress + 1u;
-                        uint32 frameAddress = (lbFAD + ubFAD) >> 1u;
+                        if (auto it = ts.indexFADs.find({track, index}); it != ts.indexFADs.end()) {
+                            // Retrieve cached result
+                            SetSeekResult(cmd.data.seek.counter, it->second);
+                        } else {
+                            // Binary search for index between the track's start and end FADs.
+                            // Include start of next track in upper bound in case the index is out of range.
+                            uint32 lbFAD = trackInfo->startFrameAddress;
+                            uint32 ubFAD = trackInfo->endFrameAddress + 1u;
+                            uint32 frameAddress = (lbFAD + ubFAD) >> 1u;
 
-                        std::array<uint8, 2352> sectorBuffer{};
-                        DiscPosition pos{};
-                        while (lbFAD != ubFAD) {
-                            if (!HostReadSectorAndPosition(frameAddress, sectorBuffer, pos)) {
-                                // Read failed
-                                frameAddress = 0xFFFFFF;
-                                break;
+                            std::array<uint8, 2352> sectorBuffer{};
+                            DiscPosition pos{};
+                            while (lbFAD != ubFAD) {
+                                if (!HostReadSectorAndPosition(frameAddress, sectorBuffer, pos)) {
+                                    // Read failed
+                                    frameAddress = 0xFFFFFF;
+                                    break;
+                                }
+
+                                // Adjust bounds
+                                if (pos.track > track || (pos.track == track && pos.index >= index)) {
+                                    ubFAD = frameAddress;
+                                } else if (pos.track < track || (pos.track == track && pos.index < index)) {
+                                    lbFAD = frameAddress + 1u;
+                                }
+                                frameAddress = (lbFAD + ubFAD) >> 1u;
                             }
 
-                            // Adjust bounds
-                            if (pos.track > track || (pos.track == track && pos.index >= index)) {
-                                ubFAD = frameAddress;
-                            } else if (pos.track < track || (pos.track == track && pos.index < index)) {
-                                lbFAD = frameAddress + 1u;
+                            SetSeekResult(cmd.data.seek.counter, frameAddress);
+
+                            // Cache result
+                            if (frameAddress != 0xFFFFFF) {
+                                ts.indexFADs.insert({{track, index}, frameAddress});
                             }
-                            frameAddress = (lbFAD + ubFAD) >> 1u;
-                            // TODO: consider caching index locations when found
                         }
-                        SetSeekResult(cmd.data.seek.counter, frameAddress);
                     }
                 } else {
                     // Assume seek to lead-out area
@@ -223,20 +248,24 @@ void HostCDDevice::WorkerThread() {
             }
         }
 
-        // TODO: read and cache sectors if requested
-        // - include position data in cached sectors
+        // Read and cache sectors + positions if requested
+        if (ts.readSectors) {
+            // TODO: stop reading eventually (cache full, end of track, stop requested, etc.)
+            // TODO: configurable prefetch length
+            ts.nextSector += HostPrefetchSectors(ts.nextSector, 16);
+        }
 
         const DriveState prevDriveState = ts.driveState;
         ts.driveState = host::PollDriveState(m_devHandle);
 
         if (prevDriveState != ts.driveState &&
             (prevDriveState == DriveState::MediaPresent || ts.driveState == DriveState::MediaPresent)) {
-            ReadHeaderAndTOC();
+            InitializeDiscInfo();
         }
     }
 }
 
-void HostCDDevice::ReadHeaderAndTOC() {
+void HostCDDevice::InitializeDiscInfo() {
     auto &ts = m_threadState;
 
     std::unique_lock lock{ts.mtxDiscInfo};
@@ -261,6 +290,8 @@ void HostCDDevice::ReadHeaderAndTOC() {
         ts.fs.Clear();
         devlog::info<grp::host>("Disc absent - filesystem cleared");
     }
+    ts.indexFADs.clear();
+    m_sectorCache.Flush();
     ts.discInfoChanged.store(true, std::memory_order_release);
     ts.mediaStateChanged.store(true, std::memory_order_release);
     ts.targetDriveState = ts.driveState;
@@ -271,8 +302,19 @@ void HostCDDevice::SetSeekResult(uint32 counter, uint32 frameAddress) {
     ts.seekFAD.store(std::max(frameAddress, 150u), std::memory_order_release);
     ts.seekCounter.store(counter, std::memory_order_release);
     if (frameAddress != 0xFFFFFF) {
-        // TODO: setup sector transfers
+        StartReadingSectors(frameAddress);
     }
+}
+
+void HostCDDevice::StartReadingSectors(uint32 frameAddress) {
+    auto &ts = m_threadState;
+    ts.nextSector = frameAddress;
+    ts.readSectors = true;
+}
+
+void HostCDDevice::StopReadingSectors() {
+    auto &ts = m_threadState;
+    ts.readSectors = false;
 }
 
 std::vector<TOCEntry> HostCDDevice::HostReadTOC() const {
@@ -382,7 +424,16 @@ std::vector<TOCEntry> HostCDDevice::HostReadTOC() const {
 bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData,
                                              DiscPosition &outPos) {
     frameAddress -= 150;
-    // TODO: get cached sector + position if available
+
+    // Get cached sector + position if available
+    {
+        SectorCache::Entry *entry = m_sectorCache.Get(frameAddress);
+        if (entry != nullptr) {
+            std::copy_n(entry->sector.cbegin(), 2352, outData.begin());
+            outPos = entry->pos;
+            return true;
+        }
+    }
 
     std::array<uint8, 2352 + 96> data{};
     const auto cdb = scsi::op::MakeReadCD(frameAddress, 1, 0xF8, 1);
@@ -401,7 +452,7 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
     // Raw subcode data comes at the end of the buffer
     std::span<const uint8> subcode{data.begin() + 2352, data.end()};
 
-    // Extract Q subcode data
+    // Extract position data from Q subchannel
     std::array<uint8, 12> subQ{};
     for (uint32 i = 0; i < 96; ++i) {
         subQ[i >> 3u] |= bit::extract<6>(subcode[i]) << (~i & 7u);
@@ -418,7 +469,13 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
     outPos.asec = subQ[8];
     outPos.aframe = subQ[9];
 
-    // TODO: cache sector + position
+    // Cache sector
+    {
+        SectorCache::Entry &entry = m_sectorCache.Emplace(frameAddress);
+        std::copy_n(data.cbegin(), 2352, entry.sector.begin());
+        std::copy_n(data.cbegin() + 2352, 96, entry.subchannel.begin());
+        entry.pos = outPos;
+    }
 
     return true;
 }
@@ -433,17 +490,86 @@ bool HostCDDevice::HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 
     return readSize == outSector.size();
 }
 
+uint32 HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount) {
+    frameAddress -= 150;
+
+    static constexpr size_t kSectorSize = 2352 + 96;
+
+    std::vector<uint8> data{};
+    data.resize(kSectorSize * sectorCount);
+    const auto cdb = scsi::op::MakeReadCD(frameAddress, sectorCount, 0xF8, 1);
+    uint32 readSize;
+    if (!host::SendSCSIInCommand(m_devHandle, cdb, data, readSize)) {
+        return 0u;
+    }
+    if (readSize % kSectorSize != 0) {
+        // Bail out if we find unexpected sector sizes
+        return 0u;
+    }
+
+    uint32 sectorIndex = 0u;
+    while (sectorIndex * kSectorSize < readSize) {
+        const uint32 offset = sectorIndex * kSectorSize;
+        SectorCache::Entry &entry = m_sectorCache.Emplace(frameAddress + offset);
+
+        // Copy sector data to cache
+        std::copy_n(data.cbegin() + offset, 2352, entry.sector.begin());
+        std::copy_n(data.cbegin() + offset + 2352, 96, entry.subchannel.begin());
+
+        // Extract position data from Q subchannel
+        std::array<uint8, 12> subQ{};
+        for (uint32 i = 0; i < 96; ++i) {
+            subQ[i >> 3u] |= bit::extract<6>(entry.subchannel[i]) << (~i & 7u);
+        }
+        DiscPosition &pos = entry.pos;
+        pos.controlADR = subQ[0];
+        pos.track = subQ[1];
+        pos.index = subQ[2];
+        pos.min = subQ[3];
+        pos.sec = subQ[4];
+        pos.frame = subQ[5];
+        pos.zero = subQ[6];
+        pos.amin = subQ[7];
+        pos.asec = subQ[8];
+        pos.aframe = subQ[9];
+
+        ++sectorIndex;
+    }
+    return sectorIndex;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 
-[[nodiscard]] bool HostCDDevice::FilesystemReader::HasDisc() const {
+void HostCDDevice::SectorCache::Flush() {
+    // TODO: implement LRU cache logic
+}
+
+auto HostCDDevice::SectorCache::Get(uint32 frameAddress) -> Entry * {
+    // TODO: implement LRU cache logic
+    return nullptr;
+}
+
+auto HostCDDevice::SectorCache::Emplace(uint32 frameAddress) -> Entry & {
+    // TODO: implement LRU cache logic
+    static Entry entry;
+    return entry;
+}
+
+void HostCDDevice::SectorCache::Evict(uint32 frameAddress) {
+    // TODO: implement LRU cache logic
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+bool HostCDDevice::FilesystemReader::HasDisc() const {
     return m_dev.m_threadState.driveState == DriveState::MediaPresent;
 }
 
-[[nodiscard]] const TOC &HostCDDevice::FilesystemReader::GetTOC() const {
+const TOC &HostCDDevice::FilesystemReader::GetTOC() const {
     return m_dev.m_threadState.toc;
 }
 
-[[nodiscard]] const SaturnHeader &HostCDDevice::FilesystemReader::GetDiscHeader() const {
+const SaturnHeader &HostCDDevice::FilesystemReader::GetDiscHeader() const {
     return m_dev.m_threadState.header;
 }
 
