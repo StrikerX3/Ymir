@@ -1051,8 +1051,8 @@ FORCE_INLINE void SCSP::ProcessSlots(uint32 i) {
             }};
 
             if (m_cddaReady && m_cddaReadPos != m_cddaWritePos) {
-                m_dsp.audioInOut[0] = util::ReadBE<uint16>(&m_cddaBuffer[m_cddaReadPos + 0]);
-                m_dsp.audioInOut[1] = util::ReadBE<uint16>(&m_cddaBuffer[m_cddaReadPos + 2]);
+                m_dsp.audioInOut[0] = util::ReadLE<uint16>(&m_cddaBuffer[m_cddaReadPos + 0]);
+                m_dsp.audioInOut[1] = util::ReadLE<uint16>(&m_cddaBuffer[m_cddaReadPos + 2]);
                 m_cddaReadPos = (m_cddaReadPos + 2 * sizeof(uint16)) % m_cddaBuffer.size();
             } else {
                 // Buffer underrun

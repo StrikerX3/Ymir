@@ -103,8 +103,8 @@ uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352>
         return 0;
     }
 
-    // Swap endianness if necessary; audio tracks must be in big-endian
-    if (track->controlADR == 0x01 && !track->bigEndian) {
+    // Swap endianness if necessary; audio tracks must be in little-endian
+    if (track->controlADR == 0x01 && track->bigEndian) {
         for (uint32 offset = 0; offset < 2352; offset += 2) {
             util::ByteSwap<uint16>(&out[offset]);
         }

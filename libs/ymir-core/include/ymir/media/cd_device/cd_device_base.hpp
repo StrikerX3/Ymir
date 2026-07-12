@@ -60,7 +60,7 @@ public:
     }
 
     /// @brief Attempts to read a full raw 2352-byte sector at the specified frame address, optionally including
-    /// position data. Audio track data is guaranteed to be in big-endian format.
+    /// position data. Audio track data is guaranteed to be in little-endian format.
     /// @param[in] frameAddress the frame address (LBA) of the sector
     /// @param[out] outSector sector data output buffer
     /// @param[out,opt] outPosition an optional pointer to receive position data
@@ -140,7 +140,7 @@ protected:
     /// implementation is only capable of reading the 2048-byte user data area, this chunk of data should be copied into
     /// the buffer starting at offset 0x10).
     /// `ReadSector(...)` synthesizes any missing data from the sector if this function returns less than 2352 bytes.
-    /// Audio track data must be in big-endian format.
+    /// Audio track data must be in little-endian format.
     /// If the position pointer is provided, it must be filled in along with sector data (all-or-nothing).
     ///
     /// @param[in] frameAddress the frame address (LBA) of the sector
