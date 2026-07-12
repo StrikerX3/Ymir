@@ -638,7 +638,8 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
     }
     m_scan = false;
     m_seekCountdown = 9; // TODO: compute based on disc geometry, head position, spin speed, etc.
-    devlog::debug<grp::lle_cd>("Seek to FAD {:06X} then {}", fad, (read ? "read" : "pause"));
+    devlog::debug<grp::lle_cd>("Seek to FAD {:06X} (index {:02d}) then {}", fad, m_command.index,
+                               (read ? "read" : "pause"));
     if (auto path = m_fs.GetPathAtFrameAddress(fad); !path.empty()) {
         devlog::debug<grp::lle_cd>("File: {}", path);
     }
