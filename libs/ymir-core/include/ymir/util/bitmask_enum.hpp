@@ -122,7 +122,7 @@ struct is_bitmask_enum {
 
 /// @brief Determines if bitwise operators are enabled for type `Enum`.
 /// @tparam Enum the enum type
-template <class Enum>
+template <Enumerable Enum>
 constexpr bool is_bitmask_enum_v = is_bitmask_enum<Enum>::enable;
 
 /// @brief Identifies enum types with bitwise operators enabled.
