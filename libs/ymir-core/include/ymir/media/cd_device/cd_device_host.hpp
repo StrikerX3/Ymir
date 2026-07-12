@@ -80,18 +80,20 @@ private:
         uint32 frameAddress = 0xFFFFFF; // seek result FAD
     } m_seekState;
 
-    /// @brief A simple thread-safe low-throughput sector cache.
+    /// @brief Cacheable sector entry.
+    struct SectorEntry {
+        explicit SectorEntry(uint32 frameAddress)
+            : frameAddress(frameAddress) {}
+
+        uint32 frameAddress;
+        std::array<uint8, 2352> sector{};
+        std::array<uint8, 96> subchannel{};
+        DiscPosition pos{};
+    };
+
+    /// @brief A simple LRU cache for recently used sector data.
+    /// Not thread-safe. Meant to be used by emulator-facing functions only, *not* the worker thread.
     struct SectorCache {
-        struct Entry {
-            explicit Entry(uint32 frameAddress)
-                : frameAddress(frameAddress) {}
-
-            uint32 frameAddress;
-            std::array<uint8, 2352> sector{};
-            std::array<uint8, 96> subchannel{};
-            DiscPosition pos{};
-        };
-
         /// @brief Retrieves the current capacity of the cache.
         /// @return the maximum number of entries allowed in the cache
         size_t GetCapacity() const {
@@ -113,13 +115,49 @@ private:
         /// @brief Retrieves an entry from the cache.
         /// @param[in] frameAddress the frame address of the entry
         /// @return a shared pointer to the entry. `nullptr` if no such entry exists
-        std::shared_ptr<Entry> Get(uint32 frameAddress);
+        std::shared_ptr<SectorEntry> Get(uint32 frameAddress);
 
-        /// @brief Creates and returns an entry in the cache.
+        /// @brief Inserts an entry in the cache.
         /// If the cache is already at capacity, the oldest entry is removed.
         /// @param[in] frameAddress the frame address of the entry
+        /// @param[in] entry the entry to insert
+        void Put(uint32 frameAddress, std::shared_ptr<SectorEntry> entry);
+
+        /// @brief Evicts (removes) an entry from the cache.
+        /// @param[in] frameAddress the frame address of the entry
+        /// @return `true` if the entry was removed, `false` if it did not exist
+        bool Evict(uint32 frameAddress);
+
+    private:
+        /// @brief Maximum number of entries allowed in the cache.
+        size_t m_capacity = 2048; // holds about 4.6 MB of sector data by default
+
+        /// @brief Holds the entries and the LRU order (newest in front).
+        std::list<std::shared_ptr<SectorEntry>> m_entryList;
+
+        /// @brief Maps frame addresses to list entries, enabling O(1) lookups.
+        std::unordered_map<uint32, typename decltype(m_entryList)::iterator> m_entryMap;
+    } m_sectorCache;
+
+    /// @brief A thread-safe cache for recently requested sectors.
+    /// Thread-safe. Shared between the worker and emulator threads.
+    struct SectorPrefetchCache {
+        /// @brief Retrieves the number of items stored in the cache.
+        /// @return the current cache size
+        size_t Size() const;
+
+        /// @brief Flushes all entries in the cache.
+        void Flush();
+
+        /// @brief Retrieves an entry from the cache.
+        /// @param[in] frameAddress the frame address of the entry
+        /// @return a shared pointer to the entry. `nullptr` if no such entry exists
+        std::shared_ptr<SectorEntry> Get(uint32 frameAddress);
+
+        /// @brief Creates and returns an entry in the cache.
+        /// @param[in] frameAddress the frame address of the entry
         /// @return a shared pointer to the entry. Replaces existing entries with a blank value.
-        std::shared_ptr<Entry> Emplace(uint32 frameAddress);
+        std::shared_ptr<SectorEntry> Emplace(uint32 frameAddress);
 
         /// @brief Evicts (removes) an entry from the cache.
         /// @param[in] frameAddress the frame address of the entry
@@ -128,15 +166,12 @@ private:
 
     private:
         mutable std::mutex m_mtx;
-        size_t m_capacity = 256; // hold slightly more sectors than the CD Block's memory by default
 
-        /// @brief Holds the entries and the LRU order (newest in front).
-        std::list<std::shared_ptr<Entry>> m_entryList;
+        /// @brief Main cache storage.
+        std::unordered_map<uint32, std::shared_ptr<SectorEntry>> m_entries;
+    } m_sectorPrefetchCache;
 
-        /// @brief Maps keys to list entries, enabling O(1) lookups.
-        std::unordered_map<uint32, typename decltype(m_entryList)::iterator> m_entryMap;
-    } m_sectorCache;
-
+    /// @brief Worker thread state.
     struct ThreadState {
         mutable std::mutex mtxDiscInfo{};
         TOC toc{};
@@ -180,7 +215,7 @@ private:
     std::thread m_workerThread;
 
     struct Command {
-        enum class Type { SeekFrameAddress, SeekTrackIndex, InvokeFunction, InvokeFunctionWithResult, Quit };
+        enum class Type { WakeUp, SeekFrameAddress, SeekTrackIndex, InvokeFunction, InvokeFunctionWithResult, Quit };
         Type type;
 
         struct SeekData {
@@ -199,6 +234,10 @@ private:
         };
 
         std::variant<std::monostate, SeekData, FunctionData> data;
+
+        static Command WakeUp() {
+            return {.type = Type::WakeUp};
+        }
 
         static Command SeekFrameAddress(uint32 counter, uint32 frameAddress) {
             return {.type = Type::SeekFrameAddress,
@@ -227,36 +266,86 @@ private:
     /// @brief Disconnects the device and releases all resources.
     void Disconnect();
 
+    /// @brief Retrieves a cached sector. If not cached, fetches the sector and caches it.
+    /// @param[in] frameAddress the frame address of the sector
+    /// @return a shared pointer to the cached sector data
+    std::shared_ptr<SectorEntry> GetCachedSector(uint32 frameAddress);
+
+    /// @brief Enqueues a command for execution in the worker thread.
+    /// @param[in] cmd the command to enqueue
     void EnqueueCommand(Command &&cmd);
 
+    /// @brief Enqueues a command to execute the given function in the worker thread.
+    /// @tparam TFn the function type
+    /// @param[in] fn the function to execute
     template <typename TFn>
         requires std::is_void_v<std::invoke_result_t<TFn>>
     void ExecuteInWorker(TFn &&fn);
 
+    /// @brief Executes the given function in the worker thread and waits for the result.
+    /// @tparam TFn the function type
+    /// @param[in] fn the function to execute
+    /// @return the return value of the function
     template <typename TFn>
         requires(!std::is_void_v<std::invoke_result_t<TFn>>)
     typename std::invoke_result_t<TFn> ExecuteInWorkerSync(TFn &&fn);
 
+    /// @brief Enqueues the function to be executed in the worker thread asynchronously.
+    /// @tparam TFn the function type
+    /// @param[in] fn the function to execute
+    /// @return the a future with the return value of the function
     template <typename TFn>
         requires(!std::is_void_v<std::invoke_result_t<TFn>>)
     std::future<typename std::invoke_result_t<TFn>> ExecuteInWorkerAsync(TFn &&fn);
 
+    /// @brief Worker thread entrypoint.
     void WorkerThread();
 
+    /// @brief Initializes worker-side disc data structures.
     void InitializeWorkerDiscInfo();
+
+    /// @brief Clears emulator-side disc data structures.
     void ClearMainDiscInfo();
+
+    /// @brief Clears worker-side disc data structures.
     void ClearWorkerDiscInfo();
 
+    /// @brief Sets the result of the seek operation.
+    /// Invoked by the worker thread.
+    /// @param[in] counter the seek command counter
+    /// @param[in] frameAddress the resulting frame address
     void SetSeekResult(uint32 counter, uint32 frameAddress);
 
-    void StartReadingSectors(uint32 frameAddress);
-    void StopReadingSectors();
+    /// @brief Starts prefetching sectors sequentially from the given frame address
+    /// @param[in] frameAddress the frame address to start prefetching sectors from
+    void StartPrefetcher(uint32 frameAddress);
 
-    std::shared_ptr<SectorCache::Entry> TryGetCachedSector(uint32 frameAddress);
+    /// @brief Stops prefetching sectors.
+    void StopPrefetcher();
 
+    /// @brief Sends a command to the host device to read the disc's table of contents.
+    /// @return the table of contents. Empty if no disc or if the command failed
     std::vector<TOCEntry> HostReadTOC() const;
-    bool HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData, DiscPosition &outPos);
+
+    /// @brief Sends a command to the host device to read the raw sector data and position information from a frame
+    /// address.
+    /// @param[in] frameAddress the frame address
+    /// @param[out] outSector receives store sector data
+    /// @param[out] outPos receives position data
+    /// @return `true` if the sector was successfully read, `false` if not
+    bool HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition &outPos);
+
+    /// @brief Sends a command to the host device to read the sector's user data area.
+    /// @param[in] frameAddress the frame address
+    /// @param[out] outSector receives store sector data
+    /// @return `true` if the sector was successfully read, `false` if not
     bool HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) const;
+
+    /// @brief Sends a command to the host device to read the raw sector and subchannel for cache storage.
+    /// @param[in] frameAddress the frame address
+    /// @param[out] outEntry the cache entry to store all data into
+    /// @return `true` if the sector was successfully read, `false` if not
+    bool HostReadSectorForCache(uint32 frameAddress, SectorEntry &outEntry) const;
 
     /// @brief Prefetches and caches a number of sectors starting at the specified frame address.
     /// @param[in] frameAddress the starting frame address
@@ -264,6 +353,8 @@ private:
     /// @param[out] outReadSectors receives the number of sectors read
     /// @return `true` if more sectors can be read, `false` if a terminal condition was reached
     bool HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, uint32 &outReadSectors);
+
+    // -----------------------------------------------------------------------------------------------------------------
 
     struct FilesystemReader : fs::IFilesystemCDReader {
         FilesystemReader(HostCDDevice &dev)

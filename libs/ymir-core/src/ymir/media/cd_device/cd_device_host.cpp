@@ -28,11 +28,17 @@ namespace grp {
     // Hierarchy:
     //
     // host
+    //   cache
 
     struct host {
         static constexpr bool enabled = true;
         static constexpr devlog::Level level = devlog::level::debug;
         static constexpr std::string_view name = "CDDev-Host";
+    };
+
+    struct cache : public host {
+        static constexpr devlog::Level level = devlog::level::debug;
+        static constexpr std::string_view name = "CDDev-Host-Cache";
     };
 
 } // namespace grp
@@ -80,7 +86,7 @@ bool HostCDDevice::IsConnected() const {
 }
 
 bool HostCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition) {
-    auto entry = TryGetCachedSector(frameAddress);
+    auto entry = GetCachedSector(frameAddress);
     if (entry == nullptr) {
         return false;
     }
@@ -131,7 +137,7 @@ DriveState HostCDDevice::PollDriveStateImpl() {
 }
 
 uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> outSector, DiscPosition *outPosition) {
-    auto entry = TryGetCachedSector(frameAddress);
+    auto entry = GetCachedSector(frameAddress);
     if (entry == nullptr) {
         return 0u;
     }
@@ -144,7 +150,7 @@ uint32 HostCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352> 
 }
 
 uint32 HostCDDevice::ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8, 2048> outSector) {
-    auto entry = TryGetCachedSector(frameAddress);
+    auto entry = GetCachedSector(frameAddress);
     if (entry == nullptr) {
         return 0u;
     }
@@ -186,6 +192,45 @@ void HostCDDevice::Disconnect() {
         m_devHandle = host::kInvalidDeviceHandle;
     }
     ClearMainDiscInfo();
+}
+
+auto HostCDDevice::GetCachedSector(uint32 frameAddress) -> std::shared_ptr<SectorEntry> {
+    // Look in LRU cache
+    std::shared_ptr<SectorEntry> entry = m_sectorCache.Get(frameAddress);
+    if (entry != nullptr) {
+        devlog::trace<grp::cache>("{:06X} found in LRU cache", frameAddress);
+        return entry;
+    }
+
+    // Look in prefetch cache
+    entry = m_sectorPrefetchCache.Get(frameAddress);
+    if (entry != nullptr) {
+        // Found it; move to main LRU cache
+        m_sectorCache.Put(frameAddress, entry);
+        m_sectorPrefetchCache.Evict(frameAddress);
+        EnqueueCommand(Command::WakeUp()); // unblocks the worker thread immediately
+        devlog::trace<grp::cache>("{:06X} found in prefetch cache; LRU cache usage: {} of {}", frameAddress,
+                                  m_sectorCache.Size(), m_sectorCache.GetCapacity());
+        return entry;
+    }
+
+    // Not found in either cache
+    return ExecuteInWorkerSync([&]() -> std::shared_ptr<SectorEntry> {
+        // Reconfigure prefetcher
+        StartPrefetcher(frameAddress + 1);
+        devlog::trace<grp::cache>("{:06X} cache miss", frameAddress);
+
+        // Read sector
+        entry = std::make_shared<SectorEntry>(frameAddress);
+        if (!HostReadSectorForCache(frameAddress, *entry)) {
+            devlog::trace<grp::cache>("{:06X} could not be read", frameAddress);
+            return nullptr;
+        }
+        m_sectorCache.Put(frameAddress, entry);
+        devlog::trace<grp::cache>("{:06X} cached in LRU cache; usage: {} of {}", frameAddress, m_sectorCache.Size(),
+                                  m_sectorCache.GetCapacity());
+        return entry;
+    });
 }
 
 void HostCDDevice::EnqueueCommand(Command &&cmd) {
@@ -233,7 +278,8 @@ void HostCDDevice::WorkerThread() {
     while (running) {
         // TODO: make this configurable
         static constexpr uint32 kMaxSectorFetchSize = 16;
-        const uint32 sectorFetchSize = m_sectorCache.GetCapacity() - m_sectorCache.Size();
+        static constexpr uint32 kSectorPrefetchCapacity = 32;
+        const uint32 sectorFetchSize = kSectorPrefetchCapacity - m_sectorPrefetchCache.Size();
 
         const bool shouldReadSectors =
             // actively reading sectors
@@ -247,6 +293,7 @@ void HostCDDevice::WorkerThread() {
         if (dequeued) {
             using CmdType = Command::Type;
             switch (cmd.type) {
+            case CmdType::WakeUp: /* no-op on purpose */ break;
             case CmdType::SeekFrameAddress: //
             {
                 const auto seekData = std::get<Command::SeekData>(cmd.data);
@@ -348,10 +395,11 @@ void HostCDDevice::InitializeWorkerDiscInfo() {
 
     std::unique_lock lock{ts.mtxDiscInfo};
 
+    m_sectorPrefetchCache.Flush();
     if (ts.driveState == DriveState::MediaPresent) {
         std::array<uint8, 2352> headerSector{};
         DiscPosition pos{};
-        if (HostReadSectorAndPosition(150, headerSector, pos)) {
+        if (HostReadSectorAndPosition(150u, headerSector, pos)) {
             ts.header.ReadFrom(std::span{headerSector}.subspan(0x10));
         } else {
             ts.header.Invalidate();
@@ -369,7 +417,6 @@ void HostCDDevice::InitializeWorkerDiscInfo() {
         devlog::info<grp::host>("Disc absent - filesystem cleared");
     }
     ts.indexFADs.clear();
-    m_sectorCache.Flush();
     ts.discInfoChanged.store(true, std::memory_order_release);
     ts.mediaStateChanged.store(true, std::memory_order_release);
     ts.targetDriveState = ts.driveState;
@@ -380,17 +427,18 @@ void HostCDDevice::ClearMainDiscInfo() {
     m_header.Invalidate();
     m_toc.Clear();
     m_fs.Clear();
+    m_sectorCache.Flush();
 }
 
 void HostCDDevice::ClearWorkerDiscInfo() {
     auto &ts = m_threadState;
 
     std::unique_lock lock{ts.mtxDiscInfo};
+    m_sectorPrefetchCache.Flush();
     ts.header.Invalidate();
     ts.toc.Clear();
     ts.fs.Clear();
     ts.indexFADs.clear();
-    m_sectorCache.Flush();
     ts.discInfoChanged.store(true, std::memory_order_release);
     ts.mediaStateChanged.store(true, std::memory_order_release);
     ts.targetDriveState = ts.driveState;
@@ -401,39 +449,23 @@ void HostCDDevice::SetSeekResult(uint32 counter, uint32 frameAddress) {
     ts.seekFAD.store(std::max(frameAddress, 150u), std::memory_order_release);
     ts.seekCounter.store(counter, std::memory_order_release);
     if (frameAddress != 0xFFFFFF) {
-        StartReadingSectors(frameAddress);
+        StartPrefetcher(frameAddress);
     }
 }
 
-void HostCDDevice::StartReadingSectors(uint32 frameAddress) {
+void HostCDDevice::StartPrefetcher(uint32 frameAddress) {
     auto &ts = m_threadState;
     ts.nextSector = frameAddress;
     ts.readSectors = true;
+    m_sectorPrefetchCache.Flush();
+    devlog::trace<grp::cache>("Prefetcher started at {:06X}", frameAddress);
 }
 
-void HostCDDevice::StopReadingSectors() {
+void HostCDDevice::StopPrefetcher() {
     auto &ts = m_threadState;
     ts.readSectors = false;
-}
-
-auto HostCDDevice::TryGetCachedSector(uint32 frameAddress) -> std::shared_ptr<SectorCache::Entry> {
-    auto entry = m_sectorCache.Get(frameAddress - 150);
-    if (entry == nullptr) {
-        // No such entry, try reading directly
-        uint32 numSectors = 0;
-        const bool result = ExecuteInWorkerSync([&] { return HostPrefetchSectors(frameAddress, 1, numSectors); });
-        if (!result) {
-            // Failed to read the sector; bail out
-            return nullptr;
-        }
-
-        entry = m_sectorCache.Get(frameAddress - 150);
-        if (entry == nullptr) {
-            // Still nothing; bail out
-            return nullptr;
-        }
-    }
-    return entry;
+    m_sectorPrefetchCache.Flush();
+    devlog::trace<grp::cache>("Prefetcher stopped");
 }
 
 std::vector<TOCEntry> HostCDDevice::HostReadTOC() const {
@@ -506,7 +538,7 @@ std::vector<TOCEntry> HostCDDevice::HostReadTOC() const {
         const uint8 control = bit::extract<0, 3>(trackData[1]);
         const uint8 adr = bit::extract<4, 7>(trackData[1]);
         const uint8 trackNum = trackData[2];
-        const uint32 fad = util::ReadBE<uint32>(&trackData[4]) + 150;
+        const uint32 fad = util::ReadBE<uint32>(&trackData[4]) + 150u;
 
         if (trackNum == 0xAA) {
             auto &leadoutEntry = toc[2];
@@ -540,22 +572,10 @@ std::vector<TOCEntry> HostCDDevice::HostReadTOC() const {
     return toc;
 }
 
-bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outData,
+bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint8, 2352> outSector,
                                              DiscPosition &outPos) {
-    frameAddress -= 150;
-
-    // Get cached sector + position if available
-    {
-        auto entry = m_sectorCache.Get(frameAddress);
-        if (entry != nullptr) {
-            std::copy_n(entry->sector.cbegin(), 2352, outData.begin());
-            outPos = entry->pos;
-            return true;
-        }
-    }
-
     std::array<uint8, 2352 + 96> data{};
-    const auto cdb = scsi::op::MakeReadCD(frameAddress, 1, 0xF8, 1);
+    const auto cdb = scsi::op::MakeReadCD(frameAddress - 150u, 1, 0xF8, 1);
     uint32 readSize;
     if (!host::SendSCSIInCommand(m_devHandle, cdb, data, readSize)) {
         return false;
@@ -566,7 +586,7 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
     }
 
     // Copy sector data to output
-    std::copy_n(data.cbegin(), 2352, outData.begin());
+    std::copy_n(data.cbegin(), 2352, outSector.begin());
 
     // Raw subcode data comes at the end of the buffer
     std::span<const uint8> subcode{data.begin() + 2352, data.end()};
@@ -576,7 +596,6 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
     for (uint32 i = 0; i < 96; ++i) {
         subQ[i >> 3u] |= bit::extract<6>(subcode[i]) << (~i & 7u);
     }
-
     outPos.controlADR = subQ[0];
     outPos.track = subQ[1];
     outPos.index = subQ[2];
@@ -588,20 +607,11 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
     outPos.asec = subQ[8];
     outPos.aframe = subQ[9];
 
-    // Cache sector
-    {
-        auto entry = m_sectorCache.Emplace(frameAddress);
-        std::copy_n(data.cbegin(), 2352, entry->sector.begin());
-        std::copy_n(data.cbegin() + 2352, 96, entry->subchannel.begin());
-        entry->pos = outPos;
-    }
-
     return true;
 }
 
 bool HostCDDevice::HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) const {
-    frameAddress -= 150;
-    const auto cdb = scsi::op::MakeRead10(frameAddress, 1);
+    const auto cdb = scsi::op::MakeRead10(frameAddress - 150u, 1);
     uint32 readSize;
     if (!host::SendSCSIInCommand(m_devHandle, cdb, outSector, readSize)) {
         return false;
@@ -609,13 +619,46 @@ bool HostCDDevice::HostReadSectorUserData(uint32 frameAddress, std::span<uint8, 
     return readSize == outSector.size();
 }
 
+bool HostCDDevice::HostReadSectorForCache(uint32 frameAddress, SectorEntry &outEntry) const {
+    std::array<uint8, 2352 + 96> data{};
+    const auto cdb = scsi::op::MakeReadCD(frameAddress - 150u, 1, 0xF8, 1);
+    uint32 readSize;
+    if (!host::SendSCSIInCommand(m_devHandle, cdb, data, readSize)) {
+        return false;
+    }
+    if (readSize < data.size()) {
+        // We expect to be able to read the full raw sector and the P-W raw subcode data
+        return false;
+    }
+
+    // Copy sector data to output
+    std::copy_n(data.cbegin(), 2352, outEntry.sector.begin());
+    std::copy_n(data.cbegin() + 2352, 96, outEntry.subchannel.begin());
+
+    // Extract position data from Q subchannel
+    std::array<uint8, 12> subQ{};
+    for (uint32 i = 0; i < 96; ++i) {
+        subQ[i >> 3u] |= bit::extract<6>(outEntry.subchannel[i]) << (~i & 7u);
+    }
+    outEntry.pos.controlADR = subQ[0];
+    outEntry.pos.track = subQ[1];
+    outEntry.pos.index = subQ[2];
+    outEntry.pos.min = subQ[3];
+    outEntry.pos.sec = subQ[4];
+    outEntry.pos.frame = subQ[5];
+    outEntry.pos.zero = subQ[6];
+    outEntry.pos.amin = subQ[7];
+    outEntry.pos.asec = subQ[8];
+    outEntry.pos.aframe = subQ[9];
+
+    return true;
+}
+
 bool HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, uint32 &outReadSectors) {
     if (sectorCount == 0u) {
         // Bail out immediately if no sectors were requested
         return false;
     }
-
-    frameAddress -= 150;
 
     static constexpr size_t kSectorSize = 2352 + 96;
 
@@ -636,7 +679,7 @@ bool HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, 
     // Issue READ CD command
     std::vector<uint8> data{};
     data.resize(kSectorSize * sectorCount);
-    const auto cdb = scsi::op::MakeReadCD(frameAddress, sectorCount, 0xF8, 1);
+    const auto cdb = scsi::op::MakeReadCD(frameAddress - 150u, sectorCount, 0xF8, 1);
     uint32 readSize;
     if (!host::SendSCSIInCommand(m_devHandle, cdb, data, readSize)) {
         return false;
@@ -649,10 +692,12 @@ bool HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, 
     // Read sectors and parse subchannel data
     uint32 sectorIndex = 0u;
     while (sectorIndex * kSectorSize < readSize) {
-        const uint32 offset = sectorIndex * kSectorSize;
-        auto entry = m_sectorCache.Emplace(frameAddress + offset);
+        devlog::trace<grp::cache>("{:06X} prefetched, usage: {}", frameAddress + sectorIndex,
+                                  m_sectorPrefetchCache.Size());
+        auto entry = m_sectorPrefetchCache.Emplace(frameAddress + sectorIndex);
 
         // Copy sector data to cache
+        const uint32 offset = sectorIndex * kSectorSize;
         std::copy_n(data.cbegin() + offset, 2352, entry->sector.begin());
         std::copy_n(data.cbegin() + offset + 2352, 96, entry->subchannel.begin());
 
@@ -683,33 +728,26 @@ bool HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount, 
 // ---------------------------------------------------------------------------------------------------------------------
 
 void HostCDDevice::SectorCache::SetCapacity(size_t capacity) {
-    std::unique_lock lock{m_mtx};
-
     m_capacity = std::max<size_t>(1, capacity);
 
     // Erase excess items
     while (m_entryList.size() > capacity) {
-        std::shared_ptr<Entry> value = m_entryList.front();
+        std::shared_ptr<SectorEntry> value = m_entryList.front();
         m_entryMap.erase(value->frameAddress);
         m_entryList.pop_front();
     }
 }
 
 size_t HostCDDevice::SectorCache::Size() const {
-    std::unique_lock lock{m_mtx};
     return m_entryMap.size();
 }
 
 void HostCDDevice::SectorCache::Flush() {
-    std::unique_lock lock{m_mtx};
-
     m_entryList.clear();
     m_entryMap.clear();
 }
 
-auto HostCDDevice::SectorCache::Get(uint32 frameAddress) -> std::shared_ptr<Entry> {
-    std::unique_lock lock{m_mtx};
-
+auto HostCDDevice::SectorCache::Get(uint32 frameAddress) -> std::shared_ptr<SectorEntry> {
     // Find cached item
     auto it = m_entryMap.find(frameAddress);
     if (it == m_entryMap.end()) {
@@ -723,18 +761,14 @@ auto HostCDDevice::SectorCache::Get(uint32 frameAddress) -> std::shared_ptr<Entr
     return *it->second;
 }
 
-auto HostCDDevice::SectorCache::Emplace(uint32 frameAddress) -> std::shared_ptr<Entry> {
-    std::unique_lock lock{m_mtx};
-
-    auto entry = std::make_shared<Entry>(frameAddress);
-
+void HostCDDevice::SectorCache::Put(uint32 frameAddress, std::shared_ptr<SectorEntry> entry) {
     // Check for existing entry
     auto it = m_entryMap.find(frameAddress);
     if (it != m_entryMap.end()) {
         // Replace it
-        it->second->swap(entry);
+        *it->second = entry;
         m_entryList.splice(m_entryList.begin(), m_entryList, it->second);
-        return entry;
+        return;
     }
 
     // Check capacity
@@ -748,13 +782,9 @@ auto HostCDDevice::SectorCache::Emplace(uint32 frameAddress) -> std::shared_ptr<
     // Add entry to the top of the LRU sequence
     m_entryList.emplace_front(entry);
     m_entryMap[frameAddress] = m_entryList.begin();
-
-    return entry;
 }
 
 bool HostCDDevice::SectorCache::Evict(uint32 frameAddress) {
-    std::unique_lock lock{m_mtx};
-
     auto it = m_entryMap.find(frameAddress);
     if (it == m_entryMap.end()) {
         return false;
@@ -763,6 +793,54 @@ bool HostCDDevice::SectorCache::Evict(uint32 frameAddress) {
     m_entryList.erase(it->second);
     m_entryMap.erase(frameAddress);
     return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+
+size_t HostCDDevice::SectorPrefetchCache::Size() const {
+    std::unique_lock lock{m_mtx};
+    return m_entries.size();
+}
+
+void HostCDDevice::SectorPrefetchCache::Flush() {
+    std::unique_lock lock{m_mtx};
+    m_entries.clear();
+}
+
+auto HostCDDevice::SectorPrefetchCache::Get(uint32 frameAddress) -> std::shared_ptr<SectorEntry> {
+    std::unique_lock lock{m_mtx};
+
+    // Find cached item
+    auto it = m_entries.find(frameAddress);
+    if (it == m_entries.end()) {
+        // No such item
+        return nullptr;
+    }
+
+    return it->second;
+}
+
+auto HostCDDevice::SectorPrefetchCache::Emplace(uint32 frameAddress) -> std::shared_ptr<SectorEntry> {
+    std::unique_lock lock{m_mtx};
+
+    auto entry = std::make_shared<SectorEntry>(frameAddress);
+
+    // Check for existing entry
+    auto it = m_entries.find(frameAddress);
+    if (it != m_entries.end()) {
+        // Replace it
+        it->second.swap(entry);
+        return entry;
+    }
+
+    // Add to cache
+    m_entries[frameAddress] = entry;
+    return entry;
+}
+
+bool HostCDDevice::SectorPrefetchCache::Evict(uint32 frameAddress) {
+    std::unique_lock lock{m_mtx};
+    return m_entries.erase(frameAddress) > 0;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
