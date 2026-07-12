@@ -17,6 +17,8 @@ See also @ref ymir/media/host_cd.hpp.
 
 #include <array>
 #include <atomic>
+#include <list>
+#include <memory>
 #include <mutex>
 #include <span>
 #include <thread>
@@ -75,20 +77,51 @@ private:
         uint32 frameAddress = 0xFFFFFF; // seek result FAD
     } m_seekState;
 
+    /// @brief A simple thread-safe low-throughput sector cache.
     struct SectorCache {
         struct Entry {
+            Entry(uint32 frameAddress)
+                : frameAddress(frameAddress) {}
+
             uint32 frameAddress;
             std::array<uint8, 2352> sector;
             std::array<uint8, 96> subchannel;
             DiscPosition pos;
         };
 
-        // TODO: implement thread-safe LRU cache
+        /// @brief Adjusts the capacity of the cache.
+        /// If smaller than the previous capacity, the oldest entries are dropped.
+        /// @param[in] capacity the new cache capacity. If 0, sets the capacity to 1.
+        void SetCapacity(size_t capacity);
 
+        /// @brief Flushes all entries in the cache.
         void Flush();
-        Entry *Get(uint32 frameAddress);
-        Entry &Emplace(uint32 frameAddress);
-        void Evict(uint32 frameAddress);
+
+        /// @brief Retrieves an entry from the cache.
+        /// @param[in] frameAddress the frame address of the entry
+        /// @return a shared pointer to the entry. `nullptr` if no such entry exists
+        std::shared_ptr<Entry> Get(uint32 frameAddress);
+
+        /// @brief Creates and returns an entry in the cache.
+        /// If the cache is already at capacity, the oldest entry is removed.
+        /// @param[in] frameAddress the frame address of the entry
+        /// @return a shared pointer to the entry. Replaces existing entries with a blank value.
+        std::shared_ptr<Entry> Emplace(uint32 frameAddress);
+
+        /// @brief Evicts (removes) an entry from the cache.
+        /// @param[in] frameAddress the frame address of the entry
+        /// @return `true` if the entry was removed, `false` if it did not exist
+        bool Evict(uint32 frameAddress);
+
+    private:
+        mutable std::mutex m_mtx;
+        size_t m_capacity = 256; // hold slightly more sectors than the CD Block's memory by default
+
+        /// @brief Holds the entries and the LRU order (newest in front).
+        std::list<std::shared_ptr<Entry>> m_entryList;
+
+        /// @brief Maps keys to list entries, enabling O(1) lookups.
+        std::unordered_map<uint32, typename decltype(m_entryList)::iterator> m_entryMap;
     } m_sectorCache;
 
     struct ThreadState {

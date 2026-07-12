@@ -427,7 +427,7 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
 
     // Get cached sector + position if available
     {
-        SectorCache::Entry *entry = m_sectorCache.Get(frameAddress);
+        auto entry = m_sectorCache.Get(frameAddress);
         if (entry != nullptr) {
             std::copy_n(entry->sector.cbegin(), 2352, outData.begin());
             outPos = entry->pos;
@@ -471,10 +471,10 @@ bool HostCDDevice::HostReadSectorAndPosition(uint32 frameAddress, std::span<uint
 
     // Cache sector
     {
-        SectorCache::Entry &entry = m_sectorCache.Emplace(frameAddress);
-        std::copy_n(data.cbegin(), 2352, entry.sector.begin());
-        std::copy_n(data.cbegin() + 2352, 96, entry.subchannel.begin());
-        entry.pos = outPos;
+        auto entry = m_sectorCache.Emplace(frameAddress);
+        std::copy_n(data.cbegin(), 2352, entry->sector.begin());
+        std::copy_n(data.cbegin() + 2352, 96, entry->subchannel.begin());
+        entry->pos = outPos;
     }
 
     return true;
@@ -510,18 +510,18 @@ uint32 HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount
     uint32 sectorIndex = 0u;
     while (sectorIndex * kSectorSize < readSize) {
         const uint32 offset = sectorIndex * kSectorSize;
-        SectorCache::Entry &entry = m_sectorCache.Emplace(frameAddress + offset);
+        auto entry = m_sectorCache.Emplace(frameAddress + offset);
 
         // Copy sector data to cache
-        std::copy_n(data.cbegin() + offset, 2352, entry.sector.begin());
-        std::copy_n(data.cbegin() + offset + 2352, 96, entry.subchannel.begin());
+        std::copy_n(data.cbegin() + offset, 2352, entry->sector.begin());
+        std::copy_n(data.cbegin() + offset + 2352, 96, entry->subchannel.begin());
 
         // Extract position data from Q subchannel
         std::array<uint8, 12> subQ{};
         for (uint32 i = 0; i < 96; ++i) {
-            subQ[i >> 3u] |= bit::extract<6>(entry.subchannel[i]) << (~i & 7u);
+            subQ[i >> 3u] |= bit::extract<6>(entry->subchannel[i]) << (~i & 7u);
         }
-        DiscPosition &pos = entry.pos;
+        DiscPosition &pos = entry->pos;
         pos.controlADR = subQ[0];
         pos.track = subQ[1];
         pos.index = subQ[2];
@@ -540,23 +540,82 @@ uint32 HostCDDevice::HostPrefetchSectors(uint32 frameAddress, uint32 sectorCount
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+void HostCDDevice::SectorCache::SetCapacity(size_t capacity) {
+    std::unique_lock lock{m_mtx};
+
+    m_capacity = std::max<size_t>(1, capacity);
+
+    // Erase excess items
+    while (m_entryList.size() > capacity) {
+        std::shared_ptr<Entry> value = m_entryList.front();
+        m_entryMap.erase(value->frameAddress);
+        m_entryList.pop_front();
+    }
+}
+
 void HostCDDevice::SectorCache::Flush() {
-    // TODO: implement LRU cache logic
+    std::unique_lock lock{m_mtx};
+
+    m_entryList.clear();
+    m_entryMap.clear();
 }
 
-auto HostCDDevice::SectorCache::Get(uint32 frameAddress) -> Entry * {
-    // TODO: implement LRU cache logic
-    return nullptr;
+auto HostCDDevice::SectorCache::Get(uint32 frameAddress) -> std::shared_ptr<Entry> {
+    std::unique_lock lock{m_mtx};
+
+    // Find cached item
+    auto it = m_entryMap.find(frameAddress);
+    if (it == m_entryMap.end()) {
+        // No such item
+        return nullptr;
+    }
+
+    // Update LRU order
+    m_entryList.splice(m_entryList.begin(), m_entryList, it->second);
+
+    return *it->second;
 }
 
-auto HostCDDevice::SectorCache::Emplace(uint32 frameAddress) -> Entry & {
-    // TODO: implement LRU cache logic
-    static Entry entry;
+auto HostCDDevice::SectorCache::Emplace(uint32 frameAddress) -> std::shared_ptr<Entry> {
+    std::unique_lock lock{m_mtx};
+
+    auto entry = std::make_shared<Entry>(frameAddress);
+
+    // Check for existing entry
+    auto it = m_entryMap.find(frameAddress);
+    if (it != m_entryMap.end()) {
+        // Replace it
+        it->second->swap(entry);
+        m_entryList.splice(m_entryList.begin(), m_entryList, it->second);
+        return entry;
+    }
+
+    // Check capacity
+    if (m_entryMap.size() >= m_capacity) {
+        // Make room for new entry
+        const uint32 oldestKey = m_entryList.back()->frameAddress;
+        m_entryList.pop_back();
+        m_entryMap.erase(oldestKey);
+    }
+
+    // Add entry to the top of the LRU sequence
+    m_entryList.emplace_front(entry);
+    m_entryMap[frameAddress] = m_entryList.begin();
+
     return entry;
 }
 
-void HostCDDevice::SectorCache::Evict(uint32 frameAddress) {
-    // TODO: implement LRU cache logic
+bool HostCDDevice::SectorCache::Evict(uint32 frameAddress) {
+    std::unique_lock lock{m_mtx};
+
+    auto it = m_entryMap.find(frameAddress);
+    if (it == m_entryMap.end()) {
+        return false;
+    }
+
+    m_entryList.erase(it->second);
+    m_entryMap.erase(frameAddress);
+    return true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

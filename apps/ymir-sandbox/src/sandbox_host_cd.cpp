@@ -22,6 +22,11 @@ void runHostCDSandbox() {
         }
     };
 
+    auto threadWait = [] {
+        // std::this_thread::sleep_for(50ms);
+        std::this_thread::yield();
+    };
+
     ymir::media::CDInterface cdif{};
     for (auto &dev : ymir::media::host::EnumerateHostCDDrives()) {
         fmt::println("{} [{}] {}", dev.path, dev.altPath, driveStateStr(dev.driveState));
@@ -32,7 +37,7 @@ void runHostCDSandbox() {
                 if (cdif.PollDriveState() != ymir::media::DriveState::Unknown) {
                     break;
                 }
-                std::this_thread::sleep_for(50ms);
+                threadWait();
             }
             if (cdif.HasDisc()) {
                 const auto &header = cdif.GetDiscHeader();
@@ -57,7 +62,7 @@ void runHostCDSandbox() {
                         if (cdif.IsSeekDone()) {
                             break;
                         }
-                        std::this_thread::sleep_for(50ms);
+                        threadWait();
                     }
                     fmt::println("Seek to FAD {:06X} result: {:06X}", fad, cdif.GetSeekFrameAddress());
                 };
@@ -69,7 +74,7 @@ void runHostCDSandbox() {
                         if (cdif.IsSeekDone()) {
                             break;
                         }
-                        std::this_thread::sleep_for(50ms);
+                        threadWait();
                     }
                     fmt::println("Seek to track:index {:02d}:{:02d} result: {:06X}", track, index,
                                  cdif.GetSeekFrameAddress());
