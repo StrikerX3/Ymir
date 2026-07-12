@@ -32,12 +32,40 @@ using DeviceHandle = int;
 inline constexpr DeviceHandle kInvalidDeviceHandle = -1;
 #endif
 
+#ifdef _WIN32
+    #define YMIR_HOST_CD_PATHS_PREFER_ALT_PATH 1
+#else
+    #define YMIR_HOST_CD_PATHS_PREFER_ALT_PATH 0
+#endif
+
+/// @brief Determines whether the alternate device path is preferred for users instead of the primary path on the
+/// current operating system. This is `true` on Windows and `false` on other systems because `HostDriveInfo::altPath`
+/// optionally contains the drive letter if one is assigned to the drive which is more readily visible on the system.
+inline constexpr bool kAltPathPreferredForDisplay = YMIR_HOST_CD_PATHS_PREFER_ALT_PATH;
+
 /// @brief Basic information about a host CD device.
 /// This information is a snapshot retrieved during enumeration.
 struct HostDriveInfo {
-    std::string path;      ///< Device path, used to connect to a device
-    std::string altPath;   ///< Optional alternate device path, such as the drive letter on Windows
-    DriveState driveState; ///< Current drive state, including media presence and tray state
+    /// @brief Preferred device path, used to connect to a device. Always present.
+    std::string path;
+
+    /// @brief Optional alternate device path, such as the drive letter on Windows.
+    /// Also used to connect to a device.
+    std::string altPath;
+
+    /// @brief Drive state as of the latest device enumeration.
+    DriveState driveState;
+
+    /// @brief Returns the preferred path to be presented to the user.
+    /// @return the preferred path for users
+    std::string GetDisplayPath() const {
+        if constexpr (kAltPathPreferredForDisplay) {
+            if (!altPath.empty()) {
+                return altPath;
+            }
+        }
+        return path;
+    }
 };
 
 /// @brief Enumerates all CD drives present on the host system.

@@ -2051,11 +2051,7 @@ void App::RunEmulator() {
                     }
                     if (ImGui::BeginMenu("Load from drive")) {
                         for (const media::host::HostDriveInfo &info : media::host::GetEnumeratedHostCDDrives()) {
-#ifdef _WIN32
-                            const std::string drivePath = info.altPath.empty() ? info.path : info.altPath;
-#else
-                            const std::string drivePath = = info.path;
-#endif
+                            const std::string drivePath = info.GetDisplayPath();
                             const char *stateStr;
                             switch (info.driveState) {
                             default: [[fallthrough]];
