@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 
 #include <chrono>
+#include <thread>
 
 using clk = std::chrono::steady_clock;
 

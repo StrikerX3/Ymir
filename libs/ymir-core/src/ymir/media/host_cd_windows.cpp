@@ -18,6 +18,9 @@
 #include <setupapi.h>
 #include <winioctl.h> // for GUID_DEVINTERFACE_CDROM
 
+#include <fmt/format.h>
+
+#include <algorithm>
 #include <array>
 #include <string>
 #include <unordered_map>
