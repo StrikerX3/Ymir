@@ -630,7 +630,7 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
             m_cdif.BeginSeekToFrameAddress(fad);
             m_seekOp = read ? Operation::ReadDataSector : Operation::Idle;
         } else {
-            m_cdif.BeginSeekToTrackIndex(track->number, m_command.index);
+            m_cdif.BeginSeekToTrackIndex(util::from_bcd(track->number), m_command.index);
             m_seekOp = read ? Operation::ReadAudioSector : Operation::Idle;
         }
     } else {
@@ -712,8 +712,8 @@ FORCE_INLINE void CDDrive::OutputDriveStatus() {
             media::DiscPosition pos{};
             if (m_cdif.ReadPosition(m_currFAD, pos)) {
                 m_status.subcodeQ = pos.controlADR;
-                m_status.trackNum = util::to_bcd(pos.track);
-                m_status.indexNum = util::to_bcd(pos.index);
+                m_status.trackNum = pos.track;
+                m_status.indexNum = pos.index;
                 m_status.min = pos.min;
                 m_status.sec = pos.sec;
                 m_status.frame = pos.frame;
