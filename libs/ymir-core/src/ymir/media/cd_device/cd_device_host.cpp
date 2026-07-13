@@ -304,9 +304,7 @@ void HostCDDevice::WorkerThread() {
                 const auto seekData = std::get<Command::SeekData>(cmd.data);
                 // No need to issue SEEK command to host device for this; the frame address is (obviously) known
 
-                // Constraint to valid disc range (including lead-out area)
-                const uint32 frameAddress =
-                    std::clamp(seekData.target.frameAddress, 150u, ts.toc.GetLeadOutFrameAddress());
+                const uint32 frameAddress = std::max(seekData.target.frameAddress, 150u);
                 SetSeekResult(seekData.counter, frameAddress);
                 break;
             }
