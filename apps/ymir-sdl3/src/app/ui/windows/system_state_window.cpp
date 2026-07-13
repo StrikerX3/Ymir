@@ -430,13 +430,16 @@ void SystemStateWindow::DrawCDDrive() {
     case CDOp::ReadTOC: ImGui::TextUnformatted("Reading TOC"); break;
     case CDOp::DiscChanged: ImGui::TextUnformatted("Disc changed"); break;
     case CDOp::ReadDataSector:
-        ImGui::Text("Reading track %u, index %u (Data)", status.trackNum, status.indexNum);
+        ImGui::Text("Reading track %u, index %u (Data)", util::from_bcd(status.trackNum),
+                    util::from_bcd(status.indexNum));
         break;
     case CDOp::ReadAudioSector:
-        ImGui::Text("Playing track %u, index %u (CDDA)", status.trackNum, status.indexNum);
+        ImGui::Text("Playing track %u, index %u (CDDA)", util::from_bcd(status.trackNum),
+                    util::from_bcd(status.indexNum));
         break;
     case CDOp::ScanAudioSector:
-        ImGui::Text("Scanning track %u, index %u (CDDA)", status.trackNum, status.indexNum);
+        ImGui::Text("Scanning track %u, index %u (CDDA)", util::from_bcd(status.trackNum),
+                    util::from_bcd(status.indexNum));
         break;
     case CDOp::Seek: ImGui::TextUnformatted("Seeking"); break;
     case CDOp::SeekSecurityRingB2: [[fallthrough]];
