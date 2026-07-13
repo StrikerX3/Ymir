@@ -17,7 +17,7 @@ Introduces save state file version 14.
     - `smpc-other.bin`: Other (invalid) SMPC area codes
     - The old `smpc.bin` will be automatically migrated to these files as you use IPL ROMs for each region.
 - App: Shrink embedded M PLUS U font files by removing unused glyphs, reducing binary size. (#915; @4re)
-- CD Block: Refactored HLE and LLE implementations to support physical CD drives in addition to disc images. (#910)
+- CD Block: Added support for host (physical) CD drives in addition to disc images. (#910)
 - Debugger: Added RBG0 and RBG1 line color single stack views to the VDP2 debug overlay.
 - Input: Added option to constrain mouse cursor to window in system cursor mode.
 - Input: Convert 3D Control Pad analog stick to D-Pad inputs when in digital mode.
