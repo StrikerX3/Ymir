@@ -166,22 +166,12 @@ uint32 HostCDDevice::ReadSectorUserDataImpl(uint32 frameAddress, std::span<uint8
 
 void HostCDDevice::BeginSeekToFrameAddressImpl(uint32 frameAddress) {
     const uint32 target = bit::extract<0, 23>(frameAddress);
-    if (m_seekState.requestedTarget != 0xFFFFFFFF && m_seekState.requestedTarget == target) {
-        // Same request as before, no need to strain the hardware with this
-        return;
-    }
-    m_seekState.requestedTarget = target;
     ++m_seekState.requestedCount;
     EnqueueCommand(Command::SeekFrameAddress(m_seekState.requestedCount, frameAddress));
 }
 
 void HostCDDevice::BeginSeekToTrackIndexImpl(uint8 track, uint8 index) {
     const uint32 target = (1u << 31u) | (track << 8u) | index;
-    if (m_seekState.requestedTarget != 0xFFFFFFFF && m_seekState.requestedTarget == target) {
-        // Same request as before, no need to strain the hardware with this
-        return;
-    }
-    m_seekState.requestedTarget = target;
     ++m_seekState.requestedCount;
     EnqueueCommand(Command::SeekTrackIndex(m_seekState.requestedCount, track, index));
 }

@@ -76,7 +76,6 @@ private:
         //   for FAD, bits 0-23=FAD
         //   for T:I, bits 8-15=track, bits 0-7=index
         // 0xFFFFFFFF means no requests sent
-        uint32 requestedTarget = 0xFFFFFFFF;
         uint32 requestedCount = 0;      // how many seek requests were enqueued
         uint32 committedCount = 0;      // how many seek requests were executed
         uint32 frameAddress = 0xFFFFFF; // seek result FAD

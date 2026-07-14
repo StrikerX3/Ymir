@@ -1166,8 +1166,8 @@ void CDBlock::ProcessDriveStatePlay() {
     if (useFAD) {
         endReached = m_status.frameAddress > m_playEndPos;
     } else {
-        uint8 endTrackNum = util::from_bcd(bit::extract<8, 15>(m_playEndParam));
-        uint8 endIndexNum = util::from_bcd(bit::extract<0, 7>(m_playEndParam));
+        uint8 endTrackNum = bit::extract<8, 15>(m_playEndParam);
+        uint8 endIndexNum = bit::extract<0, 7>(m_playEndParam);
         if (endTrackNum == 0) {
             endTrackNum = m_cdif.GetTOC().GetLastTrackNumber();
         }
