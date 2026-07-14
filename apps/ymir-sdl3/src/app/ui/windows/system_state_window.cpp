@@ -556,10 +556,14 @@ void SystemStateWindow::DrawCDDrive() {
 
 void SystemStateWindow::DrawDiscImage() {
     ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
-    if (m_context.state.loadedDiscImagePath.empty()) {
-        ImGui::TextUnformatted("No image loaded");
+    if (m_context.state.loadedDiscImagePath.empty() && m_context.state.loadedDiscDrivePath.empty()) {
+        ImGui::TextUnformatted("No disc loaded");
     } else {
-        ImGui::Text("Image from %s", fmt::format("{}", m_context.state.loadedDiscImagePath).c_str());
+        if (!m_context.state.loadedDiscImagePath.empty()) {
+            ImGui::Text("Disc image from %s", fmt::format("{}", m_context.state.loadedDiscImagePath).c_str());
+        } else {
+            ImGui::Text("Disc from drive %s", fmt::format("{}", m_context.state.loadedDiscDrivePath).c_str());
+        }
         std::string hash{};
         std::string serial{};
         {

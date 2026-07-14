@@ -147,6 +147,7 @@ bool DiscService::LoadDiscImage(std::filesystem::path path, bool showErrorModal)
 
     // Update currently loaded disc path
     m_context.state.loadedDiscImagePath = path;
+    m_context.state.loadedDiscDrivePath.clear();
 
     // Add to recent games list
     if (auto it = std::find(m_context.state.recentDiscs.begin(), m_context.state.recentDiscs.end(), path);

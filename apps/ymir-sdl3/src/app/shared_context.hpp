@@ -721,6 +721,7 @@ struct SharedContext {
 
     struct State {
         std::filesystem::path loadedDiscImagePath;
+        std::filesystem::path loadedDiscDrivePath;
         std::deque<std::filesystem::path> recentDiscs;
     } state;
 

@@ -3354,6 +3354,8 @@ void App::EmulatorThread() {
                 if (m_context.saturn.instance->OpenHostCDDrive(path)) {
                     m_saveStateService.LoadSaveStates();
                     m_saveStateService.LoadDebuggerState();
+                    m_context.state.loadedDiscImagePath.clear();
+                    m_context.state.loadedDiscDrivePath = path;
                     auto iplLoadResult = m_romService.LoadIPLROM();
                     if (!iplLoadResult.succeeded) {
                         m_windowManagerService.OpenSimpleErrorModal(
@@ -3368,6 +3370,7 @@ void App::EmulatorThread() {
                 std::unique_lock lock{m_context.locks.disc};
                 m_context.saturn.instance->EjectDisc();
                 m_context.state.loadedDiscImagePath.clear();
+                m_context.state.loadedDiscDrivePath.clear();
                 if (settings.system.internalBackupRAMPerGame) {
                     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
                 }
