@@ -227,7 +227,7 @@ FORCE_INLINE bool MC68EC000::CheckInterrupt() {
 // 111 100    #imm                 Immediate
 
 template <mem_primitive T>
-FORCE_INLINE T MC68EC000::ReadEffectiveAddress(uint8 M, uint8 Xn) {
+FORCE_INLINE_EX T MC68EC000::ReadEffectiveAddress(uint8 M, uint8 Xn) {
     switch (M) {
     case 0b000: return regs.D[Xn];
     case 0b001: return regs.A[Xn];
@@ -305,7 +305,7 @@ FORCE_INLINE T MC68EC000::ReadEffectiveAddress(uint8 M, uint8 Xn) {
 }
 
 template <mem_primitive T>
-FORCE_INLINE void MC68EC000::WriteEffectiveAddress(uint8 M, uint8 Xn, T value) {
+FORCE_INLINE_EX void MC68EC000::WriteEffectiveAddress(uint8 M, uint8 Xn, T value) {
     switch (M) {
     case 0b000: bit::deposit_into<0, sizeof(T) * 8 - 1>(regs.D[Xn], value); break;
     case 0b001: regs.A[Xn] = value; break;
@@ -359,7 +359,7 @@ FORCE_INLINE void MC68EC000::WriteEffectiveAddress(uint8 M, uint8 Xn, T value) {
 }
 
 template <mem_primitive T, bool prefetch, typename FnModify>
-FORCE_INLINE void MC68EC000::ModifyEffectiveAddress(uint8 M, uint8 Xn, FnModify &&modify) {
+FORCE_INLINE_EX void MC68EC000::ModifyEffectiveAddress(uint8 M, uint8 Xn, FnModify &&modify) {
     switch (M) {
     case 0b000: {
         const T value = modify(regs.D[Xn]);
@@ -469,7 +469,7 @@ FORCE_INLINE void MC68EC000::ModifyEffectiveAddress(uint8 M, uint8 Xn, FnModify 
 }
 
 template <mem_primitive T>
-FORCE_INLINE T MC68EC000::MoveEffectiveAddress(uint8 srcM, uint8 srcXn, uint8 dstM, uint8 dstXn) {
+FORCE_INLINE_EX T MC68EC000::MoveEffectiveAddress(uint8 srcM, uint8 srcXn, uint8 dstM, uint8 dstXn) {
     const T value = ReadEffectiveAddress<T>(srcM, srcXn);
 
     switch (dstM) {
@@ -554,7 +554,7 @@ FORCE_INLINE T MC68EC000::MoveEffectiveAddress(uint8 srcM, uint8 srcXn, uint8 ds
 }
 
 template <bool fetch>
-FORCE_INLINE uint32 MC68EC000::CalcEffectiveAddress(uint8 M, uint8 Xn) {
+FORCE_INLINE_EX uint32 MC68EC000::CalcEffectiveAddress(uint8 M, uint8 Xn) {
     auto prefetchLast = [&]() -> uint16 {
         if constexpr (fetch) {
             return PrefetchNext();

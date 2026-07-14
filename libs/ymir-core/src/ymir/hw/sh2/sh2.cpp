@@ -953,7 +953,7 @@ template <mem_primitive T>
 }
 
 template <mem_primitive T, bool write, bool emulateCache>
-FORCE_INLINE uint64 SH2::AccessCycles(uint32 address) {
+FORCE_INLINE_EX uint64 SH2::AccessCycles(uint32 address) {
     const uint32 partition = (address >> 29u) & 0b111;
     switch (partition) {
     case 0b000: // cache
@@ -2149,14 +2149,14 @@ FORCE_INLINE bool SH2::CheckWatchpoint(const DecodedMemAccesses::Access &access)
 // -------------------------------------------------------------------------
 // Helper functions
 
-FORCE_INLINE void SH2::SetupDelaySlot(uint32 targetAddress) {
+FORCE_INLINE_EX void SH2::SetupDelaySlot(uint32 targetAddress) {
     m_delaySlot = true;
     m_delaySlotTarget = targetAddress;
     m_intrFlags.pending = false;
 }
 
 template <bool debug, bool emulateCache, bool delaySlot>
-FORCE_INLINE void SH2::AdvancePC() {
+FORCE_INLINE_EX void SH2::AdvancePC() {
     if constexpr (delaySlot) {
         TraceDelaySlot<debug>(m_tracer, PC, m_delaySlotTarget);
         PC = m_delaySlotTarget;
@@ -2195,7 +2195,7 @@ FORCE_INLINE uint64 SH2::EnterException(uint8 vectorNumber) {
 // Instruction interpreters
 
 template <bool debug, bool emulateCache>
-FORCE_INLINE uint64 SH2::InterpretNext() {
+FORCE_INLINE_EX uint64 SH2::InterpretNext() {
     if (std::bit_cast<uint16>(m_intrFlags) == kIntrFlagsPendingAllowed) [[unlikely]] {
         // Service interrupt
         const uint8 vecNum = INTC.GetVector(INTC.pending.source);
