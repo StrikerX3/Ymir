@@ -30,10 +30,6 @@ struct IFilesystemCDReader {
     /// @return a reference to the disc's table of contents.
     [[nodiscard]] virtual const TOC &GetTOC() const = 0;
 
-    /// @brief Retrieves the Saturn disc header information.
-    /// @return a reference to the Saturn disc header information.
-    [[nodiscard]] virtual const SaturnHeader &GetDiscHeader() const = 0;
-
     /// @brief Attempts to read the 2048-byte user data area from sector at the specified frame address.
     /// Cannot be used to read audio track data.
     /// @param[in] frameAddress the frame address (LBA) of the sector

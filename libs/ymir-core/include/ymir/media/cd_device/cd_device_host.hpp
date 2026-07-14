@@ -376,7 +376,6 @@ private:
 
         [[nodiscard]] bool HasDisc() const override;
         [[nodiscard]] const TOC &GetTOC() const override;
-        [[nodiscard]] const SaturnHeader &GetDiscHeader() const override;
         bool ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) override;
 
     private:

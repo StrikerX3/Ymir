@@ -38,12 +38,6 @@ bool Filesystem::Read(IFilesystemCDReader &cdReader) {
 
     const TOC &toc = cdReader.GetTOC();
 
-    // Check that we have a valid Saturn header
-    const SaturnHeader &header = cdReader.GetDiscHeader();
-    if (!header.IsValid()) {
-        return false;
-    }
-
     // The volume descriptor is at frame address 166 (00:02:16) from the start of the session
     const uint32 absVolumeDescAddress = 166;
 

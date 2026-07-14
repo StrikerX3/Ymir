@@ -857,10 +857,6 @@ const TOC &HostCDDevice::FilesystemReader::GetTOC() const {
     return m_dev.m_threadState.toc;
 }
 
-const SaturnHeader &HostCDDevice::FilesystemReader::GetDiscHeader() const {
-    return m_dev.m_threadState.header;
-}
-
 bool HostCDDevice::FilesystemReader::ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) {
     return m_dev.HostReadSectorUserData(frameAddress, outSector);
 }

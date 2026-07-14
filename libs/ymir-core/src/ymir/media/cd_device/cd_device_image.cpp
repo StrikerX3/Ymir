@@ -191,10 +191,6 @@ void ImageCDDevice::BeginSeekToTrackIndexImpl(uint8 trackNumber, uint8 indexNumb
     return m_dev.GetTOC();
 }
 
-[[nodiscard]] const SaturnHeader &ImageCDDevice::FilesystemReader::GetDiscHeader() const {
-    return m_dev.GetDiscHeader();
-}
-
 bool ImageCDDevice::FilesystemReader::ReadSectorUserData(uint32 frameAddress, std::span<uint8, 2048> outSector) {
     return m_dev.ReadSectorUserData(frameAddress, outSector);
 }
