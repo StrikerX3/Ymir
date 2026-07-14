@@ -59,6 +59,21 @@ struct DateTime {
     uint8 centisecond; // Hundredths of a second
     uint8 gmtOffset;   // Offset from GMT in 15-minute intervals from -48 to +52
 
+    DateTime() {
+        Clear();
+    }
+
+    void Clear() {
+        year = 0;
+        month = 0;
+        day = 0;
+        hour = 0;
+        minute = 0;
+        second = 0;
+        centisecond = 0;
+        gmtOffset = 0;
+    }
+
     // Parses a numeric date and time formatted as YYYYMMDDHHMMSSssO, where all but the last character are ASCII digits.
     bool ParseNumeric(std::span<uint8> dateTime) {
         if (dateTime.size() < 17) {
@@ -137,6 +152,29 @@ struct DirectoryRecord {
 
     std::string fileID;
     uint16 fileVersion;
+
+    DirectoryRecord() {
+        Clear();
+    }
+
+    void Clear() {
+        recordSize = 0;
+        extAttrRecordSize = 0;
+
+        extentPos = 0;
+        dataSize = 0;
+
+        recordingDateTime.Clear();
+        flags = 0;
+
+        fileUnitSize = 0;
+        interleaveGapSize = 0;
+
+        volSeqNumber = 0;
+
+        fileID.clear();
+        fileVersion = 0;
+    }
 
     // Retrieves the directory record size at the start of the given input span.
     // 0 indicates the directory table record list terminator.
@@ -538,6 +576,45 @@ struct VolumeDescriptor {
     uint8 fileStructureVersion;
 
     // std::array<char, 512> applicationUse;
+    VolumeDescriptor() {
+        Clear();
+    }
+
+    void Clear() {
+        systemID.clear();
+        volumeID.clear();
+
+        flags = 0;
+        escapeSequences.fill('\0');
+
+        spaceSize = 0;
+        setSize = 0;
+        seqNumber = 0;
+        logicalBlockSize = 0;
+
+        pathTableSize = 0;
+        pathTableLPos = 0;
+        pathTableLOptPos = 0;
+        pathTableMPos = 0;
+        pathTableMOptPos = 0;
+
+        rootDirRecord.Clear();
+
+        volumeSetID.clear();
+        publisherID.clear();
+        dataPreparerID.clear();
+        applicationID.clear();
+
+        copyrightFileID.clear();
+        abstractFileID.clear();
+        bibliographicFileID.clear();
+
+        creationDateTime.Clear();
+        modificationDateTime.Clear();
+        expirationDateTime.Clear();
+        effectiveDateTime.Clear();
+        fileStructureVersion = 0;
+    }
 
     // Fills in this descriptor with data from the start of the given span, which should point to the beginning of the
     // sector.
