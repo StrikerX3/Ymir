@@ -1122,7 +1122,6 @@ void Settings::BindConfiguration(ymir::core::Configuration &config) {
     audio.threadedSCSP.Observe([&](auto value) { config.audio.threadedSCSP = value; });
 
     cdblock.readSpeedFactor.Observe([&](auto value) { config.cdblock.readSpeedFactor = value; });
-    cdblock.useLLE.Observe([&](auto value) { m_context.EnqueueEvent(events::emu::SetCDBlockLLE(value)); });
 }
 
 SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
@@ -2039,7 +2038,7 @@ SettingsSaveResult Settings::Save() {
 
         {"CDBlock", toml::table{{
             {"ReadSpeed", cdblock.readSpeedFactor.Get()},
-            {"UseLLE", cdblock.useLLE.Get()},
+            {"UseLLE", cdblock.useLLE},
             {"OverrideROM", cdblock.overrideROM},
             {"ROMPath", Proximate(ProfilePath::CDBlockROMImages, cdblock.romPath).native()},
         }}},

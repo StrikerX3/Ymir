@@ -79,7 +79,7 @@ void TweaksSettingsView::Display() {
         // CD Block
 
         fmt::format_to(inserter, "### CD Block\n");
-        fmt::format_to(inserter, "- {}\n", checkbox("Use low level CD Block emulation", settings.cdblock.useLLE.Get()));
+        fmt::format_to(inserter, "- {}\n", checkbox("Use low level CD Block emulation", settings.cdblock.useLLE));
         fmt::format_to(inserter, "- CD read speed: {}x\n", settings.cdblock.readSpeedFactor.Get());
 
         // =============================================================================================================
@@ -191,6 +191,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
 
         settings.cdblock.readSpeedFactor = 2;
         settings.cdblock.useLLE = false;
+        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted(
@@ -214,6 +215,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
         }();
         settings.cdblock.readSpeedFactor = 2;
         settings.cdblock.useLLE = hasCDBlockROMs;
+        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(hasCDBlockROMs));
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes accuracy with no regard for performance.");
@@ -232,6 +234,7 @@ void TweaksSettingsView::DisplayAccuracyOptions() {
 
         settings.cdblock.readSpeedFactor = 200;
         settings.cdblock.useLLE = false;
+        m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
     }
     if (ImGui::BeginItemTooltip()) {
         ImGui::TextUnformatted("Maximizes performance with no regard for accuracy.\n"

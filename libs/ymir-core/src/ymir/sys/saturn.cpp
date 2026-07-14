@@ -436,7 +436,7 @@ bool Saturn::LoadState(const savestate::SaveState &state, bool skipROMChecks) {
     }
 
     // Changing this option causes a hard reset, so do it before loading the state
-    SetCDBlockLLE(state.cdblockLLE);
+    configuration.cdblock.useLLE = state.cdblockLLE;
 
     m_scheduler.LoadState(state.scheduler);
     m_system.LoadState(state.system);

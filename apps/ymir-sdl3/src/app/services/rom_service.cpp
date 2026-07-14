@@ -224,6 +224,7 @@ util::ROMLoadResult ROMService::LoadCDBlockROM() {
         devlog::warn<grp::base>("No CD Block ROM found");
         if (m_settings.cdblock.useLLE) {
             m_settings.cdblock.useLLE = false;
+            m_context.EnqueueEvent(events::emu::SetCDBlockLLE(false));
             m_context.DisplayMessage("Low level CD block emulation disabled: no ROMs found");
         }
         return util::ROMLoadResult::Fail("No CD Block ROM found");
