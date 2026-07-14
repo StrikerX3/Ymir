@@ -834,20 +834,22 @@ bool CDBlock::SetupGenericPlayback(uint32 startParam, uint32 endParam, uint16 re
 
         uint32 frameAddress = m_status.frameAddress;
         if (resetPos) {
+            m_cdif.BeginSeekToTrackIndex(startTrack, startIndex);
             frameAddress = m_playStartPos;
             devlog::debug<grp::play_init>("Reset playback position to {:06X}", frameAddress);
         } else if (frameAddress < m_playStartPos || frameAddress > m_playEndPos + 1) {
+            m_cdif.BeginSeekToTrackIndex(startTrack, startIndex);
             devlog::debug<grp::play_init>(
                 "Adjusting playback position from {:06X} to {:06X} to fit range {:06X}..{:06X}", frameAddress,
                 m_playStartPos, m_playStartPos, m_playEndPos);
             frameAddress = m_playStartPos;
         } else {
+            m_cdif.BeginSeekToFrameAddress(frameAddress);
             devlog::debug<grp::play_init>("Continuing playback from {:06X}", frameAddress);
         }
 
         const media::TrackInfo *trackInfo = toc.GetTrackInfoForFAD(frameAddress);
         if (trackInfo != nullptr) [[likely]] {
-            m_cdif.BeginSeekToTrackIndex(trackInfo->number, startIndex);
             m_status.statusCode = kStatusCodeSeek;
             m_status.flags = trackInfo->controlADR == 0x01 ? 0x8 : 0x0;
             m_status.repeatCount = 0; // first repeat
@@ -1042,16 +1044,14 @@ void CDBlock::ProcessDriveStatePlay() {
                 return;
             }
 
-            const media::TrackInfo *track = m_cdif.GetTOC().GetTrackInfoForFAD(frameAddress);
-
             Buffer &buffer = m_scratchBuffers[0];
             media::DiscPosition discPos{};
 
             // Sanity check: is the track valid?
-            if (track != nullptr && m_cdif.ReadSector(frameAddress, buffer.data, &discPos)) [[likely]] {
+            if (m_cdif.ReadSector(frameAddress, buffer.data, &discPos)) [[likely]] {
                 devlog::trace<grp::play>("Read sector from frame address {:06X}", frameAddress);
 
-                if (track->controlADR == 0x01) {
+                if (discPos.controlADR == 0x01) {
                     // If playing an audio track, send to SCSP
                     if (scan) {
                         // While scanning, attenuate volume by 12 dB
@@ -1147,12 +1147,6 @@ void CDBlock::ProcessDriveStatePlay() {
                     m_status.controlADR = discPos.controlADR;
                     m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
                 }
-            } else if (track == nullptr) {
-                // This shouldn't really happen unless we're given an invalid disc image
-                // Let's pretend this is a disc read error
-                // TODO: what happens on a real disc read error?
-                devlog::debug<grp::play>("Track not found");
-                m_status.statusCode = kStatusCodeError;
             } else {
                 // Handle as a disc read error
                 // TODO: what happens on a real disc read error?
@@ -1172,8 +1166,8 @@ void CDBlock::ProcessDriveStatePlay() {
     if (useFAD) {
         endReached = m_status.frameAddress > m_playEndPos;
     } else {
-        uint8 endTrackNum = bit::extract<8, 15>(m_playEndParam);
-        uint8 endIndexNum = bit::extract<0, 7>(m_playEndParam);
+        uint8 endTrackNum = util::from_bcd(bit::extract<8, 15>(m_playEndParam));
+        uint8 endIndexNum = util::from_bcd(bit::extract<0, 7>(m_playEndParam));
         if (endTrackNum == 0) {
             endTrackNum = m_cdif.GetTOC().GetLastTrackNumber();
         }

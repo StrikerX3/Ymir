@@ -421,6 +421,7 @@ FORCE_INLINE uint64 CDDrive::CmdStop() {
 
     return kDriveCyclesPlaying1x / m_readSpeed;
 }
+
 FORCE_INLINE uint64 CDDrive::CmdScan(bool fwd) {
     devlog::debug<grp::lle_cd>("Scan {}", (fwd ? "forwards" : "backwards"));
 

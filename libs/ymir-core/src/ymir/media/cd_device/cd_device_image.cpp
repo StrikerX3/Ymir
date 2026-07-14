@@ -119,7 +119,7 @@ uint32 ImageCDDevice::ReadSectorImpl(uint32 frameAddress, std::span<uint8, 2352>
         const auto [m, s, f] = FADToMSF(frameAddress);
 
         outPosition->controlADR = track->controlADR;
-        outPosition->track = track->index + 1;
+        outPosition->track = track->index;
         outPosition->index = index == 0xFF ? 0x01 : index;
         outPosition->min = util::to_bcd(relM);
         outPosition->sec = util::to_bcd(relS);
