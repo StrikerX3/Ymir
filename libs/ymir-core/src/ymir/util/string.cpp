@@ -62,4 +62,21 @@ std::string TranslateSaturnString(std::string_view str) {
     return output;
 }
 
+std::string TrimWhitespace(std::string str) {
+    auto start = str.find_first_not_of(" ");
+    auto end = str.find_last_not_of(" ");
+
+    if (start == std::string::npos && end == std::string::npos) {
+        // The entire string is whitespace
+        return "";
+    }
+    if (start == std::string::npos) {
+        start = 0;
+    }
+    if (end == std::string::npos) {
+        end = str.size();
+    }
+    return str.substr(start, end + 1);
+}
+
 } // namespace util

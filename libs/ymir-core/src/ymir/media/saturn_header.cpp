@@ -1,30 +1,14 @@
 #include <ymir/media/saturn_header.hpp>
 
 #include <ymir/util/data_ops.hpp>
+#include <ymir/util/string.hpp>
 
 namespace ymir::media {
-
-static std::string TrimWhitespace(std::string view) {
-    auto start = view.find_first_not_of(" ");
-    auto end = view.find_last_not_of(" ");
-
-    if (start == std::string::npos && end == std::string::npos) {
-        // The entire string is whitespace
-        return "";
-    }
-    if (start == std::string::npos) {
-        start = 0;
-    }
-    if (end == std::string::npos) {
-        end = view.size();
-    }
-    return view.substr(start, end + 1);
-}
 
 static std::string ReadString(std::span<uint8> data, std::size_t start, std::size_t end) {
     std::string view{(char *)&data[start], end - start + 1};
     std::transform(view.begin(), view.end(), view.begin(), [](char c) { return c == 0 ? ' ' : c; });
-    return TrimWhitespace(view);
+    return util::TrimWhitespace(view);
 }
 
 bool SaturnHeader::ReadFrom(std::span<uint8> data) {
