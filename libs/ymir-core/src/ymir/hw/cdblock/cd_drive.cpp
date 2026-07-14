@@ -625,13 +625,13 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
     const uint32 fad = (m_command.fadTop << 16u) | (m_command.fadMid << 8u) | m_command.fadBtm;
     m_currFAD = m_targetFAD = fad - 4;
     if (m_cdif.HasDisc()) {
-        const media::TOC &toc = m_cdif.GetTOC();
-        const media::TrackInfo *track = toc.GetTrackInfoForFAD(fad);
-        if (track == nullptr || (track->controlADR & 0x40)) {
+        if (m_command.index == 0) {
             m_cdif.BeginSeekToFrameAddress(fad);
             m_seekOp = read ? Operation::ReadDataSector : Operation::Idle;
         } else {
-            m_cdif.BeginSeekToTrackIndex(util::from_bcd(track->number), m_command.index);
+            const media::TOC &toc = m_cdif.GetTOC();
+            const uint8 trackNumber = toc.GetTrackNumberForFAD(fad);
+            m_cdif.BeginSeekToTrackIndex(util::from_bcd(trackNumber), m_command.index);
             m_seekOp = read ? Operation::ReadAudioSector : Operation::Idle;
         }
     } else {

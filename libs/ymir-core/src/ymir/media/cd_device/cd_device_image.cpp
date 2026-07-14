@@ -57,8 +57,8 @@ bool ImageCDDevice::ReadPosition(uint32 frameAddress, DiscPosition &outPosition)
     const auto [m, s, f] = FADToMSF(frameAddress);
 
     outPosition.controlADR = track.controlADR;
-    outPosition.track = trackIndex + 1;
-    outPosition.index = index == 0xFF ? 0x01 : index;
+    outPosition.track = util::to_bcd(trackIndex + 1);
+    outPosition.index = index == 0xFF ? 0x01 : util::to_bcd(index);
     outPosition.min = util::to_bcd(relM);
     outPosition.sec = util::to_bcd(relS);
     outPosition.frame = util::to_bcd(relF);
