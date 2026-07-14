@@ -6,6 +6,10 @@ std::vector<HostDriveInfo> EnumerateHostCDDrives() {
     return {};
 }
 
+std::vector<HostDriveInfo> GetEnumeratedHostCDDrives() {
+    return {};
+}
+
 DeviceHandle OpenCDDrive(std::string path) {
     return kInvalidDeviceHandle;
 }
