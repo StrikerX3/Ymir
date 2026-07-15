@@ -51,7 +51,7 @@ These options are used by the build workflows to tune the build output:
 Ymir also supports feature flags. These are enabled by default on development and nightly builds:
 
 - `Ymir_FEATUREFLAG_DEFAULT` (`BOOL`): Enables or disables all non-overridden feature flags. Enabled by default on development builds.
-- (No feature flags available at the moment.)
+- `Ymir_FF_HOST_CD_DRIVES` (`BOOL`): Enables support for reading discs from host CD drives (physical or virtual). Disabled by default, including development and nightly builds.
 <!-- Template:
 - `Ymir_FF_[NAME]` (`BOOL`): Enables [feature].
 -->

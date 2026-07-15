@@ -331,25 +331,20 @@ target_include_directories(ymir-core
 )
 target_compile_features(ymir-core PUBLIC cxx_std_20)
 
-## Add OS-specific source files
-if (WIN32)
-    set(YMIR_HOST_SOURCES
-        src/ymir/media/host_cd_windows.cpp
-    )
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(YMIR_HOST_SOURCES
-        src/ymir/media/host_cd_linux.cpp
-    )
-elseif (APPLE)
-    set(YMIR_HOST_SOURCES
-        src/ymir/media/host_cd_macos.cpp
-    )
+## Add OS-specific source files for host CD drive support
+if (Ymir_FF_HOST_CD_DRIVES)
+    if (WIN32)
+        target_sources(ymir-core PRIVATE src/ymir/media/host_cd_windows.cpp)
+    elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_sources(ymir-core PRIVATE src/ymir/media/host_cd_linux.cpp)
+    elseif (APPLE)
+        target_sources(ymir-core PRIVATE src/ymir/media/host_cd_macos.cpp)
+    else ()
+        target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
+    endif ()
 else ()
-    set(YMIR_HOST_SOURCES
-        src/ymir/media/host_cd_dummy.cpp
-    )
+    target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
 endif ()
-target_sources(ymir-core PRIVATE ${YMIR_HOST_SOURCES})
 
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
@@ -452,6 +447,7 @@ target_compile_definitions(ymir-core PUBLIC "TOML_EXCEPTIONS=0")
 ## Define feature flags macros
 ## Template:
 ## target_compile_definitions(ymir-core PUBLIC "Ymir_FF_[NAME]=$<BOOL:${Ymir_FF_[NAME]}>")
+target_compile_definitions(ymir-core PUBLIC "Ymir_FF_HOST_CD_DRIVES=$<BOOL:${Ymir_FF_HOST_CD_DRIVES}>")
 
 ## Generate the export header and attach it to the target
 include(GenerateExportHeader)

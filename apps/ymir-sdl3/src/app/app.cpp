@@ -441,7 +441,9 @@ int App::Run(const CommandLineOptions &options) {
     EnableRewindBuffer(settings.general.enableRewindBuffer);
     util::BoostCurrentProcessPriority(settings.general.boostProcessPriority);
 
+#if Ymir_FF_HOST_CD_DRIVES
     ymir::media::host::EnumerateHostCDDrives();
+#endif
 
     // Load recent discs list.
     // Must be done before LoadDiscImage because it saves the recent list to the file.
@@ -2049,6 +2051,7 @@ void App::RunEmulator() {
                         }
                         ImGui::EndMenu();
                     }
+#if Ymir_FF_HOST_CD_DRIVES
                     if (ImGui::BeginMenu("Load from drive")) {
                         for (const media::host::HostDriveInfo &info : media::host::GetEnumeratedHostCDDrives()) {
                             const std::string drivePath = info.GetDisplayPath();
@@ -2072,6 +2075,7 @@ void App::RunEmulator() {
                         ImGui::PopItemFlag();
                         ImGui::EndMenu();
                     }
+#endif
                     if (ImGui::MenuItem("Open/close tray",
                                         input::ToShortcut(inputContext, actions::cd_drive::OpenCloseTray).c_str())) {
                         m_context.EnqueueEvent(events::emu::OpenCloseTray());
