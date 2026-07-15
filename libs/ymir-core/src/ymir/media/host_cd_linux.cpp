@@ -8,6 +8,9 @@
 #include <scsi/sg.h>
 #include <sys/ioctl.h>
 
+#include <vector>
+#include <mutex>
+
 namespace ymir::media::host {
 
 // ---------------------------------------------------------------------------------------------------------------------

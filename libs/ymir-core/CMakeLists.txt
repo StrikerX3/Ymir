@@ -340,6 +340,10 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(YMIR_HOST_SOURCES
         src/ymir/media/host_cd_linux.cpp
     )
+elseif (APPLE)
+    set(YMIR_HOST_SOURCES
+        src/ymir/media/host_cd_macos.cpp
+    )
 else ()
     set(YMIR_HOST_SOURCES
         src/ymir/media/host_cd_dummy.cpp
