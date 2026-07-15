@@ -24,8 +24,4 @@ DriveState PollDriveState(DeviceHandle handle) {
     return DriveState::Unknown;
 }
 
-std::vector<TOCEntry> ReadTOC(DeviceHandle handle) {
-    return {};
-}
-
 } // namespace ymir::media::host

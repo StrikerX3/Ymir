@@ -336,6 +336,10 @@ if (WIN32)
     set(YMIR_HOST_SOURCES
         src/ymir/media/host_cd_windows.cpp
     )
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(YMIR_HOST_SOURCES
+        src/ymir/media/host_cd_linux.cpp
+    )
 else ()
     set(YMIR_HOST_SOURCES
         src/ymir/media/host_cd_dummy.cpp
