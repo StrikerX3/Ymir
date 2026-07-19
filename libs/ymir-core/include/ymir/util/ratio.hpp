@@ -11,7 +11,6 @@ template <typename T>
     requires std::integral<T>
 class Ratio {
     /// @brief Wider type for fast comparison operations.
-    /// Uses uint64
     using TWide = std::conditional_t<(sizeof(T) <= 4), std::conditional_t<std::is_signed_v<T>, sint64, uint64>,
 #if defined(__SIZEOF_INT128__)
                                      std::conditional_t<std::is_signed_v<T>, __int128, unsigned __int128>
@@ -89,6 +88,7 @@ public:
     constexpr auto operator<=>(const Ratio &rhs) const
         requires(!std::is_void_v<TWide>)
     {
+        // Fast comparison using wider integer types
         const auto lval = static_cast<TWide>(m_num) * static_cast<TWide>(rhs.m_den);
         const auto rval = static_cast<TWide>(rhs.m_num) * static_cast<TWide>(m_den);
         return lval <=> rval;
@@ -97,9 +97,10 @@ public:
     constexpr auto operator<=>(const Ratio &rhs) const
         requires(std::is_void_v<TWide>)
     {
-        const auto lhs = static_cast<long double>(m_num) / static_cast<long double>(m_den);
+        // Slow, less accurate comparison using long doubles for compilers without int128
+        const auto lhsd = static_cast<long double>(m_num) / static_cast<long double>(m_den);
         const auto rhsd = static_cast<long double>(rhs.m_num) / static_cast<long double>(rhs.m_den);
-        return lhs <=> rhsd;
+        return lhsd <=> rhsd;
     }
 
 private:
