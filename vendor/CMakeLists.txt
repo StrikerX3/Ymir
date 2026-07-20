@@ -65,6 +65,12 @@ if (NOT Ymir_LIBRARY_ONLY)
     # - Unable to configure AVX2 support from vcpkg
     message(STATUS "==> lz4")
     add_subdirectory(lz4 EXCLUDE_FROM_ALL)
+
+    # discord-rpc - https://github.com/discord/discord-rpc
+    # - Via myMCpp / PCSX2
+    message(STATUS "==> discord-rpc")
+    find_package(nlohmann_json CONFIG REQUIRED)
+    add_subdirectory(discord-rpc EXCLUDE_FROM_ALL)
 endif ()
 
 # Place vendored library projects under a Vendored folder in Visual Studio solutions
@@ -75,6 +81,7 @@ if (MSVC)
     if (NOT Ymir_LIBRARY_ONLY)
         set_target_properties(imgui PROPERTIES FOLDER Vendored)
         set_target_properties(lz4 PROPERTIES FOLDER Vendored)
+        set_target_properties(discord-rpc PROPERTIES FOLDER Vendored)
     endif ()
 endif ()
 

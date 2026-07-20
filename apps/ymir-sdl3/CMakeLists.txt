@@ -454,6 +454,7 @@ target_link_libraries(ymir-sdl3 PRIVATE
     tomlplusplus::tomlplusplus
     cereal::cereal
     lz4::lz4
+    discord-rpc
     RtMidi::rtmidi
     CURL::libcurl_static
 )
