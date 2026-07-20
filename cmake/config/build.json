@@ -1,0 +1,45 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "include": [
+    "toolchain-vcpkg.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "config-build-full",
+      "displayName": "Full build configuration",
+      "description": "Base configuration for full builds",
+      "hidden": true,
+      "inherits": [ "config-toolchain-vcpkg" ],
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IMGUI_DEMO": "ON",
+        "Ymir_ENABLE_SANDBOX": "ON",
+        "Ymir_ENABLE_TESTS": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "OFF",
+        "Ymir_ENABLE_YMDASM": "ON",
+        "Ymir_LIBRARY_ONLY": "OFF"
+      }
+    },
+    {
+      "name": "config-build-libonly",
+      "displayName": "Library-only build configuration",
+      "description": "Base configuration for library-only builds",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "cacheVariables": {
+        "Ymir_ENABLE_IMGUI_DEMO": "ON",
+        "Ymir_ENABLE_SANDBOX": "ON",
+        "Ymir_ENABLE_TESTS": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "OFF",
+        "Ymir_ENABLE_YMDASM": "ON",
+        "Ymir_LIBRARY_ONLY": "ON"
+      }
+    }
+  ]
+}

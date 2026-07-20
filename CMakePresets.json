@@ -5,373 +5,327 @@
     "minor": 23,
     "patch": 0
   },
+  "include": [
+    "cmake/config/arch-x86_64.json",
+    "cmake/config/build.json",
+    "cmake/config/compiler-clang-cl.json",
+    "cmake/config/compiler-msvc.json",
+    "cmake/config/generator-ninja.json",
+    "cmake/config/platform-windows.json",
+    "cmake/config/targets.json",
+    "cmake/config/toolchain-vcpkg.json"
+  ],
   "configurePresets": [
-    // ---------------------------------------------------------------------------------------------
-    // Base configurations
-    {
-      "name": "Base",
-      "displayName": "Base configuration",
-      "description": "Base configuration for all builds",
-      "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "Ymir_ENABLE_IMGUI_DEMO": "ON",
-        "Ymir_ENABLE_SANDBOX": "ON",
-        "Ymir_ENABLE_TESTS": "ON",
-        "Ymir_ENABLE_UPDATE_CHECKS": "OFF",
-        "Ymir_ENABLE_YMDASM": "ON",
-        "Ymir_LIBRARY_ONLY": "OFF"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ]
-        }
-      }
-    },
-    {
-      "name": "LibOnly-Base",
-      "displayName": "Base configuration",
-      "description": "Base configuration for all library-only builds",
-      "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "cacheVariables": {
-        "Ymir_ENABLE_IMGUI_DEMO": "ON",
-        "Ymir_ENABLE_SANDBOX": "ON",
-        "Ymir_ENABLE_TESTS": "ON",
-        "Ymir_ENABLE_UPDATE_CHECKS": "OFF",
-        "Ymir_ENABLE_YMDASM": "ON",
-        "Ymir_LIBRARY_ONLY": "ON"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ]
-        }
-      }
-    },
-
-    // ---------------------------------------------------------------------------------------------
-    // Base x86-64 configurations
-    {
-      "name": "x64-Base",
-      "displayName": "x86-64 base configuration",
-      "description": "Base configuration for all x86-64 builds",
-      "hidden": true,
-      "architecture": {
-        "value": "x64",
-        "strategy": "external"
-      }
-    },
-    {
-      "name": "x64-SSE2-Base",
-      "displayName": "x64 SSE2 (base configuration)",
-      "description": "Base configuration for all x86-64 builds with SSE2 support",
-      "hidden": true,
-      "inherits": [ "x64-Base" ],
-      "cacheVariables": {
-        "Ymir_AVX2": "OFF"
-      }
-    },
-    {
-      "name": "x64-AVX2-Base",
-      "displayName": "x64 AVX2 (base configuration)",
-      "description": "Base configuration for all x86-64 builds with AVX2 support",
-      "hidden": true,
-      "inherits": [ "x64-Base" ],
-      "cacheVariables": {
-        "Ymir_AVX2": "ON"
-      }
-    },
-
-    // ---------------------------------------------------------------------------------------------
-    // Base Clang configurations
-    {
-      "name": "x64-Clang-Base",
-      "displayName": "x64 Clang (base configuration)",
-      "description": "Base configuration for Clang-based x86-64 builds",
-      "hidden": true,
-      "inherits": [ "x64-Base" ],
-      "toolset": "ClangCL",
-      "environment": {
-        "CC": "clang-cl",
-        "CXX": "clang-cl"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioSettings/CMake/1.0": {
-          "hostOS": [
-            "Windows"
-          ],
-          "intelliSenseMode": "windows-clang-x64"
-        }
-      }
-    },
-    {
-      "name": "x64-SSE2-Clang-Base",
-      "displayName": "x64 SSE2 Clang (base configuration)",
-      "description": "Base configuration for Clang-based x86-64 builds with SSE2 support",
-      "hidden": true,
-      "inherits": [ "x64-Clang-Base", "x64-SSE2-Base" ],
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-static-md"
-      }
-    },
-    {
-      "name": "x64-AVX2-Clang-Base",
-      "displayName": "x64 AVX2 Clang (base configuration)",
-      "description": "Base configuration for Clang-based x86-64 builds with AVX2 support",
-      "hidden": true,
-      "inherits": [ "x64-Clang-Base", "x64-AVX2-Base" ],
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-avx2-static-md"
-      }
-    },
-
-    // ---------------------------------------------------------------------------------------------
-    // Base MSVC configurations
-    {
-      "name": "x64-MSVC-Base",
-      "displayName": "x64 MSVC (base configuration)",
-      "description": "Base configuration for MSVC-based x86-64 builds",
-      "hidden": true,
-      "inherits": [ "x64-Base" ],
-      "environment": {
-        "CC": "cl",
-        "CXX": "cl"
-      }
-    },
-    {
-      "name": "x64-SSE2-MSVC-Base",
-      "displayName": "x64 SSE2 MSVC (base configuration)",
-      "description": "Base configuration for MSVC-based x86-64 builds with SSE2 support",
-      "hidden": true,
-      "inherits": [ "x64-MSVC-Base", "x64-SSE2-Base" ],
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
-      }
-    },
-    {
-      "name": "x64-AVX2-MSVC-Base",
-      "displayName": "x64 AVX2 MSVC (base configuration)",
-      "description": "Base configuration for MSVC-based x86-64 builds with AVX2 support",
-      "hidden": true,
-      "inherits": [ "x64-MSVC-Base", "x64-AVX2-Base" ],
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
-      }
-    },
-
-    // ---------------------------------------------------------------------------------------------
-    // Base build target presets
-    {
-      "name": "Debug-Base",
-      "displayName": "Debug (base configuration)",
-      "description": "Base configuration for Debug builds",
-      "hidden": true,
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_ENABLE_DEVLOG": "ON",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_EXTRA_INLINING": "OFF"
-      }
-    },
-    {
-      "name": "Release-Base",
-      "displayName": "Release (base configuration)",
-      "description": "Base configuration for Release builds",
-      "hidden": true,
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
-        "Ymir_ENABLE_DEVLOG": "ON",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_EXTRA_INLINING": "OFF"
-      }
-    },
-    {
-      "name": "Release-Dist-Base",
-      "displayName": "Release/Dist (base configuration)",
-      "description": "Base configuration for Release/Dist builds",
-      "hidden": true,
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "Ymir_ENABLE_DEV_ASSERTIONS": "OFF",
-        "Ymir_ENABLE_DEVLOG": "OFF",
-        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
-        "Ymir_ENABLE_IPO": "OFF",
-        "Ymir_EXTRA_INLINING": "ON"
-      }
-    },
-
     // ---------------------------------------------------------------------------------------------
     // x86-64 SSE2 Clang
     {
-      "name": "x64-SSE2-Clang-Debug",
-      "displayName": "x64 SSE2 Clang Debug",
+      "name": "Full-x86-64-SSE2-Clang-Debug",
+      "displayName": "Full x86-64 SSE2 Clang Debug",
       "description": "Debug configuration for x86-64 Clang with SSE2 support",
-      "inherits": [ "Base", "x64-SSE2-Clang-Base", "Debug-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-debug"
+      ]
     },
     {
-      "name": "LibOnly-x64-SSE2-Clang-Debug",
-      "displayName": "x64 SSE2 Clang Debug (LibOnly)",
-      "description": "Library-only (ymir-core) Debug build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Debug-Base" ]
-    },
-    {
-      "name": "x64-SSE2-Clang-Release",
-      "displayName": "x64 SSE2 Clang Release",
+      "name": "Full-x86-64-SSE2-Clang-Release",
+      "displayName": "Full x86-64 SSE2 Clang Release",
       "description": "Release configuration for x86-64 Clang with SSE2 support",
-      "inherits": [ "Base", "x64-SSE2-Clang-Base", "Release-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-release"
+      ]
     },
     {
-      "name": "LibOnly-x64-SSE2-Clang-Release",
-      "displayName": "x64 SSE2 Clang Release (LibOnly)",
-      "description": "Library-only (ymir-core) Release build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Base" ]
-    },
-    {
-      "name": "x64-SSE2-Clang-Release-Dist",
-      "displayName": "x64 SSE2 Clang Release/Dist",
+      "name": "Full-x86-64-SSE2-Clang-Release-Dist",
+      "displayName": "Full x86-64 SSE2 Clang Release/Dist",
       "description": "Release (distribution) configuration for x86-64 Clang with SSE2 support",
-      "inherits": [ "Base", "x64-SSE2-Clang-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-release-dist"
+      ]
+    },
+
+    {
+      "name": "LibOnly-x86-64-SSE2-Clang-Debug",
+      "displayName": "LibOnly x86-64 SSE2 Clang Debug",
+      "description": "Library-only (ymir-core) Debug build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-debug"
+      ]
     },
     {
-      "name": "LibOnly-x64-SSE2-Clang-Release-Dist",
-      "displayName": "x64 SSE2 Clang Release/Dist (LibOnly)",
+      "name": "LibOnly-x86-64-SSE2-Clang-Release",
+      "displayName": "LibOnly x86-64 SSE2 Clang Release",
+      "description": "Library-only (ymir-core) Release build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-release"
+      ]
+    },
+    {
+      "name": "LibOnly-x86-64-SSE2-Clang-Release-Dist",
+      "displayName": "LibOnly x86-64 SSE2 Clang Release/Dist",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 Clang with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-Clang-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-release-dist"
+      ]
     },
 
     // ---------------------------------------------------------------------------------------------
     // x86-64 AVX2 Clang
     {
-      "name": "x64-AVX2-Clang-Debug",
-      "displayName": "x64 AVX2 Clang Debug",
+      "name": "Full-x86-64-AVX2-Clang-Debug",
+      "displayName": "Full x86-64 AVX2 Clang Debug",
       "description": "Debug configuration for x86-64 Clang with AVX2 support",
-      "inherits": [ "Base", "x64-AVX2-Clang-Base", "Debug-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-debug"
+      ]
     },
     {
-      "name": "LibOnly-x64-AVX2-Clang-Debug",
-      "displayName": "x64 AVX2 Clang Debug (LibOnly)",
-      "description": "Library-only (ymir-core) Debug build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Debug-Base" ]
-    },
-    {
-      "name": "x64-AVX2-Clang-Release",
-      "displayName": "x64 AVX2 Clang Release",
+      "name": "Full-x86-64-AVX2-Clang-Release",
+      "displayName": "Full x86-64 AVX2 Clang Release",
       "description": "Release configuration for x86-64 Clang with AVX2 support",
-      "inherits": [ "Base", "x64-AVX2-Clang-Base", "Release-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-release"
+      ]
     },
     {
-      "name": "LibOnly-x64-AVX2-Clang-Release",
-      "displayName": "x64 AVX2 Clang Release (LibOnly)",
-      "description": "Library-only (ymir-core) Release build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Base" ]
-    },
-    {
-      "name": "x64-AVX2-Clang-Release-Dist",
-      "displayName": "x64 AVX2 Clang Release/Dist",
+      "name": "Full-x86-64-AVX2-Clang-Release-Dist",
+      "displayName": "Full x86-64 AVX2 Clang Release/Dist",
       "description": "Release (distribution) configuration for x86-64 Clang with AVX2 support",
-      "inherits": [ "Base", "x64-AVX2-Clang-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-release-dist"
+      ]
+    },
+
+    {
+      "name": "LibOnly-x86-64-AVX2-Clang-Debug",
+      "displayName": "LibOnly x86-64 AVX2 Clang Debug",
+      "description": "Library-only (ymir-core) Debug build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-debug"
+      ]
     },
     {
-      "name": "LibOnly-x64-AVX2-Clang-Release-Dist",
-      "displayName": "x64 AVX2 Clang Release/Dist (LibOnly)",
+      "name": "LibOnly-x86-64-AVX2-Clang-Release",
+      "displayName": "LibOnly x86-64 AVX2 Clang Release",
+      "description": "Library-only (ymir-core) Release build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-release"
+      ]
+    },
+    {
+      "name": "LibOnly-x86-64-AVX2-Clang-Release-Dist",
+      "displayName": "LibOnly x86-64 AVX2 Clang Release/Dist",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-Clang-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-release-dist"
+      ]
     },
 
     // ---------------------------------------------------------------------------------------------
     // x86-64 SSE2 MSVC
     {
-      "name": "x64-SSE2-MSVC-Debug",
-      "displayName": "x64 SSE2 MSVC Debug",
+      "name": "Full-x86-64-SSE2-MSVC-Debug",
+      "displayName": "Full x86-64 SSE2 MSVC Debug",
       "description": "Debug configuration for x86-64 MSVC with SSE2 support",
-      "inherits": [ "Base", "x64-SSE2-MSVC-Base", "Debug-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-SSE2",
+        "config-target-debug"
+      ]
     },
     {
-      "name": "LibOnly-x64-SSE2-MSVC-Debug",
-      "displayName": "x64 SSE2 MSVC Debug (LibOnly)",
-      "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Debug-Base" ]
-    },
-    {
-      "name": "x64-SSE2-MSVC-Release",
-      "displayName": "x64 SSE2 MSVC Release",
+      "name": "Full-x86-64-SSE2-MSVC-Release",
+      "displayName": "Full x86-64 SSE2 MSVC Release",
       "description": "Release configuration for x86-64 MSVC with SSE2 support",
-      "inherits": [ "Base", "x64-SSE2-MSVC-Base", "Release-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-SSE2",
+        "config-target-release"
+      ]
     },
     {
-      "name": "LibOnly-x64-SSE2-MSVC-Release",
-      "displayName": "x64 SSE2 MSVC Release (LibOnly)",
-      "description": "Library-only (ymir-core) Release build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Base" ]
-    },
-    {
-      "name": "x64-SSE2-MSVC-Release-Dist",
-      "displayName": "x64 SSE2 MSVC Release/Dist",
+      "name": "Full-x86-64-SSE2-MSVC-Release-Dist",
+      "displayName": "Full x86-64 SSE2 MSVC Release/Dist",
       "description": "Release (distribution) configuration for x86-64 MSVC with SSE2 support",
-      "inherits": [ "Base", "x64-SSE2-MSVC-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-SSE2",
+        "config-target-release-dist"
+      ]
+    },
+
+    {
+      "name": "LibOnly-x86-64-SSE2-MSVC-Debug",
+      "displayName": "LibOnly x86-64 SSE2 MSVC Debug",
+      "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-SSE2",
+        "config-target-debug"
+      ]
     },
     {
-      "name": "LibOnly-x64-SSE2-MSVC-Release-Dist",
-      "displayName": "x64 SSE2 MSVC Release/Dist (LibOnly)",
+      "name": "LibOnly-x86-64-SSE2-MSVC-Release",
+      "displayName": "LibOnly x86-64 SSE2 MSVC Release",
+      "description": "Library-only (ymir-core) Release build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-SSE2",
+        "config-target-release"
+      ]
+    },
+    {
+      "name": "LibOnly-x86-64-SSE2-MSVC-Release-Dist",
+      "displayName": "LibOnly x86-64 SSE2 MSVC Release/Dist",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 MSVC with SSE2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-SSE2-MSVC-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-SSE2",
+        "config-target-release-dist"
+      ]
     },
 
     // ---------------------------------------------------------------------------------------------
-    // x86-64 AVX2 Clang
+    // x86-64 AVX2 MSVC
     {
-      "name": "x64-AVX2-MSVC-Debug",
-      "displayName": "x64 AVX2 MSVC Debug",
+      "name": "Full-x86-64-AVX2-MSVC-Debug",
+      "displayName": "Full x86-64 AVX2 MSVC Debug",
       "description": "Debug configuration for x86-64 MSVC with AVX2 support",
-      "inherits": [ "Base", "x64-AVX2-MSVC-Base", "Debug-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-debug"
+      ]
     },
     {
-      "name": "LibOnly-x64-AVX2-MSVC-Debug",
-      "displayName": "x64 AVX2 MSVC Debug (LibOnly)",
-      "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Debug-Base" ]
-    },
-    {
-      "name": "x64-AVX2-MSVC-Release",
-      "displayName": "x64 AVX2 MSVC Release",
+      "name": "Full-x86-64-AVX2-MSVC-Release",
+      "displayName": "Full x86-64 AVX2 MSVC Release",
       "description": "Release configuration for x86-64 MSVC with AVX2 support",
-      "inherits": [ "Base", "x64-AVX2-MSVC-Base", "Release-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-release"
+      ]
     },
+
     {
-      "name": "LibOnly-x64-AVX2-MSVC-Release",
-      "displayName": "x64 AVX2 MSVC Release (LibOnly)",
-      "description": "Library-only (ymir-core) Release build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Base" ]
-    },
-    {
-      "name": "x64-AVX2-MSVC-Release-Dist",
-      "displayName": "x64 AVX2 MSVC Release/Dist",
+      "name": "Full-x86-64-AVX2-MSVC-Release-Dist",
+      "displayName": "Full x86-64 AVX2 MSVC Release/Dist",
       "description": "Release (distribution) configuration for x86-64 MSVC with AVX2 support",
-      "inherits": [ "Base", "x64-AVX2-MSVC-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-release-dist"
+      ]
     },
     {
-      "name": "LibOnly-x64-AVX2-MSVC-Release-Dist",
-      "displayName": "x64 AVX2 MSVC Release/Dist (LibOnly)",
+      "name": "LibOnly-x86-64-AVX2-MSVC-Debug",
+      "displayName": "LibOnly x86-64 AVX2 MSVC Debug",
+      "description": "Library-only (ymir-core) Debug build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-debug"
+      ]
+    },
+    {
+      "name": "LibOnly-x86-64-AVX2-MSVC-Release",
+      "displayName": "LibOnly x86-64 AVX2 MSVC Release",
+      "description": "Library-only (ymir-core) Release build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-release"
+      ]
+    },
+    {
+      "name": "LibOnly-x86-64-AVX2-MSVC-Release-Dist",
+      "displayName": "LibOnly x86-64 AVX2 MSVC Release/Dist",
       "description": "Library-only (ymir-core) Release/Dist build for x86-64 MSVC with AVX2 support, for use by CMake subprojects",
-      "inherits": [ "LibOnly-Base", "x64-AVX2-MSVC-Base", "Release-Dist-Base" ]
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-release-dist"
+      ]
     },
 
     // ---------------------------------------------------------------------------------------------
     // Specialized PGO configurations
     {
-      "name": "x64-AVX2-Clang-Release-Dist-PGO-Generate",
-      "displayName": "x64 Clang Release/Dist AVX2 PGO (Generate)",
-      "inherits": [ "x64-AVX2-Clang-Release-Dist" ],
+      "name": "Full-x86-64-AVX2-Clang-Release-Dist-PGO-Generate",
+      "displayName": "Full x86-64 AVX2 Clang Release/Dist (PGO Generate)",
+      "inherits": [ "Full-x86-64-AVX2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "GENERATE",
@@ -382,9 +336,9 @@
       }
     },
     {
-      "name": "x64-AVX2-Clang-Release-Dist-PGO-Use",
-      "displayName": "x64 Clang Release/Dist AVX2 PGO (Use)",
-      "inherits": [ "x64-AVX2-Clang-Release-Dist" ],
+      "name": "Full-x86-64-AVX2-Clang-Release-Dist-PGO-Use",
+      "displayName": "Full x86-64 AVX2 Clang Release/Dist (PGO Use)",
+      "inherits": [ "Full-x86-64-AVX2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "USE",
@@ -392,9 +346,9 @@
       }
     },
     {
-      "name": "x64-SSE2-Clang-Release-Dist-PGO-Generate",
-      "displayName": "x64 Clang Release/Dist SSE2 PGO (Generate)",
-      "inherits": [ "x64-SSE2-Clang-Release-Dist" ],
+      "name": "Full-x86-64-SSE2-Clang-Release-Dist-PGO-Generate",
+      "displayName": "Full x86-64 SSE2 Clang Release/Dist (PGO Generate)",
+      "inherits": [ "Full-x86-64-SSE2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "GENERATE",
@@ -405,9 +359,9 @@
       }
     },
     {
-      "name": "x64-SSE2-Clang-Release-Dist-PGO-Use",
-      "displayName": "x64 Clang Release/Dist SSE2 PGO (Use)",
-      "inherits": [ "x64-SSE2-Clang-Release-Dist" ],
+      "name": "Full-x86-64-SSE2-Clang-Release-Dist-PGO-Use",
+      "displayName": "Full x86-64 SSE2 Clang Release/Dist (PGO Use)",
+      "inherits": [ "Full-x86-64-SSE2-Clang-Release-Dist" ],
       "cacheVariables": {
         "Ymir_ENABLE_IPO": "ON",
         "Ymir_PGO": "USE",
@@ -490,8 +444,8 @@
     // ---------------------------------------------------------------------------------------------
     // Linux and macOS configurations
     {
-      "name": "x64-Clang-Debug-Linux",
-      "displayName": "x64 Clang Debug",
+      "name": "x86-64-Clang-Debug-Linux",
+      "displayName": "x86-64 Clang Debug",
       "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -523,8 +477,8 @@
       }
     },
     {
-      "name": "x64-Clang-Release-Linux",
-      "displayName": "x64 Clang Release",
+      "name": "x86-64-Clang-Release-Linux",
+      "displayName": "x86-64 Clang Release",
       "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, release build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -556,8 +510,8 @@
       }
     },
     {
-      "name": "x64-Clang-Debug-MacOS",
-      "displayName": "x64 Clang Debug",
+      "name": "x86-64-Clang-Debug-MacOS",
+      "displayName": "x86-64 Clang Debug",
       "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -590,8 +544,8 @@
       }
     },
     {
-      "name": "x64-Clang-Release-MacOS",
-      "displayName": "x64 Clang Release",
+      "name": "x86-64-Clang-Release-MacOS",
+      "displayName": "x86-64 Clang Release",
       "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, release build type",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",

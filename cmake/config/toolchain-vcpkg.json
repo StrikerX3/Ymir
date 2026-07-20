@@ -1,0 +1,17 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "config-toolchain-vcpkg",
+      "displayName": "vcpkg toolchain",
+      "description": "Configures the vcpkg toolchain",
+      "hidden": true,
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    }
+  ]
+}

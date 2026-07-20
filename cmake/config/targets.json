@@ -1,0 +1,50 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "config-target-debug",
+      "displayName": "Debug (base configuration)",
+      "description": "Base configuration for Debug builds",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_ENABLE_DEVLOG": "ON",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_EXTRA_INLINING": "OFF"
+      }
+    },
+    {
+      "name": "config-target-release",
+      "displayName": "Release (base configuration)",
+      "description": "Base configuration for Release builds",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_ENABLE_DEVLOG": "ON",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_EXTRA_INLINING": "OFF"
+      }
+    },
+    {
+      "name": "config-target-release-dist",
+      "displayName": "Release/Dist (base configuration)",
+      "description": "Base configuration for Distribution Release builds",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "OFF",
+        "Ymir_ENABLE_DEVLOG": "OFF",
+        "Ymir_ENABLE_IMGUI_DEMO": "OFF",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_EXTRA_INLINING": "ON"
+      }
+    }
+  ]
+}

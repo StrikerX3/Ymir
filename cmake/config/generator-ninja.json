@@ -1,0 +1,17 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "config-generator-ninja",
+      "displayName": "Ninja generator",
+      "description": "Configures the Ninja generator",
+      "hidden": true,
+      "generator": "Ninja"
+    }
+  ]
+}

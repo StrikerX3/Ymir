@@ -1,0 +1,53 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "include": [
+    "arch-x86_64.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "config-compiler-clang-cl-x86_64",
+      "displayName": "x86-64 Clang (base configuration)",
+      "description": "Base configuration for Clang-based x86-64 builds",
+      "hidden": true,
+      "inherits": [ "config-arch-x86_64-base" ],
+      "toolset": "ClangCL",
+      "environment": {
+        "CC": "clang-cl",
+        "CXX": "clang-cl"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Windows"
+          ],
+          "intelliSenseMode": "windows-clang-x64"
+        }
+      }
+    },
+    {
+      "name": "config-compiler-clang-cl-x86_64-SSE2",
+      "displayName": "x86-64 SSE2 Clang (base configuration)",
+      "description": "Base configuration for Clang-based x86-64 builds with SSE2 support",
+      "hidden": true,
+      "inherits": [ "config-compiler-clang-cl-x86_64", "config-arch-x86_64-SSE2" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-static-md"
+      }
+    },
+    {
+      "name": "config-compiler-clang-cl-x86_64-AVX2",
+      "displayName": "x86-64 AVX2 Clang (base configuration)",
+      "description": "Base configuration for Clang-based x86-64 builds with AVX2 support",
+      "hidden": true,
+      "inherits": [ "config-compiler-clang-cl-x86_64", "config-arch-x86_64-AVX2" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-win-llvm-avx2-static-md"
+      }
+    }
+  ]
+}

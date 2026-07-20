@@ -1,0 +1,44 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "include": [
+    "arch-x86_64.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "config-compiler-msvc-x86_64",
+      "displayName": "x86-64 MSVC (base configuration)",
+      "description": "Base configuration for MSVC-based x86-64 builds",
+      "hidden": true,
+      "inherits": [ "config-arch-x86_64-base" ],
+      "environment": {
+        "CC": "cl",
+        "CXX": "cl"
+      }
+    },
+    {
+      "name": "config-compiler-msvc-x86_64-SSE2",
+      "displayName": "x86-64 SSE2 MSVC (base configuration)",
+      "description": "Base configuration for MSVC-based x86-64 builds with SSE2 support",
+      "hidden": true,
+      "inherits": [ "config-compiler-msvc-x86_64", "config-arch-x86_64-SSE2" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+    {
+      "name": "config-compiler-msvc-x86_64-AVX2",
+      "displayName": "x86-64 AVX2 MSVC (base configuration)",
+      "description": "Base configuration for MSVC-based x86-64 builds with AVX2 support",
+      "hidden": true,
+      "inherits": [ "config-compiler-msvc-x86_64", "config-arch-x86_64-AVX2" ],
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    }
+  ]
+}

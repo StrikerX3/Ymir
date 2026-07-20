@@ -1,0 +1,40 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "config-arch-x86_64-base",
+      "displayName": "x86-64 base configuration",
+      "description": "Base configuration for all x86-64 builds",
+      "hidden": true,
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      }
+    },
+    {
+      "name": "config-arch-x86_64-SSE2",
+      "displayName": "x86-64 SSE2 (base configuration)",
+      "description": "Base configuration for all x86-64 builds with SSE2 support",
+      "hidden": true,
+      "inherits": [ "config-arch-x86_64-base" ],
+      "cacheVariables": {
+        "Ymir_AVX2": "OFF"
+      }
+    },
+    {
+      "name": "config-arch-x86_64-AVX2",
+      "displayName": "x86-64 AVX2 (base configuration)",
+      "description": "Base configuration for all x86-64 builds with AVX2 support",
+      "hidden": true,
+      "inherits": [ "config-arch-x86_64-base" ],
+      "cacheVariables": {
+        "Ymir_AVX2": "ON"
+      }
+    }
+  ]
+}
