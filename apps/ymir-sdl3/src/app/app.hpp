@@ -6,6 +6,7 @@
 #include "shared_context.hpp"
 
 #include "services/disc_service.hpp"
+#include "services/discord_rpc_service.hpp"
 #include "services/display_service.hpp"
 #include "services/file_dialog_service.hpp"
 #include "services/graphics_service.hpp"
@@ -42,6 +43,7 @@ private:
     services::ScreenshotService m_screenshotService;
     services::UpdateCheckerService m_updateCheckerService;
     Settings m_settings;
+    services::DiscordRPCService m_discordRPCService;
     services::MouseCaptureService m_mouseCaptureService;
     services::ROMService m_romService;
     services::DiscService m_discService;

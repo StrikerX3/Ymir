@@ -161,6 +161,8 @@ struct Settings {
 
         bool checkForUpdates;
         bool includeNightlyBuilds;
+
+        bool enableDiscordPresence;
     } general;
 
     struct GUI {
