@@ -1,0 +1,53 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "include": [
+    "../config/build.json",
+    "../config/compiler-clang-cl.json",
+    "../config/generator-ninja.json",
+    "../config/platform-windows.json",
+    "../config/targets.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "LibOnly-x86-64-AVX2-Clang-Debug",
+      "displayName": "LibOnly x86-64 AVX2 Clang Debug",
+      "description": "Library-only (ymir-core) Debug build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-debug"
+      ]
+    },
+    {
+      "name": "LibOnly-x86-64-AVX2-Clang-Release",
+      "displayName": "LibOnly x86-64 AVX2 Clang Release",
+      "description": "Library-only (ymir-core) Release build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-release"
+      ]
+    },
+    {
+      "name": "LibOnly-x86-64-AVX2-Clang-Release-Dist",
+      "displayName": "LibOnly x86-64 AVX2 Clang Release/Dist",
+      "description": "Library-only (ymir-core) Release/Dist build for x86-64 Clang with AVX2 support, for use by CMake subprojects",
+      "inherits": [
+        "config-build-libonly",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-AVX2",
+        "config-target-release-dist"
+      ]
+    }
+  ]
+}

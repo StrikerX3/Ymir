@@ -1,0 +1,53 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "include": [
+    "../config/build.json",
+    "../config/compiler-msvc.json",
+    "../config/generator-ninja.json",
+    "../config/platform-windows.json",
+    "../config/targets.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "Full-x86-64-AVX2-MSVC-Debug",
+      "displayName": "Full x86-64 AVX2 MSVC Debug",
+      "description": "Debug configuration for x86-64 MSVC with AVX2 support",
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-debug"
+      ]
+    },
+    {
+      "name": "Full-x86-64-AVX2-MSVC-Release",
+      "displayName": "Full x86-64 AVX2 MSVC Release",
+      "description": "Release configuration for x86-64 MSVC with AVX2 support",
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-release"
+      ]
+    },
+    {
+      "name": "Full-x86-64-AVX2-MSVC-Release-Dist",
+      "displayName": "Full x86-64 AVX2 MSVC Release/Dist",
+      "description": "Release (distribution) configuration for x86-64 MSVC with AVX2 support",
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-msvc-x86_64-AVX2",
+        "config-target-release-dist"
+      ]
+    }
+  ]
+}

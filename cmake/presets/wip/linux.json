@@ -1,0 +1,76 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "x86-64-Clang-Debug-Linux",
+      "displayName": "x86-64 Clang Debug",
+      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, debug build type",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Linux"
+          ],
+          "intelliSenseMode": "linux-gcc-x64"
+        }
+      }
+    },
+    {
+      "name": "x86-64-Clang-Release-Linux",
+      "displayName": "x86-64 Clang Release",
+      "description": "Sets Ninja generator, Clang compiler, x64 architecture, build and install directory, release build type",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "environment": {
+        "CC": "clang",
+        "CXX": "clang++"
+      },
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "Ymir_ENABLE_IPO": "OFF",
+        "Ymir_ENABLE_DEV_ASSERTIONS": "ON",
+        "Ymir_AVX2": "ON",
+        "Ymir_ENABLE_UPDATE_CHECKS": "ON"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "hostOS": [
+            "Linux"
+          ],
+          "intelliSenseMode": "linux-gcc-x64"
+        }
+      }
+    }
+  ]
+}

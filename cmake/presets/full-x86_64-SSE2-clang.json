@@ -1,0 +1,77 @@
+{
+  "version": 9,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "include": [
+    "../config/build.json",
+    "../config/compiler-clang-cl.json",
+    "../config/generator-ninja.json",
+    "../config/platform-windows.json",
+    "../config/targets.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "Full-x86-64-SSE2-Clang-Debug",
+      "displayName": "Full x86-64 SSE2 Clang Debug",
+      "description": "Debug configuration for x86-64 Clang with SSE2 support",
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-debug"
+      ]
+    },
+    {
+      "name": "Full-x86-64-SSE2-Clang-Release",
+      "displayName": "Full x86-64 SSE2 Clang Release",
+      "description": "Release configuration for x86-64 Clang with SSE2 support",
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-release"
+      ]
+    },
+    {
+      "name": "Full-x86-64-SSE2-Clang-Release-Dist",
+      "displayName": "Full x86-64 SSE2 Clang Release/Dist",
+      "description": "Release (distribution) configuration for x86-64 Clang with SSE2 support",
+      "inherits": [
+        "config-build-full",
+        "config-generator-ninja",
+        "config-platform-windows",
+        "config-compiler-clang-cl-x86_64-SSE2",
+        "config-target-release-dist"
+      ]
+    },
+
+    {
+      "name": "Full-x86-64-SSE2-Clang-Release-Dist-PGO-Generate",
+      "displayName": "Full x86-64 SSE2 Clang Release/Dist (PGO Generate)",
+      "inherits": [ "Full-x86-64-SSE2-Clang-Release-Dist" ],
+      "cacheVariables": {
+        "Ymir_ENABLE_IPO": "ON",
+        "Ymir_PGO": "GENERATE",
+        "Ymir_PGO_DIR": "${sourceDir}/out/pgo-profdata/windows/x86_64-SSE2"
+      },
+      "environment": {
+        "LLVM_PROFILE_FILE": "${sourceDir}/out/pgo-profdata/windows/x86_64-SSE2/ymir_%p.profraw"
+      }
+    },
+    {
+      "name": "Full-x86-64-SSE2-Clang-Release-Dist-PGO-Use",
+      "displayName": "Full x86-64 SSE2 Clang Release/Dist (PGO Use)",
+      "inherits": [ "Full-x86-64-SSE2-Clang-Release-Dist" ],
+      "cacheVariables": {
+        "Ymir_ENABLE_IPO": "ON",
+        "Ymir_PGO": "USE",
+        "Ymir_PGO_DIR": "${sourceDir}/out/pgo-profdata/windows/x86_64-SSE2"
+      }
+    }
+  ]
+}
