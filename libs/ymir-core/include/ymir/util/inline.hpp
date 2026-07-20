@@ -46,7 +46,7 @@ For use with functions that heavily impact build times.
 */
 
 /**
-@def FLATTEN
+@def FLATTEN_EX
 @brief If `Ymir_EXTRA_INLINING` is defined, flattens the function.
 
 Essentially inlines all functions called by the flattened function.
