@@ -8,7 +8,7 @@ GPUValueResult<CompiledShader> CompileShader(const ShaderCompileSpec &spec) {
     if (spec.language != ShaderLanguage::HLSL) {
         return GPUOperationError{"Unsupported shader language provided to compiler"};
     }
-    if (spec.format != ShaderFormat::SPIRV) {
+    if (spec.format != ShaderBytecodeFormat::SPIRV) {
         return GPUOperationError{"Unsupported shader bytecode format provided to compiler"};
     }
 
@@ -18,7 +18,7 @@ GPUValueResult<CompiledShader> CompileShader(const ShaderCompileSpec &spec) {
 }
 
 std::optional<GPUOperationError> ValidateShader(const CompiledShader &spec) {
-    if (spec.format != ShaderFormat::SPIRV) {
+    if (spec.format != ShaderBytecodeFormat::SPIRV) {
         return GPUOperationError{"Unsupported shader bytecode format provided to compiler"};
     }
 
