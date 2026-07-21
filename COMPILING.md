@@ -193,11 +193,11 @@ Use a two-phase build: first generate profile data, then rebuild using that data
 ### Windows - Visual Studio IDE, open folder
 
 With the project opened as a folder:
-1. Select the **x64 Clang Release/Dist [arch] PGO (Generate)** target.
+1. Select the **Full x86-64 [arch] Clang Release/Dist (PGO Generate)** target.
 2. Build and run a representative workload. This will produce a `.profraw` file in `out\pgo-profdata\windows\x86_64-[arch]`.
 3. In the **Solution Explorer** view, switch to the **CMake Targets** view. You can also find it in the **View** menu.
 4. Build the **`ymir-pgo-merge`** utility target. This will combine the `.profraw` files into `ymir.profdata`.
-5. Select the **x64 Clang Release/Dist [arch] PGO (Use)** target.
+5. Select the **Full x86-64 [arch] Clang Release/Dist (PGO Use)** target.
 6. Build and run. This build will use profile-guided optimization with the profiling data you acquired from the previous run.
 
 
