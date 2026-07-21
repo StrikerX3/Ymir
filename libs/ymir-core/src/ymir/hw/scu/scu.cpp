@@ -882,7 +882,7 @@ void SCU::RunDMA(uint64 cycles) {
             // mess that is B-Bus writes.
         } else {
             // B-Bus writes are incredibly buggy. It's a miracle it even works on real hardware.
-            // Only +2 increments produce useful write patterns. You *might* find other increments useful if they-re
+            // Only +2 increments produce useful write patterns. You *might* find other increments useful if they're
             // word-aligned but not longword-aligned (write address & 3 == 2) -- at least those follow the proper
             // increment intervals. Every other increment is pretty much useless in practice.
 
