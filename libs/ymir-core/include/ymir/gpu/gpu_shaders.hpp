@@ -33,8 +33,8 @@ namespace ymir::gpu {
 GPUValueResult<CompiledShader> CompileShader(const ShaderCompileSpec &spec);
 
 /// @brief Validates the specified shader bytecode.
-/// @param[in] spec the shader bytecode specifications
+/// @param[in,out] spec the shader bytecode specifications; the bytecode can be modified
 /// @return an error if validation fails
-std::optional<GPUOperationError> ValidateShader(const CompiledShader &spec);
+std::optional<GPUOperationError> ValidateShader(CompiledShader &spec);
 
 } // namespace ymir::gpu

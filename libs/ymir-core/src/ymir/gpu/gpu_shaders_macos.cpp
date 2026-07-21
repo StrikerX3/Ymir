@@ -15,7 +15,7 @@ GPUValueResult<CompiledShader> CompileShader(const ShaderCompileSpec &spec) {
     return GPUOperationError{"Metal shader compilation is unimplemented"};
 }
 
-std::optional<GPUOperationError> ValidateShader(const CompiledShader &spec) {
+std::optional<GPUOperationError> ValidateShader(CompiledShader &spec) {
     if (spec.format != ShaderBytecodeFormat::MetalLib) {
         return GPUOperationError{"Unsupported shader bytecode format provided to Metal compiler"};
     }

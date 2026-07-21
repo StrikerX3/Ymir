@@ -6,7 +6,7 @@ GPUValueResult<CompiledShader> CompileShader(const ShaderCompileSpec &spec) {
     return GPUOperationError{"Unsupported platform"};
 }
 
-std::optional<GPUOperationError> ValidateShader(const CompiledShader &spec) {
+std::optional<GPUOperationError> ValidateShader(CompiledShader &spec) {
     return GPUOperationError{"Unsupported platform"};
 }
 

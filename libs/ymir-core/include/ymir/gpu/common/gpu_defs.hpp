@@ -206,9 +206,12 @@ struct ShaderCompileSpec {
     ShaderStage stage;
     ShaderLanguage language = ShaderLanguage::None;
     ShaderBytecodeFormat format = ShaderBytecodeFormat::None;
+    std::string name;
     std::string sourceCode;
     std::string entrypoint;
     std::vector<ShaderMacro> macros;
+    bool debug = false;
+    bool optimize = true;
 };
 
 } // namespace ymir::gpu

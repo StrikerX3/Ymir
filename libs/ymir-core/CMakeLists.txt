@@ -371,7 +371,13 @@ else ()
     target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
 endif ()
 
+
 ## Add GPU API implementations
+find_package(Vulkan REQUIRED COMPONENTS SPIRV-Tools)
+target_link_libraries(ymir-core PRIVATE
+    Vulkan::Vulkan
+    Vulkan::SPIRV-Tools
+)
 if (WIN32)
     target_sources(ymir-core PRIVATE
         include/ymir/gpu/api/d3d12/d3d12_descriptor_manager.hpp
@@ -414,7 +420,14 @@ if (WIN32)
 
         src/ymir/gpu/gpu_shaders_windows.cpp
     )
-    target_link_libraries(ymir-core PRIVATE WIL::WIL)
+    target_link_libraries(ymir-core PRIVATE
+        WIL::WIL
+
+        d3d12
+        dxcompiler
+        dxgi
+        dxguid
+    )
 elseif (APPLE)
     target_sources(ymir-core PRIVATE
         src/ymir/gpu/gpu_shaders_macos.cpp

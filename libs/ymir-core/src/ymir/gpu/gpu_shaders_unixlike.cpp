@@ -17,7 +17,7 @@ GPUValueResult<CompiledShader> CompileShader(const ShaderCompileSpec &spec) {
     return GPUOperationError{"Shader compilation is unimplemented"};
 }
 
-std::optional<GPUOperationError> ValidateShader(const CompiledShader &spec) {
+std::optional<GPUOperationError> ValidateShader(CompiledShader &spec) {
     if (spec.format != ShaderBytecodeFormat::SPIRV) {
         return GPUOperationError{"Unsupported shader bytecode format provided to compiler"};
     }

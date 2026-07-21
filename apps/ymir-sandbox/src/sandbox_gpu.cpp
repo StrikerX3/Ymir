@@ -337,7 +337,84 @@ static int runYmirGPUSandboxD3D12() {
         fmt::println("Compute shader validation failed: {}", shaderError->message);
         return EXIT_FAILURE;
     }
-    fmt::println("Compute shader validated");
+    fmt::println("Compute shader validated: {} bytes", shader.bytecode.size());
+
+    // TODO: try loading and validating SPIR-V shader
+
+    static constexpr const char *kShaderCode = R"(
+ByteAddressBuffer bufIn : register(t0);
+RWByteAddressBuffer bufOut : register(u0);
+
+#ifndef AMOUNT
+#define AMOUNT 1
+#endif
+
+[numthreads(1, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID) {
+    const uint value = bufIn.Load(id.x * 4);
+#if SUBTRACT
+    bufOut.Store(id.x * 4, value - AMOUNT);
+#else
+    bufOut.Store(id.x * 4, value + AMOUNT);
+#endif
+}
+)";
+
+    #ifdef NDEBUG
+    static constexpr bool kShaderDebug = false;
+    static constexpr bool kShaderOptimize = true;
+    #else
+    static constexpr bool kShaderDebug = true;
+    static constexpr bool kShaderOptimize = false;
+    #endif
+
+    const ShaderCompileSpec shaderSourceHLSLtoDXILSpec{
+        .stage = ShaderStage::Compute,
+        .language = ShaderLanguage::HLSL,
+        .format = ShaderBytecodeFormat::DXIL,
+        .name = "Test",
+        .sourceCode = kShaderCode,
+        .entrypoint = "CSMain",
+        .macros =
+            {
+                {"AMOUNT", "123"},
+                {"SUBTRACT"},
+            },
+        .debug = kShaderDebug,
+        .optimize = kShaderOptimize,
+    };
+    auto compileShaderDXILResult = CompileShader(shaderSourceHLSLtoDXILSpec);
+    if (!compileShaderDXILResult) {
+        fmt::println("Failed to compile shader from HLSL source to DXIL: {}", compileShaderDXILResult.Error().message);
+        return EXIT_FAILURE;
+    }
+    auto &compiledShaderDXIL = compileShaderDXILResult.Value();
+    fmt::println("Shader compiled from HLSL source to DXIL successfully, {} bytes", compiledShaderDXIL.bytecode.size());
+
+    const ShaderCompileSpec shaderSourceHLSLtoSPIRVSpec{
+        .stage = ShaderStage::Compute,
+        .language = ShaderLanguage::HLSL,
+        .format = ShaderBytecodeFormat::SPIRV,
+        .name = "Test",
+        .sourceCode = kShaderCode,
+        .entrypoint = "CSMain",
+        .macros =
+            {
+                {"AMOUNT", "123"},
+                {"SUBTRACT"},
+            },
+        .debug = kShaderDebug,
+        .optimize = kShaderOptimize,
+    };
+    auto compileShaderSPIRVResult = CompileShader(shaderSourceHLSLtoSPIRVSpec);
+    if (!compileShaderSPIRVResult) {
+        fmt::println("Failed to compile shader from HLSL source to SPIR-V: {}",
+                     compileShaderSPIRVResult.Error().message);
+        return EXIT_FAILURE;
+    }
+    auto &compiledShaderSPIRV = compileShaderSPIRVResult.Value();
+    fmt::println("Shader compiled from HLSL source to SPIR-V successfully, {} bytes",
+                 compiledShaderSPIRV.bytecode.size());
 
     SDL_Window *window = SDL_CreateWindow("Sandbox", 640, 480, 0);
     SDL_PropertiesID windowProps = SDL_GetWindowProperties(window);

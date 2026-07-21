@@ -36,9 +36,6 @@ if (WIN32)
     target_compile_definitions(ymir-sandbox PRIVATE NOMINMAX)
     target_link_libraries(ymir-sandbox PRIVATE
         WIL::WIL
-        d3d12
-        dxgi
-        dxguid
     )
 else ()
     target_sources(ymir-sandbox PRIVATE
