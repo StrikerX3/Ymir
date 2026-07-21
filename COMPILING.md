@@ -107,6 +107,8 @@ cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/v
 
 Pass additional `-D<option>=<value>` parameters to tune the build. See the [Build configuration](#build-configuration) section above for details.
 
+`CMAKE_BUILD_TYPE` defaults to `Debug`. Use `-DCMAKE_BUILD_TYPE=RelWithDebInfo` for a Release build with debug symbols.
+
 You can use CMake to build the project, regardless of generator:
 
 ```sh
@@ -170,6 +172,8 @@ cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/v
 ```
 
 Pass additional `-D<option>=<value>` parameters to tune the build. See the [Build configuration](#build-configuration) section above for details.
+
+`CMAKE_BUILD_TYPE` defaults to `Debug`. Use `-DCMAKE_BUILD_TYPE=RelWithDebInfo` for a Release build with debug symbols.
 
 You can use CMake to build the project, regardless of generator:
 
