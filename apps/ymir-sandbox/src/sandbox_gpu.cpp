@@ -5,6 +5,7 @@
     #include <ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_command_list.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_command_queue.hpp>
+    #include <ymir/gpu/api/d3d12/d3d12_gpu_compute_pipeline.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_device.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_surface.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_texture.hpp>
@@ -55,6 +56,7 @@ static int runYmirGPUSandboxD3D12() {
     fmt::println("Device created: {}", (void *)&gpuDevice);
     if (auto *dx12Device = gpuDevice.As<D3D12GPUDevice>()) {
         fmt::println("D3D12 device: {}", (void *)dx12Device->GetD3D12Device().GetPointer());
+        fmt::println("D3D12 root signature: {}", (void *)dx12Device->GetRootSignature().GetPointer());
     }
 
     auto cmdQueueResult = gpuDevice.CreateCommandQueue(CommandQueueType::Graphics);
@@ -388,7 +390,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         fmt::println("Failed to compile shader from HLSL source to DXIL: {}", compileShaderDXILResult.Error().message);
         return EXIT_FAILURE;
     }
-    auto &compiledShaderDXIL = compileShaderDXILResult.Value();
+    CompiledShader &compiledShaderDXIL = compileShaderDXILResult.Value();
     fmt::println("Shader compiled from HLSL source to DXIL successfully, {} bytes", compiledShaderDXIL.bytecode.size());
 
     const ShaderCompileSpec shaderSourceHLSLtoSPIRVSpec{
@@ -412,9 +414,22 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
                      compileShaderSPIRVResult.Error().message);
         return EXIT_FAILURE;
     }
-    auto &compiledShaderSPIRV = compileShaderSPIRVResult.Value();
+    CompiledShader &compiledShaderSPIRV = compileShaderSPIRVResult.Value();
     fmt::println("Shader compiled from HLSL source to SPIR-V successfully, {} bytes",
                  compiledShaderSPIRV.bytecode.size());
+
+    const ComputePipelineSpec computePipelineSpec{
+        .shader = compiledShaderDXIL,
+    };
+    auto computePipelineResult = gpuDevice.CreateComputePipeline(computePipelineSpec);
+    if (!computePipelineResult) {
+        fmt::println("Failed to create compute pipeline state: {}", computePipelineResult.Error().message);
+        return EXIT_FAILURE;
+    }
+    std::unique_ptr<IGPUComputePipeline> computePipeline = std::move(computePipelineResult.Value());
+    if (auto *dx12Pipeline = computePipeline->As<D3D12ComputePipeline>()) {
+        fmt::println("D3D12 compute pipeline state: {}", (void *)dx12Pipeline->GetPipelineState().GetPointer());
+    }
 
     SDL_Window *window = SDL_CreateWindow("Sandbox", 640, 480, 0);
     SDL_PropertiesID windowProps = SDL_GetWindowProperties(window);

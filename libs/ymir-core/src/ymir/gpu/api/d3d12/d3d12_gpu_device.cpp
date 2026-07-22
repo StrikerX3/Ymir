@@ -4,6 +4,7 @@
 #include <ymir/gpu/api/d3d12/d3d12_gpu_buffer.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_command_queue.hpp>
+#include <ymir/gpu/api/d3d12/d3d12_gpu_compute_pipeline.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_surface.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_texture.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_texture_view.hpp>
@@ -18,7 +19,13 @@ namespace ymir::gpu {
 
 GPUObjectResult<IGPUDevice> D3D12GPUDevice::Create(const D3D12GPUDeviceSpec &spec) {
     auto device = std::make_unique<d3d12::D3D12Device>();
-    const HRESULT hr = device->Create(spec.adapter, spec.featureLevel);
+    if (!device) {
+        return GPUOperationError{"Could not allocate D3D12Device"};
+    }
+
+    HRESULT hr;
+
+    hr = device->Create(spec.adapter, spec.featureLevel);
     if (FAILED(hr)) {
         // TODO: get human-readable error message from HRESULT
         // TODO: get debug messages if available
@@ -49,7 +56,28 @@ GPUObjectResult<IGPUDevice> D3D12GPUDevice::Create(const D3D12GPUDeviceSpec &spe
         descMgr.SetDSVHeapName(spec.heaps.dsvHeapName);
     }
 
-    return {std::make_unique<D3D12GPUDevice>(std::move(device), std::move(descMgrResult.Value()), spec.debug)};
+    auto rootSig = std::make_unique<d3d12::D3D12RootSignature>();
+    if (!rootSig) {
+        return GPUOperationError{"Could not allocate D3D12RootSignature"};
+    }
+    auto builder = rootSig->Builder();
+    builder.AddDescriptorTable().AddSRVs(1, 0);
+    builder.AddDescriptorTable().AddUAVs(1, 0);
+    builder.Flags(D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
+                  D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+                  D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+                  D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+                  D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
+                  D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS);
+    hr = builder.Build(*device);
+    if (FAILED(hr)) {
+        // TODO: get human-readable error message from HRESULT
+        // TODO: get debug messages if available
+        return GPUOperationError{fmt::format("Failed to create root signature: error code {:X}", hr)};
+    }
+
+    return {std::make_unique<D3D12GPUDevice>(std::move(device), std::move(rootSig), std::move(descMgrResult.Value()),
+                                             spec.debug)};
 }
 
 void D3D12GPUDevice::SetName(std::string_view name) {
@@ -81,6 +109,10 @@ GPUObjectResult<IGPUBuffer> D3D12GPUDevice::CreateBuffer(const BufferSpec &spec)
 
 GPUObjectResult<IGPUBufferView> D3D12GPUDevice::CreateBufferView(const BufferViewSpec &spec) {
     return D3D12BufferView::Create(*m_descMgr, spec);
+}
+
+GPUObjectResult<IGPUComputePipeline> D3D12GPUDevice::CreateComputePipeline(const ComputePipelineSpec &spec) {
+    return D3D12ComputePipeline::Create(*m_device, *m_rootSig, spec);
 }
 
 } // namespace ymir::gpu

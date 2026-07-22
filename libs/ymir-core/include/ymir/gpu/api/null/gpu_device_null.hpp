@@ -38,6 +38,10 @@ public:
         return MakeUnsupportedOperationError();
     }
 
+    GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec) override {
+        return MakeUnsupportedOperationError();
+    }
+
     void SetName(std::string_view name) override {}
 
 private:

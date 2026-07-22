@@ -233,6 +233,7 @@ static std::optional<GPUOperationError> ValidateShaderSPIRV(CompiledShader &spec
     fmt::memory_buffer buf{};
     auto out = std::back_inserter(buf);
 
+    // TODO: allow selecting version
     spvtools::SpirvTools tools{SPV_ENV_VULKAN_1_3};
     tools.SetMessageConsumer(
         [&](spv_message_level_t level, const char *source, const spv_position_t &position, const char *message) {

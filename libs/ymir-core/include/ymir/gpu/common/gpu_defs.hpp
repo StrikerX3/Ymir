@@ -214,6 +214,12 @@ struct ShaderCompileSpec {
     bool optimize = true;
 };
 
+// ---------------------------------------------------------------------------------------------------------------------
+
+struct ComputePipelineSpec {
+    CompiledShader shader;
+};
+
 } // namespace ymir::gpu
 
 ENABLE_BITMASK_OPERATORS(ymir::gpu::TextureUsage);

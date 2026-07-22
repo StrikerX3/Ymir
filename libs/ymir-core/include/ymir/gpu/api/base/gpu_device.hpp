@@ -5,6 +5,7 @@
 #include "gpu_buffer.hpp"
 #include "gpu_buffer_view.hpp"
 #include "gpu_command_queue.hpp"
+#include "gpu_compute_pipeline.hpp"
 #include "gpu_surface.hpp"
 #include "gpu_texture.hpp"
 #include "gpu_texture_view.hpp"
@@ -63,10 +64,14 @@ public:
     /// @return a pointer to the buffer or an error
     virtual GPUObjectResult<IGPUBufferView> CreateBufferView(const BufferViewSpec &spec) = 0;
 
+    /// @brief Creates a compute pipeline.
+    /// @param[in] spec compute pipeline specifications
+    /// @return a pointer to the compute pipeline or an error
+    virtual GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec) = 0;
+
     // TODO: various functions for creating resources:
-    // - shaders
-    // - graphics and compute pipelines
-    // - fences
+    // - graphics pipelines
+    // - fences?
 
     // Reference: https://github.com/Floating-Trees-Inc/Kaleidoscope/tree/main/code/kaleidoscope/KernelGPU
 };

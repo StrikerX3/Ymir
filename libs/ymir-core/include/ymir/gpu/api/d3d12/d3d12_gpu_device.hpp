@@ -6,6 +6,7 @@
 #include <ymir/gpu/api/d3d12/d3d12_params.hpp>
 
 #include "wrappers/d3d12_device.hpp"
+#include "wrappers/d3d12_root_signature.hpp"
 
 namespace ymir::gpu {
 
@@ -15,10 +16,11 @@ public:
 
     static GPUObjectResult<IGPUDevice> Create(const D3D12GPUDeviceSpec &spec);
 
-    D3D12GPUDevice(std::unique_ptr<d3d12::D3D12Device> device, std::unique_ptr<D3D12DescriptorManager> &&descMgr,
-                   bool debug)
+    D3D12GPUDevice(std::unique_ptr<d3d12::D3D12Device> &&device, std::unique_ptr<d3d12::D3D12RootSignature> &&rootSig,
+                   std::unique_ptr<D3D12DescriptorManager> &&descMgr, bool debug)
         : IGPUDevice(kBackend)
         , m_device(std::move(device))
+        , m_rootSig(std::move(rootSig))
         , m_descMgr(std::move(descMgr))
         , m_debug(debug) {}
 
@@ -37,6 +39,8 @@ public:
     GPUObjectResult<IGPUBuffer> CreateBuffer(const BufferSpec &spec) override;
     GPUObjectResult<IGPUBufferView> CreateBufferView(const BufferViewSpec &spec) override;
 
+    GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec) override;
+
     // -----------------------------------------------------------------------------------------------------------------
     // Native object accessors
 
@@ -48,8 +52,17 @@ public:
         return *m_device;
     }
 
+    d3d12::D3D12RootSignature &GetRootSignature() {
+        return *m_rootSig;
+    }
+
+    const d3d12::D3D12RootSignature &GetRootSignature() const {
+        return *m_rootSig;
+    }
+
 private:
     std::unique_ptr<d3d12::D3D12Device> m_device;
+    std::unique_ptr<d3d12::D3D12RootSignature> m_rootSig;
     std::unique_ptr<D3D12DescriptorManager> m_descMgr;
     bool m_debug;
 };
