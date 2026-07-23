@@ -38,7 +38,8 @@ public:
         return MakeUnsupportedOperationError();
     }
 
-    GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec) override {
+    GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec,
+                                                               const IGPUBindingLayout &layout) override {
         return MakeUnsupportedOperationError();
     }
 

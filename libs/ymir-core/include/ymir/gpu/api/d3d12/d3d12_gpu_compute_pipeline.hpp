@@ -16,8 +16,10 @@ public:
 
     D3D12ComputePipeline(d3d12::D3D12PipelineState &&pipelineState, const ComputePipelineSpec &spec);
 
-    static GPUObjectResult<IGPUComputePipeline>
-    Create(d3d12::D3D12Device &device, const d3d12::D3D12RootSignature &rootSig, const ComputePipelineSpec &spec);
+    static GPUObjectResult<IGPUComputePipeline> Create(d3d12::D3D12Device &device,
+                                                       const d3d12::D3D12RootSignature &rootSig,
+                                                       const ComputePipelineSpec &spec,
+                                                       const IGPUBindingLayout &layout);
 
     void SetName(std::string_view name) override;
 

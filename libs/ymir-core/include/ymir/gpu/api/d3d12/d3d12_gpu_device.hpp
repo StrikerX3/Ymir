@@ -39,7 +39,8 @@ public:
     GPUObjectResult<IGPUBuffer> CreateBuffer(const BufferSpec &spec) override;
     GPUObjectResult<IGPUBufferView> CreateBufferView(const BufferViewSpec &spec) override;
 
-    GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec) override;
+    GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec,
+                                                               const IGPUBindingLayout &layout) override;
 
     GPUObjectResult<IGPUBindingLayout> CreateBindingLayout(const ManualBindingLayoutSpec &spec) override;
     GPUObjectResult<IGPUBindingLayout> CreateBindingLayout(const ReflectionBindingLayoutSpec &spec) override;

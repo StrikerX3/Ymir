@@ -182,10 +182,7 @@ enum class ShaderStage {
     // RTClosestHit,
     // RTMiss,
     // RTCallable,
-
-    Count,
 };
-inline constexpr auto kShaderStageCount = static_cast<size_t>(ShaderStage::Count);
 
 struct CompiledShader {
     ShaderStage stage;
@@ -268,7 +265,14 @@ struct ManualBindingLayoutSpec {
 
 /// @brief Reflection-based binding layout specifications.
 struct ReflectionBindingLayoutSpec {
-    std::array<const CompiledShader *, kShaderStageCount> shaders;
+    struct Shaders {
+        const CompiledShader *vertex = nullptr;
+        const CompiledShader *hull = nullptr;
+        const CompiledShader *domain = nullptr;
+        const CompiledShader *geometry = nullptr;
+        const CompiledShader *pixel = nullptr;
+        const CompiledShader *compute = nullptr;
+    } shaders;
 
     // Optional overrides
 

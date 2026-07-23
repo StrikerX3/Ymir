@@ -1,6 +1,7 @@
 #include <ymir/gpu/gpu.hpp>
 
 #if YMIR_PLATFORM_HAS_DIRECT3D12
+    #include <ymir/gpu/api/d3d12/d3d12_gpu_binding_layout.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_buffer.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.hpp>
     #include <ymir/gpu/api/d3d12/d3d12_gpu_command_list.hpp>
@@ -418,10 +419,23 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     fmt::println("Shader compiled from HLSL source to SPIR-V successfully, {} bytes",
                  compiledShaderSPIRV.bytecode.size());
 
+    const ReflectionBindingLayoutSpec computeLayoutSpec{.shaders = {
+                                                            .compute = &compiledShaderDXIL,
+                                                        }};
+    auto computeBindingLayoutResult = gpuDevice.CreateBindingLayout(computeLayoutSpec);
+    if (!computeBindingLayoutResult) {
+        fmt::println("Failed to create compute binding layout: {}", computeBindingLayoutResult.Error().message);
+        return EXIT_FAILURE;
+    }
+    std::unique_ptr<IGPUBindingLayout> computeBindingLayout = std::move(computeBindingLayoutResult.Value());
+    if (auto *dx12BindingLayout = computeBindingLayout->As<D3D12BindingLayout>()) {
+        fmt::println("D3D12 compute binding layout: {}", (void *)dx12BindingLayout);
+    }
+
     const ComputePipelineSpec computePipelineSpec{
         .shader = &compiledShaderDXIL,
     };
-    auto computePipelineResult = gpuDevice.CreateComputePipeline(computePipelineSpec);
+    auto computePipelineResult = gpuDevice.CreateComputePipeline(computePipelineSpec, *computeBindingLayout);
     if (!computePipelineResult) {
         fmt::println("Failed to create compute pipeline state: {}", computePipelineResult.Error().message);
         return EXIT_FAILURE;

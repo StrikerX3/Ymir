@@ -70,16 +70,6 @@ public:
     /// @return a pointer to the buffer or an error
     virtual GPUObjectResult<IGPUBufferView> CreateBufferView(const BufferViewSpec &spec) = 0;
 
-    /// @brief Creates a graphics pipeline.
-    /// @param[in] spec graphics pipeline specifications
-    /// @return a pointer to the graphics pipeline or an error
-    // TODO: virtual GPUObjectResult<IGPUGraphicsPipeline> CreateGraphicsPipeline(const GraphicsPipelineSpec &spec) = 0;
-
-    /// @brief Creates a compute pipeline.
-    /// @param[in] spec compute pipeline specifications
-    /// @return a pointer to the compute pipeline or an error
-    virtual GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec) = 0;
-
     /// @brief Creates a binding layout from a manually-crafted layout specification.
     /// @param[in] spec binding layout specifications
     /// @return a pointer to the binding layout or an error
@@ -89,6 +79,20 @@ public:
     /// @param[in] spec binding layout specifications
     /// @return a pointer to the binding layout or an error
     virtual GPUObjectResult<IGPUBindingLayout> CreateBindingLayout(const ReflectionBindingLayoutSpec &spec) = 0;
+
+    /// @brief Creates a graphics pipeline.
+    /// @param[in] spec graphics pipeline specifications
+    /// @param[in] layout the binding layout
+    /// @return a pointer to the graphics pipeline or an error
+    // TODO: virtual GPUObjectResult<IGPUGraphicsPipeline> CreateGraphicsPipeline(const GraphicsPipelineSpec &spec,
+    //                                                                      const IGPUBindingLayout &layout) = 0;
+
+    /// @brief Creates a compute pipeline.
+    /// @param[in] spec compute pipeline specifications
+    /// @param[in] layout the binding layout
+    /// @return a pointer to the compute pipeline or an error
+    virtual GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec,
+                                                                       const IGPUBindingLayout &layout) = 0;
 
     // TODO: fences?
 };

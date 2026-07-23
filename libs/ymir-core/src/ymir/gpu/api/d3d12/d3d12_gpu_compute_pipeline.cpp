@@ -14,10 +14,13 @@ D3D12ComputePipeline::D3D12ComputePipeline(d3d12::D3D12PipelineState &&pipelineS
 
 GPUObjectResult<IGPUComputePipeline> D3D12ComputePipeline::Create(d3d12::D3D12Device &device,
                                                                   const d3d12::D3D12RootSignature &rootSig,
-                                                                  const ComputePipelineSpec &spec) {
+                                                                  const ComputePipelineSpec &spec,
+                                                                  const IGPUBindingLayout &layout) {
     if (spec.shader == nullptr) {
         return GPUOperationError{"Shader not specified"};
     }
+
+    // TODO: use layout
 
     d3d12::D3D12PipelineState pipelineState{};
     auto builder = pipelineState.ComputeBuilder();

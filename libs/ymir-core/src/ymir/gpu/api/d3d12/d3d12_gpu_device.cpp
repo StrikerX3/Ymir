@@ -112,8 +112,9 @@ GPUObjectResult<IGPUBufferView> D3D12GPUDevice::CreateBufferView(const BufferVie
     return D3D12BufferView::Create(*m_descMgr, spec);
 }
 
-GPUObjectResult<IGPUComputePipeline> D3D12GPUDevice::CreateComputePipeline(const ComputePipelineSpec &spec) {
-    return D3D12ComputePipeline::Create(*m_device, *m_rootSig, spec);
+GPUObjectResult<IGPUComputePipeline> D3D12GPUDevice::CreateComputePipeline(const ComputePipelineSpec &spec,
+                                                                           const IGPUBindingLayout &layout) {
+    return D3D12ComputePipeline::Create(*m_device, *m_rootSig, spec, layout);
 }
 
 GPUObjectResult<IGPUBindingLayout> D3D12GPUDevice::CreateBindingLayout(const ManualBindingLayoutSpec &spec) {
