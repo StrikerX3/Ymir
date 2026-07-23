@@ -1,6 +1,7 @@
 #include <ymir/gpu/api/d3d12/d3d12_gpu_device.hpp>
 
 #include <ymir/gpu/api/d3d12/d3d12_descriptor_manager.hpp>
+#include <ymir/gpu/api/d3d12/d3d12_gpu_binding_layout.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_buffer.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.hpp>
 #include <ymir/gpu/api/d3d12/d3d12_gpu_command_queue.hpp>
@@ -113,6 +114,14 @@ GPUObjectResult<IGPUBufferView> D3D12GPUDevice::CreateBufferView(const BufferVie
 
 GPUObjectResult<IGPUComputePipeline> D3D12GPUDevice::CreateComputePipeline(const ComputePipelineSpec &spec) {
     return D3D12ComputePipeline::Create(*m_device, *m_rootSig, spec);
+}
+
+GPUObjectResult<IGPUBindingLayout> D3D12GPUDevice::CreateBindingLayout(const ManualBindingLayoutSpec &spec) {
+    return D3D12BindingLayout::Create(*m_device, spec);
+}
+
+GPUObjectResult<IGPUBindingLayout> D3D12GPUDevice::CreateBindingLayout(const ReflectionBindingLayoutSpec &spec) {
+    return D3D12BindingLayout::Create(*m_device, spec);
 }
 
 } // namespace ymir::gpu

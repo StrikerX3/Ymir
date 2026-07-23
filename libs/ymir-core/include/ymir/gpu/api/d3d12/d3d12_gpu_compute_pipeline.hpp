@@ -21,6 +21,9 @@ public:
 
     void SetName(std::string_view name) override;
 
+    const IGPUBindingLayout *GetBindingLayout() const override;
+    GPUObjectResult<IGPUBindingSet> CreateBindingSet() override;
+
     d3d12::D3D12PipelineState &GetPipelineState() {
         return m_pipelineState;
     }

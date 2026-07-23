@@ -41,6 +41,9 @@ public:
 
     GPUObjectResult<IGPUComputePipeline> CreateComputePipeline(const ComputePipelineSpec &spec) override;
 
+    GPUObjectResult<IGPUBindingLayout> CreateBindingLayout(const ManualBindingLayoutSpec &spec) override;
+    GPUObjectResult<IGPUBindingLayout> CreateBindingLayout(const ReflectionBindingLayoutSpec &spec) override;
+
     // -----------------------------------------------------------------------------------------------------------------
     // Native object accessors
 

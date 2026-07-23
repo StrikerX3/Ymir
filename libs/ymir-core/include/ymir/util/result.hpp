@@ -5,7 +5,12 @@
 @brief Defines `Result<T, E>`, a variant-like object that holds either a value or an error object.
 */
 
-#include <exception>
+#include <algorithm>
+#include <array>
+#include <optional>
+#include <stdexcept>
+#include <tuple>
+#include <utility>
 #include <variant>
 
 namespace util {
@@ -42,7 +47,7 @@ struct Result {
         return HasValue();
     }
 
-    /// @brief If this result object contains a value, returns a pointer to it, otherwise returns `nullptr`.
+    /// @brief Returns a reference to the value if present, otherwise throws an exception.
     /// @return a reference to the value object held by this result
     /// @exception std::logic_error if this object doesn't hold a value (`HasValue() == false`)
     [[nodiscard]] T &Value() {
@@ -52,7 +57,7 @@ struct Result {
         throw std::logic_error("Result doesn't hold a value");
     }
 
-    /// @brief If this result object contains a value, returns a pointer to it, otherwise returns `nullptr`.
+    /// @brief Returns a reference to the value if present, otherwise throws an exception.
     /// @return a reference to the value object held by this result
     /// @exception std::logic_error if this object doesn't hold a value (`HasValue() == false`)
     [[nodiscard]] const T &Value() const {
@@ -62,7 +67,7 @@ struct Result {
         throw std::logic_error("Result doesn't hold a value");
     }
 
-    /// @brief If this result object contains a error, returns a pointer to it, otherwise returns `nullptr`.
+    /// @brief Returns a reference to the error if present, otherwise throws an exception.
     /// @return a reference to the error object held by this result
     /// @exception std::logic_error if this object doesn't hold an error (`HasError() == false`)
     [[nodiscard]] E &Error() {
@@ -72,7 +77,7 @@ struct Result {
         throw std::logic_error("Result doesn't hold an error");
     }
 
-    /// @brief If this result object contains a error, returns a pointer to it, otherwise returns `nullptr`.
+    /// @brief Returns a reference to the error if present, otherwise throws an exception.
     /// @return a reference to the error object held by this result
     /// @exception std::logic_error if this object doesn't hold an error (`HasError() == false`)
     [[nodiscard]] const E &Error() const {
@@ -92,6 +97,50 @@ struct Result {
 private:
     /// @brief Stores the result object.
     std::variant<T, E> m_result;
+};
+
+/// @brief Generic result type that can hold nothing or an error.
+/// Partial specialization of `util::Result<T, E>` where `T = void`.
+/// @tparam E the type of the error object
+template <typename E>
+struct Result<void, E> {
+    Result() = default;
+    Result(E &&error)
+        : m_error(std::move(error)) {}
+
+    /// @brief Determines if this result contains an error.
+    /// @return `true` if the result has an error, `false` if it has a value
+    [[nodiscard]] bool HasError() const {
+        return m_error.has_value();
+    }
+
+    /// @brief Converts to a boolean value indicating if the result does not contain an error.
+    [[nodiscard]] operator bool() const {
+        return !HasError();
+    }
+
+    /// @brief Returns a reference to the error if present, otherwise throws an exception.
+    /// @return a reference to the error object held by this result
+    /// @exception std::logic_error if this object doesn't hold an error (`HasError() == false`)
+    [[nodiscard]] E &Error() {
+        if (!m_error.has_value()) {
+            throw std::logic_error("Result does not hold an error");
+        }
+        return *m_error;
+    }
+
+    /// @brief Returns a reference to the error if present, otherwise throws an exception.
+    /// @return a reference to the error object held by this result
+    /// @exception std::logic_error if this object doesn't hold an error (`HasError() == false`)
+    [[nodiscard]] const E &Error() const {
+        if (!m_error.has_value()) {
+            throw std::logic_error("Result does not hold an error");
+        }
+        return *m_error;
+    }
+
+private:
+    std::optional<E> m_error;
 };
 
 } // namespace util

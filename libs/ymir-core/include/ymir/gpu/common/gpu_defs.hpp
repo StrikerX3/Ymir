@@ -182,7 +182,10 @@ enum class ShaderStage {
     // RTClosestHit,
     // RTMiss,
     // RTCallable,
+
+    Count,
 };
+inline constexpr auto kShaderStageCount = static_cast<size_t>(ShaderStage::Count);
 
 struct CompiledShader {
     ShaderStage stage;
@@ -216,11 +219,70 @@ struct ShaderCompileSpec {
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+enum class ShaderBindingType {
+    // Read-only resources
+    SampledTexture, ///< D3D12 SRV, Vulkan sampled image
+    UniformBuffer,  ///< D3D12 CBV, Vulkan uniform buffer
+
+    // Read-write resources
+    StorageTexture, ///< D3D12 UAV, Vulkan storage image
+    StorageBuffer,  ///< D3D12 UAV, Vulkan storage buffer
+
+    // Samplers
+    Sampler, ///< D3D12 sampler state, Vulkan VkSampler
+
+    // Constants
+    Constant, ///< D3D12 root constants, Vulkan push constants
+};
+
+enum class ShaderStageMask : uint32 {
+    None = 0u,
+
+    Vertex = 1u << 0u,
+    Hull = 1u << 1u,
+    Domain = 1u << 2u,
+    Geometry = 1u << 3u,
+    Pixel = 1u << 4u,
+
+    Compute = 1u << 5u,
+
+    AllGraphics = Vertex | Hull | Domain | Geometry | Pixel,
+    All = AllGraphics | Compute,
+};
+
+/// @brief Describes a single binding slot in a shader pipeline layout.
+struct ShaderBinding {
+    uint32 setIndex;            ///< Descriptor set index / root parameter index
+    uint32 bindingIndex;        ///< Binding index (descriptor set binding or root parameter index)
+    ShaderBindingType type;     ///< Resource type (SRV, UAV, CBV, sampler, constant, etc.)
+    uint32 arraySize;           ///< Number of elements (1 for non-array)
+    ShaderStageMask visibility; ///< Shader stages that can access this binding
+};
+
+/// @brief Manually-crafted binding layout specifications.
+struct ManualBindingLayoutSpec {
+    uint32 setCount = 1;
+    std::vector<ShaderBinding> bindings;
+    uint32 constantBlockSize = 0;
+};
+
+/// @brief Reflection-based binding layout specifications.
+struct ReflectionBindingLayoutSpec {
+    std::array<const CompiledShader *, kShaderStageCount> shaders;
+
+    // Optional overrides
+
+    uint32 overrideSetCount = 0;
+    uint32 overrideConstantBlockSize = 0;
+    std::vector<ShaderBinding> overrideBindings;
+};
+
 struct ComputePipelineSpec {
-    CompiledShader shader;
+    CompiledShader *shader;
 };
 
 } // namespace ymir::gpu
 
 ENABLE_BITMASK_OPERATORS(ymir::gpu::TextureUsage);
 ENABLE_BITMASK_OPERATORS(ymir::gpu::BufferUsage);
+ENABLE_BITMASK_OPERATORS(ymir::gpu::ShaderStageMask);

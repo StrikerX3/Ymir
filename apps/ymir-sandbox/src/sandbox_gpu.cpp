@@ -419,7 +419,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
                  compiledShaderSPIRV.bytecode.size());
 
     const ComputePipelineSpec computePipelineSpec{
-        .shader = compiledShaderDXIL,
+        .shader = &compiledShaderDXIL,
     };
     auto computePipelineResult = gpuDevice.CreateComputePipeline(computePipelineSpec);
     if (!computePipelineResult) {
@@ -430,6 +430,29 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     if (auto *dx12Pipeline = computePipeline->As<D3D12ComputePipeline>()) {
         fmt::println("D3D12 compute pipeline state: {}", (void *)dx12Pipeline->GetPipelineState().GetPointer());
     }
+
+    auto computeCmdQueueResult = gpuDevice.CreateCommandQueue(CommandQueueType::Compute);
+    if (!computeCmdQueueResult) {
+        fmt::println("Failed to create compute command queue: {}", computeCmdQueueResult.Error().message);
+        return EXIT_FAILURE;
+    }
+    std::unique_ptr<IGPUCommandQueue> computeCmdQueue{std::move(computeCmdQueueResult.Value())};
+    fmt::println("Compute command queue created: {}", (void *)computeCmdQueue.get());
+
+    auto computeCmdListResult = computeCmdQueue->CreateCommandList();
+    if (!computeCmdListResult) {
+        fmt::println("Failed to create compute command list: {}", computeCmdListResult.Error().message);
+        return EXIT_FAILURE;
+    }
+    std::unique_ptr<IGPUCommandList> computeCmdList{std::move(computeCmdListResult.Value())};
+    fmt::println("Compute command list created: {}", (void *)computeCmdList.get());
+    computeCmdList->Reset();
+    computeCmdList->Begin();
+    computeCmdList->SetComputePipeline(*computePipeline);
+    // computeCmdList->Dispatch({1, 1, 1}, {1, 1, 1});
+    computeCmdList->End();
+    computeCmdQueue->CommitCommandList(*computeCmdList);
+    computeCmdQueue->Wait();
 
     SDL_Window *window = SDL_CreateWindow("Sandbox", 640, 480, 0);
     SDL_PropertiesID windowProps = SDL_GetWindowProperties(window);

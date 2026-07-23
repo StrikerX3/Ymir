@@ -36,4 +36,19 @@ void D3D12CommandList::End() {
     HRESULT hr = m_list->Close();
 }
 
+GPUResult D3D12CommandList::SetComputePipeline(const IGPUComputePipeline &pipeline) {
+    // TODO: implement
+    return GPUOperationError{"Unimplemented"};
+}
+
+GPUResult D3D12CommandList::SetBindings(uint32 index, const IGPUBindingSet &bindings) {
+    // TODO: implement
+    return GPUOperationError{"Unimplemented"};
+}
+
+GPUResult D3D12CommandList::SetConstants(uint32 index, const void *data, size_t size) {
+    // TODO: implement
+    return GPUOperationError{"Unimplemented"};
+}
+
 } // namespace ymir::gpu

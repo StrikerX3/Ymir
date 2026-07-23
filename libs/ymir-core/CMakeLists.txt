@@ -29,6 +29,8 @@ add_library(ymir-core
     include/ymir/gpu/gpu_device_mgr.hpp
     include/ymir/gpu/gpu_shaders.hpp
 
+    include/ymir/gpu/api/base/gpu_binding_layout.hpp
+    include/ymir/gpu/api/base/gpu_binding_set.hpp
     include/ymir/gpu/api/base/gpu_buffer.hpp
     include/ymir/gpu/api/base/gpu_buffer_view.hpp
     include/ymir/gpu/api/base/gpu_command_list.hpp
@@ -382,6 +384,8 @@ target_link_libraries(ymir-core PRIVATE
 if (WIN32)
     target_sources(ymir-core PRIVATE
         include/ymir/gpu/api/d3d12/d3d12_descriptor_manager.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_binding_layout.hpp
+        include/ymir/gpu/api/d3d12/d3d12_gpu_binding_set.hpp
         include/ymir/gpu/api/d3d12/d3d12_gpu_buffer.hpp
         include/ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.hpp
         include/ymir/gpu/api/d3d12/d3d12_gpu_command_list.hpp
@@ -409,6 +413,8 @@ if (WIN32)
         include/ymir/gpu/api/d3d12/wrappers/d3d12_swap_chain.hpp
 
         src/ymir/gpu/api/d3d12/d3d12_descriptor_manager.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_binding_layout.cpp
+        src/ymir/gpu/api/d3d12/d3d12_gpu_binding_set.cpp
         src/ymir/gpu/api/d3d12/d3d12_gpu_buffer.cpp
         src/ymir/gpu/api/d3d12/d3d12_gpu_buffer_view.cpp
         src/ymir/gpu/api/d3d12/d3d12_gpu_command_list.cpp

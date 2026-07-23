@@ -42,6 +42,14 @@ public:
         return MakeUnsupportedOperationError();
     }
 
+    GPUObjectResult<IGPUBindingLayout> CreateBindingLayout(const ManualBindingLayoutSpec &spec) override {
+        return MakeUnsupportedOperationError();
+    }
+
+    GPUObjectResult<IGPUBindingLayout> CreateBindingLayout(const ReflectionBindingLayoutSpec &spec) override {
+        return MakeUnsupportedOperationError();
+    }
+
     void SetName(std::string_view name) override {}
 
 private:

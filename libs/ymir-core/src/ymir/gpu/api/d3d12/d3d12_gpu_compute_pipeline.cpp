@@ -1,5 +1,7 @@
 #include <ymir/gpu/api/d3d12/d3d12_gpu_compute_pipeline.hpp>
 
+#include <ymir/gpu/api/d3d12/d3d12_gpu_binding_layout.hpp>
+
 #include <ymir/gpu/api/d3d12/d3d12_utils.hpp>
 
 #include <fmt/format.h>
@@ -13,12 +15,16 @@ D3D12ComputePipeline::D3D12ComputePipeline(d3d12::D3D12PipelineState &&pipelineS
 GPUObjectResult<IGPUComputePipeline> D3D12ComputePipeline::Create(d3d12::D3D12Device &device,
                                                                   const d3d12::D3D12RootSignature &rootSig,
                                                                   const ComputePipelineSpec &spec) {
+    if (spec.shader == nullptr) {
+        return GPUOperationError{"Shader not specified"};
+    }
+
     d3d12::D3D12PipelineState pipelineState{};
     auto builder = pipelineState.ComputeBuilder();
     // TODO: builder.NodeMask(nodeMask);
     // TODO: builder.Flags(...)?
     // TODO: builder.CachedPSO()?
-    HRESULT hr = builder.Build(device, rootSig, spec.shader.bytecode.data(), spec.shader.bytecode.size());
+    HRESULT hr = builder.Build(device, rootSig, spec.shader->bytecode.data(), spec.shader->bytecode.size());
     if (FAILED(hr)) {
         return GPUOperationError{fmt::format("Failed to build compute pipeline: error code {:X}", hr)};
     }
@@ -28,6 +34,14 @@ GPUObjectResult<IGPUComputePipeline> D3D12ComputePipeline::Create(d3d12::D3D12De
 
 void D3D12ComputePipeline::SetName(std::string_view name) {
     m_pipelineState->SetName(util::StringToWString(name).c_str());
+}
+
+const IGPUBindingLayout *D3D12ComputePipeline::GetBindingLayout() const {
+    return nullptr;
+}
+
+GPUObjectResult<IGPUBindingSet> D3D12ComputePipeline::CreateBindingSet() {
+    return GPUOperationError{"Unimplemented"};
 }
 
 } // namespace ymir::gpu

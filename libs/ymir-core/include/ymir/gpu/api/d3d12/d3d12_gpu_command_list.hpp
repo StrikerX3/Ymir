@@ -22,6 +22,11 @@ public:
     void Begin() override;
     void End() override;
 
+    GPUResult SetComputePipeline(const IGPUComputePipeline &pipeline) override;
+    // TODO: GPUResult SetGraphicsPipeline(const IGPUGraphicsPipeline &pipeline) override;
+    GPUResult SetBindings(uint32 index, const IGPUBindingSet &bindings) override;
+    GPUResult SetConstants(uint32 index, const void *data, size_t size) override;
+
     d3d12::D3D12CommandAllocator &GetAllocator() {
         return m_allocator;
     }
