@@ -975,6 +975,7 @@ void Settings::ResetToDefaults() {
 
     general.checkForUpdates = false;
     general.includeNightlyBuilds = false;
+    general.enableDiscordPresence = false;
 
     gui.overrideUIScale = false;
     gui.uiScale = 1.0;
@@ -1177,6 +1178,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblGeneral, "StartPaused", general.startPaused);
         Parse(tblGeneral, "CheckForUpdates", general.checkForUpdates);
         Parse(tblGeneral, "IncludeNightlyBuilds", general.includeNightlyBuilds);
+        Parse(tblGeneral, "EnableDiscordPresence", general.enableDiscordPresence);
 
         general.screenshotScale = std::clamp(general.screenshotScale, 1, 4);
 
@@ -1823,6 +1825,7 @@ SettingsSaveResult Settings::Save() {
             {"StartPaused", general.startPaused},
             {"CheckForUpdates", general.checkForUpdates},
             {"IncludeNightlyBuilds", general.includeNightlyBuilds},
+            {"EnableDiscordPresence", general.enableDiscordPresence},
 
             {"PathOverrides", toml::table{{
                 {"IPLROMImages", m_context.profile.GetPathOverride(ProfilePath::IPLROMImages).native()},

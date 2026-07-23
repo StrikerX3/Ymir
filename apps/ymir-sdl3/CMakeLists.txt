@@ -81,6 +81,8 @@ add_executable(ymir-sdl3
     src/app/services/rom_service.hpp
     src/app/services/disc_service.cpp
     src/app/services/disc_service.hpp
+    src/app/services/discord_rpc_service.cpp
+    src/app/services/discord_rpc_service.hpp
     src/app/services/display_service.cpp
     src/app/services/display_service.hpp
     src/app/services/file_dialog_service.cpp
@@ -454,6 +456,7 @@ target_link_libraries(ymir-sdl3 PRIVATE
     tomlplusplus::tomlplusplus
     cereal::cereal
     lz4::lz4
+    discord-rpc
     RtMidi::rtmidi
     CURL::libcurl_static
 )

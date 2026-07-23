@@ -132,6 +132,10 @@ void GeneralSettingsView::Display() {
     MakeDirty(ImGui::Checkbox("Start paused upon launch", &settings.startPaused));
     widgets::ExplanationTooltip("Ymir will launch with emulation paused when starting up.", m_context.displayScale);
 
+    MakeDirty(ImGui::Checkbox("Enable Discord Rich Presence", &settings.enableDiscordPresence));
+    widgets::ExplanationTooltip("Displays the current game on your Discord profile while Ymir is running.",
+                                m_context.displayScale);
+
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
