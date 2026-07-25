@@ -14,6 +14,13 @@
 #include <sstream>
 #include <vector>
 
+#define DR_MP3_IMPLEMENTATION
+#include <dr_mp3.h>
+
+extern "C" {
+    #include <stb_vorbis.c>
+}
+
 namespace ymir::media::loader::bincue {
 
 const std::set<std::string> kValidCueKeywords = {

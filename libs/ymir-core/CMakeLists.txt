@@ -328,6 +328,7 @@ set_target_properties(ymir-core PROPERTIES
 target_include_directories(ymir-core
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+    	    "${CMAKE_SOURCE_DIR}/vendor"
 )
 target_compile_features(ymir-core PUBLIC cxx_std_20)
 
