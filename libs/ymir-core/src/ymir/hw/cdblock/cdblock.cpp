@@ -1035,130 +1035,133 @@ void CDBlock::ProcessDriveState() {
 void CDBlock::ProcessDriveStatePlay() {
     const bool scan = GetStatusCode() == kStatusCodeScan;
     const uint32 frameAddress = m_status.frameAddress;
-    if (frameAddress <= m_playEndPos) {
+    if (!m_cdif.HasDisc()) [[unlikely]] {
+        devlog::debug<grp::play>("Disc removed");
+
+        m_status.statusCode = kStatusCodeNoDisc; // TODO: is this correct?
+        SetInterrupt(kHIRQ_DCHG);
+    } else if (frameAddress <= m_playEndPos) {
         devlog::trace<grp::play>("Read from frame address {:06X}", frameAddress);
 
-        if (m_cdif.HasDisc()) [[unlikely]] {
-            if (m_bufferFullPause) {
-                devlog::trace<grp::play>("Can't play disc, no buffers available");
-                return;
-            }
+        if (m_bufferFullPause) {
+            devlog::trace<grp::play>("Can't play disc, no buffers available");
+            return;
+        }
 
-            Buffer &buffer = m_scratchBuffers[0];
-            media::DiscPosition discPos{};
+        Buffer &buffer = m_scratchBuffers[0];
+        media::DiscPosition discPos{};
 
-            // Sanity check: is the track valid?
-            if (m_cdif.ReadSector(frameAddress, buffer.data, &discPos)) [[likely]] {
-                devlog::trace<grp::play>("Read sector from frame address {:06X}", frameAddress);
+        // Sanity check: is the track valid?
+        if (m_cdif.ReadSector(frameAddress, buffer.data, &discPos)) [[likely]] {
+            devlog::trace<grp::play>("Read sector from frame address {:06X}", frameAddress);
 
-                if (discPos.controlADR == 0x01) {
-                    // If playing an audio track, send to SCSP
-                    if (scan) {
-                        // While scanning, attenuate volume by 12 dB
-                        for (uint32 offset = 0; offset < 2352; offset += 2) {
-                            util::WriteNE<sint16>(&buffer.data[offset],
-                                                  util::ReadNE<sint16>(&buffer.data[offset]) >> 2u);
-                        }
+            if (discPos.controlADR == 0x01) {
+                // If playing an audio track, send to SCSP
+                if (scan) {
+                    // While scanning, attenuate volume by 12 dB
+                    for (uint32 offset = 0; offset < 2352; offset += 2) {
+                        util::WriteNE<sint16>(&buffer.data[offset], util::ReadNE<sint16>(&buffer.data[offset]) >> 2u);
                     }
+                }
 
-                    // The callback returns how many thirds of the buffer are full
-                    const uint32 currBufferLength =
-                        m_cbCDDASector(std::span<uint8, 2352>(buffer.data.begin(), buffer.data.end()));
+                // The callback returns how many thirds of the buffer are full
+                const uint32 currBufferLength =
+                    m_cbCDDASector(std::span<uint8, 2352>(buffer.data.begin(), buffer.data.end()));
 
-                    // Adjust pace based on how full the SCSP CDDA buffer is
-                    if (currBufferLength < 1) {
-                        // Run faster if the buffer is less than a third full
-                        m_targetDriveCycles = kDriveCyclesPlaying1x - (kDriveCyclesPlaying1x >> 2);
-                    } else if (currBufferLength >= 2) {
-                        // Run slower if the buffer is more than two-thirds full
-                        m_targetDriveCycles = kDriveCyclesPlaying1x + (kDriveCyclesPlaying1x >> 2);
-                    } else {
-                        // Normal speed otherwise
-                        m_targetDriveCycles = kDriveCyclesPlaying1x;
-                    }
-
-                    devlog::trace<grp::play>("Sector {:06X} sent to SCSP", frameAddress);
-                } else if (m_partitionManager.GetFreeBufferCount() == 0) [[unlikely]] {
-                    devlog::trace<grp::play>("No free buffer available");
-
-                    // TODO: what is the correct status code here?
-                    // TODO: there really should be a separate state machine for handling this...
-                    SetInterrupt(kHIRQ_BFUL);
-                    m_bufferFullPause = true;
+                // Adjust pace based on how full the SCSP CDDA buffer is
+                if (currBufferLength < 1) {
+                    // Run faster if the buffer is less than a third full
+                    m_targetDriveCycles = kDriveCyclesPlaying1x - (kDriveCyclesPlaying1x >> 2);
+                } else if (currBufferLength >= 2) {
+                    // Run slower if the buffer is more than two-thirds full
+                    m_targetDriveCycles = kDriveCyclesPlaying1x + (kDriveCyclesPlaying1x >> 2);
                 } else {
-                    const bool mode2 = buffer.data[0xF] == 0x02;
-                    const bool mode2form2 = mode2 && bit::test<5>(buffer.data[0x12]);
-                    buffer.size = mode2form2 ? std::max(2324u, m_getSectorLength) : m_getSectorLength;
-                    buffer.frameAddress = frameAddress;
-                    buffer.subheader.ReadFrom(buffer.data);
+                    // Normal speed otherwise
+                    m_targetDriveCycles = kDriveCyclesPlaying1x;
+                }
 
-                    // Check against CD device filter and send data to the appropriate destination
-                    uint8 filterNum = m_cdDeviceConnection;
-                    for (int i = 0; i < kNumFilters && filterNum != Filter::kDisconnected; i++) {
-                        const Filter &filter = m_filters[filterNum];
-                        if (filter.Test(buffer)) {
-                            if (filter.passOutput == Filter::kDisconnected) [[unlikely]] {
-                                devlog::trace<grp::play>("Passed filter; output disconnected - discarded");
-                            } else {
-                                assert(filter.passOutput < m_filters.size());
-                                devlog::trace<grp::play>("Passed filter; sent to buffer partition {}",
-                                                         filter.passOutput);
-                                m_partitionManager.InsertHead(filter.passOutput, buffer);
-                                m_lastCDWritePartition = filter.passOutput;
-                                SetInterrupt(kHIRQ_CSCT);
-                            }
+                devlog::trace<grp::play>("Sector {:06X} sent to SCSP", frameAddress);
+            } else if (m_partitionManager.GetFreeBufferCount() == 0) [[unlikely]] {
+                devlog::trace<grp::play>("No free buffer available");
+
+                // TODO: what is the correct status code here?
+                // TODO: there really should be a separate state machine for handling this...
+                SetInterrupt(kHIRQ_BFUL);
+                m_bufferFullPause = true;
+            } else {
+                const bool mode2 = buffer.data[0xF] == 0x02;
+                const bool mode2form2 = mode2 && bit::test<5>(buffer.data[0x12]);
+                buffer.size = mode2form2 ? std::max(2324u, m_getSectorLength) : m_getSectorLength;
+                buffer.frameAddress = frameAddress;
+                buffer.subheader.ReadFrom(buffer.data);
+
+                // Check against CD device filter and send data to the appropriate destination
+                uint8 filterNum = m_cdDeviceConnection;
+                for (int i = 0; i < kNumFilters && filterNum != Filter::kDisconnected; i++) {
+                    const Filter &filter = m_filters[filterNum];
+                    if (filter.Test(buffer)) {
+                        if (filter.passOutput == Filter::kDisconnected) [[unlikely]] {
+                            devlog::trace<grp::play>("Passed filter; output disconnected - discarded");
+                        } else {
+                            assert(filter.passOutput < m_filters.size());
+                            devlog::trace<grp::play>("Passed filter; sent to buffer partition {}", filter.passOutput);
+                            m_partitionManager.InsertHead(filter.passOutput, buffer);
+                            m_lastCDWritePartition = filter.passOutput;
+                            SetInterrupt(kHIRQ_CSCT);
+                        }
+                        break;
+                    } else {
+                        if (filter.failOutput == Filter::kDisconnected) [[unlikely]] {
+                            devlog::trace<grp::play>("Filtered out; output disconnected - discarded");
                             break;
                         } else {
-                            if (filter.failOutput == Filter::kDisconnected) [[unlikely]] {
-                                devlog::trace<grp::play>("Filtered out; output disconnected - discarded");
-                                break;
-                            } else {
-                                assert(filter.failOutput < m_filters.size());
-                                devlog::trace<grp::play>("Filtered out; sent to filter {}", filter.failOutput);
-                                filterNum = filter.failOutput;
-                            }
+                            assert(filter.failOutput < m_filters.size());
+                            devlog::trace<grp::play>("Filtered out; sent to filter {}", filter.failOutput);
+                            filterNum = filter.failOutput;
+                        }
+                    }
+                }
+            }
+
+            if (!m_bufferFullPause) {
+                // Skip frames while scanning
+                if (scan) {
+                    constexpr uint8 kScanCounter = 15;
+                    constexpr uint8 kScanFrameSkip = 75;
+                    static_assert(
+                        kScanFrameSkip >= kScanCounter,
+                        "scan frame skip includes the frame counter, so it cannot be shorter than the counter");
+
+                    m_scanCounter++;
+                    if (m_scanCounter >= kScanCounter) {
+                        m_scanCounter = 0;
+                        if (m_scanDirection) {
+                            m_status.frameAddress -= kScanFrameSkip + kScanCounter;
+                        } else {
+                            m_status.frameAddress += kScanFrameSkip - kScanCounter;
                         }
                     }
                 }
 
-                if (!m_bufferFullPause) {
-                    // Skip frames while scanning
-                    if (scan) {
-                        constexpr uint8 kScanCounter = 15;
-                        constexpr uint8 kScanFrameSkip = 75;
-                        static_assert(
-                            kScanFrameSkip >= kScanCounter,
-                            "scan frame skip includes the frame counter, so it cannot be shorter than the counter");
-
-                        m_scanCounter++;
-                        if (m_scanCounter >= kScanCounter) {
-                            m_scanCounter = 0;
-                            if (m_scanDirection) {
-                                m_status.frameAddress -= kScanFrameSkip + kScanCounter;
-                            } else {
-                                m_status.frameAddress += kScanFrameSkip - kScanCounter;
-                            }
-                        }
-                    }
-
-                    ++m_status.frameAddress;
-                    m_status.track = util::from_bcd(discPos.track);
-                    m_status.index = util::from_bcd(discPos.index);
-                    m_status.controlADR = discPos.controlADR;
-                    m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
-                }
-            } else {
-                // Handle as a disc read error
-                // TODO: what happens on a real disc read error?
-                devlog::debug<grp::play>("Could not read sector - disc was removed, is damaged or corrupted");
-                m_status.statusCode = kStatusCodeError;
+                ++m_status.frameAddress;
+                m_status.track = util::from_bcd(discPos.track);
+                m_status.index = util::from_bcd(discPos.index);
+                m_status.controlADR = discPos.controlADR;
+                m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
             }
         } else {
-            devlog::debug<grp::play>("Disc removed");
-
-            m_status.statusCode = kStatusCodeNoDisc; // TODO: is this correct?
-            SetInterrupt(kHIRQ_DCHG);
+            // Handle as a disc read error
+            // TODO: what happens on a real disc read error?
+            devlog::debug<grp::play>("Could not read sector - disc was removed, is damaged or corrupted");
+            m_status.statusCode = kStatusCodeError;
         }
+    } else {
+        media::DiscPosition discPos{};
+        m_cdif.ReadPosition(m_status.frameAddress, discPos);
+        m_status.track = util::from_bcd(discPos.track);
+        m_status.index = util::from_bcd(discPos.index);
+        m_status.controlADR = discPos.controlADR;
+        m_status.flags = discPos.controlADR == 0x41 ? 0x8 : 0x0;
     }
 
     const bool useFAD = (m_playStartParam & 0x800000) != 0;
