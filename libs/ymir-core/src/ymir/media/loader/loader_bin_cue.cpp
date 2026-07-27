@@ -379,7 +379,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
 
                 if (file.format == "MP3" || file.format == "OGG") {
                     std::vector<uint8> data;
-                    std::vector<int16> decodedPCMData;
+                    std::vector<sint16> decodedPCMData;
                     uint64 frameCount = 0;
                     uint32 numChannels;
                     uint32 sampleRate;
@@ -399,9 +399,9 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         numChannels = mp3Config.channels;
                         sampleRate = mp3Config.sampleRate;
                         numSamples = frameCount * numChannels;
-                        decodedPCMData = std::vector<int16>(tempBuffer, tempBuffer + numSamples);
+                        decodedPCMData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
 
-                        // copying the decoded data from the dpmp3_int16 array into a vector<int16> so we can free it
+                        // copying the decoded data from the drmp3_int16 array into a vector<sint16> so we can free it
                         // immediately with drmp3_free()
                         drmp3_free(tempBuffer, nullptr);
 
@@ -418,15 +418,15 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         sampleRate = sr;
                         numChannels = nc;
                         numSamples = frameCount * numChannels;
-                        decodedPCMData = std::vector<int16>(tempBuffer, tempBuffer + numSamples);
+                        decodedPCMData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
                         free(tempBuffer);
                     }
                     // if the audo has only one track, duplicate the data for both tracks ensuring dual channel stereo
                     // audio
                     if (numChannels == 1) {
-                        std::vector<int16> temp;
+                        std::vector<sint16> temp;
                         temp.resize(numSamples * 2);
-                        for (int i = 0; i < numSamples; i++) {
+                        for (uint8 i = 0; i < numSamples; i++) {
                             temp[i * 2] = decodedPCMData[i];
                             temp[i * 2 + 1] = decodedPCMData[i];
                         }
@@ -434,8 +434,8 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         numChannels = 2;
                         decodedPCMData = std::move(temp);
                     }
-                    data.resize(numSamples * sizeof(int16));
-                    std::memcpy(data.data(), decodedPCMData.data(), numSamples * sizeof(int16));
+                    data.resize(numSamples * sizeof(sint16));
+                    std::memcpy(data.data(), decodedPCMData.data(), numSamples * sizeof(sint16));
 
                     // if the sampling rate is different, resample the audio to 44.1kHz
                     constexpr uint32 kTargetSamplingRate = 44100;
