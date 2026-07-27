@@ -37,7 +37,6 @@ target_link_libraries(ymir-sandbox PRIVATE
     CURL::libcurl_static
     nlohmann_json::nlohmann_json
     stb::stb
-    dr_libs::dr_libs
 )
 
 cmrk_copy_runtime_dlls(ymir-sandbox)
