@@ -472,6 +472,7 @@ struct Settings {
         // upscaled by an integer factor of 2x or more, emulating the gaps between CRT scanlines.
         bool scanlines;
         int scanlineIntensity; // 0 = off (no darkening), 255 = fully black gaps
+        int scanlineThickness; // percentage (0-100) of each pixel band that is darkened
 
         bool autoResizeWindow;
         bool displayVideoOutputInWindow;

@@ -870,11 +870,13 @@ void App::RunEmulator() {
 
         // Simple integer scanline filter.
         // Because the framebuffer is upscaled into the display texture by an integer factor with nearest
-        // interpolation, every source row occupies exactly `fbScale` destination rows. We darken the lower half of
-        // each of those bands to emulate the gaps between CRT scanlines. This only has a visible effect at 2x or
-        // greater integer scale; at 1x there is no room for a gap so it is skipped.
-        if (videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0) {
-            const uint32 gap = screen.fbScale / 2; // rows darkened per source pixel band
+        // interpolation, every source row occupies exactly `fbScale` destination rows. We darken the lower portion of
+        // each of those bands to emulate the gaps between CRT scanlines. The `scanlineThickness` percentage controls
+        // how many of the `fbScale` rows are darkened. This only has a visible effect at 2x or greater integer scale;
+        // at 1x there is no room for a gap so it is skipped.
+        const uint32 gap = (uint32)std::clamp(std::lround(screen.fbScale * videoSettings.scanlineThickness / 100.0), 0L,
+                                              (long)screen.fbScale); // rows darkened per source pixel band
+        if (videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0 && gap > 0) {
             const Uint8 alpha = (Uint8)std::clamp(videoSettings.scanlineIntensity, 0, 255);
             const float lineW = (float)screen.width * screen.fbScale;
 

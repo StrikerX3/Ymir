@@ -55,9 +55,26 @@ void VideoSettingsView::Display() {
         "Darkens the gaps between rows to emulate CRT scanlines. Only visible at 2x integer scale or greater.",
         m_context.displayScale);
     if (settings.scanlines) {
-        ImGui::SameLine();
         ImGui::SetNextItemWidth(150.0f * m_context.displayScale);
         MakeDirty(ImGui::SliderInt("Intensity", &settings.scanlineIntensity, 0, 255));
+        ImGui::SetNextItemWidth(150.0f * m_context.displayScale);
+        MakeDirty(ImGui::SliderInt("Thickness", &settings.scanlineThickness, 0, 100, "%d%%"));
+        widgets::ExplanationTooltip("Portion of each pixel row that is darkened.", m_context.displayScale);
+
+        ImGui::TextUnformatted("Presets:");
+        ImGui::SameLine();
+        auto preset = [&](const char *name, int intensity, int thickness) {
+            if (MakeDirty(ImGui::Button(name))) {
+                settings.scanlineIntensity = intensity;
+                settings.scanlineThickness = thickness;
+            }
+            ImGui::SameLine();
+        };
+        preset("Subtle", 60, 25);
+        preset("TV", 75, 50);
+        preset("Sharp", 180, 50);
+        preset("Arcade", 220, 60);
+        ImGui::NewLine();
     }
 
     ImGui::Separator();

@@ -10,6 +10,7 @@ Introduces save state file version 14.
 
 - App: Added Discord Rich Presence support. (#260, #917; @SternXD)
 - App: Added option to unpause emulator when loading discs. Enabled by default, which changes established behavior.
+- App: Added optional integer scanline filter for the video output, with adjustable intensity and a toggle hotkey. (#<PR>; @outkst)
 - App: Clarified IPL ROM meaning in the Welcome window and IPL settings tab -- it refers to the BIOS.
 - App: Display volume indicator on the top-right corner of the window for a few seconds after adjustments.
     - `smpc-us_eu.bin`: USA, Europe -- SMPC area codes 4, 5, A, C, D

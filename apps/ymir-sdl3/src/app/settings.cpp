@@ -1059,6 +1059,7 @@ void Settings::ResetToDefaults() {
     video.rotation = Video::DisplayRotation::Normal;
     video.scanlines = false;
     video.scanlineIntensity = 128;
+    video.scanlineThickness = 50;
     video.autoResizeWindow = false;
     video.displayVideoOutputInWindow = false;
     video.syncInWindowedMode = false;
@@ -1556,6 +1557,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "Rotation", video.rotation);
         Parse(tblVideo, "Scanlines", video.scanlines);
         Parse(tblVideo, "ScanlineIntensity", video.scanlineIntensity);
+        Parse(tblVideo, "ScanlineThickness", video.scanlineThickness);
 
         Parse(tblVideo, "AutoResizeWindow", video.autoResizeWindow);
         Parse(tblVideo, "DisplayVideoOutputInWindow", video.displayVideoOutputInWindow);
@@ -1989,6 +1991,7 @@ SettingsSaveResult Settings::Save() {
             {"Rotation", ToTOML(video.rotation)},
             {"Scanlines", video.scanlines},
             {"ScanlineIntensity", video.scanlineIntensity},
+            {"ScanlineThickness", video.scanlineThickness},
             {"AutoResizeWindow", video.autoResizeWindow},
             {"DisplayVideoOutputInWindow", video.displayVideoOutputInWindow},
             {"SyncInWindowedMode", video.syncInWindowedMode},
