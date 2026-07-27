@@ -18,7 +18,6 @@
 #include <SDL3/SDL.h>
 #include <curl/curlver.h>
 #include <cxxopts.hpp>
-#include <dr_libs/dr_flac.h>
 #include <dr_libs/dr_mp3.h>
 #include <fmt/format.h>
 #include <lz4.h>
@@ -118,7 +117,6 @@ static const struct {
     {.name = "cxxopts",                       .version = CXXOPTS_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/jarro2783/cxxopts",           .licenseURL = "https://github.com/jarro2783/cxxopts/blob/master/LICENSE"},
     {.name = "date",                          .version = DATE_VERSION,               .license = licenseMIT,           .repoURL = "https://github.com/HowardHinnant/date",          .licenseURL = "https://github.com/HowardHinnant/date/blob/master/LICENSE.txt"},
     {.name = "Dear ImGui",                    .version = IMGUI_VERSION_FULL,         .license = licenseMIT,           .repoURL = "https://github.com/ocornut/imgui",               .licenseURL = "https://github.com/ocornut/imgui/blob/master/LICENSE.txt"},
-    {.name = "dr_flac",                       .version = DRFLAC_VERSION_STRING,      .license = licenseMIT,           .repoURL = "https://github.com/mackron/dr_libs",             .licenseURL = "https://github.com/mackron/dr_libs/blob/master/LICENSE"},
     {.name = "dr_mp3",                        .version = DRMP3_VERSION_STRING,       .license = licenseMIT,           .repoURL = "https://github.com/mackron/dr_libs",             .licenseURL = "https://github.com/mackron/dr_libs/blob/master/LICENSE"},
     {.name = "{fmt}",                         .version = fmtVersion.c_str(),         .license = licenseMIT,           .repoURL = "https://github.com/fmtlib/fmt",                  .licenseURL = "https://github.com/fmtlib/fmt/blob/master/LICENSE",                      .homeURL = "https://fmt.dev/latest/index.html"},
     {.name = "ImGui Club",                                                           .license = licenseMIT,           .repoURL = "https://github.com/ocornut/imgui_club",          .licenseURL = "https://github.com/ocornut/imgui_club/blob/main/LICENSE.txt"},
