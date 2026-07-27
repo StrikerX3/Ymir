@@ -221,11 +221,13 @@ jobs:
 
           Copy-Item -Path ".\apps\ymir-sdl3\res\licenses\*"                     -Destination "$licensesDir\"  -Recurse
           Copy-Item -Path ".\vendor\concurrentqueue\concurrentqueue\LICENSE.md" -Destination "$licensesDir\concurrentqueue-LICENSE.md"
+          Copy-Item -Path ".\vendor\dr_libs\LICENSE"                            -Destination "$licensesDir\dr_libs-LICENSE"
           Copy-Item -Path ".\vendor\imgui\imgui\LICENSE.txt"                    -Destination "$licensesDir\imgui-LICENSE.txt"
           Copy-Item -Path ".\vendor\libchdr\libchdr\LICENSE.txt"                -Destination "$licensesDir\libchdr-LICENSE.txt"
           Copy-Item -Path ".\vendor\libchdr\libchdr\deps\lzma-25.01\LICENSE"    -Destination "$licensesDir\lzma-LICENSE"
           Copy-Item -Path ".\vendor\lz4\lz4\lib\LICENSE"                        -Destination "$licensesDir\lz4-LICENSE"
           Copy-Item -Path ".\vendor\mio\LICENSE"                                -Destination "$licensesDir\mio-LICENSE"
+          Copy-Item -Path ".\vendor\stb\stb\LICENSE"                            -Destination "$licensesDir\stb-LICENSE"
           Copy-Item -Path ".\vendor\xxHash\xxHash\LICENSE"                      -Destination "$licensesDir\xxHash-LICENSE"
           Copy-Item -Path ".\LICENSE"                                           -Destination "$licensesDir\Ymir-LICENSE"
           Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"                -Destination "$licensesDir\SDL_GameControllerDB-LICENSE"
@@ -376,11 +378,13 @@ jobs:
           done
           cp -Rf apps/ymir-sdl3/res/licenses/*                    ./licenses/
           cp -f vendor/concurrentqueue/concurrentqueue/LICENSE.md licenses/concurrentqueue-LICENSE.md
+          cp -f vendor/dr_libs/LICENSE                            licenses/dr_libs-LICENSE
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/libchdr/LICENSE.txt                licenses/libchdr-LICENSE.txt
           cp -f vendor/libchdr/libchdr/deps/lzma-25.01/LICENSE    licenses/lzma-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
+          cp -f vendor/stb/stb/LICENSE                            licenses/stb-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
           cp -f LICENSE                                           licenses/Ymir-LICENSE
           cp -f ${{ github.workspace }}/gcdb/LICENSE              licenses/SDL_GameControllerDB-LICENSE
@@ -507,11 +511,13 @@ jobs:
           done
           cp -Rf apps/ymir-sdl3/res/licenses/*                    ./licenses/
           cp -f vendor/concurrentqueue/concurrentqueue/LICENSE.md licenses/concurrentqueue-LICENSE.md
+          cp -f vendor/dr_libs/LICENSE                            licenses/dr_libs-LICENSE
           cp -f vendor/imgui/imgui/LICENSE.txt                    licenses/imgui-LICENSE.txt
           cp -f vendor/libchdr/libchdr/LICENSE.txt                licenses/libchdr-LICENSE.txt
           cp -f vendor/libchdr/libchdr/deps/lzma-25.01/LICENSE    licenses/lzma-LICENSE
           cp -f vendor/lz4/lz4/lib/LICENSE                        licenses/lz4-LICENSE
           cp -f vendor/mio/LICENSE                                licenses/mio-LICENSE
+          cp -f vendor/stb/stb/LICENSE                            licenses/stb-LICENSE
           cp -f vendor/xxHash/xxHash/LICENSE                      licenses/xxHash-LICENSE
           cp -f LICENSE                                           licenses/Ymir-LICENSE
           cp -f ${{ github.workspace }}/gcdb/LICENSE              licenses/SDL_GameControllerDB-LICENSE

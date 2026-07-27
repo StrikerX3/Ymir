@@ -23,3 +23,9 @@
 [submodule "vendor/fmt"]
 	path = vendor/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "vendor/stb/stb"]
+	path = vendor/stb/stb
+	url = https://github.com/nothings/stb.git
+[submodule "vendor/dr_libs/dr_libs"]
+	path = vendor/dr_libs/dr_libs
+	url = https://github.com/mackron/dr_libs.git
