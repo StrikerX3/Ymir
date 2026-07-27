@@ -18,7 +18,7 @@
 #include <dr_mp3.h>
 
 extern "C" {
-    #include <stb_vorbis.c>
+#include <stb_vorbis.c>
 }
 
 #include <SDL3/SDL.h>
@@ -380,60 +380,62 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 if (file.format == "MP3" || file.format == "OGG") {
                     std::vector<uint8> data;
                     std::vector<int16> decodedPCMData;
-                    uint64 frameCount=0;
+                    uint64 frameCount = 0;
                     uint32 numChannels;
                     uint32 sampleRate;
                     uint32 numSamples;
-                    if (file.format=="MP3") {
+                    if (file.format == "MP3") {
                         // read in and decode the MP3 data into raw PCM format
                         drmp3_config mp3Config{};
                         drmp3_uint64 fc = 0;
-                        drmp3_int16* tempBuffer = drmp3_open_file_and_read_pcm_frames_s16(file.path.c_str(), &mp3Config, &fc, nullptr);
-                        
-                        if (tempBuffer==nullptr) {
+                        drmp3_int16 *tempBuffer =
+                            drmp3_open_file_and_read_pcm_frames_s16(file.path.c_str(), &mp3Config, &fc, nullptr);
+
+                        if (tempBuffer == nullptr) {
                             errorMsg(fmt::format("BIN/CUE: Failed to load {}", file.path));
                             return false;
                         }
                         frameCount = fc;
                         numChannels = mp3Config.channels;
                         sampleRate = mp3Config.sampleRate;
-                        numSamples = frameCount*numChannels;
-                        decodedPCMData = std::vector<int16>(tempBuffer, tempBuffer+numSamples);
-                        
-                        // copying the decoded data from the dpmp3_int16 array into a vector<int16> so we can free it immediately with drmp3_free()
+                        numSamples = frameCount * numChannels;
+                        decodedPCMData = std::vector<int16>(tempBuffer, tempBuffer + numSamples);
+
+                        // copying the decoded data from the dpmp3_int16 array into a vector<int16> so we can free it
+                        // immediately with drmp3_free()
                         drmp3_free(tempBuffer, nullptr);
 
-                    }
-                    else if (file.format == "OGG") {
+                    } else if (file.format == "OGG") {
                         int nc;
                         int sr;
-                        short* tempBuffer=nullptr;
+                        short *tempBuffer = nullptr;
                         int fc = stb_vorbis_decode_filename(file.path.c_str(), &nc, &sr, &tempBuffer);
-                        if (fc==-1) {
+                        if (fc == -1) {
                             errorMsg(fmt::format("BIN/CUE: Failed to load {}", file.path));
                             return false;
                         }
                         frameCount = fc;
                         sampleRate = sr;
                         numChannels = nc;
-                        numSamples = frameCount*numChannels;
-                        decodedPCMData = std::vector<int16>(tempBuffer, tempBuffer+numSamples);
+                        numSamples = frameCount * numChannels;
+                        decodedPCMData = std::vector<int16>(tempBuffer, tempBuffer + numSamples);
                         free(tempBuffer);
                     }
-                    // if the audo has only one track, duplicate the data for both tracks ensuring dual channel stereo audio
+                    // if the audo has only one track, duplicate the data for both tracks ensuring dual channel stereo
+                    // audio
                     if (numChannels == 1) {
                         std::vector<int16> temp;
-                        temp.resize(numSamples*2);
-                        for(int i=0; i<numSamples; i++) {
-                            temp[i*2] = decodedPCMData[i];
-                            temp[i*2+1] = decodedPCMData[i];
+                        temp.resize(numSamples * 2);
+                        for (int i = 0; i < numSamples; i++) {
+                            temp[i * 2] = decodedPCMData[i];
+                            temp[i * 2 + 1] = decodedPCMData[i];
                         }
-                        numSamples*=2;
+                        numSamples *= 2;
                         numChannels = 2;
                         decodedPCMData = std::move(temp);
                     }
-                    data.resize(numSamples*sizeof(int16));
-                    std::memcpy(data.data(), decodedPCMData.data(), numSamples*sizeof(int16));
+                    data.resize(numSamples * sizeof(int16));
+                    std::memcpy(data.data(), decodedPCMData.data(), numSamples * sizeof(int16));
 
                     // if the sampling rate is different, resample the audio to 44.1kHz
                     constexpr uint32 kTargetSamplingRate = 44100;
@@ -441,15 +443,17 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         // convert the sampling rate using SDL3 library
                         const SDL_AudioSpec sourceSpec = {SDL_AUDIO_S16, (int)numChannels, (int)sampleRate};
                         const SDL_AudioSpec destinationSpec = {SDL_AUDIO_S16, (int)numChannels, kTargetSamplingRate};
-                        SDL_AudioStream* stream = SDL_CreateAudioStream(&sourceSpec, &destinationSpec);
-                        if (stream==nullptr) {
-                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path, SDL_GetError()));
+                        SDL_AudioStream *stream = SDL_CreateAudioStream(&sourceSpec, &destinationSpec);
+                        if (stream == nullptr) {
+                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path,
+                                                 SDL_GetError()));
                             return false;
                         }
 
                         if (!SDL_PutAudioStreamData(stream, data.data(), data.size())) {
                             SDL_DestroyAudioStream(stream);
-                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path, SDL_GetError()));
+                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path,
+                                                 SDL_GetError()));
                             return false;
                         }
 
@@ -459,9 +463,10 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         data.resize(numBytes);
 
                         numBytes = SDL_GetAudioStreamData(stream, data.data(), numBytes);
-                        if (numBytes==-1) {
+                        if (numBytes == -1) {
                             SDL_DestroyAudioStream(stream);
-                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path, SDL_GetError()));
+                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path,
+                                                 SDL_GetError()));
                             return false;
                         }
                         data.resize(numBytes);
@@ -471,11 +476,11 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
 
                     // Note: regardless of whether preloadToRAM is true or false
                     // if we are given mp3 or ogg files we will load the whole thing into memory
-                    // because it doesn't make any sense to convert the file into uncompressed format and delete it later
+                    // because it doesn't make any sense to convert the file into uncompressed format and delete it
+                    // later
                     fileReader = std::make_shared<MemoryBinaryReader>(std::move(data));
                     file.size = fileReader->Size();
-                }
-                else {
+                } else {
                     if (preloadToRAM) {
                         fileReader = std::make_shared<MemoryBinaryReader>(file.path, err);
                     } else {
