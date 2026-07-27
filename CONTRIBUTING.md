@@ -51,20 +51,19 @@ Code contributions must follow the code standards and formatting guidelines desc
 
 ### AI usage guidelines
 
-Ymir's code is (to the author's knowledge) entirely human-written; AI has only been used to acquire knowledge.
+Ymir's code is (to the author's knowledge) entirely human-written; AI has only been used to acquire knowledge by asking questions, summarizing documentation, and double-checking against original sources.
+
+Before proceeding, please [read this carefully](https://codeberg.org/ethical-foss/open-slopware/src/branch/main/why_not_llms.md) and ponder whether or not it is worth continuing your work with AI assistance. There should be no situation where these tools are *needed* -- we've made wonderful discoveries and built all the amazing technology that led to this day without their help, and we can continue to do so without "missing out" on whatever gains are promised. With that said, LLMs are clearly here to stay, but it needs to be used responsibly. These usage guidelines promote self-improvement, prevent AIs from running the show, and should result in more productive discussions and contributions.
 
 If you plan to use AI-enabled tools such as agent-enabled IDEs, CLIs, or integrated LLM-based code generation/assistance, please follow these guidelines:
 - Clearly state that you've used such tools in the PR description, and in what way they have assisted you. Don't claim that the work is entirely your own if that is not the case.
-- Prove that you understand what you're doing by taking the time to manually write PR and commit descriptions. LLM-generated descriptions are often too verbose, too broad, too generic, or lack contextual clues to explain the "why" no matter how detailed your prompt is. If you have the time to spend writing an elaborate prompt, you certainly have the time to write the PR description itself.
+- Prove that you understand what you're doing by taking the time to manually write PR and commit descriptions, even if it's broken English. LLM-generated descriptions are often too verbose, too broad, too generic, or lack contextual clues to explain the "why" no matter how detailed your prompt is. If you have the time to spend writing an elaborate prompt, you certainly have the time to write the PR description itself.
 - If you're a first-time contributor, resist the urge to ask AI to do the work for you. You're sabotaging yourself by not getting hands-on experience with the project on your own.
+- When using automatic code completions, make sure the suggested code matches your thinking. Don't use it to autogenerate code you couldn't have imagined yourself.
 - Keep the scope of the work constrained to something manageable by one person. If you can't explain what the PR does without the help of AI because it's too big or complex, chances are it's also too big and complex for maintainers to review and reason about.
 - Conversely, if the work is small enough that you could do it by hand, *do it by hand*. It's the perfect learning opportunity and shows you are actively interested in contributing to the project.
 
-Failing to follow these guidelines will likely get your PR closed.
-
-I'd love to apply a zero-tolerance policy, but that is simply infeasible. LLMs are a reality and lots of people use them; this isn't going to change.
-These usage guidelines instead promote self-improvement, prevent AIs from running the show, and should result in more productive discussions and contributions.
-With that said, there should be no situation where AI assistance is *needed*.
+Failing to follow these guidelines will get your PR closed.
 
 ### Coding guidelines
 
