@@ -347,6 +347,8 @@ else ()
     target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
 endif ()
 
+find_package(SDL3 CONFIG REQUIRED)
+
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
     fmt::fmt
@@ -354,6 +356,7 @@ target_link_libraries(ymir-core PUBLIC
     concurrentqueue
     xxHash::xxHash
     chdr-static
+    SDL3::SDL3
 )
 if (WIN32)
     ## synchronization.lib required for WaitOnAddress and WakeByAddressAll
