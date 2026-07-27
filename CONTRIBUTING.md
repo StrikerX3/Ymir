@@ -65,6 +65,27 @@ If you plan to use AI-enabled tools such as agent-enabled IDEs, CLIs, or integra
 
 Failing to follow these guidelines will get your PR closed.
 
+### Library usage guidelines
+
+See the comments at the top of [vendor/CMakeLists.txt](/vendor/CMakeLists.txt) for general rules on how to include external libraries to the project. The most important aspect to keep in mind is that it should be easy to compile the project in all platforms without requiring additional (manual) steps. See [COMPILING.md](/COMPILING.md) for the current build instructions -- you'll notice that in every platform all you need is a few system dependencies, a C++ compiler, Ninja (optional but ideal) and CMake, nothing else.
+
+Ymir's dependencies come as [vcpkg](https://github.com/microsoft/vcpkg) ports or live under the `vendor/` directory as submodules or source trees. vcpkg should be preferred for complex dependencies, **except for** `ymir-core` which is deliberately configured to *not* use it to ensure Ymir's emulation core can be easily used as a vendored library in other C++ projects.
+
+### Architectural guidelines
+
+The project uses the following directory structure for its CMake targets:
+- `apps/`: Applications - targets that produce an executable binary
+- `libs/`: Libraries - targets that produce a linkable static or dynamic library
+- `tests/`: Tests - unit tests, integration tests, end-to-end tests, etc. (typically executable targets)
+
+Ymir **strongly** separates frontend and backend concerns in different CMake targets. `ymir-core` represents the primary backend target in the project, dealing **exclusively** with Sega Saturn emulation and providing *platform-agnostic* input, output and control interfaces. The primary frontend target is `ymir-sdl3` which uses the emulation core and implements a user interface based on SDL3 and ImGui.
+
+For this reason, frontend libraries like SDL3, Qt, ImGui, GLFW, SFML and similar **MUST NOT** be included in `ymir-core`, because this makes it harder (if not impossible) to port the emulation core to other systems.
+
+Many other targets exist in the project, the majority of which are frontends.
+
+Middleware targets could potentially exist if there is demand for them. One such example would be a frontend commons target providing common functionality for multiple frontends such as debugging features, an input system or even just basic filesystem management.
+
 ### Coding guidelines
 
 Avoid static initializers and global objects. These should only be used for process-wide features, usually dealing directly with operating system functionality such as controlling the mouse cursor or managing virtual memory.
@@ -73,7 +94,9 @@ Ymir puts everything into objects for a good reason - you can run multiple emula
 Do use classes and light OOP. Prefer composition over inheritance and avoid `virtual` functions if possible, especially in hot paths.
 Avoid tightly coupling objects - use callbacks, interfaces or similar forms of indirection.
 
-Keep emulation and frontend code separated. The core does not have to concern itself with frontend logic except for supporting code. This allows the core to be ported to as many systems as possible.
+Avoid exceptions as much as possible. Errors can be expressed as return values.
+
+Keep emulation and frontend code separated. As explained in the architectural guidelines, the core does not have to concern itself with frontend logic except for supporting code. This allows the core to be ported to as many systems as possible.
 OS-specific features (such as graphics APIs, virtual memory management or synchronization primitives) may be used in the core library if they offer better performance or more features than the standard C++ library equivalents.
 
 Put emulator types under the `ymir` namespace, preferably nested in its component namespace (e.g. `ymir::vdp` for all VDP types). Use further nesting to avoid name clashes or group related functionality if necessary.
@@ -101,11 +124,11 @@ See [util/event.cpp](/libs/ymir-core/src/ymir/util/event.cpp) for an example tha
 Accuracy trumps performance, unless it comes at a high cost for little benefit. If the accurate option is too expensive, provide runtime configuration and generate separate code paths for both options.
 See [saturn.hpp](/libs/ymir-core/include/ymir/sys/saturn.hpp) (`m_runFrameFn` and other function pointers), [sh2.hpp](/libs/ymir-core/include/ymir/hw/sh2/sh2.hpp) (`template <bool debug>`) and [scsp.hpp](/libs/ymir-core/include/ymir/hw/scsp/scsp.hpp) (`OnSlotTickEvent`, `OnSampleTickEvent`, `OnTransitionalTickEvent`) for examples.
 
-Any changes to the current hot code paths (SH2 interpreter, VDP2 software renderer, SCSP DSP) must be benchmarked to ensure no performance regressions.
+Any changes to the current hot code paths (SH2 interpreter, SCU DSP, VDP1+VDP2 software renderer, SCSP and its DSP) must be benchmarked to ensure no performance regressions. Use a profiler to check if your code negatively affected the hotspots.
 
 Adhere to the code formatting rules. Use `clang-format` to format the code.
 
-When adding new dependencies to `ymir-core`, **never** use vcpkg ports; always use Git submodules under [vendor/](/vendor). This allows the repository to be added as subproject in other CMake projects.
+When adding new dependencies to `ymir-core`, **never** use vcpkg ports; always use Git submodules or source trees under [vendor/](/vendor). This allows the repository to be added as subproject in other CMake projects.
 Other targets may use vcpkg ports, but Git submodules (or FetchContent) is preferred.
 If cloning submodules, use HTTPS, not SSH, as some build pipelines won't be able to clone GitHub repos without an SSH key.
 Make a custom CMakeLists.txt if the dependency's own file doesn't behave well as a dependency or if you only need a subset of functionality from the library.
