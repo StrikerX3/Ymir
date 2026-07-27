@@ -17,3 +17,4 @@ target_include_directories(stb
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/stb>"
 )
 target_compile_features(stb PUBLIC cxx_std_20)
+target_compile_definitions(stb PUBLIC STB_VORBIS_HEADER_ONLY)
