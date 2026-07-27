@@ -50,6 +50,16 @@ void VideoSettingsView::Display() {
 
     widgets::settings::video::DisplayRotation(m_context);
 
+    MakeDirty(ImGui::Checkbox("Scanlines", &settings.scanlines));
+    widgets::ExplanationTooltip(
+        "Darkens the gaps between rows to emulate CRT scanlines. Only visible at 2x integer scale or greater.",
+        m_context.displayScale);
+    if (settings.scanlines) {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(150.0f * m_context.displayScale);
+        MakeDirty(ImGui::SliderInt("Intensity", &settings.scanlineIntensity, 0, 255));
+    }
+
     ImGui::Separator();
 
     MakeDirty(ImGui::Checkbox("Auto-fit window to screen", &settings.autoResizeWindow));

@@ -758,6 +758,7 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.prevFrameRateOSDPos);
     mapInput(m_actionInputs, hotkeys.rotateScreenCW);
     mapInput(m_actionInputs, hotkeys.rotateScreenCCW);
+    mapInput(m_actionInputs, hotkeys.toggleScanlines);
 
     mapInput(m_actionInputs, hotkeys.toggleMute);
     mapInput(m_actionInputs, hotkeys.increaseVolume);
@@ -1056,6 +1057,8 @@ void Settings::ResetToDefaults() {
     video.forceAspectRatio = true;
     video.forcedAspect = 4.0 / 3.0;
     video.rotation = Video::DisplayRotation::Normal;
+    video.scanlines = false;
+    video.scanlineIntensity = 128;
     video.autoResizeWindow = false;
     video.displayVideoOutputInWindow = false;
     video.syncInWindowedMode = false;
@@ -1262,6 +1265,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblHotkeys, "PreviousFrameRateOSDPosition", hotkeys.prevFrameRateOSDPos);
         Parse(tblHotkeys, "RotateScreenClockwise", hotkeys.rotateScreenCW);
         Parse(tblHotkeys, "RotateScreenCounterclockwise", hotkeys.rotateScreenCCW);
+        Parse(tblHotkeys, "ToggleScanlines", hotkeys.toggleScanlines);
 
         Parse(tblHotkeys, "ToggleMute", hotkeys.toggleMute);
         Parse(tblHotkeys, "IncreaseVolume", hotkeys.increaseVolume);
@@ -1550,6 +1554,8 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "ForceAspectRatio", video.forceAspectRatio);
         Parse(tblVideo, "ForcedAspect", video.forcedAspect);
         Parse(tblVideo, "Rotation", video.rotation);
+        Parse(tblVideo, "Scanlines", video.scanlines);
+        Parse(tblVideo, "ScanlineIntensity", video.scanlineIntensity);
 
         Parse(tblVideo, "AutoResizeWindow", video.autoResizeWindow);
         Parse(tblVideo, "DisplayVideoOutputInWindow", video.displayVideoOutputInWindow);
@@ -1888,6 +1894,7 @@ SettingsSaveResult Settings::Save() {
             {"PreviousFrameRateOSDPosition", ToTOML(hotkeys.prevFrameRateOSDPos)},
             {"RotateScreenClockwise", ToTOML(hotkeys.rotateScreenCW)},
             {"RotateScreenCounterclockwise", ToTOML(hotkeys.rotateScreenCCW)},
+            {"ToggleScanlines", ToTOML(hotkeys.toggleScanlines)},
 
             {"ToggleMute", ToTOML(hotkeys.toggleMute)},
             {"IncreaseVolume", ToTOML(hotkeys.increaseVolume)},
@@ -1980,6 +1987,8 @@ SettingsSaveResult Settings::Save() {
             {"ForceAspectRatio", video.forceAspectRatio},
             {"ForcedAspect", video.forcedAspect},
             {"Rotation", ToTOML(video.rotation)},
+            {"Scanlines", video.scanlines},
+            {"ScanlineIntensity", video.scanlineIntensity},
             {"AutoResizeWindow", video.autoResizeWindow},
             {"DisplayVideoOutputInWindow", video.displayVideoOutputInWindow},
             {"SyncInWindowedMode", video.syncInWindowedMode},
@@ -2285,6 +2294,7 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
     rebindCtx.Rebind(hotkeys.prevFrameRateOSDPos, {KeyCombo{Mod::Control | Mod::Shift, Key::F1}});
     rebindCtx.Rebind(hotkeys.rotateScreenCW, {KeyCombo{Mod::Control, Key::Apostrophe}});
     rebindCtx.Rebind(hotkeys.rotateScreenCCW, {KeyCombo{Mod::Control | Mod::Shift, Key::Apostrophe}});
+    rebindCtx.Rebind(hotkeys.toggleScanlines, {KeyCombo{Mod::None, Key::F5}});
 
     rebindCtx.Rebind(hotkeys.toggleMute, {KeyCombo{Mod::Control, Key::M}});
     rebindCtx.Rebind(hotkeys.increaseVolume, {KeyCombo{Mod::Control, Key::EqualsPlus}});

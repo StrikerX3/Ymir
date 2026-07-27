@@ -219,6 +219,7 @@ struct Settings {
         input::InputBind prevFrameRateOSDPos{actions::view::PrevFrameRateOSDPos};
         input::InputBind rotateScreenCW{actions::view::RotateScreenCW};
         input::InputBind rotateScreenCCW{actions::view::RotateScreenCCW};
+        input::InputBind toggleScanlines{actions::view::ToggleScanlines};
 
         input::InputBind toggleMute{actions::audio::ToggleMute};
         input::InputBind increaseVolume{actions::audio::IncreaseVolume};
@@ -466,6 +467,11 @@ struct Settings {
         bool forceAspectRatio;
         double forcedAspect;
         DisplayRotation rotation;
+
+        // Simple integer scanline filter: darkens the lower half of every source pixel band when the framebuffer is
+        // upscaled by an integer factor of 2x or more, emulating the gaps between CRT scanlines.
+        bool scanlines;
+        int scanlineIntensity; // 0 = off (no darkening), 255 = fully black gaps
 
         bool autoResizeWindow;
         bool displayVideoOutputInWindow;

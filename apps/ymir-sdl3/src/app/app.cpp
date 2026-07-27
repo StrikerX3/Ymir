@@ -826,6 +826,9 @@ void App::RunEmulator() {
         return;
     }
 
+    // Reusable scratch buffer for the scanline filter rects, refilled each frame to avoid per-frame allocations
+    std::vector<SDL_FRect> scanlineRects;
+
     auto renderDispTexture = [&](double targetWidth, double targetHeight) {
         auto &videoSettings = settings.video;
         const bool forceAspectRatio = videoSettings.forceAspectRatio;
@@ -864,6 +867,30 @@ void App::RunEmulator() {
 
         SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
         SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(swFbTexture), &srcRect, &dstRect);
+
+        // Simple integer scanline filter.
+        // Because the framebuffer is upscaled into the display texture by an integer factor with nearest
+        // interpolation, every source row occupies exactly `fbScale` destination rows. We darken the lower half of
+        // each of those bands to emulate the gaps between CRT scanlines. This only has a visible effect at 2x or
+        // greater integer scale; at 1x there is no room for a gap so it is skipped.
+        if (videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0) {
+            const uint32 gap = screen.fbScale / 2; // rows darkened per source pixel band
+            const Uint8 alpha = (Uint8)std::clamp(videoSettings.scanlineIntensity, 0, 255);
+            const float lineW = (float)screen.width * screen.fbScale;
+
+            scanlineRects.clear();
+            scanlineRects.reserve(screen.height);
+            for (uint32 row = 0; row < (uint32)screen.height; ++row) {
+                scanlineRects.push_back(SDL_FRect{.x = 0.0f,
+                                                  .y = (float)(row * screen.fbScale + (screen.fbScale - gap)),
+                                                  .w = lineW,
+                                                  .h = (float)gap});
+            }
+
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha);
+            SDL_RenderFillRects(renderer, scanlineRects.data(), (int)scanlineRects.size());
+        }
 
         // Restore render target
         SDL_SetRenderTarget(renderer, prevRenderTarget);

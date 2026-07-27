@@ -83,6 +83,10 @@ InputService::InputService(SharedContext &context, Settings &settings, InputServ
             m_settings.video.rotation = static_cast<Settings::Video::DisplayRotation>(prevRot);
             m_settings.MakeDirty();
         });
+        inputContext.SetTriggerHandler(actions::view::ToggleScanlines, [&](void *, const input::InputElement &) {
+            m_settings.video.scanlines = !m_settings.video.scanlines;
+            m_settings.MakeDirty();
+        });
     }
 
     // Audio

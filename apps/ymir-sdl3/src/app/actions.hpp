@@ -28,6 +28,8 @@ namespace view {
     DEF_ACTION(RotateScreenCW)::Trigger(ACTION_ID, "View", "Rotate screen clockwise");
     DEF_ACTION(RotateScreenCCW)::Trigger(ACTION_ID, "View", "Rotate screen counterclockwise");
 
+    DEF_ACTION(ToggleScanlines)::Trigger(ACTION_ID, "View", "Toggle scanlines");
+
 } // namespace view
 
 namespace audio {
