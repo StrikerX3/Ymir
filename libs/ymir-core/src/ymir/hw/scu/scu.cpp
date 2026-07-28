@@ -1598,34 +1598,29 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
         break;
 
     case 0x80: // (DSP_PPAF) DSP Program Control Port (bits 24-31)
-        // TODO: should this go through? should it be buffered? ignored?
-        // if (bit::test<1>(value)) {
-        //     m_dsp.programPaused = true;
-        // } else if (bit::test<2>(value)) {
-        //     m_dsp.programPaused = false;
-        // }
+        if (bit::test<1>(value)) {
+            m_dsp.programPaused = true;
+        } else if (bit::test<2>(value)) {
+            m_dsp.programPaused = false;
+        }
         break;
     case 0x81: // (DSP_PPAF) DSP Program Control Port (bits 16-23)
-        // TODO: should this go through? should it be buffered? ignored?
-        // m_dsp.programExecuting = bit::test<0>(value);
-        // m_dsp.programStep = bit::test<1>(value);
+        m_dsp.programExecuting = bit::test<0>(value);
+        m_dsp.programStep = bit::test<1>(value);
         break;
     case 0x82: // (DSP_PPAF) DSP Program Control Port (bits 8-15)
-        // TODO: should this go through? should it be buffered? ignored?
         break;
     case 0x83: // (DSP_PPAF) DSP Program Control Port (bits 0-7)
-        // TODO: should this go through? should it be buffered? ignored?
-        // if (bit::test<7>(value at 0x82)) {
-        //     m_dsp.WritePC<poke>(bit::extract<0, 7>(value));
-        // }
+        if (bit::test<7>(value)) {
+            m_dsp.WritePC<poke>(bit::extract<0, 7>(value));
+        }
         break;
 
     case 0x84: // (DSP_PPD) DSP Program RAM Data Port (bits 24-31)
     case 0x85: // (DSP_PPD) DSP Program RAM Data Port (bits 16-23)
     case 0x86: // (DSP_PPD) DSP Program RAM Data Port (bits 8-15)
     case 0x87: // (DSP_PPD) DSP Program RAM Data Port (bits 0-7)
-        // TODO: should this go through? should it be buffered? ignored?
-        // m_dsp.WriteProgram<poke>(value);
+        m_dsp.WriteProgram<poke>(value);
         break;
 
     case 0x88: // (DSP_PDA) DSP Data RAM Address Port (bits 24-31)
@@ -1641,8 +1636,7 @@ FORCE_INLINE void SCU::WriteRegByte(uint32 address, uint8 value) {
     case 0x8D: // (DSP_PDD) DSP Data RAM Data Port (bits 16-23)
     case 0x8E: // (DSP_PDD) DSP Data RAM Data Port (bits 8-15)
     case 0x8F: // (DSP_PDD) DSP Data RAM Data Port (bits 0-7)
-        // TODO: should this go through? should it be buffered? ignored?
-        // m_dsp.WriteData<poke>(value);
+        m_dsp.WriteData<poke>(value);
         break;
 
     case 0x90: // (T0C) Timer 0 Compare (bits 24-31)

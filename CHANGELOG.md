@@ -54,6 +54,7 @@ Introduces save state file version 14.
 - Media: Don't read the Path Table past the size specified in the Volume Descriptor. Fixes CD Block HLE not able to read disc images made with some lazy patches that don't properly clean up the Path Table. (#912)
 - Media (CUE): Don't accumulate pre/postgaps multiple times per track. Fixes some audio track offset issues for single-BIN dumps. (#146)
 - Media (CUE): Use CUE sheet timestamps to compute track lengths. Fixes some audio track offset issues for single-BIN dumps. (#146)
+- SCU: Allow 8-bit writes to DSP registers.
 - SMPC: Update peripheral PDR1/2 registers when reading and when updating EXLE. Fixes many cases of games not recognizing Virtua Gun inputs or missing shots. (#787)
 - VDP1: Don't sync VDP1 FBRAM on debug reads. Fixes deadlock when viewing the framebuffer area in a memory viewer window.
 - VDP1: Ignore 8-bit setting and force-align to 16-bit addresses when writing pixels with MSB enabled. Fixes deselected menu options being fully painted in black in Derby Analyst. (#587)
