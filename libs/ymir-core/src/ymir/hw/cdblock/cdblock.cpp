@@ -1761,6 +1761,8 @@ FORCE_INLINE void CDBlock::ProcessCommand() {
     default:
         devlog::warn<grp::cmd>("Unimplemented command {:02X}", cmd);
         YMIR_DEV_CHECK();
+        ReportCDStatus();
+        SetInterrupt(kHIRQ_CMOK);
         break;
     }
 

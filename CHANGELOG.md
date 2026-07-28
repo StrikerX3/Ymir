@@ -34,6 +34,7 @@ Introduces save state file version 14.
 ### Fixes
 
 - Backup RAM: Fix crash when attempting to load a backup RAM cartridge with the default path.
+- CD Block (HLE): Report current CD status and raise CMOK HIRQ signal when processing unimplemented commands.
 - CD Block (HLE): Read reset position flag correctly from parameters.
 - GameDB: Disable a number of game-specific hacks that are no longer required:
     - Chisato Moritaka - Watarase Bashi & Lala Sunshine: no longer crashes at startup. (#604)
