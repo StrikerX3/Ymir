@@ -18,6 +18,7 @@
 #include <SDL3/SDL.h>
 #include <curl/curlver.h>
 #include <cxxopts.hpp>
+#include <dr_libs/dr_mp3.h>
 #include <fmt/format.h>
 #include <lz4.h>
 #include <nghttp2/nghttp2ver.h>
@@ -56,6 +57,7 @@
 #define SEMVER_VERSION _SEMVER_STR(SEMVER_VERSION_MAJOR, SEMVER_VERSION_MINOR, SEMVER_VERSION_PATCH)
 #define STB_IMAGE_VERSION "2.30"       // Not exported
 #define STB_IMAGE_WRITE_VERSION "1.16" // Not exported
+#define STB_VORBIS_VERSION "1.22"      // Not exported
 #define MC_CONCQUEUE_VERSION "1.0.4"   // Not exported
 #define TOMLPP_VERSION _SEMVER_STR(TOML_LIB_MAJOR, TOML_LIB_MINOR, TOML_LIB_PATCH)
 #define XXHASH_VERSION _SEMVER_STR(XXH_VERSION_MAJOR, XXH_VERSION_MINOR, XXH_VERSION_RELEASE)
@@ -115,6 +117,7 @@ static const struct {
     {.name = "cxxopts",                       .version = CXXOPTS_VERSION,            .license = licenseMIT,           .repoURL = "https://github.com/jarro2783/cxxopts",           .licenseURL = "https://github.com/jarro2783/cxxopts/blob/master/LICENSE"},
     {.name = "date",                          .version = DATE_VERSION,               .license = licenseMIT,           .repoURL = "https://github.com/HowardHinnant/date",          .licenseURL = "https://github.com/HowardHinnant/date/blob/master/LICENSE.txt"},
     {.name = "Dear ImGui",                    .version = IMGUI_VERSION_FULL,         .license = licenseMIT,           .repoURL = "https://github.com/ocornut/imgui",               .licenseURL = "https://github.com/ocornut/imgui/blob/master/LICENSE.txt"},
+    {.name = "dr_mp3",                        .version = DRMP3_VERSION_STRING,       .license = licenseMIT,           .repoURL = "https://github.com/mackron/dr_libs",             .licenseURL = "https://github.com/mackron/dr_libs/blob/master/LICENSE"},
     {.name = "{fmt}",                         .version = fmtVersion.c_str(),         .license = licenseMIT,           .repoURL = "https://github.com/fmtlib/fmt",                  .licenseURL = "https://github.com/fmtlib/fmt/blob/master/LICENSE",                      .homeURL = "https://fmt.dev/latest/index.html"},
     {.name = "ImGui Club",                                                           .license = licenseMIT,           .repoURL = "https://github.com/ocornut/imgui_club",          .licenseURL = "https://github.com/ocornut/imgui_club/blob/main/LICENSE.txt"},
     {.name = "libchdr",                       .version = LIBCHDR_VERSION,            .license = licenseBSD3,          .repoURL = "https://github.com/rtissera/libchdr",            .licenseURL = "https://github.com/rtissera/libchdr/blob/master/LICENSE.txt"},
@@ -134,6 +137,7 @@ static const struct {
     {.name = "SDL_GameControllerDB",                                                 .license = licenseZlib,          .repoURL = "https://github.com/mdqinc/SDL_GameControllerDB", .licenseURL = "https://github.com/mdqinc/SDL_GameControllerDB/blob/master/LICENSE"},
     {.name = "stb_image",                     .version = STB_IMAGE_VERSION,          .license = licenseMIT,           .repoURL = "https://github.com/nothings/stb",                .licenseURL = "https://github.com/nothings/stb/blob/master/LICENSE"},
     {.name = "stb_image_write",               .version = STB_IMAGE_WRITE_VERSION,    .license = licenseMIT,           .repoURL = "https://github.com/nothings/stb",                .licenseURL = "https://github.com/nothings/stb/blob/master/LICENSE"},
+    {.name = "stb_vorbis",                    .version = STB_VORBIS_VERSION,         .license = licenseMIT,           .repoURL = "https://github.com/nothings/stb",                .licenseURL = "https://github.com/nothings/stb/blob/master/LICENSE"},
     {.name = "toml++",                        .version = TOMLPP_VERSION,             .license = licenseMIT,           .repoURL = "https://github.com/marzer/tomlplusplus" ,        .licenseURL = "https://github.com/marzer/tomlplusplus/blob/master/LICENSE",             .homeURL = "https://marzer.github.io/tomlplusplus/"},
     {.name = "xxHash",                        .version = XXHASH_VERSION,             .license = licenseBSD2,          .repoURL = "https://github.com/Cyan4973/xxHash",             .licenseURL = "https://github.com/Cyan4973/xxHash/blob/dev/LICENSE",                    .homeURL = "https://xxhash.com/"},
     {.name = "zlib",                          .version = ZLIB_VERSION,               .license = licenseZlib,          .repoURL = "https://github.com/madler/zlib",                 .licenseURL = "https://github.com/madler/zlib/blob/develop/LICENSE",                    .homeURL = "https://zlib.net/"},

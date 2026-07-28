@@ -51,20 +51,40 @@ Code contributions must follow the code standards and formatting guidelines desc
 
 ### AI usage guidelines
 
-Ymir's code is (to the author's knowledge) entirely human-written; AI has only been used to acquire knowledge.
+Ymir's code is (to the author's knowledge) entirely human-written; AI has only been used to acquire knowledge by asking questions, summarizing documentation, and double-checking against original sources.
+
+Before proceeding, please [read this carefully](https://codeberg.org/ethical-foss/open-slopware/src/branch/main/why_not_llms.md) and ponder whether or not it is worth continuing your work with AI assistance. There should be no situation where these tools are *needed* -- we've made wonderful discoveries and built all the amazing technology that led to this day without their help, and we can continue to do so without "missing out" on whatever gains are promised. With that said, LLMs are clearly here to stay, but it needs to be used responsibly. These usage guidelines promote self-improvement, prevent AIs from running the show, and should result in more productive discussions and contributions.
 
 If you plan to use AI-enabled tools such as agent-enabled IDEs, CLIs, or integrated LLM-based code generation/assistance, please follow these guidelines:
 - Clearly state that you've used such tools in the PR description, and in what way they have assisted you. Don't claim that the work is entirely your own if that is not the case.
-- Prove that you understand what you're doing by taking the time to manually write PR and commit descriptions. LLM-generated descriptions are often too verbose, too broad, too generic, or lack contextual clues to explain the "why" no matter how detailed your prompt is. If you have the time to spend writing an elaborate prompt, you certainly have the time to write the PR description itself.
+- Prove that you understand what you're doing by taking the time to manually write PR and commit descriptions, even if it's broken English. LLM-generated descriptions are often too verbose, too broad, too generic, or lack contextual clues to explain the "why" no matter how detailed your prompt is. If you have the time to spend writing an elaborate prompt, you certainly have the time to write the PR description itself.
 - If you're a first-time contributor, resist the urge to ask AI to do the work for you. You're sabotaging yourself by not getting hands-on experience with the project on your own.
+- When using automatic code completions, make sure the suggested code matches your thinking. Don't use it to autogenerate code you couldn't have imagined yourself.
 - Keep the scope of the work constrained to something manageable by one person. If you can't explain what the PR does without the help of AI because it's too big or complex, chances are it's also too big and complex for maintainers to review and reason about.
 - Conversely, if the work is small enough that you could do it by hand, *do it by hand*. It's the perfect learning opportunity and shows you are actively interested in contributing to the project.
 
-Failing to follow these guidelines will likely get your PR closed.
+Failing to follow these guidelines will get your PR closed.
 
-I'd love to apply a zero-tolerance policy, but that is simply infeasible. LLMs are a reality and lots of people use them; this isn't going to change.
-These usage guidelines instead promote self-improvement, prevent AIs from running the show, and should result in more productive discussions and contributions.
-With that said, there should be no situation where AI assistance is *needed*.
+### Library usage guidelines
+
+See the comments at the top of [vendor/CMakeLists.txt](/vendor/CMakeLists.txt) for general rules on how to include external libraries to the project. The most important aspect to keep in mind is that it should be easy to compile the project in all platforms without requiring additional (manual) steps. See [COMPILING.md](/COMPILING.md) for the current build instructions -- you'll notice that in every platform all you need is a few system dependencies, a C++ compiler, Ninja (optional but ideal) and CMake, nothing else.
+
+Ymir's dependencies come as [vcpkg](https://github.com/microsoft/vcpkg) ports or live under the `vendor/` directory as submodules or source trees. vcpkg should be preferred for complex dependencies, **except for** `ymir-core` which is deliberately configured to *not* use it to ensure Ymir's emulation core can be easily used as a vendored library in other C++ projects.
+
+### Architectural guidelines
+
+The project uses the following directory structure for its CMake targets:
+- `apps/`: Applications - targets that produce an executable binary
+- `libs/`: Libraries - targets that produce a linkable static or dynamic library
+- `tests/`: Tests - unit tests, integration tests, end-to-end tests, etc. (typically executable targets)
+
+Ymir **strongly** separates frontend and backend concerns in different CMake targets. `ymir-core` represents the primary backend target in the project, dealing **exclusively** with Sega Saturn emulation and providing *platform-agnostic* input, output and control interfaces. The primary frontend target is `ymir-sdl3` which uses the emulation core and implements a user interface based on SDL3 and ImGui.
+
+For this reason, frontend libraries like SDL3, Qt, ImGui, GLFW, SFML and similar **MUST NOT** be included in `ymir-core`, because this makes it harder (if not impossible) to port the emulation core to other systems.
+
+Many other targets exist in the project, the majority of which are frontends.
+
+Middleware targets could potentially exist if there is demand for them. One such example would be a frontend commons target providing common functionality for multiple frontends such as debugging features, an input system or even just basic filesystem management.
 
 ### Coding guidelines
 
@@ -74,7 +94,9 @@ Ymir puts everything into objects for a good reason - you can run multiple emula
 Do use classes and light OOP. Prefer composition over inheritance and avoid `virtual` functions if possible, especially in hot paths.
 Avoid tightly coupling objects - use callbacks, interfaces or similar forms of indirection.
 
-Keep emulation and frontend code separated. The core does not have to concern itself with frontend logic except for supporting code. This allows the core to be ported to as many systems as possible.
+Avoid exceptions as much as possible. Errors can be expressed as return values.
+
+Keep emulation and frontend code separated. As explained in the architectural guidelines, the core does not have to concern itself with frontend logic except for supporting code. This allows the core to be ported to as many systems as possible.
 OS-specific features (such as graphics APIs, virtual memory management or synchronization primitives) may be used in the core library if they offer better performance or more features than the standard C++ library equivalents.
 
 Put emulator types under the `ymir` namespace, preferably nested in its component namespace (e.g. `ymir::vdp` for all VDP types). Use further nesting to avoid name clashes or group related functionality if necessary.
@@ -102,11 +124,11 @@ See [util/event.cpp](/libs/ymir-core/src/ymir/util/event.cpp) for an example tha
 Accuracy trumps performance, unless it comes at a high cost for little benefit. If the accurate option is too expensive, provide runtime configuration and generate separate code paths for both options.
 See [saturn.hpp](/libs/ymir-core/include/ymir/sys/saturn.hpp) (`m_runFrameFn` and other function pointers), [sh2.hpp](/libs/ymir-core/include/ymir/hw/sh2/sh2.hpp) (`template <bool debug>`) and [scsp.hpp](/libs/ymir-core/include/ymir/hw/scsp/scsp.hpp) (`OnSlotTickEvent`, `OnSampleTickEvent`, `OnTransitionalTickEvent`) for examples.
 
-Any changes to the current hot code paths (SH2 interpreter, VDP2 software renderer, SCSP DSP) must be benchmarked to ensure no performance regressions.
+Any changes to the current hot code paths (SH2 interpreter, SCU DSP, VDP1+VDP2 software renderer, SCSP and its DSP) must be benchmarked to ensure no performance regressions. Use a profiler to check if your code negatively affected the hotspots.
 
 Adhere to the code formatting rules. Use `clang-format` to format the code.
 
-When adding new dependencies to `ymir-core`, **never** use vcpkg ports; always use Git submodules under [vendor/](/vendor). This allows the repository to be added as subproject in other CMake projects.
+When adding new dependencies to `ymir-core`, **never** use vcpkg ports; always use Git submodules or source trees under [vendor/](/vendor). This allows the repository to be added as subproject in other CMake projects.
 Other targets may use vcpkg ports, but Git submodules (or FetchContent) is preferred.
 If cloning submodules, use HTTPS, not SSH, as some build pipelines won't be able to clone GitHub repos without an SSH key.
 Make a custom CMakeLists.txt if the dependency's own file doesn't behave well as a dependency or if you only need a subset of functionality from the library.

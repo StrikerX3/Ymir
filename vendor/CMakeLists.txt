@@ -52,6 +52,14 @@ add_subdirectory(xxHash EXCLUDE_FROM_ALL)
 message(STATUS "==> libchdr")
 add_subdirectory(libchdr)
 
+# stb - https://github.com/nothings/stb
+message(STATUS "==> stb")
+add_subdirectory(stb)
+
+# dr_libs - https://github.com/mackron/dr_libs
+message(STATUS "==> dr_libs")
+add_subdirectory(dr_libs)
+
 ####################################################################################################
 # Other dependencies
 
