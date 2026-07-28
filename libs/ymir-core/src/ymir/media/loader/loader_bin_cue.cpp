@@ -21,9 +21,6 @@ extern "C" {
 #include <stb_vorbis.c>
 }
 
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_audio.h>
-
 namespace ymir::media::loader::bincue {
 
 const std::set<std::string> kValidCueKeywords = {
@@ -385,7 +382,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     uint32 sampleRate;
                     uint32 numSamples;
                     if (file.format == "MP3") {
-                        // read in and decode the MP3 data into raw PCM format
+                        // Read in and decode the MP3 data into raw PCM format
                         drmp3_config mp3Config{};
                         drmp3_uint64 fc = 0;
                         drmp3_int16 *tempBuffer =
@@ -401,8 +398,8 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         numSamples = frameCount * numChannels;
                         decodedPCMData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
 
-                        // copying the decoded data from the drmp3_int16 array into a vector<sint16> so we can free it
-                        // immediately with drmp3_free()
+                        // Copying the decoded data from the drmp3_int16 array into a vector<sint16> so we can free it
+                        // Immediately with drmp3_free()
                         drmp3_free(tempBuffer, nullptr);
 
                     } else if (file.format == "OGG") {
@@ -421,8 +418,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         decodedPCMData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
                         free(tempBuffer);
                     }
-                    // if the audo has only one track, duplicate the data for both tracks ensuring dual channel stereo
-                    // audio
+                    // If the audio has only one track, duplicate the data for both tracks ensuring dual channel stereo audio
                     if (numChannels == 1) {
                         std::vector<sint16> temp;
                         temp.resize(numSamples * 2);
@@ -437,44 +433,13 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     data.resize(numSamples * sizeof(sint16));
                     std::memcpy(data.data(), decodedPCMData.data(), numSamples * sizeof(sint16));
 
-                    // if the sampling rate is different, resample the audio to 44.1kHz
+                    // If the sampling rate is different, resample the audio to 44.1kHz
                     constexpr uint32 kTargetSamplingRate = 44100;
                     if (sampleRate != kTargetSamplingRate) {
-                        // convert the sampling rate using SDL3 library
-                        const SDL_AudioSpec sourceSpec = {SDL_AUDIO_S16, (int)numChannels, (int)sampleRate};
-                        const SDL_AudioSpec destinationSpec = {SDL_AUDIO_S16, (int)numChannels, kTargetSamplingRate};
-                        SDL_AudioStream *stream = SDL_CreateAudioStream(&sourceSpec, &destinationSpec);
-                        if (stream == nullptr) {
-                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path,
-                                                 SDL_GetError()));
-                            return false;
-                        }
-
-                        if (!SDL_PutAudioStreamData(stream, data.data(), data.size())) {
-                            SDL_DestroyAudioStream(stream);
-                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path,
-                                                 SDL_GetError()));
-                            return false;
-                        }
-
-                        SDL_FlushAudioStream(stream);
-
-                        int numBytes = SDL_GetAudioStreamAvailable(stream);
-                        data.resize(numBytes);
-
-                        numBytes = SDL_GetAudioStreamData(stream, data.data(), numBytes);
-                        if (numBytes == -1) {
-                            SDL_DestroyAudioStream(stream);
-                            errorMsg(fmt::format("Failed to convert sampling rate for {} SDL Error: {}", file.path,
-                                                 SDL_GetError()));
-                            return false;
-                        }
-                        data.resize(numBytes);
-
-                        SDL_DestroyAudioStream(stream);
+                        // Convert the sampling rate
                     }
 
-                    // Note: regardless of whether preloadToRAM is true or false
+                    // Note: Regardless of whether preloadToRAM is true or false
                     // if we are given mp3 or ogg files we will load the whole thing into memory
                     // because it doesn't make any sense to convert the file into uncompressed format and delete it
                     // later

@@ -328,7 +328,6 @@ set_target_properties(ymir-core PROPERTIES
 target_include_directories(ymir-core
     PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     PRIVATE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
-    	    "${CMAKE_SOURCE_DIR}/vendor"
 )
 target_compile_features(ymir-core PUBLIC cxx_std_20)
 
@@ -347,8 +346,6 @@ else ()
     target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
 endif ()
 
-find_package(SDL3 CONFIG REQUIRED)
-
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
     fmt::fmt
@@ -356,7 +353,8 @@ target_link_libraries(ymir-core PUBLIC
     concurrentqueue
     xxHash::xxHash
     chdr-static
-    SDL3::SDL3
+    stb::stb
+    dr_libs::dr_libs
 )
 if (WIN32)
     ## synchronization.lib required for WaitOnAddress and WakeByAddressAll
