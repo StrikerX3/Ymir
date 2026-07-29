@@ -1,6 +1,9 @@
-# Unofficial Features
+# Unofficial (AI-Assisted) Features
 
 This is an unofficial fork of Ymir with the extra features below. Everything else matches upstream.
+
+- [`Integer Scanline Filter`](#integer-scanline-filter)
+- [`Mute While Fast-Forwarding`](#mute-while-fast-forwarding)
 
 ## Integer Scanline Filter
 
