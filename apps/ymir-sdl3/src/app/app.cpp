@@ -438,6 +438,7 @@ int App::Run(const CommandLineOptions &options) {
 
     // Apply settings
     m_context.saturn.instance->UsePreferredRegion();
+    m_context.saturn.instance->configuration.cdblock.useLLE = settings.cdblock.useLLE;
     m_context.EnqueueEvent(events::emu::LoadInternalBackupMemory());
     EnableRewindBuffer(settings.general.enableRewindBuffer);
     util::BoostCurrentProcessPriority(settings.general.boostProcessPriority);
