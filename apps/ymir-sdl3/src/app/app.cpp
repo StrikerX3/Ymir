@@ -1064,6 +1064,8 @@ void App::RunEmulator() {
     // Connect gain and mute to settings
     settings.audio.volume.ObserveAndNotify([&](float volume) { m_context.audioSystem.SetGain(volume); });
     settings.audio.mute.ObserveAndNotify([&](bool mute) { m_context.audioSystem.SetMute(mute); });
+    settings.audio.muteWhenFastForwarding.ObserveAndNotify(
+        [&](bool enabled) { m_context.audioSystem.SetMuteOnFastForward(enabled); });
 
     settings.audio.stepGranularity.ObserveAndNotify(
         [&](uint32 granularity) { m_context.EnqueueEvent(events::emu::SetSCSPStepGranularity(granularity)); });

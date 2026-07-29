@@ -38,6 +38,10 @@ void AudioSettingsView::Display() {
     if (MakeDirty(ImGui::Checkbox("Mute", &mute))) {
         settings.mute = mute;
     }
+    bool muteWhenFastForwarding = settings.muteWhenFastForwarding;
+    if (MakeDirty(ImGui::Checkbox("Mute while fast-forwarding", &muteWhenFastForwarding))) {
+        settings.muteWhenFastForwarding = muteWhenFastForwarding;
+    }
 
     // -----------------------------------------------------------------------------------------------------------------
 

@@ -55,6 +55,17 @@ public:
 
     void SetSync(bool sync) {
         m_sync = sync;
+        // Audio sync is disabled exactly when the emulator runs faster than realtime (fast-forward / turbo). Track
+        // that state so the output can be muted when the "mute while fast-forwarding" option is enabled. Normal and
+        // slow-motion speeds keep sync and stay audible.
+        m_fastForwarding = !sync;
+        UpdateGain();
+    }
+
+    // Enables or disables muting the audio output while fast-forwarding.
+    void SetMuteOnFastForward(bool enabled) {
+        m_muteOnFastForward = enabled;
+        UpdateGain();
     }
 
     bool IsSync() const {
@@ -98,6 +109,8 @@ private:
 
     float m_gain = 0.8f;
     bool m_mute = false;
+    bool m_fastForwarding = false;    // whether the emulator is currently running faster than realtime
+    bool m_muteOnFastForward = false; // whether to silence output while fast-forwarding
 
     void UpdateGain();
 

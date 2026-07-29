@@ -89,7 +89,10 @@ void AudioSystem::ReceiveSample(sint16 left, sint16 right) {
 }
 
 void AudioSystem::UpdateGain() {
-    SDL_SetAudioStreamGain(m_audioStream, m_mute ? 0.0f : m_gain);
+    if (m_audioStream == nullptr) {
+        return;
+    }
+    SDL_SetAudioStreamGain(m_audioStream, (m_mute || (m_muteOnFastForward && m_fastForwarding)) ? 0.0f : m_gain);
 }
 
 void AudioSystem::ProcessAudioCallback(SDL_AudioStream *stream, int additional_amount, int total_amount) {
