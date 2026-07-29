@@ -19,6 +19,9 @@
 
 #include <stb_vorbis.c>
 
+#define CLOWNRESAMPLER_IMPLEMENTATION
+#include <clownresampler/clownresampler.h>
+
 namespace ymir::media::loader::bincue {
 
 const std::set<std::string> kValidCueKeywords = {

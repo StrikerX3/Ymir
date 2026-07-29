@@ -60,6 +60,10 @@ add_subdirectory(stb)
 message(STATUS "==> dr_libs")
 add_subdirectory(dr_libs)
 
+# clownresampler - https://github.com/Clownacy/clownresampler
+message(STATUS "==> clownresampler")
+add_subdirectory(clownresampler)
+
 ####################################################################################################
 # Other dependencies
 
