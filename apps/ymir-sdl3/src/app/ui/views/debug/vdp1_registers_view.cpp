@@ -47,8 +47,7 @@ void VDP1RegistersView::Display() {
     ImGui::Unindent();
     ImGui::Text("[FBCR.PTM] Plot trigger mode: %u", regs1.plotTrigger);
     ImGui::Text("[EWDR] Erase write value: 0x%04X", regs1.eraseWriteValue);
-    ImGui::Text("[EWLR/EWRR] Erase window: %ux%u - %ux%u", regs1.eraseX1, regs1.eraseY1, regs1.eraseX3,
-                regs1.eraseY3);
+    ImGui::Text("[EWLR/EWRR] Erase window: %ux%u - %ux%u", regs1.eraseX1, regs1.eraseY1, regs1.eraseX3, regs1.eraseY3);
     ImGui::Indent();
     {
         ImGui::Text("Latched erase write value: 0x%04X", probe.GetLatchedEraseWriteValue());

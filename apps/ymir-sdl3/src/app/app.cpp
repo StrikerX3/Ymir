@@ -2999,10 +2999,7 @@ void App::RunEmulator() {
                                     break;
                                 }
                             }
-                            const char *maskName =
-                                vs.scanlineMask == Settings::Video::ScanlineMask::Vertical ? "Vertical"
-                                : vs.scanlineMask == Settings::Video::ScanlineMask::Grid   ? "Grid"
-                                                                                           : "Horizontal";
+                            const char *maskName = kScanlineMaskNames[static_cast<int>(vs.scanlineMask)];
                             slText = fmt::format("Scanlines: {} ({})  I:{}  T:{}%", presetName, maskName,
                                                  vs.scanlineIntensity, vs.scanlineThickness);
                         }

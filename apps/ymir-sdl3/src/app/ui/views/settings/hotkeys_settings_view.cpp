@@ -62,6 +62,7 @@ void HotkeysSettingsView::Display() {
         drawRow(hotkeys.rotateScreenCCW);
         drawRow(hotkeys.toggleScanlines);
         drawRow(hotkeys.cycleScanlinePreset);
+        drawRow(hotkeys.cycleScanlineMask);
         drawRow(hotkeys.increaseScanlineIntensity);
         drawRow(hotkeys.decreaseScanlineIntensity);
         drawRow(hotkeys.increaseScanlineThickness);

@@ -34,6 +34,7 @@ namespace view {
     DEF_ACTION(IncreaseScanlineThickness)::RepeatableTrigger(ACTION_ID, "View", "Increase scanline thickness");
     DEF_ACTION(DecreaseScanlineThickness)::RepeatableTrigger(ACTION_ID, "View", "Decrease scanline thickness");
     DEF_ACTION(CycleScanlinePreset)::Trigger(ACTION_ID, "View", "Cycle scanline preset");
+    DEF_ACTION(CycleScanlineMask)::Trigger(ACTION_ID, "View", "Cycle scanline mask");
 
 } // namespace view
 

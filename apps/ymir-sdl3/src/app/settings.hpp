@@ -125,6 +125,11 @@ inline constexpr ScanlinePreset kScanlinePresets[] = {
 };
 inline constexpr size_t kScanlinePresetCount = sizeof(kScanlinePresets) / sizeof(kScanlinePresets[0]);
 
+/// @brief Names of the scanline mask styles, ordered to match Settings::Video::ScanlineMask. Shared by the settings
+/// UI, the OSD indicator, and the mask-cycle hotkey so the option count is never hardcoded.
+inline constexpr const char *kScanlineMaskNames[] = {"Horizontal", "Vertical", "Grid"};
+inline constexpr size_t kScanlineMaskCount = sizeof(kScanlineMaskNames) / sizeof(kScanlineMaskNames[0]);
+
 struct Settings {
     Settings(SharedContext &sharedCtx) noexcept;
 
@@ -241,6 +246,7 @@ struct Settings {
         input::InputBind increaseScanlineThickness{actions::view::IncreaseScanlineThickness};
         input::InputBind decreaseScanlineThickness{actions::view::DecreaseScanlineThickness};
         input::InputBind cycleScanlinePreset{actions::view::CycleScanlinePreset};
+        input::InputBind cycleScanlineMask{actions::view::CycleScanlineMask};
 
         input::InputBind toggleMute{actions::audio::ToggleMute};
         input::InputBind increaseVolume{actions::audio::IncreaseVolume};

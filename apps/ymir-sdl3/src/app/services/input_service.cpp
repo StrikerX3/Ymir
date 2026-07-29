@@ -129,6 +129,15 @@ InputService::InputService(SharedContext &context, Settings &settings, InputServ
             m_context.lastScanlineChangeTime = clk::now();
             m_settings.MakeDirty();
         });
+        inputContext.SetTriggerHandler(actions::view::CycleScanlineMask, [&](void *, const input::InputElement &) {
+            // Cycle Horizontal -> Vertical -> Grid -> Horizontal, using the shared mask list for the option count.
+            using Mask = Settings::Video::ScanlineMask;
+            const int nextMask =
+                (static_cast<int>(m_settings.video.scanlineMask) + 1) % static_cast<int>(kScanlineMaskCount);
+            m_settings.video.scanlineMask = static_cast<Mask>(nextMask);
+            m_context.lastScanlineChangeTime = clk::now();
+            m_settings.MakeDirty();
+        });
     }
 
     // Audio

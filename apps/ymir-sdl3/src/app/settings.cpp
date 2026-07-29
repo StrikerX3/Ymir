@@ -786,6 +786,7 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.increaseScanlineThickness);
     mapInput(m_actionInputs, hotkeys.decreaseScanlineThickness);
     mapInput(m_actionInputs, hotkeys.cycleScanlinePreset);
+    mapInput(m_actionInputs, hotkeys.cycleScanlineMask);
 
     mapInput(m_actionInputs, hotkeys.toggleMute);
     mapInput(m_actionInputs, hotkeys.increaseVolume);
@@ -1300,6 +1301,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblHotkeys, "IncreaseScanlineThickness", hotkeys.increaseScanlineThickness);
         Parse(tblHotkeys, "DecreaseScanlineThickness", hotkeys.decreaseScanlineThickness);
         Parse(tblHotkeys, "CycleScanlinePreset", hotkeys.cycleScanlinePreset);
+        Parse(tblHotkeys, "CycleScanlineMask", hotkeys.cycleScanlineMask);
 
         Parse(tblHotkeys, "ToggleMute", hotkeys.toggleMute);
         Parse(tblHotkeys, "IncreaseVolume", hotkeys.increaseVolume);
@@ -1936,6 +1938,7 @@ SettingsSaveResult Settings::Save() {
             {"IncreaseScanlineThickness", ToTOML(hotkeys.increaseScanlineThickness)},
             {"DecreaseScanlineThickness", ToTOML(hotkeys.decreaseScanlineThickness)},
             {"CycleScanlinePreset", ToTOML(hotkeys.cycleScanlinePreset)},
+            {"CycleScanlineMask", ToTOML(hotkeys.cycleScanlineMask)},
 
             {"ToggleMute", ToTOML(hotkeys.toggleMute)},
             {"IncreaseVolume", ToTOML(hotkeys.increaseVolume)},
@@ -2339,6 +2342,7 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
     rebindCtx.Rebind(hotkeys.rotateScreenCCW, {KeyCombo{Mod::Control | Mod::Shift, Key::Apostrophe}});
     rebindCtx.Rebind(hotkeys.toggleScanlines, {KeyCombo{Mod::None, Key::F5}});
     rebindCtx.Rebind(hotkeys.cycleScanlinePreset, {KeyCombo{Mod::None, Key::F6}});
+    rebindCtx.Rebind(hotkeys.cycleScanlineMask, {KeyCombo{Mod::Shift, Key::F6}});
     rebindCtx.Rebind(hotkeys.increaseScanlineIntensity, {KeyCombo{Mod::None, Key::F7}});
     rebindCtx.Rebind(hotkeys.decreaseScanlineIntensity, {KeyCombo{Mod::Shift, Key::F7}});
     rebindCtx.Rebind(hotkeys.increaseScanlineThickness, {KeyCombo{Mod::None, Key::F8}});

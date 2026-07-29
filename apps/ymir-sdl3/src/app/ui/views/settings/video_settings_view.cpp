@@ -63,10 +63,9 @@ void VideoSettingsView::Display() {
 
         {
             using Mask = Settings::Video::ScanlineMask;
-            const char *maskNames[] = {"Horizontal", "Vertical", "Grid"};
             int maskIdx = static_cast<int>(settings.scanlineMask);
             ImGui::SetNextItemWidth(150.0f * m_context.displayScale);
-            if (MakeDirty(ImGui::Combo("Mask", &maskIdx, maskNames, IM_ARRAYSIZE(maskNames)))) {
+            if (MakeDirty(ImGui::Combo("Mask", &maskIdx, kScanlineMaskNames, static_cast<int>(kScanlineMaskCount)))) {
                 settings.scanlineMask = static_cast<Mask>(maskIdx);
             }
             widgets::ExplanationTooltip(
