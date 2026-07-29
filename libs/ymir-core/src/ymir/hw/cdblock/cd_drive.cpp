@@ -631,7 +631,7 @@ FORCE_INLINE void CDDrive::SetupSeek(bool read) {
         } else {
             const media::TOC &toc = m_cdif.GetTOC();
             const uint8 trackNumber = toc.GetTrackNumberForFAD(fad);
-            m_cdif.BeginSeekToTrackIndex(util::from_bcd(trackNumber), m_command.index);
+            m_cdif.BeginSeekToTrackIndex(trackNumber, m_command.index);
             m_seekOp = read ? Operation::ReadAudioSector : Operation::Idle;
         }
     } else {
