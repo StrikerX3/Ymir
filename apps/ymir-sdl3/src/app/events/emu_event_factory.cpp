@@ -729,6 +729,7 @@ EmuEvent LoadState(uint32 slotIndex) {
             auto &settings = ctx.serviceLocator.GetRequired<Settings>();
             if (settings.cdblock.useLLE != ctx.saturn.instance->configuration.cdblock.useLLE) {
                 settings.cdblock.useLLE = ctx.saturn.instance->configuration.cdblock.useLLE;
+                settings.MakeDirty();
                 ctx.DisplayMessage(fmt::format("CD block emulation mode switched to {}",
                                                (settings.cdblock.useLLE ? "low-level" : "high-level")));
             }
