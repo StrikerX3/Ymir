@@ -870,23 +870,40 @@ void App::RunEmulator() {
 
         // Simple integer scanline filter.
         // Because the framebuffer is upscaled into the display texture by an integer factor with nearest
-        // interpolation, every source row occupies exactly `fbScale` destination rows. We darken the lower portion of
-        // each of those bands to emulate the gaps between CRT scanlines. The `scanlineThickness` percentage controls
-        // how many of the `fbScale` rows are darkened. This only has a visible effect at 2x or greater integer scale;
-        // at 1x there is no room for a gap so it is skipped.
+        // interpolation, every source pixel occupies exactly `fbScale` destination rows and columns. We darken the
+        // trailing portion of each of those bands to emulate the gaps between CRT scanlines. The `scanlineThickness`
+        // percentage controls how many of the `fbScale` rows/columns are darkened, and `scanlineMask` selects whether
+        // to darken rows (horizontal), columns (vertical), or both (grid / shadow-mask look). This only has a visible
+        // effect at 2x or greater integer scale; at 1x there is no room for a gap so it is skipped.
         const uint32 gap = (uint32)std::clamp(std::lround(screen.fbScale * videoSettings.scanlineThickness / 100.0), 0L,
-                                              (long)screen.fbScale); // rows darkened per source pixel band
+                                              (long)screen.fbScale); // rows/columns darkened per source pixel band
         if (videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0 && gap > 0) {
             const Uint8 alpha = (Uint8)std::clamp(videoSettings.scanlineIntensity, 0, 255);
-            const float lineW = (float)screen.width * screen.fbScale;
+            const float fullW = (float)screen.width * screen.fbScale;
+            const float fullH = (float)screen.height * screen.fbScale;
+            const auto mask = videoSettings.scanlineMask;
+            const bool drawH =
+                mask == Settings::Video::ScanlineMask::Horizontal || mask == Settings::Video::ScanlineMask::Grid;
+            const bool drawV =
+                mask == Settings::Video::ScanlineMask::Vertical || mask == Settings::Video::ScanlineMask::Grid;
 
             scanlineRects.clear();
-            scanlineRects.reserve(screen.height);
-            for (uint32 row = 0; row < (uint32)screen.height; ++row) {
-                scanlineRects.push_back(SDL_FRect{.x = 0.0f,
-                                                  .y = (float)(row * screen.fbScale + (screen.fbScale - gap)),
-                                                  .w = lineW,
-                                                  .h = (float)gap});
+            scanlineRects.reserve((drawH ? screen.height : 0) + (drawV ? screen.width : 0));
+            if (drawH) {
+                for (uint32 row = 0; row < (uint32)screen.height; ++row) {
+                    scanlineRects.push_back(SDL_FRect{.x = 0.0f,
+                                                      .y = (float)(row * screen.fbScale + (screen.fbScale - gap)),
+                                                      .w = fullW,
+                                                      .h = (float)gap});
+                }
+            }
+            if (drawV) {
+                for (uint32 col = 0; col < (uint32)screen.width; ++col) {
+                    scanlineRects.push_back(SDL_FRect{.x = (float)(col * screen.fbScale + (screen.fbScale - gap)),
+                                                      .y = 0.0f,
+                                                      .w = (float)gap,
+                                                      .h = fullH});
+                }
             }
 
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
@@ -2954,6 +2971,47 @@ void App::RunEmulator() {
                             const ImVec2 volumeTextPos{p1.x - iconPadding - volumeTextSize.x, p1.y - volumeTextSize.y};
                             drawIndicator(volumeTextPos, volumeAlpha, fontSizeMedium, volumeText.c_str());
                         }
+                    }
+                }
+
+                // Draw scanline filter indicator (shown briefly after changing scanline settings via hotkeys)
+                {
+                    static constexpr auto kSLDisplayDuration = 1.5s;
+                    static constexpr auto kSLFadeOutDuration = 0.5s;
+                    static constexpr auto kSLTotalDuration = kSLDisplayDuration + kSLFadeOutDuration;
+                    const auto slDt = clk::now() - m_context.lastScanlineChangeTime;
+                    if (slDt <= kSLTotalDuration) {
+                        const float slAlpha =
+                            slDt <= kSLDisplayDuration
+                                ? 1.0f
+                                : std::clamp(1.0f - std::chrono::duration<float>(slDt - kSLDisplayDuration).count() /
+                                                        std::chrono::duration<float>(kSLFadeOutDuration).count(),
+                                             0.0f, 1.0f);
+                        const auto &vs = settings.video;
+                        std::string slText;
+                        if (!vs.scanlines) {
+                            slText = "Scanlines: Off";
+                        } else {
+                            const char *presetName = "Custom";
+                            for (const auto &p : kScanlinePresets) {
+                                if (vs.scanlineIntensity == p.intensity && vs.scanlineThickness == p.thickness) {
+                                    presetName = p.name;
+                                    break;
+                                }
+                            }
+                            const char *maskName =
+                                vs.scanlineMask == Settings::Video::ScanlineMask::Vertical ? "Vertical"
+                                : vs.scanlineMask == Settings::Video::ScanlineMask::Grid   ? "Grid"
+                                                                                           : "Horizontal";
+                            slText = fmt::format("Scanlines: {} ({})  I:{}  T:{}%", presetName, maskName,
+                                                 vs.scanlineIntensity, vs.scanlineThickness);
+                        }
+                        ImGui::PushFont(font, m_context.fontSizes.medium);
+                        const ImVec2 slTextSize = ImGui::CalcTextSize(slText.c_str());
+                        ImGui::PopFont();
+                        const ImVec2 slPos{viewport->WorkPos.x + (viewport->WorkSize.x - slTextSize.x) * 0.5f,
+                                           viewport->WorkPos.y + padding};
+                        drawIndicator(slPos, slAlpha * 0.9f, fontSizeMedium, slText.c_str());
                     }
                 }
             }

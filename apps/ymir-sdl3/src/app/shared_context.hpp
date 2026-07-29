@@ -196,6 +196,7 @@ struct SharedContext {
 
     AudioSystem audioSystem;
     std::chrono::steady_clock::time_point lastVolumeChangeTime;
+    std::chrono::steady_clock::time_point lastScanlineChangeTime;
 
     float displayScale = 1.0f;
 

@@ -61,19 +61,28 @@ void VideoSettingsView::Display() {
         MakeDirty(ImGui::SliderInt("Thickness", &settings.scanlineThickness, 0, 100, "%d%%"));
         widgets::ExplanationTooltip("Portion of each pixel row that is darkened.", m_context.displayScale);
 
+        {
+            using Mask = Settings::Video::ScanlineMask;
+            const char *maskNames[] = {"Horizontal", "Vertical", "Grid"};
+            int maskIdx = static_cast<int>(settings.scanlineMask);
+            ImGui::SetNextItemWidth(150.0f * m_context.displayScale);
+            if (MakeDirty(ImGui::Combo("Mask", &maskIdx, maskNames, IM_ARRAYSIZE(maskNames)))) {
+                settings.scanlineMask = static_cast<Mask>(maskIdx);
+            }
+            widgets::ExplanationTooltip(
+                "Horizontal lines, vertical lines, or both (grid). Vertical and grid need horizontal scaling too.",
+                m_context.displayScale);
+        }
+
         ImGui::TextUnformatted("Presets:");
         ImGui::SameLine();
-        auto preset = [&](const char *name, int intensity, int thickness) {
-            if (MakeDirty(ImGui::Button(name))) {
-                settings.scanlineIntensity = intensity;
-                settings.scanlineThickness = thickness;
+        for (const auto &preset : kScanlinePresets) {
+            if (MakeDirty(ImGui::Button(preset.name))) {
+                settings.scanlineIntensity = preset.intensity;
+                settings.scanlineThickness = preset.thickness;
             }
             ImGui::SameLine();
-        };
-        preset("Subtle", 60, 25);
-        preset("TV", 75, 50);
-        preset("Sharp", 180, 50);
-        preset("Arcade", 220, 60);
+        }
         ImGui::NewLine();
     }
 

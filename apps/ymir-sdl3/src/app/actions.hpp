@@ -29,6 +29,11 @@ namespace view {
     DEF_ACTION(RotateScreenCCW)::Trigger(ACTION_ID, "View", "Rotate screen counterclockwise");
 
     DEF_ACTION(ToggleScanlines)::Trigger(ACTION_ID, "View", "Toggle scanlines");
+    DEF_ACTION(IncreaseScanlineIntensity)::RepeatableTrigger(ACTION_ID, "View", "Increase scanline intensity");
+    DEF_ACTION(DecreaseScanlineIntensity)::RepeatableTrigger(ACTION_ID, "View", "Decrease scanline intensity");
+    DEF_ACTION(IncreaseScanlineThickness)::RepeatableTrigger(ACTION_ID, "View", "Increase scanline thickness");
+    DEF_ACTION(DecreaseScanlineThickness)::RepeatableTrigger(ACTION_ID, "View", "Decrease scanline thickness");
+    DEF_ACTION(CycleScanlinePreset)::Trigger(ACTION_ID, "View", "Cycle scanline preset");
 
 } // namespace view
 

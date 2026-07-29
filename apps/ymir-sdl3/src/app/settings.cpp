@@ -490,6 +490,28 @@ FORCE_INLINE static const char *ToTOML(const Settings::Video::DisplayRotation va
     }
 }
 
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Video::ScanlineMask &value) {
+    value = Settings::Video::ScanlineMask::Horizontal;
+    if (auto opt = node.value<std::string>()) {
+        if (*opt == "Horizontal"s) {
+            value = Settings::Video::ScanlineMask::Horizontal;
+        } else if (*opt == "Vertical"s) {
+            value = Settings::Video::ScanlineMask::Vertical;
+        } else if (*opt == "Grid"s) {
+            value = Settings::Video::ScanlineMask::Grid;
+        }
+    }
+}
+
+FORCE_INLINE static const char *ToTOML(const Settings::Video::ScanlineMask value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case Settings::Video::ScanlineMask::Horizontal: return "Horizontal";
+    case Settings::Video::ScanlineMask::Vertical: return "Vertical";
+    case Settings::Video::ScanlineMask::Grid: return "Grid";
+    }
+}
+
 FORCE_INLINE static const char *ToTOML(const SDL_PixelFormat value) {
     switch (value) {
     default: [[fallthrough]];
@@ -759,6 +781,11 @@ Settings::Settings(SharedContext &sharedCtx) noexcept
     mapInput(m_actionInputs, hotkeys.rotateScreenCW);
     mapInput(m_actionInputs, hotkeys.rotateScreenCCW);
     mapInput(m_actionInputs, hotkeys.toggleScanlines);
+    mapInput(m_actionInputs, hotkeys.increaseScanlineIntensity);
+    mapInput(m_actionInputs, hotkeys.decreaseScanlineIntensity);
+    mapInput(m_actionInputs, hotkeys.increaseScanlineThickness);
+    mapInput(m_actionInputs, hotkeys.decreaseScanlineThickness);
+    mapInput(m_actionInputs, hotkeys.cycleScanlinePreset);
 
     mapInput(m_actionInputs, hotkeys.toggleMute);
     mapInput(m_actionInputs, hotkeys.increaseVolume);
@@ -1060,6 +1087,7 @@ void Settings::ResetToDefaults() {
     video.scanlines = false;
     video.scanlineIntensity = 128;
     video.scanlineThickness = 50;
+    video.scanlineMask = Video::ScanlineMask::Horizontal;
     video.autoResizeWindow = false;
     video.displayVideoOutputInWindow = false;
     video.syncInWindowedMode = false;
@@ -1267,6 +1295,11 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblHotkeys, "RotateScreenClockwise", hotkeys.rotateScreenCW);
         Parse(tblHotkeys, "RotateScreenCounterclockwise", hotkeys.rotateScreenCCW);
         Parse(tblHotkeys, "ToggleScanlines", hotkeys.toggleScanlines);
+        Parse(tblHotkeys, "IncreaseScanlineIntensity", hotkeys.increaseScanlineIntensity);
+        Parse(tblHotkeys, "DecreaseScanlineIntensity", hotkeys.decreaseScanlineIntensity);
+        Parse(tblHotkeys, "IncreaseScanlineThickness", hotkeys.increaseScanlineThickness);
+        Parse(tblHotkeys, "DecreaseScanlineThickness", hotkeys.decreaseScanlineThickness);
+        Parse(tblHotkeys, "CycleScanlinePreset", hotkeys.cycleScanlinePreset);
 
         Parse(tblHotkeys, "ToggleMute", hotkeys.toggleMute);
         Parse(tblHotkeys, "IncreaseVolume", hotkeys.increaseVolume);
@@ -1558,6 +1591,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "Scanlines", video.scanlines);
         Parse(tblVideo, "ScanlineIntensity", video.scanlineIntensity);
         Parse(tblVideo, "ScanlineThickness", video.scanlineThickness);
+        Parse(tblVideo, "ScanlineMask", video.scanlineMask);
 
         Parse(tblVideo, "AutoResizeWindow", video.autoResizeWindow);
         Parse(tblVideo, "DisplayVideoOutputInWindow", video.displayVideoOutputInWindow);
@@ -1897,6 +1931,11 @@ SettingsSaveResult Settings::Save() {
             {"RotateScreenClockwise", ToTOML(hotkeys.rotateScreenCW)},
             {"RotateScreenCounterclockwise", ToTOML(hotkeys.rotateScreenCCW)},
             {"ToggleScanlines", ToTOML(hotkeys.toggleScanlines)},
+            {"IncreaseScanlineIntensity", ToTOML(hotkeys.increaseScanlineIntensity)},
+            {"DecreaseScanlineIntensity", ToTOML(hotkeys.decreaseScanlineIntensity)},
+            {"IncreaseScanlineThickness", ToTOML(hotkeys.increaseScanlineThickness)},
+            {"DecreaseScanlineThickness", ToTOML(hotkeys.decreaseScanlineThickness)},
+            {"CycleScanlinePreset", ToTOML(hotkeys.cycleScanlinePreset)},
 
             {"ToggleMute", ToTOML(hotkeys.toggleMute)},
             {"IncreaseVolume", ToTOML(hotkeys.increaseVolume)},
@@ -1992,6 +2031,7 @@ SettingsSaveResult Settings::Save() {
             {"Scanlines", video.scanlines},
             {"ScanlineIntensity", video.scanlineIntensity},
             {"ScanlineThickness", video.scanlineThickness},
+            {"ScanlineMask", ToTOML(video.scanlineMask)},
             {"AutoResizeWindow", video.autoResizeWindow},
             {"DisplayVideoOutputInWindow", video.displayVideoOutputInWindow},
             {"SyncInWindowedMode", video.syncInWindowedMode},
@@ -2298,6 +2338,11 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
     rebindCtx.Rebind(hotkeys.rotateScreenCW, {KeyCombo{Mod::Control, Key::Apostrophe}});
     rebindCtx.Rebind(hotkeys.rotateScreenCCW, {KeyCombo{Mod::Control | Mod::Shift, Key::Apostrophe}});
     rebindCtx.Rebind(hotkeys.toggleScanlines, {KeyCombo{Mod::None, Key::F5}});
+    rebindCtx.Rebind(hotkeys.cycleScanlinePreset, {KeyCombo{Mod::None, Key::F6}});
+    rebindCtx.Rebind(hotkeys.increaseScanlineIntensity, {KeyCombo{Mod::None, Key::F7}});
+    rebindCtx.Rebind(hotkeys.decreaseScanlineIntensity, {KeyCombo{Mod::Shift, Key::F7}});
+    rebindCtx.Rebind(hotkeys.increaseScanlineThickness, {KeyCombo{Mod::None, Key::F8}});
+    rebindCtx.Rebind(hotkeys.decreaseScanlineThickness, {KeyCombo{Mod::Shift, Key::F8}});
 
     rebindCtx.Rebind(hotkeys.toggleMute, {KeyCombo{Mod::Control, Key::M}});
     rebindCtx.Rebind(hotkeys.increaseVolume, {KeyCombo{Mod::Control, Key::EqualsPlus}});
@@ -2323,7 +2368,7 @@ std::unordered_set<input::MappedAction> Settings::ResetHotkeys() {
     rebindCtx.Rebind(hotkeys.fwdFrameStep, {KeyCombo{Mod::None, Key::RightBracket}});
     rebindCtx.Rebind(hotkeys.revFrameStep, {KeyCombo{Mod::None, Key::LeftBracket}});
     rebindCtx.Rebind(hotkeys.rewind, {KeyCombo{Mod::None, Key::Backspace}});
-    rebindCtx.Rebind(hotkeys.toggleRewindBuffer, {KeyCombo{Mod::None, Key::F8}});
+    rebindCtx.Rebind(hotkeys.toggleRewindBuffer, {KeyCombo{Mod::None, Key::F4}});
 
     rebindCtx.Rebind(hotkeys.toggleDebugTrace, {KeyCombo{Mod::None, Key::F11}});
     rebindCtx.Rebind(hotkeys.dumpMemory, {KeyCombo{Mod::Control, Key::F11}});

@@ -109,6 +109,22 @@ struct SettingsSaveResult {
 
 struct SharedContext;
 
+/// @brief A named scanline filter preset (intensity + thickness pair).
+struct ScanlinePreset {
+    const char *name;
+    int intensity; // 0-255
+    int thickness; // 0-100 (percentage of each pixel row darkened)
+};
+
+/// @brief The built-in scanline presets, shared by the settings UI and the preset-cycle hotkey.
+inline constexpr ScanlinePreset kScanlinePresets[] = {
+    {"Subtle", 60, 25},
+    {"TV", 75, 50},
+    {"Sharp", 180, 50},
+    {"Arcade", 220, 60},
+};
+inline constexpr size_t kScanlinePresetCount = sizeof(kScanlinePresets) / sizeof(kScanlinePresets[0]);
+
 struct Settings {
     Settings(SharedContext &sharedCtx) noexcept;
 
@@ -220,6 +236,11 @@ struct Settings {
         input::InputBind rotateScreenCW{actions::view::RotateScreenCW};
         input::InputBind rotateScreenCCW{actions::view::RotateScreenCCW};
         input::InputBind toggleScanlines{actions::view::ToggleScanlines};
+        input::InputBind increaseScanlineIntensity{actions::view::IncreaseScanlineIntensity};
+        input::InputBind decreaseScanlineIntensity{actions::view::DecreaseScanlineIntensity};
+        input::InputBind increaseScanlineThickness{actions::view::IncreaseScanlineThickness};
+        input::InputBind decreaseScanlineThickness{actions::view::DecreaseScanlineThickness};
+        input::InputBind cycleScanlinePreset{actions::view::CycleScanlinePreset};
 
         input::InputBind toggleMute{actions::audio::ToggleMute};
         input::InputBind increaseVolume{actions::audio::IncreaseVolume};
@@ -461,6 +482,9 @@ struct Settings {
     struct Video {
         enum class DisplayRotation { Normal, _90CW, _180, _90CCW };
 
+        // Scanline mask pattern: horizontal lines, vertical lines, or both (grid / shadow-mask look).
+        enum class ScanlineMask { Horizontal, Vertical, Grid };
+
         gfx::Backend graphicsBackend;
 
         bool forceIntegerScaling;
@@ -471,8 +495,9 @@ struct Settings {
         // Simple integer scanline filter: darkens the lower half of every source pixel band when the framebuffer is
         // upscaled by an integer factor of 2x or more, emulating the gaps between CRT scanlines.
         bool scanlines;
-        int scanlineIntensity; // 0 = off (no darkening), 255 = fully black gaps
-        int scanlineThickness; // percentage (0-100) of each pixel band that is darkened
+        int scanlineIntensity;     // 0 = off (no darkening), 255 = fully black gaps
+        int scanlineThickness;     // percentage (0-100) of each pixel band that is darkened
+        ScanlineMask scanlineMask; // line orientation of the scanline filter
 
         bool autoResizeWindow;
         bool displayVideoOutputInWindow;

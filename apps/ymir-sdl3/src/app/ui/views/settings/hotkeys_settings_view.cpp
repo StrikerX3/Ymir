@@ -61,6 +61,11 @@ void HotkeysSettingsView::Display() {
         drawRow(hotkeys.rotateScreenCW);
         drawRow(hotkeys.rotateScreenCCW);
         drawRow(hotkeys.toggleScanlines);
+        drawRow(hotkeys.cycleScanlinePreset);
+        drawRow(hotkeys.increaseScanlineIntensity);
+        drawRow(hotkeys.decreaseScanlineIntensity);
+        drawRow(hotkeys.increaseScanlineThickness);
+        drawRow(hotkeys.decreaseScanlineThickness);
 
         drawRow(hotkeys.toggleMute);
         drawRow(hotkeys.increaseVolume);

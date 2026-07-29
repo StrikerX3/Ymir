@@ -85,6 +85,48 @@ InputService::InputService(SharedContext &context, Settings &settings, InputServ
         });
         inputContext.SetTriggerHandler(actions::view::ToggleScanlines, [&](void *, const input::InputElement &) {
             m_settings.video.scanlines = !m_settings.video.scanlines;
+            m_context.lastScanlineChangeTime = clk::now();
+            m_settings.MakeDirty();
+        });
+        inputContext.SetTriggerHandler(
+            actions::view::IncreaseScanlineIntensity, [&](void *, const input::InputElement &) {
+                m_settings.video.scanlineIntensity = std::min(255, m_settings.video.scanlineIntensity + 10);
+                m_context.lastScanlineChangeTime = clk::now();
+                m_settings.MakeDirty();
+            });
+        inputContext.SetTriggerHandler(
+            actions::view::DecreaseScanlineIntensity, [&](void *, const input::InputElement &) {
+                m_settings.video.scanlineIntensity = std::max(0, m_settings.video.scanlineIntensity - 10);
+                m_context.lastScanlineChangeTime = clk::now();
+                m_settings.MakeDirty();
+            });
+        inputContext.SetTriggerHandler(
+            actions::view::IncreaseScanlineThickness, [&](void *, const input::InputElement &) {
+                m_settings.video.scanlineThickness = std::min(100, m_settings.video.scanlineThickness + 5);
+                m_context.lastScanlineChangeTime = clk::now();
+                m_settings.MakeDirty();
+            });
+        inputContext.SetTriggerHandler(
+            actions::view::DecreaseScanlineThickness, [&](void *, const input::InputElement &) {
+                m_settings.video.scanlineThickness = std::max(0, m_settings.video.scanlineThickness - 5);
+                m_context.lastScanlineChangeTime = clk::now();
+                m_settings.MakeDirty();
+            });
+        inputContext.SetTriggerHandler(actions::view::CycleScanlinePreset, [&](void *, const input::InputElement &) {
+            // Find the preset matching the current values, then advance to the next one (wrapping around). If the
+            // current values match no preset, start from the first.
+            size_t idx = kScanlinePresetCount;
+            for (size_t i = 0; i < kScanlinePresetCount; ++i) {
+                if (m_settings.video.scanlineIntensity == kScanlinePresets[i].intensity &&
+                    m_settings.video.scanlineThickness == kScanlinePresets[i].thickness) {
+                    idx = i;
+                    break;
+                }
+            }
+            const size_t next = (idx >= kScanlinePresetCount) ? 0 : (idx + 1) % kScanlinePresetCount;
+            m_settings.video.scanlineIntensity = kScanlinePresets[next].intensity;
+            m_settings.video.scanlineThickness = kScanlinePresets[next].thickness;
+            m_context.lastScanlineChangeTime = clk::now();
             m_settings.MakeDirty();
         });
     }
