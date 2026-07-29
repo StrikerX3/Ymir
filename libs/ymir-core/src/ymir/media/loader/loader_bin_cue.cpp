@@ -437,6 +437,18 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     constexpr uint32 kTargetSamplingRate = 44100;
                     if (sampleRate != kTargetSamplingRate) {
                         // Convert the sampling rate
+                        uint32 newNumSamples = std::ceil(static_cast<double>(numSamples)*kTargetSamplingRate/sampleRate);
+                        uint32 newFrameCount = std::ceil(static_cast<double>(newNumSamples)/static_cast<double>(numChannels));
+                        std::vector<sint16> tempOutBuffer(newFrameCount*numChannels);
+                        SpeexResamplerState* resampler = speex_resampler_init(numChannels, sampleRate, kTargetSamplingRate, 5, nullptr);
+                        uint32 oldFrameCount = static_cast<uint32>(frameCount);
+                        speex_resampler_process_interleaved_int(resampler, reinterpret_cast<sint16*>(data.data()), &oldFrameCount, tempOutBuffer.data(), &newFrameCount);
+                        frameCount = newFrameCount;
+                        numSamples = frameCount * numChannels;
+                        tempOutBuffer.resize(numSamples);
+                        data.resize(numSamples*sizeof(sint16));
+                        std::memcpy(data.data(), tempOutBuffer.data(), numSamples*sizeof(sint16));
+                        speex_resampler_destroy(resampler);
                     }
 
                     // Note: Regardless of whether preloadToRAM is true or false
