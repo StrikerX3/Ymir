@@ -60,6 +60,10 @@ add_subdirectory(stb)
 message(STATUS "==> dr_libs")
 add_subdirectory(dr_libs)
 
+# speexdsp - https://github.com/xiph/speexdsp
+message(STATUS "==> speexdsp")
+add_subdirectory(speexdsp)
+
 ####################################################################################################
 # Other dependencies
 

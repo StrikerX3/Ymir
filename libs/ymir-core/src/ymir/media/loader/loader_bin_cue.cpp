@@ -19,6 +19,8 @@
 
 #include <stb_vorbis.c>
 
+#include <speex/speex_resampler.h>
+
 namespace ymir::media::loader::bincue {
 
 const std::set<std::string> kValidCueKeywords = {
