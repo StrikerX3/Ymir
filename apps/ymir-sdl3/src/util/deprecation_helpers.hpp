@@ -8,4 +8,3 @@
 #else
     #define YMIR_DEPRECATED(msg)
 #endif
-
