@@ -1,3 +1,7 @@
+# Unofficial Feature: Integer-based Scanline
+
+https://github.com/user-attachments/assets/e2e99a93-8a16-4ad0-b97f-3cb3e685eea0
+
 # Ymir
 
 [![Stable release](https://github.com/StrikerX3/Ymir/actions/workflows/stable-release.yaml/badge.svg)](https://github.com/StrikerX3/Ymir/actions/workflows/stable-release.yaml) [![Nightly release](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml/badge.svg)](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml) <a href="https://discord.gg/NN3A7n5dzn">![Discord Shield](https://discord.com/api/guilds/1368676375627694341/widget.png?style=shield)</a> <a href="https://patreon.com/StrikerX3">![Patreon Shield](https://img.shields.io/badge/Patreon-F96854?style=flat&logo=patreon&logoColor=white)</a>
