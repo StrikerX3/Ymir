@@ -6,7 +6,7 @@ This is an unofficial fork of Ymir with the extra features below. Everything els
 
 A simple, optional CRT-style scanline filter for the video output. Because the framebuffer is upscaled by an integer factor, the filter stays sharp and correctly aligned at any 2x-or-greater scale (it has no effect at 1x).
 
-https://github.com/user-attachments/assets/7cdb4d6d-a897-4a7b-b032-b471e1c90d76
+https://github.com/user-attachments/assets/89c4b6bf-ed96-4a43-a98d-1d40ba13e601
 
 - Adjustable **intensity** (darkness of the gaps) and **thickness** (portion of each row darkened).
 - **Mask styles**: horizontal lines, vertical lines, or a grid (shadow-mask look).
