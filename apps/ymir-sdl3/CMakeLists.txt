@@ -551,3 +551,29 @@ if (MSVC)
     set_target_properties(ymir-sdl3 PROPERTIES FOLDER "Ymir")
     set_target_properties(ymir-sdl3-rc PROPERTIES FOLDER "Ymir")
 endif ()
+
+## Automatically run clang-format on ymir-sdl3 sources before each build.
+## clang-format only rewrites files it actually changes, so already-formatted files keep their timestamps and don't
+## trigger needless recompiles. Toggle with -DYmir_SDL3_FORMAT_ON_BUILD=OFF; if clang-format isn't found, this is a
+## no-op with a status message.
+option(Ymir_SDL3_FORMAT_ON_BUILD "Run clang-format on ymir-sdl3 sources before building" ON)
+if (Ymir_SDL3_FORMAT_ON_BUILD)
+    find_program(CLANG_FORMAT_EXE NAMES clang-format clang-format-20 clang-format-19 clang-format-18)
+    if (CLANG_FORMAT_EXE)
+        file(GLOB_RECURSE ymir_sdl3_format_files CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+        add_custom_target(ymir-sdl3-clang-format
+            COMMAND "${CLANG_FORMAT_EXE}" -i --style=file ${ymir_sdl3_format_files}
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            COMMENT "Formatting ymir-sdl3 sources with clang-format"
+            VERBATIM)
+        add_dependencies(ymir-sdl3 ymir-sdl3-clang-format)
+        if (MSVC)
+            set_target_properties(ymir-sdl3-clang-format PROPERTIES FOLDER "Ymir")
+        endif ()
+    else ()
+        message(STATUS "Ymir: clang-format not found; skipping format-on-build (set CLANG_FORMAT_EXE to enable)")
+    endif ()
+endif ()

@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Pre-commit hook: auto-format staged C/C++ files with clang-format.
+#
+# Formats only the files being committed (not the whole tree), skips vendored
+# code, and re-stages the formatted result so the commit goes out clean.
+# No-ops gracefully if clang-format isn't installed. Bypass with `git commit --no-verify`.
+#
+# Enable once with:  git config core.hooksPath .githooks
+
+# Locate clang-format (honor an explicit CLANG_FORMAT override if set).
+CLANG_FORMAT="${CLANG_FORMAT:-$(command -v clang-format 2>/dev/null)}"
+if [ -z "$CLANG_FORMAT" ]; then
+    echo "pre-commit: clang-format not found on PATH; skipping formatting." >&2
+    exit 0
+fi
+
+# Collect staged, non-deleted C/C++ files, excluding vendored trees.
+files=$(git diff --cached --name-only --diff-filter=ACMR \
+    | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx)$' \
+    | grep -vE '^(vendor|vcpkg)/')
+
+[ -z "$files" ] && exit 0
+
+formatted=""
+IFS='
+'
+for f in $files; do
+    [ -f "$f" ] || continue
+    before=$("$CLANG_FORMAT" --style=file "$f" | git hash-object --stdin)
+    current=$(git hash-object "$f")
+    if [ "$before" != "$current" ]; then
+        "$CLANG_FORMAT" -i --style=file "$f"
+        git add -- "$f"
+        formatted="$formatted $f"
+    fi
+done
+
+[ -n "$formatted" ] && echo "pre-commit: clang-format applied to:$formatted" >&2
+exit 0

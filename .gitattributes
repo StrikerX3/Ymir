@@ -1,2 +1,5 @@
 vendor/* linguist-vendored
 *.h linguist-language=cpp
+
+# Git hooks must stay LF so the shell shebang works in Git Bash on Windows
+.githooks/** text eol=lf
