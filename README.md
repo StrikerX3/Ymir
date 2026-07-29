@@ -1,6 +1,36 @@
-# Unofficial Feature: Integer-based Scanline
+# Unofficial Features
+
+This is an unofficial fork of Ymir with the extra features below. Everything else matches upstream.
+
+## Integer Scanline Filter
+
+A simple, optional CRT-style scanline filter for the video output. Because the framebuffer is upscaled by an integer factor, the filter stays sharp and correctly aligned at any 2x-or-greater scale (it has no effect at 1x).
 
 https://github.com/user-attachments/assets/7cdb4d6d-a897-4a7b-b032-b471e1c90d76
+
+- Adjustable **intensity** (darkness of the gaps) and **thickness** (portion of each row darkened).
+- **Mask styles**: horizontal lines, vertical lines, or a grid (shadow-mask look).
+- **Presets**: Subtle, TV, Sharp, and Arcade.
+- An on-screen indicator briefly shows the current settings when you adjust them by hotkey.
+- Off by default. Configure under **Settings → Video → Display**.
+
+Hotkeys (all rebindable under **Settings → Hotkeys**):
+
+| Hotkey | Action |
+| --- | --- |
+| `F5` | Toggle scanlines on/off |
+| `F6` | Cycle preset (Subtle → TV → Sharp → Arcade) |
+| `Shift+F6` | Cycle mask (Horizontal → Vertical → Grid) |
+| `F7` / `Shift+F7` | Increase / decrease intensity |
+| `F8` / `Shift+F8` | Increase / decrease thickness |
+
+> Note: `F8` previously toggled the rewind buffer; that action was moved to `F4` to free `F8` for scanline thickness.
+
+## Mute While Fast-Forwarding
+
+Optionally silences the audio output while fast-forwarding (turbo / unlimited speed), so the sped-up audio isn't heard. Normal and slow-motion speeds are unaffected. Enabled by default; toggle it under **Settings → Audio**.
+
+---
 
 # Ymir
 
