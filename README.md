@@ -1,6 +1,6 @@
 # Unofficial Feature: Integer-based Scanline
 
-<img width="3840" height="2160" alt="ymir-demo-integer_scanline" src="https://github.com/user-attachments/assets/710ddb1e-b0a5-4d48-8eff-d18cbc27ca69" />
+https://github.com/user-attachments/assets/983789c5-b32c-4a42-92ab-f97a67c1bdaf
 
 # Ymir
 
