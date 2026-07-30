@@ -355,7 +355,6 @@ target_link_libraries(ymir-core PUBLIC
     chdr-static
     stb::stb
     dr_libs::dr_libs
-    speexdsp::speexdsp
     miniaudio::miniaudio
 )
 if (WIN32)
