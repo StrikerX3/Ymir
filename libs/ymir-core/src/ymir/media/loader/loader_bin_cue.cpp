@@ -19,7 +19,8 @@
 
 #include <stb_vorbis.c>
 
-#include <speex/speex_resampler.h>
+#define MINIAUDIO_IMPLEMENTATION
+#include <miniaudio/miniaudio.h>
 
 namespace ymir::media::loader::bincue {
 
@@ -378,7 +379,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     std::vector<uint8> data;
                     std::vector<sint16> decodedPCMData;
                     uint64 frameCount = 0;
-                    uint32 numChannels;
+                    uint8 numChannels;
                     uint32 sampleRate;
                     uint32 numSamples;
                     if (file.format == "MP3") {
@@ -393,7 +394,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                             return false;
                         }
                         frameCount = fc;
-                        numChannels = mp3Config.channels;
+                        numChannels = static_cast<uint8>(mp3Config.channels);
                         sampleRate = mp3Config.sampleRate;
                         numSamples = frameCount * numChannels;
                         decodedPCMData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
@@ -437,18 +438,20 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     constexpr uint32 kTargetSamplingRate = 44100;
                     if (sampleRate != kTargetSamplingRate) {
                         // Convert the sampling rate
-                        uint32 newNumSamples = std::ceil(static_cast<double>(numSamples)*kTargetSamplingRate/sampleRate);
-                        uint32 newFrameCount = std::ceil(static_cast<double>(newNumSamples)/static_cast<double>(numChannels));
-                        std::vector<sint16> tempOutBuffer(newFrameCount*numChannels);
-                        SpeexResamplerState* resampler = speex_resampler_init(numChannels, sampleRate, kTargetSamplingRate, 5, nullptr);
-                        uint32 oldFrameCount = static_cast<uint32>(frameCount);
-                        speex_resampler_process_interleaved_int(resampler, reinterpret_cast<sint16*>(data.data()), &oldFrameCount, tempOutBuffer.data(), &newFrameCount);
-                        frameCount = newFrameCount;
-                        numSamples = frameCount * numChannels;
-                        tempOutBuffer.resize(numSamples);
-                        data.resize(numSamples*sizeof(sint16));
-                        std::memcpy(data.data(), tempOutBuffer.data(), numSamples*sizeof(sint16));
-                        speex_resampler_destroy(resampler);
+                        ma_resampler_config config = ma_resampler_config_init(ma_format_s16, numChannels, sampleRate, kTargetSamplingRate, ma_resample_algorithm_linear);
+
+                        ma_resampler resampler;
+                        ma_resampler_init(&config, NULL, &resampler);
+                        
+                        ma_uint64 frameCountIn  = data.size()/(numChannels*sizeof(sint16));
+                        ma_uint64 frameCountOut;
+                        ma_resampler_get_expected_output_frame_count(&resampler, frameCountIn, &frameCountOut);
+                        std::vector<sint16> framesIn(frameCountIn*numChannels);
+                        std::memcpy(framesIn.data(), data.data(), data.size());
+                        data.resize(frameCountOut*numChannels*sizeof(sint16));
+                        ma_resampler_process_pcm_frames(&resampler, framesIn.data(), &frameCountIn, data.data(), &frameCountOut);
+                        data.resize(frameCountOut*numChannels*sizeof(sint16));
+                        ma_resampler_uninit(&resampler, nullptr);
                     }
 
                     // Note: Regardless of whether preloadToRAM is true or false

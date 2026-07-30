@@ -64,6 +64,10 @@ add_subdirectory(dr_libs)
 message(STATUS "==> speexdsp")
 add_subdirectory(speexdsp)
 
+# miniaudio - https://github.com/mackron/miniaudio
+message(STATUS "==> miniaudio")
+add_subdirectory(miniaudio)
+
 ####################################################################################################
 # Other dependencies
 
