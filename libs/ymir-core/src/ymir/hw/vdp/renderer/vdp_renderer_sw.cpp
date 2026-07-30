@@ -1082,16 +1082,20 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotPixel(CoordS32 coord, const VDP1P
     // TODO: pixelParams.mode.preClippingDisable
 
     uint32 fbOffset = y * regs1.fbSizeH + x;
+    if (!regs1.pixel8Bits) {
+        fbOffset *= sizeof(uint16);
+    }
+    fbOffset &= 0x3FFFF;
+
     const auto fbIndex = VDP1GetDisplayFBIndex() ^ 1;
     auto &drawFB = VDP1GetRendererDrawFB(altFB)[fbIndex];
     if (pixelParams.mode.msbOn) {
         // TODO: check correctness -- does it write only when (x&1)==0 or is it force-aligned like this?
-        drawFB[fbOffset & 0x3FFFE] |= 0x80;
+        drawFB[fbOffset & ~1u] |= 0x80;
         return true;
     }
 
     if (regs1.pixel8Bits) {
-        fbOffset &= 0x3FFFF;
         // TODO: what happens if pixelParams.mode.colorCalcBits/gouraudEnable != 0?
         if (transparentMeshes && pixelParams.mode.meshEnable) {
             m_meshFB[altFB][fbIndex][fbOffset] = pixelParams.color;
@@ -1102,7 +1106,6 @@ FORCE_INLINE bool SoftwareVDPRenderer::VDP1PlotPixel(CoordS32 coord, const VDP1P
             }
         }
     } else {
-        fbOffset = (fbOffset * sizeof(uint16)) & 0x3FFFE;
         uint8 *pixel = &drawFB[fbOffset];
 
         Color555 srcColor{.u16 = pixelParams.color};
