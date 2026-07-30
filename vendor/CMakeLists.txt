@@ -60,9 +60,9 @@ add_subdirectory(stb)
 message(STATUS "==> dr_libs")
 add_subdirectory(dr_libs)
 
-# clownresampler - https://github.com/Clownacy/clownresampler
-message(STATUS "==> clownresampler")
-add_subdirectory(clownresampler)
+# miniaudio - https://github.com/mackron/miniaudio
+message(STATUS "==> miniaudio")
+add_subdirectory(miniaudio)
 
 ####################################################################################################
 # Other dependencies

@@ -19,8 +19,8 @@
 
 #include <stb_vorbis.c>
 
-#define CLOWNRESAMPLER_IMPLEMENTATION
-#include <clownresampler/clownresampler.h>
+#define MINIAUDIO_IMPLEMENTATION
+#include <miniaudio/miniaudio.h>
 
 namespace ymir::media::loader::bincue {
 
