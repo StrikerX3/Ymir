@@ -3,7 +3,7 @@ This is a nightly release built from the latest commit. Before you use these bui
 Save states are constantly evolving and are only guaranteed to be compatible on stable (numbered) releases.
 The file format may be changed without notice, so be careful when using save states from nightly releases.
 
-You can find the changelog for this build [here](https://github.com/StrikerX3/Ymir/blob/latest-nightly/CHANGELOG.md).
+You can find the changelog for this build [here](https://github.com/outkst/Ymir/blob/latest-nightly/CHANGELOG.md).
 
 > [!NOTE]
 > Nightly builds include experimental and in-development features that may not work properly.
@@ -14,4 +14,4 @@ You can find the changelog for this build [here](https://github.com/StrikerX3/Ym
 >
 > macOS users: follow [these instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac) to allow Ymir to run on your system. Ymir is signed with an ad-hoc certificate, flagging it as unverified.
 >
-> Linux users: if you choose to install the Flatpak version, make sure to [grant Ymir permission to access the filesystem](https://github.com/StrikerX3/Ymir/blob/main/TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release) or your disc images won't load properly.
+> Linux users: if you choose to install the Flatpak version, make sure to [grant Ymir permission to access the filesystem](https://github.com/outkst/Ymir/blob/main/TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release) or your disc images won't load properly.
