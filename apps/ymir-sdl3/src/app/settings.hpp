@@ -549,8 +549,9 @@ struct Settings {
         util::Observable<float> volume;
         util::Observable<bool> mute;
 
-        // Mute the audio output while fast-forwarding (turbo/unlimited speed).
-        util::Observable<bool> muteWhenFastForwarding;
+        // Volume applied while fast-forwarding (turbo/unlimited speed) as a fraction (0.0 to 1.0) of the current
+        // volume. 1.0 keeps the regular volume; 0.0 silences the output while fast-forwarding.
+        util::Observable<float> fastForwardVolume;
 
         util::Observable<ymir::core::config::audio::SampleInterpolationMode> interpolation;
         util::Observable<bool> threadedSCSP;
