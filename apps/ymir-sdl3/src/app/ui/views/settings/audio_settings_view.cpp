@@ -38,10 +38,14 @@ void AudioSettingsView::Display() {
     if (MakeDirty(ImGui::Checkbox("Mute", &mute))) {
         settings.mute = mute;
     }
-    bool muteWhenFastForwarding = settings.muteWhenFastForwarding;
-    if (MakeDirty(ImGui::Checkbox("Mute while fast-forwarding", &muteWhenFastForwarding))) {
-        settings.muteWhenFastForwarding = muteWhenFastForwarding;
+    float fastForwardVolumePct = settings.fastForwardVolume * 100.0f;
+    if (MakeDirty(ImGui::SliderScalar("Fast-forward volume", ImGuiDataType_Float, &fastForwardVolumePct, &kMinVolume,
+                                      &kMaxVolume, "%.1lf%%", ImGuiSliderFlags_AlwaysClamp))) {
+        settings.fastForwardVolume = fastForwardVolumePct * 0.01f;
     }
+    widgets::ExplanationTooltip("Volume applied during fast-forward, as a percentage of user-set volume.\n"
+                                "(0% mutes during fast-forward; 100% maintains user-set volume)",
+                                m_context.displayScale);
 
     // -----------------------------------------------------------------------------------------------------------------
 

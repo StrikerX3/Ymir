@@ -6,6 +6,7 @@
 
 #include <SDL3/SDL_audio.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <span>
@@ -56,16 +57,21 @@ public:
     void SetSync(bool sync) {
         m_sync = sync;
         // Audio sync is disabled exactly when the emulator runs faster than realtime (fast-forward / turbo). Track
-        // that state so the output can be muted when the "mute while fast-forwarding" option is enabled. Normal and
-        // slow-motion speeds keep sync and stay audible.
+        // that state so the output volume can be scaled while fast-forwarding. Normal and slow-motion speeds keep
+        // sync and play back at the regular volume.
         m_fastForwarding = !sync;
         UpdateGain();
     }
 
-    // Enables or disables muting the audio output while fast-forwarding.
-    void SetMuteOnFastForward(bool enabled) {
-        m_muteOnFastForward = enabled;
+    // Sets the volume applied while fast-forwarding as a fraction (0.0 to 1.0) of the current volume.
+    // 1.0 plays at the regular volume; 0.0 silences the output while fast-forwarding.
+    void SetFastForwardVolume(float volume) {
+        m_fastForwardVolume = std::clamp(volume, 0.0f, 1.0f);
         UpdateGain();
+    }
+
+    float GetFastForwardVolume() const {
+        return m_fastForwardVolume;
     }
 
     bool IsSync() const {
@@ -110,7 +116,7 @@ private:
     float m_gain = 0.8f;
     bool m_mute = false;
     bool m_fastForwarding = false;    // whether the emulator is currently running faster than realtime
-    bool m_muteOnFastForward = false; // whether to silence output while fast-forwarding
+    float m_fastForwardVolume = 0.0f; // volume fraction (0.0-1.0) applied while fast-forwarding
 
     void UpdateGain();
 

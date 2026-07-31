@@ -1114,7 +1114,7 @@ void Settings::ResetToDefaults() {
 
     audio.volume = 0.8;
     audio.mute = false;
-    audio.muteWhenFastForwarding = true;
+    audio.fastForwardVolume = 0.25f;
 
     audio.interpolation = config::audio::SampleInterpolationMode::Linear;
 
@@ -1656,7 +1656,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
 
         Parse(tblAudio, "Volume", audio.volume);
         Parse(tblAudio, "Mute", audio.mute);
-        Parse(tblAudio, "MuteWhenFastForwarding", audio.muteWhenFastForwarding);
+        Parse(tblAudio, "FastForwardVolume", audio.fastForwardVolume);
 
         Parse(tblAudio, "StepGranularity", stepGranularity);
 
@@ -2072,7 +2072,7 @@ SettingsSaveResult Settings::Save() {
         {"Audio", toml::table{{
             {"Volume", audio.volume.Get()},
             {"Mute", audio.mute.Get()},
-            {"MuteWhenFastForwarding", audio.muteWhenFastForwarding.Get()},
+            {"FastForwardVolume", audio.fastForwardVolume.Get()},
             {"StepGranularity", audio.stepGranularity.Get()},
             {"MidiInputPortId", audio.midiInputPort.Get().id},
             {"MidiOutputPortId", audio.midiOutputPort.Get().id},
