@@ -3,7 +3,7 @@
 This is an unofficial fork of Ymir with the extra features below. Everything else matches upstream.
 
 - [`Integer Scanline Filter`](#integer-scanline-filter)
-- [`Mute While Fast-Forwarding`](#mute-while-fast-forwarding)
+- [`Fast-Forwarding Volume Control`](#fast-forwarding-volume-control)
 
 ## Integer Scanline Filter
 
@@ -29,9 +29,11 @@ Hotkeys (all rebindable under **Settings → Hotkeys**):
 
 > Note: `F8` previously toggled the rewind buffer; that action was moved to `F4` to free `F8` for scanline thickness.
 
-## Mute While Fast-Forwarding
+## Fast-Forwarding Volume Control
 
-Optionally silences the audio output while fast-forwarding (turbo / unlimited speed), so the sped-up audio isn't heard. Normal and slow-motion speeds are unaffected. Enabled by default; toggle it under **Settings → Audio**.
+Optionally sets fast-forward volume output to a user-selected 0-100% of the current volume. 0% silences output, 100% keeps the regular volume. Default set to 25% of regular volume; adjust it under **Settings → Audio**.
+
+<img width="1200" height="967" alt="image" src="https://github.com/user-attachments/assets/e6b888c5-6550-4ea3-800b-483e953f60ed" />
 
 ---
 
