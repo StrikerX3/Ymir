@@ -1,18 +1,20 @@
-# Unofficial (AI-Assisted) Features
+# Unofficial (AI-Assisted) Features & Fixes
 
-This is an unofficial fork of Ymir with the extra features below. Everything else matches upstream.
+This is an unofficial fork of Ymir with the extra features/fixes below. Everything else matches upstream.
 
 - [`Integer Scanline Filter`](#integer-scanline-filter)
 - [`Fast-Forwarding Volume Control`](#fast-forwarding-volume-control)
+- [`Misc Fixes`](#misc-fixes)
 
 ## Integer Scanline Filter
 
 A simple, optional CRT-style scanline filter for the video output. Because the framebuffer is upscaled by an integer factor, the filter stays sharp and correctly aligned at any 2x-or-greater scale (it has no effect at 1x).
 
-https://github.com/user-attachments/assets/89c4b6bf-ed96-4a43-a98d-1d40ba13e601
+https://github.com/user-attachments/assets/31e51821-fc87-47a2-9346-ccac302c24c3
 
 - Adjustable **intensity** (darkness of the gaps) and **thickness** (portion of each row darkened).
 - **Mask styles**: horizontal lines, vertical lines, or a grid (shadow-mask look).
+- **Darker crossings**: optional grid mode setting that darkens the points where horizontal and vertical lines meet for a truer shadow-mask / aperture-grille look.
 - **Presets**: Subtle, TV, Sharp, and Arcade.
 - An on-screen indicator briefly shows the current settings when you adjust them by hotkey.
 - Off by default. Configure under **Settings → Video → Display**.
@@ -34,6 +36,10 @@ Hotkeys (all rebindable under **Settings → Hotkeys**):
 Optionally sets fast-forward volume output to a user-selected 0-100% of the current volume. 0% silences output, 100% keeps the regular volume. Default set to 25% of regular volume; adjust it under **Settings → Audio**.
 
 <img width="1200" height="967" alt="image" src="https://github.com/user-attachments/assets/e6b888c5-6550-4ea3-800b-483e953f60ed" />
+
+## Misc Fixes
+
+- **Audio Atomicity**: Made the audio gain/mute/fast-forward state thread-safe (atomic), avoiding a possible UI/emulator-thread data race condition.
 
 ---
 
