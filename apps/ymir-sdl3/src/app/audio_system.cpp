@@ -92,9 +92,9 @@ void AudioSystem::UpdateGain() {
     if (m_audioStream == nullptr) {
         return;
     }
-    float gain = m_mute ? 0.0f : m_gain;
-    if (m_fastForwarding) {
-        gain *= m_fastForwardVolume;
+    float gain = m_mute.load() ? 0.0f : m_gain.load();
+    if (m_fastForwarding.load()) {
+        gain *= m_fastForwardVolume.load();
     }
     SDL_SetAudioStreamGain(m_audioStream, gain);
 }

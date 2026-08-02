@@ -110,13 +110,15 @@ private:
     uint32 m_writePos = 0;
     util::Event m_bufferNotFullEvent{true};
 
-    bool m_sync = true;
+    std::atomic_bool m_sync = true;
     bool m_silent = false;
 
-    float m_gain = 0.8f;
-    bool m_mute = false;
-    bool m_fastForwarding = false;    // whether the emulator is currently running faster than realtime
-    float m_fastForwardVolume = 0.0f; // volume fraction (0.0-1.0) applied while fast-forwarding
+    // Gain state read by UpdateGain(). The setters run on the UI thread while SetSync() is driven from the emulator
+    // thread, so every field UpdateGain() touches is atomic to avoid a data race on the computed stream gain.
+    std::atomic<float> m_gain = 0.8f;
+    std::atomic_bool m_mute = false;
+    std::atomic_bool m_fastForwarding = false;      // whether the emulator is currently running faster than realtime
+    std::atomic<float> m_fastForwardVolume = 0.25f; // volume fraction (0.0-1.0) applied while fast-forwarding
 
     void UpdateGain();
 
