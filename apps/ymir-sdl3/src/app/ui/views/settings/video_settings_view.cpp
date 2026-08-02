@@ -71,6 +71,14 @@ void VideoSettingsView::Display() {
             widgets::ExplanationTooltip(
                 "Horizontal lines, vertical lines, or both (grid). Vertical and grid need horizontal scaling too.",
                 m_context.displayScale);
+
+            if (settings.scanlineMask == Mask::Grid) {
+                MakeDirty(ImGui::Checkbox("Darker crossings", &settings.scanlineGridShadowMask));
+                widgets::ExplanationTooltip("Darken the points where horizontal and vertical lines cross more than the "
+                                            "lines themselves, for a shadow-mask / aperture-grille CRT look.\n"
+                                            "Off darkens the whole grid uniformly.",
+                                            m_context.displayScale);
+            }
         }
 
         ImGui::TextUnformatted("Presets:");

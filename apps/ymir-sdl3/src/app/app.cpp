@@ -826,8 +826,18 @@ void App::RunEmulator() {
         return;
     }
 
-    // Reusable scratch buffer for the scanline filter rects, refilled each frame to avoid per-frame allocations
-    std::vector<SDL_FRect> scanlineRects;
+    // Cached scanline filter tile. The scanline pattern for a single source pixel (an fbScale x fbScale cell) is baked
+    // into a small RGBA texture and tiled across the display texture with one blit per frame. The tile is only
+    // regenerated when a filter parameter changes, so no per-frame CPU work is spent rebuilding geometry. Baking the
+    // horizontal and vertical darkening into the same tile also makes grid mode a true union of the two line sets,
+    // avoiding the doubly-darkened intersections that overlapping fill rects produced.
+    gfx::TextureHandle scanlineTile = gfx::kInvalidTextureHandle;
+    int slTileScale = 0;            // fbScale the tile was built for (0 = never built)
+    int slTileGap = -1;             // darkened rows/cols the tile was built for
+    int slTileAlpha = -1;           // darkening alpha the tile was built for
+    int slTileMask = -1;            // ScanlineMask the tile was built for
+    int slTileShadowMask = -1;      // grid "darker crossings" toggle the tile was built for
+    bool slTileNeedsUpload = false; // set by the texture setup callback when the GPU texture is (re)created
 
     auto renderDispTexture = [&](double targetWidth, double targetHeight) {
         auto &videoSettings = settings.video;
@@ -875,40 +885,87 @@ void App::RunEmulator() {
         // percentage controls how many of the `fbScale` rows/columns are darkened, and `scanlineMask` selects whether
         // to darken rows (horizontal), columns (vertical), or both (grid / shadow-mask look). This only has a visible
         // effect at 2x or greater integer scale; at 1x there is no room for a gap so it is skipped.
-        const uint32 gap = (uint32)std::clamp(std::lround(screen.fbScale * videoSettings.scanlineThickness / 100.0), 0L,
-                                              (long)screen.fbScale); // rows/columns darkened per source pixel band
-        if (videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0 && gap > 0) {
-            const Uint8 alpha = (Uint8)std::clamp(videoSettings.scanlineIntensity, 0, 255);
-            const float fullW = (float)screen.width * screen.fbScale;
-            const float fullH = (float)screen.height * screen.fbScale;
-            const auto mask = videoSettings.scanlineMask;
-            const bool drawH =
-                mask == Settings::Video::ScanlineMask::Horizontal || mask == Settings::Video::ScanlineMask::Grid;
-            const bool drawV =
-                mask == Settings::Video::ScanlineMask::Vertical || mask == Settings::Video::ScanlineMask::Grid;
+        // Evaluate the cheap enable checks first so the rounding below is skipped entirely when the filter is off.
+        const bool scanlinesActive =
+            videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0;
+        const uint32 gap =
+            scanlinesActive ? (uint32)std::clamp(std::lround(screen.fbScale * videoSettings.scanlineThickness / 100.0),
+                                                 0L, (long)screen.fbScale)
+                            : 0u; // rows/columns darkened per source pixel band
+        if (scanlinesActive && gap > 0) {
+            const int alpha = std::clamp(videoSettings.scanlineIntensity, 0, 255);
+            const int tileScale = (int)screen.fbScale;
+            const int tileGap = (int)gap;
+            const int maskId = (int)videoSettings.scanlineMask;
+            const int shadowMaskId = videoSettings.scanlineGridShadowMask ? 1 : 0;
 
-            scanlineRects.clear();
-            scanlineRects.reserve((drawH ? screen.height : 0) + (drawV ? screen.width : 0));
-            if (drawH) {
-                for (uint32 row = 0; row < (uint32)screen.height; ++row) {
-                    scanlineRects.push_back(SDL_FRect{.x = 0.0f,
-                                                      .y = (float)(row * screen.fbScale + (screen.fbScale - gap)),
-                                                      .w = fullW,
-                                                      .h = (float)gap});
+            // Rebuild the tile only when a parameter changes or the GPU texture was recreated (device reset).
+            if (scanlineTile == gfx::kInvalidTextureHandle || slTileScale != tileScale || slTileGap != tileGap ||
+                slTileAlpha != alpha || slTileMask != maskId || slTileShadowMask != shadowMaskId || slTileNeedsUpload) {
+                const auto mask = videoSettings.scanlineMask;
+                const bool drawH =
+                    mask == Settings::Video::ScanlineMask::Horizontal || mask == Settings::Video::ScanlineMask::Grid;
+                const bool drawV =
+                    mask == Settings::Video::ScanlineMask::Vertical || mask == Settings::Video::ScanlineMask::Grid;
+
+                // Alpha applied where horizontal and vertical lines cross in grid mode. With the shadow-mask look
+                // enabled, crossings are darkened more than the lines (matching two stacked blends: the CRT holes where
+                // both gaps meet); otherwise they use the same alpha as the lines for a uniform grid.
+                const bool shadowMaskCrossings = mask == Settings::Video::ScanlineMask::Grid && shadowMaskId != 0;
+                const int crossAlpha =
+                    shadowMaskCrossings
+                        ? (int)std::lround(255.0 * (1.0 - (1.0 - alpha / 255.0) * (1.0 - alpha / 255.0)))
+                        : alpha;
+
+                // Build one fbScale x fbScale RGBA cell: black on the trailing `gap` rows/columns, fully transparent
+                // elsewhere. Line pixels use `alpha`; grid crossings use `crossAlpha`. Baking this into one tile keeps
+                // grid mode a single blit while still allowing darker crossings.
+                std::vector<uint8> tilePixels((size_t)tileScale * tileScale * 4, 0);
+                for (int y = 0; y < tileScale; ++y) {
+                    const bool darkRow = drawH && y >= tileScale - tileGap;
+                    for (int x = 0; x < tileScale; ++x) {
+                        const bool darkCol = drawV && x >= tileScale - tileGap;
+                        if (darkRow || darkCol) {
+                            const int a = (darkRow && darkCol) ? crossAlpha : alpha;
+                            tilePixels[((size_t)y * tileScale + x) * 4 + 3] = (uint8)a; // RGBA32: alpha byte
+                        }
+                    }
+                }
+
+                if (scanlineTile == gfx::kInvalidTextureHandle) {
+                    scanlineTile = m_graphicsService.CreateTexture(
+                        SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, tileScale, tileScale,
+                        [&slTileNeedsUpload](SDL_Texture *tex, bool) {
+                            SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+                            SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+                            slTileNeedsUpload = true; // contents lost on (re)creation; re-upload before use
+                        });
+                } else if (slTileScale != tileScale) {
+                    // ResizeTexture recreates the raw texture without re-running the setup callback, so the scale and
+                    // blend modes must be reapplied here.
+                    m_graphicsService.ResizeTexture(scanlineTile, tileScale, tileScale);
+                    if (SDL_Texture *tex = m_graphicsService.GetSDLTexture(scanlineTile)) {
+                        SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+                        SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+                    }
+                }
+
+                if (SDL_Texture *tex = m_graphicsService.GetSDLTexture(scanlineTile)) {
+                    SDL_UpdateTexture(tex, nullptr, tilePixels.data(), tileScale * 4);
+                    slTileScale = tileScale;
+                    slTileGap = tileGap;
+                    slTileAlpha = alpha;
+                    slTileMask = maskId;
+                    slTileShadowMask = shadowMaskId;
+                    slTileNeedsUpload = false;
                 }
             }
-            if (drawV) {
-                for (uint32 col = 0; col < (uint32)screen.width; ++col) {
-                    scanlineRects.push_back(SDL_FRect{.x = (float)(col * screen.fbScale + (screen.fbScale - gap)),
-                                                      .y = 0.0f,
-                                                      .w = (float)gap,
-                                                      .h = fullH});
-                }
-            }
 
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, alpha);
-            SDL_RenderFillRects(renderer, scanlineRects.data(), (int)scanlineRects.size());
+            // Tile the fbScale x fbScale cell across the used region of the display texture in a single blit. dstRect
+            // already spans exactly that region (width*fbScale x height*fbScale), so it is reused here.
+            if (SDL_Texture *tex = m_graphicsService.GetSDLTexture(scanlineTile)) {
+                SDL_RenderTextureTiled(renderer, tex, nullptr, 1.0f, &dstRect);
+            }
         }
 
         // Restore render target

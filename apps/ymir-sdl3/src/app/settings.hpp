@@ -504,6 +504,10 @@ struct Settings {
         int scanlineIntensity;     // 0 = off (no darkening), 255 = fully black gaps
         int scanlineThickness;     // percentage (0-100) of each pixel band that is darkened
         ScanlineMask scanlineMask; // line orientation of the scanline filter
+        // Grid mode only: when true, the intersections where horizontal and vertical lines cross are darkened more than
+        // the lines themselves (mimicking a real shadow-mask / aperture-grille CRT). When false, the whole grid is
+        // darkened uniformly. No effect in horizontal or vertical mask modes.
+        bool scanlineGridShadowMask;
 
         bool autoResizeWindow;
         bool displayVideoOutputInWindow;
