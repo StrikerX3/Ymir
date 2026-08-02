@@ -901,7 +901,8 @@ void App::RunEmulator() {
 
             // Rebuild the tile only when a parameter changes or the GPU texture was recreated (device reset).
             if (scanlineTile == gfx::kInvalidTextureHandle || slTileScale != tileScale || slTileGap != tileGap ||
-                slTileAlpha != alpha || slTileMask != maskId || slTileShadowMask != shadowMaskId || slTileNeedsUpload) {
+                slTileAlpha != alpha || slTileMask != maskId || slTileShadowMask != shadowMaskId ||
+                slTileNeedsUpload) {
                 const auto mask = videoSettings.scanlineMask;
                 const bool drawH =
                     mask == Settings::Video::ScanlineMask::Horizontal || mask == Settings::Video::ScanlineMask::Grid;
@@ -917,14 +918,22 @@ void App::RunEmulator() {
                         ? (int)std::lround(255.0 * (1.0 - (1.0 - alpha / 255.0) * (1.0 - alpha / 255.0)))
                         : alpha;
 
-                // Build one fbScale x fbScale RGBA cell: black on the trailing `gap` rows/columns, fully transparent
-                // elsewhere. Line pixels use `alpha`; grid crossings use `crossAlpha`. Baking this into one tile keeps
-                // grid mode a single blit while still allowing darker crossings.
+                // Gap placement within each source pixel band. Grid mode centers the lit cell by splitting the gap to
+                // both edges (dark falls between lines, mesh-like); horizontal/vertical keep the whole gap at the
+                // trailing edge. Both darken the same number of rows/columns per band.
+                const bool centerLines = mask == Settings::Video::ScanlineMask::Grid;
+                const int gapLead = centerLines ? tileGap / 2 : 0; // dark rows/cols at the leading edge
+                const int gapTrail = tileGap - gapLead;            // dark rows/cols at the trailing edge
+                const auto isDark = [&](int i) { return i < gapLead || i >= tileScale - gapTrail; };
+
+                // Build one fbScale x fbScale RGBA cell: black on the gap rows/columns, fully transparent elsewhere.
+                // Line pixels use `alpha`; grid crossings use `crossAlpha`. Baking this into one tile keeps grid mode a
+                // single blit while still allowing darker crossings.
                 std::vector<uint8> tilePixels((size_t)tileScale * tileScale * 4, 0);
                 for (int y = 0; y < tileScale; ++y) {
-                    const bool darkRow = drawH && y >= tileScale - tileGap;
+                    const bool darkRow = drawH && isDark(y);
                     for (int x = 0; x < tileScale; ++x) {
-                        const bool darkCol = drawV && x >= tileScale - tileGap;
+                        const bool darkCol = drawV && isDark(x);
                         if (darkRow || darkCol) {
                             const int a = (darkRow && darkCol) ? crossAlpha : alpha;
                             tilePixels[((size_t)y * tileScale + x) * 4 + 3] = (uint8)a; // RGBA32: alpha byte
