@@ -1089,6 +1089,7 @@ void Settings::ResetToDefaults() {
     video.scanlineIntensity = 128;
     video.scanlineThickness = 50;
     video.scanlineMask = Video::ScanlineMask::Horizontal;
+    video.scanlineGridShadowMask = true;
     video.autoResizeWindow = false;
     video.displayVideoOutputInWindow = false;
     video.syncInWindowedMode = false;
@@ -1595,6 +1596,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
         Parse(tblVideo, "ScanlineIntensity", video.scanlineIntensity);
         Parse(tblVideo, "ScanlineThickness", video.scanlineThickness);
         Parse(tblVideo, "ScanlineMask", video.scanlineMask);
+        Parse(tblVideo, "ScanlineGridShadowMask", video.scanlineGridShadowMask);
 
         Parse(tblVideo, "AutoResizeWindow", video.autoResizeWindow);
         Parse(tblVideo, "DisplayVideoOutputInWindow", video.displayVideoOutputInWindow);
@@ -2037,6 +2039,7 @@ SettingsSaveResult Settings::Save() {
             {"ScanlineIntensity", video.scanlineIntensity},
             {"ScanlineThickness", video.scanlineThickness},
             {"ScanlineMask", ToTOML(video.scanlineMask)},
+            {"ScanlineGridShadowMask", video.scanlineGridShadowMask},
             {"AutoResizeWindow", video.autoResizeWindow},
             {"DisplayVideoOutputInWindow", video.displayVideoOutputInWindow},
             {"SyncInWindowedMode", video.syncInWindowedMode},
