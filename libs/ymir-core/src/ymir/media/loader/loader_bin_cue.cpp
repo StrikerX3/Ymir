@@ -435,20 +435,34 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     constexpr uint32 kTargetSamplingRate = 44100;
                     if (sampleRate != kTargetSamplingRate) {
                         // Convert the sampling rate
-                        ma_resampler_config config = ma_resampler_config_init(ma_format_s16, numChannels, sampleRate, kTargetSamplingRate, ma_resample_algorithm_linear);
+                        // Uses linear interpolation to resample the audio
+                        // This results in a loss of audio quality but since the audio files are already low quality
+                        // It really just preserves the retro feel
+                        // If we used low-band sinc to resample it would improve the audio quality losing the retro charm
 
-                        ma_resampler resampler;
-                        ma_resampler_init(&config, NULL, &resampler);
-                        
-                        ma_uint64 frameCountIn  = data.size()/(numChannels*sizeof(sint16));
-                        ma_uint64 frameCountOut;
-                        ma_resampler_get_expected_output_frame_count(&resampler, frameCountIn, &frameCountOut);
-                        std::vector<sint16> framesIn(frameCountIn*numChannels);
-                        std::memcpy(framesIn.data(), data.data(), data.size());
-                        data.resize(frameCountOut*numChannels*sizeof(sint16));
-                        ma_resampler_process_pcm_frames(&resampler, framesIn.data(), &frameCountIn, data.data(), &frameCountOut);
-                        data.resize(frameCountOut*numChannels*sizeof(sint16));
-                        ma_resampler_uninit(&resampler, nullptr);
+
+                        double ratio = static_cast<double>(sampleRate)/static_cast<double>(kTargetSamplingRate);
+                        uint64 newNumberOfFrames = static_cast<uint64>(static_cast<double>(frameCount)/ratio);
+                        std::vector<sint16> frames(data.size()/sizeof(sint16));
+                        std::memcpy(frames.data(), data.data(), data.size());
+                        data.resize((newNumberOfFrames*numChannels)*sizeof(sint16));
+                        sint16* output = reinterpret_cast<sint16*>(data.data());
+                        uint64 ind;
+                        sint16 f1, f2;
+                        double pos;
+                        for(uint64 i=0; i<newNumberOfFrames; i++) {
+                            ind = static_cast<sint64>(static_cast<double>(i)*ratio);
+                            for(uint8 j=0; j<numChannels; j++) {
+                                f1 = frames[ind*numChannels+j];
+                                if(frames.size()<=ind*numChannels+j+numChannels) {
+                                    f2=f1;
+                                }
+                                else {f2 = frames[ind*numChannels+j+numChannels];}
+                                pos = static_cast<double>(i)*ratio;
+                                pos = pos - static_cast<sint64>(pos);
+                                output[i*numChannels+j] = static_cast<sint16>(std::round((static_cast<double>(f2)-f1)*pos) + f1);
+                            }
+                        }
                     }
 
                     // Note: Regardless of whether preloadToRAM is true or false
