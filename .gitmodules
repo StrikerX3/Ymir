@@ -29,6 +29,3 @@
 [submodule "vendor/dr_libs/dr_libs"]
 	path = vendor/dr_libs/dr_libs
 	url = https://github.com/mackron/dr_libs.git
-[submodule "vendor/speexdsp/speexdsp"]
-	path = vendor/speexdsp/speexdsp
-	url = https://github.com/xiph/speexdsp
