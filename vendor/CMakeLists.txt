@@ -60,10 +60,6 @@ add_subdirectory(stb)
 message(STATUS "==> dr_libs")
 add_subdirectory(dr_libs)
 
-# miniaudio - https://github.com/mackron/miniaudio
-message(STATUS "==> miniaudio")
-add_subdirectory(miniaudio)
-
 ####################################################################################################
 # Other dependencies
 

@@ -355,7 +355,6 @@ target_link_libraries(ymir-core PUBLIC
     chdr-static
     stb::stb
     dr_libs::dr_libs
-    miniaudio::miniaudio
 )
 if (WIN32)
     ## synchronization.lib required for WaitOnAddress and WakeByAddressAll

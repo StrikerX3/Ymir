@@ -19,9 +19,6 @@
 
 #include <stb_vorbis.c>
 
-#define MINIAUDIO_IMPLEMENTATION
-#include <miniaudio/miniaudio.h>
-
 namespace ymir::media::loader::bincue {
 
 const std::set<std::string> kValidCueKeywords = {
