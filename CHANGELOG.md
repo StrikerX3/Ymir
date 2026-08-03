@@ -23,6 +23,7 @@ Introduces save state file version 14.
 - Input: Convert 3D Control Pad analog stick to D-Pad inputs when in digital mode.
 - Input: Graduate Virtua Gun to stable feature.
 - Input: Introduce a small amount of jitter to the Virtua Gun aim in Death Crimson. Greatly improves shot detection in the game. (#787)
+- Media: Added support for MP3 and OGG audio tracks to CUE loader. (#920; @surajrbhardwaj)
 - SH2: Interrupt recalculation microoptimizations.
 - SMPC: Remove direct dependency to filesystem API for data persistence.
 - VDP1: Software renderer performance microoptimizations:
