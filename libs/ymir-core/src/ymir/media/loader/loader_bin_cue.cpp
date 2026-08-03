@@ -384,7 +384,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         drmp3_config mp3Config{};
                         drmp3_uint64 fc = 0;
                         drmp3_int16 *tempBuffer =
-                            drmp3_open_file_and_read_pcm_frames_s16(file.path.c_str(), &mp3Config, &fc, nullptr);
+                            drmp3_open_file_and_read_pcm_frames_s16(file.path.string().c_str(), &mp3Config, &fc, nullptr);
 
                         if (tempBuffer == nullptr) {
                             errorMsg(fmt::format("BIN/CUE: Failed to load {}", file.path));
@@ -404,7 +404,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         int nc;
                         int sr;
                         short *tempBuffer = nullptr;
-                        int fc = stb_vorbis_decode_filename(file.path.c_str(), &nc, &sr, &tempBuffer);
+                        int fc = stb_vorbis_decode_filename(file.path.string().c_str(), &nc, &sr, &tempBuffer);
                         if (fc == -1) {
                             errorMsg(fmt::format("BIN/CUE: Failed to load {}", file.path));
                             return false;
