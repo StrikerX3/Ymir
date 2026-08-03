@@ -1,6 +1,6 @@
 # Unofficial (AI-Assisted) Features & Fixes
 
-This is an unofficial fork of Ymir with the extra features/fixes below. Everything else matches upstream.
+This is an unofficial fork of Ymir with the extra features/fixes below. Everything else matches upstream. The reason for the fork is that these features have been created leveraging AI workspaces, and the project creator/maintainer does not wish for AI-related code to be merged into their project. With that in mind, these features (as currently presented in this repo) will remain separate and not be merged into the origin repo.
 
 - [`Integer Scanline Filter`](#integer-scanline-filter)
 - [`Fast-Forwarding Volume Control`](#fast-forwarding-volume-control)
