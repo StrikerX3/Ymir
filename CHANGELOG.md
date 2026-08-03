@@ -55,6 +55,7 @@ Introduces save state file version 14.
     - Black/Matrix (#861)
 - Media: Don't read the Path Table past the size specified in the Volume Descriptor. Fixes CD Block HLE not able to read disc images made with some lazy patches that don't properly clean up the Path Table. (#912)
 - Media (CUE): Don't accumulate pre/postgaps multiple times per track. Fixes some audio track offset issues for single-BIN dumps. (#146)
+- Media (CUE): Properly compute track count on discs with sparse track numbers. Fixes audio playabck on some homebrew discs that omit tracks (e.g. The Rockin'-B All Stars version 06/03/23 skips track 2).
 - Media (CUE): Use CUE sheet timestamps to compute track lengths. Fixes some audio track offset issues for single-BIN dumps. (#146)
 - SCU: Allow 8-bit writes to DSP registers.
 - Settings: Apply CD Block LLE configuration at startup. Fixes Ymir always launching with CD Block HLE mode when LLE was enabled in the settings file.

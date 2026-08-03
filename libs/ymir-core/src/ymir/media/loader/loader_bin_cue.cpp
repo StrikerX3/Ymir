@@ -749,7 +749,6 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 closeTrack(i);
             }
             session.lastTrackIndex = sheetTrack.number - 1;
-            ++session.numTracks;
 
             if (sheetTrack.format.starts_with("MODE")) {
                 // Data track
@@ -817,6 +816,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
 
         // Finish session
         session.endFrameAddress = frameAddress - 1;
+        session.numTracks = session.lastTrackIndex - session.firstTrackIndex + 1;
         session.BuildTOC();
 
         // Read header
