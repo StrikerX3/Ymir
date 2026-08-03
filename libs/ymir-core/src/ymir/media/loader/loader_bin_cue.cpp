@@ -383,8 +383,8 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         // Read in and decode the MP3 data into raw PCM format
                         drmp3_config mp3Config{};
                         drmp3_uint64 fc = 0;
-                        drmp3_int16 *tempBuffer =
-                            drmp3_open_file_and_read_pcm_frames_s16(file.path.string().c_str(), &mp3Config, &fc, nullptr);
+                        drmp3_int16 *tempBuffer = drmp3_open_file_and_read_pcm_frames_s16(file.path.string().c_str(),
+                                                                                          &mp3Config, &fc, nullptr);
 
                         if (tempBuffer == nullptr) {
                             errorMsg(fmt::format("BIN/CUE: Failed to load {}", file.path));
@@ -416,7 +416,8 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         decodedPCMData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
                         free(tempBuffer);
                     }
-                    // If the audio has only one track, duplicate the data for both tracks ensuring dual channel stereo audio
+                    // If the audio has only one track, duplicate the data for both tracks ensuring dual channel stereo
+                    // audio
                     if (numChannels == 1) {
                         std::vector<sint16> temp;
                         temp.resize(numSamples * 2);
@@ -438,29 +439,31 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         // Uses linear interpolation to resample the audio
                         // This results in a loss of audio quality but since the audio files are already low quality
                         // It really just preserves the retro feel
-                        // If we used low-band sinc to resample it would improve the audio quality losing the retro charm
+                        // If we used low-band sinc to resample it would improve the audio quality losing the retro
+                        // charm
 
-
-                        double ratio = static_cast<double>(sampleRate)/static_cast<double>(kTargetSamplingRate);
-                        uint64 newNumberOfFrames = static_cast<uint64>(static_cast<double>(frameCount)/ratio);
-                        std::vector<sint16> frames(data.size()/sizeof(sint16));
+                        double ratio = static_cast<double>(sampleRate) / static_cast<double>(kTargetSamplingRate);
+                        uint64 newNumberOfFrames = static_cast<uint64>(static_cast<double>(frameCount) / ratio);
+                        std::vector<sint16> frames(data.size() / sizeof(sint16));
                         std::memcpy(frames.data(), data.data(), data.size());
-                        data.resize((newNumberOfFrames*numChannels)*sizeof(sint16));
-                        sint16* output = reinterpret_cast<sint16*>(data.data());
+                        data.resize((newNumberOfFrames * numChannels) * sizeof(sint16));
+                        sint16 *output = reinterpret_cast<sint16 *>(data.data());
                         uint64 ind;
                         sint16 f1, f2;
                         double pos;
-                        for(uint64 i=0; i<newNumberOfFrames; i++) {
-                            ind = static_cast<sint64>(static_cast<double>(i)*ratio);
-                            for(uint8 j=0; j<numChannels; j++) {
-                                f1 = frames[ind*numChannels+j];
-                                if(frames.size()<=ind*numChannels+j+numChannels) {
-                                    f2=f1;
+                        for (uint64 i = 0; i < newNumberOfFrames; i++) {
+                            ind = static_cast<sint64>(static_cast<double>(i) * ratio);
+                            for (uint8 j = 0; j < numChannels; j++) {
+                                f1 = frames[ind * numChannels + j];
+                                if (frames.size() <= ind * numChannels + j + numChannels) {
+                                    f2 = f1;
+                                } else {
+                                    f2 = frames[ind * numChannels + j + numChannels];
                                 }
-                                else {f2 = frames[ind*numChannels+j+numChannels];}
-                                pos = static_cast<double>(i)*ratio;
+                                pos = static_cast<double>(i) * ratio;
                                 pos = pos - static_cast<sint64>(pos);
-                                output[i*numChannels+j] = static_cast<sint16>(std::round((static_cast<double>(f2)-f1)*pos) + f1);
+                                output[i * numChannels + j] =
+                                    static_cast<sint16>(std::round((static_cast<double>(f2) - f1) * pos) + f1);
                             }
                         }
                     }
