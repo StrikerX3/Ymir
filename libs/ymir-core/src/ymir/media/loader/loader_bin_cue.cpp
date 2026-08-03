@@ -416,6 +416,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         decodedPCMData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
                         free(tempBuffer);
                     }
+
                     // If the audio has only one track, duplicate the data for both tracks ensuring dual channel stereo
                     // audio
                     if (numChannels == 1) {
@@ -435,12 +436,12 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                     // If the sampling rate is different, resample the audio to 44.1kHz
                     constexpr uint32 kTargetSamplingRate = 44100;
                     if (sampleRate != kTargetSamplingRate) {
-                        // Convert the sampling rate
-                        // Uses linear interpolation to resample the audio
-                        // This results in a loss of audio quality but since the audio files are already low quality
-                        // It really just preserves the retro feel
+                        // Convert the sampling rate.
+                        // Uses linear interpolation to resample the audio.
+                        // This results in a loss of audio quality but since the audio files are already low quality.
+                        // It really just preserves the retro feel.
                         // If we used low-band sinc to resample it would improve the audio quality losing the retro
-                        // charm
+                        // charm.
 
                         double ratio = static_cast<double>(sampleRate) / static_cast<double>(kTargetSamplingRate);
                         uint64 newNumberOfFrames = static_cast<uint64>(static_cast<double>(frameCount) / ratio);
@@ -468,20 +469,18 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                         }
                     }
 
-                    // Note: Regardless of whether preloadToRAM is true or false
-                    // if we are given mp3 or ogg files we will load the whole thing into memory
-                    // because it doesn't make any sense to convert the file into uncompressed format and delete it
-                    // later
+                    // Pad data vector to align to the size of a CD audio track sector (2352 bytes)
+                    const size_t remainder = data.size() % 2352;
+                    if (remainder > 0) {
+                        data.resize(data.size() + 2352 - remainder);
+                    }
+
+                    // Note: Regardless of whether preloadToRAM is true or false, if we are given MP3 or OOG files we
+                    // will load the whole thing into memory because it doesn't make any sense to convert the file into
+                    // uncompressed format and delete it later.
                     fileReader = std::make_shared<MemoryBinaryReader>(std::move(data));
                     file.size = fileReader->Size();
-                } else {
-                    if (preloadToRAM) {
-                        fileReader = std::make_shared<MemoryBinaryReader>(file.path, err);
-                    } else {
-                        fileReader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
-                    }
-                }
-                if (file.format == "WAVE") {
+                } else if (file.format == "WAVE") {
                     // Check if wave file is raw, uncompressed 16-bit PCM stereo at 44100 Hz and grab a subview if so
                     [&] {
                         std::array<uint8, 4> buf{};
@@ -585,12 +584,28 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                                     }
                                 }
 
+                                // Append a silent reader to align track data in case it's not divisible by the size of
+                                // a CD sector
+                                const size_t remainder = fileReader->Size() % 2352;
+                                if (remainder > 0) {
+                                    const size_t alignSize = 2352 - remainder;
+                                    compReader->Append(std::make_shared<ZeroBinaryReader>(alignSize));
+                                    file.size += alignSize;
+                                }
+
                                 return;
                             }
                             chunkOffset += chunkSize + 8ull;
                         }
                     }();
+                } else {
+                    if (preloadToRAM) {
+                        fileReader = std::make_shared<MemoryBinaryReader>(file.path, err);
+                    } else {
+                        fileReader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
+                    }
                 }
+
                 if (err) {
                     errorMsg(fmt::format("BIN/CUE: Failed to load {} - {}", file.path, err.message()));
                     return false;
