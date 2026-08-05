@@ -650,6 +650,7 @@ void AboutWindow::DrawAcknowledgementsTab() {
                            "PringleElUno, "
                            "ronan22, "
                            "SternXD, "
+                           "surajrbhardwaj, "
                            "tegaidogun, "
                            "tordona, "
                            "Wunkolo.");

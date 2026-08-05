@@ -353,6 +353,8 @@ target_link_libraries(ymir-core PUBLIC
     concurrentqueue
     xxHash::xxHash
     chdr-static
+    stb::stb
+    dr_libs::dr_libs
 )
 if (WIN32)
     ## synchronization.lib required for WaitOnAddress and WakeByAddressAll
