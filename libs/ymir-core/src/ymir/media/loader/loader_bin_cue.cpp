@@ -14,6 +14,11 @@
 #include <sstream>
 #include <vector>
 
+#define DR_MP3_IMPLEMENTATION
+#include <dr_libs/dr_mp3.h>
+
+#include <stb_vorbis.c>
+
 namespace ymir::media::loader::bincue {
 
 const std::set<std::string> kValidCueKeywords = {
@@ -366,12 +371,115 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
 
                 std::shared_ptr<IBinaryReader> fileReader;
                 std::error_code err{};
-                if (preloadToRAM) {
-                    fileReader = std::make_shared<MemoryBinaryReader>(file.path, err);
-                } else {
-                    fileReader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
-                }
-                if (file.format == "WAVE") {
+
+                if (file.format == "MP3" || file.format == "OGG") {
+                    // MP3 or OGG files have to be fully preloaded as they cannot be randomly accessed without being
+                    // fully decoded to memory.
+
+                    std::vector<uint8> sectorData;
+                    std::vector<sint16> audioData;
+                    uint64 frameCount = 0;
+                    uint8 numChannels;
+                    uint32 sampleRate;
+                    uint32 numSamples;
+                    if (file.format == "MP3") {
+                        // Read in and decode the MP3 data into raw PCM format
+                        drmp3_config mp3Config{};
+                        drmp3_uint64 mp3FrameCount = 0;
+                        drmp3_int16 *tempBuffer = drmp3_open_file_and_read_pcm_frames_s16(
+                            file.path.string().c_str(), &mp3Config, &mp3FrameCount, nullptr);
+                        if (tempBuffer == nullptr) {
+                            errorMsg(fmt::format("BIN/CUE: Failed to load {}", file.path));
+                            return false;
+                        }
+                        frameCount = mp3FrameCount;
+                        numChannels = static_cast<uint8>(mp3Config.channels);
+                        sampleRate = mp3Config.sampleRate;
+                        numSamples = frameCount * numChannels;
+                        audioData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
+                        drmp3_free(tempBuffer, nullptr);
+
+                    } else if (file.format == "OGG") {
+                        int oggNumChannels;
+                        int oggSampleRate;
+                        short *tempBuffer = nullptr;
+                        int oggFrameCount = stb_vorbis_decode_filename(file.path.string().c_str(), &oggNumChannels,
+                                                                       &oggSampleRate, &tempBuffer);
+                        if (oggFrameCount == -1) {
+                            errorMsg(fmt::format("BIN/CUE: Failed to load {}", file.path));
+                            return false;
+                        }
+                        frameCount = oggFrameCount;
+                        sampleRate = oggSampleRate;
+                        numChannels = oggNumChannels;
+                        numSamples = frameCount * numChannels;
+                        audioData = std::vector<sint16>(tempBuffer, tempBuffer + numSamples);
+                        free(tempBuffer);
+                    }
+
+                    // If the sampling rate is different, resample the audio to 44.1kHz
+                    constexpr uint32 kTargetSamplingRate = 44100;
+                    if (sampleRate != kTargetSamplingRate) {
+                        // Use linear interpolation to resample the audio.
+                        // This results in a loss of audio quality but since the audio files are already low quality, it
+                        // really just preserves the retro feel. If we used low-band sinc to resample it would improve
+                        // the audio quality losing the retro charm.
+
+                        const double ratio = static_cast<double>(sampleRate) / kTargetSamplingRate;
+                        const size_t resampledFrameCount = static_cast<double>(frameCount) / ratio;
+                        std::vector<sint16> temp(resampledFrameCount * numChannels);
+                        double srcPos = 0.0;
+                        size_t srcOffset = 0;
+                        for (size_t i = 0; i < resampledFrameCount; i++) {
+                            for (uint8 j = 0; j < numChannels; j++) {
+                                const size_t ofs1 = srcOffset * numChannels + j;
+                                const size_t ofs2 = std::min((srcOffset + 1) * numChannels + j, audioData.size() - 1);
+                                const sint16 f1 = audioData[ofs1];
+                                const sint16 f2 = audioData[ofs2];
+                                double t = srcPos - static_cast<uint64>(srcPos);
+                                temp[i * numChannels + j] = std::lerp(f1, f2, t);
+                            }
+                            srcPos += ratio;
+                            const size_t srcInc = static_cast<uint64>(srcPos);
+                            srcOffset += srcInc;
+                            srcPos -= srcInc;
+                        }
+                        numSamples = resampledFrameCount * numChannels;
+                        audioData.swap(temp);
+                    }
+
+                    // Expand mono tracks to stereo
+                    if (numChannels == 1) {
+                        std::vector<sint16> temp;
+                        temp.resize(numSamples * 2);
+                        for (size_t i = 0; i < numSamples; i++) {
+                            temp[i * 2] = audioData[i];
+                            temp[i * 2 + 1] = audioData[i];
+                        }
+                        numSamples *= 2;
+                        numChannels = 2;
+                        audioData = std::move(temp);
+                    }
+
+                    // Swap endianness on non-little-endian hosts
+                    if constexpr (std::endian::native != std::endian::little) {
+                        for (sint16 &sample : audioData) {
+                            util::ByteSwap<uint16>(&sample);
+                        }
+                    }
+
+                    // Copy raw data and align to the size of a CD audio track sector (2352 bytes)
+                    size_t sectorDataSizeBytes = numSamples * sizeof(sint16);
+                    const size_t remainder = sectorDataSizeBytes % 2352;
+                    if (remainder > 0) {
+                        sectorDataSizeBytes += 2352 - remainder;
+                    }
+                    sectorData.resize(sectorDataSizeBytes);
+                    std::memcpy(sectorData.data(), audioData.data(), numSamples * sizeof(sint16));
+
+                    fileReader = std::make_shared<MemoryBinaryReader>(std::move(sectorData));
+                    file.size = fileReader->Size();
+                } else if (file.format == "WAVE") {
                     // Check if wave file is raw, uncompressed 16-bit PCM stereo at 44100 Hz and grab a subview if so
                     [&] {
                         std::array<uint8, 4> buf{};
@@ -475,12 +583,28 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                                     }
                                 }
 
+                                // Append a silent reader to align track data in case it's not divisible by the size of
+                                // a CD sector
+                                const size_t remainder = fileReader->Size() % 2352;
+                                if (remainder > 0) {
+                                    const size_t alignSize = 2352 - remainder;
+                                    compReader->Append(std::make_shared<ZeroBinaryReader>(alignSize));
+                                    file.size += alignSize;
+                                }
+
                                 return;
                             }
                             chunkOffset += chunkSize + 8ull;
                         }
                     }();
+                } else {
+                    if (preloadToRAM) {
+                        fileReader = std::make_shared<MemoryBinaryReader>(file.path, err);
+                    } else {
+                        fileReader = std::make_shared<MemoryMappedBinaryReader>(file.path, err);
+                    }
                 }
+
                 if (err) {
                     errorMsg(fmt::format("BIN/CUE: Failed to load {} - {}", file.path, err.message()));
                     return false;
@@ -639,7 +763,6 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
                 closeTrack(i);
             }
             session.lastTrackIndex = sheetTrack.number - 1;
-            ++session.numTracks;
 
             if (sheetTrack.format.starts_with("MODE")) {
                 // Data track
@@ -707,6 +830,7 @@ bool Load(std::filesystem::path cuePath, Disc &disc, bool preloadToRAM, CbLoader
 
         // Finish session
         session.endFrameAddress = frameAddress - 1;
+        session.numTracks = session.lastTrackIndex - session.firstTrackIndex + 1;
         session.BuildTOC();
 
         // Read header
