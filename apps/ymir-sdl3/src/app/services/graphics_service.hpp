@@ -5,8 +5,6 @@
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_video.h>
 
-#include <functional>
-#include <memory>
 #include <unordered_map>
 
 namespace app::services {

@@ -225,6 +225,7 @@ add_library(ymir-core
     include/ymir/util/observable.hpp
     include/ymir/util/process.hpp
     include/ymir/util/ratio.hpp
+    include/ymir/util/result.hpp
     include/ymir/util/scope_guard.hpp
     include/ymir/util/size_ops.hpp
     include/ymir/util/string.hpp
