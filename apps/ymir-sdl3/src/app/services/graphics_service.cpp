@@ -67,7 +67,7 @@ GfxResult GraphicsService::DrawTextureRotated(GUITextureHandle texture, const FR
     return GfxOperationError{"Unimplemented"};
 }
 
-GfxValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec) {
+GfxValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec, gfx::FnSetup &&fnSetup) {
     // TODO: create and register texture internally
     // should hold the context's TextureID which may change between invocations, then:
     //   m_gfxContext->GetImGuiTextureID(textureID);

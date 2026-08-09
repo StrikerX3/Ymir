@@ -22,25 +22,4 @@ inline constexpr GUITextureHandle kInvalidGUITextureHandle = 0xFFFFFFFF;
 /// @param[in] pitch stride of each line in bytes
 using FnSetup = std::function<void(GUITextureHandle handle, bool recreate, void *data, size_t pitch)>;
 
-/// @brief Texture format specifications.
-struct Texture2DSpec {
-    /// @brief Width of the texture.
-    uint32 width = 0;
-
-    /// @brief Height of the texture
-    uint32 height = 0;
-
-    /// @brief Texel format.
-    PixelFormat format = PixelFormat::Unknown;
-
-    /// @brief Texture access mode.
-    TextureAccess access = TextureAccess::Static;
-
-    /// @brief Texture magnification and minification filter mode.
-    TextureFilterMode filterMode = TextureFilterMode::Linear;
-
-    /// @brief Texture setup function, invoked upon texture creation and recreation.
-    FnSetup fnSetup = [](GUITextureHandle, bool, void *, size_t) {};
-};
-
 } // namespace app::gfx

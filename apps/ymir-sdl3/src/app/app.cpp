@@ -829,19 +829,19 @@ void App::RunEmulator() {
     // interpolation.
 
     // Software framebuffer texture
-    const gfx::GUITextureHandle swFbTexture = m_graphicsService.CreateTexture({
-        .width = vdp::kMaxResH,
-        .height = vdp::kMaxResV,
-        .format = gfx::PixelFormat::XBGR8888,
-        .access = gfx::TextureAccess::Streaming,
-        .filterMode = gfx::TextureFilterMode::Nearest,
-        .fnSetup =
-            [&](gfx::GUITextureHandle handle, bool recreated, void *data, size_t pitch) {
-                if (recreated) {
-                    screen.CopyFramebufferToTexture(data, pitch);
-                }
-            },
-    });
+    const gfx::GUITextureHandle swFbTexture = m_graphicsService.CreateTexture(
+        {
+            .width = vdp::kMaxResH,
+            .height = vdp::kMaxResV,
+            .format = gfx::PixelFormat::XBGR8888,
+            .access = gfx::TextureAccess::Streaming,
+            .filterMode = gfx::TextureFilterMode::Nearest,
+        },
+        [&](gfx::GUITextureHandle handle, bool recreated, void *data, size_t pitch) {
+            if (recreated) {
+                screen.CopyFramebufferToTexture(data, pitch);
+            }
+        });
 
     if (swFbTexture == gfx::kInvalidGUITextureHandle) {
         ShowStartupFailure("Failed to create software framebuffer texture: {}", SDL_GetError());
@@ -914,20 +914,19 @@ void App::RunEmulator() {
         }
 
         // Create texture with the logo image
-        m_context.images.ymirLogo.texture = m_graphicsService.CreateTexture({
-            .width = static_cast<uint32>(imgW),
-            .height = static_cast<uint32>(imgH),
-            .format = gfx::PixelFormat::ABGR8888,
-            .access = gfx::TextureAccess::Static,
-            .fnSetup =
-                [=, this](gfx::GUITextureHandle texture, bool, void *data, size_t pitch) {
-                    auto byteData = static_cast<char *>(data);
-                    for (size_t y = 0; y < imgH; ++y) {
-                        memcpy(byteData + y * pitch, ymirLogoImgData + y * imgW * sizeof(uint32),
-                               imgW * sizeof(uint32));
-                    }
-                },
-        });
+        m_context.images.ymirLogo.texture = m_graphicsService.CreateTexture(
+            {
+                .width = static_cast<uint32>(imgW),
+                .height = static_cast<uint32>(imgH),
+                .format = gfx::PixelFormat::ABGR8888,
+                .access = gfx::TextureAccess::Static,
+            },
+            [=, this](gfx::GUITextureHandle texture, bool, void *data, size_t pitch) {
+                auto byteData = static_cast<char *>(data);
+                for (size_t y = 0; y < imgH; ++y) {
+                    memcpy(byteData + y * pitch, ymirLogoImgData + y * imgW * sizeof(uint32), imgW * sizeof(uint32));
+                }
+            });
         if (m_context.images.ymirLogo.texture == gfx::kInvalidGUITextureHandle) {
             ShowStartupFailure("Failed to create logo texture: {}", SDL_GetError());
             return;

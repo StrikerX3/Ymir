@@ -97,17 +97,6 @@ enum class PixelFormat {
     // TODO: add formats as needed
 };
 
-enum class TextureAccess {
-    Static,       ///< Texture data uploaded on creation, cannot be changed later
-    Streaming,    ///< Texture data can be changed at any point
-    RenderTarget, ///< Texture can be used as render target
-};
-
-enum class TextureFilterMode {
-    Nearest,
-    Linear,
-};
-
 /// @brief A point's coordinates in 2D space using floating point values.
 struct FPoint2D {
     float x, y;
@@ -119,15 +108,46 @@ struct FRect {
     float w, h;
 };
 
+/// @brief RGBA color specification.
+struct ColorRGBA {
+    float r, g, b, a;
+};
+
+// -----------------------------------------------------------------------------
+
+enum class TextureAccess {
+    Static,       ///< Texture data uploaded on creation, cannot be changed later
+    Streaming,    ///< Texture data can be changed at any point
+    RenderTarget, ///< Texture can be used as render target
+};
+
+enum class TextureFilterMode {
+    Nearest,
+    Linear,
+};
+
 /// @brief A texture identifier, used for operations with textures on a graphics context.
 using TextureID = uint64;
 
 /// @brief Sentinel value representing an invalid texture identifier.
 inline constexpr TextureID kInvalidTextureID = 0xFFFFFFFF'FFFFFFFFull;
 
-/// @brief RGBA color specification.
-struct ColorRGBA {
-    float r, g, b, a;
+/// @brief Texture format specifications.
+struct Texture2DSpec {
+    /// @brief Width of the texture.
+    uint32 width = 0;
+
+    /// @brief Height of the texture
+    uint32 height = 0;
+
+    /// @brief Texel format.
+    PixelFormat format = PixelFormat::Unknown;
+
+    /// @brief Texture access mode.
+    TextureAccess access = TextureAccess::Static;
+
+    /// @brief Texture magnification and minification filter mode.
+    TextureFilterMode filterMode = TextureFilterMode::Linear;
 };
 
 } // namespace app::gfx

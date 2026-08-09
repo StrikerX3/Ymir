@@ -65,8 +65,10 @@ public:
     /// @brief Creates and registers a 2D texture.
     /// Once created, the texture is automatically recreated when the backend is changed through.
     /// @param[in] spec texture format specifications
+    /// @param[in] fnSetup texture setup function, invoked upon texture creation and recreation
     /// @return a handle to the texture, or an error message if the texture could not be created
-    gfx::GfxValueResult<gfx::GUITextureHandle> CreateTexture(const gfx::Texture2DSpec &spec);
+    gfx::GfxValueResult<gfx::GUITextureHandle> CreateTexture(
+        const gfx::Texture2DSpec &spec, gfx::FnSetup &&fnSetup = [](gfx::GUITextureHandle, bool, void *, size_t) {});
 
     /// @brief Checks if the texture handle is valid.
     /// @param[in] handle the texture handle to check
