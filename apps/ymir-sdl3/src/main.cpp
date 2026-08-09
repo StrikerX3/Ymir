@@ -3,6 +3,8 @@
 #include <util/os_exception_handler.hpp>
 #include <ymir/util/thread_name.hpp>
 
+#include <ymir/version.hpp>
+
 #include <cxxopts.hpp>
 #include <fmt/format.h>
 
@@ -11,6 +13,12 @@
 #endif
 
 #include <memory>
+
+#if Ymir_LOCAL_BUILD
+    #define YMIR_EXCEPTION_RETHROW throw
+#else
+    #define YMIR_EXCEPTION_RETHROW
+#endif
 
 int main(int argc, char **argv) {
 #if defined(_WIN32)
@@ -57,16 +65,19 @@ int main(int argc, char **argv) {
         std::string msg = fmt::format("Failed to parse arguments: {}", e.what());
         fmt::println("{}", msg);
         util::ShowFatalErrorDialog(msg.c_str());
+        YMIR_EXCEPTION_RETHROW;
         return -1;
     } catch (const std::system_error &e) {
         std::string msg = fmt::format("System error: {}", e.what());
         fmt::println("{}", msg);
         util::ShowFatalErrorDialog(msg.c_str());
+        YMIR_EXCEPTION_RETHROW;
         return e.code().value();
     } catch (const std::exception &e) {
         std::string msg = fmt::format("Unhandled exception: {}", e.what());
         fmt::println("{}", msg);
         util::ShowFatalErrorDialog(msg.c_str());
+        YMIR_EXCEPTION_RETHROW;
         return -1;
 #if defined(__APPLE__)
     } catch (id e) {
@@ -76,12 +87,14 @@ int main(int argc, char **argv) {
         SEL sel_UTF8String = sel_registerName("UTF8String");
         const char *failureReason = ((const char *(*)(id, SEL))objc_msgSend)(reason, sel_UTF8String);
         util::ShowFatalErrorDialog(failureReason);
+        YMIR_EXCEPTION_RETHROW;
         return -1;
 #endif
     } catch (...) {
         std::string msg = "Unspecified exception";
         fmt::println("{}", msg);
         util::ShowFatalErrorDialog(msg.c_str());
+        YMIR_EXCEPTION_RETHROW;
         return -1;
     }
 
