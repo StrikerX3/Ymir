@@ -1734,18 +1734,21 @@ void App::RunEmulator() {
             case EvtType::SwitchGraphicsBackend: //
             {
                 auto backend = std::get<gfx::Backend>(evt.value);
+                if (backend != m_graphicsService.GetGraphicsContextBackend()) {
+                    auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+                    if (result) {
+                        settings.video.graphicsBackend = backend;
+                        settings.MakeDirty();
 
-                auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
-                if (result) {
-                    settings.video.graphicsBackend = backend;
-                    settings.MakeDirty();
-
-                    // ImGui is shutdown when the previous graphics context is destroyed, which only happens if the
-                    // context is successfully created. We're safe to initialize ImGui here without a prior shutdown.
-                    m_graphicsService.ImGuiInit();
-                } else {
-                    m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
-                                                         gfx::GraphicsBackendName(backend), result.Error().message));
+                        // ImGui is shutdown when the previous graphics context is destroyed, which only happens if the
+                        // context is successfully created. We're safe to initialize ImGui here without a prior
+                        // shutdown.
+                        m_graphicsService.ImGuiInit();
+                    } else {
+                        m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
+                                                             gfx::GraphicsBackendName(backend),
+                                                             result.Error().message));
+                    }
                 }
 
                 break;
