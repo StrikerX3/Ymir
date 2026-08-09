@@ -829,7 +829,7 @@ void App::RunEmulator() {
     // interpolation.
 
     // Software framebuffer texture
-    const gfx::GUITextureHandle swFbTexture = m_graphicsService.CreateTexture(
+    auto swFbTextureResult = m_graphicsService.CreateTexture(
         {
             .width = vdp::kMaxResH,
             .height = vdp::kMaxResV,
@@ -843,23 +843,25 @@ void App::RunEmulator() {
             }
         });
 
-    if (swFbTexture == gfx::kInvalidGUITextureHandle) {
-        ShowStartupFailure("Failed to create software framebuffer texture: {}", SDL_GetError());
+    if (!swFbTextureResult) {
+        ShowStartupFailure("Failed to create software framebuffer texture: {}", swFbTextureResult.Error().message);
         return;
     };
+    const gfx::GUITextureHandle swFbTexture = swFbTextureResult.Value();
 
     // Display texture, containing the scaled framebuffer to be displayed on the screen
-    const gfx::GUITextureHandle dispTexture = m_graphicsService.CreateTexture({
+    auto dispTextureResult = m_graphicsService.CreateTexture({
         .width = vdp::kMaxResH * screen.fbScale,
         .height = vdp::kMaxResV * screen.fbScale,
         .format = gfx::PixelFormat::XBGR8888,
         .access = gfx::TextureAccess::RenderTarget,
         .filterMode = gfx::TextureFilterMode::Linear,
     });
-    if (dispTexture == gfx::kInvalidGUITextureHandle) {
-        ShowStartupFailure("Failed to create display texture: {}", SDL_GetError());
+    if (!dispTextureResult) {
+        ShowStartupFailure("Failed to create display texture: {}", dispTextureResult.Error().message);
         return;
     }
+    const gfx::GUITextureHandle dispTexture = dispTextureResult.Value();
 
     auto renderDispTexture = [&](double targetWidth, double targetHeight) {
         auto &videoSettings = settings.video;
@@ -914,7 +916,7 @@ void App::RunEmulator() {
         }
 
         // Create texture with the logo image
-        m_context.images.ymirLogo.texture = m_graphicsService.CreateTexture(
+        auto logoImageResult = m_graphicsService.CreateTexture(
             {
                 .width = static_cast<uint32>(imgW),
                 .height = static_cast<uint32>(imgH),
@@ -927,10 +929,11 @@ void App::RunEmulator() {
                     memcpy(byteData + y * pitch, ymirLogoImgData + y * imgW * sizeof(uint32), imgW * sizeof(uint32));
                 }
             });
-        if (m_context.images.ymirLogo.texture == gfx::kInvalidGUITextureHandle) {
-            ShowStartupFailure("Failed to create logo texture: {}", SDL_GetError());
+        if (!logoImageResult) {
+            ShowStartupFailure("Failed to create logo texture: {}", logoImageResult.Error().message);
             return;
         }
+        m_context.images.ymirLogo.texture = logoImageResult.Value();
 
         m_context.images.ymirLogo.size.x = imgW;
         m_context.images.ymirLogo.size.y = imgH;
@@ -1893,8 +1896,9 @@ void App::RunEmulator() {
                 std::unique_lock lock{screen.mtxFramebuffer};
                 screen.framebuffers[1] = screen.framebuffers[0];
             }
+            const gfx::IRect area{.x = 0, .y = 0, .w = screen.width, .h = screen.height};
             m_graphicsService.UpdateTexture(
-                swFbTexture, [&](void *data, size_t pitch) { screen.CopyFramebufferToTexture(data, pitch); });
+                swFbTexture, &area, [&](void *data, size_t pitch) { screen.CopyFramebufferToTexture(data, pitch); });
         }
 
         auto now = clk::now();

@@ -8,6 +8,8 @@
 
 #include <functional>
 #include <memory>
+#include <unordered_map>
+#include <vector>
 
 namespace app::services {
 
@@ -51,43 +53,34 @@ public:
     /// @param[in] color the clear color
     void ClearScreen(gfx::ColorRGBA color);
 
-    /// @brief Draws a texture rotated about the given anchor point.
-    /// @param[in] texture the texture to draw
-    /// @param[in] srcRect portion of the texture to draw
-    /// @param[in] dstRect where to draw the texture on the screen
-    /// @param[in] rotAngle clockwise rotation amount (in degrees)
-    /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture
-    /// @return nothing on success, an error message on failure
-    gfx::GfxResult DrawTextureRotated(gfx::GUITextureHandle texture, const gfx::FRect &srcRect,
-                                      const gfx::FRect &dstRect, double rotAngle,
-                                      const gfx::FPoint2D *anchorPoint = nullptr);
-
     /// @brief Creates and registers a 2D texture.
     /// Once created, the texture is automatically recreated when the backend is changed through.
     /// @param[in] spec texture format specifications
     /// @param[in] fnSetup texture setup function, invoked upon texture creation and recreation
     /// @return a handle to the texture, or an error message if the texture could not be created
     gfx::GfxValueResult<gfx::GUITextureHandle> CreateTexture(
-        const gfx::Texture2DSpec &spec, gfx::FnSetup &&fnSetup = [](gfx::GUITextureHandle, bool, void *, size_t) {});
+        const gfx::Texture2DSpec &spec,
+        gfx::FnTextureSetup &&fnSetup = [](gfx::GUITextureHandle, bool, void *, size_t) {});
 
     /// @brief Checks if the texture handle is valid.
     /// @param[in] handle the texture handle to check
     /// @return `true` if the handle refers to a valid managed texture, `false` otherwise.
     bool IsTextureHandleValid(gfx::GUITextureHandle handle) const;
 
-    /// @brief Attempts to resize the texture to the new dimensions.
-    /// @param[in] handle the texture handle to try to resize
-    /// @param[in] w the new width
-    /// @param[in] h the new height
+    /// @brief Resizes the texture to the new dimensions.
+    /// @param[in] handle the texture handle
+    /// @param[in] width the new width
+    /// @param[in] height the new height
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult ResizeTexture(gfx::GUITextureHandle handle, int w, int h);
+    gfx::GfxResult ResizeTexture(gfx::GUITextureHandle handle, uint32 width, uint32 height);
 
     /// @brief Updates the contents of a texture.
     /// @param[in] handle the texture handle
+    /// @param[in,opt] rect the target region to update; `nullptr` updates the entire texture
     /// @param[in] fnUpdate the update function, taking a pointer to writable texture data and the line pitch in bytes.
     /// This buffer should not be read by the CPU.
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult UpdateTexture(gfx::GUITextureHandle handle,
+    gfx::GfxResult UpdateTexture(gfx::GUITextureHandle handle, const gfx::IRect *rect,
                                  const std::function<void(void *data, size_t pitch)> &fnUpdate);
 
     /// @brief Renders a texture to another texture. The destination texture must be a render target.
@@ -98,6 +91,17 @@ public:
     /// @return nothing on success, an error message on failure
     gfx::GfxResult RenderToTexture(gfx::GUITextureHandle src, gfx::GUITextureHandle dst, const gfx::FRect &srcRect,
                                    const gfx::FRect &dstRect);
+
+    /// @brief Draws a texture rotated about the given anchor point.
+    /// @param[in] handle the texture to draw
+    /// @param[in] srcRect portion of the texture to draw
+    /// @param[in] dstRect where to draw the texture on the screen
+    /// @param[in] rotAngle clockwise rotation amount (in degrees)
+    /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture
+    /// @return nothing on success, an error message on failure
+    gfx::GfxResult DrawTextureRotated(gfx::GUITextureHandle handle, const gfx::FRect &srcRect,
+                                      const gfx::FRect &dstRect, double rotAngle,
+                                      const gfx::FPoint2D *anchorPoint = nullptr);
 
     /// @brief Retrieves the ImGui texture ID for the given texture handle.
     /// @param[in] handle the texture
@@ -119,6 +123,19 @@ public:
 
 private:
     std::unique_ptr<gfx::IGraphicsContext> m_gfxContext;
+
+    struct Texture2DInstance {
+        gfx::TextureID id;
+        gfx::Texture2DSpec spec;
+        gfx::FnTextureSetup fnSetup;
+    };
+    std::unordered_map<gfx::GUITextureHandle, Texture2DInstance> m_textures;
+    std::vector<gfx::GUITextureHandle> m_freeTexHandles;
+    gfx::GUITextureHandle m_nextHandle = 0;
+
+    gfx::GUITextureHandle GetNextTextureHandle();
+    Texture2DInstance *GetTexture(gfx::GUITextureHandle handle);
+    const Texture2DInstance *GetTexture(gfx::GUITextureHandle handle) const;
 };
 
 } // namespace app::services

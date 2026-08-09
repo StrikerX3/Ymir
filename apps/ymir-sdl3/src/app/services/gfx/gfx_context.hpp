@@ -26,7 +26,7 @@ public:
 
     /// @brief Clears the screen with the specified color.
     /// @param[in] color the clear color
-    virtual void ClearScreen(gfx::ColorRGBA color) = 0;
+    virtual void ClearScreen(ColorRGBA color) = 0;
 
     /// @brief Initializes ImGui.
     /// @return `true` if successfully initialized (or already initialized), `false` otherwise
@@ -41,10 +41,58 @@ public:
     /// @brief Renders the current ImGui frame
     virtual void ImGuiRenderFrame() = 0;
 
+    /// @brief Creates a 2D texture.
+    /// @param[in] spec the 2D texture specifications
+    /// @return texture identifier, or an error message if failed to create
+    virtual GfxValueResult<TextureID> CreateTexture(const Texture2DSpec &spec) = 0;
+
+    /// @brief Destroys the specified texture.
+    /// @param[in] id the texture ID
+    virtual void DestroyTexture(TextureID id) = 0;
+
     /// @brief Retrieves the ImGui texture ID for the given texture ID.
-    /// @param[in] textureID the texture ID
+    /// @param[in] id the texture ID
     /// @return the `ImTextureID` corresponding to the texture
-    virtual ImTextureID GetImGuiTextureID(TextureID textureID) const = 0;
+    virtual ImTextureID GetImGuiTextureID(TextureID id) const = 0;
+
+    /// @brief Determines if the texture with the given ID is valid.
+    /// @param[in] id the texture ID
+    /// @return `true` if the ID refers to a valid texture, `false` otherwise
+    virtual bool IsTextureValid(TextureID id) const = 0;
+
+    /// @brief Resizes the texture to the new dimensions.
+    /// @param[in] id the texture ID
+    /// @param[in] width the new width
+    /// @param[in] height the new height
+    /// @return nothing on success, an error message on failure
+    virtual GfxResult ResizeTexture(TextureID id, uint32 width, uint32 height) = 0;
+
+    /// @brief Resizes the texture to the new dimensions.
+    /// @param[in] id the texture ID
+    /// @param[in,opt] rect the target region to update; `nullptr` updates the entire texture
+    /// @param[in] fnUpdate the update function, taking a pointer to writable texture data and the line pitch in bytes.
+    /// This buffer should not be read by the CPU.
+    /// @return nothing on success, an error message on failure
+    virtual GfxResult UpdateTexture(TextureID id, const IRect *rect,
+                                    const std::function<void(void *data, size_t pitch)> &fnUpdate) = 0;
+
+    /// @brief Renders a texture to another texture. The destination texture must be a render target.
+    /// @param[in] src the source texture ID
+    /// @param[in] dst the destination texture ID
+    /// @param[in] srcRect the source region to copy from
+    /// @param[in] dstRect the destination region to copy to
+    /// @return nothing on success, an error message on failure
+    virtual GfxResult RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect, const FRect &dstRect) = 0;
+
+    /// @brief Draws a texture rotated about the given anchor point.
+    /// @param[in] texture the texture ID to draw
+    /// @param[in] srcRect portion of the texture to draw
+    /// @param[in] dstRect where to draw the texture on the screen
+    /// @param[in] rotAngle clockwise rotation amount (in degrees)
+    /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture
+    /// @return nothing on success, an error message on failure
+    virtual GfxResult DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
+                                         const FPoint2D *anchorPoint = nullptr) = 0;
 
     /// @brief Changes the frame presentation mode.
     /// @param[in] mode the new frame presentation mode
@@ -55,8 +103,20 @@ public:
     /// @return nothing on success, an error message on failure
     virtual GfxResult Present() = 0;
 
+protected:
+    /// @brief Retrieves the next free texture ID.
+    /// @return a free texture ID
+    TextureID GetNextTextureID();
+
+    /// @brief Releases the given texture ID for reuse.
+    /// @param[in] id the texture ID to free
+    void FreeTextureID(TextureID id);
+
 private:
     Backend m_backend;
+
+    std::vector<TextureID> m_freeTextureIDs;
+    TextureID m_nextTextureID = 0;
 };
 
 } // namespace app::gfx

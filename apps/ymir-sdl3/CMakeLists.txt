@@ -92,6 +92,7 @@ add_executable(ymir-sdl3
     src/app/services/window_manager_service.cpp
     src/app/services/window_manager_service.hpp
 
+    src/app/services/gfx/gfx_context.cpp
     src/app/services/gfx/gfx_context.hpp
     src/app/services/gfx/gfx_context_impl_null.hpp
     src/app/services/gfx/gfx_context_impl_sdl_renderer.cpp

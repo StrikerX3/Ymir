@@ -62,44 +62,82 @@ void GraphicsService::ClearScreen(ColorRGBA color) {
     m_gfxContext->ClearScreen(color);
 }
 
-GfxResult GraphicsService::DrawTextureRotated(GUITextureHandle texture, const FRect &srcRect, const FRect &dstRect,
-                                              double rotAngle, const FPoint2D *anchorPoint) {
-    return GfxOperationError{"Unimplemented"};
-}
+GfxValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec, FnTextureSetup &&fnSetup) {
+    auto result = m_gfxContext->CreateTexture(spec);
+    if (!result) {
+        return result.Error();
+    }
 
-GfxValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec, gfx::FnSetup &&fnSetup) {
-    // TODO: create and register texture internally
-    // should hold the context's TextureID which may change between invocations, then:
-    //   m_gfxContext->GetImGuiTextureID(textureID);
-    return GfxOperationError{"Unimplemented"};
+    const GUITextureHandle handle = GetNextTextureHandle();
+    Texture2DInstance &texture = m_textures[handle];
+    texture.id = result.Value();
+    texture.spec = spec;
+    texture.fnSetup = std::move(fnSetup);
+    UpdateTexture(handle, nullptr, [&](void *data, size_t pitch) { texture.fnSetup(handle, false, data, pitch); });
+    return handle;
 }
 
 bool GraphicsService::IsTextureHandleValid(GUITextureHandle handle) const {
-    return false;
+    const Texture2DInstance *texture = GetTexture(handle);
+    return texture != nullptr && m_gfxContext->IsTextureValid(texture->id);
 }
 
-GfxResult GraphicsService::ResizeTexture(GUITextureHandle handle, int w, int h) {
-    return GfxOperationError{"Unimplemented"};
+GfxResult GraphicsService::ResizeTexture(GUITextureHandle handle, uint32 width, uint32 height) {
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return GfxOperationError{"Invalid texture handle"};
+    }
+    return m_gfxContext->ResizeTexture(texture->id, width, height);
 }
 
-GfxResult GraphicsService::UpdateTexture(GUITextureHandle handle,
+GfxResult GraphicsService::UpdateTexture(GUITextureHandle handle, const IRect *rect,
                                          const std::function<void(void *data, size_t pitch)> &fnUpdate) {
-    return GfxOperationError{"Unimplemented"};
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return GfxOperationError{"Invalid texture handle"};
+    }
+    return m_gfxContext->UpdateTexture(texture->id, rect, fnUpdate);
 }
 
 GfxResult GraphicsService::RenderToTexture(GUITextureHandle src, GUITextureHandle dst, const FRect &srcRect,
                                            const FRect &dstRect) {
-    return GfxOperationError{"Unimplemented"};
+    const Texture2DInstance *srcTexture = GetTexture(src);
+    if (srcTexture == nullptr) {
+        return GfxOperationError{"Invalid source texture handle"};
+    }
+    const Texture2DInstance *dstTexture = GetTexture(dst);
+    if (dstTexture == nullptr) {
+        return GfxOperationError{"Invalid destination texture handle"};
+    }
+    return m_gfxContext->RenderToTexture(srcTexture->id, dstTexture->id, srcRect, dstRect);
+}
+
+GfxResult GraphicsService::DrawTextureRotated(GUITextureHandle handle, const FRect &srcRect, const FRect &dstRect,
+                                              double rotAngle, const FPoint2D *anchorPoint) {
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return GfxOperationError{"Invalid source texture handle"};
+    }
+    return m_gfxContext->DrawTextureRotated(texture->id, srcRect, dstRect, rotAngle, anchorPoint);
 }
 
 ImTextureID GraphicsService::GetImGuiTextureID(GUITextureHandle handle) const {
-    // TODO: get texture ID from handle, then:
-    //   return m_gfxContext->GetImGuiTextureID(textureID);
-    return 0;
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return 0;
+    }
+    return m_gfxContext->GetImGuiTextureID(texture->id);
 }
 
 bool GraphicsService::DestroyTexture(GUITextureHandle handle) {
-    return false;
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return false;
+    }
+    m_gfxContext->DestroyTexture(texture->id);
+    m_textures.erase(handle);
+    m_freeTexHandles.push_back(handle);
+    return true;
 }
 
 GfxResult GraphicsService::SetPresentMode(PresentMode mode) {
@@ -108,6 +146,36 @@ GfxResult GraphicsService::SetPresentMode(PresentMode mode) {
 
 GfxResult GraphicsService::Present() {
     return m_gfxContext->Present();
+}
+
+GUITextureHandle GraphicsService::GetNextTextureHandle() {
+    if (!m_freeTexHandles.empty()) {
+        const GUITextureHandle handle = m_freeTexHandles.back();
+        m_freeTexHandles.pop_back();
+        return handle;
+    }
+
+    const GUITextureHandle handle = m_nextHandle++;
+
+    // This really should not happen unless we somehow managed to create over 4 billion textures.
+    assert(m_nextHandle != kInvalidGUITextureHandle);
+    assert(!m_textures.contains(handle));
+
+    return handle;
+}
+
+auto GraphicsService::GetTexture(GUITextureHandle handle) -> Texture2DInstance * {
+    if (handle == kInvalidGUITextureHandle) {
+        return nullptr;
+    }
+    if (auto it = m_textures.find(handle); it != m_textures.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+auto GraphicsService::GetTexture(GUITextureHandle handle) const -> const Texture2DInstance * {
+    return const_cast<GraphicsService *>(this)->GetTexture(handle);
 }
 
 } // namespace app::services

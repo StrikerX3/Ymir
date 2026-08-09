@@ -22,6 +22,16 @@ template <typename T, typename E>
 struct Result {
     /// @brief Creates a result with a value.
     /// @param[in] value the value
+    Result(const T &value)
+        : m_result(value) {}
+
+    /// @brief Creates a result with an error.
+    /// @param[in] error the error
+    Result(const E &error)
+        : m_result(error) {}
+
+    /// @brief Creates a result with a value.
+    /// @param[in] value the value
     Result(T &&value)
         : m_result(std::move(value)) {}
 

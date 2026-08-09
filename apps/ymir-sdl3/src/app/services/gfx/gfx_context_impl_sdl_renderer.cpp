@@ -7,9 +7,46 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_sdlrenderer3.h>
 
+#include <ymir/util/scope_guard.hpp>
+
 #include <SDL3/SDL_render.h>
 
 namespace app::gfx {
+
+static int GetVSyncMode(PresentMode mode) {
+    switch (mode) {
+    default:
+    case PresentMode::VSync: return 1;
+    case PresentMode::Adaptive: return SDL_RENDERER_VSYNC_ADAPTIVE;
+    case PresentMode::Mailbox: return SDL_RENDERER_VSYNC_DISABLED;
+    }
+}
+
+static SDL_PixelFormat ToSDL3Value(PixelFormat format) {
+    switch (format) {
+    default: [[fallthrough]];
+    case PixelFormat::Unknown: return SDL_PIXELFORMAT_UNKNOWN;
+    case PixelFormat::XBGR8888: return SDL_PIXELFORMAT_XBGR8888;
+    case PixelFormat::ABGR8888: return SDL_PIXELFORMAT_ABGR8888;
+    }
+}
+
+static SDL_TextureAccess ToSDL3Value(TextureAccess access) {
+    switch (access) {
+    default: [[fallthrough]];
+    case TextureAccess::Static: return SDL_TEXTUREACCESS_STATIC;
+    case TextureAccess::Streaming: return SDL_TEXTUREACCESS_STREAMING;
+    case TextureAccess::RenderTarget: return SDL_TEXTUREACCESS_TARGET;
+    }
+}
+
+static SDL_ScaleMode ToSDL3Value(TextureFilterMode mode) {
+    switch (mode) {
+    default: [[fallthrough]];
+    case TextureFilterMode::Linear: return SDL_SCALEMODE_LINEAR;
+    case TextureFilterMode::Nearest: return SDL_SCALEMODE_NEAREST;
+    }
+}
 
 SDLRendererGraphicsContext::SDLRendererGraphicsContext(SDL_Window *window, SDL_Renderer *renderer)
     : IGraphicsContext(Backend::SDLRenderer)
@@ -74,18 +111,173 @@ void SDLRendererGraphicsContext::ImGuiRenderFrame() {
 #endif
 }
 
-ImTextureID SDLRendererGraphicsContext::GetImGuiTextureID(TextureID textureID) const {
-    // TODO: get and return texture ID
-    return 0;
+GfxValueResult<TextureID> SDLRendererGraphicsContext::CreateTexture(const Texture2DSpec &spec) {
+    SDL_Texture *texture =
+        SDL_CreateTexture(m_renderer, ToSDL3Value(spec.format), ToSDL3Value(spec.access), spec.width, spec.height);
+    if (texture == nullptr) {
+        return GfxOperationError{fmt::format("Could not create texture: {}", SDL_GetError())};
+    }
+    SDL_SetTextureScaleMode(texture, ToSDL3Value(spec.filterMode));
+
+    const TextureID id = GetNextTextureID();
+    assert(!m_textures.contains(id));
+    m_textures[id] = {
+        .texture = texture,
+        .spec = spec,
+    };
+    return id;
 }
 
-static int GetVSyncMode(PresentMode mode) {
-    switch (mode) {
-    default:
-    case PresentMode::VSync: return 1;
-    case PresentMode::Adaptive: return SDL_RENDERER_VSYNC_ADAPTIVE;
-    case PresentMode::Mailbox: return SDL_RENDERER_VSYNC_DISABLED;
+void SDLRendererGraphicsContext::DestroyTexture(TextureID id) {
+    TextureInstance *instance = GetTexture(id);
+    if (instance != nullptr) {
+        SDL_DestroyTexture(instance->texture);
+        m_textures.erase(id);
+        FreeTextureID(id);
     }
+}
+
+bool SDLRendererGraphicsContext::IsTextureValid(TextureID id) const {
+    const TextureInstance *instance = GetTexture(id);
+    if (instance == nullptr) {
+        return false;
+    }
+    // Check if the texture is still live by attempting to retrieve its properties
+    SDL_PropertiesID props = SDL_GetTextureProperties(instance->texture);
+    return props != 0;
+}
+
+ImTextureID SDLRendererGraphicsContext::GetImGuiTextureID(TextureID id) const {
+    const TextureInstance *instance = GetTexture(id);
+    if (instance == nullptr) {
+        return 0;
+    }
+    return reinterpret_cast<ImTextureID>(instance->texture);
+}
+
+GfxResult SDLRendererGraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
+    TextureInstance *instance = GetTexture(id);
+    if (instance == nullptr) {
+        return GfxOperationError{"Invalid texture handle"};
+    }
+    const Texture2DSpec &spec = instance->spec;
+
+    // Try creating the new texture first
+    SDL_Texture *newTexture =
+        SDL_CreateTexture(m_renderer, ToSDL3Value(spec.format), ToSDL3Value(spec.access), width, height);
+    if (newTexture == nullptr) {
+        return GfxOperationError{"Invalid texture handle"};
+    }
+
+    // Delete old texture and update parameters
+    SDL_DestroyTexture(instance->texture);
+    instance->texture = newTexture;
+    instance->spec.width = width;
+    instance->spec.height = height;
+    SDL_SetTextureScaleMode(newTexture, ToSDL3Value(spec.filterMode));
+    return {};
+}
+
+GfxResult SDLRendererGraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
+                                                    const std::function<void(void *data, size_t pitch)> &fnUpdate) {
+    TextureInstance *instance = GetTexture(id);
+    if (instance == nullptr) {
+        return GfxOperationError{"Invalid texture handle"};
+    }
+
+    void *pixels = nullptr;
+    int pitch = 0;
+    SDL_Rect area{};
+    SDL_Rect *areaPtr = nullptr;
+    if (rect != nullptr) {
+        area.x = rect->x;
+        area.y = rect->y;
+        area.w = rect->w;
+        area.h = rect->h;
+    }
+    if (instance->spec.access == TextureAccess::Streaming) {
+        // Streaming textures can be locked and unlocked
+        if (!SDL_LockTexture(instance->texture, areaPtr, &pixels, &pitch)) {
+            return GfxOperationError{fmt::format("Could not lock texture for update: {}", SDL_GetError())};
+        }
+        fnUpdate(pixels, pitch);
+        SDL_UnlockTexture(instance->texture);
+    } else {
+        // Other types of textures need a staging buffer
+        // Based on SDL_UpdateTextureNative (SDL_render.c)
+        if (rect == nullptr) {
+            area.x = 0;
+            area.y = 0;
+            area.w = instance->spec.width;
+            area.h = instance->spec.height;
+        }
+        const int stagingPitch = (((area.w * SDL_BYTESPERPIXEL(ToSDL3Value(instance->spec.format))) + 3) & ~3);
+        const size_t stagingBufferSize = (size_t)area.h * stagingPitch;
+        if (stagingBufferSize > 0) {
+            void *stagingPixels = SDL_malloc(stagingBufferSize);
+            if (stagingPixels == nullptr) {
+                return GfxOperationError{"Could not allocate memory for staging buffer"};
+            }
+            util::ScopeGuard sgFreeStagingPixels{[&] { SDL_free(stagingPixels); }};
+
+            fnUpdate(stagingPixels, stagingPitch);
+            if (!SDL_UpdateTexture(instance->texture, areaPtr, stagingPixels, stagingPitch)) {
+                return GfxOperationError{fmt::format("Could not update texture: {}", SDL_GetError())};
+            }
+        }
+    }
+    return {};
+}
+
+GfxResult SDLRendererGraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
+                                                      const FRect &dstRect) {
+    TextureInstance *srcInstance = GetTexture(src);
+    if (srcInstance == nullptr) {
+        return GfxOperationError{"Invalid source texture handle"};
+    }
+
+    TextureInstance *dstInstance = GetTexture(dst);
+    if (dstInstance == nullptr) {
+        return GfxOperationError{"Invalid destination texture handle"};
+    }
+
+    // Remember previous render target to be restored later
+    SDL_Texture *prevRenderTarget = SDL_GetRenderTarget(m_renderer);
+
+    // Render scaled framebuffer into display texture
+    SDL_FRect srcRectSDL{srcRect.x, srcRect.y, srcRect.w, srcRect.h};
+    SDL_FRect dstRectSDL{dstRect.x, dstRect.y, dstRect.w, dstRect.h};
+
+    SDL_SetRenderTarget(m_renderer, dstInstance->texture);
+    SDL_RenderTexture(m_renderer, srcInstance->texture, &srcRectSDL, &dstRectSDL);
+
+    // Restore render target
+    SDL_SetRenderTarget(m_renderer, prevRenderTarget);
+
+    return GfxResult();
+}
+
+GfxResult SDLRendererGraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect,
+                                                         double rotAngle, const FPoint2D *anchorPoint) {
+    TextureInstance *instance = GetTexture(id);
+    if (instance == nullptr) {
+        return GfxOperationError{"Invalid texture handle"};
+    }
+
+    const SDL_FRect srcRectSDL{srcRect.x, srcRect.y, srcRect.w, srcRect.h};
+    const SDL_FRect dstRectSDL{dstRect.x, dstRect.y, dstRect.w, dstRect.h};
+    SDL_FPoint center{};
+    SDL_FPoint *centerPtr = nullptr;
+    if (anchorPoint != nullptr) {
+        centerPtr = &center;
+        center.x = anchorPoint->x;
+        center.y = anchorPoint->y;
+    }
+    if (SDL_RenderTextureRotated(m_renderer, instance->texture, &srcRectSDL, &dstRectSDL, rotAngle, centerPtr,
+                                 SDL_FLIP_NONE)) {
+        return {};
+    }
+    return GfxOperationError{fmt::format("Failed to draw rotated texture: {}", SDL_GetError())};
 }
 
 GfxResult SDLRendererGraphicsContext::SetPresentMode(PresentMode mode) {
@@ -100,6 +292,17 @@ GfxResult SDLRendererGraphicsContext::Present() {
         return {};
     }
     return GfxOperationError{fmt::format("Could not present frame: {}", SDL_GetError())};
+}
+
+auto SDLRendererGraphicsContext::GetTexture(TextureID id) -> TextureInstance * {
+    if (auto it = m_textures.find(id); it != m_textures.end()) {
+        return &it->second;
+    }
+    return nullptr;
+}
+
+auto SDLRendererGraphicsContext::GetTexture(TextureID id) const -> const TextureInstance * {
+    return const_cast<SDLRendererGraphicsContext *>(this)->GetTexture(id);
 }
 
 } // namespace app::gfx

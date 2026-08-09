@@ -295,10 +295,10 @@ struct SharedContext {
         bool updated = false;
 
         void CopyFramebufferToTexture(void *data, size_t pitch) {
-            auto byteData = static_cast<char *>(data);
+            auto pixelData = static_cast<uint32 *>(data);
             SDL_Rect area{.x = 0, .y = 0, .w = (int)width, .h = (int)height};
             for (uint32 y = 0; y < height; y++) {
-                std::copy_n(&framebuffers[1][y * width], width, &byteData[y * pitch]);
+                std::copy_n(&framebuffers[1][y * width], width, &pixelData[y * pitch / sizeof(uint32)]);
             }
         }
 

@@ -102,6 +102,12 @@ struct FPoint2D {
     float x, y;
 };
 
+/// @brief A rectangle specification using unsigned integers for the top-left origin coordinate and the dimensions.
+struct IRect {
+    uint32 x, y;
+    uint32 w, h;
+};
+
 /// @brief A rectangle specification using floating point values for the top-left origin coordinate and the dimensions.
 struct FRect {
     float x, y;
@@ -127,10 +133,8 @@ enum class TextureFilterMode {
 };
 
 /// @brief A texture identifier, used for operations with textures on a graphics context.
-using TextureID = uint64;
-
-/// @brief Sentinel value representing an invalid texture identifier.
-inline constexpr TextureID kInvalidTextureID = 0xFFFFFFFF'FFFFFFFFull;
+/// This ID is immutable for the lifetime of the texture, even when resized.
+using TextureID = uintptr_t;
 
 /// @brief Texture format specifications.
 struct Texture2DSpec {
