@@ -10,7 +10,7 @@
 #include <memory>
 #include <string>
 
-namespace app::gfxv2 {
+namespace app::gfx {
 
 /// @brief Contains the error message received when attempting to perform an operation with a graphics object.
 struct GfxOperationError {
@@ -37,4 +37,4 @@ using GfxValueResult = util::Result<T, GfxOperationError>;
 /// @brief Convenience wrapper for graphics operations that don't return a value, but may generate errors.
 using GfxResult = util::Result<void, GfxOperationError>;
 
-} // namespace app::gfxv2
+} // namespace app::gfx

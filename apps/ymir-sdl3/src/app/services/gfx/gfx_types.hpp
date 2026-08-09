@@ -1,6 +1,8 @@
 #pragma once
 
-namespace app::gfxv2 {
+#include <ymir/core/types.hpp>
+
+namespace app::gfx {
 
 #ifdef _WIN32
     #define YMIR_PLATFORM_HAS_DIRECT3D
@@ -15,7 +17,7 @@ namespace app::gfxv2 {
 
 /// @brief Graphics backend options.
 enum class Backend {
-    Default,
+    Null,
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
     Direct3D11,
     Direct3D12,
@@ -29,8 +31,9 @@ enum class Backend {
     SDLRenderer,
 };
 
+/// @brief A list of all backends available on this host system.
 inline constexpr Backend kGraphicsBackends[] = {
-    Backend::Default,
+    Backend::Null,
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
     Backend::Direct3D11,  Backend::Direct3D12,
 #endif
@@ -43,9 +46,25 @@ inline constexpr Backend kGraphicsBackends[] = {
     Backend::SDLRenderer,
 };
 
+/// @brief The preferred default backend for this host system.
+inline constexpr Backend kDefaultBackend =
+#if defined(YMIR_PLATFORM_HAS_DIRECT3D)
+    Backend::Direct3D12;
+#elif defined(YMIR_PLATFORM_HAS_METAL)
+    Backend::Metal;
+#elif defined(YMIR_PLATFORM_HAS_VULKAN)
+    Backend::Vulkan;
+#else
+    Backend::SDLRenderer;
+#endif
+
+/// @brief Retrieves a human-readable name for the backend.
+/// @param[in] backend the backend type
+/// @return the backend name
 inline constexpr const char *GraphicsBackendName(Backend backend) {
     switch (backend) {
-    case Backend::Default: return "Default";
+    default: [[fallthrough]];
+    case Backend::Null: return "Null";
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return "Direct3D 11";
     case Backend::Direct3D12: return "Direct3D 12";
@@ -57,8 +76,58 @@ inline constexpr const char *GraphicsBackendName(Backend backend) {
     case Backend::Vulkan: return "Vulkan";
 #endif
     case Backend::SDLRenderer: return "SDL Renderer";
-    default: return "Default";
     }
 }
 
-} // namespace app::gfxv2
+// -----------------------------------------------------------------------------
+
+/// @brief Graphics presentation modes.
+enum class PresentMode {
+    VSync,    ///< Synchronize to vertical retrace
+    Adaptive, ///< Adjusts display refresh rate to match presentation speed (variable refresh rate)
+    Mailbox,  ///< Presents immediately; may or may not tear
+};
+
+enum class PixelFormat {
+    Unknown,
+
+    XBGR8888,
+    ABGR8888,
+
+    // TODO: add formats as needed
+};
+
+enum class TextureAccess {
+    Static,       ///< Texture data uploaded on creation, cannot be changed later
+    Streaming,    ///< Texture data can be changed at any point
+    RenderTarget, ///< Texture can be used as render target
+};
+
+enum class TextureFilterMode {
+    Nearest,
+    Linear,
+};
+
+/// @brief A point's coordinates in 2D space using floating point values.
+struct FPoint2D {
+    float x, y;
+};
+
+/// @brief A rectangle specification using floating point values for the top-left origin coordinate and the dimensions.
+struct FRect {
+    float x, y;
+    float w, h;
+};
+
+/// @brief A texture identifier, used for operations with textures on a graphics context.
+using TextureID = uint64;
+
+/// @brief Sentinel value representing an invalid texture identifier.
+inline constexpr TextureID kInvalidTextureID = 0xFFFFFFFF'FFFFFFFFull;
+
+/// @brief RGBA color specification.
+struct ColorRGBA {
+    float r, g, b, a;
+};
+
+} // namespace app::gfx

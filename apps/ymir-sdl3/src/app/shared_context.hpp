@@ -8,7 +8,7 @@
 #include <app/rom_manager.hpp>
 #include <app/update_checker.hpp>
 
-#include <app/services/graphics_types.hpp>
+#include <app/services/gfx/gfx_gui_types.hpp>
 
 #include <app/input/input_context.hpp>
 #include <app/input/input_utils.hpp>
@@ -294,15 +294,11 @@ struct SharedContext {
         std::mutex mtxFramebuffer;
         bool updated = false;
 
-        void CopyFramebufferToTexture(SDL_Texture *texture) {
-            uint32 *pixels = nullptr;
-            int pitch = 0;
+        void CopyFramebufferToTexture(void *data, size_t pitch) {
+            auto byteData = static_cast<char *>(data);
             SDL_Rect area{.x = 0, .y = 0, .w = (int)width, .h = (int)height};
-            if (SDL_LockTexture(texture, &area, (void **)&pixels, &pitch)) {
-                for (uint32 y = 0; y < height; y++) {
-                    std::copy_n(&framebuffers[1][y * width], width, &pixels[y * pitch / sizeof(uint32)]);
-                }
-                SDL_UnlockTexture(texture);
+            for (uint32 y = 0; y < height; y++) {
+                std::copy_n(&framebuffers[1][y * width], width, &byteData[y * pitch]);
             }
         }
 
@@ -775,7 +771,7 @@ struct SharedContext {
 
     struct Images {
         struct Image {
-            gfx::TextureHandle texture = gfx::kInvalidTextureHandle;
+            gfx::GUITextureHandle texture = gfx::kInvalidGUITextureHandle;
             ImVec2 size;
         };
 

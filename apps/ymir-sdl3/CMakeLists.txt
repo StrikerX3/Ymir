@@ -62,7 +62,6 @@ add_executable(ymir-sdl3
 
     src/app/services/graphics_service.cpp
     src/app/services/graphics_service.hpp
-    src/app/services/graphics_types.hpp
     src/app/services/midi_service.cpp
     src/app/services/midi_service.hpp
     src/app/services/midi_types.hpp
@@ -94,9 +93,10 @@ add_executable(ymir-sdl3
     src/app/services/window_manager_service.hpp
 
     src/app/services/gfx/gfx_context.hpp
-    src/app/services/gfx/gfx_context_factory.hpp
-    src/app/services/gfx/gfx_context_factory_sdl_renderer.cpp
+    src/app/services/gfx/gfx_context_impl_null.hpp
+    src/app/services/gfx/gfx_context_impl_sdl_renderer.cpp
     src/app/services/gfx/gfx_context_impl_sdl_renderer.hpp
+    src/app/services/gfx/gfx_gui_types.hpp
     src/app/services/gfx/gfx_result.hpp
     src/app/services/gfx/gfx_types.hpp
 
@@ -414,9 +414,9 @@ add_executable(ymir::ymir-sdl3 ALIAS ymir-sdl3)
 ## Add platform-specific graphics context implementations
 if (WIN32)
     target_sources(ymir-sdl3 PRIVATE
-        src/app/services/gfx/gfx_context_factory_d3d11.cpp
-        src/app/services/gfx/gfx_context_factory_d3d12.cpp
+        src/app/services/gfx/gfx_context_impl_d3d11.cpp
         src/app/services/gfx/gfx_context_impl_d3d11.hpp
+        src/app/services/gfx/gfx_context_impl_d3d12.cpp
         src/app/services/gfx/gfx_context_impl_d3d12.hpp
     )
 endif ()
@@ -424,14 +424,14 @@ endif ()
 ## TODO: find Vulkan (optional), add if available, set compiler flag indicating its presence
 #if (VULKAN_AVAILABLE)
     target_sources(ymir-sdl3 PRIVATE
-        src/app/services/gfx/gfx_context_factory_vulkan.cpp
+        src/app/services/gfx/gfx_context_impl_vulkan.cpp
         src/app/services/gfx/gfx_context_impl_vulkan.hpp
     )
 #endif ()
 
 if (APPLE)
     target_sources(ymir-sdl3 PRIVATE
-        src/app/services/gfx/gfx_context_factory_metal.cpp
+        src/app/services/gfx/gfx_context_impl_metal.cpp
         src/app/services/gfx/gfx_context_impl_metal.hpp
     )
 endif ()
