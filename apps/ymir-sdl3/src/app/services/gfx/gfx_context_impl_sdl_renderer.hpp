@@ -6,7 +6,6 @@
 #include <SDL3/SDL_render.h>
 
 #include <unordered_map>
-#include <vector>
 
 namespace app::gfx {
 

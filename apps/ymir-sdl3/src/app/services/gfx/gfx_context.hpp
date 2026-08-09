@@ -5,6 +5,9 @@
 
 #include <imgui.h>
 
+#include <functional>
+#include <vector>
+
 namespace app::gfx {
 
 /// @brief Interface for platform graphics contexts.
