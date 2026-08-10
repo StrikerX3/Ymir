@@ -12,6 +12,9 @@ DebugLayer::~DebugLayer() {
 
 bool DebugLayer::Init() {
 #ifndef NDEBUG
+    if (IsEnabled()) {
+        return true;
+    }
     if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(m_d3d12Debug.put())))) {
         return false;
     }
@@ -27,6 +30,9 @@ bool DebugLayer::Init() {
 
 void DebugLayer::Shutdown() {
 #ifndef NDEBUG
+    if (!IsEnabled()) {
+        return;
+    }
     ReportLiveObjects();
     m_dxgiDebug.reset();
     m_d3d12Debug.reset();

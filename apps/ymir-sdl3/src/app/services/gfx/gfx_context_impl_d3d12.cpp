@@ -2,21 +2,184 @@
 
 #include "gfx_context_spec_d3d12.hpp"
 
+#include <ymir/gpu/d3d12/d3d12_debug.hpp>
+#include <ymir/gpu/d3d12/d3d12_descriptor_heap.hpp>
+#include <ymir/gpu/d3d12/d3d12_device.hpp>
+#include <ymir/gpu/d3d12/d3d12_fence.hpp>
+#include <ymir/gpu/d3d12/d3d12_pipeline_state.hpp>
+#include <ymir/gpu/d3d12/d3d12_resource.hpp>
+#include <ymir/gpu/d3d12/d3d12_swap_chain.hpp>
+
 #include <d3d12.h>
 
 #include <wil/com.h>
 
+#include <fmt/format.h>
+
+#include <array>
+
+using namespace ymir::gpu::d3d12;
+
 namespace app::gfx {
 
 struct Direct3D12GraphicsContext::Impl {
-    util::VoidResult<> Create(const Direct3D12GraphicsContextSpec &spec) {
-        // TODO: create objects; handle errors
+    static constexpr UINT kFrameCount = 3;
 
-        // return {};
-        return util::ErrorMessage{"Unimplemented"};
+    struct FrameContext {
+        D3D12Resource renderTarget;
+        D3D12CommandAllocator cmdAlloc;
+        FenceCounter fenceCounter;
+    };
+
+    D3D12Device device;
+    D3D12CommandQueue cmdQueue;
+    D3D12CommandAllocator cmdAlloc;
+    D3D12GraphicsCommandList cmdList;
+    D3D12SwapChain swapchain;
+    D3D12DescriptorHeap rtvHeap;
+    D3D12DescriptorHeap resourceHeap; // for user-created textures
+    D3D12PipelineState pipelineState;
+    D3D12Fence fence;
+    FenceCounter fenceCounter;
+    std::array<FrameContext, kFrameCount> frames;
+
+    UINT frameIndex = 0;
+
+    util::VoidResult<> Create(const Direct3D12GraphicsContextSpec &spec) {
+        if (spec.hwnd == nullptr) {
+            return util::ErrorMessage{"No window handle provided to Direct3D 12 specification"};
+        }
+
+        RECT windowRect;
+        if (!GetClientRect(spec.hwnd, &windowRect)) {
+            return util::ErrorMessage{"Could not get window client area size"};
+        }
+
+        DebugLayer &debugLayer = DebugLayer::Get();
+
+        UINT dxgiFactoryFlags = 0;
+        if (debugLayer.Init() && debugLayer.IsEnabled()) {
+            dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+        }
+
+        if (FAILED(device.Create(nullptr, spec.featureLevel))) {
+            return util::ErrorMessage{"Failed to create device"};
+        }
+        debugLayer.BreakOnWarnings(device.GetPointer(), true);
+        device->SetName(L"[Ymir] D3D12 device");
+
+        if (FAILED(cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
+            return util::ErrorMessage{"Failed to create command queue"};
+        }
+
+        // Create synchronization object
+        if (FAILED(fence.Create(device, 0, D3D12_FENCE_FLAG_NONE))) {
+            return util::ErrorMessage{"Failed to create fence"};
+        }
+        fence->SetName(L"[Ymir-GCtx] Fence");
+        fenceCounter.Bind(fence);
+
+        DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+        swapChainDesc.BufferCount = kFrameCount;
+        swapChainDesc.Width = windowRect.right;
+        swapChainDesc.Height = windowRect.bottom;
+        swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+        swapChainDesc.SampleDesc.Count = 1;
+        swapChainDesc.Scaling = DXGI_SCALING_NONE;
+        swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+        if (!swapchain.Create(dxgiFactoryFlags, cmdQueue.GetPointer(), swapChainDesc, spec.hwnd, kFrameCount)) {
+            return util::ErrorMessage{"Failed to create swapchain"};
+        }
+        frameIndex = swapchain->GetCurrentBackBufferIndex();
+
+        // Create descriptor heaps
+        {
+            D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+            rtvHeapDesc.NumDescriptors = kFrameCount;
+            rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+            rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+            if (FAILED(rtvHeap.Create(device, rtvHeapDesc))) {
+                return util::ErrorMessage{"Failed to create RTV descriptor heap"};
+            }
+            rtvHeap->SetName(L"[Ymir-GCtx] RTV heap");
+
+            D3D12_DESCRIPTOR_HEAP_DESC resourceHeapDesc{};
+            resourceHeapDesc.NumDescriptors = 2;
+            resourceHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+            resourceHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+            if (FAILED(resourceHeap.Create(device, resourceHeapDesc))) {
+                return util::ErrorMessage{"Failed to create CBV/SRV/UAV heap"};
+            }
+            resourceHeap->SetName(L"[Ymir-GCtx] CBV/SRV/UAV heap");
+        }
+
+        // Create frame resources
+        {
+            D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap.GetCPUStart());
+
+            // Create a RTV for each frame
+            for (UINT n = 0; n < kFrameCount; n++) {
+                ID3D12Resource *resource;
+                if (FAILED(swapchain->GetBuffer(n, IID_PPV_ARGS(&resource)))) {
+                    return util::ErrorMessage{fmt::format("Failed to get swapchain buffer {}", n)};
+                }
+                if (FAILED(frames[n].cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
+                    return util::ErrorMessage{
+                        fmt::format("Failed to create command allocator for swapchain frame #{}", n)};
+                }
+                device->CreateRenderTargetView(resource, nullptr, rtvHandle);
+                resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
+                frames[n].renderTarget.Attach(resource);
+                frames[n].fenceCounter.Bind(fence);
+                rtvHandle.ptr += rtvHeap.GetDescriptorSize();
+            }
+        }
+
+        // Create command allocator and list
+        if (FAILED(cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
+            return util::ErrorMessage{"Failed to create main command allocator"};
+        }
+        if (FAILED(cmdList.Create(device, cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
+            return util::ErrorMessage{"Failed to create command list"};
+        }
+        cmdList->Close();
+        cmdAlloc->SetName(L"[Ymir-GCtx] Command allocator");
+        cmdList->SetName(L"[Ymir-GCtx] Command list");
+
+        return {};
     }
 
-    wil::com_ptr_nothrow<ID3D12Device> device;
+    util::VoidResult<> WaitForGPU() {
+        FenceCounter &fenceCounter = frames[frameIndex].fenceCounter;
+
+        // Schedule a signal command in the queue and wait for it
+        if (FAILED(fenceCounter.Signal(cmdQueue))) {
+            return util::ErrorMessage{"Failed to signal fence"};
+        }
+        fenceCounter.Wait(INFINITE);
+
+        return {};
+    }
+
+    util::VoidResult<> MoveToNextFrame() {
+        FenceCounter &fenceCounter = frames[frameIndex].fenceCounter;
+
+        // Schedule a signal command in the queue
+        if (FAILED(fenceCounter.Signal(cmdQueue))) {
+            return util::ErrorMessage{"Failed to signal fence"};
+        }
+
+        // If the next frame is not ready to be rendered yet, wait until it is ready
+        if (fence.GetCompletedValue() < fenceCounter.GetCounter()) {
+            fenceCounter.Wait(INFINITE);
+        }
+
+        frameIndex = swapchain->GetCurrentBackBufferIndex();
+
+        return {};
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -124,7 +287,7 @@ util::VoidResult<> Direct3D12GraphicsContext::Present() {
 }
 
 wil::com_ptr_nothrow<ID3D12Device> Direct3D12GraphicsContext::GetDevice() const {
-    return m_impl->device;
+    return m_impl->device.GetPointer();
 }
 
 } // namespace app::gfx

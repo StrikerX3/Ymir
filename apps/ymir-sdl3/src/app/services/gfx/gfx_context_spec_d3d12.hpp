@@ -21,19 +21,23 @@ This separation limits DirectX and Windows headers inclusion scope on the code b
 namespace app::gfx {
 
 struct Direct3D12GraphicsContextSpec {
+    /// @brief (Required) Target feature level.
+    D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
+
+    /// @brief (Required) Pointer to window
+    HWND hwnd = nullptr;
+
+    /// @brief (Optional) Target adapter. Defaults to the primary display adapter on the system if not specified.
+    IUnknown *adapter = nullptr;
+
+    /// @brief Debug parameters.
     struct Debug {
         /// @brief Enables debug diagnostics.
         bool enabled = false;
 
         /// @brief Enters the debugger on all DirectX warnings.
-        bool breakOnWarinings = false;
+        bool breakOnWarnings = false;
     } debug;
-
-    /// @brief Target feature level.
-    D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
-
-    /// @brief Target adapter. Defaults to the primary display adapter on the system if not specified.
-    IUnknown *adapter = nullptr;
 };
 
 } // namespace app::gfx

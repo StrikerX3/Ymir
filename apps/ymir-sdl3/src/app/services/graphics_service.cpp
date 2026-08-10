@@ -39,6 +39,20 @@ static util::ObjectResult<IGraphicsContext> ConvertResult(util::ObjectResult<T> 
     return std::unique_ptr<IGraphicsContext>{result.Value()};
 }
 
+#if YMIR_PLATFORM_HAS_DIRECT3D
+    #ifdef NDEBUG
+        #define YMIR_D3D_ENABLE_DEBUG true
+    #else
+        #define YMIR_D3D_ENABLE_DEBUG false
+    #endif
+
+static HWND GetWindowHWND(SDL_Window *window) {
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    void *ptr = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
+    return static_cast<HWND>(ptr);
+}
+#endif
+
 util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
     switch (backend) {
     case Backend::Null:
@@ -46,7 +60,18 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx:
         return util::ErrorMessage{"Cannot initialize the null backend"};
 #if YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return ConvertResult(Direct3D11GraphicsContext::Create({/*TODO*/}));
-    case Backend::Direct3D12: return ConvertResult(Direct3D12GraphicsContext::Create({/*TODO*/}));
+    case Backend::Direct3D12:
+        return ConvertResult(Direct3D12GraphicsContext::Create({
+            .featureLevel = D3D_FEATURE_LEVEL_11_0,
+            .hwnd = GetWindowHWND(window),
+            .adapter = nullptr,
+            .debug =
+                {
+                    // TODO: make this externally configurable?
+                    .enabled = YMIR_D3D_ENABLE_DEBUG,
+                    .breakOnWarnings = YMIR_D3D_ENABLE_DEBUG,
+                },
+        }));
 #endif
 #if YMIR_PLATFORM_HAS_VULKAN
     case Backend::Vulkan: return ConvertResult(VulkanGraphicsContext::Create({/*TODO*/}));
