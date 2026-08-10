@@ -1,7 +1,6 @@
 #include "graphics_service.hpp"
 
-#include "gfx/gfx_context_impl_null.hpp"
-#include "gfx/gfx_context_impl_sdl_renderer.hpp"
+#include "gfx/gfx_context_impls.hpp"
 
 using namespace app::gfx;
 
@@ -13,31 +12,40 @@ GraphicsService::GraphicsService()
 GraphicsService::~GraphicsService() {}
 
 GfxResult GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
+    auto result = CreateGraphicsContext(backend, window);
+    if (!result) {
+        return result.Error();
+    }
+    m_gfxContext = result.Value();
+    m_gfxContext->SetPresentMode(presentMode);
+    return {};
+}
+
+template <typename T>
+static GfxObjectResult<IGraphicsContext> ConvertResult(GfxObjectResult<T> &&result) {
+    if (!result) {
+        return result.Error();
+    }
+    return std::unique_ptr<IGraphicsContext>{result.Value()};
+}
+
+GfxObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
     switch (backend) {
     case Backend::Null:
         // Use DestroyGraphicsContext instead
         return GfxOperationError{"Cannot initialize the null backend"};
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
-    case Backend::Direct3D11: return GfxOperationError{"Unimplemented"};
-    case Backend::Direct3D12: return GfxOperationError{"Unimplemented"};
+    case Backend::Direct3D11: return ConvertResult(Direct3D11GraphicsContext::Create({/*TODO*/}));
+    case Backend::Direct3D12: return ConvertResult(Direct3D12GraphicsContext::Create({/*TODO*/}));
 #endif
 #ifdef YMIR_PLATFORM_HAS_VULKAN
-    case Backend::Vulkan: return GfxOperationError{"Unimplemented"};
+    case Backend::Vulkan: return ConvertResult(VulkanGraphicsContext::Create({/*TODO*/}));
 #endif
 #ifdef YMIR_PLATFORM_HAS_METAL
-    case Backend::Metal: return GfxOperationError{"Unimplemented"};
+    case Backend::Metal: return ConvertResult(MetalGraphicsContext::Create({/*TODO*/}));
 #endif
-    case Backend::SDLRenderer: //
-    {
-        auto result = SDLRendererGraphicsContext::Create({.window = window});
-        if (!result) {
-            return result.Error();
-        }
-        m_gfxContext = result.Value();
+    case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = window}));
     }
-    }
-    m_gfxContext->SetPresentMode(presentMode);
-    return {};
 }
 
 void GraphicsService::DestroyGraphicsContext() {

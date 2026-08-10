@@ -20,12 +20,17 @@ public:
     ~GraphicsService();
 
     /// @brief Initializes a graphics context.
+    /// `gfx::Backend::Null` cannot be created this way. Use `DestroyGraphicsContext()` to use it.
     /// @param[in] backend the graphics backend
     /// @param[in] window the window on which to render graphics
     /// @param[in] presentMode the initial presentation mode
     /// @return nothing on success, an error message on failure
     gfx::GfxResult InitGraphicsContext(gfx::Backend backend, SDL_Window *window, gfx::PresentMode presentMode);
 
+private:
+    gfx::GfxObjectResult<gfx::IGraphicsContext> CreateGraphicsContext(gfx::Backend backend, SDL_Window *window);
+
+public:
     /// @brief Destroys the graphics context, effectively replacing it with a null context.
     void DestroyGraphicsContext();
 
