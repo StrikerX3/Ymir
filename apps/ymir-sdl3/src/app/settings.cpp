@@ -197,17 +197,17 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, gfx::Backend &
     if (auto opt = node.value<std::string>()) {
         if (*opt == "Default"s) {
             value = gfx::kDefaultBackend;
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+#if YMIR_PLATFORM_HAS_DIRECT3D
         } else if (*opt == "Direct3D11"s) {
             value = gfx::Backend::Direct3D11;
         } else if (*opt == "Direct3D12"s) {
             value = gfx::Backend::Direct3D12;
 #endif
-#ifdef YMIR_PLATFORM_HAS_METAL
+#if YMIR_PLATFORM_HAS_METAL
         } else if (*opt == "Metal"s) {
             value = gfx::Backend::Metal;
 #endif
-#ifdef YMIR_PLATFORM_HAS_VULKAN
+#if YMIR_PLATFORM_HAS_VULKAN
         } else if (*opt == "Vulkan"s) {
             value = gfx::Backend::Vulkan;
 #endif
@@ -459,14 +459,14 @@ FORCE_INLINE static const char *ToTOML(const Settings::GUI::FrameRateOSDPosition
 FORCE_INLINE static const char *ToTOML(const gfx::Backend value) {
     switch (value) {
     default: [[fallthrough]];
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+#if YMIR_PLATFORM_HAS_DIRECT3D
     case gfx::Backend::Direct3D11: return "Direct3D11";
     case gfx::Backend::Direct3D12: return "Direct3D12";
 #endif
-#ifdef YMIR_PLATFORM_HAS_METAL
+#if YMIR_PLATFORM_HAS_METAL
     case gfx::Backend::Metal: return "Metal";
 #endif
-#ifdef YMIR_PLATFORM_HAS_VULKAN
+#if YMIR_PLATFORM_HAS_VULKAN
     case gfx::Backend::Vulkan: return "Vulkan";
 #endif
     case gfx::Backend::SDLRenderer: return "SDLRenderer";

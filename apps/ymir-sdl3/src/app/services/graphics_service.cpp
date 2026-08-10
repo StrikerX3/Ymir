@@ -34,14 +34,14 @@ GfxObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Ba
     case Backend::Null:
         // Use DestroyGraphicsContext instead
         return GfxOperationError{"Cannot initialize the null backend"};
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+#if YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return ConvertResult(Direct3D11GraphicsContext::Create({/*TODO*/}));
     case Backend::Direct3D12: return ConvertResult(Direct3D12GraphicsContext::Create({/*TODO*/}));
 #endif
-#ifdef YMIR_PLATFORM_HAS_VULKAN
+#if YMIR_PLATFORM_HAS_VULKAN
     case Backend::Vulkan: return ConvertResult(VulkanGraphicsContext::Create({/*TODO*/}));
 #endif
-#ifdef YMIR_PLATFORM_HAS_METAL
+#if YMIR_PLATFORM_HAS_METAL
     case Backend::Metal: return ConvertResult(MetalGraphicsContext::Create({/*TODO*/}));
 #endif
     case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = window}));

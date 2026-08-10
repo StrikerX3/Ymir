@@ -52,7 +52,7 @@ add_library(ymir-core
     include/ymir/hw/scsp/scsp.hpp
     include/ymir/hw/scsp/scsp_callbacks.hpp
     include/ymir/hw/scsp/scsp_defs.hpp
-	include/ymir/hw/scsp/scsp_midi_defs.hpp
+    include/ymir/hw/scsp/scsp_midi_defs.hpp
     include/ymir/hw/scsp/scsp_dsp.hpp
     include/ymir/hw/scsp/scsp_dsp_instr.hpp
     include/ymir/hw/scsp/scsp_internal_callbacks.hpp
@@ -364,6 +364,8 @@ if (WIN32)
     )
 endif ()
 
+find_package(Vulkan)
+
 
 # Build precompiled header
 target_precompile_headers(ymir-core
@@ -445,6 +447,9 @@ target_compile_definitions(ymir-core PUBLIC "Ymir_ENABLE_DEVLOG=$<BOOL:${Ymir_EN
 target_compile_definitions(ymir-core PUBLIC "Ymir_DEV_ASSERTIONS=$<BOOL:${Ymir_ENABLE_DEV_ASSERTIONS}>")
 target_compile_definitions(ymir-core PUBLIC "Ymir_DEV_BUILD=$<BOOL:${Ymir_DEV_BUILD}>")
 target_compile_definitions(ymir-core PUBLIC "Ymir_EXTRA_INLINING=$<BOOL:${Ymir_EXTRA_INLINING}>")
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_DIRECT3D=$<BOOL:${WIN32}>")
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_VULKAN=$<BOOL:${Vulkan_FOUND}>")
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_METAL=$<BOOL:${APPLE}>")
 target_compile_definitions(ymir-core PUBLIC "TOML_EXCEPTIONS=0")
 
 ## Define feature flags macros

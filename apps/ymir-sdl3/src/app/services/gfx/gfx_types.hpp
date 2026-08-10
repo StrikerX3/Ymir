@@ -1,7 +1,5 @@
 #pragma once
 
-#include "gfx_defs.hpp"
-
 #include <ymir/core/types.hpp>
 
 namespace app::gfx {
@@ -9,14 +7,14 @@ namespace app::gfx {
 /// @brief Graphics backend options.
 enum class Backend {
     Null,
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+#if YMIR_PLATFORM_HAS_DIRECT3D
     Direct3D11,
     Direct3D12,
 #endif
-#ifdef YMIR_PLATFORM_HAS_METAL
+#if YMIR_PLATFORM_HAS_METAL
     Metal,
 #endif
-#ifdef YMIR_PLATFORM_HAS_VULKAN
+#if YMIR_PLATFORM_HAS_VULKAN
     Vulkan,
 #endif
     SDLRenderer,
@@ -25,13 +23,13 @@ enum class Backend {
 /// @brief A list of all backends available on this host system.
 inline constexpr Backend kGraphicsBackends[] = {
     Backend::Null,
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+#if YMIR_PLATFORM_HAS_DIRECT3D
     Backend::Direct3D11,  Backend::Direct3D12,
 #endif
-#ifdef YMIR_PLATFORM_HAS_METAL
+#if YMIR_PLATFORM_HAS_METAL
     Backend::Metal,
 #endif
-#ifdef YMIR_PLATFORM_HAS_VULKAN
+#if YMIR_PLATFORM_HAS_VULKAN
     Backend::Vulkan,
 #endif
     Backend::SDLRenderer,
@@ -56,14 +54,14 @@ inline constexpr const char *GraphicsBackendName(Backend backend) {
     switch (backend) {
     default: [[fallthrough]];
     case Backend::Null: return "Null";
-#ifdef YMIR_PLATFORM_HAS_DIRECT3D
+#if YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return "Direct3D 11";
     case Backend::Direct3D12: return "Direct3D 12";
 #endif
-#ifdef YMIR_PLATFORM_HAS_METAL
+#if YMIR_PLATFORM_HAS_METAL
     case Backend::Metal: return "Metal";
 #endif
-#ifdef YMIR_PLATFORM_HAS_VULKAN
+#if YMIR_PLATFORM_HAS_VULKAN
     case Backend::Vulkan: return "Vulkan";
 #endif
     case Backend::SDLRenderer: return "SDL Renderer";
