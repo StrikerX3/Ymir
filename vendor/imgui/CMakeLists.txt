@@ -24,9 +24,40 @@ add_library(imgui
 	imgui/misc/cpp/imgui_stdlib.cpp
 	imgui/misc/cpp/imgui_stdlib.h
 )
+
 if (Ymir_ENABLE_IMGUI_DEMO)
 	target_sources(imgui PRIVATE
 		imgui/imgui_demo.cpp
+	)
+endif ()
+
+## Add graphics backends for each platform
+if (WIN32)
+	target_sources(imgui
+		PRIVATE
+			imgui/backends/imgui_impl_dx11.cpp
+			imgui/backends/imgui_impl_dx12.cpp
+		PUBLIC
+			imgui/backends/imgui_impl_dx11.h
+			imgui/backends/imgui_impl_dx12.h
+	)
+elseif (APPLE)
+	target_sources(imgui
+		PRIVATE
+			imgui/backends/imgui_impl_metal.mm
+		PUBLIC
+			imgui/backends/imgui_impl_metal.h
+	)
+endif ()
+
+## Add Vulkan if installed on the system
+find_package(Vulkan)
+if (Vulkan_FOUND)
+	target_sources(imgui
+		PRIVATE
+			imgui/backends/imgui_impl_vulkan.cpp
+		PUBLIC
+			imgui/backends/imgui_impl_vulkan.h
 	)
 endif ()
 
@@ -51,3 +82,6 @@ target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="ymir_imconfig.h")
 find_package(SDL3 CONFIG REQUIRED)
 
 target_link_libraries(imgui PRIVATE SDL3::SDL3)
+if (Vulkan_FOUND)
+	target_link_libraries(imgui PRIVATE Vulkan::Vulkan)
+endif ()
