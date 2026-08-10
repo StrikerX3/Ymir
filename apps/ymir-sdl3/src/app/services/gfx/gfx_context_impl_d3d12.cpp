@@ -4,11 +4,15 @@
 
 #include <ymir/gpu/d3d12/d3d12_debug.hpp>
 #include <ymir/gpu/d3d12/d3d12_descriptor_heap.hpp>
+#include <ymir/gpu/d3d12/d3d12_descriptor_heap_allocator.hpp>
 #include <ymir/gpu/d3d12/d3d12_device.hpp>
 #include <ymir/gpu/d3d12/d3d12_fence.hpp>
 #include <ymir/gpu/d3d12/d3d12_pipeline_state.hpp>
 #include <ymir/gpu/d3d12/d3d12_resource.hpp>
 #include <ymir/gpu/d3d12/d3d12_swap_chain.hpp>
+
+#include <backends/imgui_impl_dx12.h>
+#include <backends/imgui_impl_sdl3.h>
 
 #include <d3d12.h>
 
@@ -23,8 +27,12 @@ using namespace ymir::gpu::d3d12;
 namespace app::gfx {
 
 struct Direct3D12GraphicsContext::Impl {
-    Impl(const Direct3D12GraphicsContextSpec &spec)
+    explicit Impl(const Direct3D12GraphicsContextSpec &spec)
         : spec(spec) {}
+
+    ~Impl() {
+        Shutdown();
+    }
 
     static constexpr UINT kFrameCount = 3;
 
@@ -42,21 +50,29 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12GraphicsCommandList cmdList;
     D3D12SwapChain swapchain;
     D3D12DescriptorHeap rtvHeap;
-    D3D12DescriptorHeap resourceHeap; // for user-created textures
+    D3D12DescriptorHeap resourceHeap; // for user-created and ImGui textures
+    DescriptorHeapAllocator resourceHeapAlloc;
     D3D12PipelineState pipelineState;
     D3D12Fence fence;
     FenceCounter fenceCounter;
     std::array<FrameContext, kFrameCount> frames;
 
     UINT frameIndex = 0;
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
 
     util::VoidResult<> Init() {
-        if (spec.hwnd == nullptr) {
-            return util::ErrorMessage{"No window handle provided to Direct3D 12 specification"};
+        if (spec.window == nullptr) {
+            return util::ErrorMessage{"No window provided to Direct3D 12 specification"};
+        }
+
+        SDL_PropertiesID windowProps = SDL_GetWindowProperties(spec.window);
+        auto hwnd = static_cast<HWND>(SDL_GetPointerProperty(windowProps, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+        if (hwnd == nullptr) {
+            return util::ErrorMessage{"Could not get window handle"};
         }
 
         RECT windowRect;
-        if (!GetClientRect(spec.hwnd, &windowRect)) {
+        if (!GetClientRect(hwnd, &windowRect)) {
             return util::ErrorMessage{"Could not get window client area size"};
         }
 
@@ -94,7 +110,7 @@ struct Direct3D12GraphicsContext::Impl {
         swapChainDesc.SampleDesc.Count = 1;
         swapChainDesc.Scaling = DXGI_SCALING_NONE;
         swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-        if (!swapchain.Create(dxgiFactoryFlags, cmdQueue.GetPointer(), swapChainDesc, spec.hwnd, kFrameCount)) {
+        if (!swapchain.Create(dxgiFactoryFlags, cmdQueue.GetPointer(), swapChainDesc, hwnd, kFrameCount)) {
             return util::ErrorMessage{"Failed to create swapchain"};
         }
         frameIndex = swapchain->GetCurrentBackBufferIndex();
@@ -118,6 +134,8 @@ struct Direct3D12GraphicsContext::Impl {
                 return util::ErrorMessage{"Failed to create CBV/SRV/UAV heap"};
             }
             resourceHeap->SetName(L"[Ymir-GCtx] CBV/SRV/UAV heap");
+
+            resourceHeapAlloc.Bind(resourceHeap);
         }
 
         // Create frame resources
@@ -153,8 +171,7 @@ struct Direct3D12GraphicsContext::Impl {
         cmdAlloc->SetName(L"[Ymir-GCtx] Command allocator");
         cmdList->SetName(L"[Ymir-GCtx] Command list");
 
-        // return {};
-        return util::ErrorMessage{"Unimplemented"};
+        return {};
     }
 
     void Shutdown() {
@@ -170,6 +187,7 @@ struct Direct3D12GraphicsContext::Impl {
         cmdList.Destroy();
         cmdAlloc.Destroy();
         cmdQueue.Destroy();
+        resourceHeapAlloc.Unbind();
         resourceHeap.Destroy();
         rtvHeap.Destroy();
         swapchain.Destroy();
@@ -178,6 +196,127 @@ struct Direct3D12GraphicsContext::Impl {
 
     bool IsInitialized() const {
         return device.IsValid();
+    }
+
+    util::VoidResult<> BeginFrame() {
+        ymir::gpu::d3d12::D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
+
+        if (FAILED(cmdAlloc->Reset())) {
+            return util::ErrorMessage{"Failed to reset command allocator"};
+        }
+        if (FAILED(cmdList->Reset(cmdAlloc.GetPointer(), pipelineState.GetPointer()))) {
+            return util::ErrorMessage{"Failed to reset command list"};
+        }
+
+        ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
+        cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
+
+        // Indicate that the back buffer will be used as a render target
+        if (auto *list7 = cmdList.As7()) {
+            D3D12_TEXTURE_BARRIER barrier{
+                .SyncBefore = D3D12_BARRIER_SYNC_NONE,
+                .SyncAfter = D3D12_BARRIER_SYNC_RENDER_TARGET,
+                .AccessBefore = D3D12_BARRIER_ACCESS_NO_ACCESS,
+                .AccessAfter = D3D12_BARRIER_ACCESS_RENDER_TARGET,
+                .LayoutBefore = D3D12_BARRIER_LAYOUT_COMMON,
+                .LayoutAfter = D3D12_BARRIER_LAYOUT_RENDER_TARGET,
+                .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                .Subresources =
+                    {
+                        .IndexOrFirstMipLevel = 0,
+                        .NumMipLevels = 1,
+                        .FirstArraySlice = 0,
+                        .NumArraySlices = 1,
+                        .FirstPlane = 0,
+                        .NumPlanes = 1,
+                    },
+                .Flags = D3D12_TEXTURE_BARRIER_FLAG_DISCARD,
+            };
+            const D3D12_BARRIER_GROUP group{
+                .Type = D3D12_BARRIER_TYPE_TEXTURE,
+                .NumBarriers = 1,
+                .pTextureBarriers = &barrier,
+            };
+            list7->Barrier(1, &group);
+        } else {
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .Transition =
+                    {
+                        .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                        .Subresource = 0,
+                        .StateBefore = D3D12_RESOURCE_STATE_PRESENT,
+                        .StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    },
+            };
+            cmdList->ResourceBarrier(1, &barrier);
+        }
+
+        rtvHandle = rtvHeap.GetCPUStart();
+        rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * rtvHeap.GetDescriptorSize();
+        cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+        return {};
+    }
+
+    util::VoidResult<> EndFrame() {
+        if (auto *list7 = cmdList.As7()) {
+            D3D12_TEXTURE_BARRIER barrier{
+                .SyncBefore = D3D12_BARRIER_SYNC_RENDER_TARGET,
+                .SyncAfter = D3D12_BARRIER_SYNC_NONE,
+                .AccessBefore = D3D12_BARRIER_ACCESS_RENDER_TARGET,
+                .AccessAfter = D3D12_BARRIER_ACCESS_NO_ACCESS,
+                .LayoutBefore = D3D12_BARRIER_LAYOUT_RENDER_TARGET,
+                .LayoutAfter = D3D12_BARRIER_LAYOUT_COMMON,
+                .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                .Subresources =
+                    {
+                        .IndexOrFirstMipLevel = 0,
+                        .NumMipLevels = 1,
+                        .FirstArraySlice = 0,
+                        .NumArraySlices = 1,
+                        .FirstPlane = 0,
+                        .NumPlanes = 1,
+                    },
+                .Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE,
+            };
+            const D3D12_BARRIER_GROUP group{
+                .Type = D3D12_BARRIER_TYPE_TEXTURE,
+                .NumBarriers = 1,
+                .pTextureBarriers = &barrier,
+            };
+            list7->Barrier(1, &group);
+        } else {
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .Transition =
+                    {
+                        .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                        .Subresource = 0,
+                        .StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET,
+                        .StateAfter = D3D12_RESOURCE_STATE_PRESENT,
+                    },
+            };
+            cmdList->ResourceBarrier(1, &barrier);
+        }
+
+        if (FAILED(cmdList->Close())) {
+            return util::ErrorMessage{"Failed to close command list"};
+        }
+
+        return {};
+    }
+
+    util::VoidResult<> Present() {
+        ID3D12CommandList *ppCommandLists[] = {cmdList.GetPointer()};
+        cmdQueue->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
+
+        // TODO: honor selected presentation mode
+        swapchain->Present(1, 0);
+
+        return MoveToNextFrame();
     }
 
     util::VoidResult<> WaitForGPU() {
@@ -241,25 +380,65 @@ bool Direct3D12GraphicsContext::IsInitialized() const {
     return m_impl->IsInitialized();
 }
 
+util::VoidResult<> Direct3D12GraphicsContext::ResizeFramebuffer(uint32 width, uint32 height) {
+    // TODO: destroy and recreate swap chain resources
+    return util::ErrorMessage{"Unimplemented"};
+}
+
+util::VoidResult<> Direct3D12GraphicsContext::BeginFrame() {
+    return m_impl->BeginFrame();
+}
+
+util::VoidResult<> Direct3D12GraphicsContext::EndFrame() {
+    return m_impl->EndFrame();
+}
+
 void Direct3D12GraphicsContext::ClearScreen(gfx::ColorRGBA color) {
-    // TODO: enqueue command to clear screen
+    const float clearColor[] = {color.r, color.g, color.b, color.a};
+    m_impl->cmdList->ClearRenderTargetView(m_impl->rtvHandle, clearColor, 0, nullptr);
 }
 
 bool Direct3D12GraphicsContext::ImGuiInit() {
-    // TODO: invoke the appropriate ImGui_Impl*_Init* functions
-    return false;
+    if (!m_imguiInitialized) {
+        ImGui_ImplDX12_InitInfo initInfo{};
+        initInfo.Device = m_impl->device.GetPointer();
+        initInfo.CommandQueue = m_impl->cmdQueue.GetPointer();
+        initInfo.NumFramesInFlight = Impl::kFrameCount;
+        initInfo.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
+        initInfo.UserData = m_impl.get();
+        initInfo.SrvDescriptorHeap = m_impl->resourceHeap.GetPointer();
+        initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo *info, D3D12_CPU_DESCRIPTOR_HANDLE *out_cpu_handle,
+                                           D3D12_GPU_DESCRIPTOR_HANDLE *out_gpu_handle) {
+            auto &impl = *static_cast<Impl *>(info->UserData);
+            UINT index;
+            impl.resourceHeapAlloc.Allocate(*out_cpu_handle, *out_gpu_handle, index);
+        };
+        initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo *info, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle,
+                                          D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) {
+            auto &impl = *static_cast<Impl *>(info->UserData);
+            UINT index = impl.resourceHeapAlloc.GetIndex(cpu_handle);
+            impl.resourceHeapAlloc.Free(index);
+        };
+        m_imguiInitialized =                                  //
+            ImGui_ImplSDL3_InitForD3D(m_impl->spec.window) && //
+            ImGui_ImplDX12_Init(&initInfo);
+    }
+    return m_imguiInitialized;
 }
 
 void Direct3D12GraphicsContext::ImGuiShutdown() {
-    // TODO: invoke the appropriate ImGui_Impl*_Shutdown* functions
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
 }
 
 void Direct3D12GraphicsContext::ImGuiNewFrame() {
-    // TODO: invoke the appropriate ImGui_Impl*_NewFrame functions
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
 }
 
 void Direct3D12GraphicsContext::ImGuiRenderFrame() {
-    // TODO: invoke the appropriate ImGui_Impl*_RenderDrawData function
+    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_impl->cmdList.GetPointer());
 }
 
 util::ValueResult<TextureID> Direct3D12GraphicsContext::CreateTexture(const Texture2DSpec &spec) {
@@ -318,8 +497,7 @@ util::VoidResult<> Direct3D12GraphicsContext::SetPresentMode(PresentMode mode) {
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::Present() {
-    // TODO: present next frame and wait for vertical retrace if enabled
-    return util::ErrorMessage{"Unimplemented"};
+    return m_impl->Present();
 }
 
 wil::com_ptr_nothrow<ID3D12Device> Direct3D12GraphicsContext::GetDevice() const {

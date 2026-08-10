@@ -46,18 +46,13 @@ static util::ObjectResult<IGraphicsContext> ConvertResult(util::ObjectResult<T> 
     return std::unique_ptr<IGraphicsContext>{result.Value()};
 }
 
+// TODO: make this externally configurable?
 #if YMIR_PLATFORM_HAS_DIRECT3D
     #ifdef NDEBUG
         #define YMIR_D3D_ENABLE_DEBUG true
     #else
         #define YMIR_D3D_ENABLE_DEBUG false
     #endif
-
-static HWND GetWindowHWND(SDL_Window *window) {
-    SDL_PropertiesID props = SDL_GetWindowProperties(window);
-    void *ptr = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr);
-    return static_cast<HWND>(ptr);
-}
 #endif
 
 util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
@@ -70,11 +65,10 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx:
     case Backend::Direct3D12:
         return ConvertResult(Direct3D12GraphicsContext::Create({
             .featureLevel = D3D_FEATURE_LEVEL_11_0,
-            .hwnd = GetWindowHWND(window),
+            .window = window,
             .adapter = nullptr,
             .debug =
                 {
-                    // TODO: make this externally configurable?
                     .enabled = YMIR_D3D_ENABLE_DEBUG,
                     .breakOnWarnings = YMIR_D3D_ENABLE_DEBUG,
                 },
@@ -93,6 +87,22 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx:
 
 void GraphicsService::DestroyGraphicsContext() {
     m_gfxContext = std::make_unique<NullGraphicsContext>();
+}
+
+util::VoidResult<> GraphicsService::ResizeFramebuffer(uint32 width, uint32 height) {
+    return m_gfxContext->ResizeFramebuffer(width, height);
+}
+
+util::VoidResult<> GraphicsService::BeginFrame() {
+    return m_gfxContext->BeginFrame();
+}
+
+util::VoidResult<> GraphicsService::EndFrame() {
+    return m_gfxContext->EndFrame();
+}
+
+void GraphicsService::ClearScreen(ColorRGBA color) {
+    m_gfxContext->ClearScreen(color);
 }
 
 bool GraphicsService::ImGuiInit() {
@@ -115,10 +125,6 @@ void GraphicsService::ImGuiRenderFrame() {
     if (m_imguiInitialized) {
         m_gfxContext->ImGuiRenderFrame();
     }
-}
-
-void GraphicsService::ClearScreen(ColorRGBA color) {
-    m_gfxContext->ClearScreen(color);
 }
 
 util::ValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec,

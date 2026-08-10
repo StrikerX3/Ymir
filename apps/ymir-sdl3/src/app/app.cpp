@@ -1625,7 +1625,9 @@ void App::RunEmulator() {
                     m_displayService.PersistWindowGeometry();
                 }
                 break;
-            case SDL_EVENT_WINDOW_RESIZED: [[fallthrough]];
+            case SDL_EVENT_WINDOW_RESIZED:
+                m_graphicsService.ResizeFramebuffer(evt.window.data1, evt.window.data2);
+                [[fallthrough]];
             case SDL_EVENT_WINDOW_MOVED: m_displayService.PersistWindowGeometry(); break;
 
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
@@ -3099,6 +3101,8 @@ void App::RunEmulator() {
 
         ImGui::Render();
 
+        m_graphicsService.BeginFrame();
+
         // Clear screen
         m_graphicsService.ClearScreen(clearColor);
 
@@ -3263,6 +3267,7 @@ void App::RunEmulator() {
         // Render ImGui widgets
         m_graphicsService.ImGuiRenderFrame();
 
+        m_graphicsService.EndFrame();
         m_graphicsService.Present();
 
         // Process ImGui INI file write requests

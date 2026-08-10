@@ -5,7 +5,7 @@
 @brief Defines `DescriptorHeapAllocator`, an object that manages descriptor heap allocations in a `D3D12DescriptorHeap`.
 */
 
-#include <ymir/gpu/api/d3d12/wrappers/d3d12_descriptor_heap.hpp>
+#include "d3d12_descriptor_heap.hpp"
 
 #include <d3d12.h>
 

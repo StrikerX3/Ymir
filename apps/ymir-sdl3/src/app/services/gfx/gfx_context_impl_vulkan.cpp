@@ -24,6 +24,21 @@ bool VulkanGraphicsContext::IsInitialized() const {
     return false;
 }
 
+util::VoidResult<> VulkanGraphicsContext::ResizeFramebuffer(uint32 width, uint32 height) {
+    // TODO: destroy and recreate swap chain resources
+    return util::ErrorMessage{"Unimplemented"};
+}
+
+util::VoidResult<> VulkanGraphicsContext::BeginFrame() {
+    // TODO: start a new frame (open command list, submit initial context setup, etc.)
+    return util::ErrorMessage{"Unimplemented"};
+}
+
+util::VoidResult<> VulkanGraphicsContext::EndFrame() {
+    // TODO: end current frame (finish/wait for pending operations, close command list)
+    return util::ErrorMessage{"Unimplemented"};
+}
+
 void VulkanGraphicsContext::ClearScreen(gfx::ColorRGBA color) {
     // TODO: enqueue command to clear screen
 }

@@ -21,6 +21,11 @@ public:
     void Shutdown() override;
     bool IsInitialized() const override;
 
+    util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height) override;
+
+    util::VoidResult<> BeginFrame() override;
+    util::VoidResult<> EndFrame() override;
+
     void ClearScreen(gfx::ColorRGBA color) override;
 
     bool ImGuiInit() override;

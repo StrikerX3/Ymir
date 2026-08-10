@@ -66,6 +66,18 @@ public:
         return nullptr;
     }
 
+    /// @brief Resizes the framebuffer to the specified dimensions.
+    /// @param[in] width the new framebuffer width
+    /// @param[in] height the new framebuffer height
+    /// @return nothing on success, an error message on failure
+    virtual util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height) = 0;
+
+    /// @brief Begins a new frame.
+    virtual util::VoidResult<> BeginFrame() = 0;
+
+    /// @brief Ends the current frame.
+    virtual util::VoidResult<> EndFrame() = 0;
+
     /// @brief Clears the screen with the specified color.
     /// @param[in] color the clear color
     virtual void ClearScreen(ColorRGBA color) = 0;
@@ -77,10 +89,10 @@ public:
     /// @brief Shuts down ImGui.
     virtual void ImGuiShutdown() = 0;
 
-    /// @brief Starts a new ImGui frame
+    /// @brief Starts a new ImGui frame.
     virtual void ImGuiNewFrame() = 0;
 
-    /// @brief Renders the current ImGui frame
+    /// @brief Renders the current ImGui frame.
     virtual void ImGuiRenderFrame() = 0;
 
     /// @brief Creates a 2D texture.

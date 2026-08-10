@@ -14,6 +14,8 @@ This separation limits DirectX and Windows headers inclusion scope on the code b
     #define NOMINMAX
 #endif
 
+#include <SDL3/SDL_video.h>
+
 #include <d3dcommon.h>
 
 #include <Windows.h>
@@ -24,8 +26,8 @@ struct Direct3D12GraphicsContextSpec {
     /// @brief (Required) Target feature level.
     D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
 
-    /// @brief (Required) Pointer to window
-    HWND hwnd = nullptr;
+    /// @brief (Required) Pointer to SDL3 window
+    SDL_Window *window = nullptr;
 
     /// @brief (Optional) Target adapter. Defaults to the primary display adapter on the system if not specified.
     IUnknown *adapter = nullptr;

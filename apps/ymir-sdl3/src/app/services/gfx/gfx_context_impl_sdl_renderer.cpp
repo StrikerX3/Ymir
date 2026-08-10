@@ -89,6 +89,21 @@ bool SDLRendererGraphicsContext::IsInitialized() const {
     return m_renderer != nullptr;
 }
 
+util::VoidResult<> SDLRendererGraphicsContext::ResizeFramebuffer(uint32 width, uint32 height) {
+    // Nothing to do here. SDL Renderer handles this internally when the window resize event is processed.
+    return {};
+}
+
+util::VoidResult<> SDLRendererGraphicsContext::BeginFrame() {
+    // Nothing to do here. SDL Renderer handles frame boundaries in Present().
+    return {};
+}
+
+util::VoidResult<> SDLRendererGraphicsContext::EndFrame() {
+    // Nothing to do here. SDL Renderer handles frame boundaries in Present().
+    return {};
+}
+
 void SDLRendererGraphicsContext::ClearScreen(gfx::ColorRGBA color) {
     SDL_SetRenderDrawColorFloat(m_renderer, color.r, color.g, color.b, color.a);
     SDL_RenderClear(m_renderer);

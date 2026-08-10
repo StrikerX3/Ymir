@@ -50,6 +50,22 @@ public:
         return *m_gfxContext;
     }
 
+    /// @brief Resizes the framebuffer to the specified dimensions.
+    /// @param[in] width the new framebuffer width
+    /// @param[in] height the new framebuffer height
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height);
+
+    /// @brief Begins a new frame.
+    util::VoidResult<> BeginFrame();
+
+    /// @brief Ends the current frame.
+    util::VoidResult<> EndFrame();
+
+    /// @brief Clears the screen with the specified color.
+    /// @param[in] color the clear color
+    void ClearScreen(gfx::ColorRGBA color);
+
     /// @brief Initializes ImGui using the current graphics context.
     /// @return `true` if ImGui was initialized successfully, `false` on failure
     bool ImGuiInit();
@@ -63,10 +79,6 @@ public:
 
     /// @brief Renders the current ImGui frame.
     void ImGuiRenderFrame();
-
-    /// @brief Clears the screen with the specified color.
-    /// @param[in] color the clear color
-    void ClearScreen(gfx::ColorRGBA color);
 
     /// @brief Creates and registers a 2D texture.
     /// Once created, the texture is automatically recreated when the backend is changed through.
