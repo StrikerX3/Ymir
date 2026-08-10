@@ -879,9 +879,10 @@ void App::RunEmulator() {
         // Recreate render target texture if scale changed
         if (scale != screen.fbScale) {
             screen.fbScale = scale;
-            if (!m_graphicsService.ResizeTexture(dispTexture, vdp::kMaxResH * screen.fbScale,
-                                                 vdp::kMaxResV * screen.fbScale)) {
-                devlog::warn<grp::base>("Failed to resize framebuffer texture: {}", SDL_GetError());
+            auto result = m_graphicsService.ResizeTexture(dispTexture, vdp::kMaxResH * screen.fbScale,
+                                                          vdp::kMaxResV * screen.fbScale);
+            if (!result) {
+                devlog::warn<grp::base>("Failed to resize framebuffer texture: {}", result.Error().message);
             }
         }
 
@@ -892,7 +893,6 @@ void App::RunEmulator() {
                            .w = (float)screen.width * screen.fbScale,
                            .h = (float)screen.height * screen.fbScale};
 
-        // from, to, srcRect, dstRect
         m_graphicsService.RenderToTexture(swFbTexture, dispTexture, srcRect, dstRect);
     };
 
