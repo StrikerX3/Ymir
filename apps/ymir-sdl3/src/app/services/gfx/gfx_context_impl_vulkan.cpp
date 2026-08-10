@@ -4,6 +4,9 @@
 
 namespace app::gfx {
 
+VulkanGraphicsContext::VulkanGraphicsContext()
+    : IGraphicsContext(kBackend) {}
+
 GfxObjectResult<VulkanGraphicsContext> VulkanGraphicsContext::Create(const VulkanGraphicsContextSpec &spec) {
     return GfxOperationError{"Unimplemented"};
 }

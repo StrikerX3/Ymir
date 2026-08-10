@@ -40,6 +40,13 @@ public:
         return m_gfxContext->GetBackend();
     }
 
+    /// @brief Retrieves a reference to the currently instantiated graphics context.
+    /// This is intended to grant access to low-level graphics API objects where needed.
+    /// @return a reference to the graphics context
+    const gfx::IGraphicsContext &GetGraphicsContext() const {
+        return *m_gfxContext;
+    }
+
     /// @brief Initializes ImGui using the current graphics context.
     /// @return `true` if ImGui was initialized successfully, `false` on failure
     bool ImGuiInit();

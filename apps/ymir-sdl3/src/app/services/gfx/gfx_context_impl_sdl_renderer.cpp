@@ -48,8 +48,10 @@ static SDL_ScaleMode ToSDL3Value(TextureFilterMode mode) {
     }
 }
 
+// -----------------------------------------------------------------------------
+
 SDLRendererGraphicsContext::SDLRendererGraphicsContext(SDL_Window *window, SDL_Renderer *renderer)
-    : IGraphicsContext(Backend::SDLRenderer)
+    : IGraphicsContext(kBackend)
     , m_window(window)
     , m_renderer(renderer) {}
 

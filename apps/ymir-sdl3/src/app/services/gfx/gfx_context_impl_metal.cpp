@@ -4,6 +4,9 @@
 
 namespace app::gfx {
 
+MetalGraphicsContext::MetalGraphicsContext()
+    : IGraphicsContext(kBackend) {}
+
 GfxObjectResult<MetalGraphicsContext> MetalGraphicsContext::Create(const MetalGraphicsContextSpec &spec) {
     return GfxOperationError{"Unimplemented"};
 }

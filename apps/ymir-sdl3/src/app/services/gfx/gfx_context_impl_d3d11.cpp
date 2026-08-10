@@ -4,6 +4,9 @@
 
 namespace app::gfx {
 
+Direct3D11GraphicsContext::Direct3D11GraphicsContext()
+    : IGraphicsContext(kBackend) {}
+
 GfxObjectResult<Direct3D11GraphicsContext>
 Direct3D11GraphicsContext::Create(const Direct3D11GraphicsContextSpec &spec) {
     return GfxOperationError{"Unimplemented"};

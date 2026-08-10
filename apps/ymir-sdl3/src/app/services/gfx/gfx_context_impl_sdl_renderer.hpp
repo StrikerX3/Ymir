@@ -18,6 +18,8 @@ struct SDLRendererGraphicsContextSpec {
 /// APIs are supported by the host system.
 class SDLRendererGraphicsContext final : public IGraphicsContext {
 public:
+    static constexpr Backend kBackend = Backend::SDLRenderer;
+
     SDLRendererGraphicsContext(SDL_Window *window, SDL_Renderer *renderer);
     ~SDLRendererGraphicsContext();
 

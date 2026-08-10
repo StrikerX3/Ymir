@@ -6,8 +6,10 @@ namespace app::gfx {
 
 class NullGraphicsContext final : public IGraphicsContext {
 public:
+    static constexpr Backend kBackend = Backend::Null;
+
     NullGraphicsContext()
-        : IGraphicsContext(Backend::Null) {}
+        : IGraphicsContext(kBackend) {}
 
     void ClearScreen(gfx::ColorRGBA color) override {}
 

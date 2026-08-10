@@ -9,6 +9,10 @@ struct Direct3D12GraphicsContextSpec {};
 
 class Direct3D12GraphicsContext final : public IGraphicsContext {
 public:
+    static constexpr Backend kBackend = Backend::Direct3D12;
+
+    Direct3D12GraphicsContext();
+
     /// @brief Creates a Direct3D 12 graphics context.
     /// @param[in] spec the backend specifications
     /// @return the graphics context instance or an error message

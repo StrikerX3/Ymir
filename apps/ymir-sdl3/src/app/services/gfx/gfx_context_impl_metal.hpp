@@ -9,6 +9,10 @@ struct MetalGraphicsContextSpec {};
 
 class MetalGraphicsContext final : public IGraphicsContext {
 public:
+    static constexpr Backend kBackend = Backend::Metal;
+
+    MetalGraphicsContext();
+
     /// @brief Creates a Metal graphics context.
     /// @param[in] spec the backend specifications
     /// @return the graphics context instance or an error message

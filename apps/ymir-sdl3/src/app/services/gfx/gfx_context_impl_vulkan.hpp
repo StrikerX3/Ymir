@@ -9,6 +9,10 @@ struct VulkanGraphicsContextSpec {};
 
 class VulkanGraphicsContext final : public IGraphicsContext {
 public:
+    static constexpr Backend kBackend = Backend::Vulkan;
+
+    VulkanGraphicsContext();
+
     /// @brief Creates a Vulkan graphics context.
     /// @param[in] spec the backend specifications
     /// @return the graphics context instance or an error message

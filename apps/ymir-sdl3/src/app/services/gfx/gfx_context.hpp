@@ -27,6 +27,32 @@ public:
         return m_backend;
     }
 
+    /// @brief Dynamically cases the object to the specified target type.
+    /// @tparam T the target type, derived from `TBase`
+    /// @return this object cast to `T` if it is of that type, `nullptr` otherwise
+    template <typename T>
+        requires std::derived_from<T, IGraphicsContext> &&
+                 std::same_as<Backend, std::decay_t<std::remove_cvref_t<decltype(T::kBackend)>>>
+    T *As() {
+        if (T::kBackend == m_backend) {
+            return static_cast<T *>(this);
+        }
+        return nullptr;
+    }
+
+    /// @brief Dynamically cases the object to the specified target type.
+    /// @tparam T the target type, derived from `TBase`
+    /// @return this object cast to `T` if it is of that type, `nullptr` otherwise
+    template <typename T>
+        requires std::derived_from<T, IGraphicsContext> &&
+                 std::same_as<Backend, std::decay_t<std::remove_cvref_t<decltype(T::kBackend)>>>
+    const T *As() const {
+        if (T::kBackend == m_backend) {
+            return static_cast<const T *>(this);
+        }
+        return nullptr;
+    }
+
     /// @brief Clears the screen with the specified color.
     /// @param[in] color the clear color
     virtual void ClearScreen(ColorRGBA color) = 0;
