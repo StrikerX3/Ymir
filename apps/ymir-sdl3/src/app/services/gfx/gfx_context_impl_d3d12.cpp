@@ -50,11 +50,12 @@ struct Direct3D12GraphicsContext::Impl {
     DescriptorHeapAllocator resourceHeapAlloc;
     D3D12PipelineState pipelineState;
     D3D12Fence fence;
-    UINT64 fenceValue;
     std::array<FrameContext, kFrameCount> frames;
 
     UINT frameIndex = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+    D3D12_VIEWPORT viewport;
+    D3D12_RECT scissorRect;
 
     PresentMode presentMode = PresentMode::VSync;
 
@@ -73,6 +74,16 @@ struct Direct3D12GraphicsContext::Impl {
         if (!GetClientRect(hwnd, &windowRect)) {
             return util::ErrorMessage{"Could not get window client area size"};
         }
+
+        viewport.TopLeftX = 0.0f;
+        viewport.TopLeftY = 0.0f;
+        viewport.Width = windowRect.right;
+        viewport.Height = windowRect.bottom;
+
+        scissorRect.left = 0;
+        scissorRect.top = 0;
+        scissorRect.right = windowRect.right;
+        scissorRect.bottom = windowRect.bottom;
 
         DebugLayer &debugLayer = DebugLayer::Get();
 
@@ -96,7 +107,6 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{"Failed to create fence"};
         }
         fence->SetName(L"[Ymir-GCtx] Fence");
-        fenceValue = 0;
 
         DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
         swapChainDesc.BufferCount = kFrameCount;
@@ -174,13 +184,6 @@ struct Direct3D12GraphicsContext::Impl {
         return {};
     }
 
-    void WaitForAllOperations() {
-        WaitForGPU();
-        if (SUCCEEDED(fence.Signal(cmdQueue, ++fenceValue))) {
-            fence.Wait(INFINITE, fenceValue);
-        }
-    }
-
     void Shutdown() {
         for (UINT n = 0; n < kFrameCount; n++) {
             frames[n].renderTarget.Destroy();
@@ -202,6 +205,46 @@ struct Direct3D12GraphicsContext::Impl {
         return device.IsValid();
     }
 
+    util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height) {
+        // Wait for frames to complete and destroy RTVs
+        UINT64 currFenceValue = frames[frameIndex].fenceValue;
+        for (UINT n = 0; n < kFrameCount; n++) {
+            if (FAILED(fence.Signal(cmdQueue, ++currFenceValue))) {
+                return util::ErrorMessage{"Failed to signal fence before resizing swapchain buffers"};
+            }
+            fence.Wait(INFINITE, currFenceValue);
+            frames[n].renderTarget.Destroy();
+        }
+
+        // Resize swapchain buffers
+        if (FAILED(swapchain.ResizeBuffers(width, height))) {
+            return util::ErrorMessage{"Failed to resize swapchain buffers"};
+        }
+        frameIndex = swapchain->GetCurrentBackBufferIndex();
+
+        // Recreate RTVs
+        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap.GetCPUStart());
+        for (UINT n = 0; n < kFrameCount; n++) {
+            ID3D12Resource *resource;
+            if (FAILED(swapchain->GetBuffer(n, IID_PPV_ARGS(&resource)))) {
+                return util::ErrorMessage{fmt::format("Failed to get swapchain buffer {}", n)};
+            }
+            device->CreateRenderTargetView(resource, nullptr, rtvHandle);
+            resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
+            frames[n].renderTarget.Attach(resource);
+            frames[n].fenceValue = 0;
+            rtvHandle.ptr += rtvHeap.GetDescriptorSize();
+        }
+
+        // Update viewport and scissor rects
+        viewport.Width = width;
+        viewport.Height = height;
+        scissorRect.right = width;
+        scissorRect.bottom = height;
+
+        return {};
+    }
+
     util::VoidResult<> BeginFrame() {
         ymir::gpu::d3d12::D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
 
@@ -214,6 +257,9 @@ struct Direct3D12GraphicsContext::Impl {
 
         ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
         cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
+
+        cmdList->RSSetViewports(1, &viewport);
+        cmdList->RSSetScissorRects(1, &scissorRect);
 
         // Indicate that the back buffer will be used as a render target
         if (auto *list7 = cmdList.As7()) {
@@ -404,7 +450,7 @@ util::VoidResult<> Direct3D12GraphicsContext::Initialize() {
 
 void Direct3D12GraphicsContext::Shutdown() {
     if (m_impl->IsInitialized()) {
-        m_impl->WaitForAllOperations();
+        m_impl->WaitForGPU();
         ImGuiShutdown();
         m_impl->Shutdown();
     }
@@ -415,8 +461,7 @@ bool Direct3D12GraphicsContext::IsInitialized() const {
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::ResizeFramebuffer(uint32 width, uint32 height) {
-    // TODO: destroy and recreate swap chain resources
-    return util::ErrorMessage{"Unimplemented"};
+    return m_impl->ResizeFramebuffer(width, height);
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::BeginFrame() {
