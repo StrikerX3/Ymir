@@ -51,7 +51,6 @@ elseif (APPLE)
 endif ()
 
 ## Add Vulkan if installed on the system
-find_package(Vulkan)
 if (Vulkan_FOUND)
 	target_sources(imgui
 		PRIVATE

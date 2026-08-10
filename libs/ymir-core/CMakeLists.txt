@@ -392,8 +392,13 @@ if (WIN32)
     )
 endif ()
 
-find_package(Vulkan)
-# TODO: Add Vulkan dependency when needed
+if (Vulkan_FOUND)
+    message(STATUS "Adding Vulkan to ymir-core")
+    target_link_libraries(ymir-core PRIVATE
+        Vulkan::Vulkan
+        Vulkan::SPIRV-Tools
+    )
+endif ()
 
 
 # Build precompiled header
