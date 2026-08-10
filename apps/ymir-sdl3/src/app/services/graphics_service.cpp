@@ -110,17 +110,21 @@ void GraphicsService::ClearScreen(ColorRGBA color) {
 
 util::ValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec,
                                                                    FnTextureSetup &&fnSetup) {
-    auto result = m_gfxContext->CreateTexture(spec);
-    if (!result) {
-        return result.Error();
+    auto createResult = m_gfxContext->CreateTexture(spec);
+    if (!createResult) {
+        return util::ErrorMessage{fmt::format("Failed to create texture: {}", createResult.Error().message)};
     }
 
     const GUITextureHandle handle = GetNextTextureHandle();
     Texture2DInstance &texture = m_textures[handle];
-    texture.id = result.Value();
+    texture.id = createResult.Value();
     texture.spec = spec;
     texture.fnSetup = std::move(fnSetup);
-    UpdateTexture(handle, nullptr, [&](void *data, size_t pitch) { texture.fnSetup(handle, false, data, pitch); });
+    auto updateResult = m_gfxContext->UpdateTexture(
+        texture.id, nullptr, [&](void *data, size_t pitch) { texture.fnSetup(handle, false, data, pitch); });
+    if (!updateResult) {
+        return util::ErrorMessage{fmt::format("Failed to upload texture: {}", updateResult.Error().message)};
+    }
     return handle;
 }
 
