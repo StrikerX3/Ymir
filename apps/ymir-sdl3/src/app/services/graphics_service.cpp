@@ -14,7 +14,9 @@ GraphicsService::~GraphicsService() {}
 
 GfxResult GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
     switch (backend) {
-    case Backend::Null: return GfxOperationError{"The null backend should not be initialized directly"};
+    case Backend::Null:
+        // Use DestroyGraphicsContext instead
+        return GfxOperationError{"Cannot initialize the null backend"};
 #ifdef YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return GfxOperationError{"Unimplemented"};
     case Backend::Direct3D12: return GfxOperationError{"Unimplemented"};
