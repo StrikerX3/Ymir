@@ -72,9 +72,10 @@ inline constexpr const char *GraphicsBackendName(Backend backend) {
 
 /// @brief Graphics presentation modes.
 enum class PresentMode {
-    VSync,    ///< Synchronize to vertical retrace
-    Adaptive, ///< Adjusts display refresh rate to match presentation speed (variable refresh rate)
-    Mailbox,  ///< Presents immediately; may or may not tear
+    VSync,    ///< Enqueues all frames and synchronizes to vertical retrace.
+    Mailbox,  ///< Stores in a mailbox the latest frame to be presented. May or may not synchronize to vertical retrace.
+    Adaptive, ///< Adjusts display refresh rate to match presentation speed (variable refresh rate).
+    NoSync,   ///< Presents frames without synchronization.
 };
 
 enum class PixelFormat {

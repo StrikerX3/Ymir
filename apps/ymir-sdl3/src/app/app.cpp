@@ -1748,6 +1748,9 @@ void App::RunEmulator() {
                         // context is successfully created. We're safe to initialize ImGui here without a prior
                         // shutdown.
                         m_graphicsService.ImGuiInit();
+
+                        m_context.DisplayMessage(
+                            fmt::format("{} initialized successfully", gfx::GraphicsBackendName(backend)));
                     } else {
                         m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
                                                              gfx::GraphicsBackendName(backend),

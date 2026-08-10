@@ -37,7 +37,7 @@ struct Direct3D12GraphicsContext::Impl {
     struct FrameContext {
         D3D12Resource renderTarget;
         D3D12CommandAllocator cmdAlloc;
-        FenceCounter fenceCounter;
+        UINT64 fenceValue;
     };
 
     D3D12Device device;
@@ -50,11 +50,13 @@ struct Direct3D12GraphicsContext::Impl {
     DescriptorHeapAllocator resourceHeapAlloc;
     D3D12PipelineState pipelineState;
     D3D12Fence fence;
-    FenceCounter fenceCounter;
+    UINT64 fenceValue;
     std::array<FrameContext, kFrameCount> frames;
 
     UINT frameIndex = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+
+    PresentMode presentMode = PresentMode::VSync;
 
     util::VoidResult<> Init() {
         if (spec.window == nullptr) {
@@ -94,7 +96,7 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{"Failed to create fence"};
         }
         fence->SetName(L"[Ymir-GCtx] Fence");
-        fenceCounter.Bind(fence);
+        fenceValue = 0;
 
         DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
         swapChainDesc.BufferCount = kFrameCount;
@@ -153,7 +155,7 @@ struct Direct3D12GraphicsContext::Impl {
                 device->CreateRenderTargetView(resource, nullptr, rtvHandle);
                 resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
                 frames[n].renderTarget.Attach(resource);
-                frames[n].fenceCounter.Bind(fence);
+                frames[n].fenceValue = 0;
                 rtvHandle.ptr += rtvHeap.GetDescriptorSize();
             }
         }
@@ -174,20 +176,13 @@ struct Direct3D12GraphicsContext::Impl {
 
     void WaitForAllOperations() {
         WaitForGPU();
-        if (SUCCEEDED(fenceCounter.Signal(cmdQueue))) {
-            fenceCounter.Wait(INFINITE);
-        }
-        for (UINT n = 0; n < kFrameCount; n++) {
-            if (SUCCEEDED(frames[n].fenceCounter.Signal(cmdQueue))) {
-                frames[n].fenceCounter.Wait(INFINITE);
-            }
+        if (SUCCEEDED(fence.Signal(cmdQueue, ++fenceValue))) {
+            fence.Wait(INFINITE, fenceValue);
         }
     }
 
     void Shutdown() {
-        fenceCounter.Unbind();
         for (UINT n = 0; n < kFrameCount; n++) {
-            frames[n].fenceCounter.Unbind();
             frames[n].renderTarget.Destroy();
             frames[n].cmdAlloc.Destroy();
         }
@@ -325,38 +320,59 @@ struct Direct3D12GraphicsContext::Impl {
         ID3D12CommandList *ppCommandLists[] = {cmdList.GetPointer()};
         cmdQueue->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
 
-        // TODO: honor selected presentation mode
-        swapchain->Present(1, 0);
+        // NOTE: VSync and Mailbox both wait for vertical retrace to present a frame. The difference is that enqueuing
+        // frames in Mailbox mode replaces the next pending frame while VSync stores and presents all frames. As a
+        // result, Mailbox has smaller perceived input lag.
+        //
+        // The swap chain is created with the DXGI_SWAP_EFFECT_FLIP_DISCARD flag, enabling Mailbox mode. Switching modes
+        // involves destroying and recreating the entire swap chain, which doesn't seem to be worth the effort. Instead,
+        // we'll treat VSync and Mailbox as the same mode.
+
+        switch (presentMode) {
+        default: [[fallthrough]];
+        case PresentMode::VSync: swapchain->Present(1, 0); break;
+        case PresentMode::Mailbox: swapchain->Present(1, 0); break;
+        case PresentMode::Adaptive:
+            swapchain->Present(0, swapchain.IsTearingSupported() ? DXGI_PRESENT_ALLOW_TEARING : 0);
+            break;
+        case PresentMode::NoSync: swapchain->Present(0, 0); break;
+        }
 
         return MoveToNextFrame();
     }
 
     util::VoidResult<> WaitForGPU() {
-        FenceCounter &fenceCounter = frames[frameIndex].fenceCounter;
-
-        // Schedule a signal command in the queue and wait for it
-        if (FAILED(fenceCounter.Signal(cmdQueue))) {
+        // Schedule a signal command in the queue
+        if (FAILED(fence.Signal(cmdQueue, frames[frameIndex].fenceValue))) {
             return util::ErrorMessage{"Failed to signal fence"};
         }
-        fenceCounter.Wait(INFINITE);
+
+        // Wait until the fence has been processed
+        fence.Wait(INFINITE, frames[frameIndex].fenceValue);
+
+        // Increment the fence value for the current frame
+        frames[frameIndex].fenceValue++;
 
         return {};
     }
 
     util::VoidResult<> MoveToNextFrame() {
-        FenceCounter &fenceCounter = frames[frameIndex].fenceCounter;
-
         // Schedule a signal command in the queue
-        if (FAILED(fenceCounter.Signal(cmdQueue))) {
+        const UINT64 currentFenceValue = frames[frameIndex].fenceValue;
+        if (FAILED(fence.Signal(cmdQueue, currentFenceValue))) {
             return util::ErrorMessage{"Failed to signal fence"};
         }
 
+        // Update the frame index
+        frameIndex = swapchain->GetCurrentBackBufferIndex();
+
         // If the next frame is not ready to be rendered yet, wait until it is ready
-        if (fence.GetCompletedValue() < fenceCounter.GetCounter()) {
-            fenceCounter.Wait(INFINITE);
+        if (fence->GetCompletedValue() < frames[frameIndex].fenceValue) {
+            fence.Wait(INFINITE, frames[frameIndex].fenceValue);
         }
 
-        frameIndex = swapchain->GetCurrentBackBufferIndex();
+        // Set the fence value for the next frame
+        frames[frameIndex].fenceValue = currentFenceValue + 1;
 
         return {};
     }
@@ -387,9 +403,11 @@ util::VoidResult<> Direct3D12GraphicsContext::Initialize() {
 }
 
 void Direct3D12GraphicsContext::Shutdown() {
-    m_impl->WaitForAllOperations();
-    ImGuiShutdown();
-    m_impl->Shutdown();
+    if (m_impl->IsInitialized()) {
+        m_impl->WaitForAllOperations();
+        ImGuiShutdown();
+        m_impl->Shutdown();
+    }
 }
 
 bool Direct3D12GraphicsContext::IsInitialized() const {
@@ -415,31 +433,34 @@ void Direct3D12GraphicsContext::ClearScreen(gfx::ColorRGBA color) {
 }
 
 bool Direct3D12GraphicsContext::ImGuiInit() {
-    if (!m_imguiInitialized) {
-        ImGui_ImplDX12_InitInfo initInfo{};
-        initInfo.Device = m_impl->device.GetPointer();
-        initInfo.CommandQueue = m_impl->cmdQueue.GetPointer();
-        initInfo.NumFramesInFlight = Impl::kFrameCount;
-        initInfo.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-        initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
-        initInfo.UserData = m_impl.get();
-        initInfo.SrvDescriptorHeap = m_impl->resourceHeap.GetPointer();
-        initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo *info, D3D12_CPU_DESCRIPTOR_HANDLE *out_cpu_handle,
-                                           D3D12_GPU_DESCRIPTOR_HANDLE *out_gpu_handle) {
-            auto &impl = *static_cast<Impl *>(info->UserData);
-            UINT index;
-            impl.resourceHeapAlloc.Allocate(*out_cpu_handle, *out_gpu_handle, index);
-        };
-        initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo *info, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle,
-                                          D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) {
-            auto &impl = *static_cast<Impl *>(info->UserData);
-            UINT index = impl.resourceHeapAlloc.GetIndex(cpu_handle);
-            impl.resourceHeapAlloc.Free(index);
-        };
-        m_imguiInitialized =                                  //
-            ImGui_ImplSDL3_InitForD3D(m_impl->spec.window) && //
-            ImGui_ImplDX12_Init(&initInfo);
+    if (m_imguiInitialized) {
+        return true;
     }
+
+    ImGui_ImplDX12_InitInfo initInfo{};
+    initInfo.Device = m_impl->device.GetPointer();
+    initInfo.CommandQueue = m_impl->cmdQueue.GetPointer();
+    initInfo.NumFramesInFlight = Impl::kFrameCount;
+    initInfo.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
+    initInfo.UserData = m_impl.get();
+    initInfo.SrvDescriptorHeap = m_impl->resourceHeap.GetPointer();
+    initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo *info, D3D12_CPU_DESCRIPTOR_HANDLE *out_cpu_handle,
+                                       D3D12_GPU_DESCRIPTOR_HANDLE *out_gpu_handle) {
+        auto &impl = *static_cast<Impl *>(info->UserData);
+        UINT index;
+        impl.resourceHeapAlloc.Allocate(*out_cpu_handle, *out_gpu_handle, index);
+    };
+    initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo *info, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle,
+                                      D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle) {
+        auto &impl = *static_cast<Impl *>(info->UserData);
+        UINT index = impl.resourceHeapAlloc.GetIndex(cpu_handle);
+        impl.resourceHeapAlloc.Free(index);
+    };
+    m_imguiInitialized =                                  //
+        ImGui_ImplSDL3_InitForD3D(m_impl->spec.window) && //
+        ImGui_ImplDX12_Init(&initInfo);
+
     return m_imguiInitialized;
 }
 
@@ -452,12 +473,16 @@ void Direct3D12GraphicsContext::ImGuiShutdown() {
 }
 
 void Direct3D12GraphicsContext::ImGuiNewFrame() {
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
+    if (m_imguiInitialized) {
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+    }
 }
 
 void Direct3D12GraphicsContext::ImGuiRenderFrame() {
-    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_impl->cmdList.GetPointer());
+    if (m_imguiInitialized) {
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_impl->cmdList.GetPointer());
+    }
 }
 
 util::ValueResult<TextureID> Direct3D12GraphicsContext::CreateTexture(const Texture2DSpec &spec) {
@@ -511,8 +536,8 @@ util::VoidResult<> Direct3D12GraphicsContext::DrawTextureRotated(TextureID id, c
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::SetPresentMode(PresentMode mode) {
-    // TODO: set presentation mode
-    return util::ErrorMessage{"Unimplemented"};
+    m_impl->presentMode = mode;
+    return {};
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::Present() {

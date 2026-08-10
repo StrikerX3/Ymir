@@ -15,8 +15,9 @@ static int GetVSyncMode(PresentMode mode) {
     switch (mode) {
     default:
     case PresentMode::VSync: return 1;
+    case PresentMode::Mailbox: return 1;
     case PresentMode::Adaptive: return SDL_RENDERER_VSYNC_ADAPTIVE;
-    case PresentMode::Mailbox: return SDL_RENDERER_VSYNC_DISABLED;
+    case PresentMode::NoSync: return 0;
     }
 }
 

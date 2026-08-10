@@ -71,14 +71,6 @@ public:
         return m_object->ResizeBuffers(0, width, height, desc.Format, desc.Flags);
     }
 
-    /// @brief Presents the next frame.
-    /// @param[in] syncInterval the frame synchronization interval
-    /// @param[in,opt] flags frame presentation options
-    /// @return the result of the operation
-    HRESULT Present(UINT syncInterval, UINT flags) const {
-        return m_object->Present(syncInterval, flags);
-    }
-
     /// @brief Retrieves the waitable object for this swap chain.
     /// @return the waitable object
     HANDLE WaitableObject() const {
