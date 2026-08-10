@@ -34,8 +34,7 @@ void SettingsWindow::PrepareWindow() {
 
     const ImVec2 minSize(500 * m_context.displayScale, 300 * m_context.displayScale);
     const ImVec2 maxSize(1000 * m_context.displayScale, 900 * m_context.displayScale);
-    ImGui::SetNextWindowSizeConstraints(minSize, ImVec2(std::clamp(maxSize.x, minSize.x, vp->Size.x * 0.95f),
-                                                        std::clamp(maxSize.y, minSize.y, vp->Size.y * 0.95f)));
+    ImGui::SetNextWindowSizeConstraints(minSize, maxSize);
 }
 
 void SettingsWindow::DrawContents() {
