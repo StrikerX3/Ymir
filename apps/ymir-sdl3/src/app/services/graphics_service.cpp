@@ -46,6 +46,7 @@ GfxObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Ba
 #endif
     case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = window}));
     }
+    return GfxOperationError{"Invalid backend"};
 }
 
 void GraphicsService::DestroyGraphicsContext() {
