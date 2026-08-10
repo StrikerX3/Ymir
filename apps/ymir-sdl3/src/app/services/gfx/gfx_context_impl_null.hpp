@@ -20,7 +20,7 @@ public:
     void ImGuiNewFrame() override {}
     void ImGuiRenderFrame() override {}
 
-    GfxValueResult<TextureID> CreateTexture(const Texture2DSpec &spec) override {
+    util::ValueResult<TextureID> CreateTexture(const Texture2DSpec &spec) override {
         return UnimplementedError();
     }
     void DestroyTexture(TextureID id) override {}
@@ -30,31 +30,32 @@ public:
     ImTextureID GetImGuiTextureID(TextureID id) const override {
         return 0;
     }
-    GfxResult ResizeTexture(TextureID id, uint32 width, uint32 height) override {
+    util::VoidResult<> ResizeTexture(TextureID id, uint32 width, uint32 height) override {
         return UnimplementedError();
     }
-    GfxResult UpdateTexture(TextureID id, const IRect *rect,
-                            const std::function<void(void *data, size_t pitch)> &fnUpdate) override {
+    util::VoidResult<> UpdateTexture(TextureID id, const IRect *rect,
+                                     const std::function<void(void *data, size_t pitch)> &fnUpdate) override {
         return UnimplementedError();
     }
-    GfxResult RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect, const FRect &dstRect) override {
+    util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
+                                       const FRect &dstRect) override {
         return UnimplementedError();
     }
-    GfxResult DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
-                                 const FPoint2D *anchorPoint = nullptr) override {
+    util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
+                                          const FPoint2D *anchorPoint = nullptr) override {
         return UnimplementedError();
     }
 
-    GfxResult SetPresentMode(PresentMode mode) override {
+    util::VoidResult<> SetPresentMode(PresentMode mode) override {
         return UnimplementedError();
     }
-    GfxResult Present() override {
+    util::VoidResult<> Present() override {
         return UnimplementedError();
     }
 
 private:
-    static GfxOperationError UnimplementedError() {
-        return GfxOperationError{"Unimplemented"};
+    static util::ErrorMessage UnimplementedError() {
+        return util::ErrorMessage{"Unimplemented"};
     }
 };
 

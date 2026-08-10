@@ -1,7 +1,8 @@
 #pragma once
 
-#include "gfx_result.hpp"
 #include "gfx_types.hpp"
+
+#include <ymir/util/result.hpp>
 
 #include <imgui.h>
 
@@ -73,7 +74,7 @@ public:
     /// @brief Creates a 2D texture.
     /// @param[in] spec the 2D texture specifications
     /// @return texture identifier, or an error message if failed to create
-    virtual GfxValueResult<TextureID> CreateTexture(const Texture2DSpec &spec) = 0;
+    virtual util::ValueResult<TextureID> CreateTexture(const Texture2DSpec &spec) = 0;
 
     /// @brief Destroys the specified texture.
     /// @param[in] id the texture ID
@@ -94,7 +95,7 @@ public:
     /// @param[in] width the new width
     /// @param[in] height the new height
     /// @return nothing on success, an error message on failure
-    virtual GfxResult ResizeTexture(TextureID id, uint32 width, uint32 height) = 0;
+    virtual util::VoidResult<> ResizeTexture(TextureID id, uint32 width, uint32 height) = 0;
 
     /// @brief Resizes the texture to the new dimensions.
     /// @param[in] id the texture ID
@@ -102,8 +103,8 @@ public:
     /// @param[in] fnUpdate the update function, taking a pointer to writable texture data and the line pitch in bytes.
     /// This buffer should not be read by the CPU.
     /// @return nothing on success, an error message on failure
-    virtual GfxResult UpdateTexture(TextureID id, const IRect *rect,
-                                    const std::function<void(void *data, size_t pitch)> &fnUpdate) = 0;
+    virtual util::VoidResult<> UpdateTexture(TextureID id, const IRect *rect,
+                                             const std::function<void(void *data, size_t pitch)> &fnUpdate) = 0;
 
     /// @brief Renders a texture to another texture. The destination texture must be a render target.
     /// @param[in] src the source texture ID
@@ -111,7 +112,8 @@ public:
     /// @param[in] srcRect the source region to copy from
     /// @param[in] dstRect the destination region to copy to
     /// @return nothing on success, an error message on failure
-    virtual GfxResult RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect, const FRect &dstRect) = 0;
+    virtual util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
+                                               const FRect &dstRect) = 0;
 
     /// @brief Draws a texture rotated about the given anchor point.
     /// @param[in] texture the texture ID to draw
@@ -120,17 +122,17 @@ public:
     /// @param[in] rotAngle clockwise rotation amount (in degrees)
     /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture
     /// @return nothing on success, an error message on failure
-    virtual GfxResult DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
-                                         const FPoint2D *anchorPoint = nullptr) = 0;
+    virtual util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect,
+                                                  double rotAngle, const FPoint2D *anchorPoint = nullptr) = 0;
 
     /// @brief Changes the frame presentation mode.
     /// @param[in] mode the new frame presentation mode
     /// @return nothing on success, an error message on failure
-    virtual GfxResult SetPresentMode(PresentMode mode) = 0;
+    virtual util::VoidResult<> SetPresentMode(PresentMode mode) = 0;
 
     /// @brief Presents the next frame.
     /// @return nothing on success, an error message on failure
-    virtual GfxResult Present() = 0;
+    virtual util::VoidResult<> Present() = 0;
 
 protected:
     /// @brief Retrieves the next free texture ID.

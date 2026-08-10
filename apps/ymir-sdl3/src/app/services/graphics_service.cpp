@@ -21,7 +21,7 @@ GraphicsService::GraphicsService()
 
 GraphicsService::~GraphicsService() {}
 
-GfxResult GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
+util::VoidResult<> GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
     auto result = CreateGraphicsContext(backend, window);
     if (!result) {
         return result.Error();
@@ -32,18 +32,18 @@ GfxResult GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *wind
 }
 
 template <typename T>
-static GfxObjectResult<IGraphicsContext> ConvertResult(GfxObjectResult<T> &&result) {
+static util::ObjectResult<IGraphicsContext> ConvertResult(util::ObjectResult<T> &&result) {
     if (!result) {
         return result.Error();
     }
     return std::unique_ptr<IGraphicsContext>{result.Value()};
 }
 
-GfxObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
+util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
     switch (backend) {
     case Backend::Null:
         // Use DestroyGraphicsContext instead
-        return GfxOperationError{"Cannot initialize the null backend"};
+        return util::ErrorMessage{"Cannot initialize the null backend"};
 #if YMIR_PLATFORM_HAS_DIRECT3D
     case Backend::Direct3D11: return ConvertResult(Direct3D11GraphicsContext::Create({/*TODO*/}));
     case Backend::Direct3D12: return ConvertResult(Direct3D12GraphicsContext::Create({/*TODO*/}));
@@ -56,7 +56,7 @@ GfxObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Ba
 #endif
     case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = window}));
     }
-    return GfxOperationError{"Invalid backend"};
+    return util::ErrorMessage{"Invalid backend"};
 }
 
 void GraphicsService::DestroyGraphicsContext() {
@@ -83,7 +83,8 @@ void GraphicsService::ClearScreen(ColorRGBA color) {
     m_gfxContext->ClearScreen(color);
 }
 
-GfxValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec, FnTextureSetup &&fnSetup) {
+util::ValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec,
+                                                                   FnTextureSetup &&fnSetup) {
     auto result = m_gfxContext->CreateTexture(spec);
     if (!result) {
         return result.Error();
@@ -103,41 +104,42 @@ bool GraphicsService::IsTextureHandleValid(GUITextureHandle handle) const {
     return texture != nullptr && m_gfxContext->IsTextureValid(texture->id);
 }
 
-GfxResult GraphicsService::ResizeTexture(GUITextureHandle handle, uint32 width, uint32 height) {
+util::VoidResult<> GraphicsService::ResizeTexture(GUITextureHandle handle, uint32 width, uint32 height) {
     const Texture2DInstance *texture = GetTexture(handle);
     if (texture == nullptr) {
-        return GfxOperationError{"Invalid texture handle"};
+        return util::ErrorMessage{"Invalid texture handle"};
     }
     return m_gfxContext->ResizeTexture(texture->id, width, height);
 }
 
-GfxResult GraphicsService::UpdateTexture(GUITextureHandle handle, const IRect *rect,
-                                         const std::function<void(void *data, size_t pitch)> &fnUpdate) {
+util::VoidResult<> GraphicsService::UpdateTexture(GUITextureHandle handle, const IRect *rect,
+                                                  const std::function<void(void *data, size_t pitch)> &fnUpdate) {
     const Texture2DInstance *texture = GetTexture(handle);
     if (texture == nullptr) {
-        return GfxOperationError{"Invalid texture handle"};
+        return util::ErrorMessage{"Invalid texture handle"};
     }
     return m_gfxContext->UpdateTexture(texture->id, rect, fnUpdate);
 }
 
-GfxResult GraphicsService::RenderToTexture(GUITextureHandle src, GUITextureHandle dst, const FRect &srcRect,
-                                           const FRect &dstRect) {
+util::VoidResult<> GraphicsService::RenderToTexture(GUITextureHandle src, GUITextureHandle dst, const FRect &srcRect,
+                                                    const FRect &dstRect) {
     const Texture2DInstance *srcTexture = GetTexture(src);
     if (srcTexture == nullptr) {
-        return GfxOperationError{"Invalid source texture handle"};
+        return util::ErrorMessage{"Invalid source texture handle"};
     }
     const Texture2DInstance *dstTexture = GetTexture(dst);
     if (dstTexture == nullptr) {
-        return GfxOperationError{"Invalid destination texture handle"};
+        return util::ErrorMessage{"Invalid destination texture handle"};
     }
     return m_gfxContext->RenderToTexture(srcTexture->id, dstTexture->id, srcRect, dstRect);
 }
 
-GfxResult GraphicsService::DrawTextureRotated(GUITextureHandle handle, const FRect &srcRect, const FRect &dstRect,
-                                              double rotAngle, const FPoint2D *anchorPoint) {
+util::VoidResult<> GraphicsService::DrawTextureRotated(GUITextureHandle handle, const FRect &srcRect,
+                                                       const FRect &dstRect, double rotAngle,
+                                                       const FPoint2D *anchorPoint) {
     const Texture2DInstance *texture = GetTexture(handle);
     if (texture == nullptr) {
-        return GfxOperationError{"Invalid source texture handle"};
+        return util::ErrorMessage{"Invalid source texture handle"};
     }
     return m_gfxContext->DrawTextureRotated(texture->id, srcRect, dstRect, rotAngle, anchorPoint);
 }
@@ -161,11 +163,11 @@ bool GraphicsService::DestroyTexture(GUITextureHandle handle) {
     return true;
 }
 
-GfxResult GraphicsService::SetPresentMode(PresentMode mode) {
+util::VoidResult<> GraphicsService::SetPresentMode(PresentMode mode) {
     return m_gfxContext->SetPresentMode(mode);
 }
 
-GfxResult GraphicsService::Present() {
+util::VoidResult<> GraphicsService::Present() {
     return m_gfxContext->Present();
 }
 

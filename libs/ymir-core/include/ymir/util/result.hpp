@@ -9,6 +9,7 @@
 #include <array>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -77,13 +78,6 @@ struct Result {
         throw std::logic_error("Result doesn't hold an error");
     }
 
-    /// @brief Performs an operation using the result object.
-    /// @param[in] visitor the visitor callable invoked on the result variant
-    /// @return the output of the visitor function
-    auto Visit(auto &&visitor) {
-        return std::visit(visitor, m_result);
-    }
-
 private:
     /// @brief Stores the result object.
     std::variant<T, E> m_result;
@@ -132,5 +126,32 @@ struct Result<void, E> {
 private:
     std::optional<E> m_error;
 };
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Common convenience types
+
+/// @brief A simple error message container.
+struct ErrorMessage {
+    std::string message;
+};
+
+/// @brief Result type for operations that may return an owning pointer to an object or produce an error.
+/// @tparam T the value type
+template <typename T, typename E = ErrorMessage>
+using ObjectResult = util::Result<std::unique_ptr<T>, E>;
+
+/// @brief Result type for operations that may return a non-owning pointer to an object or produce an error.
+/// @tparam T the value type
+template <typename T, typename E = ErrorMessage>
+using PointerResult = util::Result<T *, E>;
+
+/// @brief Result type for operations that may return a value or produce an error.
+/// @tparam T the value type
+template <typename T, typename E = ErrorMessage>
+using ValueResult = util::Result<T, E>;
+
+/// @brief Result type for operations that don't return a value but may generate an error.
+template <typename E = ErrorMessage>
+using VoidResult = util::Result<void, E>;
 
 } // namespace util

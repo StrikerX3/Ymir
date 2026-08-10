@@ -100,7 +100,6 @@ add_executable(ymir-sdl3
     src/app/services/gfx/gfx_context_impls.hpp
     src/app/services/gfx/gfx_context_specs.hpp
     src/app/services/gfx/gfx_gui_types.hpp
-    src/app/services/gfx/gfx_result.hpp
     src/app/services/gfx/gfx_types.hpp
 
     src/app/ui/window_base.cpp

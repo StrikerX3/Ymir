@@ -2,7 +2,8 @@
 
 #include "gfx/gfx_context.hpp"
 #include "gfx/gfx_gui_types.hpp"
-#include "gfx/gfx_result.hpp"
+
+#include <ymir/util/result.hpp>
 
 #include <SDL3/SDL_video.h>
 
@@ -27,10 +28,10 @@ public:
     /// @param[in] window the window on which to render graphics
     /// @param[in] presentMode the initial presentation mode
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult InitGraphicsContext(gfx::Backend backend, SDL_Window *window, gfx::PresentMode presentMode);
+    util::VoidResult<> InitGraphicsContext(gfx::Backend backend, SDL_Window *window, gfx::PresentMode presentMode);
 
 private:
-    gfx::GfxObjectResult<gfx::IGraphicsContext> CreateGraphicsContext(gfx::Backend backend, SDL_Window *window);
+    util::ObjectResult<gfx::IGraphicsContext> CreateGraphicsContext(gfx::Backend backend, SDL_Window *window);
 
 public:
     /// @brief Destroys the graphics context, effectively replacing it with a null context.
@@ -72,7 +73,7 @@ public:
     /// @param[in] spec texture format specifications
     /// @param[in] fnSetup texture setup function, invoked upon texture creation and recreation
     /// @return a handle to the texture, or an error message if the texture could not be created
-    gfx::GfxValueResult<gfx::GUITextureHandle> CreateTexture(
+    util::ValueResult<gfx::GUITextureHandle> CreateTexture(
         const gfx::Texture2DSpec &spec,
         gfx::FnTextureSetup &&fnSetup = [](gfx::GUITextureHandle, bool, void *, size_t) {});
 
@@ -86,7 +87,7 @@ public:
     /// @param[in] width the new width
     /// @param[in] height the new height
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult ResizeTexture(gfx::GUITextureHandle handle, uint32 width, uint32 height);
+    util::VoidResult<> ResizeTexture(gfx::GUITextureHandle handle, uint32 width, uint32 height);
 
     /// @brief Updates the contents of a texture.
     /// @param[in] handle the texture handle
@@ -94,8 +95,8 @@ public:
     /// @param[in] fnUpdate the update function, taking a pointer to writable texture data and the line pitch in bytes.
     /// This buffer should not be read by the CPU.
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult UpdateTexture(gfx::GUITextureHandle handle, const gfx::IRect *rect,
-                                 const std::function<void(void *data, size_t pitch)> &fnUpdate);
+    util::VoidResult<> UpdateTexture(gfx::GUITextureHandle handle, const gfx::IRect *rect,
+                                     const std::function<void(void *data, size_t pitch)> &fnUpdate);
 
     /// @brief Renders a texture to another texture. The destination texture must be a render target.
     /// @param[in] src the source texture
@@ -103,8 +104,8 @@ public:
     /// @param[in] srcRect the source region to copy from
     /// @param[in] dstRect the destination region to copy to
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult RenderToTexture(gfx::GUITextureHandle src, gfx::GUITextureHandle dst, const gfx::FRect &srcRect,
-                                   const gfx::FRect &dstRect);
+    util::VoidResult<> RenderToTexture(gfx::GUITextureHandle src, gfx::GUITextureHandle dst, const gfx::FRect &srcRect,
+                                       const gfx::FRect &dstRect);
 
     /// @brief Draws a texture rotated about the given anchor point.
     /// @param[in] handle the texture to draw
@@ -113,9 +114,9 @@ public:
     /// @param[in] rotAngle clockwise rotation amount (in degrees)
     /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult DrawTextureRotated(gfx::GUITextureHandle handle, const gfx::FRect &srcRect,
-                                      const gfx::FRect &dstRect, double rotAngle,
-                                      const gfx::FPoint2D *anchorPoint = nullptr);
+    util::VoidResult<> DrawTextureRotated(gfx::GUITextureHandle handle, const gfx::FRect &srcRect,
+                                          const gfx::FRect &dstRect, double rotAngle,
+                                          const gfx::FPoint2D *anchorPoint = nullptr);
 
     /// @brief Retrieves the ImGui texture ID for the given texture handle.
     /// @param[in] handle the texture
@@ -130,10 +131,10 @@ public:
     /// @brief Changes the frame presentation mode.
     /// @param[in] mode the new frame presentation mode
     /// @return nothing on success, an error message on failure
-    gfx::GfxResult SetPresentMode(gfx::PresentMode mode);
+    util::VoidResult<> SetPresentMode(gfx::PresentMode mode);
 
     /// @brief Presents the next frame.
-    gfx::GfxResult Present();
+    util::VoidResult<> Present();
 
 private:
     std::unique_ptr<gfx::IGraphicsContext> m_gfxContext;

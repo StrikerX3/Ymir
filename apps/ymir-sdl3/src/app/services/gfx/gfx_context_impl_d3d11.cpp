@@ -1,15 +1,13 @@
 #include "gfx_context_impl_d3d11.hpp"
 
-#include "gfx_result.hpp"
-
 namespace app::gfx {
 
 Direct3D11GraphicsContext::Direct3D11GraphicsContext()
     : IGraphicsContext(kBackend) {}
 
-GfxObjectResult<Direct3D11GraphicsContext>
+util::ObjectResult<Direct3D11GraphicsContext>
 Direct3D11GraphicsContext::Create(const Direct3D11GraphicsContextSpec &spec) {
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
 void Direct3D11GraphicsContext::ClearScreen(gfx::ColorRGBA color) {
@@ -33,11 +31,11 @@ void Direct3D11GraphicsContext::ImGuiRenderFrame() {
     // TODO: invoke the appropriate ImGui_Impl*_RenderDrawData function
 }
 
-GfxValueResult<TextureID> Direct3D11GraphicsContext::CreateTexture(const Texture2DSpec &spec) {
+util::ValueResult<TextureID> Direct3D11GraphicsContext::CreateTexture(const Texture2DSpec &spec) {
     // TODO: create and store texture object in a hash map
     // The texture ID will be the hash map key, not the native object pointer, because resizing the texture requires
     // creating a new object and these IDs must be immutable for the lifetime of the logical texture.
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
 void Direct3D11GraphicsContext::DestroyTexture(TextureID id) {
@@ -54,41 +52,43 @@ ImTextureID Direct3D11GraphicsContext::GetImGuiTextureID(TextureID id) const {
     return 0;
 }
 
-GfxResult Direct3D11GraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
+util::VoidResult<> Direct3D11GraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
     // TODO: destroy and recreate texture with new dimensions
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult Direct3D11GraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
-                                                   const std::function<void(void *data, size_t pitch)> &fnUpdate) {
+util::VoidResult<>
+Direct3D11GraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
+                                         const std::function<void(void *data, size_t pitch)> &fnUpdate) {
     // TODO: map texture, invoke fnUpdate with contents, unmap texture; handle errors
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult Direct3D11GraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
-                                                     const FRect &dstRect) {
+util::VoidResult<> Direct3D11GraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
+                                                              const FRect &dstRect) {
     // TODO: set render target to dst texture, draw texture, restore render target
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult Direct3D11GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect,
-                                                        double rotAngle, const FPoint2D *anchorPoint) {
+util::VoidResult<> Direct3D11GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect,
+                                                                 const FRect &dstRect, double rotAngle,
+                                                                 const FPoint2D *anchorPoint) {
     // TODO: imitate SDL_RenderTextureRotated:
     // - srcRect specifies the source texture region to copy from (in texels)
     // - dstRect specifies the destination texture region to copy to (in texels)
     // - rotAngle is the clockwise rotation angle (in degrees)
     // - anchorPoint is the rotation anchor point. If null, use the center of the destination rectangle
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult Direct3D11GraphicsContext::SetPresentMode(PresentMode mode) {
+util::VoidResult<> Direct3D11GraphicsContext::SetPresentMode(PresentMode mode) {
     // TODO: set presentation mode
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult Direct3D11GraphicsContext::Present() {
+util::VoidResult<> Direct3D11GraphicsContext::Present() {
     // TODO: present next frame and wait for vertical retrace if enabled
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
 } // namespace app::gfx

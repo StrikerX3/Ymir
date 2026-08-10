@@ -764,7 +764,7 @@ void App::RunEmulator() {
         const gfx::Backend backend = settings.video.graphicsBackend;
         std::vector<std::string> failures{};
 
-        gfx::GfxResult result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+        auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
         if (!result) {
             std::string &failureMsg = failures.emplace_back();
             failureMsg = fmt::format("Could not create {} graphics context: {}", gfx::GraphicsBackendName(backend),
@@ -776,8 +776,7 @@ void App::RunEmulator() {
                     return false;
                 }
 
-                gfx::GfxResult result =
-                    m_graphicsService.InitGraphicsContext(fallbackBackend, screen.window, presentMode);
+                auto result = m_graphicsService.InitGraphicsContext(fallbackBackend, screen.window, presentMode);
                 if (result) {
                     m_context.DisplayMessage(fmt::format("Reverted to {}", gfx::GraphicsBackendName(fallbackBackend)));
                     settings.video.graphicsBackend = fallbackBackend;

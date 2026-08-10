@@ -1,14 +1,12 @@
 #include "gfx_context_impl_metal.hpp"
 
-#include "gfx_result.hpp"
-
 namespace app::gfx {
 
 MetalGraphicsContext::MetalGraphicsContext()
     : IGraphicsContext(kBackend) {}
 
-GfxObjectResult<MetalGraphicsContext> MetalGraphicsContext::Create(const MetalGraphicsContextSpec &spec) {
-    return GfxOperationError{"Unimplemented"};
+util::ObjectResult<MetalGraphicsContext> MetalGraphicsContext::Create(const MetalGraphicsContextSpec &spec) {
+    return util::ErrorMessage{"Unimplemented"};
 }
 
 void MetalGraphicsContext::ClearScreen(gfx::ColorRGBA color) {
@@ -32,11 +30,11 @@ void MetalGraphicsContext::ImGuiRenderFrame() {
     // TODO: invoke the appropriate ImGui_Impl*_RenderDrawData function
 }
 
-GfxValueResult<TextureID> MetalGraphicsContext::CreateTexture(const Texture2DSpec &spec) {
+util::ValueResult<TextureID> MetalGraphicsContext::CreateTexture(const Texture2DSpec &spec) {
     // TODO: create and store texture object in a hash map
     // The texture ID will be the hash map key, not the native object pointer, because resizing the texture requires
     // creating a new object and these IDs must be immutable for the lifetime of the logical texture.
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
 void MetalGraphicsContext::DestroyTexture(TextureID id) {
@@ -53,41 +51,41 @@ ImTextureID MetalGraphicsContext::GetImGuiTextureID(TextureID id) const {
     return 0;
 }
 
-GfxResult MetalGraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
+util::VoidResult<> MetalGraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
     // TODO: destroy and recreate texture with new dimensions
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult MetalGraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
-                                              const std::function<void(void *data, size_t pitch)> &fnUpdate) {
+util::VoidResult<> MetalGraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
+                                                       const std::function<void(void *data, size_t pitch)> &fnUpdate) {
     // TODO: map texture, invoke fnUpdate with contents, unmap texture; handle errors
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult MetalGraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
-                                                const FRect &dstRect) {
+util::VoidResult<> MetalGraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
+                                                         const FRect &dstRect) {
     // TODO: set render target to dst texture, draw texture, restore render target
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult MetalGraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect,
-                                                   double rotAngle, const FPoint2D *anchorPoint) {
+util::VoidResult<> MetalGraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect,
+                                                            double rotAngle, const FPoint2D *anchorPoint) {
     // TODO: imitate SDL_RenderTextureRotated:
     // - srcRect specifies the source texture region to copy from (in texels)
     // - dstRect specifies the destination texture region to copy to (in texels)
     // - rotAngle is the clockwise rotation angle (in degrees)
     // - anchorPoint is the rotation anchor point. If null, use the center of the destination rectangle
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult MetalGraphicsContext::SetPresentMode(PresentMode mode) {
+util::VoidResult<> MetalGraphicsContext::SetPresentMode(PresentMode mode) {
     // TODO: set presentation mode
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
-GfxResult MetalGraphicsContext::Present() {
+util::VoidResult<> MetalGraphicsContext::Present() {
     // TODO: present next frame and wait for vertical retrace if enabled
-    return GfxOperationError{"Unimplemented"};
+    return util::ErrorMessage{"Unimplemented"};
 }
 
 } // namespace app::gfx
