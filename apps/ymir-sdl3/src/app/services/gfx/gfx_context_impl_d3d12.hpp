@@ -3,15 +3,28 @@
 #include "gfx_context.hpp"
 #include "gfx_result.hpp"
 
+#include <wil/com.h>
+
+// -----------------------------------------------------------------------------
+// Forward declarations
+
+struct ID3D12Device;
+
+// -----------------------------------------------------------------------------
+// Implementation
+
 namespace app::gfx {
 
 struct Direct3D12GraphicsContextSpec {};
 
 class Direct3D12GraphicsContext final : public IGraphicsContext {
+    struct Impl;
+
 public:
     static constexpr Backend kBackend = Backend::Direct3D12;
 
-    Direct3D12GraphicsContext();
+    Direct3D12GraphicsContext(std::unique_ptr<Impl> &&impl);
+    ~Direct3D12GraphicsContext();
 
     /// @brief Creates a Direct3D 12 graphics context.
     /// @param[in] spec the backend specifications
@@ -39,7 +52,12 @@ public:
     GfxResult SetPresentMode(PresentMode mode) override;
     GfxResult Present() override;
 
+    /// @brief Retrieves a pointer to the `ID3D12Device` managed by this graphics context.
+    /// @return a reference-counted pointer to the context's Direct3D 12 device instance
+    wil::com_ptr_nothrow<ID3D12Device> GetDevice() const;
+
 private:
+    std::unique_ptr<Impl> m_impl;
 };
 
 } // namespace app::gfx

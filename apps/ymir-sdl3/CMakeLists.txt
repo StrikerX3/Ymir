@@ -492,6 +492,7 @@ target_link_libraries(ymir-sdl3 PRIVATE
     CURL::libcurl_static
     stb::stb
     dr_libs::dr_libs
+    WIL::WIL
 )
 if (WIN32)
     target_link_libraries(ymir-sdl3 PRIVATE

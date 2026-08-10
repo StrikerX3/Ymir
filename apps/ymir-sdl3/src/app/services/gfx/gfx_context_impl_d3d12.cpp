@@ -2,13 +2,28 @@
 
 #include "gfx_result.hpp"
 
+#include <d3d12.h>
+
+#include <wil/com.h>
+
 namespace app::gfx {
 
-Direct3D12GraphicsContext::Direct3D12GraphicsContext()
-    : IGraphicsContext(kBackend) {}
+struct Direct3D12GraphicsContext::Impl {
+    wil::com_ptr_nothrow<ID3D12Device> device;
+};
+
+// -----------------------------------------------------------------------------
+
+Direct3D12GraphicsContext::Direct3D12GraphicsContext(std::unique_ptr<Impl> &&impl)
+    : IGraphicsContext(kBackend)
+    , m_impl(std::move(impl)) {}
+
+Direct3D12GraphicsContext::~Direct3D12GraphicsContext() = default;
 
 GfxObjectResult<Direct3D12GraphicsContext>
 Direct3D12GraphicsContext::Create(const Direct3D12GraphicsContextSpec &spec) {
+    auto impl = std::make_unique<Impl>();
+
     return GfxOperationError{"Unimplemented"};
 }
 
@@ -89,6 +104,10 @@ GfxResult Direct3D12GraphicsContext::SetPresentMode(PresentMode mode) {
 GfxResult Direct3D12GraphicsContext::Present() {
     // TODO: present next frame and wait for vertical retrace if enabled
     return GfxOperationError{"Unimplemented"};
+}
+
+wil::com_ptr_nothrow<ID3D12Device> Direct3D12GraphicsContext::GetDevice() const {
+    return m_impl->device;
 }
 
 } // namespace app::gfx
