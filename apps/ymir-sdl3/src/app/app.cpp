@@ -1743,12 +1743,6 @@ void App::RunEmulator() {
                     if (result) {
                         settings.video.graphicsBackend = backend;
                         settings.MakeDirty();
-
-                        // ImGui is shutdown when the previous graphics context is destroyed, which only happens if the
-                        // context is successfully created. We're safe to initialize ImGui here without a prior
-                        // shutdown.
-                        m_graphicsService.ImGuiInit();
-
                         m_context.DisplayMessage(
                             fmt::format("{} initialized successfully", gfx::GraphicsBackendName(backend)));
                     } else {

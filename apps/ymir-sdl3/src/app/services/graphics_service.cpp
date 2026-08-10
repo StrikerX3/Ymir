@@ -24,19 +24,21 @@ GraphicsService::~GraphicsService() {}
 util::VoidResult<> GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
     m_gfxContext->Shutdown();
     auto result = CreateGraphicsContext(backend, window);
-    if (!result) {
+    util::VoidResult<> output;
+    if (result) {
+        m_gfxContext = result.Value();
+        output = {};
+    } else {
         m_gfxContext->Initialize();
-        assert(m_gfxContext->IsInitialized());
-        RecreateTextures();
-        if (m_imguiInitialized) {
-            m_gfxContext->ImGuiInit();
-        }
-        return result.Error();
+        output = result.Error();
     }
-    m_gfxContext = result.Value();
+    assert(m_gfxContext->IsInitialized());
     m_gfxContext->SetPresentMode(presentMode);
     RecreateTextures();
-    return {};
+    if (m_imguiInitialized) {
+        m_gfxContext->ImGuiInit();
+    }
+    return output;
 }
 
 template <typename T>
