@@ -6,6 +6,8 @@
 
 #include <SDL3/SDL_video.h>
 
+#include <imgui.h>
+
 #include <functional>
 #include <memory>
 #include <unordered_map>

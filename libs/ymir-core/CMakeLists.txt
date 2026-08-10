@@ -347,6 +347,26 @@ else ()
     target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
 endif ()
 
+## Add OS-specific source files for graphics
+if (WIN32)
+    target_sources(ymir-core PUBLIC
+        include/ymir/gpu/d3d12/d3d12_commands.hpp
+        include/ymir/gpu/d3d12/d3d12_debug.hpp
+        include/ymir/gpu/d3d12/d3d12_descriptor_heap.hpp
+        include/ymir/gpu/d3d12/d3d12_descriptor_heap_allocator.hpp
+        include/ymir/gpu/d3d12/d3d12_device.hpp
+        include/ymir/gpu/d3d12/d3d12_fence.hpp
+        include/ymir/gpu/d3d12/d3d12_object_wrapper.hpp
+        include/ymir/gpu/d3d12/d3d12_pipeline_state.hpp
+        include/ymir/gpu/d3d12/d3d12_resource.hpp
+        include/ymir/gpu/d3d12/d3d12_root_signature.hpp
+        include/ymir/gpu/d3d12/d3d12_swap_chain.hpp
+
+        src/ymir/gpu/d3d12/d3d12_debug.cpp
+    )
+endif ()
+
+
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
     fmt::fmt
@@ -358,13 +378,20 @@ target_link_libraries(ymir-core PUBLIC
     dr_libs::dr_libs
 )
 if (WIN32)
-    ## synchronization.lib required for WaitOnAddress and WakeByAddressAll
     target_link_libraries(ymir-core PUBLIC
-        synchronization
+        synchronization  # for WaitOnAddress and WakeByAddressAll
+
+        # Direct3D 11 and 12
+        d3d12
+        dxgi
+        dxguid
+
+        WIL::WIL
     )
 endif ()
 
 find_package(Vulkan)
+# TODO: Add Vulkan dependency when needed
 
 
 # Build precompiled header

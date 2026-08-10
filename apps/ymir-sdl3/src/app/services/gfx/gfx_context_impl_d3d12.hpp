@@ -15,7 +15,7 @@ struct ID3D12Device;
 
 namespace app::gfx {
 
-struct Direct3D12GraphicsContextSpec {};
+struct Direct3D12GraphicsContextSpec;
 
 class Direct3D12GraphicsContext final : public IGraphicsContext {
     struct Impl;

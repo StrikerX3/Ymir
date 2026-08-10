@@ -1,6 +1,16 @@
 #include "graphics_service.hpp"
 
 #include "gfx/gfx_context_impls.hpp"
+#include "gfx/gfx_context_specs.hpp"
+
+#include <SDL3/SDL_video.h>
+
+#include <imgui.h>
+
+#include <cassert>
+#include <functional>
+#include <memory>
+#include <utility>
 
 using namespace app::gfx;
 

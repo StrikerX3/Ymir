@@ -98,6 +98,7 @@ add_executable(ymir-sdl3
     src/app/services/gfx/gfx_context_impl_sdl_renderer.cpp
     src/app/services/gfx/gfx_context_impl_sdl_renderer.hpp
     src/app/services/gfx/gfx_context_impls.hpp
+    src/app/services/gfx/gfx_context_specs.hpp
     src/app/services/gfx/gfx_gui_types.hpp
     src/app/services/gfx/gfx_result.hpp
     src/app/services/gfx/gfx_types.hpp
@@ -420,16 +421,17 @@ if (WIN32)
         src/app/services/gfx/gfx_context_impl_d3d11.hpp
         src/app/services/gfx/gfx_context_impl_d3d12.cpp
         src/app/services/gfx/gfx_context_impl_d3d12.hpp
+        src/app/services/gfx/gfx_context_spec_d3d12.hpp
     )
 endif ()
 
-## TODO: find Vulkan (optional), add if available, set compiler flag indicating its presence
-#if (VULKAN_AVAILABLE)
+find_package(Vulkan)
+if (Vulkan_FOUND)
     target_sources(ymir-sdl3 PRIVATE
         src/app/services/gfx/gfx_context_impl_vulkan.cpp
         src/app/services/gfx/gfx_context_impl_vulkan.hpp
     )
-#endif ()
+endif ()
 
 if (APPLE)
     target_sources(ymir-sdl3 PRIVATE

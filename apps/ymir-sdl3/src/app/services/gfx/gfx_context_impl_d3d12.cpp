@@ -1,5 +1,6 @@
 #include "gfx_context_impl_d3d12.hpp"
 
+#include "gfx_context_spec_d3d12.hpp"
 #include "gfx_result.hpp"
 
 #include <d3d12.h>
@@ -9,6 +10,13 @@
 namespace app::gfx {
 
 struct Direct3D12GraphicsContext::Impl {
+    GfxResult Create(const Direct3D12GraphicsContextSpec &spec) {
+        // TODO: create objects; handle errors
+
+        // return {};
+        return GfxOperationError{"Unimplemented"};
+    }
+
     wil::com_ptr_nothrow<ID3D12Device> device;
 };
 
@@ -23,8 +31,16 @@ Direct3D12GraphicsContext::~Direct3D12GraphicsContext() = default;
 GfxObjectResult<Direct3D12GraphicsContext>
 Direct3D12GraphicsContext::Create(const Direct3D12GraphicsContextSpec &spec) {
     auto impl = std::make_unique<Impl>();
+    if (!impl) {
+        return GfxOperationError{"Could not allocate memory for Direct3D 12 graphics context"};
+    }
 
-    return GfxOperationError{"Unimplemented"};
+    auto result = impl->Create(spec);
+    if (!result) {
+        return result.Error();
+    }
+
+    return std::make_unique<Direct3D12GraphicsContext>(std::move(impl));
 }
 
 void Direct3D12GraphicsContext::ClearScreen(gfx::ColorRGBA color) {
