@@ -22,6 +22,18 @@ protected:
 public:
     virtual ~IGraphicsContext() = default;
 
+    /// @brief Initializes the graphics context if not already initialized.
+    /// @return nothing on success, an error message on failure
+    virtual util::VoidResult<> Initialize() = 0;
+
+    /// @brief Shuts down the graphics context, keeping the current settings intact.
+    /// The context can be reinitialized with `Init()`.
+    virtual void Shutdown() = 0;
+
+    /// @brief Checks if the graphics context is properly initialized.
+    /// @return `true` if the graphics context is initialized, `false` if not
+    virtual bool IsInitialized() const = 0;
+
     /// @brief Retrieves the type of the backend of this graphics context instance.
     /// @return this graphics context's backend type
     Backend GetBackend() const {

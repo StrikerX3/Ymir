@@ -17,6 +17,10 @@ public:
     /// @return the graphics context instance or an error message
     static util::ObjectResult<Direct3D11GraphicsContext> Create(const Direct3D11GraphicsContextSpec &spec);
 
+    util::VoidResult<> Initialize() override;
+    void Shutdown() override;
+    bool IsInitialized() const override;
+
     void ClearScreen(gfx::ColorRGBA color) override;
 
     bool ImGuiInit() override;

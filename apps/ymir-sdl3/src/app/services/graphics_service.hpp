@@ -139,6 +139,8 @@ public:
 private:
     std::unique_ptr<gfx::IGraphicsContext> m_gfxContext;
 
+    bool m_imguiInitialized = false;
+
     struct Texture2DInstance {
         gfx::TextureID id;
         gfx::Texture2DSpec spec;
@@ -151,6 +153,7 @@ private:
     gfx::GUITextureHandle GetNextTextureHandle();
     Texture2DInstance *GetTexture(gfx::GUITextureHandle handle);
     const Texture2DInstance *GetTexture(gfx::GUITextureHandle handle) const;
+    util::VoidResult<> RecreateTextures();
 };
 
 } // namespace app::services

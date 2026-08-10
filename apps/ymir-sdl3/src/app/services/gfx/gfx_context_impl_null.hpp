@@ -11,6 +11,14 @@ public:
     NullGraphicsContext()
         : IGraphicsContext(kBackend) {}
 
+    util::VoidResult<> Initialize() override {
+        return {};
+    }
+    void Shutdown() override {}
+    bool IsInitialized() const override {
+        return true;
+    }
+
     void ClearScreen(gfx::ColorRGBA color) override {}
 
     bool ImGuiInit() override {

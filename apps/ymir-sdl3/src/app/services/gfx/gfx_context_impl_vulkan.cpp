@@ -6,7 +6,22 @@ VulkanGraphicsContext::VulkanGraphicsContext()
     : IGraphicsContext(kBackend) {}
 
 util::ObjectResult<VulkanGraphicsContext> VulkanGraphicsContext::Create(const VulkanGraphicsContextSpec &spec) {
+    auto context = std::make_unique<VulkanGraphicsContext>();
+    auto result = context->Initialize();
+    if (!result) {
+        return result.Error();
+    }
+    return std::move(context);
+}
+
+util::VoidResult<> VulkanGraphicsContext::Initialize() {
     return util::ErrorMessage{"Unimplemented"};
+}
+
+void VulkanGraphicsContext::Shutdown() {}
+
+bool VulkanGraphicsContext::IsInitialized() const {
+    return false;
 }
 
 void VulkanGraphicsContext::ClearScreen(gfx::ColorRGBA color) {

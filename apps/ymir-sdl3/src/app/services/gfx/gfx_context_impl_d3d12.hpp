@@ -22,13 +22,17 @@ class Direct3D12GraphicsContext final : public IGraphicsContext {
 public:
     static constexpr Backend kBackend = Backend::Direct3D12;
 
-    Direct3D12GraphicsContext(std::unique_ptr<Impl> &&impl);
+    Direct3D12GraphicsContext(const Direct3D12GraphicsContextSpec &spec);
     ~Direct3D12GraphicsContext();
 
     /// @brief Creates a Direct3D 12 graphics context.
     /// @param[in] spec the backend specifications
     /// @return the graphics context instance or an error message
     static util::ObjectResult<Direct3D12GraphicsContext> Create(const Direct3D12GraphicsContextSpec &spec);
+
+    util::VoidResult<> Initialize() override;
+    void Shutdown() override;
+    bool IsInitialized() const override;
 
     void ClearScreen(gfx::ColorRGBA color) override;
 
@@ -52,8 +56,8 @@ public:
     util::VoidResult<> SetPresentMode(PresentMode mode) override;
     util::VoidResult<> Present() override;
 
-    /// @brief Retrieves a pointer to the `ID3D12Device` managed by this graphics context.
-    /// @return a reference-counted pointer to the context's Direct3D 12 device instance
+    /// @brief Retrieves a reference-counted pointer to the `ID3D12Device` managed by this graphics context.
+    /// @return a pointer to the context's Direct3D 12 device instance
     wil::com_ptr_nothrow<ID3D12Device> GetDevice() const;
 
 private:

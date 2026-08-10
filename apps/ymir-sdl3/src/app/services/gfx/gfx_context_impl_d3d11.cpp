@@ -7,7 +7,22 @@ Direct3D11GraphicsContext::Direct3D11GraphicsContext()
 
 util::ObjectResult<Direct3D11GraphicsContext>
 Direct3D11GraphicsContext::Create(const Direct3D11GraphicsContextSpec &spec) {
+    auto context = std::make_unique<Direct3D11GraphicsContext>();
+    auto result = context->Initialize();
+    if (!result) {
+        return result.Error();
+    }
+    return std::move(context);
+}
+
+util::VoidResult<> Direct3D11GraphicsContext::Initialize() {
     return util::ErrorMessage{"Unimplemented"};
+}
+
+void Direct3D11GraphicsContext::Shutdown() {}
+
+bool Direct3D11GraphicsContext::IsInitialized() const {
+    return false;
 }
 
 void Direct3D11GraphicsContext::ClearScreen(gfx::ColorRGBA color) {

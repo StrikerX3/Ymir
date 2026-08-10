@@ -23,7 +23,12 @@ using namespace ymir::gpu::d3d12;
 namespace app::gfx {
 
 struct Direct3D12GraphicsContext::Impl {
+    Impl(const Direct3D12GraphicsContextSpec &spec)
+        : spec(spec) {}
+
     static constexpr UINT kFrameCount = 3;
+
+    Direct3D12GraphicsContextSpec spec;
 
     struct FrameContext {
         D3D12Resource renderTarget;
@@ -45,7 +50,7 @@ struct Direct3D12GraphicsContext::Impl {
 
     UINT frameIndex = 0;
 
-    util::VoidResult<> Create(const Direct3D12GraphicsContextSpec &spec) {
+    util::VoidResult<> Init() {
         if (spec.hwnd == nullptr) {
             return util::ErrorMessage{"No window handle provided to Direct3D 12 specification"};
         }
@@ -148,7 +153,31 @@ struct Direct3D12GraphicsContext::Impl {
         cmdAlloc->SetName(L"[Ymir-GCtx] Command allocator");
         cmdList->SetName(L"[Ymir-GCtx] Command list");
 
-        return {};
+        // return {};
+        return util::ErrorMessage{"Unimplemented"};
+    }
+
+    void Shutdown() {
+        WaitForGPU();
+        for (UINT n = 0; n < kFrameCount; n++) {
+            frames[n].fenceCounter.Unbind();
+            frames[n].renderTarget.Destroy();
+            frames[n].cmdAlloc.Destroy();
+        }
+        pipelineState.Destroy();
+        fenceCounter.Unbind();
+        fence.Destroy();
+        cmdList.Destroy();
+        cmdAlloc.Destroy();
+        cmdQueue.Destroy();
+        resourceHeap.Destroy();
+        rtvHeap.Destroy();
+        swapchain.Destroy();
+        device.Destroy();
+    }
+
+    bool IsInitialized() const {
+        return device.IsValid();
     }
 
     util::VoidResult<> WaitForGPU() {
@@ -184,25 +213,32 @@ struct Direct3D12GraphicsContext::Impl {
 
 // -----------------------------------------------------------------------------
 
-Direct3D12GraphicsContext::Direct3D12GraphicsContext(std::unique_ptr<Impl> &&impl)
+Direct3D12GraphicsContext::Direct3D12GraphicsContext(const Direct3D12GraphicsContextSpec &spec)
     : IGraphicsContext(kBackend)
-    , m_impl(std::move(impl)) {}
+    , m_impl(std::make_unique<Impl>(spec)) {}
 
 Direct3D12GraphicsContext::~Direct3D12GraphicsContext() = default;
 
 util::ObjectResult<Direct3D12GraphicsContext>
 Direct3D12GraphicsContext::Create(const Direct3D12GraphicsContextSpec &spec) {
-    auto impl = std::make_unique<Impl>();
-    if (!impl) {
-        return util::ErrorMessage{"Could not allocate memory for Direct3D 12 graphics context"};
-    }
-
-    auto result = impl->Create(spec);
+    auto context = std::make_unique<Direct3D12GraphicsContext>(spec);
+    auto result = context->Initialize();
     if (!result) {
         return result.Error();
     }
+    return std::move(context);
+}
 
-    return std::make_unique<Direct3D12GraphicsContext>(std::move(impl));
+util::VoidResult<> Direct3D12GraphicsContext::Initialize() {
+    return m_impl->Init();
+}
+
+void Direct3D12GraphicsContext::Shutdown() {
+    m_impl->Shutdown();
+}
+
+bool Direct3D12GraphicsContext::IsInitialized() const {
+    return m_impl->IsInitialized();
 }
 
 void Direct3D12GraphicsContext::ClearScreen(gfx::ColorRGBA color) {

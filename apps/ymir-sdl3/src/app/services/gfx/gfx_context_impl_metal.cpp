@@ -1,12 +1,29 @@
 #include "gfx_context_impl_metal.hpp"
 
+// NOTE to developers: if it makes more sense to use an .mm source file, feel free to do so.
+
 namespace app::gfx {
 
 MetalGraphicsContext::MetalGraphicsContext()
     : IGraphicsContext(kBackend) {}
 
 util::ObjectResult<MetalGraphicsContext> MetalGraphicsContext::Create(const MetalGraphicsContextSpec &spec) {
+    auto context = std::make_unique<MetalGraphicsContext>();
+    auto result = context->Initialize();
+    if (!result) {
+        return result.Error();
+    }
+    return std::move(context);
+}
+
+util::VoidResult<> MetalGraphicsContext::Initialize() {
     return util::ErrorMessage{"Unimplemented"};
+}
+
+void MetalGraphicsContext::Shutdown() {}
+
+bool MetalGraphicsContext::IsInitialized() const {
+    return false;
 }
 
 void MetalGraphicsContext::ClearScreen(gfx::ColorRGBA color) {

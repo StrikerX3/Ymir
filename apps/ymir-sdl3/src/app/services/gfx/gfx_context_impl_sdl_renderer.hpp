@@ -19,13 +19,17 @@ class SDLRendererGraphicsContext final : public IGraphicsContext {
 public:
     static constexpr Backend kBackend = Backend::SDLRenderer;
 
-    SDLRendererGraphicsContext(SDL_Window *window, SDL_Renderer *renderer);
+    SDLRendererGraphicsContext(SDL_Window *window);
     ~SDLRendererGraphicsContext();
 
     /// @brief Creates a SDL Renderer graphics context.
     /// @param[in] spec the backend specifications
     /// @return the graphics context instance or an error message
     static util::ObjectResult<SDLRendererGraphicsContext> Create(const SDLRendererGraphicsContextSpec &spec);
+
+    util::VoidResult<> Initialize() override;
+    void Shutdown() override;
+    bool IsInitialized() const override;
 
     void ClearScreen(gfx::ColorRGBA color) override;
 
@@ -51,7 +55,7 @@ public:
 
 private:
     SDL_Window *m_window;
-    SDL_Renderer *m_renderer;
+    SDL_Renderer *m_renderer = nullptr;
 
     bool m_imguiInitialized = false;
 

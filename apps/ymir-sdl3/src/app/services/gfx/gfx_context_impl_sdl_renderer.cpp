@@ -48,14 +48,12 @@ static SDL_ScaleMode ToSDL3Value(TextureFilterMode mode) {
 
 // -----------------------------------------------------------------------------
 
-SDLRendererGraphicsContext::SDLRendererGraphicsContext(SDL_Window *window, SDL_Renderer *renderer)
+SDLRendererGraphicsContext::SDLRendererGraphicsContext(SDL_Window *window)
     : IGraphicsContext(kBackend)
-    , m_window(window)
-    , m_renderer(renderer) {}
+    , m_window(window) {}
 
 SDLRendererGraphicsContext::~SDLRendererGraphicsContext() {
-    ImGuiShutdown();
-    SDL_DestroyRenderer(m_renderer);
+    Shutdown();
 }
 
 util::ObjectResult<SDLRendererGraphicsContext>
@@ -63,11 +61,32 @@ SDLRendererGraphicsContext::Create(const SDLRendererGraphicsContextSpec &spec) {
     if (spec.window == nullptr) {
         return util::ErrorMessage{"Could not create SDL renderer: no window pointer provided"};
     }
-    SDL_Renderer *renderer = SDL_CreateRenderer(spec.window, nullptr);
-    if (renderer == nullptr) {
+    auto context = std::make_unique<SDLRendererGraphicsContext>(spec.window);
+    auto result = context->Initialize();
+    if (!result) {
+        return result.Error();
+    }
+    return std::move(context);
+}
+
+util::VoidResult<> SDLRendererGraphicsContext::Initialize() {
+    m_renderer = SDL_CreateRenderer(m_window, nullptr);
+    if (m_renderer == nullptr) {
         return util::ErrorMessage{fmt::format("Could not create SDL renderer: {}", SDL_GetError())};
     }
-    return std::make_unique<SDLRendererGraphicsContext>(spec.window, renderer);
+    return {};
+}
+
+void SDLRendererGraphicsContext::Shutdown() {
+    if (m_renderer != nullptr) {
+        ImGuiShutdown();
+        SDL_DestroyRenderer(m_renderer);
+        m_renderer = nullptr;
+    }
+}
+
+bool SDLRendererGraphicsContext::IsInitialized() const {
+    return m_renderer != nullptr;
 }
 
 void SDLRendererGraphicsContext::ClearScreen(gfx::ColorRGBA color) {

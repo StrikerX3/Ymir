@@ -22,8 +22,15 @@ GraphicsService::GraphicsService()
 GraphicsService::~GraphicsService() {}
 
 util::VoidResult<> GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
+    m_gfxContext->Shutdown();
     auto result = CreateGraphicsContext(backend, window);
     if (!result) {
+        m_gfxContext->Initialize();
+        assert(m_gfxContext->IsInitialized());
+        RecreateTextures();
+        if (m_imguiInitialized) {
+            m_gfxContext->ImGuiInit();
+        }
         return result.Error();
     }
     m_gfxContext = result.Value();
@@ -89,19 +96,25 @@ void GraphicsService::DestroyGraphicsContext() {
 }
 
 bool GraphicsService::ImGuiInit() {
+    m_imguiInitialized = true;
     return m_gfxContext->ImGuiInit();
 }
 
 void GraphicsService::ImGuiShutdown() {
     m_gfxContext->ImGuiShutdown();
+    m_imguiInitialized = false;
 }
 
 void GraphicsService::ImGuiNewFrame() {
-    m_gfxContext->ImGuiNewFrame();
+    if (m_imguiInitialized) {
+        m_gfxContext->ImGuiNewFrame();
+    }
 }
 
 void GraphicsService::ImGuiRenderFrame() {
-    m_gfxContext->ImGuiRenderFrame();
+    if (m_imguiInitialized) {
+        m_gfxContext->ImGuiRenderFrame();
+    }
 }
 
 void GraphicsService::ClearScreen(ColorRGBA color) {
@@ -134,11 +147,16 @@ bool GraphicsService::IsTextureHandleValid(GUITextureHandle handle) const {
 }
 
 util::VoidResult<> GraphicsService::ResizeTexture(GUITextureHandle handle, uint32 width, uint32 height) {
-    const Texture2DInstance *texture = GetTexture(handle);
+    Texture2DInstance *texture = GetTexture(handle);
     if (texture == nullptr) {
         return util::ErrorMessage{"Invalid texture handle"};
     }
-    return m_gfxContext->ResizeTexture(texture->id, width, height);
+    auto result = m_gfxContext->ResizeTexture(texture->id, width, height);
+    if (result) {
+        texture->spec.width = width;
+        texture->spec.height = height;
+    }
+    return result;
 }
 
 util::VoidResult<> GraphicsService::UpdateTexture(GUITextureHandle handle, const IRect *rect,
@@ -228,6 +246,24 @@ auto GraphicsService::GetTexture(GUITextureHandle handle) -> Texture2DInstance *
 
 auto GraphicsService::GetTexture(GUITextureHandle handle) const -> const Texture2DInstance * {
     return const_cast<GraphicsService *>(this)->GetTexture(handle);
+}
+
+util::VoidResult<> GraphicsService::RecreateTextures() {
+    for (auto &[handle, texture] : m_textures) {
+        auto createResult = m_gfxContext->CreateTexture(texture.spec);
+        if (!createResult) {
+            return util::ErrorMessage{fmt::format("Failed to create texture: {}", createResult.Error().message)};
+        }
+
+        texture.id = createResult.Value();
+        auto updateResult = m_gfxContext->UpdateTexture(
+            texture.id, nullptr, [&](void *data, size_t pitch) { texture.fnSetup(handle, true, data, pitch); });
+        if (!updateResult) {
+            return util::ErrorMessage{fmt::format("Failed to upload texture: {}", updateResult.Error().message)};
+        }
+    }
+
+    return {};
 }
 
 } // namespace app::services
