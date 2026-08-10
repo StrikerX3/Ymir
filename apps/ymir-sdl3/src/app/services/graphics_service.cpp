@@ -35,6 +35,7 @@ util::VoidResult<> GraphicsService::InitGraphicsContext(Backend backend, SDL_Win
     }
     m_gfxContext = result.Value();
     m_gfxContext->SetPresentMode(presentMode);
+    RecreateTextures();
     return {};
 }
 

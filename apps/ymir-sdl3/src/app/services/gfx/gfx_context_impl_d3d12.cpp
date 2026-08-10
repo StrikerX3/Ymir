@@ -30,10 +30,6 @@ struct Direct3D12GraphicsContext::Impl {
     explicit Impl(const Direct3D12GraphicsContextSpec &spec)
         : spec(spec) {}
 
-    ~Impl() {
-        Shutdown();
-    }
-
     static constexpr UINT kFrameCount = 3;
 
     Direct3D12GraphicsContextSpec spec;
@@ -127,7 +123,7 @@ struct Direct3D12GraphicsContext::Impl {
             rtvHeap->SetName(L"[Ymir-GCtx] RTV heap");
 
             D3D12_DESCRIPTOR_HEAP_DESC resourceHeapDesc{};
-            resourceHeapDesc.NumDescriptors = 2;
+            resourceHeapDesc.NumDescriptors = 131072;
             resourceHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             resourceHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
             if (FAILED(resourceHeap.Create(device, resourceHeapDesc))) {
@@ -152,6 +148,8 @@ struct Direct3D12GraphicsContext::Impl {
                     return util::ErrorMessage{
                         fmt::format("Failed to create command allocator for swapchain frame #{}", n)};
                 }
+                frames[n].cmdAlloc->SetName(
+                    fmt::format(L"[Ymir-GCtx] Command allocator for swapchain buffer #{}", n).c_str());
                 device->CreateRenderTargetView(resource, nullptr, rtvHandle);
                 resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
                 frames[n].renderTarget.Attach(resource);
@@ -174,16 +172,27 @@ struct Direct3D12GraphicsContext::Impl {
         return {};
     }
 
-    void Shutdown() {
+    void WaitForAllOperations() {
         WaitForGPU();
+        if (SUCCEEDED(fenceCounter.Signal(cmdQueue))) {
+            fenceCounter.Wait(INFINITE);
+        }
+        for (UINT n = 0; n < kFrameCount; n++) {
+            if (SUCCEEDED(frames[n].fenceCounter.Signal(cmdQueue))) {
+                frames[n].fenceCounter.Wait(INFINITE);
+            }
+        }
+    }
+
+    void Shutdown() {
+        fenceCounter.Unbind();
         for (UINT n = 0; n < kFrameCount; n++) {
             frames[n].fenceCounter.Unbind();
             frames[n].renderTarget.Destroy();
             frames[n].cmdAlloc.Destroy();
         }
-        pipelineState.Destroy();
-        fenceCounter.Unbind();
         fence.Destroy();
+        pipelineState.Destroy();
         cmdList.Destroy();
         cmdAlloc.Destroy();
         cmdQueue.Destroy();
@@ -213,6 +222,7 @@ struct Direct3D12GraphicsContext::Impl {
 
         // Indicate that the back buffer will be used as a render target
         if (auto *list7 = cmdList.As7()) {
+            // TODO: check for enhanced barrier support
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_NONE,
                 .SyncAfter = D3D12_BARRIER_SYNC_RENDER_TARGET,
@@ -261,7 +271,9 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> EndFrame() {
+        // Indicate that the back buffer will be used for frame presentation
         if (auto *list7 = cmdList.As7()) {
+            // TODO: check for enhanced barrier support
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_RENDER_TARGET,
                 .SyncAfter = D3D12_BARRIER_SYNC_NONE,
@@ -356,7 +368,9 @@ Direct3D12GraphicsContext::Direct3D12GraphicsContext(const Direct3D12GraphicsCon
     : IGraphicsContext(kBackend)
     , m_impl(std::make_unique<Impl>(spec)) {}
 
-Direct3D12GraphicsContext::~Direct3D12GraphicsContext() = default;
+Direct3D12GraphicsContext::~Direct3D12GraphicsContext() {
+    Shutdown();
+}
 
 util::ObjectResult<Direct3D12GraphicsContext>
 Direct3D12GraphicsContext::Create(const Direct3D12GraphicsContextSpec &spec) {
@@ -373,6 +387,8 @@ util::VoidResult<> Direct3D12GraphicsContext::Initialize() {
 }
 
 void Direct3D12GraphicsContext::Shutdown() {
+    m_impl->WaitForAllOperations();
+    ImGuiShutdown();
     m_impl->Shutdown();
 }
 
@@ -428,8 +444,11 @@ bool Direct3D12GraphicsContext::ImGuiInit() {
 }
 
 void Direct3D12GraphicsContext::ImGuiShutdown() {
-    ImGui_ImplDX12_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
+    if (m_imguiInitialized) {
+        ImGui_ImplDX12_Shutdown();
+        ImGui_ImplSDL3_Shutdown();
+        m_imguiInitialized = false;
+    }
 }
 
 void Direct3D12GraphicsContext::ImGuiNewFrame() {
