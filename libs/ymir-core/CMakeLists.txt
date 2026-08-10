@@ -349,20 +349,22 @@ endif ()
 
 ## Add OS-specific source files for graphics
 if (WIN32)
-    target_sources(ymir-core PUBLIC
-        include/ymir/gpu/d3d12/d3d12_commands.hpp
-        include/ymir/gpu/d3d12/d3d12_debug.hpp
-        include/ymir/gpu/d3d12/d3d12_descriptor_heap.hpp
-        include/ymir/gpu/d3d12/d3d12_descriptor_heap_allocator.hpp
-        include/ymir/gpu/d3d12/d3d12_device.hpp
-        include/ymir/gpu/d3d12/d3d12_fence.hpp
-        include/ymir/gpu/d3d12/d3d12_object_wrapper.hpp
-        include/ymir/gpu/d3d12/d3d12_pipeline_state.hpp
-        include/ymir/gpu/d3d12/d3d12_resource.hpp
-        include/ymir/gpu/d3d12/d3d12_root_signature.hpp
-        include/ymir/gpu/d3d12/d3d12_swap_chain.hpp
+    target_sources(ymir-core
+        PUBLIC
+            include/ymir/gpu/d3d12/d3d12_commands.hpp
+            include/ymir/gpu/d3d12/d3d12_debug.hpp
+            include/ymir/gpu/d3d12/d3d12_descriptor_heap.hpp
+            include/ymir/gpu/d3d12/d3d12_descriptor_heap_allocator.hpp
+            include/ymir/gpu/d3d12/d3d12_device.hpp
+            include/ymir/gpu/d3d12/d3d12_fence.hpp
+            include/ymir/gpu/d3d12/d3d12_object_wrapper.hpp
+            include/ymir/gpu/d3d12/d3d12_pipeline_state.hpp
+            include/ymir/gpu/d3d12/d3d12_resource.hpp
+            include/ymir/gpu/d3d12/d3d12_root_signature.hpp
+            include/ymir/gpu/d3d12/d3d12_swap_chain.hpp
 
-        src/ymir/gpu/d3d12/d3d12_debug.cpp
+        PRIVATE
+            src/ymir/gpu/d3d12/d3d12_debug.cpp
     )
 endif ()
 
