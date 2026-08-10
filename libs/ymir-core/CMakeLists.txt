@@ -25,6 +25,9 @@ add_library(ymir-core
     include/ymir/debug/watchpoint_defs.hpp
     include/ymir/debug/ygr_tracer_base.hpp
 
+    include/ymir/gpu/shaders/gpu_shaders.hpp
+    include/ymir/gpu/shaders/gpu_shader_types.hpp
+
     include/ymir/hw/hw_defs.hpp
 
     include/ymir/hw/cart/cart_base.hpp
@@ -365,6 +368,20 @@ if (WIN32)
 
         PRIVATE
             src/ymir/gpu/d3d12/d3d12_debug.cpp
+
+            src/ymir/gpu/shaders/gpu_shaders_windows.cpp
+    )
+elseif (APPLE)
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/shaders/gpu_shaders_macos.cpp
+    )
+elseif (UNIX) # Linux and FreeBSD
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/shaders/gpu_shaders_unixlike.cpp
+    )
+else ()
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/shaders/gpu_shaders_other.cpp
     )
 endif ()
 

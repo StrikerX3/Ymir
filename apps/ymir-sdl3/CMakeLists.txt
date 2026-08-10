@@ -424,7 +424,6 @@ if (WIN32)
     )
 endif ()
 
-find_package(Vulkan)
 if (Vulkan_FOUND)
     target_sources(ymir-sdl3 PRIVATE
         src/app/services/gfx/gfx_context_impl_vulkan.cpp
