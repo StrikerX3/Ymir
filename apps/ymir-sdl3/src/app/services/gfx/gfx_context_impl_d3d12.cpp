@@ -16,15 +16,25 @@
 
 #include <d3d12.h>
 
-#include <wil/com.h>
-
 #include <fmt/format.h>
 
 #include <array>
+#include <unordered_map>
 
 using namespace ymir::gpu::d3d12;
 
 namespace app::gfx {
+
+static DXGI_FORMAT ToD3D12Value(PixelFormat format) {
+    switch (format) {
+    case PixelFormat::Unknown: return DXGI_FORMAT_UNKNOWN;
+    case PixelFormat::R8G8B8X8_UNORM: return DXGI_FORMAT_R8G8B8A8_UNORM; // Note: A instead of X
+    case PixelFormat::R8G8B8A8_UNORM: return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case PixelFormat::B8G8R8X8_UNORM: return DXGI_FORMAT_B8G8R8X8_UNORM;
+    case PixelFormat::B8G8R8A8_UNORM: return DXGI_FORMAT_B8G8R8A8_UNORM;
+    }
+    return DXGI_FORMAT_UNKNOWN;
+}
 
 struct Direct3D12GraphicsContext::Impl {
     explicit Impl(const Direct3D12GraphicsContextSpec &spec)
@@ -62,6 +72,27 @@ struct Direct3D12GraphicsContext::Impl {
     struct Features {
         bool enhancedBarriers = false;
     } features;
+
+    struct TextureInstance {
+        Texture2DSpec spec;
+        D3D12Resource texture;
+        std::array<D3D12Resource, kFrameCount> stagingBuffers;
+        std::array<void *, kFrameCount> stagingBuffersData;
+
+        D3D12_CPU_DESCRIPTOR_HANDLE srvCPUHandle;
+        D3D12_GPU_DESCRIPTOR_HANDLE srvGPUHandle;
+        UINT srvIndex;
+
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+        UINT numRows;
+        UINT64 rowSizeBytes;
+        UINT64 uploadBufferSize;
+        size_t rowPitch;
+    };
+
+    std::unordered_map<TextureID, TextureInstance> textures;
+
+    // -------------------------------------------------------------------------
 
     util::VoidResult<> Init() {
         if (spec.window == nullptr) {
@@ -121,7 +152,7 @@ struct Direct3D12GraphicsContext::Impl {
         swapChainDesc.BufferCount = kFrameCount;
         swapChainDesc.Width = windowRect.right;
         swapChainDesc.Height = windowRect.bottom;
-        swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        swapChainDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
         swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
         swapChainDesc.SampleDesc.Count = 1;
@@ -271,7 +302,7 @@ struct Direct3D12GraphicsContext::Impl {
         cmdList->RSSetScissorRects(1, &scissorRect);
 
         // Indicate that the back buffer will be used as a render target
-        if (auto *list7 = cmdList.As7(); features.enhancedBarriers && list7 != nullptr) {
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_NONE,
                 .SyncAfter = D3D12_BARRIER_SYNC_RENDER_TARGET,
@@ -296,7 +327,7 @@ struct Direct3D12GraphicsContext::Impl {
                 .NumBarriers = 1,
                 .pTextureBarriers = &barrier,
             };
-            list7->Barrier(1, &group);
+            enhCmdList->Barrier(1, &group);
         } else {
             D3D12_RESOURCE_BARRIER barrier{
                 .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
@@ -321,7 +352,7 @@ struct Direct3D12GraphicsContext::Impl {
 
     util::VoidResult<> EndFrame() {
         // Indicate that the back buffer will be used for frame presentation
-        if (auto *list7 = cmdList.As7(); features.enhancedBarriers && list7 != nullptr) {
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_RENDER_TARGET,
                 .SyncAfter = D3D12_BARRIER_SYNC_NONE,
@@ -346,7 +377,7 @@ struct Direct3D12GraphicsContext::Impl {
                 .NumBarriers = 1,
                 .pTextureBarriers = &barrier,
             };
-            list7->Barrier(1, &group);
+            enhCmdList->Barrier(1, &group);
         } else {
             D3D12_RESOURCE_BARRIER barrier{
                 .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
@@ -429,6 +460,214 @@ struct Direct3D12GraphicsContext::Impl {
 
         return {};
     }
+
+    util::ValueResult<TextureInstance> CreateTexture(const Texture2DSpec &spec) {
+        TextureInstance instance;
+
+        {
+            auto builder = instance.texture.Texture2DBuilder(spec.width, spec.height);
+            builder.Format(ToD3D12Value(spec.format));
+            builder.HeapType(D3D12_HEAP_TYPE_DEFAULT);
+            builder.InitialState(D3D12_RESOURCE_STATE_COMMON);
+            if (spec.access == TextureAccess::RenderTarget) {
+                builder.Flags(D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
+            }
+            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format("Could not create texture, error code {:X}", hr)};
+            }
+        }
+
+        D3D12_RESOURCE_DESC desc = instance.texture->GetDesc();
+        device->GetCopyableFootprints(&desc, 0, 1, 0, &instance.footprint, &instance.numRows, &instance.rowSizeBytes,
+                                      &instance.uploadBufferSize);
+        instance.rowPitch = PixelFormatUnitSize(spec.format) * spec.width;
+
+        // In D3D12, textures cannot be directly written to by the CPU - a staging buffer is always needed.
+        // Static and Streaming access modes have identical behavior.
+        // We store one buffer per frame to enable parallel updates.
+        for (int i = 0; i < kFrameCount; ++i) {
+            D3D12Resource &buffer = instance.stagingBuffers[i];
+            auto builder = buffer.BufferBuilder(instance.uploadBufferSize);
+            builder.HeapType(D3D12_HEAP_TYPE_UPLOAD);
+            builder.InitialState(D3D12_RESOURCE_STATE_GENERIC_READ);
+            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create texture staging buffer #{}, error code {:X}", i, hr)};
+            }
+            if (HRESULT hr = buffer->Map(0, nullptr, &instance.stagingBuffersData[i]); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not map texture staging buffer #{}, error code {:X}", i, hr)};
+            }
+        }
+
+        if (!resourceHeapAlloc.Allocate(instance.srvCPUHandle, instance.srvGPUHandle, instance.srvIndex)) {
+            return util::ErrorMessage{"Could not allocate SRV for texture"};
+        }
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = desc.Format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = 1;
+        device->CreateShaderResourceView(instance.texture.GetPointer(), &srvDesc, instance.srvCPUHandle);
+
+        instance.spec = spec;
+
+        return instance;
+    }
+
+    void DestroyTexture(TextureID id) {
+        auto it = textures.find(id);
+        if (it == textures.end()) {
+            return;
+        }
+        auto &texture = it->second;
+        for (int i = 0; i < kFrameCount; ++i) {
+            texture.stagingBuffers[i]->Unmap(0, nullptr);
+            texture.stagingBuffers[i].Destroy();
+        }
+        texture.texture.Destroy();
+        resourceHeapAlloc.Free(texture.srvIndex);
+        textures.erase(it);
+    }
+
+    bool IsTextureValid(TextureID id) {
+        auto it = textures.find(id);
+        if (it == textures.end()) {
+            return false;
+        }
+        auto &texture = it->second;
+        return texture.texture.IsValid();
+    }
+
+    TextureInstance *GetTexture(TextureID id) {
+        auto it = textures.find(id);
+        if (it == textures.end()) {
+            return nullptr;
+        }
+        return &it->second;
+    }
+
+    util::VoidResult<> UpdateTexture(TextureID id, const IRect *rect,
+                                     const std::function<void(void *data, size_t pitch)> &fnUpdate) {
+        auto it = textures.find(id);
+        if (it == textures.end()) {
+            return util::ErrorMessage{"Invalid texture ID"};
+        }
+        auto &instance = it->second;
+        D3D12Resource &texture = instance.texture;
+        D3D12Resource &stagingBuffer = instance.stagingBuffers[frameIndex];
+        void *stagingBufferData = instance.stagingBuffersData[frameIndex];
+
+        // Copy data to staging buffer
+        fnUpdate(stagingBufferData, instance.rowPitch);
+
+        // Indicate that data will be copied to the texture
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
+            D3D12_TEXTURE_BARRIER barrier{
+                .SyncBefore = D3D12_BARRIER_SYNC_PIXEL_SHADING,
+                .SyncAfter = D3D12_BARRIER_SYNC_COPY,
+                .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
+                .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
+                .LayoutBefore = D3D12_BARRIER_LAYOUT_COMMON,
+                .LayoutAfter = D3D12_BARRIER_LAYOUT_COPY_DEST,
+                .pResource = texture.GetPointer(),
+                .Subresources =
+                    {
+                        .IndexOrFirstMipLevel = 0,
+                        .NumMipLevels = 1,
+                        .FirstArraySlice = 0,
+                        .NumArraySlices = 1,
+                        .FirstPlane = 0,
+                        .NumPlanes = 1,
+                    },
+                .Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE,
+            };
+            const D3D12_BARRIER_GROUP group{
+                .Type = D3D12_BARRIER_TYPE_TEXTURE,
+                .NumBarriers = 1,
+                .pTextureBarriers = &barrier,
+            };
+            enhCmdList->Barrier(1, &group);
+        } else {
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .Transition =
+                    {
+                        .pResource = texture.GetPointer(),
+                        .Subresource = 0,
+                        .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
+                        .StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                    },
+            };
+            cmdList->ResourceBarrier(1, &barrier);
+        }
+
+        // Copy buffer to texture
+        const D3D12_TEXTURE_COPY_LOCATION src{
+            .pResource = stagingBuffer.GetPointer(),
+            .Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            .PlacedFootprint = instance.footprint,
+        };
+        const D3D12_TEXTURE_COPY_LOCATION dst{
+            .pResource = texture.GetPointer(),
+            .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+            .SubresourceIndex = 0,
+        };
+        cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+        // Transition texture back to pixel shading usage
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
+            D3D12_TEXTURE_BARRIER barrier{
+                .SyncBefore = D3D12_BARRIER_SYNC_COPY,
+                .SyncAfter = D3D12_BARRIER_SYNC_PIXEL_SHADING,
+                .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
+                .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
+                .LayoutBefore = D3D12_BARRIER_LAYOUT_COPY_DEST,
+                .LayoutAfter = D3D12_BARRIER_LAYOUT_COMMON,
+                .pResource = texture.GetPointer(),
+                .Subresources =
+                    {
+                        .IndexOrFirstMipLevel = 0,
+                        .NumMipLevels = 1,
+                        .FirstArraySlice = 0,
+                        .NumArraySlices = 1,
+                        .FirstPlane = 0,
+                        .NumPlanes = 1,
+                    },
+                .Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE,
+            };
+            const D3D12_BARRIER_GROUP group{
+                .Type = D3D12_BARRIER_TYPE_TEXTURE,
+                .NumBarriers = 1,
+                .pTextureBarriers = &barrier,
+            };
+            enhCmdList->Barrier(1, &group);
+        } else {
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .Transition =
+                    {
+                        .pResource = texture.GetPointer(),
+                        .Subresource = 0,
+                        .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
+                        .StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+                    },
+            };
+            cmdList->ResourceBarrier(1, &barrier);
+        }
+
+        return {};
+    }
+
+    ID3D12GraphicsCommandList7 *GetCommandListForEnhancedBarriers() const {
+        if (!features.enhancedBarriers) {
+            return nullptr;
+        }
+        return cmdList.As7();
+    }
 };
 
 // -----------------------------------------------------------------------------
@@ -493,7 +732,7 @@ bool Direct3D12GraphicsContext::ImGuiInit() {
     initInfo.Device = m_impl->device.GetPointer();
     initInfo.CommandQueue = m_impl->cmdQueue.GetPointer();
     initInfo.NumFramesInFlight = Impl::kFrameCount;
-    initInfo.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    initInfo.RTVFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
     initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
     initInfo.UserData = m_impl.get();
     initInfo.SrvDescriptorHeap = m_impl->resourceHeap.GetPointer();
@@ -538,31 +777,29 @@ void Direct3D12GraphicsContext::ImGuiRenderFrame() {
 }
 
 util::ValueResult<TextureID> Direct3D12GraphicsContext::CreateTexture(const Texture2DSpec &spec) {
-    // uint32 width = 0;
-    // uint32 height = 0;
-    // PixelFormat format = PixelFormat::Unknown;
-    // TextureAccess access = TextureAccess::Static;
-    // TextureFilterMode filterMode = TextureFilterMode::Linear;
-    // NOTE: use the current frame's fence value to enqueue commands
+    auto result = m_impl->CreateTexture(spec);
+    if (!result) {
+        return result.Error();
+    }
 
-    // TODO: create and store texture object in a hash map
-    // The texture ID will be the hash map key, not the native object pointer, because resizing the texture requires
-    // creating a new object and these IDs must be immutable for the lifetime of the logical texture.
-    return util::ErrorMessage{"Unimplemented"};
+    const TextureID id = GetNextTextureID();
+    m_impl->textures[id] = std::move(result.Value());
+
+    return id;
 }
 
 void Direct3D12GraphicsContext::DestroyTexture(TextureID id) {
-    // TODO: delete texture
+    m_impl->DestroyTexture(id);
 }
 
 bool Direct3D12GraphicsContext::IsTextureValid(TextureID id) const {
-    // TODO: check if the texture is still live
-    return true;
+    return m_impl->IsTextureValid(id);
 }
 
 ImTextureID Direct3D12GraphicsContext::GetImGuiTextureID(TextureID id) const {
-    // TODO: get and return texture ID
-    return 0;
+    // ImTextureIDs for D3D12 are the D3D12_GPU_DESCRIPTOR_HANDLE for the texture's SRV
+    Impl::TextureInstance *instance = m_impl->GetTexture(id);
+    return instance ? instance->srvGPUHandle.ptr : 0;
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
@@ -573,12 +810,16 @@ util::VoidResult<> Direct3D12GraphicsContext::ResizeTexture(TextureID id, uint32
 util::VoidResult<>
 Direct3D12GraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
                                          const std::function<void(void *data, size_t pitch)> &fnUpdate) {
-    // TODO: map texture, invoke fnUpdate with contents, unmap texture; handle errors
-    return util::ErrorMessage{"Unimplemented"};
+    return m_impl->UpdateTexture(id, rect, fnUpdate);
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                                               const FRect &dstRect) {
+    // TODO: create a root signature with two static samplers (nearest, linear) and a SRV slot for the texture
+    // TODO: use TextureFilterMode to select sampler
+    // TODO: use the current frame's fence value to enqueue commands
+    // TODO: use 32-bit constants to specify src and dst rects
+
     // TODO: set render target to dst texture, draw texture, restore render target
     return util::ErrorMessage{"Unimplemented"};
 }
@@ -586,6 +827,11 @@ util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, Tex
 util::VoidResult<> Direct3D12GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect,
                                                                  const FRect &dstRect, double rotAngle,
                                                                  const FPoint2D *anchorPoint) {
+    // TODO: create a root signature with two static samplers (nearest, linear) and a SRV slot for the texture
+    // TODO: use TextureFilterMode to select sampler
+    // TODO: use the current frame's fence value to enqueue commands
+    // TODO: use 32-bit constants to specify src and dst rects, rotation angle and anchor point
+
     // TODO: imitate SDL_RenderTextureRotated:
     // - srcRect specifies the source texture region to copy from (in texels)
     // - dstRect specifies the destination texture region to copy to (in texels)

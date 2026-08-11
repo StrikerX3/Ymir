@@ -832,7 +832,7 @@ void App::RunEmulator() {
         {
             .width = vdp::kMaxResH,
             .height = vdp::kMaxResV,
-            .format = gfx::PixelFormat::XBGR8888,
+            .format = gfx::PixelFormat::R8G8B8X8_UNORM,
             .access = gfx::TextureAccess::Streaming,
             .filterMode = gfx::TextureFilterMode::Nearest,
         },
@@ -852,7 +852,7 @@ void App::RunEmulator() {
     auto dispTextureResult = m_graphicsService.CreateTexture({
         .width = vdp::kMaxResH * screen.fbScale,
         .height = vdp::kMaxResV * screen.fbScale,
-        .format = gfx::PixelFormat::XBGR8888,
+        .format = gfx::PixelFormat::R8G8B8X8_UNORM,
         .access = gfx::TextureAccess::RenderTarget,
         .filterMode = gfx::TextureFilterMode::Linear,
     });
@@ -919,7 +919,7 @@ void App::RunEmulator() {
             {
                 .width = static_cast<uint32>(imgW),
                 .height = static_cast<uint32>(imgH),
-                .format = gfx::PixelFormat::ABGR8888,
+                .format = gfx::PixelFormat::R8G8B8A8_UNORM,
                 .access = gfx::TextureAccess::Static,
             },
             [=, this](gfx::GUITextureHandle texture, bool, void *data, size_t pitch) {

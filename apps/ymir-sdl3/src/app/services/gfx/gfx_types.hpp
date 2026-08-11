@@ -78,14 +78,46 @@ enum class PresentMode {
     NoSync,   ///< Presents frames without synchronization.
 };
 
+/// @brief Pixel formats.
+/// The names follow the naming convention `<bit-layout>_<value-format>`.
+/// The bit layout is a sequence of elements describing the layout of the pixel data from least to most significant
+/// bits. Each element is composed of a letter followed by digits indicating the number of bits used by the element.
+/// The letters represent the following data:
+///   R = red
+///   G = green
+///   B = blue
+///   A = alpha
+///   X = dummy/unused
+///   D = depth
+///   S = stencil
+/// Note that the dummy element may contain garbage. Pixel shaders must account for that by ignoring the value.
+/// The value format indicates how the data is consumed from the CPU side and presented to the GPU:
+///   UNORM = unsigned integers on the CPU, normalized floating point values on the GPU
+///   UINT = unsigned integers on CPU and GPU
 enum class PixelFormat {
     Unknown,
 
-    XBGR8888,
-    ABGR8888,
+    R8G8B8X8_UNORM,
+    R8G8B8A8_UNORM,
+    B8G8R8X8_UNORM,
+    B8G8R8A8_UNORM,
 
-    // TODO: add formats as needed
+    // TODO: add more formats as needed
 };
+
+/// @brief Returns the size (in bytes) of a pixel in the given format.
+/// @param[in] format the pixel format
+/// @return the number of bytes per pixel in that format
+inline uint64 PixelFormatUnitSize(PixelFormat format) {
+    switch (format) {
+    case PixelFormat::Unknown: return 0;
+    case PixelFormat::R8G8B8X8_UNORM: return 4;
+    case PixelFormat::R8G8B8A8_UNORM: return 4;
+    case PixelFormat::B8G8R8X8_UNORM: return 4;
+    case PixelFormat::B8G8R8A8_UNORM: return 4;
+    }
+    return 0;
+}
 
 /// @brief A point's coordinates in 2D space using floating point values.
 struct FPoint2D {
@@ -112,7 +144,7 @@ struct ColorRGBA {
 // -----------------------------------------------------------------------------
 
 enum class TextureAccess {
-    Static,       ///< Texture data uploaded on creation, cannot be changed later
+    Static,       ///< Texture data lives on the GPU only; updates require a staging buffer (expensive)
     Streaming,    ///< Texture data can be changed at any point
     RenderTarget, ///< Texture can be used as render target
 };

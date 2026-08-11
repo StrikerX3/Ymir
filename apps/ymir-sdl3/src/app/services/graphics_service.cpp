@@ -34,6 +34,9 @@ util::VoidResult<> GraphicsService::InitGraphicsContext(Backend backend, SDL_Win
     }
     assert(m_gfxContext->IsInitialized());
     m_gfxContext->SetPresentMode(presentMode);
+    if (m_frameStarted) {
+        m_gfxContext->BeginFrame();
+    }
     RecreateTextures();
     if (m_imguiInitialized) {
         m_gfxContext->ImGuiInit();
@@ -97,11 +100,25 @@ util::VoidResult<> GraphicsService::ResizeFramebuffer(uint32 width, uint32 heigh
 }
 
 util::VoidResult<> GraphicsService::BeginFrame() {
-    return m_gfxContext->BeginFrame();
+    if (m_frameStarted) {
+        return {};
+    }
+    auto result = m_gfxContext->BeginFrame();
+    if (result) {
+        m_frameStarted = true;
+    }
+    return result;
 }
 
 util::VoidResult<> GraphicsService::EndFrame() {
-    return m_gfxContext->EndFrame();
+    if (!m_frameStarted) {
+        return {};
+    }
+    auto result = m_gfxContext->EndFrame();
+    if (result) {
+        m_frameStarted = false;
+    }
+    return result;
 }
 
 void GraphicsService::ClearScreen(ColorRGBA color) {

@@ -25,8 +25,10 @@ static SDL_PixelFormat ToSDL3Value(PixelFormat format) {
     switch (format) {
     default: [[fallthrough]];
     case PixelFormat::Unknown: return SDL_PIXELFORMAT_UNKNOWN;
-    case PixelFormat::XBGR8888: return SDL_PIXELFORMAT_XBGR8888;
-    case PixelFormat::ABGR8888: return SDL_PIXELFORMAT_ABGR8888;
+    case PixelFormat::R8G8B8X8_UNORM: return SDL_PIXELFORMAT_XBGR8888;
+    case PixelFormat::R8G8B8A8_UNORM: return SDL_PIXELFORMAT_ABGR8888;
+    case PixelFormat::B8G8R8X8_UNORM: return SDL_PIXELFORMAT_XRGB8888;
+    case PixelFormat::B8G8R8A8_UNORM: return SDL_PIXELFORMAT_ARGB8888;
     }
 }
 

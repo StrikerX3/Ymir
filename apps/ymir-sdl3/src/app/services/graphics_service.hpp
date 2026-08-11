@@ -152,6 +152,7 @@ private:
     std::unique_ptr<gfx::IGraphicsContext> m_gfxContext;
 
     bool m_imguiInitialized = false;
+    bool m_frameStarted = false;
 
     struct Texture2DInstance {
         gfx::TextureID id;
