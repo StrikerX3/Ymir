@@ -46,7 +46,7 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12GraphicsCommandList cmdList;
     D3D12SwapChain swapchain;
     D3D12DescriptorHeap rtvHeap;
-    D3D12DescriptorHeap resourceHeap; // for user-created and ImGui textures
+    D3D12DescriptorHeap resourceHeap;
     DescriptorHeapAllocator resourceHeapAlloc;
     D3D12PipelineState pipelineState;
     D3D12Fence fence;
@@ -58,6 +58,10 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12_RECT scissorRect;
 
     PresentMode presentMode = PresentMode::VSync;
+
+    struct Features {
+        bool enhancedBarriers = false;
+    } features;
 
     util::VoidResult<> Init() {
         if (spec.window == nullptr) {
@@ -97,6 +101,11 @@ struct Direct3D12GraphicsContext::Impl {
         }
         debugLayer.BreakOnWarnings(device.GetPointer(), true);
         device->SetName(L"[Ymir] D3D12 device");
+
+        D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12{};
+        if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)))) {
+            features.enhancedBarriers = options12.EnhancedBarriersSupported;
+        }
 
         if (FAILED(cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
             return util::ErrorMessage{"Failed to create command queue"};
@@ -262,8 +271,7 @@ struct Direct3D12GraphicsContext::Impl {
         cmdList->RSSetScissorRects(1, &scissorRect);
 
         // Indicate that the back buffer will be used as a render target
-        if (auto *list7 = cmdList.As7()) {
-            // TODO: check for enhanced barrier support
+        if (auto *list7 = cmdList.As7(); features.enhancedBarriers && list7 != nullptr) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_NONE,
                 .SyncAfter = D3D12_BARRIER_SYNC_RENDER_TARGET,
@@ -313,8 +321,7 @@ struct Direct3D12GraphicsContext::Impl {
 
     util::VoidResult<> EndFrame() {
         // Indicate that the back buffer will be used for frame presentation
-        if (auto *list7 = cmdList.As7()) {
-            // TODO: check for enhanced barrier support
+        if (auto *list7 = cmdList.As7(); features.enhancedBarriers && list7 != nullptr) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_RENDER_TARGET,
                 .SyncAfter = D3D12_BARRIER_SYNC_NONE,
