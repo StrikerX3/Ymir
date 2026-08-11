@@ -54,7 +54,8 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12Device device;
     D3D12CommandQueue cmdQueue;
     D3D12CommandAllocator cmdAlloc;
-    D3D12GraphicsCommandList cmdList;
+    D3D12GraphicsCommandList cmdListFrame;
+    D3D12GraphicsCommandList cmdListOps;
     D3D12SwapChain swapchain;
     D3D12DescriptorHeap rtvHeap;
     D3D12DescriptorHeap resourceHeap;
@@ -228,16 +229,23 @@ struct Direct3D12GraphicsContext::Impl {
             }
         }
 
-        // Create command allocator and list
+        // Create command allocator and lists
         if (FAILED(cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
             return util::ErrorMessage{"Failed to create main command allocator"};
         }
-        if (FAILED(cmdList.Create(device, cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
-            return util::ErrorMessage{"Failed to create command list"};
-        }
-        cmdList->Close();
         cmdAlloc->SetName(L"[Ymir-GCtx] Command allocator");
-        cmdList->SetName(L"[Ymir-GCtx] Command list");
+
+        if (FAILED(cmdListFrame.Create(device, cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
+            return util::ErrorMessage{"Failed to create frame command list"};
+        }
+        cmdListFrame->Close();
+        cmdListFrame->SetName(L"[Ymir-GCtx] Frame command list");
+
+        if (FAILED(cmdListOps.Create(device, cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
+            return util::ErrorMessage{"Failed to create operations command list"};
+        }
+        cmdListOps->Close();
+        cmdListOps->SetName(L"[Ymir-GCtx] Operations command list");
 
         return {};
     }
@@ -251,7 +259,8 @@ struct Direct3D12GraphicsContext::Impl {
         }
         fence.Destroy();
         pipelineState.Destroy();
-        cmdList.Destroy();
+        cmdListFrame.Destroy();
+        cmdListOps.Destroy();
         cmdAlloc.Destroy();
         cmdQueue.Destroy();
         resourceHeapAlloc.Unbind();
@@ -317,18 +326,18 @@ struct Direct3D12GraphicsContext::Impl {
         if (FAILED(cmdAlloc->Reset())) {
             return util::ErrorMessage{"Failed to reset command allocator"};
         }
-        if (FAILED(cmdList->Reset(cmdAlloc.GetPointer(), pipelineState.GetPointer()))) {
+        if (FAILED(cmdListFrame->Reset(cmdAlloc.GetPointer(), pipelineState.GetPointer()))) {
             return util::ErrorMessage{"Failed to reset command list"};
         }
 
         ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
-        cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
+        cmdListFrame->SetDescriptorHeaps(std::size(heaps), heaps);
 
-        cmdList->RSSetViewports(1, &viewport);
-        cmdList->RSSetScissorRects(1, &scissorRect);
+        cmdListFrame->RSSetViewports(1, &viewport);
+        cmdListFrame->RSSetScissorRects(1, &scissorRect);
 
         // Indicate that the back buffer will be used as a render target
-        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers(cmdListFrame)) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_NONE,
                 .SyncAfter = D3D12_BARRIER_SYNC_RENDER_TARGET,
@@ -366,12 +375,12 @@ struct Direct3D12GraphicsContext::Impl {
                         .StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET,
                     },
             };
-            cmdList->ResourceBarrier(1, &barrier);
+            cmdListFrame->ResourceBarrier(1, &barrier);
         }
 
         rtvHandle = rtvHeap.GetCPUStart();
         rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * rtvHeap.GetDescriptorSize();
-        cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+        cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
         DeletePendingTextures(false);
 
@@ -380,7 +389,7 @@ struct Direct3D12GraphicsContext::Impl {
 
     util::VoidResult<> EndFrame() {
         // Indicate that the back buffer will be used for frame presentation
-        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers(cmdListFrame)) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_RENDER_TARGET,
                 .SyncAfter = D3D12_BARRIER_SYNC_NONE,
@@ -418,18 +427,18 @@ struct Direct3D12GraphicsContext::Impl {
                         .StateAfter = D3D12_RESOURCE_STATE_PRESENT,
                     },
             };
-            cmdList->ResourceBarrier(1, &barrier);
+            cmdListFrame->ResourceBarrier(1, &barrier);
         }
 
-        if (FAILED(cmdList->Close())) {
-            return util::ErrorMessage{"Failed to close command list"};
+        if (FAILED(cmdListFrame->Close())) {
+            return util::ErrorMessage{"Failed to close frame command list"};
         }
 
         return {};
     }
 
     util::VoidResult<> Present() {
-        ID3D12CommandList *ppCommandLists[] = {cmdList.GetPointer()};
+        ID3D12CommandList *ppCommandLists[] = {cmdListFrame.GetPointer()};
         cmdQueue->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
 
         // NOTE: VSync and Mailbox both wait for vertical retrace to present a frame. The difference is that enqueuing
@@ -628,8 +637,11 @@ struct Direct3D12GraphicsContext::Impl {
         // Copy data to staging buffer
         fnUpdate(stagingBufferData, instance.rowPitch);
 
+        cmdListOps->Reset(cmdAlloc.GetPointer(), nullptr);
+        auto *enhCmdList = GetCommandListForEnhancedBarriers(cmdListOps);
+
         // Indicate that data will be copied to the texture
-        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
+        if (enhCmdList != nullptr) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_PIXEL_SHADING,
                 .SyncAfter = D3D12_BARRIER_SYNC_COPY,
@@ -667,7 +679,7 @@ struct Direct3D12GraphicsContext::Impl {
                         .StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
                     },
             };
-            cmdList->ResourceBarrier(1, &barrier);
+            cmdListOps->ResourceBarrier(1, &barrier);
         }
 
         // Copy buffer to texture
@@ -681,10 +693,10 @@ struct Direct3D12GraphicsContext::Impl {
             .Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
             .SubresourceIndex = 0,
         };
-        cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+        cmdListOps->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 
         // Transition texture back to pixel shading usage
-        if (auto *enhCmdList = GetCommandListForEnhancedBarriers()) {
+        if (enhCmdList != nullptr) {
             D3D12_TEXTURE_BARRIER barrier{
                 .SyncBefore = D3D12_BARRIER_SYNC_COPY,
                 .SyncAfter = D3D12_BARRIER_SYNC_PIXEL_SHADING,
@@ -722,13 +734,16 @@ struct Direct3D12GraphicsContext::Impl {
                         .StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
                     },
             };
-            cmdList->ResourceBarrier(1, &barrier);
+            cmdListOps->ResourceBarrier(1, &barrier);
         }
+
+        cmdListOps->Close();
+        cmdQueue->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
 
         return {};
     }
 
-    ID3D12GraphicsCommandList7 *GetCommandListForEnhancedBarriers() const {
+    ID3D12GraphicsCommandList7 *GetCommandListForEnhancedBarriers(D3D12GraphicsCommandList &cmdList) const {
         if (!features.enhancedBarriers) {
             return nullptr;
         }
@@ -786,7 +801,7 @@ util::VoidResult<> Direct3D12GraphicsContext::EndFrame() {
 
 void Direct3D12GraphicsContext::ClearScreen(gfx::ColorRGBA color) {
     const float clearColor[] = {color.r, color.g, color.b, color.a};
-    m_impl->cmdList->ClearRenderTargetView(m_impl->rtvHandle, clearColor, 0, nullptr);
+    m_impl->cmdListFrame->ClearRenderTargetView(m_impl->rtvHandle, clearColor, 0, nullptr);
 }
 
 bool Direct3D12GraphicsContext::ImGuiInit() {
@@ -838,7 +853,7 @@ void Direct3D12GraphicsContext::ImGuiNewFrame() {
 
 void Direct3D12GraphicsContext::ImGuiRenderFrame() {
     if (m_imguiInitialized) {
-        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_impl->cmdList.GetPointer());
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), m_impl->cmdListFrame.GetPointer());
     }
 }
 
