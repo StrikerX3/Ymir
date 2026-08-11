@@ -26,6 +26,20 @@ using namespace ymir::gpu::d3d12;
 
 namespace app::gfx {
 
+/// @brief Converts the given UTF-8-encoded string to a wide string.
+/// @param[in] str the string to convert
+/// @return the string converted to `std::wstring`
+static std::wstring StringToWString(std::string_view str) {
+    if (str.empty()) {
+        return L"";
+    }
+
+    const int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstr(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstr[0], size);
+    return wstr;
+}
+
 static DXGI_FORMAT ToD3D12Value(PixelFormat format) {
     switch (format) {
     case PixelFormat::Unknown: return DXGI_FORMAT_UNKNOWN;
@@ -512,6 +526,9 @@ struct Direct3D12GraphicsContext::Impl {
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format("Could not create texture, error code {:X}", hr)};
             }
+            if (!spec.name.empty()) {
+                instance.texture->SetName(fmt::format(L"{} texture", StringToWString(spec.name)).c_str());
+            }
         }
 
         D3D12_RESOURCE_DESC desc = instance.texture->GetDesc();
@@ -534,6 +551,9 @@ struct Direct3D12GraphicsContext::Impl {
             if (HRESULT hr = buffer->Map(0, nullptr, &instance.stagingBuffersData[i]); FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Could not map texture staging buffer #{}, error code {:X}", i, hr)};
+            }
+            if (!spec.name.empty()) {
+                buffer->SetName(fmt::format(L"{} staging buffer #{}", StringToWString(spec.name), i).c_str());
             }
         }
 

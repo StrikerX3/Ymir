@@ -835,6 +835,7 @@ void App::RunEmulator() {
             .format = gfx::PixelFormat::R8G8B8X8_UNORM,
             .access = gfx::TextureAccess::Streaming,
             .filterMode = gfx::TextureFilterMode::Nearest,
+            .name = "[Ymir] Software framebuffer",
         },
         [&](gfx::GUITextureHandle handle, bool recreated, void *data, size_t pitch) {
             if (recreated) {
@@ -855,6 +856,7 @@ void App::RunEmulator() {
         .format = gfx::PixelFormat::R8G8B8X8_UNORM,
         .access = gfx::TextureAccess::RenderTarget,
         .filterMode = gfx::TextureFilterMode::Linear,
+        .name = "[Ymir] Scaled display",
     });
     if (!dispTextureResult) {
         ShowStartupFailure("Failed to create display texture: {}", dispTextureResult.Error().message);
@@ -921,6 +923,7 @@ void App::RunEmulator() {
                 .height = static_cast<uint32>(imgH),
                 .format = gfx::PixelFormat::R8G8B8A8_UNORM,
                 .access = gfx::TextureAccess::Static,
+                .name = "[Ymir] Logo image",
             },
             [=, this](gfx::GUITextureHandle texture, bool, void *data, size_t pitch) {
                 auto byteData = static_cast<char *>(data);

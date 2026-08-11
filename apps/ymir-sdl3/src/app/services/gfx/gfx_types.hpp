@@ -174,6 +174,9 @@ struct Texture2DSpec {
 
     /// @brief Texture magnification and minification filter mode.
     TextureFilterMode filterMode = TextureFilterMode::Linear;
+
+    /// @brief Texture name, for graphics debugging tools.
+    std::string name;
 };
 
 } // namespace app::gfx
