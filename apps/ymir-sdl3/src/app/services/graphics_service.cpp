@@ -149,9 +149,6 @@ void GraphicsService::ImGuiRenderFrame() {
 
 util::ValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec,
                                                                    FnTextureSetup &&fnSetup) {
-    if (!m_frameStarted) {
-        BeginFrame();
-    }
     auto createResult = m_gfxContext->CreateTexture(spec);
     if (!createResult) {
         return util::ErrorMessage{fmt::format("Failed to create texture: {}", createResult.Error().message)};
