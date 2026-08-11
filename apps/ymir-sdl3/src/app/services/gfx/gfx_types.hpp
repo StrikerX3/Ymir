@@ -97,10 +97,10 @@ enum class PresentMode {
 enum class PixelFormat {
     Unknown,
 
-    R8G8B8X8_UNORM,
     R8G8B8A8_UNORM,
-    B8G8R8X8_UNORM,
+    R8G8B8X8_UNORM,
     B8G8R8A8_UNORM,
+    B8G8R8X8_UNORM,
 
     // TODO: add more formats as needed
 };
@@ -111,10 +111,10 @@ enum class PixelFormat {
 inline uint64 PixelFormatUnitSize(PixelFormat format) {
     switch (format) {
     case PixelFormat::Unknown: return 0;
-    case PixelFormat::R8G8B8X8_UNORM: return 4;
     case PixelFormat::R8G8B8A8_UNORM: return 4;
-    case PixelFormat::B8G8R8X8_UNORM: return 4;
+    case PixelFormat::R8G8B8X8_UNORM: return 4;
     case PixelFormat::B8G8R8A8_UNORM: return 4;
+    case PixelFormat::B8G8R8X8_UNORM: return 4;
     }
     return 0;
 }

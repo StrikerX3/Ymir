@@ -19,6 +19,7 @@
 #include <fmt/format.h>
 
 #include <array>
+#include <deque>
 #include <unordered_map>
 
 using namespace ymir::gpu::d3d12;
@@ -28,10 +29,10 @@ namespace app::gfx {
 static DXGI_FORMAT ToD3D12Value(PixelFormat format) {
     switch (format) {
     case PixelFormat::Unknown: return DXGI_FORMAT_UNKNOWN;
-    case PixelFormat::R8G8B8X8_UNORM: return DXGI_FORMAT_R8G8B8A8_UNORM; // Note: A instead of X
     case PixelFormat::R8G8B8A8_UNORM: return DXGI_FORMAT_R8G8B8A8_UNORM;
-    case PixelFormat::B8G8R8X8_UNORM: return DXGI_FORMAT_B8G8R8X8_UNORM;
+    case PixelFormat::R8G8B8X8_UNORM: return DXGI_FORMAT_R8G8B8A8_UNORM; // Note: A instead of X
     case PixelFormat::B8G8R8A8_UNORM: return DXGI_FORMAT_B8G8R8A8_UNORM;
+    case PixelFormat::B8G8R8X8_UNORM: return DXGI_FORMAT_B8G8R8X8_UNORM;
     }
     return DXGI_FORMAT_UNKNOWN;
 }
@@ -90,7 +91,24 @@ struct Direct3D12GraphicsContext::Impl {
         size_t rowPitch;
     };
 
+    struct TextureToDelete {
+        D3D12Resource texture;
+        std::array<D3D12Resource, kFrameCount> stagingBuffers;
+        UINT srvIndex;
+        UINT64 targetFenceVance;
+
+        void Destroy(DescriptorHeapAllocator &resourceHeapAlloc) {
+            for (int i = 0; i < kFrameCount; ++i) {
+                stagingBuffers[i]->Unmap(0, nullptr);
+                stagingBuffers[i].Destroy();
+            }
+            texture.Destroy();
+            resourceHeapAlloc.Free(srvIndex);
+        }
+    };
+
     std::unordered_map<TextureID, TextureInstance> textures;
+    std::deque<TextureToDelete> texturesToDelete;
 
     // -------------------------------------------------------------------------
 
@@ -225,6 +243,8 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     void Shutdown() {
+        DeletePendingTextures(true);
+        textures.clear();
         for (UINT n = 0; n < kFrameCount; n++) {
             frames[n].renderTarget.Destroy();
             frames[n].cmdAlloc.Destroy();
@@ -263,18 +283,24 @@ struct Direct3D12GraphicsContext::Impl {
         frameIndex = swapchain->GetCurrentBackBufferIndex();
 
         // Recreate RTVs
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap.GetCPUStart());
-        for (UINT n = 0; n < kFrameCount; n++) {
-            ID3D12Resource *resource;
-            if (FAILED(swapchain->GetBuffer(n, IID_PPV_ARGS(&resource)))) {
-                return util::ErrorMessage{fmt::format("Failed to get swapchain buffer {}", n)};
+        {
+            D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap.GetCPUStart());
+            for (UINT n = 0; n < kFrameCount; n++) {
+                ID3D12Resource *resource;
+                if (FAILED(swapchain->GetBuffer(n, IID_PPV_ARGS(&resource)))) {
+                    return util::ErrorMessage{fmt::format("Failed to get swapchain buffer {}", n)};
+                }
+                device->CreateRenderTargetView(resource, nullptr, rtvHandle);
+                resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
+                frames[n].renderTarget.Attach(resource);
+                frames[n].fenceValue = 0;
+                rtvHandle.ptr += rtvHeap.GetDescriptorSize();
             }
-            device->CreateRenderTargetView(resource, nullptr, rtvHandle);
-            resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
-            frames[n].renderTarget.Attach(resource);
-            frames[n].fenceValue = 0;
-            rtvHandle.ptr += rtvHeap.GetDescriptorSize();
         }
+
+        // Update current RTV handle
+        rtvHandle = rtvHeap.GetCPUStart();
+        rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * rtvHeap.GetDescriptorSize();
 
         // Update viewport and scissor rects
         viewport.Width = width;
@@ -346,6 +372,8 @@ struct Direct3D12GraphicsContext::Impl {
         rtvHandle = rtvHeap.GetCPUStart();
         rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * rtvHeap.GetDescriptorSize();
         cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+        DeletePendingTextures(false);
 
         return {};
     }
@@ -516,19 +544,57 @@ struct Direct3D12GraphicsContext::Impl {
         return instance;
     }
 
+    util::VoidResult<> ResizeTexture(TextureID id, uint32 width, uint32 height) {
+        auto it = textures.find(id);
+        if (it == textures.end()) {
+            return util::ErrorMessage{"Texture does not exist"};
+        }
+        TextureInstance &instance = it->second;
+
+        // First, try creating new texture using the existing texture's specifications
+        Texture2DSpec newSpec = instance.spec;
+        newSpec.width = width;
+        newSpec.height = height;
+        auto createResult = CreateTexture(newSpec);
+        if (!createResult) {
+            return createResult.Error();
+        }
+
+        // Now that we've succeeded, mark the previous texture for deletion and replace it
+        SubmitTextureForDeletion(instance);
+        instance = createResult.Value();
+
+        return {};
+    }
+
     void DestroyTexture(TextureID id) {
         auto it = textures.find(id);
         if (it == textures.end()) {
             return;
         }
-        auto &texture = it->second;
-        for (int i = 0; i < kFrameCount; ++i) {
-            texture.stagingBuffers[i]->Unmap(0, nullptr);
-            texture.stagingBuffers[i].Destroy();
-        }
-        texture.texture.Destroy();
-        resourceHeapAlloc.Free(texture.srvIndex);
+        auto &instance = it->second;
+        SubmitTextureForDeletion(instance);
         textures.erase(it);
+    }
+
+    void SubmitTextureForDeletion(TextureInstance &instance) {
+        TextureToDelete &texToDelete = texturesToDelete.emplace_back();
+        texToDelete.texture = std::move(instance.texture);
+        texToDelete.stagingBuffers.swap(instance.stagingBuffers);
+        texToDelete.srvIndex = instance.srvIndex;
+        texToDelete.targetFenceVance = frames[frameIndex].fenceValue + kFrameCount;
+    }
+
+    void DeletePendingTextures(bool force) {
+        if (texturesToDelete.empty()) {
+            return;
+        }
+
+        const UINT64 fenceValue = frames[frameIndex].fenceValue;
+        while (!texturesToDelete.empty() && (force || texturesToDelete.front().targetFenceVance <= fenceValue)) {
+            texturesToDelete.front().Destroy(resourceHeapAlloc);
+            texturesToDelete.pop_front();
+        }
     }
 
     bool IsTextureValid(TextureID id) {
@@ -536,8 +602,8 @@ struct Direct3D12GraphicsContext::Impl {
         if (it == textures.end()) {
             return false;
         }
-        auto &texture = it->second;
-        return texture.texture.IsValid();
+        auto &instance = it->second;
+        return instance.texture.IsValid();
     }
 
     TextureInstance *GetTexture(TextureID id) {
@@ -803,8 +869,7 @@ ImTextureID Direct3D12GraphicsContext::GetImGuiTextureID(TextureID id) const {
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
-    // TODO: destroy and recreate texture with new dimensions
-    return util::ErrorMessage{"Unimplemented"};
+    return m_impl->ResizeTexture(id, width, height);
 }
 
 util::VoidResult<>
