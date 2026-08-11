@@ -538,6 +538,13 @@ void Direct3D12GraphicsContext::ImGuiRenderFrame() {
 }
 
 util::ValueResult<TextureID> Direct3D12GraphicsContext::CreateTexture(const Texture2DSpec &spec) {
+    // uint32 width = 0;
+    // uint32 height = 0;
+    // PixelFormat format = PixelFormat::Unknown;
+    // TextureAccess access = TextureAccess::Static;
+    // TextureFilterMode filterMode = TextureFilterMode::Linear;
+    // NOTE: use the current frame's fence value to enqueue commands
+
     // TODO: create and store texture object in a hash map
     // The texture ID will be the hash map key, not the native object pointer, because resizing the texture requires
     // creating a new object and these IDs must be immutable for the lifetime of the logical texture.

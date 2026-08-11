@@ -1295,6 +1295,8 @@ void App::RunEmulator() {
 
     auto prevTime = clk::now();
 
+    m_graphicsService.BeginFrame();
+
     while (true) {
         bool fitWindowToScreenNow = false;
         bool forceScreenScale = false;
@@ -1743,6 +1745,7 @@ void App::RunEmulator() {
                     if (result) {
                         settings.video.graphicsBackend = backend;
                         settings.MakeDirty();
+                        m_graphicsService.BeginFrame();
                         m_context.DisplayMessage(
                             fmt::format("{} initialized successfully", gfx::GraphicsBackendName(backend)));
                     } else {
@@ -3098,8 +3101,6 @@ void App::RunEmulator() {
 
         ImGui::Render();
 
-        m_graphicsService.BeginFrame();
-
         // Clear screen
         m_graphicsService.ClearScreen(clearColor);
 
@@ -3266,6 +3267,7 @@ void App::RunEmulator() {
 
         m_graphicsService.EndFrame();
         m_graphicsService.Present();
+        m_graphicsService.BeginFrame();
 
         // Process ImGui INI file write requests
         // TODO: compress and include in state blob
