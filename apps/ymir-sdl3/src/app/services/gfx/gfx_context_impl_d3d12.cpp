@@ -106,7 +106,6 @@ struct Direct3D12GraphicsContext::Impl {
 
     D3D12Device device;
     D3D12CommandQueue cmdQueue;
-    D3D12CommandAllocator cmdAlloc;
     D3D12GraphicsCommandList cmdListFrame;
     D3D12GraphicsCommandList cmdListOps;
     D3D12SwapChain swapchain;
@@ -309,12 +308,8 @@ struct Direct3D12GraphicsContext::Impl {
             }
         }
 
-        // Create command allocator and lists
-        if (FAILED(cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
-            return util::ErrorMessage{"Failed to create main command allocator"};
-        }
-        cmdAlloc->SetName(L"[Ymir-GCtx] Command allocator");
-
+        // Create command lists
+        D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
         if (FAILED(cmdListFrame.Create(device, cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
             return util::ErrorMessage{"Failed to create frame command list"};
         }
@@ -360,7 +355,7 @@ struct Direct3D12GraphicsContext::Impl {
                 .AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER,
                 .AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER,
                 .ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER,
-                .BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK,
+                .BorderColor = {0.0f, 0.0f, 0.0f, 0.0f},
                 .MinLOD = 0.0f,
                 .MaxLOD = D3D12_FLOAT32_MAX,
             };
@@ -648,7 +643,6 @@ struct Direct3D12GraphicsContext::Impl {
         rootSignature.Destroy();
         cmdListFrame.Destroy();
         cmdListOps.Destroy();
-        cmdAlloc.Destroy();
         cmdQueue.Destroy();
         resourceHeapAlloc.Unbind();
         resourceHeap.Destroy();
@@ -708,13 +702,14 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> BeginFrame() {
-        ymir::gpu::d3d12::D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
+        D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
 
-        if (FAILED(cmdAlloc->Reset())) {
-            return util::ErrorMessage{"Failed to reset command allocator"};
+        if (HRESULT hr = cmdAlloc->Reset(); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Failed to reset frame command allocator, error code {:X}", (uint32)hr)};
         }
-        if (FAILED(cmdListFrame->Reset(cmdAlloc.GetPointer(), pipelineState.GetPointer()))) {
-            return util::ErrorMessage{"Failed to reset command list"};
+        if (HRESULT hr = cmdListFrame->Reset(cmdAlloc.GetPointer(), pipelineState.GetPointer()); FAILED(hr)) {
+            return util::ErrorMessage{fmt::format("Failed to reset frame command list, error code {:X}", (uint32)hr)};
         }
 
         ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer(), samplerHeap.GetPointer()};
@@ -1034,7 +1029,11 @@ struct Direct3D12GraphicsContext::Impl {
         // Copy data to staging buffer
         fnUpdate(stagingBufferData, instance.rowPitch);
 
-        cmdListOps->Reset(cmdAlloc.GetPointer(), nullptr);
+        D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
+        if (HRESULT hr = cmdListOps->Reset(cmdAlloc.GetPointer(), nullptr); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Failed to reset operations command list, error code {:X}", (uint32)hr)};
+        }
         auto *enhCmdList = GetCommandListForEnhancedBarriers(cmdListOps);
 
         // Indicate that data will be copied to the texture
