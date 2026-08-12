@@ -9,6 +9,7 @@
 #include <ymir/gpu/d3d12/d3d12_fence.hpp>
 #include <ymir/gpu/d3d12/d3d12_pipeline_state.hpp>
 #include <ymir/gpu/d3d12/d3d12_resource.hpp>
+#include <ymir/gpu/d3d12/d3d12_root_signature.hpp>
 #include <ymir/gpu/d3d12/d3d12_swap_chain.hpp>
 
 #include <backends/imgui_impl_dx12.h>
@@ -74,6 +75,7 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12DescriptorHeap rtvHeap;
     D3D12DescriptorHeap resourceHeap;
     DescriptorHeapAllocator resourceHeapAlloc;
+    D3D12RootSignature rootSignature;
     D3D12PipelineState pipelineState;
     D3D12Fence fence;
     std::array<FrameContext, kFrameCount> frames;
@@ -121,6 +123,30 @@ struct Direct3D12GraphicsContext::Impl {
             resourceHeapAlloc.Free(srvIndex);
         }
     };
+
+    struct alignas(uint32) Float4 {
+        float x, y, z, w;
+    };
+    struct alignas(uint32) Float2 {
+        float x, y;
+    };
+
+    struct alignas(uint32) RenderToTextureConstants {
+        Float4 srcRect;
+        Float4 dstRect;
+    };
+
+    struct alignas(uint32) DrawTextureRotatedConstants {
+        Float4 srcRect;
+        Float4 dstRect;
+        Float2 anchorPoint;
+        float rotAngle;
+    };
+
+    union Constants {
+        RenderToTextureConstants renderToTexture;
+        DrawTextureRotatedConstants drawTextureRotated;
+    } constants;
 
     std::unordered_map<TextureID, TextureInstance> textures;
     std::deque<TextureToDelete> texturesToDelete;
@@ -261,6 +287,44 @@ struct Direct3D12GraphicsContext::Impl {
         cmdListOps->Close();
         cmdListOps->SetName(L"[Ymir-GCtx] Operations command list");
 
+        // Create root signature for texture drawing operations
+        // - one SRV slot for the texture to draw
+        // - two static samplers: [0] nearest neighbor and [1] linear interpolation
+        // - enough room for constants for both operations
+        {
+            auto rootSigBuilder = rootSignature.Builder();
+            rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL)
+                .AddSRVs(1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+            rootSigBuilder.AddStaticSampler(0, 0, D3D12_SHADER_VISIBILITY_PIXEL)
+                .Filter(D3D12_FILTER_MIN_MAG_MIP_POINT)
+                .AddressU(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
+                .AddressV(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
+                .AddressW(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
+                .MipLODBias(0)
+                .MaxAnisotropy(0)
+                .ComparisonFunc(D3D12_COMPARISON_FUNC_NEVER)
+                .BorderColor(D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK)
+                .LODRange(0.0f, D3D12_FLOAT32_MAX);
+            rootSigBuilder.AddStaticSampler(1, 0, D3D12_SHADER_VISIBILITY_PIXEL)
+                .Filter(D3D12_FILTER_MIN_MAG_MIP_LINEAR)
+                .AddressU(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
+                .AddressV(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
+                .AddressW(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
+                .MipLODBias(0)
+                .MaxAnisotropy(0)
+                .ComparisonFunc(D3D12_COMPARISON_FUNC_NEVER)
+                .BorderColor(D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK)
+                .LODRange(0.0f, D3D12_FLOAT32_MAX);
+            rootSigBuilder.Add32BitConstants(
+                0, std::max(sizeof(RenderToTextureConstants), sizeof(DrawTextureRotatedConstants)) / sizeof(uint32), 0,
+                D3D12_SHADER_VISIBILITY_PIXEL);
+            if (HRESULT hr = rootSigBuilder.Build(device); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Failed to create texture operations root signature, error code {:X}", hr)};
+            }
+            rootSignature->SetName(L"[Ymir-GCtx] Texture operations root signature");
+        }
+
         return {};
     }
 
@@ -273,6 +337,7 @@ struct Direct3D12GraphicsContext::Impl {
         }
         fence.Destroy();
         pipelineState.Destroy();
+        rootSignature.Destroy();
         cmdListFrame.Destroy();
         cmdListOps.Destroy();
         cmdAlloc.Destroy();
@@ -395,6 +460,7 @@ struct Direct3D12GraphicsContext::Impl {
         rtvHandle = rtvHeap.GetCPUStart();
         rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * rtvHeap.GetDescriptorSize();
         cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+        cmdListFrame->SetGraphicsRootSignature(rootSignature.GetPointer());
 
         DeletePendingTextures(false);
 
@@ -915,7 +981,6 @@ Direct3D12GraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
 
 util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                                               const FRect &dstRect) {
-    // TODO: create a root signature with two static samplers (nearest, linear) and a SRV slot for the texture
     // TODO: use TextureFilterMode to select sampler
     // TODO: use the current frame's fence value to enqueue commands
     // TODO: use 32-bit constants to specify src and dst rects
@@ -927,7 +992,6 @@ util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, Tex
 util::VoidResult<> Direct3D12GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect,
                                                                  const FRect &dstRect, double rotAngle,
                                                                  const FPoint2D *anchorPoint) {
-    // TODO: create a root signature with two static samplers (nearest, linear) and a SRV slot for the texture
     // TODO: use TextureFilterMode to select sampler
     // TODO: use the current frame's fence value to enqueue commands
     // TODO: use 32-bit constants to specify src and dst rects, rotation angle and anchor point
