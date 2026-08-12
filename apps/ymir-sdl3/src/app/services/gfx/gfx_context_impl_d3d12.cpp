@@ -12,6 +12,8 @@
 #include <ymir/gpu/d3d12/d3d12_root_signature.hpp>
 #include <ymir/gpu/d3d12/d3d12_swap_chain.hpp>
 
+#include <ymir/gpu/shaders/gpu_shaders.hpp>
+
 #include <backends/imgui_impl_dx12.h>
 #include <backends/imgui_impl_sdl3.h>
 
@@ -19,10 +21,14 @@
 
 #include <fmt/format.h>
 
+#include <cmrc/cmrc.hpp>
+CMRC_DECLARE(ymir_shaders);
+
 #include <array>
 #include <deque>
 #include <unordered_map>
 
+using namespace ymir::gpu;
 using namespace ymir::gpu::d3d12;
 
 namespace app::gfx {
@@ -52,6 +58,38 @@ static DXGI_FORMAT ToD3D12Value(PixelFormat format) {
     return DXGI_FORMAT_UNKNOWN;
 }
 
+struct alignas(uint32) Float4 {
+    float x, y, z, w;
+};
+
+struct alignas(uint32) Float3 {
+    float x, y, z;
+};
+
+struct alignas(uint32) Float2 {
+    float x, y;
+};
+
+struct Vertex {
+    Float3 position;
+    Float2 uv;
+};
+
+struct alignas(256) DrawTextureConstants {
+    Float4 srcRect;
+    Float4 dstRect;
+    Float2 anchorPoint;
+    float rotAngle;
+};
+
+struct Descriptor {
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle;
+    UINT index;
+};
+
+// -----------------------------------------------------------------------------
+
 struct Direct3D12GraphicsContext::Impl {
     explicit Impl(const Direct3D12GraphicsContextSpec &spec)
         : spec(spec) {}
@@ -75,6 +113,8 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12DescriptorHeap rtvHeap;
     D3D12DescriptorHeap resourceHeap;
     DescriptorHeapAllocator resourceHeapAlloc;
+    D3D12DescriptorHeap samplerHeap;
+    DescriptorHeapAllocator samplerHeapAlloc;
     D3D12RootSignature rootSignature;
     D3D12PipelineState pipelineState;
     D3D12Fence fence;
@@ -84,6 +124,21 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
     D3D12_VIEWPORT viewport;
     D3D12_RECT scissorRect;
+
+    Descriptor smpNearest;
+    Descriptor smpLinear;
+
+    D3D12Resource vertexBuffer;
+    D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+
+    D3D12Resource constBuffer;
+    void *constBufferPtr = nullptr;
+    Descriptor cbvQuad;
+
+    static constexpr D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+    };
 
     PresentMode presentMode = PresentMode::VSync;
 
@@ -97,9 +152,7 @@ struct Direct3D12GraphicsContext::Impl {
         std::array<D3D12Resource, kFrameCount> stagingBuffers;
         std::array<void *, kFrameCount> stagingBuffersData;
 
-        D3D12_CPU_DESCRIPTOR_HANDLE srvCPUHandle;
-        D3D12_GPU_DESCRIPTOR_HANDLE srvGPUHandle;
-        UINT srvIndex;
+        Descriptor srvDesc;
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
         UINT numRows;
@@ -124,29 +177,7 @@ struct Direct3D12GraphicsContext::Impl {
         }
     };
 
-    struct alignas(uint32) Float4 {
-        float x, y, z, w;
-    };
-    struct alignas(uint32) Float2 {
-        float x, y;
-    };
-
-    struct alignas(uint32) RenderToTextureConstants {
-        Float4 srcRect;
-        Float4 dstRect;
-    };
-
-    struct alignas(uint32) DrawTextureRotatedConstants {
-        Float4 srcRect;
-        Float4 dstRect;
-        Float2 anchorPoint;
-        float rotAngle;
-    };
-
-    union Constants {
-        RenderToTextureConstants renderToTexture;
-        DrawTextureRotatedConstants drawTextureRotated;
-    } constants;
+    DrawTextureConstants drawTextureConstants;
 
     std::unordered_map<TextureID, TextureInstance> textures;
     std::deque<TextureToDelete> texturesToDelete;
@@ -190,7 +221,7 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{"Failed to create device"};
         }
         debugLayer.BreakOnWarnings(device.GetPointer(), true);
-        device->SetName(L"[Ymir] D3D12 device");
+        device->SetName(L"[Ymir-GCtx] D3D12 device");
 
         D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12{};
         if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)))) {
@@ -241,8 +272,17 @@ struct Direct3D12GraphicsContext::Impl {
                 return util::ErrorMessage{"Failed to create CBV/SRV/UAV heap"};
             }
             resourceHeap->SetName(L"[Ymir-GCtx] CBV/SRV/UAV heap");
-
             resourceHeapAlloc.Bind(resourceHeap);
+
+            D3D12_DESCRIPTOR_HEAP_DESC samplerHeapDesc{};
+            samplerHeapDesc.NumDescriptors = 2;
+            samplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+            samplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+            if (FAILED(samplerHeap.Create(device, samplerHeapDesc))) {
+                return util::ErrorMessage{"Failed to create sampler heap"};
+            }
+            samplerHeap->SetName(L"[Ymir-GCtx] Sampler heap");
+            samplerHeapAlloc.Bind(samplerHeap);
         }
 
         // Create frame resources
@@ -287,43 +327,307 @@ struct Direct3D12GraphicsContext::Impl {
         cmdListOps->Close();
         cmdListOps->SetName(L"[Ymir-GCtx] Operations command list");
 
-        // Create root signature for texture drawing operations
-        // - one SRV slot for the texture to draw
-        // - two static samplers: [0] nearest neighbor and [1] linear interpolation
-        // - enough room for constants for both operations
+        // Create root signature for texture drawing operations with these descriptors tables:
+        // [0] one CBV slot for the quad vertex data
+        // [1] one SRV slot for the texture to draw
+        // [2] one sampler slot to pick between nearest neighbor and linear interpolation
         {
             auto rootSigBuilder = rootSignature.Builder();
-            rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL)
-                .AddSRVs(1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
-            rootSigBuilder.AddStaticSampler(0, 0, D3D12_SHADER_VISIBILITY_PIXEL)
-                .Filter(D3D12_FILTER_MIN_MAG_MIP_POINT)
-                .AddressU(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
-                .AddressV(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
-                .AddressW(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
-                .MipLODBias(0)
-                .MaxAnisotropy(0)
-                .ComparisonFunc(D3D12_COMPARISON_FUNC_NEVER)
-                .BorderColor(D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK)
-                .LODRange(0.0f, D3D12_FLOAT32_MAX);
-            rootSigBuilder.AddStaticSampler(1, 0, D3D12_SHADER_VISIBILITY_PIXEL)
-                .Filter(D3D12_FILTER_MIN_MAG_MIP_LINEAR)
-                .AddressU(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
-                .AddressV(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
-                .AddressW(D3D12_TEXTURE_ADDRESS_MODE_BORDER)
-                .MipLODBias(0)
-                .MaxAnisotropy(0)
-                .ComparisonFunc(D3D12_COMPARISON_FUNC_NEVER)
-                .BorderColor(D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK)
-                .LODRange(0.0f, D3D12_FLOAT32_MAX);
-            rootSigBuilder.Add32BitConstants(
-                0, std::max(sizeof(RenderToTextureConstants), sizeof(DrawTextureRotatedConstants)) / sizeof(uint32), 0,
-                D3D12_SHADER_VISIBILITY_PIXEL);
+            rootSigBuilder.Flags(D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+            rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_VERTEX).AddCBVs(1, 0);
+            rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL).AddSRVs(1, 0);
+            rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL).AddSamplers(1, 0);
             if (HRESULT hr = rootSigBuilder.Build(device); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Failed to create texture operations root signature, error code {:X}", hr)};
+                    fmt::format("Failed to create texture operations root signature, error code {:X}", (uint32)hr)};
             }
             rootSignature->SetName(L"[Ymir-GCtx] Texture operations root signature");
         }
+
+        // Create nearest neighbor and linear samplers
+        {
+            // Allocate descriptors
+            if (!samplerHeapAlloc.Allocate(smpNearest.cpuHandle, smpNearest.gpuHandle, smpNearest.index)) {
+                return util::ErrorMessage{"Could not allocate nearest neighbor sampler descriptor"};
+            }
+            if (!samplerHeapAlloc.Allocate(smpLinear.cpuHandle, smpLinear.gpuHandle, smpLinear.index)) {
+                return util::ErrorMessage{"Could not allocate linear sampler descriptor"};
+            }
+
+            // Common sampler parameters
+            D3D12_SAMPLER_DESC samplerDesc{
+                .AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+                .AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+                .AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+                .ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER,
+                .BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK,
+                .MinLOD = 0.0f,
+                .MaxLOD = D3D12_FLOAT32_MAX,
+            };
+
+            // Nearest neighbor
+            samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT,
+            device->CreateSampler(&samplerDesc, smpNearest.cpuHandle);
+
+            // Linear
+            samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+            device->CreateSampler(&samplerDesc, smpLinear.cpuHandle);
+        }
+
+        // Load shaders
+        VertexShader vertexShader;
+        PixelShader pixelShader;
+        {
+            auto fs = cmrc::ymir_shaders::get_filesystem();
+            auto loadShader = [&](const char *path) -> util::ValueResult<std::vector<char>> {
+                assert(fs.is_file(path));
+                auto shaderFile = fs.open(path);
+                return std::vector<char>{shaderFile.begin(), shaderFile.end()};
+            };
+
+            // Load vertex shader
+            auto vertexShaderBytecodeResult = loadShader("gctx/d3d12/vs_quad.cso");
+            if (!vertexShaderBytecodeResult) {
+                return util::ErrorMessage{
+                    fmt::format("Could not load vertex shader: {}", vertexShaderBytecodeResult.Error().message)};
+            }
+            vertexShader.format = ShaderBytecodeFormat::DXIL;
+            vertexShader.bytecode = vertexShaderBytecodeResult.Value();
+            vertexShader.entrypoint = "VSMain";
+            if (auto result = ValidateShader(vertexShader); !result) {
+                return util::ErrorMessage{fmt::format("Vertex shader validation failed: {}", result.Error().message)};
+            }
+
+            // Load pixel shader
+            auto pixelShaderBytecodeResult = loadShader("gctx/d3d12/ps_quad.cso");
+            if (!pixelShaderBytecodeResult) {
+                return util::ErrorMessage{
+                    fmt::format("Could not load pixel shader: {}", pixelShaderBytecodeResult.Error().message)};
+            }
+            pixelShader.format = ShaderBytecodeFormat::DXIL;
+            pixelShader.bytecode = pixelShaderBytecodeResult.Value();
+            pixelShader.entrypoint = "PSMain";
+            if (auto result = ValidateShader(pixelShader); !result) {
+                return util::ErrorMessage{fmt::format("Pixel shader validation failed: {}", result.Error().message)};
+            }
+        }
+
+        // Create the graphics pipeline state object (PSO)
+        {
+            D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+            psoDesc.InputLayout = {inputElementDescs, std::size(inputElementDescs)};
+            psoDesc.pRootSignature = rootSignature.GetPointer();
+            psoDesc.VS = {.pShaderBytecode = vertexShader.bytecode.data(),
+                          .BytecodeLength = vertexShader.bytecode.size()};
+            psoDesc.PS = {.pShaderBytecode = pixelShader.bytecode.data(),
+                          .BytecodeLength = pixelShader.bytecode.size()};
+            psoDesc.RasterizerState = {
+                .FillMode = D3D12_FILL_MODE_SOLID,
+                .CullMode = D3D12_CULL_MODE_BACK,
+                .FrontCounterClockwise = FALSE,
+                .DepthBias = D3D12_DEFAULT_DEPTH_BIAS,
+                .DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP,
+                .SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS,
+                .DepthClipEnable = TRUE,
+                .MultisampleEnable = FALSE,
+                .AntialiasedLineEnable = FALSE,
+                .ForcedSampleCount = 0,
+                .ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF,
+            };
+            psoDesc.BlendState = {
+                .AlphaToCoverageEnable = FALSE,
+                .IndependentBlendEnable = FALSE,
+                .RenderTarget = {{
+                    .BlendEnable = FALSE,
+                    .LogicOpEnable = FALSE,
+                    .SrcBlend = D3D12_BLEND_ONE,
+                    .DestBlend = D3D12_BLEND_ZERO,
+                    .BlendOp = D3D12_BLEND_OP_ADD,
+                    .SrcBlendAlpha = D3D12_BLEND_ONE,
+                    .DestBlendAlpha = D3D12_BLEND_ZERO,
+                    .BlendOpAlpha = D3D12_BLEND_OP_ADD,
+                    .LogicOp = D3D12_LOGIC_OP_NOOP,
+                    .RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL,
+                }},
+            };
+            psoDesc.DepthStencilState.DepthEnable = FALSE;
+            psoDesc.DepthStencilState.StencilEnable = FALSE;
+            psoDesc.SampleMask = UINT_MAX;
+            psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+            psoDesc.NumRenderTargets = 1;
+            psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+            psoDesc.SampleDesc.Count = 1;
+            if (HRESULT hr = pipelineState.CreateGraphics(device, psoDesc); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Failed to create graphics pipeline state object, error code {:X}", (uint32)hr)};
+            }
+            pipelineState->SetName(L"[Ymir-GCtx] Graphics pipeline");
+        }
+
+        // Create the vertex buffer
+        D3D12Resource vertexUploadBuffer{};
+        {
+            // Define the geometry for a quad
+            Vertex vertices[] = {
+                {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+                {{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+                {{1.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+                {{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+            };
+
+            const UINT vertexBufferSize = sizeof(vertices);
+            const D3D12_RESOURCE_DESC vertexBufferDesc{
+                .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
+                .Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+                .Width = vertexBufferSize,
+                .Height = 1,
+                .DepthOrArraySize = 1,
+                .MipLevels = 1,
+                .Format = DXGI_FORMAT_UNKNOWN,
+                .SampleDesc = {.Count = 1, .Quality = 0},
+                .Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+                .Flags = D3D12_RESOURCE_FLAG_NONE,
+            };
+
+            // Create upload buffer
+            if (HRESULT hr =
+                    vertexUploadBuffer.CreateCommitted(device, {.Type = D3D12_HEAP_TYPE_UPLOAD}, D3D12_HEAP_FLAG_NONE,
+                                                       vertexBufferDesc, D3D12_RESOURCE_STATE_COMMON);
+                FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Failed to create vertex upload buffer, error code {:X}", (uint32)hr)};
+            }
+            vertexUploadBuffer->SetName(L"[Ymir-GCtx] Vertex upload buffer");
+
+            // Create vertex buffer
+            if (HRESULT hr =
+                    vertexBuffer.CreateCommitted(device, {.Type = D3D12_HEAP_TYPE_DEFAULT}, D3D12_HEAP_FLAG_NONE,
+                                                 vertexBufferDesc, D3D12_RESOURCE_STATE_COMMON);
+                FAILED(hr)) {
+                return util::ErrorMessage{fmt::format("Failed to create vertex buffer, error code {:X}", (uint32)hr)};
+            }
+            vertexBuffer->SetName(L"[Ymir-GCtx] Vertex buffer");
+
+            // Copy the quad data to the upload buffer
+            UINT8 *pVertexDataBegin;
+            D3D12_RANGE readRange(0, 0);
+            if (HRESULT hr = vertexUploadBuffer->Map(0, &readRange, reinterpret_cast<void **>(&pVertexDataBegin));
+                FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not map vertex upload buffer, error code {:X}", (uint32)hr)};
+            }
+            memcpy(pVertexDataBegin, vertices, sizeof(vertices));
+            vertexUploadBuffer->Unmap(0, nullptr);
+
+            // Copy the vertex data to the vertex buffer
+            if (HRESULT hr = cmdAlloc->Reset(); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Failed to reset command allocator, error code {:X}", (uint32)hr)};
+            }
+            if (HRESULT hr = cmdListOps->Reset(cmdAlloc.GetPointer(), pipelineState.GetPointer()); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format("Failed to reset command list, error code {:X}", (uint32)hr)};
+            }
+
+            if (auto *enhCmdList = GetCommandListForEnhancedBarriers(cmdListOps)) {
+                // Indicate that the vertex buffer will be used as copy destination
+                D3D12_BUFFER_BARRIER barrier{
+                    .SyncBefore = D3D12_BARRIER_SYNC_VERTEX_SHADING,
+                    .SyncAfter = D3D12_BARRIER_SYNC_COPY,
+                    .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
+                    .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
+                    .pResource = vertexBuffer.GetPointer(),
+                    .Offset = 0,
+                    .Size = vertexBufferSize,
+                };
+                const D3D12_BARRIER_GROUP group{
+                    .Type = D3D12_BARRIER_TYPE_BUFFER,
+                    .NumBarriers = 1,
+                    .pBufferBarriers = &barrier,
+                };
+                enhCmdList->Barrier(1, &group);
+
+                cmdListOps->CopyBufferRegion(vertexBuffer.GetPointer(), 0, vertexUploadBuffer.GetPointer(), 0,
+                                             vertexBufferSize);
+
+                // Indicate that the vertex buffer will be used for generic reads
+                std::swap(barrier.SyncBefore, barrier.SyncAfter);
+                std::swap(barrier.AccessBefore, barrier.AccessAfter);
+                enhCmdList->Barrier(1, &group);
+            } else {
+                // Indicate that the vertex buffer will be used as copy destination
+                D3D12_RESOURCE_BARRIER barrier{
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                    .Transition =
+                        {
+                            .pResource = vertexBuffer.GetPointer(),
+                            .Subresource = 0,
+                            .StateBefore = D3D12_RESOURCE_STATE_COMMON,
+                            .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
+                        },
+                };
+                cmdListOps->ResourceBarrier(1, &barrier);
+
+                cmdListOps->CopyBufferRegion(vertexBuffer.GetPointer(), 0, vertexUploadBuffer.GetPointer(), 0,
+                                             vertexBufferSize);
+
+                // Indicate that the vertex buffer will be used for generic reads
+                std::swap(barrier.Transition.StateBefore, barrier.Transition.StateAfter);
+                cmdListOps->ResourceBarrier(1, &barrier);
+            }
+
+            // Initialize the vertex buffer view
+            vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+            vertexBufferView.StrideInBytes = sizeof(Vertex);
+            vertexBufferView.SizeInBytes = vertexBufferSize;
+        }
+
+        // Create the constant buffer
+        {
+            const UINT constantBufferSize = sizeof(DrawTextureConstants);
+
+            const D3D12_RESOURCE_DESC constBufferDesc{
+                .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
+                .Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+                .Width = constantBufferSize,
+                .Height = 1,
+                .DepthOrArraySize = 1,
+                .MipLevels = 1,
+                .Format = DXGI_FORMAT_UNKNOWN,
+                .SampleDesc = {.Count = 1, .Quality = 0},
+                .Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+                .Flags = D3D12_RESOURCE_FLAG_NONE,
+            };
+            if (HRESULT hr = constBuffer.CreateCommitted(device, {.Type = D3D12_HEAP_TYPE_UPLOAD}, D3D12_HEAP_FLAG_NONE,
+                                                         constBufferDesc, D3D12_RESOURCE_STATE_COMMON);
+                FAILED(hr)) {
+                return util::ErrorMessage{fmt::format("Failed to create constant buffer, error code {:X}", (uint32)hr)};
+            }
+            constBuffer->SetName(L"Constant buffer");
+
+            // Describe and create a constant buffer view.
+            resourceHeapAlloc.Allocate(cbvQuad.cpuHandle, cbvQuad.gpuHandle, cbvQuad.index);
+            D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
+            cbvDesc.BufferLocation = constBuffer->GetGPUVirtualAddress();
+            cbvDesc.SizeInBytes = constantBufferSize;
+            device->CreateConstantBufferView(&cbvDesc, resourceHeap.GetCPUStart());
+
+            // Map and initialize the constant buffer. We don't unmap this until the context is shut down.
+            // Keeping things mapped for the lifetime of the resource is okay.
+            D3D12_RANGE readRange(0, 0);
+            if (HRESULT hr = constBuffer->Map(0, &readRange, &constBufferPtr); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format("Failed to map constant buffer, error code {:X}", (uint32)hr)};
+            }
+            memcpy(constBufferPtr, &drawTextureConstants, sizeof(drawTextureConstants));
+        }
+
+        // Execute command list
+        if (HRESULT hr = cmdListOps->Close(); FAILED(hr)) {
+            return util::ErrorMessage{fmt::format("Failed to close command list, error code {:X}", (uint32)hr)};
+        }
+        cmdQueue->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
+
+        WaitForGPU();
 
         return {};
     }
@@ -336,6 +640,10 @@ struct Direct3D12GraphicsContext::Impl {
             frames[n].cmdAlloc.Destroy();
         }
         fence.Destroy();
+        constBuffer.Destroy();
+        constBufferPtr = nullptr;
+        vertexBuffer.Destroy();
+        vertexBufferView.BufferLocation = {};
         pipelineState.Destroy();
         rootSignature.Destroy();
         cmdListFrame.Destroy();
@@ -409,8 +717,10 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{"Failed to reset command list"};
         }
 
-        ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
+        ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer(), samplerHeap.GetPointer()};
         cmdListFrame->SetDescriptorHeaps(std::size(heaps), heaps);
+
+        cmdListFrame->SetGraphicsRootSignature(rootSignature.GetPointer());
 
         cmdListFrame->RSSetViewports(1, &viewport);
         cmdListFrame->RSSetScissorRects(1, &scissorRect);
@@ -590,7 +900,7 @@ struct Direct3D12GraphicsContext::Impl {
                 builder.Flags(D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
             }
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
-                return util::ErrorMessage{fmt::format("Could not create texture, error code {:X}", hr)};
+                return util::ErrorMessage{fmt::format("Could not create texture, error code {:X}", (uint32)hr)};
             }
             if (!spec.name.empty()) {
                 instance.texture->SetName(fmt::format(L"{} texture", StringToWString(spec.name)).c_str());
@@ -612,18 +922,19 @@ struct Direct3D12GraphicsContext::Impl {
             builder.InitialState(D3D12_RESOURCE_STATE_GENERIC_READ);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Could not create texture staging buffer #{}, error code {:X}", i, hr)};
+                    fmt::format("Could not create texture staging buffer #{}, error code {:X}", i, (uint32)hr)};
             }
             if (HRESULT hr = buffer->Map(0, nullptr, &instance.stagingBuffersData[i]); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Could not map texture staging buffer #{}, error code {:X}", i, hr)};
+                    fmt::format("Could not map texture staging buffer #{}, error code {:X}", i, (uint32)hr)};
             }
             if (!spec.name.empty()) {
                 buffer->SetName(fmt::format(L"{} staging buffer #{}", StringToWString(spec.name), i).c_str());
             }
         }
 
-        if (!resourceHeapAlloc.Allocate(instance.srvCPUHandle, instance.srvGPUHandle, instance.srvIndex)) {
+        if (!resourceHeapAlloc.Allocate(instance.srvDesc.cpuHandle, instance.srvDesc.gpuHandle,
+                                        instance.srvDesc.index)) {
             return util::ErrorMessage{"Could not allocate SRV for texture"};
         }
 
@@ -632,7 +943,7 @@ struct Direct3D12GraphicsContext::Impl {
         srvDesc.Format = desc.Format;
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
         srvDesc.Texture2D.MipLevels = 1;
-        device->CreateShaderResourceView(instance.texture.GetPointer(), &srvDesc, instance.srvCPUHandle);
+        device->CreateShaderResourceView(instance.texture.GetPointer(), &srvDesc, instance.srvDesc.cpuHandle);
 
         instance.spec = spec;
 
@@ -676,7 +987,7 @@ struct Direct3D12GraphicsContext::Impl {
         TextureToDelete &texToDelete = texturesToDelete.emplace_back();
         texToDelete.texture = std::move(instance.texture);
         texToDelete.stagingBuffers.swap(instance.stagingBuffers);
-        texToDelete.srvIndex = instance.srvIndex;
+        texToDelete.srvIndex = instance.srvDesc.index;
         texToDelete.targetFenceVance = frames[frameIndex].fenceValue + kFrameCount;
     }
 
@@ -966,7 +1277,7 @@ bool Direct3D12GraphicsContext::IsTextureValid(TextureID id) const {
 ImTextureID Direct3D12GraphicsContext::GetImGuiTextureID(TextureID id) const {
     // ImTextureIDs for D3D12 are the D3D12_GPU_DESCRIPTOR_HANDLE for the texture's SRV
     Impl::TextureInstance *instance = m_impl->GetTexture(id);
-    return instance ? instance->srvGPUHandle.ptr : 0;
+    return instance ? instance->srvDesc.gpuHandle.ptr : 0;
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::ResizeTexture(TextureID id, uint32 width, uint32 height) {
@@ -983,9 +1294,19 @@ util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, Tex
                                                               const FRect &dstRect) {
     // TODO: use TextureFilterMode to select sampler
     // TODO: use the current frame's fence value to enqueue commands
-    // TODO: use 32-bit constants to specify src and dst rects
+    // TODO: update constant buffer with rect parameters
 
-    // TODO: set render target to dst texture, draw texture, restore render target
+    // TODO: set render target to dst texture
+
+    // cmdListFrame->SetGraphicsRootDescriptorTable(0, cbvQuad.gpuHandle);
+    // cmdListFrame->SetGraphicsRootDescriptorTable(1, <texture SRV GPU handle>);
+    // cmdListFrame->SetGraphicsRootDescriptorTable(2, <chosen sampler GPU handle>);
+    // cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    // cmdListFrame->IASetVertexBuffers(0, 1, &vertexBufferView);
+    // cmdListFrame->DrawInstanced(4, 1, 0, 0);
+
+    // TODO: set render target to swap chain buffer
+
     return util::ErrorMessage{"Unimplemented"};
 }
 
@@ -994,7 +1315,7 @@ util::VoidResult<> Direct3D12GraphicsContext::DrawTextureRotated(TextureID id, c
                                                                  const FPoint2D *anchorPoint) {
     // TODO: use TextureFilterMode to select sampler
     // TODO: use the current frame's fence value to enqueue commands
-    // TODO: use 32-bit constants to specify src and dst rects, rotation angle and anchor point
+    // TODO: update constant buffer with rect parameters, rotation angle and anchor point
 
     // TODO: imitate SDL_RenderTextureRotated:
     // - srcRect specifies the source texture region to copy from (in texels)

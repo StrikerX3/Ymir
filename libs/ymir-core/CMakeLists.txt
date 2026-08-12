@@ -385,9 +385,65 @@ else ()
     )
 endif ()
 
+## Compile shaders
+set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
+set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+
+## Build lists of vertex and pixel shaders per platform
+set(VERTEX_SHADER_SOURCES "")
+set(PIXEL_SHADER_SOURCES "")
+
+if (WIN32)
+    list(APPEND VERTEX_SHADER_SOURCES
+        gctx/d3d12/vs_quad.hlsl
+    )
+    list(APPEND PIXEL_SHADER_SOURCES
+        gctx/d3d12/ps_quad.hlsl
+    )
+elseif (APPLE)
+elseif (UNIX) # Linux and FreeBSD
+endif ()
+
+set(COMPILED_SHADERS "")
+foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
+    compile_hlsl_shader(
+        OUT_VAR SHADER_CSO
+        INPUT_DIR "${SHADER_INPUT_DIR}"
+        OUTPUT_DIR "${SHADER_OUTPUT_DIR}"
+        SOURCE "${SHADER_SRC}"
+        ENTRY "VSMain"
+        PROFILE "vs_6_0"
+        FLAGS -Qstrip_debug -Qstrip_reflect -Zi
+    )
+    list(APPEND COMPILED_SHADERS ${SHADER_CSO})
+endforeach ()
+foreach (SHADER_SRC ${PIXEL_SHADER_SOURCES})
+    compile_hlsl_shader(
+        OUT_VAR SHADER_CSO
+        INPUT_DIR "${SHADER_INPUT_DIR}"
+        OUTPUT_DIR "${SHADER_OUTPUT_DIR}"
+        SOURCE "${SHADER_SRC}"
+        ENTRY "PSMain"
+        PROFILE "ps_6_0"
+        FLAGS -Qstrip_debug -Qstrip_reflect -Zi
+    )
+    list(APPEND COMPILED_SHADERS ${SHADER_CSO})
+endforeach ()
+
+## Create the embedded resources target
+MESSAGE(STATUS "Generating shader resource library: ${COMPILED_SHADERS}")
+cmrc_add_resource_library(ymir-core-shaders
+    ALIAS ymir-core::shaders
+    NAMESPACE ymir_shaders
+    WHENCE "${SHADER_OUTPUT_DIR}"
+    ${COMPILED_SHADERS}
+)
+
 
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
+    ymir-core::shaders
+
     fmt::fmt
     mio
     concurrentqueue
@@ -404,6 +460,7 @@ if (WIN32)
         d3d12
         dxgi
         dxguid
+        dxcompiler
 
         WIL::WIL
     )
