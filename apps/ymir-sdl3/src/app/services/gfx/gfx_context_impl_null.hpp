@@ -23,13 +23,6 @@ public:
         return UnimplementedError();
     }
 
-    util::VoidResult<> BeginFrame() override {
-        return UnimplementedError();
-    }
-    util::VoidResult<> EndFrame() override {
-        return UnimplementedError();
-    }
-
     void ClearScreen(gfx::ColorRGBA color) override {}
 
     bool ImGuiInit() override {

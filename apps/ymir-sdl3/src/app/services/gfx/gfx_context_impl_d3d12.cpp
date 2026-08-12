@@ -627,6 +627,9 @@ struct Direct3D12GraphicsContext::Impl {
         fenceOps.Wait(INFINITE, fenceValueOps);
         ++fenceValueOps;
 
+        if (auto result = BeginFrame(); !result) {
+            return util::ErrorMessage{fmt::format("Could not begin frame: {}", result.Error().message)};
+        }
         return {};
     }
 
@@ -836,6 +839,10 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> Present() {
+        if (auto result = EndFrame(); !result) {
+            return util::ErrorMessage{fmt::format("Could not end frame: {}", result.Error().message)};
+        }
+
         ID3D12CommandList *ppCommandLists[] = {cmdListFrame.GetPointer()};
         cmdQueue->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
 
@@ -857,7 +864,13 @@ struct Direct3D12GraphicsContext::Impl {
         case PresentMode::NoSync: swapchain->Present(0, 0); break;
         }
 
-        return MoveToNextFrame();
+        if (auto result = MoveToNextFrame(); !result) {
+            return util::ErrorMessage{fmt::format("Could not advance frame: {}", result.Error().message)};
+        }
+        if (auto result = BeginFrame(); !result) {
+            return util::ErrorMessage{fmt::format("Could not begin frame: {}", result.Error().message)};
+        }
+        return {};
     }
 
     util::VoidResult<> WaitForGPU() {
@@ -1496,14 +1509,6 @@ bool Direct3D12GraphicsContext::IsInitialized() const {
 
 util::VoidResult<> Direct3D12GraphicsContext::ResizeFramebuffer(uint32 width, uint32 height) {
     return m_impl->ResizeFramebuffer(width, height);
-}
-
-util::VoidResult<> Direct3D12GraphicsContext::BeginFrame() {
-    return m_impl->BeginFrame();
-}
-
-util::VoidResult<> Direct3D12GraphicsContext::EndFrame() {
-    return m_impl->EndFrame();
 }
 
 void Direct3D12GraphicsContext::ClearScreen(gfx::ColorRGBA color) {

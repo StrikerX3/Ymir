@@ -56,12 +56,6 @@ public:
     /// @return nothing on success, an error message on failure
     util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height);
 
-    /// @brief Begins a new frame.
-    util::VoidResult<> BeginFrame();
-
-    /// @brief Ends the current frame.
-    util::VoidResult<> EndFrame();
-
     /// @brief Clears the screen with the specified color.
     /// @param[in] color the clear color
     void ClearScreen(gfx::ColorRGBA color);
@@ -152,7 +146,6 @@ private:
     std::unique_ptr<gfx::IGraphicsContext> m_gfxContext;
 
     bool m_imguiInitialized = false;
-    bool m_frameStarted = false;
 
     struct Texture2DInstance {
         gfx::TextureID id;

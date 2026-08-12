@@ -3101,8 +3101,6 @@ void App::RunEmulator() {
 
         ImGui::Render();
 
-        m_graphicsService.BeginFrame();
-
         // Clear screen
         m_graphicsService.ClearScreen(clearColor);
 
@@ -3267,7 +3265,6 @@ void App::RunEmulator() {
         // Render ImGui widgets
         m_graphicsService.ImGuiRenderFrame();
 
-        m_graphicsService.EndFrame();
         m_graphicsService.Present();
 
         // Process ImGui INI file write requests

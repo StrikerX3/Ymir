@@ -30,16 +30,6 @@ util::VoidResult<> Direct3D11GraphicsContext::ResizeFramebuffer(uint32 width, ui
     return util::ErrorMessage{"Unimplemented"};
 }
 
-util::VoidResult<> Direct3D11GraphicsContext::BeginFrame() {
-    // TODO: start a new frame (open command list, submit initial context setup, etc.)
-    return util::ErrorMessage{"Unimplemented"};
-}
-
-util::VoidResult<> Direct3D11GraphicsContext::EndFrame() {
-    // TODO: end current frame (finish/wait for pending operations, close command list)
-    return util::ErrorMessage{"Unimplemented"};
-}
-
 void Direct3D11GraphicsContext::ClearScreen(gfx::ColorRGBA color) {
     // TODO: enqueue command to clear screen
 }

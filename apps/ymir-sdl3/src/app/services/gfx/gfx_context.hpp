@@ -72,12 +72,6 @@ public:
     /// @return nothing on success, an error message on failure
     virtual util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height) = 0;
 
-    /// @brief Begins a new frame.
-    virtual util::VoidResult<> BeginFrame() = 0;
-
-    /// @brief Ends the current frame.
-    virtual util::VoidResult<> EndFrame() = 0;
-
     /// @brief Clears the screen with the specified color.
     /// @param[in] color the clear color
     virtual void ClearScreen(ColorRGBA color) = 0;
