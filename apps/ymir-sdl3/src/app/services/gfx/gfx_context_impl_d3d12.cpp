@@ -506,10 +506,10 @@ struct Direct3D12GraphicsContext::Impl {
         {
             // Define the geometry for a quad
             Vertex vertices[] = {
-                {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-                {{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
-                {{1.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-                {{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}},
+                {{-1.0f, +1.0f, 0.0f}, {0.0f, 0.0f}},
+                {{+1.0f, +1.0f, 0.0f}, {1.0f, 0.0f}},
+                {{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+                {{+1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
             };
 
             const UINT vertexBufferSize = sizeof(vertices);
@@ -1451,7 +1451,7 @@ struct Direct3D12GraphicsContext::Impl {
         cmdListFrame->SetGraphicsRootDescriptorTable(0, cbvQuad.gpuHandle);
         cmdListFrame->SetGraphicsRootDescriptorTable(1, instance->srvDesc.gpuHandle);
         cmdListFrame->SetGraphicsRootDescriptorTable(2, smpDesc.gpuHandle);
-        cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
         cmdListFrame->IASetVertexBuffers(0, 1, &vertexBufferView);
         cmdListFrame->DrawInstanced(4, 1, 0, 0);
 
