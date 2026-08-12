@@ -1318,9 +1318,17 @@ struct Direct3D12GraphicsContext::Impl {
         }
 
         // Change render target to destination texture
+        D3D12_VIEWPORT rtViewport{};
+        rtViewport.Width = dstTexture->spec.width;
+        rtViewport.Height = dstTexture->spec.height;
+        D3D12_RECT rtScissorRect{};
+        rtScissorRect.right = dstTexture->spec.width;
+        rtScissorRect.bottom = dstTexture->spec.height;
         cmdListFrame->SetPipelineState(pipeline->pipelineState.GetPointer());
         cmdListFrame->SetGraphicsRootSignature(pipeline->rootSignature.GetPointer());
         cmdListFrame->OMSetRenderTargets(1, &dstTexture->rtvDesc.cpuHandle, FALSE, nullptr);
+        cmdListFrame->RSSetViewports(1, &rtViewport);
+        cmdListFrame->RSSetScissorRects(1, &rtScissorRect);
         drawTextureConstants.renderTargetSize.x = dstTexture->spec.width;
         drawTextureConstants.renderTargetSize.y = dstTexture->spec.height;
 
@@ -1332,6 +1340,8 @@ struct Direct3D12GraphicsContext::Impl {
         cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
         drawTextureConstants.renderTargetSize.x = viewport.Width;
         drawTextureConstants.renderTargetSize.y = viewport.Height;
+        cmdListFrame->RSSetViewports(1, &viewport);
+        cmdListFrame->RSSetScissorRects(1, &scissorRect);
 
         // Transition texture usage back to pixel shading
         if (enhCmdList != nullptr) {
