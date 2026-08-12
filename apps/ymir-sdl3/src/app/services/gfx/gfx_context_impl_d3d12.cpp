@@ -102,6 +102,7 @@ struct Direct3D12GraphicsContext::Impl {
         D3D12Resource renderTarget;
         D3D12CommandAllocator cmdAlloc;
         UINT64 fenceValue;
+        Descriptor rtvDesc;
     };
 
     D3D12Device device;
@@ -112,6 +113,7 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12GraphicsCommandList cmdListOps;
     D3D12SwapChain swapchain;
     D3D12DescriptorHeap rtvHeap;
+    DescriptorHeapAllocator rtvHeapAlloc;
     D3D12DescriptorHeap resourceHeap;
     DescriptorHeapAllocator resourceHeapAlloc;
     D3D12DescriptorHeap samplerHeap;
@@ -138,6 +140,7 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12Resource constBuffer;
     void *constBufferPtr = nullptr;
     Descriptor cbvQuad;
+    DrawTextureConstants *drawTextureConstants = nullptr;
 
     static constexpr D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -157,6 +160,7 @@ struct Direct3D12GraphicsContext::Impl {
         std::array<void *, kFrameCount> stagingBuffersData;
 
         Descriptor srvDesc;
+        Descriptor rtvDesc; // only valid for TextureAccess::RenderTarget
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
         UINT numRows;
@@ -180,8 +184,6 @@ struct Direct3D12GraphicsContext::Impl {
             resourceHeapAlloc.Free(srvIndex);
         }
     };
-
-    DrawTextureConstants drawTextureConstants;
 
     std::unordered_map<TextureID, TextureInstance> textures;
     std::deque<TextureToDelete> texturesToDelete;
@@ -277,13 +279,14 @@ struct Direct3D12GraphicsContext::Impl {
         // Create descriptor heaps
         {
             D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
-            rtvHeapDesc.NumDescriptors = kFrameCount;
+            rtvHeapDesc.NumDescriptors = 131072;
             rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
             rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
             if (FAILED(rtvHeap.Create(device, rtvHeapDesc))) {
                 return util::ErrorMessage{"Failed to create RTV descriptor heap"};
             }
             rtvHeap->SetName(L"[Ymir-GCtx] RTV heap");
+            rtvHeapAlloc.Bind(rtvHeap);
 
             D3D12_DESCRIPTOR_HEAP_DESC resourceHeapDesc{};
             resourceHeapDesc.NumDescriptors = 131072;
@@ -308,8 +311,6 @@ struct Direct3D12GraphicsContext::Impl {
 
         // Create frame resources
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap.GetCPUStart());
-
             // Create a RTV for each frame
             for (UINT n = 0; n < kFrameCount; n++) {
                 ID3D12Resource *resource;
@@ -320,13 +321,16 @@ struct Direct3D12GraphicsContext::Impl {
                     return util::ErrorMessage{
                         fmt::format("Failed to create command allocator for swapchain frame #{}", n)};
                 }
+                Descriptor &rtvDesc = frames[n].rtvDesc;
+                if (!rtvHeapAlloc.Allocate(rtvDesc.cpuHandle, rtvDesc.gpuHandle, rtvDesc.index)) {
+                    return util::ErrorMessage{fmt::format("Failed to allocate RTV for swapchain frame #{}", n)};
+                }
                 frames[n].cmdAlloc->SetName(
                     fmt::format(L"[Ymir-GCtx] Command allocator for swapchain buffer #{}", n).c_str());
-                device->CreateRenderTargetView(resource, nullptr, rtvHandle);
+                device->CreateRenderTargetView(resource, nullptr, rtvDesc.cpuHandle);
                 resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
                 frames[n].renderTarget.Attach(resource);
                 frames[n].fenceValue = 0;
-                rtvHandle.ptr += rtvHeap.GetDescriptorSize();
             }
         }
 
@@ -632,7 +636,8 @@ struct Direct3D12GraphicsContext::Impl {
             if (HRESULT hr = constBuffer->Map(0, &readRange, &constBufferPtr); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format("Failed to map constant buffer, error code {:X}", (uint32)hr)};
             }
-            memcpy(constBufferPtr, &drawTextureConstants, sizeof(drawTextureConstants));
+            memset(constBufferPtr, 0, sizeof(DrawTextureConstants));
+            drawTextureConstants = static_cast<DrawTextureConstants *>(constBufferPtr);
         }
 
         // Execute command list
@@ -708,23 +713,24 @@ struct Direct3D12GraphicsContext::Impl {
 
         // Recreate RTVs
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(rtvHeap.GetCPUStart());
             for (UINT n = 0; n < kFrameCount; n++) {
                 ID3D12Resource *resource;
                 if (FAILED(swapchain->GetBuffer(n, IID_PPV_ARGS(&resource)))) {
                     return util::ErrorMessage{fmt::format("Failed to get swapchain buffer {}", n)};
                 }
-                device->CreateRenderTargetView(resource, nullptr, rtvHandle);
+                Descriptor &rtvDesc = frames[n].rtvDesc;
+                if (!rtvHeapAlloc.Allocate(rtvDesc.cpuHandle, rtvDesc.gpuHandle, rtvDesc.index)) {
+                    return util::ErrorMessage{fmt::format("Failed to allocate RTV for swapchain frame #{}", n)};
+                }
+                device->CreateRenderTargetView(resource, nullptr, rtvDesc.cpuHandle);
                 resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
                 frames[n].renderTarget.Attach(resource);
                 frames[n].fenceValue = 0;
-                rtvHandle.ptr += rtvHeap.GetDescriptorSize();
             }
         }
 
         // Update current RTV handle
-        rtvHandle = rtvHeap.GetCPUStart();
-        rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * rtvHeap.GetDescriptorSize();
+        rtvHandle = frames[frameIndex].rtvDesc.cpuHandle;
 
         // Update viewport and scissor rects
         viewport.Width = width;
@@ -797,8 +803,7 @@ struct Direct3D12GraphicsContext::Impl {
             cmdListFrame->ResourceBarrier(1, &barrier);
         }
 
-        rtvHandle = rtvHeap.GetCPUStart();
-        rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * rtvHeap.GetDescriptorSize();
+        rtvHandle = frames[frameIndex].rtvDesc.cpuHandle;
         cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
         cmdListFrame->SetGraphicsRootSignature(rootSignature.GetPointer());
 
@@ -927,12 +932,14 @@ struct Direct3D12GraphicsContext::Impl {
     util::ValueResult<TextureInstance> CreateTexture(const Texture2DSpec &spec) {
         TextureInstance instance;
 
+        const bool isRenderTarget = spec.access == TextureAccess::RenderTarget;
+
         {
             auto builder = instance.texture.Texture2DBuilder(spec.width, spec.height);
             builder.Format(ToD3D12Value(spec.format));
             builder.HeapType(D3D12_HEAP_TYPE_DEFAULT);
             builder.InitialState(D3D12_RESOURCE_STATE_COMMON);
-            if (spec.access == TextureAccess::RenderTarget) {
+            if (isRenderTarget) {
                 builder.Flags(D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
             }
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
@@ -972,6 +979,24 @@ struct Direct3D12GraphicsContext::Impl {
         if (!resourceHeapAlloc.Allocate(instance.srvDesc.cpuHandle, instance.srvDesc.gpuHandle,
                                         instance.srvDesc.index)) {
             return util::ErrorMessage{"Could not allocate SRV for texture"};
+        }
+
+        if (isRenderTarget) {
+            if (!rtvHeapAlloc.Allocate(instance.rtvDesc.cpuHandle, instance.rtvDesc.gpuHandle,
+                                       instance.rtvDesc.index)) {
+                return util::ErrorMessage{"Could not allocate RTV for texture"};
+            }
+
+            D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{
+                .Format = desc.Format,
+                .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D,
+                .Texture2D =
+                    {
+                        .MipSlice = 0,
+                        .PlaneSlice = 0,
+                    },
+            };
+            device->CreateRenderTargetView(instance.texture.GetPointer(), &rtvDesc, instance.rtvDesc.cpuHandle);
         }
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -1191,36 +1216,71 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect, const FRect &dstRect) {
-        // TODO: use TextureFilterMode to select sampler
-        // TODO: use the current frame's fence value to enqueue commands
-        // TODO: update constant buffer with rect parameters
+        TextureInstance *dstTexture = GetTexture(dst);
+        if (dstTexture == nullptr) {
+            return util::ErrorMessage{"Invalid destination texture"};
+        }
+        if (dstTexture->spec.access != TextureAccess::RenderTarget) {
+            return util::ErrorMessage{"Destination texture is not a valid render target"};
+        }
 
-        // TODO: set render target to dst texture
+        // FIXME: barriers!
 
-        // cmdListFrame->SetGraphicsRootDescriptorTable(0, cbvQuad.gpuHandle);
-        // cmdListFrame->SetGraphicsRootDescriptorTable(1, <texture SRV GPU handle>);
-        // cmdListFrame->SetGraphicsRootDescriptorTable(2, <chosen sampler GPU handle>);
-        // cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        // cmdListFrame->IASetVertexBuffers(0, 1, &vertexBufferView);
-        // cmdListFrame->DrawInstanced(4, 1, 0, 0);
+        // Change render target to destination texture
+        cmdListFrame->OMSetRenderTargets(1, &dstTexture->rtvDesc.cpuHandle, FALSE, nullptr);
 
-        // TODO: set render target to swap chain buffer
+        auto drawResult = DrawTextureRotated(src, srcRect, dstRect, 0, nullptr);
 
-        return util::ErrorMessage{"Unimplemented"};
+        // Restore swap chain render target
+        cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+        if (!drawResult) {
+            return util::ErrorMessage{fmt::format("Failed to draw texture: {}", drawResult.Error().message)};
+        }
+
+        return {};
     }
 
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
                                           const FPoint2D *anchorPoint) {
-        // TODO: use TextureFilterMode to select sampler
-        // TODO: use the current frame's fence value to enqueue commands
-        // TODO: update constant buffer with rect parameters, rotation angle and anchor point
+        TextureInstance *instance = GetTexture(id);
+        if (instance == nullptr) {
+            return util::ErrorMessage{"Invalid texture"};
+        }
 
-        // TODO: imitate SDL_RenderTextureRotated:
-        // - srcRect specifies the source texture region to copy from (in texels)
-        // - dstRect specifies the destination texture region to copy to (in texels)
-        // - rotAngle is the clockwise rotation angle (in degrees)
-        // - anchorPoint is the rotation anchor point. If null, use the center of the destination rectangle
-        return util::ErrorMessage{"Unimplemented"};
+        // Select sampler based on texture filtering mode
+        const Descriptor &smpDesc = [&] {
+            switch (instance->spec.filterMode) {
+            case TextureFilterMode::Nearest: return smpNearest;
+            case TextureFilterMode::Linear: return smpLinear;
+            }
+            return smpLinear;
+        }();
+
+        // FIXME: barriers!
+
+        // Update constants with rect parameters, rotation angle and anchor point
+        auto frectToFloat4 = [](const FRect &rect) { return Float4{rect.x, rect.y, rect.w, rect.h}; };
+        auto fpoint2DToFloat2 = [](const FPoint2D &point) { return Float2{point.x, point.y}; };
+        drawTextureConstants->srcRect = frectToFloat4(srcRect);
+        drawTextureConstants->dstRect = frectToFloat4(dstRect);
+        drawTextureConstants->rotAngle = rotAngle;
+        if (anchorPoint == nullptr) {
+            drawTextureConstants->anchorPoint.x = dstRect.w * 0.5f;
+            drawTextureConstants->anchorPoint.y = dstRect.h * 0.5f;
+        } else {
+            drawTextureConstants->anchorPoint = fpoint2DToFloat2(*anchorPoint);
+        }
+
+        // Draw rectangle
+        cmdListFrame->SetGraphicsRootDescriptorTable(0, cbvQuad.gpuHandle);
+        cmdListFrame->SetGraphicsRootDescriptorTable(1, instance->srvDesc.gpuHandle);
+        cmdListFrame->SetGraphicsRootDescriptorTable(2, smpDesc.gpuHandle);
+        cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        cmdListFrame->IASetVertexBuffers(0, 1, &vertexBufferView);
+        cmdListFrame->DrawInstanced(4, 1, 0, 0);
+
+        return {};
     }
 
     ID3D12GraphicsCommandList7 *GetCommandListForEnhancedBarriers(D3D12GraphicsCommandList &cmdList) const {

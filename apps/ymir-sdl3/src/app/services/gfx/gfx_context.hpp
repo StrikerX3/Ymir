@@ -144,7 +144,8 @@ public:
     /// @param[in] srcRect portion of the texture to draw
     /// @param[in] dstRect where to draw the texture on the screen
     /// @param[in] rotAngle clockwise rotation amount (in degrees)
-    /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture
+    /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture. (0, 0)
+    /// is the top-left corner of the texture.
     /// @return nothing on success, an error message on failure
     virtual util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect,
                                                   double rotAngle, const FPoint2D *anchorPoint = nullptr) = 0;
