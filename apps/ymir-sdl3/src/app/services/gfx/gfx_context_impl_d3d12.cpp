@@ -105,7 +105,9 @@ struct Direct3D12GraphicsContext::Impl {
     };
 
     D3D12Device device;
-    D3D12CommandQueue cmdQueue;
+    D3D12CommandAllocator cmdAllocOps;
+    D3D12CommandQueue cmdQueueFrame;
+    D3D12CommandQueue cmdQueueOps;
     D3D12GraphicsCommandList cmdListFrame;
     D3D12GraphicsCommandList cmdListOps;
     D3D12SwapChain swapchain;
@@ -116,8 +118,11 @@ struct Direct3D12GraphicsContext::Impl {
     DescriptorHeapAllocator samplerHeapAlloc;
     D3D12RootSignature rootSignature;
     D3D12PipelineState pipelineState;
-    D3D12Fence fence;
+    D3D12Fence fenceFrame;
+    D3D12Fence fenceOps;
     std::array<FrameContext, kFrameCount> frames;
+
+    UINT64 fenceValueOps = 0;
 
     UINT frameIndex = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
@@ -227,15 +232,32 @@ struct Direct3D12GraphicsContext::Impl {
             features.enhancedBarriers = options12.EnhancedBarriersSupported;
         }
 
-        if (FAILED(cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
-            return util::ErrorMessage{"Failed to create command queue"};
+        if (FAILED(cmdAllocOps.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
+            return util::ErrorMessage{"Failed to create operations command allocator"};
         }
+        cmdAllocOps->SetName(L"[Ymir-GCtx] Operations command allocator");
+        fenceValueOps = 0;
 
-        // Create synchronization object
-        if (FAILED(fence.Create(device, 0, D3D12_FENCE_FLAG_NONE))) {
-            return util::ErrorMessage{"Failed to create fence"};
+        if (FAILED(cmdQueueFrame.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
+            return util::ErrorMessage{"Failed to create frame command queue"};
         }
-        fence->SetName(L"[Ymir-GCtx] Fence");
+        cmdQueueFrame->SetName(L"[Ymir-GCtx] Frame command queue");
+
+        if (FAILED(cmdQueueOps.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
+            return util::ErrorMessage{"Failed to create operations command queue"};
+        }
+        cmdQueueOps->SetName(L"[Ymir-GCtx] Operations command queue");
+
+        // Create synchronization objects
+        if (FAILED(fenceFrame.Create(device, 0, D3D12_FENCE_FLAG_NONE))) {
+            return util::ErrorMessage{"Failed to create frame fence"};
+        }
+        fenceFrame->SetName(L"[Ymir-GCtx] Frame fence");
+
+        if (FAILED(fenceOps.Create(device, 0, D3D12_FENCE_FLAG_NONE))) {
+            return util::ErrorMessage{"Failed to create operations fence"};
+        }
+        fenceOps->SetName(L"[Ymir-GCtx] Operations fence");
 
         DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
         swapChainDesc.BufferCount = kFrameCount;
@@ -247,7 +269,7 @@ struct Direct3D12GraphicsContext::Impl {
         swapChainDesc.SampleDesc.Count = 1;
         swapChainDesc.Scaling = DXGI_SCALING_NONE;
         swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-        if (!swapchain.Create(dxgiFactoryFlags, cmdQueue.GetPointer(), swapChainDesc, hwnd, kFrameCount)) {
+        if (!swapchain.Create(dxgiFactoryFlags, cmdQueueFrame.GetPointer(), swapChainDesc, hwnd, kFrameCount)) {
             return util::ErrorMessage{"Failed to create swapchain"};
         }
         frameIndex = swapchain->GetCurrentBackBufferIndex();
@@ -309,14 +331,15 @@ struct Direct3D12GraphicsContext::Impl {
         }
 
         // Create command lists
-        D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
-        if (FAILED(cmdListFrame.Create(device, cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
+        if (FAILED(cmdListFrame.Create(device, frames[frameIndex].cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                       pipelineState.GetPointer()))) {
             return util::ErrorMessage{"Failed to create frame command list"};
         }
         cmdListFrame->Close();
         cmdListFrame->SetName(L"[Ymir-GCtx] Frame command list");
 
-        if (FAILED(cmdListOps.Create(device, cmdAlloc, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
+        if (FAILED(
+                cmdListOps.Create(device, cmdAllocOps, D3D12_COMMAND_LIST_TYPE_DIRECT, pipelineState.GetPointer()))) {
             return util::ErrorMessage{"Failed to create operations command list"};
         }
         cmdListOps->Close();
@@ -515,11 +538,7 @@ struct Direct3D12GraphicsContext::Impl {
             vertexUploadBuffer->Unmap(0, nullptr);
 
             // Copy the vertex data to the vertex buffer
-            if (HRESULT hr = cmdAlloc->Reset(); FAILED(hr)) {
-                return util::ErrorMessage{
-                    fmt::format("Failed to reset command allocator, error code {:X}", (uint32)hr)};
-            }
-            if (HRESULT hr = cmdListOps->Reset(cmdAlloc.GetPointer(), pipelineState.GetPointer()); FAILED(hr)) {
+            if (HRESULT hr = cmdListOps->Reset(cmdAllocOps.GetPointer(), pipelineState.GetPointer()); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format("Failed to reset command list, error code {:X}", (uint32)hr)};
             }
 
@@ -618,23 +637,33 @@ struct Direct3D12GraphicsContext::Impl {
 
         // Execute command list
         if (HRESULT hr = cmdListOps->Close(); FAILED(hr)) {
-            return util::ErrorMessage{fmt::format("Failed to close command list, error code {:X}", (uint32)hr)};
+            return util::ErrorMessage{
+                fmt::format("Failed to close operations command list, error code {:X}", (uint32)hr)};
         }
-        cmdQueue->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
+        cmdQueueOps->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
 
-        WaitForGPU();
+        if (HRESULT hr = fenceOps.Signal(cmdQueueOps, fenceValueOps); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Failed to signal operations command list, error code {:X}", (uint32)hr)};
+        }
+        fenceOps.Wait(INFINITE, fenceValueOps);
+        ++fenceValueOps;
 
         return {};
     }
 
     void Shutdown() {
+        if (SUCCEEDED(fenceOps.Signal(cmdQueueOps, fenceValueOps))) {
+            fenceOps.Wait(INFINITE, fenceValueOps);
+        }
         DeletePendingTextures(true);
         textures.clear();
         for (UINT n = 0; n < kFrameCount; n++) {
             frames[n].renderTarget.Destroy();
             frames[n].cmdAlloc.Destroy();
         }
-        fence.Destroy();
+        fenceFrame.Destroy();
+        fenceOps.Destroy();
         constBuffer.Destroy();
         constBufferPtr = nullptr;
         vertexBuffer.Destroy();
@@ -643,7 +672,11 @@ struct Direct3D12GraphicsContext::Impl {
         rootSignature.Destroy();
         cmdListFrame.Destroy();
         cmdListOps.Destroy();
-        cmdQueue.Destroy();
+        cmdQueueFrame.Destroy();
+        cmdQueueOps.Destroy();
+        cmdAllocOps.Destroy();
+        samplerHeapAlloc.Unbind();
+        samplerHeap.Destroy();
         resourceHeapAlloc.Unbind();
         resourceHeap.Destroy();
         rtvHeap.Destroy();
@@ -657,12 +690,13 @@ struct Direct3D12GraphicsContext::Impl {
 
     util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height) {
         // Wait for frames to complete and destroy RTVs
-        UINT64 currFenceValue = frames[frameIndex].fenceValue;
+        FrameContext &currFrame = GetCurrentFrameContext();
+        UINT64 &currFenceValue = currFrame.fenceValue;
         for (UINT n = 0; n < kFrameCount; n++) {
-            if (FAILED(fence.Signal(cmdQueue, ++currFenceValue))) {
+            if (FAILED(fenceFrame.Signal(cmdQueueFrame, ++currFenceValue))) {
                 return util::ErrorMessage{"Failed to signal fence before resizing swapchain buffers"};
             }
-            fence.Wait(INFINITE, currFenceValue);
+            fenceFrame.Wait(INFINITE, currFenceValue);
             frames[n].renderTarget.Destroy();
         }
 
@@ -702,7 +736,8 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> BeginFrame() {
-        D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
+        const FrameContext &currFrame = GetCurrentFrameContext();
+        const D3D12CommandAllocator &cmdAlloc = currFrame.cmdAlloc;
 
         if (HRESULT hr = cmdAlloc->Reset(); FAILED(hr)) {
             return util::ErrorMessage{
@@ -729,7 +764,7 @@ struct Direct3D12GraphicsContext::Impl {
                 .AccessAfter = D3D12_BARRIER_ACCESS_RENDER_TARGET,
                 .LayoutBefore = D3D12_BARRIER_LAYOUT_COMMON,
                 .LayoutAfter = D3D12_BARRIER_LAYOUT_RENDER_TARGET,
-                .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                .pResource = currFrame.renderTarget.GetPointer(),
                 .Subresources =
                     {
                         .IndexOrFirstMipLevel = 0,
@@ -753,7 +788,7 @@ struct Direct3D12GraphicsContext::Impl {
                 .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
                 .Transition =
                     {
-                        .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                        .pResource = currFrame.renderTarget.GetPointer(),
                         .Subresource = 0,
                         .StateBefore = D3D12_RESOURCE_STATE_PRESENT,
                         .StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET,
@@ -773,6 +808,8 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> EndFrame() {
+        const FrameContext &currFrame = GetCurrentFrameContext();
+
         // Indicate that the back buffer will be used for frame presentation
         if (auto *enhCmdList = GetCommandListForEnhancedBarriers(cmdListFrame)) {
             D3D12_TEXTURE_BARRIER barrier{
@@ -782,7 +819,7 @@ struct Direct3D12GraphicsContext::Impl {
                 .AccessAfter = D3D12_BARRIER_ACCESS_NO_ACCESS,
                 .LayoutBefore = D3D12_BARRIER_LAYOUT_RENDER_TARGET,
                 .LayoutAfter = D3D12_BARRIER_LAYOUT_COMMON,
-                .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                .pResource = currFrame.renderTarget.GetPointer(),
                 .Subresources =
                     {
                         .IndexOrFirstMipLevel = 0,
@@ -806,7 +843,7 @@ struct Direct3D12GraphicsContext::Impl {
                 .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
                 .Transition =
                     {
-                        .pResource = frames[frameIndex].renderTarget.GetPointer(),
+                        .pResource = currFrame.renderTarget.GetPointer(),
                         .Subresource = 0,
                         .StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET,
                         .StateAfter = D3D12_RESOURCE_STATE_PRESENT,
@@ -824,7 +861,7 @@ struct Direct3D12GraphicsContext::Impl {
 
     util::VoidResult<> Present() {
         ID3D12CommandList *ppCommandLists[] = {cmdListFrame.GetPointer()};
-        cmdQueue->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
+        cmdQueueFrame->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
 
         // NOTE: VSync and Mailbox both wait for vertical retrace to present a frame. The difference is that enqueuing
         // frames in Mailbox mode replaces the next pending frame while VSync stores and presents all frames. As a
@@ -848,24 +885,27 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> WaitForGPU() {
+        FrameContext &currFrame = GetCurrentFrameContext();
+
         // Schedule a signal command in the queue
-        if (FAILED(fence.Signal(cmdQueue, frames[frameIndex].fenceValue))) {
+        if (FAILED(fenceFrame.Signal(cmdQueueFrame, currFrame.fenceValue))) {
             return util::ErrorMessage{"Failed to signal fence"};
         }
 
         // Wait until the fence has been processed
-        fence.Wait(INFINITE, frames[frameIndex].fenceValue);
+        fenceFrame.Wait(INFINITE, currFrame.fenceValue);
 
         // Increment the fence value for the current frame
-        frames[frameIndex].fenceValue++;
+        ++currFrame.fenceValue;
 
         return {};
     }
 
     util::VoidResult<> MoveToNextFrame() {
         // Schedule a signal command in the queue
-        const UINT64 currentFenceValue = frames[frameIndex].fenceValue;
-        if (FAILED(fence.Signal(cmdQueue, currentFenceValue))) {
+        const FrameContext &currFrame = GetCurrentFrameContext();
+        const UINT64 currentFenceValue = currFrame.fenceValue;
+        if (FAILED(fenceFrame.Signal(cmdQueueFrame, currentFenceValue))) {
             return util::ErrorMessage{"Failed to signal fence"};
         }
 
@@ -873,12 +913,13 @@ struct Direct3D12GraphicsContext::Impl {
         frameIndex = swapchain->GetCurrentBackBufferIndex();
 
         // If the next frame is not ready to be rendered yet, wait until it is ready
-        if (fence->GetCompletedValue() < frames[frameIndex].fenceValue) {
-            fence.Wait(INFINITE, frames[frameIndex].fenceValue);
+        FrameContext &nextFrame = GetCurrentFrameContext();
+        if (fenceFrame->GetCompletedValue() < nextFrame.fenceValue) {
+            fenceFrame.Wait(INFINITE, nextFrame.fenceValue);
         }
 
         // Set the fence value for the next frame
-        frames[frameIndex].fenceValue = currentFenceValue + 1;
+        nextFrame.fenceValue = currentFenceValue + 1;
 
         return {};
     }
@@ -979,11 +1020,12 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     void SubmitTextureForDeletion(TextureInstance &instance) {
+        const FrameContext &currFrame = GetCurrentFrameContext();
         TextureToDelete &texToDelete = texturesToDelete.emplace_back();
         texToDelete.texture = std::move(instance.texture);
         texToDelete.stagingBuffers.swap(instance.stagingBuffers);
         texToDelete.srvIndex = instance.srvDesc.index;
-        texToDelete.targetFenceVance = frames[frameIndex].fenceValue + kFrameCount;
+        texToDelete.targetFenceVance = currFrame.fenceValue + kFrameCount;
     }
 
     void DeletePendingTextures(bool force) {
@@ -991,7 +1033,8 @@ struct Direct3D12GraphicsContext::Impl {
             return;
         }
 
-        const UINT64 fenceValue = frames[frameIndex].fenceValue;
+        const FrameContext &currFrame = GetCurrentFrameContext();
+        const UINT64 fenceValue = currFrame.fenceValue;
         while (!texturesToDelete.empty() && (force || texturesToDelete.front().targetFenceVance <= fenceValue)) {
             texturesToDelete.front().Destroy(resourceHeapAlloc);
             texturesToDelete.pop_front();
@@ -1029,8 +1072,16 @@ struct Direct3D12GraphicsContext::Impl {
         // Copy data to staging buffer
         fnUpdate(stagingBufferData, instance.rowPitch);
 
-        D3D12CommandAllocator &cmdAlloc = frames[frameIndex].cmdAlloc;
-        if (HRESULT hr = cmdListOps->Reset(cmdAlloc.GetPointer(), nullptr); FAILED(hr)) {
+        if (FAILED(fenceOps.Signal(cmdQueueOps, fenceValueOps))) {
+            return util::ErrorMessage{"Failed to signal fence before executing operations"};
+        }
+        fenceOps.Wait(INFINITE, fenceValueOps);
+        ++fenceValueOps;
+
+        if (HRESULT hr = cmdAllocOps->Reset(); FAILED(hr)) {
+            return util::ErrorMessage{fmt::format("Failed to reset command allocator, error code {:X}", (uint32)hr)};
+        }
+        if (HRESULT hr = cmdListOps->Reset(cmdAllocOps.GetPointer(), nullptr); FAILED(hr)) {
             return util::ErrorMessage{
                 fmt::format("Failed to reset operations command list, error code {:X}", (uint32)hr)};
         }
@@ -1134,9 +1185,42 @@ struct Direct3D12GraphicsContext::Impl {
         }
 
         cmdListOps->Close();
-        cmdQueue->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
+        cmdQueueOps->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
 
         return {};
+    }
+
+    util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect, const FRect &dstRect) {
+        // TODO: use TextureFilterMode to select sampler
+        // TODO: use the current frame's fence value to enqueue commands
+        // TODO: update constant buffer with rect parameters
+
+        // TODO: set render target to dst texture
+
+        // cmdListFrame->SetGraphicsRootDescriptorTable(0, cbvQuad.gpuHandle);
+        // cmdListFrame->SetGraphicsRootDescriptorTable(1, <texture SRV GPU handle>);
+        // cmdListFrame->SetGraphicsRootDescriptorTable(2, <chosen sampler GPU handle>);
+        // cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        // cmdListFrame->IASetVertexBuffers(0, 1, &vertexBufferView);
+        // cmdListFrame->DrawInstanced(4, 1, 0, 0);
+
+        // TODO: set render target to swap chain buffer
+
+        return util::ErrorMessage{"Unimplemented"};
+    }
+
+    util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
+                                          const FPoint2D *anchorPoint) {
+        // TODO: use TextureFilterMode to select sampler
+        // TODO: use the current frame's fence value to enqueue commands
+        // TODO: update constant buffer with rect parameters, rotation angle and anchor point
+
+        // TODO: imitate SDL_RenderTextureRotated:
+        // - srcRect specifies the source texture region to copy from (in texels)
+        // - dstRect specifies the destination texture region to copy to (in texels)
+        // - rotAngle is the clockwise rotation angle (in degrees)
+        // - anchorPoint is the rotation anchor point. If null, use the center of the destination rectangle
+        return util::ErrorMessage{"Unimplemented"};
     }
 
     ID3D12GraphicsCommandList7 *GetCommandListForEnhancedBarriers(D3D12GraphicsCommandList &cmdList) const {
@@ -1144,6 +1228,14 @@ struct Direct3D12GraphicsContext::Impl {
             return nullptr;
         }
         return cmdList.As7();
+    }
+
+    FrameContext &GetCurrentFrameContext() {
+        return frames[frameIndex];
+    }
+
+    const FrameContext &GetCurrentFrameContext() const {
+        return frames[frameIndex];
     }
 };
 
@@ -1207,7 +1299,7 @@ bool Direct3D12GraphicsContext::ImGuiInit() {
 
     ImGui_ImplDX12_InitInfo initInfo{};
     initInfo.Device = m_impl->device.GetPointer();
-    initInfo.CommandQueue = m_impl->cmdQueue.GetPointer();
+    initInfo.CommandQueue = m_impl->cmdQueueFrame.GetPointer();
     initInfo.NumFramesInFlight = Impl::kFrameCount;
     initInfo.RTVFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
     initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
@@ -1291,37 +1383,13 @@ Direct3D12GraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
 
 util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                                               const FRect &dstRect) {
-    // TODO: use TextureFilterMode to select sampler
-    // TODO: use the current frame's fence value to enqueue commands
-    // TODO: update constant buffer with rect parameters
-
-    // TODO: set render target to dst texture
-
-    // cmdListFrame->SetGraphicsRootDescriptorTable(0, cbvQuad.gpuHandle);
-    // cmdListFrame->SetGraphicsRootDescriptorTable(1, <texture SRV GPU handle>);
-    // cmdListFrame->SetGraphicsRootDescriptorTable(2, <chosen sampler GPU handle>);
-    // cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    // cmdListFrame->IASetVertexBuffers(0, 1, &vertexBufferView);
-    // cmdListFrame->DrawInstanced(4, 1, 0, 0);
-
-    // TODO: set render target to swap chain buffer
-
-    return util::ErrorMessage{"Unimplemented"};
+    return m_impl->RenderToTexture(src, dst, srcRect, dstRect);
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect,
                                                                  const FRect &dstRect, double rotAngle,
                                                                  const FPoint2D *anchorPoint) {
-    // TODO: use TextureFilterMode to select sampler
-    // TODO: use the current frame's fence value to enqueue commands
-    // TODO: update constant buffer with rect parameters, rotation angle and anchor point
-
-    // TODO: imitate SDL_RenderTextureRotated:
-    // - srcRect specifies the source texture region to copy from (in texels)
-    // - dstRect specifies the destination texture region to copy to (in texels)
-    // - rotAngle is the clockwise rotation angle (in degrees)
-    // - anchorPoint is the rotation anchor point. If null, use the center of the destination rectangle
-    return util::ErrorMessage{"Unimplemented"};
+    return m_impl->DrawTextureRotated(id, srcRect, dstRect, rotAngle, anchorPoint);
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::SetPresentMode(PresentMode mode) {
