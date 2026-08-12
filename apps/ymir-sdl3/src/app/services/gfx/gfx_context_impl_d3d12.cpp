@@ -155,7 +155,6 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
 
     D3D12Resource constBuffer;
-    void *constBufferPtr = nullptr;
     Descriptor cbvQuad;
     DrawTextureConstants *drawTextureConstants = nullptr;
 
@@ -648,6 +647,7 @@ struct Direct3D12GraphicsContext::Impl {
             // Map and initialize the constant buffer. We don't unmap this until the context is shut down.
             // Keeping things mapped for the lifetime of the resource is okay.
             D3D12_RANGE readRange(0, 0);
+            void *constBufferPtr;
             if (HRESULT hr = constBuffer->Map(0, &readRange, &constBufferPtr); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format("Failed to map constant buffer, error code {:X}", (uint32)hr)};
             }
@@ -682,7 +682,7 @@ struct Direct3D12GraphicsContext::Impl {
         fenceFrame.Destroy();
         fenceOps.Destroy();
         constBuffer.Destroy();
-        constBufferPtr = nullptr;
+        drawTextureConstants = nullptr;
         vertexBuffer.Destroy();
         vertexBufferView.BufferLocation = {};
         renderTargetPipelines.clear();
