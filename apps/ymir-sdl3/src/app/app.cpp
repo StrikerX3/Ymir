@@ -145,7 +145,8 @@ static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args
 }
 
 App::App()
-    : m_saveStateService(m_context, m_settings)
+    : m_graphicsService(m_settings)
+    , m_saveStateService(m_context, m_settings)
     , m_midiService(m_context.serviceLocator)
     , m_settings(m_context)
     , m_discordRPCService(m_context, m_settings)
@@ -757,7 +758,7 @@ void App::RunEmulator() {
     });
 
     // ---------------------------------
-    // Create renderer
+    // Create graphics backend
 
     gfx::PresentMode presentMode = gfx::PresentMode::VSync;
     {
@@ -844,7 +845,10 @@ void App::RunEmulator() {
         });
 
     if (!swFbTextureResult) {
-        ShowStartupFailure("Failed to create software framebuffer texture: {}", swFbTextureResult.Error().message);
+        ShowStartupFailure(
+            "Failed to create software framebuffer texture: {}.\nThe graphics backend will reset on next launch.",
+            swFbTextureResult.Error().message);
+        m_graphicsService.RevertGraphicsBackend();
         return;
     };
     const gfx::GUITextureHandle swFbTexture = swFbTextureResult.Value();
@@ -859,7 +863,9 @@ void App::RunEmulator() {
         .name = "[Ymir] Scaled display",
     });
     if (!dispTextureResult) {
-        ShowStartupFailure("Failed to create display texture: {}", dispTextureResult.Error().message);
+        ShowStartupFailure("Failed to create display texture: {}.\nThe graphics backend will reset on next launch.",
+                           dispTextureResult.Error().message);
+        m_graphicsService.RevertGraphicsBackend();
         return;
     }
     const gfx::GUITextureHandle dispTexture = dispTextureResult.Value();
@@ -932,7 +938,9 @@ void App::RunEmulator() {
                 }
             });
         if (!logoImageResult) {
-            ShowStartupFailure("Failed to create logo texture: {}", logoImageResult.Error().message);
+            ShowStartupFailure("Failed to create logo texture: {}.\nThe graphics backend will reset on next launch.",
+                               logoImageResult.Error().message);
+            m_graphicsService.RevertGraphicsBackend();
             return;
         }
         m_context.images.ymirLogo.texture = logoImageResult.Value();

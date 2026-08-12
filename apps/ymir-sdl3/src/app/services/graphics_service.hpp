@@ -1,5 +1,7 @@
 #pragma once
 
+#include <app/settings.hpp>
+
 #include "gfx/gfx_context.hpp"
 #include "gfx/gfx_gui_types.hpp"
 
@@ -19,7 +21,7 @@ namespace app::services {
 /// @brief Provides services for managing graphics resources.
 class GraphicsService {
 public:
-    GraphicsService();
+    GraphicsService(Settings &settings);
     ~GraphicsService();
 
     /// @brief Initializes a graphics context.
@@ -36,6 +38,12 @@ private:
 public:
     /// @brief Destroys the graphics context, effectively replacing it with a null context.
     void DestroyGraphicsContext();
+
+    /// @brief Reverts the graphics backend to one of the safe options: the default for the platform or SDL Renderer.
+    /// This should be invoked in case the application fails to start up when attempting to initialize graphics
+    /// resources after the context was successfully initialized. This is a safeguard against potential graphics driver
+    /// issues, limitations, programming oversights or bugs.
+    void RevertGraphicsBackend();
 
     /// @brief Retrieves the current graphics context's backend type.
     /// @return the current graphics backend in use
@@ -143,6 +151,7 @@ public:
     util::VoidResult<> Present();
 
 private:
+    Settings &m_settings;
     std::unique_ptr<gfx::IGraphicsContext> m_gfxContext;
 
     bool m_imguiInitialized = false;

@@ -458,7 +458,7 @@ FORCE_INLINE static const char *ToTOML(const Settings::GUI::FrameRateOSDPosition
 
 FORCE_INLINE static const char *ToTOML(const gfx::Backend value) {
     switch (value) {
-    default: [[fallthrough]];
+    default: return "Default";
 #if YMIR_PLATFORM_HAS_DIRECT3D
     case gfx::Backend::Direct3D11: return "Direct3D11";
     case gfx::Backend::Direct3D12: return "Direct3D12";

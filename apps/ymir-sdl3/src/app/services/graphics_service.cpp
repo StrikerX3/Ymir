@@ -16,8 +16,9 @@ using namespace app::gfx;
 
 namespace app::services {
 
-GraphicsService::GraphicsService()
-    : m_gfxContext(std::make_unique<NullGraphicsContext>()) {}
+GraphicsService::GraphicsService(Settings &settings)
+    : m_settings(settings)
+    , m_gfxContext(std::make_unique<NullGraphicsContext>()) {}
 
 GraphicsService::~GraphicsService() {}
 
@@ -90,6 +91,16 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx:
 
 void GraphicsService::DestroyGraphicsContext() {
     m_gfxContext = std::make_unique<NullGraphicsContext>();
+}
+
+void GraphicsService::RevertGraphicsBackend() {
+    if (m_settings.video.graphicsBackend != kDefaultBackend) {
+        m_settings.video.graphicsBackend = kDefaultBackend;
+        m_settings.Save();
+    } else if (m_settings.video.graphicsBackend != Backend::SDLRenderer) {
+        m_settings.video.graphicsBackend = Backend::SDLRenderer;
+        m_settings.Save();
+    }
 }
 
 util::VoidResult<> GraphicsService::ResizeFramebuffer(uint32 width, uint32 height) {
