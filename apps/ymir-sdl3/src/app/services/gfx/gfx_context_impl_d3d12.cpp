@@ -64,8 +64,8 @@ static const char *DXGIFormatName(DXGI_FORMAT format) {
     case DXGI_FORMAT_R8G8B8A8_UNORM: return "R8G8B8A8_UNORM";
     case DXGI_FORMAT_B8G8R8A8_UNORM: return "B8G8R8A8_UNORM";
     case DXGI_FORMAT_B8G8R8X8_UNORM: return "B8G8R8X8_UNORM";
+    default: return "<unhandled>";
     }
-    return "<unhandled>";
 }
 
 struct alignas(uint32) Float4 {
@@ -117,8 +117,7 @@ struct Direct3D12GraphicsContext::Impl {
 
     D3D12Device device;
     D3D12CommandAllocator cmdAllocOps;
-    D3D12CommandQueue cmdQueueFrame;
-    D3D12CommandQueue cmdQueueOps;
+    D3D12CommandQueue cmdQueue;
     D3D12GraphicsCommandList cmdListFrame;
     D3D12GraphicsCommandList cmdListOps;
     D3D12SwapChain swapchain;
@@ -263,15 +262,10 @@ struct Direct3D12GraphicsContext::Impl {
         cmdAllocOps->SetName(L"[Ymir-GCtx] Operations command allocator");
         fenceValueOps = 0;
 
-        if (FAILED(cmdQueueFrame.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
-            return util::ErrorMessage{"Failed to create frame command queue"};
+        if (FAILED(cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
+            return util::ErrorMessage{"Failed to create command queue"};
         }
-        cmdQueueFrame->SetName(L"[Ymir-GCtx] Frame command queue");
-
-        if (FAILED(cmdQueueOps.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
-            return util::ErrorMessage{"Failed to create operations command queue"};
-        }
-        cmdQueueOps->SetName(L"[Ymir-GCtx] Operations command queue");
+        cmdQueue->SetName(L"[Ymir-GCtx] Command queue");
 
         // Create synchronization objects
         if (FAILED(fenceFrame.Create(device, 0, D3D12_FENCE_FLAG_NONE))) {
@@ -294,7 +288,7 @@ struct Direct3D12GraphicsContext::Impl {
         swapChainDesc.SampleDesc.Count = 1;
         swapChainDesc.Scaling = DXGI_SCALING_NONE;
         swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
-        if (!swapchain.Create(dxgiFactoryFlags, cmdQueueFrame.GetPointer(), swapChainDesc, hwnd, kFrameCount)) {
+        if (!swapchain.Create(dxgiFactoryFlags, cmdQueue.GetPointer(), swapChainDesc, hwnd, kFrameCount)) {
             return util::ErrorMessage{"Failed to create swapchain"};
         }
         frameIndex = swapchain->GetCurrentBackBufferIndex();
@@ -666,9 +660,9 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{
                 fmt::format("Failed to close operations command list, error code {:X}", (uint32)hr)};
         }
-        cmdQueueOps->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
+        cmdQueue->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
 
-        if (HRESULT hr = fenceOps.Signal(cmdQueueOps, fenceValueOps); FAILED(hr)) {
+        if (HRESULT hr = fenceOps.Signal(cmdQueue, fenceValueOps); FAILED(hr)) {
             return util::ErrorMessage{
                 fmt::format("Failed to signal operations command list, error code {:X}", (uint32)hr)};
         }
@@ -679,9 +673,6 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     void Shutdown() {
-        if (SUCCEEDED(fenceOps.Signal(cmdQueueOps, fenceValueOps))) {
-            fenceOps.Wait(INFINITE, fenceValueOps);
-        }
         DeletePendingTextures(true);
         textures.clear();
         for (UINT n = 0; n < kFrameCount; n++) {
@@ -699,8 +690,7 @@ struct Direct3D12GraphicsContext::Impl {
         rootSignatureFrame.Destroy();
         cmdListFrame.Destroy();
         cmdListOps.Destroy();
-        cmdQueueFrame.Destroy();
-        cmdQueueOps.Destroy();
+        cmdQueue.Destroy();
         cmdAllocOps.Destroy();
         samplerHeapAlloc.Unbind();
         samplerHeap.Destroy();
@@ -720,7 +710,7 @@ struct Direct3D12GraphicsContext::Impl {
         FrameContext &currFrame = GetCurrentFrameContext();
         UINT64 &currFenceValue = currFrame.fenceValue;
         for (UINT n = 0; n < kFrameCount; n++) {
-            if (FAILED(fenceFrame.Signal(cmdQueueFrame, ++currFenceValue))) {
+            if (FAILED(fenceFrame.Signal(cmdQueue, ++currFenceValue))) {
                 return util::ErrorMessage{"Failed to signal fence before resizing swapchain buffers"};
             }
             fenceFrame.Wait(INFINITE, currFenceValue);
@@ -888,7 +878,7 @@ struct Direct3D12GraphicsContext::Impl {
 
     util::VoidResult<> Present() {
         ID3D12CommandList *ppCommandLists[] = {cmdListFrame.GetPointer()};
-        cmdQueueFrame->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
+        cmdQueue->ExecuteCommandLists(std::size(ppCommandLists), ppCommandLists);
 
         // NOTE: VSync and Mailbox both wait for vertical retrace to present a frame. The difference is that enqueuing
         // frames in Mailbox mode replaces the next pending frame while VSync stores and presents all frames. As a
@@ -915,7 +905,7 @@ struct Direct3D12GraphicsContext::Impl {
         FrameContext &currFrame = GetCurrentFrameContext();
 
         // Schedule a signal command in the queue
-        if (FAILED(fenceFrame.Signal(cmdQueueFrame, currFrame.fenceValue))) {
+        if (FAILED(fenceFrame.Signal(cmdQueue, currFrame.fenceValue))) {
             return util::ErrorMessage{"Failed to signal fence"};
         }
 
@@ -932,7 +922,7 @@ struct Direct3D12GraphicsContext::Impl {
         // Schedule a signal command in the queue
         const FrameContext &currFrame = GetCurrentFrameContext();
         const UINT64 currentFenceValue = currFrame.fenceValue;
-        if (FAILED(fenceFrame.Signal(cmdQueueFrame, currentFenceValue))) {
+        if (FAILED(fenceFrame.Signal(cmdQueue, currentFenceValue))) {
             return util::ErrorMessage{"Failed to signal fence"};
         }
 
@@ -1117,7 +1107,7 @@ struct Direct3D12GraphicsContext::Impl {
         // Copy data to staging buffer
         fnUpdate(stagingBufferData, texture.rowPitch);
 
-        if (FAILED(fenceOps.Signal(cmdQueueOps, fenceValueOps))) {
+        if (FAILED(fenceOps.Signal(cmdQueue, fenceValueOps))) {
             return util::ErrorMessage{"Failed to signal fence before executing operations"};
         }
         fenceOps.Wait(INFINITE, fenceValueOps);
@@ -1230,7 +1220,7 @@ struct Direct3D12GraphicsContext::Impl {
         }
 
         cmdListOps->Close();
-        cmdQueueOps->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
+        cmdQueue->ExecuteCommandLists(1, cmdListOps.GetAddressOfBase());
 
         return {};
     }
@@ -1544,7 +1534,7 @@ bool Direct3D12GraphicsContext::ImGuiInit() {
 
     ImGui_ImplDX12_InitInfo initInfo{};
     initInfo.Device = m_impl->device.GetPointer();
-    initInfo.CommandQueue = m_impl->cmdQueueFrame.GetPointer();
+    initInfo.CommandQueue = m_impl->cmdQueue.GetPointer();
     initInfo.NumFramesInFlight = Impl::kFrameCount;
     initInfo.RTVFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
     initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
