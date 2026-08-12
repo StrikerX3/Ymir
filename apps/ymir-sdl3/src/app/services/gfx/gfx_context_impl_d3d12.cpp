@@ -665,6 +665,10 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height) {
+        if (auto result = EndFrame(); !result) {
+            return util::ErrorMessage{fmt::format("Could not end frame: {}", result.Error().message)};
+        }
+
         // Wait for frames to complete and destroy RTVs
         FrameContext &currFrame = GetCurrentFrameContext();
         UINT64 &currFenceValue = currFrame.fenceValue;
@@ -709,6 +713,9 @@ struct Direct3D12GraphicsContext::Impl {
         scissorRect.right = width;
         scissorRect.bottom = height;
 
+        if (auto result = BeginFrame(); !result) {
+            return util::ErrorMessage{fmt::format("Could not begin frame: {}", result.Error().message)};
+        }
         return {};
     }
 
