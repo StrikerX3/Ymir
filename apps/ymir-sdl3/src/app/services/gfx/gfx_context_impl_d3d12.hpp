@@ -56,7 +56,7 @@ public:
     util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                        const FRect &dstRect) override;
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
-                                          const FPoint2D *anchorPoint = nullptr) override;
+                                          const FPoint2D *pivot = nullptr) override;
 
     util::VoidResult<> SetPresentMode(PresentMode mode) override;
     util::VoidResult<> Present() override;

@@ -7,20 +7,25 @@ cbuffer Constants : register(b0) {
 PSInput VSMain(float4 position : POSITION, float2 uv : TEXCOORD) {
     PSInput result;
 
-    // TODO: imitate SDL_RenderTextureRotated:
+    // This imitates SDL_RenderTextureRotated, where:
     // - srcRect specifies the source texture region to copy from (in texels)
     // - dstRect specifies the destination texture region to copy to (in texels)
     // - rotAngle is the clockwise rotation angle (in degrees)
-    // - anchorPoint is the rotation anchor point. If null, use the center of the destination rectangle
+    // - rotPivot is the rotation pivot point
 
-    // TODO: use these to position the quad on the screen:
-    // g_consts.dstRect;
-    // g_consts.anchorPoint;
-    // g_consts.rotAngle;
+    float2 origin = g_consts.dstRect.xy;
+    const float2 size = g_consts.dstRect.zw;
+    origin.y = g_consts.renderTargetSize.y - origin.y - size.y;
+
     result.position = position;
-    // TODO: use this to adjust the texture coordinates:
-    // g_consts.srcRect;
-    result.uv = uv;
+    result.position.xy *= size;
+    result.position.xy = Rotate2DPivot(result.position.xy, -radians(g_consts.rotAngle), g_consts.rotPivot);
+    result.position.xy += origin;
+    result.position.xy /= g_consts.renderTargetSize;
+    result.position.xy *= 2.0f;
+    result.position.xy -= 1.0f;
+
+    result.uv = lerp(g_consts.srcRect.xy, g_consts.srcRect.xy + g_consts.srcRect.zw, uv);
 
     return result;
 }

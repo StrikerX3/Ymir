@@ -88,7 +88,8 @@ struct Vertex {
 struct alignas(256) DrawTextureConstants {
     Float4 srcRect;
     Float4 dstRect;
-    Float2 anchorPoint;
+    Float2 renderTargetSize;
+    Float2 rotPivot;
     float rotAngle;
 };
 
@@ -505,10 +506,10 @@ struct Direct3D12GraphicsContext::Impl {
         {
             // Define the geometry for a quad
             Vertex vertices[] = {
-                {{-1.0f, +1.0f, 0.0f}, {0.0f, 0.0f}},
-                {{+1.0f, +1.0f, 0.0f}, {1.0f, 0.0f}},
-                {{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-                {{+1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+                {{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+                {{1.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+                {{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},
+                {{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},
             };
 
             const UINT vertexBufferSize = sizeof(vertices);
@@ -818,6 +819,8 @@ struct Direct3D12GraphicsContext::Impl {
         rtvHandle = frames[frameIndex].rtvDesc.cpuHandle;
         cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
         cmdListFrame->SetGraphicsRootSignature(rootSignatureFrame.GetPointer());
+        drawTextureConstants->renderTargetSize.x = viewport.Width;
+        drawTextureConstants->renderTargetSize.y = viewport.Height;
 
         DeletePendingTextures(false);
 
@@ -1362,12 +1365,16 @@ struct Direct3D12GraphicsContext::Impl {
         // Change render target to destination texture
         cmdListFrame->SetPipelineState(pipelineState.GetPointer());
         cmdListFrame->OMSetRenderTargets(1, &dstTexture->rtvDesc.cpuHandle, FALSE, nullptr);
+        drawTextureConstants->renderTargetSize.x = dstTexture->spec.width;
+        drawTextureConstants->renderTargetSize.y = dstTexture->spec.height;
 
         auto drawResult = DrawTextureRotated(src, srcRect, dstRect, 0, nullptr);
 
         // Restore swap chain render target
         cmdListFrame->SetPipelineState(pipelineStateFrame.GetPointer());
         cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+        drawTextureConstants->renderTargetSize.x = viewport.Width;
+        drawTextureConstants->renderTargetSize.y = viewport.Height;
 
         // Transition texture usage back to pixel shading
         if (enhCmdList != nullptr) {
@@ -1419,7 +1426,7 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
-                                          const FPoint2D *anchorPoint) {
+                                          const FPoint2D *rotPivot) {
         TextureInstance *instance = GetTexture(id);
         if (instance == nullptr) {
             return util::ErrorMessage{"Invalid texture"};
@@ -1434,17 +1441,21 @@ struct Direct3D12GraphicsContext::Impl {
             return smpLinear;
         }();
 
-        // Update constants with rect parameters, rotation angle and anchor point
-        auto frectToFloat4 = [](const FRect &rect) { return Float4{rect.x, rect.y, rect.w, rect.h}; };
+        // Update constants with rect parameters, rotation angle and pivot point
         auto fpoint2DToFloat2 = [](const FPoint2D &point) { return Float2{point.x, point.y}; };
-        drawTextureConstants->srcRect = frectToFloat4(srcRect);
-        drawTextureConstants->dstRect = frectToFloat4(dstRect);
+        drawTextureConstants->srcRect = {
+            srcRect.x / instance->spec.width,
+            srcRect.y / instance->spec.height,
+            srcRect.w / instance->spec.width,
+            srcRect.h / instance->spec.height,
+        };
+        drawTextureConstants->dstRect = {dstRect.x, dstRect.y, dstRect.w, dstRect.h};
         drawTextureConstants->rotAngle = rotAngle;
-        if (anchorPoint == nullptr) {
-            drawTextureConstants->anchorPoint.x = dstRect.w * 0.5f;
-            drawTextureConstants->anchorPoint.y = dstRect.h * 0.5f;
+        if (rotPivot == nullptr) {
+            drawTextureConstants->rotPivot.x = dstRect.w * 0.5f;
+            drawTextureConstants->rotPivot.y = dstRect.h * 0.5f;
         } else {
-            drawTextureConstants->anchorPoint = fpoint2DToFloat2(*anchorPoint);
+            drawTextureConstants->rotPivot = fpoint2DToFloat2(*rotPivot);
         }
 
         // Draw rectangle
@@ -1623,8 +1634,8 @@ util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, Tex
 
 util::VoidResult<> Direct3D12GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect,
                                                                  const FRect &dstRect, double rotAngle,
-                                                                 const FPoint2D *anchorPoint) {
-    return m_impl->DrawTextureRotated(id, srcRect, dstRect, rotAngle, anchorPoint);
+                                                                 const FPoint2D *rotPivot) {
+    return m_impl->DrawTextureRotated(id, srcRect, dstRect, rotAngle, rotPivot);
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::SetPresentMode(PresentMode mode) {
