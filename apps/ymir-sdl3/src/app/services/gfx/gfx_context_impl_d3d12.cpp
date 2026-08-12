@@ -636,7 +636,7 @@ struct Direct3D12GraphicsContext::Impl {
                 FAILED(hr)) {
                 return util::ErrorMessage{fmt::format("Failed to create constant buffer, error code {:X}", (uint32)hr)};
             }
-            constBuffer->SetName(L"Constant buffer");
+            constBuffer->SetName(L"[Ymir-GCtx] Constant buffer");
 
             // Describe and create a constant buffer view.
             resourceHeapAlloc.Allocate(cbvQuad.cpuHandle, cbvQuad.gpuHandle, cbvQuad.index);
