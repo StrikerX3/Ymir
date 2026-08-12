@@ -85,7 +85,7 @@ struct Vertex {
     Float2 uv;
 };
 
-struct alignas(256) DrawTextureConstants {
+struct alignas(uint32) DrawTextureConstants {
     Float4 srcRect;
     Float4 dstRect;
     Float2 renderTargetSize;
@@ -155,9 +155,7 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12Resource vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
 
-    D3D12Resource constBuffer;
-    Descriptor cbvQuad;
-    DrawTextureConstants *drawTextureConstants = nullptr;
+    DrawTextureConstants drawTextureConstants;
 
     static constexpr D3D12_INPUT_ELEMENT_DESC inputElementDescs[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
@@ -366,16 +364,16 @@ struct Direct3D12GraphicsContext::Impl {
         cmdListOps->Close();
         cmdListOps->SetName(L"[Ymir-GCtx] Operations command list");
 
-        // Create root signature for texture drawing operations with these descriptors tables:
-        // [0] one CBV slot for the quad vertex data
-        // [1] one SRV slot for the texture to draw
-        // [2] one sampler slot to pick between nearest neighbor and linear interpolation
+        // Create root signature for texture drawing operations with:
+        // [0] descriptor table with one SRV slot for the texture to draw
+        // [1] descriptor table with one sampler slot to pick between nearest neighbor and linear interpolation
+        // [2] 32-bit constants holding the drawing parameters
         {
             auto rootSigBuilder = rootSignatureFrame.Builder();
             rootSigBuilder.Flags(D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-            rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_VERTEX).AddCBVs(1, 0);
             rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL).AddSRVs(1, 0);
             rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL).AddSamplers(1, 0);
+            rootSigBuilder.Add32BitConstants(0, sizeof(DrawTextureConstants) / sizeof(uint32));
             if (HRESULT hr = rootSigBuilder.Build(device); FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Failed to create texture operations root signature, error code {:X}", (uint32)hr)};
@@ -615,47 +613,6 @@ struct Direct3D12GraphicsContext::Impl {
             vertexBufferView.SizeInBytes = vertexBufferSize;
         }
 
-        // Create the constant buffer
-        {
-            const UINT constantBufferSize = sizeof(DrawTextureConstants);
-
-            const D3D12_RESOURCE_DESC constBufferDesc{
-                .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
-                .Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
-                .Width = constantBufferSize,
-                .Height = 1,
-                .DepthOrArraySize = 1,
-                .MipLevels = 1,
-                .Format = DXGI_FORMAT_UNKNOWN,
-                .SampleDesc = {.Count = 1, .Quality = 0},
-                .Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                .Flags = D3D12_RESOURCE_FLAG_NONE,
-            };
-            if (HRESULT hr = constBuffer.CreateCommitted(device, {.Type = D3D12_HEAP_TYPE_UPLOAD}, D3D12_HEAP_FLAG_NONE,
-                                                         constBufferDesc, D3D12_RESOURCE_STATE_COMMON);
-                FAILED(hr)) {
-                return util::ErrorMessage{fmt::format("Failed to create constant buffer, error code {:X}", (uint32)hr)};
-            }
-            constBuffer->SetName(L"[Ymir-GCtx] Constant buffer");
-
-            // Describe and create a constant buffer view.
-            resourceHeapAlloc.Allocate(cbvQuad.cpuHandle, cbvQuad.gpuHandle, cbvQuad.index);
-            D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
-            cbvDesc.BufferLocation = constBuffer->GetGPUVirtualAddress();
-            cbvDesc.SizeInBytes = constantBufferSize;
-            device->CreateConstantBufferView(&cbvDesc, resourceHeap.GetCPUStart());
-
-            // Map and initialize the constant buffer. We don't unmap this until the context is shut down.
-            // Keeping things mapped for the lifetime of the resource is okay.
-            D3D12_RANGE readRange(0, 0);
-            void *constBufferPtr;
-            if (HRESULT hr = constBuffer->Map(0, &readRange, &constBufferPtr); FAILED(hr)) {
-                return util::ErrorMessage{fmt::format("Failed to map constant buffer, error code {:X}", (uint32)hr)};
-            }
-            memset(constBufferPtr, 0, sizeof(DrawTextureConstants));
-            drawTextureConstants = static_cast<DrawTextureConstants *>(constBufferPtr);
-        }
-
         // Execute command list
         if (HRESULT hr = cmdListOps->Close(); FAILED(hr)) {
             return util::ErrorMessage{
@@ -682,8 +639,6 @@ struct Direct3D12GraphicsContext::Impl {
         }
         fenceFrame.Destroy();
         fenceOps.Destroy();
-        constBuffer.Destroy();
-        drawTextureConstants = nullptr;
         vertexBuffer.Destroy();
         vertexBufferView.BufferLocation = {};
         renderTargetPipelines.clear();
@@ -819,8 +774,9 @@ struct Direct3D12GraphicsContext::Impl {
         rtvHandle = frames[frameIndex].rtvDesc.cpuHandle;
         cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
         cmdListFrame->SetGraphicsRootSignature(rootSignatureFrame.GetPointer());
-        drawTextureConstants->renderTargetSize.x = viewport.Width;
-        drawTextureConstants->renderTargetSize.y = viewport.Height;
+
+        drawTextureConstants.renderTargetSize.x = viewport.Width;
+        drawTextureConstants.renderTargetSize.y = viewport.Height;
 
         DeletePendingTextures(false);
 
@@ -1241,9 +1197,9 @@ struct Direct3D12GraphicsContext::Impl {
 
         auto rootSigBuilder = pipeline.rootSignature.Builder();
         rootSigBuilder.Flags(D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-        rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_VERTEX).AddCBVs(1, 0);
         rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL).AddSRVs(1, 0);
         rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL).AddSamplers(1, 0);
+        rootSigBuilder.Add32BitConstants(0, sizeof(DrawTextureConstants) / sizeof(uint32));
         if (HRESULT hr = rootSigBuilder.Build(device); FAILED(hr)) {
             return util::ErrorMessage{fmt::format(
                 "Failed to create texture root signature for render target [{}], error code {:X}", name, (uint32)hr)};
@@ -1316,7 +1272,6 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{fmt::format("Could not get render target PSO: {}", psoResult.Error().message)};
         }
         RenderTargetPipeline *pipeline = psoResult.Value();
-        D3D12PipelineState &pipelineState = pipeline->pipelineState;
 
         auto *enhCmdList = GetCommandListForEnhancedBarriers(cmdListFrame);
 
@@ -1363,18 +1318,20 @@ struct Direct3D12GraphicsContext::Impl {
         }
 
         // Change render target to destination texture
-        cmdListFrame->SetPipelineState(pipelineState.GetPointer());
+        cmdListFrame->SetPipelineState(pipeline->pipelineState.GetPointer());
+        cmdListFrame->SetGraphicsRootSignature(pipeline->rootSignature.GetPointer());
         cmdListFrame->OMSetRenderTargets(1, &dstTexture->rtvDesc.cpuHandle, FALSE, nullptr);
-        drawTextureConstants->renderTargetSize.x = dstTexture->spec.width;
-        drawTextureConstants->renderTargetSize.y = dstTexture->spec.height;
+        drawTextureConstants.renderTargetSize.x = dstTexture->spec.width;
+        drawTextureConstants.renderTargetSize.y = dstTexture->spec.height;
 
         auto drawResult = DrawTextureRotated(src, srcRect, dstRect, 0, nullptr);
 
         // Restore swap chain render target
         cmdListFrame->SetPipelineState(pipelineStateFrame.GetPointer());
+        cmdListFrame->SetGraphicsRootSignature(rootSignatureFrame.GetPointer());
         cmdListFrame->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
-        drawTextureConstants->renderTargetSize.x = viewport.Width;
-        drawTextureConstants->renderTargetSize.y = viewport.Height;
+        drawTextureConstants.renderTargetSize.x = viewport.Width;
+        drawTextureConstants.renderTargetSize.y = viewport.Height;
 
         // Transition texture usage back to pixel shading
         if (enhCmdList != nullptr) {
@@ -1441,27 +1398,33 @@ struct Direct3D12GraphicsContext::Impl {
             return smpLinear;
         }();
 
-        // Update constants with rect parameters, rotation angle and pivot point
-        auto fpoint2DToFloat2 = [](const FPoint2D &point) { return Float2{point.x, point.y}; };
-        drawTextureConstants->srcRect = {
+        // Update constants with source UVs, destination area (in pixels), rotation angle and pivot point
+        drawTextureConstants.srcRect = {
             srcRect.x / instance->spec.width,
             srcRect.y / instance->spec.height,
             srcRect.w / instance->spec.width,
             srcRect.h / instance->spec.height,
         };
-        drawTextureConstants->dstRect = {dstRect.x, dstRect.y, dstRect.w, dstRect.h};
-        drawTextureConstants->rotAngle = rotAngle;
+        drawTextureConstants.dstRect = {
+            dstRect.x,
+            dstRect.y,
+            dstRect.w,
+            dstRect.h,
+        };
         if (rotPivot == nullptr) {
-            drawTextureConstants->rotPivot.x = dstRect.w * 0.5f;
-            drawTextureConstants->rotPivot.y = dstRect.h * 0.5f;
+            drawTextureConstants.rotPivot.x = dstRect.w * 0.5f;
+            drawTextureConstants.rotPivot.y = dstRect.h * 0.5f;
         } else {
-            drawTextureConstants->rotPivot = fpoint2DToFloat2(*rotPivot);
+            drawTextureConstants.rotPivot.x = rotPivot->x;
+            drawTextureConstants.rotPivot.y = rotPivot->y;
         }
+        drawTextureConstants.rotAngle = rotAngle;
 
         // Draw rectangle
-        cmdListFrame->SetGraphicsRootDescriptorTable(0, cbvQuad.gpuHandle);
-        cmdListFrame->SetGraphicsRootDescriptorTable(1, instance->srvDesc.gpuHandle);
-        cmdListFrame->SetGraphicsRootDescriptorTable(2, smpDesc.gpuHandle);
+        cmdListFrame->SetGraphicsRootDescriptorTable(0, instance->srvDesc.gpuHandle);
+        cmdListFrame->SetGraphicsRootDescriptorTable(1, smpDesc.gpuHandle);
+        cmdListFrame->SetGraphicsRoot32BitConstants(2, sizeof(drawTextureConstants) / sizeof(uint32),
+                                                    &drawTextureConstants, 0);
         cmdListFrame->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
         cmdListFrame->IASetVertexBuffers(0, 1, &vertexBufferView);
         cmdListFrame->DrawInstanced(4, 1, 0, 0);
