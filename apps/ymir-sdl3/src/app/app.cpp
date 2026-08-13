@@ -1628,6 +1628,8 @@ void App::RunEmulator() {
                 }
                 break;
 
+            case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN: util::os::ConfigureWindowDecorations(screen.window); break;
+
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: [[fallthrough]];
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
                 if (!settings.gui.overrideUIScale) {
