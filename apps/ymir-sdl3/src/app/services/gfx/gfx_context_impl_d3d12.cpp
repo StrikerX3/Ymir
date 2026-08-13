@@ -669,14 +669,12 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{fmt::format("Could not end frame: {}", result.Error().message)};
         }
 
-        // Wait for frames to complete and destroy RTVs
-        FrameContext &currFrame = GetCurrentFrameContext();
-        UINT64 &currFenceValue = currFrame.fenceValue;
+        // Flush all current GPU commands
+        WaitForGPU();
+
+        // Destroy RTVs
+        const UINT64 currFenceValue = GetCurrentFrameContext().fenceValue;
         for (UINT n = 0; n < kFrameCount; n++) {
-            if (FAILED(fenceFrame.Signal(cmdQueue, ++currFenceValue))) {
-                return util::ErrorMessage{"Failed to signal fence before resizing swapchain buffers"};
-            }
-            fenceFrame.Wait(INFINITE, currFenceValue);
             frames[n].renderTarget.Destroy();
         }
 
@@ -700,7 +698,7 @@ struct Direct3D12GraphicsContext::Impl {
                 device->CreateRenderTargetView(resource, nullptr, rtvDesc.cpuHandle);
                 resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
                 frames[n].renderTarget.Attach(resource);
-                frames[n].fenceValue = 0;
+                frames[n].fenceValue = currFenceValue;
             }
         }
 
