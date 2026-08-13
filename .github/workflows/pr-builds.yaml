@@ -5,6 +5,7 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
+  workflow_dispatch: # Enable manual runs
 
 permissions:
   packages: write
