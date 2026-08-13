@@ -119,7 +119,14 @@ jobs:
 
     steps:
       # Set up MASM for lzma
-      - uses: glslang/setup-masm@83f52fc3599c361e8428805627dc749f2717ce75
+      - name: Set up MASM
+        uses: glslang/setup-masm@83f52fc3599c361e8428805627dc749f2717ce75
+
+      - name: Set up Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
+        with:
+          vulkan_version: "1.4.357.0"
+          cache: true
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -279,6 +286,12 @@ jobs:
             cpp_compiler: "clang++-18"
 
     steps:
+      - name: Set up Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
+        with:
+          vulkan_version: "1.4.357.0"
+          cache: true
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
@@ -423,6 +436,12 @@ jobs:
           #  isa_name: "'x86_64;arm64'"
 
     steps:
+      - name: Set up Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
+        with:
+          vulkan_version: "1.4.357.0"
+          cache: true
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
