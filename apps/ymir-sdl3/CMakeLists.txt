@@ -441,6 +441,11 @@ endif ()
 ## Compile shaders
 set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(SHADER_COMPILE_FLAGS -O0 -Qstrip_reflect -Zi)
+else ()
+    set(SHADER_COMPILE_FLAGS -O3 -Qstrip_reflect -Qstrip_debug)
+endif ()
 
 ## Build shader lists
 set(VERTEX_SHADER_SOURCES "")
@@ -468,7 +473,7 @@ foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
         SOURCE "${SHADER_SRC}"
         ENTRY "VSMain"
         PROFILE "vs_6_0"
-        FLAGS -Qstrip_debug -Qstrip_reflect -Zi
+        FLAGS ${SHADER_COMPILE_FLAGS}
     )
     list(APPEND COMPILED_SHADERS ${SHADER_CSO})
 endforeach ()
@@ -480,7 +485,7 @@ foreach (SHADER_SRC ${PIXEL_SHADER_SOURCES})
         SOURCE "${SHADER_SRC}"
         ENTRY "PSMain"
         PROFILE "ps_6_0"
-        FLAGS -Qstrip_debug -Qstrip_reflect -Zi
+        FLAGS ${SHADER_COMPILE_FLAGS}
     )
     list(APPEND COMPILED_SHADERS ${SHADER_CSO})
 endforeach ()
