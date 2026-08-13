@@ -81,8 +81,8 @@ elseif (SHADERC_EXECUTABLE)
     set(SHADERS_SPIRV_SUPPORTED_BY "shaderc")
 endif ()
 
-# SPIR-V is required on systems other than Windows. Bail out if that's not the case.
-if (NOT WIN32 AND NOT SHADERS_SPIRV_SUPPORTED_BY)
+# SPIR-V is required on systems other than Windows if Vulkan is supported. Bail out if that's not the case.
+if (NOT WIN32 AND Vulkan_FOUND AND NOT SHADERS_SPIRV_SUPPORTED_BY)
     message(FATAL_ERROR "Could NOT find a shader compiler supporting SPIR-V. Cannot compile shaders.")
 endif ()
 
@@ -102,6 +102,297 @@ endif ()
 if (SHADERS_SPIRV_SUPPORTED_BY)
     message(STATUS "${SHADERS_SPIRV_SUPPORTED_BY} will be used to compile shaders to SPIR-V")
 endif ()
+if (NOT DXC_EXECUTABLE AND NOT SHADERC_EXECUTABLE)
+    message(STATUS "DXC and shaderc not found. No shaders will be compiled.")
+
+    # Define dummy no-op function to avoid breaking builds without Vulkan support
+    function(compile_shader)
+    endfunction()
+
+    return()
+endif ()
+
+## TODO: refactor function to use either DXC or shaderc for SPIR-V
+## while at it, extract DXC -> DXIL generators to a function to set up the structure for metal+metallib
+## TODO: generate deps using DXC or shaderc
+
+
+################################################################################
+## Helper functions
+
+# _shader_make_generate_depfile_command(
+#     OUT_COMMAND <variable>
+#     SOURCE <path_to_hlsl>
+#     DEPFILE <path_to_depfile>
+#     ENTRYPOINT <string>
+#     PROFILE <string>
+#     [MACROS <macro1> <macro2> ...]
+# )
+#
+# Outputs a COMMAND argument for use with add_custom_command that generates the
+# dependency list for the given HLSL source file using either DXC or glslc,
+# whichever is available on the system.
+#
+# Parameters:
+#
+#   OUT_COMMAND
+#       Name of a variable in the parent scope that will receive the COMMAND
+#       argument for use with add_custom_command to generate the dependency
+#       list file.
+#
+#   SOURCE
+#       Absolute path to the HLSL shader source file.
+#
+#   DEPFILE
+#       Absolute path to the dependency list file to be written.
+#
+#   ENTRYPOINT
+#       Shader entry point function name (e.g. "PSMain", "VSMain", "CSMain").
+#
+#   PROFILE
+#       Shader profile to compile for (e.g. "ps_6_7", "vs_6_7", "cs_6_5").
+#
+#   MACROS (optional)
+#       List of preprocessor defines to pass to the shader.
+#
+# Output:
+#   OUT_COMMAND is set to a COMMAND argument that produces the dependency list
+#   for the given HLSL source file.
+function(_shader_make_generate_depfile_command)
+    # Parse arguments
+    set(options)
+    set(oneValueArgs
+        OUT_COMMAND
+        SOURCE
+        DEPFILE
+        ENTRYPOINT
+        PROFILE
+    )
+    set(multiValueArgs
+        MACROS
+    )
+
+    cmake_parse_arguments(ARG
+        "${options}"
+        "${oneValueArgs}"
+        "${multiValueArgs}"
+        ${ARGN}
+    )
+
+    if (DXC_EXECUTABLE)
+        list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
+
+        set(_command COMMAND "${DXC_EXECUTABLE}"
+            "-MD" "-MF" "${ARG_DEPFILE}"
+            "-T" "${ARG_PROFILE}"
+            "-E" "${ARG_ENTRYPOINT}"
+            ${_macro_args}
+            "${ARG_SOURCE}"
+        )
+        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND _command "-Od")
+        else ()
+            list(APPEND _command "-O3")
+        endif ()
+        set(${ARG_OUT_COMMAND} ${_command} PARENT_SCOPE)
+    elseif (SPIRV_EXECUTABLE)
+        # TODO: build glslc command
+    else ()
+        message(FATAL_ERROR
+            "Neither DXC nor shaderc are available. "
+            "Cannot generate dependency list command"
+        )
+    endif ()
+endfunction()
+
+# _shader_make_compile_dxil_command(
+#     OUT_COMMAND <variable>
+#     SOURCE <path_to_hlsl>
+#     DESTINATION <path_to_output_file>
+#     ENTRYPOINT <string>
+#     PROFILE <string>
+#     [MACROS <macro1> <macro2> ...]
+#     [INCLUDE_REFLECTION]
+# )
+#
+# Outputs a COMMAND argument for use with add_custom_command that compiles the
+# given HLSL shader source code into a DXIL binary at the destination path with
+# the specified configuration.
+#
+# If DXIL is not supported, OUT_COMMAND is set to an empty list.
+#
+# Parameters:
+#
+#   OUT_COMMAND
+#       Name of a variable in the parent scope that will receive the COMMAND
+#       argument for use with add_custom_command to compile the shader.
+#
+#   SOURCE
+#       Absolute path to the HLSL shader source file.
+#
+#   DESTINATION
+#       Absolute path to the output binary file to be written.
+#
+#   ENTRYPOINT
+#       Shader entry point function name (e.g. "PSMain", "VSMain", "CSMain").
+#
+#   PROFILE
+#       Shader profile to compile for (e.g. "ps_6_7", "vs_6_7", "cs_6_5").
+#
+#   MACROS (optional)
+#       List of preprocessor defines to pass to the shader.
+#
+#   INCLUDE_REFLECTION (optional)
+#       If specified, compiles the shaders with reflection information.
+#
+# Output:
+#   OUT_COMMAND is set to a COMMAND argument that compiles the given HLSL source
+#   file into a DXIL binary at the destination path.
+function(_shader_make_compile_dxil_command)
+    # Parse arguments
+    set(options
+        INCLUDE_REFLECTION
+    )
+    set(oneValueArgs
+        OUT_COMMAND
+        SOURCE
+        DESTINATION
+        ENTRYPOINT
+        PROFILE
+    )
+    set(multiValueArgs
+        MACROS
+    )
+
+    cmake_parse_arguments(ARG
+        "${options}"
+        "${oneValueArgs}"
+        "${multiValueArgs}"
+        ${ARGN}
+    )
+
+    if (DXC_DXIL_SUPPORTED)
+        list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
+
+        set(_compile_flags "")
+        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND _compile_flags "-Od" "-Qembed_debug" "-Zi")
+        else ()
+            list(APPEND _compile_flags "-O3" "-Qstrip_debug")
+        endif ()
+        if (NOT ARG_INCLUDE_REFLECTION)
+            list(APPEND _compile_flags "-Qstrip_reflect")
+        endif ()
+
+        set(${ARG_OUT_COMMAND}
+            COMMAND "${DXC_EXECUTABLE}"
+                -T "${ARG_PROFILE}"
+                -E "${ARG_ENTRYPOINT}"
+                ${_compile_flags}
+                ${_macro_args}
+                -Fo "${ARG_DESTINATION}"
+                "${ARG_SOURCE}"
+            PARENT_SCOPE
+        )
+    else ()
+        set(${ARG_OUT_COMMAND} "" PARENT_SCOPE)
+    endif ()
+endfunction()
+
+# _shader_make_compile_spirv_command(
+#     OUT_COMMAND <variable>
+#     SOURCE <path_to_hlsl>
+#     DESTINATION <path_to_output_file>
+#     ENTRYPOINT <string>
+#     PROFILE <string>
+#     [MACROS <macro1> <macro2> ...]
+#     [INCLUDE_REFLECTION]
+# )
+#
+# Outputs a COMMAND argument for use with add_custom_command that compiles the
+# given HLSL shader source code into a SPIR-V binary at the destination path
+# with the specified configuration.
+#
+# If SPIR-V isn't supported, OUT_COMMAND is set to an empty list.
+#
+# Parameters:
+#
+#   OUT_COMMAND
+#       Name of a variable in the parent scope that will receive the COMMAND
+#       argument for use with add_custom_command to compile the shader.
+#
+#   SOURCE
+#       Absolute path to the HLSL shader source file.
+#
+#   DESTINATION
+#       Absolute path to the output binary file to be written.
+#
+#   ENTRYPOINT
+#       Shader entry point function name (e.g. "PSMain", "VSMain", "CSMain").
+#
+#   PROFILE
+#       Shader profile to compile for (e.g. "ps_6_7", "vs_6_7", "cs_6_5").
+#
+#   MACROS (optional)
+#       List of preprocessor defines to pass to the shader.
+#
+#   INCLUDE_REFLECTION (optional)
+#       If specified, compiles the shaders with reflection information.
+#
+# Output:
+#   OUT_COMMAND is set to a COMMAND argument that compiles the given HLSL source
+#   file into a SPIR-V binary at the destination path.
+function(_shader_make_compile_spirv_command)
+    # Parse arguments
+    set(options
+        INCLUDE_REFLECTION
+    )
+    set(oneValueArgs
+        OUT_COMMAND
+        SOURCE
+        DESTINATION
+        ENTRYPOINT
+        PROFILE
+    )
+    set(multiValueArgs
+        MACROS
+    )
+
+    cmake_parse_arguments(ARG
+        "${options}"
+        "${oneValueArgs}"
+        "${multiValueArgs}"
+        ${ARGN}
+    )
+
+    if (${SHADERS_SPIRV_SUPPORTED_BY} STREQUAL "DXC")
+        list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
+
+        set(_compile_flags "")
+        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND _compile_flags "-fspv-debug=vulkan-with-source")
+        endif ()
+        if (ARG_INCLUDE_REFLECTION)
+            list(APPEND _compile_flags "-fspv-reflect")
+        endif ()
+
+        set(${ARG_OUT_COMMAND}
+            COMMAND "${DXC_EXECUTABLE}"
+                -T "${ARG_PROFILE}"
+                -E "${ARG_ENTRYPOINT}"
+                -spirv
+                ${_compile_flags}
+                ${_macro_args}
+                -Fo "${ARG_DESTINATION}"
+                "${ARG_SOURCE}"
+            PARENT_SCOPE
+        )
+    elseif (${SHADERS_SPIRV_SUPPORTED_BY} STREQUAL "shaderc")
+        # TODO: build glslc commmand
+    else ()
+        set(${ARG_OUT_COMMAND} "" PARENT_SCOPE)
+    endif ()
+endfunction()
 
 ################################################################################
 ## Compiler function
@@ -197,6 +488,14 @@ function(compile_shader)
         ${ARGN}
     )
 
+    # Set up option forwarding
+    foreach (_option ${options})
+        set(_fwd_${_option} "")
+        if (${ARG_${_option}})
+            set(_fwd_${_option} ${_option})
+        endif ()
+    endforeach ()
+
     # Extract paths.
     #
     # WHENCE specifies the root path for shaders.
@@ -229,73 +528,51 @@ function(compile_shader)
     set(_out_dxil_path "${_out_shader_path}.cso")
     set(_out_spirv_path "${_out_shader_path}.spv")
 
-    list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _dxc_macro_args)
-
-    # Setup common DXC flags
-    set(_dxc_common_flags
-        -T "${ARG_PROFILE}"
-        -E "${ARG_ENTRYPOINT}"
-        ${_dxc_macro_args}
-    )
-    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        list(APPEND _dxc_common_flags "-Od")
-    else ()
-        list(APPEND _dxc_common_flags "-O3")
-    endif ()
-
-    # Flags for dependency generation
-    set(_dxc_deps_flags ${_dxc_common_flags})
-    if (NOT ARG_INCLUDE_REFLECTION)
-        list(APPEND _dxc_deps_flags "-MD" "-MF" "${_dep_file}")
-    endif ()
-
-    # Flags for DXIL compilation
-    if (DXC_DXIL_SUPPORTED)
-        set(_dxc_dxil_flags ${_dxc_common_flags})
-        if (NOT ARG_INCLUDE_REFLECTION)
-            list(APPEND _dxc_dxil_flags "-Qstrip_reflect")
-        endif ()
-        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-            list(APPEND _dxc_dxil_flags "-Qembed_debug" "-Zi")
-        else ()
-            list(APPEND _dxc_dxil_flags "-Qstrip_debug")
-        endif ()
-    endif ()
-
-    # Flags for SPIR-V compilation
-    if (DXC_SPIRV_SUPPORTED)
-        set(_dxc_spirv_flags ${_dxc_common_flags} "-spirv")
-        if (ARG_INCLUDE_REFLECTION)
-            list(APPEND _dxc_spirv_flags "-fspv-reflect")
-        endif ()
-        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-            list(APPEND _dxc_spirv_flags "-fspv-debug=vulkan-with-source")
-        endif ()
-    endif ()
-
     # Set up commands and outputs
-    set(_depfile_command COMMAND "${DXC_EXECUTABLE}" ${_dxc_deps_flags} "${_source_abs_path}")
     set(_compile_commands "")
     set(_outputs "")
-    if (DXC_DXIL_SUPPORTED)
-        list(APPEND _compile_commands
-            COMMAND "${DXC_EXECUTABLE}"
-                ${_dxc_dxil_flags}
-                -Fo "${_out_dxil_path}"
-                "${_source_abs_path}"
-        )
+
+    # Make command: generate dependency file
+    _shader_make_generate_depfile_command(
+        OUT_COMMAND _depfile_command
+        SOURCE "${_source_abs_path}"
+        DEPFILE "${_dep_file}"
+        ENTRYPOINT ${ARG_ENTRYPOINT}
+        PROFILE ${ARG_PROFILE}
+        MACROS ${ARG_MACROS}
+    )
+
+    # Make command: compile to DXIL
+    _shader_make_compile_dxil_command(
+        OUT_COMMAND _dxil_compile_command
+        SOURCE "${_source_abs_path}"
+        DESTINATION "${_out_dxil_path}"
+        ENTRYPOINT ${ARG_ENTRYPOINT}
+        PROFILE ${ARG_PROFILE}
+        MACROS ${ARG_MACROS}
+        ${_fwd_INCLUDE_REFLECTION}
+    )
+    if (_dxil_compile_command)
+        list(APPEND _compile_commands ${_dxil_compile_command})
         list(APPEND _outputs "${_out_dxil_path}")
     endif ()
-    if (DXC_SPIRV_SUPPORTED)
-        list(APPEND _compile_commands
-            COMMAND "${DXC_EXECUTABLE}"
-                ${_dxc_spirv_flags}
-                -Fo "${_out_spirv_path}"
-                "${_source_abs_path}"
-        )
+
+    # Make command: compile to SPIR-V
+    _shader_make_compile_spirv_command(
+        OUT_COMMAND _spirv_compile_command
+        SOURCE "${_source_abs_path}"
+        DESTINATION "${_out_spirv_path}"
+        ENTRYPOINT ${ARG_ENTRYPOINT}
+        PROFILE ${ARG_PROFILE}
+        MACROS ${ARG_MACROS}
+        ${_fwd_INCLUDE_REFLECTION}
+    )
+    if (_spirv_compile_command)
+        list(APPEND _compile_commands ${_spirv_compile_command})
         list(APPEND _outputs "${_out_spirv_path}")
     endif ()
-    if (APPLE) # TODO: DXC_METAL_SUPPORTED instead of APPLE
+
+    if (APPLE)
         # TODO: add additional commands to ${_compile_commands}:
         # - use spirv-tools to convert SPIR-V to Metal
         # - use metal to compile the shader

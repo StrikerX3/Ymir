@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.28)
 project(Ymir VERSION 0.4.0)
 
+# Check for Vulkan support before including CompileShaders as it depends on knowing if Vulkan
+# is available to determine whether to make SPIR-V compilation required or optional.
+find_package(Vulkan COMPONENTS SPIRV-Tools)
+
 include(cmake/CMakeRC.cmake)
 include(cmake/CompileShaders.cmake)
 include(cmake/CopyRuntimeDLLs.cmake)
@@ -122,7 +126,6 @@ else ()
 endif ()
 
 ## Include third-party libraries
-find_package(Vulkan COMPONENTS SPIRV-Tools)
 add_subdirectory(vendor)
 
 ## Configure PGO (apply after vendor so third-party libs don't inherit flags)
