@@ -168,7 +168,7 @@ function(_shader_get_glslc_args_for_profile)
     set(multiValueArgs)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    if (${ARG_PROFILE} MATCHES "^([vs|ps|cs])_(\\d+)_(\\d+)$")
+    if (${ARG_PROFILE} MATCHES "^(vs|ps|cs)_([0-9]+)_([0-9]+)$")
         if (${CMAKE_MATCH_1} STREQUAL "vs")
             set(${ARG_OUT_STAGE} "vertex")
         elseif (${CMAKE_MATCH_1} STREQUAL "ps")
