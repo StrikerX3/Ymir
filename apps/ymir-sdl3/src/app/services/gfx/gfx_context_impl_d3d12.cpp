@@ -22,7 +22,7 @@
 #include <fmt/format.h>
 
 #include <cmrc/cmrc.hpp>
-CMRC_DECLARE(ymir_shaders);
+CMRC_DECLARE(ymir_sdl3_shaders);
 
 #include <array>
 #include <deque>
@@ -413,7 +413,7 @@ struct Direct3D12GraphicsContext::Impl {
 
         // Load shaders
         {
-            auto fs = cmrc::ymir_shaders::get_filesystem();
+            auto fs = cmrc::ymir_sdl3_shaders::get_filesystem();
             auto loadShader = [&](const char *path) -> util::ValueResult<std::vector<char>> {
                 assert(fs.is_file(path));
                 auto shaderFile = fs.open(path);
@@ -421,7 +421,7 @@ struct Direct3D12GraphicsContext::Impl {
             };
 
             // Load vertex shader
-            auto vertexShaderBytecodeResult = loadShader("gctx/d3d12/vs_quad.cso");
+            auto vertexShaderBytecodeResult = loadShader("gctx/vs_quad.cso");
             if (!vertexShaderBytecodeResult) {
                 return util::ErrorMessage{
                     fmt::format("Could not load vertex shader: {}", vertexShaderBytecodeResult.Error().message)};
@@ -434,7 +434,7 @@ struct Direct3D12GraphicsContext::Impl {
             }
 
             // Load pixel shader
-            auto pixelShaderBytecodeResult = loadShader("gctx/d3d12/ps_quad.cso");
+            auto pixelShaderBytecodeResult = loadShader("gctx/ps_quad.cso");
             if (!pixelShaderBytecodeResult) {
                 return util::ErrorMessage{
                     fmt::format("Could not load pixel shader: {}", pixelShaderBytecodeResult.Error().message)};

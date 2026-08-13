@@ -438,6 +438,63 @@ if (APPLE)
     )
 endif ()
 
+## Compile shaders
+set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
+set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+
+## Build shader lists
+set(VERTEX_SHADER_SOURCES "")
+set(PIXEL_SHADER_SOURCES "")
+
+list(APPEND VERTEX_SHADER_SOURCES
+    gctx/vs_quad.hlsl
+)
+list(APPEND PIXEL_SHADER_SOURCES
+    gctx/ps_quad.hlsl
+)
+
+## TODO: add per-platform shader code if needed
+# if (WIN32)
+# elseif (APPLE)
+# elseif (UNIX) # Linux and FreeBSD
+# endif ()
+
+set(COMPILED_SHADERS "")
+foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
+    compile_hlsl_shader(
+        OUT_VAR SHADER_CSO
+        INPUT_DIR "${SHADER_INPUT_DIR}"
+        OUTPUT_DIR "${SHADER_OUTPUT_DIR}"
+        SOURCE "${SHADER_SRC}"
+        ENTRY "VSMain"
+        PROFILE "vs_6_0"
+        FLAGS -Qstrip_debug -Qstrip_reflect -Zi
+    )
+    list(APPEND COMPILED_SHADERS ${SHADER_CSO})
+endforeach ()
+foreach (SHADER_SRC ${PIXEL_SHADER_SOURCES})
+    compile_hlsl_shader(
+        OUT_VAR SHADER_CSO
+        INPUT_DIR "${SHADER_INPUT_DIR}"
+        OUTPUT_DIR "${SHADER_OUTPUT_DIR}"
+        SOURCE "${SHADER_SRC}"
+        ENTRY "PSMain"
+        PROFILE "ps_6_0"
+        FLAGS -Qstrip_debug -Qstrip_reflect -Zi
+    )
+    list(APPEND COMPILED_SHADERS ${SHADER_CSO})
+endforeach ()
+
+## Create the embedded resources target
+MESSAGE(STATUS "Generating SDL3 frontend shader resource library: ${COMPILED_SHADERS}")
+cmrc_add_resource_library(ymir-sdl3-shaders
+    ALIAS ymir-sdl3::shaders
+    NAMESPACE ymir_sdl3_shaders
+    WHENCE "${SHADER_OUTPUT_DIR}"
+    ${COMPILED_SHADERS}
+)
+
+## Set executable version
 set_target_properties(ymir-sdl3 PROPERTIES
                       VERSION ${Ymir_VERSION}
                       SOVERSION ${Ymir_VERSION_MAJOR})
@@ -479,6 +536,7 @@ target_include_directories(ymir-sdl3
 target_link_libraries(ymir-sdl3 PRIVATE
     ymir::ymir-core
     ymir-sdl3::rc
+    ymir-sdl3::shaders
     SDL3::SDL3
     date::date
     fmt::fmt
