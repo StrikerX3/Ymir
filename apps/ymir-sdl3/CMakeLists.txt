@@ -549,11 +549,12 @@ target_link_libraries(ymir-sdl3 PRIVATE
     CURL::libcurl_static
     stb::stb
     dr_libs::dr_libs
-    WIL::WIL
 )
 if (WIN32)
     target_link_libraries(ymir-sdl3 PRIVATE
         Dwmapi
+
+        WIL::WIL
     )
 endif ()
 target_compile_features(ymir-sdl3 PUBLIC cxx_std_20)
