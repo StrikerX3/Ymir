@@ -1,26 +1,34 @@
 ################################################################################
-## Find required tools
-
-## DXC (DirectX Shader Compiler).
+## Find required tools.
+##
+## Targets:
+##   Direct3D 12 - DXIL
+##   Vulkan - SPIR-V
+##   Metal - SPIR-V -> MetalLib
+##
+## Requires either DXC (DirectX Shader Compiler) or shaderc.
+## On Windows, DXC is mandatory as Direct3D 12 can only consume DXIL shaders.
+## On Linux and macOS, either DXC or shaderc are accepted.
+##
+## When locating DXC, this script prefers the compiler included with Vulkan SDK
+## as it supports SPIR-V. It falls back to system-provided DXC otherwise, such
+## as Visual Studio's DXC which only targets DXIL (in which case the lack of
+## SPIR-V support doesn't matter).
+##
+## On macOS, DXC with SPIR-V support or shaderc is required for the first
+## compilation step. Later steps require metal and metallib.
 ##
 ## Outputs:
 ##   DXC_EXECUTABLE (STRING): path to DXC executable
-##   DXC_SPIRV_SUPPORTED (BOOL): whether the DXC executable supports SPIR-V
-##
-## Required for:
-##   Direct3D 12, targeting DXIL
-##   Vulkan, targeting SPIR-V
-##   Metal, targeting SPIR-V (intermediate step)
-##
-## Prefer DXC compiler included with Vulkan SDK as it supports SPIR-V. Fall back
-## to system-provided DXC otherwise. This includes Visual Studio's DXC which
-## only targets DXIL, which is fine as without the Vulkan SDK, Ymir compiles
-## without support for Vulkan.
-##
-## On macOS, DXC with SPIR-V support is required for the first compilation step.
+##   DXC_DXIL_SUPPORTED (BOOL): whether the DXC executable can output DXIL
+##   DXC_SPIRV_SUPPORTED (BOOL): whether the DXC executable can output SPIR-V
+##   SHADERC_EXECUTABLE (STRING): path to shaderc executable
+##   SHADERS_SPIRV_SUPPORTED_BY (STRING): name of the shader that will be used
+##     to compile shaders to SPIR-V, either "DXC" or "shaderc". Blank string if
+##     SPIR-V shader compilation is not supported.
 
 # Try to locate DXC in Vulkan SDK
-find_program(DXC_EXECUTABLE
+find_program(DXC_EXECUTABLE_VULKAN
     NAMES dxc
     HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/bin64"
     NO_DEFAULT_PATH
@@ -28,31 +36,71 @@ find_program(DXC_EXECUTABLE
 
 # If found, we know it has SPIR-V and DXIL support.
 # Enable DXIL on Windows only (as it only makes sense there), and SPIR-V everywhere.
-#### TODO: might need additional steps on macOS to ensure DXC actaully has SPIR-V support.
 set(DXC_DXIL_SUPPORTED ${WIN32})
-set(DXC_SPIRV_SUPPORTED $<BOOL:${DXC_EXECUTABLE}>)
+set(DXC_SPIRV_SUPPORTED OFF)
+if (DXC_EXECUTABLE_VULKAN)
+    set(DXC_EXECUTABLE ${DXC_EXECUTABLE_VULKAN})
+    set(DXC_SPIRV_SUPPORTED ON)
+endif ()
 
-# Fall back to system-provided DXC compiler if we can
+#### TODO: might need additional checks on macOS to ensure DXC actually has SPIR-V support
+
+# Fall back to system-provided DXC compiler
 if (NOT DXC_EXECUTABLE)
     find_program(DXC_EXECUTABLE NAMES dxc)
 endif ()
 
-# Still not found; bail out. DXC is required to compile shaders.
-if (NOT DXC_EXECUTABLE)
-    message(FATAL_ERROR "Could NOT find DXC. Cannot compile shaders.")
+# Bail out right away on Windows as we cannot easily compile DXIL shaders without DXC.
+if (WIN32 AND NOT DXC_EXECUTABLE)
+    message(FATAL_ERROR "Could NOT find DXC. Cannot compile DXIL shaders.")
 endif ()
 
-# Output diagnostics
-message(STATUS "DXC found: ${DXC_EXECUTABLE}")
-if (DXC_DXIL_SUPPORTED)
-    message(STATUS "DXC supports DXIL shaders")
+# Try shaderc if DXC cannot be found or doesn't support SPIR-V.
+# Also search in Vulkan SDK for consistency and convenience.
+if (NOT DXC_EXECUTABLE OR NOT DXC_SPIRV_SUPPORTED)
+    find_program(SHADERC_EXECUTABLE
+        NAMES glslc
+        HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/bin64"
+    )
 endif ()
-if (DXC_SPIRV_SUPPORTED)
-    message(STATUS "DXC supports SPIR-V shaders")
+
+# Bail out if neither executable could be found
+if (NOT DXC_EXECUTABLE AND NOT SHADERC_EXECUTABLE)
+    message(FATAL_ERROR "Could NOT find DXC nor shaderc. Cannot compile shaders.")
 endif ()
 
 if (APPLE)
-    ## TODO: find metal and metallib on macOS
+    ## TODO: find metal and metallib on macOS, bail out if they cannot be found
+endif ()
+
+# Check SPIR-V support
+set(SHADERS_SPIRV_SUPPORTED_BY "")
+if (DXC_SPIRV_SUPPORTED)
+    set(SHADERS_SPIRV_SUPPORTED_BY "DXC")
+elseif (SHADERC_EXECUTABLE)
+    set(SHADERS_SPIRV_SUPPORTED_BY "shaderc")
+endif ()
+
+# SPIR-V is required on systems other than Windows. Bail out if that's not the case.
+if (NOT WIN32 AND NOT SHADERS_SPIRV_SUPPORTED_BY)
+    message(FATAL_ERROR "Could NOT find a shader compiler supporting SPIR-V. Cannot compile shaders.")
+endif ()
+
+# Output status
+if (DXC_EXECUTABLE)
+    message(STATUS "DXC found: ${DXC_EXECUTABLE}")
+    if (DXC_DXIL_SUPPORTED)
+        message(STATUS "DXC supports DXIL shaders")
+    endif ()
+    if (DXC_SPIRV_SUPPORTED)
+        message(STATUS "DXC supports SPIR-V shaders")
+    endif ()
+endif ()
+if (SHADERC_EXECUTABLE)
+    message(STATUS "shaderc found: ${SHADERC_EXECUTABLE}")
+endif ()
+if (SHADERS_SPIRV_SUPPORTED_BY)
+    message(STATUS "${SHADERS_SPIRV_SUPPORTED_BY} will be used to compile shaders to SPIR-V")
 endif ()
 
 ################################################################################
