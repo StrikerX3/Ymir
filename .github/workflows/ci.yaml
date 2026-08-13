@@ -2,13 +2,9 @@ name: CI build
 
 on:
   push:
-    branches:
-      - main
-    paths-ignore: &ignored-paths
+    paths-ignore:
       - '**/*.md'
       - 'docs/**'
-  pull_request:
-    paths-ignore: *ignored-paths
 
 permissions:
   packages: write
