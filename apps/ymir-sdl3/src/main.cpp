@@ -81,7 +81,6 @@ int main(int argc, char **argv) {
         SEL sel_UTF8String = sel_registerName("UTF8String");
         const char *failureReason = ((const char *(*)(id, SEL))objc_msgSend)(reason, sel_UTF8String);
         util::ShowFatalErrorDialog(failureReason);
-        YMIR_EXCEPTION_RETHROW;
         return -1;
     #endif
     } catch (...) {
