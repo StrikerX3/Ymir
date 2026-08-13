@@ -107,7 +107,8 @@ You might also have to install additional packages:
 - `python3 python3-venv` for dbus
 
 Vulkan is an optional dependency which enables GPU-accelerated VDP1/VDP2 rendering. For that reason, it is highly recommended to install the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home).
-If compiled with support for Vulkan, your system must also provide `glslc` (shaderc's CLI tool) to allow Ymir to compile shaders offline. The tool is usually included with the SDK.
+If compiled with support for Vulkan, your system must also provide `dxc` or `glslc` (shaderc's CLI tool) to allow Ymir to compile shaders offline. Both tools are usually included with the SDK.
+DXC is preferred over shaderc due to better support for more modern features.
 
 The compiler of choice for this platform is Clang. GCC is also supported, but produces slightly slower code.
 

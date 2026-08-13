@@ -120,6 +120,88 @@ endif ()
 ################################################################################
 ## Helper functions
 
+# _shader_get_glslc_args_for_profile(
+#     OUT_STAGE <variable>
+#     OUT_TARGET_ENV <variable>
+#     PROFILE <string>
+# )
+#
+# Retrieves roughly compatible glslc command line arguments for the specified
+# Shader Model profile.
+#
+# Shader Model prefixes are converted to equivalent shader stages as follows:
+#   vs -> vertex
+#   ps -> fragment
+#   cs -> compute
+#
+# Shader Model versions determine the target environment:
+#
+#  6_0 to 6_1 -> vulkan1.1
+#  6_2 to 6_4 -> vulkan1.2
+#  6_5 to 6_7 -> vulkan1.3
+#  6_8 and up -> vulkan1.4
+#
+# Parameters:
+#
+#   OUT_STAGE
+#       Name of a variable in the parent scope that will receive the equivalent
+#       glslc stage parameter.
+#
+#   OUT_TARGET_ENV
+#       Name of a variable in the parent scope that will receive the equivalent
+#       glslc target environment parameter.
+#
+#   PROFILE
+#       Shader profile to compile for (e.g. "ps_6_7", "vs_6_7", "cs_6_5").
+#
+# Output:
+#   OUT_STAGE and OUT_TARGET_ENV are set to the equivalent values for glslc's
+#   -fshader-stage and --target-env command line options.
+function(_shader_get_glslc_args_for_profile)
+    # Parse arguments
+    set(options)
+    set(oneValueArgs
+        OUT_STAGE
+        OUT_TARGET_ENV
+        PROFILE
+    )
+    set(multiValueArgs)
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if (${ARG_PROFILE} MATCHES "^([vs|ps|cs])_(\\d+)_(\\d+)$")
+        if (${CMAKE_MATCH_1} STREQUAL "vs")
+            set(${ARG_OUT_STAGE} "vertex")
+        elseif (${CMAKE_MATCH_1} STREQUAL "ps")
+            set(${ARG_OUT_STAGE} "fragment")
+        elseif (${CMAKE_MATCH_1} STREQUAL "cs")
+            set(${ARG_OUT_STAGE} "compute")
+        else ()
+            message(FATAL_ERROR "Unexpected PROFILE shader stage. Expected one of [vs, ps, cs].")
+        endif ()
+
+        if (${CMAKE_MATCH_2} STREQUAL "6")
+            if (${CMAKE_MATCH_2} GREATER_EQUAL "0" AND ${CMAKE_MATCH_2} LESS_EQUAL "1")
+                set(${ARG_OUT_TARGET_ENV} "vulkan1.1")
+            elseif (${CMAKE_MATCH_2} GREATER_EQUAL "2" AND ${CMAKE_MATCH_2} LESS_EQUAL "4")
+                set(${ARG_OUT_TARGET_ENV} "vulkan1.2")
+            elseif (${CMAKE_MATCH_2} GREATER_EQUAL "5" AND ${CMAKE_MATCH_2} LESS_EQUAL "7")
+                set(${ARG_OUT_TARGET_ENV} "vulkan1.3")
+            elseif (${CMAKE_MATCH_2} GREATER_EQUAL "8")
+                set(${ARG_OUT_TARGET_ENV} "vulkan1.4")
+            else ()
+                message(FATAL_ERROR "Unexpected PROFILE version. Expected 6_x.")
+            endif ()
+        else ()
+            message(FATAL_ERROR "Unexpected PROFILE version. Expected 6_x.")
+        endif ()
+    else ()
+        message(FATAL_ERROR
+            "Invalid PROFILE argument syntax. "
+            "Expected a valid Shader Model specification, such as vs_6_0."
+        )
+    endif ()
+endfunction()
+
 # _shader_make_generate_depfile_command(
 #     OUT_COMMAND <variable>
 #     SOURCE <path_to_hlsl>
@@ -171,17 +253,11 @@ function(_shader_make_generate_depfile_command)
     set(multiValueArgs
         MACROS
     )
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    cmake_parse_arguments(ARG
-        "${options}"
-        "${oneValueArgs}"
-        "${multiValueArgs}"
-        ${ARGN}
-    )
+    list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
     if (DXC_EXECUTABLE)
-        list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
-
         set(_command COMMAND "${DXC_EXECUTABLE}"
             "-MD" "-MF" "${ARG_DEPFILE}"
             "-T" "${ARG_PROFILE}"
@@ -189,14 +265,23 @@ function(_shader_make_generate_depfile_command)
             ${_macro_args}
             "${ARG_SOURCE}"
         )
-        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-            list(APPEND _command "-Od")
-        else ()
-            list(APPEND _command "-O3")
-        endif ()
         set(${ARG_OUT_COMMAND} ${_command} PARENT_SCOPE)
-    elseif (SPIRV_EXECUTABLE)
-        # TODO: build glslc command
+    elseif (SHADERC_EXECUTABLE)
+        _shader_get_glslc_args_for_profile(
+            OUT_STAGE _glslc_stage
+            OUT_TARGET_ENV _glslc_target_env
+            PROFILE ${ARG_PROFILE}
+        )
+        set(_command COMMAND "${SHADERC_EXECUTABLE}"
+            -x hlsl
+            "-fshader-stage=${_glslc_stage}"
+            "--target-env=${_glslc_target_env}"
+            "-M" "${ARG_SOURCE}"
+            "-o" "${ARG_DEPFILE}"
+            "-fentry-point=${ARG_ENTRYPOINT}"
+            ${_macro_args}
+        )
+        set(${ARG_OUT_COMMAND} ${_command} PARENT_SCOPE)
     else ()
         message(FATAL_ERROR
             "Neither DXC nor shaderc are available. "
@@ -263,17 +348,11 @@ function(_shader_make_compile_dxil_command)
     set(multiValueArgs
         MACROS
     )
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    cmake_parse_arguments(ARG
-        "${options}"
-        "${oneValueArgs}"
-        "${multiValueArgs}"
-        ${ARGN}
-    )
+    list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
     if (DXC_DXIL_SUPPORTED)
-        list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
-
         set(_compile_flags "")
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             list(APPEND _compile_flags "-Od" "-Qembed_debug" "-Zi")
@@ -357,17 +436,11 @@ function(_shader_make_compile_spirv_command)
     set(multiValueArgs
         MACROS
     )
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    cmake_parse_arguments(ARG
-        "${options}"
-        "${oneValueArgs}"
-        "${multiValueArgs}"
-        ${ARGN}
-    )
+    list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
     if (${SHADERS_SPIRV_SUPPORTED_BY} STREQUAL "DXC")
-        list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
-
         set(_compile_flags "")
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             list(APPEND _compile_flags "-fspv-debug=vulkan-with-source")
@@ -388,7 +461,31 @@ function(_shader_make_compile_spirv_command)
             PARENT_SCOPE
         )
     elseif (${SHADERS_SPIRV_SUPPORTED_BY} STREQUAL "shaderc")
-        # TODO: build glslc commmand
+        set(_compile_flags "")
+        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND _compile_flags "-O0" "-g")
+        else ()
+            list(APPEND _compile_flags "-O")
+        endif ()
+        # if (NOT ARG_INCLUDE_REFLECTION)
+        #     TODO: invoke spirv-opt --strip-debug
+        # endif ()
+
+        _shader_get_glslc_args_for_profile(
+            OUT_STAGE _glslc_stage
+            OUT_TARGET_ENV _glslc_target_env
+            PROFILE ${ARG_PROFILE}
+        )
+        set(_command COMMAND "${SHADERC_EXECUTABLE}"
+            -x hlsl
+            "-fshader-stage=${_glslc_stage}"
+            "--target-env=${_glslc_target_env}"
+            "-fentry-point=${ARG_ENTRYPOINT}"
+            ${_macro_args}
+            "-o" "${ARG_DESTINATION}"
+            "${ARG_SOURCE}"
+        )
+        set(${ARG_OUT_COMMAND} ${_command} PARENT_SCOPE)
     else ()
         set(${ARG_OUT_COMMAND} "" PARENT_SCOPE)
     endif ()
@@ -480,13 +577,7 @@ function(compile_shader)
     set(multiValueArgs
         MACROS
     )
-
-    cmake_parse_arguments(ARG
-        "${options}"
-        "${oneValueArgs}"
-        "${multiValueArgs}"
-        ${ARGN}
-    )
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     # Set up option forwarding
     foreach (_option ${options})
