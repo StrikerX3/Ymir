@@ -37,11 +37,11 @@ inline constexpr Backend kGraphicsBackends[] = {
 
 /// @brief The preferred default backend for this host system.
 inline constexpr Backend kDefaultBackend =
-#if defined(YMIR_PLATFORM_HAS_DIRECT3D)
+#if YMIR_PLATFORM_HAS_DIRECT3D
     Backend::Direct3D12;
-#elif defined(YMIR_PLATFORM_HAS_METAL)
+#elif YMIR_PLATFORM_HAS_METAL
     Backend::Metal;
-#elif defined(YMIR_PLATFORM_HAS_VULKAN)
+#elif YMIR_PLATFORM_HAS_VULKAN
     Backend::Vulkan;
 #else
     Backend::SDLRenderer;
