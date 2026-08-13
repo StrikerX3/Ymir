@@ -26,7 +26,7 @@ bool MetalGraphicsContext::IsInitialized() const {
     return false;
 }
 
-util::VoidResult<> VulkanGraphicsContext::ResizeFramebuffer(uint32 width, uint32 height) {
+util::VoidResult<> MetalGraphicsContext::ResizeFramebuffer(uint32 width, uint32 height) {
     // TODO: destroy and recreate swap chain resources
     return util::ErrorMessage{"Unimplemented"};
 }
