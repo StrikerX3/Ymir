@@ -49,9 +49,9 @@ jobs:
         if: ${{ matrix.arch.name == 'x64' }}
 
       - name: Set up Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@e7d6e7b937bde4503c7ba5c9584c9dc68f44c4b8
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
         with:
-          version: "1.4.357.0"
+          vulkan_version: "1.4.357.0"
           cache: true
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -147,9 +147,9 @@ jobs:
 
     steps:
       - name: Set up Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@e7d6e7b937bde4503c7ba5c9584c9dc68f44c4b8
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
         with:
-          version: "1.4.357.0"
+          vulkan_version: "1.4.357.0"
           cache: true
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -329,10 +329,11 @@ jobs:
 
     steps:
       - name: Set up Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@e7d6e7b937bde4503c7ba5c9584c9dc68f44c4b8
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
         with:
-          version: "1.4.357.0"
+          vulkan_version: "1.4.357.0"
           cache: true
+          stripdown: true
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
