@@ -163,12 +163,6 @@ function(compile_shader)
     file(RELATIVE_PATH _source_rel_path "${ARG_WHENCE}" "${_source_abs_path}")
     get_filename_component(_base_path "${_source_rel_path}" DIRECTORY)
     get_filename_component(_base_name "${_source_rel_path}" NAME_WE)
-    message(STATUS "[[DEBUG]] ARG_SOURCE: ${ARG_SOURCE}")
-    message(STATUS "[[DEBUG]] ARG_WHENCE: ${ARG_WHENCE}")
-    message(STATUS "[[DEBUG]] _source_abs_path: ${_source_abs_path}")
-    message(STATUS "[[DEBUG]] _source_rel_path: ${_source_rel_path}")
-    message(STATUS "[[DEBUG]] _base_path: ${_base_path}")
-    message(STATUS "[[DEBUG]] _base_name: ${_base_name}")
     if (_source_rel_path MATCHES "^\\.\\.")
         # Require files to be relative to the root directory
         message(SEND_ERROR "Cannot add file ${ARG_SOURCE}: File must be in a subdirectory of ${ARG_WHENCE}")
@@ -181,16 +175,11 @@ function(compile_shader)
     else ()
         set(_final_name "${_base_name}")
     endif ()
-    message(STATUS "[[DEBUG]] _final_name: ${_final_name}")
 
     set(_dep_file "${ARG_DESTINATION}/${_base_path}/${_final_name}.d")
     set(_out_shader_path "${ARG_DESTINATION}/${_base_path}/${_final_name}")
     set(_out_dxil_path "${_out_shader_path}.cso")
     set(_out_spirv_path "${_out_shader_path}.spv")
-    message(STATUS "[[DEBUG]] _dep_file: ${_dep_file}")
-    message(STATUS "[[DEBUG]] _out_shader_path: ${_out_shader_path}")
-    message(STATUS "[[DEBUG]] _out_dxil_path: ${_out_dxil_path}")
-    message(STATUS "[[DEBUG]] _out_spirv_path: ${_out_spirv_path}")
 
     list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _dxc_macro_args)
 
@@ -205,14 +194,12 @@ function(compile_shader)
     else ()
         list(APPEND _dxc_common_flags "-O3")
     endif ()
-    message(STATUS "[[DEBUG]] _dxc_common_flags: ${_dxc_common_flags}")
 
     # Flags for dependency generation
     set(_dxc_deps_flags ${_dxc_common_flags})
     if (NOT ARG_INCLUDE_REFLECTION)
         list(APPEND _dxc_deps_flags "-MD" "-MF" "${_dep_file}")
     endif ()
-    message(STATUS "[[DEBUG]] _dxc_deps_flags: ${_dxc_deps_flags}")
 
     # Flags for DXIL compilation
     if (DXC_DXIL_SUPPORTED)
@@ -225,7 +212,6 @@ function(compile_shader)
         else ()
             list(APPEND _dxc_dxil_flags "-Qstrip_debug")
         endif ()
-        message(STATUS "[[DEBUG]] _dxc_dxil_flags: ${_dxc_dxil_flags}")
     endif ()
 
     # Flags for SPIR-V compilation
@@ -237,7 +223,6 @@ function(compile_shader)
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             list(APPEND _dxc_spirv_flags "-fspv-debug=vulkan-with-source")
         endif ()
-        message(STATUS "[[DEBUG]] _dxc_spirv_flags: ${_dxc_spirv_flags}")
     endif ()
 
     # Set up commands and outputs
@@ -269,9 +254,6 @@ function(compile_shader)
         # - use metallib to package shader
         # TODO: add .metallib file to _outputs
     endif ()
-    message(STATUS "_depfile_command: ${_depfile_command}")
-    message(STATUS "_compile_commands: ${_compile_commands}")
-    message(STATUS "_outputs: ${_outputs}")
 
 
     # Add custom commands
