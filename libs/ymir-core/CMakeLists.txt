@@ -385,41 +385,36 @@ else ()
     )
 endif ()
 
-## Compile shaders
+## Compile VDP1 and VDP2 renderer shaders
 set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(SHADER_COMPILE_FLAGS -O0 -Qstrip_reflect -Qembed_debug -Zi)
-else ()
-    set(SHADER_COMPILE_FLAGS -O3 -Qstrip_reflect -Qstrip_debug)
-endif ()
 
-## Build compute shader list
-set(COMPUTE_SHADER_SOURCES "")
-
-## TODO: Add VDP1 and VDP2 rendering shaders
-
+set(COMPUTE_SHADER_SOURCES
+    # res/shaders/vdp/cs_vdp1_polygon.hlsl
+)
 ## TODO: add per-platform shader code if needed
 # if (WIN32)
+#     list(APPEND COMPUTE_SHADER_SOURCES
+#         res/shaders/vdp/d3d12/cs_some_shader.hlsl
+#     )
 # elseif (APPLE)
 # elseif (UNIX) # Linux and FreeBSD
 # endif ()
 
 set(COMPILED_SHADERS "")
-foreach (SHADER_SRC ${COMPUTE_SHADER_SOURCES})
-    compile_hlsl_shader(
-        OUT_VAR SHADER_CSO
-        INPUT_DIR "${SHADER_INPUT_DIR}"
-        OUTPUT_DIR "${SHADER_OUTPUT_DIR}"
+foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
+    compile_shader(
+        OUT_PATHS SHADER_BINARY_FILES
         SOURCE "${SHADER_SRC}"
-        ENTRY "CSMain"
+        WHENCE "${SHADER_INPUT_DIR}"
+        DESTINATION "${SHADER_OUTPUT_DIR}"
+        ENTRYPOINT "CSMain"
         PROFILE "cs_6_0"
-        FLAGS ${SHADER_COMPILE_FLAGS}
     )
-    list(APPEND COMPILED_SHADERS ${SHADER_CSO})
+    list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
 endforeach ()
 
-## Create the embedded resources target
+## Create the embedded shaders target
 MESSAGE(STATUS "Generating core shader resource library: ${COMPILED_SHADERS}")
 cmrc_add_resource_library(ymir-core-shaders
     ALIAS ymir-core::shaders

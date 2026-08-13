@@ -441,56 +441,50 @@ endif ()
 ## Compile shaders
 set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(SHADER_COMPILE_FLAGS -O0 -Qstrip_reflect -Zi)
-else ()
-    set(SHADER_COMPILE_FLAGS -O3 -Qstrip_reflect -Qstrip_debug)
-endif ()
 
-## Build shader lists
-set(VERTEX_SHADER_SOURCES "")
-set(PIXEL_SHADER_SOURCES "")
-
-list(APPEND VERTEX_SHADER_SOURCES
-    gctx/vs_quad.hlsl
+set(VERTEX_SHADER_SOURCES
+    res/shaders/gctx/vs_quad.hlsl
 )
-list(APPEND PIXEL_SHADER_SOURCES
-    gctx/ps_quad.hlsl
+set(PIXEL_SHADER_SOURCES
+    res/shaders/gctx/ps_quad.hlsl
 )
-
 ## TODO: add per-platform shader code if needed
 # if (WIN32)
+#     list(APPEND VERTEX_SHADER_SOURCES
+#         res/shaders/d3d12/vs_some_shader.hlsl
+#     )
+#     list(APPEND PIXEL_SHADER_SOURCES
+#         res/shaders/d3d12/ps_some_shader.hlsl
+#     )
 # elseif (APPLE)
 # elseif (UNIX) # Linux and FreeBSD
 # endif ()
 
 set(COMPILED_SHADERS "")
 foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
-    compile_hlsl_shader(
-        OUT_VAR SHADER_CSO
-        INPUT_DIR "${SHADER_INPUT_DIR}"
-        OUTPUT_DIR "${SHADER_OUTPUT_DIR}"
+    compile_shader(
+        OUT_PATHS SHADER_BINARY_FILES
         SOURCE "${SHADER_SRC}"
-        ENTRY "VSMain"
+        WHENCE "${SHADER_INPUT_DIR}"
+        DESTINATION "${SHADER_OUTPUT_DIR}"
+        ENTRYPOINT "VSMain"
         PROFILE "vs_6_0"
-        FLAGS ${SHADER_COMPILE_FLAGS}
     )
-    list(APPEND COMPILED_SHADERS ${SHADER_CSO})
+    list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
 endforeach ()
 foreach (SHADER_SRC ${PIXEL_SHADER_SOURCES})
-    compile_hlsl_shader(
-        OUT_VAR SHADER_CSO
-        INPUT_DIR "${SHADER_INPUT_DIR}"
-        OUTPUT_DIR "${SHADER_OUTPUT_DIR}"
+    compile_shader(
+        OUT_PATHS SHADER_BINARY_FILES
         SOURCE "${SHADER_SRC}"
-        ENTRY "PSMain"
+        WHENCE "${SHADER_INPUT_DIR}"
+        DESTINATION "${SHADER_OUTPUT_DIR}"
+        ENTRYPOINT "PSMain"
         PROFILE "ps_6_0"
-        FLAGS ${SHADER_COMPILE_FLAGS}
     )
-    list(APPEND COMPILED_SHADERS ${SHADER_CSO})
+    list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
 endforeach ()
 
-## Create the embedded resources target
+## Create the embedded shaders target
 MESSAGE(STATUS "Generating SDL3 frontend shader resource library: ${COMPILED_SHADERS}")
 cmrc_add_resource_library(ymir-sdl3-shaders
     ALIAS ymir-sdl3::shaders

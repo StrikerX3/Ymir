@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 project(Ymir VERSION 0.4.0)
 
 include(cmake/CMakeRC.cmake)
-include(cmake/CompileHLSL.cmake)
+include(cmake/CompileShaders.cmake)
 include(cmake/CopyRuntimeDLLs.cmake)
 include(cmake/TargetConditionalSources.cmake)
 include(CMakeDependentOption)
