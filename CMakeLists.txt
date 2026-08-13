@@ -122,7 +122,7 @@ else ()
 endif ()
 
 ## Include third-party libraries
-find_package(Vulkan OPTIONAL COMPONENTS SPIRV-Tools)
+find_package(Vulkan COMPONENTS SPIRV-Tools)
 add_subdirectory(vendor)
 
 ## Configure PGO (apply after vendor so third-party libs don't inherit flags)
