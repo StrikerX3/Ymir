@@ -460,7 +460,7 @@ function(_shader_make_compile_spirv_command)
 
     list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
-    if (${SPIRV_COMPILER_NAME} STREQUAL "DXC")
+    if (SPIRV_COMPILER_NAME STREQUAL "DXC")
         set(_compile_flags "")
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             list(APPEND _compile_flags "-fspv-debug=vulkan-with-source")
@@ -480,7 +480,7 @@ function(_shader_make_compile_spirv_command)
                 "${ARG_SOURCE}"
             PARENT_SCOPE
         )
-    elseif (${SPIRV_COMPILER_NAME} STREQUAL "shaderc")
+    elseif (SPIRV_COMPILER_NAME STREQUAL "shaderc")
         set(_compile_flags "")
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             list(APPEND _compile_flags "-O0" "-g")
