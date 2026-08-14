@@ -132,7 +132,7 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12PipelineState pipelineStateFrame;
     D3D12Fence fenceFrame;
     D3D12Fence fenceOps;
-    UINT64 fenceValueOps = 0;
+    UINT64 fenceValueOps = 1;
     std::array<FrameContext, kFrameCount> frames;
 
     VertexShader vertexShader;
@@ -258,7 +258,7 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{"Failed to create operations command allocator"};
         }
         cmdAllocOps->SetName(L"[Ymir-GCtx] Operations command allocator");
-        fenceValueOps = 0;
+        fenceValueOps = 1;
 
         if (FAILED(cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
             return util::ErrorMessage{"Failed to create command queue"};
@@ -345,7 +345,7 @@ struct Direct3D12GraphicsContext::Impl {
                 device->CreateRenderTargetView(resource, nullptr, rtvDesc.cpuHandle);
                 resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
                 frames[n].renderTarget.Attach(resource);
-                frames[n].fenceValue = 0;
+                frames[n].fenceValue = 1;
             }
         }
 
