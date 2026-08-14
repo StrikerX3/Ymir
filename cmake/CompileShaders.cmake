@@ -27,25 +27,19 @@
 ##     compile shaders to SPIR-V, either "DXC" or "shaderc". Blank string if
 ##     SPIR-V shader compilation is not supported.
 
-# Try to locate DXC in Vulkan SDK
+# Try to locate DXC in Vulkan SDK.
 find_program(DXC_EXECUTABLE_VULKAN
     NAMES dxc
     HINTS "$ENV{VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/bin64"
     NO_DEFAULT_PATH
 )
 
-# If found, we know it has SPIR-V and DXIL support.
-# Enable DXIL on Windows only (as it only makes sense there), and SPIR-V everywhere.
-set(DXC_DXIL_SUPPORTED ${WIN32})
-set(DXC_SPIRV_SUPPORTED OFF)
+# If found, use it.
 if (DXC_EXECUTABLE_VULKAN)
     set(DXC_EXECUTABLE ${DXC_EXECUTABLE_VULKAN})
-    set(DXC_SPIRV_SUPPORTED ON)
 endif ()
 
-#### TODO: might need additional checks on macOS to ensure DXC actually has SPIR-V support
-
-# Fall back to system-provided DXC compiler
+# Fall back to system-provided DXC compiler.
 if (NOT DXC_EXECUTABLE)
     find_program(DXC_EXECUTABLE NAMES dxc)
 endif ()
@@ -53,6 +47,32 @@ endif ()
 # Bail out right away on Windows as we cannot easily compile DXIL shaders without DXC.
 if (WIN32 AND NOT DXC_EXECUTABLE)
     message(FATAL_ERROR "Could NOT find DXC. Cannot compile DXIL shaders.")
+endif ()
+
+# DXC always supports DXIL code generation, but we only enable it on Windows because that's
+# the only system in which it makes sense to target DXIL.
+set(DXC_DXIL_SUPPORTED ${WIN32})
+
+# Check if DXC supports SPIR-V code generation.
+set(DXC_SPIRV_SUPPORTED OFF)
+if (DXC_EXECUTABLE)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/__dxc_spirv_test.hlsl" "
+        [shader(\"compute\")]
+        [numthreads(1, 1, 1)]
+        void main() {}
+    ")
+    execute_process(
+        COMMAND ${DXC_EXECUTABLE} -spirv -T cs_6_0 -E main "${CMAKE_CURRENT_BINARY_DIR}/__dxc_spirv_test.hlsl"
+        OUTPUT_VARIABLE DXC_STDOUT
+        ERROR_VARIABLE DXC_STDERR
+        RESULT_VARIABLE DXC_EXIT_CODE
+    )
+    file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/__dxc_spirv_test.hlsl")
+    if (${DXC_EXIT_CODE} EQUAL 0)
+        set(DXC_SPIRV_SUPPORTED ON)
+    else ()
+        set(DXC_SPIRV_SUPPORTED OFF)
+    endif ()
 endif ()
 
 # Try shaderc if DXC cannot be found or doesn't support SPIR-V.
