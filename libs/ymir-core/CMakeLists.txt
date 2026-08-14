@@ -436,6 +436,77 @@ target_link_libraries(ymir-core PUBLIC
     stb::stb
     dr_libs::dr_libs
 )
+## Model dxcompiler as an imported shared library.
+##
+## d3d12, dxgi and dxguid are static import libraries with no runtime component, so linking them
+## by name is sufficient. dxcompiler is different: it ships as a DLL plus a separate import
+## library, living in different directories. Linking it by name tells CMake nothing about the
+## runtime DLL, so $<TARGET_RUNTIME_DLLS> cannot see it and dependants are left to stage it by
+## hand. Declaring it properly makes the runtime dependency part of the link closure, where the
+## build system can act on it.
+##
+## DXC_EXECUTABLE comes from cmake/CompileShaders.cmake, included at top level before this
+## directory is added.
+if (WIN32 AND NOT TARGET dxcompiler::dxcompiler)
+    get_filename_component(_dxc_bin_dir "${DXC_EXECUTABLE}" DIRECTORY)
+
+    find_library(DXCOMPILER_IMPLIB
+        NAMES dxcompiler
+        DOC "dxcompiler import library")
+    find_file(DXCOMPILER_DLL
+        NAMES dxcompiler.dll
+        HINTS "${_dxc_bin_dir}"
+        DOC "dxcompiler runtime library")
+    mark_as_advanced(DXCOMPILER_IMPLIB DXCOMPILER_DLL)
+
+    if (DXCOMPILER_IMPLIB AND DXCOMPILER_DLL)
+        # GLOBAL: imported targets are otherwise scoped to this directory and its children,
+        # which would hide them from sibling directories such as apps/ymir-sdl3.
+        add_library(dxcompiler::dxcompiler SHARED IMPORTED GLOBAL)
+        set_target_properties(dxcompiler::dxcompiler PROPERTIES
+            IMPORTED_IMPLIB "${DXCOMPILER_IMPLIB}"
+            IMPORTED_LOCATION "${DXCOMPILER_DLL}")
+        message(STATUS "dxcompiler runtime: ${DXCOMPILER_DLL}")
+    else ()
+        message(WARNING
+            "Ymir: could not locate the dxcompiler import library and/or DLL; falling back to "
+            "linking it by name. dxcompiler.dll will not be staged automatically and ymir-sdl3 "
+            "may fail to start.")
+    endif ()
+endif ()
+
+## Model dxil as an imported module.
+##
+## dxil.dll is dxcompiler's shader-signing companion. It is never linked -- dxcompiler loads it
+## at runtime -- so it has no import library and cannot be a SHARED imported target. MODULE is
+## CMake's concept for exactly this: a shared library loaded at runtime rather than linked.
+##
+## Because nothing links it, it contributes to no link closure and $<TARGET_RUNTIME_DLLS> will
+## never report it. Consumers that need it beside their executable must copy it explicitly, but
+## they can refer to $<TARGET_FILE:dxil::dxil> rather than carrying their own path.
+if (WIN32 AND NOT TARGET dxil::dxil)
+    get_filename_component(_dxc_bin_dir "${DXC_EXECUTABLE}" DIRECTORY)
+
+    find_file(DXIL_DLL
+        NAMES dxil.dll
+        HINTS "${_dxc_bin_dir}"
+        DOC "dxil runtime library, loaded by dxcompiler to sign shaders")
+    mark_as_advanced(DXIL_DLL)
+
+    if (DXIL_DLL)
+        # GLOBAL, so consumers in sibling directories can see it. Unlike dxcompiler, nothing
+        # links this target, so directory scope would leave it invisible to apps/ymir-sdl3.
+        add_library(dxil::dxil MODULE IMPORTED GLOBAL)
+        set_target_properties(dxil::dxil PROPERTIES IMPORTED_LOCATION "${DXIL_DLL}")
+        message(STATUS "dxil runtime: ${DXIL_DLL}")
+    else ()
+        message(WARNING
+            "Ymir: could not locate dxil.dll. Runtime shader signing will be unavailable. "
+            "Install the DirectX Shader Compiler redistributable from "
+            "https://github.com/microsoft/DirectXShaderCompiler/releases if needed.")
+    endif ()
+endif ()
+
 if (WIN32)
     target_link_libraries(ymir-core PUBLIC
         synchronization  # for WaitOnAddress and WakeByAddressAll
@@ -444,7 +515,8 @@ if (WIN32)
         d3d12
         dxgi
         dxguid
-        dxcompiler
+        # Imported target when found, so its DLL travels with the link closure.
+        $<IF:$<TARGET_EXISTS:dxcompiler::dxcompiler>,dxcompiler::dxcompiler,dxcompiler>
 
         WIL::WIL
     )
