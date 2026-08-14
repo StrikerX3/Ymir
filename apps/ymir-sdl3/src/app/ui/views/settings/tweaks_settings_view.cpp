@@ -14,7 +14,7 @@ TweaksSettingsView::TweaksSettingsView(SharedContext &context)
     : SettingsViewBase(context) {}
 
 void TweaksSettingsView::Display() {
-    const float availWidth = ImGui::GetContentRegionAvail().x;
+    const float availWidth = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
 
     ImGui::PushTextWrapPos(availWidth);
     ImGui::TextUnformatted("The options listed in this tab affect emulation accuracy.\n"

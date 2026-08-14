@@ -555,7 +555,7 @@ void SystemStateWindow::DrawCDDrive() {
 }
 
 void SystemStateWindow::DrawDiscImage() {
-    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
     if (m_context.state.loadedDiscImagePath.empty() && m_context.state.loadedDiscDrivePath.empty()) {
         ImGui::TextUnformatted("No disc loaded");
     } else {

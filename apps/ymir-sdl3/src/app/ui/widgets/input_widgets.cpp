@@ -299,7 +299,7 @@ void Crosshair(ImDrawList *drawList, const CrosshairParams &params, ImVec2 pos) 
     }
 
     drawList->AddConvexPolyFilled(points, std::size(points), color);
-    drawList->AddPolyline(points, std::size(points), strokeColor, ImDrawFlags_Closed, strokeThickness);
+    drawList->AddPolyline(points, std::size(points), strokeColor, strokeThickness, ImDrawFlags_Closed);
 }
 
 } // namespace app::ui::widgets

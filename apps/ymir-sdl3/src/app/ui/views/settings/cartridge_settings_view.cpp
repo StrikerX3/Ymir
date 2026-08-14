@@ -50,7 +50,7 @@ void CartridgeSettingsView::Display() {
         Settings::Cartridge::Type::ROM,
     };
 
-    ImGui::PushTextWrapPos(ImGui::GetContentRegionMax().x);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
     ImGui::TextUnformatted("Current cartridge: ");
     ImGui::SameLine(0, 0);

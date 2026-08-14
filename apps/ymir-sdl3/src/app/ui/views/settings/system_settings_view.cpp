@@ -303,7 +303,7 @@ void SystemSettingsView::Display() {
 
     if (settings.internalBackupRAMPerGame) {
         const std::filesystem::path intBupPath = m_context.GetInternalBackupRAMPath();
-        ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
         ImGui::Text("Currently using internal backup memory image from %s", fmt::format("{}", intBupPath).c_str());
         ImGui::PopTextWrapPos();
         if (ImGui::Button("Open containing directory##int_bup")) {

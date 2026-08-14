@@ -38,7 +38,7 @@ void CDBlockSettingsView::Display() {
 
     std::filesystem::path cdbRomsPaths = m_context.profile.GetPath(ProfilePath::CDBlockROMImages);
 
-    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
     ImGui::Text("CD block ROMs in %s", fmt::format("{}", cdbRomsPaths).c_str());
     ImGui::PopTextWrapPos();
 
@@ -191,7 +191,7 @@ void CDBlockSettingsView::Display() {
     if (m_context.cdbRomPath.empty()) {
         ImGui::TextUnformatted("No CD block ROM loaded");
     } else {
-        ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
         ImGui::Text("Currently using CD block ROM at %s", fmt::format("{}", m_context.cdbRomPath).c_str());
         ImGui::PopTextWrapPos();
     }

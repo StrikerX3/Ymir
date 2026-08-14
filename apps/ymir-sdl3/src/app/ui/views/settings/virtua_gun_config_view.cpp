@@ -72,7 +72,7 @@ void VirtuaGunConfigView::Display(Settings::Input::Port::VirtuaGun &controllerSe
         widgets::Crosshair(drawList, params, {pos.x + size.x * 0.5f, pos.y + size.y * 0.5f});
         drawList->PopClipRect();
 
-        drawList->AddRect(pos, end, kBorderColor, 0.0f, ImDrawFlags_None, 1.0f * scale);
+        drawList->AddRect(pos, end, kBorderColor, 0.0f, 1.0f * scale);
 
         ImGui::Dummy(size);
 

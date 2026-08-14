@@ -19,7 +19,7 @@ InputSettingsView::InputSettingsView(SharedContext &context)
 void InputSettingsView::Display() {
     auto &settings = GetSettings().input;
 
-    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
     if (ImGui::BeginTable("periph_ports", 2, ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_BordersInnerV)) {
         ImGui::TableNextRow();
@@ -362,8 +362,7 @@ void InputSettingsView::Display() {
                                     kDeadzoneBackgroundColor);
             drawList->AddRectFilled(ImVec2(left, bottom - height * value), ImVec2(right, bottom),
                                     active ? kAxisActiveColor : kAxisAtRestColor);
-            drawList->AddRect(ImVec2(left, top), ImVec2(right, bottom), kBorderColor, 0.0f, ImDrawFlags_None,
-                              borderThickness);
+            drawList->AddRect(ImVec2(left, top), ImVec2(right, bottom), kBorderColor, 0.0f, borderThickness);
 
             // Label and values
             drawText(name, 0, textColor);

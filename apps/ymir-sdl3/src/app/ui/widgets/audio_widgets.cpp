@@ -47,7 +47,7 @@ void Oscilloscope(SharedContext &ctx, std::span<const float> waveform, ImVec2 si
     // TODO: background
     drawList->AddLine(ImVec2(pos.x, pos.y + size.y * 0.5f), ImVec2(pos.x + size.x, pos.y + size.y * 0.5f), 0x7FFFFFFF,
                       centerLineThickness);
-    drawList->AddPolyline(points.data(), points.size(), 0xFFFFFFFF, ImDrawFlags_None, waveThickness);
+    drawList->AddPolyline(points.data(), points.size(), 0xFFFFFFFF, waveThickness);
     // TODO: border
 
     ImGui::Dummy(size);
@@ -86,8 +86,8 @@ void Oscilloscope(SharedContext &ctx, std::span<const StereoSample> waveform, Im
     // TODO: background
     drawList->AddLine(ImVec2(pos.x, pos.y + size.y * 0.5f), ImVec2(pos.x + size.x, pos.y + size.y * 0.5f), 0x45FFFFFF,
                       centerLineThickness);
-    drawList->AddPolyline(pointsL.data(), pointsL.size(), 0xFF7FBFFF, ImDrawFlags_None, waveThickness);
-    drawList->AddPolyline(pointsR.data(), pointsR.size(), 0xFFFFBF7F, ImDrawFlags_None, waveThickness);
+    drawList->AddPolyline(pointsL.data(), pointsL.size(), 0xFF7FBFFF, waveThickness);
+    drawList->AddPolyline(pointsR.data(), pointsR.size(), 0xFFFFBF7F, waveThickness);
     // TODO: border
 
     ImGui::Dummy(size);

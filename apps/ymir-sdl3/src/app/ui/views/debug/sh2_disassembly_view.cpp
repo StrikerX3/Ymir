@@ -289,7 +289,7 @@ void SH2DisassemblyView::Display() {
                         auto borderEnd = ImVec2(rectEnd.x - 0.5f, rectEnd.y - 0.5f);
                         drawList->AddRectFilled(rectPos, rectEnd, ImGui::ColorConvertFloat4ToU32(fillColor));
                         drawList->AddRect(borderPos, borderEnd, ImGui::ColorConvertFloat4ToU32(color), 0.0f,
-                                          ImDrawFlags_None, borderThickness);
+                                          borderThickness);
                     }
                 }
 
@@ -297,13 +297,13 @@ void SH2DisassemblyView::Display() {
                 if (address == m_cursor.address && !isCursorHighlighted) {
                     drawList->AddRect(borderPos, borderEnd,
                                       ImGui::ColorConvertFloat4ToU32(m_model.colors.disasm.cursorBgColor), 0.0f,
-                                      ImDrawFlags_None, borderThickness);
+                                      borderThickness);
                 }
 
                 if (lineHovered) {
                     drawList->AddRect(borderPos, borderEnd,
                                       ImGui::ColorConvertFloat4ToU32(m_model.colors.disasm.lineHoverColor), 0.0f,
-                                      ImDrawFlags_None, borderThickness);
+                                      borderThickness);
                 }
             };
 
@@ -401,8 +401,9 @@ void SH2DisassemblyView::Display() {
                         if (visible) {
                             drawList->AddConcavePolyFilled(points, std::size(points), color);
                         } else {
-                            drawList->AddPolyline(points, std::size(points), color, ImDrawFlags_Closed,
-                                                  m_model.style.iconContourThickness * m_context.displayScale);
+                            drawList->AddPolyline(points, std::size(points), color,
+                                                  m_model.style.iconContourThickness * m_context.displayScale,
+                                                  ImDrawFlags_Closed);
                         }
                     }
                 }
@@ -446,8 +447,9 @@ void SH2DisassemblyView::Display() {
                         if (visible) {
                             drawList->AddConcavePolyFilled(points, std::size(points), color);
                         } else {
-                            drawList->AddPolyline(points, std::size(points), color, ImDrawFlags_Closed,
-                                                  m_model.style.iconContourThickness * m_context.displayScale);
+                            drawList->AddPolyline(points, std::size(points), color,
+                                                  m_model.style.iconContourThickness * m_context.displayScale,
+                                                  ImDrawFlags_Closed);
                         }
                     }
                 }
@@ -488,8 +490,7 @@ void SH2DisassemblyView::Display() {
                     ImVec2(startPos.x + disasmCharSize.x * 1.4f, startPos.y + disasmCharSize.y * 0.6f),
                 };
                 const ImVec4 color = valid ? m_model.colors.disasm.delaySlot : m_model.colors.disasm.delaySlotIllegal;
-                drawList->AddPolyline(points, std::size(points), ImGui::ColorConvertFloat4ToU32(color),
-                                      ImDrawFlags_None, 2.0f);
+                drawList->AddPolyline(points, std::size(points), ImGui::ColorConvertFloat4ToU32(color), 2.0f);
                 ImGui::Dummy(ImVec2(0, 0));
             };
 

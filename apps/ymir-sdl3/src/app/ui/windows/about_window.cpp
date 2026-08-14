@@ -261,7 +261,7 @@ void AboutWindow::DrawContents() {
 }
 
 void AboutWindow::DrawAboutTab() {
-    ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
     const auto &midiService = m_context.serviceLocator.GetRequired<services::MIDIService>();
     const auto &graphicsService = m_context.serviceLocator.GetRequired<services::GraphicsService>();
@@ -460,7 +460,7 @@ void AboutWindow::DrawDependenciesTab() {
 }
 
 void AboutWindow::DrawAcknowledgementsTab() {
-    ImGui::PushTextWrapPos(ImGui::GetWindowContentRegionMax().x);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
     ImGui::TextUnformatted("Ymir was made possible by");

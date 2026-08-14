@@ -86,7 +86,7 @@ void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controll
             const float offset = mapToGraph(value);
             graph.push_back(ImVec2(pos.x + x, pos.y + offset * graphSize.y));
         }
-        drawList->AddPolyline(graph.data(), graph.size(), kGraphLineColor, ImDrawFlags_None, graphLineThickness);
+        drawList->AddPolyline(graph.data(), graph.size(), kGraphLineColor, graphLineThickness);
 
         // Current input value mapped onto the graph, vertical
         const ImVec2 valuePos(pos.x + (currRawValue + 1.0f) * 0.5f * graphSize.x,
@@ -96,8 +96,7 @@ void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controll
         drawList->AddCircleFilled(valuePos, valuePointRadius, kValueColor);
 
         // Graph border
-        drawList->AddRect(pos, ImVec2(pos.x + graphSize.x, pos.y + graphSize.y), kBorderColor, 0.0f, ImDrawFlags_None,
-                          borderThickness);
+        drawList->AddRect(pos, ImVec2(pos.x + graphSize.x, pos.y + graphSize.y), kBorderColor, 0.0f, borderThickness);
 
         ImGui::Dummy(graphSize);
 
@@ -129,8 +128,7 @@ void ArcadeRacerConfigView::Display(Settings::Input::Port::ArcadeRacer &controll
                           kAdjustedValueColor, valueLineThickness);
 
         // Meter border
-        drawList->AddRect(pos, ImVec2(pos.x + meterSize.x, pos.y + meterSize.y), kBorderColor, 0.0f, ImDrawFlags_None,
-                          borderThickness);
+        drawList->AddRect(pos, ImVec2(pos.x + meterSize.x, pos.y + meterSize.y), kBorderColor, 0.0f, borderThickness);
 
         ImGui::Dummy(meterSize);
     }

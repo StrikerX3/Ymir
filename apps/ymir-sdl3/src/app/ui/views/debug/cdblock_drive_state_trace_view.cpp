@@ -56,7 +56,7 @@ void CDDriveStateTraceView::Display() {
         m_tracer.ClearStateUpdates();
     }
     if (!settings.cdblock.useLLE) {
-        ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
         ImGui::TextColored(m_context.colors.notice, "CD Block LLE is disabled. Nothing will be traced here.");
         ImGui::PopTextWrapPos();
     }

@@ -120,8 +120,8 @@ void RewindBar(SharedContext &context, float alpha, const RewindBarStyle &style)
 
         // Border
         drawList->AddRect(rectTopLeft, ImVec2(pos.x + avail.x, pos.y + avail.y), borderColor,
-                          style.rounding * context.displayScale, ImDrawFlags_RoundCornersAll,
-                          style.borderThickness * context.displayScale);
+                          style.rounding * context.displayScale, style.borderThickness * context.displayScale,
+                          ImDrawFlags_RoundCornersAll);
     }
     ImGui::End();
 }

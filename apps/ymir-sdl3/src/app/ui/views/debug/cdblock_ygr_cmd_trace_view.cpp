@@ -41,7 +41,7 @@ void YGRCommandTraceView::Display() {
         m_tracer.ClearCommands();
     }
     if (!settings.cdblock.useLLE) {
-        ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
         ImGui::TextColored(
             m_context.colors.notice,
             "CD Block LLE is disabled. Commands will be traced to the CD Block command trace window instead.");
