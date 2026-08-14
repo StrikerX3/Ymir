@@ -443,18 +443,18 @@ set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set(VERTEX_SHADER_SOURCES
-    res/shaders/gctx/vs_quad.hlsl
+    res/shaders/gctx/quad_vs.hlsl
 )
 set(PIXEL_SHADER_SOURCES
-    res/shaders/gctx/ps_quad.hlsl
+    res/shaders/gctx/quad_ps.hlsl
 )
 ## TODO: add per-platform shader code if needed
 # if (WIN32)
 #     list(APPEND VERTEX_SHADER_SOURCES
-#         res/shaders/d3d12/vs_some_shader.hlsl
+#         res/shaders/d3d12/some_shader_vs.hlsl
 #     )
 #     list(APPEND PIXEL_SHADER_SOURCES
-#         res/shaders/d3d12/ps_some_shader.hlsl
+#         res/shaders/d3d12/some_shader_ps.hlsl
 #     )
 # elseif (APPLE)
 # elseif (UNIX) # Linux and FreeBSD

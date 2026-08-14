@@ -421,7 +421,7 @@ struct Direct3D12GraphicsContext::Impl {
             };
 
             // Load vertex shader
-            auto vertexShaderBytecodeResult = loadShader("gctx/vs_quad.cso");
+            auto vertexShaderBytecodeResult = loadShader("gctx/quad_vs.cso");
             if (!vertexShaderBytecodeResult) {
                 return util::ErrorMessage{
                     fmt::format("Could not load vertex shader: {}", vertexShaderBytecodeResult.Error().message)};
@@ -434,7 +434,7 @@ struct Direct3D12GraphicsContext::Impl {
             }
 
             // Load pixel shader
-            auto pixelShaderBytecodeResult = loadShader("gctx/ps_quad.cso");
+            auto pixelShaderBytecodeResult = loadShader("gctx/quad_ps.cso");
             if (!pixelShaderBytecodeResult) {
                 return util::ErrorMessage{
                     fmt::format("Could not load pixel shader: {}", pixelShaderBytecodeResult.Error().message)};
