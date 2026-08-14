@@ -1,0 +1,40 @@
+name: PR builds
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch: # Enable manual runs
+    inputs:
+      pr-number:
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  commit-sha:
+    runs-on: ubuntu-latest
+    name: Get commit SHA
+    outputs:
+      build-version: ${{ steps.get-sha.outputs.short-sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          sparse-checkout: .
+      - name: Get short commit SHA
+        id: get-sha
+        run: echo "short-sha=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
+
+  build-all:
+    uses: StrikerX3/Ymir/.github/workflows/build.yaml@main
+    name: Build
+    needs: [commit-sha]
+    with:
+      dev-build: true
+      debug-symbols: true
+      build-version: ${{ needs.commit-sha.outputs.build-version }}-pr-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr-number || 'manual' }}

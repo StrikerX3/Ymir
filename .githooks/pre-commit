@@ -18,7 +18,8 @@ fi
 # Collect staged, non-deleted C/C++ files, excluding vendored trees.
 files=$(git diff --cached --name-only --diff-filter=ACMR \
     | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx)$' \
-    | grep -vE '^(vendor|vcpkg)/')
+    | grep -vE '^(vendor|vcpkg)/' \
+    | grep -vE '^apps/ymir-sdl3/src/app/ui/fonts/')
 
 [ -z "$files" ] && exit 0
 

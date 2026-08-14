@@ -62,7 +62,6 @@ add_executable(ymir-sdl3
 
     src/app/services/graphics_service.cpp
     src/app/services/graphics_service.hpp
-    src/app/services/graphics_types.hpp
     src/app/services/midi_service.cpp
     src/app/services/midi_service.hpp
     src/app/services/midi_types.hpp
@@ -92,6 +91,16 @@ add_executable(ymir-sdl3
     src/app/services/persistence_service.hpp
     src/app/services/window_manager_service.cpp
     src/app/services/window_manager_service.hpp
+
+    src/app/services/gfx/gfx_context.cpp
+    src/app/services/gfx/gfx_context.hpp
+    src/app/services/gfx/gfx_context_impl_null.hpp
+    src/app/services/gfx/gfx_context_impl_sdl_renderer.cpp
+    src/app/services/gfx/gfx_context_impl_sdl_renderer.hpp
+    src/app/services/gfx/gfx_context_impls.hpp
+    src/app/services/gfx/gfx_context_specs.hpp
+    src/app/services/gfx/gfx_gui_types.hpp
+    src/app/services/gfx/gfx_types.hpp
 
     src/app/ui/window_base.cpp
     src/app/ui/window_base.hpp
@@ -404,6 +413,87 @@ add_executable(ymir-sdl3
 )
 add_executable(ymir::ymir-sdl3 ALIAS ymir-sdl3)
 
+## Add platform-specific graphics context implementations
+if (WIN32)
+    target_sources(ymir-sdl3 PRIVATE
+        src/app/services/gfx/gfx_context_impl_d3d11.cpp
+        src/app/services/gfx/gfx_context_impl_d3d11.hpp
+        src/app/services/gfx/gfx_context_impl_d3d12.cpp
+        src/app/services/gfx/gfx_context_impl_d3d12.hpp
+        src/app/services/gfx/gfx_context_spec_d3d12.hpp
+    )
+endif ()
+
+if (Vulkan_FOUND)
+    target_sources(ymir-sdl3 PRIVATE
+        src/app/services/gfx/gfx_context_impl_vulkan.cpp
+        src/app/services/gfx/gfx_context_impl_vulkan.hpp
+    )
+endif ()
+
+if (APPLE)
+    target_sources(ymir-sdl3 PRIVATE
+        src/app/services/gfx/gfx_context_impl_metal.cpp
+        src/app/services/gfx/gfx_context_impl_metal.hpp
+    )
+endif ()
+
+## Compile shaders
+set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
+set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+
+set(VERTEX_SHADER_SOURCES
+    res/shaders/gctx/quad_vs.hlsl
+)
+set(PIXEL_SHADER_SOURCES
+    res/shaders/gctx/quad_ps.hlsl
+)
+## TODO: add per-platform shader code if needed
+# if (WIN32)
+#     list(APPEND VERTEX_SHADER_SOURCES
+#         res/shaders/d3d12/some_shader_vs.hlsl
+#     )
+#     list(APPEND PIXEL_SHADER_SOURCES
+#         res/shaders/d3d12/some_shader_ps.hlsl
+#     )
+# elseif (APPLE)
+# elseif (UNIX) # Linux and FreeBSD
+# endif ()
+
+set(COMPILED_SHADERS "")
+foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
+    compile_shader(
+        OUT_PATHS SHADER_BINARY_FILES
+        SOURCE "${SHADER_SRC}"
+        WHENCE "${SHADER_INPUT_DIR}"
+        DESTINATION "${SHADER_OUTPUT_DIR}"
+        ENTRYPOINT "VSMain"
+        PROFILE "vs_6_0"
+    )
+    list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
+endforeach ()
+foreach (SHADER_SRC ${PIXEL_SHADER_SOURCES})
+    compile_shader(
+        OUT_PATHS SHADER_BINARY_FILES
+        SOURCE "${SHADER_SRC}"
+        WHENCE "${SHADER_INPUT_DIR}"
+        DESTINATION "${SHADER_OUTPUT_DIR}"
+        ENTRYPOINT "PSMain"
+        PROFILE "ps_6_0"
+    )
+    list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
+endforeach ()
+
+## Create the embedded shaders target
+MESSAGE(STATUS "Generating SDL3 frontend shader resource library: ${COMPILED_SHADERS}")
+cmrc_add_resource_library(ymir-sdl3-shaders
+    ALIAS ymir-sdl3::shaders
+    NAMESPACE ymir_sdl3_shaders
+    WHENCE "${SHADER_OUTPUT_DIR}"
+    ${COMPILED_SHADERS}
+)
+
+## Set executable version
 set_target_properties(ymir-sdl3 PROPERTIES
                       VERSION ${Ymir_VERSION}
                       SOVERSION ${Ymir_VERSION_MAJOR})
@@ -445,6 +535,7 @@ target_include_directories(ymir-sdl3
 target_link_libraries(ymir-sdl3 PRIVATE
     ymir::ymir-core
     ymir-sdl3::rc
+    ymir-sdl3::shaders
     SDL3::SDL3
     date::date
     fmt::fmt
@@ -462,6 +553,8 @@ target_link_libraries(ymir-sdl3 PRIVATE
 if (WIN32)
     target_link_libraries(ymir-sdl3 PRIVATE
         Dwmapi
+
+        WIL::WIL
     )
 endif ()
 target_compile_features(ymir-sdl3 PUBLIC cxx_std_20)
@@ -564,6 +657,9 @@ if (Ymir_SDL3_FORMAT_ON_BUILD)
             "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+        # Generated icon-font headers are third-party output; reformatting
+        # them produces a huge whitespace-only diff against upstream.
+        list(FILTER ymir_sdl3_format_files EXCLUDE REGEX "/src/app/ui/fonts/")
         add_custom_target(ymir-sdl3-clang-format
             COMMAND "${CLANG_FORMAT_EXE}" -i --style=file ${ymir_sdl3_format_files}
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

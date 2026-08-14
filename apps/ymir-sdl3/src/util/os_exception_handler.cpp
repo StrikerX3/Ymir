@@ -356,7 +356,7 @@ void RegisterExceptionHandler(bool allExceptions) {
 mig_external kern_return_t catch_mach_exception_raise(mach_port_t exception_port, mach_port_t thread, mach_port_t task,
                                                       exception_type_t exception, mach_exception_data_t code,
                                                       mach_msg_type_number_t codeCnt) {
-    ShowFatalErrorDialog("Unhandled  mach message: mach_exception_raise");
+    ShowFatalErrorDialog("Unhandled mach message: mach_exception_raise");
     return KERN_FAILURE;
 }
 

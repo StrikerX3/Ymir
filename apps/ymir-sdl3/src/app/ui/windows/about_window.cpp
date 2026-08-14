@@ -181,18 +181,6 @@ static const FontDesc fontDescs[] = {
 };
 // clang-format on
 
-static const std::unordered_map<std::string_view, const char *> kRenderers = {
-    {"vulkan", "Vulkan"}, {"direct3d", "Direct3D 9"}, {"direct3d11", "Direct3D 11"}, {"direct3d12", "Direct3D 12"},
-    {"metal", "Metal"},   {"opengl", "OpenGL"},       {"opengles2", "OpenGL ES 2"},
-};
-
-const char *RendererToHumanReadableString(std::string_view driver) {
-    if (kRenderers.contains(driver)) {
-        return kRenderers.at(driver);
-    }
-    return driver.data();
-}
-
 // If only SDL3 exposed the nice desc field they already have in the SDL_AudioDriver struct...
 // Also note that just because certain systems are listed here, it doesn't mean Ymir actually supports them.
 static const std::unordered_map<std::string_view, const char *> kAudioDrivers = {
@@ -277,9 +265,9 @@ void AboutWindow::DrawAboutTab() {
 
     const auto &midiService = m_context.serviceLocator.GetRequired<services::MIDIService>();
     const auto &graphicsService = m_context.serviceLocator.GetRequired<services::GraphicsService>();
-    SDL_Texture *texture = graphicsService.GetSDLTexture(m_context.images.ymirLogo.texture);
-    ImGui::Image((ImTextureID)texture, ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale,
-                                              m_context.images.ymirLogo.size.y * m_context.displayScale));
+    const ImTextureID texture = graphicsService.GetImGuiTextureID(m_context.images.ymirLogo.texture);
+    ImGui::Image(texture, ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale,
+                                 m_context.images.ymirLogo.size.y * m_context.displayScale));
 
     ImGui::PushFont(m_context.fonts.display, m_context.fontSizes.display);
     ImGui::TextUnformatted("Ymir");
@@ -328,21 +316,7 @@ void AboutWindow::DrawAboutTab() {
     ImGui::Text("Using NEON instruction set.");
 #endif
 
-    SDL_PropertiesID rendererProps = SDL_GetRendererProperties(graphicsService.GetRenderer());
-    std::string_view rendererName = SDL_GetStringProperty(rendererProps, SDL_PROP_RENDERER_NAME_STRING, "unknown");
-    const char *graphicsBackendName = "unknown";
-    if (rendererName == "gpu") {
-        auto *gpuDevice = static_cast<SDL_GPUDevice *>(
-            SDL_GetPointerProperty(rendererProps, SDL_PROP_RENDERER_GPU_DEVICE_POINTER, nullptr));
-        if (gpuDevice) {
-            const char *gpuDriver = SDL_GetGPUDeviceDriver(gpuDevice);
-            graphicsBackendName = RendererToHumanReadableString(gpuDriver);
-        } else {
-            graphicsBackendName = "SDL GPU";
-        }
-    } else {
-        graphicsBackendName = RendererToHumanReadableString(rendererName);
-    }
+    const char *graphicsBackendName = gfx::GraphicsBackendName(graphicsService.GetGraphicsContextBackend());
     ImGui::Text("Using %s graphics backend for GUI rendering.", graphicsBackendName);
     const auto &vdp = m_context.saturn.GetVDP();
     {

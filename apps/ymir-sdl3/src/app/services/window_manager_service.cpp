@@ -150,13 +150,9 @@ void WindowManagerService::OpenWelcomeModal(bool scanIPLROMs) {
         bool doOpenSettings = false;
 
         auto graphicsService = m_context.serviceLocator.Get<GraphicsService>();
-        SDL_Texture *logoTexture =
-            graphicsService ? graphicsService->GetSDLTexture(m_context.images.ymirLogo.texture) : nullptr;
-        if (logoTexture) {
-            ImGui::Image((ImTextureID)logoTexture,
-                         ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale * 0.7f,
-                                m_context.images.ymirLogo.size.y * m_context.displayScale * 0.7f));
-        }
+        const ImTextureID logoTextureID = graphicsService->GetImGuiTextureID(m_context.images.ymirLogo.texture);
+        ImGui::Image(logoTextureID, ImVec2(m_context.images.ymirLogo.size.x * m_context.displayScale * 0.7f,
+                                           m_context.images.ymirLogo.size.y * m_context.displayScale * 0.7f));
 
         ImGui::PushFont(m_context.fonts.display,
                         m_context.fontSizes.display); // Fallback if Display size is not separate in ImFont

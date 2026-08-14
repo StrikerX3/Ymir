@@ -2,13 +2,9 @@ name: CI build
 
 on:
   push:
-    branches:
-      - main
-    paths-ignore: &ignored-paths
+    paths-ignore:
       - '**/*.md'
       - 'docs/**'
-  pull_request:
-    paths-ignore: *ignored-paths
 
 permissions:
   packages: write
@@ -44,8 +40,15 @@ jobs:
 
     steps:
       # Set up MASM for lzma
-      - uses: glslang/setup-masm@24a9c9d6949cb1d8fedd35c9bd3c974fde2b81b8
+      - name: Set up MASM
+        uses: glslang/setup-masm@24a9c9d6949cb1d8fedd35c9bd3c974fde2b81b8
         if: ${{ matrix.arch.name == 'x64' }}
+
+      - name: Set up Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
+        with:
+          vulkan_version: "1.4.357.0"
+          cache: true
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
@@ -139,6 +142,12 @@ jobs:
             library-only: "yes"
 
     steps:
+      - name: Set up Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
+        with:
+          vulkan_version: "1.4.357.0"
+          cache: true
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
@@ -258,7 +267,8 @@ jobs:
             sudo pkg upgrade -y
             sudo pkg install -y cmake evdev-proto git gmake libX11 libXcursor libXext \
               libXfixes libXi libXrandr libXrender libXScrnSaver libXtst libglvnd \
-              libinotify llvm21 ninja patchelf pkgconf python3 vulkan-loader zip
+              libinotify llvm21 ninja patchelf pkgconf python3 vulkan-loader zip \
+              glslang shaderc vulkan-headers
 
             if [ ${{ matrix.build-set.library-only}} = 'no' ]; then
               ${{ github.workspace }}/vcpkg/bootstrap-vcpkg.sh
@@ -315,6 +325,13 @@ jobs:
             library-only: "yes"
 
     steps:
+      - name: Set up Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
+        with:
+          vulkan_version: "1.4.357.0"
+          cache: true
+          stripdown: true
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive

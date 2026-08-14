@@ -25,6 +25,9 @@ add_library(ymir-core
     include/ymir/debug/watchpoint_defs.hpp
     include/ymir/debug/ygr_tracer_base.hpp
 
+    include/ymir/gpu/shaders/gpu_shaders.hpp
+    include/ymir/gpu/shaders/gpu_shader_types.hpp
+
     include/ymir/hw/hw_defs.hpp
 
     include/ymir/hw/cart/cart_base.hpp
@@ -52,7 +55,7 @@ add_library(ymir-core
     include/ymir/hw/scsp/scsp.hpp
     include/ymir/hw/scsp/scsp_callbacks.hpp
     include/ymir/hw/scsp/scsp_defs.hpp
-	include/ymir/hw/scsp/scsp_midi_defs.hpp
+    include/ymir/hw/scsp/scsp_midi_defs.hpp
     include/ymir/hw/scsp/scsp_dsp.hpp
     include/ymir/hw/scsp/scsp_dsp_instr.hpp
     include/ymir/hw/scsp/scsp_internal_callbacks.hpp
@@ -225,6 +228,7 @@ add_library(ymir-core
     include/ymir/util/observable.hpp
     include/ymir/util/process.hpp
     include/ymir/util/ratio.hpp
+    include/ymir/util/result.hpp
     include/ymir/util/scope_guard.hpp
     include/ymir/util/size_ops.hpp
     include/ymir/util/string.hpp
@@ -346,8 +350,84 @@ else ()
     target_sources(ymir-core PRIVATE src/ymir/media/host_cd_dummy.cpp)
 endif ()
 
+## Add OS-specific source files for graphics
+if (WIN32)
+    target_sources(ymir-core
+        PUBLIC
+            include/ymir/gpu/d3d12/d3d12_commands.hpp
+            include/ymir/gpu/d3d12/d3d12_debug.hpp
+            include/ymir/gpu/d3d12/d3d12_descriptor_heap.hpp
+            include/ymir/gpu/d3d12/d3d12_descriptor_heap_allocator.hpp
+            include/ymir/gpu/d3d12/d3d12_device.hpp
+            include/ymir/gpu/d3d12/d3d12_fence.hpp
+            include/ymir/gpu/d3d12/d3d12_object_wrapper.hpp
+            include/ymir/gpu/d3d12/d3d12_pipeline_state.hpp
+            include/ymir/gpu/d3d12/d3d12_resource.hpp
+            include/ymir/gpu/d3d12/d3d12_root_signature.hpp
+            include/ymir/gpu/d3d12/d3d12_swap_chain.hpp
+
+        PRIVATE
+            src/ymir/gpu/d3d12/d3d12_debug.cpp
+
+            src/ymir/gpu/shaders/gpu_shaders_windows.cpp
+    )
+elseif (APPLE)
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/shaders/gpu_shaders_macos.cpp
+    )
+elseif (UNIX) # Linux and FreeBSD
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/shaders/gpu_shaders_unixlike.cpp
+    )
+else ()
+    target_sources(ymir-core PRIVATE
+        src/ymir/gpu/shaders/gpu_shaders_other.cpp
+    )
+endif ()
+
+## Compile VDP1 and VDP2 renderer shaders
+set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
+set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+
+set(COMPUTE_SHADER_SOURCES
+    # res/shaders/vdp/vdp1_polygon_cs.hlsl
+)
+## TODO: add per-platform shader code if needed
+# if (WIN32)
+#     list(APPEND COMPUTE_SHADER_SOURCES
+#         res/shaders/vdp/d3d12/some_shader_cs.hlsl
+#     )
+# elseif (APPLE)
+# elseif (UNIX) # Linux and FreeBSD
+# endif ()
+
+set(COMPILED_SHADERS "")
+foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
+    compile_shader(
+        OUT_PATHS SHADER_BINARY_FILES
+        SOURCE "${SHADER_SRC}"
+        WHENCE "${SHADER_INPUT_DIR}"
+        DESTINATION "${SHADER_OUTPUT_DIR}"
+        ENTRYPOINT "CSMain"
+        PROFILE "cs_6_0"
+    )
+    list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
+endforeach ()
+
+## Create the embedded shaders target
+MESSAGE(STATUS "Generating core shader resource library: ${COMPILED_SHADERS}")
+cmrc_add_resource_library(ymir-core-shaders
+    ALIAS ymir-core::shaders
+    NAMESPACE ymir_core_shaders
+    WHENCE "${SHADER_OUTPUT_DIR}"
+    ${COMPILED_SHADERS}
+)
+
+
 ## Add dependencies
 target_link_libraries(ymir-core PUBLIC
+    ymir-core::shaders
+
     fmt::fmt
     mio
     concurrentqueue
@@ -357,9 +437,24 @@ target_link_libraries(ymir-core PUBLIC
     dr_libs::dr_libs
 )
 if (WIN32)
-    ## synchronization.lib required for WaitOnAddress and WakeByAddressAll
     target_link_libraries(ymir-core PUBLIC
-        synchronization
+        synchronization  # for WaitOnAddress and WakeByAddressAll
+
+        # Direct3D 11 and 12
+        d3d12
+        dxgi
+        dxguid
+        dxcompiler
+
+        WIL::WIL
+    )
+endif ()
+
+if (Vulkan_FOUND)
+    message(STATUS "Adding Vulkan to ymir-core")
+    target_link_libraries(ymir-core PRIVATE
+        Vulkan::Vulkan
+        Vulkan::SPIRV-Tools
     )
 endif ()
 
@@ -444,6 +539,9 @@ target_compile_definitions(ymir-core PUBLIC "Ymir_ENABLE_DEVLOG=$<BOOL:${Ymir_EN
 target_compile_definitions(ymir-core PUBLIC "Ymir_DEV_ASSERTIONS=$<BOOL:${Ymir_ENABLE_DEV_ASSERTIONS}>")
 target_compile_definitions(ymir-core PUBLIC "Ymir_DEV_BUILD=$<BOOL:${Ymir_DEV_BUILD}>")
 target_compile_definitions(ymir-core PUBLIC "Ymir_EXTRA_INLINING=$<BOOL:${Ymir_EXTRA_INLINING}>")
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_DIRECT3D=$<BOOL:${WIN32}>")
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_VULKAN=$<BOOL:${Vulkan_FOUND}>")
+target_compile_definitions(ymir-core PUBLIC "YMIR_PLATFORM_HAS_METAL=$<BOOL:${APPLE}>")
 target_compile_definitions(ymir-core PUBLIC "TOML_EXCEPTIONS=0")
 
 ## Define feature flags macros

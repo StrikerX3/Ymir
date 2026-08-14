@@ -60,6 +60,16 @@ add_subdirectory(stb)
 message(STATUS "==> dr_libs")
 add_subdirectory(dr_libs)
 
+# wil - https://github.com/microsoft/wil
+if (WIN32)
+    message(STATUS "==> wil")
+    set(WIL_BUILD_PACKAGING OFF)
+    set(WIL_BUILD_TESTS OFF)
+    set(WIL_ENABLE_ASAN OFF)
+    set(WIL_ENABLE_UBSAN OFF)
+    add_subdirectory(wil)
+endif ()
+
 ####################################################################################################
 # Other dependencies
 
