@@ -24,7 +24,7 @@ void EnumerateDXGIGraphicsAdapters() {
 
     g_adapters.clear();
 
-    wil::com_ptr_nothrow<IDXGIAdapter1> dxgiAdapter{};
+    IDXGIAdapter1 *dxgiAdapter = nullptr;
     for (UINT i = 0; factory->EnumAdapters1(i, &dxgiAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
         DXGI_ADAPTER_DESC1 desc;
         if (FAILED(dxgiAdapter->GetDesc1(&desc))) {
@@ -65,7 +65,7 @@ void EnumerateDXGIGraphicsAdapters() {
         adapter.memory.dedicatedVideo = desc.DedicatedVideoMemory;
         adapter.memory.dedicatedSystem = desc.DedicatedSystemMemory;
         adapter.memory.sharedSystem = desc.SharedSystemMemory;
-        adapter.adapter = dxgiAdapter.detach();
+        adapter.adapter = dxgiAdapter;
     }
 }
 
