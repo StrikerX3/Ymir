@@ -103,16 +103,19 @@ jobs:
             runner: windows-latest
             target: x64
             vcpkg_triplet: x64-win-llvm-static-md
+            dxc_arch: x64
           - name: "x86_64-AVX2"
             enable_avx2_option: "ON"
             runner: windows-latest
             target: x64
             vcpkg_triplet: x64-win-llvm-avx2-static-md
+            dxc_arch: x64
           - name: "ARM64"
             enable_avx2_option: "OFF"
             runner: windows-11-arm
             target: arm64
             vcpkg_triplet: arm64-windows
+            dxc_arch: arm64
         include:
           - c_compiler: clang
             cpp_compiler: clang
@@ -239,7 +242,20 @@ jobs:
           Copy-Item -Path ".\LICENSE"                                           -Destination "$licensesDir\Ymir-LICENSE"
           Copy-Item -Path "${{ github.workspace }}\gcdb\LICENSE"                -Destination "$licensesDir\SDL_GameControllerDB-LICENSE"
           Copy-Item -Path "${{ github.workspace }}\gcdb\gamecontrollerdb.txt"   -Destination ".\gamecontrollerdb.txt"
-          Compress-Archive -Path "README.md","CHANGELOG.md","TROUBLESHOOTING.md","gamecontrollerdb.txt","$licensesDir/","build/apps/ymir-sdl3/ymir-sdl3.exe" -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
+
+          Invoke-WebRequest -Uri "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.9.2607/dxc_2026_07_29.zip" -OutFile dxc.zip
+          Expand-Archive -Path dxc.zip -DestinationPath .\dxc
+
+          $items = @()
+          $items += "README.md"
+          $items += "CHANGELOG.md"
+          $items += "TROUBLESHOOTING.md"
+          $items += "gamecontrollerdb.txt"
+          $items += "$licensesDir/"
+          $items += "build/apps/ymir-sdl3/ymir-sdl3.exe"
+          $items += "dxc\bin\${{ matrix.architecture.dxc_arch }}\dxcompiler.dll"
+          $items += "dxc\bin\${{ matrix.architecture.dxc_arch }}\dxil.dll"
+          Compress-Archive -Path $items -DestinationPath "${{ steps.strings.outputs.ymir-artifact-name }}.zip"
 
       - name: Upload Ymir artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
