@@ -657,6 +657,9 @@ if (Ymir_SDL3_FORMAT_ON_BUILD)
             "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+        # Generated icon-font headers are third-party output; reformatting
+        # them produces a huge whitespace-only diff against upstream.
+        list(FILTER ymir_sdl3_format_files EXCLUDE REGEX "/src/app/ui/fonts/")
         add_custom_target(ymir-sdl3-clang-format
             COMMAND "${CLANG_FORMAT_EXE}" -i --style=file ${ymir_sdl3_format_files}
             WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
