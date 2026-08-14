@@ -4,7 +4,7 @@ First and most important: make sure you're using the [latest version](https://gi
 
 Also check for [open issues](https://github.com/StrikerX3/Ymir/issues) on the GitHub repository. Use the search bar! Remove the `state:open` to also list closed issues -- those may include tips and hints that could help fix your problem.
 
-If you're on Windows, install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)).
+If you're on Windows, install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vc14/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vc14/vc_redist.arm64.exe)).
 This is mandatory to make Ymir work.
 
 If those didn't help, follow the instructions below.
