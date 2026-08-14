@@ -600,7 +600,7 @@ void App::RunEmulator() {
 
     // RescaleUI also loads the style and fonts
     bool rescaleUIPending = false;
-    m_displayService.RescaleUI(SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
+    m_displayService.RescaleUI();
     {
         auto &guiSettings = settings.gui;
 
@@ -750,6 +750,7 @@ void App::RunEmulator() {
         m_saveStateService.SaveDebuggerState();
     }};
     util::os::ConfigureWindowDecorations(screen.window);
+    m_displayService.RescaleUI();
 
     settings.video.fullScreen.Observe([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
@@ -1630,11 +1631,9 @@ void App::RunEmulator() {
 
             case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN: util::os::ConfigureWindowDecorations(screen.window); break;
 
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: [[fallthrough]];
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
                 if (!settings.gui.overrideUIScale) {
-                    const float windowScale = SDL_GetWindowDisplayScale(screen.window);
-                    m_displayService.RescaleUI(windowScale);
+                    m_displayService.RescaleUI();
                     m_displayService.PersistWindowGeometry();
                 }
                 break;
@@ -1678,8 +1677,7 @@ void App::RunEmulator() {
         }
         if (rescaleUIPending) {
             rescaleUIPending = false;
-            const float windowScale = SDL_GetWindowDisplayScale(screen.window);
-            m_displayService.RescaleUI(windowScale);
+            m_displayService.RescaleUI();
         }
 
         // Process all axis changes
