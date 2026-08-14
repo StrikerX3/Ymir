@@ -527,7 +527,7 @@ struct Direct3D12GraphicsContext::Impl {
             // Create upload buffer
             if (HRESULT hr =
                     vertexUploadBuffer.CreateCommitted(device, {.Type = D3D12_HEAP_TYPE_UPLOAD}, D3D12_HEAP_FLAG_NONE,
-                                                       vertexBufferDesc, D3D12_RESOURCE_STATE_COMMON);
+                                                       vertexBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ);
                 FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Failed to create vertex upload buffer, error code {:X}", (uint32)hr)};
