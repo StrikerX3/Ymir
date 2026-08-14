@@ -122,7 +122,9 @@
 
 #include <rtmidi/RtMidi.h>
 
+#include <algorithm>
 #include <clocale>
+#include <cmath>
 #include <mutex>
 #include <numbers>
 #include <span>
@@ -871,11 +873,81 @@ void App::RunEmulator() {
     }
     const gfx::GUITextureHandle dispTexture = dispTextureResult.Value();
 
-    // TODO(scanlines): the cached scanline tile state used to live here. The tile-overlay filter was built on raw
-    // SDL_Renderer calls (SDL_SetRenderTarget / SDL_RenderTextureTiled on a blend-enabled texture) that the graphics
-    // backend rework replaced with the backend-agnostic GraphicsService. The abstraction currently exposes neither
-    // alpha blending nor a tiled blit, so the overlay is parked for this merge and restored in a follow-up branch that
-    // adds both to the gfx layer. Settings, hotkeys and the Settings window UI for the filter are all still wired up.
+    // Cached scanline filter tile. The scanline pattern for a single source pixel (an fbScale x fbScale cell) is baked
+    // into a small alpha texture and tiled across the display texture with one blended blit per frame. The tile is only
+    // regenerated when a filter parameter changes, so no per-frame CPU work is spent rebuilding geometry. Baking the
+    // horizontal and vertical darkening into the same tile also makes grid mode a true union of the two line sets,
+    // avoiding the doubly-darkened intersections that overlapping fill rects produced.
+    struct ScanlineTile {
+        gfx::GUITextureHandle texture = gfx::kInvalidGUITextureHandle;
+        int scale = 0;             // fbScale the tile was built for (0 = never built)
+        int gap = -1;              // darkened rows/cols the tile was built for
+        int alpha = -1;            // darkening alpha the tile was built for
+        int mask = -1;             // ScanlineMask the tile was built for
+        int shadowMask = -1;       // grid "darker crossings" toggle the tile was built for
+        bool failed = false;       // a build failed with these parameters; suppresses per-frame retries
+        bool renderFailed = false; // the tiled blit failed; suppresses per-frame retries and log spam
+    } scanlineTile;
+
+    // Bakes the current tile parameters into an fbScale x fbScale RGBA cell: black on the gap rows/columns, fully
+    // transparent elsewhere. This is used both for explicit updates and as the texture setup callback, so a backend
+    // switch (which recreates and re-uploads every managed texture) rebuilds the tile from the same cached parameters
+    // instead of needing a separate "contents lost" flag.
+    auto bakeScanlineTile = [&scanlineTile](void *data, size_t pitch) {
+        const int tileScale = scanlineTile.scale;
+        if (tileScale <= 0) {
+            return;
+        }
+
+        const auto mask = static_cast<Settings::Video::ScanlineMask>(scanlineTile.mask);
+        const bool drawH =
+            mask == Settings::Video::ScanlineMask::Horizontal || mask == Settings::Video::ScanlineMask::Grid;
+        const bool drawV =
+            mask == Settings::Video::ScanlineMask::Vertical || mask == Settings::Video::ScanlineMask::Grid;
+
+        // Alpha applied where horizontal and vertical lines cross in grid mode. With the shadow-mask look enabled,
+        // crossings are darkened more than the lines (matching two stacked blends: the CRT holes where both gaps meet);
+        // otherwise they use the same alpha as the lines for a uniform grid.
+        const int alpha = scanlineTile.alpha;
+        const bool shadowMaskCrossings = mask == Settings::Video::ScanlineMask::Grid && scanlineTile.shadowMask != 0;
+        const int crossAlpha = shadowMaskCrossings
+                                   ? (int)std::lround(255.0 * (1.0 - (1.0 - alpha / 255.0) * (1.0 - alpha / 255.0)))
+                                   : alpha;
+
+        // Gap placement within each source pixel band. Grid mode centers the lit cell by splitting the gap to both
+        // edges (dark falls between lines, mesh-like); horizontal/vertical keep the whole gap at the trailing edge.
+        // Both darken the same number of rows/columns per band.
+        const bool centerLines = mask == Settings::Video::ScanlineMask::Grid;
+        const int gapLead = centerLines ? scanlineTile.gap / 2 : 0; // dark rows/cols at the leading edge
+        const int gapTrail = scanlineTile.gap - gapLead;            // dark rows/cols at the trailing edge
+        const auto isDark = [&](int i) { return i < gapLead || i >= tileScale - gapTrail; };
+
+        // The destination buffer may be a staging buffer whose pitch exceeds the row size, so rows are addressed
+        // through the supplied pitch rather than assuming a packed layout.
+        auto *bytes = static_cast<uint8 *>(data);
+        for (int y = 0; y < tileScale; ++y) {
+            auto *row = bytes + (size_t)y * pitch;
+            std::fill_n(row, (size_t)tileScale * 4, (uint8)0);
+            const bool darkRow = drawH && isDark(y);
+            for (int x = 0; x < tileScale; ++x) {
+                const bool darkCol = drawV && isDark(x);
+                if (darkRow || darkCol) {
+                    // R8G8B8A8_UNORM: RGB stay 0 (black), only coverage varies.
+                    row[(size_t)x * 4 + 3] = (uint8)((darkRow && darkCol) ? crossAlpha : alpha);
+                }
+            }
+        }
+    };
+
+    // The setup callback registered with the tile texture captures the state above by reference and is retained by the
+    // graphics service (it re-runs on backend switches), so the texture must not outlive this scope. Declared after
+    // `bakeScanlineTile` so that it is destroyed before it, never the other way round.
+    ScopeGuard sgDestroyScanlineTile{[&] {
+        if (scanlineTile.texture != gfx::kInvalidGUITextureHandle) {
+            m_graphicsService.DestroyTexture(scanlineTile.texture);
+            scanlineTile.texture = gfx::kInvalidGUITextureHandle;
+        }
+    }};
 
     auto renderDispTexture = [&](double targetWidth, double targetHeight) {
         auto &videoSettings = settings.video;
@@ -909,6 +981,123 @@ void App::RunEmulator() {
                            .h = (float)screen.height * screen.fbScale};
 
         m_graphicsService.RenderToTexture(swFbTexture, dispTexture, srcRect, dstRect);
+
+        // Simple integer scanline filter.
+        // Because the framebuffer is upscaled into the display texture by an integer factor with nearest
+        // interpolation, every source pixel occupies exactly `fbScale` destination rows and columns. We darken the
+        // trailing portion of each of those bands to emulate the gaps between CRT scanlines. The `scanlineThickness`
+        // percentage controls how many of the `fbScale` rows/columns are darkened, and `scanlineMask` selects whether
+        // to darken rows (horizontal), columns (vertical), or both (grid / shadow-mask look). This only has a visible
+        // effect at 2x or greater integer scale; at 1x there is no room for a gap so it is skipped.
+        // Evaluate the cheap enable checks first so the rounding below is skipped entirely when the filter is off.
+        const bool scanlinesActive =
+            videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0;
+        const uint32 gap =
+            scanlinesActive ? (uint32)std::clamp(std::lround(screen.fbScale * videoSettings.scanlineThickness / 100.0),
+                                                 0L, (long)screen.fbScale)
+                            : 0u; // rows/columns darkened per source pixel band
+        if (scanlinesActive && gap > 0) {
+            const int tileScale = (int)screen.fbScale;
+            const int tileGap = (int)gap;
+            const int alpha = std::clamp(videoSettings.scanlineIntensity, 0, 255);
+            const int maskId = (int)videoSettings.scanlineMask;
+            const int shadowMaskId = videoSettings.scanlineGridShadowMask ? 1 : 0;
+
+            // Rebuild the tile only when a parameter changes. A backend switch is handled by the setup callback, which
+            // re-bakes from these same cached values.
+            const bool paramsChanged = scanlineTile.scale != tileScale || scanlineTile.gap != tileGap ||
+                                       scanlineTile.alpha != alpha || scanlineTile.mask != maskId ||
+                                       scanlineTile.shadowMask != shadowMaskId;
+            if (paramsChanged) {
+                // A settings change is the natural retry point after a previous failure.
+                scanlineTile.failed = false;
+                scanlineTile.renderFailed = false;
+            }
+
+            // Never retry a failed build on the very next frame: texture creation and upload both stall the GPU on
+            // some backends, so a persistent failure would cost a full sync (and a log line) every frame forever.
+            if (!scanlineTile.failed && (paramsChanged || scanlineTile.texture == gfx::kInvalidGUITextureHandle)) {
+                const int prevScale = scanlineTile.scale;
+
+                // Update the cache before baking: the bake callback reads its parameters from here.
+                scanlineTile.scale = tileScale;
+                scanlineTile.gap = tileGap;
+                scanlineTile.alpha = alpha;
+                scanlineTile.mask = maskId;
+                scanlineTile.shadowMask = shadowMaskId;
+
+                if (scanlineTile.texture == gfx::kInvalidGUITextureHandle) {
+                    // Nearest filtering keeps the tile crisp; alpha blending is what makes it an overlay rather than a
+                    // replacement, and is honoured by RenderToTextureTiled on every backend that implements it.
+                    auto tileResult = m_graphicsService.CreateTexture(
+                        {
+                            .width = (uint32)tileScale,
+                            .height = (uint32)tileScale,
+                            .format = gfx::PixelFormat::R8G8B8A8_UNORM,
+                            .access = gfx::TextureAccess::Static,
+                            .filterMode = gfx::TextureFilterMode::Nearest,
+                            .blendMode = gfx::BlendMode::Alpha,
+                            .name = "[Ymir] Scanline tile",
+                        },
+                        [&](gfx::GUITextureHandle, bool recreated, void *data, size_t pitch) {
+                            if (recreated) {
+                                // The backend changed. Whatever made the overlay fail on the old one may not apply
+                                // here, so give it another chance without waiting for a settings change.
+                                scanlineTile.failed = false;
+                                scanlineTile.renderFailed = false;
+                            }
+                            bakeScanlineTile(data, pitch);
+                        });
+                    if (tileResult) {
+                        scanlineTile.texture = tileResult.Value();
+                    } else {
+                        devlog::warn<grp::base>("Failed to create scanline tile texture: {}",
+                                                tileResult.Error().message);
+                        scanlineTile.failed = true;
+                    }
+                } else {
+                    // Resizing must succeed before baking: the update path sizes its staging buffer from the texture's
+                    // current dimensions, so baking a larger tile into a texture that failed to grow would overrun it.
+                    bool resized = true;
+                    if (prevScale != tileScale) {
+                        auto resizeResult = m_graphicsService.ResizeTexture(scanlineTile.texture, tileScale, tileScale);
+                        if (!resizeResult) {
+                            devlog::warn<grp::base>("Failed to resize scanline tile texture: {}",
+                                                    resizeResult.Error().message);
+                            m_graphicsService.DestroyTexture(scanlineTile.texture);
+                            scanlineTile.texture = gfx::kInvalidGUITextureHandle;
+                            scanlineTile.failed = true;
+                            resized = false;
+                        }
+                    }
+                    if (resized) {
+                        auto updateResult =
+                            m_graphicsService.UpdateTexture(scanlineTile.texture, nullptr, bakeScanlineTile);
+                        if (!updateResult) {
+                            // A resized texture starts with undefined contents on every backend, so a failed bake
+                            // would leave a garbage pattern tiled over the display. Drop it instead.
+                            devlog::warn<grp::base>("Failed to update scanline tile texture: {}",
+                                                    updateResult.Error().message);
+                            m_graphicsService.DestroyTexture(scanlineTile.texture);
+                            scanlineTile.texture = gfx::kInvalidGUITextureHandle;
+                            scanlineTile.failed = true;
+                        }
+                    }
+                }
+            }
+
+            // Tile the fbScale x fbScale cell across the used region of the display texture in a single blit. dstRect
+            // already spans exactly that region (width*fbScale x height*fbScale), so it is reused here.
+            if (scanlineTile.texture != gfx::kInvalidGUITextureHandle && !scanlineTile.renderFailed) {
+                auto tiledResult = m_graphicsService.RenderToTextureTiled(scanlineTile.texture, dispTexture, dstRect);
+                if (!tiledResult) {
+                    // Backends without a tiled blit would otherwise report this (and allocate the message) every
+                    // frame. Latch it until the settings or the backend change.
+                    devlog::warn<grp::base>("Failed to draw scanline overlay: {}", tiledResult.Error().message);
+                    scanlineTile.renderFailed = true;
+                }
+            }
+        }
     };
 
     // Logo texture
@@ -936,6 +1125,10 @@ void App::RunEmulator() {
                 .height = static_cast<uint32>(imgH),
                 .format = gfx::PixelFormat::R8G8B8A8_UNORM,
                 .access = gfx::TextureAccess::Static,
+                // The logo has a transparent background. SDL_CreateTexture defaults alpha-format textures to
+                // SDL_BLENDMODE_BLEND, so this has to be stated explicitly now that the backend applies the spec's
+                // blend mode verbatim.
+                .blendMode = gfx::BlendMode::Alpha,
                 .name = "[Ymir] Logo image",
             },
             [=, this](gfx::GUITextureHandle texture, bool, void *data, size_t pitch) {

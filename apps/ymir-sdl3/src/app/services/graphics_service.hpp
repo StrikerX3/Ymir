@@ -121,6 +121,17 @@ public:
     util::VoidResult<> RenderToTexture(gfx::GUITextureHandle src, gfx::GUITextureHandle dst, const gfx::FRect &srcRect,
                                        const gfx::FRect &dstRect);
 
+    /// @brief Tiles a texture over a region of another texture at a 1:1 texel-to-pixel ratio.
+    /// The entire source texture is used as the tile and repeated across `dstRect`, with partial tiles at the trailing
+    /// edges. The destination texture must be a render target. How the tile is composited is determined by the source
+    /// texture's `gfx::Texture2DSpec::blendMode`, so tiling a `gfx::BlendMode::Alpha` texture draws an overlay.
+    /// @param[in] src the source texture, used as the tile
+    /// @param[in] dst the destination texture
+    /// @param[in] dstRect the destination region to tile over
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> RenderToTextureTiled(gfx::GUITextureHandle src, gfx::GUITextureHandle dst,
+                                            const gfx::FRect &dstRect);
+
     /// @brief Draws a texture rotated about the given anchor point.
     /// @param[in] handle the texture to draw
     /// @param[in] srcRect portion of the texture to draw

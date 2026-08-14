@@ -26,6 +26,7 @@ CMRC_DECLARE(ymir_sdl3_shaders);
 
 #include <array>
 #include <deque>
+#include <functional>
 #include <unordered_map>
 
 using namespace ymir::gpu;
@@ -142,7 +143,25 @@ struct Direct3D12GraphicsContext::Impl {
         D3D12RootSignature rootSignature;
         D3D12PipelineState pipelineState;
     };
-    std::unordered_map<DXGI_FORMAT, RenderTargetPipeline> renderTargetPipelines;
+
+    /// @brief Cache key for render target pipelines. A separate PSO is needed per render target format and per blend
+    /// mode, since blending is baked into the pipeline state on D3D12.
+    struct RenderTargetPipelineKey {
+        DXGI_FORMAT format;
+        BlendMode blendMode;
+
+        bool operator==(const RenderTargetPipelineKey &) const = default;
+    };
+
+    struct RenderTargetPipelineKeyHash {
+        size_t operator()(const RenderTargetPipelineKey &key) const noexcept {
+            return std::hash<uint32>{}(static_cast<uint32>(key.format)) * 31u +
+                   std::hash<uint32>{}(static_cast<uint32>(key.blendMode));
+        }
+    };
+
+    std::unordered_map<RenderTargetPipelineKey, RenderTargetPipeline, RenderTargetPipelineKeyHash>
+        renderTargetPipelines;
 
     UINT frameIndex = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
@@ -151,6 +170,9 @@ struct Direct3D12GraphicsContext::Impl {
 
     Descriptor smpNearest;
     Descriptor smpLinear;
+    // Wrapping variants, used by RenderToTextureTiled to repeat a tile via out-of-range UVs.
+    Descriptor smpNearestWrap;
+    Descriptor smpLinearWrap;
 
     D3D12Resource vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
@@ -314,7 +336,8 @@ struct Direct3D12GraphicsContext::Impl {
             resourceHeapAlloc.Bind(resourceHeap);
 
             D3D12_DESCRIPTOR_HEAP_DESC samplerHeapDesc{};
-            samplerHeapDesc.NumDescriptors = 2;
+            // Nearest and linear, each in a clamped and a wrapped (tiling) variant.
+            samplerHeapDesc.NumDescriptors = 4;
             samplerHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             samplerHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
             if (FAILED(samplerHeap.Create(device, samplerHeapDesc))) {
@@ -390,6 +413,12 @@ struct Direct3D12GraphicsContext::Impl {
             if (!samplerHeapAlloc.Allocate(smpLinear.cpuHandle, smpLinear.gpuHandle, smpLinear.index)) {
                 return util::ErrorMessage{"Could not allocate linear sampler descriptor"};
             }
+            if (!samplerHeapAlloc.Allocate(smpNearestWrap.cpuHandle, smpNearestWrap.gpuHandle, smpNearestWrap.index)) {
+                return util::ErrorMessage{"Could not allocate wrapping nearest neighbor sampler descriptor"};
+            }
+            if (!samplerHeapAlloc.Allocate(smpLinearWrap.cpuHandle, smpLinearWrap.gpuHandle, smpLinearWrap.index)) {
+                return util::ErrorMessage{"Could not allocate wrapping linear sampler descriptor"};
+            }
 
             // Common sampler parameters
             D3D12_SAMPLER_DESC samplerDesc{
@@ -409,6 +438,20 @@ struct Direct3D12GraphicsContext::Impl {
             // Linear
             samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR,
             device->CreateSampler(&samplerDesc, smpLinear.cpuHandle);
+
+            // Wrapping variants of both. Tiling is expressed by feeding the vertex shader a source rectangle wider than
+            // the texture, which produces UVs greater than 1.0 that these samplers repeat instead of clamping.
+            samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+
+            // Nearest neighbor, wrapping
+            samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT,
+            device->CreateSampler(&samplerDesc, smpNearestWrap.cpuHandle);
+
+            // Linear, wrapping
+            samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+            device->CreateSampler(&samplerDesc, smpLinearWrap.cpuHandle);
         }
 
         // Load shaders
@@ -942,7 +985,10 @@ struct Direct3D12GraphicsContext::Impl {
         D3D12_RESOURCE_DESC desc = texture.resource->GetDesc();
         device->GetCopyableFootprints(&desc, 0, 1, 0, &texture.footprint, &texture.numRows, &texture.rowSizeBytes,
                                       &texture.uploadBufferSize);
-        texture.rowPitch = PixelFormatUnitSize(spec.format) * spec.width;
+        // The staging buffer is read back through `footprint`, whose row pitch D3D12 aligns up to
+        // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT (256 bytes). Handing update callbacks the packed pitch instead would make
+        // them write rows the copy never reads for any texture whose packed pitch is not already 256-aligned.
+        texture.rowPitch = texture.footprint.Footprint.RowPitch;
 
         // In D3D12, textures cannot be directly written to by the CPU - a staging buffer is always needed.
         // Static and Streaming access modes have identical behavior.
@@ -1202,16 +1248,18 @@ struct Direct3D12GraphicsContext::Impl {
         return {};
     }
 
-    util::PointerResult<RenderTargetPipeline> GetRenderTargetPipeline(const TextureInstance &texture) {
+    util::PointerResult<RenderTargetPipeline> GetRenderTargetPipeline(const TextureInstance &texture,
+                                                                      BlendMode blendMode) {
         const DXGI_FORMAT dxgiFormat = ToD3D12Value(texture.spec.format);
-        auto it = renderTargetPipelines.find(dxgiFormat);
+        const RenderTargetPipelineKey key{.format = dxgiFormat, .blendMode = blendMode};
+        auto it = renderTargetPipelines.find(key);
         if (it != renderTargetPipelines.end()) {
             return &it->second;
         }
 
         const char *name = DXGIFormatName(dxgiFormat);
 
-        RenderTargetPipeline &pipeline = renderTargetPipelines[dxgiFormat];
+        RenderTargetPipeline &pipeline = renderTargetPipelines[key];
 
         auto rootSigBuilder = pipeline.rootSignature.Builder();
         rootSigBuilder.Flags(D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -1219,6 +1267,9 @@ struct Direct3D12GraphicsContext::Impl {
         rootSigBuilder.AddDescriptorTable(D3D12_SHADER_VISIBILITY_PIXEL).AddSamplers(1, 0);
         rootSigBuilder.Add32BitConstants(0, sizeof(DrawTextureConstants) / sizeof(uint32));
         if (HRESULT hr = rootSigBuilder.Build(device); FAILED(hr)) {
+            // Drop the half-built entry, otherwise the next lookup would hit the cache and hand out a pipeline with a
+            // null root signature and PSO.
+            renderTargetPipelines.erase(key);
             return util::ErrorMessage{fmt::format(
                 "Failed to create texture root signature for render target [{}], error code {:X}", name, (uint32)hr)};
         }
@@ -1243,17 +1294,21 @@ struct Direct3D12GraphicsContext::Impl {
             .ForcedSampleCount = 0,
             .ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF,
         };
+        // Straight (non-premultiplied) alpha blending for BlendMode::Alpha, matching SDL_BLENDMODE_BLEND. The alpha
+        // channel uses ONE / INV_SRC_ALPHA so compositing onto a transparent render target accumulates coverage
+        // correctly rather than overwriting it.
+        const bool blendEnabled = blendMode == BlendMode::Alpha;
         psoDesc.BlendState = {
             .AlphaToCoverageEnable = FALSE,
             .IndependentBlendEnable = FALSE,
             .RenderTarget = {{
-                .BlendEnable = FALSE,
+                .BlendEnable = blendEnabled ? TRUE : FALSE,
                 .LogicOpEnable = FALSE,
-                .SrcBlend = D3D12_BLEND_ONE,
-                .DestBlend = D3D12_BLEND_ZERO,
+                .SrcBlend = blendEnabled ? D3D12_BLEND_SRC_ALPHA : D3D12_BLEND_ONE,
+                .DestBlend = blendEnabled ? D3D12_BLEND_INV_SRC_ALPHA : D3D12_BLEND_ZERO,
                 .BlendOp = D3D12_BLEND_OP_ADD,
                 .SrcBlendAlpha = D3D12_BLEND_ONE,
-                .DestBlendAlpha = D3D12_BLEND_ZERO,
+                .DestBlendAlpha = blendEnabled ? D3D12_BLEND_INV_SRC_ALPHA : D3D12_BLEND_ZERO,
                 .BlendOpAlpha = D3D12_BLEND_OP_ADD,
                 .LogicOp = D3D12_LOGIC_OP_NOOP,
                 .RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL,
@@ -1267,17 +1322,47 @@ struct Direct3D12GraphicsContext::Impl {
         psoDesc.RTVFormats[0] = dxgiFormat;
         psoDesc.SampleDesc.Count = 1;
         if (HRESULT hr = pipeline.pipelineState.CreateGraphics(device, psoDesc); FAILED(hr)) {
-            return util::ErrorMessage{
+            auto message =
                 fmt::format("Failed to create graphics pipeline state object for render target [{}], error code {:X}",
-                            name, (uint32)hr)};
+                            name, (uint32)hr);
+            renderTargetPipelines.erase(key);
+            return util::ErrorMessage{std::move(message)};
         }
         pipeline.pipelineState->SetName(
-            StringToWString(fmt::format("[Ymir-GCtx] Graphics pipeline for render target [{}]", name)).c_str());
+            StringToWString(fmt::format("[Ymir-GCtx] Graphics pipeline for render target [{}]{}", name,
+                                        blendEnabled ? " (blend)" : ""))
+                .c_str());
 
         return &pipeline;
     }
 
     util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect, const FRect &dstRect) {
+        return RenderToTextureCommon(src, dst, srcRect, dstRect, false);
+    }
+
+    util::VoidResult<> RenderToTextureTiled(TextureID src, TextureID dst, const FRect &dstRect) {
+        TextureInstance *srcTexture = GetTexture(src);
+        if (srcTexture == nullptr) {
+            return util::ErrorMessage{"Invalid source texture"};
+        }
+        if (srcTexture->spec.width == 0 || srcTexture->spec.height == 0) {
+            return util::ErrorMessage{"Source texture has no area to tile"};
+        }
+
+        // The vertex shader turns the source rectangle into UVs by dividing by the texture dimensions, so passing a
+        // source rectangle the size of the destination region yields exactly `dstRect.w / srcWidth` horizontal and
+        // `dstRect.h / srcHeight` vertical repeats. The wrapping sampler selected below then repeats the tile, with
+        // partial tiles falling out naturally at the trailing edges.
+        const FRect tiledSrcRect{.x = 0.0f, .y = 0.0f, .w = dstRect.w, .h = dstRect.h};
+        return RenderToTextureCommon(src, dst, tiledSrcRect, dstRect, true);
+    }
+
+    util::VoidResult<> RenderToTextureCommon(TextureID src, TextureID dst, const FRect &srcRect, const FRect &dstRect,
+                                             bool tiled) {
+        TextureInstance *srcTexture = GetTexture(src);
+        if (srcTexture == nullptr) {
+            return util::ErrorMessage{"Invalid source texture"};
+        }
         TextureInstance *dstTexture = GetTexture(dst);
         if (dstTexture == nullptr) {
             return util::ErrorMessage{"Invalid destination texture"};
@@ -1285,7 +1370,8 @@ struct Direct3D12GraphicsContext::Impl {
         if (dstTexture->spec.access != TextureAccess::RenderTarget) {
             return util::ErrorMessage{"Destination texture is not a valid render target"};
         }
-        auto psoResult = GetRenderTargetPipeline(*dstTexture);
+        // Blending is a pipeline state on D3D12, so the source texture's blend mode selects the PSO variant.
+        auto psoResult = GetRenderTargetPipeline(*dstTexture, srcTexture->spec.blendMode);
         if (!psoResult) {
             return util::ErrorMessage{fmt::format("Could not get render target PSO: {}", psoResult.Error().message)};
         }
@@ -1350,7 +1436,7 @@ struct Direct3D12GraphicsContext::Impl {
         drawTextureConstants.renderTargetSize.x = dstTexture->spec.width;
         drawTextureConstants.renderTargetSize.y = dstTexture->spec.height;
 
-        auto drawResult = DrawTextureRotated(src, srcRect, dstRect, 0, nullptr);
+        auto drawResult = DrawTextureRotated(src, srcRect, dstRect, 0, nullptr, tiled);
 
         // Restore swap chain render target
         cmdListFrame->SetPipelineState(pipelineStateFrame.GetPointer());
@@ -1411,19 +1497,20 @@ struct Direct3D12GraphicsContext::Impl {
     }
 
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
-                                          const FPoint2D *rotPivot) {
+                                          const FPoint2D *rotPivot, bool wrap = false) {
         TextureInstance *instance = GetTexture(id);
         if (instance == nullptr) {
             return util::ErrorMessage{"Invalid texture"};
         }
 
-        // Select sampler based on texture filtering mode
+        // Select sampler based on texture filtering mode, and on whether UVs outside [0, 1] should repeat the texture
+        // (tiling) or clamp to the transparent border.
         const Descriptor &smpDesc = [&] {
             switch (instance->spec.filterMode) {
-            case TextureFilterMode::Nearest: return smpNearest;
-            case TextureFilterMode::Linear: return smpLinear;
+            case TextureFilterMode::Nearest: return wrap ? smpNearestWrap : smpNearest;
+            case TextureFilterMode::Linear: return wrap ? smpLinearWrap : smpLinear;
             }
-            return smpLinear;
+            return wrap ? smpLinearWrap : smpLinear;
         }();
 
         // Update constants with source UVs, destination area (in pixels), rotation angle and pivot point
@@ -1613,6 +1700,10 @@ Direct3D12GraphicsContext::UpdateTexture(TextureID id, const IRect *rect,
 util::VoidResult<> Direct3D12GraphicsContext::RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                                               const FRect &dstRect) {
     return m_impl->RenderToTexture(src, dst, srcRect, dstRect);
+}
+
+util::VoidResult<> Direct3D12GraphicsContext::RenderToTextureTiled(TextureID src, TextureID dst, const FRect &dstRect) {
+    return m_impl->RenderToTextureTiled(src, dst, dstRect);
 }
 
 util::VoidResult<> Direct3D12GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect,

@@ -154,6 +154,16 @@ enum class TextureFilterMode {
     Linear,
 };
 
+/// @brief Blending modes applied when a texture is used as the source of a draw or render operation.
+enum class BlendMode {
+    /// @brief The source texture replaces the destination; the alpha channel is ignored.
+    None,
+
+    /// @brief Straight (non-premultiplied) alpha blending:
+    /// `dstRGB = srcRGB * srcA + dstRGB * (1 - srcA)` and `dstA = srcA + dstA * (1 - srcA)`.
+    Alpha,
+};
+
 /// @brief A texture identifier, used for operations with textures on a graphics context.
 /// This ID is immutable for the lifetime of the texture, even when resized.
 using TextureID = uintptr_t;
@@ -174,6 +184,10 @@ struct Texture2DSpec {
 
     /// @brief Texture magnification and minification filter mode.
     TextureFilterMode filterMode = TextureFilterMode::Linear;
+
+    /// @brief Blending applied when this texture is used as a draw/render source.
+    /// Defaults to `BlendMode::None`, which preserves the plain-copy behaviour of `RenderToTexture`.
+    BlendMode blendMode = BlendMode::None;
 
     /// @brief Texture name, for graphics debugging tools.
     std::string name;

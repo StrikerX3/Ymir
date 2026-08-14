@@ -39,6 +39,7 @@ public:
                                      const std::function<void(void *data, size_t pitch)> &fnUpdate) override;
     util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                        const FRect &dstRect) override;
+    util::VoidResult<> RenderToTextureTiled(TextureID src, TextureID dst, const FRect &dstRect) override;
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
                                           const FPoint2D *anchorPoint = nullptr) override;
 

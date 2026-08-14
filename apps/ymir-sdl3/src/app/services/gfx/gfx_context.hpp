@@ -133,6 +133,17 @@ public:
     virtual util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                                const FRect &dstRect) = 0;
 
+    /// @brief Repeatedly tiles a texture over a region of another texture at a 1:1 texel-to-pixel ratio.
+    /// The whole source texture is used as the tile; it is repeated `dstRect.w / srcWidth` times horizontally and
+    /// `dstRect.h / srcHeight` times vertically, with partial tiles at the trailing edges. The destination texture must
+    /// be a render target. The source texture's `Texture2DSpec::blendMode` determines how the tile is composited, so an
+    /// overlay is drawn by tiling a `BlendMode::Alpha` texture over an existing render target.
+    /// @param[in] src the source texture ID, used as the tile
+    /// @param[in] dst the destination texture ID
+    /// @param[in] dstRect the destination region to tile over
+    /// @return nothing on success, an error message on failure
+    virtual util::VoidResult<> RenderToTextureTiled(TextureID src, TextureID dst, const FRect &dstRect) = 0;
+
     /// @brief Draws a texture rotated about the given anchor point.
     /// @param[in] texture the texture ID to draw
     /// @param[in] srcRect portion of the texture to draw

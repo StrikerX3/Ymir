@@ -88,6 +88,11 @@ util::VoidResult<> VulkanGraphicsContext::RenderToTexture(TextureID src, Texture
     return util::ErrorMessage{"Unimplemented"};
 }
 
+util::VoidResult<> VulkanGraphicsContext::RenderToTextureTiled(TextureID src, TextureID dst, const FRect &dstRect) {
+    // TODO: set render target to dst texture, tile texture with wrapped UVs, restore render target
+    return util::ErrorMessage{"Unimplemented"};
+}
+
 util::VoidResult<> VulkanGraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect,
                                                              double rotAngle, const FPoint2D *anchorPoint) {
     // TODO: imitate SDL_RenderTextureRotated:

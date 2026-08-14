@@ -90,6 +90,11 @@ util::VoidResult<> Direct3D11GraphicsContext::RenderToTexture(TextureID src, Tex
     return util::ErrorMessage{"Unimplemented"};
 }
 
+util::VoidResult<> Direct3D11GraphicsContext::RenderToTextureTiled(TextureID src, TextureID dst, const FRect &dstRect) {
+    // TODO: set render target to dst texture, tile texture with wrapped UVs, restore render target
+    return util::ErrorMessage{"Unimplemented"};
+}
+
 util::VoidResult<> Direct3D11GraphicsContext::DrawTextureRotated(TextureID id, const FRect &srcRect,
                                                                  const FRect &dstRect, double rotAngle,
                                                                  const FPoint2D *anchorPoint) {

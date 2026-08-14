@@ -9,6 +9,8 @@
 
 #include <SDL3/SDL_render.h>
 
+#include <string>
+
 namespace app::gfx {
 
 static int GetVSyncMode(PresentMode mode) {
@@ -46,6 +48,14 @@ static SDL_ScaleMode ToSDL3Value(TextureFilterMode mode) {
     default: [[fallthrough]];
     case TextureFilterMode::Linear: return SDL_SCALEMODE_LINEAR;
     case TextureFilterMode::Nearest: return SDL_SCALEMODE_NEAREST;
+    }
+}
+
+static SDL_BlendMode ToSDL3Value(BlendMode mode) {
+    switch (mode) {
+    default: [[fallthrough]];
+    case BlendMode::None: return SDL_BLENDMODE_NONE;
+    case BlendMode::Alpha: return SDL_BLENDMODE_BLEND;
     }
 }
 
@@ -145,6 +155,7 @@ util::ValueResult<TextureID> SDLRendererGraphicsContext::CreateTexture(const Tex
         return util::ErrorMessage{fmt::format("Could not create texture: {}", SDL_GetError())};
     }
     SDL_SetTextureScaleMode(texture, ToSDL3Value(spec.filterMode));
+    SDL_SetTextureBlendMode(texture, ToSDL3Value(spec.blendMode));
 
     const TextureID id = GetNextTextureID();
     assert(!m_textures.contains(id));
@@ -201,7 +212,10 @@ util::VoidResult<> SDLRendererGraphicsContext::ResizeTexture(TextureID id, uint3
     instance->texture = newTexture;
     instance->spec.width = width;
     instance->spec.height = height;
+    // Resizing recreates the underlying SDL texture, so every sampling/compositing parameter carried by the spec has to
+    // be reapplied here, not just the scale mode.
     SDL_SetTextureScaleMode(newTexture, ToSDL3Value(spec.filterMode));
+    SDL_SetTextureBlendMode(newTexture, ToSDL3Value(spec.blendMode));
     return {};
 }
 
@@ -281,6 +295,52 @@ util::VoidResult<> SDLRendererGraphicsContext::RenderToTexture(TextureID src, Te
 
     // Restore render target
     SDL_SetRenderTarget(m_renderer, prevRenderTarget);
+
+    return util::VoidResult<>();
+}
+
+util::VoidResult<> SDLRendererGraphicsContext::RenderToTextureTiled(TextureID src, TextureID dst,
+                                                                    const FRect &dstRect) {
+    TextureInstance *srcInstance = GetTexture(src);
+    if (srcInstance == nullptr) {
+        return util::ErrorMessage{"Invalid source texture handle"};
+    }
+
+    TextureInstance *dstInstance = GetTexture(dst);
+    if (dstInstance == nullptr) {
+        return util::ErrorMessage{"Invalid destination texture handle"};
+    }
+
+    if (dstInstance->spec.access != TextureAccess::RenderTarget) {
+        return util::ErrorMessage{"Destination texture is not a valid render target"};
+    }
+
+    if (srcInstance->spec.width == 0 || srcInstance->spec.height == 0) {
+        return util::ErrorMessage{"Source texture has no area to tile"};
+    }
+
+    // Remember previous render target to be restored later
+    SDL_Texture *prevRenderTarget = SDL_GetRenderTarget(m_renderer);
+
+    // Tile the whole source texture over the destination region at a 1:1 texel-to-pixel ratio. The texture's blend mode
+    // (applied on creation from the spec) decides whether this replaces or composites over the destination.
+    SDL_FRect dstRectSDL{dstRect.x, dstRect.y, dstRect.w, dstRect.h};
+
+    if (!SDL_SetRenderTarget(m_renderer, dstInstance->texture)) {
+        return util::ErrorMessage{fmt::format("Could not set render target: {}", SDL_GetError())};
+    }
+
+    const bool tiled = SDL_RenderTextureTiled(m_renderer, srcInstance->texture, nullptr, 1.0f, &dstRectSDL);
+    // Copy rather than alias: SDL_GetError() points into a thread-local buffer that the render target restore below
+    // may overwrite.
+    const std::string tileError = tiled ? std::string{} : SDL_GetError();
+
+    // Restore render target regardless of whether the tiled draw succeeded
+    SDL_SetRenderTarget(m_renderer, prevRenderTarget);
+
+    if (!tiled) {
+        return util::ErrorMessage{fmt::format("Could not tile texture: {}", tileError)};
+    }
 
     return util::VoidResult<>();
 }

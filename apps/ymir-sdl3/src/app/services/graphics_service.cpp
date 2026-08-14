@@ -148,6 +148,11 @@ util::ValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture
     auto updateResult = m_gfxContext->UpdateTexture(
         texture.id, nullptr, [&](void *data, size_t pitch) { texture.fnSetup(handle, false, data, pitch); });
     if (!updateResult) {
+        // Unregister on failure. Leaving the entry behind would leak the underlying GPU texture and keep the setup
+        // callback alive, so a later backend switch would invoke a callback the caller believes was never registered.
+        m_gfxContext->DestroyTexture(texture.id);
+        m_textures.erase(handle);
+        m_freeTexHandles.push_back(handle);
         return util::ErrorMessage{fmt::format("Failed to upload texture: {}", updateResult.Error().message)};
     }
     return handle;
@@ -191,6 +196,19 @@ util::VoidResult<> GraphicsService::RenderToTexture(GUITextureHandle src, GUITex
         return util::ErrorMessage{"Invalid destination texture handle"};
     }
     return m_gfxContext->RenderToTexture(srcTexture->id, dstTexture->id, srcRect, dstRect);
+}
+
+util::VoidResult<> GraphicsService::RenderToTextureTiled(GUITextureHandle src, GUITextureHandle dst,
+                                                         const FRect &dstRect) {
+    const Texture2DInstance *srcTexture = GetTexture(src);
+    if (srcTexture == nullptr) {
+        return util::ErrorMessage{"Invalid source texture handle"};
+    }
+    const Texture2DInstance *dstTexture = GetTexture(dst);
+    if (dstTexture == nullptr) {
+        return util::ErrorMessage{"Invalid destination texture handle"};
+    }
+    return m_gfxContext->RenderToTextureTiled(srcTexture->id, dstTexture->id, dstRect);
 }
 
 util::VoidResult<> GraphicsService::DrawTextureRotated(GUITextureHandle handle, const FRect &srcRect,
