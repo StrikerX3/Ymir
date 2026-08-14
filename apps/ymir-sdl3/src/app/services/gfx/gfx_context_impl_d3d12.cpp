@@ -133,7 +133,7 @@ struct Direct3D12GraphicsContext::Impl {
     D3D12PipelineState pipelineStateFrame;
     D3D12Fence fenceFrame;
     D3D12Fence fenceOps;
-    UINT64 fenceValueOps = 0;
+    UINT64 fenceValueOps = 1;
     std::array<FrameContext, kFrameCount> frames;
 
     VertexShader vertexShader;
@@ -280,7 +280,7 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{"Failed to create operations command allocator"};
         }
         cmdAllocOps->SetName(L"[Ymir-GCtx] Operations command allocator");
-        fenceValueOps = 0;
+        fenceValueOps = 1;
 
         if (FAILED(cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_DIRECT))) {
             return util::ErrorMessage{"Failed to create command queue"};
@@ -368,7 +368,7 @@ struct Direct3D12GraphicsContext::Impl {
                 device->CreateRenderTargetView(resource, nullptr, rtvDesc.cpuHandle);
                 resource->SetName(fmt::format(L"[Ymir-GCtx] Swapchain buffer #{}", n).c_str());
                 frames[n].renderTarget.Attach(resource);
-                frames[n].fenceValue = 0;
+                frames[n].fenceValue = 1;
             }
         }
 
@@ -556,7 +556,7 @@ struct Direct3D12GraphicsContext::Impl {
             const UINT vertexBufferSize = sizeof(vertices);
             const D3D12_RESOURCE_DESC vertexBufferDesc{
                 .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
-                .Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+                .Alignment = 0,
                 .Width = vertexBufferSize,
                 .Height = 1,
                 .DepthOrArraySize = 1,
@@ -570,7 +570,7 @@ struct Direct3D12GraphicsContext::Impl {
             // Create upload buffer
             if (HRESULT hr =
                     vertexUploadBuffer.CreateCommitted(device, {.Type = D3D12_HEAP_TYPE_UPLOAD}, D3D12_HEAP_FLAG_NONE,
-                                                       vertexBufferDesc, D3D12_RESOURCE_STATE_COMMON);
+                                                       vertexBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ);
                 FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Failed to create vertex upload buffer, error code {:X}", (uint32)hr)};

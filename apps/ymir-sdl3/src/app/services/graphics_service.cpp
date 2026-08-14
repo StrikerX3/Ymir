@@ -50,15 +50,6 @@ static util::ObjectResult<IGraphicsContext> ConvertResult(util::ObjectResult<T> 
     return std::unique_ptr<IGraphicsContext>{result.Value()};
 }
 
-// TODO: make this externally configurable?
-#if YMIR_PLATFORM_HAS_DIRECT3D
-    #ifdef NDEBUG
-        #define YMIR_D3D_ENABLE_DEBUG true
-    #else
-        #define YMIR_D3D_ENABLE_DEBUG false
-    #endif
-#endif
-
 util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
     switch (backend) {
     case Backend::Null:
@@ -71,11 +62,6 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx:
             .featureLevel = D3D_FEATURE_LEVEL_11_0,
             .window = window,
             .adapter = nullptr,
-            .debug =
-                {
-                    .enabled = YMIR_D3D_ENABLE_DEBUG,
-                    .breakOnWarnings = YMIR_D3D_ENABLE_DEBUG,
-                },
         }));
 #endif
 #if YMIR_PLATFORM_HAS_VULKAN
