@@ -113,7 +113,6 @@
 #include <SDL3/SDL_misc.h>
 
 #include <backends/imgui_impl_sdl3.h>
-#include <backends/imgui_impl_sdlrenderer3.h>
 
 #include <imgui.h>
 
@@ -146,7 +145,8 @@ static void ShowStartupFailure(fmt::format_string<TArgs...> fmt, TArgs &&...args
 }
 
 App::App()
-    : m_saveStateService(m_context, m_settings)
+    : m_graphicsService(m_settings)
+    , m_saveStateService(m_context, m_settings)
     , m_midiService(m_context.serviceLocator)
     , m_settings(m_context)
     , m_discordRPCService(m_context, m_settings)
@@ -600,7 +600,7 @@ void App::RunEmulator() {
 
     // RescaleUI also loads the style and fonts
     bool rescaleUIPending = false;
-    m_displayService.RescaleUI(SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
+    m_displayService.RescaleUI();
     {
         auto &guiSettings = settings.gui;
 
@@ -750,6 +750,7 @@ void App::RunEmulator() {
         m_saveStateService.SaveDebuggerState();
     }};
     util::os::ConfigureWindowDecorations(screen.window);
+    m_displayService.RescaleUI();
 
     settings.video.fullScreen.Observe([&](bool fullScreen) {
         devlog::info<grp::base>("{} full screen mode", (fullScreen ? "Entering" : "Leaving"));
@@ -758,26 +759,52 @@ void App::RunEmulator() {
     });
 
     // ---------------------------------
-    // Create renderer
+    // Create graphics backend
 
-    int vsync = 1;
+    gfx::PresentMode presentMode = gfx::PresentMode::VSync;
     {
-        gfx::Backend &graphicsBackend = settings.video.graphicsBackend;
-        SDL_Renderer *renderer = m_graphicsService.CreateRenderer(graphicsBackend, screen.window, vsync);
-        if (renderer == nullptr) {
-            // If not using the default renderer option, try the default and reset configuration
-            if (graphicsBackend != gfx::Backend::Default) {
-                m_context.DisplayMessage(fmt::format("Could not create {} renderer. Reverting to default API.",
-                                                     gfx::GraphicsBackendName(graphicsBackend)));
-                graphicsBackend = gfx::Backend::Default;
-                settings.MakeDirty();
+        const gfx::Backend backend = settings.video.graphicsBackend;
+        std::vector<std::string> failures{};
 
-                renderer = m_graphicsService.CreateRenderer(gfx::Backend::Default, screen.window, vsync);
+        auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+        if (!result) {
+            std::string &failureMsg = failures.emplace_back();
+            failureMsg = fmt::format("Could not create {} graphics context: {}", gfx::GraphicsBackendName(backend),
+                                     result.Error().message);
+            m_context.DisplayMessage(failureMsg);
+
+            auto fallback = [&](gfx::Backend fallbackBackend) {
+                if (backend == fallbackBackend) {
+                    return false;
+                }
+
+                auto result = m_graphicsService.InitGraphicsContext(fallbackBackend, screen.window, presentMode);
+                if (result) {
+                    m_context.DisplayMessage(fmt::format("Reverted to {}", gfx::GraphicsBackendName(fallbackBackend)));
+                    settings.video.graphicsBackend = fallbackBackend;
+                    settings.MakeDirty();
+                    return true;
+                }
+
+                std::string &failureMsg = failures.emplace_back();
+                failureMsg = fmt::format("Fallback to {} failed: {}", gfx::GraphicsBackendName(fallbackBackend),
+                                         result.Error().message);
+                m_context.DisplayMessage(failureMsg);
+                return false;
+            };
+
+            // Try fallback options
+            if (!fallback(gfx::kDefaultBackend) && !fallback(gfx::Backend::SDLRenderer)) {
+                // Nothing worked; bail out
+                fmt::memory_buffer buf{};
+                auto out = std::back_inserter(buf);
+                fmt::format_to(out, "Failed to initialize graphics.");
+                for (auto &failureMsg : failures) {
+                    fmt::format_to(out, "\n{}", failureMsg);
+                }
+                ShowStartupFailure("{}", fmt::to_string(buf));
+                return;
             }
-        }
-        if (renderer == nullptr) {
-            ShowStartupFailure("Failed to create renderer: {}", SDL_GetError());
-            return;
         }
     }
 
@@ -803,41 +830,52 @@ void App::RunEmulator() {
     // interpolation.
 
     // Software framebuffer texture
-    const gfx::TextureHandle swFbTexture =
-        m_graphicsService.CreateTexture(SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_STREAMING, vdp::kMaxResH,
-                                        vdp::kMaxResV, [&](SDL_Texture *tex, bool recreated) {
-                                            SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
-                                            if (recreated) {
-                                                screen.CopyFramebufferToTexture(tex);
-                                            }
-                                        });
-    if (swFbTexture == gfx::kInvalidTextureHandle) {
-        ShowStartupFailure("Failed to create software framebuffer texture: {}", SDL_GetError());
+    auto swFbTextureResult = m_graphicsService.CreateTexture(
+        {
+            .width = vdp::kMaxResH,
+            .height = vdp::kMaxResV,
+            .format = gfx::PixelFormat::R8G8B8X8_UNORM,
+            .access = gfx::TextureAccess::Streaming,
+            .filterMode = gfx::TextureFilterMode::Nearest,
+            .name = "[Ymir] Software framebuffer",
+        },
+        [&](gfx::GUITextureHandle handle, bool recreated, void *data, size_t pitch) {
+            if (recreated) {
+                screen.CopyFramebufferToTexture(data, pitch);
+            }
+        });
+
+    if (!swFbTextureResult) {
+        ShowStartupFailure(
+            "Failed to create software framebuffer texture: {}.\nThe graphics backend will reset on next launch.",
+            swFbTextureResult.Error().message);
+        m_graphicsService.RevertGraphicsBackend();
         return;
     };
+    const gfx::GUITextureHandle swFbTexture = swFbTextureResult.Value();
 
     // Display texture, containing the scaled framebuffer to be displayed on the screen
-    const gfx::TextureHandle dispTexture = m_graphicsService.CreateTexture(
-        SDL_PIXELFORMAT_XBGR8888, SDL_TEXTUREACCESS_TARGET, vdp::kMaxResH * screen.fbScale,
-        vdp::kMaxResV * screen.fbScale,
-        [](SDL_Texture *tex, bool) { SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_LINEAR); });
-    if (dispTexture == gfx::kInvalidTextureHandle) {
-        ShowStartupFailure("Failed to create display texture: {}", SDL_GetError());
+    auto dispTextureResult = m_graphicsService.CreateTexture({
+        .width = vdp::kMaxResH * screen.fbScale,
+        .height = vdp::kMaxResV * screen.fbScale,
+        .format = gfx::PixelFormat::R8G8B8X8_UNORM,
+        .access = gfx::TextureAccess::RenderTarget,
+        .filterMode = gfx::TextureFilterMode::Linear,
+        .name = "[Ymir] Scaled display",
+    });
+    if (!dispTextureResult) {
+        ShowStartupFailure("Failed to create display texture: {}.\nThe graphics backend will reset on next launch.",
+                           dispTextureResult.Error().message);
+        m_graphicsService.RevertGraphicsBackend();
         return;
     }
+    const gfx::GUITextureHandle dispTexture = dispTextureResult.Value();
 
-    // Cached scanline filter tile. The scanline pattern for a single source pixel (an fbScale x fbScale cell) is baked
-    // into a small RGBA texture and tiled across the display texture with one blit per frame. The tile is only
-    // regenerated when a filter parameter changes, so no per-frame CPU work is spent rebuilding geometry. Baking the
-    // horizontal and vertical darkening into the same tile also makes grid mode a true union of the two line sets,
-    // avoiding the doubly-darkened intersections that overlapping fill rects produced.
-    gfx::TextureHandle scanlineTile = gfx::kInvalidTextureHandle;
-    int slTileScale = 0;            // fbScale the tile was built for (0 = never built)
-    int slTileGap = -1;             // darkened rows/cols the tile was built for
-    int slTileAlpha = -1;           // darkening alpha the tile was built for
-    int slTileMask = -1;            // ScanlineMask the tile was built for
-    int slTileShadowMask = -1;      // grid "darker crossings" toggle the tile was built for
-    bool slTileNeedsUpload = false; // set by the texture setup callback when the GPU texture is (re)created
+    // TODO(scanlines): the cached scanline tile state used to live here. The tile-overlay filter was built on raw
+    // SDL_Renderer calls (SDL_SetRenderTarget / SDL_RenderTextureTiled on a blend-enabled texture) that the graphics
+    // backend rework replaced with the backend-agnostic GraphicsService. The abstraction currently exposes neither
+    // alpha blending nor a tiled blit, so the overlay is parked for this merge and restored in a follow-up branch that
+    // adds both to the gfx layer. Settings, hotkeys and the Settings window UI for the filter are all still wired up.
 
     auto renderDispTexture = [&](double targetWidth, double targetHeight) {
         auto &videoSettings = settings.video;
@@ -850,135 +888,27 @@ void App::RunEmulator() {
         const double dispScale = std::min(dispScaleX, dispScaleY);
         const uint32 scale = std::max(1.0, ceil(dispScale));
 
-        SDL_Renderer *renderer = m_graphicsService.GetRenderer();
-
         assert(m_graphicsService.IsTextureHandleValid(dispTexture));
         assert(m_graphicsService.IsTextureHandleValid(swFbTexture));
-        assert(renderer != nullptr);
 
         // Recreate render target texture if scale changed
         if (scale != screen.fbScale) {
             screen.fbScale = scale;
-            if (!m_graphicsService.ResizeTexture(dispTexture, vdp::kMaxResH * screen.fbScale,
-                                                 vdp::kMaxResV * screen.fbScale)) {
-                devlog::warn<grp::base>("Failed to resize framebuffer texture: {}", SDL_GetError());
+            auto result = m_graphicsService.ResizeTexture(dispTexture, vdp::kMaxResH * screen.fbScale,
+                                                          vdp::kMaxResV * screen.fbScale);
+            if (!result) {
+                devlog::warn<grp::base>("Failed to resize framebuffer texture: {}", result.Error().message);
             }
         }
-
-        // Remember previous render target to be restored later
-        SDL_Texture *prevRenderTarget = SDL_GetRenderTarget(renderer);
 
         // Render scaled framebuffer into display texture
-        SDL_FRect srcRect{.x = 0.0f, .y = 0.0f, .w = (float)screen.width, .h = (float)screen.height};
-        SDL_FRect dstRect{.x = 0.0f,
-                          .y = 0.0f,
-                          .w = (float)screen.width * screen.fbScale,
-                          .h = (float)screen.height * screen.fbScale};
+        gfx::FRect srcRect{.x = 0.0f, .y = 0.0f, .w = (float)screen.width, .h = (float)screen.height};
+        gfx::FRect dstRect{.x = 0.0f,
+                           .y = 0.0f,
+                           .w = (float)screen.width * screen.fbScale,
+                           .h = (float)screen.height * screen.fbScale};
 
-        SDL_SetRenderTarget(renderer, m_graphicsService.GetSDLTexture(dispTexture));
-        SDL_RenderTexture(renderer, m_graphicsService.GetSDLTexture(swFbTexture), &srcRect, &dstRect);
-
-        // Simple integer scanline filter.
-        // Because the framebuffer is upscaled into the display texture by an integer factor with nearest
-        // interpolation, every source pixel occupies exactly `fbScale` destination rows and columns. We darken the
-        // trailing portion of each of those bands to emulate the gaps between CRT scanlines. The `scanlineThickness`
-        // percentage controls how many of the `fbScale` rows/columns are darkened, and `scanlineMask` selects whether
-        // to darken rows (horizontal), columns (vertical), or both (grid / shadow-mask look). This only has a visible
-        // effect at 2x or greater integer scale; at 1x there is no room for a gap so it is skipped.
-        // Evaluate the cheap enable checks first so the rounding below is skipped entirely when the filter is off.
-        const bool scanlinesActive =
-            videoSettings.scanlines && screen.fbScale >= 2 && videoSettings.scanlineIntensity > 0;
-        const uint32 gap =
-            scanlinesActive ? (uint32)std::clamp(std::lround(screen.fbScale * videoSettings.scanlineThickness / 100.0),
-                                                 0L, (long)screen.fbScale)
-                            : 0u; // rows/columns darkened per source pixel band
-        if (scanlinesActive && gap > 0) {
-            const int alpha = std::clamp(videoSettings.scanlineIntensity, 0, 255);
-            const int tileScale = (int)screen.fbScale;
-            const int tileGap = (int)gap;
-            const int maskId = (int)videoSettings.scanlineMask;
-            const int shadowMaskId = videoSettings.scanlineGridShadowMask ? 1 : 0;
-
-            // Rebuild the tile only when a parameter changes or the GPU texture was recreated (device reset).
-            if (scanlineTile == gfx::kInvalidTextureHandle || slTileScale != tileScale || slTileGap != tileGap ||
-                slTileAlpha != alpha || slTileMask != maskId || slTileShadowMask != shadowMaskId ||
-                slTileNeedsUpload) {
-                const auto mask = videoSettings.scanlineMask;
-                const bool drawH =
-                    mask == Settings::Video::ScanlineMask::Horizontal || mask == Settings::Video::ScanlineMask::Grid;
-                const bool drawV =
-                    mask == Settings::Video::ScanlineMask::Vertical || mask == Settings::Video::ScanlineMask::Grid;
-
-                // Alpha applied where horizontal and vertical lines cross in grid mode. With the shadow-mask look
-                // enabled, crossings are darkened more than the lines (matching two stacked blends: the CRT holes where
-                // both gaps meet); otherwise they use the same alpha as the lines for a uniform grid.
-                const bool shadowMaskCrossings = mask == Settings::Video::ScanlineMask::Grid && shadowMaskId != 0;
-                const int crossAlpha =
-                    shadowMaskCrossings
-                        ? (int)std::lround(255.0 * (1.0 - (1.0 - alpha / 255.0) * (1.0 - alpha / 255.0)))
-                        : alpha;
-
-                // Gap placement within each source pixel band. Grid mode centers the lit cell by splitting the gap to
-                // both edges (dark falls between lines, mesh-like); horizontal/vertical keep the whole gap at the
-                // trailing edge. Both darken the same number of rows/columns per band.
-                const bool centerLines = mask == Settings::Video::ScanlineMask::Grid;
-                const int gapLead = centerLines ? tileGap / 2 : 0; // dark rows/cols at the leading edge
-                const int gapTrail = tileGap - gapLead;            // dark rows/cols at the trailing edge
-                const auto isDark = [&](int i) { return i < gapLead || i >= tileScale - gapTrail; };
-
-                // Build one fbScale x fbScale RGBA cell: black on the gap rows/columns, fully transparent elsewhere.
-                // Line pixels use `alpha`; grid crossings use `crossAlpha`. Baking this into one tile keeps grid mode a
-                // single blit while still allowing darker crossings.
-                std::vector<uint8> tilePixels((size_t)tileScale * tileScale * 4, 0);
-                for (int y = 0; y < tileScale; ++y) {
-                    const bool darkRow = drawH && isDark(y);
-                    for (int x = 0; x < tileScale; ++x) {
-                        const bool darkCol = drawV && isDark(x);
-                        if (darkRow || darkCol) {
-                            const int a = (darkRow && darkCol) ? crossAlpha : alpha;
-                            tilePixels[((size_t)y * tileScale + x) * 4 + 3] = (uint8)a; // RGBA32: alpha byte
-                        }
-                    }
-                }
-
-                if (scanlineTile == gfx::kInvalidTextureHandle) {
-                    scanlineTile = m_graphicsService.CreateTexture(
-                        SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, tileScale, tileScale,
-                        [&slTileNeedsUpload](SDL_Texture *tex, bool) {
-                            SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
-                            SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
-                            slTileNeedsUpload = true; // contents lost on (re)creation; re-upload before use
-                        });
-                } else if (slTileScale != tileScale) {
-                    // ResizeTexture recreates the raw texture without re-running the setup callback, so the scale and
-                    // blend modes must be reapplied here.
-                    m_graphicsService.ResizeTexture(scanlineTile, tileScale, tileScale);
-                    if (SDL_Texture *tex = m_graphicsService.GetSDLTexture(scanlineTile)) {
-                        SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
-                        SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
-                    }
-                }
-
-                if (SDL_Texture *tex = m_graphicsService.GetSDLTexture(scanlineTile)) {
-                    SDL_UpdateTexture(tex, nullptr, tilePixels.data(), tileScale * 4);
-                    slTileScale = tileScale;
-                    slTileGap = tileGap;
-                    slTileAlpha = alpha;
-                    slTileMask = maskId;
-                    slTileShadowMask = shadowMaskId;
-                    slTileNeedsUpload = false;
-                }
-            }
-
-            // Tile the fbScale x fbScale cell across the used region of the display texture in a single blit. dstRect
-            // already spans exactly that region (width*fbScale x height*fbScale), so it is reused here.
-            if (SDL_Texture *tex = m_graphicsService.GetSDLTexture(scanlineTile)) {
-                SDL_RenderTextureTiled(renderer, tex, nullptr, 1.0f, &dstRect);
-            }
-        }
-
-        // Restore render target
-        SDL_SetRenderTarget(renderer, prevRenderTarget);
+        m_graphicsService.RenderToTexture(swFbTexture, dispTexture, srcRect, dstRect);
     };
 
     // Logo texture
@@ -1000,15 +930,27 @@ void App::RunEmulator() {
         }
 
         // Create texture with the logo image
-        m_context.images.ymirLogo.texture = m_graphicsService.CreateTexture(
-            SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC, imgW, imgH, [=, this](SDL_Texture *texture, bool) {
-                SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
-                SDL_UpdateTexture(texture, nullptr, ymirLogoImgData, imgW * sizeof(uint32));
+        auto logoImageResult = m_graphicsService.CreateTexture(
+            {
+                .width = static_cast<uint32>(imgW),
+                .height = static_cast<uint32>(imgH),
+                .format = gfx::PixelFormat::R8G8B8A8_UNORM,
+                .access = gfx::TextureAccess::Static,
+                .name = "[Ymir] Logo image",
+            },
+            [=, this](gfx::GUITextureHandle texture, bool, void *data, size_t pitch) {
+                auto byteData = static_cast<char *>(data);
+                for (size_t y = 0; y < imgH; ++y) {
+                    memcpy(byteData + y * pitch, ymirLogoImgData + y * imgW * sizeof(uint32), imgW * sizeof(uint32));
+                }
             });
-        if (m_context.images.ymirLogo.texture == gfx::kInvalidTextureHandle) {
-            ShowStartupFailure("Failed to create logo texture: {}", SDL_GetError());
+        if (!logoImageResult) {
+            ShowStartupFailure("Failed to create logo texture: {}.\nThe graphics backend will reset on next launch.",
+                               logoImageResult.Error().message);
+            m_graphicsService.RevertGraphicsBackend();
             return;
         }
+        m_context.images.ymirLogo.texture = logoImageResult.Value();
 
         m_context.images.ymirLogo.size.x = imgW;
         m_context.images.ymirLogo.size.y = imgH;
@@ -1019,10 +961,9 @@ void App::RunEmulator() {
     // ---------------------------------
     // Setup Dear ImGui Platform/Renderer backends
 
-    ImGui_ImplSDL3_InitForSDLRenderer(screen.window, m_graphicsService.GetRenderer());
-    ImGui_ImplSDLRenderer3_Init(m_graphicsService.GetRenderer());
+    m_graphicsService.ImGuiInit();
 
-    ImVec4 clearColor = ImVec4(0.0f, 0.0f, 0.0f, 1.00f);
+    gfx::ColorRGBA clearColor{0.0f, 0.0f, 0.0f, 1.0f};
 
     // ---------------------------------
     // Setup framebuffer and render callbacks
@@ -1446,18 +1387,20 @@ void App::RunEmulator() {
             }
 
             // Update VSync setting
-            int newVSync;
+            gfx::PresentMode newPresentMode;
             if (videoSync) {
-                newVSync = baseFrameRate <= maxFrameRate ? 1 : SDL_RENDERER_VSYNC_DISABLED;
+                newPresentMode = baseFrameRate <= maxFrameRate ? gfx::PresentMode::VSync : gfx::PresentMode::Adaptive;
             } else {
-                newVSync = 1;
+                newPresentMode = gfx::PresentMode::VSync;
             }
-            if (vsync != newVSync) {
-                if (SDL_SetRenderVSync(m_graphicsService.GetRenderer(), newVSync)) {
-                    devlog::info<grp::base>("VSync {}", (newVSync == 1 ? "enabled" : "disabled"));
-                    vsync = newVSync;
+            if (presentMode != newPresentMode) {
+                auto result = m_graphicsService.SetPresentMode(newPresentMode);
+                if (result) {
+                    devlog::info<grp::base>("VSync {}",
+                                            (newPresentMode == gfx::PresentMode::VSync ? "enabled" : "disabled"));
+                    presentMode = newPresentMode;
                 } else {
-                    devlog::warn<grp::base>("Could not change VSync mode: {}", SDL_GetError());
+                    devlog::warn<grp::base>("Could not change VSync mode: {}", result.Error().message);
                 }
             }
 
@@ -1694,15 +1637,17 @@ void App::RunEmulator() {
                 }
                 break;
 
-            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: [[fallthrough]];
+            case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN: util::os::ConfigureWindowDecorations(screen.window); break;
+
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
                 if (!settings.gui.overrideUIScale) {
-                    const float windowScale = SDL_GetWindowDisplayScale(screen.window);
-                    m_displayService.RescaleUI(windowScale);
+                    m_displayService.RescaleUI();
                     m_displayService.PersistWindowGeometry();
                 }
                 break;
-            case SDL_EVENT_WINDOW_RESIZED: [[fallthrough]];
+            case SDL_EVENT_WINDOW_RESIZED:
+                m_graphicsService.ResizeFramebuffer(evt.window.data1, evt.window.data2);
+                [[fallthrough]];
             case SDL_EVENT_WINDOW_MOVED: m_displayService.PersistWindowGeometry(); break;
 
             case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
@@ -1740,8 +1685,7 @@ void App::RunEmulator() {
         }
         if (rescaleUIPending) {
             rescaleUIPending = false;
-            const float windowScale = SDL_GetWindowDisplayScale(screen.window);
-            m_displayService.RescaleUI(windowScale);
+            m_displayService.RescaleUI();
         }
 
         // Process all axis changes
@@ -1812,24 +1756,21 @@ void App::RunEmulator() {
             case EvtType::SetProcessPriority: util::BoostCurrentProcessPriority(std::get<bool>(evt.value)); break;
             case EvtType::SwitchGraphicsBackend: //
             {
-                auto prevBackend = settings.video.graphicsBackend;
                 auto backend = std::get<gfx::Backend>(evt.value);
-                ImGui_ImplSDLRenderer3_Shutdown();
-                ImGui_ImplSDL3_Shutdown();
-
-                // TODO: recreate window when switching back from OpenGL to another API
-                if (m_graphicsService.CreateRenderer(backend, screen.window, vsync)) {
-                    settings.video.graphicsBackend = backend;
-                    settings.MakeDirty();
-                } else {
-                    m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
-                                                         gfx::GraphicsBackendName(backend), SDL_GetError()));
-                    m_graphicsService.CreateRenderer(prevBackend, screen.window, vsync);
+                if (backend != m_graphicsService.GetGraphicsContextBackend()) {
+                    auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+                    if (result) {
+                        settings.video.graphicsBackend = backend;
+                        settings.MakeDirty();
+                        m_context.DisplayMessage(
+                            fmt::format("{} initialized successfully", gfx::GraphicsBackendName(backend)));
+                    } else {
+                        m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
+                                                             gfx::GraphicsBackendName(backend),
+                                                             result.Error().message));
+                    }
                 }
 
-                SDL_Renderer *renderer = m_graphicsService.GetRenderer();
-                ImGui_ImplSDL3_InitForSDLRenderer(screen.window, renderer);
-                ImGui_ImplSDLRenderer3_Init(renderer);
                 break;
             }
 
@@ -1972,7 +1913,9 @@ void App::RunEmulator() {
                 std::unique_lock lock{screen.mtxFramebuffer};
                 screen.framebuffers[1] = screen.framebuffers[0];
             }
-            screen.CopyFramebufferToTexture(m_graphicsService.GetSDLTexture(swFbTexture));
+            const gfx::IRect area{.x = 0, .y = 0, .w = screen.width, .h = screen.height};
+            m_graphicsService.UpdateTexture(
+                swFbTexture, &area, [&](void *data, size_t pitch) { screen.CopyFramebufferToTexture(data, pitch); });
         }
 
         auto now = clk::now();
@@ -2085,8 +2028,7 @@ void App::RunEmulator() {
         // Draw ImGui widgets
 
         // Start the Dear ImGui frame
-        ImGui_ImplSDLRenderer3_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
+        m_graphicsService.ImGuiNewFrame();
         ImGui::NewFrame();
 
         // In PhysicalMouse mode, automatically release all mice if any ImGui window gains focus
@@ -2818,21 +2760,22 @@ void App::RunEmulator() {
                     screen.dSizeX = horzDisplay ? avail.x : avail.y;
                     screen.dSizeY = horzDisplay ? avail.y : avail.x;
 
-                    const SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
+                    // TODO: for SDL Renderer, return SDL_Texture * cast to ImTextureID
+                    const ImTextureID dispTextureID = m_graphicsService.GetImGuiTextureID(dispTexture);
                     auto *drawList = ImGui::GetWindowDrawList();
                     switch (videoSettings.rotation) {
                     default: [[fallthrough]];
                     case Settings::Video::DisplayRotation::Normal:
-                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv1, uv2, uv3, uv4);
+                        drawList->AddImageQuad(dispTextureID, tl, tr, br, bl, uv1, uv2, uv3, uv4);
                         break;
                     case Settings::Video::DisplayRotation::_90CW:
-                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv4, uv1, uv2, uv3);
+                        drawList->AddImageQuad(dispTextureID, tl, tr, br, bl, uv4, uv1, uv2, uv3);
                         break;
                     case Settings::Video::DisplayRotation::_180:
-                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv3, uv4, uv1, uv2);
+                        drawList->AddImageQuad(dispTextureID, tl, tr, br, bl, uv3, uv4, uv1, uv2);
                         break;
                     case Settings::Video::DisplayRotation::_90CCW:
-                        drawList->AddImageQuad((ImTextureID)dispTexturePtr, tl, tr, br, bl, uv2, uv3, uv4, uv1);
+                        drawList->AddImageQuad(dispTextureID, tl, tr, br, bl, uv2, uv3, uv4, uv1);
                         break;
                     }
 
@@ -3212,12 +3155,8 @@ void App::RunEmulator() {
 
         ImGui::Render();
 
-        SDL_Renderer *renderer = m_graphicsService.GetRenderer();
-
         // Clear screen
-        const ImVec4 bgClearColor = fullScreen ? ImVec4(0, 0, 0, 1.0f) : clearColor;
-        SDL_SetRenderDrawColorFloat(renderer, bgClearColor.x, bgClearColor.y, bgClearColor.z, bgClearColor.w);
-        SDL_RenderClear(renderer);
+        m_graphicsService.ClearScreen(clearColor);
 
         // Draw Saturn screen
         if (!settings.video.displayVideoOutputInWindow) {
@@ -3346,16 +3285,25 @@ void App::RunEmulator() {
             }
 
             // Draw the texture
-            SDL_FRect srcRect{.x = 0.0f,
-                              .y = 0.0f,
-                              .w = (float)(screen.width * screen.fbScale),
-                              .h = (float)(screen.height * screen.fbScale)};
-            SDL_FRect dstRect{.x = floorf(slackX * 0.5f),
-                              .y = floorf(slackY * 0.5f + menuBarHeight),
-                              .w = (float)scaledWidth,
-                              .h = (float)scaledHeight};
-            SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
-            SDL_RenderTextureRotated(renderer, dispTexturePtr, &srcRect, &dstRect, rotAngle, nullptr, SDL_FLIP_NONE);
+            gfx::FRect srcRect{.x = 0.0f,
+                               .y = 0.0f,
+                               .w = (float)(screen.width * screen.fbScale),
+                               .h = (float)(screen.height * screen.fbScale)};
+            gfx::FRect dstRect{.x = floorf(slackX * 0.5f),
+                               .y = floorf(slackY * 0.5f + menuBarHeight),
+                               .w = (float)scaledWidth,
+                               .h = (float)scaledHeight};
+            m_graphicsService.DrawTextureRotated(dispTexture, srcRect, dstRect, rotAngle);
+            // SDL_FRect srcRect{.x = 0.0f,
+            //                   .y = 0.0f,
+            //                   .w = (float)(screen.width * screen.fbScale),
+            //                   .h = (float)(screen.height * screen.fbScale)};
+            // SDL_FRect dstRect{.x = floorf(slackX * 0.5f),
+            //                   .y = floorf(slackY * 0.5f + menuBarHeight),
+            //                   .w = (float)scaledWidth,
+            //                   .h = (float)scaledHeight};
+            // SDL_Texture *dispTexturePtr = m_graphicsService.GetSDLTexture(dispTexture);
+            // SDL_RenderTextureRotated(renderer, dispTexturePtr, &srcRect, &dstRect, rotAngle, nullptr, SDL_FLIP_NONE);
 
             screen.scale = scale;
             screen.dCenterX = dstRect.x + dstRect.w * 0.5f;
@@ -3369,19 +3317,9 @@ void App::RunEmulator() {
         screen.resolutionChanged = false;
 
         // Render ImGui widgets
-#if defined(__APPLE__)
-        // Logical->Physical window-coordinate fix primarily for MacOS Retina displays
-        const float pixelDensity = SDL_GetWindowPixelDensity(screen.window);
-        SDL_SetRenderScale(renderer, pixelDensity, pixelDensity);
-#endif
+        m_graphicsService.ImGuiRenderFrame();
 
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
-
-#if defined(__APPLE__)
-        SDL_SetRenderScale(renderer, 1.0f, 1.0f);
-#endif
-
-        SDL_RenderPresent(renderer);
+        m_graphicsService.Present();
 
         // Process ImGui INI file write requests
         // TODO: compress and include in state blob

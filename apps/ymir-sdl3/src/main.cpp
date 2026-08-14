@@ -3,6 +3,8 @@
 #include <util/os_exception_handler.hpp>
 #include <ymir/util/thread_name.hpp>
 
+#include <ymir/version.hpp>
+
 #include <cxxopts.hpp>
 #include <fmt/format.h>
 
@@ -42,7 +44,9 @@ int main(int argc, char **argv) {
     options.positional_help("path to disc image");
     options.show_positional_help();
 
+#if !Ymir_LOCAL_BUILD
     try {
+#endif
         auto result = options.parse(argc, argv);
         if (showHelp) {
             fmt::println("{}", options.help());
@@ -53,6 +57,7 @@ int main(int argc, char **argv) {
 
         auto app = std::make_unique<app::App>();
         return app->Run(progOpts);
+#if !Ymir_LOCAL_BUILD
     } catch (const cxxopts::exceptions::exception &e) {
         std::string msg = fmt::format("Failed to parse arguments: {}", e.what());
         fmt::println("{}", msg);
@@ -68,7 +73,7 @@ int main(int argc, char **argv) {
         fmt::println("{}", msg);
         util::ShowFatalErrorDialog(msg.c_str());
         return -1;
-#if defined(__APPLE__)
+    #if defined(__APPLE__)
     } catch (id e) {
         SEL sel_reason = sel_registerName("reason");
         id reason = ((id (*)(id, SEL))objc_msgSend)(e, sel_reason); // NSString
@@ -77,13 +82,14 @@ int main(int argc, char **argv) {
         const char *failureReason = ((const char *(*)(id, SEL))objc_msgSend)(reason, sel_UTF8String);
         util::ShowFatalErrorDialog(failureReason);
         return -1;
-#endif
+    #endif
     } catch (...) {
         std::string msg = "Unspecified exception";
         fmt::println("{}", msg);
         util::ShowFatalErrorDialog(msg.c_str());
         return -1;
     }
+#endif
 
     return 0;
 }

@@ -19,6 +19,11 @@ Introduces save state file version 14.
     - The old `smpc.bin` will be automatically migrated to these files as you use IPL ROMs for each region.
 - App: Shrink embedded M PLUS U font files by removing unused glyphs, reducing binary size. (#915; @4re)
 - Debugger: Added RBG0 and RBG1 line color single stack views to the VDP2 debug overlay.
+- Graphics: New graphics backend, adding support for native graphics APIs:
+    - Direct3D 11 and 12 on Windows
+    - Vulkan on Windows, Linux and macOS
+    - Metal on macOS
+    - SDL Renderer wherever it's supported
 - Input: Added option to constrain mouse cursor to window in system cursor mode.
 - Input: Convert 3D Control Pad analog stick to D-Pad inputs when in digital mode.
 - Input: Graduate Virtua Gun to stable feature.

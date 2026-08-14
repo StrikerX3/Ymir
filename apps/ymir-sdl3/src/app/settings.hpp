@@ -12,7 +12,7 @@
 #include <app/input/input_context.hpp>
 #include <app/input/input_events.hpp>
 
-#include <app/services/graphics_types.hpp>
+#include <app/services/gfx/gfx_types.hpp>
 
 #include <app/profile.hpp>
 

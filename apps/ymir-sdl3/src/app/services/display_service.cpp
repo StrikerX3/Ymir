@@ -29,8 +29,25 @@ DisplayService::DisplayService(SharedContext &context, Settings &settings)
     : m_context(context)
     , m_settings(settings) {}
 
-void DisplayService::RescaleUI(float displayScale) {
+namespace {
+
+    float LogicalUIScale(SDL_Window *window) {
+        // ImGui handles Retina via DisplayFramebufferScale
+#if defined(__APPLE__)
+        (void)window;
+        return 1.0f;
+#else
+        const SDL_DisplayID display = window != nullptr ? SDL_GetDisplayForWindow(window) : SDL_GetPrimaryDisplay();
+        const float contentScale = SDL_GetDisplayContentScale(display);
+        return contentScale > 0.0f ? contentScale : 1.0f;
+#endif
+    }
+
+} // namespace
+
+void DisplayService::RescaleUI() {
     const auto &settings = m_settings;
+    float displayScale = LogicalUIScale(m_context.screen.window);
     if (settings.gui.overrideUIScale) {
         displayScale = settings.gui.uiScale;
     }

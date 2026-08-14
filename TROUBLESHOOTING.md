@@ -9,7 +9,7 @@ If those didn't help, follow the instructions below.
 
 ## Ymir fails to launch, crashes right away or displays a big "fatal error" popup
 
-Windows users: install the [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)) before launching Ymir. Installing other software might replace important system files with older versions that are incompatible with the emulator. As stated in the [README](README.md), this is **mandatory** to prevent early crashes.
+Windows users: install the [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vc14/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vc14/vc_redist.arm64.exe)) before launching Ymir. Installing other software might replace important system files with older versions that are incompatible with the emulator. As stated in the [README](README.md), this is **mandatory** to prevent early crashes.
 
 If the emulator is crashing early:
 - Make sure to download a version compatible with your CPU. The AVX2 version requires newer, usually more powerful CPUs, so if you have a Core i3 or i5 from older generations (3xxx or less), a Pentium or a Celeron, the first thing to try is to test the SSE2 version instead.

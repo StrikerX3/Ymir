@@ -107,6 +107,9 @@ namespace settings::video {
                 }
             };
             for (gfx::Backend backend : gfx::kGraphicsBackends) {
+                if (backend == gfx::Backend::Null) {
+                    continue;
+                }
                 item(backend);
             }
             ImGui::EndCombo();

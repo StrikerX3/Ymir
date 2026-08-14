@@ -1,92 +1,174 @@
 #pragma once
 
-#include "graphics_types.hpp"
+#include <app/settings.hpp>
 
-#include <SDL3/SDL_render.h>
+#include "gfx/gfx_context.hpp"
+#include "gfx/gfx_gui_types.hpp"
+
+#include <ymir/util/result.hpp>
+
 #include <SDL3/SDL_video.h>
+
+#include <imgui.h>
 
 #include <functional>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
 namespace app::services {
 
 /// @brief Provides services for managing graphics resources.
-/// Implemented on top of SDL3's Renderer API.
 class GraphicsService {
 public:
+    GraphicsService(Settings &settings);
     ~GraphicsService();
 
-    /// @brief Creates a new renderer using the specified graphics API, bound to the given window, and with initial
-    /// vsync configuration.
-    /// The renderer can be recreated at any point. Resources such as textures are automatically recreated with their
-    /// original parameters when the renderer backend is changed.
-    ///
-    /// @param[in] backend the graphics backend to use
-    /// @param[in] window the window to bind the renderer to
-    /// @param[in] vsync the initial vsync option (see SDL_SetRenderVSync)
-    /// @return a pointer to the renderer instance, or `nullptr` if could not be created. Use `SDL_GetError()` to get
-    /// the error.
-    SDL_Renderer *CreateRenderer(gfx::Backend backend, SDL_Window *window, int vsync);
+    /// @brief Initializes a graphics context.
+    /// `gfx::Backend::Null` cannot be created this way. Use `DestroyGraphicsContext()` to use it.
+    /// @param[in] backend the graphics backend
+    /// @param[in] window the window on which to render graphics
+    /// @param[in] presentMode the initial presentation mode
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> InitGraphicsContext(gfx::Backend backend, SDL_Window *window, gfx::PresentMode presentMode);
 
-    /// @brief Retrieves a pointer to the SDL renderer instance, if any was created.
-    /// @return a pointer to the `SDL_Renderer` managed by this service.
-    SDL_Renderer *GetRenderer() const {
-        return m_renderer;
+private:
+    util::ObjectResult<gfx::IGraphicsContext> CreateGraphicsContext(gfx::Backend backend, SDL_Window *window);
+
+public:
+    /// @brief Destroys the graphics context, effectively replacing it with a null context.
+    void DestroyGraphicsContext();
+
+    /// @brief Reverts the graphics backend to one of the safe options: the default for the platform or SDL Renderer.
+    /// This should be invoked in case the application fails to start up when attempting to initialize graphics
+    /// resources after the context was successfully initialized. This is a safeguard against potential graphics driver
+    /// issues, limitations, programming oversights or bugs.
+    void RevertGraphicsBackend();
+
+    /// @brief Retrieves the current graphics context's backend type.
+    /// @return the current graphics backend in use
+    gfx::Backend GetGraphicsContextBackend() const {
+        return m_gfxContext->GetBackend();
     }
 
-    /// @brief Creates and registers a texture.
-    /// @param[in] format the pixel format
-    /// @param[in] access the access mode
-    /// @param[in] w the initial texture width
-    /// @param[in] h the initial texture height
-    /// @param[in] fnSetup additional setup for the texture: filtering, mipmaps, reload texture contents, etc.
-    /// @return a handle to the texture resource, or `kInvalidTextureHandle` if could not be created. Use
-    /// `SDL_GetError()` to get the error.
-    gfx::TextureHandle CreateTexture(SDL_PixelFormat format, SDL_TextureAccess access, int w, int h,
-                                     gfx::FnTextureSetup fnSetup = {});
+    /// @brief Retrieves a reference to the currently instantiated graphics context.
+    /// This is intended to grant access to low-level graphics API objects where needed.
+    /// @return a reference to the graphics context
+    const gfx::IGraphicsContext &GetGraphicsContext() const {
+        return *m_gfxContext;
+    }
+
+    /// @brief Resizes the framebuffer to the specified dimensions.
+    /// @param[in] width the new framebuffer width
+    /// @param[in] height the new framebuffer height
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height);
+
+    /// @brief Clears the screen with the specified color.
+    /// @param[in] color the clear color
+    void ClearScreen(gfx::ColorRGBA color);
+
+    /// @brief Initializes ImGui using the current graphics context.
+    /// @return `true` if ImGui was initialized successfully, `false` on failure
+    bool ImGuiInit();
+
+    /// @brief Shuts down ImGui using the current graphics context.
+    /// ImGui is automatically shut down when the context is replaced, but it is not initialized on context creation.
+    void ImGuiShutdown();
+
+    /// @brief Starts a new ImGui frame.
+    void ImGuiNewFrame();
+
+    /// @brief Renders the current ImGui frame.
+    void ImGuiRenderFrame();
+
+    /// @brief Creates and registers a 2D texture.
+    /// Once created, the texture is automatically recreated when the backend is changed through.
+    /// @param[in] spec texture format specifications
+    /// @param[in] fnSetup texture setup function, invoked upon texture creation and recreation
+    /// @return a handle to the texture, or an error message if the texture could not be created
+    util::ValueResult<gfx::GUITextureHandle> CreateTexture(
+        const gfx::Texture2DSpec &spec,
+        gfx::FnTextureSetup &&fnSetup = [](gfx::GUITextureHandle, bool, void *, size_t) {});
 
     /// @brief Checks if the texture handle is valid.
     /// @param[in] handle the texture handle to check
     /// @return `true` if the handle refers to a valid managed texture, `false` otherwise.
-    bool IsTextureHandleValid(gfx::TextureHandle handle) const;
+    bool IsTextureHandleValid(gfx::GUITextureHandle handle) const;
 
-    /// @brief Attempts to resize the texture to the new dimensions.
-    /// @param[in] handle the texture handle to try to resize
-    /// @param[in] w the new width
-    /// @param[in] h the new height
-    /// @return `true` if the resize operation succeeded, `false` otherwise. Use `SDL_GetError()` to get the error.
-    bool ResizeTexture(gfx::TextureHandle handle, int w, int h);
-
-    /// @brief Retrieves a pointer to the SDL renderer texture for the given texture handle.
+    /// @brief Resizes the texture to the new dimensions.
     /// @param[in] handle the texture handle
-    /// @return a pointer to `SDL_Texture`, or `nullptr` if the handle is invalid or the texture was not created.
-    SDL_Texture *GetSDLTexture(gfx::TextureHandle handle) const;
+    /// @param[in] width the new width
+    /// @param[in] height the new height
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> ResizeTexture(gfx::GUITextureHandle handle, uint32 width, uint32 height);
+
+    /// @brief Updates the contents of a texture.
+    /// @param[in] handle the texture handle
+    /// @param[in,opt] rect the target region to update; `nullptr` updates the entire texture
+    /// @param[in] fnUpdate the update function, taking a pointer to writable texture data and the line pitch in bytes.
+    /// This buffer should not be read by the CPU.
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> UpdateTexture(gfx::GUITextureHandle handle, const gfx::IRect *rect,
+                                     const std::function<void(void *data, size_t pitch)> &fnUpdate);
+
+    /// @brief Renders a texture to another texture. The destination texture must be a render target.
+    /// @param[in] src the source texture
+    /// @param[in] dst the destination texture
+    /// @param[in] srcRect the source region to copy from
+    /// @param[in] dstRect the destination region to copy to
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> RenderToTexture(gfx::GUITextureHandle src, gfx::GUITextureHandle dst, const gfx::FRect &srcRect,
+                                       const gfx::FRect &dstRect);
+
+    /// @brief Draws a texture rotated about the given anchor point.
+    /// @param[in] handle the texture to draw
+    /// @param[in] srcRect portion of the texture to draw
+    /// @param[in] dstRect where to draw the texture on the screen
+    /// @param[in] rotAngle clockwise rotation amount (in degrees)
+    /// @param[in,opt] anchorPoint rotation anchor point. If `nullptr`, rotates about the center of the texture
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> DrawTextureRotated(gfx::GUITextureHandle handle, const gfx::FRect &srcRect,
+                                          const gfx::FRect &dstRect, double rotAngle,
+                                          const gfx::FPoint2D *anchorPoint = nullptr);
+
+    /// @brief Retrieves the ImGui texture ID for the given texture handle.
+    /// @param[in] handle the texture
+    /// @return the corresponding ImGui texture ID
+    ImTextureID GetImGuiTextureID(gfx::GUITextureHandle handle) const;
 
     /// @brief Destroys a managed texture.
     /// @param[in] handle the texture handle
     /// @return `true` if the texture was destroyed, `false` if it wasn't registered.
-    bool DestroyTexture(gfx::TextureHandle handle);
+    bool DestroyTexture(gfx::GUITextureHandle handle);
+
+    /// @brief Changes the frame presentation mode.
+    /// @param[in] mode the new frame presentation mode
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> SetPresentMode(gfx::PresentMode mode);
+
+    /// @brief Presents the next frame.
+    util::VoidResult<> Present();
 
 private:
-    struct TextureParams {
-        SDL_Texture *texture = nullptr;
-        SDL_PixelFormat format;
-        SDL_TextureAccess access;
-        int width;
-        int height;
+    Settings &m_settings;
+    std::unique_ptr<gfx::IGraphicsContext> m_gfxContext;
+
+    bool m_imguiInitialized = false;
+
+    struct Texture2DInstance {
+        gfx::TextureID id;
+        gfx::Texture2DSpec spec;
         gfx::FnTextureSetup fnSetup;
     };
-    std::unordered_map<gfx::TextureHandle, TextureParams> m_textures;
-    gfx::TextureHandle m_nextTextureHandle = 1u;
+    std::unordered_map<gfx::GUITextureHandle, Texture2DInstance> m_textures;
+    std::vector<gfx::GUITextureHandle> m_freeTexHandles;
+    gfx::GUITextureHandle m_nextHandle = 0;
 
-    gfx::TextureHandle GetNextTextureHandle();
-    SDL_Texture *InternalCreateTexture(TextureParams &params, bool recreated);
-
-    SDL_Renderer *m_renderer = nullptr;
-
-    void RecreateResources();
-    void DestroyResources();
+    gfx::GUITextureHandle GetNextTextureHandle();
+    Texture2DInstance *GetTexture(gfx::GUITextureHandle handle);
+    const Texture2DInstance *GetTexture(gfx::GUITextureHandle handle) const;
+    util::VoidResult<> RecreateTextures();
 };
 
 } // namespace app::services

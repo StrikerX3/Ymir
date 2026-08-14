@@ -1,139 +1,281 @@
 #include "graphics_service.hpp"
 
-#include <ymir/util/scope_guard.hpp>
+#include "gfx/gfx_context_impls.hpp"
+#include "gfx/gfx_context_specs.hpp"
+
+#include <SDL3/SDL_video.h>
+
+#include <imgui.h>
 
 #include <cassert>
-#include <limits>
+#include <functional>
+#include <memory>
+#include <utility>
 
 using namespace app::gfx;
 
 namespace app::services {
 
-GraphicsService::~GraphicsService() {
-    DestroyResources();
+GraphicsService::GraphicsService(Settings &settings)
+    : m_settings(settings)
+    , m_gfxContext(std::make_unique<NullGraphicsContext>()) {}
+
+GraphicsService::~GraphicsService() {}
+
+util::VoidResult<> GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
+    m_gfxContext->Shutdown();
+    auto result = CreateGraphicsContext(backend, window);
+    util::VoidResult<> output;
+    if (result) {
+        m_gfxContext = result.Value();
+        output = {};
+    } else {
+        m_gfxContext->Initialize();
+        output = result.Error();
+    }
+    assert(m_gfxContext->IsInitialized());
+    m_gfxContext->SetPresentMode(presentMode);
+    RecreateTextures();
+    if (m_imguiInitialized) {
+        m_gfxContext->ImGuiInit();
+    }
+    return output;
 }
 
-SDL_Renderer *GraphicsService::CreateRenderer(Backend backend, SDL_Window *window, int vsync) {
-    SDL_PropertiesID rendererProps = SDL_CreateProperties();
-    if (rendererProps == 0) {
-        return nullptr;
+template <typename T>
+static util::ObjectResult<IGraphicsContext> ConvertResult(util::ObjectResult<T> &&result) {
+    if (!result) {
+        return result.Error();
     }
-    util::ScopeGuard sgDestroyRendererProps{[&] { SDL_DestroyProperties(rendererProps); }};
-
-    // Assume the following calls succeed
-    SDL_SetPointerProperty(rendererProps, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, window);
-    SDL_SetStringProperty(rendererProps, SDL_PROP_RENDERER_CREATE_NAME_STRING, GraphicsBackendRendererID(backend));
-    SDL_SetNumberProperty(rendererProps, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, vsync);
-
-    if (m_renderer != nullptr) {
-        DestroyResources();
-    }
-    m_renderer = SDL_CreateRendererWithProperties(rendererProps);
-    if (m_renderer != nullptr) {
-        RecreateResources();
-    }
-    return m_renderer;
+    return std::unique_ptr<IGraphicsContext>{result.Value()};
 }
 
-TextureHandle GraphicsService::CreateTexture(SDL_PixelFormat format, SDL_TextureAccess access, int w, int h,
-                                             FnTextureSetup fnSetup) {
-    TextureParams params{
-        .format = format,
-        .access = access,
-        .width = w,
-        .height = h,
-        .fnSetup = std::move(fnSetup),
-    };
-    SDL_Texture *texture = InternalCreateTexture(params, false);
-    if (texture == nullptr) {
-        return kInvalidTextureHandle;
+// TODO: make this externally configurable?
+#if YMIR_PLATFORM_HAS_DIRECT3D
+    #ifdef NDEBUG
+        #define YMIR_D3D_ENABLE_DEBUG true
+    #else
+        #define YMIR_D3D_ENABLE_DEBUG false
+    #endif
+#endif
+
+util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
+    switch (backend) {
+    case Backend::Null:
+        // Use DestroyGraphicsContext instead
+        return util::ErrorMessage{"Cannot initialize the null backend"};
+#if YMIR_PLATFORM_HAS_DIRECT3D
+    case Backend::Direct3D11: return ConvertResult(Direct3D11GraphicsContext::Create({/*TODO*/}));
+    case Backend::Direct3D12:
+        return ConvertResult(Direct3D12GraphicsContext::Create({
+            .featureLevel = D3D_FEATURE_LEVEL_11_0,
+            .window = window,
+            .adapter = nullptr,
+            .debug =
+                {
+                    .enabled = YMIR_D3D_ENABLE_DEBUG,
+                    .breakOnWarnings = YMIR_D3D_ENABLE_DEBUG,
+                },
+        }));
+#endif
+#if YMIR_PLATFORM_HAS_VULKAN
+    case Backend::Vulkan: return ConvertResult(VulkanGraphicsContext::Create({/*TODO*/}));
+#endif
+#if YMIR_PLATFORM_HAS_METAL
+    case Backend::Metal: return ConvertResult(MetalGraphicsContext::Create({/*TODO*/}));
+#endif
+    case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = window}));
+    }
+    return util::ErrorMessage{"Invalid backend"};
+}
+
+void GraphicsService::DestroyGraphicsContext() {
+    m_gfxContext = std::make_unique<NullGraphicsContext>();
+}
+
+void GraphicsService::RevertGraphicsBackend() {
+    if (m_settings.video.graphicsBackend != kDefaultBackend) {
+        m_settings.video.graphicsBackend = kDefaultBackend;
+        m_settings.Save();
+    } else if (m_settings.video.graphicsBackend != Backend::SDLRenderer) {
+        m_settings.video.graphicsBackend = Backend::SDLRenderer;
+        m_settings.Save();
+    }
+}
+
+util::VoidResult<> GraphicsService::ResizeFramebuffer(uint32 width, uint32 height) {
+    return m_gfxContext->ResizeFramebuffer(width, height);
+}
+
+void GraphicsService::ClearScreen(ColorRGBA color) {
+    m_gfxContext->ClearScreen(color);
+}
+
+bool GraphicsService::ImGuiInit() {
+    m_imguiInitialized = true;
+    return m_gfxContext->ImGuiInit();
+}
+
+void GraphicsService::ImGuiShutdown() {
+    m_gfxContext->ImGuiShutdown();
+    m_imguiInitialized = false;
+}
+
+void GraphicsService::ImGuiNewFrame() {
+    if (m_imguiInitialized) {
+        m_gfxContext->ImGuiNewFrame();
+    }
+}
+
+void GraphicsService::ImGuiRenderFrame() {
+    if (m_imguiInitialized) {
+        m_gfxContext->ImGuiRenderFrame();
+    }
+}
+
+util::ValueResult<GUITextureHandle> GraphicsService::CreateTexture(const Texture2DSpec &spec,
+                                                                   FnTextureSetup &&fnSetup) {
+    auto createResult = m_gfxContext->CreateTexture(spec);
+    if (!createResult) {
+        return util::ErrorMessage{fmt::format("Failed to create texture: {}", createResult.Error().message)};
     }
 
-    const TextureHandle handle = GetNextTextureHandle();
-    if (handle == kInvalidTextureHandle) {
-        return kInvalidTextureHandle;
+    const GUITextureHandle handle = GetNextTextureHandle();
+    Texture2DInstance &texture = m_textures[handle];
+    texture.id = createResult.Value();
+    texture.spec = spec;
+    texture.fnSetup = std::move(fnSetup);
+    auto updateResult = m_gfxContext->UpdateTexture(
+        texture.id, nullptr, [&](void *data, size_t pitch) { texture.fnSetup(handle, false, data, pitch); });
+    if (!updateResult) {
+        return util::ErrorMessage{fmt::format("Failed to upload texture: {}", updateResult.Error().message)};
     }
-
-    m_textures[handle] = params;
     return handle;
 }
 
-bool GraphicsService::IsTextureHandleValid(gfx::TextureHandle handle) const {
-    return m_textures.contains(handle);
+bool GraphicsService::IsTextureHandleValid(GUITextureHandle handle) const {
+    const Texture2DInstance *texture = GetTexture(handle);
+    return texture != nullptr && m_gfxContext->IsTextureValid(texture->id);
 }
 
-bool GraphicsService::ResizeTexture(gfx::TextureHandle handle, int w, int h) {
-    if (!m_textures.contains(handle)) {
+util::VoidResult<> GraphicsService::ResizeTexture(GUITextureHandle handle, uint32 width, uint32 height) {
+    Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return util::ErrorMessage{"Invalid texture handle"};
+    }
+    auto result = m_gfxContext->ResizeTexture(texture->id, width, height);
+    if (result) {
+        texture->spec.width = width;
+        texture->spec.height = height;
+    }
+    return result;
+}
+
+util::VoidResult<> GraphicsService::UpdateTexture(GUITextureHandle handle, const IRect *rect,
+                                                  const std::function<void(void *data, size_t pitch)> &fnUpdate) {
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return util::ErrorMessage{"Invalid texture handle"};
+    }
+    return m_gfxContext->UpdateTexture(texture->id, rect, fnUpdate);
+}
+
+util::VoidResult<> GraphicsService::RenderToTexture(GUITextureHandle src, GUITextureHandle dst, const FRect &srcRect,
+                                                    const FRect &dstRect) {
+    const Texture2DInstance *srcTexture = GetTexture(src);
+    if (srcTexture == nullptr) {
+        return util::ErrorMessage{"Invalid source texture handle"};
+    }
+    const Texture2DInstance *dstTexture = GetTexture(dst);
+    if (dstTexture == nullptr) {
+        return util::ErrorMessage{"Invalid destination texture handle"};
+    }
+    return m_gfxContext->RenderToTexture(srcTexture->id, dstTexture->id, srcRect, dstRect);
+}
+
+util::VoidResult<> GraphicsService::DrawTextureRotated(GUITextureHandle handle, const FRect &srcRect,
+                                                       const FRect &dstRect, double rotAngle,
+                                                       const FPoint2D *anchorPoint) {
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return util::ErrorMessage{"Invalid source texture handle"};
+    }
+    return m_gfxContext->DrawTextureRotated(texture->id, srcRect, dstRect, rotAngle, anchorPoint);
+}
+
+ImTextureID GraphicsService::GetImGuiTextureID(GUITextureHandle handle) const {
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
+        return 0;
+    }
+    return m_gfxContext->GetImGuiTextureID(texture->id);
+}
+
+bool GraphicsService::DestroyTexture(GUITextureHandle handle) {
+    const Texture2DInstance *texture = GetTexture(handle);
+    if (texture == nullptr) {
         return false;
     }
-
-    auto &tex = m_textures.at(handle);
-
-    // Try creating the new texture first
-    SDL_Texture *newTexture = SDL_CreateTexture(m_renderer, tex.format, tex.access, w, h);
-    if (newTexture == nullptr) {
-        return false;
-    }
-
-    // Delete old texture and update parameters
-    SDL_DestroyTexture(tex.texture);
-    tex.texture = newTexture;
-    tex.width = w;
-    tex.height = h;
+    m_gfxContext->DestroyTexture(texture->id);
+    m_textures.erase(handle);
+    m_freeTexHandles.push_back(handle);
     return true;
 }
 
-SDL_Texture *GraphicsService::GetSDLTexture(TextureHandle handle) const {
-    if (m_textures.contains(handle)) {
-        return m_textures.at(handle).texture;
+util::VoidResult<> GraphicsService::SetPresentMode(PresentMode mode) {
+    return m_gfxContext->SetPresentMode(mode);
+}
+
+util::VoidResult<> GraphicsService::Present() {
+    return m_gfxContext->Present();
+}
+
+GUITextureHandle GraphicsService::GetNextTextureHandle() {
+    if (!m_freeTexHandles.empty()) {
+        const GUITextureHandle handle = m_freeTexHandles.back();
+        m_freeTexHandles.pop_back();
+        return handle;
+    }
+
+    const GUITextureHandle handle = m_nextHandle++;
+
+    // This really should not happen unless we somehow managed to create over 4 billion textures.
+    assert(m_nextHandle != kInvalidGUITextureHandle);
+    assert(!m_textures.contains(handle));
+
+    return handle;
+}
+
+auto GraphicsService::GetTexture(GUITextureHandle handle) -> Texture2DInstance * {
+    if (handle == kInvalidGUITextureHandle) {
+        return nullptr;
+    }
+    if (auto it = m_textures.find(handle); it != m_textures.end()) {
+        return &it->second;
     }
     return nullptr;
 }
 
-bool GraphicsService::DestroyTexture(gfx::TextureHandle handle) {
-    if (auto it = m_textures.find(handle); it != m_textures.end()) {
-        SDL_DestroyTexture(it->second.texture);
-        m_textures.erase(it);
-        return true;
-    }
-    return false;
+auto GraphicsService::GetTexture(GUITextureHandle handle) const -> const Texture2DInstance * {
+    return const_cast<GraphicsService *>(this)->GetTexture(handle);
 }
 
-TextureHandle GraphicsService::GetNextTextureHandle() {
-    if (m_textures.size() == std::numeric_limits<uint32>::max() - 1) {
-        // Exhausted handles; should never happen
-        return kInvalidTextureHandle;
+util::VoidResult<> GraphicsService::RecreateTextures() {
+    for (auto &[handle, texture] : m_textures) {
+        auto createResult = m_gfxContext->CreateTexture(texture.spec);
+        if (!createResult) {
+            return util::ErrorMessage{fmt::format("Failed to create texture: {}", createResult.Error().message)};
+        }
+
+        texture.id = createResult.Value();
+        auto updateResult = m_gfxContext->UpdateTexture(
+            texture.id, nullptr, [&](void *data, size_t pitch) { texture.fnSetup(handle, true, data, pitch); });
+        if (!updateResult) {
+            return util::ErrorMessage{fmt::format("Failed to upload texture: {}", updateResult.Error().message)};
+        }
     }
 
-    TextureHandle handle = m_nextTextureHandle++;
-    while (handle == kInvalidTextureHandle || m_textures.contains(handle)) {
-        // Avoid handle collision or invalid handle
-        handle = m_nextTextureHandle++;
-    }
-    return handle;
-}
-
-SDL_Texture *GraphicsService::InternalCreateTexture(TextureParams &params, bool recreated) {
-    SDL_Texture *texture = SDL_CreateTexture(m_renderer, params.format, params.access, params.width, params.height);
-    if (texture != nullptr) {
-        params.fnSetup(texture, recreated);
-    }
-    params.texture = texture;
-    return texture;
-}
-
-void GraphicsService::RecreateResources() {
-    for (auto &[_, params] : m_textures) {
-        InternalCreateTexture(params, true);
-    }
-}
-
-void GraphicsService::DestroyResources() {
-    for (auto &[_, params] : m_textures) {
-        SDL_DestroyTexture(params.texture);
-        params.texture = nullptr;
-    }
-    SDL_DestroyRenderer(m_renderer);
+    return {};
 }
 
 } // namespace app::services

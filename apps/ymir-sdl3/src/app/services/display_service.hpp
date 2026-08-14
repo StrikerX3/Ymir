@@ -16,9 +16,8 @@ public:
     DisplayService(const DisplayService &) = delete;
     DisplayService &operator=(const DisplayService &) = delete;
 
-    /// @brief Rescales the UI based on system or custom DPI scale.
-    /// @param[in] displayScale New scale factor.
-    void RescaleUI(float displayScale);
+    /// @brief Rescales the UI from the system or a custom override.
+    void RescaleUI();
 
     /// @brief Reloads the ImGui colors and style properties.
     /// @param[in] displayScale UI scale factor to adjust spacing/padding.
