@@ -513,7 +513,7 @@ struct Direct3D12GraphicsContext::Impl {
             const UINT vertexBufferSize = sizeof(vertices);
             const D3D12_RESOURCE_DESC vertexBufferDesc{
                 .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
-                .Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+                .Alignment = 0,
                 .Width = vertexBufferSize,
                 .Height = 1,
                 .DepthOrArraySize = 1,

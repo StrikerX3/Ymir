@@ -31,15 +31,6 @@ struct Direct3D12GraphicsContextSpec {
 
     /// @brief (Optional) Target adapter. Defaults to the primary display adapter on the system if not specified.
     IUnknown *adapter = nullptr;
-
-    /// @brief Debug parameters.
-    struct Debug {
-        /// @brief Enables debug diagnostics.
-        bool enabled = false;
-
-        /// @brief Enters the debugger on all DirectX warnings.
-        bool breakOnWarnings = false;
-    } debug;
 };
 
 } // namespace app::gfx
