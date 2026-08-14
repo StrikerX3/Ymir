@@ -9,26 +9,14 @@
     #include <spirv-tools/libspirv.hpp>
 #endif
 
+#include <ymir/util/string.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <string>
 #include <string_view>
 
 namespace ymir::gpu {
-
-/// @brief Converts the given UTF-8-encoded string to a wide string.
-/// @param[in] str the string to convert
-/// @return the string converted to `std::wstring`
-static std::wstring StringToWString(std::string_view str) {
-    if (str.empty()) {
-        return L"";
-    }
-
-    const int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-    std::wstring wstr(size, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstr[0], size);
-    return wstr;
-}
 
 static const wchar_t *GetShaderProfile(ShaderStage stage) {
     // TODO: allow selecting version
@@ -82,10 +70,10 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
     if (spec.name.empty()) {
         sourceName = nullptr;
     } else {
-        sourceNameStr = StringToWString(spec.name);
+        sourceNameStr = util::StringToWString(spec.name);
         sourceName = sourceNameStr.c_str();
     }
-    std::wstring entrypoint = StringToWString(spec.entrypoint);
+    std::wstring entrypoint = util::StringToWString(spec.entrypoint);
 
     // Set up arguments list
     std::vector<LPCWSTR> args{};
@@ -113,8 +101,8 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
     std::vector<WideMacro> wideMacros{};
     for (auto &[name, value] : spec.macros) {
         auto &wideMacro = wideMacros.emplace_back();
-        wideMacro.name = StringToWString(name);
-        wideMacro.value = StringToWString(value);
+        wideMacro.name = util::StringToWString(name);
+        wideMacro.value = util::StringToWString(value);
     }
 
     // Build defines list

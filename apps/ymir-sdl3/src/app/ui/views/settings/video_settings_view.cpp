@@ -20,6 +20,7 @@ void VideoSettingsView::Display() {
     ImGui::PopFont();
 
     widgets::settings::video::GraphicsBackendCombo(m_context);
+    widgets::settings::video::GraphicsAdapterCombo(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 

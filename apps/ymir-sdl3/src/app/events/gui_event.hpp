@@ -6,6 +6,7 @@
 #include <app/ui/defs/settings_defs.hpp>
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -51,6 +52,11 @@ struct OpenSH2DebuggerWindowParams {
     bool triggeredByEvent;
 };
 
+struct GraphicsBackendParams {
+    gfx::Backend backend;
+    std::optional<gfx::AdapterID> adapter;
+};
+
 struct GUIEvent {
     enum class Type {
         LoadDisc,
@@ -71,7 +77,7 @@ struct GUIEvent {
         OpenSH2WatchpointsWindow, // Opens an SH-2 watchpoints window; uses bool (true=MSH2, false=SSH2)
 
         SetProcessPriority,    // Uses bool
-        SwitchGraphicsBackend, // Uses gfx::Backend
+        SwitchGraphicsBackend, // Uses GraphicsBackendParams
 
         FitWindowToScreen,
         ApplyFullscreenMode,
@@ -101,7 +107,8 @@ struct GUIEvent {
 
     Type type;
     std::variant<std::monostate, bool, uint32, std::string, std::filesystem::path, PeripheralBindsParams,
-                 FileDialogParams, FolderDialogParams, OpenSH2DebuggerWindowParams, ui::SettingsTab, gfx::Backend>
+                 FileDialogParams, FolderDialogParams, OpenSH2DebuggerWindowParams, ui::SettingsTab,
+                 GraphicsBackendParams>
         value;
 };
 

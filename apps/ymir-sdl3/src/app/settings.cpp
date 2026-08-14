@@ -217,6 +217,13 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, gfx::Backend &
     }
 }
 
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, std::optional<gfx::AdapterID> &value) {
+    value = std::nullopt;
+    if (auto opt = node.value<std::string>()) {
+        value = gfx::AdapterID::TryParse(*opt);
+    }
+}
+
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Video::DisplayRotation &value) {
     value = Settings::Video::DisplayRotation::Normal;
     if (auto opt = node.value<std::string>()) {
@@ -471,6 +478,13 @@ FORCE_INLINE static const char *ToTOML(const gfx::Backend value) {
 #endif
     case gfx::Backend::SDLRenderer: return "SDLRenderer";
     }
+}
+
+FORCE_INLINE static std::string ToTOML(const std::optional<gfx::AdapterID> &value) {
+    if (!value) {
+        return "";
+    }
+    return value->ToString();
 }
 
 FORCE_INLINE static const char *ToTOML(const Settings::Video::DisplayRotation value) {
@@ -1045,6 +1059,7 @@ void Settings::ResetToDefaults() {
     input.gamepad.analogToDigitalSensitivity = 0.20f;
 
     video.graphicsBackend = gfx::kDefaultBackend;
+    video.graphicsAdapter = std::nullopt;
     video.forceIntegerScaling = false;
     video.forceAspectRatio = true;
     video.forcedAspect = 4.0 / 3.0;
@@ -1539,6 +1554,7 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
 
     if (auto tblVideo = data["Video"]) {
         Parse(tblVideo, "GraphicsBackend", video.graphicsBackend);
+        Parse(tblVideo, "GraphicsAdapter", video.graphicsAdapter);
         Parse(tblVideo, "ForceIntegerScaling", video.forceIntegerScaling);
         Parse(tblVideo, "ForceAspectRatio", video.forceAspectRatio);
         Parse(tblVideo, "ForcedAspect", video.forcedAspect);
@@ -1969,6 +1985,7 @@ SettingsSaveResult Settings::Save() {
 
         {"Video", toml::table{{
             {"GraphicsBackend", ToTOML(video.graphicsBackend)},
+            {"GraphicsAdapter", ToTOML(video.graphicsAdapter)},
             {"ForceIntegerScaling", video.forceIntegerScaling},
             {"ForceAspectRatio", video.forceAspectRatio},
             {"ForcedAspect", video.forcedAspect},

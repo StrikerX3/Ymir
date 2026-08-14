@@ -4,6 +4,8 @@
 
 #include <app/settings.hpp>
 
+#include <app/services/gfx/gfx_adapters.hpp>
+
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 
@@ -103,7 +105,7 @@ namespace settings::video {
             auto item = [&](gfx::Backend backend) {
                 if (settings.MakeDirty(ImGui::Selectable(gfx::GraphicsBackendName(backend),
                                                          videoSettings.graphicsBackend == backend))) {
-                    ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend));
+                    ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend, videoSettings.graphicsAdapter));
                 }
             };
             for (gfx::Backend backend : gfx::kGraphicsBackends) {
@@ -113,6 +115,47 @@ namespace settings::video {
                 item(backend);
             }
             ImGui::EndCombo();
+        }
+    }
+
+    void GraphicsAdapterCombo(SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &videoSettings = settings.video;
+        const gfx::Backend backend = videoSettings.graphicsBackend;
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Graphics adapter:");
+        ImGui::SameLine();
+        if (backend == gfx::Backend::SDLRenderer) {
+            ImGui::TextUnformatted("(unavailable for SDL Renderer)");
+        } else {
+            std::vector<gfx::Adapter> adapters = gfx::GetGraphicsAdapters(backend);
+            std::string currAdapter;
+            if (adapters.empty()) {
+                currAdapter = "(No graphics adapters detected)";
+            } else {
+                currAdapter = adapters.front().ToString();
+            }
+            for (const gfx::Adapter &adapter : adapters) {
+                if (adapter.id == videoSettings.graphicsAdapter) {
+                    currAdapter = adapter.ToString();
+                }
+            }
+
+            if (ImGui::BeginCombo("##graphics_adapter", currAdapter.c_str(),
+                                  ImGuiComboFlags_HeightLarge | ImGuiComboFlags_WidthFitPreview)) {
+                for (const gfx::Adapter &adapter : adapters) {
+                    if (settings.MakeDirty(ImGui::Selectable(adapter.ToString().c_str(),
+                                                             adapter.id == videoSettings.graphicsAdapter))) {
+                        ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend, adapter.id));
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Refresh##graphics_adapters")) {
+                gfx::RefreshGraphicsAdapters(backend);
+            }
         }
     }
 

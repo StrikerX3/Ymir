@@ -2,6 +2,9 @@
 
 #include <ymir/core/types.hpp>
 
+#include <optional>
+#include <string>
+
 namespace app::gfx {
 
 /// @brief Graphics backend options.
@@ -67,6 +70,37 @@ inline constexpr const char *GraphicsBackendName(Backend backend) {
     case Backend::SDLRenderer: return "SDL Renderer";
     }
 }
+
+// -----------------------------------------------------------------------------
+
+/// @brief Stable unique identifier for a graphics adapter based on its PCIe address.
+struct AdapterID {
+    uint16 bus : 8;
+    uint16 device : 5;
+    uint16 function : 3;
+
+    constexpr bool operator==(const AdapterID &) const = default;
+
+    /// @brief Converts this identifier to a string in the format "<bus>:<device>.<function>", with each component
+    /// represented by a hexadecimal number. For example, "01:00.0".
+    /// @return a string representation of this graphics adapater identifier
+    std::string ToString() const;
+
+    /// @brief Attempts to parse the entire string as a graphics adapter identifier.
+    /// @param[in] str the string to parse
+    /// @return the parsed adapter ID or `std::nullopt` if the string does not contain a valid adapter ID
+    static std::optional<AdapterID> TryParse(std::string_view str);
+};
+
+/// @brief Graphics adapter information.
+struct Adapter {
+    AdapterID id;     ///< Stable unique identifier for this adapter
+    std::string name; ///< Human-readable adapter name
+
+    /// @brief Returns a human-readable name for this adapter in the format "[id] name".
+    /// @return a string representation of this graphics adapter
+    std::string ToString() const;
+};
 
 // -----------------------------------------------------------------------------
 

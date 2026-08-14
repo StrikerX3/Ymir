@@ -94,6 +94,11 @@
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 
+#ifdef _WIN32
+    #include <app/services/gfx/gfx_d3d_utils.hpp>
+#endif
+#include <app/services/gfx/gfx_adapters.hpp>
+
 #include <app/input/input_backend_sdl3.hpp>
 #include <app/input/input_utils.hpp>
 
@@ -202,6 +207,10 @@ int App::Run(const CommandLineOptions &options) {
     // Use UTF-8 locale by default on all C runtime functions
     // TODO: adjust this to the user's preferred locale (with ".UTF8" suffix) when i18n is implemented
     setlocale(LC_ALL, "en_us.UTF8");
+
+#ifdef _WIN32
+    gfx::EnumerateDXGIGraphicsAdapters();
+#endif
 
     m_options = options;
 
@@ -764,9 +773,15 @@ void App::RunEmulator() {
     gfx::PresentMode presentMode = gfx::PresentMode::VSync;
     {
         const gfx::Backend backend = settings.video.graphicsBackend;
+        const std::optional<gfx::AdapterID> adapter = settings.video.graphicsAdapter;
         std::vector<std::string> failures{};
 
-        auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+        services::GraphicsContextSpec spec{
+            .backend = backend,
+            .adapter = adapter,
+            .window = screen.window,
+        };
+        auto result = m_graphicsService.InitGraphicsContext(spec, presentMode);
         if (!result) {
             std::string &failureMsg = failures.emplace_back();
             failureMsg = fmt::format("Could not create {} graphics context: {}", gfx::GraphicsBackendName(backend),
@@ -778,7 +793,8 @@ void App::RunEmulator() {
                     return false;
                 }
 
-                auto result = m_graphicsService.InitGraphicsContext(fallbackBackend, screen.window, presentMode);
+                spec.backend = fallbackBackend;
+                auto result = m_graphicsService.InitGraphicsContext(spec, presentMode);
                 if (result) {
                     m_context.DisplayMessage(fmt::format("Reverted to {}", gfx::GraphicsBackendName(fallbackBackend)));
                     settings.video.graphicsBackend = fallbackBackend;
@@ -806,6 +822,12 @@ void App::RunEmulator() {
                 return;
             }
         }
+    }
+
+    {
+        const gfx::Backend backend = m_graphicsService.GetGraphicsContextBackend();
+        const char *backendName = gfx::GraphicsBackendName(backend);
+        devlog::info<grp::base>("{} graphics context initialized successfully", backendName);
     }
 
     settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
@@ -1748,17 +1770,24 @@ void App::RunEmulator() {
             case EvtType::SetProcessPriority: util::BoostCurrentProcessPriority(std::get<bool>(evt.value)); break;
             case EvtType::SwitchGraphicsBackend: //
             {
-                auto backend = std::get<gfx::Backend>(evt.value);
-                if (backend != m_graphicsService.GetGraphicsContextBackend()) {
-                    auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+                auto params = std::get<GraphicsBackendParams>(evt.value);
+                if (params.backend != m_graphicsService.GetGraphicsContextBackend() ||
+                    params.adapter != settings.video.graphicsAdapter) {
+                    const services::GraphicsContextSpec spec{
+                        .backend = params.backend,
+                        .adapter = params.adapter,
+                        .window = screen.window,
+                    };
+                    auto result = m_graphicsService.InitGraphicsContext(spec, presentMode);
                     if (result) {
-                        settings.video.graphicsBackend = backend;
+                        settings.video.graphicsBackend = params.backend;
+                        settings.video.graphicsAdapter = params.adapter;
                         settings.MakeDirty();
                         m_context.DisplayMessage(
-                            fmt::format("{} initialized successfully", gfx::GraphicsBackendName(backend)));
+                            fmt::format("{} initialized successfully", gfx::GraphicsBackendName(params.backend)));
                     } else {
                         m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
-                                                             gfx::GraphicsBackendName(backend),
+                                                             gfx::GraphicsBackendName(params.backend),
                                                              result.Error().message));
                     }
                 }

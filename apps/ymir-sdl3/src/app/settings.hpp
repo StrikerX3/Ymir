@@ -461,6 +461,7 @@ struct Settings {
         enum class DisplayRotation { Normal, _90CW, _180, _90CCW };
 
         gfx::Backend graphicsBackend;
+        std::optional<gfx::AdapterID> graphicsAdapter;
 
         bool forceIntegerScaling;
         bool forceAspectRatio;

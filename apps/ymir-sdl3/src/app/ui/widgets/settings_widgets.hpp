@@ -14,6 +14,8 @@ namespace settings::system {
 namespace settings::video {
 
     void GraphicsBackendCombo(SharedContext &ctx);
+    void GraphicsAdapterCombo(SharedContext &ctx);
+
     void DisplayRotation(SharedContext &ctx, bool newLine = false);
 
     namespace swrenderer {
