@@ -390,12 +390,12 @@ set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set(COMPUTE_SHADER_SOURCES
-    # res/shaders/vdp/cs_vdp1_polygon.hlsl
+    # res/shaders/vdp/vdp1_polygon_cs.hlsl
 )
 ## TODO: add per-platform shader code if needed
 # if (WIN32)
 #     list(APPEND COMPUTE_SHADER_SOURCES
-#         res/shaders/vdp/d3d12/cs_some_shader.hlsl
+#         res/shaders/vdp/d3d12/some_shader_cs.hlsl
 #     )
 # elseif (APPLE)
 # elseif (UNIX) # Linux and FreeBSD
