@@ -4,6 +4,9 @@ First and most important: make sure you're using the [latest version](https://gi
 
 Also check for [open issues](https://github.com/StrikerX3/Ymir/issues) on the GitHub repository. Use the search bar! Remove the `state:open` to also list closed issues -- those may include tips and hints that could help fix your problem.
 
+If you're on Windows, install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)).
+This is mandatory to make Ymir work.
+
 If those didn't help, follow the instructions below.
 
 
@@ -131,6 +134,31 @@ Here are a few things you can try to improve performance besides upgrading the C
 
 If Ymir still runs poorly after trying these, your CPU might be too slow for the emulator. It's known to run fine on CPUs that score around 1500 points on the [CPUBenchmark single thread test](<https://www.cpubenchmark.net/single-thread>), but I recommend CPUs that score 2000 points or higher.
 A quad core CPU or better will help with threaded VDP1/VDP2 rendering, threaded deinterlace and the rewind buffer.
+
+
+## Errors when selecting Direct3D 11/12, Vulkan or Metal
+
+Make sure your GPU meets the minimum requirements for Ymir:
+- Direct3D 11: TBD
+- Direct3D 12: Feature level 11.0 and Shader Model 6.0
+- Vulkan: TBD
+- Metal: TBD
+
+Update your GPU drivers:
+- Nvidia: [Find your GPU here](https://www.nvidia.com/Download/index.aspx?lang=en-us) or [use the Nvidia App to update drivers automatically](https://www.nvidia.com/en-us/software/nvidia-app/)
+- AMD: [Find your GPU or CPU here](https://www.amd.com/en/support) or use the download buttons at the top to update drivers automatically
+- Intel: [Find your GPU or CPU here](https://www.intel.com/content/www/us/en/download-center/home.html)
+
+> [!IMPORTANT]
+> Do not use Windows Device Manager or Windows Update to update your GPU drivers, as they tend to have poor performance and lack support for advanced GPU features.
+>
+> Always update your integrated GPU driver first, even if you're not using it. This also applies to desktop PCs with dedicated graphics cards.
+
+If that doesn't help, open a new issue and include your exact GPU model (and CPU model if it's an integrated GPU) and the graphics backend you're trying to use.
+On Windows, dxdiag information is very useful:
+- Run `dxdiag`
+- Click **Save All Information...** and save DxDiag.txt
+- Include DxDiag.txt in the issue
 
 
 ## General issues on Windows

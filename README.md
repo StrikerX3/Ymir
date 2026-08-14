@@ -54,7 +54,11 @@ Grab the latest release [here](https://github.com/StrikerX3/Ymir/releases/latest
 Check the [Releases](https://github.com/StrikerX3/Ymir/releases) page for previous versions.
 
 Ymir does not require installation. Simply download it to any directory and run the executable.
-On Windows you might also need to install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)).
+On Windows you also need to install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vs/17/release/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vs/17/release/vc_redist.arm64.exe)).
+It is recommended to install the latest GPU drivers in order to use Direct3D or Vulkan:
+- Nvidia: [Find your GPU here](https://www.nvidia.com/Download/index.aspx?lang=en-us) or [use the Nvidia App to update drivers automatically](https://www.nvidia.com/en-us/software/nvidia-app/)
+- AMD: [Find your GPU or CPU here](https://www.amd.com/en/support) or use the download buttons at the top to update drivers automatically
+- Intel: [Find your GPU or CPU here](https://www.intel.com/content/www/us/en/download-center/home.html)
 
 The program accepts command-line arguments. Invoke `ymir-sdl3 --help` to list the options:
 
