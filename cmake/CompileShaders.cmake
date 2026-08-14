@@ -23,8 +23,8 @@
 ##   DXC_DXIL_SUPPORTED (BOOL): whether the DXC executable can output DXIL
 ##   DXC_SPIRV_SUPPORTED (BOOL): whether the DXC executable can output SPIR-V
 ##   SHADERC_EXECUTABLE (STRING): path to shaderc executable
-##   SHADERS_SPIRV_SUPPORTED_BY (STRING): name of the shader that will be used
-##     to compile shaders to SPIR-V, either "DXC" or "shaderc". Blank string if
+##   SPIRV_COMPILER_NAME (STRING): name of the program that will be used to
+##     compile shaders to SPIR-V, either "DXC" or "shaderc". Blank string if
 ##     SPIR-V shader compilation is not supported.
 
 # Try to locate DXC in Vulkan SDK
@@ -74,15 +74,15 @@ if (APPLE)
 endif ()
 
 # Check SPIR-V support
-set(SHADERS_SPIRV_SUPPORTED_BY "")
+set(SPIRV_COMPILER_NAME "")
 if (DXC_SPIRV_SUPPORTED)
-    set(SHADERS_SPIRV_SUPPORTED_BY "DXC")
+    set(SPIRV_COMPILER_NAME "DXC")
 elseif (SHADERC_EXECUTABLE)
-    set(SHADERS_SPIRV_SUPPORTED_BY "shaderc")
+    set(SPIRV_COMPILER_NAME "shaderc")
 endif ()
 
 # SPIR-V is required on systems other than Windows if Vulkan is supported. Bail out if that's not the case.
-if (NOT WIN32 AND Vulkan_FOUND AND NOT SHADERS_SPIRV_SUPPORTED_BY)
+if (NOT WIN32 AND Vulkan_FOUND AND NOT SPIRV_COMPILER_NAME)
     message(FATAL_ERROR "Could NOT find a shader compiler supporting SPIR-V. Cannot compile shaders.")
 endif ()
 
@@ -99,8 +99,8 @@ endif ()
 if (SHADERC_EXECUTABLE)
     message(STATUS "shaderc found: ${SHADERC_EXECUTABLE}")
 endif ()
-if (SHADERS_SPIRV_SUPPORTED_BY)
-    message(STATUS "${SHADERS_SPIRV_SUPPORTED_BY} will be used to compile shaders to SPIR-V")
+if (SPIRV_COMPILER_NAME)
+    message(STATUS "${SPIRV_COMPILER_NAME} will be used to compile shaders to SPIR-V")
 endif ()
 if (NOT DXC_EXECUTABLE AND NOT SHADERC_EXECUTABLE)
     message(STATUS "DXC and shaderc not found. No shaders will be compiled.")
@@ -440,7 +440,7 @@ function(_shader_make_compile_spirv_command)
 
     list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
-    if (${SHADERS_SPIRV_SUPPORTED_BY} STREQUAL "DXC")
+    if (${SPIRV_COMPILER_NAME} STREQUAL "DXC")
         set(_compile_flags "")
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             list(APPEND _compile_flags "-fspv-debug=vulkan-with-source")
@@ -460,7 +460,7 @@ function(_shader_make_compile_spirv_command)
                 "${ARG_SOURCE}"
             PARENT_SCOPE
         )
-    elseif (${SHADERS_SPIRV_SUPPORTED_BY} STREQUAL "shaderc")
+    elseif (${SPIRV_COMPILER_NAME} STREQUAL "shaderc")
         set(_compile_flags "")
         if (CMAKE_BUILD_TYPE STREQUAL "Debug")
             list(APPEND _compile_flags "-O0" "-g")
