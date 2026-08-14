@@ -32,4 +32,4 @@ jobs:
     with:
       dev-build: true
       debug-symbols: true
-      build-version: ${{ needs.commit-sha.outputs.build-version }}
+      build-version: ${{ needs.commit-sha.outputs.build-version }}-pr-${{ github.event.pull_request.number || github.event.issue.number || 'manual' }}
