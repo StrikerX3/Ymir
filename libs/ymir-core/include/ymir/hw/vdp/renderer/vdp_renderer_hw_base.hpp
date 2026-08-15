@@ -10,7 +10,7 @@ namespace ymir::vdp {
 /// Defines some hardware rendere specific features and functions.
 class HardwareVDPRendererBase : public IVDPRenderer {
 public:
-    HardwareVDPRendererBase(VDPRendererType type, core::Configuration::VDPRenderer::Hardware &hwRenderConfig)
+    HardwareVDPRendererBase(VDPRendererType type, core::Configuration::HardwareRenderer &hwRenderConfig)
         : IVDPRenderer(type)
         , HwRenderConfig(hwRenderConfig) {}
 
@@ -27,7 +27,7 @@ public:
     // Configuration
 
     /// @brief Hardware VDP renderer configuration.
-    core::Configuration::VDPRenderer::Hardware &HwRenderConfig;
+    core::Configuration::HardwareRenderer &HwRenderConfig;
 
     // -------------------------------------------------------------------------
     // Type casting and information

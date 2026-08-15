@@ -1123,9 +1123,12 @@ void Settings::BindConfiguration(ymir::core::Configuration &config) {
     system.rtc.virtHardResetStrategy.Observe([&](auto value) { config.rtc.virtHardResetStrategy = value; });
     system.rtc.virtHardResetTimestamp.Observe([&](auto value) { config.rtc.virtHardResetTimestamp = value; });
 
-    video.swRenderer.threadedVDP1.Observe([&](auto value) { config.video.threadedVDP1 = value; });
-    video.swRenderer.threadedVDP2.Observe([&](auto value) { config.video.threadedVDP2 = value; });
-    video.swRenderer.threadedDeinterlacer.Observe([&](auto value) { config.video.threadedDeinterlacer = value; });
+    video.swRenderer.threadedVDP1.Observe([&](auto value) { config.swRenderer.threadedVDP1 = value; });
+    video.swRenderer.threadedVDP2.Observe([&](auto value) { config.swRenderer.threadedVDP2 = value; });
+    video.swRenderer.threadedDeinterlacer.Observe([&](auto value) { config.swRenderer.threadedDeinterlacer = value; });
+
+    video.hwRenderer.vdp1SyncInterval.Observe(config.hwRenderer.vdp1SyncInterval);
+    video.hwRenderer.vdp2SyncInterval.Observe(config.hwRenderer.vdp2SyncInterval);
 
     audio.interpolation.Observe([&](auto value) { config.audio.interpolation = value; });
     audio.threadedSCSP.Observe([&](auto value) { config.audio.threadedSCSP = value; });

@@ -10,9 +10,9 @@ void Configuration::NotifyObservers() {
 
     rtc.mode.Notify();
 
-    video.threadedVDP1.Notify();
-    video.threadedVDP2.Notify();
-    video.threadedDeinterlacer.Notify();
+    swRenderer.threadedVDP1.Notify();
+    swRenderer.threadedVDP2.Notify();
+    swRenderer.threadedDeinterlacer.Notify();
 
     audio.interpolation.Notify();
     audio.threadedSCSP.Notify();

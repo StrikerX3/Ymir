@@ -92,8 +92,8 @@ struct Configuration {
             util::datetime::DateTime{.year = 1994, .month = 1, .day = 1, .hour = 0, .minute = 0, .second = 0});
     } rtc;
 
-    /// @brief VDP1, VDP2 and video rendering configuration.
-    struct Video {
+    /// @brief Software VDP1 and VDP2 rendering configuration.
+    struct SoftwareRenderer {
         /// @brief Runs the VDP1 renderer in a dedicated thread.
         util::Observable<bool> threadedVDP1 = true;
 
@@ -102,27 +102,26 @@ struct Configuration {
 
         /// @brief Runs the VDP2 deinterlacer in a dedicated thread, if the VDP2 renderer is running in a thread.
         util::Observable<bool> threadedDeinterlacer = true;
-    } video;
+    } swRenderer;
 
-    struct VDPRenderer {
-        struct Hardware {
-            /// @brief VDP1 VRAM write synchronization intervals.
-            enum class VDP1VRAMSyncInterval {
-                Command, //< Synchronizes VRAM writes before running each VDP1 command
-                Draw,    //< Synchronizes VRAM writes at the start of a VDP1 draw sequence
-                Swap,    //< Synchronizes VRAM writes on VDP1 framebuffer swap
-            };
+    /// @brief Hardware VDP1 and VDP2 rendering configuration.
+    struct HardwareRenderer {
+        /// @brief VDP1 VRAM write synchronization intervals.
+        enum class VDP1VRAMSyncInterval {
+            Command, //< Synchronizes VRAM writes before running each VDP1 command
+            Draw,    //< Synchronizes VRAM writes at the start of a VDP1 draw sequence
+            Swap,    //< Synchronizes VRAM writes on VDP1 framebuffer swap
+        };
 
-            /// @brief VDP2 VRAM write synchronization intervals.
-            enum class VDP2VRAMSyncInterval {
-                Scanline, //< Synchronizes VRAM writes after processing each VDP2 scanline
-                Frame,    //< Synchronizes VRAM writes at the end of a VDP2 frame
-            };
+        /// @brief VDP2 VRAM write synchronization intervals.
+        enum class VDP2VRAMSyncInterval {
+            Scanline, //< Synchronizes VRAM writes after processing each VDP2 scanline
+            Frame,    //< Synchronizes VRAM writes at the end of a VDP2 frame
+        };
 
-            VDP1VRAMSyncInterval vdp1SyncInterval = VDP1VRAMSyncInterval::Command;
-            VDP2VRAMSyncInterval vdp2SyncInterval = VDP2VRAMSyncInterval::Scanline;
-        } hw;
-    } vdpRenderer;
+        VDP1VRAMSyncInterval vdp1SyncInterval = VDP1VRAMSyncInterval::Command;
+        VDP2VRAMSyncInterval vdp2SyncInterval = VDP2VRAMSyncInterval::Scanline;
+    } hwRenderer;
 
     /// @brief SCSP and audio rendering configuration.
     struct Audio {

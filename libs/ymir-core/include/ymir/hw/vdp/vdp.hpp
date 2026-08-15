@@ -137,9 +137,9 @@ public:
         }
         SoftwareVDPRenderer *renderer = result.Value();
         if (renderer != nullptr) {
-            renderer->EnableThreadedVDP1(m_config.video.threadedVDP1);
-            renderer->EnableThreadedVDP2(m_config.video.threadedVDP2);
-            renderer->EnableThreadedDeinterlacer(m_config.video.threadedDeinterlacer);
+            renderer->EnableThreadedVDP1(m_config.swRenderer.threadedVDP1);
+            renderer->EnableThreadedVDP2(m_config.swRenderer.threadedVDP2);
+            renderer->EnableThreadedDeinterlacer(m_config.swRenderer.threadedDeinterlacer);
         }
         return renderer;
     }
@@ -150,7 +150,7 @@ public:
     /// @return a pointer to the renderer, or an error message if it failed to instantiate
     util::PointerResult<Direct3D12VDPRenderer> UseDirect3D12Renderer(ID3D12Device *device) {
         return UseRenderer<Direct3D12VDPRenderer>(m_state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig,
-                                                  m_config.vdpRenderer.hw, device);
+                                                  m_config.hwRenderer, device);
     }
 #endif
 
