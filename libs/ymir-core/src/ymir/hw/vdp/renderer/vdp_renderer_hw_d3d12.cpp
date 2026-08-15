@@ -12,8 +12,9 @@ struct Direct3D12VDPRenderer::Impl {
 
 Direct3D12VDPRenderer::Direct3D12VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
                                              const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
+                                             core::Configuration::VDPRenderer::Hardware &hwRenderConfig,
                                              ID3D12Device *device)
-    : HardwareVDPRendererBase(VDPRendererType::Direct3D12)
+    : HardwareVDPRendererBase(VDPRendererType::Direct3D12, hwRenderConfig)
     , m_impl(std::make_unique<Impl>()) {}
 
 Direct3D12VDPRenderer::~Direct3D12VDPRenderer() = default;
@@ -24,11 +25,13 @@ util::VoidResult<> Direct3D12VDPRenderer::Initialize() {
 
 util::ObjectResult<Direct3D12VDPRenderer>
 Direct3D12VDPRenderer::Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
-                              const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig, ID3D12Device *device) {
+                              const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
+                              core::Configuration::VDPRenderer::Hardware &hwRenderConfig, ID3D12Device *device) {
     if (device == nullptr) {
         return util::ErrorMessage{"No Direct3D 12 device instance provided"};
     }
-    auto renderer = new Direct3D12VDPRenderer(state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig, device);
+    auto renderer =
+        new Direct3D12VDPRenderer(state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig, hwRenderConfig, device);
     util::VoidResult<> result = renderer->Initialize();
     if (!result) {
         delete renderer;

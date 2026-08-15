@@ -28,7 +28,8 @@ namespace ymir::vdp {
 /// destroyed, the renderer must be destroyed first.
 class Direct3D12VDPRenderer : public HardwareVDPRendererBase {
     Direct3D12VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
-                          const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig, ID3D12Device *device);
+                          const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
+                          core::Configuration::VDPRenderer::Hardware &hwRenderConfig, ID3D12Device *device);
 
     util::VoidResult<> Initialize();
 
@@ -37,7 +38,8 @@ public:
 
     static util::ObjectResult<Direct3D12VDPRenderer>
     Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
-           const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig, ID3D12Device *device);
+           const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
+           core::Configuration::VDPRenderer::Hardware &hwRenderConfig, ID3D12Device *device);
 
     // -------------------------------------------------------------------------
     // Basics

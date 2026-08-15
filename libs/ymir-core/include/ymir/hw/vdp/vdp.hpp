@@ -149,7 +149,8 @@ public:
     /// @param[in] device a pointer to an `ID3D12Device` instance
     /// @return a pointer to the renderer, or an error message if it failed to instantiate
     util::PointerResult<Direct3D12VDPRenderer> UseDirect3D12Renderer(ID3D12Device *device) {
-        return UseRenderer<Direct3D12VDPRenderer>(m_state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig, device);
+        return UseRenderer<Direct3D12VDPRenderer>(m_state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig,
+                                                  m_config.vdpRenderer.hw, device);
     }
 #endif
 

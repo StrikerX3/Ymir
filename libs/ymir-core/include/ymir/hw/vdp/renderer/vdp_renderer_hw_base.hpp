@@ -2,7 +2,7 @@
 
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
-#include "vdp_renderer_hw_defs.hpp"
+#include <ymir/core/configuration.hpp>
 
 namespace ymir::vdp {
 
@@ -10,8 +10,9 @@ namespace ymir::vdp {
 /// Defines some hardware rendere specific features and functions.
 class HardwareVDPRendererBase : public IVDPRenderer {
 public:
-    HardwareVDPRendererBase(VDPRendererType type)
-        : IVDPRenderer(type) {}
+    HardwareVDPRendererBase(VDPRendererType type, core::Configuration::VDPRenderer::Hardware &hwRenderConfig)
+        : IVDPRenderer(type)
+        , HwRenderConfig(hwRenderConfig) {}
 
     virtual ~HardwareVDPRendererBase() = default;
 
@@ -25,11 +26,8 @@ public:
     // -------------------------------------------------------------------------
     // Configuration
 
-    /// @brief VDP1 VRAM synchronization interval.
-    VDP1VRAMSyncInterval VDP1VRAMSyncInterval = VDP1VRAMSyncInterval::Command;
-
-    /// @brief VDP2 VRAM synchronization interval.
-    VDP2VRAMSyncInterval VDP2VRAMSyncInterval = VDP2VRAMSyncInterval::Scanline;
+    /// @brief Hardware VDP renderer configuration.
+    core::Configuration::VDPRenderer::Hardware &HwRenderConfig;
 
     // -------------------------------------------------------------------------
     // Type casting and information

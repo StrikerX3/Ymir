@@ -94,8 +94,6 @@ struct Configuration {
 
     /// @brief VDP1, VDP2 and video rendering configuration.
     struct Video {
-        // TODO: renderer backend options
-
         /// @brief Runs the VDP1 renderer in a dedicated thread.
         util::Observable<bool> threadedVDP1 = true;
 
@@ -105,6 +103,26 @@ struct Configuration {
         /// @brief Runs the VDP2 deinterlacer in a dedicated thread, if the VDP2 renderer is running in a thread.
         util::Observable<bool> threadedDeinterlacer = true;
     } video;
+
+    struct VDPRenderer {
+        struct Hardware {
+            /// @brief VDP1 VRAM write synchronization intervals.
+            enum class VDP1VRAMSyncInterval {
+                Command, //< Synchronizes VRAM writes before running each VDP1 command
+                Draw,    //< Synchronizes VRAM writes at the start of a VDP1 draw sequence
+                Swap,    //< Synchronizes VRAM writes on VDP1 framebuffer swap
+            };
+
+            /// @brief VDP2 VRAM write synchronization intervals.
+            enum class VDP2VRAMSyncInterval {
+                Scanline, //< Synchronizes VRAM writes after processing each VDP2 scanline
+                Frame,    //< Synchronizes VRAM writes at the end of a VDP2 frame
+            };
+
+            VDP1VRAMSyncInterval vdp1SyncInterval = VDP1VRAMSyncInterval::Command;
+            VDP2VRAMSyncInterval vdp2SyncInterval = VDP2VRAMSyncInterval::Scanline;
+        } hw;
+    } vdpRenderer;
 
     /// @brief SCSP and audio rendering configuration.
     struct Audio {
