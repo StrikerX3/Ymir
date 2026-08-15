@@ -25,6 +25,7 @@
 #include "renderer/vdp_renderer.hpp"
 
 #include <ymir/util/inline.hpp>
+#include <ymir/util/result.hpp>
 
 #include <blockingconcurrentqueue.h>
 
@@ -122,15 +123,19 @@ public:
     }
 
     /// @brief Switches to the null renderer.
-    /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
-    NullVDPRenderer *UseNullRenderer() {
+    /// @return a pointer to the renderer, or an error message if it failed to instantiate
+    util::PointerResult<NullVDPRenderer> UseNullRenderer() {
         return UseRenderer<NullVDPRenderer>();
     }
 
     /// @brief Switches to the software renderer.
-    /// @return a pointer to the renderer, or `nullptr` if it failed to instantiate
-    SoftwareVDPRenderer *UseSoftwareRenderer() {
-        auto *renderer = UseRenderer<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig);
+    /// @return a pointer to the renderer, or an error message if it failed to instantiate
+    util::PointerResult<SoftwareVDPRenderer> UseSoftwareRenderer() {
+        auto result = UseRenderer<SoftwareVDPRenderer>(m_state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig);
+        if (!result) {
+            return result.Error();
+        }
+        SoftwareVDPRenderer *renderer = result.Value();
         if (renderer != nullptr) {
             renderer->EnableThreadedVDP1(m_config.video.threadedVDP1);
             renderer->EnableThreadedVDP2(m_config.video.threadedVDP2);
@@ -138,6 +143,15 @@ public:
         }
         return renderer;
     }
+
+#if YMIR_PLATFORM_HAS_DIRECT3D
+    /// @brief Switches to the Direct3D 12 renderer.
+    /// @param[in] device a pointer to an `ID3D12Device` instance
+    /// @return a pointer to the renderer, or an error message if it failed to instantiate
+    util::PointerResult<Direct3D12VDPRenderer> UseDirect3D12Renderer(ID3D12Device *device) {
+        return UseRenderer<Direct3D12VDPRenderer>(m_state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig, device);
+    }
+#endif
 
     /// @brief Retrieves the enhancements configured for this VDP instance.
     /// @return the current enhancements configuration
@@ -257,21 +271,21 @@ private:
     /// @tparam T the renderer types
     /// @tparam ...Args argument types for the constructor
     /// @param[in] ...args arguments for the constructor
-    /// @return a pointer to the newly created renderer, or `nullptr` it if failed to instantiate
+    /// @return a pointer to the newly created renderer, or an error message it if failed to instantiate
     template <typename T, typename... Args>
         requires std::derived_from<T, IVDPRenderer>
-    T *UseRenderer(Args &&...args) {
-        T *renderer = new T(std::forward<Args>(args)...);
-        if (renderer == nullptr) {
-            return nullptr;
+    util::PointerResult<T> UseRenderer(Args &&...args) {
+        util::ObjectResult<T> result = T::Create(std::forward<Args>(args)...);
+        if (!result) {
+            return result.Error();
         }
-        if (!renderer->IsValid()) {
-            delete renderer;
-            return nullptr;
+        std::unique_ptr<T> renderer = result.Value();
+        if (!renderer) {
+            return util::ErrorMessage{"Not enough memory to instantiate renderer"};
         }
 
         const config::RendererCallbacks callbacks = m_renderer->Callbacks;
-        if (auto *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
+        if (SoftwareVDPRenderer *swRenderer = m_renderer->As<VDPRendererType::Software>()) {
             m_swRendererCallbacks = swRenderer->SwCallbacks;
         }
 
@@ -283,11 +297,13 @@ private:
         renderer->VDP2SetResolution(m_HRes, m_VRes, m_exclusiveMonitor);
         renderer->VDP2SetField(m_state.regs2.TVSTAT.ODD);
 
-        m_renderer.reset(renderer);
+        T *pRenderer = renderer.get();
+
+        m_renderer = std::move(renderer);
 
         devlog::info<grp::config>("Switched to {} VDP renderer", renderer->GetName());
 
-        return renderer;
+        return pRenderer;
     }
 
     CBHBlankStateChange m_cbHBlankStateChange;

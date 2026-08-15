@@ -85,6 +85,12 @@ SoftwareVDPRenderer::~SoftwareVDPRenderer() {
     }
 }
 
+util::ObjectResult<SoftwareVDPRenderer>
+SoftwareVDPRenderer::Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+                            const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig) {
+    return std::make_unique<SoftwareVDPRenderer>(state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig);
+}
+
 // -----------------------------------------------------------------------------
 // Basics
 

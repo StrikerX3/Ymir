@@ -19,6 +19,7 @@
 
 #include <ymir/util/event.hpp>
 #include <ymir/util/inline.hpp>
+#include <ymir/util/result.hpp>
 
 #include <ymir/core/types.hpp>
 
@@ -26,6 +27,7 @@
 
 #include <array>
 #include <atomic>
+#include <memory>
 #include <span>
 #include <thread>
 #include <type_traits>
@@ -51,6 +53,10 @@ public:
     SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
                         const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig);
     ~SoftwareVDPRenderer();
+
+    static util::ObjectResult<SoftwareVDPRenderer>
+    Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+           const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig);
 
     // -------------------------------------------------------------------------
     // Basics
