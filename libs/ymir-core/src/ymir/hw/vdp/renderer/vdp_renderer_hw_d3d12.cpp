@@ -1,21 +1,101 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_hw_d3d12.hpp>
 
+#include <ymir/gpu/d3d12/d3d12_descriptor_heap.hpp>
+#include <ymir/gpu/d3d12/d3d12_descriptor_heap_allocator.hpp>
+#include <ymir/gpu/d3d12/d3d12_device.hpp>
+#include <ymir/gpu/d3d12/d3d12_resource.hpp>
+
 #include <d3d12.h>
 
-#include <wil/com.h>
+#include <fmt/format.h>
 
 #include <cmrc/cmrc.hpp>
 CMRC_DECLARE(ymir_core_shaders);
 
+using namespace ymir::gpu::d3d12;
+
 namespace ymir::vdp {
 
 struct Direct3D12VDPRenderer::Impl {
-    util::VoidResult<> Initialize(ID3D12Device *device) {
-        this->device = device;
+    util::VoidResult<> Initialize(ID3D12Device *pDevice) {
+        device.Assign(pDevice);
+
+        {
+            const D3D12_DESCRIPTOR_HEAP_DESC desc{
+                .Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                .NumDescriptors = 64,
+                .Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+            };
+            if (HRESULT hr = resourceHeap.Create(device, desc); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create VDP renderer resource heap, error code {:X}", (uint32)hr)};
+            }
+            resourceHeap->SetName(L"[Ymir-VDP] Resource heap");
+            resourceHeapAlloc.Bind(resourceHeap);
+        }
+
+        // VDP2 VRAM buffer
+        {
+            auto builder = vdp2.vram.BufferBuilder(vdp::kVDP2VRAMSize);
+            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create VDP2 VRAM buffer, error code {:X}", (uint32)hr)};
+            }
+            vdp2.vram->SetName(L"[Ymir-VDP2] VRAM buffer");
+
+            // TODO: allocate SRV
+        }
+
+        // VDP2 CRAM buffer
+        {
+            auto builder = vdp2.cram.BufferBuilder(vdp::kVDP2CRAMSize);
+            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create VDP2 CRAM buffer, error code {:X}", (uint32)hr)};
+            }
+            vdp2.cram->SetName(L"[Ymir-VDP2] CRAM buffer");
+
+            // TODO: allocate SRV
+        }
+
         return util::ErrorMessage{"Unimplemented"};
     }
 
-    wil::com_ptr_nothrow<ID3D12Device> device;
+    D3D12Device device;
+
+    D3D12DescriptorHeap resourceHeap;
+    DescriptorHeapAllocator resourceHeapAlloc;
+
+    // =================================================================================================================
+    // VDP1 rendering
+    //
+    // TODO
+
+    struct VDP1 {
+
+    } vdp1;
+
+    // =================================================================================================================
+    // VDP2 rendering
+    //
+    // The VDP2 rendering pipeline is invoked at least once per frame. When VRAM, CRAM and/or register writes happen,
+    // the renderer processes scanlines up to the previous VCNT and commits all changes before proceeding.
+    //
+    // Since the VDP2 rendering process has no visible effect on the rest of the Saturn's components, there is no need
+    // for additional synchronization constraints on memory and register reads or writes. The VDP2 state is handled by
+    // the VDP controller, and the renderer maintains a local independent copy of the VRAM, CRAM and VDP2 registers for
+    // fully asynchronous rendering.
+    //
+    // The 32-bit constant buffer holds renderer parameters shared across all VDP2 compute shaders, including relevant
+    // VDP2 registers, active enhancements and the starting line for continuation of work interrupted by state changes.
+
+    struct VDP2 {
+        /// @brief Raw VRAM data
+        D3D12Resource vram;
+
+        /// @brief Raw CRAM data
+        D3D12Resource cram;
+    } vdp2;
 };
 
 // ---------------------------------------------------------------------------------------------------------------------

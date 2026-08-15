@@ -22,6 +22,12 @@ public:
 
     virtual ~D3D12ObjectWrapper() = default;
 
+    /// @brief Assigns the given instance to this wrapper, incrementing the reference counter
+    /// @param[in] instance pointer to an instance of the object to assign
+    void Assign(T *instance) {
+        m_object = instance;
+    }
+
     /// @brief Attaches this wrapper to an existing object without incrementing the reference counter.
     /// @param[in] instance pointer to an instance of the object to attach to
     void Attach(T *instance) {
