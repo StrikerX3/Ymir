@@ -592,6 +592,23 @@ FORCE_INLINE static const char *ToTOML(const SDL_PixelFormat value) {
     }
 }
 
+FORCE_INLINE static const char *ToTOML(const core::config::hw_vdp::VDP1VRAMSyncInterval value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case core::config::hw_vdp::VDP1VRAMSyncInterval::Command: return "Command";
+    case core::config::hw_vdp::VDP1VRAMSyncInterval::Draw: return "Draw";
+    case core::config::hw_vdp::VDP1VRAMSyncInterval::Swap: return "Swap";
+    }
+}
+
+FORCE_INLINE static const char *ToTOML(const core::config::hw_vdp::VDP2VRAMSyncInterval value) {
+    switch (value) {
+    default: [[fallthrough]];
+    case core::config::hw_vdp::VDP2VRAMSyncInterval::Scanline: return "Scanline";
+    case core::config::hw_vdp::VDP2VRAMSyncInterval::Frame: return "Frame";
+    }
+}
+
 FORCE_INLINE static const char *ToTOML(const Settings::Audio::MidiPort::Type value) {
     switch (value) {
     default: [[fallthrough]];
@@ -2052,8 +2069,8 @@ SettingsSaveResult Settings::Save() {
                 {"ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer.Get()},
             }}},
             {"HardwareRenderer", toml::table{{
-                {"VDP1SyncInterval", video.hwRenderer.vdp1SyncInterval.Get()},
-                {"VDP2SyncInterval", video.hwRenderer.vdp2SyncInterval.Get()},
+                {"VDP1SyncInterval", ToTOML(video.hwRenderer.vdp1SyncInterval.Get())},
+                {"VDP2SyncInterval", ToTOML(video.hwRenderer.vdp2SyncInterval.Get())},
             }}},
             {"UseHardwareAcceleration", video.useHardwareAcceleration.Get()},
             {"Enhancements", toml::table{{
