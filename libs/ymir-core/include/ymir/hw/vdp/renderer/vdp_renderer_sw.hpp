@@ -50,12 +50,12 @@ struct SoftwareRendererCallbacks {
 
 class SoftwareVDPRenderer : public IVDPRenderer {
 public:
-    SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+    SoftwareVDPRenderer(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
                         const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig);
     ~SoftwareVDPRenderer();
 
     static util::ObjectResult<SoftwareVDPRenderer>
-    Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+    Create(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
            const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig);
 
     // -------------------------------------------------------------------------
@@ -168,7 +168,7 @@ public:
 
 private:
     VDPState &m_state;
-    config::VDP2DebugRender &m_vdp2DebugRenderOptions;
+    const config::VDP2DebugRender &m_vdp2DebugRenderOptions;
     const config::VDP2AccessPatternsConfig &m_vdp2AccessPatternsConfig;
 
     uint32 m_HRes;
@@ -929,6 +929,7 @@ private:
         alignas(16) std::array<Color888, kMaxResH> meshTempColors;
         alignas(16) std::array<bool, kMaxResH> colorGradEnabled;
         alignas(16) std::array<Color888, kMaxResH> colorGradLayerColors;
+        alignas(16) std::array<std::array<bool, vdp::kMaxResH>, 2> customWindowState;
     };
 
     // Pre-allocated buffers for VDP2ComposeLine for primary and alternate fields.

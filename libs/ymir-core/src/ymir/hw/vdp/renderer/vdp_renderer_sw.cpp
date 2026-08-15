@@ -55,7 +55,7 @@ namespace grp {
 
 } // namespace grp
 
-SoftwareVDPRenderer::SoftwareVDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+SoftwareVDPRenderer::SoftwareVDPRenderer(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
                                          const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig)
     : IVDPRenderer(VDPRendererType::Software)
     , m_state(state)
@@ -86,7 +86,7 @@ SoftwareVDPRenderer::~SoftwareVDPRenderer() {
 }
 
 util::ObjectResult<SoftwareVDPRenderer>
-SoftwareVDPRenderer::Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+SoftwareVDPRenderer::Create(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
                             const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig) {
     return std::make_unique<SoftwareVDPRenderer>(state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig);
 }
@@ -4263,13 +4263,13 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
     }
 
     if (m_vdp2DebugRenderOptions.overlay.enable) {
-        auto &overlay = m_vdp2DebugRenderOptions.overlay;
+        const auto &overlay = m_vdp2DebugRenderOptions.overlay;
         using OverlayType = config::VDP2DebugRender::Overlay::Type;
 
         if (overlay.type != OverlayType::None) {
             if (overlay.type == OverlayType::Windows && overlay.windowLayerIndex > 5) {
                 const auto &windowSet = overlay.customWindowSet;
-                auto &windowState = overlay.customWindowState[altField];
+                auto &windowState = composeLineBuffers.customWindowState[altField];
                 auto windowParams = regs2.windowParams;
                 for (uint32 i = 0; i < 2; ++i) {
                     windowParams[i].lineWindowTableEnable = overlay.customLineWindowTableEnable[i];
@@ -4349,8 +4349,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
                             m_colorCalcWindow[altField][x] ? overlay.windowInsideColor : overlay.windowOutsideColor;
                         break;
                     default: // Custom window
-                        overlayColor = overlay.customWindowState[altField][x] ? overlay.windowInsideColor
-                                                                              : overlay.windowOutsideColor;
+                        overlayColor = composeLineBuffers.customWindowState[altField][x] ? overlay.windowInsideColor
+                                                                                         : overlay.windowOutsideColor;
                         break;
                     }
 
