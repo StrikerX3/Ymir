@@ -579,37 +579,24 @@ cmrc_add_resource_library(ymir-sdl3-rc
 
 cmrk_copy_runtime_dlls(ymir-sdl3)
 
-## Stage the DXC runtime DLLs next to the executable on Windows.
+## Stage dxil.dll next to the executable on Windows.
 ##
-## ymir-core links against dxcompiler (see libs/ymir-core/CMakeLists.txt), so dxcompiler.dll
-## is required at load time by the Direct3D 12 backend, and dxil.dll is its shader-signing
-## companion. Neither is an imported CMake target, so $<TARGET_RUNTIME_DLLS> above does not
-## cover them. Release artifacts get these from the CI workflow, but local builds would fail
-## to start with "dxcompiler.dll was not found", so copy them from wherever DXC was found.
-if (WIN32)
-    if (DXC_EXECUTABLE)
-        get_filename_component(_dxc_bin_dir "${DXC_EXECUTABLE}" DIRECTORY)
-        set(_dxc_runtime_dlls "")
-        foreach (_dxc_dll IN ITEMS "dxcompiler.dll" "dxil.dll")
-            if (EXISTS "${_dxc_bin_dir}/${_dxc_dll}")
-                list(APPEND _dxc_runtime_dlls "${_dxc_bin_dir}/${_dxc_dll}")
-            else ()
-                message(WARNING
-                    "Ymir: ${_dxc_dll} not found in ${_dxc_bin_dir}. ymir-sdl3 may fail to start. "
-                    "Copy it next to the executable manually, or install the DirectX Shader Compiler "
-                    "redistributable from https://github.com/microsoft/DirectXShaderCompiler/releases")
-            endif ()
-        endforeach ()
-        if (_dxc_runtime_dlls)
-            add_custom_command(TARGET ymir-sdl3 POST_BUILD
-                COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                    ${_dxc_runtime_dlls} "$<TARGET_FILE_DIR:ymir-sdl3>"
-                COMMENT "Copying DXC runtime DLLs next to ymir-sdl3"
-                VERBATIM)
-        endif ()
-    else ()
-        message(WARNING "Ymir: DXC not found, cannot stage dxcompiler.dll/dxil.dll next to ymir-sdl3.")
-    endif ()
+## dxcompiler.dll needs nothing here: ymir-core links the dxcompiler::dxcompiler imported
+## target, so cmrk_copy_runtime_dlls above resolves it through $<TARGET_RUNTIME_DLLS>.
+##
+## dxil.dll is an imported MODULE (see libs/ymir-core/CMakeLists.txt) because dxcompiler loads
+## it at runtime instead of linking it. Nothing links it, so it belongs to no link closure and
+## has to be staged explicitly -- but the location is modelled on the target, not repeated here.
+if (TARGET dxil::dxil)
+    add_custom_command(TARGET ymir-sdl3 POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:dxil::dxil>" "$<TARGET_FILE_DIR:ymir-sdl3>"
+        COMMENT "Copying dxil.dll next to ymir-sdl3"
+        VERBATIM)
+elseif (WIN32)
+    message(WARNING
+        "Ymir: dxil::dxil is not defined, so dxil.dll will not be staged next to ymir-sdl3. "
+        "Runtime shader signing will be unavailable.")
 endif ()
 
 ## Generate MacOS mig IPC implementation
