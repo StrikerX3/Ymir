@@ -127,7 +127,7 @@ namespace settings::video {
         ImGui::TextUnformatted("Graphics adapter:");
         ImGui::SameLine();
         if (backend == gfx::Backend::SDLRenderer) {
-            ImGui::TextUnformatted("(unavailable for SDL Renderer)");
+            ImGui::TextDisabled("(unavailable for SDL Renderer)");
         } else {
             std::vector<gfx::Adapter> adapters = gfx::GetGraphicsAdapters(backend);
             std::string currAdapter;
@@ -162,10 +162,18 @@ namespace settings::video {
     void UseHardwareAcceleration(SharedContext &ctx) {
         auto &settings = ctx.serviceLocator.GetRequired<Settings>();
         auto &videoSettings = settings.video;
+        const bool isSDLRenderer = videoSettings.graphicsBackend == gfx::Backend::SDLRenderer;
         bool hwAccel = videoSettings.useHardwareAcceleration;
+        if (isSDLRenderer) {
+            ImGui::BeginDisabled();
+        }
         if (settings.MakeDirty(ImGui::Checkbox("Use hardware-accelerated VDP1/VDP2 rendering", &hwAccel))) {
             videoSettings.useHardwareAcceleration = hwAccel;
             ctx.EnqueueEvent(events::emu::SwitchVDPRenderer());
+        }
+        if (isSDLRenderer) {
+            widgets::ExplanationTooltip("Not supported with SDL Renderer", ctx.displayScale);
+            ImGui::EndDisabled();
         }
     }
 
