@@ -12,6 +12,7 @@ Introduces save state file version 14.
 - App: Added option to unpause emulator when loading discs. Enabled by default, which changes established behavior.
 - App: Clarified IPL ROM meaning in the Welcome window and IPL settings tab -- it refers to the BIOS.
 - App: Display volume indicator on the top-right corner of the window for a few seconds after adjustments.
+- App: Persist SMPC data per region based on the loaded IPL ROM region:
     - `smpc-us_eu.bin`: USA, Europe -- SMPC area codes 4, 5, A, C, D
     - `smpc-jp.bin`: Japan -- SMPC area code 1
     - `smpc-asia.bin`: Korea, Taiwan -- SMPC area codes 2, 6
