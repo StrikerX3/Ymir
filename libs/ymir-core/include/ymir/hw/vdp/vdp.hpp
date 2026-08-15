@@ -302,7 +302,7 @@ private:
 
         m_renderer = std::move(renderer);
 
-        devlog::info<grp::config>("Switched to {} VDP renderer", renderer->GetName());
+        devlog::info<grp::config>("Switched to {} VDP renderer", pRenderer->GetName());
 
         return pRenderer;
     }
