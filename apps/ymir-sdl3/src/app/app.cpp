@@ -1785,6 +1785,7 @@ void App::RunEmulator() {
                         settings.MakeDirty();
                         m_context.DisplayMessage(
                             fmt::format("{} initialized successfully", gfx::GraphicsBackendName(params.backend)));
+                        m_context.EnqueueEvent(events::emu::SwitchVDPRenderer());
                     } else {
                         m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
                                                              gfx::GraphicsBackendName(params.backend),

@@ -15,6 +15,7 @@ namespace settings::video {
 
     void GraphicsBackendCombo(SharedContext &ctx);
     void GraphicsAdapterCombo(SharedContext &ctx);
+    void UseHardwareAcceleration(SharedContext &ctx);
 
     void DisplayRotation(SharedContext &ctx, bool newLine = false);
 
@@ -23,6 +24,13 @@ namespace settings::video {
         void ThreadedVDP(SharedContext &ctx);
 
     } // namespace swrenderer
+
+    namespace hwrenderer {
+
+        void VDP1VRAMSyncInterval(SharedContext &ctx);
+        void VDP2VRAMSyncInterval(SharedContext &ctx);
+
+    } // namespace hwrenderer
 
     namespace enhancements {
 

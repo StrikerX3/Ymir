@@ -21,6 +21,8 @@
 
 #include <d3d12.h>
 
+#include <wil/com.h>
+
 #include <fmt/format.h>
 
 #include <cmrc/cmrc.hpp>
@@ -1618,7 +1620,7 @@ util::VoidResult<> Direct3D12GraphicsContext::Present() {
     return m_impl->Present();
 }
 
-wil::com_ptr_nothrow<ID3D12Device> Direct3D12GraphicsContext::GetDevice() const {
+ID3D12Device *Direct3D12GraphicsContext::GetDevice() const {
     return m_impl->device.GetPointer();
 }
 

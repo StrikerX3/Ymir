@@ -142,7 +142,6 @@ add_library(ymir-core
     include/ymir/hw/vdp/renderer/vdp_renderer_base.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_defs.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_hw_base.hpp
-    include/ymir/hw/vdp/renderer/vdp_renderer_hw_defs.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
 

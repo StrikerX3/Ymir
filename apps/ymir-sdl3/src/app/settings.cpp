@@ -316,6 +316,30 @@ FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, SDL_PixelForma
     }
 }
 
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, core::config::hw_vdp::VDP1VRAMSyncInterval &value) {
+    value = core::config::hw_vdp::VDP1VRAMSyncInterval::Command;
+    if (auto opt = node.value<std::string>()) {
+        if (*opt == "Command"s) {
+            value = core::config::hw_vdp::VDP1VRAMSyncInterval::Command;
+        } else if (*opt == "Draw"s) {
+            value = core::config::hw_vdp::VDP1VRAMSyncInterval::Draw;
+        } else if (*opt == "Swap"s) {
+            value = core::config::hw_vdp::VDP1VRAMSyncInterval::Swap;
+        }
+    }
+}
+
+FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, core::config::hw_vdp::VDP2VRAMSyncInterval &value) {
+    value = core::config::hw_vdp::VDP2VRAMSyncInterval::Scanline;
+    if (auto opt = node.value<std::string>()) {
+        if (*opt == "Scanline"s) {
+            value = core::config::hw_vdp::VDP2VRAMSyncInterval::Scanline;
+        } else if (*opt == "Frame"s) {
+            value = core::config::hw_vdp::VDP2VRAMSyncInterval::Frame;
+        }
+    }
+}
+
 FORCE_INLINE static void Parse(toml::node_view<toml::node> &node, Settings::Audio::MidiPort::Type &value) {
     value = Settings::Audio::MidiPort::Type::None;
     if (auto opt = node.value<std::string>()) {
@@ -1081,9 +1105,12 @@ void Settings::ResetToDefaults() {
     video.fullScreenMode.pixelFormat = SDL_PIXELFORMAT_UNKNOWN;
     video.fullScreenMode.refreshRate = 0.0f;
     video.fullScreenMode.pixelDensity = 0.0f;
+    video.useHardwareAcceleration = false;
     video.swRenderer.threadedVDP1 = true;
     video.swRenderer.threadedVDP2 = true;
     video.swRenderer.threadedDeinterlacer = true;
+    video.hwRenderer.vdp1SyncInterval = core::config::hw_vdp::VDP1VRAMSyncInterval::Command;
+    video.hwRenderer.vdp2SyncInterval = core::config::hw_vdp::VDP2VRAMSyncInterval::Scanline;
     video.enhancements.deinterlace = false;
     video.enhancements.transparentMeshes = false;
 
@@ -1591,6 +1618,11 @@ SettingsLoadResult Settings::Load(const std::filesystem::path &path) {
                 Parse(tblSwRenderer, "ThreadedVDP2", video.swRenderer.threadedVDP2);
                 Parse(tblSwRenderer, "ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer);
             }
+            if (auto tblHwRenderer = tblVideo["HardwareRenderer"]) {
+                Parse(tblHwRenderer, "VDP1SyncInterval", video.hwRenderer.vdp1SyncInterval);
+                Parse(tblHwRenderer, "VDP2SyncInterval", video.hwRenderer.vdp2SyncInterval);
+            }
+            Parse(tblVideo, "UseHardwareAcceleration", video.useHardwareAcceleration);
         } else {
             if (configVersion >= 4) {
                 Parse(tblVideo, "ThreadedVDP1", video.swRenderer.threadedVDP1);
@@ -2019,6 +2051,11 @@ SettingsSaveResult Settings::Save() {
                 {"ThreadedVDP2", video.swRenderer.threadedVDP2.Get()},
                 {"ThreadedDeinterlacer", video.swRenderer.threadedDeinterlacer.Get()},
             }}},
+            {"HardwareRenderer", toml::table{{
+                {"VDP1SyncInterval", video.hwRenderer.vdp1SyncInterval.Get()},
+                {"VDP2SyncInterval", video.hwRenderer.vdp2SyncInterval.Get()},
+            }}},
+            {"UseHardwareAcceleration", video.useHardwareAcceleration.Get()},
             {"Enhancements", toml::table{{
                 {"Deinterlace", video.enhancements.deinterlace.Get()},
                 {"TransparentMeshes", video.enhancements.transparentMeshes.Get()},

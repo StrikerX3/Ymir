@@ -19,8 +19,41 @@ void VideoSettingsView::Display() {
     ImGui::SeparatorText("General");
     ImGui::PopFont();
 
+    // TODO: don't apply these settings immediately:
+    // - graphics backend
+    // - graphics adapter
+    // show the current state, an Apply button to apply them at once, and a Revert button to copy the current settings
+    // back to the temporary state.
+
     widgets::settings::video::GraphicsBackendCombo(m_context);
     widgets::settings::video::GraphicsAdapterCombo(m_context);
+    widgets::settings::video::UseHardwareAcceleration(m_context);
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+    ImGui::SeparatorText("Software renderer");
+    ImGui::PopFont();
+
+    widgets::settings::video::swrenderer::ThreadedVDP(m_context);
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
+    ImGui::SeparatorText("Hardware renderer");
+    ImGui::PopFont();
+
+    widgets::settings::video::hwrenderer::VDP1VRAMSyncInterval(m_context);
+    widgets::settings::video::hwrenderer::VDP2VRAMSyncInterval(m_context);
+
+    // -----------------------------------------------------------------------------------------------------------------
+
+    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
+    ImGui::SeparatorText("Enhancements");
+    ImGui::PopFont();
+
+    widgets::settings::video::enhancements::Deinterlace(m_context);
+    widgets::settings::video::enhancements::TransparentMeshes(m_context);
 
     // -----------------------------------------------------------------------------------------------------------------
 
@@ -233,23 +266,6 @@ void VideoSettingsView::Display() {
         "\n"
         "This option has no effect if your display's refresh rate is higher than the emulator's target frame rate.",
         m_context.displayScale);
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
-    ImGui::SeparatorText("Enhancements");
-    ImGui::PopFont();
-
-    widgets::settings::video::enhancements::Deinterlace(m_context);
-    widgets::settings::video::enhancements::TransparentMeshes(m_context);
-
-    // -----------------------------------------------------------------------------------------------------------------
-
-    ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.large);
-    ImGui::SeparatorText("Software renderer");
-    ImGui::PopFont();
-
-    widgets::settings::video::swrenderer::ThreadedVDP(m_context);
 }
 
 } // namespace app::ui

@@ -106,21 +106,8 @@ struct Configuration {
 
     /// @brief Hardware VDP1 and VDP2 rendering configuration.
     struct HardwareRenderer {
-        /// @brief VDP1 VRAM write synchronization intervals.
-        enum class VDP1VRAMSyncInterval {
-            Command, //< Synchronizes VRAM writes before running each VDP1 command
-            Draw,    //< Synchronizes VRAM writes at the start of a VDP1 draw sequence
-            Swap,    //< Synchronizes VRAM writes on VDP1 framebuffer swap
-        };
-
-        /// @brief VDP2 VRAM write synchronization intervals.
-        enum class VDP2VRAMSyncInterval {
-            Scanline, //< Synchronizes VRAM writes after processing each VDP2 scanline
-            Frame,    //< Synchronizes VRAM writes at the end of a VDP2 frame
-        };
-
-        VDP1VRAMSyncInterval vdp1SyncInterval = VDP1VRAMSyncInterval::Command;
-        VDP2VRAMSyncInterval vdp2SyncInterval = VDP2VRAMSyncInterval::Scanline;
+        config::hw_vdp::VDP1VRAMSyncInterval vdp1SyncInterval = config::hw_vdp::VDP1VRAMSyncInterval::Command;
+        config::hw_vdp::VDP2VRAMSyncInterval vdp2SyncInterval = config::hw_vdp::VDP2VRAMSyncInterval::Scanline;
     } hwRenderer;
 
     /// @brief SCSP and audio rendering configuration.
