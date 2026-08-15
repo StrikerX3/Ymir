@@ -284,7 +284,7 @@ struct Direct3D12GraphicsContext::Impl {
         // Create descriptor heaps
         {
             D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
-            rtvHeapDesc.NumDescriptors = 131072;
+            rtvHeapDesc.NumDescriptors = 256;
             rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
             rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
             if (FAILED(rtvHeap.Create(device, rtvHeapDesc))) {
@@ -294,7 +294,7 @@ struct Direct3D12GraphicsContext::Impl {
             rtvHeapAlloc.Bind(rtvHeap);
 
             D3D12_DESCRIPTOR_HEAP_DESC resourceHeapDesc{};
-            resourceHeapDesc.NumDescriptors = 131072;
+            resourceHeapDesc.NumDescriptors = 256;
             resourceHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             resourceHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
             if (FAILED(resourceHeap.Create(device, resourceHeapDesc))) {
