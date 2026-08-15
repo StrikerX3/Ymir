@@ -1773,6 +1773,15 @@ void App::RunEmulator() {
                 auto params = std::get<GraphicsBackendParams>(evt.value);
                 if (params.backend != m_graphicsService.GetGraphicsContextBackend() ||
                     params.adapter != settings.video.graphicsAdapter) {
+
+                    // Shut down hardware renderer to free up resources, otherwise the device instance held by it
+                    // prevents us from reusing the window
+                    if (vdp.GetRenderer().IsHardwareRenderer()) {
+                        util::Event evtDone{false};
+                        m_context.EnqueueEvent(events::emu::UseNullVDPRenderer(evtDone));
+                        evtDone.Wait();
+                    }
+
                     const services::GraphicsContextSpec spec{
                         .backend = params.backend,
                         .adapter = params.adapter,

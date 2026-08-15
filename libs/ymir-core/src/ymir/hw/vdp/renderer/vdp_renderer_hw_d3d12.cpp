@@ -1,38 +1,50 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_hw_d3d12.hpp>
 
+#include <d3d12.h>
+
+#include <wil/com.h>
+
+#include <cmrc/cmrc.hpp>
+CMRC_DECLARE(ymir_core_shaders);
+
 namespace ymir::vdp {
 
 struct Direct3D12VDPRenderer::Impl {
-    util::VoidResult<> Initialize() {
+    util::VoidResult<> Initialize(ID3D12Device *device) {
+        this->device = device;
         return util::ErrorMessage{"Unimplemented"};
     }
+
+    wil::com_ptr_nothrow<ID3D12Device> device;
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-Direct3D12VDPRenderer::Direct3D12VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+Direct3D12VDPRenderer::Direct3D12VDPRenderer(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
                                              const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
-                                             core::Configuration::HardwareRenderer &hwRenderConfig,
-                                             ID3D12Device *device)
+                                             core::Configuration::HardwareRenderer &hwRenderConfig)
     : HardwareVDPRendererBase(VDPRendererType::Direct3D12, hwRenderConfig)
-    , m_impl(std::make_unique<Impl>()) {}
+    , m_impl(std::make_unique<Impl>())
+    , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
+    , m_vdp2AccessPatternsConfig(vdp2AccessPatternsConfig)
+    , m_hwRenderConfig(hwRenderConfig) {}
 
 Direct3D12VDPRenderer::~Direct3D12VDPRenderer() = default;
 
-util::VoidResult<> Direct3D12VDPRenderer::Initialize() {
-    return m_impl->Initialize();
+util::VoidResult<> Direct3D12VDPRenderer::Initialize(ID3D12Device *device) {
+    return m_impl->Initialize(device);
 }
 
 util::ObjectResult<Direct3D12VDPRenderer>
-Direct3D12VDPRenderer::Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+Direct3D12VDPRenderer::Create(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
                               const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
                               core::Configuration::HardwareRenderer &hwRenderConfig, ID3D12Device *device) {
     if (device == nullptr) {
         return util::ErrorMessage{"No Direct3D 12 device instance provided"};
     }
     std::unique_ptr<Direct3D12VDPRenderer> renderer{
-        new Direct3D12VDPRenderer(state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig, hwRenderConfig, device)};
-    util::VoidResult<> result = renderer->Initialize();
+        new Direct3D12VDPRenderer(state, vdp2DebugRenderOptions, vdp2AccessPatternsConfig, hwRenderConfig)};
+    util::VoidResult<> result = renderer->Initialize(device);
     if (!result) {
         return result.Error();
     }

@@ -23,21 +23,20 @@ struct ID3D12Device;
 namespace ymir::vdp {
 
 /// @brief VDP renderer implementation using Direct3D 12.
-/// Requires a valid `ID3D12Device *` instance.
-/// The device must remain valid for the lifetime of the renderer. If the `ID3DDevice12` needs to be recreated or
-/// destroyed, the renderer must be destroyed first.
+/// Requires a valid `ID3D12Device *` instance, which has its reference count increments to ensure all managed objects
+/// kept alive for the lifetime of the renderer.
 class Direct3D12VDPRenderer : public HardwareVDPRendererBase {
-    Direct3D12VDPRenderer(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+    Direct3D12VDPRenderer(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
                           const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
-                          core::Configuration::HardwareRenderer &hwRenderConfig, ID3D12Device *device);
+                          core::Configuration::HardwareRenderer &hwRenderConfig);
 
-    util::VoidResult<> Initialize();
+    util::VoidResult<> Initialize(ID3D12Device *device);
 
 public:
     ~Direct3D12VDPRenderer();
 
     static util::ObjectResult<Direct3D12VDPRenderer>
-    Create(VDPState &state, config::VDP2DebugRender &vdp2DebugRenderOptions,
+    Create(VDPState &state, const config::VDP2DebugRender &vdp2DebugRenderOptions,
            const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
            core::Configuration::HardwareRenderer &hwRenderConfig, ID3D12Device *device);
 
@@ -107,6 +106,10 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
+
+    const config::VDP2DebugRender &m_vdp2DebugRenderOptions;
+    const config::VDP2AccessPatternsConfig &m_vdp2AccessPatternsConfig;
+    core::Configuration::HardwareRenderer &m_hwRenderConfig;
 };
 
 } // namespace ymir::vdp

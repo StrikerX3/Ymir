@@ -91,6 +91,7 @@ EmuEvent SwitchVDPRenderer() {
                 if (auto *dx12Ctx = gfxCtx.As<gfx::Direct3D12GraphicsContext>()) {
                     auto result = vdp.UseDirect3D12Renderer(dx12Ctx->GetDevice());
                     if (result) {
+                        ctx.DisplayMessage("Direct3D 12 renderer initialized successfully");
                         return;
                     }
                     ctx.DisplayMessage(
@@ -102,6 +103,9 @@ EmuEvent SwitchVDPRenderer() {
                 break;
             }
 #endif
+            case gfx::Backend::SDLRenderer:
+                // Silently revert to software renderer
+                break;
             default:
                 ctx.DisplayMessage(
                     fmt::format("Hardware acceleration is not implemented for {}", gfx::GraphicsBackendName(backend)));
@@ -110,7 +114,10 @@ EmuEvent SwitchVDPRenderer() {
         }
 
         // Fall back to software renderer if not using GPU acceleration or the hardware renderer failed to initialize
-        vdp.UseSoftwareRenderer();
+        if (vdp.GetRenderer().GetType() != vdp::VDPRendererType::Software) {
+            vdp.UseSoftwareRenderer();
+            ctx.DisplayMessage("Software renderer initialized successfully");
+        }
     });
 }
 
