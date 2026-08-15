@@ -111,6 +111,9 @@ EmuEvent SwitchVDPRenderer() {
                     fmt::format("Hardware acceleration is not implemented for {}", gfx::GraphicsBackendName(backend)));
                 break;
             }
+
+            // Hardware renderer instantiation failed; revert setting
+            settings.video.useHardwareAcceleration = false;
         }
 
         // Fall back to software renderer if not using GPU acceleration or the hardware renderer failed to initialize
