@@ -31,7 +31,7 @@ void VDP2BGLayerParamsView::Display() {
     ImGui::Checkbox("Display enabled", &dispEnable);
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
-    ImGui::Text("VCNT: %d", regs2.ReadVCNT());
+    ImGui::Text("VCNT: %u", regs2.ReadVCNT());
 
     auto [width, height] = probe.GetResolution();
     auto interlaceMode = probe.GetInterlaceMode();

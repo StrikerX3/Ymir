@@ -222,6 +222,8 @@ add_executable(ymir-sdl3
     src/app/ui/views/debug/vdp2_debug_overlay_view.hpp
     src/app/ui/views/debug/vdp2_layer_visibility_view.cpp
     src/app/ui/views/debug/vdp2_layer_visibility_view.hpp
+    src/app/ui/views/debug/vdp2_registers_view.cpp
+    src/app/ui/views/debug/vdp2_registers_view.hpp
     src/app/ui/views/debug/vdp2_sprite_layer_params_view.cpp
     src/app/ui/views/debug/vdp2_sprite_layer_params_view.hpp
     src/app/ui/views/debug/vdp2_vram_access_patterns_view.cpp
@@ -385,6 +387,8 @@ add_executable(ymir-sdl3
     src/app/ui/windows/debug/vdp2_debug_overlay_window.hpp
     src/app/ui/windows/debug/vdp2_layer_visibility_window.cpp
     src/app/ui/windows/debug/vdp2_layer_visibility_window.hpp
+    src/app/ui/windows/debug/vdp2_registers_window.cpp
+    src/app/ui/windows/debug/vdp2_registers_window.hpp
     src/app/ui/windows/debug/vdp2_sprite_layer_params_window.cpp
     src/app/ui/windows/debug/vdp2_sprite_layer_params_window.hpp
     src/app/ui/windows/debug/vdp2_vram_access_patterns_window.cpp

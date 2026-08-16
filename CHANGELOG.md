@@ -20,6 +20,7 @@ Introduces save state file version 14.
     - The old `smpc.bin` will be automatically migrated to these files as you use IPL ROMs for each region.
 - App: Shrink embedded M PLUS U font files by removing unused glyphs, reducing binary size. (#915; @4re)
 - Debugger: Added RBG0 and RBG1 line color single stack views to the VDP2 debug overlay.
+- Debugger: Added basic VDP2 registers view.
 - Graphics: New graphics backend, adding support for native graphics APIs:
     - Direct3D 11 and 12 on Windows
     - Vulkan on Windows, Linux and macOS

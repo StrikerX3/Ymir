@@ -6,6 +6,7 @@
 #include "vdp2_cram_window.hpp"
 #include "vdp2_debug_overlay_window.hpp"
 #include "vdp2_layer_visibility_window.hpp"
+#include "vdp2_registers_window.hpp"
 #include "vdp2_sprite_layer_params_window.hpp"
 #include "vdp2_vram_access_patterns_window.hpp"
 #include "vdp2_window_params_window.hpp"
@@ -15,6 +16,7 @@ namespace app::ui {
 struct VDPWindowSet {
     VDPWindowSet(SharedContext &context)
         : vdp1Regs(context)
+        , vdp2Regs(context)
         , vdp2LayerVisibility(context)
         , vdp2BGLayerParams(context)
         , vdp2SpriteLayerParams(context)
@@ -26,6 +28,7 @@ struct VDPWindowSet {
 
     void DisplayAll() {
         vdp1Regs.Display();
+        vdp2Regs.Display();
         vdp2LayerVisibility.Display();
         vdp2BGLayerParams.Display();
         vdp2SpriteLayerParams.Display();
@@ -37,6 +40,7 @@ struct VDPWindowSet {
     }
 
     VDP1RegistersWindow vdp1Regs;
+    VDP2RegistersWindow vdp2Regs;
     VDP2LayerVisibilityWindow vdp2LayerVisibility;
     VDP2BGLayerParamsWindow vdp2BGLayerParams;
     VDP2SpriteLayerParamsWindow vdp2SpriteLayerParams;
