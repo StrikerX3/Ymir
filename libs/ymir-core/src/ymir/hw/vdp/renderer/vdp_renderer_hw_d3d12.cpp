@@ -95,7 +95,6 @@ struct Direct3D12VDPRenderer::Impl {
             if (!resourceHeapAlloc.Allocate(vdp2.srvVRAM)) {
                 return util::ErrorMessage{"Could not allocate raw VDP2 VRAM buffer SRV"};
             }
-
             const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
                 .Format = DXGI_FORMAT_R32_TYPELESS,
                 .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
@@ -111,19 +110,55 @@ struct Direct3D12VDPRenderer::Impl {
             device->CreateShaderResourceView(vdp2.bufVRAM.GetPointer(), &srvDesc, vdp2.srvVRAM.cpuHandle);
         }
 
-        // VDP2 CRAM buffer
+        // VDP2 CRAM color buffer
         {
-            auto builder = vdp2.bufCRAM.BufferBuilder(vdp::kVDP2CRAMSize);
+            // As a reminder, here are the supported color RAM modes and formats:
+            //   0 = RGB 5:5:5, 1024 words
+            //   1 = RGB 5:5:5, 2048 words
+            //   2 = RGB 8:8:8, 1024 words
+            //   3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
+            static constexpr UINT kMaxNumColors = vdp::kVDP2CRAMSize / sizeof(uint16);
+
+            auto builder = vdp2.bufCRAMColor.BufferBuilder(kMaxNumColors * sizeof(uint32));
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Could not create raw VDP2 CRAM buffer, error code {:X}", (uint32)hr)};
+                    fmt::format("Could not create VDP2 CRAM color buffer, error code {:X}", (uint32)hr)};
             }
-            vdp2.bufCRAM->SetName(L"[Ymir-VDP2] Raw CRAM buffer");
+            vdp2.bufCRAMColor->SetName(L"[Ymir-VDP2] CRAM color buffer");
 
-            if (!resourceHeapAlloc.Allocate(vdp2.srvCRAM)) {
-                return util::ErrorMessage{"Could not allocate raw VDP2 CRAM buffer SRV"};
+            if (!resourceHeapAlloc.Allocate(vdp2.srvCRAMColor)) {
+                return util::ErrorMessage{"Could not allocate VDP2 CRAM color buffer SRV"};
             }
+            const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
+                .Format = DXGI_FORMAT_R8G8B8A8_UINT,
+                .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
+                .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .Buffer =
+                    {
+                        .FirstElement = 0,
+                        .NumElements = kMaxNumColors,
+                        .StructureByteStride = 0,
+                        .Flags = D3D12_BUFFER_SRV_FLAG_NONE,
+                    },
+            };
+            device->CreateShaderResourceView(vdp2.bufCRAMColor.GetPointer(), &srvDesc, vdp2.srvCRAMColor.cpuHandle);
+        }
 
+        // VDP2 CRAM rotation coefficients buffer
+        {
+            // The second half of CRAM can be used as rotation coefficients.
+            static constexpr UINT kCRAMRotCoeffSize = vdp::kVDP2CRAMSize / 2;
+
+            auto builder = vdp2.bufCRAMRotCoeff.BufferBuilder(kCRAMRotCoeffSize * sizeof(uint32));
+            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format(
+                    "Could not create VDP2 CRAM rotation coefficients buffer, error code {:X}", (uint32)hr)};
+            }
+            vdp2.bufCRAMRotCoeff->SetName(L"[Ymir-VDP2] CRAM rotation coefficients buffer");
+
+            if (!resourceHeapAlloc.Allocate(vdp2.srvCRAMRotCoeff)) {
+                return util::ErrorMessage{"Could not allocate VDP2 CRAM rotation coefficients buffer SRV"};
+            }
             const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
                 .Format = DXGI_FORMAT_R32_TYPELESS,
                 .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
@@ -131,12 +166,76 @@ struct Direct3D12VDPRenderer::Impl {
                 .Buffer =
                     {
                         .FirstElement = 0,
-                        .NumElements = vdp::kVDP2CRAMSize / sizeof(uint32),
+                        .NumElements = kCRAMRotCoeffSize,
                         .StructureByteStride = 0,
                         .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
                     },
             };
-            device->CreateShaderResourceView(vdp2.bufCRAM.GetPointer(), &srvDesc, vdp2.srvCRAM.cpuHandle);
+            device->CreateShaderResourceView(vdp2.bufCRAMRotCoeff.GetPointer(), &srvDesc,
+                                             vdp2.srvCRAMRotCoeff.cpuHandle);
+        }
+
+        // Layer outputs 2D texture array
+        {
+            // The array contains:
+            //   [0..3] NBG0-3
+            //   [4..5] RBG0-1
+            //      [6] Sprite
+            //      [7] Transparent meshes
+            // The alpha channel is used for pixel attributes:
+            //   [0..2] Priority
+            //      [3] (Sprite only) Color MSB
+            //      [4] (Sprite only) Shadow/window flag - sprite data SD = 1
+            //      [5] (Sprite only) Normal shadow flag - sprite data DC = ...111110
+            //      [6] Special color calculation flag
+            //      [7] Transparent flag (0=opaque, 1=transparent)
+            static constexpr UINT16 kNumLayers = 4 + 2 + 1 + 1;
+            static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UINT;
+
+            auto builder = vdp2.texLayerOut.Texture2DBuilder(vdp::kMaxResH, vdp::kMaxResV, kNumLayers);
+            builder.Format(kFormat);
+            builder.Flags(D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create layer outputs texture array, error code {:X}", (uint32)hr)};
+            }
+            vdp2.texLayerOut->SetName(L"[Ymir-VDP2] Layer outputs array");
+
+            if (!resourceHeapAlloc.Allocate(vdp2.srvLayerOut)) {
+                return util::ErrorMessage{"Could not allocate layer outputs texture array SRV"};
+            }
+            const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
+                .Format = kFormat,
+                .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY,
+                .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .Texture2DArray =
+                    {
+                        .MostDetailedMip = 0,
+                        .MipLevels = 1,
+                        .FirstArraySlice = 0,
+                        .ArraySize = kNumLayers,
+                        .PlaneSlice = 0,
+                        .ResourceMinLODClamp = 0.0f,
+                    },
+            };
+            device->CreateShaderResourceView(vdp2.texLayerOut.GetPointer(), &srvDesc, vdp2.srvLayerOut.cpuHandle);
+
+            if (!resourceHeapAlloc.Allocate(vdp2.uavLayerOut)) {
+                return util::ErrorMessage{"Could not allocate layer outputs texture array UAV"};
+            }
+            const D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{
+                .Format = kFormat,
+                .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY,
+                .Texture2DArray =
+                    {
+                        .MipSlice = 0,
+                        .FirstArraySlice = 0,
+                        .ArraySize = kNumLayers,
+                        .PlaneSlice = 0,
+                    },
+            };
+            device->CreateUnorderedAccessView(vdp2.texLayerOut.GetPointer(), nullptr, &uavDesc,
+                                              vdp2.uavLayerOut.cpuHandle);
         }
 
         return util::ErrorMessage{"Unimplemented"};
@@ -183,15 +282,36 @@ struct Direct3D12VDPRenderer::Impl {
         /// @brief VDP2 command list.
         D3D12GraphicsCommandList cmdList;
 
+        // VDP2 VRAM is exposed as a ByteAddressBuffer to shaders as they often need to access raw bytes in 8-bit,
+        // 16-bit and 32-bit formats.
+
         /// @brief Raw VRAM data buffer.
         D3D12Resource bufVRAM;
         /// @brief Raw VRAM data buffer SRV.
         Descriptor srvVRAM;
 
-        /// @brief Raw CRAM data
-        D3D12Resource bufCRAM;
-        /// @brief Raw CRAM data buffer SRV.
-        Descriptor srvCRAM;
+        // VDP2 CRAM is not directly exposed. Instead, shaders get two convenient views:
+        // - CRAM converted to R8G8B8A8 colors based on the current color RAM mode
+        // - Top half of raw CRAM bytes, for rotation coefficients
+
+        /// @brief CRAM color buffer.
+        D3D12Resource bufCRAMColor;
+        /// @brief CRAM color buffer SRV.
+        Descriptor srvCRAMColor;
+
+        /// @brief Raw CRAM rotation coefficients buffer.
+        D3D12Resource bufCRAMRotCoeff;
+        /// @brief Raw CRAM rotation coefficients buffer SRV.
+        Descriptor srvCRAMRotCoeff;
+
+        // LayerOut contains the intermediate per-layer outputs of the VDP2 rendering process.
+
+        /// @brief 2D texture array for the outputs of NBG0-3, RBG0-1, sprite and mesh layers (in that order).
+        D3D12Resource texLayerOut;
+        /// @brief Layer outputs SRV.
+        Descriptor srvLayerOut;
+        /// @brief Layer outputs UAV.
+        Descriptor uavLayerOut;
     } vdp2;
 };
 
