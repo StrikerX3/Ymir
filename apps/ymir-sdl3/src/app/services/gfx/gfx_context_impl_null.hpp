@@ -4,6 +4,7 @@
 
 namespace app::gfx {
 
+/// @brief Implements a no-op graphics context that accepts all operations but executes nothing.
 class NullGraphicsContext final : public IGraphicsContext {
 public:
     static constexpr Backend kBackend = Backend::Null;
@@ -20,7 +21,7 @@ public:
     }
 
     util::VoidResult<> ResizeFramebuffer(uint32 width, uint32 height) override {
-        return UnimplementedError();
+        return {};
     }
 
     void ClearScreen(gfx::ColorRGBA color) override {}
@@ -33,7 +34,7 @@ public:
     void ImGuiRenderFrame() override {}
 
     util::ValueResult<TextureID> CreateTexture(const Texture2DSpec &spec) override {
-        return UnimplementedError();
+        return util::ErrorMessage{"Cannot create texturees with the null renderer"};
     }
     void DestroyTexture(TextureID id) override {}
     bool IsTextureValid(TextureID id) const override {
@@ -43,31 +44,26 @@ public:
         return 0;
     }
     util::VoidResult<> ResizeTexture(TextureID id, uint32 width, uint32 height) override {
-        return UnimplementedError();
+        return {};
     }
     util::VoidResult<> UpdateTexture(TextureID id, const IRect *rect,
                                      const std::function<void(void *data, size_t pitch)> &fnUpdate) override {
-        return UnimplementedError();
+        return {};
     }
     util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                        const FRect &dstRect) override {
-        return UnimplementedError();
+        return {};
     }
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
                                           const FPoint2D *anchorPoint = nullptr) override {
-        return UnimplementedError();
+        return {};
     }
 
     util::VoidResult<> SetPresentMode(PresentMode mode) override {
-        return UnimplementedError();
+        return {};
     }
-    util::VoidResult<> Present() override {
-        return UnimplementedError();
-    }
-
-private:
-    static util::ErrorMessage UnimplementedError() {
-        return util::ErrorMessage{"Unimplemented"};
+    util::ValueResult<PresentResult> Present() override {
+        return PresentResult::Occluded;
     }
 };
 

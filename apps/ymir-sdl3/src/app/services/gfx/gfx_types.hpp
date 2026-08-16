@@ -112,6 +112,16 @@ enum class PresentMode {
     NoSync,   ///< Presents frames without synchronization.
 };
 
+/// @brief Possible outcomes of a frame presentation action.
+enum class PresentResult {
+    /// @brief The frame was presented successfully.
+    Ok,
+
+    /// @brief The frame was presented, but occluded.
+    /// Typically occurs when trying to render graphics to a minimized window.
+    Occluded,
+};
+
 /// @brief Pixel formats.
 /// The names follow the naming convention `<bit-layout>_<value-format>`.
 /// The bit layout is a sequence of elements describing the layout of the pixel data from least to most significant

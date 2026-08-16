@@ -160,7 +160,9 @@ public:
     util::VoidResult<> SetPresentMode(gfx::PresentMode mode);
 
     /// @brief Presents the next frame.
-    util::VoidResult<> Present();
+    /// @return presentation result on success, an error message on failure.
+    /// If failed, it's highly likely that the device was destroyed and needs to be reinitialized.
+    util::ValueResult<gfx::PresentResult> Present();
 
 private:
     Settings &m_settings;

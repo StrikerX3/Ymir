@@ -109,6 +109,7 @@
 #include <app/ui/widgets/settings_widgets.hpp>
 #include <app/ui/widgets/system_widgets.hpp>
 
+#include <util/os_exception_handler.hpp>
 #include <util/os_features.hpp>
 #include <util/std_lib.hpp>
 
@@ -3312,7 +3313,19 @@ void App::RunEmulator() {
         // Render ImGui widgets
         m_graphicsService.ImGuiRenderFrame();
 
-        m_graphicsService.Present();
+        {
+            auto presentResult = m_graphicsService.Present();
+            if (!presentResult) {
+                // Revert to sane settings right now, just to be safe
+                settings.video.graphicsBackend = gfx::Backend::SDLRenderer;
+                settings.video.graphicsAdapter = std::nullopt;
+                settings.video.useHardwareAcceleration = false;
+                settings.Save();
+                util::ShowFatalErrorDialog("The graphics context crashed. Cannot continue execution.\n"
+                                           "Your graphics settings were reset.");
+                goto end_loop;
+            }
+        }
 
         // Process ImGui INI file write requests
         // TODO: compress and include in state blob

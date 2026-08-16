@@ -216,7 +216,7 @@ util::VoidResult<> GraphicsService::SetPresentMode(PresentMode mode) {
     return m_gfxContext->SetPresentMode(mode);
 }
 
-util::VoidResult<> GraphicsService::Present() {
+util::ValueResult<PresentResult> GraphicsService::Present() {
     return m_gfxContext->Present();
 }
 

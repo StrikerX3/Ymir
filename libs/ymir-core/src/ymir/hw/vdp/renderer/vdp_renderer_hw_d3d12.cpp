@@ -1,9 +1,13 @@
 #include <ymir/hw/vdp/renderer/vdp_renderer_hw_d3d12.hpp>
 
+#include <ymir/gpu/d3d12/d3d12_commands.hpp>
 #include <ymir/gpu/d3d12/d3d12_descriptor_heap.hpp>
 #include <ymir/gpu/d3d12/d3d12_descriptor_heap_allocator.hpp>
 #include <ymir/gpu/d3d12/d3d12_device.hpp>
+#include <ymir/gpu/d3d12/d3d12_fence.hpp>
+#include <ymir/gpu/d3d12/d3d12_pipeline_state.hpp>
 #include <ymir/gpu/d3d12/d3d12_resource.hpp>
+#include <ymir/gpu/d3d12/d3d12_root_signature.hpp>
 
 #include <d3d12.h>
 
@@ -20,6 +24,21 @@ struct Direct3D12VDPRenderer::Impl {
     util::VoidResult<> Initialize(ID3D12Device *pDevice) {
         device.Assign(pDevice);
 
+        // Main command queue
+        if (HRESULT hr = cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Could not create VDP renderer command queue, error code {:X}", (uint32)hr)};
+        }
+        cmdQueue->SetName(L"[Ymir-VDP] Command queue");
+
+        // Main fence
+        if (HRESULT hr = fence.Create(device, 0, D3D12_FENCE_FLAG_NONE); FAILED(hr)) {
+            return util::ErrorMessage{fmt::format("Could not create VDP renderer fence, error code {:X}", (uint32)hr)};
+        }
+        fence->SetName(L"[Ymir-VDP] Fence");
+        fenceValue = 1;
+
+        // Resource heap
         {
             const D3D12_DESCRIPTOR_HEAP_DESC desc{
                 .Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
@@ -34,34 +53,100 @@ struct Direct3D12VDPRenderer::Impl {
             resourceHeapAlloc.Bind(resourceHeap);
         }
 
+        // -------------------------------------------------------------------------------------------------------------
+
+        // VDP1 command allocator and list
+        if (HRESULT hr = vdp1.cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Could not create VDP1 renderer command allocator, error code {:X}", (uint32)hr)};
+        }
+        vdp1.cmdAlloc->SetName(L"[Ymir-VDP1] Command allocator");
+        if (HRESULT hr = vdp1.cmdList.Create(device, vdp1.cmdAlloc, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Could not create VDP1 renderer command list, error code {:X}", (uint32)hr)};
+        }
+        vdp1.cmdList->SetName(L"[Ymir-VDP1] Command list");
+        vdp1.cmdList->Close();
+
+        // -------------------------------------------------------------------------------------------------------------
+
+        // VDP2 command allocator and list
+        if (HRESULT hr = vdp2.cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Could not create VDP2 renderer command allocator, error code {:X}", (uint32)hr)};
+        }
+        vdp2.cmdAlloc->SetName(L"[Ymir-VDP2] Command allocator");
+        if (HRESULT hr = vdp2.cmdList.Create(device, vdp2.cmdAlloc, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+            return util::ErrorMessage{
+                fmt::format("Could not create VDP2 renderer command list, error code {:X}", (uint32)hr)};
+        }
+        vdp2.cmdList->SetName(L"[Ymir-VDP2] Command list");
+        vdp2.cmdList->Close();
+
         // VDP2 VRAM buffer
         {
-            auto builder = vdp2.vram.BufferBuilder(vdp::kVDP2VRAMSize);
+            auto builder = vdp2.bufVRAM.BufferBuilder(vdp::kVDP2VRAMSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Could not create VDP2 VRAM buffer, error code {:X}", (uint32)hr)};
+                    fmt::format("Could not create raw VDP2 VRAM buffer, error code {:X}", (uint32)hr)};
             }
-            vdp2.vram->SetName(L"[Ymir-VDP2] VRAM buffer");
+            vdp2.bufVRAM->SetName(L"[Ymir-VDP2] Raw VRAM buffer");
 
-            // TODO: allocate SRV
+            if (!resourceHeapAlloc.Allocate(vdp2.srvVRAM)) {
+                return util::ErrorMessage{"Could not allocate raw VDP2 VRAM buffer SRV"};
+            }
+
+            const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
+                .Format = DXGI_FORMAT_R32_TYPELESS,
+                .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
+                .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .Buffer =
+                    {
+                        .FirstElement = 0,
+                        .NumElements = vdp::kVDP2VRAMSize / sizeof(uint32),
+                        .StructureByteStride = 0,
+                        .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
+                    },
+            };
+            device->CreateShaderResourceView(vdp2.bufVRAM.GetPointer(), &srvDesc, vdp2.srvVRAM.cpuHandle);
         }
 
         // VDP2 CRAM buffer
         {
-            auto builder = vdp2.cram.BufferBuilder(vdp::kVDP2CRAMSize);
+            auto builder = vdp2.bufCRAM.BufferBuilder(vdp::kVDP2CRAMSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Could not create VDP2 CRAM buffer, error code {:X}", (uint32)hr)};
+                    fmt::format("Could not create raw VDP2 CRAM buffer, error code {:X}", (uint32)hr)};
             }
-            vdp2.cram->SetName(L"[Ymir-VDP2] CRAM buffer");
+            vdp2.bufCRAM->SetName(L"[Ymir-VDP2] Raw CRAM buffer");
 
-            // TODO: allocate SRV
+            if (!resourceHeapAlloc.Allocate(vdp2.srvCRAM)) {
+                return util::ErrorMessage{"Could not allocate raw VDP2 CRAM buffer SRV"};
+            }
+
+            const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
+                .Format = DXGI_FORMAT_R32_TYPELESS,
+                .ViewDimension = D3D12_SRV_DIMENSION_BUFFER,
+                .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+                .Buffer =
+                    {
+                        .FirstElement = 0,
+                        .NumElements = vdp::kVDP2CRAMSize / sizeof(uint32),
+                        .StructureByteStride = 0,
+                        .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
+                    },
+            };
+            device->CreateShaderResourceView(vdp2.bufCRAM.GetPointer(), &srvDesc, vdp2.srvCRAM.cpuHandle);
         }
 
         return util::ErrorMessage{"Unimplemented"};
     }
 
     D3D12Device device;
+
+    D3D12CommandQueue cmdQueue;
+    D3D12Fence fence;
+    UINT64 fenceValue;
 
     D3D12DescriptorHeap resourceHeap;
     DescriptorHeapAllocator resourceHeapAlloc;
@@ -72,7 +157,10 @@ struct Direct3D12VDPRenderer::Impl {
     // TODO
 
     struct VDP1 {
-
+        /// @brief VDP1 command allocator.
+        D3D12CommandAllocator cmdAlloc;
+        /// @brief VDP1 command list.
+        D3D12GraphicsCommandList cmdList;
     } vdp1;
 
     // =================================================================================================================
@@ -90,11 +178,20 @@ struct Direct3D12VDPRenderer::Impl {
     // VDP2 registers, active enhancements and the starting line for continuation of work interrupted by state changes.
 
     struct VDP2 {
-        /// @brief Raw VRAM data
-        D3D12Resource vram;
+        /// @brief VDP2 command allocator.
+        D3D12CommandAllocator cmdAlloc;
+        /// @brief VDP2 command list.
+        D3D12GraphicsCommandList cmdList;
+
+        /// @brief Raw VRAM data buffer.
+        D3D12Resource bufVRAM;
+        /// @brief Raw VRAM data buffer SRV.
+        Descriptor srvVRAM;
 
         /// @brief Raw CRAM data
-        D3D12Resource cram;
+        D3D12Resource bufCRAM;
+        /// @brief Raw CRAM data buffer SRV.
+        Descriptor srvCRAM;
     } vdp2;
 };
 

@@ -316,9 +316,9 @@ util::VoidResult<> SDLRendererGraphicsContext::SetPresentMode(PresentMode mode) 
     return util::ErrorMessage{fmt::format("Could not change VSync mode: {}", SDL_GetError())};
 }
 
-util::VoidResult<> SDLRendererGraphicsContext::Present() {
+util::ValueResult<PresentResult> SDLRendererGraphicsContext::Present() {
     if (SDL_RenderPresent(m_renderer)) {
-        return {};
+        return PresentResult::Ok;
     }
     return util::ErrorMessage{fmt::format("Could not present frame: {}", SDL_GetError())};
 }

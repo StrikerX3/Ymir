@@ -105,7 +105,7 @@ util::VoidResult<> MetalGraphicsContext::SetPresentMode(PresentMode mode) {
     return util::ErrorMessage{"Unimplemented"};
 }
 
-util::VoidResult<> MetalGraphicsContext::Present() {
+util::ValueResult<PresentResult> MetalGraphicsContext::Present() {
     // TODO: present next frame and wait for vertical retrace if enabled
     return util::ErrorMessage{"Unimplemented"};
 }

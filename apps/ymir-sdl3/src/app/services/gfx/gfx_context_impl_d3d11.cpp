@@ -106,7 +106,7 @@ util::VoidResult<> Direct3D11GraphicsContext::SetPresentMode(PresentMode mode) {
     return util::ErrorMessage{"Unimplemented"};
 }
 
-util::VoidResult<> Direct3D11GraphicsContext::Present() {
+util::ValueResult<PresentResult> Direct3D11GraphicsContext::Present() {
     // TODO: present next frame and wait for vertical retrace if enabled
     return util::ErrorMessage{"Unimplemented"};
 }

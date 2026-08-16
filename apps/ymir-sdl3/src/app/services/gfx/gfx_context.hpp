@@ -150,8 +150,9 @@ public:
     virtual util::VoidResult<> SetPresentMode(PresentMode mode) = 0;
 
     /// @brief Presents the next frame.
-    /// @return nothing on success, an error message on failure
-    virtual util::VoidResult<> Present() = 0;
+    /// @return presentation result on success, an error message on failure.
+    /// If failed, it's highly likely that the device was destroyed and needs to be reinitialized.
+    virtual util::ValueResult<PresentResult> Present() = 0;
 
 protected:
     /// @brief Retrieves the next free texture ID.

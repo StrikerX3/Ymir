@@ -54,7 +54,7 @@ public:
                                           const FPoint2D *pivot = nullptr) override;
 
     util::VoidResult<> SetPresentMode(PresentMode mode) override;
-    util::VoidResult<> Present() override;
+    util::ValueResult<PresentResult> Present() override;
 
     /// @brief Retrieves a pointer to the `ID3D12Device` managed by this graphics context.
     /// @return a pointer to the context's Direct3D 12 device instance
