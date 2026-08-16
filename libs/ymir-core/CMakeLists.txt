@@ -395,7 +395,7 @@ set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set(COMPUTE_SHADER_SOURCES
-    # res/shaders/vdp/vdp1_polygon_cs.hlsl
+    res/shaders/vdp/vdp2_render_bgs_cs.hlsl
 )
 ## TODO: add per-platform shader code if needed
 # if (WIN32)
@@ -407,7 +407,7 @@ set(COMPUTE_SHADER_SOURCES
 # endif ()
 
 set(COMPILED_SHADERS "")
-foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
+foreach (SHADER_SRC ${COMPUTE_SHADER_SOURCES})
     compile_shader(
         OUT_PATHS SHADER_BINARY_FILES
         SOURCE "${SHADER_SRC}"

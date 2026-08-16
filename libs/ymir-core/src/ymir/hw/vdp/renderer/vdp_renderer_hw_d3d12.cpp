@@ -9,6 +9,8 @@
 #include <ymir/gpu/d3d12/d3d12_resource.hpp>
 #include <ymir/gpu/d3d12/d3d12_root_signature.hpp>
 
+#include <ymir/gpu/shaders/gpu_shaders.hpp>
+
 #include <d3d12.h>
 
 #include <fmt/format.h>
@@ -19,6 +21,16 @@ CMRC_DECLARE(ymir_core_shaders);
 using namespace ymir::gpu::d3d12;
 
 namespace ymir::vdp {
+
+cmrc::embedded_filesystem g_fsShaders = cmrc::ymir_core_shaders::get_filesystem();
+
+template <gpu::ShaderStage stage>
+D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader) {
+    return D3D12_SHADER_BYTECODE{
+        .pShaderBytecode = shader.bytecode.data(),
+        .BytecodeLength = shader.bytecode.size(),
+    };
+}
 
 struct Direct3D12VDPRenderer::Impl {
     util::VoidResult<> Initialize(ID3D12Device *pDevice) {
@@ -238,8 +250,57 @@ struct Direct3D12VDPRenderer::Impl {
                                               vdp2.uavLayerOut.cpuHandle);
         }
 
+        // Draw background layers compute shader, root signature and pipeline state object
+        {
+            auto shaderBlobResult = LoadShader("vdp/vdp2_render_bgs_cs.cso");
+            if (!shaderBlobResult) {
+                return util::ErrorMessage{
+                    fmt::format("Could not load VDP2 background layer rendering compute shader: {}",
+                                shaderBlobResult.Error().message)};
+            }
+            vdp2.csDrawBGs.format = gpu::ShaderBytecodeFormat::DXIL;
+            vdp2.csDrawBGs.bytecode = shaderBlobResult.Value();
+            vdp2.csDrawBGs.entrypoint = kCSEntrypoint;
+            auto result = gpu::ValidateShader(vdp2.csDrawBGs);
+            if (!result) {
+                return util::ErrorMessage{fmt::format(
+                    "VDP2 background layer rendering compute shader validation failed: {}", result.Error().message)};
+            }
+
+            auto rootSigBuilder = vdp2.rootSigDrawBGs.Builder();
+            // TODO: add parameters as needed
+            rootSigBuilder.Add32BitConstants(0, 1); // TODO: rendering parameters
+            rootSigBuilder.AddDescriptorTable().AddUAVs(1, 0);
+            if (HRESULT hr = rootSigBuilder.Build(device); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format(
+                    "Could not build VDP2 background layer rendering root signature, error code {:X}", (uint32)hr)};
+            }
+            vdp2.rootSigDrawBGs->SetName(L"[Ymir-VDP2] Background layer rendering root signature");
+
+            const D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{
+                .pRootSignature = vdp2.rootSigDrawBGs.GetPointer(),
+                .CS = ToShaderBytecode(vdp2.csDrawBGs),
+            };
+            if (HRESULT hr = vdp2.psoDrawBGs.CreateCompute(device, psoDesc); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format(
+                    "Could not build VDP2 background layer rendering pipeline state object, error code {:X}",
+                    (uint32)hr)};
+            }
+            vdp2.psoDrawBGs->SetName(L"[Ymir-VDP2] Background layer rendering pipeline state object");
+        }
+
         return util::ErrorMessage{"Unimplemented"};
     }
+
+    util::ValueResult<std::vector<char>> LoadShader(const char *path) {
+        if (!g_fsShaders.is_file(path)) {
+            return util::ErrorMessage{fmt::format("Embedded file not found: {}", path)};
+        }
+        auto file = g_fsShaders.open(path);
+        return std::vector<char>{file.begin(), file.end()};
+    }
+
+    static constexpr const char *kCSEntrypoint = "CSMain";
 
     D3D12Device device;
 
@@ -312,6 +373,15 @@ struct Direct3D12VDPRenderer::Impl {
         Descriptor srvLayerOut;
         /// @brief Layer outputs UAV.
         Descriptor uavLayerOut;
+
+        // ---------------------------------------------------------------------
+
+        /// @brief Compute shader for drawing background layers.
+        gpu::ComputeShader csDrawBGs;
+        /// @brief Root signature for drawing background layers.
+        D3D12RootSignature rootSigDrawBGs;
+        /// @brief Pipeline state object for drawing background layers.
+        D3D12PipelineState psoDrawBGs;
     } vdp2;
 };
 
