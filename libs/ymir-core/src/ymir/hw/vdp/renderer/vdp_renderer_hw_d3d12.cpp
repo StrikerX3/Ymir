@@ -18,9 +18,69 @@
 #include <cmrc/cmrc.hpp>
 CMRC_DECLARE(ymir_core_shaders);
 
+#include <cassert>
+
 using namespace ymir::gpu::d3d12;
 
 namespace ymir::vdp {
+
+/// @brief A simple bump-allocated upload buffer.
+struct UploadBuffer {
+    /// @brief Upload buffer resource.
+    D3D12Resource resource;
+    /// @brief Mapped view of the upload buffer.
+    void *data = nullptr;
+    /// @brief Current offset into the upload buffer.
+    size_t offset = 0;
+    /// @brief Maximum capacity of the upload buffer.
+    size_t capacity = 0;
+
+    ~UploadBuffer() {
+        if (resource) {
+            resource->Unmap(0, nullptr);
+        }
+    }
+
+    /// @brief Creates the upload buffer resource and maps its view.
+    /// @param[in] device the device that will own the buffer
+    /// @param[in] size buffer capacity
+    /// @return nothing on success, an error message on failure
+    util::VoidResult<> Create(D3D12Device &device, size_t size) {
+        auto builder = resource.BufferBuilder(size);
+        builder.HeapType(D3D12_HEAP_TYPE_UPLOAD);
+        builder.InitialState(D3D12_RESOURCE_STATE_GENERIC_READ);
+        if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+            return util::ErrorMessage{fmt::format("Could not create upload buffer, error code {:X}", (uint32)hr)};
+        }
+
+        const D3D12_RANGE range{0, 0};
+        if (HRESULT hr = resource->Map(0, &range, &data); FAILED(hr)) {
+            return util::ErrorMessage{fmt::format("Could not map upload buffer, error code {:X}", (uint32)hr)};
+        }
+        capacity = size;
+        offset = 0;
+
+        return {};
+    }
+
+    /// @brief Requests a chunk of the specified size from this buffer.
+    /// @param[in] size size in bytes to request. Must be aligned to 32 bits.
+    /// @return a pointer to the chunk, or `nullptr` if the buffer doesn't have enough space
+    void *Allocate(size_t size) {
+        assert((size & 3) == 0);
+        if (size <= capacity - offset) {
+            void *ptr = static_cast<char *>(data) + size;
+            offset += size;
+            return ptr;
+        }
+        return nullptr;
+    }
+
+    /// @brief Resets the allocated pointer, effectively "freeing" all allocations.
+    void Reset() {
+        offset = 0;
+    }
+};
 
 cmrc::embedded_filesystem g_fsShaders = cmrc::ymir_core_shaders::get_filesystem();
 
@@ -33,6 +93,8 @@ D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader)
         .BytecodeLength = shader.bytecode.size(),
     };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
 
 struct Direct3D12VDPRenderer::Impl {
     D3D12Device device;
@@ -97,11 +159,7 @@ struct Direct3D12VDPRenderer::Impl {
         static constexpr UINT64 kVRAMUploadBufferSize = vdp::kVDP2VRAMSize * 4;
 
         /// @brief VDP2 VRAM upload buffer.
-        D3D12Resource vramUploadBuffer;
-        /// @brief Mapped view of VDP2 VRAM upload buffer.
-        void *vramUploadBufferData;
-        /// @brief Current offset into the VDP2 VRAM upload buffer
-        size_t vramUploadOffset;
+        UploadBuffer vramUploadBuffer;
 
         // VDP2 CRAM is not directly exposed. Instead, shaders get two convenient views:
         // - CRAM converted to R8G8B8A8 colors based on the current color RAM mode
@@ -165,9 +223,9 @@ struct Direct3D12VDPRenderer::Impl {
             };
             if (HRESULT hr = resourceHeap.Create(device, desc); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Could not create VDP renderer resource heap, error code {:X}", (uint32)hr)};
+                    fmt::format("Could not create VDP renderer CBV/SRV/UAV heap, error code {:X}", (uint32)hr)};
             }
-            resourceHeap->SetName(L"[Ymir-VDP] Resource heap");
+            resourceHeap->SetName(L"[Ymir-VDP] CBV/SRV/UAV heap");
             resourceHeapAlloc.Bind(resourceHeap);
         }
 
@@ -230,21 +288,14 @@ struct Direct3D12VDPRenderer::Impl {
 
         // VDP2 VRAM upload ring buffer
         {
-            auto builder = vdp2.vramUploadBuffer.BufferBuilder(VDP2Resources::kVRAMUploadBufferSize);
-            builder.HeapType(D3D12_HEAP_TYPE_UPLOAD);
-            builder.InitialState(D3D12_RESOURCE_STATE_GENERIC_READ);
-            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+            if (auto result = vdp2.vramUploadBuffer.Create(device, VDP2Resources::kVRAMUploadBufferSize); !result) {
                 return util::ErrorMessage{
-                    fmt::format("Could not create VDP2 VRAM upload buffer, error code {:X}", (uint32)hr)};
+                    fmt::format("Could not create VDP2 VRAM upload buffer: {}", result.Error().message)};
             }
-            vdp2.vramUploadBuffer->SetName(L"[Ymir-VDP2] VDP2 VRAM upload ring buffer");
+            vdp2.vramUploadBuffer.resource->SetName(L"[Ymir-VDP2] VDP2 VRAM upload ring buffer");
 
-            const D3D12_RANGE range{0, 0};
-            if (HRESULT hr = vdp2.vramUploadBuffer->Map(0, &range, &vdp2.vramUploadBufferData); FAILED(hr)) {
-                return util::ErrorMessage{
-                    fmt::format("Could not map VDP2 VRAM upload buffer, error code {:X}", (uint32)hr)};
-            }
-            vdp2.vramUploadOffset = 0;
+            // TODO: allocate additional buffers if this runs out of space
+            // - if consistently running out of space, increase the buffer size instead
         }
 
         // VDP2 CRAM color buffer
@@ -416,7 +467,8 @@ struct Direct3D12VDPRenderer::Impl {
 
         // TODO: upload full VDP1 and VDP2 states
 
-        return util::ErrorMessage{"Unimplemented"};
+        // return util::ErrorMessage{"Unimplemented"};
+        return {};
     }
 
     util::ValueResult<std::vector<char>> LoadShader(const char *path) {
