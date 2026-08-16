@@ -4014,7 +4014,8 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
     const std::span<Color888> framebufferOutput(reinterpret_cast<Color888 *>(&m_framebuffer[y * m_HRes]), m_HRes);
 
     const bool normalTVMode = regs2.TVMD.HRESOn < 2;
-    const bool colorGradEnabled = normalTVMode && colorCalcParams.colorGradEnable;
+    const uint8 cramMode = regs2.vramControl.colorRAMMode;
+    const bool colorGradEnabled = normalTVMode && cramMode == 0 && colorCalcParams.colorGradEnable;
     static constexpr LayerIndex kColorGradLayers[] = {
         LYR_Sprite, LYR_RBG0, LYR_NBG0_RBG1, LYR_Invalid, LYR_NBG1_EXBG, LYR_NBG2, LYR_NBG3, LYR_Invalid,
     };
@@ -4089,9 +4090,9 @@ FORCE_INLINE void SoftwareVDPRenderer::VDP2ComposeLine(uint32 y, const VDP2Regs 
             output[1] = AverageRGB888(input[0], input[1]);
             Color888GradationMasked(std::span{output}.subspan(2, m_HRes - 2), std::span{mask}, std::span{input});
 
-            // Replace layer 1 with color gradation screen where layer 0 is also the color gradation layer
+            // Set layer 1 output to the color gradation screen where the designated screen is the topmost two layers
             for (uint32 x = 0; x < m_HRes; x++) {
-                if (scanline_layers[x][0] == colorGradLayer) {
+                if (scanline_layers[x][0] == colorGradLayer || scanline_layers[x][1] == colorGradLayer) {
                     scanline_layers[x][1] = colorGradLayer;
                     layer1Pixels[x] = output[x];
                 }

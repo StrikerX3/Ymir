@@ -70,6 +70,7 @@ Introduces save state file version 14.
 - VDP1: Force-align MSB write to 16-bit addresses when writing pixels with MSB enabled. Fixes deselected menu options being fully painted in black in Derby Analyst. (#587)
 - VDP1: Textured sprites with CMDSIZE.H=0 never fetch additional texels. Fixes glitched graphics in the scorecard of the shooting range in Policenauts.
 - VDP2: Avoid unintentional side effects on VDP2 EXTEN register when saving states. Fixes camera angles in Digital Dance Mix Vol. 1 - Namie Amuro.
+- VDP2: Disable color gradation if color RAM mode is not 0. Fixes the fog effect in The River of Dreams level in Astal. (#927)
 - VDP2: Fix coordinate latching on external latches. Fixes various Virtua Gun shot offset errors. (#787)
 - VDP2: Fix off-screen coordinate latching. Fixes some Virtua Gun reload detection issues. (#787)
 - VDP2: Restrict color calculations in certain video modes. Fixes Sound Test screen text blending in with the background in Dark Savior.
