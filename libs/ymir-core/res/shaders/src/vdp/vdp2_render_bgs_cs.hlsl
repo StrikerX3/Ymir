@@ -1,7 +1,9 @@
-RWTexture2DArray<uint4> bgOut : register(u0);
+#include "vdp2_render_params.hlsli"
 
-#include "vdp2_nbg.hlsli"
-#include "vdp2_rbg.hlsli"
+#include "vdp2_render_nbg.hlsli"
+#include "vdp2_render_rbg.hlsli"
+
+RWTexture2DArray<uint4> bgOut : register(u0);
 
 [numthreads(32, 1, 6)]
 void CSMain(uint3 id : SV_DispatchThreadID) {

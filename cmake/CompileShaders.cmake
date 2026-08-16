@@ -228,6 +228,7 @@ endfunction()
 #     DEPFILE <path_to_depfile>
 #     ENTRYPOINT <string>
 #     PROFILE <string>
+#     [INCLUDE_PATHS <path1> <path2> ...]
 #     [MACROS <macro1> <macro2> ...]
 # )
 #
@@ -254,6 +255,9 @@ endfunction()
 #   PROFILE
 #       Shader profile to compile for (e.g. "ps_6_7", "vs_6_7", "cs_6_5").
 #
+#   INCLUDE_PATHS (optional)
+#       List of include paths.
+#
 #   MACROS (optional)
 #       List of preprocessor defines to pass to the shader.
 #
@@ -271,10 +275,12 @@ function(_shader_make_generate_depfile_command)
         PROFILE
     )
     set(multiValueArgs
+        INCLUDE_PATHS
         MACROS
     )
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+    list(TRANSFORM ARG_INCLUDE_PATHS PREPEND "-I" OUTPUT_VARIABLE _include_paths_args)
     list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
     if (DXC_EXECUTABLE)
@@ -282,6 +288,7 @@ function(_shader_make_generate_depfile_command)
             "-MD" "-MF" "${ARG_DEPFILE}"
             "-T" "${ARG_PROFILE}"
             "-E" "${ARG_ENTRYPOINT}"
+            ${_include_paths_args}
             ${_macro_args}
             "${ARG_SOURCE}"
         )
@@ -299,6 +306,7 @@ function(_shader_make_generate_depfile_command)
             "-M" "${ARG_SOURCE}"
             "-o" "${ARG_DEPFILE}"
             "-fentry-point=${ARG_ENTRYPOINT}"
+            ${_include_paths_args}
             ${_macro_args}
         )
         set(${ARG_OUT_COMMAND} ${_command} PARENT_SCOPE)
@@ -316,6 +324,7 @@ endfunction()
 #     DESTINATION <path_to_output_file>
 #     ENTRYPOINT <string>
 #     PROFILE <string>
+#     [INCLUDE_PATHS <path1> <path2> ...]
 #     [MACROS <macro1> <macro2> ...]
 #     [INCLUDE_REFLECTION]
 # )
@@ -344,6 +353,9 @@ endfunction()
 #   PROFILE
 #       Shader profile to compile for (e.g. "ps_6_7", "vs_6_7", "cs_6_5").
 #
+#   INCLUDE_PATHS (optional)
+#       List of include paths.
+#
 #   MACROS (optional)
 #       List of preprocessor defines to pass to the shader.
 #
@@ -366,10 +378,12 @@ function(_shader_make_compile_dxil_command)
         PROFILE
     )
     set(multiValueArgs
+        INCLUDE_PATHS
         MACROS
     )
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+    list(TRANSFORM ARG_INCLUDE_PATHS PREPEND "-I" OUTPUT_VARIABLE _include_paths_args)
     list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
     if (DXC_DXIL_SUPPORTED)
@@ -388,6 +402,7 @@ function(_shader_make_compile_dxil_command)
                 -T "${ARG_PROFILE}"
                 -E "${ARG_ENTRYPOINT}"
                 ${_compile_flags}
+                ${_include_paths_args}
                 ${_macro_args}
                 -Fo "${ARG_DESTINATION}"
                 "${ARG_SOURCE}"
@@ -404,6 +419,7 @@ endfunction()
 #     DESTINATION <path_to_output_file>
 #     ENTRYPOINT <string>
 #     PROFILE <string>
+#     [INCLUDE_PATHS <path1> <path2> ...]
 #     [MACROS <macro1> <macro2> ...]
 #     [INCLUDE_REFLECTION]
 # )
@@ -432,6 +448,9 @@ endfunction()
 #   PROFILE
 #       Shader profile to compile for (e.g. "ps_6_7", "vs_6_7", "cs_6_5").
 #
+#   INCLUDE_PATHS (optional)
+#       List of include paths.
+#
 #   MACROS (optional)
 #       List of preprocessor defines to pass to the shader.
 #
@@ -454,10 +473,12 @@ function(_shader_make_compile_spirv_command)
         PROFILE
     )
     set(multiValueArgs
+        INCLUDE_PATHS
         MACROS
     )
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+    list(TRANSFORM ARG_INCLUDE_PATHS PREPEND "-I" OUTPUT_VARIABLE _include_paths_args)
     list(TRANSFORM ARG_MACROS PREPEND "-D" OUTPUT_VARIABLE _macro_args)
 
     if (${SPIRV_COMPILER_NAME} STREQUAL "DXC")
@@ -475,6 +496,7 @@ function(_shader_make_compile_spirv_command)
                 -E "${ARG_ENTRYPOINT}"
                 -spirv
                 ${_compile_flags}
+                ${_include_paths_args}
                 ${_macro_args}
                 -Fo "${ARG_DESTINATION}"
                 "${ARG_SOURCE}"
@@ -501,6 +523,7 @@ function(_shader_make_compile_spirv_command)
             "-fshader-stage=${_glslc_stage}"
             "--target-env=${_glslc_target_env}"
             "-fentry-point=${ARG_ENTRYPOINT}"
+            ${_include_paths_args}
             ${_macro_args}
             "-o" "${ARG_DESTINATION}"
             "${ARG_SOURCE}"
@@ -522,6 +545,7 @@ endfunction()
 #     ENTRYPOINT <string>
 #     PROFILE <string>
 #     [VARIANT <string>]
+#     [INCLUDE_PATHS <path1> <path2> ...]
 #     [MACROS <macro1> <macro2> ...]
 #     [INCLUDE_REFLECTION]
 # )
@@ -572,6 +596,9 @@ endfunction()
 #       a shader variant. This is useful when building multiple versions of the
 #       same shader using different macro sets.
 #
+#   INCLUDE_PATHS (optional)
+#       List of include paths.
+#
 #   MACROS (optional)
 #       List of preprocessor defines to pass to the shader.
 #
@@ -595,6 +622,7 @@ function(compile_shader)
         VARIANT
     )
     set(multiValueArgs
+        INCLUDE_PATHS
         MACROS
     )
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -650,6 +678,7 @@ function(compile_shader)
         DEPFILE "${_dep_file}"
         ENTRYPOINT ${ARG_ENTRYPOINT}
         PROFILE ${ARG_PROFILE}
+        INCLUDE_PATHS ${ARG_INCLUDE_PATHS}
         MACROS ${ARG_MACROS}
     )
 
@@ -660,6 +689,7 @@ function(compile_shader)
         DESTINATION "${_out_dxil_path}"
         ENTRYPOINT ${ARG_ENTRYPOINT}
         PROFILE ${ARG_PROFILE}
+        INCLUDE_PATHS ${ARG_INCLUDE_PATHS}
         MACROS ${ARG_MACROS}
         ${_fwd_INCLUDE_REFLECTION}
     )
@@ -675,6 +705,7 @@ function(compile_shader)
         DESTINATION "${_out_spirv_path}"
         ENTRYPOINT ${ARG_ENTRYPOINT}
         PROFILE ${ARG_PROFILE}
+        INCLUDE_PATHS ${ARG_INCLUDE_PATHS}
         MACROS ${ARG_MACROS}
         ${_fwd_INCLUDE_REFLECTION}
     )

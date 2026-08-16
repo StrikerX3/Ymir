@@ -395,7 +395,7 @@ set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set(COMPUTE_SHADER_SOURCES
-    res/shaders/vdp/vdp2_render_bgs_cs.hlsl
+    res/shaders/src/vdp/vdp2_render_bgs_cs.hlsl
 )
 ## TODO: add per-platform shader code if needed
 # if (WIN32)
@@ -415,6 +415,7 @@ foreach (SHADER_SRC ${COMPUTE_SHADER_SOURCES})
         DESTINATION "${SHADER_OUTPUT_DIR}"
         ENTRYPOINT "CSMain"
         PROFILE "cs_6_0"
+        INCLUDE_PATHS "${SHADER_INPUT_DIR}/include"
     )
     list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
 endforeach ()

@@ -24,6 +24,8 @@ namespace ymir::vdp {
 
 cmrc::embedded_filesystem g_fsShaders = cmrc::ymir_core_shaders::get_filesystem();
 
+static constexpr const char *kCSEntrypoint = "CSMain";
+
 template <gpu::ShaderStage stage>
 D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader) {
     return D3D12_SHADER_BYTECODE{
@@ -33,6 +35,110 @@ D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader)
 }
 
 struct Direct3D12VDPRenderer::Impl {
+    D3D12Device device;
+
+    D3D12CommandQueue cmdQueue;
+    D3D12Fence fence;
+    UINT64 fenceValue;
+
+    D3D12DescriptorHeap resourceHeap;
+    DescriptorHeapAllocator resourceHeapAlloc;
+
+    // =================================================================================================================
+    // VDP1 rendering
+    //
+    // TODO
+
+    struct VDP1Resources {
+        /// @brief VDP1 command allocator.
+        D3D12CommandAllocator cmdAlloc;
+        /// @brief VDP1 command list.
+        D3D12GraphicsCommandList cmdList;
+    } vdp1;
+
+    // =================================================================================================================
+    // VDP2 rendering
+    //
+    // The VDP2 rendering pipeline is invoked at least once per frame. When VRAM, CRAM and/or register writes happen,
+    // the renderer processes scanlines up to the previous VCNT and commits all changes before proceeding.
+    //
+    // Since the VDP2 rendering process has no visible effect on the rest of the Saturn's components, there is no need
+    // for additional synchronization constraints on memory and register reads or writes. The VDP2 state is handled by
+    // the VDP controller, and the renderer maintains a local independent copy of the VRAM, CRAM and VDP2 registers for
+    // fully asynchronous rendering.
+    //
+    // The 32-bit constant buffer holds renderer parameters shared across all VDP2 compute shaders, including relevant
+    // VDP2 registers, active enhancements and the starting line for continuation of work interrupted by state changes.
+
+    struct VDP2Resources {
+        /// @brief VDP2 command allocator.
+        D3D12CommandAllocator cmdAlloc;
+        /// @brief VDP2 command list.
+        D3D12GraphicsCommandList cmdList;
+
+        // VDP2 VRAM is exposed as a ByteAddressBuffer to shaders as they often need to access raw bytes in 8-bit,
+        // 16-bit and 32-bit formats.
+
+        /// @brief Raw VRAM data buffer.
+        D3D12Resource vramBuffer;
+        /// @brief Raw VRAM data buffer SRV.
+        Descriptor vramSRV;
+
+        // TODO: VRAM upload ring buffer
+        // - mark bytes (or chunks) as dirty on writes
+        // - VDP2FlushVRAM():
+        //   - coalesce dirty regions
+        //   - find upload buffer with enough free space
+        //     - if all buffers are full, allocate and map additional buffer
+        //   - copy regions to upload buffer
+        //   - submit CopyBufferRegion commands from upload to VRAM buffer
+
+        // TODO: tweak size as needed. Should be large enough to cover the worst cases.
+        static constexpr UINT64 kVRAMUploadBufferSize = vdp::kVDP2VRAMSize * 4;
+
+        /// @brief VDP2 VRAM upload buffer.
+        D3D12Resource vramUploadBuffer;
+        /// @brief Mapped view of VDP2 VRAM upload buffer.
+        void *vramUploadBufferData;
+        /// @brief Current offset into the VDP2 VRAM upload buffer
+        size_t vramUploadOffset;
+
+        // VDP2 CRAM is not directly exposed. Instead, shaders get two convenient views:
+        // - CRAM converted to R8G8B8A8 colors based on the current color RAM mode
+        // - Top half of raw CRAM bytes, for rotation coefficients
+
+        /// @brief CRAM color buffer.
+        D3D12Resource cramColorBuffer;
+        /// @brief CRAM color buffer SRV.
+        Descriptor cramColorSRV;
+
+        /// @brief Raw CRAM rotation coefficients buffer.
+        D3D12Resource cramRotCoeffBuffer;
+        /// @brief Raw CRAM rotation coefficients buffer SRV.
+        Descriptor cramRotCoeffSRV;
+
+        // LayerOut contains the intermediate per-layer outputs of the VDP2 rendering process.
+
+        /// @brief 2D texture array for the outputs of NBG0-3, RBG0-1, sprite and mesh layers (in that order).
+        D3D12Resource layerOutTexture;
+        /// @brief Layer outputs SRV.
+        Descriptor layerOutSRV;
+        /// @brief Layer outputs UAV.
+        Descriptor layerOutUAV;
+
+        // ---------------------------------------------------------------------
+
+        /// @brief Compute shader for drawing background layers.
+        gpu::ComputeShader drawBGsShader;
+        /// @brief Root signature for drawing background layers.
+        D3D12RootSignature drawBGsRootSig;
+        /// @brief Pipeline state object for drawing background layers.
+        D3D12PipelineState drawBGsPSO;
+    } vdp2;
+
+    // =================================================================================================================
+    // Operations
+
     util::VoidResult<> Initialize(ID3D12Device *pDevice) {
         device.Assign(pDevice);
 
@@ -97,14 +203,14 @@ struct Direct3D12VDPRenderer::Impl {
 
         // VDP2 VRAM buffer
         {
-            auto builder = vdp2.bufVRAM.BufferBuilder(vdp::kVDP2VRAMSize);
+            auto builder = vdp2.vramBuffer.BufferBuilder(vdp::kVDP2VRAMSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Could not create raw VDP2 VRAM buffer, error code {:X}", (uint32)hr)};
             }
-            vdp2.bufVRAM->SetName(L"[Ymir-VDP2] Raw VRAM buffer");
+            vdp2.vramBuffer->SetName(L"[Ymir-VDP2] Raw VRAM buffer");
 
-            if (!resourceHeapAlloc.Allocate(vdp2.srvVRAM)) {
+            if (!resourceHeapAlloc.Allocate(vdp2.vramSRV)) {
                 return util::ErrorMessage{"Could not allocate raw VDP2 VRAM buffer SRV"};
             }
             const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
@@ -119,7 +225,26 @@ struct Direct3D12VDPRenderer::Impl {
                         .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
                     },
             };
-            device->CreateShaderResourceView(vdp2.bufVRAM.GetPointer(), &srvDesc, vdp2.srvVRAM.cpuHandle);
+            device->CreateShaderResourceView(vdp2.vramBuffer.GetPointer(), &srvDesc, vdp2.vramSRV.cpuHandle);
+        }
+
+        // VDP2 VRAM upload ring buffer
+        {
+            auto builder = vdp2.vramUploadBuffer.BufferBuilder(VDP2Resources::kVRAMUploadBufferSize);
+            builder.HeapType(D3D12_HEAP_TYPE_UPLOAD);
+            builder.InitialState(D3D12_RESOURCE_STATE_GENERIC_READ);
+            if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create VDP2 VRAM upload buffer, error code {:X}", (uint32)hr)};
+            }
+            vdp2.vramUploadBuffer->SetName(L"[Ymir-VDP2] VDP2 VRAM upload ring buffer");
+
+            const D3D12_RANGE range{0, 0};
+            if (HRESULT hr = vdp2.vramUploadBuffer->Map(0, &range, &vdp2.vramUploadBufferData); FAILED(hr)) {
+                return util::ErrorMessage{
+                    fmt::format("Could not map VDP2 VRAM upload buffer, error code {:X}", (uint32)hr)};
+            }
+            vdp2.vramUploadOffset = 0;
         }
 
         // VDP2 CRAM color buffer
@@ -131,14 +256,14 @@ struct Direct3D12VDPRenderer::Impl {
             //   3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
             static constexpr UINT kMaxNumColors = vdp::kVDP2CRAMSize / sizeof(uint16);
 
-            auto builder = vdp2.bufCRAMColor.BufferBuilder(kMaxNumColors * sizeof(uint32));
+            auto builder = vdp2.cramColorBuffer.BufferBuilder(kMaxNumColors * sizeof(uint32));
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Could not create VDP2 CRAM color buffer, error code {:X}", (uint32)hr)};
             }
-            vdp2.bufCRAMColor->SetName(L"[Ymir-VDP2] CRAM color buffer");
+            vdp2.cramColorBuffer->SetName(L"[Ymir-VDP2] CRAM color buffer");
 
-            if (!resourceHeapAlloc.Allocate(vdp2.srvCRAMColor)) {
+            if (!resourceHeapAlloc.Allocate(vdp2.cramColorSRV)) {
                 return util::ErrorMessage{"Could not allocate VDP2 CRAM color buffer SRV"};
             }
             const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
@@ -153,7 +278,7 @@ struct Direct3D12VDPRenderer::Impl {
                         .Flags = D3D12_BUFFER_SRV_FLAG_NONE,
                     },
             };
-            device->CreateShaderResourceView(vdp2.bufCRAMColor.GetPointer(), &srvDesc, vdp2.srvCRAMColor.cpuHandle);
+            device->CreateShaderResourceView(vdp2.cramColorBuffer.GetPointer(), &srvDesc, vdp2.cramColorSRV.cpuHandle);
         }
 
         // VDP2 CRAM rotation coefficients buffer
@@ -161,14 +286,14 @@ struct Direct3D12VDPRenderer::Impl {
             // The second half of CRAM can be used as rotation coefficients.
             static constexpr UINT kCRAMRotCoeffSize = vdp::kVDP2CRAMSize / 2;
 
-            auto builder = vdp2.bufCRAMRotCoeff.BufferBuilder(kCRAMRotCoeffSize * sizeof(uint32));
+            auto builder = vdp2.cramRotCoeffBuffer.BufferBuilder(kCRAMRotCoeffSize * sizeof(uint32));
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format(
                     "Could not create VDP2 CRAM rotation coefficients buffer, error code {:X}", (uint32)hr)};
             }
-            vdp2.bufCRAMRotCoeff->SetName(L"[Ymir-VDP2] CRAM rotation coefficients buffer");
+            vdp2.cramRotCoeffBuffer->SetName(L"[Ymir-VDP2] CRAM rotation coefficients buffer");
 
-            if (!resourceHeapAlloc.Allocate(vdp2.srvCRAMRotCoeff)) {
+            if (!resourceHeapAlloc.Allocate(vdp2.cramRotCoeffSRV)) {
                 return util::ErrorMessage{"Could not allocate VDP2 CRAM rotation coefficients buffer SRV"};
             }
             const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
@@ -183,8 +308,8 @@ struct Direct3D12VDPRenderer::Impl {
                         .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
                     },
             };
-            device->CreateShaderResourceView(vdp2.bufCRAMRotCoeff.GetPointer(), &srvDesc,
-                                             vdp2.srvCRAMRotCoeff.cpuHandle);
+            device->CreateShaderResourceView(vdp2.cramRotCoeffBuffer.GetPointer(), &srvDesc,
+                                             vdp2.cramRotCoeffSRV.cpuHandle);
         }
 
         // Layer outputs 2D texture array
@@ -204,16 +329,16 @@ struct Direct3D12VDPRenderer::Impl {
             static constexpr UINT16 kNumLayers = 4 + 2 + 1 + 1;
             static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UINT;
 
-            auto builder = vdp2.texLayerOut.Texture2DBuilder(vdp::kMaxResH, vdp::kMaxResV, kNumLayers);
+            auto builder = vdp2.layerOutTexture.Texture2DBuilder(vdp::kMaxResH, vdp::kMaxResV, kNumLayers);
             builder.Format(kFormat);
             builder.Flags(D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Could not create layer outputs texture array, error code {:X}", (uint32)hr)};
             }
-            vdp2.texLayerOut->SetName(L"[Ymir-VDP2] Layer outputs array");
+            vdp2.layerOutTexture->SetName(L"[Ymir-VDP2] Layer outputs array");
 
-            if (!resourceHeapAlloc.Allocate(vdp2.srvLayerOut)) {
+            if (!resourceHeapAlloc.Allocate(vdp2.layerOutSRV)) {
                 return util::ErrorMessage{"Could not allocate layer outputs texture array SRV"};
             }
             const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
@@ -230,9 +355,9 @@ struct Direct3D12VDPRenderer::Impl {
                         .ResourceMinLODClamp = 0.0f,
                     },
             };
-            device->CreateShaderResourceView(vdp2.texLayerOut.GetPointer(), &srvDesc, vdp2.srvLayerOut.cpuHandle);
+            device->CreateShaderResourceView(vdp2.layerOutTexture.GetPointer(), &srvDesc, vdp2.layerOutSRV.cpuHandle);
 
-            if (!resourceHeapAlloc.Allocate(vdp2.uavLayerOut)) {
+            if (!resourceHeapAlloc.Allocate(vdp2.layerOutUAV)) {
                 return util::ErrorMessage{"Could not allocate layer outputs texture array UAV"};
             }
             const D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{
@@ -246,28 +371,28 @@ struct Direct3D12VDPRenderer::Impl {
                         .PlaneSlice = 0,
                     },
             };
-            device->CreateUnorderedAccessView(vdp2.texLayerOut.GetPointer(), nullptr, &uavDesc,
-                                              vdp2.uavLayerOut.cpuHandle);
+            device->CreateUnorderedAccessView(vdp2.layerOutTexture.GetPointer(), nullptr, &uavDesc,
+                                              vdp2.layerOutUAV.cpuHandle);
         }
 
         // Draw background layers compute shader, root signature and pipeline state object
         {
-            auto shaderBlobResult = LoadShader("vdp/vdp2_render_bgs_cs.cso");
+            auto shaderBlobResult = LoadShader("src/vdp/vdp2_render_bgs_cs.cso");
             if (!shaderBlobResult) {
                 return util::ErrorMessage{
                     fmt::format("Could not load VDP2 background layer rendering compute shader: {}",
                                 shaderBlobResult.Error().message)};
             }
-            vdp2.csDrawBGs.format = gpu::ShaderBytecodeFormat::DXIL;
-            vdp2.csDrawBGs.bytecode = shaderBlobResult.Value();
-            vdp2.csDrawBGs.entrypoint = kCSEntrypoint;
-            auto result = gpu::ValidateShader(vdp2.csDrawBGs);
+            vdp2.drawBGsShader.format = gpu::ShaderBytecodeFormat::DXIL;
+            vdp2.drawBGsShader.bytecode = shaderBlobResult.Value();
+            vdp2.drawBGsShader.entrypoint = kCSEntrypoint;
+            auto result = gpu::ValidateShader(vdp2.drawBGsShader);
             if (!result) {
                 return util::ErrorMessage{fmt::format(
                     "VDP2 background layer rendering compute shader validation failed: {}", result.Error().message)};
             }
 
-            auto rootSigBuilder = vdp2.rootSigDrawBGs.Builder();
+            auto rootSigBuilder = vdp2.drawBGsRootSig.Builder();
             // TODO: add parameters as needed
             rootSigBuilder.Add32BitConstants(0, 1); // TODO: rendering parameters
             rootSigBuilder.AddDescriptorTable().AddUAVs(1, 0);
@@ -275,19 +400,21 @@ struct Direct3D12VDPRenderer::Impl {
                 return util::ErrorMessage{fmt::format(
                     "Could not build VDP2 background layer rendering root signature, error code {:X}", (uint32)hr)};
             }
-            vdp2.rootSigDrawBGs->SetName(L"[Ymir-VDP2] Background layer rendering root signature");
+            vdp2.drawBGsRootSig->SetName(L"[Ymir-VDP2] Background layer rendering root signature");
 
             const D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc{
-                .pRootSignature = vdp2.rootSigDrawBGs.GetPointer(),
-                .CS = ToShaderBytecode(vdp2.csDrawBGs),
+                .pRootSignature = vdp2.drawBGsRootSig.GetPointer(),
+                .CS = ToShaderBytecode(vdp2.drawBGsShader),
             };
-            if (HRESULT hr = vdp2.psoDrawBGs.CreateCompute(device, psoDesc); FAILED(hr)) {
+            if (HRESULT hr = vdp2.drawBGsPSO.CreateCompute(device, psoDesc); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format(
                     "Could not build VDP2 background layer rendering pipeline state object, error code {:X}",
                     (uint32)hr)};
             }
-            vdp2.psoDrawBGs->SetName(L"[Ymir-VDP2] Background layer rendering pipeline state object");
+            vdp2.drawBGsPSO->SetName(L"[Ymir-VDP2] Background layer rendering pipeline state object");
         }
+
+        // TODO: upload full VDP1 and VDP2 states
 
         return util::ErrorMessage{"Unimplemented"};
     }
@@ -299,90 +426,6 @@ struct Direct3D12VDPRenderer::Impl {
         auto file = g_fsShaders.open(path);
         return std::vector<char>{file.begin(), file.end()};
     }
-
-    static constexpr const char *kCSEntrypoint = "CSMain";
-
-    D3D12Device device;
-
-    D3D12CommandQueue cmdQueue;
-    D3D12Fence fence;
-    UINT64 fenceValue;
-
-    D3D12DescriptorHeap resourceHeap;
-    DescriptorHeapAllocator resourceHeapAlloc;
-
-    // =================================================================================================================
-    // VDP1 rendering
-    //
-    // TODO
-
-    struct VDP1 {
-        /// @brief VDP1 command allocator.
-        D3D12CommandAllocator cmdAlloc;
-        /// @brief VDP1 command list.
-        D3D12GraphicsCommandList cmdList;
-    } vdp1;
-
-    // =================================================================================================================
-    // VDP2 rendering
-    //
-    // The VDP2 rendering pipeline is invoked at least once per frame. When VRAM, CRAM and/or register writes happen,
-    // the renderer processes scanlines up to the previous VCNT and commits all changes before proceeding.
-    //
-    // Since the VDP2 rendering process has no visible effect on the rest of the Saturn's components, there is no need
-    // for additional synchronization constraints on memory and register reads or writes. The VDP2 state is handled by
-    // the VDP controller, and the renderer maintains a local independent copy of the VRAM, CRAM and VDP2 registers for
-    // fully asynchronous rendering.
-    //
-    // The 32-bit constant buffer holds renderer parameters shared across all VDP2 compute shaders, including relevant
-    // VDP2 registers, active enhancements and the starting line for continuation of work interrupted by state changes.
-
-    struct VDP2 {
-        /// @brief VDP2 command allocator.
-        D3D12CommandAllocator cmdAlloc;
-        /// @brief VDP2 command list.
-        D3D12GraphicsCommandList cmdList;
-
-        // VDP2 VRAM is exposed as a ByteAddressBuffer to shaders as they often need to access raw bytes in 8-bit,
-        // 16-bit and 32-bit formats.
-
-        /// @brief Raw VRAM data buffer.
-        D3D12Resource bufVRAM;
-        /// @brief Raw VRAM data buffer SRV.
-        Descriptor srvVRAM;
-
-        // VDP2 CRAM is not directly exposed. Instead, shaders get two convenient views:
-        // - CRAM converted to R8G8B8A8 colors based on the current color RAM mode
-        // - Top half of raw CRAM bytes, for rotation coefficients
-
-        /// @brief CRAM color buffer.
-        D3D12Resource bufCRAMColor;
-        /// @brief CRAM color buffer SRV.
-        Descriptor srvCRAMColor;
-
-        /// @brief Raw CRAM rotation coefficients buffer.
-        D3D12Resource bufCRAMRotCoeff;
-        /// @brief Raw CRAM rotation coefficients buffer SRV.
-        Descriptor srvCRAMRotCoeff;
-
-        // LayerOut contains the intermediate per-layer outputs of the VDP2 rendering process.
-
-        /// @brief 2D texture array for the outputs of NBG0-3, RBG0-1, sprite and mesh layers (in that order).
-        D3D12Resource texLayerOut;
-        /// @brief Layer outputs SRV.
-        Descriptor srvLayerOut;
-        /// @brief Layer outputs UAV.
-        Descriptor uavLayerOut;
-
-        // ---------------------------------------------------------------------
-
-        /// @brief Compute shader for drawing background layers.
-        gpu::ComputeShader csDrawBGs;
-        /// @brief Root signature for drawing background layers.
-        D3D12RootSignature rootSigDrawBGs;
-        /// @brief Pipeline state object for drawing background layers.
-        D3D12PipelineState psoDrawBGs;
-    } vdp2;
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -551,8 +594,30 @@ void Direct3D12VDPRenderer::VDP2LatchTVMD() {
     // Nothing to do. We're using the main VDP2 state for this.
 }
 
+// TODO: rendering process
+// - VDP2BeginFrame():
+//   - VDP2FlushVRAM() right away
+// - VDP2RenderLine():
+//   - if there are pending VRAM writes:
+//     - draw lines from segmentStartY to y-1 (if possible)
+//     - VDP2FlushVRAM()
+//     - set segmentStartY = y
+// - VDP2EndFrame():
+//   - draw lines from segmentStartY to bottom of framebuffer
+
 void Direct3D12VDPRenderer::VDP2BeginFrame() {
     // TODO: prepare new VDP2 frame
+    auto &vdp2 = m_impl->vdp2;
+    auto &cmdList = vdp2.cmdList;
+    vdp2.cmdAlloc->Reset();
+    cmdList->Reset(vdp2.cmdAlloc.GetPointer(), vdp2.drawBGsPSO.GetPointer());
+
+    ID3D12DescriptorHeap *heaps[] = {m_impl->resourceHeap.GetPointer()};
+    cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
+
+    cmdList->SetComputeRootSignature(vdp2.drawBGsRootSig.GetPointer());
+    // TODO: cmdList->SetComputeRoot32BitConstants(0, sizeof(RenderParams), &vdp2.cpuRenderParams, 0);
+    cmdList->SetComputeRootDescriptorTable(1, vdp2.layerOutUAV.gpuHandle);
 }
 
 void Direct3D12VDPRenderer::VDP2RenderLine(uint32 y) {
@@ -560,6 +625,17 @@ void Direct3D12VDPRenderer::VDP2RenderLine(uint32 y) {
 }
 
 void Direct3D12VDPRenderer::VDP2EndFrame() {
+    // TODO: this is just for testing; remove it
+    auto &vdp2 = m_impl->vdp2;
+    auto &cmdList = vdp2.cmdList;
+    cmdList->Dispatch(vdp::kMaxResH / 32, vdp::kMaxResV, 6);
+    cmdList->Close();
+
+    m_impl->cmdQueue->ExecuteCommandLists(1, cmdList.GetAddressOfBase());
+    m_impl->fence.Signal(m_impl->cmdQueue, m_impl->fenceValue);
+    m_impl->fence.Wait(INFINITE, m_impl->fenceValue);
+    ++m_impl->fenceValue;
+
     // TODO: finish VDP2 frame
     Callbacks.VDP2DrawFinished();
 }
