@@ -2,8 +2,6 @@
 
 #include "gfx_context.hpp"
 
-#include <wil/com.h>
-
 // -----------------------------------------------------------------------------
 // Forward declarations
 
@@ -57,11 +55,11 @@ public:
                                           const FPoint2D *pivot = nullptr) override;
 
     util::VoidResult<> SetPresentMode(PresentMode mode) override;
-    util::VoidResult<> Present() override;
+    util::ValueResult<PresentResult> Present() override;
 
-    /// @brief Retrieves a reference-counted pointer to the `ID3D12Device` managed by this graphics context.
+    /// @brief Retrieves a pointer to the `ID3D12Device` managed by this graphics context.
     /// @return a pointer to the context's Direct3D 12 device instance
-    wil::com_ptr_nothrow<ID3D12Device> GetDevice() const;
+    ID3D12Device *GetDevice() const;
 
 private:
     std::unique_ptr<Impl> m_impl;

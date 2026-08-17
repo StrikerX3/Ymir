@@ -9,26 +9,14 @@
     #include <spirv-tools/libspirv.hpp>
 #endif
 
+#include <ymir/util/string.hpp>
+
 #include <ymir/core/types.hpp>
 
 #include <string>
 #include <string_view>
 
 namespace ymir::gpu {
-
-/// @brief Converts the given UTF-8-encoded string to a wide string.
-/// @param[in] str the string to convert
-/// @return the string converted to `std::wstring`
-static std::wstring StringToWString(std::string_view str) {
-    if (str.empty()) {
-        return L"";
-    }
-
-    const int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-    std::wstring wstr(size, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstr[0], size);
-    return wstr;
-}
 
 static const wchar_t *GetShaderProfile(ShaderStage stage) {
     // TODO: allow selecting version
@@ -60,13 +48,13 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
     wil::com_ptr_nothrow<IDxcUtils> utils{};
     hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.put()));
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to create DXC utils: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to create DXC utils: error code {:X}", (UINT)hr)};
     }
 
     wil::com_ptr_nothrow<IDxcCompiler3> compiler{};
     hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(compiler.put()));
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to create DXC compiler: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to create DXC compiler: error code {:X}", (UINT)hr)};
     }
 
     // Create shader source blob
@@ -82,10 +70,10 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
     if (spec.name.empty()) {
         sourceName = nullptr;
     } else {
-        sourceNameStr = StringToWString(spec.name);
+        sourceNameStr = util::StringToWString(spec.name);
         sourceName = sourceNameStr.c_str();
     }
-    std::wstring entrypoint = StringToWString(spec.entrypoint);
+    std::wstring entrypoint = util::StringToWString(spec.entrypoint);
 
     // Set up arguments list
     std::vector<LPCWSTR> args{};
@@ -113,8 +101,8 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
     std::vector<WideMacro> wideMacros{};
     for (auto &[name, value] : spec.macros) {
         auto &wideMacro = wideMacros.emplace_back();
-        wideMacro.name = StringToWString(name);
-        wideMacro.value = StringToWString(value);
+        wideMacro.name = util::StringToWString(name);
+        wideMacro.value = util::StringToWString(value);
     }
 
     // Build defines list
@@ -130,7 +118,7 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
     hr = utils->BuildArguments(sourceName, entrypoint.c_str(), shaderProfile, args.data(), args.size(), defines.data(),
                                defines.size(), dxcArgs.put());
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to create DXC compiler arguments: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to create DXC compiler arguments: error code {:X}", (UINT)hr)};
     }
 
     // Create include handler
@@ -142,7 +130,7 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
     hr = compiler->Compile(&sourceBlob, dxcArgs->GetArguments(), dxcArgs->GetCount(), includeHandler,
                            IID_PPV_ARGS(result.put()));
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to compile shader: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to compile shader: error code {:X}", (UINT)hr)};
     }
 
     // Check status
@@ -155,21 +143,21 @@ util::ValueResult<CompiledShader<stage>> DoCompileShader(const ShaderCompileSpec
             wil::com_ptr_nothrow<IDxcBlobUtf8> errorsU8{};
             if (SUCCEEDED(errors->QueryInterface(IID_PPV_ARGS(&errorsU8))) && errorsU8 != nullptr) {
                 return util::ErrorMessage{fmt::format("Failed to compile shader: error code {:X}, details:\n{}",
-                                                      hrStatus, errorsU8->GetStringPointer())};
+                                                      (UINT)hrStatus, errorsU8->GetStringPointer())};
             }
             std::string errorMessage{static_cast<char *>(errors->GetBufferPointer()), errors->GetBufferSize()};
             return util::ErrorMessage{
-                fmt::format("Failed to compile shader: error code {:X}, details:\n{}", hrStatus, errorMessage)};
+                fmt::format("Failed to compile shader: error code {:X}, details:\n{}", (UINT)hrStatus, errorMessage)};
         }
         return util::ErrorMessage{
-            fmt::format("Failed to compile shader: error code {:X}, no details available", hrStatus)};
+            fmt::format("Failed to compile shader: error code {:X}, no details available", (UINT)hrStatus)};
     }
 
     // Get compiled shader bytecode
     wil::com_ptr_nothrow<IDxcBlob> shaderBlob{};
     hr = result->GetResult(shaderBlob.put());
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to retrieve compiled shader blob: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to retrieve compiled shader blob: error code {:X}", (UINT)hr)};
     }
     std::vector<char> bytecode{};
     bytecode.resize(shaderBlob->GetBufferSize());
@@ -191,26 +179,26 @@ static util::VoidResult<> ValidateShaderDXC(CompiledShader<stage> &spec) {
     wil::com_ptr_nothrow<IDxcUtils> utils{};
     hr = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.put()));
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to create DXC utils: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to create DXC utils: error code {:X}", (UINT)hr)};
     }
 
     wil::com_ptr_nothrow<IDxcValidator2> validator{};
     hr = DxcCreateInstance(CLSID_DxcValidator, IID_PPV_ARGS(validator.put()));
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Could not create DXC validator: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Could not create DXC validator: error code {:X}", (UINT)hr)};
     }
 
     wil::com_ptr_nothrow<IDxcBlobEncoding> shaderBlob{};
     hr = utils->CreateBlobFromPinned(spec.bytecode.data(), spec.bytecode.size(), DXC_CP_ACP, shaderBlob.put());
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Could not create shader blob: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Could not create shader blob: error code {:X}", (UINT)hr)};
     }
 
     // Validate shader
     wil::com_ptr_nothrow<IDxcOperationResult> result{};
     hr = validator->Validate(shaderBlob.get(), DxcValidatorFlags_Default, result.put());
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to validate shader: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to validate shader: error code {:X}", (UINT)hr)};
     }
 
     // Check status
@@ -223,21 +211,21 @@ static util::VoidResult<> ValidateShaderDXC(CompiledShader<stage> &spec) {
             wil::com_ptr_nothrow<IDxcBlobUtf8> errorsU8{};
             if (SUCCEEDED(errors->QueryInterface(IID_PPV_ARGS(&errorsU8))) && errorsU8 != nullptr) {
                 return util::ErrorMessage{fmt::format("Failed to validate shader: error code {:X}, details:\n{}",
-                                                      hrStatus, errorsU8->GetStringPointer())};
+                                                      (UINT)hrStatus, errorsU8->GetStringPointer())};
             }
             std::string errorMessage{static_cast<char *>(errors->GetBufferPointer()), errors->GetBufferSize()};
             return util::ErrorMessage{
-                fmt::format("Failed to validate shader: error code {:X}, details:\n{}", hrStatus, errorMessage)};
+                fmt::format("Failed to validate shader: error code {:X}, details:\n{}", (UINT)hrStatus, errorMessage)};
         }
         return util::ErrorMessage{
-            fmt::format("Failed to validate shader: error code {:X}, no details available", hrStatus)};
+            fmt::format("Failed to validate shader: error code {:X}, no details available", (UINT)hrStatus)};
     }
 
     // Get validated shader bytecode
     wil::com_ptr_nothrow<IDxcBlob> validatedShaderBlob{};
     hr = result->GetResult(validatedShaderBlob.put());
     if (FAILED(hr)) {
-        return util::ErrorMessage{fmt::format("Failed to retrieve validated shader blob: error code {:X}", hr)};
+        return util::ErrorMessage{fmt::format("Failed to retrieve validated shader blob: error code {:X}", (UINT)hr)};
     }
     spec.bytecode.resize(validatedShaderBlob->GetBufferSize());
     std::copy_n(static_cast<char *>(validatedShaderBlob->GetBufferPointer()), validatedShaderBlob->GetBufferSize(),

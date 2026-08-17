@@ -15,4 +15,14 @@ std::string TranslateSaturnString(std::string_view str);
 /// @return a new string with whitespace characters (0x20, ' ') removed from the front and back.
 std::string TrimWhitespace(std::string str);
 
+/// @brief Converts the given UTF-8-encoded string to a wide string.
+/// @param[in] str the string to convert
+/// @return the string converted to `std::wstring`
+std::wstring StringToWString(std::string_view str);
+
+/// @brief Converts the given wide string to a UTF-8-encoded string.
+/// @param[in] wstr the wide string to convert
+/// @return the wide string converted to `std::string`
+std::string WStringToString(std::wstring_view wstr);
+
 } // namespace util

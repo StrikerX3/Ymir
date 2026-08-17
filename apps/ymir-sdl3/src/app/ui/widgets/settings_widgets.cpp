@@ -4,6 +4,8 @@
 
 #include <app/settings.hpp>
 
+#include <app/services/gfx/gfx_adapters.hpp>
+
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 
@@ -103,7 +105,7 @@ namespace settings::video {
             auto item = [&](gfx::Backend backend) {
                 if (settings.MakeDirty(ImGui::Selectable(gfx::GraphicsBackendName(backend),
                                                          videoSettings.graphicsBackend == backend))) {
-                    ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend));
+                    ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend, videoSettings.graphicsAdapter));
                 }
             };
             for (gfx::Backend backend : gfx::kGraphicsBackends) {
@@ -113,6 +115,65 @@ namespace settings::video {
                 item(backend);
             }
             ImGui::EndCombo();
+        }
+    }
+
+    void GraphicsAdapterCombo(SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &videoSettings = settings.video;
+        const gfx::Backend backend = videoSettings.graphicsBackend;
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Graphics adapter:");
+        ImGui::SameLine();
+        if (backend == gfx::Backend::SDLRenderer) {
+            ImGui::TextDisabled("(unavailable for SDL Renderer)");
+        } else {
+            std::vector<gfx::Adapter> adapters = gfx::GetGraphicsAdapters(backend);
+            std::string currAdapter;
+            if (adapters.empty()) {
+                currAdapter = "(No graphics adapters detected)";
+            } else {
+                currAdapter = adapters.front().ToString();
+            }
+            for (const gfx::Adapter &adapter : adapters) {
+                if (adapter.id == videoSettings.graphicsAdapter) {
+                    currAdapter = adapter.ToString();
+                }
+            }
+
+            if (ImGui::BeginCombo("##graphics_adapter", currAdapter.c_str(),
+                                  ImGuiComboFlags_HeightLarge | ImGuiComboFlags_WidthFitPreview)) {
+                for (const gfx::Adapter &adapter : adapters) {
+                    if (settings.MakeDirty(ImGui::Selectable(adapter.ToString().c_str(),
+                                                             adapter.id == videoSettings.graphicsAdapter))) {
+                        ctx.EnqueueEvent(events::gui::SwitchGraphicsBackend(backend, adapter.id));
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Refresh##graphics_adapters")) {
+                gfx::RefreshGraphicsAdapters(backend);
+            }
+        }
+    }
+
+    void UseHardwareAcceleration(SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &videoSettings = settings.video;
+        const bool isSDLRenderer = videoSettings.graphicsBackend == gfx::Backend::SDLRenderer;
+        bool hwAccel = videoSettings.useHardwareAcceleration;
+        if (isSDLRenderer) {
+            ImGui::BeginDisabled();
+        }
+        if (settings.MakeDirty(ImGui::Checkbox("Use hardware-accelerated VDP1/VDP2 rendering", &hwAccel))) {
+            videoSettings.useHardwareAcceleration = hwAccel;
+            ctx.EnqueueEvent(events::emu::SwitchVDPRenderer());
+        }
+        if (isSDLRenderer) {
+            widgets::ExplanationTooltip("Not supported with SDL Renderer", ctx.displayScale);
+            ImGui::EndDisabled();
         }
     }
 
@@ -191,6 +252,56 @@ namespace settings::video {
         }
 
     } // namespace swrenderer
+
+    namespace hwrenderer {
+
+        void VDP1VRAMSyncInterval(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            using SyncInterval = core::config::hw_vdp::VDP1VRAMSyncInterval;
+            SyncInterval interval = settings.video.hwRenderer.vdp1SyncInterval.Get();
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("VDP1 VRAM sync interval:");
+            widgets::ExplanationTooltip(
+                "Selects how often to synchronize VDP1 VRAM writes:\n"
+                "- Command: synchronizes writes before processing each command (slowest, most accurate)\n"
+                "- Draw: synchronizes writes before the start of a VDP1 drawing sequence\n"
+                "- Swap: synchronizes writes before each framebuffer swap (fastest, least accurate)",
+                ctx.displayScale);
+            auto option = [&](const char *name, SyncInterval value) {
+                ImGui::SameLine();
+                if (settings.MakeDirty(ImGui::RadioButton(name, interval == value))) {
+                    settings.video.hwRenderer.vdp1SyncInterval = value;
+                }
+            };
+            option("Command", SyncInterval::Command);
+            option("Draw", SyncInterval::Draw);
+            option("Swap", SyncInterval::Swap);
+        }
+
+        void VDP2VRAMSyncInterval(SharedContext &ctx) {
+            auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+            using SyncInterval = core::config::hw_vdp::VDP2VRAMSyncInterval;
+            SyncInterval interval = settings.video.hwRenderer.vdp2SyncInterval.Get();
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted("VDP2 VRAM sync interval:");
+            widgets::ExplanationTooltip(
+                "Selects how often to synchronize VDP2 VRAM writes:\n"
+                "- Scanline: synchronizes writes before drawing a scanline (slowest, most accurate)\n"
+                "- Frame: synchronizes writes before starting a frame (fastest, least accurate)",
+                ctx.displayScale);
+            auto option = [&](const char *name, SyncInterval value) {
+                ImGui::SameLine();
+                if (settings.MakeDirty(ImGui::RadioButton(name, interval == value))) {
+                    settings.video.hwRenderer.vdp2SyncInterval = value;
+                }
+            };
+            option("Scanline", SyncInterval::Scanline);
+            option("Frame", SyncInterval::Frame);
+        }
+
+    } // namespace hwrenderer
 
     namespace enhancements {
 

@@ -15,17 +15,17 @@ VDP::VDP(core::Scheduler &scheduler, core::Configuration &config)
         m_state.regs2.TVMDDirty = true;
         UpdateResolution<false>();
     });
-    config.video.threadedVDP1.Observe([this](bool value) {
+    config.swRenderer.threadedVDP1.Observe([this](bool value) {
         if (auto *renderer = m_renderer->As<VDPRendererType::Software>()) {
             renderer->EnableThreadedVDP1(value);
         }
     });
-    config.video.threadedVDP2.Observe([this](bool value) {
+    config.swRenderer.threadedVDP2.Observe([this](bool value) {
         if (auto *renderer = m_renderer->As<VDPRendererType::Software>()) {
             renderer->EnableThreadedVDP2(value);
         }
     });
-    config.video.threadedDeinterlacer.Observe([this](bool value) {
+    config.swRenderer.threadedDeinterlacer.Observe([this](bool value) {
         if (auto *renderer = m_renderer->As<VDPRendererType::Software>()) {
             renderer->EnableThreadedDeinterlacer(value);
         }

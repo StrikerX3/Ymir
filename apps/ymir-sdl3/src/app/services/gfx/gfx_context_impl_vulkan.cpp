@@ -108,7 +108,7 @@ util::VoidResult<> VulkanGraphicsContext::SetPresentMode(PresentMode mode) {
     return util::ErrorMessage{"Unimplemented"};
 }
 
-util::VoidResult<> VulkanGraphicsContext::Present() {
+util::ValueResult<PresentResult> VulkanGraphicsContext::Present() {
     // TODO: present next frame and wait for vertical retrace if enabled
     return util::ErrorMessage{"Unimplemented"};
 }

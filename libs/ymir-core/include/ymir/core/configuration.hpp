@@ -92,10 +92,8 @@ struct Configuration {
             util::datetime::DateTime{.year = 1994, .month = 1, .day = 1, .hour = 0, .minute = 0, .second = 0});
     } rtc;
 
-    /// @brief VDP1, VDP2 and video rendering configuration.
-    struct Video {
-        // TODO: renderer backend options
-
+    /// @brief Software VDP1 and VDP2 rendering configuration.
+    struct SoftwareRenderer {
         /// @brief Runs the VDP1 renderer in a dedicated thread.
         util::Observable<bool> threadedVDP1 = true;
 
@@ -104,7 +102,13 @@ struct Configuration {
 
         /// @brief Runs the VDP2 deinterlacer in a dedicated thread, if the VDP2 renderer is running in a thread.
         util::Observable<bool> threadedDeinterlacer = true;
-    } video;
+    } swRenderer;
+
+    /// @brief Hardware VDP1 and VDP2 rendering configuration.
+    struct HardwareRenderer {
+        config::hw_vdp::VDP1VRAMSyncInterval vdp1SyncInterval = config::hw_vdp::VDP1VRAMSyncInterval::Command;
+        config::hw_vdp::VDP2VRAMSyncInterval vdp2SyncInterval = config::hw_vdp::VDP2VRAMSyncInterval::Scanline;
+    } hwRenderer;
 
     /// @brief SCSP and audio rendering configuration.
     struct Audio {

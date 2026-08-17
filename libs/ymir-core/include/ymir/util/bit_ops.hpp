@@ -36,6 +36,18 @@ template <std::unsigned_integral T>
     return std::bit_ceil(value);
 }
 
+/// @brief Adjusts a value to the smallest value not less than `value` with the `B` least significant bits zeroed out.
+/// @tparam[in] B the number of bits to align to
+/// @tparam[in] T the type of the integral
+/// @param[in] value the value to align
+/// @return the aligned value
+template <unsigned B, std::unsigned_integral T>
+[[nodiscard]] FORCE_INLINE constexpr T align(T value) noexcept {
+    constexpr T kOffset = (static_cast<T>(1) << static_cast<T>(B)) - static_cast<T>(1);
+    constexpr T kMask = ~kOffset;
+    return (value + kOffset) & kMask;
+}
+
 /// @brief Sign-extends a `B`-bit integer from the least significant bits of `value`.
 /// @tparam B the bit width of the value
 /// @tparam T the type of the integral

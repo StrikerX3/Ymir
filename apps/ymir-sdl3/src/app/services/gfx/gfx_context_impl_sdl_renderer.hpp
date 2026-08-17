@@ -54,7 +54,7 @@ public:
                                           const FPoint2D *anchorPoint = nullptr) override;
 
     util::VoidResult<> SetPresentMode(PresentMode mode) override;
-    util::VoidResult<> Present() override;
+    util::ValueResult<PresentResult> Present() override;
 
 private:
     SDL_Window *m_window;

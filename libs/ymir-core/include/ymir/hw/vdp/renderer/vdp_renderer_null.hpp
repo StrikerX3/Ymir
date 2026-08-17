@@ -9,12 +9,20 @@ Does nothing, but invokes all standard renderer callbacks at appropriate times.
 
 #include <ymir/hw/vdp/renderer/vdp_renderer_base.hpp>
 
+#include <ymir/util/result.hpp>
+
+#include <memory>
+
 namespace ymir::vdp {
 
 class NullVDPRenderer : public IVDPRenderer {
 public:
     NullVDPRenderer()
         : IVDPRenderer(VDPRendererType::Null) {}
+
+    static util::ObjectResult<NullVDPRenderer> Create() {
+        return std::make_unique<NullVDPRenderer>();
+    }
 
     // -------------------------------------------------------------------------
     // Basics

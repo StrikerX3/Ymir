@@ -4,7 +4,10 @@
 
 #include <app/shared_context.hpp>
 
+#include <app/services/graphics_service.hpp>
 #include <app/services/save_state_service.hpp>
+
+#include <app/services/gfx/gfx_context_impls.hpp>
 
 #include <ymir/sys/saturn.hpp>
 
@@ -62,6 +65,62 @@ EmuEvent SetTransparentMeshes(bool enable) {
     return RunFunction([=](SharedContext &ctx) {
         ctx.saturn.instance->VDP.ModifyEnhancements(
             [&](vdp::config::Enhancements &enhancements) { enhancements.transparentMeshes = enable; });
+    });
+}
+
+EmuEvent UseNullVDPRenderer(util::Event &event) {
+    return RunFunction([&event](SharedContext &ctx) {
+        auto &vdp = ctx.saturn.instance->VDP;
+        vdp.UseNullRenderer();
+        event.Set();
+    });
+}
+
+EmuEvent SwitchVDPRenderer() {
+    return RunFunction([=](SharedContext &ctx) {
+        auto &settings = ctx.serviceLocator.GetRequired<Settings>();
+        auto &vdp = ctx.saturn.instance->VDP;
+        if (settings.video.useHardwareAcceleration) {
+            auto &svc = ctx.serviceLocator.GetRequired<services::GraphicsService>();
+            const gfx::IGraphicsContext &gfxCtx = svc.GetGraphicsContext();
+            const gfx::Backend backend = gfxCtx.GetBackend();
+            switch (backend) {
+#if YMIR_PLATFORM_HAS_DIRECT3D
+            case gfx::Backend::Direct3D12: //
+            {
+                if (auto *dx12Ctx = gfxCtx.As<gfx::Direct3D12GraphicsContext>()) {
+                    auto result = vdp.UseDirect3D12Renderer(dx12Ctx->GetDevice());
+                    if (result) {
+                        ctx.DisplayMessage("Direct3D 12 renderer initialized successfully");
+                        return;
+                    }
+                    ctx.DisplayMessage(
+                        fmt::format("Failed to create Direct3D 12 VDP renderer: {}", result.Error().message));
+                } else {
+                    // This should never happen
+                    ctx.DisplayMessage("An unexpected error occured trying to access the Direct3D 12 graphics context");
+                }
+                break;
+            }
+#endif
+            case gfx::Backend::SDLRenderer:
+                // Silently revert to software renderer
+                break;
+            default:
+                ctx.DisplayMessage(
+                    fmt::format("Hardware acceleration is not implemented for {}", gfx::GraphicsBackendName(backend)));
+                break;
+            }
+
+            // Hardware renderer instantiation failed; revert setting
+            settings.video.useHardwareAcceleration = false;
+        }
+
+        // Fall back to software renderer if not using GPU acceleration or the hardware renderer failed to initialize
+        if (vdp.GetRenderer().GetType() != vdp::VDPRendererType::Software) {
+            vdp.UseSoftwareRenderer();
+            ctx.DisplayMessage("Software renderer initialized successfully");
+        }
     });
 }
 

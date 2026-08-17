@@ -141,6 +141,7 @@ add_library(ymir-core
     include/ymir/hw/vdp/renderer/vdp_renderer.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_base.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_defs.hpp
+    include/ymir/hw/vdp/renderer/vdp_renderer_hw_base.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_null.hpp
     include/ymir/hw/vdp/renderer/vdp_renderer_sw.hpp
 
@@ -366,10 +367,14 @@ if (WIN32)
             include/ymir/gpu/d3d12/d3d12_root_signature.hpp
             include/ymir/gpu/d3d12/d3d12_swap_chain.hpp
 
+            include/ymir/hw/vdp/renderer/vdp_renderer_hw_d3d12.hpp
+
         PRIVATE
             src/ymir/gpu/d3d12/d3d12_debug.cpp
 
             src/ymir/gpu/shaders/gpu_shaders_windows.cpp
+
+            src/ymir/hw/vdp/renderer/vdp_renderer_hw_d3d12.cpp
     )
 elseif (APPLE)
     target_sources(ymir-core PRIVATE
@@ -390,7 +395,7 @@ set(SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 set(COMPUTE_SHADER_SOURCES
-    # res/shaders/vdp/vdp1_polygon_cs.hlsl
+    res/shaders/src/vdp/vdp2_render_bgs_cs.hlsl
 )
 ## TODO: add per-platform shader code if needed
 # if (WIN32)
@@ -402,7 +407,7 @@ set(COMPUTE_SHADER_SOURCES
 # endif ()
 
 set(COMPILED_SHADERS "")
-foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
+foreach (SHADER_SRC ${COMPUTE_SHADER_SOURCES})
     compile_shader(
         OUT_PATHS SHADER_BINARY_FILES
         SOURCE "${SHADER_SRC}"
@@ -410,6 +415,7 @@ foreach (SHADER_SRC ${VERTEX_SHADER_SOURCES})
         DESTINATION "${SHADER_OUTPUT_DIR}"
         ENTRYPOINT "CSMain"
         PROFILE "cs_6_0"
+        INCLUDE_PATHS "${SHADER_INPUT_DIR}/include"
     )
     list(APPEND COMPILED_SHADERS ${SHADER_BINARY_FILES})
 endforeach ()

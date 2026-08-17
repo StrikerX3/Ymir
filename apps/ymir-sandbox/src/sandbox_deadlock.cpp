@@ -44,9 +44,9 @@ void runDeadlockTest(int argc, char **argv) {
     for (;;) {
         auto sat = std::make_unique<ymir::Saturn>();
         sat->configuration.audio.threadedSCSP = true;
-        sat->configuration.video.threadedVDP1 = true;
-        sat->configuration.video.threadedVDP2 = true;
-        sat->configuration.video.threadedDeinterlacer = true;
+        sat->configuration.swRenderer.threadedVDP1 = true;
+        sat->configuration.swRenderer.threadedVDP2 = true;
+        sat->configuration.swRenderer.threadedDeinterlacer = true;
         sat->LoadIPL(std::span<uint8, ymir::sys::kIPLSize>(ipl));
 
         const auto t0 = clk::now();

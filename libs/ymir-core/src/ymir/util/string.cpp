@@ -1,6 +1,8 @@
 #include <ymir/util/string.hpp>
 
 #include <array>
+#include <codecvt>
+#include <locale>
 
 namespace util {
 
@@ -77,6 +79,22 @@ std::string TrimWhitespace(std::string str) {
         end = str.size();
     }
     return str.substr(start, end + 1);
+}
+
+std::wstring StringToWString(std::string_view str) {
+    if (str.empty()) {
+        return L"";
+    }
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> conv{};
+    return conv.from_bytes(str.data());
+}
+
+std::string WStringToString(std::wstring_view wstr) {
+    if (wstr.empty()) {
+        return "";
+    }
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> conv{};
+    return conv.to_bytes(wstr.data());
 }
 
 } // namespace util

@@ -103,6 +103,9 @@ EmuEvent SetAreaCode(uint8 areaCode);
 EmuEvent SetDeinterlace(bool enable);
 EmuEvent SetTransparentMeshes(bool enable);
 
+EmuEvent UseNullVDPRenderer(util::Event &event);
+EmuEvent SwitchVDPRenderer();
+
 EmuEvent SetDebugTrace(bool enable);
 EmuEvent DumpMemory();
 EmuEvent DumpMemRegion(const ui::mem_view::MemoryViewerState &memView);

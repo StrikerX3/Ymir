@@ -55,8 +55,8 @@ void runVDP1AccuracySandbox(int argc, char **argv) {
         bool renderDone = false;
         ymir::core::Scheduler scheduler{};
         ymir::core::Configuration config{};
-        config.video.threadedVDP1 = false;
-        config.video.threadedVDP2 = false;
+        config.swRenderer.threadedVDP1 = false;
+        config.swRenderer.threadedVDP2 = false;
         config.system.videoStandard = ymir::core::config::sys::VideoStandard::NTSC;
         auto vdp = std::make_unique<ymir::vdp::VDP>(scheduler, config);
         vdp->GetRenderer().Callbacks.VDP1DrawFinished = {&renderDone,

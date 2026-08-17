@@ -15,6 +15,13 @@
 
 namespace ymir::gpu::d3d12 {
 
+/// @brief Descriptor pointers, allocated in a heap.
+struct Descriptor {
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle;
+    UINT index;
+};
+
 /// @brief A descriptor allocator that can be bound to a `D3D12DescriptorHeap`.
 class DescriptorHeapAllocator {
 public:
@@ -56,19 +63,33 @@ public:
     /// @return `true` if successfully allocated, `false` if there is no free space for the descriptor
     bool Allocate(D3D12_CPU_DESCRIPTOR_HANDLE &outCPUDescHandle, D3D12_GPU_DESCRIPTOR_HANDLE &outGPUDescHandle,
                   UINT &outIndex) {
+        Descriptor desc{};
+        if (Allocate(desc)) {
+            outCPUDescHandle = desc.cpuHandle;
+            outGPUDescHandle = desc.gpuHandle;
+            outIndex = desc.index;
+            return true;
+        }
+        return false;
+    }
+
+    /// @brief Allocates a descriptor.
+    /// @param[out] outDesc the output descriptor
+    /// @return `true` if successfully allocated, `false` if there is no free space for the descriptor
+    bool Allocate(Descriptor &outDesc) {
         if (m_freeList.empty()) {
             if (m_nextDescIndex >= m_heap->GetDescriptorHeapSize()) {
                 return false;
             }
-            outIndex = m_nextDescIndex++;
+            outDesc.index = m_nextDescIndex++;
         } else {
-            outIndex = m_freeList.back();
+            outDesc.index = m_freeList.back();
             m_freeList.pop_back();
         }
-        [[maybe_unused]] const bool succeeded = m_allocSet.insert(outIndex).second;
+        [[maybe_unused]] const bool succeeded = m_allocSet.insert(outDesc.index).second;
         assert(succeeded);
-        outCPUDescHandle.ptr = m_heap->GetCPUStart().ptr + (outIndex * m_heap->GetDescriptorSize());
-        outGPUDescHandle.ptr = m_heap->GetGPUStart().ptr + (outIndex * m_heap->GetDescriptorSize());
+        outDesc.cpuHandle.ptr = m_heap->GetCPUStart().ptr + (outDesc.index * m_heap->GetDescriptorSize());
+        outDesc.gpuHandle.ptr = m_heap->GetGPUStart().ptr + (outDesc.index * m_heap->GetDescriptorSize());
         return true;
     }
 

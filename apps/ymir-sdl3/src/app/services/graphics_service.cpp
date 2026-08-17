@@ -3,6 +3,10 @@
 #include "gfx/gfx_context_impls.hpp"
 #include "gfx/gfx_context_specs.hpp"
 
+#if YMIR_PLATFORM_HAS_DIRECT3D
+    #include "gfx/gfx_d3d_utils.hpp"
+#endif
+
 #include <SDL3/SDL_video.h>
 
 #include <imgui.h>
@@ -22,9 +26,9 @@ GraphicsService::GraphicsService(Settings &settings)
 
 GraphicsService::~GraphicsService() {}
 
-util::VoidResult<> GraphicsService::InitGraphicsContext(Backend backend, SDL_Window *window, PresentMode presentMode) {
+util::VoidResult<> GraphicsService::InitGraphicsContext(const GraphicsContextSpec &spec, PresentMode presentMode) {
     m_gfxContext->Shutdown();
-    auto result = CreateGraphicsContext(backend, window);
+    auto result = CreateGraphicsContext(spec);
     util::VoidResult<> output;
     if (result) {
         m_gfxContext = result.Value();
@@ -50,8 +54,8 @@ static util::ObjectResult<IGraphicsContext> ConvertResult(util::ObjectResult<T> 
     return std::unique_ptr<IGraphicsContext>{result.Value()};
 }
 
-util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx::Backend backend, SDL_Window *window) {
-    switch (backend) {
+util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(const GraphicsContextSpec &spec) {
+    switch (spec.backend) {
     case Backend::Null:
         // Use DestroyGraphicsContext instead
         return util::ErrorMessage{"Cannot initialize the null backend"};
@@ -60,8 +64,8 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx:
     case Backend::Direct3D12:
         return ConvertResult(Direct3D12GraphicsContext::Create({
             .featureLevel = D3D_FEATURE_LEVEL_11_0,
-            .window = window,
-            .adapter = nullptr,
+            .window = spec.window,
+            .adapter = spec.adapter ? gfx::GetDXGIGraphicsAdapterByID(*spec.adapter) : nullptr,
         }));
 #endif
 #if YMIR_PLATFORM_HAS_VULKAN
@@ -70,7 +74,7 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(gfx:
 #if YMIR_PLATFORM_HAS_METAL
     case Backend::Metal: return ConvertResult(MetalGraphicsContext::Create({/*TODO*/}));
 #endif
-    case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = window}));
+    case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = spec.window}));
     }
     return util::ErrorMessage{"Invalid backend"};
 }
@@ -230,7 +234,7 @@ util::VoidResult<> GraphicsService::SetPresentMode(PresentMode mode) {
     return m_gfxContext->SetPresentMode(mode);
 }
 
-util::VoidResult<> GraphicsService::Present() {
+util::ValueResult<PresentResult> GraphicsService::Present() {
     return m_gfxContext->Present();
 }
 

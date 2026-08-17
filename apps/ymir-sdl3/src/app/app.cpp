@@ -94,6 +94,11 @@
 #include <app/events/emu_event_factory.hpp>
 #include <app/events/gui_event_factory.hpp>
 
+#ifdef _WIN32
+    #include <app/services/gfx/gfx_d3d_utils.hpp>
+#endif
+#include <app/services/gfx/gfx_adapters.hpp>
+
 #include <app/input/input_backend_sdl3.hpp>
 #include <app/input/input_utils.hpp>
 
@@ -104,6 +109,7 @@
 #include <app/ui/widgets/settings_widgets.hpp>
 #include <app/ui/widgets/system_widgets.hpp>
 
+#include <util/os_exception_handler.hpp>
 #include <util/os_features.hpp>
 #include <util/std_lib.hpp>
 
@@ -204,6 +210,10 @@ int App::Run(const CommandLineOptions &options) {
     // Use UTF-8 locale by default on all C runtime functions
     // TODO: adjust this to the user's preferred locale (with ".UTF8" suffix) when i18n is implemented
     setlocale(LC_ALL, "en_us.UTF8");
+
+#ifdef _WIN32
+    gfx::EnumerateDXGIGraphicsAdapters();
+#endif
 
     m_options = options;
 
@@ -766,9 +776,15 @@ void App::RunEmulator() {
     gfx::PresentMode presentMode = gfx::PresentMode::VSync;
     {
         const gfx::Backend backend = settings.video.graphicsBackend;
+        const std::optional<gfx::AdapterID> adapter = settings.video.graphicsAdapter;
         std::vector<std::string> failures{};
 
-        auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+        services::GraphicsContextSpec spec{
+            .backend = backend,
+            .adapter = adapter,
+            .window = screen.window,
+        };
+        auto result = m_graphicsService.InitGraphicsContext(spec, presentMode);
         if (!result) {
             std::string &failureMsg = failures.emplace_back();
             failureMsg = fmt::format("Could not create {} graphics context: {}", gfx::GraphicsBackendName(backend),
@@ -780,7 +796,8 @@ void App::RunEmulator() {
                     return false;
                 }
 
-                auto result = m_graphicsService.InitGraphicsContext(fallbackBackend, screen.window, presentMode);
+                spec.backend = fallbackBackend;
+                auto result = m_graphicsService.InitGraphicsContext(spec, presentMode);
                 if (result) {
                     m_context.DisplayMessage(fmt::format("Reverted to {}", gfx::GraphicsBackendName(fallbackBackend)));
                     settings.video.graphicsBackend = fallbackBackend;
@@ -808,6 +825,12 @@ void App::RunEmulator() {
                 return;
             }
         }
+    }
+
+    {
+        const gfx::Backend backend = m_graphicsService.GetGraphicsContextBackend();
+        const char *backendName = gfx::GraphicsBackendName(backend);
+        devlog::info<grp::base>("{} graphics context initialized successfully", backendName);
     }
 
     settings.video.fullScreen.ObserveAndNotify([&](bool fullScreen) {
@@ -1949,17 +1972,34 @@ void App::RunEmulator() {
             case EvtType::SetProcessPriority: util::BoostCurrentProcessPriority(std::get<bool>(evt.value)); break;
             case EvtType::SwitchGraphicsBackend: //
             {
-                auto backend = std::get<gfx::Backend>(evt.value);
-                if (backend != m_graphicsService.GetGraphicsContextBackend()) {
-                    auto result = m_graphicsService.InitGraphicsContext(backend, screen.window, presentMode);
+                auto params = std::get<GraphicsBackendParams>(evt.value);
+                if (params.backend != m_graphicsService.GetGraphicsContextBackend() ||
+                    params.adapter != settings.video.graphicsAdapter) {
+
+                    // Shut down hardware renderer to free up resources, otherwise the device instance held by it
+                    // prevents us from reusing the window
+                    if (vdp.GetRenderer().IsHardwareRenderer()) {
+                        util::Event evtDone{false};
+                        m_context.EnqueueEvent(events::emu::UseNullVDPRenderer(evtDone));
+                        evtDone.Wait();
+                    }
+
+                    const services::GraphicsContextSpec spec{
+                        .backend = params.backend,
+                        .adapter = params.adapter,
+                        .window = screen.window,
+                    };
+                    auto result = m_graphicsService.InitGraphicsContext(spec, presentMode);
                     if (result) {
-                        settings.video.graphicsBackend = backend;
+                        settings.video.graphicsBackend = params.backend;
+                        settings.video.graphicsAdapter = params.adapter;
                         settings.MakeDirty();
                         m_context.DisplayMessage(
-                            fmt::format("{} initialized successfully", gfx::GraphicsBackendName(backend)));
+                            fmt::format("{} initialized successfully", gfx::GraphicsBackendName(params.backend)));
+                        m_context.EnqueueEvent(events::emu::SwitchVDPRenderer());
                     } else {
                         m_context.DisplayMessage(fmt::format("Could not initialize {} backend: {}",
-                                                             gfx::GraphicsBackendName(backend),
+                                                             gfx::GraphicsBackendName(params.backend),
                                                              result.Error().message));
                     }
                 }
@@ -2662,46 +2702,47 @@ void App::RunEmulator() {
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu("Settings")) {
+                    auto &settingsWindow = m_windowManagerService.SettingsWindow();
                     if (ImGui::MenuItem("Settings",
                                         input::ToShortcut(inputContext, actions::general::OpenSettings).c_str(),
-                                        &m_windowManagerService.SettingsWindow().Open)) {
-                        if (m_windowManagerService.SettingsWindow().Open) {
-                            m_windowManagerService.SettingsWindow().RequestFocus();
+                                        &settingsWindow.Open)) {
+                        if (settingsWindow.Open) {
+                            settingsWindow.RequestFocus();
                         }
                     }
                     ImGui::Separator();
                     if (ImGui::MenuItem("General")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::General);
+                        settingsWindow.OpenTab(ui::SettingsTab::General);
                     }
                     if (ImGui::MenuItem("GUI")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::GUI);
+                        settingsWindow.OpenTab(ui::SettingsTab::GUI);
                     }
                     if (ImGui::MenuItem("Hotkeys")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Hotkeys);
+                        settingsWindow.OpenTab(ui::SettingsTab::Hotkeys);
                     }
                     if (ImGui::MenuItem("System")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::System);
+                        settingsWindow.OpenTab(ui::SettingsTab::System);
                     }
                     if (ImGui::MenuItem("IPL (BIOS)")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::IPL);
+                        settingsWindow.OpenTab(ui::SettingsTab::IPL);
                     }
                     if (ImGui::MenuItem("Input")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Input);
+                        settingsWindow.OpenTab(ui::SettingsTab::Input);
                     }
                     if (ImGui::MenuItem("Video")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Video);
+                        settingsWindow.OpenTab(ui::SettingsTab::Video);
                     }
                     if (ImGui::MenuItem("Audio")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Audio);
+                        settingsWindow.OpenTab(ui::SettingsTab::Audio);
                     }
                     if (ImGui::MenuItem("Cartridge")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Cartridge);
+                        settingsWindow.OpenTab(ui::SettingsTab::Cartridge);
                     }
                     if (ImGui::MenuItem("CD Block")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::CDBlock);
+                        settingsWindow.OpenTab(ui::SettingsTab::CDBlock);
                     }
                     if (ImGui::MenuItem("Tweaks")) {
-                        m_windowManagerService.SettingsWindow().OpenTab(ui::SettingsTab::Tweaks);
+                        settingsWindow.OpenTab(ui::SettingsTab::Tweaks);
                     }
 
                     ImGui::EndMenu();
@@ -2755,25 +2796,26 @@ void App::RunEmulator() {
                     sh2Menu("Slave SH2", m_windowManagerService.SlaveSH2WindowSet());
 
                     if (ImGui::BeginMenu("SCU")) {
-                        ImGui::MenuItem("Registers", nullptr, &m_windowManagerService.SCUWindowSet().regs.Open);
-                        ImGui::MenuItem("DSP", nullptr, &m_windowManagerService.SCUWindowSet().dsp.Open);
-                        ImGui::MenuItem("DMA", nullptr, &m_windowManagerService.SCUWindowSet().dma.Open);
-                        ImGui::MenuItem("DMA trace", nullptr, &m_windowManagerService.SCUWindowSet().dmaTrace.Open);
-                        ImGui::MenuItem("Interrupt trace", nullptr,
-                                        &m_windowManagerService.SCUWindowSet().intrTrace.Open);
+                        auto &windowSet = m_windowManagerService.SCUWindowSet();
+                        ImGui::MenuItem("Registers", nullptr, windowSet.regs.Open);
+                        ImGui::MenuItem("DSP", nullptr, windowSet.dsp.Open);
+                        ImGui::MenuItem("DMA", nullptr, windowSet.dma.Open);
+                        ImGui::MenuItem("DMA trace", nullptr, windowSet.dmaTrace.Open);
+                        ImGui::MenuItem("Interrupt trace", nullptr, windowSet.intrTrace.Open);
                         ImGui::EndMenu();
                     }
 
                     if (ImGui::BeginMenu("SCSP")) {
-                        ImGui::MenuItem("Output", nullptr, &m_windowManagerService.SCSPWindowSet().output.Open);
-                        ImGui::MenuItem("Slots", nullptr, &m_windowManagerService.SCSPWindowSet().slots.Open);
-                        ImGui::MenuItem("KYONEX trace", nullptr,
-                                        &m_windowManagerService.SCSPWindowSet().kyonexTrace.Open);
+                        auto &windowSet = m_windowManagerService.SCSPWindowSet();
+                        ImGui::MenuItem("Output", nullptr, &windowSet.output.Open);
+                        ImGui::MenuItem("Slots", nullptr, &windowSet.slots.Open);
+                        ImGui::MenuItem("KYONEX trace", nullptr, &windowSet.kyonexTrace.Open);
 
                         ImGui::EndMenu();
                     }
 
                     if (ImGui::BeginMenu("VDP")) {
+                        auto &windowSet = m_windowManagerService.VDPWindowSet();
                         auto layerMenuItem = [&](const char *name, vdp::Layer layer) {
                             const bool enabled = vdp.IsLayerEnabled(layer);
                             ImGui::PushItemFlag(ImGuiItemFlags_AutoClosePopups, false);
@@ -2783,8 +2825,7 @@ void App::RunEmulator() {
                             ImGui::PopItemFlag();
                         };
 
-                        ImGui::MenuItem("Layer visibility", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2LayerVisibility.Open);
+                        ImGui::MenuItem("Layer visibility", nullptr, &windowSet.vdp2LayerVisibility.Open);
                         ImGui::Indent();
                         layerMenuItem("Sprite", vdp::Layer::Sprite);
                         layerMenuItem("RBG0", vdp::Layer::RBG0);
@@ -2798,47 +2839,38 @@ void App::RunEmulator() {
                         ImGui::BeginDisabled();
                         ImGui::TextUnformatted("VDP1");
                         ImGui::EndDisabled();
-                        ImGui::MenuItem("Registers", nullptr, &m_windowManagerService.VDPWindowSet().vdp1Regs.Open);
+                        ImGui::MenuItem("Registers##vdp1", nullptr, &windowSet.vdp1Regs.Open);
 
                         ImGui::Separator();
                         ImGui::BeginDisabled();
                         ImGui::TextUnformatted("VDP2");
                         ImGui::EndDisabled();
-                        ImGui::MenuItem("Background layer parameters", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2BGLayerParams.Open);
-                        ImGui::MenuItem("Sprite layer parameters", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2SpriteLayerParams.Open);
-                        ImGui::MenuItem("Window parameters", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2WindowParams.Open);
-                        ImGui::MenuItem("Color calculation parameters", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2ColorCalcParams.Open);
-                        ImGui::MenuItem("Debug overlay", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2DebugOverlay.Open);
-                        ImGui::MenuItem("VRAM access patterns", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2VRAMAccessPatterns.Open);
-                        ImGui::MenuItem("Color RAM palette", nullptr,
-                                        &m_windowManagerService.VDPWindowSet().vdp2CRAM.Open);
+                        ImGui::MenuItem("Registers##vdp2", nullptr, &windowSet.vdp2Regs.Open);
+                        ImGui::MenuItem("Background layer parameters", nullptr, &windowSet.vdp2BGLayerParams.Open);
+                        ImGui::MenuItem("Sprite layer parameters", nullptr, &windowSet.vdp2SpriteLayerParams.Open);
+                        ImGui::MenuItem("Window parameters", nullptr, &windowSet.vdp2WindowParams.Open);
+                        ImGui::MenuItem("Color calculation parameters", nullptr, &windowSet.vdp2ColorCalcParams.Open);
+                        ImGui::MenuItem("Debug overlay", nullptr, &windowSet.vdp2DebugOverlay.Open);
+                        ImGui::MenuItem("VRAM access patterns", nullptr, &windowSet.vdp2VRAMAccessPatterns.Open);
+                        ImGui::MenuItem("Color RAM palette", nullptr, &windowSet.vdp2CRAM.Open);
 
                         ImGui::EndMenu();
                     }
 
                     if (ImGui::BeginMenu("CD Block")) {
+                        auto &windowSet = m_windowManagerService.CDBlockWindowSet();
                         ImGui::BeginDisabled();
                         ImGui::TextUnformatted("HLE");
                         ImGui::EndDisabled();
-                        ImGui::MenuItem("Command trace", nullptr,
-                                        &m_windowManagerService.CDBlockWindowSet().cmdTrace.Open);
-                        ImGui::MenuItem("Filters", nullptr, &m_windowManagerService.CDBlockWindowSet().filters.Open);
-                        ImGui::MenuItem("Partitions", nullptr,
-                                        &m_windowManagerService.CDBlockWindowSet().partitions.Open);
+                        ImGui::MenuItem("Command trace", nullptr, &windowSet.cmdTrace.Open);
+                        ImGui::MenuItem("Filters", nullptr, &windowSet.filters.Open);
+                        ImGui::MenuItem("Partitions", nullptr, &windowSet.partitions.Open);
                         ImGui::Separator();
                         ImGui::BeginDisabled();
                         ImGui::TextUnformatted("LLE");
                         ImGui::EndDisabled();
-                        ImGui::MenuItem("CD drive state trace", nullptr,
-                                        &m_windowManagerService.CDBlockWindowSet().driveStateTrace.Open);
-                        ImGui::MenuItem("YGR command trace", nullptr,
-                                        &m_windowManagerService.CDBlockWindowSet().ygrCmdTrace.Open);
+                        ImGui::MenuItem("CD drive state trace", nullptr, &windowSet.driveStateTrace.Open);
+                        ImGui::MenuItem("YGR command trace", nullptr, &windowSet.ygrCmdTrace.Open);
                         ImGui::EndMenu();
                     }
 
@@ -3512,7 +3544,19 @@ void App::RunEmulator() {
         // Render ImGui widgets
         m_graphicsService.ImGuiRenderFrame();
 
-        m_graphicsService.Present();
+        {
+            auto presentResult = m_graphicsService.Present();
+            if (!presentResult) {
+                // Revert to sane settings right now, just to be safe
+                settings.video.graphicsBackend = gfx::Backend::SDLRenderer;
+                settings.video.graphicsAdapter = std::nullopt;
+                settings.video.useHardwareAcceleration = false;
+                settings.Save();
+                util::ShowFatalErrorDialog("The graphics context crashed. Cannot continue execution.\n"
+                                           "Your graphics settings were reset.");
+                goto end_loop;
+            }
+        }
 
         // Process ImGui INI file write requests
         // TODO: compress and include in state blob

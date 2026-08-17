@@ -133,7 +133,6 @@ struct VDP2DebugRender {
         WindowSet<true> customWindowSet{};
         std::array<bool, 2> customLineWindowTableEnable{};
         std::array<uint32, 2> customLineWindowTableAddress{};
-        std::array<std::array<bool, vdp::kMaxResH>, 2> customWindowState{};
 
         Color888 windowInsideColor{.r = 0xFF, .g = 0xFF, .b = 0xFF};
         Color888 windowOutsideColor{.r = 0x00, .g = 0x00, .b = 0x00};

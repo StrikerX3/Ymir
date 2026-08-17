@@ -12,6 +12,7 @@ Introduces save state file version 14.
 - App: Added option to unpause emulator when loading discs. Enabled by default, which changes established behavior.
 - App: Clarified IPL ROM meaning in the Welcome window and IPL settings tab -- it refers to the BIOS.
 - App: Display volume indicator on the top-right corner of the window for a few seconds after adjustments.
+- App: Persist SMPC data per region based on the loaded IPL ROM region:
     - `smpc-us_eu.bin`: USA, Europe -- SMPC area codes 4, 5, A, C, D
     - `smpc-jp.bin`: Japan -- SMPC area code 1
     - `smpc-asia.bin`: Korea, Taiwan -- SMPC area codes 2, 6
@@ -19,6 +20,7 @@ Introduces save state file version 14.
     - The old `smpc.bin` will be automatically migrated to these files as you use IPL ROMs for each region.
 - App: Shrink embedded M PLUS U font files by removing unused glyphs, reducing binary size. (#915; @4re)
 - Debugger: Added RBG0 and RBG1 line color single stack views to the VDP2 debug overlay.
+- Debugger: Added basic VDP2 registers view.
 - Graphics: New graphics backend, adding support for native graphics APIs:
     - Direct3D 11 and 12 on Windows
     - Vulkan on Windows, Linux and macOS
@@ -60,7 +62,7 @@ Introduces save state file version 14.
     - Black/Matrix (#861)
 - Media: Don't read the Path Table past the size specified in the Volume Descriptor. Fixes CD Block HLE not able to read disc images made with some lazy patches that don't properly clean up the Path Table. (#912)
 - Media (CUE): Don't accumulate pre/postgaps multiple times per track. Fixes some audio track offset issues for single-BIN dumps. (#146)
-- Media (CUE): Properly compute track count on discs with sparse track numbers. Fixes audio playabck on some homebrew discs that omit tracks (e.g. The Rockin'-B All Stars version 06/03/23 skips track 2).
+- Media (CUE): Properly compute track count on discs with sparse track numbers. Fixes audio playback on some homebrew discs that omit tracks (e.g. The Rockin'-B All Stars version 06/03/23 skips track 2).
 - Media (CUE): Use CUE sheet timestamps to compute track lengths. Fixes some audio track offset issues for single-BIN dumps. (#146)
 - SCU: Allow 8-bit writes to DSP registers.
 - Settings: Apply CD Block LLE configuration at startup. Fixes Ymir always launching with CD Block HLE mode when LLE was enabled in the settings file.
@@ -69,6 +71,7 @@ Introduces save state file version 14.
 - VDP1: Force-align MSB write to 16-bit addresses when writing pixels with MSB enabled. Fixes deselected menu options being fully painted in black in Derby Analyst. (#587)
 - VDP1: Textured sprites with CMDSIZE.H=0 never fetch additional texels. Fixes glitched graphics in the scorecard of the shooting range in Policenauts.
 - VDP2: Avoid unintentional side effects on VDP2 EXTEN register when saving states. Fixes camera angles in Digital Dance Mix Vol. 1 - Namie Amuro.
+- VDP2: Disable color gradation if color RAM mode is not 0. Fixes the fog effect in The River of Dreams level in Astal. (#927)
 - VDP2: Fix coordinate latching on external latches. Fixes various Virtua Gun shot offset errors. (#787)
 - VDP2: Fix off-screen coordinate latching. Fixes some Virtua Gun reload detection issues. (#787)
 - VDP2: Restrict color calculations in certain video modes. Fixes Sound Test screen text blending in with the background in Dark Savior.

@@ -43,6 +43,16 @@ public:
     /// @return `true` if this is a hardware renderer, `false` if software or null renderer.
     virtual bool IsHardwareRenderer() const = 0;
 
+    /// @brief If this renderer object is a hardware renderer, casts it to `HardwareVDPRendererBase *`.
+    /// Returns `nullptr` otherwise.
+    ///
+    /// @tparam type the type to cast as
+    /// @return a pointer to the instance cast to the concrete type corresponding to the given `VDPRendererType`, or
+    /// `nullptr` if this renderer's type doesn't match.
+    virtual HardwareVDPRendererBase *AsHardwareRenderer() {
+        return nullptr;
+    }
+
     /// @brief Resets the renderer in response to a soft or hard reset.
     /// @param[in] hard `true` for a hard reset, `false` for a soft reset.
     virtual void Reset(bool hard) = 0;

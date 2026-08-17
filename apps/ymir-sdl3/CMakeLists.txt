@@ -92,6 +92,8 @@ add_executable(ymir-sdl3
     src/app/services/window_manager_service.cpp
     src/app/services/window_manager_service.hpp
 
+    src/app/services/gfx/gfx_adapters.cpp
+    src/app/services/gfx/gfx_adapters.hpp
     src/app/services/gfx/gfx_context.cpp
     src/app/services/gfx/gfx_context.hpp
     src/app/services/gfx/gfx_context_impl_null.hpp
@@ -100,6 +102,7 @@ add_executable(ymir-sdl3
     src/app/services/gfx/gfx_context_impls.hpp
     src/app/services/gfx/gfx_context_specs.hpp
     src/app/services/gfx/gfx_gui_types.hpp
+    src/app/services/gfx/gfx_types.cpp
     src/app/services/gfx/gfx_types.hpp
 
     src/app/ui/window_base.cpp
@@ -219,6 +222,8 @@ add_executable(ymir-sdl3
     src/app/ui/views/debug/vdp2_debug_overlay_view.hpp
     src/app/ui/views/debug/vdp2_layer_visibility_view.cpp
     src/app/ui/views/debug/vdp2_layer_visibility_view.hpp
+    src/app/ui/views/debug/vdp2_registers_view.cpp
+    src/app/ui/views/debug/vdp2_registers_view.hpp
     src/app/ui/views/debug/vdp2_sprite_layer_params_view.cpp
     src/app/ui/views/debug/vdp2_sprite_layer_params_view.hpp
     src/app/ui/views/debug/vdp2_vram_access_patterns_view.cpp
@@ -382,6 +387,8 @@ add_executable(ymir-sdl3
     src/app/ui/windows/debug/vdp2_debug_overlay_window.hpp
     src/app/ui/windows/debug/vdp2_layer_visibility_window.cpp
     src/app/ui/windows/debug/vdp2_layer_visibility_window.hpp
+    src/app/ui/windows/debug/vdp2_registers_window.cpp
+    src/app/ui/windows/debug/vdp2_registers_window.hpp
     src/app/ui/windows/debug/vdp2_sprite_layer_params_window.cpp
     src/app/ui/windows/debug/vdp2_sprite_layer_params_window.hpp
     src/app/ui/windows/debug/vdp2_vram_access_patterns_window.cpp
@@ -421,6 +428,8 @@ if (WIN32)
         src/app/services/gfx/gfx_context_impl_d3d12.cpp
         src/app/services/gfx/gfx_context_impl_d3d12.hpp
         src/app/services/gfx/gfx_context_spec_d3d12.hpp
+        src/app/services/gfx/gfx_d3d_utils.cpp
+        src/app/services/gfx/gfx_d3d_utils.hpp
     )
 endif ()
 

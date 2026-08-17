@@ -13,10 +13,23 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
 namespace app::services {
+
+/// @brief Specifications for creating a graphics backend.
+struct GraphicsContextSpec {
+    /// @brief The graphics backend to initialize.
+    gfx::Backend backend;
+
+    /// @brief The graphics adapter to use. Leave unspecified to use the default adapter.
+    std::optional<gfx::AdapterID> adapter;
+
+    /// @brief The window to bind the graphics context to. Required.
+    SDL_Window *window;
+};
 
 /// @brief Provides services for managing graphics resources.
 class GraphicsService {
@@ -26,14 +39,13 @@ public:
 
     /// @brief Initializes a graphics context.
     /// `gfx::Backend::Null` cannot be created this way. Use `DestroyGraphicsContext()` to use it.
-    /// @param[in] backend the graphics backend
-    /// @param[in] window the window on which to render graphics
+    /// @param[in] spec the graphics backend specifications
     /// @param[in] presentMode the initial presentation mode
     /// @return nothing on success, an error message on failure
-    util::VoidResult<> InitGraphicsContext(gfx::Backend backend, SDL_Window *window, gfx::PresentMode presentMode);
+    util::VoidResult<> InitGraphicsContext(const GraphicsContextSpec &spec, gfx::PresentMode presentMode);
 
 private:
-    util::ObjectResult<gfx::IGraphicsContext> CreateGraphicsContext(gfx::Backend backend, SDL_Window *window);
+    util::ObjectResult<gfx::IGraphicsContext> CreateGraphicsContext(const GraphicsContextSpec &spec);
 
 public:
     /// @brief Destroys the graphics context, effectively replacing it with a null context.
@@ -159,7 +171,9 @@ public:
     util::VoidResult<> SetPresentMode(gfx::PresentMode mode);
 
     /// @brief Presents the next frame.
-    util::VoidResult<> Present();
+    /// @return presentation result on success, an error message on failure.
+    /// If failed, it's highly likely that the device was destroyed and needs to be reinitialized.
+    util::ValueResult<gfx::PresentResult> Present();
 
 private:
     Settings &m_settings;

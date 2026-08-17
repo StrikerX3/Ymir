@@ -14,10 +14,14 @@
 
 #include <ymir/gpu/shaders/gpu_shaders.hpp>
 
+#include <ymir/util/string.hpp>
+
 #include <backends/imgui_impl_dx12.h>
 #include <backends/imgui_impl_sdl3.h>
 
 #include <d3d12.h>
+
+#include <wil/com.h>
 
 #include <fmt/format.h>
 
@@ -33,20 +37,6 @@ using namespace ymir::gpu;
 using namespace ymir::gpu::d3d12;
 
 namespace app::gfx {
-
-/// @brief Converts the given UTF-8-encoded string to a wide string.
-/// @param[in] str the string to convert
-/// @return the string converted to `std::wstring`
-static std::wstring StringToWString(std::string_view str) {
-    if (str.empty()) {
-        return L"";
-    }
-
-    const int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-    std::wstring wstr(size, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstr[0], size);
-    return wstr;
-}
 
 static DXGI_FORMAT ToD3D12Value(PixelFormat format) {
     switch (format) {
@@ -92,12 +82,6 @@ struct alignas(uint32) DrawTextureConstants {
     Float2 renderTargetSize;
     Float2 rotPivot;
     float rotAngle;
-};
-
-struct Descriptor {
-    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle;
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle;
-    UINT index;
 };
 
 // -----------------------------------------------------------------------------
@@ -265,7 +249,7 @@ struct Direct3D12GraphicsContext::Impl {
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
         }
 
-        if (FAILED(device.Create(nullptr, spec.featureLevel))) {
+        if (FAILED(device.Create(spec.adapter, spec.featureLevel))) {
             return util::ErrorMessage{"Failed to create device"};
         }
         debugLayer.BreakOnWarnings(device.GetPointer(), true);
@@ -316,7 +300,7 @@ struct Direct3D12GraphicsContext::Impl {
         // Create descriptor heaps
         {
             D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
-            rtvHeapDesc.NumDescriptors = 131072;
+            rtvHeapDesc.NumDescriptors = 256;
             rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
             rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
             if (FAILED(rtvHeap.Create(device, rtvHeapDesc))) {
@@ -326,7 +310,7 @@ struct Direct3D12GraphicsContext::Impl {
             rtvHeapAlloc.Bind(rtvHeap);
 
             D3D12_DESCRIPTOR_HEAP_DESC resourceHeapDesc{};
-            resourceHeapDesc.NumDescriptors = 131072;
+            resourceHeapDesc.NumDescriptors = 256;
             resourceHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             resourceHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
             if (FAILED(resourceHeap.Create(device, resourceHeapDesc))) {
@@ -886,7 +870,7 @@ struct Direct3D12GraphicsContext::Impl {
         return {};
     }
 
-    util::VoidResult<> Present() {
+    util::ValueResult<PresentResult> Present() {
         if (auto result = EndFrame(); !result) {
             return util::ErrorMessage{fmt::format("Could not end frame: {}", result.Error().message)};
         }
@@ -902,14 +886,15 @@ struct Direct3D12GraphicsContext::Impl {
         // involves destroying and recreating the entire swap chain, which doesn't seem to be worth the effort. Instead,
         // we'll treat VSync and Mailbox as the same mode.
 
+        HRESULT hr;
         switch (presentMode) {
         default: [[fallthrough]];
-        case PresentMode::VSync: swapchain->Present(1, 0); break;
-        case PresentMode::Mailbox: swapchain->Present(1, 0); break;
+        case PresentMode::VSync: hr = swapchain->Present(1, 0); break;
+        case PresentMode::Mailbox: hr = swapchain->Present(1, 0); break;
         case PresentMode::Adaptive:
-            swapchain->Present(0, swapchain.IsTearingSupported() ? DXGI_PRESENT_ALLOW_TEARING : 0);
+            hr = swapchain->Present(0, swapchain.IsTearingSupported() ? DXGI_PRESENT_ALLOW_TEARING : 0);
             break;
-        case PresentMode::NoSync: swapchain->Present(0, 0); break;
+        case PresentMode::NoSync: hr = swapchain->Present(0, 0); break;
         }
 
         if (auto result = MoveToNextFrame(); !result) {
@@ -918,7 +903,14 @@ struct Direct3D12GraphicsContext::Impl {
         if (auto result = BeginFrame(); !result) {
             return util::ErrorMessage{fmt::format("Could not begin frame: {}", result.Error().message)};
         }
-        return {};
+
+        if (hr == DXGI_STATUS_OCCLUDED) {
+            return PresentResult::Occluded;
+        }
+        if (FAILED(hr)) {
+            return util::ErrorMessage{fmt::format("Frame presentation failed, error code {:X}", (uint32)hr)};
+        }
+        return PresentResult::Ok;
     }
 
     util::VoidResult<> WaitForGPU() {
@@ -978,7 +970,7 @@ struct Direct3D12GraphicsContext::Impl {
                 return util::ErrorMessage{fmt::format("Could not create texture, error code {:X}", (uint32)hr)};
             }
             if (!spec.name.empty()) {
-                texture.resource->SetName(fmt::format(L"{} texture", StringToWString(spec.name)).c_str());
+                texture.resource->SetName(fmt::format(L"{} texture", util::StringToWString(spec.name)).c_str());
             }
         }
 
@@ -1007,7 +999,7 @@ struct Direct3D12GraphicsContext::Impl {
                     fmt::format("Could not map texture staging buffer #{}, error code {:X}", i, (uint32)hr)};
             }
             if (!spec.name.empty()) {
-                buffer->SetName(fmt::format(L"{} staging buffer #{}", StringToWString(spec.name), i).c_str());
+                buffer->SetName(fmt::format(L"{} staging buffer #{}", util::StringToWString(spec.name), i).c_str());
             }
         }
 
@@ -1274,7 +1266,7 @@ struct Direct3D12GraphicsContext::Impl {
                 "Failed to create texture root signature for render target [{}], error code {:X}", name, (uint32)hr)};
         }
         pipeline.rootSignature->SetName(
-            StringToWString(fmt::format("[Ymir-GCtx] Root signature for render target [{}]", name)).c_str());
+            util::StringToWString(fmt::format("[Ymir-GCtx] Root signature for render target [{}]", name)).c_str());
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
         psoDesc.InputLayout = {inputElementDescs, std::size(inputElementDescs)};
@@ -1329,8 +1321,8 @@ struct Direct3D12GraphicsContext::Impl {
             return util::ErrorMessage{std::move(message)};
         }
         pipeline.pipelineState->SetName(
-            StringToWString(fmt::format("[Ymir-GCtx] Graphics pipeline for render target [{}]{}", name,
-                                        blendEnabled ? " (blend)" : ""))
+            util::StringToWString(fmt::format("[Ymir-GCtx] Graphics pipeline for render target [{}]{}", name,
+                                              blendEnabled ? " (blend)" : ""))
                 .c_str());
 
         return &pipeline;
@@ -1717,11 +1709,11 @@ util::VoidResult<> Direct3D12GraphicsContext::SetPresentMode(PresentMode mode) {
     return {};
 }
 
-util::VoidResult<> Direct3D12GraphicsContext::Present() {
+util::ValueResult<PresentResult> Direct3D12GraphicsContext::Present() {
     return m_impl->Present();
 }
 
-wil::com_ptr_nothrow<ID3D12Device> Direct3D12GraphicsContext::GetDevice() const {
+ID3D12Device *Direct3D12GraphicsContext::GetDevice() const {
     return m_impl->device.GetPointer();
 }
 

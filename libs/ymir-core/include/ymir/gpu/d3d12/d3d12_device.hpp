@@ -15,9 +15,9 @@ namespace ymir::gpu::d3d12 {
 class D3D12Device final : public D3D12ObjectWrapper<ID3D12Device> {
 public:
     D3D12Device() = default;
-    D3D12Device(wil::com_ptr_nothrow<ID3D12Device> &&ptr)
+    explicit D3D12Device(wil::com_ptr_nothrow<ID3D12Device> &&ptr)
         : D3D12ObjectWrapper(std::move(ptr)) {}
-    D3D12Device(ID3D12Device *ptr)
+    explicit D3D12Device(ID3D12Device *ptr)
         : D3D12ObjectWrapper(ptr) {}
 
     /// @brief Creates an `ID3D12Device` object using the given adapter and minimum feature level.
