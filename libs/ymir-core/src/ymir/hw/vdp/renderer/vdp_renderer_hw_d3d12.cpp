@@ -294,13 +294,13 @@ struct Direct3D12VDPRenderer::Impl {
             device->CreateShaderResourceView(vdp2.vramBuffer.GetPointer(), &srvDesc, vdp2.vramSRV.cpuHandle);
         }
 
-        // VDP2 VRAM upload ring buffer
+        // VDP2 VRAM upload buffer
         {
             if (auto result = vdp2.vramUploadBuffer.Create(device, VDP2Resources::kVRAMUploadBufferSize); !result) {
                 return util::ErrorMessage{
                     fmt::format("Could not create VDP2 VRAM upload buffer: {}", result.Error().message)};
             }
-            vdp2.vramUploadBuffer.resource->SetName(L"[Ymir-VDP2] VDP2 VRAM upload ring buffer");
+            vdp2.vramUploadBuffer.resource->SetName(L"[Ymir-VDP2] VDP2 VRAM upload buffer");
         }
 
         // VDP2 CRAM color buffer
