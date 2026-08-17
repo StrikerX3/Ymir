@@ -55,7 +55,7 @@ public:
         return {};
     }
     util::VoidResult<> RenderToTextureTiled(TextureID src, TextureID dst, const FRect &dstRect) override {
-        return UnimplementedError();
+        return {};
     }
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
                                           const FPoint2D *anchorPoint = nullptr) override {
