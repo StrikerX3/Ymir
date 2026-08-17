@@ -132,10 +132,84 @@ struct Direct3D12VDPRenderer::Impl {
 
     D3D12CommandQueue cmdQueue;
     D3D12Fence fence;
-    UINT64 fenceValue;
 
     D3D12DescriptorHeap resourceHeap;
     DescriptorHeapAllocator resourceHeapAlloc;
+
+    /// @brief Resources for a single frame.
+    struct FrameContext {
+        D3D12CommandAllocator cmdAlloc;
+        UINT64 fenceValue = 1;
+    };
+
+    /// @brief Ring buffer of frame resources.
+    /// @tparam count number of frames
+    template <size_t count>
+    struct FrameSet {
+        std::array<FrameContext, count> frames;
+        size_t frameIndex = 0;
+
+        FrameContext &GetCurrentFrame() {
+            return frames[frameIndex];
+        }
+        const FrameContext &GetCurrentFrame() const {
+            return frames[frameIndex];
+        }
+
+        util::VoidResult<> MoveToNextFrame(D3D12Fence &fence, D3D12CommandQueue &cmdQueue) {
+            // Schedule a signal command in the queue
+            const FrameContext &currFrame = GetCurrentFrame();
+            const UINT64 currentFenceValue = currFrame.fenceValue;
+            if (FAILED(fence.Signal(cmdQueue, currentFenceValue))) {
+                return util::ErrorMessage{"Failed to signal fence"};
+            }
+
+            // Update the frame index
+            ++frameIndex;
+            if (frameIndex >= count) {
+                frameIndex = 0;
+            }
+
+            // Wait for next frame
+            FrameContext &nextFrame = GetCurrentFrame();
+            if (fence->GetCompletedValue() < nextFrame.fenceValue) {
+                fence.Wait(INFINITE, nextFrame.fenceValue);
+            }
+
+            // Set the fence value for the next frame
+            nextFrame.fenceValue = currentFenceValue + 1;
+
+            return {};
+        }
+
+        util::VoidResult<> WaitForGPU(D3D12Fence &fence, D3D12CommandQueue &cmdQueue) {
+            FrameContext &currFrame = GetCurrentFrame();
+
+            // Schedule a signal command in the queue
+            if (FAILED(fence.Signal(cmdQueue, currFrame.fenceValue))) {
+                return util::ErrorMessage{"Failed to signal fence"};
+            }
+
+            // Wait until the fence has been processed
+            fence.Wait(INFINITE, currFrame.fenceValue);
+
+            // Increment the fence value for the current frame
+            ++currFrame.fenceValue;
+
+            return {};
+        }
+
+        FrameContext &operator[](size_t index) {
+            return frames[index];
+        }
+        const FrameContext &operator[](size_t index) const {
+            return frames[index];
+        }
+
+        constexpr size_t Count() const {
+            return count;
+        }
+    };
 
     // =================================================================================================================
     // VDP1 rendering
@@ -164,8 +238,9 @@ struct Direct3D12VDPRenderer::Impl {
     // VDP2 registers, active enhancements and the starting line for continuation of work interrupted by state changes.
 
     struct VDP2Resources {
-        /// @brief VDP2 command allocator.
-        D3D12CommandAllocator cmdAlloc;
+        /// @brief VDP2 frame resources.
+        FrameSet<3> frames;
+
         /// @brief VDP2 command list.
         D3D12GraphicsCommandList cmdList;
 
@@ -264,7 +339,6 @@ struct Direct3D12VDPRenderer::Impl {
             return util::ErrorMessage{fmt::format("Could not create VDP renderer fence, error code {:X}", (uint32)hr)};
         }
         fence->SetName(L"[Ymir-VDP] Fence");
-        fenceValue = 1;
 
         // Resource heap
         {
@@ -297,13 +371,18 @@ struct Direct3D12VDPRenderer::Impl {
 
         // -------------------------------------------------------------------------------------------------------------
 
-        // VDP2 command allocator and list
-        if (HRESULT hr = vdp2.cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
-            return util::ErrorMessage{
-                fmt::format("Could not create VDP2 renderer command allocator, error code {:X}", (uint32)hr)};
+        // VDP2 command allocators and list
+        for (int i = 0; i < vdp2.frames.Count(); ++i) {
+            FrameContext &frame = vdp2.frames[i];
+            if (HRESULT hr = frame.cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format(
+                    "Could not create VDP2 renderer command allocator #{}, error code {:X}", i, (uint32)hr)};
+            }
+            frame.cmdAlloc->SetName(fmt::format(L"[Ymir-VDP2] Command allocator #{}", i).c_str());
         }
-        vdp2.cmdAlloc->SetName(L"[Ymir-VDP2] Command allocator");
-        if (HRESULT hr = vdp2.cmdList.Create(device, vdp2.cmdAlloc, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+        if (HRESULT hr =
+                vdp2.cmdList.Create(device, vdp2.frames.GetCurrentFrame().cmdAlloc, D3D12_COMMAND_LIST_TYPE_COMPUTE);
+            FAILED(hr)) {
             return util::ErrorMessage{
                 fmt::format("Could not create VDP2 renderer command list, error code {:X}", (uint32)hr)};
         }
@@ -528,6 +607,10 @@ struct Direct3D12VDPRenderer::Impl {
 #endif
     }
 
+    void Shutdown() {
+        vdp2.frames.WaitForGPU(fence, cmdQueue);
+    }
+
     util::ValueResult<std::vector<char>> LoadShader(const char *path) {
         if (!g_fsShaders.is_file(path)) {
             return util::ErrorMessage{fmt::format("Embedded file not found: {}", path)};
@@ -645,7 +728,7 @@ struct Direct3D12VDPRenderer::Impl {
                 if (buffer == nullptr) {
                     buffer = &vdp2.vramUploadOverflowBuffers.emplace_back();
                     const size_t index = vdp2.vramUploadOverflowBuffers.size();
-                    if (auto result = buffer->Create(device, VDP2Resources::kVRAMUploadBufferSize); result) {
+                    if (auto result = buffer->Create(device, VDP2Resources::kVRAMUploadBufferSize); !result) {
                         return util::ErrorMessage{
                             fmt::format("Could not create VDP2 VRAM upload overflow buffer #{}: {}", index,
                                         result.Error().message)};
@@ -793,22 +876,25 @@ struct Direct3D12VDPRenderer::Impl {
         cmdList->Dispatch(vdp::kMaxResH / 32, vdp::kMaxResV, 6);
         cmdList->Close();
 
-        cmdQueue->ExecuteCommandLists(1, cmdList.GetAddressOfBase());
-        fence.Signal(cmdQueue, fenceValue);
-        // TODO: defer wait for as long as possible
-        // TODO: double or triple buffer command lists to avoid locking up the emulator core
-        fence.Wait(INFINITE, fenceValue);
-        ++fenceValue;
-
         // ---------------------------
-        // Reset command list
-        vdp2.cmdAlloc->Reset();
-        cmdList->Reset(vdp2.cmdAlloc.GetPointer(), nullptr);
 
+        // Submit command list
+        cmdQueue->ExecuteCommandLists(1, cmdList.GetAddressOfBase());
+
+        // Advance frame
+        vdp2.frames.MoveToNextFrame(fence, cmdQueue);
+
+        // Reset command list
+        FrameContext &nextFrame = vdp2.frames.GetCurrentFrame();
+        nextFrame.cmdAlloc->Reset();
+        cmdList->Reset(nextFrame.cmdAlloc.GetPointer(), nullptr);
+
+        // Setup command list
         ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
         cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
-        // ---------------------------
 
+        // Clear state
+        // TODO: needs to be properly fenced
         vdp2.vramUploadBuffer.Reset();
         for (UploadBuffer &buffer : vdp2.vramUploadOverflowBuffers) {
             buffer.Reset();
@@ -827,7 +913,9 @@ Direct3D12VDPRenderer::Direct3D12VDPRenderer(VDPState &state, const config::VDP2
     , m_vdp2AccessPatternsConfig(vdp2AccessPatternsConfig)
     , m_hwRenderConfig(hwRenderConfig) {}
 
-Direct3D12VDPRenderer::~Direct3D12VDPRenderer() = default;
+Direct3D12VDPRenderer::~Direct3D12VDPRenderer() {
+    m_impl->Shutdown();
+}
 
 util::VoidResult<> Direct3D12VDPRenderer::Initialize(ID3D12Device *device) {
     return m_impl->Initialize(device);
