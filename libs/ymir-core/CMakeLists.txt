@@ -221,6 +221,7 @@ add_library(ymir-core
     include/ymir/util/date_time.hpp
     include/ymir/util/dev_assert.hpp
     include/ymir/util/dev_log.hpp
+    include/ymir/util/dirty_bitmap.hpp
     include/ymir/util/event.hpp
     include/ymir/util/function_info.hpp
     include/ymir/util/hashing.hpp

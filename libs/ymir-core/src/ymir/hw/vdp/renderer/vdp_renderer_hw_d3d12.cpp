@@ -12,6 +12,7 @@
 #include <ymir/gpu/shaders/gpu_shaders.hpp>
 
 #include <ymir/util/bit_ops.hpp>
+#include <ymir/util/dirty_bitmap.hpp>
 
 #include <ymir/version.hpp> // TODO: remove once Ymir_LOCAL_BUILD blocks are removed
 
@@ -22,9 +23,17 @@
 #include <cmrc/cmrc.hpp>
 CMRC_DECLARE(ymir_core_shaders);
 
+#include <cassert>
+
 using namespace ymir::gpu::d3d12;
 
 namespace ymir::vdp {
+
+/// @brief Name of the entrypoint function for all compute shaders.
+static constexpr const char *kCSEntrypoint = "CSMain";
+
+/// @brief Contains the compiled shader files from res/shaders/src.
+cmrc::embedded_filesystem g_fsShaders = cmrc::ymir_core_shaders::get_filesystem();
 
 /// @brief A simple bump-allocated upload buffer.
 struct UploadBuffer {
@@ -68,16 +77,18 @@ struct UploadBuffer {
 
     /// @brief Requests a chunk of the specified size from this buffer.
     /// @param[in] size size in bytes to request, force-aligned to 32 bits
-    /// @return a pointer to the chunk, or `nullptr` if the buffer doesn't have enough space
-    void *Allocate(size_t size) {
+    /// @param[out] outOffset the offset of the allocated data chunk in the buffer
+    /// @param[out] outPtr pointer to the allocated data
+    /// @return `true` if allocated, `false` if there is not enough space
+    bool Allocate(size_t size, size_t &outOffset, void *&outPtr) {
         size = bit::align<2>(size);
-        assert((size & 3) == 0);
         if (size <= FreeSpace()) {
-            void *ptr = static_cast<char *>(data) + size;
+            outOffset = offset;
+            outPtr = static_cast<char *>(data) + offset;
             offset += size;
-            return ptr;
+            return true;
         }
-        return nullptr;
+        return false;
     }
 
     /// @brief Resets the allocated pointer, effectively "freeing" all allocations.
@@ -92,10 +103,10 @@ struct UploadBuffer {
     }
 };
 
-cmrc::embedded_filesystem g_fsShaders = cmrc::ymir_core_shaders::get_filesystem();
-
-static constexpr const char *kCSEntrypoint = "CSMain";
-
+/// @brief Converts the given shader into a `D3D12_SHADER_BYTECODE` structure.
+/// @tparam stage the shader stage
+/// @param[in] shader the compiler shader
+/// @return a `D3D12_SHADER_BYTECODE` with a reference to the shader's bytecode
 template <gpu::ShaderStage stage>
 D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader) {
     return D3D12_SHADER_BYTECODE{
@@ -107,6 +118,11 @@ D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader)
 // ---------------------------------------------------------------------------------------------------------------------
 
 struct Direct3D12VDPRenderer::Impl {
+    Impl(VDPState &state)
+        : vdpState(state) {}
+
+    VDPState &vdpState;
+
     D3D12Device device;
 
     D3D12CommandQueue cmdQueue;
@@ -156,10 +172,25 @@ struct Direct3D12VDPRenderer::Impl {
         /// @brief VRAM data buffer SRV.
         Descriptor vramSRV;
 
-        // Size of a VDP2 VRAM upload buffer.
-        // Tweak size as needed. The value should be large enough to cover most cases while requiring at most one
-        // overflow buffer in extreme cases.
+        /// @brief Bit shift for the granularity for VRAM dirty bitmap chunks.
+        static constexpr size_t kVRAMDirtyBitmapChunkSizeShift = 8;
+        /// @brief Granularity for VRAM dirty bitmap chunks, in bytes.
+        static constexpr size_t kVRAMDirtyBitmapChunkSize = static_cast<size_t>(1) << kVRAMDirtyBitmapChunkSizeShift;
+        /// @brief Number of bits in the VRAM dirty bitmap.
+        static constexpr size_t kVRAMDirtyBitmapSize = vdp::kVDP2VRAMSize / kVRAMDirtyBitmapChunkSize;
+        // D3D12 buffer transfers must be done in multiples of 4 bytes.
+        // The chunk must not be larger than VDP2 VRAM itself. In fact, it shouldn't be too large as it wastes memory
+        // and time with unnecessary copies of VRAM data.
+        static_assert(kVRAMDirtyBitmapChunkSize >= sizeof(uint32) && kVRAMDirtyBitmapChunkSize <= vdp::kVDP2VRAMSize,
+                      "VDP2 VRAM upload chunk size is out of range");
+
+        /// @brief VDP2 VRAM dirty bitmap.
+        util::DirtyBitmap<kVRAMDirtyBitmapSize> vramDirty;
+
+        /// @brief Size of a VDP2 VRAM upload buffer.
         static constexpr UINT64 kVRAMUploadBufferSize = vdp::kVDP2VRAMSize * 4;
+        // Note to developers: tweak size as needed. The value should be large enough to cover most cases while
+        // requiring at most one overflow buffer in extreme cases.
         // Worst case for a single transfer is uploading the whole VRAM at once, which happens on initialization, reset,
         // load state, and potentially during VBlank if the game does absolutely nothing but write to VRAM.
         static_assert(kVRAMUploadBufferSize >= vdp::kVDP2VRAMSize);
@@ -470,6 +501,7 @@ struct Direct3D12VDPRenderer::Impl {
             vdp2.drawBGsPSO->SetName(L"[Ymir-VDP2] Background layer rendering pipeline state object");
         }
 
+        Reset();
         // TODO: upload full VDP1 and VDP2 states
 
 #ifdef Ymir_LOCAL_BUILD // Allow initialization to succeed so we can develop this stuff
@@ -509,22 +541,28 @@ struct Direct3D12VDPRenderer::Impl {
     }
 
     // -----------------------------------------------------------------------------------------------------------------
+    // State
+
+    void Reset() {
+        // TODO: reset to initial state (clear VRAM, reset registers, mark everything as dirty, etc.)
+
+        vdp2.vramDirty.SetAll();
+    }
+
+    // -----------------------------------------------------------------------------------------------------------------
     // VDP2 rendering
 
     uint32 HRes = vdp::kDefaultResH;
     uint32 VRes = vdp::kDefaultResV;
     bool exclusiveMonitor = false;
 
-    // TODO: mark VRAM words (or chunks) as dirty on writes
-    // - coalesce dirty regions
-    //   - also merge dirty regions spaced out by a few words
-
     void VDP2WriteVRAM(uint32 address, uint8 value) {
-        // TODO: mark as dirty
+        vdp2.vramDirty.Set(address >> VDP2Resources::kVRAMDirtyBitmapChunkSizeShift);
     }
 
     void VDP2WriteVRAM(uint32 address, uint16 value) {
-        // TODO: mark as dirty
+        // The address is always word-aligned, so the value will never straddle two chunks
+        vdp2.vramDirty.Set(address >> VDP2Resources::kVRAMDirtyBitmapChunkSizeShift);
     }
 
     void VDP2WriteCRAM(uint32 address, uint8 value) {
@@ -540,12 +578,46 @@ struct Direct3D12VDPRenderer::Impl {
     }
 
     void VDP2FlushVRAM() {
-        // TODO: implement
-        // - iterate over dirty regions
-        // - find upload buffer with enough free space
-        //   - if all buffers are full, allocate and map additional buffer
-        // - copy regions to upload buffer
-        // - submit CopyBufferRegion commands from upload to VRAM buffer
+        if (!vdp2.vramDirty) {
+            return;
+        }
+
+        // TODO: replace this function callback thing with an iterator-like object
+
+        vdp2.vramDirty.Process([&](uint64 offset, uint64 count) {
+            const uint32 vramOffset = offset << VDP2Resources::kVRAMDirtyBitmapChunkSizeShift;
+            const uint32 size = count << VDP2Resources::kVRAMDirtyBitmapChunkSizeShift;
+
+            // Get upload buffer with enough space for this data
+            UploadBuffer *buffer = FindUploadBuffer(vdp2.vramUploadBuffer, vdp2.vramUploadOverflowBuffers, size);
+            if (buffer == nullptr) {
+                buffer = &vdp2.vramUploadOverflowBuffers.emplace_back();
+                const size_t index = vdp2.vramUploadOverflowBuffers.size();
+                if (auto result = buffer->Create(device, VDP2Resources::kVRAMUploadBufferSize); result) {
+                    // TODO: how to report these errors?
+                    // return util::ErrorMessage{
+                    //     fmt::format("Could not create VDP2 VRAM upload overflow buffer #{}: {}",
+                    //     index, result.Error().message)};
+                    return;
+                }
+                buffer->resource->SetName(fmt::format(L"[Ymir-VDP2] VRAM upload overflow buffer #{}", index).c_str());
+            }
+
+            // Copy data to upload buffer
+            size_t uploadOffset = 0;
+            void *uploadData = nullptr;
+            const bool result = buffer->Allocate(size, uploadOffset, uploadData);
+            assert(result);
+            memcpy(uploadData, &vdpState.mem2.VRAM[vramOffset], size);
+
+            // TODO: barrier shader resource/common -> copy dest
+
+            // Copy from upload buffer to GPU buffer
+            vdp2.cmdList->CopyBufferRegion(vdp2.vramBuffer.GetPointer(), vramOffset, buffer->resource.GetPointer(),
+                                           uploadOffset, size);
+
+            // TODO: barrier copy dest -> shader resource/common
+        });
     }
 
     void VDP2FlushCRAM() {
@@ -559,8 +631,10 @@ struct Direct3D12VDPRenderer::Impl {
     }
 
     void VDP2BeginFrame() {
+        VDP2FlushVRAM();
+        VDP2FlushCRAM();
+
         // TODO: prepare new VDP2 frame
-        // - VDP2FlushVRAM() right away
         // - set up rendering parameters
         // - update rendering parameters and set 32-bit constants
 
@@ -580,10 +654,11 @@ struct Direct3D12VDPRenderer::Impl {
         // TODO: prepare next line, render and compose lines; optimize by batching lines without state changes
         // - if there are pending VRAM writes:
         //   - draw lines from segmentStartY to y-1 (if possible)
-        //   - VDP2FlushVRAM()
+        //   - VDP2FlushVRAM() + VDP2FlustCRAM()
         //   - set segmentStartY = y
         // - update rendering parameters and set 32-bit constants
     }
+
     void VDP2EndFrame() {
         // TODO: finish VDP2 frame
         // - draw lines from segmentStartY to bottom of framebuffer
@@ -596,8 +671,15 @@ struct Direct3D12VDPRenderer::Impl {
 
         cmdQueue->ExecuteCommandLists(1, cmdList.GetAddressOfBase());
         fence.Signal(cmdQueue, fenceValue);
+        // TODO: defer wait for as long as possible
+        // TODO: double or triple buffer command lists to avoid locking up the emulator core
         fence.Wait(INFINITE, fenceValue);
         ++fenceValue;
+
+        vdp2.vramUploadBuffer.Reset();
+        for (UploadBuffer &buffer : vdp2.vramUploadOverflowBuffers) {
+            buffer.Reset();
+        }
     }
 };
 
@@ -607,7 +689,7 @@ Direct3D12VDPRenderer::Direct3D12VDPRenderer(VDPState &state, const config::VDP2
                                              const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
                                              core::Configuration::HardwareRenderer &hwRenderConfig)
     : HardwareVDPRendererBase(VDPRendererType::Direct3D12, hwRenderConfig)
-    , m_impl(std::make_unique<Impl>())
+    , m_impl(std::make_unique<Impl>(state))
     , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
     , m_vdp2AccessPatternsConfig(vdp2AccessPatternsConfig)
     , m_hwRenderConfig(hwRenderConfig) {}
@@ -642,7 +724,7 @@ bool Direct3D12VDPRenderer::IsValid() const {
 }
 
 void Direct3D12VDPRenderer::Reset(bool hard) {
-    // TODO: reset to initial state (clear VRAM, reset registers, etc.)
+    m_impl->Reset();
 }
 
 // -----------------------------------------------------------------------------
