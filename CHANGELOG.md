@@ -23,7 +23,7 @@ Introduces save state file version 14.
 - Debugger: Added basic VDP2 registers view.
 - Graphics: New graphics backend, adding support for native graphics APIs:
     - Direct3D 11 and 12 on Windows
-    - Vulkan on Windows, Linux and macOS
+    - Vulkan on Windows and Linux
     - Metal on macOS
     - SDL Renderer wherever it's supported
 - Input: Added option to constrain mouse cursor to window in system cursor mode.

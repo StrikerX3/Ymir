@@ -3,7 +3,11 @@ project(Ymir VERSION 0.4.0)
 
 # Check for Vulkan support before including CompileShaders as it depends on knowing if Vulkan
 # is available to determine whether to make SPIR-V compilation required or optional.
-find_package(Vulkan COMPONENTS SPIRV-Tools)
+# Vulkan support is excluded from macOS as the system doesn't support it natively.
+# Metal is the preferred backend on that platform.
+if (NOT APPLE)
+    find_package(Vulkan COMPONENTS SPIRV-Tools)
+endif ()
 
 include(cmake/CMakeRC.cmake)
 include(cmake/CompileShaders.cmake)

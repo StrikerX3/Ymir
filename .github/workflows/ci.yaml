@@ -325,13 +325,6 @@ jobs:
             library-only: "yes"
 
     steps:
-      - name: Set up Vulkan SDK
-        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
-        with:
-          vulkan_version: "1.4.357.0"
-          cache: true
-          stripdown: true
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           submodules: recursive
