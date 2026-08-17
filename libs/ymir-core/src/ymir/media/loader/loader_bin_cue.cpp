@@ -334,6 +334,22 @@ static std::optional<CueSheet> LoadSheet(std::filesystem::path cuePath, CbLoader
         errorMsg("BIN/CUE: No FILE specified");
         return std::nullopt;
     }
+    if (sheet.tracks.empty()) {
+        errorMsg("BIN/CUE: No TRACK specified");
+        return std::nullopt;
+    }
+    for (CueTrack &track : sheet.tracks) {
+        if (track.indexes.empty()) {
+            errorMsg(fmt::format("BIN/CUE: TRACK {} has no INDEX specified", track.number));
+            return std::nullopt;
+        }
+        const auto itTrack01 = std::find_if(track.indexes.begin(), track.indexes.end(),
+                                            [](const CueIndex &index) { return index.number == 1; });
+        if (itTrack01 == track.indexes.end()) {
+            errorMsg(fmt::format("BIN/CUE: TRACK {} is missing INDEX 01", track.number));
+            return std::nullopt;
+        }
+    }
 
     return sheet;
 }
