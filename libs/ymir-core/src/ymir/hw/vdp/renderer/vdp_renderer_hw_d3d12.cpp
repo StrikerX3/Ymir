@@ -219,9 +219,14 @@ struct Direct3D12VDPRenderer::Impl {
     //
     // TODO
 
+    struct VDP1FrameContext : public FrameContext {
+        // TODO
+    };
+
     struct VDP1Resources {
-        /// @brief VDP1 command allocator.
-        D3D12CommandAllocator cmdAlloc;
+        /// @brief VDP1 per-frame resources.
+        FrameSet<4, VDP1FrameContext> frames;
+
         /// @brief VDP1 command list.
         D3D12GraphicsCommandList cmdList;
     } vdp1;
@@ -256,7 +261,7 @@ struct Direct3D12VDPRenderer::Impl {
     };
 
     struct VDP2Resources {
-        /// @brief VDP2 frame resources.
+        /// @brief VDP2 per-frame resources.
         FrameSet<4, VDP2FrameContext> frames;
 
         /// @brief VDP2 command list.
@@ -362,13 +367,18 @@ struct Direct3D12VDPRenderer::Impl {
 
         // -------------------------------------------------------------------------------------------------------------
 
-        // VDP1 command allocator and list
-        if (HRESULT hr = vdp1.cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
-            return util::ErrorMessage{
-                fmt::format("Could not create VDP1 renderer command allocator, error code {:X}", (uint32)hr)};
+        // VDP1 command allocators and list
+        for (int i = 0; i < vdp1.frames.Count(); ++i) {
+            FrameContext &frame = vdp1.frames[i];
+            if (HRESULT hr = frame.cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+                return util::ErrorMessage{fmt::format(
+                    "Could not create VDP1 renderer command allocator #{}, error code {:X}", i, (uint32)hr)};
+            }
+            frame.cmdAlloc->SetName(fmt::format(L"[Ymir-VDP1] Command allocator #{}", i).c_str());
         }
-        vdp1.cmdAlloc->SetName(L"[Ymir-VDP1] Command allocator");
-        if (HRESULT hr = vdp1.cmdList.Create(device, vdp1.cmdAlloc, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
+        if (HRESULT hr =
+                vdp1.cmdList.Create(device, vdp1.frames.GetCurrentFrame().cmdAlloc, D3D12_COMMAND_LIST_TYPE_COMPUTE);
+            FAILED(hr)) {
             return util::ErrorMessage{
                 fmt::format("Could not create VDP1 renderer command list, error code {:X}", (uint32)hr)};
         }
