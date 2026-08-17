@@ -104,7 +104,7 @@ EmuEvent SetDeinterlace(bool enable);
 EmuEvent SetTransparentMeshes(bool enable);
 
 EmuEvent UseNullVDPRenderer(util::Event &event);
-EmuEvent SwitchVDPRenderer();
+EmuEvent SwitchVDPRenderer(bool verbose = true);
 
 EmuEvent SetDebugTrace(bool enable);
 EmuEvent DumpMemory();

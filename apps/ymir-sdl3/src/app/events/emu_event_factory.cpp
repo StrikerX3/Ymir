@@ -76,8 +76,16 @@ EmuEvent UseNullVDPRenderer(util::Event &event) {
     });
 }
 
-EmuEvent SwitchVDPRenderer() {
+EmuEvent SwitchVDPRenderer(bool verbose) {
     return RunFunction([=](SharedContext &ctx) {
+        auto notifySuccess = [&](std::string message) {
+            if (verbose) {
+                ctx.DisplayMessage(message);
+            } else {
+                devlog::info<grp::base>("{}", message);
+            }
+        };
+
         auto &settings = ctx.serviceLocator.GetRequired<Settings>();
         auto &vdp = ctx.saturn.instance->VDP;
         if (settings.video.useHardwareAcceleration) {
@@ -91,7 +99,7 @@ EmuEvent SwitchVDPRenderer() {
                 if (auto *dx12Ctx = gfxCtx.As<gfx::Direct3D12GraphicsContext>()) {
                     auto result = vdp.UseDirect3D12Renderer(dx12Ctx->GetDevice());
                     if (result) {
-                        ctx.DisplayMessage("Direct3D 12 renderer initialized successfully");
+                        notifySuccess("Direct3D 12 renderer initialized successfully");
                         return;
                     }
                     ctx.DisplayMessage(
@@ -119,7 +127,7 @@ EmuEvent SwitchVDPRenderer() {
         // Fall back to software renderer if not using GPU acceleration or the hardware renderer failed to initialize
         if (vdp.GetRenderer().GetType() != vdp::VDPRendererType::Software) {
             vdp.UseSoftwareRenderer();
-            ctx.DisplayMessage("Software renderer initialized successfully");
+            notifySuccess("Software renderer initialized successfully");
         }
     });
 }

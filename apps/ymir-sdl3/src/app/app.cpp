@@ -453,7 +453,7 @@ int App::Run(const CommandLineOptions &options) {
     EnableRewindBuffer(settings.general.enableRewindBuffer);
     util::BoostCurrentProcessPriority(settings.general.boostProcessPriority);
     if (settings.video.useHardwareAcceleration) {
-        m_context.EnqueueEvent(events::emu::SwitchVDPRenderer());
+        m_context.EnqueueEvent(events::emu::SwitchVDPRenderer(false));
     }
 
 #if Ymir_FF_HOST_CD_DRIVES
