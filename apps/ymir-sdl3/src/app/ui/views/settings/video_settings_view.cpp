@@ -5,6 +5,8 @@
 #include <app/ui/widgets/common_widgets.hpp>
 #include <app/ui/widgets/settings_widgets.hpp>
 
+#include <ymir/version.hpp>
+
 namespace app::ui {
 
 VideoSettingsView::VideoSettingsView(SharedContext &context)
@@ -27,7 +29,10 @@ void VideoSettingsView::Display() {
 
     widgets::settings::video::GraphicsBackendCombo(m_context);
     widgets::settings::video::GraphicsAdapterCombo(m_context);
+#ifdef Ymir_LOCAL_BUILD // Hide this option so that users don't complain that it doesn't work
     widgets::settings::video::UseHardwareAcceleration(m_context);
+    ImGui::TextColored(m_context.colors.notice, "Hardware acceleration is not ready for public release yet.");
+#endif
 
     // -----------------------------------------------------------------------------------------------------------------
 

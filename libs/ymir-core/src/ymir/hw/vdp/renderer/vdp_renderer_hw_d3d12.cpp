@@ -11,14 +11,16 @@
 
 #include <ymir/gpu/shaders/gpu_shaders.hpp>
 
+#include <ymir/util/bit_ops.hpp>
+
+#include <ymir/version.hpp> // TODO: remove once Ymir_LOCAL_BUILD blocks are removed
+
 #include <d3d12.h>
 
 #include <fmt/format.h>
 
 #include <cmrc/cmrc.hpp>
 CMRC_DECLARE(ymir_core_shaders);
-
-#include <cassert>
 
 using namespace ymir::gpu::d3d12;
 
@@ -43,9 +45,10 @@ struct UploadBuffer {
 
     /// @brief Creates the upload buffer resource and maps its view.
     /// @param[in] device the device that will own the buffer
-    /// @param[in] size buffer capacity
+    /// @param[in] size buffer capacity, force-aligned to 32 bits
     /// @return nothing on success, an error message on failure
     util::VoidResult<> Create(D3D12Device &device, size_t size) {
+        size = bit::align<2>(size);
         auto builder = resource.BufferBuilder(size);
         builder.HeapType(D3D12_HEAP_TYPE_UPLOAD);
         builder.InitialState(D3D12_RESOURCE_STATE_GENERIC_READ);
@@ -64,11 +67,12 @@ struct UploadBuffer {
     }
 
     /// @brief Requests a chunk of the specified size from this buffer.
-    /// @param[in] size size in bytes to request. Must be aligned to 32 bits.
+    /// @param[in] size size in bytes to request, force-aligned to 32 bits
     /// @return a pointer to the chunk, or `nullptr` if the buffer doesn't have enough space
     void *Allocate(size_t size) {
+        size = bit::align<2>(size);
         assert((size & 3) == 0);
-        if (size <= capacity - offset) {
+        if (size <= FreeSpace()) {
             void *ptr = static_cast<char *>(data) + size;
             offset += size;
             return ptr;
@@ -79,6 +83,12 @@ struct UploadBuffer {
     /// @brief Resets the allocated pointer, effectively "freeing" all allocations.
     void Reset() {
         offset = 0;
+    }
+
+    /// @brief Determines how much free space there is in this buffer.
+    /// @return the free space available (in bytes)
+    size_t FreeSpace() const {
+        return capacity - offset;
     }
 };
 
@@ -146,20 +156,18 @@ struct Direct3D12VDPRenderer::Impl {
         /// @brief Raw VRAM data buffer SRV.
         Descriptor vramSRV;
 
-        // TODO: VRAM upload ring buffer
-        // - mark bytes (or chunks) as dirty on writes
-        // - VDP2FlushVRAM():
-        //   - coalesce dirty regions
-        //   - find upload buffer with enough free space
-        //     - if all buffers are full, allocate and map additional buffer
-        //   - copy regions to upload buffer
-        //   - submit CopyBufferRegion commands from upload to VRAM buffer
-
-        // TODO: tweak size as needed. Should be large enough to cover the worst cases.
+        // Size of a VDP2 VRAM upload buffer.
+        // Tweak size as needed. The value should be large enough to cover most cases while requiring at most one
+        // overflow buffer in extreme cases.
         static constexpr UINT64 kVRAMUploadBufferSize = vdp::kVDP2VRAMSize * 4;
+        // Worst case for a single transfer is uploading the whole VRAM at once, which happens on initialization, reset,
+        // load state, and potentially during VBlank if the game does absolutely nothing but write to VRAM.
+        static_assert(kVRAMUploadBufferSize >= vdp::kVDP2VRAMSize);
 
         /// @brief VDP2 VRAM upload buffer.
         UploadBuffer vramUploadBuffer;
+        /// @brief Temporary VDP2 VRAM upload overflow buffers (dynamically allocated if the main buffer is full).
+        std::vector<UploadBuffer> vramUploadOverflowBuffers;
 
         // VDP2 CRAM is not directly exposed. Instead, shaders get two convenient views:
         // - CRAM converted to R8G8B8A8 colors based on the current color RAM mode
@@ -293,9 +301,6 @@ struct Direct3D12VDPRenderer::Impl {
                     fmt::format("Could not create VDP2 VRAM upload buffer: {}", result.Error().message)};
             }
             vdp2.vramUploadBuffer.resource->SetName(L"[Ymir-VDP2] VDP2 VRAM upload ring buffer");
-
-            // TODO: allocate additional buffers if this runs out of space
-            // - if consistently running out of space, increase the buffer size instead
         }
 
         // VDP2 CRAM color buffer
@@ -467,8 +472,11 @@ struct Direct3D12VDPRenderer::Impl {
 
         // TODO: upload full VDP1 and VDP2 states
 
-        // return util::ErrorMessage{"Unimplemented"};
+#ifdef Ymir_LOCAL_BUILD // Allow initialization to succeed so we can develop this stuff
         return {};
+#else
+        return util::ErrorMessage{"Unimplemented"};
+#endif
     }
 
     util::ValueResult<std::vector<char>> LoadShader(const char *path) {
@@ -478,6 +486,37 @@ struct Direct3D12VDPRenderer::Impl {
         auto file = g_fsShaders.open(path);
         return std::vector<char>{file.begin(), file.end()};
     }
+
+    /// @brief Locates an upload buffer with enough free space to hold data of the specified size.
+    /// Search is done in reverse, with the most recent overflow buffers queried first and the primary buffer queried
+    /// last, which should minimize time spent searching for free space.
+    /// Returns `nullptr` if none of the buffers have enough space.
+    /// @param[in] primary the primary upload buffer
+    /// @param[in] overflow overflow buffers, if any
+    /// @param[in] size the requested size, force-aligned to 32 bits
+    /// @return a pointer to an upload buffer with enough room for the requested size, `nullptr` otherwise
+    UploadBuffer *FindUploadBuffer(UploadBuffer &primary, std::span<UploadBuffer> overflow, size_t size) {
+        size = bit::align<2>(size);
+        for (auto it = overflow.rbegin(); it != overflow.rend(); ++it) {
+            if (it->FreeSpace() >= size) {
+                return &*it;
+            }
+        }
+        if (primary.FreeSpace() >= size) {
+            return &primary;
+        }
+        return nullptr; // NOTE: if we're consistently hitting this case, consider increasing the buffer size
+    }
+
+    // TODO: mark VRAM words (or chunks) as dirty on writes
+    // - coalesce dirty regions
+    //   - also merge dirty regions spaced out by a few words
+    // TODO: implement VDP2FlushVRAM():
+    // - iterate over dirty regions
+    // - find upload buffer with enough free space
+    //   - if all buffers are full, allocate and map additional buffer
+    // - copy regions to upload buffer
+    // - submit CopyBufferRegion commands from upload to VRAM buffer
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
