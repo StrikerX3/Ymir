@@ -151,9 +151,9 @@ struct Direct3D12VDPRenderer::Impl {
         // VDP2 VRAM is exposed as a ByteAddressBuffer to shaders as they often need to access raw bytes in 8-bit,
         // 16-bit and 32-bit formats.
 
-        /// @brief Raw VRAM data buffer.
+        /// @brief VRAM data buffer.
         D3D12Resource vramBuffer;
-        /// @brief Raw VRAM data buffer SRV.
+        /// @brief VRAM data buffer SRV.
         Descriptor vramSRV;
 
         // Size of a VDP2 VRAM upload buffer.
@@ -272,12 +272,12 @@ struct Direct3D12VDPRenderer::Impl {
             auto builder = vdp2.vramBuffer.BufferBuilder(vdp::kVDP2VRAMSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
-                    fmt::format("Could not create raw VDP2 VRAM buffer, error code {:X}", (uint32)hr)};
+                    fmt::format("Could not create VDP2 VRAM buffer, error code {:X}", (uint32)hr)};
             }
-            vdp2.vramBuffer->SetName(L"[Ymir-VDP2] Raw VRAM buffer");
+            vdp2.vramBuffer->SetName(L"[Ymir-VDP2] VRAM buffer");
 
             if (!resourceHeapAlloc.Allocate(vdp2.vramSRV)) {
-                return util::ErrorMessage{"Could not allocate raw VDP2 VRAM buffer SRV"};
+                return util::ErrorMessage{"Could not allocate VDP2 VRAM buffer SRV"};
             }
             const D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{
                 .Format = DXGI_FORMAT_R32_TYPELESS,
@@ -300,7 +300,7 @@ struct Direct3D12VDPRenderer::Impl {
                 return util::ErrorMessage{
                     fmt::format("Could not create VDP2 VRAM upload buffer: {}", result.Error().message)};
             }
-            vdp2.vramUploadBuffer.resource->SetName(L"[Ymir-VDP2] VDP2 VRAM upload buffer");
+            vdp2.vramUploadBuffer.resource->SetName(L"[Ymir-VDP2] VRAM upload buffer");
         }
 
         // VDP2 CRAM color buffer
@@ -342,7 +342,7 @@ struct Direct3D12VDPRenderer::Impl {
             // The second half of CRAM can be used as rotation coefficients.
             static constexpr UINT kCRAMRotCoeffSize = vdp::kVDP2CRAMSize / 2;
 
-            auto builder = vdp2.cramRotCoeffBuffer.BufferBuilder(kCRAMRotCoeffSize * sizeof(uint32));
+            auto builder = vdp2.cramRotCoeffBuffer.BufferBuilder(kCRAMRotCoeffSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format(
                     "Could not create VDP2 CRAM rotation coefficients buffer, error code {:X}", (uint32)hr)};
@@ -359,7 +359,7 @@ struct Direct3D12VDPRenderer::Impl {
                 .Buffer =
                     {
                         .FirstElement = 0,
-                        .NumElements = kCRAMRotCoeffSize,
+                        .NumElements = kCRAMRotCoeffSize / sizeof(uint32),
                         .StructureByteStride = 0,
                         .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
                     },
@@ -508,15 +508,97 @@ struct Direct3D12VDPRenderer::Impl {
         return nullptr; // NOTE: if we're consistently hitting this case, consider increasing the buffer size
     }
 
+    // -----------------------------------------------------------------------------------------------------------------
+    // VDP2 rendering
+
+    uint32 HRes = vdp::kDefaultResH;
+    uint32 VRes = vdp::kDefaultResV;
+    bool exclusiveMonitor = false;
+
     // TODO: mark VRAM words (or chunks) as dirty on writes
     // - coalesce dirty regions
     //   - also merge dirty regions spaced out by a few words
-    // TODO: implement VDP2FlushVRAM():
-    // - iterate over dirty regions
-    // - find upload buffer with enough free space
-    //   - if all buffers are full, allocate and map additional buffer
-    // - copy regions to upload buffer
-    // - submit CopyBufferRegion commands from upload to VRAM buffer
+
+    void VDP2WriteVRAM(uint32 address, uint8 value) {
+        // TODO: mark as dirty
+    }
+
+    void VDP2WriteVRAM(uint32 address, uint16 value) {
+        // TODO: mark as dirty
+    }
+
+    void VDP2WriteCRAM(uint32 address, uint8 value) {
+        // TODO: mark as dirty; cache converted colors
+    }
+
+    void VDP2WriteCRAM(uint32 address, uint16 value) {
+        // TODO: mark as dirty; cache converted colors
+    }
+
+    void VDP2WriteReg(uint32 address, uint16 value) {
+        // TODO: mark as dirty depending on register; recompute cached CRAM colors if needed
+    }
+
+    void VDP2FlushVRAM() {
+        // TODO: implement
+        // - iterate over dirty regions
+        // - find upload buffer with enough free space
+        //   - if all buffers are full, allocate and map additional buffer
+        // - copy regions to upload buffer
+        // - submit CopyBufferRegion commands from upload to VRAM buffer
+    }
+
+    void VDP2FlushCRAM() {
+        // TODO: copy the whole thing to an upload buffer then issue a CopyBufferRegion
+        // - upload buffer can be 256 times as large as the CRAM buffers (8 KB for colors, 2 KB for rotcoeff)
+        //   - 256 = maximum normal vertical resolution (interlaced modes count every other line)
+        // - use y*size as the offset, no need to bump-allocate
+        // - note that this has to be done for the color and and rotcoeff buffers
+        //   - rotcoeff only needs to be updated if:
+        //     (regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable
+    }
+
+    void VDP2BeginFrame() {
+        // TODO: prepare new VDP2 frame
+        // - VDP2FlushVRAM() right away
+        // - set up rendering parameters
+        // - update rendering parameters and set 32-bit constants
+
+        auto &cmdList = vdp2.cmdList;
+        vdp2.cmdAlloc->Reset();
+        cmdList->Reset(vdp2.cmdAlloc.GetPointer(), vdp2.drawBGsPSO.GetPointer());
+
+        ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
+        cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
+
+        cmdList->SetComputeRootSignature(vdp2.drawBGsRootSig.GetPointer());
+        // TODO: cmdList->SetComputeRoot32BitConstants(0, sizeof(vdp2.cpuRenderParams), &vdp2.cpuRenderParams, 0);
+        cmdList->SetComputeRootDescriptorTable(1, vdp2.layerOutUAV.gpuHandle);
+    }
+
+    void VDP2RenderLine(uint32 y) {
+        // TODO: prepare next line, render and compose lines; optimize by batching lines without state changes
+        // - if there are pending VRAM writes:
+        //   - draw lines from segmentStartY to y-1 (if possible)
+        //   - VDP2FlushVRAM()
+        //   - set segmentStartY = y
+        // - update rendering parameters and set 32-bit constants
+    }
+    void VDP2EndFrame() {
+        // TODO: finish VDP2 frame
+        // - draw lines from segmentStartY to bottom of framebuffer
+        // - update rendering parameters and set 32-bit constants
+
+        // TODO: this is just for testing; remove it
+        auto &cmdList = vdp2.cmdList;
+        cmdList->Dispatch(vdp::kMaxResH / 32, vdp::kMaxResV, 6);
+        cmdList->Close();
+
+        cmdQueue->ExecuteCommandLists(1, cmdList.GetAddressOfBase());
+        fence.Signal(cmdQueue, fenceValue);
+        fence.Wait(INFINITE, fenceValue);
+        ++fenceValue;
+    }
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -615,23 +697,23 @@ void Direct3D12VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {
 // VDP2 memory and register writes
 
 void Direct3D12VDPRenderer::VDP2WriteVRAM(uint32 address, uint8 value) {
-    // TODO: mark as dirty
+    m_impl->VDP2WriteVRAM(address, value);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteVRAM(uint32 address, uint16 value) {
-    // TODO: mark as dirty
+    m_impl->VDP2WriteVRAM(address, value);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
-    // TODO: mark as dirty; cache converted colors
+    m_impl->VDP2WriteCRAM(address, value);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
-    // TODO: mark as dirty; cache converted colors
+    m_impl->VDP2WriteCRAM(address, value);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
-    // TODO: mark as dirty depending on register; recompute cached CRAM colors if needed
+    m_impl->VDP2WriteReg(address, value);
 }
 
 // -----------------------------------------------------------------------------
@@ -674,6 +756,9 @@ void Direct3D12VDPRenderer::VDP1EndFrame() {
 }
 
 void Direct3D12VDPRenderer::VDP2SetResolution(uint32 h, uint32 v, bool exclusive) {
+    m_impl->HRes = h;
+    m_impl->VRes = v;
+    m_impl->exclusiveMonitor = exclusive;
     Callbacks.VDP2ResolutionChanged(h, v);
 }
 
@@ -685,49 +770,16 @@ void Direct3D12VDPRenderer::VDP2LatchTVMD() {
     // Nothing to do. We're using the main VDP2 state for this.
 }
 
-// TODO: rendering process
-// - VDP2BeginFrame():
-//   - VDP2FlushVRAM() right away
-// - VDP2RenderLine():
-//   - if there are pending VRAM writes:
-//     - draw lines from segmentStartY to y-1 (if possible)
-//     - VDP2FlushVRAM()
-//     - set segmentStartY = y
-// - VDP2EndFrame():
-//   - draw lines from segmentStartY to bottom of framebuffer
-
 void Direct3D12VDPRenderer::VDP2BeginFrame() {
-    // TODO: prepare new VDP2 frame
-    auto &vdp2 = m_impl->vdp2;
-    auto &cmdList = vdp2.cmdList;
-    vdp2.cmdAlloc->Reset();
-    cmdList->Reset(vdp2.cmdAlloc.GetPointer(), vdp2.drawBGsPSO.GetPointer());
-
-    ID3D12DescriptorHeap *heaps[] = {m_impl->resourceHeap.GetPointer()};
-    cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
-
-    cmdList->SetComputeRootSignature(vdp2.drawBGsRootSig.GetPointer());
-    // TODO: cmdList->SetComputeRoot32BitConstants(0, sizeof(RenderParams), &vdp2.cpuRenderParams, 0);
-    cmdList->SetComputeRootDescriptorTable(1, vdp2.layerOutUAV.gpuHandle);
+    m_impl->VDP2BeginFrame();
 }
 
 void Direct3D12VDPRenderer::VDP2RenderLine(uint32 y) {
-    // TODO: prepare next line, render and compose lines; optimize by batching lines without state changes
+    m_impl->VDP2RenderLine(y);
 }
 
 void Direct3D12VDPRenderer::VDP2EndFrame() {
-    // TODO: this is just for testing; remove it
-    auto &vdp2 = m_impl->vdp2;
-    auto &cmdList = vdp2.cmdList;
-    cmdList->Dispatch(vdp::kMaxResH / 32, vdp::kMaxResV, 6);
-    cmdList->Close();
-
-    m_impl->cmdQueue->ExecuteCommandLists(1, cmdList.GetAddressOfBase());
-    m_impl->fence.Signal(m_impl->cmdQueue, m_impl->fenceValue);
-    m_impl->fence.Wait(INFINITE, m_impl->fenceValue);
-    ++m_impl->fenceValue;
-
-    // TODO: finish VDP2 frame
+    m_impl->VDP2EndFrame();
     Callbacks.VDP2DrawFinished();
 }
 
