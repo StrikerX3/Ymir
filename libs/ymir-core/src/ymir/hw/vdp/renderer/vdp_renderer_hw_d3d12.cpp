@@ -23,7 +23,8 @@
 #include <cmrc/cmrc.hpp>
 CMRC_DECLARE(ymir_core_shaders);
 
-#include <cassert>
+#include <unordered_map>
+#include <vector>
 
 using namespace ymir::gpu::d3d12;
 
@@ -124,6 +125,10 @@ struct Direct3D12VDPRenderer::Impl {
     VDPState &vdpState;
 
     D3D12Device device;
+
+    struct Features {
+        bool enhancedBarriers = false;
+    } features;
 
     D3D12CommandQueue cmdQueue;
     D3D12Fence fence;
@@ -239,6 +244,14 @@ struct Direct3D12VDPRenderer::Impl {
     util::VoidResult<> Initialize(ID3D12Device *pDevice) {
         device.Assign(pDevice);
 
+        // Check features
+        D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12{};
+        if (SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)))) {
+            features.enhancedBarriers = options12.EnhancedBarriersSupported;
+        } else {
+            features.enhancedBarriers = false;
+        }
+
         // Main command queue
         if (HRESULT hr = cmdQueue.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
             return util::ErrorMessage{
@@ -281,7 +294,6 @@ struct Direct3D12VDPRenderer::Impl {
                 fmt::format("Could not create VDP1 renderer command list, error code {:X}", (uint32)hr)};
         }
         vdp1.cmdList->SetName(L"[Ymir-VDP1] Command list");
-        vdp1.cmdList->Close();
 
         // -------------------------------------------------------------------------------------------------------------
 
@@ -296,7 +308,6 @@ struct Direct3D12VDPRenderer::Impl {
                 fmt::format("Could not create VDP2 renderer command list, error code {:X}", (uint32)hr)};
         }
         vdp2.cmdList->SetName(L"[Ymir-VDP2] Command list");
-        vdp2.cmdList->Close();
 
         // VDP2 VRAM buffer
         {
@@ -502,6 +513,12 @@ struct Direct3D12VDPRenderer::Impl {
         }
 
         Reset();
+
+        {
+            ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
+            vdp2.cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
+        }
+
         // TODO: upload full VDP1 and VDP2 states
 
 #ifdef Ymir_LOCAL_BUILD // Allow initialization to succeed so we can develop this stuff
@@ -538,6 +555,17 @@ struct Direct3D12VDPRenderer::Impl {
             return &primary;
         }
         return nullptr; // NOTE: if we're consistently hitting this case, consider increasing the buffer size
+    }
+
+    /// @brief Retrieves a pointer to the specified command list if enhanced barriers are supported.
+    /// @param[in] cmdList the command list
+    /// @return a pointer to the command list converted to `ID3D12GraphicsCommandList7` for enhanced barriers
+    /// operations, or `nullptr` if the feature is not supported by the device
+    ID3D12GraphicsCommandList7 *GetCommandListForEnhancedBarriers(D3D12GraphicsCommandList &cmdList) const {
+        if (!features.enhancedBarriers) {
+            return nullptr;
+        }
+        return cmdList.As7();
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -577,47 +605,148 @@ struct Direct3D12VDPRenderer::Impl {
         // TODO: mark as dirty depending on register; recompute cached CRAM colors if needed
     }
 
-    void VDP2FlushVRAM() {
+    util::VoidResult<> VDP2FlushVRAM() {
         if (!vdp2.vramDirty) {
-            return;
+            return {};
         }
 
-        // TODO: replace this function callback thing with an iterator-like object
+        struct Transfer {
+            UINT64 srcOffset;
+            UINT64 dstOffset;
+            UINT64 length;
+        };
 
-        vdp2.vramDirty.Process([&](uint64 offset, uint64 count) {
-            const uint32 vramOffset = offset << VDP2Resources::kVRAMDirtyBitmapChunkSizeShift;
+        // Upload buffer resource pointer -> transfer info.
+        // Enables us to optimize transfer commands later on.
+        std::unordered_map<ID3D12Resource *, std::vector<Transfer>> transfers{};
+
+        // Pointer to most recently used upload buffer
+        UploadBuffer *buffer = nullptr;
+
+        size_t pos, count = 0;
+        for (pos = vdp2.vramDirty.FindNext(count); pos < vdp2.vramDirty.Size();
+             pos = vdp2.vramDirty.FindNext(count, pos + count)) {
+            const uint32 vramOffset = pos << VDP2Resources::kVRAMDirtyBitmapChunkSizeShift;
             const uint32 size = count << VDP2Resources::kVRAMDirtyBitmapChunkSizeShift;
 
-            // Get upload buffer with enough space for this data
-            UploadBuffer *buffer = FindUploadBuffer(vdp2.vramUploadBuffer, vdp2.vramUploadOverflowBuffers, size);
+            // Get or allocate upload buffer with enough space for this chunk
+            size_t uploadOffset = 0;
+            void *uploadData = nullptr;
+            if (buffer != nullptr && !buffer->Allocate(size, uploadOffset, uploadData)) {
+                // Current buffer doesn't have enough space.
+                // Reset buffer pointer to force allocation below.
+                buffer = nullptr;
+            }
+
+            // If we don't have a buffer, it's either because this is the first allocation attempt or the previous
+            // buffer ran out of space. Look for a buffer to allocate and remember it for all subsequent allocations.
             if (buffer == nullptr) {
-                buffer = &vdp2.vramUploadOverflowBuffers.emplace_back();
-                const size_t index = vdp2.vramUploadOverflowBuffers.size();
-                if (auto result = buffer->Create(device, VDP2Resources::kVRAMUploadBufferSize); result) {
-                    // TODO: how to report these errors?
-                    // return util::ErrorMessage{
-                    //     fmt::format("Could not create VDP2 VRAM upload overflow buffer #{}: {}",
-                    //     index, result.Error().message)};
-                    return;
+                buffer = FindUploadBuffer(vdp2.vramUploadBuffer, vdp2.vramUploadOverflowBuffers, size);
+                if (buffer == nullptr) {
+                    buffer = &vdp2.vramUploadOverflowBuffers.emplace_back();
+                    const size_t index = vdp2.vramUploadOverflowBuffers.size();
+                    if (auto result = buffer->Create(device, VDP2Resources::kVRAMUploadBufferSize); result) {
+                        return util::ErrorMessage{
+                            fmt::format("Could not create VDP2 VRAM upload overflow buffer #{}: {}", index,
+                                        result.Error().message)};
+                    }
+                    buffer->resource->SetName(
+                        fmt::format(L"[Ymir-VDP2] VRAM upload overflow buffer #{}", index).c_str());
                 }
-                buffer->resource->SetName(fmt::format(L"[Ymir-VDP2] VRAM upload overflow buffer #{}", index).c_str());
+
+                // This should succeed, but let's not crash if it fails
+                if (!buffer->Allocate(size, uploadOffset, uploadData)) {
+                    return util::ErrorMessage{fmt::format("Ran out of memory for VDP2 VRAM upload buffers")};
+                }
             }
 
             // Copy data to upload buffer
-            size_t uploadOffset = 0;
-            void *uploadData = nullptr;
-            const bool result = buffer->Allocate(size, uploadOffset, uploadData);
-            assert(result);
             memcpy(uploadData, &vdpState.mem2.VRAM[vramOffset], size);
 
-            // TODO: barrier shader resource/common -> copy dest
+            // Store command info so we can sort them by buffer to minimize barrier transitions
+            ID3D12Resource *key = buffer->resource.GetPointer();
+            transfers[key].push_back({
+                .srcOffset = uploadOffset,
+                .dstOffset = vramOffset,
+                .length = size,
+            });
+        }
 
-            // Copy from upload buffer to GPU buffer
-            vdp2.cmdList->CopyBufferRegion(vdp2.vramBuffer.GetPointer(), vramOffset, buffer->resource.GetPointer(),
-                                           uploadOffset, size);
+        vdp2.vramDirty.ClearAll();
 
-            // TODO: barrier copy dest -> shader resource/common
-        });
+        // Enqueue all transfers
+        for (auto &[srcBuffer, transferList] : transfers) {
+            // Indicate that the VDP2 VRAM buffer will be used as copy destination
+            if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+                D3D12_BUFFER_BARRIER barrier{
+                    .SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                    .SyncAfter = D3D12_BARRIER_SYNC_COPY,
+                    .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
+                    .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
+                    .pResource = srcBuffer,
+                    .Offset = 0,
+                    .Size = VDP2Resources::kVRAMUploadBufferSize,
+                };
+                const D3D12_BARRIER_GROUP group{
+                    .Type = D3D12_BARRIER_TYPE_BUFFER,
+                    .NumBarriers = 1,
+                    .pBufferBarriers = &barrier,
+                };
+                enhCmdList->Barrier(1, &group);
+            } else {
+                D3D12_RESOURCE_BARRIER barrier{
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                    .Transition =
+                        {
+                            .pResource = srcBuffer,
+                            .Subresource = 0,
+                            .StateBefore = D3D12_RESOURCE_STATE_COMMON,
+                            .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
+                        },
+                };
+                vdp2.cmdList->ResourceBarrier(1, &barrier);
+            }
+
+            for (Transfer &transfer : transferList) {
+                vdp2.cmdList->CopyBufferRegion(vdp2.vramBuffer.GetPointer(), transfer.dstOffset, srcBuffer,
+                                               transfer.srcOffset, transfer.length);
+            }
+
+            // Indicate that the VDP2 VRAM buffer will be used with compute shaders
+            if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+                D3D12_BUFFER_BARRIER barrier{
+                    .SyncBefore = D3D12_BARRIER_SYNC_COPY,
+                    .SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                    .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
+                    .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
+                    .pResource = srcBuffer,
+                    .Offset = 0,
+                    .Size = VDP2Resources::kVRAMUploadBufferSize,
+                };
+                const D3D12_BARRIER_GROUP group{
+                    .Type = D3D12_BARRIER_TYPE_BUFFER,
+                    .NumBarriers = 1,
+                    .pBufferBarriers = &barrier,
+                };
+                enhCmdList->Barrier(1, &group);
+            } else {
+                D3D12_RESOURCE_BARRIER barrier{
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                    .Transition =
+                        {
+                            .pResource = srcBuffer,
+                            .Subresource = 0,
+                            .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
+                            .StateAfter = D3D12_RESOURCE_STATE_COMMON,
+                        },
+                };
+                vdp2.cmdList->ResourceBarrier(1, &barrier);
+            }
+        };
+
+        return {};
     }
 
     void VDP2FlushCRAM() {
@@ -631,23 +760,14 @@ struct Direct3D12VDPRenderer::Impl {
     }
 
     void VDP2BeginFrame() {
+        auto &cmdList = vdp2.cmdList;
+
         VDP2FlushVRAM();
         VDP2FlushCRAM();
 
         // TODO: prepare new VDP2 frame
         // - set up rendering parameters
         // - update rendering parameters and set 32-bit constants
-
-        auto &cmdList = vdp2.cmdList;
-        vdp2.cmdAlloc->Reset();
-        cmdList->Reset(vdp2.cmdAlloc.GetPointer(), vdp2.drawBGsPSO.GetPointer());
-
-        ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
-        cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
-
-        cmdList->SetComputeRootSignature(vdp2.drawBGsRootSig.GetPointer());
-        // TODO: cmdList->SetComputeRoot32BitConstants(0, sizeof(vdp2.cpuRenderParams), &vdp2.cpuRenderParams, 0);
-        cmdList->SetComputeRootDescriptorTable(1, vdp2.layerOutUAV.gpuHandle);
     }
 
     void VDP2RenderLine(uint32 y) {
@@ -666,6 +786,10 @@ struct Direct3D12VDPRenderer::Impl {
 
         // TODO: this is just for testing; remove it
         auto &cmdList = vdp2.cmdList;
+        cmdList->SetPipelineState(vdp2.drawBGsPSO.GetPointer());
+        cmdList->SetComputeRootSignature(vdp2.drawBGsRootSig.GetPointer());
+        // TODO: cmdList->SetComputeRoot32BitConstants(0, sizeof(vdp2.cpuRenderParams), &vdp2.cpuRenderParams, 0);
+        cmdList->SetComputeRootDescriptorTable(1, vdp2.layerOutUAV.gpuHandle);
         cmdList->Dispatch(vdp::kMaxResH / 32, vdp::kMaxResV, 6);
         cmdList->Close();
 
@@ -675,6 +799,15 @@ struct Direct3D12VDPRenderer::Impl {
         // TODO: double or triple buffer command lists to avoid locking up the emulator core
         fence.Wait(INFINITE, fenceValue);
         ++fenceValue;
+
+        // ---------------------------
+        // Reset command list
+        vdp2.cmdAlloc->Reset();
+        cmdList->Reset(vdp2.cmdAlloc.GetPointer(), nullptr);
+
+        ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
+        cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
+        // ---------------------------
 
         vdp2.vramUploadBuffer.Reset();
         for (UploadBuffer &buffer : vdp2.vramUploadOverflowBuffers) {

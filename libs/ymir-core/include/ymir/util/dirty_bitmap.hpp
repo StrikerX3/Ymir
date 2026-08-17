@@ -2,8 +2,8 @@
 
 #include <array>
 #include <bit>
+#include <cstdint>
 #include <type_traits>
-#include <utility>
 
 namespace util {
 
@@ -11,7 +11,7 @@ namespace util {
 /// @tparam numBits the number of bits in the bitmap
 template <size_t numBits>
 struct DirtyBitmap {
-    using TEntry = uint64;
+    using TEntry = uint64_t;
     static constexpr size_t kBitsPerEntry = sizeof(TEntry) * 8;
     static constexpr size_t kEntryMask = kBitsPerEntry - 1;
     static constexpr size_t kEntryShift = std::countr_zero(kBitsPerEntry);
@@ -55,18 +55,18 @@ struct DirtyBitmap {
         return AnySet();
     }
 
-    /// @brief Processes all dirty bits and clears the bitmap.
-    /// @tparam Fn the type of function that processes the bit ranges.
-    /// @param[in] fn a function that processes the dirty bit ranges. The function is invoked with two parameters:
-    /// `TEntry` offset from zero of the current dirty bit range, `TEntry` count of set bits in the position.
-    template <typename Fn>
-        requires std::is_invocable_v<Fn, TEntry /*offset from zero*/, TEntry /*contiguous dirty bits set count*/>
-    void Process(Fn &&fn) {
-        TEntry offset = 0;
+    /// @brief Finds the next sequence of set bits from the starting offset (inclusive).
+    /// @param[in] offset the starting offset, inclusive
+    /// @param[out] outSetCount receives the number of bits set in a row
+    /// @return the offset to the next sequence of set bits, or `numBits` if not found.
+    size_t FindNext(size_t &outSetCount, size_t offset = 0) {
+        if (offset >= numBits) {
+            return numBits;
+        }
         TEntry accumOnes = 0;
-        std::size_t i = 0;
-        TEntry entry = m_bitmap[0];
-        TEntry remaining = std::min<TEntry>(kBitsPerEntry, numBits);
+        size_t i = offset >> kEntryShift;
+        TEntry entry = m_bitmap[i] >> (offset & kEntryMask);
+        TEntry remaining = std::min<TEntry>(kBitsPerEntry - (offset & kEntryMask), numBits);
         while (i < kNumEntries) {
             // Zeros search phase
             while (entry == 0) {
@@ -78,6 +78,9 @@ struct DirtyBitmap {
                 entry = m_bitmap[i];
                 remaining = kBitsPerEntry;
                 continue;
+            }
+            if (i >= kNumEntries) {
+                break;
             }
 
             const TEntry zeros = std::min<TEntry>(std::countr_zero(entry), remaining);
@@ -92,10 +95,8 @@ struct DirtyBitmap {
                 entry >>= ones;
                 remaining -= ones;
                 if (remaining > 0) {
-                    fn(offset, accumOnes);
-                    offset += accumOnes;
-                    accumOnes = 0;
-                    break;
+                    outSetCount = accumOnes;
+                    return offset;
                 }
                 ++i;
                 if (i >= kNumEntries) {
@@ -106,10 +107,10 @@ struct DirtyBitmap {
             }
         }
         if (accumOnes != 0) {
-            fn(offset, accumOnes);
+            outSetCount = accumOnes;
+            return offset;
         }
-
-        m_bitmap.fill(0);
+        return numBits;
     }
 
     /// @brief Returns a pointer to the raw data of this bitmap.
