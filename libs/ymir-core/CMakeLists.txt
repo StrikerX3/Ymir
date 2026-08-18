@@ -455,6 +455,11 @@ if (WIN32)
 
         WIL::WIL
     )
+elseif (APPLE)
+    find_package(Iconv REQUIRED)
+    target_link_libraries(ymir-core PUBLIC
+        Iconv::Iconv
+    )
 endif ()
 
 if (Vulkan_FOUND)
