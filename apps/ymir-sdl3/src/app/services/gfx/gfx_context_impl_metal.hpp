@@ -2,15 +2,21 @@
 
 #include "gfx_context.hpp"
 
+// -----------------------------------------------------------------------------
+// Implementation
+
 namespace app::gfx {
 
-struct MetalGraphicsContextSpec {};
+struct MetalGraphicsContextSpec;
 
 class MetalGraphicsContext final : public IGraphicsContext {
+    struct Impl;
+
 public:
     static constexpr Backend kBackend = Backend::Metal;
 
-    MetalGraphicsContext();
+    MetalGraphicsContext(const MetalGraphicsContextSpec &spec);
+    ~MetalGraphicsContext();
 
     /// @brief Creates a Metal graphics context.
     /// @param[in] spec the backend specifications
@@ -40,12 +46,19 @@ public:
     util::VoidResult<> RenderToTexture(TextureID src, TextureID dst, const FRect &srcRect,
                                        const FRect &dstRect) override;
     util::VoidResult<> DrawTextureRotated(TextureID id, const FRect &srcRect, const FRect &dstRect, double rotAngle,
-                                          const FPoint2D *anchorPoint = nullptr) override;
+                                          const FPoint2D *pivot = nullptr) override;
 
     util::VoidResult<> SetPresentMode(PresentMode mode) override;
     util::ValueResult<PresentResult> Present() override;
 
+    /// @brief Retrieves a pointer to the `id<MTLDevice>` managed by this graphics context.
+    /// @return a pointer to the context's Metal device instance
+    void *GetDevice() const;
+
 private:
+    std::unique_ptr<Impl> m_impl;
+
+    bool m_imguiInitialized = false;
 };
 
 } // namespace app::gfx
