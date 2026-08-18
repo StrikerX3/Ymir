@@ -1,8 +1,20 @@
 #include <ymir/util/string.hpp>
 
 #include <array>
-#include <codecvt>
-#include <locale>
+
+// For string <-> wstring conversions
+#ifdef _WIN32
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #include <stringapiset.h>
+#else
+    #include <codecvt>
+    #include <locale>
+#endif
 
 namespace util {
 
@@ -85,16 +97,42 @@ std::wstring StringToWString(std::string_view str) {
     if (str.empty()) {
         return L"";
     }
+
+#ifdef _WIN32
+    // Windows implementation
+    const int size = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), nullptr, 0);
+    std::wstring wstr(size, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstr[0], size);
+    return wstr;
+
+#else
+    // Fall back to deprecated but still working implementation
+    // FIXME: needs Linux, macOS and FreeBSD implementations to silence deprecation warnings
     std::wstring_convert<std::codecvt_utf8<wchar_t>> conv{};
     return conv.from_bytes(str.data());
+
+#endif
 }
 
 std::string WStringToString(std::wstring_view wstr) {
     if (wstr.empty()) {
         return "";
     }
+
+#ifdef _WIN32
+    // Windows implementation
+    const int size = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), nullptr, 0, nullptr, nullptr);
+    std::string str(size, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &str[0], size, nullptr, nullptr);
+    return str;
+
+#else
+    // Fall back to deprecated but still working implementation
+    // FIXME: needs Linux, macOS and FreeBSD implementations to silence deprecation warnings
     std::wstring_convert<std::codecvt_utf8<wchar_t>> conv{};
     return conv.to_bytes(wstr.data());
+
+#endif
 }
 
 } // namespace util
