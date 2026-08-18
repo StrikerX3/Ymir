@@ -460,6 +460,11 @@ elseif (APPLE)
     target_link_libraries(ymir-core PUBLIC
         Iconv::Iconv
     )
+elseif (UNIX) # Linux and FreeBSD
+    find_package(Iconv REQUIRED)
+    target_link_libraries(ymir-core PUBLIC
+        Iconv::Iconv
+    )
 endif ()
 
 if (Vulkan_FOUND)
