@@ -42,6 +42,7 @@ void VideoSettingsView::Display() {
 
     widgets::settings::video::swrenderer::ThreadedVDP(m_context);
 
+#ifdef Ymir_LOCAL_BUILD
     // -----------------------------------------------------------------------------------------------------------------
 
     ImGui::PushFont(m_context.fonts.sansSerif.bold, m_context.fontSizes.medium);
@@ -50,6 +51,7 @@ void VideoSettingsView::Display() {
 
     widgets::settings::video::hwrenderer::VDP1VRAMSyncInterval(m_context);
     widgets::settings::video::hwrenderer::VDP2VRAMSyncInterval(m_context);
+#endif
 
     // -----------------------------------------------------------------------------------------------------------------
 
