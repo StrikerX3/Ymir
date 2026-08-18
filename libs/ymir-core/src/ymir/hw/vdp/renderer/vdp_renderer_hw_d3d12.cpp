@@ -242,8 +242,28 @@ struct Direct3D12VDPRenderer::Impl {
     // the VDP controller, and the renderer maintains a local independent copy of the VRAM, CRAM and VDP2 registers for
     // fully asynchronous rendering.
     //
-    // The 32-bit constant buffer holds renderer parameters shared across all VDP2 compute shaders, including relevant
-    // VDP2 registers, active enhancements and the starting line for continuation of work interrupted by state changes.
+    // Root 32-bit constants hold renderer parameters shared across all VDP2 compute shaders such as the starting line
+    // for continuation of work interrupted by state changes, relevant registers and active enhancements.
+
+    /// @brief Common VDP2 rendering parameters shared by all shaders.
+    struct VDP2CommonRenderParams {
+        // Top Y coordinate of target rendering area.
+        uint32 startY;
+
+        // TODO: bit-pack more common parameters to minimize DWORDs spent with this
+    };
+
+    /// @brief VDP2 NBG/RBG layer rendering parameters.
+    struct VDP2BGLayerParams {
+        // TODO: add layer parameters
+        // - no need to bit-pack, they're passed in as structured buffers
+    };
+
+    /// @brief VDP2 compositor parameters.
+    struct VDP2ComposeParams {
+        // TODO: add compositor parameters
+        // - no need to bit-pack, they're passed in as structured buffers
+    };
 
     /// @brief Size of a VDP2 VRAM upload buffer.
     static constexpr UINT64 kVDP2VRAMUploadBufferSize = vdp::kVDP2VRAMSize * 4;
@@ -312,6 +332,11 @@ struct Direct3D12VDPRenderer::Impl {
         Descriptor layerOutSRV;
         /// @brief Layer outputs UAV.
         Descriptor layerOutUAV;
+
+        // ---------------------------------------------------------------------
+
+        /// @brief Common rendering parameters.
+        VDP2CommonRenderParams cpuCommonRenderParams;
 
         // ---------------------------------------------------------------------
 
@@ -586,8 +611,7 @@ struct Direct3D12VDPRenderer::Impl {
             }
 
             auto rootSigBuilder = vdp2.drawBGsRootSig.Builder();
-            // TODO: add parameters as needed
-            rootSigBuilder.Add32BitConstants(0, 1); // TODO: rendering parameters
+            rootSigBuilder.Add32BitConstants(0, sizeof(VDP2CommonRenderParams) / sizeof(uint32));
             rootSigBuilder.AddDescriptorTable().AddUAVs(1, 0);
             if (HRESULT hr = rootSigBuilder.Build(device); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format(
@@ -889,7 +913,8 @@ struct Direct3D12VDPRenderer::Impl {
         auto &cmdList = vdp2.cmdList;
         cmdList->SetPipelineState(vdp2.drawBGsPSO.GetPointer());
         cmdList->SetComputeRootSignature(vdp2.drawBGsRootSig.GetPointer());
-        // TODO: cmdList->SetComputeRoot32BitConstants(0, sizeof(vdp2.cpuRenderParams), &vdp2.cpuRenderParams, 0);
+        cmdList->SetComputeRoot32BitConstants(0, sizeof(vdp2.cpuCommonRenderParams) / sizeof(uint32),
+                                              &vdp2.cpuCommonRenderParams, 0);
         cmdList->SetComputeRootDescriptorTable(1, vdp2.layerOutUAV.gpuHandle);
         cmdList->Dispatch(vdp::kMaxResH / 32, vdp::kMaxResV, 6);
         cmdList->Close();
@@ -1040,7 +1065,7 @@ void Direct3D12VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
 // Debugger
 
 void Direct3D12VDPRenderer::UpdateEnabledLayers() {
-    // TODO: VDP2UpdateEnabledBGs(); --> redirect to m_state.state2.UpdateEnabledBGs(...)
+    m_impl->vdpState.state2.UpdateEnabledBGs(m_impl->vdpState.regs2, m_vdp2DebugRenderOptions);
 }
 
 // -----------------------------------------------------------------------------

@@ -1,8 +1,6 @@
 #ifndef YMIR_VDP_VDP2_UTILS_HLSLI
 #define YMIR_VDP_VDP2_UTILS_HLSLI
 
-#include "vdp2_render_params.hlsli"
-
 #include "vdp2_defs.hlsli"
 
 // uint GetY(uint y, bool doubleDensityOnly) {
