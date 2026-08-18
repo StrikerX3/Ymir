@@ -123,7 +123,7 @@ jobs:
     steps:
       # Set up MASM for lzma
       - name: Set up MASM
-        uses: glslang/setup-masm@83f52fc3599c361e8428805627dc749f2717ce75
+        uses: glslang/setup-masm@bd171b9b0a619ff6237c164fab5fb920cc579889
 
       - name: Set up Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa
