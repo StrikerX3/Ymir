@@ -93,7 +93,33 @@ if ((WIN32 OR APPLE OR Vulkan_FOUND) AND NOT DXC_EXECUTABLE AND NOT SHADERC_EXEC
 endif ()
 
 if (APPLE)
-    ## TODO: find metal and metallib on macOS, bail out if they cannot be found
+    find_program(SPIRV_CROSS_EXECUTABLE NAMES spirv-cross)
+    if (NOT SPIRV_CROSS_EXECUTABLE)
+        message(FATAL_ERROR "Could NOT find spirv-cross. Cannot compile shaders for Metal.")
+    endif ()
+
+    find_program(XCRUN_EXECUTABLE NAMES xcrun)
+    if (XCRUN_EXECUTABLE)
+        execute_process(
+            COMMAND ${XCRUN_EXECUTABLE} -find metal
+            OUTPUT_VARIABLE METAL_EXECUTABLE
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+        execute_process(
+            COMMAND ${XCRUN_EXECUTABLE} -find metallib
+            OUTPUT_VARIABLE METALLIB_EXECUTABLE
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+    endif ()
+    if (NOT METAL_EXECUTABLE OR NOT METALLIB_EXECUTABLE)
+        find_program(METAL_EXECUTABLE NAMES metal)
+        find_program(METALLIB_EXECUTABLE NAMES metallib)
+    endif ()
+    if (NOT METAL_EXECUTABLE OR NOT METALLIB_EXECUTABLE)
+        message(FATAL_ERROR "Could NOT find metal and metallib. Cannot compile shaders for Metal.")
+    endif ()
 endif ()
 
 # Check SPIR-V support
@@ -532,6 +558,56 @@ function(_shader_make_compile_spirv_command)
     endif ()
 endfunction()
 
+# _shader_make_compile_metal_command(
+#     OUT_COMMAND <variable>
+#     SPIRV_SOURCE <path_to_spv>
+#     METAL_DESTINATION <path_to_output_metal>
+#     AIR_DESTINATION <path_to_output_air>
+#     METALLIB_DESTINATION <path_to_output_metallib>
+#     ENTRYPOINT <string>
+#     PROFILE <string>
+# )
+function(_shader_make_compile_metal_command)
+    set(options)
+    set(oneValueArgs
+        OUT_COMMAND
+        SPIRV_SOURCE
+        METAL_DESTINATION
+        AIR_DESTINATION
+        METALLIB_DESTINATION
+        ENTRYPOINT
+        PROFILE
+    )
+    set(multiValueArgs)
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if (APPLE AND SPIRV_CROSS_EXECUTABLE AND METAL_EXECUTABLE AND METALLIB_EXECUTABLE)
+        set(_metal_compile_flags "")
+        if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND _metal_compile_flags "-gline-tables-only" "-MO")
+        else ()
+            list(APPEND _metal_compile_flags "-O3")
+        endif ()
+
+        set(${ARG_OUT_COMMAND}
+            COMMAND "${SPIRV_CROSS_EXECUTABLE}"
+                "${ARG_SPIRV_SOURCE}"
+                --msl
+                --output "${ARG_METAL_DESTINATION}"
+            COMMAND "${METAL_EXECUTABLE}"
+                ${_metal_compile_flags}
+                -c "${ARG_METAL_DESTINATION}"
+                -o "${ARG_AIR_DESTINATION}"
+            COMMAND "${METALLIB_EXECUTABLE}"
+                "${ARG_AIR_DESTINATION}"
+                -o "${ARG_METALLIB_DESTINATION}"
+            PARENT_SCOPE
+        )
+    else ()
+        set(${ARG_OUT_COMMAND} "" PARENT_SCOPE)
+    endif ()
+endfunction()
+
 ################################################################################
 ## Compiler function
 
@@ -713,11 +789,22 @@ function(compile_shader)
     endif ()
 
     if (APPLE)
-        # TODO: add additional commands to ${_compile_commands}:
-        # - use spirv-tools to convert SPIR-V to Metal
-        # - use metal to compile the shader
-        # - use metallib to package shader
-        # TODO: add .metallib file to _outputs
+        set(_out_metal_path "${_out_shader_path}.metal")
+        set(_out_air_path "${_out_shader_path}.air")
+        set(_out_metallib_path "${_out_shader_path}.metallib")
+        _shader_make_compile_metal_command(
+            OUT_COMMAND _metal_compile_command
+            SPIRV_SOURCE "${_out_spirv_path}"
+            METAL_DESTINATION "${_out_metal_path}"
+            AIR_DESTINATION "${_out_air_path}"
+            METALLIB_DESTINATION "${_out_metallib_path}"
+            ENTRYPOINT ${ARG_ENTRYPOINT}
+            PROFILE ${ARG_PROFILE}
+        )
+        if (_metal_compile_command)
+            list(APPEND _compile_commands ${_metal_compile_command})
+            list(APPEND _outputs "${_out_metallib_path}")
+        endif ()
     endif ()
 
 
