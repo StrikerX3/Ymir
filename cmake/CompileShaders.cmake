@@ -84,8 +84,11 @@ if (NOT DXC_EXECUTABLE OR NOT DXC_SPIRV_SUPPORTED)
     )
 endif ()
 
-# Bail out if neither executable could be found
-if (NOT DXC_EXECUTABLE AND NOT SHADERC_EXECUTABLE)
+# Bail out if neither executable could be found.
+# DXC is required on Windows (already checked earlier).
+# DXC or glslc are required on macOS.
+# On Linux, either compiler is required only if Vulkan is supported.
+if ((WIN32 OR APPLE OR Vulkan_FOUND) AND NOT DXC_EXECUTABLE AND NOT SHADERC_EXECUTABLE)
     message(FATAL_ERROR "Could NOT find DXC nor shaderc. Cannot compile shaders.")
 endif ()
 
@@ -131,11 +134,6 @@ if (NOT DXC_EXECUTABLE AND NOT SHADERC_EXECUTABLE)
 
     return()
 endif ()
-
-## TODO: refactor function to use either DXC or shaderc for SPIR-V
-## while at it, extract DXC -> DXIL generators to a function to set up the structure for metal+metallib
-## TODO: generate deps using DXC or shaderc
-
 
 ################################################################################
 ## Helper functions
