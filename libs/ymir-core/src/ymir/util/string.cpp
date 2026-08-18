@@ -3,7 +3,7 @@
 #include <array>
 
 // For string <-> wstring conversions
-#ifdef _WIN32
+#if defined(_WIN32)
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
     #endif
@@ -12,14 +12,14 @@
     #endif
     #include <stringapiset.h>
 #else
-    #include <codecvt>
-    #include <locale>
+    #include <cassert>
+    #include <iconv.h>
 #endif
 
 namespace util {
 
 struct ReplacementChar {
-    const char *normal;
+    const char *normal = nullptr;
     const char *dakuten = nullptr;
     const char *handakuten = nullptr;
 };
@@ -106,10 +106,37 @@ std::wstring StringToWString(std::string_view str) {
     return wstr;
 
 #else
-    // Fall back to deprecated but still working implementation
-    // FIXME: needs Linux, macOS and FreeBSD implementations to silence deprecation warnings
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> conv{};
-    return conv.from_bytes(str.data());
+    // Linux/macOS/FreeBSD implementation
+
+    // Open converted
+    iconv_t cd = iconv_open("WCHAR_T", "UTF-8");
+    assert(cd != (iconv_t)-1);
+
+    // Gather parameters
+    char *inBuf = const_cast<char *>(str.data());
+    size_t inRemaining = str.size();
+
+    size_t outLength = str.size();
+    size_t outRemaining = outLength * sizeof(wchar_t);
+
+    std::wstring wstr(outLength, L'\0');
+    char *outBuf = reinterpret_cast<char *>(wstr.data());
+
+    // Convert string
+    size_t result = iconv(cd, &inBuf, &inRemaining, &outBuf, &outRemaining);
+    if (result == (size_t)-1) {
+        iconv_close(cd);
+        // TODO: handle error
+        // throw std::runtime_error("iconv conversion failed due to an invalid character sequence.");
+        return L"";
+    }
+    iconv_close(cd);
+
+    size_t bytesWritten = outLength * sizeof(wchar_t) - outRemaining;
+    size_t charsWritten = bytesWritten / sizeof(wchar_t);
+    wstr.resize(charsWritten);
+
+    return wstr;
 
 #endif
 }
@@ -127,10 +154,38 @@ std::string WStringToString(std::wstring_view wstr) {
     return str;
 
 #else
-    // Fall back to deprecated but still working implementation
-    // FIXME: needs Linux, macOS and FreeBSD implementations to silence deprecation warnings
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> conv{};
-    return conv.to_bytes(wstr.data());
+    // Linux/macOS/FreeBSD implementation
+
+    // Open converted
+    iconv_t cd = iconv_open("UTF-8", "WCHAR_T");
+    assert(cd != (iconv_t)-1);
+
+    // Gather parameters
+    char *inBuf = reinterpret_cast<char *>(const_cast<wchar_t *>(wstr.data()));
+    size_t inRemaining = wstr.size() * sizeof(wchar_t);
+
+    // Worst case for UTF-8 is 4 bytes per character
+    size_t outLength = wstr.size() * 4;
+    size_t outRemaining = outLength;
+
+    std::string str(outLength, '\0');
+    char *outBuf = str.data();
+
+    // Convert string
+    size_t result = iconv(cd, &inBuf, &inRemaining, &outBuf, &outRemaining);
+    if (result == (size_t)-1) {
+        iconv_close(cd);
+        // TODO: handle error
+        // throw std::runtime_error("iconv conversion failed due to an invalid character sequence.");
+        return "";
+    }
+    iconv_close(cd);
+
+    size_t bytesWritten = outLength - outRemaining;
+    size_t charsWritten = bytesWritten;
+    str.resize(charsWritten);
+
+    return str;
 
 #endif
 }
