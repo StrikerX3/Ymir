@@ -37,6 +37,10 @@ static constexpr const char *kCSEntrypoint = "CSMain";
 /// @brief Contains the compiled shader files from res/shaders/src.
 cmrc::embedded_filesystem g_fsShaders = cmrc::ymir_core_shaders::get_filesystem();
 
+struct ColorR8G8B8A8 {
+    uint8 r, g, b, a;
+};
+
 /// @brief A simple bump-allocated upload buffer.
 struct UploadBuffer {
     /// @brief Upload buffer resource.
@@ -273,11 +277,38 @@ struct Direct3D12VDPRenderer::Impl {
     // nothing but write to VRAM.
     static_assert(kVDP2VRAMUploadBufferSize >= vdp::kVDP2VRAMSize);
 
+    /// @brief Number of entries in the VDP2 CRAM color cache.
+    /// VDP2 CRAM can have at most 2048 colors (in mode 1 - RGB 5:5:5 with access to full CRAM).
+    static constexpr size_t kVDP2CRAMColorCacheEntries = vdp::kVDP2CRAMSize / sizeof(uint16);
+    /// @brief VDP2 CRAM converted color cache array.
+    using CRAMColorCache = std::array<ColorR8G8B8A8, kVDP2CRAMColorCacheEntries>;
+    /// @brief Size of the VDP2 CRAM color buffer, in bytes.
+    static constexpr UINT kVDP2CRAMColorBufferSize = sizeof(CRAMColorCache);
+
+    /// @brief Size of the VDP2 CRAM rotation coefficients buffer, in bytes.
+    /// The second half of CRAM can be used for that purpose.
+    static constexpr UINT kVDP2CRAMRotCoeffSize = vdp::kVDP2CRAMSize / 2;
+
     struct VDP2FrameContext : public FrameContext {
         /// @brief VDP2 VRAM upload buffer.
         UploadBuffer vramUploadBuffer;
         /// @brief Temporary VDP2 VRAM upload overflow buffers (dynamically allocated if the main buffer is full).
         std::vector<UploadBuffer> vramUploadOverflowBuffers;
+
+        /// @brief CRAM color upload buffer.
+        UploadBuffer cramColorUploadBuffer;
+        /// @brief Raw CRAM rotation coefficients upload buffer.
+        UploadBuffer cramRotCoeffUploadBuffer;
+
+        void Reset() {
+            cmdAlloc->Reset();
+            vramUploadBuffer.Reset();
+            for (UploadBuffer &buffer : vramUploadOverflowBuffers) {
+                buffer.Reset();
+            }
+            cramColorUploadBuffer.Reset();
+            cramRotCoeffUploadBuffer.Reset();
+        }
     };
 
     struct VDP2Resources {
@@ -318,11 +349,16 @@ struct Direct3D12VDPRenderer::Impl {
         D3D12Resource cramColorBuffer;
         /// @brief CRAM color buffer SRV.
         Descriptor cramColorSRV;
+        /// @brief CPU-side CRAM color buffer.
+        CRAMColorCache cramColorCache;
 
         /// @brief Raw CRAM rotation coefficients buffer.
         D3D12Resource cramRotCoeffBuffer;
         /// @brief Raw CRAM rotation coefficients buffer SRV.
         Descriptor cramRotCoeffSRV;
+
+        /// @brief VDP2 CRAM dirty flag.
+        bool cramDirty;
 
         // LayerOut contains the intermediate per-layer outputs of the VDP2 rendering process.
 
@@ -467,14 +503,7 @@ struct Direct3D12VDPRenderer::Impl {
 
         // VDP2 CRAM color buffer
         {
-            // As a reminder, here are the supported color RAM modes and formats:
-            //   0 = RGB 5:5:5, 1024 words
-            //   1 = RGB 5:5:5, 2048 words
-            //   2 = RGB 8:8:8, 1024 words
-            //   3 = RGB 8:8:8, 1024 words  (same as mode 2, undocumented)
-            static constexpr UINT kMaxNumColors = vdp::kVDP2CRAMSize / sizeof(uint16);
-
-            auto builder = vdp2.cramColorBuffer.BufferBuilder(kMaxNumColors * sizeof(uint32));
+            auto builder = vdp2.cramColorBuffer.BufferBuilder(kVDP2CRAMColorBufferSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{
                     fmt::format("Could not create VDP2 CRAM color buffer, error code {:X}", (uint32)hr)};
@@ -491,7 +520,7 @@ struct Direct3D12VDPRenderer::Impl {
                 .Buffer =
                     {
                         .FirstElement = 0,
-                        .NumElements = kMaxNumColors,
+                        .NumElements = kVDP2CRAMColorBufferSize / sizeof(uint32),
                         .StructureByteStride = 0,
                         .Flags = D3D12_BUFFER_SRV_FLAG_NONE,
                     },
@@ -501,10 +530,8 @@ struct Direct3D12VDPRenderer::Impl {
 
         // VDP2 CRAM rotation coefficients buffer
         {
-            // The second half of CRAM can be used as rotation coefficients.
-            static constexpr UINT kCRAMRotCoeffSize = vdp::kVDP2CRAMSize / 2;
 
-            auto builder = vdp2.cramRotCoeffBuffer.BufferBuilder(kCRAMRotCoeffSize);
+            auto builder = vdp2.cramRotCoeffBuffer.BufferBuilder(kVDP2CRAMRotCoeffSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format(
                     "Could not create VDP2 CRAM rotation coefficients buffer, error code {:X}", (uint32)hr)};
@@ -521,13 +548,32 @@ struct Direct3D12VDPRenderer::Impl {
                 .Buffer =
                     {
                         .FirstElement = 0,
-                        .NumElements = kCRAMRotCoeffSize / sizeof(uint32),
+                        .NumElements = kVDP2CRAMRotCoeffSize / sizeof(uint32),
                         .StructureByteStride = 0,
                         .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
                     },
             };
             device->CreateShaderResourceView(vdp2.cramRotCoeffBuffer.GetPointer(), &srvDesc,
                                              vdp2.cramRotCoeffSRV.cpuHandle);
+        }
+
+        // VDP2 CRAM color and rotation coefficients upload buffers
+        for (int i = 0; i < vdp2.frames.Count(); ++i) {
+            VDP2FrameContext &frame = vdp2.frames[i];
+            if (auto result = frame.cramColorUploadBuffer.Create(device, kVDP2CRAMColorBufferSize * 256); !result) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create VDP2 CRAM color upload buffer #{}: {}", i, result.Error().message)};
+            }
+            frame.cramColorUploadBuffer.resource->SetName(
+                fmt::format(L"[Ymir-VDP2] CRAM color upload buffer #{}", i).c_str());
+
+            if (auto result = frame.cramRotCoeffUploadBuffer.Create(device, kVDP2CRAMRotCoeffSize * 256); !result) {
+                return util::ErrorMessage{
+                    fmt::format("Could not create VDP2 CRAM rotation coefficients upload buffer #{}: {}", i,
+                                result.Error().message)};
+            }
+            frame.cramRotCoeffUploadBuffer.resource->SetName(
+                fmt::format(L"[Ymir-VDP2] CRAM rotation coefficients upload buffer #{}", i).c_str());
         }
 
         // Layer outputs 2D texture array
@@ -698,6 +744,7 @@ struct Direct3D12VDPRenderer::Impl {
         // TODO: reset to initial state (clear VRAM, reset registers, mark everything as dirty, etc.)
 
         vdp2.vramDirty.SetAll();
+        vdp2.cramDirty = true;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -707,21 +754,47 @@ struct Direct3D12VDPRenderer::Impl {
     uint32 VRes = vdp::kDefaultResV;
     bool exclusiveMonitor = false;
 
-    void VDP2WriteVRAM(uint32 address, uint8 value) {
+    void VDP2WriteVRAM(uint32 address) {
         vdp2.vramDirty.Set(address >> VDP2Resources::kVRAMDirtyBitmapChunkSizeShift);
     }
 
-    void VDP2WriteVRAM(uint32 address, uint16 value) {
-        // The address is always word-aligned, so the value will never straddle two chunks
-        vdp2.vramDirty.Set(address >> VDP2Resources::kVRAMDirtyBitmapChunkSizeShift);
-    }
+    void VDP2WriteCRAM(uint32 address) {
+        vdp2.cramDirty = true;
 
-    void VDP2WriteCRAM(uint32 address, uint8 value) {
-        // TODO: mark as dirty; cache converted colors
-    }
-
-    void VDP2WriteCRAM(uint32 address, uint16 value) {
-        // TODO: mark as dirty; cache converted colors
+        CRAMColorCache &colorCache = vdp2.cramColorCache;
+        switch (vdpState.regs2.vramControl.colorRAMMode) {
+        case 0: {
+            const auto value = vdpState.mem2.ReadCRAM<uint16>(address & ~1u);
+            const Color555 color5{.u16 = value};
+            const Color888 color8 = ConvertRGB555to888(color5);
+            colorCache[address >> 1u].r = color8.r;
+            colorCache[address >> 1u].g = color8.g;
+            colorCache[address >> 1u].b = color8.b;
+            colorCache[address >> 1u].a = color8.msb;
+            break;
+        }
+        case 1: {
+            const auto value = vdpState.mem2.ReadCRAM<uint16>(address & ~1u);
+            const Color555 color5{.u16 = value};
+            const Color888 color8 = ConvertRGB555to888(color5);
+            colorCache[address >> 1u].r = color8.r;
+            colorCache[address >> 1u].g = color8.g;
+            colorCache[address >> 1u].b = color8.b;
+            colorCache[address >> 1u].a = color8.msb;
+            break;
+        }
+        case 2: [[fallthrough]];
+        case 3: [[fallthrough]];
+        default: {
+            const auto value = vdpState.mem2.ReadCRAM<uint32>(address & ~3u);
+            const Color888 color8{.u32 = value};
+            colorCache[address >> 1u].r = color8.r;
+            colorCache[address >> 1u].g = color8.g;
+            colorCache[address >> 1u].b = color8.b;
+            colorCache[address >> 1u].a = color8.msb;
+            break;
+        }
+        }
     }
 
     void VDP2WriteReg(uint32 address, uint16 value) {
@@ -875,13 +948,83 @@ struct Direct3D12VDPRenderer::Impl {
     }
 
     void VDP2FlushCRAM() {
-        // TODO: copy the whole thing to an upload buffer then issue a CopyBufferRegion
-        // - upload buffer can be 256 times as large as the CRAM buffers (8 KB for colors, 2 KB for rotcoeff)
-        //   - 256 = maximum normal vertical resolution (interlaced modes count every other line)
-        // - use y*size as the offset, no need to bump-allocate
-        // - note that this has to be done for the color and and rotcoeff buffers
-        //   - rotcoeff only needs to be updated if:
-        //     (regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable
+        if (!vdp2.cramDirty) {
+            return;
+        }
+
+        VDP2FrameContext &frame = vdp2.frames.GetCurrentFrame();
+
+        size_t offset = 0;
+        void *colorMap = nullptr;
+        const bool result = frame.cramColorUploadBuffer.Allocate(sizeof(CRAMColorCache), offset, colorMap);
+        assert(result); // This should never fail unless the VDP2 sequencer is broken
+        memcpy(colorMap, vdp2.cramColorCache.data(), sizeof(CRAMColorCache));
+
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+            D3D12_BUFFER_BARRIER barrier{
+                .SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                .SyncAfter = D3D12_BARRIER_SYNC_COPY,
+                .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
+                .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
+                .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                .Offset = 0,
+                .Size = kVDP2CRAMColorBufferSize * 256,
+            };
+            const D3D12_BARRIER_GROUP group{
+                .Type = D3D12_BARRIER_TYPE_BUFFER,
+                .NumBarriers = 1,
+                .pBufferBarriers = &barrier,
+            };
+            enhCmdList->Barrier(1, &group);
+        } else {
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .Transition =
+                    {
+                        .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                        .Subresource = 0,
+                        .StateBefore = D3D12_RESOURCE_STATE_COMMON,
+                        .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
+                    },
+            };
+            vdp2.cmdList->ResourceBarrier(1, &barrier);
+        }
+
+        vdp2.cmdList->CopyBufferRegion(vdp2.cramColorBuffer.GetPointer(), 0,
+                                       frame.cramColorUploadBuffer.resource.GetPointer(), offset,
+                                       sizeof(CRAMColorCache));
+
+        if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+            D3D12_BUFFER_BARRIER barrier{
+                .SyncBefore = D3D12_BARRIER_SYNC_COPY,
+                .SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
+                .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
+                .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                .Offset = 0,
+                .Size = kVDP2CRAMColorBufferSize * 256,
+            };
+            const D3D12_BARRIER_GROUP group{
+                .Type = D3D12_BARRIER_TYPE_BUFFER,
+                .NumBarriers = 1,
+                .pBufferBarriers = &barrier,
+            };
+            enhCmdList->Barrier(1, &group);
+        } else {
+            D3D12_RESOURCE_BARRIER barrier{
+                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                .Transition =
+                    {
+                        .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                        .Subresource = 0,
+                        .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
+                        .StateAfter = D3D12_RESOURCE_STATE_COMMON,
+                    },
+            };
+            vdp2.cmdList->ResourceBarrier(1, &barrier);
+        }
     }
 
     void VDP2BeginFrame() {
@@ -927,20 +1070,14 @@ struct Direct3D12VDPRenderer::Impl {
         // Advance frame
         vdp2.frames.MoveToNextFrame(fence, cmdQueue);
 
-        // Reset command list
+        // Reset frame
         VDP2FrameContext &nextFrame = vdp2.frames.GetCurrentFrame();
-        nextFrame.cmdAlloc->Reset();
+        nextFrame.Reset();
         cmdList->Reset(nextFrame.cmdAlloc.GetPointer(), nullptr);
 
         // Setup command list
         ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
         cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
-
-        // Clear state
-        nextFrame.vramUploadBuffer.Reset();
-        for (UploadBuffer &buffer : nextFrame.vramUploadOverflowBuffers) {
-            buffer.Reset();
-        }
     }
 };
 
@@ -996,7 +1133,12 @@ void Direct3D12VDPRenderer::Reset(bool hard) {
 void Direct3D12VDPRenderer::PreSaveStateSync() {}
 
 void Direct3D12VDPRenderer::PostLoadStateSync() {
-    // TODO: sync
+    // m_impl->vdp1.vramDirty.SetAll();
+
+    // VDP2UpdateEnabledBGs();
+    m_impl->vdp2.vramDirty.SetAll();
+    m_impl->vdp2.cramDirty = true;
+    // TODO: mark all constant buffer states dirty
 }
 
 void Direct3D12VDPRenderer::SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) {}
@@ -1042,19 +1184,21 @@ void Direct3D12VDPRenderer::VDP1WriteReg(uint32 address, uint16 value) {
 // VDP2 memory and register writes
 
 void Direct3D12VDPRenderer::VDP2WriteVRAM(uint32 address, uint8 value) {
-    m_impl->VDP2WriteVRAM(address, value);
+    m_impl->VDP2WriteVRAM(address);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteVRAM(uint32 address, uint16 value) {
-    m_impl->VDP2WriteVRAM(address, value);
+    // The address is always word-aligned, so the value will never straddle two chunks
+    m_impl->VDP2WriteVRAM(address);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteCRAM(uint32 address, uint8 value) {
-    m_impl->VDP2WriteCRAM(address, value);
+    m_impl->VDP2WriteCRAM(address);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteCRAM(uint32 address, uint16 value) {
-    m_impl->VDP2WriteCRAM(address, value);
+    // The address is always word-aligned
+    m_impl->VDP2WriteCRAM(address);
 }
 
 void Direct3D12VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
