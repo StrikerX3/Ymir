@@ -54,7 +54,7 @@ void IPLSettingsView::Display() {
 
     std::filesystem::path iplRomsPath = m_context.profile.GetPath(ProfilePath::IPLROMImages);
 
-    ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
     ImGui::Text("IPL ROMs in %s", fmt::format("{}", iplRomsPath).c_str());
     ImGui::PopTextWrapPos();
 
@@ -277,7 +277,7 @@ void IPLSettingsView::Display() {
     if (m_context.iplRomPath.empty()) {
         ImGui::TextUnformatted("No IPL ROM loaded");
     } else {
-        ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
         ImGui::Text("Currently using IPL ROM at %s", fmt::format("{}", m_context.iplRomPath).c_str());
         ImGui::PopTextWrapPos();
     }

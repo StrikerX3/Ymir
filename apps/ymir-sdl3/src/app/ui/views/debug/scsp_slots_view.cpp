@@ -405,16 +405,16 @@ void SCSPSlotsView::Display() {
                                 {centerPos.x, endPos.y},
                                 {endPos.x, centerPos.y},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         } else {
                             const ImVec2 points[] = {
                                 {basePos.x, endPos.y},
                                 {endPos.x, basePos.y},
                                 {endPos.x, endPos.y},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         }
                         break;
                     }
@@ -426,16 +426,16 @@ void SCSPSlotsView::Display() {
                                 {centerPos.x + 0.5f, basePos.y + 0.5f}, {centerPos.x + 0.5f, endPos.y + 0.5f},
                                 {endPos.x + 0.5f, endPos.y + 0.5f},     {endPos.x + 0.5f, centerPos.y + 0.5f},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         } else {
                             const ImVec2 points[] = {
                                 {basePos.x + 0.5f, endPos.y + 0.5f},    {basePos.x + 0.5f, basePos.y + 0.5f},
                                 {centerPos.x + 0.5f, basePos.y + 0.5f}, {centerPos.x + 0.5f, endPos.y + 0.5f},
                                 {endPos.x + 0.5f, endPos.y + 0.5f},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         }
                         break;
                     }
@@ -448,16 +448,16 @@ void SCSPSlotsView::Display() {
                                 {basePos.x + wfSize.x * 0.75f, endPos.y},
                                 {endPos.x, centerPos.y},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         } else {
                             const ImVec2 points[] = {
                                 {basePos.x, endPos.y},
                                 {centerPos.x, basePos.y},
                                 {endPos.x, endPos.y},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         }
                         break;
                     }
@@ -478,8 +478,8 @@ void SCSPSlotsView::Display() {
                                 {basePos.x + wfSize.x * 1.0f, basePos.y + wfSize.y * 0.811f},
                                 {basePos.x + wfSize.x * 1.0f, centerPos.y},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         } else {
                             const ImVec2 points[] = {
                                 {basePos.x + wfSize.x * 0.0f, endPos.y},
@@ -495,8 +495,8 @@ void SCSPSlotsView::Display() {
                                 {basePos.x + wfSize.x * 1.0f, basePos.y + wfSize.y * 0.811f},
                                 {basePos.x + wfSize.x * 1.0f, endPos.y},
                             };
-                            drawList->AddPolyline(points, std::size(points), colorValue, ImDrawFlags_RoundCornersAll,
-                                                  thickness);
+                            drawList->AddPolyline(points, std::size(points), colorValue, thickness,
+                                                  ImDrawFlags_RoundCornersAll);
                         }
                         break;
                     }

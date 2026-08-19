@@ -162,8 +162,7 @@ void SH2InterruptsView::Display() {
                                            ImVec2(endPos.x + width, endPos.y), endPos};
 
                         ImGui::GetWindowDrawList()->AddPolyline(points, std::size(points),
-                                                                ImColor(style.Colors[ImGuiCol_Separator]),
-                                                                ImDrawFlags_None, thickness);
+                                                                ImColor(style.Colors[ImGuiCol_Separator]), thickness);
                         ImGui::SameLine();
                         ImGui::Dummy(ImVec2(width + paddingX, 0));
                     }

@@ -204,7 +204,6 @@ void DisplayService::LoadFonts() {
             ImFontConfig iconsConfig;
             iconsConfig.MergeMode = true;
             iconsConfig.PixelSnapH = true;
-            iconsConfig.PixelSnapV = true;
             iconsConfig.GlyphMinAdvanceX = 20.0f;
             iconsConfig.GlyphOffset.y = 4.0f;
             font = io.Fonts->AddFontFromMemoryTTF((void *)iconFile.begin(), iconFile.size(), 20.0f, &iconsConfig,
