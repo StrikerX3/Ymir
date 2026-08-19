@@ -107,8 +107,6 @@ private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 
-    const config::VDP2DebugRender &m_vdp2DebugRenderOptions;
-    const config::VDP2AccessPatternsConfig &m_vdp2AccessPatternsConfig;
     core::Configuration::HardwareRenderer &m_hwRenderConfig;
 };
 

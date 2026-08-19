@@ -31,6 +31,9 @@ using namespace ymir::gpu::d3d12;
 
 namespace ymir::vdp {
 
+// ---------------------------------------------------------------------------------------------------------------------
+// TODO: most of these are likely to be shared across all backends. Move to a shared header.
+
 /// @brief Name of the entrypoint function for all compute shaders.
 static constexpr const char *kCSEntrypoint = "CSMain";
 
@@ -40,6 +43,18 @@ cmrc::embedded_filesystem g_fsShaders = cmrc::ymir_core_shaders::get_filesystem(
 struct ColorR8G8B8A8 {
     uint8 r, g, b, a;
 };
+static_assert(sizeof(ColorR8G8B8A8) == sizeof(uint32));
+
+// Base Xst, Yst, KA for params A and B relative to startY
+struct alignas(16) VDP2RotParamBase {
+    uint32 tableAddress;
+    sint32 Xst, Yst;
+    uint32 KA;
+};
+static_assert(sizeof(VDP2RotParamBase) == sizeof(uint32) * 4);
+
+// ---------------------------------------------------------------------------------------------------------------------
+// TODO: these could be useful in multiple backends. Make them generic and reusable, and move to a shared header.
 
 /// @brief A simple bump-allocated upload buffer.
 struct UploadBuffer {
@@ -109,6 +124,8 @@ struct UploadBuffer {
     }
 };
 
+// ---------------------------------------------------------------------------------------------------------------------
+
 /// @brief Converts the given shader into a `D3D12_SHADER_BYTECODE` structure.
 /// @tparam stage the shader stage
 /// @param[in] shader the compiler shader
@@ -124,8 +141,10 @@ D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader)
 // ---------------------------------------------------------------------------------------------------------------------
 
 struct Direct3D12VDPRenderer::Impl {
-    Impl(VDPState &state)
-        : vdpState(state) {}
+    Impl(VDPState &state, const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
+         const config::VDP2DebugRender &vdp2DebugRenderOptions)
+        : vdpState(state)
+        , vdp2(vdp2AccessPatternsConfig, vdp2DebugRenderOptions) {}
 
     VDPState &vdpState;
 
@@ -312,6 +331,11 @@ struct Direct3D12VDPRenderer::Impl {
     };
 
     struct VDP2Resources {
+        VDP2Resources(const config::VDP2AccessPatternsConfig &accessPatternsConfig,
+                      const config::VDP2DebugRender &debugRenderOptions)
+            : accessPatternsConfig(accessPatternsConfig)
+            , debugRenderOptions(debugRenderOptions) {}
+
         /// @brief VDP2 per-frame resources.
         FrameSet<4, VDP2FrameContext> frames;
 
@@ -350,7 +374,7 @@ struct Direct3D12VDPRenderer::Impl {
         /// @brief CRAM color buffer SRV.
         Descriptor cramColorSRV;
         /// @brief CPU-side CRAM color buffer.
-        CRAMColorCache cramColorCache;
+        CRAMColorCache cpuCRAMColorCache;
 
         /// @brief Raw CRAM rotation coefficients buffer.
         D3D12Resource cramRotCoeffBuffer;
@@ -369,6 +393,16 @@ struct Direct3D12VDPRenderer::Impl {
         /// @brief Layer outputs UAV.
         Descriptor layerOutUAV;
 
+        // TODO: LNCL/BACK screen texture + upload buffer
+
+        /// @brief CPU-side LNCL/BACK screen texture (0,y=LNCL; 1,y=BACK).
+        std::array<std::array<ColorR8G8B8A8, 2>, kMaxResV> cpuLineColors;
+
+        // TODO: Rotation parameter base values structured buffer array (2 entries, A and B)
+
+        /// @brief CPU-side VDP2 rotation parameter base values.
+        std::array<VDP2RotParamBase, kMaxNormalResV * 2> cpuRotParamBases;
+
         // ---------------------------------------------------------------------
 
         /// @brief Common rendering parameters.
@@ -382,6 +416,17 @@ struct Direct3D12VDPRenderer::Impl {
         D3D12RootSignature drawBGsRootSig;
         /// @brief Pipeline state object for drawing background layers.
         D3D12PipelineState drawBGsPSO;
+
+        // ---------------------------------------------------------------------
+        // Rendering state
+
+        uint32 nextBGLine = 0;
+        uint32 nextComposeLine = 0;
+
+        bool bgRenderParamsDirty = false;
+
+        const config::VDP2AccessPatternsConfig &accessPatternsConfig;
+        const config::VDP2DebugRender &debugRenderOptions;
     } vdp2;
 
     // =================================================================================================================
@@ -745,6 +790,9 @@ struct Direct3D12VDPRenderer::Impl {
 
         vdp2.vramDirty.SetAll();
         vdp2.cramDirty = true;
+        vdp2.nextBGLine = 0;
+        vdp2.nextComposeLine = 0;
+        vdp2.bgRenderParamsDirty = true;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -761,7 +809,7 @@ struct Direct3D12VDPRenderer::Impl {
     void VDP2WriteCRAM(uint32 address) {
         vdp2.cramDirty = true;
 
-        CRAMColorCache &colorCache = vdp2.cramColorCache;
+        CRAMColorCache &colorCache = vdp2.cpuCRAMColorCache;
         switch (vdpState.regs2.vramControl.colorRAMMode) {
         case 0: {
             const auto value = vdpState.mem2.ReadCRAM<uint16>(address & ~1u);
@@ -963,7 +1011,7 @@ struct Direct3D12VDPRenderer::Impl {
             const bool result = frame.cramColorUploadBuffer.Allocate(sizeof(CRAMColorCache), offset, colorMap);
             // This should never fail unless the VDP2 is producing more than 256 lines
             assert(result);
-            memcpy(colorMap, vdp2.cramColorCache.data(), sizeof(CRAMColorCache));
+            memcpy(colorMap, vdp2.cpuCRAMColorCache.data(), sizeof(CRAMColorCache));
 
             if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
                 D3D12_BUFFER_BARRIER barrier{
@@ -1112,30 +1160,151 @@ struct Direct3D12VDPRenderer::Impl {
         }
     }
 
+    void VDP2CalcAccessPatterns() {
+        vdp2.bgRenderParamsDirty |= vdpState.regs2.accessPatternsDirty;
+        vdpState.state2.CalcAccessPatterns(vdpState.regs2, vdp2.accessPatternsConfig);
+    }
+
+    void VDP2InitNBGs() {
+        const VDP2Regs &regs2 = vdpState.regs2;
+
+        for (uint32 i = 0; i < 4; ++i) {
+            const BGParams &bgParams = regs2.bgParams[i + 1];
+            NBGLayerState &nbgState = vdpState.state2.nbgLayerStates[i];
+
+            // NOTE: fracScrollX/Y are computed from scratch in the shader
+            nbgState.scrollIncH = bgParams.scrollIncH;
+
+            if (i < 2) {
+                nbgState.lineScrollTableAddress = bgParams.lineScrollTableAddress;
+            }
+        }
+
+        vdp2.bgRenderParamsDirty = true;
+    }
+
+    void VDP2UpdateEnabledLayers() {
+        vdpState.state2.UpdateEnabledBGs(vdpState.regs2, vdp2.debugRenderOptions);
+    }
+
+    void VDP2CalcVCellScrollDelay() {
+        vdp2.bgRenderParamsDirty |= vdpState.regs2.accessPatternsDirty;
+        vdpState.state2.CalcVCellScrollDelay(vdpState.regs2);
+    }
+
+    void VDP2DrawLineColorBackScreens(uint32 y) {
+        const VDP2Regs &regs = vdpState.regs2;
+
+        // Read line color screen color
+        {
+            const LineBackScreenParams &lineParams = regs.lineScreenParams;
+            const uint32 lnclY = lineParams.perLine ? y : 0;
+            const uint32 address = lineParams.baseAddress + lnclY * sizeof(uint16);
+            const uint32 cramAddress = vdpState.mem2.ReadVRAM<uint16>(address);
+            vdp2.cpuLineColors[y][0] = vdp2.cpuCRAMColorCache[cramAddress & 0x7FF];
+        }
+
+        // Read back screen color
+        {
+            const LineBackScreenParams &backParams = regs.backScreenParams;
+            const uint32 backY = backParams.perLine ? y : 0;
+            const uint32 address = backParams.baseAddress + backY * sizeof(Color555);
+            const Color555 color5{.u16 = vdpState.mem2.ReadVRAM<uint16>(address)};
+            const Color888 color8 = ConvertRGB555to888(color5);
+            vdp2.cpuLineColors[y][1].r = color8.r;
+            vdp2.cpuLineColors[y][1].g = color8.g;
+            vdp2.cpuLineColors[y][1].b = color8.b;
+            vdp2.cpuLineColors[y][1].a = color8.msb;
+        }
+    }
+
+    void VDP2UpdateRotationParameterBases(uint16 y) {
+        VDP2Regs &regs2 = vdpState.regs2;
+        if (!regs2.bgEnabled[4] && !regs2.bgEnabled[5]) {
+            // Skip if no RBGs are enabled
+            return;
+        }
+
+        const bool readAll = y == 0;
+
+        const uint32 baseAddress = regs2.commonRotParams.baseAddress & 0xFFF7C; // mask bit 6 (shifted left by 1)
+        for (uint32 i = 0; i < 2; ++i) {
+            VDP2RotParamBase &base = vdp2.cpuRotParamBases[i * kMaxNormalResV + y];
+            RotationParams &src = regs2.rotParams[i];
+
+            const uint32 address = baseAddress + i * 0x80;
+
+            base.tableAddress = address;
+
+            if (readAll || src.readXst) {
+                base.Xst = bit::extract_signed<6, 28, sint32>(vdpState.mem2.ReadVRAM<uint32>(address + 0x00));
+                src.readXst = false;
+            } else {
+                const VDP2RotParamBase &prevBase = vdp2.cpuRotParamBases[i * kMaxNormalResV + y - 1];
+                base.Xst =
+                    prevBase.Xst + bit::extract_signed<6, 18, sint32>(vdpState.mem2.ReadVRAM<uint32>(address + 0x0C));
+            }
+
+            if (readAll || src.readYst) {
+                base.Yst = bit::extract_signed<6, 28, sint32>(vdpState.mem2.ReadVRAM<uint32>(address + 0x04));
+                src.readYst = false;
+            } else {
+                const VDP2RotParamBase &prevBase = vdp2.cpuRotParamBases[i * kMaxNormalResV + y - 1];
+                base.Yst =
+                    prevBase.Yst + bit::extract_signed<6, 18, sint32>(vdpState.mem2.ReadVRAM<uint32>(address + 0x10));
+            }
+
+            if (readAll || src.readKAst) {
+                const uint32 KAst = bit::extract<6, 31>(vdpState.mem2.ReadVRAM<uint32>(address + 0x54));
+                base.KA = src.coeffTableAddressOffset + KAst;
+                src.readKAst = false;
+            } else {
+                const VDP2RotParamBase &prevBase = vdp2.cpuRotParamBases[i * kMaxNormalResV + y - 1];
+                base.KA = prevBase.KA + bit::extract_signed<6, 25>(vdpState.mem2.ReadVRAM<uint32>(address + 0x58));
+            }
+        }
+    }
+
     void VDP2BeginFrame() {
         auto &cmdList = vdp2.cmdList;
 
+        vdp2.nextBGLine = 0;
+        vdp2.nextComposeLine = 0;
+
+        VDP2CalcAccessPatterns();
+        VDP2InitNBGs();
+
         VDP2FlushVRAM();
         VDP2FlushCRAM();
-
-        // TODO: prepare new VDP2 frame
-        // - set up rendering parameters
-        // - update rendering parameters and set 32-bit constants
     }
 
     void VDP2RenderLine(uint32 y) {
+        VDP2CalcVCellScrollDelay();
+        VDP2DrawLineColorBackScreens(y);
+        VDP2UpdateRotationParameterBases(y);
+        vdpState.state2.UpdateRotationPageBaseAddresses(vdpState.regs2);
+
+        // NOTE: need to be very careful with the order of operations
         // TODO: prepare next line, render and compose lines; optimize by batching lines without state changes
-        // - if there are pending VRAM writes:
-        //   - draw lines from segmentStartY to y-1 (if possible)
-        //   - VDP2FlushVRAM() + VDP2FlustCRAM()
-        //   - set segmentStartY = y
-        // - update rendering parameters and set 32-bit constants
+        // - if there are any changes that affect BG layer rendering or compositing:
+        //   - if BG rendering state is dirty:
+        //     - set rendering parameters
+        //     - render BG lines from bgRenderSegmentStartY to y-1 (if possible)
+        //     - set bgRenderSegmentStartY = y
+        //     - clear dirty state
+        //   - if compositing state is dirty:
+        //     - set compositing parameters
+        //     - compose lines from composeSegmentStartY to y-1 (if possible)
+        //     - set composeSegmentStartY = y
+        //     - clear dirty state
+        //   - update and flush everything affected
     }
 
     void VDP2EndFrame() {
+        // NOTE: need to be very careful with the order of operations
         // TODO: finish VDP2 frame
-        // - draw lines from segmentStartY to bottom of framebuffer
-        // - update rendering parameters and set 32-bit constants
+        // - render BG lines from bgSegmentStartY to bottom of framebuffer
+        // - compose lines from composeSegmentStartY to bottom of framebuffer
 
         // TODO: this is just for testing; remove it
         auto &cmdList = vdp2.cmdList;
@@ -1172,9 +1341,7 @@ Direct3D12VDPRenderer::Direct3D12VDPRenderer(VDPState &state, const config::VDP2
                                              const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
                                              core::Configuration::HardwareRenderer &hwRenderConfig)
     : HardwareVDPRendererBase(VDPRendererType::Direct3D12, hwRenderConfig)
-    , m_impl(std::make_unique<Impl>(state))
-    , m_vdp2DebugRenderOptions(vdp2DebugRenderOptions)
-    , m_vdp2AccessPatternsConfig(vdp2AccessPatternsConfig)
+    , m_impl(std::make_unique<Impl>(state, vdp2AccessPatternsConfig, vdp2DebugRenderOptions))
     , m_hwRenderConfig(hwRenderConfig) {}
 
 Direct3D12VDPRenderer::~Direct3D12VDPRenderer() {
@@ -1294,7 +1461,7 @@ void Direct3D12VDPRenderer::VDP2WriteReg(uint32 address, uint16 value) {
 // Debugger
 
 void Direct3D12VDPRenderer::UpdateEnabledLayers() {
-    m_impl->vdpState.state2.UpdateEnabledBGs(m_impl->vdpState.regs2, m_vdp2DebugRenderOptions);
+    m_impl->VDP2UpdateEnabledLayers();
 }
 
 // -----------------------------------------------------------------------------
