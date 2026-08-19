@@ -227,7 +227,7 @@ void AboutWindow::PrepareWindow() {
                             ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(660 * m_context.displayScale, 800 * m_context.displayScale),
                              ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(400 * m_context.displayScale, 240 * m_context.displayScale),
+    ImGui::SetNextWindowSizeConstraints(ImVec2(480 * m_context.displayScale, 320 * m_context.displayScale),
                                         ImVec2(1000 * m_context.displayScale, 900 * m_context.displayScale));
 }
 
@@ -276,8 +276,7 @@ void AboutWindow::DrawAboutTab() {
     ImGui::TextUnformatted("Version " Ymir_VERSION);
     ImGui::PopFont();
 #if Ymir_DEV_BUILD
-    ImGui::SameLine();
-    ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.xlarge);
+    ImGui::PushFont(m_context.fonts.sansSerif.regular, m_context.fontSizes.large);
     ImGui::TextUnformatted("(development build)");
     ImGui::PopFont();
 #endif
