@@ -1,0 +1,8 @@
+====================
+Rarely used features
+====================
+
+VDP2 CRAM used as rotation coefficients table
+[VDP2 RAMCTL CRKTE=1]
+---------------------------------------------
+  FIFA - Road to World Cup 98

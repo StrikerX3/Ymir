@@ -16,6 +16,6 @@ Akumajou Dracula X
   60485c4 then write the result at 60485C0 (the beginning of the save data buffer). Immediately after that, they set
   the save file's date/time BUP_SetDate using the RTC time (a copy of which is stored at 6057F60) and promptly write
   the converted value *into the buffer that was just checksummed*!
-  
+
   Luckily, the game calls the save function twice in a row, so the checksum is updated with the new date/time and, as
   long as the RTC clock doesn't increment the minute in between the two consecutive saves, the problem is fixed.

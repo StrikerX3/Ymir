@@ -28,7 +28,7 @@ Virtua Fighter
 	4. Write R5 to 0x60435E8
 
   The pop matrix function (at 0x6006608) does these operations to the stack pointer:
-  
+
 	1. Read the pointer from 0x60435E8 into R4
 	2. Subtract 0x30 from R4
 	3. Return from subroutine (`rts`)

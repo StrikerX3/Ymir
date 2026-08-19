@@ -954,76 +954,161 @@ struct Direct3D12VDPRenderer::Impl {
 
         VDP2FrameContext &frame = vdp2.frames.GetCurrentFrame();
 
-        size_t offset = 0;
-        void *colorMap = nullptr;
-        const bool result = frame.cramColorUploadBuffer.Allocate(sizeof(CRAMColorCache), offset, colorMap);
-        assert(result); // This should never fail unless the VDP2 sequencer is broken
-        memcpy(colorMap, vdp2.cramColorCache.data(), sizeof(CRAMColorCache));
+        // ---------------------------------------------------------------------
+        // Update color cache
 
-        if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
-            D3D12_BUFFER_BARRIER barrier{
-                .SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                .SyncAfter = D3D12_BARRIER_SYNC_COPY,
-                .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
-                .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
-                .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
-                .Offset = 0,
-                .Size = kVDP2CRAMColorBufferSize * 256,
-            };
-            const D3D12_BARRIER_GROUP group{
-                .Type = D3D12_BARRIER_TYPE_BUFFER,
-                .NumBarriers = 1,
-                .pBufferBarriers = &barrier,
-            };
-            enhCmdList->Barrier(1, &group);
-        } else {
-            D3D12_RESOURCE_BARRIER barrier{
-                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-                .Transition =
-                    {
-                        .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
-                        .Subresource = 0,
-                        .StateBefore = D3D12_RESOURCE_STATE_COMMON,
-                        .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
-                    },
-            };
-            vdp2.cmdList->ResourceBarrier(1, &barrier);
+        {
+            size_t offset = 0;
+            void *colorMap = nullptr;
+            const bool result = frame.cramColorUploadBuffer.Allocate(sizeof(CRAMColorCache), offset, colorMap);
+            // This should never fail unless the VDP2 is producing more than 256 lines
+            assert(result);
+            memcpy(colorMap, vdp2.cramColorCache.data(), sizeof(CRAMColorCache));
+
+            if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+                D3D12_BUFFER_BARRIER barrier{
+                    .SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                    .SyncAfter = D3D12_BARRIER_SYNC_COPY,
+                    .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
+                    .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
+                    .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                    .Offset = 0,
+                    .Size = kVDP2CRAMColorBufferSize * 256,
+                };
+                const D3D12_BARRIER_GROUP group{
+                    .Type = D3D12_BARRIER_TYPE_BUFFER,
+                    .NumBarriers = 1,
+                    .pBufferBarriers = &barrier,
+                };
+                enhCmdList->Barrier(1, &group);
+            } else {
+                D3D12_RESOURCE_BARRIER barrier{
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                    .Transition =
+                        {
+                            .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                            .Subresource = 0,
+                            .StateBefore = D3D12_RESOURCE_STATE_COMMON,
+                            .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
+                        },
+                };
+                vdp2.cmdList->ResourceBarrier(1, &barrier);
+            }
+
+            vdp2.cmdList->CopyBufferRegion(vdp2.cramColorBuffer.GetPointer(), 0,
+                                           frame.cramColorUploadBuffer.resource.GetPointer(), offset,
+                                           sizeof(CRAMColorCache));
+
+            if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+                D3D12_BUFFER_BARRIER barrier{
+                    .SyncBefore = D3D12_BARRIER_SYNC_COPY,
+                    .SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                    .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
+                    .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
+                    .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                    .Offset = 0,
+                    .Size = kVDP2CRAMColorBufferSize * 256,
+                };
+                const D3D12_BARRIER_GROUP group{
+                    .Type = D3D12_BARRIER_TYPE_BUFFER,
+                    .NumBarriers = 1,
+                    .pBufferBarriers = &barrier,
+                };
+                enhCmdList->Barrier(1, &group);
+            } else {
+                D3D12_RESOURCE_BARRIER barrier{
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                    .Transition =
+                        {
+                            .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                            .Subresource = 0,
+                            .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
+                            .StateAfter = D3D12_RESOURCE_STATE_COMMON,
+                        },
+                };
+                vdp2.cmdList->ResourceBarrier(1, &barrier);
+            }
         }
 
-        vdp2.cmdList->CopyBufferRegion(vdp2.cramColorBuffer.GetPointer(), 0,
-                                       frame.cramColorUploadBuffer.resource.GetPointer(), offset,
-                                       sizeof(CRAMColorCache));
+        // ---------------------------------------------------------------------
+        // Update rotation coefficients view
 
-        if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
-            D3D12_BUFFER_BARRIER barrier{
-                .SyncBefore = D3D12_BARRIER_SYNC_COPY,
-                .SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
-                .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
-                .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
-                .Offset = 0,
-                .Size = kVDP2CRAMColorBufferSize * 256,
-            };
-            const D3D12_BARRIER_GROUP group{
-                .Type = D3D12_BARRIER_TYPE_BUFFER,
-                .NumBarriers = 1,
-                .pBufferBarriers = &barrier,
-            };
-            enhCmdList->Barrier(1, &group);
-        } else {
-            D3D12_RESOURCE_BARRIER barrier{
-                .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
-                .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-                .Transition =
-                    {
-                        .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
-                        .Subresource = 0,
-                        .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
-                        .StateAfter = D3D12_RESOURCE_STATE_COMMON,
-                    },
-            };
-            vdp2.cmdList->ResourceBarrier(1, &barrier);
+        const VDP2Regs &regs2 = vdpState.regs2;
+        if ((regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable) {
+            size_t offset = 0;
+            void *rotCoeffMap = nullptr;
+            const bool result = frame.cramRotCoeffUploadBuffer.Allocate(kVDP2CRAMRotCoeffSize, offset, rotCoeffMap);
+            // This should never fail unless the VDP2 is producing more than 256 lines
+            assert(result);
+            memcpy(rotCoeffMap, &vdpState.mem2.CRAM[kVDP2CRAMSize / 2], kVDP2CRAMRotCoeffSize);
+
+            if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+                D3D12_BUFFER_BARRIER barrier{
+                    .SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                    .SyncAfter = D3D12_BARRIER_SYNC_COPY,
+                    .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
+                    .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
+                    .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                    .Offset = 0,
+                    .Size = kVDP2CRAMRotCoeffSize * 256,
+                };
+                const D3D12_BARRIER_GROUP group{
+                    .Type = D3D12_BARRIER_TYPE_BUFFER,
+                    .NumBarriers = 1,
+                    .pBufferBarriers = &barrier,
+                };
+                enhCmdList->Barrier(1, &group);
+            } else {
+                D3D12_RESOURCE_BARRIER barrier{
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                    .Transition =
+                        {
+                            .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                            .Subresource = 0,
+                            .StateBefore = D3D12_RESOURCE_STATE_COMMON,
+                            .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
+                        },
+                };
+                vdp2.cmdList->ResourceBarrier(1, &barrier);
+            }
+
+            vdp2.cmdList->CopyBufferRegion(vdp2.cramRotCoeffBuffer.GetPointer(), 0,
+                                           frame.cramRotCoeffUploadBuffer.resource.GetPointer(), offset,
+                                           kVDP2CRAMRotCoeffSize);
+
+            if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
+                D3D12_BUFFER_BARRIER barrier{
+                    .SyncBefore = D3D12_BARRIER_SYNC_COPY,
+                    .SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+                    .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
+                    .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
+                    .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                    .Offset = 0,
+                    .Size = kVDP2CRAMRotCoeffSize * 256,
+                };
+                const D3D12_BARRIER_GROUP group{
+                    .Type = D3D12_BARRIER_TYPE_BUFFER,
+                    .NumBarriers = 1,
+                    .pBufferBarriers = &barrier,
+                };
+                enhCmdList->Barrier(1, &group);
+            } else {
+                D3D12_RESOURCE_BARRIER barrier{
+                    .Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION,
+                    .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
+                    .Transition =
+                        {
+                            .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                            .Subresource = 0,
+                            .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
+                            .StateAfter = D3D12_RESOURCE_STATE_COMMON,
+                        },
+                };
+                vdp2.cmdList->ResourceBarrier(1, &barrier);
+            }
         }
     }
 

@@ -18,7 +18,7 @@ Rayman
   5. The SH-2 exits the interrupt handler, restoring the previous value of SR.I3-0 (typically 0).
   6. Since the SCU is signaling that the SMPC System Manager interrupt is still pending and the SH-2 is now accepting
      all interrupts, the SH-2 enters the corresponding interrupt handler which processes the INTBACK response.
-  
+
   The tricky part is that an interrupt that was assigned as pending remains in that state even if masked later.
   The SCU stores the pending interrupt and holds onto it until the SH-2 acknowledges it. The only other way to clear the
   pending interrupt from the SCU is to reset the chip.
