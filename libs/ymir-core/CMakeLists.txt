@@ -465,6 +465,10 @@ elseif (UNIX) # Linux and FreeBSD
     target_link_libraries(ymir-core PUBLIC
         Iconv::Iconv
     )
+    if (CMAKE_SYSTEM_NAME MATCHES FreeBSD)
+        # Prevent third-party package libiconv from interfering with iconv from libc.
+        target_compile_definitions(ymir-core PUBLIC "LIBICONV_PLUG")
+    endif ()
 endif ()
 
 if (Vulkan_FOUND)
