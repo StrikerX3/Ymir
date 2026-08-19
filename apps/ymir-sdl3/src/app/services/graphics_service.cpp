@@ -6,6 +6,9 @@
 #if YMIR_PLATFORM_HAS_DIRECT3D
     #include "gfx/gfx_d3d_utils.hpp"
 #endif
+#if YMIR_PLATFORM_HAS_METAL
+    #include "gfx/gfx_metal_utils.hpp"
+#endif
 
 #include <SDL3/SDL_video.h>
 
@@ -72,7 +75,12 @@ util::ObjectResult<IGraphicsContext> GraphicsService::CreateGraphicsContext(cons
     case Backend::Vulkan: return ConvertResult(VulkanGraphicsContext::Create({/*TODO*/}));
 #endif
 #if YMIR_PLATFORM_HAS_METAL
-    case Backend::Metal: return ConvertResult(MetalGraphicsContext::Create({/*TODO*/}));
+    case Backend::Metal:
+        return ConvertResult(MetalGraphicsContext::Create({
+            .featureLevel = MetalGPUFamily::Common1,
+            .window = spec.window,
+            .device = spec.adapter ? gfx::GetMetalDeviceByID(*spec.adapter) : nullptr,
+        }));
 #endif
     case Backend::SDLRenderer: return ConvertResult(SDLRendererGraphicsContext::Create({.window = spec.window}));
     }

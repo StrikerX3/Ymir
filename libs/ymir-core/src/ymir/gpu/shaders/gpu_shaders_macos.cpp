@@ -22,7 +22,13 @@ util::VoidResult<> DoValidateShader(CompiledShader<stage> &spec) {
         return util::ErrorMessage{"Unsupported shader bytecode format provided to Metal compiler"};
     }
 
-    // TODO: validate bytecode
+    if (spec.bytecode.size() < 4) {
+        return util::ErrorMessage{"MetalLib bytecode is too small or empty"};
+    }
+
+    if (spec.bytecode[0] != 'M' || spec.bytecode[1] != 'T' || spec.bytecode[2] != 'L' || spec.bytecode[3] != 'B') {
+        return util::ErrorMessage{"Invalid MetalLib magic header"};
+    }
 
     return {};
 }

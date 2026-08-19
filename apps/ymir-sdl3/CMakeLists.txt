@@ -442,8 +442,17 @@ endif ()
 
 if (APPLE)
     target_sources(ymir-sdl3 PRIVATE
-        src/app/services/gfx/gfx_context_impl_metal.cpp
+        src/app/services/gfx/gfx_context_impl_metal.mm
         src/app/services/gfx/gfx_context_impl_metal.hpp
+        src/app/services/gfx/gfx_context_spec_metal.hpp
+        src/app/services/gfx/gfx_metal_utils.mm
+        src/app/services/gfx/gfx_metal_utils.hpp
+    )
+
+    set_source_files_properties(
+        src/app/services/gfx/gfx_context_impl_metal.mm
+        src/app/services/gfx/gfx_metal_utils.mm
+        PROPERTIES SKIP_PRECOMPILE_HEADERS ON
     )
 endif ()
 

@@ -142,7 +142,7 @@ Make sure your GPU meets the minimum requirements for Ymir:
 - Direct3D 11: TBD
 - Direct3D 12: Feature level 11.0 and Shader Model 6.0
 - Vulkan: TBD
-- Metal: TBD
+- Metal: Any Metal-capable Mac (GPU family Common1)
 
 Update your GPU drivers:
 - Nvidia: [Find your GPU here](https://www.nvidia.com/Download/index.aspx?lang=en-us) or [use the Nvidia App to update drivers automatically](https://www.nvidia.com/en-us/software/nvidia-app/)

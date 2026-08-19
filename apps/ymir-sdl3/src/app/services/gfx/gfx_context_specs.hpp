@@ -15,5 +15,5 @@
 #endif
 
 #if YMIR_PLATFORM_HAS_METAL
-// #include "gfx_context_spec_metal.hpp"
+    #include "gfx_context_spec_metal.hpp"
 #endif
