@@ -25,35 +25,35 @@
   <launchable type="desktop-id">io.github.strikerx3.ymir.desktop</launchable>
   <screenshots>
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/StrikerX3/Ymir/38eb06341e9611673cf106406fb0e44fc9d78462/docs/images/cd-player.png</image>
+      <image>https://raw.githubusercontent.com/ymir-emu/Ymir/38eb06341e9611673cf106406fb0e44fc9d78462/docs/images/cd-player.png</image>
       <caption>CD Player</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/StrikerX3/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/debugger.png</image>
+      <image>https://raw.githubusercontent.com/ymir-emu/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/debugger.png</image>
       <caption>Debugger</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/StrikerX3/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/nights-into-dreams.png</image>
+      <image>https://raw.githubusercontent.com/ymir-emu/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/nights-into-dreams.png</image>
       <caption>Nights into Dreams</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/StrikerX3/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/panzer-dragoon-saga.png</image>
+      <image>https://raw.githubusercontent.com/ymir-emu/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/panzer-dragoon-saga.png</image>
       <caption>Panzer Dragoon Saga</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/StrikerX3/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/radiant-silvergun.png</image>
+      <image>https://raw.githubusercontent.com/ymir-emu/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/radiant-silvergun.png</image>
       <caption>Radiant Silvergun</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/StrikerX3/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/sonic-r.png</image>
+      <image>https://raw.githubusercontent.com/ymir-emu/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/sonic-r.png</image>
       <caption>Sonic R</caption>
     </screenshot>
     <screenshot>
-      <image>https://raw.githubusercontent.com/StrikerX3/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/virtua-fighter-2.png</image>
+      <image>https://raw.githubusercontent.com/ymir-emu/Ymir/0fb1230dd517cb1215bb4b2b24abfc4e43ee0731/docs/images/virtua-fighter-2.png</image>
       <caption>Virtua Fighter 2</caption>
     </screenshot>
   </screenshots>
-  <url type="homepage">https://github.com/StrikerX3/Ymir</url>
+  <url type="homepage">https://github.com/ymir-emu/Ymir</url>
   <developer id="io.github.strikerx3">
     <name>StrikerX3</name>
   </developer>
@@ -63,59 +63,59 @@
   <releases>
     <release version="0.4.0" date="202X-XX-XX">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.4.0</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.4.0</url>
     </release>
     <release version="0.3.3" date="2026-06-21">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.3.3</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.3.3</url>
     </release>
     <release version="0.3.2" date="2026-06-21">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.3.2</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.3.2</url>
     </release>
     <release version="0.3.1" date="2026-05-03">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.3.1</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.3.1</url>
     </release>
     <release version="0.3.0" date="2026-04-24">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.3.0</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.3.0</url>
     </release>
     <release version="0.2.1" date="2026-01-10">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.2.1</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.2.1</url>
     </release>
     <release version="0.2.0" date="2025-10-12">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.2.0</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.2.0</url>
     </release>
     <release version="0.1.8" date="2025-09-10">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.1.8</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.1.8</url>
     </release>
     <release version="0.1.7" date="2025-08-11">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.1.7</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.1.7</url>
     </release>
     <release version="0.1.6" date="2025-07-21">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.1.6</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.1.6</url>
     </release>
     <release version="0.1.5" date="2025-06-29">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.1.5</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.1.5</url>
     </release>
     <release version="0.1.4+1" date="2025-06-03">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.1.4+1</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.1.4+1</url>
     </release>
     <release version="0.1.4" date="2025-06-02">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.1.4</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.1.4</url>
     </release>
     <release version="0.1.3" date="2025-05-16">
       <description/>
-      <url>https://github.com/StrikerX3/Ymir/releases/tag/v0.1.3</url>
+      <url>https://github.com/ymir-emu/Ymir/releases/tag/v0.1.3</url>
     </release>
   </releases>
   <categories>

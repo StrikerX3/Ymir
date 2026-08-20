@@ -31,7 +31,7 @@ jobs:
         run: echo "short-sha=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
 
   build-all:
-    uses: StrikerX3/Ymir/.github/workflows/build.yaml@main
+    uses: ymir-emu/Ymir/.github/workflows/build.yaml@main
     name: Build
     needs: [commit-sha]
     with:

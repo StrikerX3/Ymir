@@ -9,7 +9,7 @@ The sections below explain how each of them work.
 
 ## Reporting bugs
 
-Before reporting bugs, make sure you also test the [latest nightly build](https://github.com/StrikerX3/Ymir/releases/tag/latest-nightly) -- there's a chance the bug might've been already fixed.
+Before reporting bugs, make sure you also test the [latest nightly build](https://github.com/ymir-emu/Ymir/releases/tag/latest-nightly) -- there's a chance the bug might've been already fixed.
 Also refer to the [troubleshooting guide](TROUBLESHOOTING.md) for further instructions that might solve the issue.
 
 Make sure to test the game with the recommended or accurate presets -- go to **Settings > Tweaks** and click the **Recommended** or **Best compatibility/accuracy** buttons in all sections. Specifically:
@@ -18,7 +18,7 @@ Make sure to test the game with the recommended or accurate presets -- go to **S
 - Games that are fixed by enabling **Emulate SH-2 cache**, tuning **Emulation step granularity** or enabling **Use low level CD Block emulation** should be reported in the [compatibility list](https://docs.google.com/spreadsheets/d/1SLZzL9LelSlpEmTKy8cjaQnE7mew2uW1rfCgcekO58Q/edit?usp=sharing) instead. They might be added to the internal database if this is the only way they will work.
 - Any threading issues should be reported in the dedicated issues. Threaded VDP2 and deinterlacing never cause issues, but threaded VDP1 and SCSP might.
 
-If the bug persists, check that it hasn't already been reported by searching through the [Issues](https://github.com/StrikerX3/Ymir/issues). If you can't find an existing report, open a new one and provide the following information:
+If the bug persists, check that it hasn't already been reported by searching through the [Issues](https://github.com/ymir-emu/Ymir/issues). If you can't find an existing report, open a new one and provide the following information:
 - Ymir version(s) tested (go to **Help > About** and click **Copy version**)
 - The full set of tweakable options (go to **Settings > Tweaks** and click **Copy to clipboard** under the blue box. You can paste this directly in GitHub issues to get a nicely-formatted list)
 - Game name/title, if the bug is specific to a game
@@ -39,7 +39,7 @@ The more details, the easier it is to find and fix a bug. Don't go overboard, th
 
 ## Requesting features or improvements
 
-As with bugs, make sure the feature hasn't been already requested by searching existing [Issues](https://github.com/StrikerX3/Ymir/issues).
+As with bugs, make sure the feature hasn't been already requested by searching existing [Issues](https://github.com/ymir-emu/Ymir/issues).
 
 The issue should explain what you want to see added or improved in Ymir. Provide examples, screenshots or links to other emulators or applications for inspiration.
 

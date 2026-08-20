@@ -81,8 +81,8 @@ static bool parse8601(std::string str, date::sys_time<std::chrono::seconds> &tp)
 void runCurlSandbox() {
     CurlState curl{};
     std::string out{};
-    const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/latest";
-    // const char *url = "https://api.github.com/repos/StrikerX3/Ymir/releases/tags/latest-nightly";
+    const char *url = "https://api.github.com/repos/ymir-emu/Ymir/releases/latest";
+    // const char *url = "https://api.github.com/repos/ymir-emu/Ymir/releases/tags/latest-nightly";
     CURLcode code =
         curl.Get(out, url, {{"Accept", "application/vnd.github+json"}, {"X-GitHub-Api-Version", "2022-11-28"}});
     if (code != CURLE_OK) {

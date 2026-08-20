@@ -335,7 +335,7 @@ void AboutWindow::DrawAboutTab() {
 
     ImGui::TextUnformatted("The source code can be found at ");
     ImGui::SameLine(0, 0);
-    ImGui::TextLinkOpenURL("https://github.com/StrikerX3/Ymir");
+    ImGui::TextLinkOpenURL("https://github.com/ymir-emu/Ymir");
 
     ImGui::NewLine();
     ImGui::TextUnformatted("Join the official ");
@@ -604,11 +604,11 @@ void AboutWindow::DrawAcknowledgementsTab() {
 
     ImGui::TextUnformatted("To the ");
     ImGui::SameLine(0, 0);
-    ImGui::TextLinkOpenURL("project contributors", "https://github.com/StrikerX3/Ymir/graphs/contributors");
+    ImGui::TextLinkOpenURL("project contributors", "https://github.com/ymir-emu/Ymir/graphs/contributors");
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(" and users ");
     ImGui::SameLine(0, 0);
-    ImGui::TextLinkOpenURL("reporting issues and feature requests", "https://github.com/StrikerX3/Ymir/issues");
+    ImGui::TextLinkOpenURL("reporting issues and feature requests", "https://github.com/ymir-emu/Ymir/issues");
     ImGui::SameLine(0, 0);
     ImGui::TextUnformatted(", including:");
     ImGui::Indent();

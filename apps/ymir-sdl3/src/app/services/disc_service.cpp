@@ -92,7 +92,7 @@ bool DiscService::LoadDiscImage(std::filesystem::path path, bool showErrorModal)
                 ImGui::Bullet();
                 ImGui::TextLinkOpenURL(
                     "How to configure Ymir using Flatseal",
-                    R"(https://github.com/StrikerX3/Ymir/blob/main/TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release)");
+                    R"(https://github.com/ymir-emu/Ymir/blob/main/TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release)");
             }
 #endif
             ImGui::Separator();

@@ -64,7 +64,7 @@ jobs:
         run: echo "short-sha=$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
 
   build-all:
-    uses: StrikerX3/Ymir/.github/workflows/build.yaml@main
+    uses: ymir-emu/Ymir/.github/workflows/build.yaml@main
     name: Build
     needs: [commit-sha]
     with:
@@ -128,7 +128,7 @@ jobs:
             --draft=false
 
   trigger-screenshotter:
-    uses: StrikerX3/Ymir/.github/workflows/screenshotter.yaml@main
+    uses: ymir-emu/Ymir/.github/workflows/screenshotter.yaml@main
     name: Trigger screenshotter job
     needs: [release]
     if: ${{ inputs.trigger-screenshotter == null || inputs.trigger-screenshotter }}
