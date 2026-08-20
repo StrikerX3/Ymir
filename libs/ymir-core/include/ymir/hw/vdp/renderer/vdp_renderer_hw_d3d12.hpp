@@ -106,8 +106,6 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
-
-    core::Configuration::HardwareRenderer &m_hwRenderConfig;
 };
 
 } // namespace ymir::vdp

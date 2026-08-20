@@ -28,6 +28,7 @@ CMRC_DECLARE(ymir_core_shaders);
 #include <vector>
 
 using namespace ymir::gpu::d3d12;
+using namespace ymir::core::config::hw_vdp;
 
 namespace ymir::vdp {
 
@@ -142,11 +143,13 @@ D3D12_SHADER_BYTECODE ToShaderBytecode(const gpu::CompiledShader<stage> &shader)
 
 struct Direct3D12VDPRenderer::Impl {
     Impl(VDPState &state, const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
-         const config::VDP2DebugRender &vdp2DebugRenderOptions)
+         const config::VDP2DebugRender &vdp2DebugRenderOptions, core::Configuration::HardwareRenderer &hwRenderConfig)
         : vdpState(state)
+        , hwRenderConfig(hwRenderConfig)
         , vdp2(vdp2AccessPatternsConfig, vdp2DebugRenderOptions) {}
 
     VDPState &vdpState;
+    core::Configuration::HardwareRenderer &hwRenderConfig;
 
     D3D12Device device;
 
@@ -423,7 +426,9 @@ struct Direct3D12VDPRenderer::Impl {
         uint32 nextBGLine = 0;
         uint32 nextComposeLine = 0;
 
+        bool rotRegsDirty = false;
         bool bgRenderParamsDirty = false;
+        bool composeParamsDirty = false;
 
         const config::VDP2AccessPatternsConfig &accessPatternsConfig;
         const config::VDP2DebugRender &debugRenderOptions;
@@ -790,9 +795,9 @@ struct Direct3D12VDPRenderer::Impl {
         vdp2.cramDirty = true;
         vdp2.nextBGLine = 0;
         vdp2.nextComposeLine = 0;
+        vdp2.rotRegsDirty = true;
         vdp2.bgRenderParamsDirty = true;
-        // TODO: vdp2.composeParamsDirty = true;
-        // TODO: vdp2.rotRegsDirty = true;
+        vdp2.composeParamsDirty = true;
 
         VDP2UpdateEnabledLayers();
     }
@@ -961,9 +966,9 @@ struct Direct3D12VDPRenderer::Impl {
 
         if (address <= 0x11E) {
             const auto &dirtyFlags = kDirtyFlags[address / sizeof(uint16)];
+            vdp2.rotRegsDirty |= dirtyFlags.rotRegs;
             vdp2.bgRenderParamsDirty |= dirtyFlags.render;
-            // TODO: vdp2.composeParamsDirty |= dirtyFlags.compose;
-            // TODO: vdp2.rotRegsDirty |= dirtyFlags.rotRegs;
+            vdp2.composeParamsDirty |= dirtyFlags.compose;
 
             if (dirtyFlags.enabledLayers) {
                 VDP2UpdateEnabledLayers();
@@ -1137,6 +1142,7 @@ struct Direct3D12VDPRenderer::Impl {
             void *colorMap = nullptr;
             const bool result = frame.cramColorUploadBuffer.Allocate(sizeof(CRAMColorCache), offset, colorMap);
             // This should never fail unless the VDP2 is producing more than 256 lines
+            // TODO: this is actually happening during resolution changes somehow :(
             assert(result);
             memcpy(colorMap, vdp2.cpuCRAMColorCache.data(), sizeof(CRAMColorCache));
 
@@ -1392,6 +1398,11 @@ struct Direct3D12VDPRenderer::Impl {
         }
     }
 
+    void VDP2UpdateState() {
+        VDP2FlushVRAM();
+        VDP2FlushCRAM();
+    }
+
     void VDP2BeginFrame() {
         auto &cmdList = vdp2.cmdList;
 
@@ -1401,8 +1412,25 @@ struct Direct3D12VDPRenderer::Impl {
         VDP2CalcAccessPatterns();
         VDP2InitNBGs();
 
-        VDP2FlushVRAM();
-        VDP2FlushCRAM();
+        VDP2UpdateState();
+    }
+
+    void VDP2RenderLayerLines(uint32 y) {
+        // TODO: implement
+        // - if BG rendering state is dirty:
+        //   - set rendering parameters
+        //   - render BG lines from bgRenderSegmentStartY to y-1 (if possible)
+        //   - set bgRenderSegmentStartY = y
+        //   - clear dirty state
+    }
+
+    void VDP2ComposeLines(uint32 y) {
+        // TODO: implement
+        // - if compositing state is dirty:
+        //   - set compositing parameters
+        //   - compose lines from composeSegmentStartY to y-1 (if possible)
+        //   - set composeSegmentStartY = y
+        //   - clear dirty state
     }
 
     void VDP2RenderLine(uint32 y) {
@@ -1411,27 +1439,36 @@ struct Direct3D12VDPRenderer::Impl {
         VDP2UpdateRotationParameterBases(y);
         vdpState.state2.UpdateRotationPageBaseAddresses(vdpState.regs2);
 
-        // NOTE: need to be very careful with the order of operations
-        // TODO: prepare next line, render and compose lines; optimize by batching lines without state changes
-        // - if there are any changes that affect BG layer rendering or compositing:
-        //   - if BG rendering state is dirty:
-        //     - set rendering parameters
-        //     - render BG lines from bgRenderSegmentStartY to y-1 (if possible)
-        //     - set bgRenderSegmentStartY = y
-        //     - clear dirty state
-        //   - if compositing state is dirty:
-        //     - set compositing parameters
-        //     - compose lines from composeSegmentStartY to y-1 (if possible)
-        //     - set composeSegmentStartY = y
-        //     - clear dirty state
-        //   - update and flush everything affected
+        // When Y=0, the changes happened during vblank (or, more precisely, between the last Y of the previous frame
+        // and the first line of this frame). Otherwise, the changes happened between Y-1 and Y. Therefore, we need to
+        // render lines up to Y-1 then sync the state, unless Y=0, in which case we just sync the state.
+
+        if (y > 0) {
+            const bool renderLayers =
+                (hwRenderConfig.vdp2SyncInterval == VDP2VRAMSyncInterval::Scanline && vdp2.vramDirty) ||
+                vdp2.cramDirty || vdp2.rotRegsDirty || vdp2.bgRenderParamsDirty || vdp2.composeParamsDirty;
+            const bool compose = vdp2.composeParamsDirty;
+            if (renderLayers) {
+                VDP2RenderLayerLines(y - 1);
+            }
+            if (compose) {
+                VDP2ComposeLines(y - 1);
+            }
+        }
+
+        VDP2UpdateState();
     }
 
     void VDP2EndFrame() {
-        // NOTE: need to be very careful with the order of operations
-        // TODO: finish VDP2 frame
-        // - render BG lines from bgSegmentStartY to bottom of framebuffer
-        // - compose lines from composeSegmentStartY to bottom of framebuffer
+        const bool vShift = vdpState.regs2.TVMD.IsInterlaced() ? 1u : 0u;
+        const uint32 vres = VRes >> vShift;
+        VDP2RenderLayerLines(vres - 1);
+        VDP2ComposeLines(VRes - 1);
+
+        VDP2UpdateState();
+        if (hwRenderConfig.vdp2SyncInterval == VDP2VRAMSyncInterval::Frame) {
+            VDP2FlushVRAM();
+        }
 
         // TODO: this is just for testing; remove it
         auto &cmdList = vdp2.cmdList;
@@ -1468,8 +1505,7 @@ Direct3D12VDPRenderer::Direct3D12VDPRenderer(VDPState &state, const config::VDP2
                                              const config::VDP2AccessPatternsConfig &vdp2AccessPatternsConfig,
                                              core::Configuration::HardwareRenderer &hwRenderConfig)
     : HardwareVDPRendererBase(VDPRendererType::Direct3D12, hwRenderConfig)
-    , m_impl(std::make_unique<Impl>(state, vdp2AccessPatternsConfig, vdp2DebugRenderOptions))
-    , m_hwRenderConfig(hwRenderConfig) {}
+    , m_impl(std::make_unique<Impl>(state, vdp2AccessPatternsConfig, vdp2DebugRenderOptions, hwRenderConfig)) {}
 
 Direct3D12VDPRenderer::~Direct3D12VDPRenderer() {
     m_impl->Shutdown();
@@ -1517,9 +1553,9 @@ void Direct3D12VDPRenderer::PostLoadStateSync() {
     m_impl->VDP2UpdateEnabledLayers();
     m_impl->vdp2.vramDirty.SetAll();
     m_impl->vdp2.cramDirty = true;
+    m_impl->vdp2.rotRegsDirty = true;
     m_impl->vdp2.bgRenderParamsDirty = true;
-    // TODO: m_impl->vdp2.composeParamsDirty = true;
-    // TODO: m_impl->vdp2.rotRegsDirty = true;
+    m_impl->vdp2.composeParamsDirty = true;
 }
 
 void Direct3D12VDPRenderer::SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) {}
