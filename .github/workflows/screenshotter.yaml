@@ -78,6 +78,12 @@ jobs:
                 exit 0
               fi
 
+              # If the job is queued, we're probably good
+              if [ "$STAGE" = "queued" ]; then
+                echo "[+] Job is queued"
+                exit 0
+              fi
+
               # If the response contain "games_done", we're good
               # (safeguard in case the run_screenshotter stage is skipped)
               if [ -z "$GAMES_DONE" ]; then
