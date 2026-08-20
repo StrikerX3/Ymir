@@ -60,6 +60,8 @@ private:
 
     void RunEmulator();
 
+    void StartEmulatorThread();
+    void StopEmulatorThread();
     void EmulatorThread();
 
     void EnableRewindBuffer(bool enable);
