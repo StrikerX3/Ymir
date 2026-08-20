@@ -24,7 +24,7 @@ jobs:
           version_extractor_regex: '^v(.*)$'
 
   build-all:
-    uses: StrikerX3/Ymir/.github/workflows/build.yaml@main
+    uses: ymir-emu/Ymir/.github/workflows/build.yaml@main
     name: Build
     needs: [parse-version]
     with:
@@ -63,7 +63,7 @@ jobs:
             ymir/*
 
   trigger-screenshotter:
-    uses: StrikerX3/Ymir/.github/workflows/screenshotter.yaml@main
+    uses: ymir-emu/Ymir/.github/workflows/screenshotter.yaml@main
     name: Trigger screenshotter job
     needs: [release]
     secrets:

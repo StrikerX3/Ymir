@@ -1,8 +1,8 @@
 # Troubleshooting
 
-First and most important: make sure you're using the [latest version](https://github.com/StrikerX3/Ymir/releases/latest) or give the [nightly build](https://github.com/StrikerX3/Ymir/releases/latest-nightly) a try. There's a good chance your issue has already been solved in a recent update.
+First and most important: make sure you're using the [latest version](https://github.com/ymir-emu/Ymir/releases/latest) or give the [nightly build](https://github.com/ymir-emu/Ymir/releases/latest-nightly) a try. There's a good chance your issue has already been solved in a recent update.
 
-Also check for [open issues](https://github.com/StrikerX3/Ymir/issues) on the GitHub repository. Use the search bar! Remove the `state:open` to also list closed issues -- those may include tips and hints that could help fix your problem.
+Also check for [open issues](https://github.com/ymir-emu/Ymir/issues) on the GitHub repository. Use the search bar! Remove the `state:open` to also list closed issues -- those may include tips and hints that could help fix your problem.
 
 If you're on Windows, install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vc14/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vc14/vc_redist.arm64.exe)).
 This is mandatory to make Ymir work.
@@ -33,7 +33,7 @@ Follow these steps to collect and share a minidump:
 1. Download ProcDump: https://learn.microsoft.com/en-us/sysinternals/downloads/procdump.
 2. Open a Command Prompt window (cmd.exe) and run `procdump ymir-sdl3.exe`.
 3. Open the folder from which you ran the command (you can run `start .` from the Command Prompt to open an Explorer window on that directory). There should be a file named `ymir-sdl3.exe_<date>_<time>.dmp`. Compress that and share it. This file contains a minimal dump of the program which can be used by developers to figure out where exactly the emulator crashed.
-   - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml).
+   - For developers: the PDBs can be found attached to the [nightly release workflow](https://github.com/ymir-emu/Ymir/actions/workflows/nightly-release.yaml).
 
 ### Linux, macOS, FreeBSD
 
@@ -83,7 +83,7 @@ Ymir currently works best with XInput controllers, that is, anything that behave
 
 Ymir also uses SDL's game controller database, with data pulled from https://github.com/mdqinc/SDL_GameControllerDB on every build. You can manually replace the gamecontrollerdb.txt file with an updated one from this repository if your controller is not yet recognized.
 
-Related issues: [#482](https://github.com/StrikerX3/Ymir/issues/482)
+Related issues: [#482](https://github.com/ymir-emu/Ymir/issues/482)
 
 There are plans to improve compatibility with other controllers in the future, but it's not high in the priority list.
 

@@ -71,11 +71,11 @@ UpdateResult UpdateChecker::Check(ReleaseChannel channel, std::filesystem::path 
     std::filesystem::path updateFileName;
     switch (channel) {
     case ReleaseChannel::Stable:
-        url = "https://api.github.com/repos/StrikerX3/Ymir/releases/latest";
+        url = "https://api.github.com/repos/ymir-emu/Ymir/releases/latest";
         updateFileName = "stable.json";
         break;
     case ReleaseChannel::Nightly:
-        url = "https://api.github.com/repos/StrikerX3/Ymir/releases/tags/latest-nightly";
+        url = "https://api.github.com/repos/ymir-emu/Ymir/releases/tags/latest-nightly";
         updateFileName = "nightly.json";
         break;
     default: return UpdateResult::Failed("Invalid release channel");

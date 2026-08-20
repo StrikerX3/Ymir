@@ -376,7 +376,7 @@ It is recommended to keep your vendored dependencies in a subdirectory of your r
 `third_party`. Inside it, run these commands:
 
 ```sh
-git submodule add https://github.com/StrikerX3/Ymir.git
+git submodule add https://github.com/ymir-emu/Ymir.git
 git submodule update --init --recursive
 ```
 
@@ -402,7 +402,7 @@ include(FetchContent)
 
 FetchContent_Declare(
     ymir
-    GIT_REPOSITORY https://github.com/StrikerX3/Ymir
+    GIT_REPOSITORY https://github.com/ymir-emu/Ymir
     GIT_TAG        v0.3.2   # ideally, a specific tag or commit, but `main` also works
 )
 

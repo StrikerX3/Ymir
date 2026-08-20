@@ -1,6 +1,6 @@
 # Ymir
 
-[![Stable release](https://github.com/StrikerX3/Ymir/actions/workflows/stable-release.yaml/badge.svg)](https://github.com/StrikerX3/Ymir/actions/workflows/stable-release.yaml) [![Nightly release](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml/badge.svg)](https://github.com/StrikerX3/Ymir/actions/workflows/nightly-release.yaml) <a href="https://discord.gg/NN3A7n5dzn">![Discord Shield](https://discord.com/api/guilds/1368676375627694341/widget.png?style=shield)</a> <a href="https://patreon.com/StrikerX3">![Patreon Shield](https://img.shields.io/badge/Patreon-F96854?style=flat&logo=patreon&logoColor=white)</a>
+[![Stable release](https://github.com/ymir-emu/Ymir/actions/workflows/stable-release.yaml/badge.svg)](https://github.com/ymir-emu/Ymir/actions/workflows/stable-release.yaml) [![Nightly release](https://github.com/ymir-emu/Ymir/actions/workflows/nightly-release.yaml/badge.svg)](https://github.com/ymir-emu/Ymir/actions/workflows/nightly-release.yaml) <a href="https://discord.gg/NN3A7n5dzn">![Discord Shield](https://discord.com/api/guilds/1368676375627694341/widget.png?style=shield)</a> <a href="https://patreon.com/StrikerX3">![Patreon Shield](https://img.shields.io/badge/Patreon-F96854?style=flat&logo=patreon&logoColor=white)</a>
 
 A work-in-progress Sega Saturn emulator.
 
@@ -8,7 +8,7 @@ Join the [Discord community](https://discord.gg/NN3A7n5dzn).
 
 Find the official compatibility list [here](https://docs.google.com/spreadsheets/d/1SLZzL9LelSlpEmTKy8cjaQnE7mew2uW1rfCgcekO58Q/edit?usp=sharing).
 
-Grab the latest release: [stable](https://github.com/StrikerX3/Ymir/releases/latest), [nightly](https://github.com/StrikerX3/Ymir/releases/latest-nightly).
+Grab the latest release: [stable](https://github.com/ymir-emu/Ymir/releases/latest), [nightly](https://github.com/ymir-emu/Ymir/releases/latest-nightly).
 
 > [!IMPORTANT]
 > Windows users: install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vc14/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vc14/vc_redist.arm64.exe)) before running the emulator.
@@ -19,13 +19,13 @@ Grab the latest release: [stable](https://github.com/StrikerX3/Ymir/releases/lat
 > Linux users: if you installed the Flatpak version, make sure to [grant it permission to access the filesystem](TROUBLESHOOTING.md#game-discs-dont-load-with-the-flatpak-release) or your disc images won't load properly.
 
 <div class="grid" markdown>
-  <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/cd-player.png"/>
-  <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/sonic-r.png"/>
-  <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/virtua-fighter-2.png"/>
-  <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/radiant-silvergun.png"/>
-  <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/panzer-dragoon-saga.png"/>
-  <img width="49.5%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/nights-into-dreams.png"/>
-  <img width="100%" src="https://github.com/StrikerX3/Ymir/blob/main/docs/images/debugger.png"/>
+  <img width="49.5%" src="https://github.com/ymir-emu/Ymir/blob/main/docs/images/cd-player.png"/>
+  <img width="49.5%" src="https://github.com/ymir-emu/Ymir/blob/main/docs/images/sonic-r.png"/>
+  <img width="49.5%" src="https://github.com/ymir-emu/Ymir/blob/main/docs/images/virtua-fighter-2.png"/>
+  <img width="49.5%" src="https://github.com/ymir-emu/Ymir/blob/main/docs/images/radiant-silvergun.png"/>
+  <img width="49.5%" src="https://github.com/ymir-emu/Ymir/blob/main/docs/images/panzer-dragoon-saga.png"/>
+  <img width="49.5%" src="https://github.com/ymir-emu/Ymir/blob/main/docs/images/nights-into-dreams.png"/>
+  <img width="100%" src="https://github.com/ymir-emu/Ymir/blob/main/docs/images/debugger.png"/>
 </div>
 
 
@@ -50,8 +50,8 @@ Ymir runs on Windows 10 or later, macOS 15 (Sequoia) or later, most modern and p
 
 ## Usage
 
-Grab the latest release [here](https://github.com/StrikerX3/Ymir/releases/latest).
-Check the [Releases](https://github.com/StrikerX3/Ymir/releases) page for previous versions.
+Grab the latest release [here](https://github.com/ymir-emu/Ymir/releases/latest).
+Check the [Releases](https://github.com/ymir-emu/Ymir/releases) page for previous versions.
 
 Ymir does not require installation. Simply download it to any directory and run the executable.
 On Windows you also need to install the latest [Microsoft Visual C++ Redistributable package](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) ([x86_64 installer](https://aka.ms/vc14/vc_redist.x64.exe), [AArch64/ARM64 installer](https://aka.ms/vc14/vc_redist.arm64.exe)).
