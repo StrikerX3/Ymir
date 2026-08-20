@@ -786,13 +786,15 @@ struct Direct3D12VDPRenderer::Impl {
     // State
 
     void Reset() {
-        // TODO: reset to initial state (clear VRAM, reset registers, mark everything as dirty, etc.)
-
         vdp2.vramDirty.SetAll();
         vdp2.cramDirty = true;
         vdp2.nextBGLine = 0;
         vdp2.nextComposeLine = 0;
         vdp2.bgRenderParamsDirty = true;
+        // TODO: vdp2.composeParamsDirty = true;
+        // TODO: vdp2.rotRegsDirty = true;
+
+        VDP2UpdateEnabledLayers();
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -802,51 +804,176 @@ struct Direct3D12VDPRenderer::Impl {
     uint32 VRes = vdp::kDefaultResV;
     bool exclusiveMonitor = false;
 
+    void VDP2CacheCRAMColor(uint32 address) {
+        // NOTE: 32-bit colors are mapped to even indices to simplify address calculations in shaders
+
+        CRAMColorCache &colorCache = vdp2.cpuCRAMColorCache;
+        ColorR8G8B8A8 &color = colorCache[address >> 1u];
+        switch (vdpState.regs2.vramControl.colorRAMMode) {
+        case 0: { // RGB 5:5:5, half CRAM
+            const auto value = vdpState.mem2.ReadCRAM<uint16>(address & ~1u);
+            const Color555 color5{.u16 = value};
+            const Color888 color8 = ConvertRGB555to888(color5);
+            color.r = color8.r;
+            color.g = color8.g;
+            color.b = color8.b;
+            color.a = color8.msb;
+            break;
+        }
+        case 1: { // RGB 5:5:5, full CRAM
+            const auto value = vdpState.mem2.ReadCRAM<uint16>(address & ~1u);
+            const Color555 color5{.u16 = value};
+            const Color888 color8 = ConvertRGB555to888(color5);
+            color.r = color8.r;
+            color.g = color8.g;
+            color.b = color8.b;
+            color.a = color8.msb;
+            break;
+        }
+        case 2: [[fallthrough]]; // RGB 8:8:8, full CRAM
+        case 3: [[fallthrough]]; // RGB 8:8:8, full CRAM
+        default: {
+            const auto value = vdpState.mem2.ReadCRAM<uint32>(address & ~3u);
+            const Color888 color8{.u32 = value};
+            color.r = color8.r;
+            color.g = color8.g;
+            color.b = color8.b;
+            color.a = color8.msb;
+            break;
+        }
+        }
+    }
+
+    void VDP2CacheAllCRAMColors() {
+        // NOTE: 32-bit colors are mapped to even indices to simplify address calculations in shaders
+
+        CRAMColorCache &colorCache = vdp2.cpuCRAMColorCache;
+        switch (vdpState.regs2.vramControl.colorRAMMode) {
+        case 0: // RGB 5:5:5, half CRAM
+            for (uint32 i = 0; i < 1024; ++i) {
+                const auto value = vdpState.mem2.ReadCRAM<uint16>(i * sizeof(uint16));
+                const Color555 color5{.u16 = value};
+                const Color888 color8 = ConvertRGB555to888(color5);
+                colorCache[i].r = color8.r;
+                colorCache[i].g = color8.g;
+                colorCache[i].b = color8.b;
+                colorCache[i].a = color8.msb;
+            }
+            break;
+        case 1: // RGB 5:5:5, full CRAM
+            for (uint32 i = 0; i < 2048; ++i) {
+                const auto value = vdpState.mem2.ReadCRAM<uint16>(i * sizeof(uint16));
+                const Color555 color5{.u16 = value};
+                const Color888 color8 = ConvertRGB555to888(color5);
+                colorCache[i].r = color8.r;
+                colorCache[i].g = color8.g;
+                colorCache[i].b = color8.b;
+                colorCache[i].a = color8.msb;
+            }
+            break;
+        case 2: [[fallthrough]]; // RGB 8:8:8, full CRAM
+        case 3: [[fallthrough]]; // RGB 8:8:8, full CRAM
+        default:
+            for (uint32 i = 0; i < 1024; ++i) {
+                const auto value = vdpState.mem2.ReadCRAM<uint32>(i * sizeof(uint32));
+                const Color888 color8{.u32 = value};
+                colorCache[i << 1u].r = color8.r;
+                colorCache[i << 1u].g = color8.g;
+                colorCache[i << 1u].b = color8.b;
+                colorCache[i << 1u].a = color8.msb;
+            }
+            break;
+        }
+    }
+
     void VDP2WriteVRAM(uint32 address) {
         vdp2.vramDirty.Set(address >> VDP2Resources::kVRAMDirtyBitmapChunkSizeShift);
     }
 
     void VDP2WriteCRAM(uint32 address) {
         vdp2.cramDirty = true;
-
-        CRAMColorCache &colorCache = vdp2.cpuCRAMColorCache;
-        switch (vdpState.regs2.vramControl.colorRAMMode) {
-        case 0: {
-            const auto value = vdpState.mem2.ReadCRAM<uint16>(address & ~1u);
-            const Color555 color5{.u16 = value};
-            const Color888 color8 = ConvertRGB555to888(color5);
-            colorCache[address >> 1u].r = color8.r;
-            colorCache[address >> 1u].g = color8.g;
-            colorCache[address >> 1u].b = color8.b;
-            colorCache[address >> 1u].a = color8.msb;
-            break;
-        }
-        case 1: {
-            const auto value = vdpState.mem2.ReadCRAM<uint16>(address & ~1u);
-            const Color555 color5{.u16 = value};
-            const Color888 color8 = ConvertRGB555to888(color5);
-            colorCache[address >> 1u].r = color8.r;
-            colorCache[address >> 1u].g = color8.g;
-            colorCache[address >> 1u].b = color8.b;
-            colorCache[address >> 1u].a = color8.msb;
-            break;
-        }
-        case 2: [[fallthrough]];
-        case 3: [[fallthrough]];
-        default: {
-            const auto value = vdpState.mem2.ReadCRAM<uint32>(address & ~3u);
-            const Color888 color8{.u32 = value};
-            colorCache[address >> 1u].r = color8.r;
-            colorCache[address >> 1u].g = color8.g;
-            colorCache[address >> 1u].b = color8.b;
-            colorCache[address >> 1u].a = color8.msb;
-            break;
-        }
-        }
+        VDP2CacheCRAMColor(address);
     }
 
     void VDP2WriteReg(uint32 address, uint16 value) {
-        // TODO: mark as dirty depending on register; recompute cached CRAM colors if needed
+        struct DirtyFlags {
+            bool render = false;
+            bool compose = false;
+            bool rotRegs = false;
+            bool enabledLayers = false;
+            bool cram = false;
+        };
+        static constexpr auto kDirtyFlags = [] {
+            std::array<DirtyFlags, 0x11E / sizeof(uint16) + 1> arr{};
+
+            for (uint32 addr : {
+                     0x000 /*TVMD*/,   0x002 /*EXTEN*/,  0x006 /*VRSIZE*/, 0x00E /*RAMCTL*/, 0x010 /*CYCA0L*/,
+                     0x012 /*CYCA0U*/, 0x014 /*CYCA1L*/, 0x016 /*CYCA1U*/, 0x018 /*CYCB0L*/, 0x01A /*CYCB0U*/,
+                     0x01C /*CYCB1L*/, 0x01E /*CYCB1U*/, 0x020 /*BGON*/,   0x022 /*MZCTL*/,  0x024 /*SFSEL*/,
+                     0x026 /*SFCODE*/, 0x028 /*CHCTLA*/, 0x02A /*CHCTLB*/, 0x02C /*BMPNA*/,  0x02E /*BMPNB*/,
+                     0x030 /*PNCNA*/,  0x032 /*PNCNB*/,  0x034 /*PNCNC*/,  0x036 /*PNCND*/,  0x038 /*PNCR*/,
+                     0x03A /*PLSZ*/,   0x03C /*MPOFN*/,  0x03E /*MPOFR*/,  0x040 /*MPABN0*/, 0x042 /*MPCDN0*/,
+                     0x044 /*MPABN1*/, 0x046 /*MPCDN1*/, 0x048 /*MPABN2*/, 0x04A /*MPCDN2*/, 0x04C /*MPABN3*/,
+                     0x04E /*MPCDN3*/, 0x050 /*MPABRA*/, 0x052 /*MPCDRA*/, 0x054 /*MPEFRA*/, 0x056 /*MPGHRA*/,
+                     0x058 /*MPIJRA*/, 0x05A /*MPKLRA*/, 0x05C /*MPMNRA*/, 0x05E /*MPOPRA*/, 0x060 /*MPABRB*/,
+                     0x062 /*MPCDRB*/, 0x064 /*MPEFRB*/, 0x066 /*MPGHRB*/, 0x068 /*MPIJRB*/, 0x06A /*MPKLRB*/,
+                     0x06C /*MPMNRB*/, 0x06E /*MPOPRB*/, 0x070 /*SCXIN0*/, 0x072 /*SCXDN0*/, 0x074 /*SCYIN0*/,
+                     0x076 /*SCYDN0*/, 0x078 /*ZMXIN0*/, 0x07A /*ZMXDN0*/, 0x07C /*ZMYIN0*/, 0x07E /*ZMYDN0*/,
+                     0x080 /*SCXIN1*/, 0x082 /*SCXDN1*/, 0x084 /*SCYIN1*/, 0x086 /*SCYDN1*/, 0x088 /*ZMXIN1*/,
+                     0x08A /*ZMXDN1*/, 0x08C /*ZMYIN1*/, 0x08E /*ZMYDN1*/, 0x090 /*SCXN2*/,  0x092 /*SCYN2*/,
+                     0x094 /*SCXN3*/,  0x096 /*SCYN3*/,  0x098 /*ZMCTL*/,  0x09A /*SCRCTL*/, 0x09C /*VCSTAU*/,
+                     0x09E /*VCSTAL*/, 0x0A0 /*LSTA0U*/, 0x0A2 /*LSTA0L*/, 0x0A4 /*LSTA1U*/, 0x0A6 /*LSTA1L*/,
+                     0x0A8 /*LCTAU*/,  0x0AA /*LCTAL*/,  0x0AC /*BKTAU*/,  0x0AE /*BKTAL*/,  0x0B0 /*RPMD*/,
+                     0x0B8 /*OVPNRA*/, 0x0BA /*OVPNRB*/, 0x0C0 /*WPSX0*/,  0x0C2 /*WPSY0*/,  0x0C4 /*WPEX0*/,
+                     0x0C6 /*WPEY0*/,  0x0C8 /*WPSX1*/,  0x0CA /*WPSY1*/,  0x0CC /*WPEX1*/,  0x0CE /*WPEY1*/,
+                     0x0D0 /*WCTLA*/,  0x0D2 /*WCTLB*/,  0x0D4 /*WCTLC*/,  0x0D6 /*WCTLD*/,  0x0D8 /*LWTA0U*/,
+                     0x0DA /*LWTA0L*/, 0x0DC /*LWTA1U*/, 0x0DE /*LWTA1L*/, 0x0E0 /*SPCTL*/,  0x0E2 /*SDCTL*/,
+                     0x0E4 /*CRAOFA*/, 0x0E6 /*CRAOFB*/, 0x0E8 /*LNCLEN*/, 0x0EA /*SFPRMD*/, 0x0EC /*CCCTL*/,
+                     0x0EE /*SFCCMD*/, 0x0F0 /*PRISA*/,  0x0F2 /*PRISB*/,  0x0F4 /*PRISC*/,  0x0F6 /*PRISD*/,
+                     0x0F8 /*PRINA*/,  0x0FA /*PRINB*/,  0x0FC /*PRIR*/,
+                 }) {
+                arr[addr / sizeof(uint16)].render = true;
+            }
+
+            for (uint32 addr : {
+                     0x000 /*TVMD*/,   0x006 /*VRSIZE*/, 0x020 /*BGON*/,  0x0E0 /*SPCTL*/, 0x0E2 /*SDCTL*/,
+                     0x0E8 /*LNCLEN*/, 0x0EC /*CCCTL*/,  0x100 /*CCRSA*/, 0x102 /*CCRSB*/, 0x104 /*CCRSC*/,
+                     0x106 /*CCRSD*/,  0x108 /*CCRNA*/,  0x10A /*CCRNB*/, 0x10C /*CCRR*/,  0x10E /*CCRLB*/,
+                     0x110 /*CLOFEN*/, 0x112 /*CLOFSL*/, 0x114 /*COAR*/,  0x116 /*COAG*/,  0x118 /*COAB*/,
+                     0x11A /*COBR*/,   0x11C /*COBG*/,   0x11E /*COBB*/,
+                 }) {
+                arr[addr / sizeof(uint16)].compose = true;
+            }
+
+            for (uint32 addr : {0x00E /*RAMCTL*/, 0x020 /*BGON*/, 0x0B2 /*RPRCTL*/, 0x0B4 /*KTCTL*/, 0x0B6 /*KTAOF*/,
+                                0x0BC /*RPTAU*/, 0x0BE /*RPTAL*/}) {
+                arr[addr / sizeof(uint16)].rotRegs = true;
+            }
+
+            for (uint32 addr : {0x020 /*BGON*/, 0x028 /*CHCTLA*/, 0x02A /*CHCTLB*/}) {
+                arr[addr / sizeof(uint16)].enabledLayers = true;
+            }
+
+            arr[0x00E / sizeof(uint16) /*RAMCTL*/].cram = true;
+
+            return arr;
+        }();
+
+        if (address <= 0x11E) {
+            const auto &dirtyFlags = kDirtyFlags[address / sizeof(uint16)];
+            vdp2.bgRenderParamsDirty |= dirtyFlags.render;
+            // TODO: vdp2.composeParamsDirty |= dirtyFlags.compose;
+            // TODO: vdp2.rotRegsDirty |= dirtyFlags.rotRegs;
+
+            if (dirtyFlags.enabledLayers) {
+                VDP2UpdateEnabledLayers();
+            }
+
+            if (dirtyFlags.cram) {
+                vdp2.cramDirty = true;
+                VDP2CacheAllCRAMColors();
+            }
+        }
     }
 
     util::VoidResult<> VDP2FlushVRAM() {
@@ -1385,12 +1512,14 @@ void Direct3D12VDPRenderer::Reset(bool hard) {
 void Direct3D12VDPRenderer::PreSaveStateSync() {}
 
 void Direct3D12VDPRenderer::PostLoadStateSync() {
-    // m_impl->vdp1.vramDirty.SetAll();
+    // TODO: m_impl->vdp1.vramDirty.SetAll();
 
-    // VDP2UpdateEnabledBGs();
+    m_impl->VDP2UpdateEnabledLayers();
     m_impl->vdp2.vramDirty.SetAll();
     m_impl->vdp2.cramDirty = true;
-    // TODO: mark all constant buffer states dirty
+    m_impl->vdp2.bgRenderParamsDirty = true;
+    // TODO: m_impl->vdp2.composeParamsDirty = true;
+    // TODO: m_impl->vdp2.rotRegsDirty = true;
 }
 
 void Direct3D12VDPRenderer::SaveState(savestate::VDPSaveState::VDPRendererSaveState &state) {}
