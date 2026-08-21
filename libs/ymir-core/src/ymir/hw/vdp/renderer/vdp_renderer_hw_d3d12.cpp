@@ -57,7 +57,32 @@ static_assert(sizeof(VDP2RotParamBase) == sizeof(uint32) * 4);
 // ---------------------------------------------------------------------------------------------------------------------
 // TODO: these could be useful in multiple backends. Make them generic and reusable, and move to a shared header.
 
+// TODO: rewrite upload buffer
+// - implement a ring buffer
+// - track allocations per fence
+// - allocate a large buffer for all uploads (16-32 MB)
+// - dynamically allocate overflow buffers when needed
+//   - dynamic sizes, smaller than the main buffer but larger than the requested allocation
+//   - clean these up once their fence value is reached
+//   - std::deque is probably a good idea for this
+// - allocations must take an alignment
+//   - 256 bytes for constant buffers - D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT
+//   - 512 bytes for texture data
+//   - 16 bytes for everything else (might be able to get away with 4 bytes also)
+// - "release" portions of the ring buffer as frames complete
+
+/// @brief Size of a generic upload buffer. Should be large enough to fit worst case single transfers, but not waste
+/// space needlessly.
+static constexpr UINT64 kUploadBufferSize = 16 * 1024 * 1024;
+// Note to developers: tweak size as needed. The value should be large enough to cover most cases while requiring at
+// most one or two overflow buffers in extreme cases. Worst case for a single transfer is uploading the whole VRAM
+// at once, which happens on initialization, reset, load state, and potentially during VBlank if the game happens to
+// write one byte every 256 bytes to the whole VRAM. The upload buffer is shared with many other resources, and
+// overflow buffers are allocated on demand with the same size as the primary buffer.
+
 /// @brief A simple bump-allocated upload buffer.
+/// TODO: upgrade to a ring buffer, or consider production-grade solutions such as:
+/// - https://github.com/GPUOpen-LibrariesAndSDKs/D3D12MemoryAllocator
 struct UploadBuffer {
     /// @brief Upload buffer resource.
     D3D12Resource resource;
@@ -122,6 +147,12 @@ struct UploadBuffer {
     /// @return the free space available (in bytes)
     size_t FreeSpace() const {
         return capacity - offset;
+    }
+
+    /// @brief Retrieves the capacity of this buffer.
+    /// @return the buffer capacity
+    size_t Capacity() const {
+        return capacity;
     }
 };
 
@@ -291,45 +322,23 @@ struct Direct3D12VDPRenderer::Impl {
         // - no need to bit-pack, they're passed in as structured buffers
     };
 
-    /// @brief Size of a VDP2 VRAM upload buffer.
-    static constexpr UINT64 kVDP2VRAMUploadBufferSize = vdp::kVDP2VRAMSize * 4;
-    // Note to developers: tweak size as needed. The value should be large enough to cover most cases while requiring at
-    // most one overflow buffer in extreme cases. Worst case for a single transfer is uploading the whole VRAM at once,
-    // which happens on initialization, reset, load state, and potentially during VBlank if the game does absolutely
-    // nothing but write to VRAM.
-    static_assert(kVDP2VRAMUploadBufferSize >= vdp::kVDP2VRAMSize);
-
     /// @brief Number of entries in the VDP2 CRAM color cache.
     /// VDP2 CRAM can have at most 2048 colors (in mode 1 - RGB 5:5:5 with access to full CRAM).
     static constexpr size_t kVDP2CRAMColorCacheEntries = vdp::kVDP2CRAMSize / sizeof(uint16);
+
     /// @brief VDP2 CRAM converted color cache array.
     using CRAMColorCache = std::array<ColorR8G8B8A8, kVDP2CRAMColorCacheEntries>;
+
     /// @brief Size of the VDP2 CRAM color buffer, in bytes.
     static constexpr UINT kVDP2CRAMColorBufferSize = sizeof(CRAMColorCache);
 
     /// @brief Size of the VDP2 CRAM rotation coefficients buffer, in bytes.
     /// The second half of CRAM can be used for that purpose.
-    static constexpr UINT kVDP2CRAMRotCoeffSize = vdp::kVDP2CRAMSize / 2;
+    static constexpr UINT kVDP2CRAMRotCoeffBufferSize = vdp::kVDP2CRAMSize / 2;
 
     struct VDP2FrameContext : public FrameContext {
-        /// @brief VDP2 VRAM upload buffer.
-        UploadBuffer vramUploadBuffer;
-        /// @brief Temporary VDP2 VRAM upload overflow buffers (dynamically allocated if the main buffer is full).
-        std::vector<UploadBuffer> vramUploadOverflowBuffers;
-
-        /// @brief CRAM color upload buffer.
-        UploadBuffer cramColorUploadBuffer;
-        /// @brief Raw CRAM rotation coefficients upload buffer.
-        UploadBuffer cramRotCoeffUploadBuffer;
-
         void Reset() {
             cmdAlloc->Reset();
-            vramUploadBuffer.Reset();
-            for (UploadBuffer &buffer : vramUploadOverflowBuffers) {
-                buffer.Reset();
-            }
-            cramColorUploadBuffer.Reset();
-            cramRotCoeffUploadBuffer.Reset();
         }
     };
 
@@ -345,6 +354,11 @@ struct Direct3D12VDPRenderer::Impl {
         /// @brief VDP2 command list.
         D3D12GraphicsCommandList cmdList;
 
+        /// @brief Generic upload buffer.
+        UploadBuffer uploadBuffer;
+        /// @brief Generic upload overflow buffers, dynamically allocated if the main buffer is full.
+        std::vector<UploadBuffer> uploadOverflowBuffers;
+
         // VDP2 VRAM is exposed as a ByteAddressBuffer to shaders as they often need to access raw bytes in 8-bit,
         // 16-bit and 32-bit formats.
 
@@ -355,10 +369,13 @@ struct Direct3D12VDPRenderer::Impl {
 
         /// @brief Bit shift for the granularity for VRAM dirty bitmap chunks.
         static constexpr size_t kVRAMDirtyBitmapChunkSizeShift = 8;
+
         /// @brief Granularity for VRAM dirty bitmap chunks, in bytes.
         static constexpr size_t kVRAMDirtyBitmapChunkSize = static_cast<size_t>(1) << kVRAMDirtyBitmapChunkSizeShift;
+
         /// @brief Number of bits in the VRAM dirty bitmap.
         static constexpr size_t kVRAMDirtyBitmapSize = vdp::kVDP2VRAMSize / kVRAMDirtyBitmapChunkSize;
+
         // D3D12 buffer transfers must be done in multiples of 4 bytes.
         // The chunk must not be larger than VDP2 VRAM itself. In fact, it shouldn't be too large as it wastes memory
         // and time with unnecessary copies of VRAM data.
@@ -499,7 +516,7 @@ struct Direct3D12VDPRenderer::Impl {
 
         // VDP2 command allocators and list
         for (int i = 0; i < vdp2.frames.Count(); ++i) {
-            FrameContext &frame = vdp2.frames[i];
+            VDP2FrameContext &frame = vdp2.frames[i];
             if (HRESULT hr = frame.cmdAlloc.Create(device, D3D12_COMMAND_LIST_TYPE_COMPUTE); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format(
                     "Could not create VDP2 renderer command allocator #{}, error code {:X}", i, (uint32)hr)};
@@ -513,6 +530,12 @@ struct Direct3D12VDPRenderer::Impl {
                 fmt::format("Could not create VDP2 renderer command list, error code {:X}", (uint32)hr)};
         }
         vdp2.cmdList->SetName(L"[Ymir-VDP2] Command list");
+
+        // Generic VDP2 upload buffer
+        if (auto result = vdp2.uploadBuffer.Create(device, kUploadBufferSize); !result) {
+            return util::ErrorMessage{fmt::format("Could not create VDP2 upload buffer: {}", result.Error().message)};
+        }
+        vdp2.uploadBuffer.resource->SetName(L"[Ymir-VDP2] Upload buffer}");
 
         // VDP2 VRAM buffer
         {
@@ -539,16 +562,6 @@ struct Direct3D12VDPRenderer::Impl {
                     },
             };
             device->CreateShaderResourceView(vdp2.vramBuffer.GetPointer(), &srvDesc, vdp2.vramSRV.cpuHandle);
-        }
-
-        // VDP2 VRAM upload buffers
-        for (int i = 0; i < vdp2.frames.Count(); ++i) {
-            VDP2FrameContext &frame = vdp2.frames[i];
-            if (auto result = frame.vramUploadBuffer.Create(device, kVDP2VRAMUploadBufferSize); !result) {
-                return util::ErrorMessage{
-                    fmt::format("Could not create VDP2 VRAM upload buffer #{}: {}", i, result.Error().message)};
-            }
-            frame.vramUploadBuffer.resource->SetName(fmt::format(L"[Ymir-VDP2] VRAM upload buffer #{}", i).c_str());
         }
 
         // VDP2 CRAM color buffer
@@ -581,7 +594,7 @@ struct Direct3D12VDPRenderer::Impl {
         // VDP2 CRAM rotation coefficients buffer
         {
 
-            auto builder = vdp2.cramRotCoeffBuffer.BufferBuilder(kVDP2CRAMRotCoeffSize);
+            auto builder = vdp2.cramRotCoeffBuffer.BufferBuilder(kVDP2CRAMRotCoeffBufferSize);
             if (HRESULT hr = builder.BuildCommitted(device); FAILED(hr)) {
                 return util::ErrorMessage{fmt::format(
                     "Could not create VDP2 CRAM rotation coefficients buffer, error code {:X}", (uint32)hr)};
@@ -598,32 +611,13 @@ struct Direct3D12VDPRenderer::Impl {
                 .Buffer =
                     {
                         .FirstElement = 0,
-                        .NumElements = kVDP2CRAMRotCoeffSize / sizeof(uint32),
+                        .NumElements = kVDP2CRAMRotCoeffBufferSize / sizeof(uint32),
                         .StructureByteStride = 0,
                         .Flags = D3D12_BUFFER_SRV_FLAG_RAW,
                     },
             };
             device->CreateShaderResourceView(vdp2.cramRotCoeffBuffer.GetPointer(), &srvDesc,
                                              vdp2.cramRotCoeffSRV.cpuHandle);
-        }
-
-        // VDP2 CRAM color and rotation coefficients upload buffers
-        for (int i = 0; i < vdp2.frames.Count(); ++i) {
-            VDP2FrameContext &frame = vdp2.frames[i];
-            if (auto result = frame.cramColorUploadBuffer.Create(device, kVDP2CRAMColorBufferSize * 256); !result) {
-                return util::ErrorMessage{
-                    fmt::format("Could not create VDP2 CRAM color upload buffer #{}: {}", i, result.Error().message)};
-            }
-            frame.cramColorUploadBuffer.resource->SetName(
-                fmt::format(L"[Ymir-VDP2] CRAM color upload buffer #{}", i).c_str());
-
-            if (auto result = frame.cramRotCoeffUploadBuffer.Create(device, kVDP2CRAMRotCoeffSize * 256); !result) {
-                return util::ErrorMessage{
-                    fmt::format("Could not create VDP2 CRAM rotation coefficients upload buffer #{}: {}", i,
-                                result.Error().message)};
-            }
-            frame.cramRotCoeffUploadBuffer.resource->SetName(
-                fmt::format(L"[Ymir-VDP2] CRAM rotation coefficients upload buffer #{}", i).c_str());
         }
 
         // Layer outputs 2D texture array
@@ -798,7 +792,11 @@ struct Direct3D12VDPRenderer::Impl {
         vdp2.rotRegsDirty = true;
         vdp2.bgRenderParamsDirty = true;
         vdp2.composeParamsDirty = true;
-
+        // TODO: do not reset like this! previous frames might still be in flight
+        // vdp2.uploadBuffer.Reset();
+        // for (UploadBuffer &buffer : vdp2.uploadOverflowBuffers) {
+        //     buffer.Reset();
+        // }
         VDP2UpdateEnabledLayers();
     }
 
@@ -994,10 +992,14 @@ struct Direct3D12VDPRenderer::Impl {
             UINT64 dstOffset;
             UINT64 length;
         };
+        struct TransferGroup {
+            std::vector<Transfer> transfers;
+            UINT64 bufferSize;
+        };
 
-        // Upload buffer resource pointer -> transfer info.
+        // Upload buffer resource pointer -> transfer group.
         // Enables us to optimize transfer commands later on.
-        std::unordered_map<ID3D12Resource *, std::vector<Transfer>> transfers{};
+        std::unordered_map<ID3D12Resource *, TransferGroup> transfers{};
 
         // Pointer to most recently used upload buffer
         UploadBuffer *buffer = nullptr;
@@ -1020,21 +1022,15 @@ struct Direct3D12VDPRenderer::Impl {
             // If we don't have a buffer, it's either because this is the first allocation attempt or the previous
             // buffer ran out of space. Look for a buffer to allocate and remember it for all subsequent allocations.
             if (buffer == nullptr) {
-                buffer = FindUploadBuffer(frame.vramUploadBuffer, frame.vramUploadOverflowBuffers, size);
-                if (buffer == nullptr) {
-                    buffer = &frame.vramUploadOverflowBuffers.emplace_back();
-                    const size_t index = frame.vramUploadOverflowBuffers.size();
-                    if (auto result = buffer->Create(device, kVDP2VRAMUploadBufferSize); !result) {
-                        return util::ErrorMessage{fmt::format("Could not create VDP2 VRAM upload buffer #{}-{}: {}",
-                                                              frameIndex, index, result.Error().message)};
-                    }
-                    buffer->resource->SetName(
-                        fmt::format(L"[Ymir-VDP2] VRAM upload buffer #{}-{}", frameIndex, index).c_str());
+                auto result = VDP2FindUploadBuffer(size);
+                if (!result) {
+                    return result.Error();
                 }
+                buffer = result.Value();
 
                 // This should succeed, but let's not crash if it fails
                 if (!buffer->Allocate(size, uploadOffset, uploadData)) {
-                    return util::ErrorMessage{fmt::format("Ran out of memory for VDP2 VRAM upload buffers")};
+                    return util::ErrorMessage{fmt::format("Ran out of memory for VDP2 upload buffers")};
                 }
             }
 
@@ -1043,7 +1039,12 @@ struct Direct3D12VDPRenderer::Impl {
 
             // Store command info so we can sort them by buffer to minimize barrier transitions
             ID3D12Resource *key = buffer->resource.GetPointer();
-            transfers[key].push_back({
+            if (!transfers.contains(key)) {
+                TransferGroup &group = transfers[key];
+                group.bufferSize = buffer->Capacity();
+            }
+            TransferGroup &group = transfers[key];
+            group.transfers.push_back({
                 .srcOffset = uploadOffset,
                 .dstOffset = vramOffset,
                 .length = size,
@@ -1053,7 +1054,7 @@ struct Direct3D12VDPRenderer::Impl {
         vdp2.vramDirty.ClearAll();
 
         // Enqueue all transfers
-        for (auto &[srcBuffer, transferList] : transfers) {
+        for (auto &[srcBuffer, group] : transfers) {
             // Indicate that the VDP2 VRAM buffer will be used as copy destination
             if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
                 D3D12_BUFFER_BARRIER barrier{
@@ -1063,7 +1064,7 @@ struct Direct3D12VDPRenderer::Impl {
                     .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
                     .pResource = srcBuffer,
                     .Offset = 0,
-                    .Size = kVDP2VRAMUploadBufferSize,
+                    .Size = group.bufferSize,
                 };
                 const D3D12_BARRIER_GROUP group{
                     .Type = D3D12_BARRIER_TYPE_BUFFER,
@@ -1086,7 +1087,7 @@ struct Direct3D12VDPRenderer::Impl {
                 vdp2.cmdList->ResourceBarrier(1, &barrier);
             }
 
-            for (Transfer &transfer : transferList) {
+            for (Transfer &transfer : group.transfers) {
                 vdp2.cmdList->CopyBufferRegion(vdp2.vramBuffer.GetPointer(), transfer.dstOffset, srcBuffer,
                                                transfer.srcOffset, transfer.length);
             }
@@ -1100,7 +1101,7 @@ struct Direct3D12VDPRenderer::Impl {
                     .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
                     .pResource = srcBuffer,
                     .Offset = 0,
-                    .Size = kVDP2VRAMUploadBufferSize,
+                    .Size = group.bufferSize,
                 };
                 const D3D12_BARRIER_GROUP group{
                     .Type = D3D12_BARRIER_TYPE_BUFFER,
@@ -1127,12 +1128,53 @@ struct Direct3D12VDPRenderer::Impl {
         return {};
     }
 
-    void VDP2FlushCRAM() {
-        if (!vdp2.cramDirty) {
-            return;
+    util::PointerResult<UploadBuffer> VDP2FindUploadBuffer(size_t size) {
+        assert(size <= kUploadBufferSize);
+
+        // Try finding a buffer with free space among the currently allocated buffers
+        UploadBuffer *buffer = FindUploadBuffer(vdp2.uploadBuffer, vdp2.uploadOverflowBuffers, size);
+        if (buffer != nullptr) {
+            // Got one
+            return buffer;
         }
 
+        // Not enough space in any of the buffers; create one
+        buffer = &vdp2.uploadOverflowBuffers.emplace_back();
+        const size_t index = vdp2.uploadOverflowBuffers.size();
+        if (auto result = buffer->Create(device, kUploadBufferSize); !result) {
+            return util::ErrorMessage{
+                fmt::format("Could not create overflow VDP2 upload buffer #{}: {}", index, result.Error().message)};
+        }
+        buffer->resource->SetName(fmt::format(L"[Ymir-VDP2] Overflow upload buffer #{}", index).c_str());
+
+        return buffer;
+    }
+
+    util::PointerResult<UploadBuffer> VDP2AllocateUploadBuffer(size_t size, size_t &outOffset, void *&outData) {
+        auto result = VDP2FindUploadBuffer(size);
+        if (!result) {
+            return result.Error();
+        }
+
+        UploadBuffer *buffer = result.Value();
+        assert(buffer != nullptr);
+
+        // This should succeed, but let's not crash if it fails
+        if (!buffer->Allocate(size, outOffset, outData)) {
+            return util::ErrorMessage{fmt::format("Ran out of memory for VDP2 upload buffers")};
+        }
+
+        return buffer;
+    }
+
+    util::VoidResult<> VDP2FlushCRAM() {
+        if (!vdp2.cramDirty) {
+            return {};
+        }
+        vdp2.cramDirty = false;
+
         VDP2FrameContext &frame = vdp2.frames.GetCurrentFrame();
+        const size_t frameIndex = vdp2.frames.frameIndex;
 
         // ---------------------------------------------------------------------
         // Update color cache
@@ -1140,21 +1182,24 @@ struct Direct3D12VDPRenderer::Impl {
         {
             size_t offset = 0;
             void *colorMap = nullptr;
-            const bool result = frame.cramColorUploadBuffer.Allocate(sizeof(CRAMColorCache), offset, colorMap);
-            // This should never fail unless the VDP2 is producing more than 256 lines
-            // TODO: this is actually happening during resolution changes somehow :(
-            assert(result);
-            memcpy(colorMap, vdp2.cpuCRAMColorCache.data(), sizeof(CRAMColorCache));
+            size_t requestedSize = sizeof(CRAMColorCache);
+            auto result = VDP2AllocateUploadBuffer(sizeof(CRAMColorCache), offset, colorMap);
+            if (!result) {
+                return util::ErrorMessage{
+                    fmt::format("Could not allocate VDP2 CRAM color upload buffer: {}", result.Error().message)};
+            }
+            memcpy(colorMap, vdp2.cpuCRAMColorCache.data(), requestedSize);
 
+            UploadBuffer *buffer = result.Value();
             if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
                 D3D12_BUFFER_BARRIER barrier{
                     .SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
                     .SyncAfter = D3D12_BARRIER_SYNC_COPY,
                     .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
                     .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
-                    .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                    .pResource = buffer->resource.GetPointer(),
                     .Offset = 0,
-                    .Size = kVDP2CRAMColorBufferSize * 256,
+                    .Size = buffer->Capacity(),
                 };
                 const D3D12_BARRIER_GROUP group{
                     .Type = D3D12_BARRIER_TYPE_BUFFER,
@@ -1168,7 +1213,7 @@ struct Direct3D12VDPRenderer::Impl {
                     .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
                     .Transition =
                         {
-                            .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                            .pResource = buffer->resource.GetPointer(),
                             .Subresource = 0,
                             .StateBefore = D3D12_RESOURCE_STATE_COMMON,
                             .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
@@ -1177,9 +1222,8 @@ struct Direct3D12VDPRenderer::Impl {
                 vdp2.cmdList->ResourceBarrier(1, &barrier);
             }
 
-            vdp2.cmdList->CopyBufferRegion(vdp2.cramColorBuffer.GetPointer(), 0,
-                                           frame.cramColorUploadBuffer.resource.GetPointer(), offset,
-                                           sizeof(CRAMColorCache));
+            vdp2.cmdList->CopyBufferRegion(vdp2.cramColorBuffer.GetPointer(), 0, buffer->resource.GetPointer(), offset,
+                                           requestedSize);
 
             if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
                 D3D12_BUFFER_BARRIER barrier{
@@ -1187,9 +1231,9 @@ struct Direct3D12VDPRenderer::Impl {
                     .SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
                     .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
                     .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
-                    .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                    .pResource = buffer->resource.GetPointer(),
                     .Offset = 0,
-                    .Size = kVDP2CRAMColorBufferSize * 256,
+                    .Size = buffer->Capacity(),
                 };
                 const D3D12_BARRIER_GROUP group{
                     .Type = D3D12_BARRIER_TYPE_BUFFER,
@@ -1203,7 +1247,7 @@ struct Direct3D12VDPRenderer::Impl {
                     .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
                     .Transition =
                         {
-                            .pResource = frame.cramColorUploadBuffer.resource.GetPointer(),
+                            .pResource = buffer->resource.GetPointer(),
                             .Subresource = 0,
                             .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
                             .StateAfter = D3D12_RESOURCE_STATE_COMMON,
@@ -1220,20 +1264,23 @@ struct Direct3D12VDPRenderer::Impl {
         if ((regs2.bgEnabled[4] || regs2.bgEnabled[5]) && regs2.vramControl.colorRAMCoeffTableEnable) {
             size_t offset = 0;
             void *rotCoeffMap = nullptr;
-            const bool result = frame.cramRotCoeffUploadBuffer.Allocate(kVDP2CRAMRotCoeffSize, offset, rotCoeffMap);
-            // This should never fail unless the VDP2 is producing more than 256 lines
-            assert(result);
-            memcpy(rotCoeffMap, &vdpState.mem2.CRAM[kVDP2CRAMSize / 2], kVDP2CRAMRotCoeffSize);
+            auto result = VDP2AllocateUploadBuffer(kVDP2CRAMRotCoeffBufferSize, offset, rotCoeffMap);
+            if (!result) {
+                return util::ErrorMessage{fmt::format(
+                    "Could not allocate VDP2 CRAM rotation coefficients upload buffer: {}", result.Error().message)};
+            }
+            memcpy(rotCoeffMap, &vdpState.mem2.CRAM[kVDP2CRAMSize / 2], kVDP2CRAMRotCoeffBufferSize);
 
+            UploadBuffer *buffer = result.Value();
             if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
                 D3D12_BUFFER_BARRIER barrier{
                     .SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
                     .SyncAfter = D3D12_BARRIER_SYNC_COPY,
                     .AccessBefore = D3D12_BARRIER_ACCESS_COMMON,
                     .AccessAfter = D3D12_BARRIER_ACCESS_COPY_DEST,
-                    .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                    .pResource = buffer->resource.GetPointer(),
                     .Offset = 0,
-                    .Size = kVDP2CRAMRotCoeffSize * 256,
+                    .Size = buffer->Capacity(),
                 };
                 const D3D12_BARRIER_GROUP group{
                     .Type = D3D12_BARRIER_TYPE_BUFFER,
@@ -1247,7 +1294,7 @@ struct Direct3D12VDPRenderer::Impl {
                     .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
                     .Transition =
                         {
-                            .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                            .pResource = buffer->resource.GetPointer(),
                             .Subresource = 0,
                             .StateBefore = D3D12_RESOURCE_STATE_COMMON,
                             .StateAfter = D3D12_RESOURCE_STATE_COPY_DEST,
@@ -1256,9 +1303,8 @@ struct Direct3D12VDPRenderer::Impl {
                 vdp2.cmdList->ResourceBarrier(1, &barrier);
             }
 
-            vdp2.cmdList->CopyBufferRegion(vdp2.cramRotCoeffBuffer.GetPointer(), 0,
-                                           frame.cramRotCoeffUploadBuffer.resource.GetPointer(), offset,
-                                           kVDP2CRAMRotCoeffSize);
+            vdp2.cmdList->CopyBufferRegion(vdp2.cramRotCoeffBuffer.GetPointer(), 0, buffer->resource.GetPointer(),
+                                           offset, kVDP2CRAMRotCoeffBufferSize);
 
             if (auto *enhCmdList = GetCommandListForEnhancedBarriers(vdp2.cmdList)) {
                 D3D12_BUFFER_BARRIER barrier{
@@ -1266,9 +1312,9 @@ struct Direct3D12VDPRenderer::Impl {
                     .SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING,
                     .AccessBefore = D3D12_BARRIER_ACCESS_COPY_DEST,
                     .AccessAfter = D3D12_BARRIER_ACCESS_COMMON,
-                    .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                    .pResource = buffer->resource.GetPointer(),
                     .Offset = 0,
-                    .Size = kVDP2CRAMRotCoeffSize * 256,
+                    .Size = buffer->Capacity(),
                 };
                 const D3D12_BARRIER_GROUP group{
                     .Type = D3D12_BARRIER_TYPE_BUFFER,
@@ -1282,7 +1328,7 @@ struct Direct3D12VDPRenderer::Impl {
                     .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
                     .Transition =
                         {
-                            .pResource = frame.cramRotCoeffUploadBuffer.resource.GetPointer(),
+                            .pResource = buffer->resource.GetPointer(),
                             .Subresource = 0,
                             .StateBefore = D3D12_RESOURCE_STATE_COPY_DEST,
                             .StateAfter = D3D12_RESOURCE_STATE_COMMON,
@@ -1291,6 +1337,8 @@ struct Direct3D12VDPRenderer::Impl {
                 vdp2.cmdList->ResourceBarrier(1, &barrier);
             }
         }
+
+        return {};
     }
 
     void VDP2CalcAccessPatterns() {
@@ -1460,7 +1508,7 @@ struct Direct3D12VDPRenderer::Impl {
     }
 
     void VDP2EndFrame() {
-        const bool vShift = vdpState.regs2.TVMD.IsInterlaced() ? 1u : 0u;
+        const uint32 vShift = vdpState.regs2.TVMD.IsInterlaced() ? 1u : 0u;
         const uint32 vres = VRes >> vShift;
         VDP2RenderLayerLines(vres - 1);
         VDP2ComposeLines(VRes - 1);
@@ -1486,7 +1534,12 @@ struct Direct3D12VDPRenderer::Impl {
         cmdQueue->ExecuteCommandLists(1, cmdList.GetAddressOfBase());
 
         // Advance frame
+        VDP2FrameContext &currFrame = vdp2.frames.GetCurrentFrame();
         vdp2.frames.MoveToNextFrame(fence, cmdQueue);
+
+        // TODO: clean up upload buffers
+        // vdp2.uploadBuffer.Free(currFrame.fenceValue);
+        // TODO: free overflow buffers
 
         // Reset frame
         VDP2FrameContext &nextFrame = vdp2.frames.GetCurrentFrame();
