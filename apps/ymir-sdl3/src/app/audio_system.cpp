@@ -114,32 +114,16 @@ void AudioSystem::ProcessAudioCallback(SDL_AudioStream *stream, int additional_a
             SDL_PutAudioStreamData(stream, &zero, sizeof(zero));
         }
     } else {
-        const uint32 readPos = m_readPos.load(std::memory_order_relaxed);
-        const uint32 writePos = m_writePos.load(std::memory_order_acquire);
-        const uint32 available =
-            (writePos >= readPos) ? (writePos - readPos) : (m_buffer.size() - (readPos - writePos));
+        // Copy the requested amount of samples into the buffer, even if there aren't that many samples available.
+        // This effectively implements a crude form of audio stretching that sounds acceptable when the emulator is not
+        // running at 100% speed.
+        const uint32 readPos = m_readPos.load(std::memory_order_acquire);
+        const int len1 = std::min<int>(sampleCount, m_buffer.size() - readPos);
+        const int len2 = std::min<int>(sampleCount - len1, readPos);
+        SDL_PutAudioStreamData(stream, &m_buffer[readPos], len1 * sizeof(Sample));
+        SDL_PutAudioStreamData(stream, &m_buffer[0], len2 * sizeof(Sample));
 
-        const int toRead = std::min<int>(sampleCount, static_cast<int>(available));
-        const int len1 = std::min<int>(toRead, static_cast<int>(m_buffer.size() - readPos));
-        const int len2 = toRead - len1;
-
-        if (len1 > 0) {
-            SDL_PutAudioStreamData(stream, &m_buffer[readPos], len1 * sizeof(Sample));
-        }
-        if (len2 > 0) {
-            SDL_PutAudioStreamData(stream, &m_buffer[0], len2 * sizeof(Sample));
-        }
-
-        // Fill buffer underrun with silence
-        const int remaining = sampleCount - toRead;
-        if (remaining > 0) {
-            const sint16 zero = 0;
-            for (int i = 0; i < remaining; i++) {
-                SDL_PutAudioStreamData(stream, &zero, sizeof(zero));
-            }
-        }
-
-        m_readPos.store((readPos + toRead) % m_buffer.size(), std::memory_order_release);
+        m_readPos.store((readPos + len1 + len2) % m_buffer.size(), std::memory_order_release);
         m_bufferNotFullEvent.Set();
     }
 }
