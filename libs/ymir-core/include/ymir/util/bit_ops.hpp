@@ -43,7 +43,9 @@ template <std::unsigned_integral T>
 /// @return the aligned value
 template <unsigned B, std::unsigned_integral T>
 [[nodiscard]] FORCE_INLINE constexpr T align(T value) noexcept {
-    constexpr T kOffset = (static_cast<T>(1) << static_cast<T>(B)) - static_cast<T>(1);
+    constexpr T kOne = 1;
+    constexpr T kShift = B;
+    constexpr T kOffset = (kOne << B) - kOne;
     constexpr T kMask = ~kOffset;
     return (value + kOffset) & kMask;
 }

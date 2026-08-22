@@ -12,6 +12,7 @@
 #include <ymir/gpu/shaders/gpu_shaders.hpp>
 
 #include <ymir/util/bit_ops.hpp>
+#include <ymir/util/dev_log.hpp>
 #include <ymir/util/dirty_bitmap.hpp>
 
 #include <ymir/version.hpp> // TODO: remove once Ymir_LOCAL_BUILD blocks are removed
@@ -31,6 +32,33 @@ using namespace ymir::gpu::d3d12;
 using namespace ymir::core::config::hw_vdp;
 
 namespace ymir::vdp {
+
+namespace grp {
+
+    // -------------------------------------------------------------------------
+    // Dev log groups
+
+    // Hierarchy:
+    //
+    // base
+    //   vdp1
+    //   vdp2
+
+    struct base {
+        static constexpr bool enabled = true;
+        static constexpr devlog::Level level = devlog::level::debug;
+        static constexpr std::string_view name = "VDP-DX12";
+    };
+
+    struct vdp1 : public base {
+        static constexpr std::string_view name = "VDP1-DX12";
+    };
+
+    struct vdp2 : public base {
+        static constexpr std::string_view name = "VDP2-DX12";
+    };
+
+} // namespace grp
 
 // ---------------------------------------------------------------------------------------------------------------------
 // TODO: most of these are likely to be shared across all backends. Move to a shared header.
@@ -57,6 +85,9 @@ static_assert(sizeof(VDP2RotParamBase) == sizeof(uint32) * 4);
 // ---------------------------------------------------------------------------------------------------------------------
 // TODO: these could be useful in multiple backends. Make them generic and reusable, and move to a shared header.
 
+/// @brief Maximum number of frames in flight.
+static constexpr size_t kNumFrames = 4;
+
 // TODO: rewrite upload buffer
 // - implement a ring buffer
 // - track allocations per fence
@@ -64,21 +95,17 @@ static_assert(sizeof(VDP2RotParamBase) == sizeof(uint32) * 4);
 // - dynamically allocate overflow buffers when needed
 //   - dynamic sizes, smaller than the main buffer but larger than the requested allocation
 //   - clean these up once their fence value is reached
-//   - std::deque is probably a good idea for this
+//   - probably a good idea to put these buffers in the frames queue
 // - allocations must take an alignment
 //   - 256 bytes for constant buffers - D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT
 //   - 512 bytes for texture data
 //   - 16 bytes for everything else (might be able to get away with 4 bytes also)
 // - "release" portions of the ring buffer as frames complete
+// https://learn.microsoft.com/en-us/windows/win32/direct3d12/fence-based-resource-management
 
-/// @brief Size of a generic upload buffer. Should be large enough to fit worst case single transfers, but not waste
-/// space needlessly.
+/// @brief Size of the upload buffers, in bytes.
+/// Should be large enough to fit multiple worst case single transfers, but not waste space needlessly.
 static constexpr UINT64 kUploadBufferSize = 16 * 1024 * 1024;
-// Note to developers: tweak size as needed. The value should be large enough to cover most cases while requiring at
-// most one or two overflow buffers in extreme cases. Worst case for a single transfer is uploading the whole VRAM
-// at once, which happens on initialization, reset, load state, and potentially during VBlank if the game happens to
-// write one byte every 256 bytes to the whole VRAM. The upload buffer is shared with many other resources, and
-// overflow buffers are allocated on demand with the same size as the primary buffer.
 
 /// @brief A simple bump-allocated upload buffer.
 /// TODO: upgrade to a ring buffer, or consider production-grade solutions such as:
@@ -198,6 +225,10 @@ struct Direct3D12VDPRenderer::Impl {
     struct FrameContext {
         D3D12CommandAllocator cmdAlloc;
         UINT64 fenceValue = 1;
+
+        void Reset() {
+            cmdAlloc->Reset();
+        }
     };
 
     /// @brief Ring buffer of frame resources.
@@ -276,13 +307,11 @@ struct Direct3D12VDPRenderer::Impl {
     //
     // TODO
 
-    struct VDP1FrameContext : public FrameContext {
-        // TODO
-    };
+    struct VDP1FrameContext : public FrameContext {};
 
     struct VDP1Resources {
         /// @brief VDP1 per-frame resources.
-        FrameSet<4, VDP1FrameContext> frames;
+        FrameSet<kNumFrames, VDP1FrameContext> frames;
 
         /// @brief VDP1 command list.
         D3D12GraphicsCommandList cmdList;
@@ -336,11 +365,7 @@ struct Direct3D12VDPRenderer::Impl {
     /// The second half of CRAM can be used for that purpose.
     static constexpr UINT kVDP2CRAMRotCoeffBufferSize = vdp::kVDP2CRAMSize / 2;
 
-    struct VDP2FrameContext : public FrameContext {
-        void Reset() {
-            cmdAlloc->Reset();
-        }
-    };
+    struct VDP2FrameContext : public FrameContext {};
 
     struct VDP2Resources {
         VDP2Resources(const config::VDP2AccessPatternsConfig &accessPatternsConfig,
@@ -349,7 +374,7 @@ struct Direct3D12VDPRenderer::Impl {
             , debugRenderOptions(debugRenderOptions) {}
 
         /// @brief VDP2 per-frame resources.
-        FrameSet<4, VDP2FrameContext> frames;
+        FrameSet<kNumFrames, VDP2FrameContext> frames;
 
         /// @brief VDP2 command list.
         D3D12GraphicsCommandList cmdList;
