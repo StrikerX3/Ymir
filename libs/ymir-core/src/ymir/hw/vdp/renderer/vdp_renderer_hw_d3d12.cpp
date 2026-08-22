@@ -40,21 +40,21 @@ namespace grp {
 
     // Hierarchy:
     //
-    // base
-    //   vdp1
-    //   vdp2
+    // dx12_base
+    //   dx12_vdp1
+    //   dx12_vdp2
 
-    struct base {
+    struct dx12_base {
         static constexpr bool enabled = true;
         static constexpr devlog::Level level = devlog::level::debug;
         static constexpr std::string_view name = "VDP-DX12";
     };
 
-    struct vdp1 : public base {
+    struct dx12_vdp1 : public dx12_base {
         static constexpr std::string_view name = "VDP1-DX12";
     };
 
-    struct vdp2 : public base {
+    struct dx12_vdp2 : public dx12_base {
         static constexpr std::string_view name = "VDP2-DX12";
     };
 
