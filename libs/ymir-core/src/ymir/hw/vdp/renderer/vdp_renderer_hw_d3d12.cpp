@@ -96,6 +96,7 @@ static constexpr size_t kNumFrames = 4;
 //   - dynamic sizes, smaller than the main buffer but larger than the requested allocation
 //   - clean these up once their fence value is reached
 //   - probably a good idea to put these buffers in the frames queue
+//   - dev-log when these allocations happen so we can adjust the buffer size if frequently hitting limits
 // - allocations must take an alignment
 //   - 256 bytes for constant buffers - D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT
 //   - 512 bytes for texture data
@@ -224,7 +225,7 @@ struct Direct3D12VDPRenderer::Impl {
     /// @brief Resources for a single frame.
     struct FrameContext {
         D3D12CommandAllocator cmdAlloc;
-        UINT64 fenceValue = 1;
+        UINT64 signaledValue = 0; // fence value associated with this frame. 0 means never used
 
         void Reset() {
             cmdAlloc->Reset();
@@ -239,6 +240,7 @@ struct Direct3D12VDPRenderer::Impl {
     struct FrameSet {
         std::array<TFrameContext, count> frames;
         size_t frameIndex = 0;
+        UINT64 currFenceValue = 0;
 
         TFrameContext &GetCurrentFrame() {
             return frames[frameIndex];
@@ -249,11 +251,12 @@ struct Direct3D12VDPRenderer::Impl {
 
         util::VoidResult<> MoveToNextFrame(D3D12Fence &fence, D3D12CommandQueue &cmdQueue) {
             // Schedule a signal command in the queue
-            const FrameContext &currFrame = GetCurrentFrame();
-            const UINT64 currentFenceValue = currFrame.fenceValue;
-            if (FAILED(fence.Signal(cmdQueue, currentFenceValue))) {
+            FrameContext &currFrame = GetCurrentFrame();
+            const UINT64 signalValue = currFenceValue + 1;
+            if (FAILED(fence.Signal(cmdQueue, signalValue))) {
                 return util::ErrorMessage{"Failed to signal fence"};
             }
+            currFrame.signaledValue = signalValue;
 
             // Update the frame index
             ++frameIndex;
@@ -263,12 +266,15 @@ struct Direct3D12VDPRenderer::Impl {
 
             // Wait for next frame
             FrameContext &nextFrame = GetCurrentFrame();
-            if (fence->GetCompletedValue() < nextFrame.fenceValue) {
-                fence.Wait(INFINITE, nextFrame.fenceValue);
+            if (fence->GetCompletedValue() < nextFrame.signaledValue) {
+                fence.Wait(INFINITE, nextFrame.signaledValue);
             }
 
+            // Reset frame
+            nextFrame.Reset();
+
             // Set the fence value for the next frame
-            nextFrame.fenceValue = currentFenceValue + 1;
+            currFenceValue = signalValue;
 
             return {};
         }
@@ -277,15 +283,15 @@ struct Direct3D12VDPRenderer::Impl {
             FrameContext &currFrame = GetCurrentFrame();
 
             // Schedule a signal command in the queue
-            if (FAILED(fence.Signal(cmdQueue, currFrame.fenceValue))) {
+            if (FAILED(fence.Signal(cmdQueue, currFenceValue))) {
                 return util::ErrorMessage{"Failed to signal fence"};
             }
 
             // Wait until the fence has been processed
-            fence.Wait(INFINITE, currFrame.fenceValue);
+            fence.Wait(INFINITE, currFenceValue);
 
             // Increment the fence value for the current frame
-            ++currFrame.fenceValue;
+            ++currFenceValue;
 
             return {};
         }
@@ -1566,13 +1572,10 @@ struct Direct3D12VDPRenderer::Impl {
         // vdp2.uploadBuffer.Free(currFrame.fenceValue);
         // TODO: free overflow buffers
 
-        // Reset frame
-        VDP2FrameContext &nextFrame = vdp2.frames.GetCurrentFrame();
-        nextFrame.Reset();
-        cmdList->Reset(nextFrame.cmdAlloc.GetPointer(), nullptr);
-
         // Setup command list
+        VDP2FrameContext &nextFrame = vdp2.frames.GetCurrentFrame();
         ID3D12DescriptorHeap *heaps[] = {resourceHeap.GetPointer()};
+        cmdList->Reset(nextFrame.cmdAlloc.GetPointer(), nullptr);
         cmdList->SetDescriptorHeaps(std::size(heaps), heaps);
     }
 };
